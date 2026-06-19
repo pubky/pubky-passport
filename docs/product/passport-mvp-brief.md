@@ -63,11 +63,3 @@ The Passport server must never receive the Google Drive access token, decrypted 
 Build one thin vertical slice at a time. The next implementation PR after bootstrap is the Pubky auth request parser only.
 
 Feature-specific implementation context lives in `docs/product/feature-context.md`.
-
-## UI Reference
-
-See:
-
-- `docs/product/source/pubky-passport-prd.pdf`
-- `docs/product/mockups-analysis.md`
-- `docs/product/mockups/`
