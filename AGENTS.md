@@ -43,7 +43,6 @@ Do not build unless a tracked issue explicitly scopes it:
 - Login with own key as primary onboarding.
 - Non-Google identity providers.
 - Native mobile app.
-- Advanced multi-identity management.
 - Passphrase import as the main flow.
 - Unscoped web signer behavior.
 
@@ -52,6 +51,7 @@ Do not build unless a tracked issue explicitly scopes it:
 Before planning or coding, read:
 
 - `docs/product/passport-mvp-brief.md`
+- `docs/product/feature-context.md`
 - `docs/product/mockups-analysis.md`
 - `docs/architecture/clean-architecture.md`
 - `docs/architecture/repository-layout.md`
@@ -134,6 +134,7 @@ The browser is the only place where both of these meet:
 - Authorization transport baseline: support `/authorize?d=<encoded-pubkyauth-url>` with strict no-store/no-referrer/redaction mitigations.
 - Implementation order: parser first, then static authorization UI, then server wrapping-key API, then Pubky SDK key-material spike, then Drive storage and setup/restore flows.
 - SDK facts must be verified against `docs/vendor/pubky/llms-small.txt`, `docs/vendor/pubky/llms-full.txt`, and current package APIs before using concrete Pubky calls.
+- Feature-specific implementation context lives in `docs/product/feature-context.md`; keep it updated when a feature slice ships.
 
 ## Workflow
 

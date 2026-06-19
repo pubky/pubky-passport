@@ -17,6 +17,7 @@ This environment may not have `corepack` installed. In that case install pnpm ma
 ## Context
 
 - Product scope: `docs/product/passport-mvp-brief.md`
+- Feature context: `docs/product/feature-context.md`
 - Agent instructions: `AGENTS.md` and `opencode.json`
 - Architecture rules: `docs/architecture/clean-architecture.md`
 - Security model: `docs/security/passport-security-model.md`

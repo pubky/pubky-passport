@@ -90,6 +90,8 @@ Google Drive/Pubky Passport/encrypted_key_{app_domain}.json
 
 Only encrypted key material may be stored.
 
+See `docs/product/feature-context.md` for feature-level Drive storage behavior.
+
 ## Browser key handling
 
 Preferred rule:
@@ -99,7 +101,7 @@ Preferred rule:
 - Clear decrypted material on logout.
 - Clear decrypted material on idle timeout where practical.
 - Use WebCrypto non-extractable keys where compatible with Pubky SDK.
-- Do not invent alternate key formats without updating the relevant ADR and verifying current Pubky SDK APIs.
+- Do not invent alternate key formats without updating `docs/product/feature-context.md` and verifying current Pubky SDK APIs.
 
 ## Auth request secret
 

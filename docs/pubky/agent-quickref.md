@@ -45,7 +45,7 @@ Bootstrap transport baseline:
 - Support `/authorize?d=<encoded-pubkyauth-url>` first because it matches the PRD and third-party app examples.
 - Treat the decoded `pubkyauth://` request and its `secret` as sensitive.
 - Add no-store, no-referrer, no raw URL persistence, and strict redaction mitigations when the route is implemented.
-- Future fragment or POST handoff support belongs in a separate ADR/PR if integration requirements change.
+- Future fragment or POST handoff support belongs in a separate tracked PR if integration requirements change.
 
 ## Capabilities
 
@@ -93,4 +93,4 @@ Rules:
 - Read compact docs first.
 - Search full docs only for specific details.
 - Do not hallucinate SDK APIs.
-- When SDK facts are unclear, do a small spike and update the relevant ADR before coding concrete adapters.
+- When SDK facts are unclear, do a small spike and update `docs/product/feature-context.md` before coding concrete adapters.

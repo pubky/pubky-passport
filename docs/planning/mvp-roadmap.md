@@ -39,7 +39,7 @@
 - Confirm serialization/restoration.
 - Confirm AuthToken signing.
 - Confirm homeserver signup and PKDNS/PKARR publication calls.
-- Update ADR-0001.
+- Update `docs/product/feature-context.md` with confirmed SDK facts.
 
 ## PR 6 - Google Drive Encrypted Passport Storage
 
