@@ -1,0 +1,32 @@
+name: Feature
+description: Request a product feature
+title: "[Feature]: "
+body:
+  - type: textarea
+    id: context
+    attributes:
+      label: Product context
+      description: Link PRD/design references and explain the user problem.
+    validations:
+      required: true
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Requirements
+      description: What must be true when this ships?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Concrete checks for implementation and review.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation plan
+      description: Unit/component/E2E/manual/visual checks expected.
+    validations:
+      required: true
