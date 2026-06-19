@@ -1,0 +1,218 @@
+# Pubky Documentation
+
+> Pubky is an open protocol for key-based, censorship-resistant web applications.
+> It provides identity via public keys, data storage on homeservers, and discovery
+> via the Mainline DHT — all over simple HTTP/REST APIs.
+
+- [Complete documentation](https://pubky.org/llms-full.txt): all pages in a single file
+
+## Pages
+
+- [Pubky Architecture Overview](https://pubky.org/architecture.md): This page provides a comprehensive overview of the Pubky ecosystem architecture, showing how all components work together to enable decentralized, censorship-resistant applications.
+- [How Pubky Compares to Other Protocols](https://pubky.org/comparisons.md): Understanding how Pubky differs from other decentralized and federated protocols.
+- [Contributing to Pubky](https://pubky.org/contributing.md): Thank you for your interest in contributing to Pubky!
+- [Censorship](https://pubky.org/explore/concepts/censorship.md): Censorship is the suppression or control of speech, communication, or information by a governing body or authority, often resulting in a lack of free expression and limited user autonomy.
+- [Credible Exit](https://pubky.org/explore/concepts/credible-exit.md): Credible Exit is the ability to leave a platform or service without losing access to your data, identity, or connections, ensuring full user control and portability.
+- [Semantic Social Graph](https://pubky.org/explore/concepts/semantic-social-graph.md): Semantic Relationships: Connections between users and content are tagged with meaningful metadata, capturing the context, relevance, and nature of each relationship.
+- [Client - Homeserver](https://pubky.org/explore/pubky-apps/app-architectures/client-homeserver.md): In this architecture, we implement a direct communication model between the client application and the Homeserver.
+- [Custom Backend](https://pubky.org/explore/pubky-apps/app-architectures/custom-backend.md): This architectural design introduces a more sophisticated data flow model, incorporating an intermediary backend layer between the client application and the Homeserver.
+- [Global Aggregators](https://pubky.org/explore/pubky-apps/app-architectures/global-aggregators.md): This architectural pattern implements a distributed system model centered around a global aggregation layer, eliminating the need to fetch data from a multitude (maybe thousands!) of Homeservers by the client.
+- [Introduction](https://pubky.org/explore/pubky-apps/app-architectures/introduction.md): Leveraging the Pubky Core protocol as the foundational layer, we can envision a diverse array of applications with distinct functionalities.
+- [App Specs](https://pubky.org/explore/pubky-apps/app-specs.md): Shared data model specifications for the Pubky social app ecosystem, with pubky.app as the reference implementation.
+- [eli5](https://pubky.org/explore/pubky-apps/eli5.md): Imagine you're at a massive party where everyone is sharing stories, showing pictures, and having interesting conversations.
+- [aggregator](https://pubky.org/explore/pubky-apps/indexing-and-aggregation/aggregator.md): Aggregators are specialized reducers or gatekeepers that continuously scan and collect data from various sources, such as Homeservers.
+- [indexer](https://pubky.org/explore/pubky-apps/indexing-and-aggregation/indexer.md): The Indexer is a specialized component that plays a crucial role in the system by normalizing and transforming the aggregated data from multiple Homeservers into a unified view.
+- [introduction](https://pubky.org/explore/pubky-apps/indexing-and-aggregation/introduction.md): The Backend is responsible for collecting (aggregators) and organizing (indexer) data from various sources, known as Homeservers.
+- [Pubky Nexus](https://pubky.org/explore/pubky-apps/indexing-and-aggregation/pubky-nexus.md): Pubky Nexus is the production-grade indexing and aggregation service that powers Pubky App's social features.
+- [Web Server](https://pubky.org/explore/pubky-apps/indexing-and-aggregation/web-server.md): The system comprises a suite of backend services that orchestrate the integration of data feeds, search functionality, and user interface configurations.
+- [Introduction](https://pubky.org/explore/pubky-apps/introduction.md): Pubky App is a decentralized social media application built on Pubky Core.
+- [bookmarks](https://pubky.org/explore/pubky-apps/reference-app/features/bookmarks.md): Bookmarks are a feature that allows you to privately save post for later reference.
+- [layouts](https://pubky.org/explore/pubky-apps/reference-app/features/layouts.md): Pubky client offers multiple customizable UI layouts for users that prefer different _column_, _grid_, and _list_ layouts for their feeds.
+- [notifications](https://pubky.org/explore/pubky-apps/reference-app/features/notifications.md): Pubky client tracks various event or activities the user may be interested in, and provides relevant notifications for interactions and other relevant activity to the user.
+- [perspectives](https://pubky.org/explore/pubky-apps/reference-app/features/perspectives.md): Users can save any custom-filtered view or feed as a “perspective” which is basically a custom template of settings of tags, weights, users, reach, and trends.
+- [posts](https://pubky.org/explore/pubky-apps/reference-app/features/posts.md): In pubky.app, a post is content that a user publishes under /pub/pubky.app/posts/:post_id on their homeserver.
+- [profiles](https://pubky.org/explore/pubky-apps/reference-app/features/profiles.md): In Pubky client, a profile refers to a user's personal page on the app, which displays their information, posts, and other content.
+- [search](https://pubky.org/explore/pubky-apps/reference-app/features/search.md): While Tags & Filters are the primary sorting tools, the app also provides limited traditional search capabilities.
+- [tags](https://pubky.org/explore/pubky-apps/reference-app/features/tags.md): Tags are free-text labels that any user can publicly assign to users or posts.
+- [trends](https://pubky.org/explore/pubky-apps/reference-app/features/trends.md): Pubky client can provide statistical views of the data it has access to and then establish visualizations and leaderboard lists of trending posts, tags, and users.
+- [Introduction](https://pubky.org/explore/pubky-apps/reference-app/introduction.md): The Pubky client is the user-facing application for interacting with the Pubky social network.
+- [pubky.app](https://pubky.org/explore/pubky-apps/reference-app/pubky-app.md): Web portal for the Pubky ecosystem — a publisher and social feed for the decentralized web.
+- [Pubky Core API Reference](https://pubky.org/explore/pubkycore/api.md): The Pubky Core protocol defines a RESTful HTTP API for storing and retrieving data on Homeservers.
+- [authentication](https://pubky.org/explore/pubkycore/authentication.md): Pubky uses decentralized authentication where users control their own cryptographic keys.
+- [Explaining Pubky Core Like You're 5 Years Old](https://pubky.org/explore/pubkycore/eli5.md): Imagine you have a special toy castle that you built, and you want your friends to come and play with it.
+- [Developer Guide](https://pubky.org/explore/pubkycore/getting-started.md): Build on Pubky if you want your users to control their identities and publish data to a Homeserver they choose, rather than to a data server dictated by and tied to whichever app they use.
+- [Homeserver](https://pubky.org/explore/pubkycore/homeserver.md): The Pubky network allows multiple, independent data stores, known as "Homeservers." This improves censorship-resistance and prevents any single entity from controlling the flow of information, or lock...
+- [Pubky Core: Open Protocol for Decentralized Web Applications](https://pubky.org/explore/pubkycore/introduction.md): Pubky Core combines a censorship-resistant public-key-based alternative to DNS (PKARR) with conventional, tried-and-tested web technologies.
+- [architecture](https://pubky.org/explore/pubkycore/pkarr/architecture.md): In-depth look at the architecture of PKARR, including its components, data formats, and how they interact.
+- [eli5](https://pubky.org/explore/pubkycore/pkarr/eli5.md): Imagine you have a super cool secret club, and everyone in the club needs a way to find each other and communicate without relying on anyone else to organize things.
+- [expectations](https://pubky.org/explore/pubkycore/pkarr/expectations.md): Understanding the expectations and limitations of PKARR is crucial for effective use.
+- [Getting Started with PKARR](https://pubky.org/explore/pubkycore/pkarr/getting-started.md): This guide will help you understand how to publish and resolve resource records using PKARR.
+- [introduction](https://pubky.org/explore/pubkycore/pkarr/introduction.md): PKARR is a revolutionary system that bridges the gap between the Domain Name System (DNS) and peer-to-peer overlay networks.
+- [Why PKARR?](https://pubky.org/explore/pubkycore/pkarr/why-pkarr.md): This note explores the motivation behind PKARR, addressing the challenges of distributed semantics, databases, and discovery.
+- [Pubky SDK: Client Libraries for Decentralized Applications](https://pubky.org/explore/pubkycore/sdk.md): The Pubky SDK provides client libraries for building applications on Pubky Core.
+- [Security Model](https://pubky.org/explore/pubkycore/security-model.md): This document describes the security model, threat landscape, and trust assumptions in the Pubky Core platform.
+- [Distributed Hash Table](https://pubky.org/explore/technologies/dht.md): It is a decentralized key-value store that allows for efficient data retrieval in a distributed system.
+- [Domain Name System (DNS)](https://pubky.org/explore/technologies/dns.md): The Domain Name System (DNS) is a hierarchical and distributed naming system that translates human-readable domain names (e.g., www.example.com) into IP addresses (e.g., 192.0.2.1) that computers use to identify each other on the network.
+- [DNS over HTTPS](https://pubky.org/explore/technologies/doh.md): It is a security protocol that encrypts DNS queries and responses, enhancing privacy and security by preventing eavesdropping and tampering.
+- [Homegate: Homeserver Signup Gatekeeping Service](https://pubky.org/explore/technologies/homegate.md): Homegate is a backend service that manages and controls signups for Pubky Homeservers.
+- [HTTP Relay](https://pubky.org/explore/technologies/http-relay.md): HTTP relay service for forwarding encrypted AuthTokens during Pubky authentication flows.
+- [Hypertext Transfer Protocol Secure](https://pubky.org/explore/technologies/https.md): It is an extension of HTTP that encrypts communication over a computer network, enhancing security and privacy.
+- [Key Pair](https://pubky.org/explore/technologies/key-pair.md): A cryptography key pair consists of two related but distinct cryptographic keys:
+- [Mainline DHT](https://pubky.org/explore/technologies/mainline-dht.md): Mainline DHT is a standard Distributed Hash Table (DHT) implementation widely used in the BitTorrent network, based on the Kademlia protocol.
+- [Paykit: Decentralized Payment Protocol (Work in Progress)](https://pubky.org/explore/technologies/paykit.md): Paykit is a payment protocol built on Pubky for payment discovery and coordination across multiple payment methods, including Bitcoin on-chain and Lightning.
+- [PKDNS: Public-Key DNS Server](https://pubky.org/explore/technologies/pkdns.md): PKDNS is a DNS server that enables self-sovereign and censorship-resistant domain names by resolving PKARR (Public Key Addressable Resource Records) hosted on the Mainline DHT.
+- [Pubky Backup](https://pubky.org/explore/technologies/pubky-backup.md): Desktop backup application for Pubky users to maintain local copies of all their published data from their homeserver.
+- [Pubky CLI](https://pubky.org/explore/technologies/pubky-cli.md): Pubky CLI is a command-line tool for interacting with Pubky Homeservers.
+- [Pubky Docker](https://pubky.org/explore/technologies/pubky-docker.md): Pubky Docker is a Docker Compose orchestration that provides a one-click local development environment for running the complete Pubky Social (App) stack.
+- [Pubky Explorer](https://pubky.org/explore/technologies/pubky-explorer.md): Pubky Explorer is a web-based file browser for exploring public data stored on Pubky Homeservers.
+- [Pubky Moderation](https://pubky.org/explore/technologies/pubky-moderation.md): Content moderation service for the Pubky ecosystem, designed to protect homeserver operators and users from harmful content.
+- [Pubky Noise](https://pubky.org/explore/technologies/pubky-noise.md): Encrypted Communication Protocol
+- [Pubky Ring](https://pubky.org/explore/technologies/pubky-ring.md): Pubky Ring is the key manager and identity application for the Pubky ecosystem.
+- [Pubky Core - Frequently Asked Questions](https://pubky.org/faq.md): Pubky is a new kind of web built on public-key domains instead of usernames or rented accounts.
+- [Getting Started](https://pubky.org/getting-started.md): :::note[Developers Guide]
+- [Glossary](https://pubky.org/glossary.md): Quick reference for terms used throughout the Pubky ecosystem.
+- [Overview](https://pubky.org/overview.md): This is a knowledge base for the Pubky platform, which includes Pubky Core, PKARR and Pubky App.
+
+# Resources
+
+A curated directory of websites, applications, repositories, packages, and community channels across the Pubky ecosystem.
+
+---
+
+## Websites
+
+- [pubky.org](https://pubky.org/) — Official Pubky website
+- [pubky.tech](https://pubky.tech/) — Awesome list: Ecosystem directory
+- [synonym.to](https://synonym.to/) — Synonym (company behind Pubky)
+- [docs.pubky.org](https://docs.pubky.org/) — Official documentation
+- [pkdns.net](https://pkdns.net/) — PKDNS public resolver
+- [pubkyring.app](https://pubkyring.app/) — Pubky Ring key manager
+
+## Live Applications
+
+- [pubky.app](https://pubky.app/) — Decentralized social media app
+- [explorer.pubky.app](https://explorer.pubky.app/) — Pubky data explorer
+- [pubky.observer](https://pubky.observer/) — Pubky data explorer
+- [eventky.app](https://eventky.app/) — Event management on Pubky
+- [playground.pubky.org](https://playground.pubky.org/) — Interactive demo: same user-owned data powering multiple apps with different layouts
+
+## Core Repositories
+
+All under [github.com/pubky](https://github.com/pubky):
+
+- [pubky-core](https://github.com/pubky/pubky-core) — Collection of the components that make up the Pubky protocol
+- [pubky-app](https://github.com/pubky/pubky-app) — Pubky social media application
+- [pubky-ring](https://github.com/pubky/pubky-ring) — Mobile key manager app
+- [pubky-nexus](https://github.com/pubky/pubky-nexus) — Aggregator and indexer for pubky.app
+- [pubky-app-specs](https://github.com/pubky/pubky-app-specs) - Shared data models and validation for apps interoperable with pubky.app
+- [pkarr](https://github.com/pubky/pkarr) — Public Key Addressable Resource Records (sovereign TLDs)
+- [mainline](https://github.com/pubky/mainline) — BitTorrent Mainline DHT implementation in Rust
+- [react-native-pubky](https://github.com/pubky/react-native-pubky) — React Native bindings
+- [pubky-core-ffi](https://github.com/pubky/pubky-core-ffi) — Pubky Core Mobile SDK
+- [pkdns](https://github.com/pubky/pkdns) — DNS server resolving pkarr self-sovereign domains
+- [paykit-rs](https://github.com/pubky/paykit-rs) — Payment toolkit
+- [http-relay](https://github.com/pubky/http-relay) — HTTP relay
+- [pkdns-publisher](https://github.com/pubky/pkdns-publisher) — PKDNS record publisher
+- [pkdns-resolver-extension](https://github.com/pubky/pkdns-resolver-extension) — Browser extension for PKDNS resolution
+- [pkdns-digger](https://github.com/pubky/pkdns-digger) — Resolvable sovereign keys tool
+- [homegate](https://github.com/pubky/homegate) — Gateway service
+- [pubky-explorer](https://github.com/pubky/pubky-explorer) — Data explorer (explorer.pubky.app)
+- [pubky-docker](https://github.com/pubky/pubky-docker) — One-click Pubky deployments
+- [workshop](https://github.com/pubky/workshop) — Live coding workshop for building JS apps with pubky-sdk
+- [pubky-crypto](https://github.com/pubky/pubky-crypto) — Minimal crypto utilities
+- [pubky-locks](https://github.com/pubky/pubky-locks) — P2P commerce
+- [pubky-ai-bot](https://github.com/pubky/pubky-ai-bot) — AI capabilities for Pubky
+- [pubky-cli](https://github.com/pubky/pubky-cli) — Command-line companion for interacting with Pubky homeservers
+- [atomicity](https://github.com/pubky/atomicity) — Proposal for a P2P credit system
+- [pubky-ai-kit](https://github.com/pubky/pubky-ai-kit) — Context for building with Pubky and AI
+
+## Community Projects
+
+- [homeserver-dashboard](https://github.com/francismars/homeserver-dashboard) — Homeserver dashboard UI
+- [pubky-node](https://github.com/BitcoinErrorLog/pubky-node) — All-in-one binary to run a homeserver, DHT node, and PKARR relay and Pubky toolset
+- [eventky](https://github.com/gillohner/eventky/) — Event management on Pubky
+- [pak](https://github.com/aljazceru/pak) — Pubky Army Knife
+- [pubky-nextjs-template](https://github.com/PastaGringo/pubky-nextjs-template) — Next.js template for Pubky apps
+- [pubkytree](https://github.com/PastaGringo/pubkytree) — Pubky tree visualization
+- [tagky](https://github.com/PastaGringo/tagky) — Automated tagging using LLM
+- [pubky-canva](https://github.com/gillohner/pubky-canva) — Collaborative canvas on Pubky
+- [pubky-mint](https://github.com/ok300/pubky-mint) — RSS-like way to browse your follows' Pubky activity
+- [vanity-pubky](https://github.com/coreyphillips/vanity-pubky) — Vanity key generator
+- [pubky-private-messenger](https://github.com/coreyphillips/pubky-private-messenger) — End-to-end encrypted messaging
+- [pkdns-vanity](https://github.com/jphastings/pkdns-vanity) — PKDNS vanity key generator
+
+## Package Registries
+
+### Crates (Rust)
+
+- [pubky](https://crates.io/crates/pubky) — Pubky Rust SDK
+- [pkarr](https://crates.io/crates/pkarr) — Public Key Addressable Resource Records
+- [pubky-app-specs](https://crates.io/crates/pubky-app-specs) - Shared data models and validation for Pubky apps
+- [mainline](https://crates.io/crates/mainline) — BitTorrent Mainline DHT implementation
+
+### npm (JavaScript/TypeScript)
+
+- [@synonymdev/pubky](https://www.npmjs.com/package/@synonymdev/pubky) — Pubky JavaScript/TypeScript SDK
+- [@synonymdev/pkarr](https://www.npmjs.com/package/@synonymdev/pkarr) — Pkarr JavaScript/TypeScript SDK
+- [pubky-app-specs](https://www.npmjs.com/package/pubky-app-specs) - Shared data models and validation for Pubky apps
+
+### React Native
+
+- [@synonymdev/react-native-pubky](https://www.npmjs.com/package/@synonymdev/react-native-pubky) — React Native SDK
+
+## Community Channels
+
+- [Pubky on pubky.app](https://pubky.app/profile/ihaqcthsdbk751sxctk849bdr7yz7a934qen5gmpcbwcur49i97y) — Official Pubky profile
+- [Telegram: pubkycore](https://t.me/pubkycore) — Community chat
+- [Discord](https://discord.gg/DxTBJXvJxn) — Developer community
+- [X/Twitter: @getpubky](https://x.com/getpubky) — Official updates
+- [YouTube](https://www.youtube.com/channel/UCyNruUjynpzvQXNTxbJBLmg) — Tutorials, demos, roundtables, presentations
+- [Medium: pubky](https://medium.com/pubky) — Blog posts and articles
+
+## Videos & Talks
+
+- [Pubky Introduction — BTC Prague 2025](https://www.youtube.com/watch?v=hPxLz4VQpKk) (08/01/2025) — Introduction to Pubky
+- [The Atomic Economy](https://www.youtube.com/watch?v=X3ogGRuv7qY) (08/29/2025) — The Atomic Economy talk
+- [Pubky Community Call #3](https://www.youtube.com/watch?v=1eMYq-WJiNg) (02/17/2026) — Community call
+- [PKDNS Explainer](https://youtu.be/GJHMlyKUoWY) (10/26/2024) — How PKDNS works
+- [Pubky Explorer Explainer](https://youtu.be/qESmEhDNl4E) (10/27/2024) — Using the Pubky Explorer
+- [Pubky Notes Explainer](https://youtu.be/dXsFe3jmtHE) (10/28/2024) — Note-taking with Pubky
+- [Pubky Password Manager](https://www.youtube.com/watch?v=5uUt2HHlawE) (10/31/2024) — Password management demo
+- [Pubky Arcade](https://www.youtube.com/watch?v=hUzN68mNfP4) (10/29/2024) — Gaming on Pubky
+- [Pubky AI Social Bot](https://www.youtube.com/watch?v=cbOPwbqOKHQ) (11/01/2024) — AI integration demo
+- [Nuh @ Thank God for Nostr podcast](https://fountain.fm/episode/HXQpcOdQU9Tnxa9BQO2v) (11/19/2024) — Podcast interview
+
+## Philosophical Foundations
+
+Essays, talks, and resources exploring the vision, principles, and philosophy behind Pubky and the Atomic Economy.
+
+### Essays & Manifestos
+
+- [The Age of Social Intelligence](https://pubky.app/post/gujx6qd8ksydh1makdphd3bxu351d9b8waqka8hfg6q7hnqkxexo/0034WADK62XRG) (03/29/2026) — Why social intelligence is the missing layer as AI scales, and the Semantic Social Graph as open cognitive infrastructure
+- [How to Fix Spam, Bots, and AI Slop on the World Wide Web](https://howtofixtheweb.com) (03/16/2026) — The Semantic Social Graph as the real algorithm to replace centralized feed curation
+- [Building Blocks for the Atomic Economy](https://medium.com/pubky/building-blocks-for-the-atomic-economy-aeeba8ccde8e) (10/17/2025) — How each technical primitive maps to a philosophical principle of sovereignty
+- [The Atomic Economy: Reclaiming Society from the Inside Out](https://medium.com/pubky/the-atomic-economy-reclaiming-society-from-the-inside-out-574504dfe326) (04/24/2025) — Extending Bitcoin's revolution into identity, trust, and coordination
+- [Corporate vs. Community-Led Open Source Development](https://medium.com/pubky/corporate-vs-community-led-open-source-development-491a03da58e6) (11/07/2024) — Cathedral vs. Bazaar: why effective freedom tools require intentional design
+- [Pubky: The Next Web](https://medium.com/pubky/pubky-the-next-web-3287b35408f1) (11/05/2024) — The founding manifesto: diagnosing the web's failures and proposing "You Are the Algorithm"
+- [Introducing Pubky: Rebooting the Web with User Sovereignty at the Core](https://medium.com/@synonym_to/pubky-launch-260f36ba8fe3) (10/25/2024) — Synonym's official launch statement on digital autonomy and open-source sovereignty
+- [Welcome to the Atomic Economy](https://bitcoinerrorlog.substack.com/p/welcome-to-the-atomic-economy) (12/04/2021) — Early articulation of the Atomic Economy vision: webs of trust replacing centralized gatekeepers
+
+### Bitcoin & Trust Philosophy
+
+- [How to Think About Data on Bitcoin](https://bitcoinerrorlog.medium.com/how-to-think-about-data-on-bitcoin-a5a80442ef68) (05/01/2025) — Blockspace as a free market, and why social data doesn't belong on-chain
+- [Fiat Will Never Die, Long Live Bitcoin](https://bitcoinerrorlog.substack.com/p/fiat-will-never-die-long-live-bitcoin) (02/10/2021) — Units of trust vs. units of work: a nuanced framework for money and credit
+- [Who secures Bitcoin?](https://medium.com/bitcoinerrorlog/who-secures-bitcoin-95b19bbcda3c) (10/26/2019) — Individual nodes as the ultimate guarantors of consensus, not miners or developers
+
+### Talks & Interviews
+
+- [The Next Web — Bitcoin Audible Chat 124](https://bitcoin-audible.castos.com/episodes/chat-124-the-next-web-with-john-carvalho) (01/15/2025) — Deep dive into Pubky's philosophy, credible exit, and pragmatic decentralization
+- [Defending Bitcoin — HackerNoon](https://hackernoon.com/defending-bitcoin-with-john-carvalho-17f549b5e059) (01/21/2019) — Origin story: defending decentralization at the protocol level, the thread that leads to Pubky
+- [AMA — Stacker News](https://stacker.news/items/17771) (04/03/2022) — Extended Q&A revealing first-principles thinking: "Primitives are all that matter"
+
+### Third-Party Analysis
+
+- [What is Pubky? — Bitfinex Blog](https://blog.bitfinex.com/education/what-is-pubky/) (08/01/2025) — Accessible overview of Pubky's philosophical and technical foundations
+- [Synonym Launches Architecture For A Self-Sovereign Economy — Bitcoin Magazine](https://bitcoinmagazine.com/business/synonym-launches-architecture-for-self-sovereign-economy-around-bitcoin) (11/16/2021) — Synonym's founding announcement: replacing the legacy economy with self-sovereign alternatives
+- [The Vision of Pubky](https://pubky.org/the-vision-of-pubky.md): Imagine a future where our online relationships are no longer dictated by corporate giants or state-controlled systems, where you decide how to connect, who to trust, and where to store your data.
+- [Pubky: 30-Second Overview](https://pubky.org/tldr.md): Pubky is a decentralized web protocol that puts you in control of your identity and data.
+- [Troubleshooting Guide](https://pubky.org/troubleshooting.md): Common issues and solutions when working with Pubky.
