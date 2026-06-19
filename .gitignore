@@ -33,4 +33,7 @@ npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
 
-# Pubky docs snapshots are intentionally committed as development context.
+# Pubky docs snapshots
+docs/vendor/pubky/llms-full.txt
+docs/vendor/pubky/llms-small.txt
+docs/vendor/pubky/SOURCE.md
