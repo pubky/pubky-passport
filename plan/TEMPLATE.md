@@ -1,12 +1,10 @@
-# PR 2 Planning Prompt: Pubky Auth Request Parser
-
-Use this as the first implementation prompt after the bootstrap commit.
+# PR X: 
 
 Read `AGENTS.md`, `opencode.json`, `docs/product/passport-mvp-brief.md`, `docs/architecture/clean-architecture.md`, `docs/security/passport-security-model.md`, and `docs/engineering/repository-workflow.md`.
 
-Create a plan for PR 2 only: the Pubky auth request parser.
+Create a plan for this only:
 
-Do not implement Google login, Drive, Pubky SDK signing, relay posting, or UI.
+Do not implement:
 
 The output should include:
 

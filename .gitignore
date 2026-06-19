@@ -37,3 +37,7 @@ yarn-debug.log*
 docs/vendor/pubky/llms-full.txt
 docs/vendor/pubky/llms-small.txt
 docs/vendor/pubky/SOURCE.md
+
+# Local Plans
+plan/*
+!plan/TEMPLATE.md
