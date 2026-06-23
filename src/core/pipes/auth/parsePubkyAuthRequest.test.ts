@@ -235,7 +235,22 @@ describe("parsePubkyAuthRequest", () => {
     }
 
     expect(result.request.callbacks).toEqual({});
-    expect(result.request.requestingAppDisplayName).toBe("httprelay.pubky.app");
+    expect(result.request.requestingAppDisplayName).toBeUndefined();
+  });
+
+  it("derives display domain without exposing callback query parameters", () => {
+    const result = parsePubkyAuthRequest(
+      encodeRequest(
+        "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=test-secret&x-success=https://pubky.app/passport-success?token=private",
+      ),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.code);
+    }
+
+    expect(result.request.requestingAppDisplayName).toBe("pubky.app");
   });
 
   it("rejects unsafe callback schemes", () => {
