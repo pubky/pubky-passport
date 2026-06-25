@@ -93,6 +93,10 @@ Hard rules:
 - `src/core` must not import Google SDKs.
 - `src/core` must not import Pubky SDK concrete adapters.
 - `src/core` must not import browser globals such as `window`, `document`, or `localStorage`.
+- `src/core` must not read `process.env` or import `src/libs/env`.
+- Public browser config belongs in `src/libs/env/public.ts` and may only expose `NEXT_PUBLIC_*` values; it may read `NODE_ENV` only to enforce development-localhost URL validation.
+- Server-only config belongs in `src/libs/env/server.ts`; it must start with `import "server-only"` and only be imported by server-only code.
+- Do not add a mixed `src/libs/env/index.ts` barrel that re-exports server config.
 - External systems must be represented as ports in `src/core/ports`.
 - Concrete implementations belong in `src/infrastructure`.
 - Next.js `app/` files must stay thin.
