@@ -218,6 +218,30 @@ Examples:
 - `clientContainer.ts`
 - `serverContainer.ts`
 
+### `src/libs/env`
+
+Typed environment parsing and runtime config exports.
+
+Allowed:
+
+- Public browser config in `src/libs/env/public.ts`.
+- Server-only config in `src/libs/env/server.ts`.
+- Pure parser helpers that accept env-like input for unit tests.
+- URL and required-value validation helpers used only by env parsing.
+
+Required:
+
+- `src/libs/env/server.ts` must start with `import "server-only"`.
+- Public env modules may only export `NEXT_PUBLIC_*` values; they may read `NODE_ENV` only to enforce development-localhost URL validation.
+- Server env modules may parse server-only secrets and service URLs.
+- Keep public and server exports separate. Do not add a mixed `src/libs/env/index.ts` barrel that re-exports server config.
+
+Import boundaries:
+
+- `src/core` must not import `src/libs/env` or read `process.env`.
+- `src/libs/env/server.ts` may only be imported by server-only locations such as route handlers, server components, `src/infrastructure/server`, and server composition modules.
+- `src/libs/env/server.ts` must not be imported by `src/ui`, `src/infrastructure/browser`, client components, or `src/core`.
+
 ## Import boundary rules
 
 When scaffold exists, enforce with lint rules:
