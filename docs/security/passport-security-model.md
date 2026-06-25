@@ -40,8 +40,25 @@ Never log:
 - Wrapping/encryption key.
 - Raw Google `sub`.
 - Full authorization URL.
-- Full callback URL with query parameters.
+- Full callback URL with query parameters or fragments.
 - `passport.json` ciphertext unless explicitly safe and redacted.
+
+Use `src/libs/security/redaction.ts` as defense-in-depth before any value reaches a logger, error reporter, metric, or debug output. Redaction is not permission to log secrets; callers should prefer stable event names, typed error codes, boolean validation outcomes, and safe display hosts over raw inputs.
+
+Allowed logging patterns:
+
+- Log route or flow names without raw query strings, such as `authorize.parse.failed`.
+- Log typed error codes rather than raw Pubky auth URLs or callback URLs.
+- Log callback origin and pathname only after query parameters or fragments are redacted.
+- Log token presence as a boolean, never the token value.
+- Log keyed hashes for rate-limit identifiers where required, never raw Google `sub` values.
+
+Disallowed logging patterns:
+
+- Raw `/authorize?d=...` URLs.
+- Raw `pubkyauth://...` URLs.
+- Callback URLs containing query parameters or fragments.
+- Google ID tokens, Google Drive access tokens, bearer tokens, wrapping keys, Pubky auth request secrets, or private key material.
 
 ## Google ID token verification
 
