@@ -1,11 +1,3 @@
-import {
-  parsePubkyAuthCapabilities,
-  type PubkyAuthCapability,
-  type PubkyAuthCapabilitiesParseError,
-} from "./parsePubkyAuthCapabilities";
-
-export type { PubkyAuthCapability } from "./parsePubkyAuthCapabilities";
-
 export type PubkyAuthRequestKind = "signin";
 
 export type PubkyAuthCallbackName = "success" | "error" | "cancel";
@@ -26,6 +18,13 @@ export type PubkyAuthParseErrorCode =
 export type PubkyAuthParseError = {
   code: PubkyAuthParseErrorCode;
   message: string;
+};
+
+export type PubkyAuthCapability = {
+  path: string;
+  read: boolean;
+  write: boolean;
+  scope: "specific" | "broad";
 };
 
 export type PubkyAuthCallbacks = {
@@ -115,9 +114,9 @@ export function parsePubkyAuthRequest(
     return error("missing_secret", "Pubky auth request is missing a secret.");
   }
 
-  const capabilities = parsePubkyAuthCapabilities(authUrl.value.searchParams.get("caps"));
+  const capabilities = parseCapabilities(authUrl.value.searchParams.get("caps"));
   if (!capabilities.ok) {
-    return mapCapabilitiesError(capabilities.error);
+    return capabilities;
   }
 
   const callbacks = parseCallbacks(authUrl.value, options);
@@ -131,7 +130,7 @@ export function parsePubkyAuthRequest(
       kind: kind.value,
       relay: relay.value.href,
       secret,
-      capabilities: capabilities.capabilities,
+      capabilities: capabilities.value,
       callbacks: callbacks.value,
       source: parseOptionalSource(authUrl.value.searchParams.get("x-source")),
       requestingAppDisplayName: getDisplayName(callbacks.value.success, relay.value),
@@ -186,11 +185,68 @@ function parseRequiredUrlParam(
   return parsed;
 }
 
-function mapCapabilitiesError(capabilitiesError: PubkyAuthCapabilitiesParseError): PubkyAuthParseResult {
-  if (capabilitiesError.code === "missing_capabilities") {
-    return error("missing_capabilities", capabilitiesError.message);
+function parseCapabilities(value: string | null): ParseValueResult<PubkyAuthCapability[]> {
+  const rawCapabilities = value?.split(",").map((capability) => capability.trim()) ?? [];
+  const presentCapabilities = rawCapabilities.filter((value) => value.length > 0);
+
+  if (presentCapabilities.length === 0) {
+    return error("missing_capabilities", "Pubky auth request is missing capabilities.");
   }
 
+  const capabilities = presentCapabilities.map(parseCapability);
+  const invalidCapability = capabilities.find((capability) => !capability.ok);
+  if (invalidCapability && !invalidCapability.ok) {
+    return invalidCapability;
+  }
+
+  return {
+    ok: true,
+    value: capabilities.map((capability) => {
+      if (!capability.ok) {
+        throw new Error("Unreachable invalid capability state.");
+      }
+
+      return capability.value;
+    }),
+  };
+}
+
+function parseCapability(value: string): ParseValueResult<PubkyAuthCapability> {
+  const permissionStart = value.lastIndexOf(":");
+  if (permissionStart <= 0) {
+    return invalidCapability();
+  }
+
+  const path = value.slice(0, permissionStart);
+  const permission = value.slice(permissionStart + 1);
+  if (!isValidCapabilityPath(path) || !isValidPermission(permission)) {
+    return invalidCapability();
+  }
+
+  return {
+    ok: true,
+    value: {
+      path,
+      read: permission.includes("r"),
+      write: permission.includes("w"),
+      scope: getCapabilityScope(path),
+    },
+  };
+}
+
+function isValidCapabilityPath(path: string): boolean {
+  return path.startsWith("/") && !/[?#]/.test(path);
+}
+
+function isValidPermission(permission: string): boolean {
+  return /^[rw]+$/.test(permission);
+}
+
+function getCapabilityScope(path: string): PubkyAuthCapability["scope"] {
+  return path === "/" || path === "/pub" || path === "/pub/" ? "broad" : "specific";
+}
+
+function invalidCapability(): ParseValueResult<never> {
   return error("invalid_capability", "Pubky auth request contains an invalid capability.");
 }
 
