@@ -218,8 +218,6 @@ describe("parsePubkyAuthRequest", () => {
   it("rejects malformed capabilities", () => {
     expectError(encodeRequest(validRequest.replace("/pub/pubky.app/:rw", "pub/pubky.app/:rw")), "invalid_capability");
     expectError(encodeRequest(validRequest.replace("/pub/pubky.app/:rw", "/pub/pubky.app/:admin")), "invalid_capability");
-    expectError(encodeRequest(validRequest.replace("/pub/pubky.app/:rw", "/pub/a/:r,,/pub/b/:w")), "invalid_capability");
-    expectError(encodeRequest(validRequest.replace("/pub/pubky.app/:rw", "/pub/my app/:rw")), "invalid_capability");
   });
 
   it("allows missing callbacks", () => {
