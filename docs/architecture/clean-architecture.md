@@ -27,6 +27,38 @@ Domain and application layers define what the app does.
 
 Infrastructure defines how external systems are used.
 
+## Feature organization
+
+Passport uses a hybrid organization:
+
+```txt
+Layer-first for dependency and runtime boundaries.
+Feature-namespaced inside layers for ownership and navigation.
+```
+
+Keep the top-level layers separate:
+
+- `src/app` for Next.js routes and route handlers.
+- `src/ui` for React screens and components.
+- `src/core` for framework-independent controllers, use cases, domain rules, pipes, ports, and UI-safe state.
+- `src/infrastructure` for concrete browser and server adapters.
+- `src/libs` for shared runtime-independent utilities and explicitly separated environment modules.
+
+Feature locality is represented by matching names inside these layers, for example:
+
+```txt
+src/app/authorize
+src/ui/features/authorize
+src/core/controllers/authorize
+src/core/application/authorize
+src/core/domain/auth
+src/core/pipes/auth
+```
+
+Do not replace the top-level layers with mixed feature modules such as `src/authorize/ui`, `src/authorize/application`, and `src/authorize/infrastructure` unless a separate architecture decision changes this rule.
+
+This is stricter than pure feature-first organization because Passport has sensitive browser/server and key-custody boundaries. The architecture should make it hard for route handlers, React code, Google Drive adapters, Pubky SDK adapters, WebCrypto code, environment parsing, and domain/application logic to collapse into one feature folder.
+
 ## Layer responsibilities
 
 ### `src/app`
@@ -244,7 +276,12 @@ Import boundaries:
 
 ## Import boundary rules
 
-When scaffold exists, enforce with lint rules:
+Import boundaries are enforced by both lint rules and architecture tests:
+
+- `eslint.config.mjs` blocks direct forbidden imports and runtime globals in `src/core`.
+- `test-utils/architecture/core-boundaries.test.ts` scans `src/core` for forbidden alias imports, relative imports into outer layers, and direct runtime references.
+
+Required rules:
 
 - Core must not import app.
 - Core must not import UI.
@@ -253,6 +290,8 @@ When scaffold exists, enforce with lint rules:
 - Domain must not import controllers.
 - Application must depend on ports, not implementations.
 - Infrastructure may implement ports.
+- Feature folders inside a layer may import allowed dependencies for that layer only.
+- Matching feature names across layers do not weaken dependency direction.
 
 ## Testing rule
 
