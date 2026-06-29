@@ -10,6 +10,7 @@ const coreRoot = join(srcRoot, "core");
 const checkedExtensions = new Set([".ts", ".tsx"]);
 
 const forbiddenAliasImports = [
+  "@synonymdev/pubky",
   "next",
   "next/",
   "react",
@@ -40,6 +41,15 @@ describe("core architecture boundaries", () => {
 
     expect(violations).toEqual([]);
   });
+
+  it("keeps concrete Pubky SDK imports confined to browser Pubky infrastructure", () => {
+    const violations = sourceFiles(srcRoot)
+      .filter((filePath) => importsPubkySdk(filePath))
+      .filter((filePath) => !isSameOrInside(filePath, join(srcRoot, "infrastructure", "browser", "pubky")))
+      .map((filePath) => `${relative(repoRoot, filePath)} imports @synonymdev/pubky outside browser Pubky infrastructure`);
+
+    expect(violations).toEqual([]);
+  });
 });
 
 function inspectCoreFile(filePath: string): string[] {
@@ -63,7 +73,11 @@ function inspectCoreFile(filePath: string): string[] {
 }
 
 function coreSourceFiles(): string[] {
-  return walk(coreRoot).filter((filePath) => checkedExtensions.has(extension(filePath)));
+  return sourceFiles(coreRoot);
+}
+
+function sourceFiles(rootPath: string): string[] {
+  return walk(rootPath).filter((filePath) => checkedExtensions.has(extension(filePath)));
 }
 
 function walk(directoryPath: string): string[] {
@@ -102,6 +116,10 @@ function isForbiddenAliasImport(specifier: string): boolean {
 
     return specifier === forbidden;
   });
+}
+
+function importsPubkySdk(filePath: string): boolean {
+  return importSpecifiers(readFileSync(filePath, "utf8")).includes("@synonymdev/pubky");
 }
 
 function isForbiddenRelativeImport(fromFilePath: string, specifier: string): boolean {

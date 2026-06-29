@@ -28,6 +28,7 @@ const eslintConfig = defineConfig([
                 "next/*",
                 "react",
                 "react/*",
+                "@synonymdev/pubky",
                 "@/app/*",
                 "@/ui/*",
                 "@/infrastructure/*",
