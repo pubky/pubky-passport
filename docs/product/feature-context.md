@@ -96,7 +96,27 @@ Rules:
 - Do not send the Drive access token to the Passport server.
 - Do not send the encrypted Drive file to the Passport server.
 - Do not persist plaintext Pubky private key material.
-- Verify concrete `@synonymdev/pubky` key generation, export, import, public key, signup, and AuthToken signing APIs before implementing this feature.
+- Concrete `@synonymdev/pubky` key generation, export, import, and public key APIs are verified below. Signup, discovery publication, and AuthToken approval APIs remain for the focused signup/auth adapter slice.
+
+Confirmed Pubky SDK key-operation APIs:
+
+- Package: `@synonymdev/pubky` version `0.9.3`.
+- Concrete SDK imports are limited to `src/infrastructure/browser/pubky` and test-only verification files.
+- `Keypair.random()` creates a new Pubky identity keypair.
+- `keypair.publicKey.z32()` returns the z-base-32 public key representation for transport/storage identifiers.
+- `keypair.publicKey.toString()` returns the display representation, formatted as `pubky<z32>`.
+- `keypair.createRecoveryFile(passphrase)` exports SDK recovery file bytes as `Uint8Array`.
+- `Keypair.fromRecoveryFile(recoveryFileBytes, passphrase)` restores a keypair from SDK recovery file bytes and the same passphrase.
+- `keypair.secret()` and `Keypair.fromSecret(secret)` exist in the SDK, but Passport does not use raw secret export/import for MVP Google Drive storage.
+
+Confirmed key material representation for encrypted Drive storage:
+
+- Passport uses SDK recovery file bytes from `keypair.createRecoveryFile(passphrase)` as the key material representation that will be encrypted into the Google Drive `passport.json` envelope.
+- SDK recovery file bytes are sensitive and must stay in browser memory only before Passport envelope encryption.
+- Do not store raw SDK recovery file bytes directly in Google Drive, `localStorage`, logs, or server requests.
+- Do not store plaintext SDK keypair material in `localStorage`.
+- For the Google-only MVP, the SDK recovery passphrase is not user-managed. It will be derived in the browser from Passport server-derived wrapping material with domain separation in the browser crypto slice.
+- A user-added recovery passphrase remains a future custody-hardening option that requires separate product, UX, and security review.
 
 Visible backup/export is an MVP surface entry point, but the actual backup/export mechanism belongs in a small follow-up PR.
 
