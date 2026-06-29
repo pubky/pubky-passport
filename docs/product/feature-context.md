@@ -62,6 +62,15 @@ Purpose:
 
 Application logic must depend on ports. Concrete token verification, secret derivation, and rate limiting belong in server infrastructure adapters.
 
+Current server derivation contract:
+
+- Derive wrapping material only from verified Google issuer and subject plus `PASSPORT_SERVER_SECRET_BASE64`.
+- Do not derive from Google ID token values, Google email, Drive access tokens, encrypted Drive file contents, or Pubky private key material.
+- Use HKDF-SHA256 with decoded `PASSPORT_SERVER_SECRET_BASE64` as input key material.
+- Use UTF-8 salt `pubky-passport/wrapping-key/salt/v1`.
+- Use UTF-8 info `google:<issuer>\n<subject>` with exact verified issuer and subject values.
+- Return 32 derived bytes encoded as base64url; browser crypto adapters decode this string before use.
+
 ## Google Drive Passport Storage
 
 Primary storage:
