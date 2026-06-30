@@ -96,7 +96,7 @@ Rules:
 - Do not send the Drive access token to the Passport server.
 - Do not send the encrypted Drive file to the Passport server.
 - Do not persist plaintext Pubky private key material.
-- Concrete `@synonymdev/pubky` key generation, export, import, and public key APIs are verified below. Signup, discovery publication, and AuthToken approval APIs remain for the focused signup/auth adapter slice.
+- Concrete `@synonymdev/pubky` key generation, export, import, public key, signup, discovery publication, session, and AuthToken approval APIs are verified below.
 
 Confirmed Pubky SDK key-operation APIs:
 
@@ -117,6 +117,29 @@ Confirmed key material representation for encrypted Drive storage:
 - Do not store plaintext SDK keypair material in `localStorage`.
 - For the Google-only MVP, the SDK recovery passphrase is not user-managed. It will be derived in the browser from Passport server-derived wrapping material with domain separation in the browser crypto slice.
 - A user-added recovery passphrase remains a future custody-hardening option that requires separate product, UX, and security review.
+
+Confirmed Pubky SDK signup, discovery, and auth approval APIs:
+
+- `new Pubky()` creates a mainnet SDK facade.
+- `Pubky.testnet(host)` creates a local testnet SDK facade.
+- `PublicKey.from(value)` parses homeserver public keys for signup and discovery publication.
+- `pubky.signer(keypair)` creates a signer from a restored or newly created SDK keypair.
+- `signer.signup(homeserverPublicKey, signupTokenOrNull)` signs up to a homeserver and returns a `Session`.
+- `signer.signin()` creates a returning-user session and publishes PKDNS in the background according to SDK docs.
+- `signer.signinBlocking()` creates a returning-user session and waits for PKDNS publication according to SDK docs.
+- `session.info.publicKey`, `session.info.capabilities`, and `session.export()` provide public session metadata; `session.export()` is documented by the SDK as containing no secrets and relying on browser-managed HTTP-only cookies.
+- `signer.pkdns.publishHomeserverIfStale(hostOverrideOrNull)` republishes homeserver discovery if the record is missing or stale.
+- `signer.pkdns.publishHomeserverForce(hostOverrideOrNull)` forces homeserver discovery publication.
+- `signer.approveAuthRequest(pubkyauthUrl)` approves a Pubky auth request; SDK declarations state this encrypts and POSTs the signed AuthToken.
+
+Current signup/auth adapter constraints:
+
+- Passport's browser Pubky adapter accepts explicit `homeserverPubky` and `signupCode` values. It does not call Homegate directly.
+- The future Homegate server adapter is expected to call `POST /google_verification` and return `{ signupCode, homeserverPubky }`.
+- Deterministic CI tests cover SDK construction, invalid homeserver public key mapping, invalid discovery override mapping, and invalid Pubky auth URL mapping without hitting production Pubky network services.
+- Local testnet validation on 2026-06-30 covered signup with a generated homeserver signup token, `publishHomeserverIfStale`, `publishHomeserverForce`, homeserver resolution, `signinBlocking`, `approveAuthRequest`, and third-party `awaitApproval` completion.
+- `approveAuthRequest` owns signed AuthToken encryption and HTTP Relay POST behavior for the validated local testnet flow; callback redirect ownership remains a Passport flow responsibility.
+- SDK ownership note from local validation: `signer.pkdns.publishHomeserverIfStale/Force(hostOverride)` appears to consume the host override `PublicKey`, so the adapter must not free that `PublicKey` after passing it to those methods.
 
 Visible backup/export is an MVP surface entry point, but the actual backup/export mechanism belongs in a small follow-up PR.
 
