@@ -1,5 +1,7 @@
 import { Keypair } from "@synonymdev/pubky";
 
+const sdkKeypairs = new WeakMap<PubkyIdentityKeypair, Keypair>();
+
 export type PubkyPublicIdentity = {
   publicKeyZ32: string;
   publicKeyDisplay: string;
@@ -38,10 +40,8 @@ export type PubkyRestoreKeypairInput = {
 };
 
 export class PubkyIdentityKeypair {
-  readonly #keypair: Keypair;
-
   private constructor(keypair: Keypair) {
-    this.#keypair = keypair;
+    sdkKeypairs.set(this, keypair);
   }
 
   static create(): PubkyIdentityKeyResult<PubkyIdentityKeypair> {
@@ -70,7 +70,7 @@ export class PubkyIdentityKeypair {
   }
 
   publicIdentity(): PubkyPublicIdentity {
-    const publicKey = this.#keypair.publicKey;
+    const publicKey = sdkKeypairFor(this).publicKey;
 
     try {
       return {
@@ -93,7 +93,7 @@ export class PubkyIdentityKeypair {
       return {
         ok: true,
         value: {
-          bytes: this.#keypair.createRecoveryFile(input.passphrase),
+          bytes: sdkKeypairFor(this).createRecoveryFile(input.passphrase),
           format: "pubky-recovery-file",
           sdkPackage: "@synonymdev/pubky",
           sdkVersion: "0.9.3",
@@ -105,8 +105,28 @@ export class PubkyIdentityKeypair {
   }
 
   dispose(): void {
-    this.#keypair.free();
+    const keypair = sdkKeypairs.get(this);
+
+    if (!keypair) {
+      return;
+    }
+
+    keypair.free();
+    sdkKeypairs.delete(this);
   }
+}
+
+export function withPubkySdkKeypair<T>(
+  keypair: PubkyIdentityKeypair,
+  handleKeypair: (keypair: Keypair) => T,
+): PubkyIdentityKeyResult<T> {
+  const sdkKeypair = sdkKeypairs.get(keypair);
+
+  if (!sdkKeypair) {
+    return failure("keypair_creation_failed", "Pubky identity keypair is not available.");
+  }
+
+  return { ok: true, value: handleKeypair(sdkKeypair) };
 }
 
 export class PubkyIdentityKeyAdapter {
@@ -145,6 +165,16 @@ function validateRecoveryFileInput(input: PubkyRestoreKeypairInput): PubkyIdenti
   }
 
   return undefined;
+}
+
+function sdkKeypairFor(keypair: PubkyIdentityKeypair): Keypair {
+  const sdkKeypair = sdkKeypairs.get(keypair);
+
+  if (!sdkKeypair) {
+    throw new Error("Pubky identity keypair is not available.");
+  }
+
+  return sdkKeypair;
 }
 
 function validatePassphrase(passphrase: string): PubkyIdentityKeyError | undefined {
