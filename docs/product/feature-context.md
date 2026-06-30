@@ -141,6 +141,16 @@ Current signup/auth adapter constraints:
 - `approveAuthRequest` owns signed AuthToken encryption and HTTP Relay POST behavior for the validated local testnet flow; callback redirect ownership remains a Passport flow responsibility.
 - SDK ownership note from local validation: `signer.pkdns.publishHomeserverIfStale/Force(hostOverride)` appears to consume the host override `PublicKey`, so the adapter must not free that `PublicKey` after passing it to those methods.
 
+Core Pubky application ports:
+
+- `PubkyIdentityKeys` covers key creation, SDK recovery file export, SDK recovery file restoration, and public identity derivation.
+- `PubkySignup` covers homeserver signup with `{ homeserverPubky, signupCode }` and returning-user signin.
+- `PubkyDiscovery` covers `publishHomeserverIfStale` and `publishHomeserverForce`.
+- `PubkyAuthApproval` covers approval of a validated sensitive Pubky auth request URL.
+- These ports do not mention Google, Drive, Homegate HTTP transport, WebCrypto, Next.js, or concrete Pubky SDK types.
+- Concrete implementations are not wired into composition yet; wiring belongs with the future setup, restore, and authorization use cases that consume these ports.
+- Test fakes live under `test-utils/fakes` and record only non-sensitive metadata such as signup-code presence and auth-request scheme.
+
 Visible backup/export is an MVP surface entry point, but the actual backup/export mechanism belongs in a small follow-up PR.
 
 ## Identity Setup
