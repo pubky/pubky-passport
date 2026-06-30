@@ -71,7 +71,7 @@ describe("PubkyIdentityAdapter", () => {
     try {
       const result = await identityAdapter.approveAuthRequest({
         keypair,
-        pubkyAuthUrl: "https://example.com/callback?secret=should-not-be-returned",
+        sensitivePubkyAuthUrl: "https://example.com/callback?secret=should-not-be-returned",
       });
 
       expect(result).toEqual({

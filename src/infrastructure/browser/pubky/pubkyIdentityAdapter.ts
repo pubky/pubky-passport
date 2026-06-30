@@ -53,7 +53,7 @@ export type PubkyIdentityDiscoveryInput = {
 
 export type PubkyAuthApprovalInput = {
   keypair: PubkyIdentityKeypair;
-  pubkyAuthUrl: string;
+  sensitivePubkyAuthUrl: string;
 };
 
 export class PubkyIdentityAdapter {
@@ -98,12 +98,12 @@ export class PubkyIdentityAdapter {
   }
 
   async approveAuthRequest(input: PubkyAuthApprovalInput): Promise<PubkyIdentityOperationResult<void>> {
-    if (!isPubkyAuthRequestUrl(input.pubkyAuthUrl)) {
+    if (!isPubkyAuthRequestUrl(input.sensitivePubkyAuthUrl)) {
       return failure("invalid_pubky_auth_request", "Pubky auth request URL is missing or invalid.");
     }
 
     return this.withSigner(input.keypair, async (signer) => {
-      await signer.approveAuthRequest(input.pubkyAuthUrl);
+      await signer.approveAuthRequest(input.sensitivePubkyAuthUrl);
     }, "auth_approval_failed", "Pubky auth request approval failed.");
   }
 
@@ -116,25 +116,34 @@ export class PubkyIdentityAdapter {
     mode: "force" | "if_stale",
   ): Promise<PubkyIdentityOperationResult<void>> {
     const homeserver = parseOptionalPublicKey(input.homeserverPubky);
+    let homeserverTransferredToSdk = false;
 
     if (!homeserver.ok) {
       return homeserver;
     }
 
-    return this.withSigner(input.keypair, async (signer) => {
-      const pkdns = signer.pkdns;
+    try {
+      return await this.withSigner(input.keypair, async (signer) => {
+        const pkdns = signer.pkdns;
 
-      try {
-        if (mode === "force") {
-          await pkdns.publishHomeserverForce(homeserver.value);
-          return;
+        try {
+          if (mode === "force") {
+            homeserverTransferredToSdk = homeserver.value !== null;
+            await pkdns.publishHomeserverForce(homeserver.value);
+            return;
+          }
+
+          homeserverTransferredToSdk = homeserver.value !== null;
+          await pkdns.publishHomeserverIfStale(homeserver.value);
+        } finally {
+          pkdns.free();
         }
-
-        await pkdns.publishHomeserverIfStale(homeserver.value);
-      } finally {
-        pkdns.free();
+      }, "discovery_publish_failed", "Pubky homeserver discovery publication failed.");
+    } finally {
+      if (!homeserverTransferredToSdk) {
+        homeserver.value?.free();
       }
-    }, "discovery_publish_failed", "Pubky homeserver discovery publication failed.");
+    }
   }
 
   private async withSigner<T>(
