@@ -9,7 +9,10 @@ export type ServerEnv = {
   GOOGLE_CLIENT_ID: string;
   PASSPORT_SERVER_SECRET_BASE64: string;
   HOMEGATE_URL: string;
-  PUBKY_HOMESERVER: string;
+};
+
+export type HomegateInviteServerEnv = {
+  HOMEGATE_URL: string;
 };
 
 function serverSecretSchema() {
@@ -41,7 +44,16 @@ export function parseServerEnv(input: EnvLike): ServerEnv {
       GOOGLE_CLIENT_ID: requiredStringSchema("GOOGLE_CLIENT_ID"),
       PASSPORT_SERVER_SECRET_BASE64: serverSecretSchema(),
       HOMEGATE_URL: envUrlSchema("HOMEGATE_URL", { allowLocalhostHttp }),
-      PUBKY_HOMESERVER: envUrlSchema("PUBKY_HOMESERVER", { allowLocalhostHttp }),
+    })
+    .parse(input);
+}
+
+export function parseHomegateInviteServerEnv(input: EnvLike): HomegateInviteServerEnv {
+  const allowLocalhostHttp = isDevelopmentEnv(input);
+
+  return z
+    .object({
+      HOMEGATE_URL: envUrlSchema("HOMEGATE_URL", { allowLocalhostHttp }),
     })
     .parse(input);
 }

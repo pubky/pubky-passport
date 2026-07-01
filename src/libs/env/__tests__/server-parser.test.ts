@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseServerEnv } from "../server-parser";
+import { parseHomegateInviteServerEnv, parseServerEnv } from "../server-parser";
 
 const validServerSecret = Buffer.alloc(32, 1).toString("base64");
 
@@ -9,7 +9,6 @@ const validServerEnv = {
   GOOGLE_CLIENT_ID: "google-client-id",
   PASSPORT_SERVER_SECRET_BASE64: validServerSecret,
   HOMEGATE_URL: "https://homegate.pubky.app",
-  PUBKY_HOMESERVER: "https://homeserver.pubky.app",
 };
 
 describe("parseServerEnv", () => {
@@ -18,7 +17,6 @@ describe("parseServerEnv", () => {
       GOOGLE_CLIENT_ID: "google-client-id",
       PASSPORT_SERVER_SECRET_BASE64: validServerSecret,
       HOMEGATE_URL: "https://homegate.pubky.app",
-      PUBKY_HOMESERVER: "https://homeserver.pubky.app",
     });
   });
 
@@ -35,7 +33,7 @@ describe("parseServerEnv", () => {
     expect(() =>
       parseServerEnv({
         ...validServerEnv,
-        PUBKY_HOMESERVER: "not a url",
+        HOMEGATE_URL: "not a url",
       }),
     ).toThrow();
   });
@@ -55,13 +53,33 @@ describe("parseServerEnv", () => {
         ...validServerEnv,
         NODE_ENV: "development",
         HOMEGATE_URL: "http://localhost:4000",
-        PUBKY_HOMESERVER: "http://127.0.0.1:6287",
       }),
     ).toEqual({
       GOOGLE_CLIENT_ID: "google-client-id",
       PASSPORT_SERVER_SECRET_BASE64: validServerSecret,
       HOMEGATE_URL: "http://localhost:4000",
-      PUBKY_HOMESERVER: "http://127.0.0.1:6287",
+    });
+  });
+
+  it("parses Homegate invite route config without unrelated server secrets", () => {
+    expect(
+      parseHomegateInviteServerEnv({
+        NODE_ENV: "production",
+        HOMEGATE_URL: "https://homegate.pubky.app",
+      }),
+    ).toEqual({
+      HOMEGATE_URL: "https://homegate.pubky.app",
+    });
+  });
+
+  it("allows localhost HTTP Homegate invite URLs in development", () => {
+    expect(
+      parseHomegateInviteServerEnv({
+        NODE_ENV: "development",
+        HOMEGATE_URL: "http://127.0.0.1:8080",
+      }),
+    ).toEqual({
+      HOMEGATE_URL: "http://127.0.0.1:8080",
     });
   });
 
