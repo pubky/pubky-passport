@@ -135,7 +135,7 @@ Confirmed Pubky SDK signup, discovery, and auth approval APIs:
 Current signup/auth adapter constraints:
 
 - Passport's browser Pubky adapter accepts explicit `homeserverPubky` and `signupCode` values. It does not call Homegate directly.
-- The Homegate server adapter calls `POST /google_verification` and returns `{ signupCode, homeserverPubky }`.
+- The future Homegate server adapter is expected to call `POST /google_verification` and return `{ signupCode, homeserverPubky }`.
 - Deterministic CI tests cover SDK construction, invalid homeserver public key mapping, invalid discovery override mapping, and invalid Pubky auth URL mapping without hitting production Pubky network services.
 - Local testnet validation on 2026-06-30 covered signup with a generated homeserver signup token, `publishHomeserverIfStale`, `publishHomeserverForce`, homeserver resolution, `signinBlocking`, `approveAuthRequest`, and third-party `awaitApproval` completion.
 - `approveAuthRequest` owns signed AuthToken encryption and HTTP Relay POST behavior for the validated local testnet flow; callback redirect ownership remains a Passport flow responsibility.
@@ -185,48 +185,11 @@ Passport needs a Homegate invite for homeserver signup.
 Required boundaries:
 
 - Represent Homegate behind a core port.
-- For invite issuance, Homegate is the authoritative Google ID token verifier. Passport validates request shape and forwards only `{ googleIdToken }` to Homegate; Passport does not locally verify the token for this endpoint.
-- Homegate verifies the token server-side before issuing an invite.
-- Homegate rate-limits by verified Google identity derived from `iss || "\n" || sub`, not email. Passport maps Homegate's weekly and annual limit responses and does not duplicate this persistent invite quota in the initial adapter PR.
+- Verify Google ID tokens server-side before invite issuance or proxying.
+- Rate-limit by keyed hash of `iss || "\n" || sub`, not email.
 - Keep concrete Homegate network calls in infrastructure.
 
-Confirmed Homegate endpoint contract:
-
-```http
-POST /google_verification
-Content-Type: application/json
-```
-
-Request:
-
-```json
-{
-  "googleIdToken": "<google-id-token>"
-}
-```
-
-Successful response:
-
-```json
-{
-  "signupCode": "<homeserver-signup-code>",
-  "homeserverPubky": "<homeserver-public-key>"
-}
-```
-
-Error responses are plaintext strings:
-
-- `invalid_request`
-- `invalid_google_id_token`
-- `weekly_limit_exceeded`
-- `annual_limit_exceeded`
-- `homeserver_unavailable`
-- `google_verifier_unavailable`
-- `internal_error`
-
-Passport maps `signupCode` to the existing Pubky signup `signupCode` input and uses Homegate's `homeserverPubky` as the signup homeserver source of truth. Passport should not use `PUBKY_HOMESERVER` as a default or fallback for this flow.
-
-Local Passport Google ID token verification remains required for `/api/wrapping-key`, where Passport derives server-owned wrapping material from verified Google issuer and subject.
+The exact Homegate endpoint contract should be confirmed in the implementation PR before coding the adapter.
 
 ## Relay Handoff And Callbacks
 
