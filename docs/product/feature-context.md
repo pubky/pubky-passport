@@ -182,6 +182,23 @@ The browser is the only place where encrypted Drive file and Passport-server-der
 
 Passport needs a Homegate invite for homeserver signup.
 
+Passport route:
+
+```http
+POST /api/homegate/google-invite
+Content-Type: application/json
+```
+
+This Passport route accepts only:
+
+```json
+{
+  "googleIdToken": "<google-id-token>"
+}
+```
+
+It rejects malformed JSON, missing tokens, empty tokens, non-string tokens, and unknown fields with a fixed `invalid_request` error. Responses include `Cache-Control: no-store` and `Referrer-Policy: no-referrer`.
+
 Required boundaries:
 
 - Represent Homegate behind a core port.
@@ -189,6 +206,8 @@ Required boundaries:
 - Homegate verifies the token server-side before issuing an invite.
 - Homegate rate-limits by verified Google identity derived from `iss || "\n" || sub`, not email. Passport maps Homegate's weekly and annual limit responses and does not duplicate this persistent invite quota in the initial adapter PR.
 - Keep concrete Homegate network calls in infrastructure.
+- The concrete Passport server adapter reads only `HOMEGATE_URL` for this flow and calls Homegate server-to-server. It does not require or use `PUBKY_HOMESERVER`.
+- Unit tests inject `fetch` and do not hit live Homegate.
 
 Confirmed Homegate endpoint contract:
 
@@ -223,6 +242,17 @@ Error responses are plaintext strings:
 - `homeserver_unavailable`
 - `google_verifier_unavailable`
 - `internal_error`
+
+Passport maps Homegate errors to fixed JSON error codes:
+
+- `invalid_request` from Homegate becomes `homegate_invalid_request`.
+- `invalid_google_id_token` remains `invalid_google_id_token`.
+- `weekly_limit_exceeded` remains `weekly_limit_exceeded`.
+- `annual_limit_exceeded` remains `annual_limit_exceeded`.
+- `homeserver_unavailable` remains `homeserver_unavailable`.
+- `google_verifier_unavailable` remains `google_verifier_unavailable`.
+- `internal_error`, network failures, and upstream error-body read failures become `homegate_unavailable`.
+- Unknown Homegate error bodies and malformed success JSON become `malformed_homegate_response`.
 
 Passport maps `signupCode` to the existing Pubky signup `signupCode` input and uses Homegate's `homeserverPubky` as the signup homeserver source of truth. Passport should not use `PUBKY_HOMESERVER` as a default or fallback for this flow.
 
