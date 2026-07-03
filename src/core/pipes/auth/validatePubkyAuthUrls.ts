@@ -86,8 +86,19 @@ function deriveDisplayDomain(callbacks: PubkyAuthCallbacks): string | undefined 
     return undefined;
   }
 
-  const parsedCallback = new URL(displayCallback);
-  return parsedCallback.hostname || undefined;
+  // Invariant: callback values are canonical URL.href strings produced by
+  // validateCallbacks, so re-parsing succeeds under the normal flow. We parse
+  // defensively anyway so a future change to the callback source can never turn
+  // display-name derivation into an unhandled throw in this signing path.
+  const parsedCallback = parseAbsoluteUrl(displayCallback);
+  if (!parsedCallback.ok) {
+    return undefined;
+  }
+
+  // URL.hostname returns punycode ASCII (e.g. "xn--...") for internationalized
+  // domains. We intentionally display that ASCII form so a Unicode homograph
+  // cannot spoof the requesting domain shown to the user before signing.
+  return parsedCallback.url.hostname || undefined;
 }
 
 function validateCallbacks(
