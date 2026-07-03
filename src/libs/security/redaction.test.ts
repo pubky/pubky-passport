@@ -115,6 +115,23 @@ describe("redactTokenLikeValues", () => {
 
     expect(redactTokenLikeValues(value)).toBe("opaque=[REDACTED_TOKEN]");
   });
+
+  it("redacts bare 43-char base64url secrets without key or URL context", () => {
+    // A 32-byte value encoded as base64url is exactly 43 characters, matching
+    // the server-derived wrapping key and the Pubky auth client_secret.
+    const wrappingKey = "MOHBXchuOcfSN--B55rzy9qrkZ8p5VhvVxAWqxszg7Y";
+    expect(wrappingKey).toHaveLength(43);
+
+    expect(redactTokenLikeValues(`derived ${wrappingKey} value`)).toBe("derived [REDACTED_TOKEN] value");
+  });
+
+  it("does not redact 40-char hex diagnostics such as git SHA-1 hashes", () => {
+    // The threshold stays above 40 so non-sensitive identifiers remain useful.
+    const gitSha = "da39a3ee5e6b4b0d3255bfef95601890afd80709";
+    expect(gitSha).toHaveLength(40);
+
+    expect(redactTokenLikeValues(`commit ${gitSha} built`)).toBe(`commit ${gitSha} built`);
+  });
 });
 
 describe("redactForLog", () => {
@@ -140,6 +157,21 @@ describe("redactForLog", () => {
     expect(redacted).not.toContain("auth-secret");
     expect(redacted).not.toContain("callback-secret");
     expect(redacted).not.toContain("token-secret");
+  });
+
+  it("redacts bare 43-char base64url wrapping keys and auth secrets", () => {
+    // 32-byte base64url secrets are 43 chars: the wrapping key handed to the
+    // browser and the Pubky auth client_secret can both appear as bare tokens.
+    const wrappingKey = "MOHBXchuOcfSN--B55rzy9qrkZ8p5VhvVxAWqxszg7Y";
+    const authSecret = "xVuzgq5VHqr9iBsqrxs42M2TC4NJoeAqO__ZFYK41-k";
+    expect(wrappingKey).toHaveLength(43);
+    expect(authSecret).toHaveLength(43);
+
+    const redacted = redactForLog(`wrappingKey ${wrappingKey} authSecret ${authSecret}`);
+
+    expect(redacted).not.toContain(wrappingKey);
+    expect(redacted).not.toContain(authSecret);
+    expect(redacted).toBe("wrappingKey [REDACTED_TOKEN] authSecret [REDACTED_TOKEN]");
   });
 
   it("is deterministic for the same input", () => {

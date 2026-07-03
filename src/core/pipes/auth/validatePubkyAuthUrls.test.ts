@@ -162,6 +162,23 @@ describe("validatePubkyAuthUrls", () => {
     expect(cancelResult.requestingAppDisplayName).toBe("cancel.example");
   });
 
+  it("displays internationalized callback domains as punycode ASCII to resist homograph spoofing", () => {
+    // "аpple.example" uses a Cyrillic "а"; it must not be shown as the Latin look-alike.
+    const result = validatePubkyAuthUrls(
+      authUrl(
+        "relay=https://httprelay.pubky.app/inbox&secret=secret-value&x-success=https://\u0430pple.example/success",
+      ),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.error.code);
+    }
+
+    expect(result.requestingAppDisplayName).toBe("xn--pple-43d.example");
+    expect(result.requestingAppDisplayName).not.toContain("\u0430");
+  });
+
   it("does not expose callback query parameters in validation errors", () => {
     expectUrlError(
       authUrl(
