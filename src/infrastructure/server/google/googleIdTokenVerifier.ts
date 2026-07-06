@@ -1,3 +1,5 @@
+import "server-only";
+
 import { OAuth2Client } from "google-auth-library";
 
 import type { Clock } from "../../../core/ports/clock";
