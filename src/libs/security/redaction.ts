@@ -5,11 +5,28 @@ const TOKEN_REDACTION = "[REDACTED_TOKEN]";
 const PUBKY_AUTH_URL_PATTERN = /pubkyauth:\/\/[^\s<>'"]+/giu;
 const RELATIVE_AUTHORIZE_URL_PATTERN = /(^|[^\w/])\/authorize\?[^\s<>'"]*\bd=[^\s<>'"]*/giu;
 const HTTP_URL_PATTERN = /https?:\/\/[^\s<>'"]+/giu;
-const AUTHORIZATION_HEADER_PATTERN = /\bAuthorization\s*:\s*([^\s,;]+)\s+([^\s,;]+)/giu;
+const AUTHORIZATION_HEADER_PATTERN = /\bAuthorization\s*:\s*([^\s,;'\x22]+)\s+([^\s,;'\x22]+)/giu;
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/gu;
-const SENSITIVE_TOKEN_KEYS = "id_token|access_token|token|secret|wrapping_key|credential";
+const SENSITIVE_TOKEN_KEYS = [
+  "id_token",
+  "access_token",
+  "drive_token",
+  "refresh_token",
+  "token",
+  "secret",
+  "wrapping_key",
+  "credential",
+  "idToken",
+  "accessToken",
+  "driveAccessToken",
+  "refreshToken",
+  "googleIdToken",
+  "wrappingKey",
+  "authSecret",
+  "clientSecret",
+].join("|");
 const JSON_TOKEN_VALUE_PATTERN = new RegExp(`(["'])\\b(${SENSITIVE_TOKEN_KEYS})\\b\\1\\s*:\\s*(["'])[^"']+\\3`, "giu");
-const TOKEN_VALUE_PATTERN = new RegExp(`\\b(${SENSITIVE_TOKEN_KEYS})\\b\\s*[:=]\\s*([^\\s,;&]+)`, "giu");
+const TOKEN_VALUE_PATTERN = new RegExp(`\\b(${SENSITIVE_TOKEN_KEYS})\\b\\s*[:=]\\s*([^\\s,;&'\"]+)`, "giu");
 // A 32-byte secret encoded as base64url is exactly 43 characters. This covers
 // the server-derived wrapping key (wrappingKeyDeriver.ts) and the Pubky auth
 // client_secret, so bare tokens of 43+ characters must be redacted even when
