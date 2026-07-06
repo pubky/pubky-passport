@@ -1,7 +1,14 @@
 import "server-only";
 
-import { parseServerEnv } from "./server-parser";
+import { parseHomegateInviteServerEnv, parseServerEnv } from "./server-parser";
+import type { HomegateInviteServerEnv, ServerEnv } from "./server-parser";
 
-export type { ServerEnv } from "./server-parser";
+export type { HomegateInviteServerEnv, ServerEnv } from "./server-parser";
 
-export const serverEnv = parseServerEnv(process.env);
+export function getServerEnv(): ServerEnv {
+  return parseServerEnv(process.env);
+}
+
+export function getHomegateInviteServerEnv(): HomegateInviteServerEnv {
+  return parseHomegateInviteServerEnv(process.env);
+}
