@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { PubkyIdentityKeyAdapter } from "./pubkyIdentityKeyAdapter";
+import { PubkyIdentityKeyAdapter, withPubkySdkKeypair } from "./pubkyIdentityKeyAdapter";
 
 const recoveryPassphrase = "test-domain-separated-passphrase";
 
@@ -104,6 +104,21 @@ describe("PubkyIdentityKeyAdapter", () => {
     } finally {
       createdKeypair.dispose();
     }
+  });
+
+  it("maps disposed keypairs to key unavailable", () => {
+    const adapter = new PubkyIdentityKeyAdapter();
+    const keypair = expectOk(adapter.createKeypair());
+
+    keypair.dispose();
+
+    expect(withPubkySdkKeypair(keypair, (sdkKeypair) => sdkKeypair)).toEqual({
+      ok: false,
+      error: {
+        code: "key_unavailable",
+        message: "Pubky identity keypair is not available.",
+      },
+    });
   });
 });
 

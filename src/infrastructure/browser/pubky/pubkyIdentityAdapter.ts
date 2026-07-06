@@ -1,9 +1,9 @@
 import { Pubky, PublicKey, type PubkyError, type PubkyErrorName, type Session } from "@synonymdev/pubky";
 
+import type { PubkyIdentitySession } from "../../../core/domain/identity/pubkyIdentity";
 import {
   type PubkyIdentityKeyError,
   type PubkyIdentityKeypair,
-  type PubkyPublicIdentity,
   withPubkySdkKeypair,
 } from "./pubkyIdentityKeyAdapter";
 
@@ -11,17 +11,12 @@ export type PubkyNetworkConfig =
   | { kind: "mainnet" }
   | { kind: "testnet"; host?: string | null };
 
-export type PubkyIdentitySession = {
-  publicIdentity: PubkyPublicIdentity;
-  capabilities: string[];
-  sessionSnapshot: string;
-};
-
 export type PubkyIdentityOperationErrorCode =
   | "auth_approval_failed"
   | "discovery_publish_failed"
   | "invalid_homeserver_pubky"
   | "invalid_pubky_auth_request"
+  | "key_unavailable"
   | "signin_failed"
   | "signup_failed";
 
@@ -230,6 +225,10 @@ function keyFailure(
   error: PubkyIdentityKeyError,
   code: PubkyIdentityOperationErrorCode,
 ): PubkyIdentityOperationResult<never> {
+  if (error.code === "key_unavailable") {
+    return failure("key_unavailable", error.message);
+  }
+
   return {
     ok: false,
     error: {
