@@ -43,7 +43,7 @@ Never log:
 - Full callback URL with query parameters or fragments.
 - `passport.json` ciphertext unless explicitly safe and redacted.
 
-Use `src/libs/security/redaction.ts` as defense-in-depth before any value reaches a logger, error reporter, metric, or debug output. Redaction is not permission to log secrets; callers should prefer stable event names, typed error codes, boolean validation outcomes, and safe display hosts over raw inputs.
+Use `src/libs/logger` for application logging. The logger routes every emitted line through `src/libs/security/redaction.ts` before it reaches the console sink, and lint rules block direct `console.*` calls outside the logger implementation. Redaction is not permission to log secrets; callers should prefer stable event names, typed error codes, boolean validation outcomes, and safe display hosts over raw inputs.
 
 Allowed logging patterns:
 
