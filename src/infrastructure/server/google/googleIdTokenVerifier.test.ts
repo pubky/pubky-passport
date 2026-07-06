@@ -126,7 +126,9 @@ describe("ServerGoogleIdTokenVerifier", () => {
   });
 
   it("rejects missing subjects", async () => {
-    const verifier = createVerifierWithPayload({ ...validPayload(), sub: undefined });
+    const payloadWithoutSubject = validPayload();
+    delete payloadWithoutSubject.sub;
+    const verifier = createVerifierWithPayload(payloadWithoutSubject);
 
     await expect(verifier.verifyIdToken(token)).resolves.toEqual({
       ok: false,

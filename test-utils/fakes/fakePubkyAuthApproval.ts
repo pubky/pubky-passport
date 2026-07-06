@@ -17,9 +17,11 @@ export class FakePubkyAuthApproval implements PubkyAuthApproval {
   approvalFailure?: PubkyAuthApprovalErrorCode;
 
   async approveAuthRequest(input: ApprovePubkyAuthRequestInput): Promise<PubkyAuthApprovalResult> {
+    const authRequestScheme = safeProtocol(input.authRequest.sensitivePubkyAuthUrl);
+
     this.calls.push({
       keyHandle: input.keyHandle,
-      authRequestScheme: safeProtocol(input.authRequest.sensitivePubkyAuthUrl),
+      ...(authRequestScheme ? { authRequestScheme } : {}),
     });
 
     if (this.approvalFailure) {

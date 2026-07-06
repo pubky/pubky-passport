@@ -122,7 +122,10 @@ function importSpecifiers(source: string): string[] {
   const importPattern = /(?:import|export)\s+(?:type\s+)?(?:[^"']*?\s+from\s+)?["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']\s*\)/g;
 
   for (const match of source.matchAll(importPattern)) {
-    specifiers.push(match[1] ?? match[2]);
+    const specifier = match[1] ?? match[2];
+    if (specifier) {
+      specifiers.push(specifier);
+    }
   }
 
   return specifiers;

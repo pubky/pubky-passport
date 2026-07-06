@@ -99,17 +99,26 @@ export function parsePubkyAuthRequest(
     return mapCapabilitiesError(capabilities.error);
   }
 
+  const source = parseOptionalSource(authUrl.value.searchParams.get("x-source"));
+  const request: PubkyAuthRequest = {
+    kind: kind.value,
+    relay: urls.relay,
+    secret,
+    capabilities: capabilities.capabilities,
+    callbacks: urls.callbacks,
+  };
+
+  if (source) {
+    request.source = source;
+  }
+
+  if (urls.requestingAppDisplayName) {
+    request.requestingAppDisplayName = urls.requestingAppDisplayName;
+  }
+
   return {
     ok: true,
-    request: {
-      kind: kind.value,
-      relay: urls.relay,
-      secret,
-      capabilities: capabilities.capabilities,
-      callbacks: urls.callbacks,
-      source: parseOptionalSource(authUrl.value.searchParams.get("x-source")),
-      requestingAppDisplayName: urls.requestingAppDisplayName,
-    },
+    request,
   };
 }
 

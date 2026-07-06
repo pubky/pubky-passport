@@ -243,7 +243,7 @@ function failure<T>(
   message: string,
   sdkErrorName?: PubkyErrorName,
 ): PubkyIdentityOperationResult<T> {
-  return { ok: false, error: { code, message, sdkErrorName } };
+  return { ok: false, error: { code, message, ...(sdkErrorName ? { sdkErrorName } : {}) } };
 }
 
 function pubkyErrorName(error: unknown): PubkyErrorName | undefined {

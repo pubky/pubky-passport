@@ -70,11 +70,14 @@ function headerValue(headers: Array<{ key: string; value: string }>, key: string
 }
 
 function parseCsp(value: string): Map<string, string[]> {
-  return new Map(
-    value.split(";").map((directive) => {
-      const [name, ...tokens] = directive.trim().split(/\s+/);
+  const directives: Array<[string, string[]]> = [];
 
-      return [name, tokens];
-    }),
-  );
+  for (const directive of value.split(";")) {
+    const [name, ...tokens] = directive.trim().split(/\s+/);
+    if (name) {
+      directives.push([name, tokens]);
+    }
+  }
+
+  return new Map(directives);
 }
