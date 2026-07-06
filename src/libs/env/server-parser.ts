@@ -1,9 +1,11 @@
 import { z } from "zod";
 
+import {
+  hasMinimumServerSecretBytes,
+  isBase64,
+  minimumServerSecretByteLength,
+} from "../security/serverSecret";
 import { type EnvLike, envUrlSchema, isDevelopmentEnv, requiredStringSchema } from "./url";
-
-const minimumServerSecretBytes = 32;
-const base64Pattern = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 export type ServerEnv = {
   GOOGLE_CLIENT_ID: string;
@@ -14,7 +16,7 @@ export type ServerEnv = {
 
 function serverSecretSchema() {
   return requiredStringSchema("PASSPORT_SERVER_SECRET_BASE64").superRefine((value, context) => {
-    if (!base64Pattern.test(value)) {
+    if (!isBase64(value)) {
       context.addIssue({
         code: "custom",
         message: "PASSPORT_SERVER_SECRET_BASE64 must be valid base64",
@@ -24,10 +26,10 @@ function serverSecretSchema() {
 
     const decoded = Buffer.from(value, "base64");
 
-    if (decoded.length < minimumServerSecretBytes) {
+    if (!hasMinimumServerSecretBytes(decoded)) {
       context.addIssue({
         code: "custom",
-        message: `PASSPORT_SERVER_SECRET_BASE64 must decode to at least ${minimumServerSecretBytes} bytes`,
+        message: `PASSPORT_SERVER_SECRET_BASE64 must decode to at least ${minimumServerSecretByteLength()} bytes`,
       });
     }
   });

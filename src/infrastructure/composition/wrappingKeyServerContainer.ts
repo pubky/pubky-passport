@@ -2,10 +2,10 @@ import "server-only";
 
 import { createRequestWrappingKeyUseCase } from "../../core/application/identity/requestWrappingKey";
 import { createRequestWrappingKeyController } from "../../core/controllers/identity/requestWrappingKeyController";
-import type { Clock } from "../../core/ports/clock";
 import type { GoogleIdTokenVerifier } from "../../core/ports/googleIdTokenVerifier";
 import type { WrappingKeyDeriver } from "../../core/ports/wrappingKeyDeriver";
 import type { WrappingKeyRateLimiter } from "../../core/ports/wrappingKeyRateLimiter";
+import { systemClock } from "../server/systemClock";
 
 const notConfiguredGoogleIdTokenVerifier: GoogleIdTokenVerifier = {
   async verifyIdToken() {
@@ -22,12 +22,6 @@ const notConfiguredWrappingKeyDeriver: WrappingKeyDeriver = {
 const notConfiguredWrappingKeyRateLimiter: WrappingKeyRateLimiter = {
   async checkWrappingKeyRequest() {
     throw new Error("Wrapping key rate limiter is not configured.");
-  },
-};
-
-const systemClock: Clock = {
-  now() {
-    return new Date();
   },
 };
 

@@ -8,6 +8,7 @@ import type {
   GoogleIdTokenVerificationResult,
   GoogleIdTokenVerifier,
 } from "../../../core/ports/googleIdTokenVerifier";
+import { systemClock } from "../systemClock";
 
 type GoogleIdTokenPayload = {
   iss?: string;
@@ -136,9 +137,3 @@ function mapGoogleVerifierError(error: unknown): GoogleIdTokenVerificationFailur
 
   return "invalid";
 }
-
-const systemClock: Clock = {
-  now() {
-    return new Date();
-  },
-};

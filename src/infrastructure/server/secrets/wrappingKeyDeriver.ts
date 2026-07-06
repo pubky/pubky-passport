@@ -3,6 +3,7 @@ import "server-only";
 import { hkdfSync } from "node:crypto";
 
 import type { WrappingKeyDeriver } from "../../../core/ports/wrappingKeyDeriver";
+import { hasMinimumServerSecretBytes, isBase64 } from "../../../libs/security/serverSecret";
 
 type ServerWrappingKeyDeriverOptions = {
   serverSecret: Uint8Array;
@@ -12,16 +13,14 @@ export type CreateServerWrappingKeyDeriverInput = {
   serverSecretBase64: string;
 };
 
-const minimumServerSecretBytes = 32;
 const wrappingKeyBytes = 32;
-const base64Pattern = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 const hkdfSalt = Buffer.from("pubky-passport/wrapping-key/salt/v1", "utf8");
 
 export class ServerWrappingKeyDeriver implements WrappingKeyDeriver {
   private readonly serverSecret: Buffer;
 
   constructor(options: ServerWrappingKeyDeriverOptions) {
-    if (options.serverSecret.byteLength < minimumServerSecretBytes) {
+    if (!hasMinimumServerSecretBytes(options.serverSecret)) {
       throw invalidConfigurationError();
     }
 
@@ -51,12 +50,12 @@ export function createServerWrappingKeyDeriver(
 }
 
 function decodeServerSecret(serverSecretBase64: string): Buffer {
-  if (!base64Pattern.test(serverSecretBase64)) {
+  if (!isBase64(serverSecretBase64)) {
     throw invalidConfigurationError();
   }
 
   const decoded = Buffer.from(serverSecretBase64, "base64");
-  if (decoded.byteLength < minimumServerSecretBytes) {
+  if (!hasMinimumServerSecretBytes(decoded)) {
     throw invalidConfigurationError();
   }
 
