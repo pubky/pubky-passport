@@ -22,7 +22,7 @@ export class FakePubkyDiscovery implements PubkyDiscovery {
     this.calls.push({
       keyHandle: input.keyHandle,
       mode: "if_stale",
-      homeserverPubky: input.homeserverPubky,
+      ...(input.homeserverPubky !== undefined ? { homeserverPubky: input.homeserverPubky } : {}),
     });
 
     if (this.ifStaleFailure) {
@@ -36,7 +36,7 @@ export class FakePubkyDiscovery implements PubkyDiscovery {
     this.calls.push({
       keyHandle: input.keyHandle,
       mode: "force",
-      homeserverPubky: input.homeserverPubky,
+      ...(input.homeserverPubky !== undefined ? { homeserverPubky: input.homeserverPubky } : {}),
     });
 
     if (this.forceFailure) {
