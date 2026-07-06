@@ -1,3 +1,5 @@
+import "server-only";
+
 import { createRequestWrappingKeyUseCase } from "../../core/application/identity/requestWrappingKey";
 import { createRequestWrappingKeyController } from "../../core/controllers/identity/requestWrappingKeyController";
 import type { Clock } from "../../core/ports/clock";

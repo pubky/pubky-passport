@@ -1,3 +1,5 @@
+import "server-only";
+
 import { hkdfSync } from "node:crypto";
 
 import type { WrappingKeyDeriver } from "../../../core/ports/wrappingKeyDeriver";
