@@ -11,10 +11,15 @@ const checkedExtensions = new Set([".ts", ".tsx"]);
 
 const forbiddenAliasImports = [
   "@synonymdev/pubky",
+  "google-auth-library",
+  "google-auth-library/",
+  "googleapis",
+  "googleapis/",
   "next",
   "next/",
   "react",
   "react/",
+  "server-only",
   "@/app/",
   "@/ui/",
   "@/infrastructure/",
@@ -49,6 +54,14 @@ describe("core architecture boundaries", () => {
       .map((filePath) => `${relative(repoRoot, filePath)} imports @synonymdev/pubky outside browser Pubky infrastructure`);
 
     expect(violations).toEqual([]);
+  });
+
+  it("forbids concrete Google SDK and server-only imports from core", () => {
+    expect(isForbiddenAliasImport("google-auth-library")).toBe(true);
+    expect(isForbiddenAliasImport("google-auth-library/build/src/auth/oauth2client")).toBe(true);
+    expect(isForbiddenAliasImport("googleapis")).toBe(true);
+    expect(isForbiddenAliasImport("googleapis/build/src/apis/drive")).toBe(true);
+    expect(isForbiddenAliasImport("server-only")).toBe(true);
   });
 });
 
@@ -99,6 +112,13 @@ function walk(directoryPath: string): string[] {
 
 function importSpecifiers(source: string): string[] {
   const specifiers: string[] = [];
+  // This test is the authoritative core boundary gate because ESLint cannot
+  // resolve every relative import escape. The regex intentionally covers ESM
+  // import/export and dynamic import only; require() is not scanned. Runtime
+  // checks below strip comments but not string literals, so literal-only
+  // mentions of globals can still produce false positives. If core grows beyond
+  // this heuristic, prefer a parser-backed rule such as eslint-plugin-boundaries
+  // or import/no-restricted-paths.
   const importPattern = /(?:import|export)\s+(?:type\s+)?(?:[^"']*?\s+from\s+)?["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']\s*\)/g;
 
   for (const match of source.matchAll(importPattern)) {
