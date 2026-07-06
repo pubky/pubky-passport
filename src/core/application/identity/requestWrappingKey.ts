@@ -2,9 +2,15 @@ import type { Clock } from "../../ports/clock";
 import type {
   GoogleIdTokenVerifier,
   GoogleIdTokenVerificationFailureReason,
+  VerifiedGoogleIdentity,
 } from "../../ports/googleIdTokenVerifier";
 import type { WrappingKeyDeriver } from "../../ports/wrappingKeyDeriver";
 import type { WrappingKeyRateLimiter } from "../../ports/wrappingKeyRateLimiter";
+
+type GoogleVerificationResult =
+  | { kind: "verified"; identity: VerifiedGoogleIdentity }
+  | { kind: "failed"; reason: GoogleIdTokenVerificationFailureReason }
+  | { kind: "dependency_unavailable" };
 
 export type RequestWrappingKeyInput = {
   googleIdToken: string;
@@ -37,11 +43,11 @@ export function createRequestWrappingKeyUseCase(
 ): RequestWrappingKeyUseCase {
   return async function requestWrappingKey(input) {
     const verification = await verifyGoogleIdToken(dependencies.googleIdTokenVerifier, input.googleIdToken);
-    if (!verification.ok && "dependencyUnavailable" in verification) {
+    if (verification.kind === "dependency_unavailable") {
       return { ok: false, error: { code: "dependency_unavailable" } };
     }
 
-    if (!verification.ok) {
+    if (verification.kind === "failed") {
       return { ok: false, error: { code: mapVerificationFailure(verification.reason) } };
     }
 
@@ -66,14 +72,17 @@ export function createRequestWrappingKeyUseCase(
 async function verifyGoogleIdToken(
   verifier: GoogleIdTokenVerifier,
   googleIdToken: string,
-): Promise<
-  | Awaited<ReturnType<GoogleIdTokenVerifier["verifyIdToken"]>>
-  | { ok: false; dependencyUnavailable: true }
-> {
+): Promise<GoogleVerificationResult> {
   try {
-    return await verifier.verifyIdToken(googleIdToken);
+    const result = await verifier.verifyIdToken(googleIdToken);
+
+    if (result.ok) {
+      return { kind: "verified", identity: result.identity };
+    }
+
+    return { kind: "failed", reason: result.reason };
   } catch {
-    return { ok: false, dependencyUnavailable: true };
+    return { kind: "dependency_unavailable" };
   }
 }
 

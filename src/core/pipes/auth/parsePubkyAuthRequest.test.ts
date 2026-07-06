@@ -34,7 +34,7 @@ describe("parsePubkyAuthRequest", () => {
     expect(result.request).toEqual({
       kind: "signin",
       relay: "https://httprelay.pubky.app/inbox",
-      secret: "test-secret",
+      sensitiveSecret: "test-secret",
       capabilities: [
         {
           path: "/pub/pubky.app/",

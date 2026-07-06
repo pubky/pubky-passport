@@ -15,6 +15,12 @@ export type { PubkyAuthCallbacks } from "./validatePubkyAuthUrls";
 
 export type PubkyAuthRequestKind = "signin";
 
+declare const sensitivePubkyAuthRequestSecretBrand: unique symbol;
+
+export type SensitivePubkyAuthRequestSecret = string & {
+  readonly [sensitivePubkyAuthRequestSecretBrand]: "SensitivePubkyAuthRequestSecret";
+};
+
 export type PubkyAuthParseErrorCode =
   | "missing_d"
   | "invalid_encoding"
@@ -36,7 +42,7 @@ export type PubkyAuthParseError = {
 export type PubkyAuthRequest = {
   kind: PubkyAuthRequestKind;
   relay: string;
-  secret: string;
+  sensitiveSecret: SensitivePubkyAuthRequestSecret;
   capabilities: PubkyAuthCapability[];
   callbacks: PubkyAuthCallbacks;
   source?: string;
@@ -103,7 +109,7 @@ export function parsePubkyAuthRequest(
   const request: PubkyAuthRequest = {
     kind: kind.value,
     relay: urls.relay,
-    secret,
+    sensitiveSecret: secret as SensitivePubkyAuthRequestSecret,
     capabilities: capabilities.capabilities,
     callbacks: urls.callbacks,
   };

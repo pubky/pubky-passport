@@ -2,13 +2,15 @@ import { Keypair } from "@synonymdev/pubky";
 
 import type { PubkyPublicIdentity } from "../../../core/domain/identity/pubkyIdentity";
 
+export const PUBKY_SDK_VERSION = "0.9.3";
+
 const sdkKeypairs = new WeakMap<PubkyIdentityKeypair, Keypair>();
 
 export type PubkyRecoveryFile = {
   bytes: Uint8Array;
   format: "pubky-recovery-file";
   sdkPackage: "@synonymdev/pubky";
-  sdkVersion: "0.9.3";
+  sdkVersion: typeof PUBKY_SDK_VERSION;
 };
 
 export type PubkyIdentityKeyErrorCode =
@@ -94,7 +96,7 @@ export class PubkyIdentityKeypair {
           bytes: sdkKeypairFor(this).createRecoveryFile(input.passphrase),
           format: "pubky-recovery-file",
           sdkPackage: "@synonymdev/pubky",
-          sdkVersion: "0.9.3",
+          sdkVersion: PUBKY_SDK_VERSION,
         },
       };
     } catch {
