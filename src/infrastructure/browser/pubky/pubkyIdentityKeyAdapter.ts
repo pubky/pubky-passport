@@ -1,11 +1,8 @@
 import { Keypair } from "@synonymdev/pubky";
 
-const sdkKeypairs = new WeakMap<PubkyIdentityKeypair, Keypair>();
+import type { PubkyPublicIdentity } from "../../../core/domain/identity/pubkyIdentity";
 
-export type PubkyPublicIdentity = {
-  publicKeyZ32: string;
-  publicKeyDisplay: string;
-};
+const sdkKeypairs = new WeakMap<PubkyIdentityKeypair, Keypair>();
 
 export type PubkyRecoveryFile = {
   bytes: Uint8Array;
@@ -17,6 +14,7 @@ export type PubkyRecoveryFile = {
 export type PubkyIdentityKeyErrorCode =
   | "invalid_passphrase"
   | "invalid_recovery_file"
+  | "key_unavailable"
   | "keypair_creation_failed"
   | "recovery_export_failed"
   | "recovery_restore_failed";
@@ -123,7 +121,7 @@ export function withPubkySdkKeypair<T>(
   const sdkKeypair = sdkKeypairs.get(keypair);
 
   if (!sdkKeypair) {
-    return failure("keypair_creation_failed", "Pubky identity keypair is not available.");
+    return failure("key_unavailable", "Pubky identity keypair is not available.");
   }
 
   return { ok: true, value: handleKeypair(sdkKeypair) };
