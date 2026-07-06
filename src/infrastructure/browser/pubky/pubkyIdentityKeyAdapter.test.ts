@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { PubkyIdentityKeyAdapter, withPubkySdkKeypair } from "./pubkyIdentityKeyAdapter";
+import { PUBKY_SDK_VERSION, PubkyIdentityKeyAdapter, withPubkySdkKeypair } from "./pubkyIdentityKeyAdapter";
 
 const recoveryPassphrase = "test-domain-separated-passphrase";
 
@@ -31,7 +31,7 @@ describe("PubkyIdentityKeyAdapter", () => {
 
       expect(recoveryFile.format).toBe("pubky-recovery-file");
       expect(recoveryFile.sdkPackage).toBe("@synonymdev/pubky");
-      expect(recoveryFile.sdkVersion).toBe("0.9.3");
+      expect(recoveryFile.sdkVersion).toBe(PUBKY_SDK_VERSION);
       expect(recoveryFile.bytes).toBeInstanceOf(Uint8Array);
       expect(recoveryFile.bytes.byteLength).toBeGreaterThan(0);
 
