@@ -109,6 +109,19 @@ Confirmed v1 envelope parser contract:
 - HTTP localhost origins are allowed only when an explicit parser option enables local development support.
 - Parser errors are safe typed codes with optional field metadata and do not include raw file contents, IV, ciphertext, or future decrypted key material.
 
+Confirmed browser crypto contract for encrypted Drive storage:
+
+- Concrete browser crypto implementation lives in `src/infrastructure/browser/crypto` behind the core `PassportFileCrypto` port.
+- The core crypto port encrypts and decrypts SDK recovery file bytes only. Pubky recovery metadata such as SDK version stays at the Pubky/setup/restore boundary, not inside browser crypto.
+- The adapter accepts the wrapping key as the 32-byte unpadded base64url string returned by the Passport wrapping-key API.
+- Browser crypto decodes wrapping material in browser memory only and derives purpose-specific material with WebCrypto HKDF-SHA256 instead of using the raw wrapping bytes directly as an operational key. The AES-GCM key is derived as a non-extractable WebCrypto `CryptoKey` via `deriveKey` rather than materializing raw AES key bytes in JavaScript.
+- Passport file encryption uses AES-256-GCM with a fresh random 96-bit IV per encryption. `iv` and ciphertext `ct` are stored as unpadded base64url strings in the v1 envelope.
+- AES-GCM sub-key derivation uses IKM = decoded wrapping material, salt `pubky-passport/passport-file/aes-gcm/salt/v1`, info `passport-file:aes-gcm:v1`, and an AES-256-GCM output key.
+- AES-GCM authenticates envelope metadata as additional authenticated data using `pubky-passport/passport-file/v1\n<normalized-envelope-url>`, so tampering with the authenticated v1 context or stored Passport origin fails decryption.
+- Google-only SDK recovery passphrase derivation uses IKM = decoded wrapping material, salt `pubky-passport/pubky-recovery-passphrase/salt/v1`, info `pubky-recovery-passphrase:v1`, and 32 output bytes encoded as unpadded base64url text.
+- Decryption authenticates ciphertext through AES-GCM and maps authentication failure to a safe typed error without exposing DOMException details.
+- Browser crypto must not persist SDK recovery file bytes, wrapping material, derived passphrases, decrypted payloads, or Drive tokens in `localStorage`, `sessionStorage`, IndexedDB, cookies, or server requests.
+
 Confirmed Pubky SDK key-operation APIs:
 
 - Package: `@synonymdev/pubky` version `0.9.3`.
