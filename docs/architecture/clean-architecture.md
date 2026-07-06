@@ -281,6 +281,8 @@ Import boundaries are enforced by both lint rules and architecture tests:
 - `eslint.config.mjs` blocks direct forbidden imports and runtime globals in `src/core`.
 - `test-utils/architecture/core-boundaries.test.ts` scans `src/core` for forbidden alias imports, relative imports into outer layers, and direct runtime references.
 
+The architecture test is the authoritative core boundary gate because `src/core` may use relative imports and ESLint import restrictions do not resolve every relative path escape. ESLint remains a fast direct-import guard. The architecture test is intentionally heuristic: it scans ESM imports and dynamic imports, does not scan `require()`, and its runtime-reference scan strips comments but not string literals. If core grows beyond this heuristic, consider parser-backed enforcement such as `eslint-plugin-boundaries` or `import/no-restricted-paths`.
+
 Required rules:
 
 - Core must not import app.
