@@ -302,7 +302,7 @@ function mapDriveStatus(status: number, fallback: PassportFileRepositoryErrorCod
     return "forbidden";
   }
   if (status === 404) {
-    return "invalid_response";
+    return fallback;
   }
   return fallback;
 }

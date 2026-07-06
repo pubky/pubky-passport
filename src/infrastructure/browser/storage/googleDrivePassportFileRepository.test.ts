@@ -239,6 +239,18 @@ describe("GoogleDrivePassportFileRepository", () => {
     expect(JSON.stringify(result)).not.toContain("google raw error");
   });
 
+  it("maps an existing file disappearing before update to a write failure", async () => {
+    const { repository } = createRepository([
+      jsonResponse({ files: [{ id: "file-1", name: "passport.json" }] }),
+      jsonResponse({ error: "not found" }, 404),
+    ]);
+
+    await expect(repository.writePassportFile({ envelope })).resolves.toEqual({
+      ok: false,
+      error: { code: "write_failed" },
+    });
+  });
+
   it("does not use browser persistence APIs", () => {
     const source = readFileSync(fileURLToPath(new URL("./googleDrivePassportFileRepository.ts", import.meta.url)), "utf8");
 
