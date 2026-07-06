@@ -16,6 +16,13 @@ const eslintConfig = defineConfig([
     "next-env.d.ts"
   ]),
   {
+    files: ["**/*.{js,mjs,ts,tsx}"],
+    ignores: ["src/libs/logger/logger.ts"],
+    rules: {
+      "no-console": "error"
+    }
+  },
+  {
     files: ["src/core/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [
