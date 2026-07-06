@@ -122,6 +122,19 @@ Confirmed browser crypto contract for encrypted Drive storage:
 - Decryption authenticates ciphertext through AES-GCM and maps authentication failure to a safe typed error without exposing DOMException details.
 - Browser crypto must not persist SDK recovery file bytes, wrapping material, derived passphrases, decrypted payloads, or Drive tokens in `localStorage`, `sessionStorage`, IndexedDB, cookies, or server requests.
 
+Confirmed Google Drive appDataFolder repository contract:
+
+- Concrete browser Drive storage lives in `src/infrastructure/browser/storage` behind the core `PassportFileRepository` port.
+- The repository reads and writes encrypted `PassportFileEnvelopeV1` values only. It does not decrypt ciphertext, derive wrapping material, restore Pubky keys, request Homegate invites, import Pubky SDK code, or own Google login and consent UI.
+- The repository accepts an injected browser access-token provider and injected `fetch`; Drive access tokens do not appear in core method inputs and are not persisted by the repository.
+- Drive lookup uses Google Drive API v3 with `spaces=appDataFolder`, exact `passport.json` name matching, `trashed=false`, and the narrow Drive app data scope expected from future Google consent code.
+- A missing Drive file is an expected first-time setup state and returns `missing` rather than an error. If the file is listed but disappears before media fetch, the read also returns `missing`.
+- Multiple matching files or pagination evidence are rejected as `duplicate_files` rather than choosing a potentially wrong identity file.
+- Reads fetch file content through the Drive media endpoint and parse it with the v1 envelope parser. Malformed file contents map to `invalid_file` without returning raw Drive body, IV, ciphertext, or future decrypted key material.
+- Writes revalidate outbound envelopes with the v1 parser before upload, serialize only `v`, `iv`, `ct`, and origin-normalized `url`, create `passport.json` in `appDataFolder` when missing, and update existing file media when exactly one file exists.
+- Repository errors are safe typed codes for authorization, permission, network, invalid-response, invalid-file, duplicate-file, and write-failure cases. Raw Google error bodies, access tokens, and envelope contents are not included in errors.
+- The repository must not use `localStorage`, `sessionStorage`, IndexedDB, cookies, or server requests for Drive tokens, encrypted envelopes, plaintext recovery bytes, wrapping material, or decrypted payloads.
+
 Confirmed Pubky SDK key-operation APIs:
 
 - Package: `@synonymdev/pubky` version `0.9.3`.
