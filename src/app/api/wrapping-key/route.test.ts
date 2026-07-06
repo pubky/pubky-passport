@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { POST, createWrappingKeyPostHandler } from "./route";
+import { createWrappingKeyPostHandler } from "./handler";
+import { POST } from "./route";
 import type { RequestWrappingKeyController } from "../../../core/controllers/identity/requestWrappingKeyController";
 
 describe("POST /api/wrapping-key", () => {
