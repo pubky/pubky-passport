@@ -98,6 +98,17 @@ Rules:
 - Do not persist plaintext Pubky private key material.
 - Concrete `@synonymdev/pubky` key generation, export, import, public key, signup, discovery publication, session, and AuthToken approval APIs are verified below.
 
+Confirmed v1 envelope parser contract:
+
+- The accepted envelope has exactly the top-level fields `v`, `iv`, `ct`, and `url`.
+- `v` must be numeric version `1`; other numeric versions are rejected as unsupported.
+- Unknown top-level fields are rejected to avoid accidentally accepting plaintext or unrelated metadata.
+- `iv` and `ct` must be non-empty base64url-like strings. The parser does not decode, decrypt, or enforce crypto byte lengths; browser crypto owns those checks.
+- `url` must be an HTTPS Passport origin with no credentials, query, fragment, or non-root path.
+- Accepted `url` values normalize to `URL.origin`, for example `https://passport.pubky.app` with no trailing slash. A root-path form such as `https://passport.pubky.app/` parses to the same origin string.
+- HTTP localhost origins are allowed only when an explicit parser option enables local development support.
+- Parser errors are safe typed codes with optional field metadata and do not include raw file contents, IV, ciphertext, or future decrypted key material.
+
 Confirmed Pubky SDK key-operation APIs:
 
 - Package: `@synonymdev/pubky` version `0.9.3`.
