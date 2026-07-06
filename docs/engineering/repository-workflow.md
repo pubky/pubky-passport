@@ -16,6 +16,12 @@ pnpm check
 
 Also add manual validation notes to the PR description.
 
+## CI Dependency Audit Policy
+
+CI runs `pnpm audit --prod` after dependency installation. Known-vulnerable production dependencies are release-blocking for Passport because it is a signer app; audit failures must be fixed, upgraded, or explicitly risk-accepted before merge.
+
+GitHub Actions used by CI must be pinned by commit SHA instead of mutable tags. Upgrade pinned actions intentionally by resolving the target release tag to a commit SHA and reviewing the upstream changelog.
+
 ## Required Validation By Change Type
 
 ### Pure Domain/Application Logic
