@@ -161,7 +161,7 @@ export class BrowserPubkyIdentity implements PubkySignup, PubkyDiscovery, PubkyA
       await this.#identityAdapter.signup({
         keypair: keypair.value,
         homeserverPubky: input.homeserverPubky,
-        signupCode: input.signupCode,
+        ...(input.signupCode !== undefined ? { signupCode: input.signupCode } : {}),
       }),
     );
   }
@@ -176,7 +176,7 @@ export class BrowserPubkyIdentity implements PubkySignup, PubkyDiscovery, PubkyA
     return mapSignupResult(
       await this.#identityAdapter.signin({
         keypair: keypair.value,
-        waitForDiscovery: input.waitForDiscovery,
+        ...(input.waitForDiscovery !== undefined ? { waitForDiscovery: input.waitForDiscovery } : {}),
       }),
     );
   }
@@ -191,7 +191,7 @@ export class BrowserPubkyIdentity implements PubkySignup, PubkyDiscovery, PubkyA
     return mapDiscoveryResult(
       await this.#identityAdapter.publishHomeserverIfStale({
         keypair: keypair.value,
-        homeserverPubky: input.homeserverPubky,
+        ...(input.homeserverPubky !== undefined ? { homeserverPubky: input.homeserverPubky } : {}),
       }),
     );
   }
@@ -206,7 +206,7 @@ export class BrowserPubkyIdentity implements PubkySignup, PubkyDiscovery, PubkyA
     return mapDiscoveryResult(
       await this.#identityAdapter.publishHomeserverForce({
         keypair: keypair.value,
-        homeserverPubky: input.homeserverPubky,
+        ...(input.homeserverPubky !== undefined ? { homeserverPubky: input.homeserverPubky } : {}),
       }),
     );
   }

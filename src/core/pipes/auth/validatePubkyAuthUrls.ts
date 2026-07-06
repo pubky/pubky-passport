@@ -57,11 +57,13 @@ export function validatePubkyAuthUrls(
     return callbacks;
   }
 
+  const requestingAppDisplayName = deriveDisplayDomain(callbacks.callbacks);
+
   return {
     ok: true,
     relay: relay.url.href,
     callbacks: callbacks.callbacks,
-    requestingAppDisplayName: deriveDisplayDomain(callbacks.callbacks),
+    ...(requestingAppDisplayName ? { requestingAppDisplayName } : {}),
   };
 }
 
