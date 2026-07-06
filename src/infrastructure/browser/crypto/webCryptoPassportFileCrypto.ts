@@ -86,11 +86,6 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
       return failure("invalid_envelope");
     }
 
-    const wrappingBytes = decodeWrappingKey(input.wrappingKey);
-    if (!wrappingBytes.ok) {
-      return wrappingBytes;
-    }
-
     const iv = decodeBase64Url(envelope.envelope.iv);
     if (!iv.ok || iv.value.byteLength !== aesGcmIvBytes) {
       return failure("invalid_envelope");
@@ -99,6 +94,11 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
     const ciphertext = decodeBase64Url(envelope.envelope.ct);
     if (!ciphertext.ok || ciphertext.value.byteLength === 0) {
       return failure("invalid_envelope");
+    }
+
+    const wrappingBytes = decodeWrappingKey(input.wrappingKey);
+    if (!wrappingBytes.ok) {
+      return wrappingBytes;
     }
 
     const wrappingMaterial = wrappingBytes.value;
