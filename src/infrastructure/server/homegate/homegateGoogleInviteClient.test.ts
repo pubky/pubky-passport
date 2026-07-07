@@ -20,7 +20,7 @@ const homegateErrorCases: Array<{ body: string; code: HomegateInviteErrorCode }>
 
 describe("ServerHomegateGoogleInviteClient", () => {
   it("posts Google ID tokens to Homegate google_verification", async () => {
-    const fetchCalls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchCalls: Array<{ url: string; init: RequestInit | undefined }> = [];
     const client = new ServerHomegateGoogleInviteClient({
       homegateUrl: "https://homegate.pubky.app",
       fetchImpl: async (url, init) => {
