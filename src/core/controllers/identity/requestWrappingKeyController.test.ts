@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   createRequestWrappingKeyController,
-  type RequestWrappingKeyControllerResult,
 } from "./requestWrappingKeyController";
 import type { RequestWrappingKeyErrorCode, RequestWrappingKeyResult } from "../../application/identity/requestWrappingKey";
 
@@ -14,7 +13,7 @@ describe("requestWrappingKeyController", () => {
       return { ok: true, wrappingKey: "wrapping-key" };
     });
 
-    await expect(controller({ googleIdToken: "id-token" })).resolves.toEqual<RequestWrappingKeyControllerResult>({
+    await expect(controller({ googleIdToken: "id-token" })).resolves.toEqual({
       status: 200,
       body: { wrappingKey: "wrapping-key" },
     });
@@ -32,7 +31,7 @@ describe("requestWrappingKeyController", () => {
   ] as const)("maps neutral %s to wire %s", async (coreCode, wireCode, status) => {
     const controller = createRequestWrappingKeyController(async () => failure(coreCode));
 
-    await expect(controller({ googleIdToken: "id-token" })).resolves.toEqual<RequestWrappingKeyControllerResult>({
+    await expect(controller({ googleIdToken: "id-token" })).resolves.toEqual({
       status,
       body: { error: { code: wireCode } },
     });
