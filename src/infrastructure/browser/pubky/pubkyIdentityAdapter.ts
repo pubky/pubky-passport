@@ -1,3 +1,5 @@
+import "client-only";
+
 import { Pubky, PublicKey, type PubkyError, type PubkyErrorName, type Session } from "@synonymdev/pubky";
 
 import type { PubkyIdentitySession } from "../../../core/domain/identity/pubkyIdentity";

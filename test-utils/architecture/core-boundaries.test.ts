@@ -6,6 +6,14 @@ import { describe, expect, it } from "vitest";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const srcRoot = join(repoRoot, "src");
 const coreRoot = join(srcRoot, "core");
+const browserInfrastructureRoot = join(srcRoot, "infrastructure", "browser");
+const serverInfrastructureRoot = join(srcRoot, "infrastructure", "server");
+const compositionRoot = join(srcRoot, "infrastructure", "composition");
+const appRoot = join(srcRoot, "app");
+const uiRoot = join(srcRoot, "ui");
+const libsEnvRoot = join(srcRoot, "libs", "env");
+const serverEnvModule = join(libsEnvRoot, "server");
+const publicEnvModule = join(libsEnvRoot, "public");
 
 const checkedExtensions = new Set([".ts", ".tsx"]);
 
@@ -63,6 +71,70 @@ describe("core architecture boundaries", () => {
     expect(isForbiddenAliasImport("googleapis/build/src/apis/drive")).toBe(true);
     expect(isForbiddenAliasImport("server-only")).toBe(true);
   });
+
+  it("keeps browser infrastructure out of server-only code", () => {
+    const violations = productionSourceFiles(serverInfrastructureRoot).flatMap((filePath) =>
+      inspectForbiddenImports(filePath, {
+        forbiddenModuleSpecifiers: ["client-only"],
+        forbiddenTargets: [
+          { targetPath: browserInfrastructureRoot, label: "browser infrastructure" },
+          { targetPath: publicEnvModule, label: "public env module" },
+        ],
+      }),
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it("keeps server infrastructure out of browser-only code", () => {
+    const violations = productionSourceFiles(browserInfrastructureRoot).flatMap((filePath) =>
+      inspectForbiddenImports(filePath, {
+        forbiddenModuleSpecifiers: ["server-only"],
+        forbiddenTargets: [
+          { targetPath: serverInfrastructureRoot, label: "server infrastructure" },
+          { targetPath: serverEnvModule, label: "server env module" },
+        ],
+      }),
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it("keeps server-only dependencies out of UI code", () => {
+    const violations = productionSourceFiles(uiRoot).flatMap((filePath) =>
+      inspectForbiddenImports(filePath, {
+        forbiddenModuleSpecifiers: ["server-only"],
+        forbiddenTargets: [
+          { targetPath: serverInfrastructureRoot, label: "server infrastructure" },
+          { targetPath: serverEnvModule, label: "server env module" },
+        ],
+      }),
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it("limits server env imports to server-capable layers", () => {
+    const allowedImporters = [appRoot, serverInfrastructureRoot, compositionRoot, libsEnvRoot];
+    const violations = productionSourceFiles(srcRoot)
+      .filter((filePath) => !allowedImporters.some((allowedRoot) => isSameOrInside(filePath, allowedRoot)))
+      .flatMap((filePath) =>
+        inspectForbiddenImports(filePath, {
+          forbiddenTargets: [{ targetPath: serverEnvModule, label: "server env module" }],
+        }),
+      );
+
+    expect(violations).toEqual([]);
+  });
+
+  it("marks runtime-pinned infrastructure adapters explicitly", () => {
+    const violations = [
+      ...missingRuntimeMarkers(serverInfrastructureRoot, "server-only"),
+      ...missingRuntimeMarkers(browserInfrastructureRoot, "client-only"),
+    ];
+
+    expect(violations).toEqual([]);
+  });
 });
 
 function inspectCoreFile(filePath: string): string[] {
@@ -91,6 +163,46 @@ function coreSourceFiles(): string[] {
 
 function sourceFiles(rootPath: string): string[] {
   return walk(rootPath).filter((filePath) => checkedExtensions.has(extension(filePath)));
+}
+
+function productionSourceFiles(rootPath: string): string[] {
+  return sourceFiles(rootPath).filter((filePath) => !filePath.endsWith(".test.ts") && !filePath.endsWith(".test.tsx"));
+}
+
+function inspectForbiddenImports(
+  filePath: string,
+  options: {
+    forbiddenModuleSpecifiers?: string[];
+    forbiddenTargets?: Array<{ targetPath: string; label: string }>;
+  },
+): string[] {
+  const relativeFilePath = relative(repoRoot, filePath);
+  const violations: string[] = [];
+
+  for (const specifier of importSpecifiers(readFileSync(filePath, "utf8"))) {
+    if (options.forbiddenModuleSpecifiers?.includes(specifier)) {
+      violations.push(`${relativeFilePath} imports forbidden runtime marker "${specifier}"`);
+    }
+
+    const targetPath = importTargetPath(filePath, specifier);
+    if (!targetPath) {
+      continue;
+    }
+
+    for (const forbiddenTarget of options.forbiddenTargets ?? []) {
+      if (isSameOrInside(targetPath, forbiddenTarget.targetPath)) {
+        violations.push(`${relativeFilePath} imports ${forbiddenTarget.label} via "${specifier}"`);
+      }
+    }
+  }
+
+  return violations;
+}
+
+function missingRuntimeMarkers(rootPath: string, runtimeMarker: "client-only" | "server-only"): string[] {
+  return productionSourceFiles(rootPath)
+    .filter((filePath) => !importSpecifiers(readFileSync(filePath, "utf8")).includes(runtimeMarker))
+    .map((filePath) => `${relative(repoRoot, filePath)} is missing runtime marker import "${runtimeMarker}"`);
 }
 
 function walk(directoryPath: string): string[] {
@@ -143,6 +255,18 @@ function isForbiddenAliasImport(specifier: string): boolean {
 
 function importsPubkySdk(filePath: string): boolean {
   return importSpecifiers(readFileSync(filePath, "utf8")).includes("@synonymdev/pubky");
+}
+
+function importTargetPath(fromFilePath: string, specifier: string): string | null {
+  if (specifier.startsWith("@/")) {
+    return normalize(join(srcRoot, specifier.slice(2)));
+  }
+
+  if (specifier.startsWith(".")) {
+    return normalize(resolve(dirname(fromFilePath), specifier));
+  }
+
+  return null;
 }
 
 function isForbiddenRelativeImport(fromFilePath: string, specifier: string): boolean {

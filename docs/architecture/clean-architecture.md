@@ -59,6 +59,26 @@ Do not replace the top-level layers with mixed feature modules such as `src/auth
 
 This is stricter than pure feature-first organization because Passport has sensitive browser/server and key-custody boundaries. The architecture should make it hard for route handlers, React code, Google Drive adapters, Pubky SDK adapters, WebCrypto code, environment parsing, and domain/application logic to collapse into one feature folder.
 
+## Runtime Boundaries
+
+Passport keeps runtime-specific adapters under `src/infrastructure/browser` and `src/infrastructure/server` instead of promoting browser and server to separate top-level trees.
+
+This is intentional:
+
+- Next.js App Router owns a shared `src/app` tree where route handlers, server components, and client component boundaries coexist.
+- React UI is not inherently browser-only under React Server Components.
+- `src/core` is intentionally runtime-independent and may be used from either browser-capable or server-capable entry points.
+- Only concrete adapters are runtime-pinned, so runtime folders belong inside `src/infrastructure`.
+
+Runtime separation is enforced by module markers and architecture tests, not by folder naming alone:
+
+- Production files in `src/infrastructure/server` must import `server-only`.
+- Production files in `src/infrastructure/browser` must import `client-only`.
+- Browser infrastructure must not import server infrastructure or server env modules.
+- Server infrastructure must not import browser infrastructure or public env modules.
+- UI must not import server infrastructure or server env modules.
+
+
 ## Layer responsibilities
 
 ### `src/app`
@@ -220,6 +240,10 @@ Forbidden:
 
 Browser-only adapters.
 
+Required:
+
+- Production adapter files must start with `import "client-only"`.
+
 Examples:
 
 - Google Identity Services.
@@ -232,6 +256,10 @@ Examples:
 ### `src/infrastructure/server`
 
 Server-only adapters.
+
+Required:
+
+- Production adapter files must start with `import "server-only"`.
 
 Examples:
 
@@ -279,7 +307,7 @@ Import boundaries:
 Import boundaries are enforced by both lint rules and architecture tests:
 
 - `eslint.config.mjs` blocks direct forbidden imports and runtime globals in `src/core`.
-- `test-utils/architecture/core-boundaries.test.ts` scans `src/core` for forbidden alias imports, relative imports into outer layers, and direct runtime references.
+- `test-utils/architecture/core-boundaries.test.ts` scans `src/core` for forbidden alias imports, relative imports into outer layers, and direct runtime references. It also enforces browser/server infrastructure isolation, allowed server env importers, UI server-only restrictions, and runtime marker imports.
 
 The architecture test is the authoritative core boundary gate because `src/core` may use relative imports and ESLint import restrictions do not resolve every relative path escape. ESLint remains a fast direct-import guard. The architecture test is intentionally heuristic: it scans ESM imports and dynamic imports, does not scan `require()`, and its runtime-reference scan strips comments but not string literals. If core grows beyond this heuristic, consider parser-backed enforcement such as `eslint-plugin-boundaries` or `import/no-restricted-paths`.
 
@@ -292,6 +320,9 @@ Required rules:
 - Domain must not import controllers.
 - Application must depend on ports, not implementations.
 - Infrastructure may implement ports.
+- Browser infrastructure must not import server infrastructure.
+- Server infrastructure must not import browser infrastructure.
+- Server env modules must only be imported by server-capable locations.
 - Feature folders inside a layer may import allowed dependencies for that layer only.
 - Matching feature names across layers do not weaken dependency direction.
 

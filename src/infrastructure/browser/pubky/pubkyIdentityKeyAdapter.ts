@@ -1,3 +1,5 @@
+import "client-only";
+
 import { Keypair } from "@synonymdev/pubky";
 
 import type { PubkyPublicIdentity } from "../../../core/domain/identity/pubkyIdentity";
