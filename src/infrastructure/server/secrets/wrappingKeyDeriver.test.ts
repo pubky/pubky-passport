@@ -10,10 +10,12 @@ describe("ServerWrappingKeyDeriver", () => {
     const deriver = new ServerWrappingKeyDeriver({ serverSecret });
 
     const first = await deriver.deriveWrappingKey({
+      provider: "google",
       issuer: "https://accounts.google.com",
       subject: "google-subject",
     });
     const second = await deriver.deriveWrappingKey({
+      provider: "google",
       issuer: "https://accounts.google.com",
       subject: "google-subject",
     });
@@ -28,20 +30,35 @@ describe("ServerWrappingKeyDeriver", () => {
 
     await expect(
       deriver.deriveWrappingKey({
+        provider: "google",
         issuer: "https://accounts.google.com",
         subject: "google-subject",
       }),
     ).resolves.toEqual({ wrappingKey: "0Rvmd96LjmVRcQ7WjvQBSUKwlI1YHO_4xmqDELjAGOE" });
   });
 
+  it("preserves the frozen Google HKDF info prefix for existing custody", async () => {
+    const deriver = new ServerWrappingKeyDeriver({ serverSecret });
+
+    await expect(
+      deriver.deriveWrappingKey({
+        provider: "google",
+        issuer: "https://accounts.google.com",
+        subject: "test-subject",
+      }),
+    ).resolves.toEqual({ wrappingKey: "VzVs2hX0bykhMyq1CvPwjMgpFFHaUYwQGu4usnPCoNc" });
+  });
+
   it("derives different material for different subjects", async () => {
     const deriver = new ServerWrappingKeyDeriver({ serverSecret });
 
     const first = await deriver.deriveWrappingKey({
+      provider: "google",
       issuer: "https://accounts.google.com",
       subject: "google-subject",
     });
     const second = await deriver.deriveWrappingKey({
+      provider: "google",
       issuer: "https://accounts.google.com",
       subject: "other-google-subject",
     });
@@ -53,10 +70,12 @@ describe("ServerWrappingKeyDeriver", () => {
     const deriver = new ServerWrappingKeyDeriver({ serverSecret });
 
     const first = await deriver.deriveWrappingKey({
+      provider: "google",
       issuer: "https://accounts.google.com",
       subject: "google-subject",
     });
     const second = await deriver.deriveWrappingKey({
+      provider: "google",
       issuer: "accounts.google.com",
       subject: "google-subject",
     });
@@ -66,10 +85,12 @@ describe("ServerWrappingKeyDeriver", () => {
 
   it("derives different material for different server secrets", async () => {
     const first = await new ServerWrappingKeyDeriver({ serverSecret }).deriveWrappingKey({
+      provider: "google",
       issuer: "https://accounts.google.com",
       subject: "google-subject",
     });
     const second = await new ServerWrappingKeyDeriver({ serverSecret: otherServerSecret }).deriveWrappingKey({
+      provider: "google",
       issuer: "https://accounts.google.com",
       subject: "google-subject",
     });
@@ -82,6 +103,7 @@ describe("ServerWrappingKeyDeriver", () => {
 
     await expect(
       deriver.deriveWrappingKey({
+        provider: "google",
         issuer: "https://accounts.google.com",
         subject: "google-subject",
       }),
@@ -100,11 +122,11 @@ describe("ServerWrappingKeyDeriver", () => {
   it("rejects empty issuer or subject safely", async () => {
     const deriver = new ServerWrappingKeyDeriver({ serverSecret });
 
-    await expect(deriver.deriveWrappingKey({ issuer: "", subject: "google-subject" })).rejects.toThrow(
-      "Invalid wrapping key identity.",
-    );
-    await expect(deriver.deriveWrappingKey({ issuer: "https://accounts.google.com", subject: "" })).rejects.toThrow(
-      "Invalid wrapping key identity.",
-    );
+    await expect(
+      deriver.deriveWrappingKey({ provider: "google", issuer: "", subject: "google-subject" }),
+    ).rejects.toThrow("Invalid wrapping key identity.");
+    await expect(
+      deriver.deriveWrappingKey({ provider: "google", issuer: "https://accounts.google.com", subject: "" }),
+    ).rejects.toThrow("Invalid wrapping key identity.");
   });
 });

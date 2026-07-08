@@ -4,7 +4,7 @@ import {
   ServerGoogleIdTokenVerifier,
   type GoogleTokenVerifierDependency,
 } from "./googleIdTokenVerifier";
-import type { Clock } from "../../../core/ports/clock";
+import type { Clock } from "../../../../core/ports/clock";
 
 const audience = "google-client-id";
 const token = "header.payload.signature";
@@ -40,6 +40,7 @@ describe("ServerGoogleIdTokenVerifier", () => {
     await expect(verifier.verifyIdToken(token)).resolves.toEqual({
       ok: true,
       identity: {
+        provider: "google",
         issuer: "https://accounts.google.com",
         subject: "google-subject",
         audience,

@@ -2,13 +2,13 @@ import "server-only";
 
 import { OAuth2Client } from "google-auth-library";
 
-import type { Clock } from "../../../core/ports/clock";
+import type { Clock } from "../../../../core/ports/clock";
 import type {
-  GoogleIdTokenVerificationFailureReason,
-  GoogleIdTokenVerificationResult,
-  GoogleIdTokenVerifier,
-} from "../../../core/ports/googleIdTokenVerifier";
-import { systemClock } from "../systemClock";
+  ProviderIdTokenVerificationFailureReason,
+  ProviderIdTokenVerificationResult,
+  ProviderIdTokenVerifier,
+} from "../../../../core/ports/providerIdTokenVerifier";
+import { systemClock } from "../../systemClock";
 
 type GoogleIdTokenPayload = {
   iss?: string;
@@ -39,7 +39,9 @@ export type ServerGoogleIdTokenVerifierOptions = {
 
 const acceptedIssuers = new Set(["accounts.google.com", "https://accounts.google.com"]);
 
-export class ServerGoogleIdTokenVerifier implements GoogleIdTokenVerifier {
+export class ServerGoogleIdTokenVerifier implements ProviderIdTokenVerifier {
+  readonly provider = "google";
+
   private readonly audience: string;
   private readonly verifier: GoogleTokenVerifierDependency;
   private readonly clock: Clock;
@@ -50,7 +52,7 @@ export class ServerGoogleIdTokenVerifier implements GoogleIdTokenVerifier {
     this.clock = options.clock;
   }
 
-  async verifyIdToken(idToken: string): Promise<GoogleIdTokenVerificationResult> {
+  async verifyIdToken(idToken: string): Promise<ProviderIdTokenVerificationResult> {
     let ticket: GoogleLoginTicket;
 
     try {
@@ -72,6 +74,7 @@ export class ServerGoogleIdTokenVerifier implements GoogleIdTokenVerifier {
     return {
       ok: true,
       identity: {
+        provider: "google",
         issuer: validatedPayload.payload.iss,
         subject: validatedPayload.payload.sub,
         audience: this.audience,
@@ -96,7 +99,9 @@ function validatePayload(
   payload: GoogleIdTokenPayload,
   expectedAudience: string,
   now: Date,
-): { ok: true; payload: ValidGoogleIdTokenPayload } | { ok: false; reason: GoogleIdTokenVerificationFailureReason } {
+):
+  | { ok: true; payload: ValidGoogleIdTokenPayload }
+  | { ok: false; reason: ProviderIdTokenVerificationFailureReason } {
   if (!payload.iss || !acceptedIssuers.has(payload.iss)) {
     return { ok: false, reason: "unsupported_issuer" };
   }
@@ -124,7 +129,7 @@ function audienceMatches(audience: string | string[] | undefined, expectedAudien
   return audience === expectedAudience;
 }
 
-function mapGoogleVerifierError(error: unknown): GoogleIdTokenVerificationFailureReason {
+function mapGoogleVerifierError(error: unknown): ProviderIdTokenVerificationFailureReason {
   const message = error instanceof Error ? error.message.toLowerCase() : "";
 
   if (message.includes("expired")) {

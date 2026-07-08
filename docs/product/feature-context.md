@@ -39,6 +39,15 @@ Signing must remain blocked until the user explicitly confirms.
 
 MVP provider: Google only.
 
+Identity establishment is modeled through narrow, independent provider seams rather than one service per provider:
+
+- Browser provider identity covers sign-in and ID-token acquisition.
+- Server ID-token verification is represented by the neutral `ProviderIdTokenVerifier` port.
+- Encrypted passport storage is represented by the neutral `PassportFileRepository` port.
+- Wrapping secret acquisition is separate from provider identity and storage.
+
+Self-custody is not a degenerate provider. It is a future key-custody strategy that will compose neutral ports differently when a setup or restore use case first consumes it.
+
 Google-owned screens are not Passport UI. Passport initiates Google Identity and Drive consent flows but does not recreate account chooser or consent screens.
 
 Server-side Google ID token verification must check:
@@ -69,6 +78,7 @@ Current server derivation contract:
 - Use HKDF-SHA256 with decoded `PASSPORT_SERVER_SECRET_BASE64` as input key material.
 - Use UTF-8 salt `pubky-passport/wrapping-key/salt/v1`.
 - Use UTF-8 info `google:<issuer>\n<subject>` with exact verified issuer and subject values.
+- The `google:` HKDF info prefix is frozen forever for Google-backed identities because it is baked into every existing user's wrapping key. Future provider prefixes must be added as explicit new constants without changing existing entries.
 - Return 32 derived bytes encoded as base64url; browser crypto adapters decode this string before use.
 
 ## Google Drive Passport Storage
@@ -125,7 +135,7 @@ Confirmed browser crypto contract for encrypted Drive storage:
 
 Confirmed Google Drive appDataFolder repository contract:
 
-- Concrete browser Drive storage lives in `src/infrastructure/browser/storage` behind the core `PassportFileRepository` port.
+- Concrete browser Drive storage lives in `src/infrastructure/browser/providers/google/drive` behind the core `PassportFileRepository` port.
 - The repository reads and writes encrypted `PassportFileEnvelopeV1` values only. It does not decrypt ciphertext, derive wrapping material, restore Pubky keys, request Homegate invites, import Pubky SDK code, or own Google login and consent UI.
 - The repository accepts an injected browser access-token provider and injected `fetch`; Drive access tokens do not appear in core method inputs and are not persisted by the repository.
 - Drive lookup uses Google Drive API v3 with `spaces=appDataFolder`, exact `passport.json` name matching, `trashed=false`, and the narrow Drive app data scope expected from future Google consent code.

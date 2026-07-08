@@ -1,17 +1,17 @@
 import "client-only";
 
-import type { PassportFileEnvelopeV1 } from "../../../core/domain/passport-file/passportFile";
+import type { PassportFileEnvelopeV1 } from "../../../../../core/domain/passport-file/passportFile";
 import {
   parsePassportFileContents,
   parsePassportFileEnvelope,
   type PassportFileUrlOptions,
-} from "../../../core/pipes/passport-file/parsePassportFile";
+} from "../../../../../core/pipes/passport-file/parsePassportFile";
 import type {
   PassportFileReadResult,
   PassportFileRepository,
   PassportFileRepositoryErrorCode,
   PassportFileRepositoryResult,
-} from "../../../core/ports/passportFileRepository";
+} from "../../../../../core/ports/passportFileRepository";
 
 export type GoogleDriveAccessTokenProvider = () => Promise<string | null | undefined>;
 
