@@ -1,3 +1,5 @@
+import "client-only";
+
 import type { PassportFileEnvelopeV1 } from "../../../core/domain/passport-file/passportFile";
 import type {
   PassportFileCrypto,
