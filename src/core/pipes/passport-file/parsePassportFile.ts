@@ -1,6 +1,6 @@
 import type { PassportFileEnvelopeV1 } from "../../domain/passport-file/passportFile";
 
-export type PassportFileField = "v" | "iv" | "ct" | "url";
+export type PassportFileField = keyof PassportFileEnvelopeV1;
 
 export type PassportFileParseErrorCode =
   | "invalid_json"
@@ -27,7 +27,15 @@ export type PassportFileOriginResult =
   | { ok: true; origin: string }
   | { ok: false; error: { code: "invalid_field"; field: "url" } };
 
-const envelopeFields = new Set(["v", "iv", "ct", "url"]);
+const envelopeFieldMap = {
+  v: true,
+  iv: true,
+  ct: true,
+  url: true,
+} satisfies Record<PassportFileField, true>;
+
+const envelopeFields = Object.keys(envelopeFieldMap) as PassportFileField[];
+const envelopeFieldSet = new Set<PassportFileField>(envelopeFields);
 const base64UrlPattern = /^[A-Za-z0-9_-]+$/;
 
 export function parsePassportFileContents(input: unknown, options: PassportFileUrlOptions = {}): PassportFileParseResult {
@@ -55,12 +63,12 @@ export function parsePassportFileEnvelope(
 
   for (const field of envelopeFields) {
     if (!(field in input)) {
-      return error("missing_field", field as PassportFileField);
+      return error("missing_field", field);
     }
   }
 
   for (const field of Object.keys(input)) {
-    if (!envelopeFields.has(field)) {
+    if (!isPassportFileField(field)) {
       return error("unknown_field");
     }
   }
@@ -133,6 +141,10 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 
 function isBase64UrlLike(value: unknown): value is string {
   return typeof value === "string" && base64UrlPattern.test(value);
+}
+
+function isPassportFileField(value: string): value is PassportFileField {
+  return envelopeFieldSet.has(value as PassportFileField);
 }
 
 function isAllowedProtocol(url: URL, options: PassportFileUrlOptions): boolean {
