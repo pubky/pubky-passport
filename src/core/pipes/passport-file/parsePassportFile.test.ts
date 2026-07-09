@@ -4,15 +4,19 @@ import {
   normalizePassportFileOrigin,
   parsePassportFileContents,
   parsePassportFileEnvelope,
+  type PassportFileField,
   type PassportFileParseErrorCode,
 } from "./parsePassportFile";
+import type { PassportFileEnvelopeV1 } from "../../domain/passport-file/passportFile";
 
 const validEnvelope = {
   v: 1,
   iv: "abc123_-",
   ct: "ciphertext_123-ABC",
   url: "https://passport.pubky.app",
-};
+} satisfies PassportFileEnvelopeV1;
+
+const passportFileFields = Object.keys(validEnvelope) as PassportFileField[];
 
 function stringifyEnvelope(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({ ...validEnvelope, ...overrides });
@@ -21,7 +25,7 @@ function stringifyEnvelope(overrides: Record<string, unknown> = {}): string {
 function expectParseError(
   input: unknown,
   code: PassportFileParseErrorCode,
-  field?: "v" | "iv" | "ct" | "url",
+  field?: PassportFileField,
 ): void {
   const result = parsePassportFileContents(input);
 
@@ -68,7 +72,7 @@ describe("parsePassportFileContents", () => {
   });
 
   it("rejects missing required fields with typed field errors", () => {
-    for (const field of ["v", "iv", "ct", "url"] as const) {
+    for (const field of passportFileFields) {
       const envelope: Record<string, unknown> = { ...validEnvelope };
       delete envelope[field];
 
