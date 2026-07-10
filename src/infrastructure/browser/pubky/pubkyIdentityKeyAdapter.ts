@@ -2,26 +2,25 @@ import "client-only";
 
 import { Keypair } from "@synonymdev/pubky";
 
-import type { PubkyPublicIdentity } from "../../../core/domain/identity/pubkyIdentity";
-
-export const PUBKY_SDK_VERSION = "0.9.3";
+import {
+  pubkySecretKeyBytes,
+  pubkySecretKeyFormat,
+  type PubkyPublicIdentity,
+} from "../../../core/domain/identity/pubkyIdentity";
 
 const sdkKeypairs = new WeakMap<PubkyIdentityKeypair, Keypair>();
 
-export type PubkyRecoveryFile = {
+export type PubkySecretKey = {
   bytes: Uint8Array;
-  format: "pubky-recovery-file";
-  sdkPackage: "@synonymdev/pubky";
-  sdkVersion: typeof PUBKY_SDK_VERSION;
+  format: typeof pubkySecretKeyFormat;
 };
 
 export type PubkyIdentityKeyErrorCode =
-  | "invalid_passphrase"
-  | "invalid_recovery_file"
+  | "invalid_secret_key"
   | "key_unavailable"
   | "keypair_creation_failed"
-  | "recovery_export_failed"
-  | "recovery_restore_failed";
+  | "secret_export_failed"
+  | "secret_restore_failed";
 
 export type PubkyIdentityKeyError = {
   code: PubkyIdentityKeyErrorCode;
@@ -32,13 +31,8 @@ export type PubkyIdentityKeyResult<T> =
   | { ok: true; value: T }
   | { ok: false; error: PubkyIdentityKeyError };
 
-export type PubkyRecoveryFileInput = {
-  passphrase: string;
-};
-
 export type PubkyRestoreKeypairInput = {
-  recoveryFileBytes: Uint8Array;
-  passphrase: string;
+  secretKeyBytes: Uint8Array;
 };
 
 export class PubkyIdentityKeypair {
@@ -54,8 +48,8 @@ export class PubkyIdentityKeypair {
     }
   }
 
-  static restoreFromRecoveryFile(input: PubkyRestoreKeypairInput): PubkyIdentityKeyResult<PubkyIdentityKeypair> {
-    const validationError = validateRecoveryFileInput(input);
+  static restoreFromSecretKey(input: PubkyRestoreKeypairInput): PubkyIdentityKeyResult<PubkyIdentityKeypair> {
+    const validationError = validateSecretKeyInput(input);
 
     if (validationError) {
       return { ok: false, error: validationError };
@@ -64,10 +58,10 @@ export class PubkyIdentityKeypair {
     try {
       return {
         ok: true,
-        value: new PubkyIdentityKeypair(Keypair.fromRecoveryFile(input.recoveryFileBytes, input.passphrase)),
+        value: new PubkyIdentityKeypair(Keypair.fromSecret(input.secretKeyBytes)),
       };
     } catch {
-      return failure("recovery_restore_failed", "Pubky identity recovery file restoration failed.");
+      return failure("secret_restore_failed", "Pubky identity secret key restoration failed.");
     }
   }
 
@@ -84,25 +78,17 @@ export class PubkyIdentityKeypair {
     }
   }
 
-  exportRecoveryFile(input: PubkyRecoveryFileInput): PubkyIdentityKeyResult<PubkyRecoveryFile> {
-    const passphraseError = validatePassphrase(input.passphrase);
-
-    if (passphraseError) {
-      return { ok: false, error: passphraseError };
-    }
-
+  exportSecretKey(): PubkyIdentityKeyResult<PubkySecretKey> {
     try {
       return {
         ok: true,
         value: {
-          bytes: sdkKeypairFor(this).createRecoveryFile(input.passphrase),
-          format: "pubky-recovery-file",
-          sdkPackage: "@synonymdev/pubky",
-          sdkVersion: PUBKY_SDK_VERSION,
+          bytes: sdkKeypairFor(this).secret(),
+          format: pubkySecretKeyFormat,
         },
       };
     } catch {
-      return failure("recovery_export_failed", "Pubky identity recovery file export failed.");
+      return failure("secret_export_failed", "Pubky identity secret key export failed.");
     }
   }
 
@@ -137,32 +123,23 @@ export class PubkyIdentityKeyAdapter {
   }
 
   restoreKeypair(input: PubkyRestoreKeypairInput): PubkyIdentityKeyResult<PubkyIdentityKeypair> {
-    return PubkyIdentityKeypair.restoreFromRecoveryFile(input);
+    return PubkyIdentityKeypair.restoreFromSecretKey(input);
   }
 
   getPublicIdentity(keypair: PubkyIdentityKeypair): PubkyPublicIdentity {
     return keypair.publicIdentity();
   }
 
-  exportRecoveryFile(
-    keypair: PubkyIdentityKeypair,
-    input: PubkyRecoveryFileInput,
-  ): PubkyIdentityKeyResult<PubkyRecoveryFile> {
-    return keypair.exportRecoveryFile(input);
+  exportSecretKey(keypair: PubkyIdentityKeypair): PubkyIdentityKeyResult<PubkySecretKey> {
+    return keypair.exportSecretKey();
   }
 }
 
-function validateRecoveryFileInput(input: PubkyRestoreKeypairInput): PubkyIdentityKeyError | undefined {
-  const passphraseError = validatePassphrase(input.passphrase);
-
-  if (passphraseError) {
-    return passphraseError;
-  }
-
-  if (!(input.recoveryFileBytes instanceof Uint8Array) || input.recoveryFileBytes.byteLength === 0) {
+function validateSecretKeyInput(input: PubkyRestoreKeypairInput): PubkyIdentityKeyError | undefined {
+  if (!(input.secretKeyBytes instanceof Uint8Array) || input.secretKeyBytes.byteLength !== pubkySecretKeyBytes) {
     return {
-      code: "invalid_recovery_file",
-      message: "Pubky identity recovery file bytes are missing or invalid.",
+      code: "invalid_secret_key",
+      message: "Pubky identity secret key bytes are missing or invalid.",
     };
   }
 
@@ -177,17 +154,6 @@ function sdkKeypairFor(keypair: PubkyIdentityKeypair): Keypair {
   }
 
   return sdkKeypair;
-}
-
-function validatePassphrase(passphrase: string): PubkyIdentityKeyError | undefined {
-  if (passphrase.length === 0) {
-    return {
-      code: "invalid_passphrase",
-      message: "Pubky identity recovery passphrase is missing.",
-    };
-  }
-
-  return undefined;
 }
 
 function failure<T>(code: PubkyIdentityKeyErrorCode, message: string): PubkyIdentityKeyResult<T> {

@@ -4,10 +4,10 @@ import type {
   PubkyIdentityKey,
   PubkyIdentityKeyHandle,
   PubkyIdentitySession,
-  PubkyRecoveryFileMaterial,
+  PubkySecretKeyMaterial,
 } from "../../../core/domain/identity/pubkyIdentity";
 import type {
-  ExportPubkyRecoveryFileInput,
+  ExportPubkySecretKeyInput,
   GetPubkyPublicIdentityInput,
   PubkyIdentityKeys,
   PubkyIdentityKeysErrorCode,
@@ -65,8 +65,7 @@ export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
 
   async restoreIdentityKey(input: RestorePubkyIdentityKeyInput): Promise<PubkyIdentityKeysResult<PubkyIdentityKey>> {
     const restored = this.#keyAdapter.restoreKeypair({
-      recoveryFileBytes: input.recoveryFile.bytes,
-      passphrase: input.recoveryPassphrase,
+      secretKeyBytes: input.secretKey.bytes,
     });
 
     if (!restored.ok) {
@@ -76,14 +75,14 @@ export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
     return this.storeKeypair(restored.value);
   }
 
-  async exportRecoveryFile(input: ExportPubkyRecoveryFileInput): Promise<PubkyIdentityKeysResult<PubkyRecoveryFileMaterial>> {
+  async exportSecretKey(input: ExportPubkySecretKeyInput): Promise<PubkyIdentityKeysResult<PubkySecretKeyMaterial>> {
     const keypair = this.#keypairs.get(input.keyHandle);
 
     if (!keypair) {
       return keyFailure("key_unavailable");
     }
 
-    const exported = this.#keyAdapter.exportRecoveryFile(keypair, { passphrase: input.recoveryPassphrase });
+    const exported = this.#keyAdapter.exportSecretKey(keypair);
 
     if (!exported.ok) {
       return keyFailure(mapIdentityKeyErrorCode(exported.error.code));
@@ -94,7 +93,6 @@ export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
       value: {
         bytes: exported.value.bytes,
         format: exported.value.format,
-        sdkVersion: exported.value.sdkVersion,
       },
     };
   }
@@ -235,15 +233,14 @@ export class BrowserPubkyIdentity implements PubkySignup, PubkyDiscovery, PubkyA
 
 export function mapIdentityKeyErrorCode(code: PubkyIdentityKeyErrorCode): PubkyIdentityKeysErrorCode {
   switch (code) {
-    case "invalid_passphrase":
-    case "invalid_recovery_file":
+    case "invalid_secret_key":
     case "key_unavailable":
       return code;
     case "keypair_creation_failed":
       return "create_failed";
-    case "recovery_export_failed":
+    case "secret_export_failed":
       return "export_failed";
-    case "recovery_restore_failed":
+    case "secret_restore_failed":
       return "restore_failed";
   }
 }

@@ -5,8 +5,7 @@ export type PassportFileCryptoErrorCode =
   | "invalid_plaintext"
   | "invalid_envelope"
   | "encrypt_failed"
-  | "decrypt_failed"
-  | "passphrase_derivation_failed";
+  | "decrypt_failed";
 
 export type PassportFileCryptoError = {
   code: PassportFileCryptoErrorCode;
@@ -17,16 +16,14 @@ export type PassportFileCryptoResult<T> =
   | { ok: false; error: PassportFileCryptoError };
 
 export interface PassportFileCrypto {
-  encryptRecoveryFileBytes(input: {
-    recoveryFileBytes: Uint8Array;
+  encryptSecretKeyBytes(input: {
+    secretKeyBytes: Uint8Array;
     wrappingKey: string;
     passportUrl: string;
   }): Promise<PassportFileCryptoResult<PassportFileEnvelopeV1>>;
 
-  decryptRecoveryFileBytes(input: {
+  decryptSecretKeyBytes(input: {
     envelope: PassportFileEnvelopeV1;
     wrappingKey: string;
   }): Promise<PassportFileCryptoResult<Uint8Array>>;
-
-  deriveRecoveryPassphrase(input: { wrappingKey: string }): Promise<PassportFileCryptoResult<string>>;
 }

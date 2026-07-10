@@ -12,10 +12,9 @@ import {
 describe("browser Pubky port adapters", () => {
   it("maps key adapter errors to identity-key port errors", () => {
     expect(mapIdentityKeyErrorCode("keypair_creation_failed")).toBe("create_failed");
-    expect(mapIdentityKeyErrorCode("recovery_export_failed")).toBe("export_failed");
-    expect(mapIdentityKeyErrorCode("recovery_restore_failed")).toBe("restore_failed");
-    expect(mapIdentityKeyErrorCode("invalid_passphrase")).toBe("invalid_passphrase");
-    expect(mapIdentityKeyErrorCode("invalid_recovery_file")).toBe("invalid_recovery_file");
+    expect(mapIdentityKeyErrorCode("secret_export_failed")).toBe("export_failed");
+    expect(mapIdentityKeyErrorCode("secret_restore_failed")).toBe("restore_failed");
+    expect(mapIdentityKeyErrorCode("invalid_secret_key")).toBe("invalid_secret_key");
     expect(mapIdentityKeyErrorCode("key_unavailable")).toBe("key_unavailable");
   });
 
@@ -59,7 +58,7 @@ describe("browser Pubky port adapters", () => {
     });
 
     await expect(
-      keys.exportRecoveryFile({ keyHandle: unknownHandle, recoveryPassphrase: "test-passphrase" }),
+      keys.exportSecretKey({ keyHandle: unknownHandle }),
     ).resolves.toEqual({
       ok: false,
       error: { code: "key_unavailable" },

@@ -1,11 +1,11 @@
+import { pubkySecretKeyBytes, pubkySecretKeyFormat, type PubkySecretKeyMaterial } from "../../src/core/domain/identity/pubkyIdentity";
 import type {
   PubkyIdentityKey,
   PubkyIdentityKeyHandle,
   PubkyPublicIdentity,
-  PubkyRecoveryFileMaterial,
 } from "@/core/domain/identity/pubkyIdentity";
 import type {
-  ExportPubkyRecoveryFileInput,
+  ExportPubkySecretKeyInput,
   GetPubkyPublicIdentityInput,
   PubkyIdentityKeys,
   PubkyIdentityKeysErrorCode,
@@ -14,14 +14,12 @@ import type {
 } from "@/core/ports/pubkyIdentityKeys";
 
 export type FakePubkyIdentityKeysRestoreCall = {
-  recoveryFileByteLength: number;
-  recoveryFileFormat: string;
-  hasRecoveryPassphrase: boolean;
+  secretKeyByteLength: number;
+  secretKeyFormat: string;
 };
 
 export type FakePubkyIdentityKeysExportCall = {
   keyHandle: PubkyIdentityKeyHandle;
-  hasRecoveryPassphrase: boolean;
 };
 
 export class FakePubkyIdentityKeys implements PubkyIdentityKeys {
@@ -40,10 +38,9 @@ export class FakePubkyIdentityKeys implements PubkyIdentityKeys {
     publicKeyDisplay: "pubkyfakepubkyidentity1111111111111111111111111111111111111111111",
   };
 
-  recoveryFile: PubkyRecoveryFileMaterial = {
-    bytes: new Uint8Array([1, 2, 3]),
-    format: "pubky-recovery-file",
-    sdkVersion: "fake-sdk",
+  secretKey: PubkySecretKeyMaterial = {
+    bytes: new Uint8Array(Array.from({ length: pubkySecretKeyBytes }, (_, index) => index + 1)),
+    format: pubkySecretKeyFormat,
   };
 
   readonly #identities = new Map<PubkyIdentityKeyHandle, PubkyPublicIdentity>();
@@ -60,9 +57,8 @@ export class FakePubkyIdentityKeys implements PubkyIdentityKeys {
 
   async restoreIdentityKey(input: RestorePubkyIdentityKeyInput): Promise<PubkyIdentityKeysResult<PubkyIdentityKey>> {
     this.restoreCalls.push({
-      recoveryFileByteLength: input.recoveryFile.bytes.byteLength,
-      recoveryFileFormat: input.recoveryFile.format,
-      hasRecoveryPassphrase: input.recoveryPassphrase.length > 0,
+      secretKeyByteLength: input.secretKey.bytes.byteLength,
+      secretKeyFormat: input.secretKey.format,
     });
 
     if (this.restoreFailure) {
@@ -72,12 +68,11 @@ export class FakePubkyIdentityKeys implements PubkyIdentityKeys {
     return { ok: true, value: this.createKey(this.nextPublicIdentity) };
   }
 
-  async exportRecoveryFile(
-    input: ExportPubkyRecoveryFileInput,
-  ): Promise<PubkyIdentityKeysResult<PubkyRecoveryFileMaterial>> {
+  async exportSecretKey(
+    input: ExportPubkySecretKeyInput,
+  ): Promise<PubkyIdentityKeysResult<PubkySecretKeyMaterial>> {
     this.exportCalls.push({
       keyHandle: input.keyHandle,
-      hasRecoveryPassphrase: input.recoveryPassphrase.length > 0,
     });
 
     if (this.exportFailure) {
@@ -88,7 +83,7 @@ export class FakePubkyIdentityKeys implements PubkyIdentityKeys {
       return failure("key_unavailable");
     }
 
-    return { ok: true, value: this.recoveryFile };
+    return { ok: true, value: this.secretKey };
   }
 
   async getPublicIdentity(input: GetPubkyPublicIdentityInput): Promise<PubkyIdentityKeysResult<PubkyPublicIdentity>> {

@@ -1,5 +1,8 @@
 declare const pubkyIdentityKeyHandleBrand: unique symbol;
 
+export const pubkySecretKeyBytes = 32;
+export const pubkySecretKeyFormat = "pubky-secret-key";
+
 export type PubkyPublicIdentity = {
   publicKeyZ32: string;
   publicKeyDisplay: string;
@@ -14,10 +17,9 @@ export type PubkyIdentityKey = {
   publicIdentity: PubkyPublicIdentity;
 };
 
-export type PubkyRecoveryFileMaterial = {
+export type PubkySecretKeyMaterial = {
   bytes: Uint8Array;
-  format: "pubky-recovery-file";
-  sdkVersion: string;
+  format: typeof pubkySecretKeyFormat;
 };
 
 export type PubkyIdentitySession = {

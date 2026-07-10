@@ -1,5 +1,6 @@
 import "client-only";
 
+import { pubkySecretKeyBytes } from "../../../core/domain/identity/pubkyIdentity";
 import type { PassportFileEnvelopeV1 } from "../../../core/domain/passport-file/passportFile";
 import type {
   PassportFileCrypto,
@@ -15,14 +16,11 @@ export type WebCryptoPassportFileCryptoOptions = {
 
 const wrappingKeyBytes = 32;
 const aesGcmIvBytes = 12;
-const recoveryPassphraseBytes = 32;
 const base64UrlPattern = /^[A-Za-z0-9_-]+$/;
 const textEncoder = new TextEncoder();
 
 const aesGcmDerivationSalt = textEncoder.encode("pubky-passport/passport-file/aes-gcm/salt/v1");
 const aesGcmDerivationInfo = textEncoder.encode("passport-file:aes-gcm:v1");
-const recoveryPassphraseDerivationSalt = textEncoder.encode("pubky-passport/pubky-recovery-passphrase/salt/v1");
-const recoveryPassphraseDerivationInfo = textEncoder.encode("pubky-recovery-passphrase:v1");
 
 export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
   readonly #subtle: SubtleCrypto;
@@ -33,12 +31,12 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
     this.#getRandomValues = options.getRandomValues ?? globalThis.crypto.getRandomValues.bind(globalThis.crypto);
   }
 
-  async encryptRecoveryFileBytes(input: {
-    recoveryFileBytes: Uint8Array;
+  async encryptSecretKeyBytes(input: {
+    secretKeyBytes: Uint8Array;
     wrappingKey: string;
     passportUrl: string;
   }): Promise<PassportFileCryptoResult<PassportFileEnvelopeV1>> {
-    if (!isValidRecoveryFileBytes(input.recoveryFileBytes)) {
+    if (!isValidSecretKeyBytes(input.secretKeyBytes)) {
       return failure("invalid_plaintext");
     }
 
@@ -60,7 +58,7 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
       const ciphertext = await this.#subtle.encrypt(
         { name: "AES-GCM", iv, additionalData: aadForEnvelope(envelopeMetadata) },
         key,
-        toArrayBuffer(input.recoveryFileBytes),
+        toArrayBuffer(input.secretKeyBytes),
       );
 
       return {
@@ -79,7 +77,7 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
     }
   }
 
-  async decryptRecoveryFileBytes(input: {
+  async decryptSecretKeyBytes(input: {
     envelope: PassportFileEnvelopeV1;
     wrappingKey: string;
   }): Promise<PassportFileCryptoResult<Uint8Array>> {
@@ -112,35 +110,14 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
         toArrayBuffer(ciphertext.value),
       );
 
-      return { ok: true, value: new Uint8Array(plaintext) };
+      const secretKeyBytes = new Uint8Array(plaintext);
+      if (!isValidSecretKeyBytes(secretKeyBytes)) {
+        return failure("invalid_plaintext");
+      }
+
+      return { ok: true, value: secretKeyBytes };
     } catch {
       return failure("decrypt_failed");
-    } finally {
-      wrappingMaterial.fill(0);
-    }
-  }
-
-  async deriveRecoveryPassphrase(input: { wrappingKey: string }): Promise<PassportFileCryptoResult<string>> {
-    const wrappingBytes = decodeWrappingKey(input.wrappingKey);
-    if (!wrappingBytes.ok) {
-      return wrappingBytes;
-    }
-
-    const wrappingMaterial = wrappingBytes.value;
-    try {
-      const passphraseBytes = await this.#deriveBits(
-        wrappingMaterial,
-        recoveryPassphraseDerivationSalt,
-        recoveryPassphraseDerivationInfo,
-        recoveryPassphraseBytes,
-      );
-
-      const passphrase = encodeBase64Url(passphraseBytes);
-      passphraseBytes.fill(0);
-
-      return { ok: true, value: passphrase };
-    } catch {
-      return failure("passphrase_derivation_failed");
     } finally {
       wrappingMaterial.fill(0);
     }
@@ -163,20 +140,10 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
     );
   }
 
-  async #deriveBits(wrappingBytes: Uint8Array, salt: Uint8Array, info: Uint8Array, byteLength: number): Promise<Uint8Array> {
-    const hkdfKey = await this.#subtle.importKey("raw", toArrayBuffer(wrappingBytes), "HKDF", false, ["deriveBits"]);
-    const bits = await this.#subtle.deriveBits(
-      { name: "HKDF", hash: "SHA-256", salt: toArrayBuffer(salt), info: toArrayBuffer(info) },
-      hkdfKey,
-      byteLength * 8,
-    );
-
-    return new Uint8Array(bits);
-  }
 }
 
-function isValidRecoveryFileBytes(recoveryFileBytes: Uint8Array): boolean {
-  return recoveryFileBytes instanceof Uint8Array && recoveryFileBytes.byteLength > 0;
+function isValidSecretKeyBytes(secretKeyBytes: Uint8Array): boolean {
+  return secretKeyBytes instanceof Uint8Array && secretKeyBytes.byteLength === pubkySecretKeyBytes;
 }
 
 function decodeWrappingKey(value: string): PassportFileCryptoResult<Uint8Array> {

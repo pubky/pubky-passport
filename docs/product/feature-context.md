@@ -112,15 +112,14 @@ Confirmed v1 envelope parser contract:
 Confirmed browser crypto contract for encrypted Drive storage:
 
 - Concrete browser crypto implementation lives in `src/infrastructure/browser/crypto` behind the core `PassportFileCrypto` port.
-- The core crypto port encrypts and decrypts SDK recovery file bytes only. Pubky recovery metadata such as SDK version stays at the Pubky/setup/restore boundary, not inside browser crypto.
+- The core crypto port encrypts and decrypts 32-byte Pubky secret key material only; the encrypted Drive storage contract does not include SDK metadata.
 - The adapter accepts the wrapping key as the 32-byte unpadded base64url string returned by the Passport wrapping-key API.
 - Browser crypto decodes wrapping material in browser memory only and derives purpose-specific material with WebCrypto HKDF-SHA256 instead of using the raw wrapping bytes directly as an operational key. The AES-GCM key is derived as a non-extractable WebCrypto `CryptoKey` via `deriveKey` rather than materializing raw AES key bytes in JavaScript.
 - Passport file encryption uses AES-256-GCM with a fresh random 96-bit IV per encryption. `iv` and ciphertext `ct` are stored as unpadded base64url strings in the v1 envelope.
 - AES-GCM sub-key derivation uses IKM = decoded wrapping material, salt `pubky-passport/passport-file/aes-gcm/salt/v1`, info `passport-file:aes-gcm:v1`, and an AES-256-GCM output key.
 - AES-GCM authenticates envelope metadata as additional authenticated data using `pubky-passport/passport-file/v1\n<normalized-envelope-url>`, so tampering with the authenticated v1 context or stored Passport origin fails decryption.
-- Google-only SDK recovery passphrase derivation uses IKM = decoded wrapping material, salt `pubky-passport/pubky-recovery-passphrase/salt/v1`, info `pubky-recovery-passphrase:v1`, and 32 output bytes encoded as unpadded base64url text.
 - Decryption authenticates ciphertext through AES-GCM and maps authentication failure to a safe typed error without exposing DOMException details.
-- Browser crypto must not persist SDK recovery file bytes, wrapping material, derived passphrases, decrypted payloads, or Drive tokens in `localStorage`, `sessionStorage`, IndexedDB, cookies, or server requests.
+- Browser crypto must not persist Pubky secret key material, wrapping material, decrypted payloads, or Drive tokens in `localStorage`, `sessionStorage`, IndexedDB, cookies, or server requests.
 
 Confirmed Google Drive appDataFolder repository contract:
 
@@ -142,18 +141,19 @@ Confirmed Pubky SDK key-operation APIs:
 - `Keypair.random()` creates a new Pubky identity keypair.
 - `keypair.publicKey.z32()` returns the z-base-32 public key representation for transport/storage identifiers.
 - `keypair.publicKey.toString()` returns the display representation, formatted as `pubky<z32>`.
-- `keypair.createRecoveryFile(passphrase)` exports SDK recovery file bytes as `Uint8Array`.
-- `Keypair.fromRecoveryFile(recoveryFileBytes, passphrase)` restores a keypair from SDK recovery file bytes and the same passphrase.
-- `keypair.secret()` and `Keypair.fromSecret(secret)` exist in the SDK, but Passport does not use raw secret export/import for MVP Google Drive storage.
+- `keypair.createRecoveryFile(passphrase)` exports SDK recovery file bytes as `Uint8Array`, but Passport does not use SDK recovery files for MVP Google Drive storage.
+- `Keypair.fromRecoveryFile(recoveryFileBytes, passphrase)` restores a keypair from SDK recovery file bytes and the same passphrase, but Passport does not use SDK recovery files for MVP Google Drive storage.
+- `keypair.secret()` exports the 32-byte Pubky secret key material used for MVP Google Drive storage.
+- `Keypair.fromSecret(secret)` restores a keypair from the same 32-byte secret key material.
 
 Confirmed key material representation for encrypted Drive storage:
 
-- Passport uses SDK recovery file bytes from `keypair.createRecoveryFile(passphrase)` as the key material representation that will be encrypted into the Google Drive `passport.json` envelope.
-- SDK recovery file bytes are sensitive and must stay in browser memory only before Passport envelope encryption.
-- Do not store raw SDK recovery file bytes directly in Google Drive, `localStorage`, logs, or server requests.
+- Passport uses 32-byte Pubky secret key material from `keypair.secret()` as the key material representation that is encrypted into the Google Drive `passport.json` envelope.
+- Pubky secret key material is sensitive and must stay in browser memory only before Passport envelope encryption.
+- Do not store raw Pubky secret key material directly in Google Drive, `localStorage`, logs, or server requests.
 - Do not store plaintext SDK keypair material in `localStorage`.
-- For the Google-only MVP, the SDK recovery passphrase is not user-managed. It will be derived in the browser from Passport server-derived wrapping material with domain separation in the browser crypto slice.
-- A user-added recovery passphrase remains a future custody-hardening option that requires separate product, UX, and security review.
+- Do not wrap the Pubky secret in the SDK recovery-file format before Passport encryption; Passport owns encryption through the v1 envelope and server-derived wrapping material.
+- A user-added recovery or export mechanism remains a future custody-hardening option that requires separate product, UX, and security review.
 
 Confirmed Pubky SDK signup, discovery, and auth approval APIs:
 
@@ -180,7 +180,7 @@ Current signup/auth adapter constraints:
 
 Core Pubky application ports:
 
-- `PubkyIdentityKeys` covers key creation, SDK recovery file export, SDK recovery file restoration, and public identity derivation.
+- `PubkyIdentityKeys` covers key creation, 32-byte secret key export, 32-byte secret key restoration, and public identity derivation.
 - `PubkySignup` covers homeserver signup with `{ homeserverPubky, signupCode }` and returning-user signin.
 - `PubkyDiscovery` covers `publishHomeserverIfStale` and `publishHomeserverForce`.
 - `PubkyAuthApproval` covers approval of a validated sensitive Pubky auth request URL.

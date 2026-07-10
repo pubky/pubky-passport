@@ -2,14 +2,13 @@ import type {
   PubkyIdentityKey,
   PubkyIdentityKeyHandle,
   PubkyPublicIdentity,
-  PubkyRecoveryFileMaterial,
+  PubkySecretKeyMaterial,
 } from "../domain/identity/pubkyIdentity";
 
 export type PubkyIdentityKeysErrorCode =
   | "create_failed"
   | "export_failed"
-  | "invalid_passphrase"
-  | "invalid_recovery_file"
+  | "invalid_secret_key"
   | "key_unavailable"
   | "public_identity_failed"
   | "restore_failed";
@@ -23,13 +22,11 @@ export type PubkyIdentityKeysResult<T> =
   | { ok: false; error: PubkyIdentityKeysError };
 
 export type RestorePubkyIdentityKeyInput = {
-  recoveryFile: PubkyRecoveryFileMaterial;
-  recoveryPassphrase: string;
+  secretKey: PubkySecretKeyMaterial;
 };
 
-export type ExportPubkyRecoveryFileInput = {
+export type ExportPubkySecretKeyInput = {
   keyHandle: PubkyIdentityKeyHandle;
-  recoveryPassphrase: string;
 };
 
 export type GetPubkyPublicIdentityInput = {
@@ -39,6 +36,6 @@ export type GetPubkyPublicIdentityInput = {
 export interface PubkyIdentityKeys {
   createIdentityKey(): Promise<PubkyIdentityKeysResult<PubkyIdentityKey>>;
   restoreIdentityKey(input: RestorePubkyIdentityKeyInput): Promise<PubkyIdentityKeysResult<PubkyIdentityKey>>;
-  exportRecoveryFile(input: ExportPubkyRecoveryFileInput): Promise<PubkyIdentityKeysResult<PubkyRecoveryFileMaterial>>;
+  exportSecretKey(input: ExportPubkySecretKeyInput): Promise<PubkyIdentityKeysResult<PubkySecretKeyMaterial>>;
   getPublicIdentity(input: GetPubkyPublicIdentityInput): Promise<PubkyIdentityKeysResult<PubkyPublicIdentity>>;
 }

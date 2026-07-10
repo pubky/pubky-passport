@@ -184,7 +184,7 @@ describe("GoogleDrivePassportFileRepository", () => {
     const body = String(createCall.init.body);
     expect(body).toContain(JSON.stringify({ name: "passport.json", parents: ["appDataFolder"] }));
     expect(body).toContain(JSON.stringify(envelope));
-    expect(body).not.toContain("recoveryFileBytes");
+    expect(body).not.toContain("secretKeyBytes");
     expect(body).not.toContain("wrappingKey");
   });
 
