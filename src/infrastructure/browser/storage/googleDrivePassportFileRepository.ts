@@ -39,6 +39,7 @@ const driveFilesUrl = "https://www.googleapis.com/drive/v3/files";
 const driveUploadFilesUrl = "https://www.googleapis.com/upload/drive/v3/files";
 const passportFileName = "passport.json";
 const multipartBoundary = "pubky-passport-drive-boundary-v1";
+const maximumPassportFileBytes = 16 * 1024;
 
 export class GoogleDrivePassportFileRepository implements PassportFileRepository {
   private readonly accessTokenProvider: GoogleDriveAccessTokenProvider;
@@ -77,7 +78,10 @@ export class GoogleDrivePassportFileRepository implements PassportFileRepository
       return failure(mapDriveStatus(response.status, "invalid_response"));
     }
 
-    const contents = await safeReadText(response);
+    const contents = await safeReadText(response, maximumPassportFileBytes);
+    if (contents === "too_large") {
+      return failure("invalid_file");
+    }
     if (contents === null) {
       return failure("invalid_response");
     }
@@ -264,12 +268,51 @@ async function safeReadJson(response: Response): Promise<unknown> {
   }
 }
 
-async function safeReadText(response: Response): Promise<string | null> {
-  try {
-    return await response.text();
-  } catch {
+async function safeReadText(response: Response, maximumBytes: number): Promise<string | "too_large" | null> {
+  if (contentLengthExceeds(response.headers.get("Content-Length"), maximumBytes)) {
+    return "too_large";
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
     return null;
   }
+
+  const chunks: Uint8Array[] = [];
+  let byteLength = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      byteLength += value.byteLength;
+      if (byteLength > maximumBytes) {
+        void reader.cancel();
+        return "too_large";
+      }
+
+      chunks.push(value);
+    }
+
+    const contents = new Uint8Array(byteLength);
+    let offset = 0;
+    for (const chunk of chunks) {
+      contents.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+
+    return new TextDecoder().decode(contents);
+  } catch {
+    return null;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+function contentLengthExceeds(contentLength: string | null, maximumBytes: number): boolean {
+  return contentLength !== null && /^\d+$/.test(contentLength) && Number(contentLength) > maximumBytes;
 }
 
 function isDriveListResponse(value: unknown): value is { files: Array<{ id?: unknown; name?: unknown }>; nextPageToken?: string } {

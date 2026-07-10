@@ -30,6 +30,23 @@ function textResponse(body: string, status = 200): Response {
   return new Response(body, { status, headers: { "Content-Type": "application/json" } });
 }
 
+function oversizedMediaResponse(): Response {
+  return new Response("oversized", {
+    headers: { "Content-Length": String(16 * 1024 + 1) },
+  });
+}
+
+function streamResponse(chunks: Uint8Array[]): Response {
+  return new Response(new ReadableStream({
+    start(controller) {
+      for (const chunk of chunks) {
+        controller.enqueue(chunk);
+      }
+      controller.close();
+    },
+  }));
+}
+
 function createRepository(responses: Array<Response | Error>, options: { allowLocalhostHttp?: boolean } = {}) {
   const calls: FetchCall[] = [];
   const fetchMock = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -111,6 +128,24 @@ describe("GoogleDrivePassportFileRepository", () => {
 
     expect(result).toEqual({ ok: false, error: { code: "invalid_file" } });
     expect(JSON.stringify(result)).not.toContain("do-not-return");
+  });
+
+  it("rejects an oversized Drive media response before reading it", async () => {
+    const { repository } = createRepository([
+      jsonResponse({ files: [{ id: "file-1", name: "passport.json" }] }),
+      oversizedMediaResponse(),
+    ]);
+
+    await expect(repository.readPassportFile()).resolves.toEqual({ ok: false, error: { code: "invalid_file" } });
+  });
+
+  it("rejects streamed Drive media that exceeds the size limit", async () => {
+    const { repository } = createRepository([
+      jsonResponse({ files: [{ id: "file-1", name: "passport.json" }] }),
+      streamResponse([new Uint8Array(16 * 1024), new Uint8Array(1)]),
+    ]);
+
+    await expect(repository.readPassportFile()).resolves.toEqual({ ok: false, error: { code: "invalid_file" } });
   });
 
   it("maps Drive authorization failures safely", async () => {

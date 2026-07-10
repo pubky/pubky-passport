@@ -23,6 +23,8 @@ type RequiredWebCrypto = {
 
 const wrappingKeyBytes = 32;
 const aesGcmIvBytes = 12;
+const aesGcmTagBytes = 16;
+const aesGcmCiphertextBytes = pubkySecretKeyBytes + aesGcmTagBytes;
 const base64UrlPattern = /^[A-Za-z0-9_-]+$/;
 const textEncoder = new TextEncoder();
 
@@ -112,13 +114,13 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
       return failure("invalid_envelope");
     }
 
-    const iv = decodeBase64Url(envelope.envelope.iv);
-    if (!iv.ok || iv.value.byteLength !== aesGcmIvBytes) {
+    const iv = decodeFixedLengthBase64Url(envelope.envelope.iv, aesGcmIvBytes);
+    if (!iv.ok) {
       return failure("invalid_envelope");
     }
 
-    const ciphertext = decodeBase64Url(envelope.envelope.ct);
-    if (!ciphertext.ok || ciphertext.value.byteLength === 0) {
+    const ciphertext = decodeFixedLengthBase64Url(envelope.envelope.ct, aesGcmCiphertextBytes);
+    if (!ciphertext.ok) {
       return failure("invalid_envelope");
     }
 
@@ -204,6 +206,23 @@ function decodeWrappingKey(value: string): PassportFileCryptoResult<Uint8Array> 
   }
 
   return decoded;
+}
+
+function decodeFixedLengthBase64Url(value: string, expectedByteLength: number): PassportFileCryptoResult<Uint8Array> {
+  if (value.length !== base64UrlLength(expectedByteLength)) {
+    return failure("invalid_envelope");
+  }
+
+  const decoded = decodeBase64Url(value);
+  if (!decoded.ok || decoded.value.byteLength !== expectedByteLength) {
+    return failure("invalid_envelope");
+  }
+
+  return decoded;
+}
+
+function base64UrlLength(byteLength: number): number {
+  return Math.ceil((byteLength * 4) / 3) - (byteLength % 3 === 0 ? 0 : 1);
 }
 
 function aadForEnvelope(envelope: Pick<PassportFileEnvelopeV1, "v" | "url">): ArrayBuffer {

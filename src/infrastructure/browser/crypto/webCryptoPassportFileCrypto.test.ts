@@ -212,6 +212,34 @@ describe("WebCryptoPassportFileCrypto", () => {
     expect(decrypted).toEqual({ ok: false, error: { code: "invalid_envelope" } });
   });
 
+  it("rejects ciphertext that is not the v1 secret key and GCM tag size", async () => {
+    const decrypted = await createCrypto().decryptSecretKeyBytes({
+      envelope: {
+        v: 1,
+        iv: encodeBase64Url(new Uint8Array(12)),
+        ct: encodeBase64Url(new Uint8Array(pubkySecretKeyBytes + 17)),
+        url: "https://passport.pubky.app",
+      },
+      wrappingKey,
+    });
+
+    expect(decrypted).toEqual({ ok: false, error: { code: "invalid_envelope" } });
+  });
+
+  it("rejects overlong base64url ciphertext before decoding it", async () => {
+    const decrypted = await createCrypto().decryptSecretKeyBytes({
+      envelope: {
+        v: 1,
+        iv: encodeBase64Url(new Uint8Array(12)),
+        ct: "A".repeat(1024 * 1024),
+        url: "https://passport.pubky.app",
+      },
+      wrappingKey,
+    });
+
+    expect(decrypted).toEqual({ ok: false, error: { code: "invalid_envelope" } });
+  });
+
   it("fails safely when authenticated envelope metadata is tampered", async () => {
     const encrypted = await createCrypto().encryptSecretKeyBytes({
       secretKeyBytes,
