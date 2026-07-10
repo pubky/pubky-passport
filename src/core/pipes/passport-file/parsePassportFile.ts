@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import type { PassportFileEnvelopeV1 } from "../../domain/passport-file/passportFile";
 
 export type PassportFileField = keyof PassportFileEnvelopeV1;
@@ -27,16 +29,15 @@ export type PassportFileOriginResult =
   | { ok: true; origin: string }
   | { ok: false; error: { code: "invalid_field"; field: "url" } };
 
-const envelopeFieldMap = {
-  v: true,
-  iv: true,
-  ct: true,
-  url: true,
-} satisfies Record<PassportFileField, true>;
-
-const envelopeFields = Object.keys(envelopeFieldMap) as PassportFileField[];
-const envelopeFieldSet = new Set<PassportFileField>(envelopeFields);
 const base64UrlPattern = /^[A-Za-z0-9_-]+$/;
+const passportFileEnvelopeSchema = z
+  .object({
+    v: z.number(),
+    iv: z.string().regex(base64UrlPattern),
+    ct: z.string().regex(base64UrlPattern),
+    url: z.string(),
+  })
+  .strict();
 
 export function parsePassportFileContents(input: unknown, options: PassportFileUrlOptions = {}): PassportFileParseResult {
   if (typeof input !== "string") {
@@ -61,35 +62,30 @@ export function parsePassportFileEnvelope(
     return error("invalid_shape");
   }
 
-  for (const field of envelopeFields) {
-    if (!(field in input)) {
-      return error("missing_field", field);
-    }
-  }
-
-  for (const field of Object.keys(input)) {
-    if (!isPassportFileField(field)) {
+  const parsed = passportFileEnvelopeSchema.safeParse(input);
+  if (!parsed.success) {
+    if (parsed.error.issues.some((issue) => issue.code === "unrecognized_keys")) {
       return error("unknown_field");
     }
+
+    const field = parsed.error.issues
+      .map((issue) => issue.path[0])
+      .find(
+        (value): value is PassportFileField =>
+          typeof value === "string" && Object.hasOwn(passportFileEnvelopeSchema.shape, value),
+      );
+    if (!field) {
+      return error("invalid_shape");
+    }
+
+    return error(Object.hasOwn(input, field) ? "invalid_field" : "missing_field", field);
   }
 
-  if (input.v !== 1) {
-    return typeof input.v === "number" ? error("unsupported_version", "v") : error("invalid_field", "v");
+  if (parsed.data.v !== 1) {
+    return error("unsupported_version", "v");
   }
 
-  if (!isBase64UrlLike(input.iv)) {
-    return error("invalid_field", "iv");
-  }
-
-  if (!isBase64UrlLike(input.ct)) {
-    return error("invalid_field", "ct");
-  }
-
-  if (typeof input.url !== "string") {
-    return error("invalid_field", "url");
-  }
-
-  const origin = normalizePassportFileOrigin(input.url, options);
+  const origin = normalizePassportFileOrigin(parsed.data.url, options);
   if (!origin.ok) {
     return origin;
   }
@@ -98,8 +94,8 @@ export function parsePassportFileEnvelope(
     ok: true,
     envelope: {
       v: 1,
-      iv: input.iv,
-      ct: input.ct,
+      iv: parsed.data.iv,
+      ct: parsed.data.ct,
       url: origin.origin,
     },
   };
@@ -137,14 +133,6 @@ export function normalizePassportFileOrigin(
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype;
-}
-
-function isBase64UrlLike(value: unknown): value is string {
-  return typeof value === "string" && base64UrlPattern.test(value);
-}
-
-function isPassportFileField(value: string): value is PassportFileField {
-  return envelopeFieldSet.has(value as PassportFileField);
 }
 
 function isAllowedProtocol(url: URL, options: PassportFileUrlOptions): boolean {
