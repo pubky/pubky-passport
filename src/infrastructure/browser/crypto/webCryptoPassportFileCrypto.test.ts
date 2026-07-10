@@ -26,6 +26,74 @@ function tamperBase64Url(value: string): string {
 }
 
 describe("WebCryptoPassportFileCrypto", () => {
+  it("does not throw when browser crypto dependencies are unavailable", () => {
+    expect(() => new WebCryptoPassportFileCrypto({ subtle: null, getRandomValues: null })).not.toThrow();
+  });
+
+  it("returns unsupported_browser_crypto when SubtleCrypto is unavailable", async () => {
+    const crypto = new WebCryptoPassportFileCrypto({ subtle: null });
+
+    await expect(
+      crypto.encryptSecretKeyBytes({ secretKeyBytes, wrappingKey: "not+decoded", passportUrl: "https://passport.pubky.app" }),
+    ).resolves.toEqual({ ok: false, error: { code: "unsupported_browser_crypto" } });
+  });
+
+  it("returns unsupported_browser_crypto when getRandomValues is unavailable", async () => {
+    const crypto = new WebCryptoPassportFileCrypto({ getRandomValues: null });
+
+    await expect(
+      crypto.encryptSecretKeyBytes({ secretKeyBytes, wrappingKey: "not+decoded", passportUrl: "https://passport.pubky.app" }),
+    ).resolves.toEqual({ ok: false, error: { code: "unsupported_browser_crypto" } });
+  });
+
+  it("returns unsupported_browser_crypto during decrypt when WebCrypto is unavailable", async () => {
+    const crypto = new WebCryptoPassportFileCrypto({ subtle: null, getRandomValues: null });
+
+    await expect(
+      crypto.decryptSecretKeyBytes({
+        envelope: {
+          v: 1,
+          iv: encodeBase64Url(new Uint8Array(12)),
+          ct: encodeBase64Url(new Uint8Array([1])),
+          url: "https://passport.pubky.app",
+        },
+        wrappingKey: "not+decoded",
+      }),
+    ).resolves.toEqual({ ok: false, error: { code: "unsupported_browser_crypto" } });
+  });
+
+  it("maps unsupported HKDF import to unsupported_browser_crypto", async () => {
+    const subtle = {
+      decrypt: globalThis.crypto.subtle.decrypt.bind(globalThis.crypto.subtle),
+      deriveKey: globalThis.crypto.subtle.deriveKey.bind(globalThis.crypto.subtle),
+      encrypt: globalThis.crypto.subtle.encrypt.bind(globalThis.crypto.subtle),
+      importKey: async (): Promise<CryptoKey> => {
+        throw new Error("HKDF unsupported");
+      },
+    } as unknown as SubtleCrypto;
+    const crypto = new WebCryptoPassportFileCrypto({ subtle });
+
+    await expect(
+      crypto.encryptSecretKeyBytes({ secretKeyBytes, wrappingKey, passportUrl: "https://passport.pubky.app" }),
+    ).resolves.toEqual({ ok: false, error: { code: "unsupported_browser_crypto" } });
+  });
+
+  it("maps unsupported AES-GCM derivation to unsupported_browser_crypto", async () => {
+    const subtle = {
+      decrypt: globalThis.crypto.subtle.decrypt.bind(globalThis.crypto.subtle),
+      deriveKey: async (): Promise<CryptoKey> => {
+        throw new Error("AES-GCM derivation unsupported");
+      },
+      encrypt: globalThis.crypto.subtle.encrypt.bind(globalThis.crypto.subtle),
+      importKey: globalThis.crypto.subtle.importKey.bind(globalThis.crypto.subtle),
+    } as unknown as SubtleCrypto;
+    const crypto = new WebCryptoPassportFileCrypto({ subtle });
+
+    await expect(
+      crypto.encryptSecretKeyBytes({ secretKeyBytes, wrappingKey, passportUrl: "https://passport.pubky.app" }),
+    ).resolves.toEqual({ ok: false, error: { code: "unsupported_browser_crypto" } });
+  });
+
   it("encrypts a Pubky secret key into a v1 envelope", async () => {
     const result = await createCrypto().encryptSecretKeyBytes({
       secretKeyBytes,

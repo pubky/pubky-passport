@@ -1,6 +1,7 @@
 import type { PassportFileEnvelopeV1 } from "../domain/passport-file/passportFile";
 
 export type PassportFileCryptoErrorCode =
+  | "unsupported_browser_crypto"
   | "invalid_wrapping_key"
   | "invalid_plaintext"
   | "invalid_envelope"
