@@ -35,6 +35,7 @@ describe("PubkyIdentityKeyAdapter", () => {
       const restoredKeypair = expectOk(adapter.restoreKeypair({ secretKeyBytes: secretKey.bytes }));
 
       try {
+        expect(secretKey.bytes).toEqual(new Uint8Array(pubkySecretKeyBytes));
         expect(adapter.getPublicIdentity(restoredKeypair)).toEqual(originalPublicIdentity);
       } finally {
         restoredKeypair.dispose();
@@ -46,7 +47,8 @@ describe("PubkyIdentityKeyAdapter", () => {
 
   it("rejects invalid secret key bytes before SDK restoration", () => {
     const adapter = new PubkyIdentityKeyAdapter();
-    const restored = adapter.restoreKeypair({ secretKeyBytes: new Uint8Array(pubkySecretKeyBytes - 1) });
+    const secretKeyBytes = new Uint8Array(pubkySecretKeyBytes - 1).fill(7);
+    const restored = adapter.restoreKeypair({ secretKeyBytes });
 
     expect(restored).toEqual({
       ok: false,
@@ -55,6 +57,7 @@ describe("PubkyIdentityKeyAdapter", () => {
         message: "Pubky identity secret key bytes are missing or invalid.",
       },
     });
+    expect(secretKeyBytes).toEqual(new Uint8Array(pubkySecretKeyBytes - 1));
   });
 
   it("maps disposed keypairs to key unavailable", () => {

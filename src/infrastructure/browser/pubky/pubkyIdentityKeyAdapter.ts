@@ -49,19 +49,22 @@ export class PubkyIdentityKeypair {
   }
 
   static restoreFromSecretKey(input: PubkyRestoreKeypairInput): PubkyIdentityKeyResult<PubkyIdentityKeypair> {
-    const validationError = validateSecretKeyInput(input);
-
-    if (validationError) {
-      return { ok: false, error: validationError };
-    }
-
     try {
+      const validationError = validateSecretKeyInput(input);
+
+      if (validationError) {
+        return { ok: false, error: validationError };
+      }
+
       return {
         ok: true,
         value: new PubkyIdentityKeypair(Keypair.fromSecret(input.secretKeyBytes)),
       };
     } catch {
       return failure("secret_restore_failed", "Pubky identity secret key restoration failed.");
+    } finally {
+      // `fromSecret` has consumed the bytes; no caller-owned plaintext remains after restoration fails or succeeds.
+      input.secretKeyBytes.fill(0);
     }
   }
 

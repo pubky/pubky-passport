@@ -226,6 +226,31 @@ describe("WebCryptoPassportFileCrypto", () => {
     expect(decrypted).toEqual({ ok: false, error: { code: "invalid_envelope" } });
   });
 
+  it("clears rejected decrypted plaintext", async () => {
+    const rejectedPlaintext = new Uint8Array(pubkySecretKeyBytes - 1).fill(7);
+    const subtle = {
+      decrypt: async (): Promise<ArrayBuffer> => rejectedPlaintext.buffer,
+      deriveKey: globalThis.crypto.subtle.deriveKey.bind(globalThis.crypto.subtle),
+      encrypt: globalThis.crypto.subtle.encrypt.bind(globalThis.crypto.subtle),
+      importKey: globalThis.crypto.subtle.importKey.bind(globalThis.crypto.subtle),
+    } as unknown as SubtleCrypto;
+    const crypto = new WebCryptoPassportFileCrypto({ subtle });
+
+    await expect(
+      crypto.decryptSecretKeyBytes({
+        envelope: {
+          v: 1,
+          iv: encodeBase64Url(new Uint8Array(12)),
+          ct: encodeBase64Url(new Uint8Array(pubkySecretKeyBytes + 16)),
+          url: "https://passport.pubky.app",
+        },
+        wrappingKey,
+      }),
+    ).resolves.toEqual({ ok: false, error: { code: "invalid_plaintext" } });
+
+    expect(rejectedPlaintext).toEqual(new Uint8Array(pubkySecretKeyBytes - 1));
+  });
+
   it("rejects overlong base64url ciphertext before decoding it", async () => {
     const decrypted = await createCrypto().decryptSecretKeyBytes({
       envelope: {

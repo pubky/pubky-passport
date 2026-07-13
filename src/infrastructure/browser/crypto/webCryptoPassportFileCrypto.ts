@@ -144,6 +144,7 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
 
       const secretKeyBytes = new Uint8Array(plaintext);
       if (!isValidSecretKeyBytes(secretKeyBytes)) {
+        secretKeyBytes.fill(0);
         return failure("invalid_plaintext");
       }
 

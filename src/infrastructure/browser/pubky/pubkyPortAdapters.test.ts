@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { PubkyIdentityKeyHandle } from "../../../core/domain/identity/pubkyIdentity";
 import {
+  BrowserPubkyIdentity,
   BrowserPubkyIdentityKeys,
   mapIdentityKeyErrorCode,
   mapIdentityOperationToAuthApprovalErrorCode,
@@ -60,6 +61,29 @@ describe("browser Pubky port adapters", () => {
     await expect(
       keys.exportSecretKey({ keyHandle: unknownHandle }),
     ).resolves.toEqual({
+      ok: false,
+      error: { code: "key_unavailable" },
+    });
+  });
+
+  it("disposes the identity session's key registry and makes old handles unavailable", async () => {
+    const keys = new BrowserPubkyIdentityKeys();
+    const identity = new BrowserPubkyIdentity(keys);
+    const created = await keys.createIdentityKey();
+
+    expect(created.ok).toBe(true);
+    if (!created.ok) {
+      throw new Error(created.error.code);
+    }
+
+    identity.dispose();
+    identity.dispose();
+
+    await expect(keys.getPublicIdentity({ keyHandle: created.value.keyHandle })).resolves.toEqual({
+      ok: false,
+      error: { code: "key_unavailable" },
+    });
+    await expect(keys.createIdentityKey()).resolves.toEqual({
       ok: false,
       error: { code: "key_unavailable" },
     });
