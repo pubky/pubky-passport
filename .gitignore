@@ -41,3 +41,5 @@ docs/vendor/pubky/SOURCE.md
 # Local Plans
 plan/*
 !plan/TEMPLATE.md
+
+certificates/
