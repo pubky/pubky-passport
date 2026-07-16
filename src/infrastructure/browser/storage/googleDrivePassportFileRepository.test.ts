@@ -210,6 +210,14 @@ describe("GoogleDrivePassportFileRepository", () => {
     ).resolves.toEqual({ ok: false, error: { code: "duplicate_files" } });
   });
 
+  it("rejects a Drive list response for a different file", async () => {
+    const { repository, calls } = createRepository([jsonResponse({ files: [{ id: "other-file", name: "other.json" }] })]);
+
+    await expect(repository.readPassportFile()).resolves.toEqual({ ok: false, error: { code: "invalid_response" } });
+
+    expect(calls).toHaveLength(1);
+  });
+
   it("treats a listed file that disappears before media read as missing", async () => {
     const { repository } = createRepository([
       jsonResponse({ files: [{ id: "file-1", name: "passport.json" }] }),
