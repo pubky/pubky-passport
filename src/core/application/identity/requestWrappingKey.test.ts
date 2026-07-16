@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
 
+import { expectAsyncResultError } from "../../../../test-utils/resultAssertions";
 import {
   createRequestWrappingKeyUseCase,
   type RequestWrappingKeyResult,
@@ -27,11 +28,7 @@ const fixedClock: Clock = {
 };
 
 async function expectError(result: Promise<RequestWrappingKeyResult>, code: string): Promise<void> {
-  const resolved = await result;
-  expect(Result.isError(resolved)).toBe(true);
-  if (Result.isError(resolved)) {
-    expect(resolved.error).toEqual({ code });
-  }
+  await expectAsyncResultError(result, { code });
 }
 
 describe("requestWrappingKey", () => {

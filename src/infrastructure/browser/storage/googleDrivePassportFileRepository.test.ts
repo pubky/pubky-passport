@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { Result, type Result as ResultType } from "better-result";
 import { describe, expect, it } from "vitest";
 
+import { expectAsyncResultError, expectResultOk } from "../../../../test-utils/resultAssertions";
 import type { PassportFileEnvelopeV1 } from "../../../core/domain/passport-file/passportFile";
 import { GoogleDrivePassportFileRepository } from "./googleDrivePassportFileRepository";
 
@@ -87,19 +88,11 @@ function expectCall(calls: FetchCall[], index: number): FetchCall {
 }
 
 async function expectSuccess<T>(result: Promise<ResultType<T, unknown>>, value: T): Promise<void> {
-  const resolved = await result;
-  expect(Result.isOk(resolved)).toBe(true);
-  if (Result.isOk(resolved)) {
-    expect(resolved.value).toEqual(value);
-  }
+  expect(expectResultOk(await result)).toEqual(value);
 }
 
 async function expectFailure(result: Promise<ResultType<unknown, { code: string }>>, code: string): Promise<void> {
-  const resolved = await result;
-  expect(Result.isError(resolved)).toBe(true);
-  if (Result.isError(resolved)) {
-    expect(resolved.error).toEqual({ code });
-  }
+  await expectAsyncResultError(result, { code });
 }
 
 describe("GoogleDrivePassportFileRepository", () => {

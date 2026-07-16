@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
+import { expectAsyncResultError, expectResultError } from "../../../../test-utils/resultAssertions";
 import {
   ServerGoogleIdTokenVerifier,
   type GoogleTokenVerifierDependency,
@@ -20,14 +21,11 @@ const fixedClock: Clock = {
 };
 
 function expectError(result: ResultType<unknown, string>, reason: string): void {
-  expect(Result.isError(result)).toBe(true);
-  if (Result.isError(result)) {
-    expect(result.error).toBe(reason);
-  }
+  expectResultError(result, reason);
 }
 
 async function expectAsyncError(result: Promise<ResultType<unknown, string>>, reason: string): Promise<void> {
-  expectError(await result, reason);
+  await expectAsyncResultError(result, reason);
 }
 
 type TestGoogleIdTokenPayload = {

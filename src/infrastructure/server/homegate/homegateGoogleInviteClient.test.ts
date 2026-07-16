@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
+import { expectAsyncResultError } from "../../../../test-utils/resultAssertions";
 import { ServerHomegateGoogleInviteClient } from "./homegateGoogleInviteClient";
 import type { HomegateInviteErrorCode } from "../../../core/ports/homegateInvite";
 
@@ -20,11 +21,7 @@ const homegateErrorCases: Array<{ body: string; code: HomegateInviteErrorCode }>
 ];
 
 async function expectError(result: Promise<ResultType<unknown, { code: string }>>, code: string): Promise<void> {
-  const resolved = await result;
-  expect(Result.isError(resolved)).toBe(true);
-  if (Result.isError(resolved)) {
-    expect(resolved.error).toEqual({ code });
-  }
+  await expectAsyncResultError(result, { code });
 }
 
 describe("ServerHomegateGoogleInviteClient", () => {

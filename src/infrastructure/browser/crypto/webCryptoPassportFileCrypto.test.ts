@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { Result, type Result as ResultType } from "better-result";
 import { describe, expect, it } from "vitest";
 
+import { expectAsyncResultError, expectResultError } from "../../../../test-utils/resultAssertions";
 import { pubkySecretKeyBytes } from "../../../core/domain/identity/pubkyIdentity";
 import { parsePassportFileEnvelope } from "../../../core/pipes/passport-file/parsePassportFile";
 import {
@@ -27,14 +28,11 @@ function tamperBase64Url(value: string): string {
 }
 
 function expectError(result: ResultType<unknown, { code: string }>, code: string): void {
-  expect(Result.isError(result)).toBe(true);
-  if (Result.isError(result)) {
-    expect(result.error).toEqual({ code });
-  }
+  expectResultError(result, { code });
 }
 
 async function expectAsyncError(result: Promise<ResultType<unknown, { code: string }>>, code: string): Promise<void> {
-  expectError(await result, code);
+  await expectAsyncResultError(result, { code });
 }
 
 describe("WebCryptoPassportFileCrypto", () => {
