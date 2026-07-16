@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
 
-import { createRequestWrappingKeyUseCase } from "./requestWrappingKey";
+import {
+  createRequestWrappingKeyUseCase,
+  type RequestWrappingKeyResult,
+} from "./requestWrappingKey";
 import type { Clock } from "../../ports/clock";
 import type {
   GoogleIdTokenVerifier,
@@ -23,7 +26,7 @@ const fixedClock: Clock = {
   },
 };
 
-async function expectError(result: ReturnType<ReturnType<typeof createRequestWrappingKeyUseCase>>, code: string): Promise<void> {
+async function expectError(result: Promise<RequestWrappingKeyResult>, code: string): Promise<void> {
   const resolved = await result;
   expect(Result.isError(resolved)).toBe(true);
   if (Result.isError(resolved)) {

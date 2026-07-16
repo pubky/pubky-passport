@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
 
-import { createRequestGoogleHomegateInviteUseCase } from "./requestGoogleHomegateInvite";
+import {
+  createRequestGoogleHomegateInviteUseCase,
+  type RequestGoogleHomegateInviteResult,
+} from "./requestGoogleHomegateInvite";
 import type {
   GoogleHomegateInvite,
   HomegateInviteErrorCode,
@@ -25,7 +28,7 @@ const homegateErrorCodes: HomegateInviteErrorCode[] = [
   "malformed_homegate_response",
 ];
 
-async function expectError(result: ReturnType<ReturnType<typeof createRequestGoogleHomegateInviteUseCase>>, code: string): Promise<void> {
+async function expectError(result: Promise<RequestGoogleHomegateInviteResult>, code: string): Promise<void> {
   const resolved = await result;
   expect(Result.isError(resolved)).toBe(true);
   if (Result.isError(resolved)) {
