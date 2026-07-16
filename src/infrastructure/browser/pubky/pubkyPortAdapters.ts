@@ -114,7 +114,13 @@ export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
       return keyFailure("key_unavailable");
     }
 
-    return { ok: true, value: this.#keyAdapter.getPublicIdentity(keypair) };
+    const publicIdentity = this.#keyAdapter.getPublicIdentity(keypair);
+
+    if (!publicIdentity.ok) {
+      return keyFailure(mapIdentityKeyErrorCode(publicIdentity.error.code));
+    }
+
+    return { ok: true, value: publicIdentity.value };
   }
 
   keypairForHandle(keyHandle: PubkyIdentityKeyHandle): PubkyIdentityKeyResult<PubkyIdentityKeypair> {
@@ -149,11 +155,17 @@ export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
 
   private storeKeypair(keypair: PubkyIdentityKeypair): PubkyIdentityKeysResult<PubkyIdentityKey> {
     const publicIdentity = this.#keyAdapter.getPublicIdentity(keypair);
+
+    if (!publicIdentity.ok) {
+      keypair.dispose();
+      return keyFailure(mapIdentityKeyErrorCode(publicIdentity.error.code));
+    }
+
     const keyHandle = {} as PubkyIdentityKeyHandle;
 
     this.#keypairs.set(keyHandle, keypair);
 
-    return { ok: true, value: { keyHandle, publicIdentity } };
+    return { ok: true, value: { keyHandle, publicIdentity: publicIdentity.value } };
   }
 }
 
@@ -261,6 +273,8 @@ export function mapIdentityKeyErrorCode(code: PubkyIdentityKeyErrorCode): PubkyI
       return code;
     case "keypair_creation_failed":
       return "create_failed";
+    case "public_identity_failed":
+      return "public_identity_failed";
     case "secret_export_failed":
       return "export_failed";
     case "secret_restore_failed":
