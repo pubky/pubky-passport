@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Result, type Result as ResultType } from "better-result";
 
 import type { RequestWrappingKeyController } from "../../../core/controllers/identity/requestWrappingKeyController";
 import { createWrappingKeyRequestController } from "../../../infrastructure/composition/wrappingKeyServerContainer";
@@ -22,7 +23,7 @@ export function createWrappingKeyPostHandler(
   return async function wrappingKeyPost(request: Request): Promise<NextResponse<WrappingKeyRouteBody>> {
     const body = await parseRequestBody(request);
 
-    if (!body.ok) {
+    if (Result.isError(body)) {
       return json({ error: { code: "invalid_request" } }, 400);
     }
 
@@ -38,29 +39,29 @@ export function createWrappingKeyPostHandler(
 
 async function parseRequestBody(
   request: Request,
-): Promise<{ ok: true; value: WrappingKeyRequestBody } | { ok: false }> {
+): Promise<ResultType<WrappingKeyRequestBody, "invalid_request">> {
   let body: unknown;
 
   try {
     body = await request.json();
   } catch {
-    return { ok: false };
+    return Result.err("invalid_request");
   }
 
   if (!isRecord(body)) {
-    return { ok: false };
+    return Result.err("invalid_request");
   }
 
   const keys = Object.keys(body);
   if (keys.length !== 1 || keys[0] !== "googleIdToken") {
-    return { ok: false };
+    return Result.err("invalid_request");
   }
 
   if (typeof body.googleIdToken !== "string" || body.googleIdToken.trim().length === 0) {
-    return { ok: false };
+    return Result.err("invalid_request");
   }
 
-  return { ok: true, value: { googleIdToken: body.googleIdToken } };
+  return Result.ok({ googleIdToken: body.googleIdToken });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Result, type Result as ResultType } from "better-result";
 
 import type { PubkyIdentityKeyHandle } from "../../../core/domain/identity/pubkyIdentity";
 import {
@@ -9,6 +10,14 @@ import {
   mapIdentityOperationToDiscoveryErrorCode,
   mapIdentityOperationToSignupErrorCode,
 } from "./pubkyPortAdapters";
+
+async function expectKeyUnavailable(result: Promise<ResultType<unknown, { code: string }>>): Promise<void> {
+  const resolved = await result;
+  expect(Result.isError(resolved)).toBe(true);
+  if (Result.isError(resolved)) {
+    expect(resolved.error).toEqual({ code: "key_unavailable" });
+  }
+}
 
 describe("browser Pubky port adapters", () => {
   it("maps key adapter errors to identity-key port errors", () => {
@@ -53,17 +62,9 @@ describe("browser Pubky port adapters", () => {
     const keys = new BrowserPubkyIdentityKeys();
     const unknownHandle = {} as PubkyIdentityKeyHandle;
 
-    await expect(keys.getPublicIdentity({ keyHandle: unknownHandle })).resolves.toEqual({
-      ok: false,
-      error: { code: "key_unavailable" },
-    });
+    await expectKeyUnavailable(keys.getPublicIdentity({ keyHandle: unknownHandle }));
 
-    await expect(
-      keys.exportSecretKey({ keyHandle: unknownHandle }),
-    ).resolves.toEqual({
-      ok: false,
-      error: { code: "key_unavailable" },
-    });
+    await expectKeyUnavailable(keys.exportSecretKey({ keyHandle: unknownHandle }));
   });
 
   it("disposes the identity session's key registry and makes old handles unavailable", async () => {
@@ -71,21 +72,15 @@ describe("browser Pubky port adapters", () => {
     const identity = new BrowserPubkyIdentity(keys);
     const created = await keys.createIdentityKey();
 
-    expect(created.ok).toBe(true);
-    if (!created.ok) {
+    expect(Result.isOk(created)).toBe(true);
+    if (Result.isError(created)) {
       throw new Error(created.error.code);
     }
 
     identity.dispose();
     identity.dispose();
 
-    await expect(keys.getPublicIdentity({ keyHandle: created.value.keyHandle })).resolves.toEqual({
-      ok: false,
-      error: { code: "key_unavailable" },
-    });
-    await expect(keys.createIdentityKey()).resolves.toEqual({
-      ok: false,
-      error: { code: "key_unavailable" },
-    });
+    await expectKeyUnavailable(keys.getPublicIdentity({ keyHandle: created.value.keyHandle }));
+    await expectKeyUnavailable(keys.createIdentityKey());
   });
 });

@@ -1,5 +1,7 @@
 import "client-only";
 
+import { Result } from "better-result";
+
 import type {
   PubkyIdentityKey,
   PubkyIdentityKeyHandle,
@@ -61,7 +63,7 @@ export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
 
     const created = this.#keyAdapter.createKeypair();
 
-    if (!created.ok) {
+    if (Result.isError(created)) {
       return keyFailure(mapIdentityKeyErrorCode(created.error.code));
     }
 
@@ -78,7 +80,7 @@ export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
       secretKeyBytes: input.secretKey.bytes,
     });
 
-    if (!restored.ok) {
+    if (Result.isError(restored)) {
       return keyFailure(mapIdentityKeyErrorCode(restored.error.code));
     }
 
@@ -94,17 +96,14 @@ export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
 
     const exported = this.#keyAdapter.exportSecretKey(keypair);
 
-    if (!exported.ok) {
+    if (Result.isError(exported)) {
       return keyFailure(mapIdentityKeyErrorCode(exported.error.code));
     }
 
-    return {
-      ok: true,
-      value: {
+    return Result.ok({
         bytes: exported.value.bytes,
         format: exported.value.format,
-      },
-    };
+    });
   }
 
   async getPublicIdentity(input: GetPubkyPublicIdentityInput): Promise<PubkyIdentityKeysResult<PubkyIdentityKey["publicIdentity"]>> {
@@ -114,23 +113,20 @@ export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
       return keyFailure("key_unavailable");
     }
 
-    return { ok: true, value: this.#keyAdapter.getPublicIdentity(keypair) };
+    return Result.ok(this.#keyAdapter.getPublicIdentity(keypair));
   }
 
   keypairForHandle(keyHandle: PubkyIdentityKeyHandle): PubkyIdentityKeyResult<PubkyIdentityKeypair> {
     const keypair = this.#keypairs.get(keyHandle);
 
     if (!keypair) {
-      return {
-        ok: false,
-        error: {
+      return Result.err({
           code: "key_unavailable",
           message: "Pubky identity keypair is not available.",
-        },
-      };
+      });
     }
 
-    return { ok: true, value: keypair };
+    return Result.ok(keypair);
   }
 
   dispose(): void {
@@ -153,7 +149,7 @@ export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
 
     this.#keypairs.set(keyHandle, keypair);
 
-    return { ok: true, value: { keyHandle, publicIdentity } };
+    return Result.ok({ keyHandle, publicIdentity });
   }
 }
 
@@ -170,7 +166,7 @@ export class BrowserPubkyIdentity implements PubkySignup, PubkyDiscovery, PubkyA
   async signup(input: SignupWithPubkyInput): Promise<PubkySignupResult<PubkyIdentitySession>> {
     const keypair = this.#identityKeys.keypairForHandle(input.keyHandle);
 
-    if (!keypair.ok) {
+    if (Result.isError(keypair)) {
       return signupFailure(mapIdentityKeyToSignupErrorCode(keypair.error.code));
     }
 
@@ -186,7 +182,7 @@ export class BrowserPubkyIdentity implements PubkySignup, PubkyDiscovery, PubkyA
   async signin(input: SigninWithPubkyInput): Promise<PubkySignupResult<PubkyIdentitySession>> {
     const keypair = this.#identityKeys.keypairForHandle(input.keyHandle);
 
-    if (!keypair.ok) {
+    if (Result.isError(keypair)) {
       return signupFailure(mapIdentityKeyToSignupErrorCode(keypair.error.code));
     }
 
@@ -201,7 +197,7 @@ export class BrowserPubkyIdentity implements PubkySignup, PubkyDiscovery, PubkyA
   async publishHomeserverIfStale(input: PublishPubkyHomeserverInput): Promise<PubkyDiscoveryResult> {
     const keypair = this.#identityKeys.keypairForHandle(input.keyHandle);
 
-    if (!keypair.ok) {
+    if (Result.isError(keypair)) {
       return discoveryFailure(mapIdentityKeyToDiscoveryErrorCode(keypair.error.code));
     }
 
@@ -216,7 +212,7 @@ export class BrowserPubkyIdentity implements PubkySignup, PubkyDiscovery, PubkyA
   async publishHomeserverForce(input: PublishPubkyHomeserverInput): Promise<PubkyDiscoveryResult> {
     const keypair = this.#identityKeys.keypairForHandle(input.keyHandle);
 
-    if (!keypair.ok) {
+    if (Result.isError(keypair)) {
       return discoveryFailure(mapIdentityKeyToDiscoveryErrorCode(keypair.error.code));
     }
 
@@ -231,7 +227,7 @@ export class BrowserPubkyIdentity implements PubkySignup, PubkyDiscovery, PubkyA
   async approveAuthRequest(input: ApprovePubkyAuthRequestInput): Promise<PubkyAuthApprovalResult> {
     const keypair = this.#identityKeys.keypairForHandle(input.keyHandle);
 
-    if (!keypair.ok) {
+    if (Result.isError(keypair)) {
       return authApprovalFailure(mapIdentityKeyToAuthApprovalErrorCode(keypair.error.code));
     }
 
@@ -324,41 +320,41 @@ function mapIdentityKeyToAuthApprovalErrorCode(code: PubkyIdentityKeyErrorCode):
 }
 
 function mapSignupResult<T>(result: PubkyIdentityOperationResult<T>): PubkySignupResult<T> {
-  if (result.ok) {
-    return result;
+  if (Result.isOk(result)) {
+    return Result.ok(result.value);
   }
 
   return signupFailure(mapIdentityOperationToSignupErrorCode(result.error.code));
 }
 
 function mapDiscoveryResult(result: PubkyIdentityOperationResult<void>): PubkyDiscoveryResult {
-  if (result.ok) {
-    return { ok: true };
+  if (Result.isOk(result)) {
+    return Result.ok();
   }
 
   return discoveryFailure(mapIdentityOperationToDiscoveryErrorCode(result.error.code));
 }
 
 function mapAuthApprovalResult(result: PubkyIdentityOperationResult<void>): PubkyAuthApprovalResult {
-  if (result.ok) {
-    return { ok: true };
+  if (Result.isOk(result)) {
+    return Result.ok();
   }
 
   return authApprovalFailure(mapIdentityOperationToAuthApprovalErrorCode(result.error.code));
 }
 
 function keyFailure<T>(code: PubkyIdentityKeysErrorCode): PubkyIdentityKeysResult<T> {
-  return { ok: false, error: { code } };
+  return Result.err({ code });
 }
 
 function signupFailure<T>(code: PubkySignupErrorCode): PubkySignupResult<T> {
-  return { ok: false, error: { code } };
+  return Result.err({ code });
 }
 
 function discoveryFailure(code: PubkyDiscoveryErrorCode): PubkyDiscoveryResult {
-  return { ok: false, error: { code } };
+  return Result.err({ code });
 }
 
 function authApprovalFailure(code: PubkyAuthApprovalErrorCode): PubkyAuthApprovalResult {
-  return { ok: false, error: { code } };
+  return Result.err({ code });
 }

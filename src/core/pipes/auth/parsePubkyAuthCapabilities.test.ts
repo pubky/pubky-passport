@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Result } from "better-result";
 
 import {
   parsePubkyAuthCapabilities,
@@ -8,19 +9,19 @@ import {
 function expectCapabilities(input: string) {
   const result = parsePubkyAuthCapabilities(input);
 
-  expect(result.ok).toBe(true);
-  if (!result.ok) {
+  expect(Result.isOk(result)).toBe(true);
+  if (Result.isError(result)) {
     throw new Error(result.error.code);
   }
 
-  return result.capabilities;
+  return result.value;
 }
 
 function expectError(input: string | null | undefined, code: PubkyAuthCapabilitiesParseErrorCode): void {
   const result = parsePubkyAuthCapabilities(input);
 
-  expect(result.ok).toBe(false);
-  if (!result.ok) {
+  expect(Result.isError(result)).toBe(true);
+  if (Result.isError(result)) {
     expect(result.error.code).toBe(code);
   }
 }

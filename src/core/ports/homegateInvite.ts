@@ -1,3 +1,5 @@
+import type { Result } from "better-result";
+
 export type GoogleHomegateInvite = {
   signupCode: string;
   homeserverPubky: string;
@@ -17,9 +19,7 @@ export type HomegateInviteError = {
   code: HomegateInviteErrorCode;
 };
 
-export type HomegateInviteResult =
-  | { ok: true; value: GoogleHomegateInvite }
-  | { ok: false; error: HomegateInviteError };
+export type HomegateInviteResult = Result<GoogleHomegateInvite, HomegateInviteError>;
 
 export type RequestGoogleHomegateInviteInput = {
   googleIdToken: string;

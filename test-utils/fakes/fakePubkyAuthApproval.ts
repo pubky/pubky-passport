@@ -25,10 +25,10 @@ export class FakePubkyAuthApproval implements PubkyAuthApproval {
     });
 
     if (this.approvalFailure) {
-      return { ok: false, error: { code: this.approvalFailure } };
+      return Result.err({ code: this.approvalFailure });
     }
 
-    return { ok: true };
+    return Result.ok();
   }
 }
 
@@ -39,3 +39,4 @@ function safeProtocol(value: string): string | undefined {
     return undefined;
   }
 }
+import { Result } from "better-result";

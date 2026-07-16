@@ -1,3 +1,5 @@
+import { Result, type Err, type Result as ResultType } from "better-result";
+
 export type PubkyAuthCallbacks = {
   success?: string;
   error?: string;
@@ -19,14 +21,11 @@ export type PubkyAuthUrlValidationOptions = {
   allowLocalhostCallbacks?: boolean;
 };
 
-export type PubkyAuthUrlValidationResult =
-  | {
-      ok: true;
-      relay: string;
-      callbacks: PubkyAuthCallbacks;
-      requestingAppDisplayName?: string;
-    }
-  | { ok: false; error: PubkyAuthUrlValidationError };
+export type PubkyAuthUrlValidationResult = ResultType<{
+  relay: string;
+  callbacks: PubkyAuthCallbacks;
+  requestingAppDisplayName?: string;
+}, PubkyAuthUrlValidationError>;
 
 const CALLBACK_QUERY_NAMES = {
   success: "x-success",
@@ -41,45 +40,42 @@ const UNSAFE_CALLBACK_PROTOCOLS = new Set([
   "blob:",
 ]);
 
-type UrlParseResult = { ok: true; url: URL } | { ok: false };
+type UrlParseResult = ResultType<URL, "invalid_url">;
 
 export function validatePubkyAuthUrls(
   authUrl: URL,
   options: PubkyAuthUrlValidationOptions = {},
 ): PubkyAuthUrlValidationResult {
   const relay = validateRelayUrl(authUrl.searchParams.get("relay"));
-  if (!relay.ok) {
-    return relay;
+  if (Result.isError(relay)) {
+    return Result.err(relay.error);
   }
 
   const callbacks = validateCallbacks(authUrl, options);
-  if (!callbacks.ok) {
-    return callbacks;
+  if (Result.isError(callbacks)) {
+    return Result.err(callbacks.error);
   }
 
-  const requestingAppDisplayName = deriveDisplayDomain(callbacks.callbacks);
+  const requestingAppDisplayName = deriveDisplayDomain(callbacks.value);
 
-  return {
-    ok: true,
-    relay: relay.url.href,
-    callbacks: callbacks.callbacks,
+  return Result.ok({
+    relay: relay.value.href,
+    callbacks: callbacks.value,
     ...(requestingAppDisplayName ? { requestingAppDisplayName } : {}),
-  };
+  });
 }
 
-export function validateRelayUrl(value: string | null):
-  | { ok: true; url: URL }
-  | { ok: false; error: PubkyAuthUrlValidationError } {
+export function validateRelayUrl(value: string | null): ResultType<URL, PubkyAuthUrlValidationError> {
   if (!value) {
     return error("missing_relay", "Pubky auth request is missing relay.");
   }
 
   const parsed = parseAbsoluteUrl(value);
-  if (!parsed.ok || parsed.url.protocol !== "https:") {
+  if (Result.isError(parsed) || parsed.value.protocol !== "https:") {
     return error("invalid_relay", "Pubky auth request relay is not an allowed URL.");
   }
 
-  return parsed;
+  return Result.ok(parsed.value);
 }
 
 function deriveDisplayDomain(callbacks: PubkyAuthCallbacks): string | undefined {
@@ -93,65 +89,65 @@ function deriveDisplayDomain(callbacks: PubkyAuthCallbacks): string | undefined 
   // defensively anyway so a future change to the callback source can never turn
   // display-name derivation into an unhandled throw in this signing path.
   const parsedCallback = parseAbsoluteUrl(displayCallback);
-  if (!parsedCallback.ok) {
+  if (Result.isError(parsedCallback)) {
     return undefined;
   }
 
   // URL.hostname returns punycode ASCII (e.g. "xn--...") for internationalized
   // domains. We intentionally display that ASCII form so a Unicode homograph
   // cannot spoof the requesting domain shown to the user before signing.
-  return parsedCallback.url.hostname || undefined;
+  return parsedCallback.value.hostname || undefined;
 }
 
 function validateCallbacks(
   authUrl: URL,
   options: PubkyAuthUrlValidationOptions,
-): { ok: true; callbacks: PubkyAuthCallbacks } | { ok: false; error: PubkyAuthUrlValidationError } {
+): ResultType<PubkyAuthCallbacks, PubkyAuthUrlValidationError> {
   const success = validateOptionalCallback(authUrl.searchParams.get(CALLBACK_QUERY_NAMES.success), options);
-  if (!success.ok) {
-    return success;
+  if (Result.isError(success)) {
+    return Result.err(success.error);
   }
 
   const errorCallback = validateOptionalCallback(authUrl.searchParams.get(CALLBACK_QUERY_NAMES.error), options);
-  if (!errorCallback.ok) {
-    return errorCallback;
+  if (Result.isError(errorCallback)) {
+    return Result.err(errorCallback.error);
   }
 
   const cancel = validateOptionalCallback(authUrl.searchParams.get(CALLBACK_QUERY_NAMES.cancel), options);
-  if (!cancel.ok) {
-    return cancel;
+  if (Result.isError(cancel)) {
+    return Result.err(cancel.error);
   }
 
   const callbacks: PubkyAuthCallbacks = {};
-  if (success.url) {
-    callbacks.success = success.url.href;
+  if (success.value) {
+    callbacks.success = success.value.href;
   }
 
-  if (errorCallback.url) {
-    callbacks.error = errorCallback.url.href;
+  if (errorCallback.value) {
+    callbacks.error = errorCallback.value.href;
   }
 
-  if (cancel.url) {
-    callbacks.cancel = cancel.url.href;
+  if (cancel.value) {
+    callbacks.cancel = cancel.value.href;
   }
 
-  return { ok: true, callbacks };
+  return Result.ok(callbacks);
 }
 
 function validateOptionalCallback(
   value: string | null,
   options: PubkyAuthUrlValidationOptions,
-): { ok: true; url?: URL } | { ok: false; error: PubkyAuthUrlValidationError } {
+): ResultType<URL | undefined, PubkyAuthUrlValidationError> {
   if (!value) {
-    return { ok: true };
+    return Result.ok(undefined);
   }
 
   const parsed = parseAbsoluteUrl(value);
-  if (!parsed.ok || !isAllowedCallbackUrl(parsed.url, options)) {
+  if (Result.isError(parsed) || !isAllowedCallbackUrl(parsed.value, options)) {
     return error("invalid_callback", "Pubky auth request callback is not an allowed URL.");
   }
 
-  return { ok: true, url: parsed.url };
+  return Result.ok(parsed.value);
 }
 
 function isAllowedCallbackUrl(url: URL, options: PubkyAuthUrlValidationOptions): boolean {
@@ -173,15 +169,15 @@ function isLocalhost(hostname: string): boolean {
 function parseAbsoluteUrl(value: string): UrlParseResult {
   try {
     const url = new URL(value);
-    return { ok: true, url };
+    return Result.ok(url);
   } catch {
-    return { ok: false };
+    return Result.err("invalid_url");
   }
 }
 
 function error(
   code: PubkyAuthUrlValidationErrorCode,
   message: string,
-): { ok: false; error: PubkyAuthUrlValidationError } {
-  return { ok: false, error: { code, message } };
+): Err<never, PubkyAuthUrlValidationError> {
+  return Result.err<never, PubkyAuthUrlValidationError>({ code, message });
 }

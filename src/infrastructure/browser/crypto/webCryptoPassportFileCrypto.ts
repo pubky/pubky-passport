@@ -1,5 +1,7 @@
 import "client-only";
 
+import { Result } from "better-result";
+
 import { pubkySecretKeyBytes } from "../../../core/domain/identity/pubkyIdentity";
 import type { PassportFileEnvelopeV1 } from "../../../core/domain/passport-file/passportFile";
 import type {
@@ -51,8 +53,8 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
     passportUrl: string;
   }): Promise<PassportFileCryptoResult<PassportFileEnvelopeV1>> {
     const webCrypto = this.#getRequiredWebCrypto();
-    if (!webCrypto.ok) {
-      return webCrypto;
+    if (Result.isError(webCrypto)) {
+      return failure(webCrypto.error.code);
     }
 
     if (!isValidSecretKeyBytes(input.secretKeyBytes)) {
@@ -60,21 +62,21 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
     }
 
     const origin = normalizePassportFileOrigin(input.passportUrl);
-    if (!origin.ok) {
+    if (Result.isError(origin)) {
       return failure("invalid_envelope");
     }
 
     const wrappingBytes = decodeWrappingKey(input.wrappingKey);
-    if (!wrappingBytes.ok) {
-      return wrappingBytes;
+    if (Result.isError(wrappingBytes)) {
+      return failure(wrappingBytes.error.code);
     }
 
     const wrappingMaterial = wrappingBytes.value;
     try {
-      const envelopeMetadata = { v: 1 as const, url: origin.origin };
+      const envelopeMetadata = { v: 1 as const, url: origin.value };
       const key = await this.#deriveAesGcmKey(webCrypto.value.subtle, wrappingMaterial);
-      if (!key.ok) {
-        return key;
+      if (Result.isError(key)) {
+        return failure(key.error.code);
       }
 
       const iv = webCrypto.value.getRandomValues(new Uint8Array(aesGcmIvBytes));
@@ -84,15 +86,12 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
         toArrayBuffer(input.secretKeyBytes),
       );
 
-      return {
-        ok: true,
-        value: {
+      return Result.ok({
           v: envelopeMetadata.v,
           iv: encodeBase64Url(iv),
           ct: encodeBase64Url(new Uint8Array(ciphertext)),
           url: envelopeMetadata.url,
-        },
-      };
+      });
     } catch {
       return failure("encrypt_failed");
     } finally {
@@ -105,39 +104,39 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
     wrappingKey: string;
   }): Promise<PassportFileCryptoResult<Uint8Array>> {
     const webCrypto = this.#getRequiredWebCrypto();
-    if (!webCrypto.ok) {
-      return webCrypto;
+    if (Result.isError(webCrypto)) {
+      return failure(webCrypto.error.code);
     }
 
     const envelope = parsePassportFileEnvelope(input.envelope);
-    if (!envelope.ok) {
+    if (Result.isError(envelope)) {
       return failure("invalid_envelope");
     }
 
-    const iv = decodeFixedLengthBase64Url(envelope.envelope.iv, aesGcmIvBytes);
-    if (!iv.ok) {
+    const iv = decodeFixedLengthBase64Url(envelope.value.iv, aesGcmIvBytes);
+    if (Result.isError(iv)) {
       return failure("invalid_envelope");
     }
 
-    const ciphertext = decodeFixedLengthBase64Url(envelope.envelope.ct, aesGcmCiphertextBytes);
-    if (!ciphertext.ok) {
+    const ciphertext = decodeFixedLengthBase64Url(envelope.value.ct, aesGcmCiphertextBytes);
+    if (Result.isError(ciphertext)) {
       return failure("invalid_envelope");
     }
 
     const wrappingBytes = decodeWrappingKey(input.wrappingKey);
-    if (!wrappingBytes.ok) {
-      return wrappingBytes;
+    if (Result.isError(wrappingBytes)) {
+      return failure(wrappingBytes.error.code);
     }
 
     const wrappingMaterial = wrappingBytes.value;
     try {
       const key = await this.#deriveAesGcmKey(webCrypto.value.subtle, wrappingMaterial);
-      if (!key.ok) {
-        return key;
+      if (Result.isError(key)) {
+        return failure(key.error.code);
       }
 
       const plaintext = await webCrypto.value.subtle.decrypt(
-        { name: "AES-GCM", iv: toArrayBuffer(iv.value), additionalData: aadForEnvelope(envelope.envelope) },
+        { name: "AES-GCM", iv: toArrayBuffer(iv.value), additionalData: aadForEnvelope(envelope.value) },
         key.value,
         toArrayBuffer(ciphertext.value),
       );
@@ -148,7 +147,7 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
         return failure("invalid_plaintext");
       }
 
-      return { ok: true, value: secretKeyBytes };
+      return Result.ok(secretKeyBytes);
     } catch {
       return failure("decrypt_failed");
     } finally {
@@ -168,7 +167,7 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
       return failure("unsupported_browser_crypto");
     }
 
-    return { ok: true, value: { subtle: this.#subtle, getRandomValues: this.#getRandomValues } };
+    return Result.ok({ subtle: this.#subtle, getRandomValues: this.#getRandomValues });
   }
 
   async #deriveAesGcmKey(subtle: SubtleCrypto, wrappingBytes: Uint8Array): Promise<PassportFileCryptoResult<CryptoKey>> {
@@ -188,7 +187,7 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
         ["encrypt", "decrypt"],
       );
 
-      return { ok: true, value: key };
+      return Result.ok(key);
     } catch {
       return failure("unsupported_browser_crypto");
     }
@@ -202,7 +201,7 @@ function isValidSecretKeyBytes(secretKeyBytes: Uint8Array): boolean {
 
 function decodeWrappingKey(value: string): PassportFileCryptoResult<Uint8Array> {
   const decoded = decodeBase64Url(value);
-  if (!decoded.ok || decoded.value.byteLength !== wrappingKeyBytes) {
+  if (Result.isError(decoded) || decoded.value.byteLength !== wrappingKeyBytes) {
     return failure("invalid_wrapping_key");
   }
 
@@ -215,7 +214,7 @@ function decodeFixedLengthBase64Url(value: string, expectedByteLength: number): 
   }
 
   const decoded = decodeBase64Url(value);
-  if (!decoded.ok || decoded.value.byteLength !== expectedByteLength) {
+  if (Result.isError(decoded) || decoded.value.byteLength !== expectedByteLength) {
     return failure("invalid_envelope");
   }
 
@@ -266,12 +265,12 @@ export function decodeBase64Url(value: string): PassportFileCryptoResult<Uint8Ar
       bytes[index] = binary.charCodeAt(index);
     }
 
-    return { ok: true, value: bytes };
+    return Result.ok(bytes);
   } catch {
     return failure("invalid_envelope");
   }
 }
 
 function failure<T>(code: PassportFileCryptoErrorCode): PassportFileCryptoResult<T> {
-  return { ok: false, error: { code } };
+  return Result.err({ code });
 }

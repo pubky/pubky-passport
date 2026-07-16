@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Result, type Result as ResultType } from "better-result";
 
 import { PubkyIdentityAdapter } from "./pubkyIdentityAdapter";
 import { PubkyIdentityKeyAdapter, type PubkyIdentityKeypair } from "./pubkyIdentityKeyAdapter";
@@ -22,14 +23,14 @@ describe("PubkyIdentityAdapter", () => {
         signupCode: "sensitive-signup-code",
       });
 
-      expect(result).toEqual({
-        ok: false,
-        error: {
+      expect(Result.isError(result)).toBe(true);
+      if (Result.isError(result)) {
+        expect(result.error).toEqual({
           code: "invalid_homeserver_pubky",
           message: "Homeserver public key is missing or invalid.",
           sdkErrorName: "InvalidInput",
-        },
-      });
+        });
+      }
       expect(JSON.stringify(result)).not.toContain("sensitive-signup-code");
     } finally {
       keypair.dispose();
@@ -50,15 +51,15 @@ describe("PubkyIdentityAdapter", () => {
         homeserverPubky: "not a public key",
       });
 
-      expect(ifStaleResult).toEqual({
-        ok: false,
-        error: {
+      expect(Result.isError(ifStaleResult)).toBe(true);
+      if (Result.isError(ifStaleResult)) {
+        expect(ifStaleResult.error).toEqual({
           code: "invalid_homeserver_pubky",
           message: "Homeserver public key is missing or invalid.",
           sdkErrorName: "InvalidInput",
-        },
-      });
-      expect(forceResult).toEqual(ifStaleResult);
+        });
+      }
+      expect(Result.isError(forceResult)).toBe(true);
     } finally {
       keypair.dispose();
       identityAdapter.dispose();
@@ -74,13 +75,13 @@ describe("PubkyIdentityAdapter", () => {
         sensitivePubkyAuthUrl: "https://example.com/callback?secret=should-not-be-returned",
       });
 
-      expect(result).toEqual({
-        ok: false,
-        error: {
+      expect(Result.isError(result)).toBe(true);
+      if (Result.isError(result)) {
+        expect(result.error).toEqual({
           code: "invalid_pubky_auth_request",
           message: "Pubky auth request URL is missing or invalid.",
-        },
-      });
+        });
+      }
       expect(JSON.stringify(result)).not.toContain("should-not-be-returned");
     } finally {
       keypair.dispose();
@@ -97,7 +98,11 @@ function createAdapters(): { identityAdapter: PubkyIdentityAdapter; keypair: Pub
   return { identityAdapter, keypair };
 }
 
-function expectOk<T>(result: { ok: true; value: T } | { ok: false; error: unknown }): T {
-  expect(result.ok).toBe(true);
-  return (result as { ok: true; value: T }).value;
+function expectOk<T>(result: ResultType<T, unknown>): T {
+  expect(Result.isOk(result)).toBe(true);
+  if (Result.isError(result)) {
+    throw result.error;
+  }
+
+  return result.value;
 }

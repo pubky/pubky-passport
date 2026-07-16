@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Result, type Result as ResultType } from "better-result";
 
 import { pubkySecretKeyBytes, pubkySecretKeyFormat } from "../../../core/domain/identity/pubkyIdentity";
 import { PubkyIdentityKeyAdapter, withPubkySdkKeypair } from "./pubkyIdentityKeyAdapter";
@@ -50,13 +51,14 @@ describe("PubkyIdentityKeyAdapter", () => {
     const secretKeyBytes = new Uint8Array(pubkySecretKeyBytes - 1).fill(7);
     const restored = adapter.restoreKeypair({ secretKeyBytes });
 
-    expect(restored).toEqual({
-      ok: false,
-      error: {
+    expect(Result.isError(restored)).toBe(true);
+    if (Result.isError(restored)) {
+      expect(restored.error).toEqual({
         code: "invalid_secret_key",
         message: "Pubky identity secret key bytes are missing or invalid.",
       },
-    });
+      );
+    }
     expect(secretKeyBytes).toEqual(new Uint8Array(pubkySecretKeyBytes - 1));
   });
 
@@ -66,17 +68,23 @@ describe("PubkyIdentityKeyAdapter", () => {
 
     keypair.dispose();
 
-    expect(withPubkySdkKeypair(keypair, (sdkKeypair) => sdkKeypair)).toEqual({
-      ok: false,
-      error: {
+    const result = withPubkySdkKeypair(keypair, (sdkKeypair) => sdkKeypair);
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error).toEqual({
         code: "key_unavailable",
         message: "Pubky identity keypair is not available.",
       },
-    });
+      );
+    }
   });
 });
 
-function expectOk<T>(result: { ok: true; value: T } | { ok: false; error: unknown }): T {
-  expect(result.ok).toBe(true);
-  return (result as { ok: true; value: T }).value;
+function expectOk<T>(result: ResultType<T, unknown>): T {
+  expect(Result.isOk(result)).toBe(true);
+  if (Result.isError(result)) {
+    throw result.error;
+  }
+
+  return result.value;
 }

@@ -1,3 +1,4 @@
+import { Result } from "better-result";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -13,8 +14,8 @@ function authUrl(query: string): URL {
 function expectUrlError(url: URL, code: PubkyAuthUrlValidationErrorCode): void {
   const result = validatePubkyAuthUrls(url);
 
-  expect(result.ok).toBe(false);
-  if (!result.ok) {
+  expect(Result.isError(result)).toBe(true);
+  if (Result.isError(result)) {
     expect(result.error.code).toBe(code);
     expect(result.error.message).not.toContain("secret-value");
     expect(result.error.message).not.toContain("token=private");
@@ -26,19 +27,19 @@ describe("validateRelayUrl", () => {
   it("allows HTTPS relay URLs", () => {
     const result = validateRelayUrl("https://httprelay.pubky.app/inbox");
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isError(result)) {
       throw new Error(result.error.code);
     }
 
-    expect(result.url.href).toBe("https://httprelay.pubky.app/inbox");
+    expect(result.value.href).toBe("https://httprelay.pubky.app/inbox");
   });
 
   it("rejects missing relay URLs", () => {
     const result = validateRelayUrl(null);
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
       expect(result.error.code).toBe("missing_relay");
     }
   });
@@ -47,8 +48,8 @@ describe("validateRelayUrl", () => {
     for (const relay of ["/inbox", "not a url", "http://httprelay.pubky.app/inbox"]) {
       const result = validateRelayUrl(relay);
 
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
+      expect(Result.isError(result)).toBe(true);
+      if (Result.isError(result)) {
         expect(result.error.code).toBe("invalid_relay");
       }
     }
@@ -63,12 +64,12 @@ describe("validatePubkyAuthUrls", () => {
       ),
     );
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isError(result)) {
       throw new Error(result.error.code);
     }
 
-    expect(result.callbacks).toEqual({
+    expect(result.value.callbacks).toEqual({
       success: "https://third.example/success",
       error: "https://third.example/error",
       cancel: "https://third.example/cancel",
@@ -78,13 +79,13 @@ describe("validatePubkyAuthUrls", () => {
   it("allows missing callbacks", () => {
     const result = validatePubkyAuthUrls(authUrl("relay=https://httprelay.pubky.app/inbox&secret=secret-value"));
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isError(result)) {
       throw new Error(result.error.code);
     }
 
-    expect(result.callbacks).toEqual({});
-    expect(result.requestingAppDisplayName).toBeUndefined();
+    expect(result.value.callbacks).toEqual({});
+    expect(result.value.requestingAppDisplayName).toBeUndefined();
   });
 
   it("rejects unsafe callback schemes", () => {
@@ -119,7 +120,7 @@ describe("validatePubkyAuthUrls", () => {
 
       const result = validatePubkyAuthUrls(url, { allowLocalhostCallbacks: true });
 
-      expect(result.ok).toBe(true);
+      expect(Result.isOk(result)).toBe(true);
     }
   });
 
@@ -130,12 +131,12 @@ describe("validatePubkyAuthUrls", () => {
       ),
     );
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isError(result)) {
       throw new Error(result.error.code);
     }
 
-    expect(result.requestingAppDisplayName).toBe("third.example");
+    expect(result.value.requestingAppDisplayName).toBe("third.example");
   });
 
   it("derives display domain from other callbacks when x-success is absent", () => {
@@ -143,23 +144,23 @@ describe("validatePubkyAuthUrls", () => {
       authUrl("relay=https://httprelay.pubky.app/inbox&secret=secret-value&x-error=https://errors.example/error"),
     );
 
-    expect(errorResult.ok).toBe(true);
-    if (!errorResult.ok) {
+    expect(Result.isOk(errorResult)).toBe(true);
+    if (Result.isError(errorResult)) {
       throw new Error(errorResult.error.code);
     }
 
-    expect(errorResult.requestingAppDisplayName).toBe("errors.example");
+    expect(errorResult.value.requestingAppDisplayName).toBe("errors.example");
 
     const cancelResult = validatePubkyAuthUrls(
       authUrl("relay=https://httprelay.pubky.app/inbox&secret=secret-value&x-cancel=https://cancel.example/cancel"),
     );
 
-    expect(cancelResult.ok).toBe(true);
-    if (!cancelResult.ok) {
+    expect(Result.isOk(cancelResult)).toBe(true);
+    if (Result.isError(cancelResult)) {
       throw new Error(cancelResult.error.code);
     }
 
-    expect(cancelResult.requestingAppDisplayName).toBe("cancel.example");
+    expect(cancelResult.value.requestingAppDisplayName).toBe("cancel.example");
   });
 
   it("displays internationalized callback domains as punycode ASCII to resist homograph spoofing", () => {
@@ -170,13 +171,13 @@ describe("validatePubkyAuthUrls", () => {
       ),
     );
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isError(result)) {
       throw new Error(result.error.code);
     }
 
-    expect(result.requestingAppDisplayName).toBe("xn--pple-43d.example");
-    expect(result.requestingAppDisplayName).not.toContain("\u0430");
+    expect(result.value.requestingAppDisplayName).toBe("xn--pple-43d.example");
+    expect(result.value.requestingAppDisplayName).not.toContain("\u0430");
   });
 
   it("does not expose callback query parameters in validation errors", () => {

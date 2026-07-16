@@ -67,13 +67,10 @@ async function parseHomegateSuccess(response: Response): Promise<HomegateInviteR
     return failure("malformed_homegate_response");
   }
 
-  return {
-    ok: true,
-    value: {
+  return Result.ok({
       signupCode: body.signupCode,
       homeserverPubky: body.homeserverPubky,
-    },
-  };
+  });
 }
 
 async function mapHomegateError(response: Response): Promise<HomegateInviteErrorCode> {
@@ -114,5 +111,6 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 function failure(code: HomegateInviteErrorCode): HomegateInviteResult {
-  return { ok: false, error: { code } };
+  return Result.err({ code });
 }
+import { Result } from "better-result";

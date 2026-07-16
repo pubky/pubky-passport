@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Result, type Result as ResultType } from "better-result";
 
 import type { RequestGoogleHomegateInviteController } from "../../../../core/controllers/homegate/requestGoogleHomegateInviteController";
 
@@ -25,7 +26,7 @@ export function createHomegateInvitePostHandler(
   return async function homegateInvitePost(request: Request): Promise<NextResponse<HomegateInviteRouteBody>> {
     const body = await parseRequestBody(request);
 
-    if (!body.ok) {
+    if (Result.isError(body)) {
       return json({ error: { code: "invalid_request" } }, 400);
     }
 
@@ -50,29 +51,29 @@ async function createDefaultController(): Promise<RequestGoogleHomegateInviteCon
 
 async function parseRequestBody(
   request: Request,
-): Promise<{ ok: true; value: HomegateInviteRequestBody } | { ok: false }> {
+): Promise<ResultType<HomegateInviteRequestBody, "invalid_request">> {
   let body: unknown;
 
   try {
     body = await request.json();
   } catch {
-    return { ok: false };
+    return Result.err("invalid_request");
   }
 
   if (!isRecord(body)) {
-    return { ok: false };
+    return Result.err("invalid_request");
   }
 
   const keys = Object.keys(body);
   if (keys.length !== 1 || keys[0] !== "googleIdToken") {
-    return { ok: false };
+    return Result.err("invalid_request");
   }
 
   if (typeof body.googleIdToken !== "string" || body.googleIdToken.trim().length === 0) {
-    return { ok: false };
+    return Result.err("invalid_request");
   }
 
-  return { ok: true, value: { googleIdToken: body.googleIdToken } };
+  return Result.ok({ googleIdToken: body.googleIdToken });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

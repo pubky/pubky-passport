@@ -1,3 +1,5 @@
+import { Result, type Err, type Result as ResultType } from "better-result";
+
 import {
   parsePubkyAuthCapabilities,
   type PubkyAuthCapability,
@@ -49,11 +51,9 @@ export type PubkyAuthRequest = {
   requestingAppDisplayName?: string;
 };
 
-export type PubkyAuthParseResult =
-  | { ok: true; request: PubkyAuthRequest }
-  | { ok: false; error: PubkyAuthParseError };
+export type PubkyAuthParseResult = ResultType<PubkyAuthRequest, PubkyAuthParseError>;
 
-type ParseValueResult<T> = { ok: true; value: T } | { ok: false; error: PubkyAuthParseError };
+type ParseValueResult<T> = ResultType<T, PubkyAuthParseError>;
 
 export type ParsePubkyAuthRequestOptions = PubkyAuthUrlValidationOptions;
 
@@ -68,8 +68,8 @@ export function parsePubkyAuthRequest(
   }
 
   const decoded = decodeDParam(d);
-  if (!decoded.ok) {
-    return decoded;
+  if (Result.isError(decoded)) {
+    return Result.err(decoded.error);
   }
 
   if (decoded.value === d) {
@@ -77,8 +77,8 @@ export function parsePubkyAuthRequest(
   }
 
   const authUrl = parseUrl(decoded.value);
-  if (!authUrl.ok) {
-    return authUrl;
+  if (Result.isError(authUrl)) {
+    return Result.err(authUrl.error);
   }
 
   if (authUrl.value.protocol !== PUBKY_AUTH_PROTOCOL) {
@@ -86,12 +86,12 @@ export function parsePubkyAuthRequest(
   }
 
   const kind = parseAuthRequestKind(authUrl.value);
-  if (!kind.ok) {
-    return kind;
+  if (Result.isError(kind)) {
+    return Result.err(kind.error);
   }
 
   const urls = validatePubkyAuthUrls(authUrl.value, options);
-  if (!urls.ok) {
+  if (Result.isError(urls)) {
     return mapUrlValidationError(urls.error);
   }
 
@@ -101,36 +101,33 @@ export function parsePubkyAuthRequest(
   }
 
   const capabilities = parsePubkyAuthCapabilities(authUrl.value.searchParams.get("caps"));
-  if (!capabilities.ok) {
+  if (Result.isError(capabilities)) {
     return mapCapabilitiesError(capabilities.error);
   }
 
   const source = parseOptionalSource(authUrl.value.searchParams.get("x-source"));
   const request: PubkyAuthRequest = {
     kind: kind.value,
-    relay: urls.relay,
+    relay: urls.value.relay,
     sensitiveSecret: secret as SensitivePubkyAuthRequestSecret,
-    capabilities: capabilities.capabilities,
-    callbacks: urls.callbacks,
+    capabilities: capabilities.value,
+    callbacks: urls.value.callbacks,
   };
 
   if (source) {
     request.source = source;
   }
 
-  if (urls.requestingAppDisplayName) {
-    request.requestingAppDisplayName = urls.requestingAppDisplayName;
+  if (urls.value.requestingAppDisplayName) {
+    request.requestingAppDisplayName = urls.value.requestingAppDisplayName;
   }
 
-  return {
-    ok: true,
-    request,
-  };
+  return Result.ok(request);
 }
 
 function decodeDParam(d: string): ParseValueResult<string> {
   try {
-    return { ok: true, value: decodeURIComponent(d) };
+    return Result.ok(decodeURIComponent(d));
   } catch {
     return error("invalid_encoding", "Pubky auth request is not valid URL encoding.");
   }
@@ -138,7 +135,7 @@ function decodeDParam(d: string): ParseValueResult<string> {
 
 function parseUrl(value: string): ParseValueResult<URL> {
   try {
-    return { ok: true, value: new URL(value) };
+    return Result.ok(new URL(value));
   } catch {
     return error("invalid_url", "Pubky auth request is not a valid URL.");
   }
@@ -146,11 +143,11 @@ function parseUrl(value: string): ParseValueResult<URL> {
 
 function parseAuthRequestKind(url: URL): ParseValueResult<PubkyAuthRequestKind> {
   if (url.hostname === "signin" && url.pathname === "") {
-    return { ok: true, value: "signin" };
+    return Result.ok("signin");
   }
 
   if (url.hostname === "" && url.pathname === "/") {
-    return { ok: true, value: "signin" };
+    return Result.ok("signin");
   }
 
   return error("invalid_auth_request_path", "Pubky auth request path is not supported.");
@@ -173,6 +170,9 @@ function parseOptionalSource(source: string | null): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
-function error(code: PubkyAuthParseErrorCode, message: string): { ok: false; error: PubkyAuthParseError } {
-  return { ok: false, error: { code, message } };
+function error(
+  code: PubkyAuthParseErrorCode,
+  message: string,
+): Err<never, PubkyAuthParseError> {
+  return Result.err<never, PubkyAuthParseError>({ code, message });
 }

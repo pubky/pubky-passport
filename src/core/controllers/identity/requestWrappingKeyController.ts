@@ -24,8 +24,8 @@ export function createRequestWrappingKeyController(
   return async function requestWrappingKeyController(input) {
     const result = await requestWrappingKey(input);
 
-    if (result.ok) {
-      return { status: 200, body: { wrappingKey: result.wrappingKey } };
+    if (Result.isOk(result)) {
+      return { status: 200, body: { wrappingKey: result.value } };
     }
 
     return {
@@ -49,3 +49,4 @@ function statusForError(code: RequestWrappingKeyErrorCode): number {
       return 503;
   }
 }
+import { Result } from "better-result";

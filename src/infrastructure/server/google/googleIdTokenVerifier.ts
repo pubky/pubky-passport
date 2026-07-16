@@ -1,6 +1,7 @@
 import "server-only";
 
 import { OAuth2Client } from "google-auth-library";
+import { Result, type Result as ResultType } from "better-result";
 
 import type { Clock } from "../../../core/ports/clock";
 import type {
@@ -56,28 +57,25 @@ export class ServerGoogleIdTokenVerifier implements GoogleIdTokenVerifier {
     try {
       ticket = await this.verifier.verifyIdToken({ idToken, audience: this.audience });
     } catch (error) {
-      return { ok: false, reason: mapGoogleVerifierError(error) };
+      return Result.err(mapGoogleVerifierError(error));
     }
 
     const payload = ticket.getPayload();
     if (!payload) {
-      return { ok: false, reason: "invalid" };
+      return Result.err("invalid");
     }
 
     const validatedPayload = validatePayload(payload, this.audience, this.clock.now());
-    if (!validatedPayload.ok) {
-      return { ok: false, reason: validatedPayload.reason };
+    if (Result.isError(validatedPayload)) {
+      return Result.err(validatedPayload.error);
     }
 
-    return {
-      ok: true,
-      identity: {
-        issuer: validatedPayload.payload.iss,
-        subject: validatedPayload.payload.sub,
+    return Result.ok({
+        issuer: validatedPayload.value.iss,
+        subject: validatedPayload.value.sub,
         audience: this.audience,
-        expiresAt: new Date(validatedPayload.payload.exp * 1000),
-      },
-    };
+        expiresAt: new Date(validatedPayload.value.exp * 1000),
+    });
   }
 }
 
@@ -96,24 +94,24 @@ function validatePayload(
   payload: GoogleIdTokenPayload,
   expectedAudience: string,
   now: Date,
-): { ok: true; payload: ValidGoogleIdTokenPayload } | { ok: false; reason: GoogleIdTokenVerificationFailureReason } {
+): ResultType<ValidGoogleIdTokenPayload, GoogleIdTokenVerificationFailureReason> {
   if (!payload.iss || !acceptedIssuers.has(payload.iss)) {
-    return { ok: false, reason: "unsupported_issuer" };
+    return Result.err("unsupported_issuer");
   }
 
   if (!audienceMatches(payload.aud, expectedAudience)) {
-    return { ok: false, reason: "unsupported_audience" };
+    return Result.err("unsupported_audience");
   }
 
   if (typeof payload.exp !== "number" || payload.exp <= Math.floor(now.getTime() / 1000)) {
-    return { ok: false, reason: "expired" };
+    return Result.err("expired");
   }
 
   if (!payload.sub) {
-    return { ok: false, reason: "missing_subject" };
+    return Result.err("missing_subject");
   }
 
-  return { ok: true, payload: { iss: payload.iss, exp: payload.exp, sub: payload.sub } };
+  return Result.ok({ iss: payload.iss, exp: payload.exp, sub: payload.sub });
 }
 
 function audienceMatches(audience: string | string[] | undefined, expectedAudience: string): boolean {

@@ -1,3 +1,5 @@
+import { Result, type Result as ResultType } from "better-result";
+
 import type {
   GoogleHomegateInvite,
   HomegateInviteErrorCode,
@@ -13,9 +15,7 @@ export type RequestGoogleHomegateInviteErrorCode =
   | "invalid_request"
   | "dependency_unavailable";
 
-export type RequestGoogleHomegateInviteResult =
-  | { ok: true; invite: GoogleHomegateInvite }
-  | { ok: false; error: { code: RequestGoogleHomegateInviteErrorCode } };
+export type RequestGoogleHomegateInviteResult = ResultType<GoogleHomegateInvite, { code: RequestGoogleHomegateInviteErrorCode }>;
 
 export type RequestGoogleHomegateInviteUseCase = (
   input: RequestGoogleHomegateInviteInput,
@@ -43,14 +43,14 @@ export function createRequestGoogleHomegateInviteUseCase(
       return failure("dependency_unavailable");
     }
 
-    if (!result.ok) {
+    if (Result.isError(result)) {
       return failure(result.error.code);
     }
 
-    return { ok: true, invite: result.value };
+    return Result.ok(result.value);
   };
 }
 
 function failure(code: RequestGoogleHomegateInviteErrorCode): RequestGoogleHomegateInviteResult {
-  return { ok: false, error: { code } };
+  return Result.err({ code });
 }

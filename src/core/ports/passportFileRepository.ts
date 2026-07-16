@@ -1,3 +1,5 @@
+import type { Result } from "better-result";
+
 import type { PassportFileEnvelopeV1 } from "../domain/passport-file/passportFile";
 
 export type PassportFileReadResult = { status: "found"; envelope: PassportFileEnvelopeV1 } | { status: "missing" };
@@ -15,9 +17,7 @@ export type PassportFileRepositoryError = {
   code: PassportFileRepositoryErrorCode;
 };
 
-export type PassportFileRepositoryResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: PassportFileRepositoryError };
+export type PassportFileRepositoryResult<T> = Result<T, PassportFileRepositoryError>;
 
 /**
  * Port for reading and writing Passport's encrypted identity file.

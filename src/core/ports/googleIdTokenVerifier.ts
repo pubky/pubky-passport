@@ -1,3 +1,5 @@
+import type { Result } from "better-result";
+
 export type VerifiedGoogleIdentity = {
   issuer: string;
   subject: string;
@@ -12,9 +14,7 @@ export type GoogleIdTokenVerificationFailureReason =
   | "unsupported_audience"
   | "missing_subject";
 
-export type GoogleIdTokenVerificationResult =
-  | { ok: true; identity: VerifiedGoogleIdentity }
-  | { ok: false; reason: GoogleIdTokenVerificationFailureReason };
+export type GoogleIdTokenVerificationResult = Result<VerifiedGoogleIdentity, GoogleIdTokenVerificationFailureReason>;
 
 export interface GoogleIdTokenVerifier {
   verifyIdToken(idToken: string): Promise<GoogleIdTokenVerificationResult>;

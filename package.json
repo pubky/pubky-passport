@@ -17,6 +17,7 @@
   "dependencies": {
     "@synonymdev/pubky": "0.9.3",
     "@tailwindcss/postcss": "^4.3.1",
+    "better-result": "2.9.2",
     "client-only": "0.0.1",
     "google-auth-library": "^10.9.0",
     "next": "^16.2.9",

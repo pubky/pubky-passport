@@ -1,3 +1,5 @@
+import type { Result } from "better-result";
+
 import type {
   PubkyIdentityKeyHandle,
   PubkyIdentitySession,
@@ -13,9 +15,7 @@ export type PubkySignupError = {
   code: PubkySignupErrorCode;
 };
 
-export type PubkySignupResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: PubkySignupError };
+export type PubkySignupResult<T> = Result<T, PubkySignupError>;
 
 export type SignupWithPubkyInput = {
   keyHandle: PubkyIdentityKeyHandle;
