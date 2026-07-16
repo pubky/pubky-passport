@@ -1,4 +1,6 @@
 import type { PubkyIdentityKeyHandle } from "@/core/domain/identity/pubkyIdentity";
+import { Result } from "better-result";
+
 import type {
   PublishPubkyHomeserverInput,
   PubkyDiscovery,
@@ -50,4 +52,3 @@ export class FakePubkyDiscovery implements PubkyDiscovery {
 function failure(code: PubkyDiscoveryErrorCode): PubkyDiscoveryResult {
   return Result.err({ code });
 }
-import { Result } from "better-result";

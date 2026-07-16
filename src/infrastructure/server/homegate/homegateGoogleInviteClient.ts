@@ -1,5 +1,7 @@
 import "server-only";
 
+import { Result } from "better-result";
+
 import type {
   HomegateInviteErrorCode,
   HomegateInvitePort,
@@ -113,4 +115,3 @@ function isNonEmptyString(value: unknown): value is string {
 function failure(code: HomegateInviteErrorCode): HomegateInviteResult {
   return Result.err({ code });
 }
-import { Result } from "better-result";

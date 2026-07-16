@@ -1,3 +1,5 @@
+import { Result } from "better-result";
+
 import type {
   RequestGoogleHomegateInviteErrorCode,
   RequestGoogleHomegateInviteUseCase,
@@ -60,4 +62,3 @@ function statusForError(code: RequestGoogleHomegateInviteErrorCode): number {
       return 503;
   }
 }
-import { Result } from "better-result";

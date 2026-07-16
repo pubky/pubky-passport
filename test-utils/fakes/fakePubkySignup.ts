@@ -1,3 +1,5 @@
+import { Result } from "better-result";
+
 import type {
   PubkyIdentityKeyHandle,
   PubkyIdentitySession,
@@ -68,4 +70,3 @@ export class FakePubkySignup implements PubkySignup {
 function failure<T>(code: PubkySignupErrorCode): PubkySignupResult<T> {
   return Result.err({ code });
 }
-import { Result } from "better-result";

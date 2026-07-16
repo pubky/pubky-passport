@@ -1,3 +1,5 @@
+import { Result } from "better-result";
+
 import type {
   RequestWrappingKeyErrorCode,
   RequestWrappingKeyUseCase,
@@ -49,4 +51,3 @@ function statusForError(code: RequestWrappingKeyErrorCode): number {
       return 503;
   }
 }
-import { Result } from "better-result";

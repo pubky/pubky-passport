@@ -1,3 +1,5 @@
+import { Result } from "better-result";
+
 import type {
   GoogleHomegateInvite,
   HomegateInviteErrorCode,
@@ -31,4 +33,3 @@ export class FakeHomegateInvite implements HomegateInvitePort {
     return Result.ok(this.invite);
   }
 }
-import { Result } from "better-result";

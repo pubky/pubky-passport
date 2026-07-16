@@ -1,4 +1,6 @@
 import type { PubkyIdentityKeyHandle } from "@/core/domain/identity/pubkyIdentity";
+import { Result } from "better-result";
+
 import type {
   ApprovePubkyAuthRequestInput,
   PubkyAuthApproval,
@@ -39,4 +41,3 @@ function safeProtocol(value: string): string | undefined {
     return undefined;
   }
 }
-import { Result } from "better-result";

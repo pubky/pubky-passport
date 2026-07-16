@@ -1,3 +1,5 @@
+import { Result } from "better-result";
+
 import { pubkySecretKeyBytes, pubkySecretKeyFormat, type PubkySecretKeyMaterial } from "../../src/core/domain/identity/pubkyIdentity";
 import type {
   PubkyIdentityKey,
@@ -113,4 +115,3 @@ export class FakePubkyIdentityKeys implements PubkyIdentityKeys {
 function failure<T>(code: PubkyIdentityKeysErrorCode): PubkyIdentityKeysResult<T> {
   return Result.err({ code });
 }
-import { Result } from "better-result";
