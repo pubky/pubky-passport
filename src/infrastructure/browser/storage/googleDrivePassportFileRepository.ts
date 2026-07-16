@@ -270,6 +270,11 @@ async function safeReadJson(response: Response): Promise<unknown> {
 
 async function safeReadText(response: Response, maximumBytes: number): Promise<string | "too_large" | null> {
   if (contentLengthExceeds(response.headers.get("Content-Length"), maximumBytes)) {
+    try {
+      await response.body?.cancel();
+    } catch {
+      // The oversized response is already rejected; cancellation is best effort.
+    }
     return "too_large";
   }
 
@@ -289,7 +294,11 @@ async function safeReadText(response: Response, maximumBytes: number): Promise<s
 
       byteLength += value.byteLength;
       if (byteLength > maximumBytes) {
-        void reader.cancel();
+        try {
+          await reader.cancel();
+        } catch {
+          // The oversized response is already rejected; cancellation is best effort.
+        }
         return "too_large";
       }
 
