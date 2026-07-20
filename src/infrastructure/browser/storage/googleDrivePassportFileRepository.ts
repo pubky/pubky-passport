@@ -40,6 +40,7 @@ const driveUploadFilesUrl = "https://www.googleapis.com/upload/drive/v3/files";
 const passportFileName = "passport.json";
 const multipartBoundary = "pubky-passport-drive-boundary-v1";
 const maximumPassportFileBytes = 16 * 1024;
+const maximumDriveListResponseBytes = 16 * 1024;
 
 export class GoogleDrivePassportFileRepository implements PassportFileRepository {
   private readonly accessTokenProvider: GoogleDriveAccessTokenProvider;
@@ -142,7 +143,12 @@ export class GoogleDrivePassportFileRepository implements PassportFileRepository
       return { ok: false, code: mapDriveStatus(response.status, "invalid_response") };
     }
 
-    const list = await safeReadJson(response);
+    const listContents = await safeReadText(response, maximumDriveListResponseBytes);
+    if (listContents === null || listContents === "too_large") {
+      return { ok: false, code: "invalid_response" };
+    }
+
+    const list = parseJsonContents(listContents);
     if (!isDriveListResponse(list)) {
       return { ok: false, code: "invalid_response" };
     }
@@ -260,9 +266,9 @@ function serializeEnvelope(
   };
 }
 
-async function safeReadJson(response: Response): Promise<unknown> {
+function parseJsonContents(contents: string): unknown {
   try {
-    return await response.json();
+    return JSON.parse(contents);
   } catch {
     return null;
   }

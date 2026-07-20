@@ -58,6 +58,7 @@ describe("WebCryptoPassportFileCrypto", () => {
           url: "https://passport.pubky.app",
         },
         wrappingKey: "not+decoded",
+        passportUrl: "https://passport.pubky.app",
       }),
     ).resolves.toEqual({ ok: false, error: { code: "unsupported_browser_crypto" } });
   });
@@ -127,7 +128,11 @@ describe("WebCryptoPassportFileCrypto", () => {
       throw new Error(encrypted.error.code);
     }
 
-    const decrypted = await crypto.decryptSecretKeyBytes({ envelope: encrypted.value, wrappingKey });
+    const decrypted = await crypto.decryptSecretKeyBytes({
+      envelope: encrypted.value,
+      wrappingKey,
+      passportUrl: "https://passport.pubky.app",
+    });
 
     expect(decrypted.ok).toBe(true);
     if (!decrypted.ok) {
@@ -167,6 +172,7 @@ describe("WebCryptoPassportFileCrypto", () => {
     const decrypted = await createCrypto().decryptSecretKeyBytes({
       envelope: encrypted.value,
       wrappingKey: differentWrappingKey,
+      passportUrl: "https://passport.pubky.app",
     });
 
     expect(decrypted).toEqual({ ok: false, error: { code: "decrypt_failed" } });
@@ -187,6 +193,7 @@ describe("WebCryptoPassportFileCrypto", () => {
     const decrypted = await createCrypto().decryptSecretKeyBytes({
       envelope: { ...encrypted.value, ct: tamperBase64Url(encrypted.value.ct) },
       wrappingKey,
+      passportUrl: "https://passport.pubky.app",
     });
 
     expect(decrypted).toEqual({ ok: false, error: { code: "decrypt_failed" } });
@@ -207,6 +214,7 @@ describe("WebCryptoPassportFileCrypto", () => {
     const decrypted = await createCrypto().decryptSecretKeyBytes({
       envelope: { ...encrypted.value, iv: encodeBase64Url(new Uint8Array(11)) },
       wrappingKey,
+      passportUrl: "https://passport.pubky.app",
     });
 
     expect(decrypted).toEqual({ ok: false, error: { code: "invalid_envelope" } });
@@ -221,6 +229,7 @@ describe("WebCryptoPassportFileCrypto", () => {
         url: "https://passport.pubky.app",
       },
       wrappingKey,
+      passportUrl: "https://passport.pubky.app",
     });
 
     expect(decrypted).toEqual({ ok: false, error: { code: "invalid_envelope" } });
@@ -245,6 +254,7 @@ describe("WebCryptoPassportFileCrypto", () => {
           url: "https://passport.pubky.app",
         },
         wrappingKey,
+        passportUrl: "https://passport.pubky.app",
       }),
     ).resolves.toEqual({ ok: false, error: { code: "invalid_plaintext" } });
 
@@ -260,6 +270,7 @@ describe("WebCryptoPassportFileCrypto", () => {
         url: "https://passport.pubky.app",
       },
       wrappingKey,
+      passportUrl: "https://passport.pubky.app",
     });
 
     expect(decrypted).toEqual({ ok: false, error: { code: "invalid_envelope" } });
@@ -280,9 +291,31 @@ describe("WebCryptoPassportFileCrypto", () => {
     const decrypted = await createCrypto().decryptSecretKeyBytes({
       envelope: { ...encrypted.value, url: "https://passport-staging.pubky.app" },
       wrappingKey,
+      passportUrl: "https://passport-staging.pubky.app",
     });
 
     expect(decrypted).toEqual({ ok: false, error: { code: "decrypt_failed" } });
+  });
+
+  it("rejects an envelope created for a different Passport origin", async () => {
+    const encrypted = await createCrypto().encryptSecretKeyBytes({
+      secretKeyBytes,
+      wrappingKey,
+      passportUrl: "https://passport-staging.pubky.app",
+    });
+
+    expect(encrypted.ok).toBe(true);
+    if (!encrypted.ok) {
+      throw new Error(encrypted.error.code);
+    }
+
+    await expect(
+      createCrypto().decryptSecretKeyBytes({
+        envelope: encrypted.value,
+        wrappingKey,
+        passportUrl: "https://passport.pubky.app",
+      }),
+    ).resolves.toEqual({ ok: false, error: { code: "invalid_envelope" } });
   });
 
   it("rejects invalid wrapping keys", async () => {

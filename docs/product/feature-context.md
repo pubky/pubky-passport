@@ -118,6 +118,8 @@ Confirmed browser crypto contract for encrypted Drive storage:
 - Passport file encryption uses AES-256-GCM with a fresh random 96-bit IV per encryption. `iv` and ciphertext `ct` are stored as unpadded base64url strings in the v1 envelope.
 - AES-GCM sub-key derivation uses IKM = decoded wrapping material, salt `pubky-passport/passport-file/aes-gcm/salt/v1`, info `passport-file:aes-gcm:v1`, and an AES-256-GCM output key.
 - AES-GCM authenticates envelope metadata as additional authenticated data using `pubky-passport/passport-file/v1\n<normalized-envelope-url>`, so tampering with the authenticated v1 context or stored Passport origin fails decryption.
+- Decryption also requires the normalized expected Passport origin and rejects an envelope created for a different origin.
+- Operational consequence: encrypted files are bound to their Passport origin. A file created by a staging, self-hosted, or other-origin Passport deployment cannot be restored by production Passport without an explicit migration or re-encryption flow. This protects against cross-deployment use even if deployments accidentally share compatible wrapping-key derivation.
 - Decryption authenticates ciphertext through AES-GCM and maps authentication failure to a safe typed error without exposing DOMException details.
 - Browser crypto must not persist Pubky secret key material, wrapping material, decrypted payloads, or Drive tokens in `localStorage`, `sessionStorage`, IndexedDB, cookies, or server requests.
 
@@ -130,6 +132,7 @@ Confirmed Google Drive appDataFolder repository contract:
 - A missing Drive file is an expected first-time setup state and returns `missing` rather than an error. If the file is listed but disappears before media fetch, the read also returns `missing`.
 - Multiple matching files or pagination evidence are rejected as `duplicate_files` rather than choosing a potentially wrong identity file.
 - Reads fetch file content through the Drive media endpoint and parse it with the v1 envelope parser. Malformed file contents map to `invalid_file` without returning raw Drive body, IV, ciphertext, or future decrypted key material.
+- Drive list and media response bodies are size-bounded before parsing to avoid unbounded browser memory use.
 - Writes revalidate outbound envelopes with the v1 parser before upload, serialize only `v`, `iv`, `ct`, and origin-normalized `url`, create `passport.json` in `appDataFolder` when missing, and update existing file media when exactly one file exists.
 - Repository errors are safe typed codes for authorization, permission, network, invalid-response, invalid-file, duplicate-file, and write-failure cases. Raw Google error bodies, access tokens, and envelope contents are not included in errors.
 - The repository must not use `localStorage`, `sessionStorage`, IndexedDB, cookies, or server requests for Drive tokens, encrypted envelopes, plaintext recovery bytes, wrapping material, or decrypted payloads.

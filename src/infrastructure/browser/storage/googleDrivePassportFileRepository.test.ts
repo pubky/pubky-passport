@@ -152,6 +152,22 @@ describe("GoogleDrivePassportFileRepository", () => {
     expect(cancel).toHaveBeenCalledOnce();
   });
 
+  it("rejects an oversized Drive list response before reading it", async () => {
+    const cancel = vi.fn();
+    const { repository } = createRepository([oversizedMediaResponse(cancel)]);
+
+    await expect(repository.readPassportFile()).resolves.toEqual({ ok: false, error: { code: "invalid_response" } });
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it("rejects streamed Drive list data that exceeds the size limit", async () => {
+    const cancel = vi.fn();
+    const { repository } = createRepository([streamResponse([new Uint8Array(16 * 1024), new Uint8Array(1)], cancel)]);
+
+    await expect(repository.readPassportFile()).resolves.toEqual({ ok: false, error: { code: "invalid_response" } });
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
   it("rejects streamed Drive media that exceeds the size limit", async () => {
     const cancel = vi.fn();
     const { repository } = createRepository([

@@ -26,5 +26,6 @@ export interface PassportFileCrypto {
   decryptSecretKeyBytes(input: {
     envelope: PassportFileEnvelopeV1;
     wrappingKey: string;
+    passportUrl: string;
   }): Promise<PassportFileCryptoResult<Uint8Array>>;
 }
