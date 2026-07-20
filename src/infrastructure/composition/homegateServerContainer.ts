@@ -1,3 +1,5 @@
+import "server-only";
+
 import { createRequestGoogleHomegateInviteUseCase } from "../../core/application/homegate/requestGoogleHomegateInvite";
 import { createRequestGoogleHomegateInviteController } from "../../core/controllers/homegate/requestGoogleHomegateInviteController";
 import { getHomegateInviteServerEnv } from "../../libs/env/server";
