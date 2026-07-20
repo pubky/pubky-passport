@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import type { RequestWrappingKeyController } from "../../../core/controllers/identity/requestWrappingKeyController";
+import type { RequestGoogleWrappingKeyController } from "../../../core/controllers/identity/requestGoogleWrappingKeyController";
 import { createWrappingKeyRequestController } from "../../../infrastructure/composition/wrappingKeyServerContainer";
 
 const responseHeaders = {
@@ -17,7 +17,7 @@ type WrappingKeyRouteBody =
   | { error: { code: string } };
 
 export function createWrappingKeyPostHandler(
-  controller: RequestWrappingKeyController = createWrappingKeyRequestController(),
+  controller: RequestGoogleWrappingKeyController = createWrappingKeyRequestController(),
 ) {
   return async function wrappingKeyPost(request: Request): Promise<NextResponse<WrappingKeyRouteBody>> {
     const body = await parseRequestBody(request);

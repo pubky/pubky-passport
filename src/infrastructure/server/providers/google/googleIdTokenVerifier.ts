@@ -77,8 +77,6 @@ export class ServerGoogleIdTokenVerifier implements ProviderIdTokenVerifier {
         provider: "google",
         issuer: validatedPayload.payload.iss,
         subject: validatedPayload.payload.sub,
-        audience: this.audience,
-        expiresAt: new Date(validatedPayload.payload.exp * 1000),
       },
     };
   }

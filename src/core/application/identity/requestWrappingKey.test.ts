@@ -13,8 +13,6 @@ const verifiedIdentity = {
   provider: "google" as const,
   issuer: "https://accounts.google.com",
   subject: "google-subject",
-  audience: "google-client-id",
-  expiresAt: new Date("2030-01-01T00:00:00.000Z"),
 };
 
 const fixedClock: Clock = {
@@ -26,12 +24,14 @@ const fixedClock: Clock = {
 describe("requestWrappingKey", () => {
   it("verifies the provider ID token before deriving a wrapping key", async () => {
     const calls: string[] = [];
+    let rateLimitInput: unknown;
     const useCase = createRequestWrappingKeyUseCase({
       providerIdTokenVerifier: verifier(() => {
         calls.push("verify");
         return { ok: true, identity: verifiedIdentity };
       }),
-      wrappingKeyRateLimiter: rateLimiter(() => {
+      wrappingKeyRateLimiter: rateLimiter(input => {
+        rateLimitInput = input;
         calls.push("rate-limit");
         return { allowed: true };
       }),
@@ -47,6 +47,12 @@ describe("requestWrappingKey", () => {
       wrappingKey: "derived-wrapping-key",
     });
     expect(calls).toEqual(["verify", "rate-limit", "google:https://accounts.google.com:google-subject"]);
+    expect(rateLimitInput).toEqual({
+      provider: "google",
+      issuer: "https://accounts.google.com",
+      subject: "google-subject",
+      at: fixedClock.now(),
+    });
   });
 
   it("rejects invalid token verification results without deriving", async () => {
@@ -153,10 +159,12 @@ function verifier(verify: () => ProviderIdTokenVerificationResult): ProviderIdTo
   };
 }
 
-function rateLimiter(check: () => { allowed: true } | { allowed: false }): WrappingKeyRateLimiter {
+function rateLimiter(
+  check: (input: { provider: "google"; issuer: string; subject: string; at: Date }) => { allowed: true } | { allowed: false },
+): WrappingKeyRateLimiter {
   return {
-    async checkWrappingKeyRequest() {
-      return check();
+    async checkWrappingKeyRequest(input) {
+      return check(input);
     },
   };
 }

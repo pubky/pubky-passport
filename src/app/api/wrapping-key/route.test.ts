@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { createWrappingKeyPostHandler } from "./handler";
 import { POST } from "./route";
-import type { RequestWrappingKeyController } from "../../../core/controllers/identity/requestWrappingKeyController";
+import type { RequestGoogleWrappingKeyController } from "../../../core/controllers/identity/requestGoogleWrappingKeyController";
 
 describe("POST /api/wrapping-key", () => {
   it("maps valid controller results to HTTP success", async () => {
@@ -108,7 +108,7 @@ describe("POST /api/wrapping-key", () => {
   });
 });
 
-function controller(result: Awaited<ReturnType<RequestWrappingKeyController>>): RequestWrappingKeyController {
+function controller(result: Awaited<ReturnType<RequestGoogleWrappingKeyController>>): RequestGoogleWrappingKeyController {
   return async () => result;
 }
 

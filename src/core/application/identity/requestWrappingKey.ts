@@ -103,6 +103,7 @@ async function checkRateLimit(
 ): Promise<{ ok: true } | { ok: false; result: RequestWrappingKeyResult }> {
   try {
     const result = await dependencies.wrappingKeyRateLimiter.checkWrappingKeyRequest({
+      provider: dependencies.providerIdTokenVerifier.provider,
       issuer,
       subject,
       at: dependencies.clock.now(),

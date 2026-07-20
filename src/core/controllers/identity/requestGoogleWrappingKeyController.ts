@@ -3,7 +3,7 @@ import type {
   RequestWrappingKeyUseCase,
 } from "../../application/identity/requestWrappingKey";
 
-export type RequestWrappingKeyWireErrorCode =
+export type RequestGoogleWrappingKeyWireErrorCode =
   | "invalid_google_id_token"
   | "expired_google_id_token"
   | "unsupported_google_issuer"
@@ -12,25 +12,25 @@ export type RequestWrappingKeyWireErrorCode =
   | "rate_limited"
   | "dependency_unavailable";
 
-export type RequestWrappingKeyControllerInput = {
+export type RequestGoogleWrappingKeyControllerInput = {
   googleIdToken: string;
 };
 
-export type RequestWrappingKeyControllerResult = {
+export type RequestGoogleWrappingKeyControllerResult = {
   status: number;
   body:
     | { wrappingKey: string }
-    | { error: { code: RequestWrappingKeyWireErrorCode } };
+    | { error: { code: RequestGoogleWrappingKeyWireErrorCode } };
 };
 
-export type RequestWrappingKeyController = (
-  input: RequestWrappingKeyControllerInput,
-) => Promise<RequestWrappingKeyControllerResult>;
+export type RequestGoogleWrappingKeyController = (
+  input: RequestGoogleWrappingKeyControllerInput,
+) => Promise<RequestGoogleWrappingKeyControllerResult>;
 
-export function createRequestWrappingKeyController(
+export function createRequestGoogleWrappingKeyController(
   requestWrappingKey: RequestWrappingKeyUseCase,
-): RequestWrappingKeyController {
-  return async function requestWrappingKeyController(input) {
+): RequestGoogleWrappingKeyController {
+  return async function requestGoogleWrappingKeyController(input) {
     const result = await requestWrappingKey({ provider: "google", idToken: input.googleIdToken });
 
     if (result.ok) {
@@ -46,7 +46,7 @@ export function createRequestWrappingKeyController(
   };
 }
 
-function toWireErrorCode(code: RequestWrappingKeyErrorCode): RequestWrappingKeyWireErrorCode {
+function toWireErrorCode(code: RequestWrappingKeyErrorCode): RequestGoogleWrappingKeyWireErrorCode {
   switch (code) {
     case "invalid_id_token":
       return "invalid_google_id_token";

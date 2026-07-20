@@ -43,8 +43,6 @@ describe("ServerGoogleIdTokenVerifier", () => {
         provider: "google",
         issuer: "https://accounts.google.com",
         subject: "google-subject",
-        audience,
-        expiresAt: new Date(futureExpiration * 1000),
       },
     });
     expect(calls).toEqual([{ idToken: token, audience }]);

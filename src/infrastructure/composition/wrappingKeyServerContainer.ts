@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createRequestWrappingKeyUseCase } from "../../core/application/identity/requestWrappingKey";
-import { createRequestWrappingKeyController } from "../../core/controllers/identity/requestWrappingKeyController";
+import { createRequestGoogleWrappingKeyController } from "../../core/controllers/identity/requestGoogleWrappingKeyController";
 import type { ProviderIdTokenVerifier } from "../../core/ports/providerIdTokenVerifier";
 import type { WrappingKeyDeriver } from "../../core/ports/wrappingKeyDeriver";
 import type { WrappingKeyRateLimiter } from "../../core/ports/wrappingKeyRateLimiter";
@@ -27,7 +27,7 @@ const notConfiguredWrappingKeyRateLimiter: WrappingKeyRateLimiter = {
 };
 
 export function createWrappingKeyRequestController() {
-  return createRequestWrappingKeyController(
+  return createRequestGoogleWrappingKeyController(
     createRequestWrappingKeyUseCase({
       providerIdTokenVerifier: notConfiguredProviderIdTokenVerifier,
       wrappingKeyDeriver: notConfiguredWrappingKeyDeriver,

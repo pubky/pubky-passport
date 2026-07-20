@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  createRequestWrappingKeyController,
-} from "./requestWrappingKeyController";
+  createRequestGoogleWrappingKeyController,
+} from "./requestGoogleWrappingKeyController";
 import type { RequestWrappingKeyErrorCode, RequestWrappingKeyResult } from "../../application/identity/requestWrappingKey";
 
-describe("requestWrappingKeyController", () => {
+describe("requestGoogleWrappingKeyController", () => {
   it("maps the Google wire token field to neutral use-case input", async () => {
     const calls: unknown[] = [];
-    const controller = createRequestWrappingKeyController(async input => {
+    const controller = createRequestGoogleWrappingKeyController(async input => {
       calls.push(input);
       return { ok: true, wrappingKey: "wrapping-key" };
     });
@@ -29,7 +29,7 @@ describe("requestWrappingKeyController", () => {
     ["rate_limited", "rate_limited", 429],
     ["dependency_unavailable", "dependency_unavailable", 503],
   ] as const)("maps neutral %s to wire %s", async (coreCode, wireCode, status) => {
-    const controller = createRequestWrappingKeyController(async () => failure(coreCode));
+    const controller = createRequestGoogleWrappingKeyController(async () => failure(coreCode));
 
     await expect(controller({ googleIdToken: "id-token" })).resolves.toEqual({
       status,
