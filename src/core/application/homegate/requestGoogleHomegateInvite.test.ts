@@ -2,18 +2,18 @@ import { describe, expect, it } from "vitest";
 
 import { createRequestGoogleHomegateInviteUseCase } from "./requestGoogleHomegateInvite";
 import type {
-  GoogleHomegateInvite,
-  HomegateInviteErrorCode,
-  HomegateInvitePort,
-  HomegateInviteResult,
+  GoogleHomegateInviteErrorCode,
+  GoogleHomegateInvitePort,
+  GoogleHomegateInviteResult,
+  HomeserverSignupInvitation,
 } from "../../ports/homegateInvite";
 
-const invite: GoogleHomegateInvite = {
+const invite: HomeserverSignupInvitation = {
   signupCode: "signup-code",
   homeserverPubky: "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo",
 };
 
-const homegateErrorCodes: HomegateInviteErrorCode[] = [
+const homegateErrorCodes: GoogleHomegateInviteErrorCode[] = [
   "invalid_google_id_token",
   "weekly_limit_exceeded",
   "annual_limit_exceeded",
@@ -71,7 +71,7 @@ describe("requestGoogleHomegateInvite", () => {
   it("maps thrown Homegate dependencies to safe errors", async () => {
     const useCase = createRequestGoogleHomegateInviteUseCase({
       homegateInvite: {
-        async requestGoogleInvite() {
+        async requestInvite() {
           throw new Error("google-id-token and signup-code must not leak");
         },
       },
@@ -86,11 +86,11 @@ describe("requestGoogleHomegateInvite", () => {
 });
 
 function homegateInvitePort(
-  requestGoogleInvite: (input: { googleIdToken: string }) => HomegateInviteResult,
-): HomegateInvitePort {
+  requestInvite: (input: { googleIdToken: string }) => GoogleHomegateInviteResult,
+): GoogleHomegateInvitePort {
   return {
-    async requestGoogleInvite(input) {
-      return requestGoogleInvite(input);
+    async requestInvite(input) {
+      return requestInvite(input);
     },
   };
 }

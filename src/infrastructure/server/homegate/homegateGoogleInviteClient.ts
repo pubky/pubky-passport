@@ -1,10 +1,10 @@
 import "server-only";
 
 import type {
-  HomegateInviteErrorCode,
-  HomegateInvitePort,
-  HomegateInviteResult,
-  RequestGoogleHomegateInviteInput,
+  GoogleHomegateInviteErrorCode,
+  GoogleHomegateInvitePort,
+  GoogleHomegateInviteRequest,
+  GoogleHomegateInviteResult,
 } from "../../../core/ports/homegateInvite";
 
 type Fetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
@@ -21,7 +21,7 @@ type HomegateSuccessResponse = {
 
 const googleVerificationPath = "google_verification";
 
-export class ServerHomegateGoogleInviteClient implements HomegateInvitePort {
+export class ServerHomegateGoogleInviteClient implements GoogleHomegateInvitePort {
   readonly #endpoint: URL;
   readonly #fetch: Fetch;
 
@@ -30,7 +30,7 @@ export class ServerHomegateGoogleInviteClient implements HomegateInvitePort {
     this.#fetch = options.fetchImpl ?? fetch;
   }
 
-  async requestGoogleInvite(input: RequestGoogleHomegateInviteInput): Promise<HomegateInviteResult> {
+  async requestInvite(input: GoogleHomegateInviteRequest): Promise<GoogleHomegateInviteResult> {
     let response: Response;
 
     try {
@@ -54,7 +54,7 @@ export class ServerHomegateGoogleInviteClient implements HomegateInvitePort {
   }
 }
 
-async function parseHomegateSuccess(response: Response): Promise<HomegateInviteResult> {
+async function parseHomegateSuccess(response: Response): Promise<GoogleHomegateInviteResult> {
   let body: HomegateSuccessResponse;
 
   try {
@@ -76,7 +76,7 @@ async function parseHomegateSuccess(response: Response): Promise<HomegateInviteR
   };
 }
 
-async function mapHomegateError(response: Response): Promise<HomegateInviteErrorCode> {
+async function mapHomegateError(response: Response): Promise<GoogleHomegateInviteErrorCode> {
   let body: string;
 
   try {
@@ -113,6 +113,6 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function failure(code: HomegateInviteErrorCode): HomegateInviteResult {
+function failure(code: GoogleHomegateInviteErrorCode): GoogleHomegateInviteResult {
   return { ok: false, error: { code } };
 }

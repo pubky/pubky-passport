@@ -254,6 +254,7 @@ Required boundaries:
 - Represent Homegate behind a core port.
 - For invite issuance, Homegate is the authoritative Google ID token verifier. Passport validates request shape and forwards only `{ googleIdToken }` to Homegate; Passport does not locally verify the token for this endpoint.
 - Homegate verifies the token server-side before issuing an invite.
+- Provider-specific Homegate flows own credential validation, request payloads, endpoints, and error mappings. Their successful result is the neutral `HomeserverSignupInvitation` `{ signupCode, homeserverPubky }`; a future setup use case consumes that invitation and never a provider credential.
 - Homegate rate-limits by verified Google identity derived from `iss || "\n" || sub`, not email. Passport maps Homegate's weekly and annual limit responses and does not duplicate this persistent invite quota in the initial adapter PR.
 - Keep concrete Homegate network calls in infrastructure.
 - The concrete Passport server adapter reads only `HOMEGATE_URL` for this flow and calls Homegate server-to-server. It does not require or use `PUBKY_HOMESERVER`.
