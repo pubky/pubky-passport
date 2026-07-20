@@ -13,6 +13,7 @@ import { systemClock } from "../../systemClock";
 type GoogleIdTokenPayload = {
   iss?: string;
   aud?: string | string[];
+  azp?: string | undefined;
   exp?: number;
   sub?: string;
 };
@@ -104,7 +105,7 @@ function validatePayload(
     return { ok: false, reason: "unsupported_issuer" };
   }
 
-  if (!audienceMatches(payload.aud, expectedAudience)) {
+  if (!audienceMatches(payload.aud, payload.azp, expectedAudience)) {
     return { ok: false, reason: "unsupported_audience" };
   }
 
@@ -119,9 +120,13 @@ function validatePayload(
   return { ok: true, payload: { iss: payload.iss, exp: payload.exp, sub: payload.sub } };
 }
 
-function audienceMatches(audience: string | string[] | undefined, expectedAudience: string): boolean {
+function audienceMatches(
+  audience: string | string[] | undefined,
+  authorizedParty: string | undefined,
+  expectedAudience: string,
+): boolean {
   if (Array.isArray(audience)) {
-    return audience.includes(expectedAudience);
+    return audience.includes(expectedAudience) && (audience.length === 1 || authorizedParty === expectedAudience);
   }
 
   return audience === expectedAudience;

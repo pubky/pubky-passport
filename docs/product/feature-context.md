@@ -55,6 +55,7 @@ Server-side Google ID token verification must check:
 - Signature.
 - Issuer.
 - Audience.
+- Authorized party when a token has multiple audiences.
 - Expiration.
 - Subject availability.
 

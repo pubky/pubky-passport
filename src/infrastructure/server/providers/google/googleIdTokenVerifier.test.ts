@@ -21,6 +21,7 @@ const fixedClock: Clock = {
 type TestGoogleIdTokenPayload = {
   iss?: string;
   aud?: string | string[];
+  azp?: string | undefined;
   exp?: number;
   sub?: string;
 };
@@ -110,12 +111,32 @@ describe("ServerGoogleIdTokenVerifier", () => {
     });
   });
 
-  it("accepts array audiences that contain the configured audience", async () => {
-    const verifier = createVerifierWithPayload({ ...validPayload(), aud: ["other-client-id", audience] });
+  it("accepts multi-audience tokens when the authorized party is Passport", async () => {
+    const verifier = createVerifierWithPayload({
+      ...validPayload(),
+      aud: ["other-client-id", audience],
+      azp: audience,
+    });
 
     const result = await verifier.verifyIdToken(token);
 
     expect(result.ok).toBe(true);
+  });
+
+  it.each([
+    { azp: undefined, description: "the authorized party is missing" },
+    { azp: "other-client-id", description: "the authorized party is another client" },
+  ])("rejects multi-audience tokens when $description", async ({ azp }) => {
+    const verifier = createVerifierWithPayload({
+      ...validPayload(),
+      aud: ["other-client-id", audience],
+      azp,
+    });
+
+    await expect(verifier.verifyIdToken(token)).resolves.toEqual({
+      ok: false,
+      reason: "unsupported_audience",
+    });
   });
 
   it("rejects expired payloads", async () => {
