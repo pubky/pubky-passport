@@ -5,7 +5,8 @@ import type {
   GoogleHomegateInvitePort,
   GoogleHomegateInviteRequest,
   GoogleHomegateInviteResult,
-} from "../../../core/ports/homegateInvite";
+} from "../../../../core/ports/homegateInvite";
+import { readBoundedText } from "../../../../libs/security/boundedBody";
 
 type Fetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
@@ -20,6 +21,8 @@ type HomegateSuccessResponse = {
 };
 
 const googleVerificationPath = "google_verification";
+const maximumHomegateResponseBytes = 16 * 1024;
+const homegateTimeoutMilliseconds = 10_000;
 
 export class ServerHomegateGoogleInviteClient implements GoogleHomegateInvitePort {
   readonly #endpoint: URL;
@@ -41,6 +44,7 @@ export class ServerHomegateGoogleInviteClient implements GoogleHomegateInvitePor
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ googleIdToken: input.googleIdToken }),
+        signal: AbortSignal.timeout(homegateTimeoutMilliseconds),
       });
     } catch {
       return failure("homegate_unavailable");
@@ -55,10 +59,15 @@ export class ServerHomegateGoogleInviteClient implements GoogleHomegateInvitePor
 }
 
 async function parseHomegateSuccess(response: Response): Promise<GoogleHomegateInviteResult> {
+  const contents = await readBoundedText(response, maximumHomegateResponseBytes);
+  if (contents === null || contents === "too_large") {
+    return failure("malformed_homegate_response");
+  }
+
   let body: HomegateSuccessResponse;
 
   try {
-    body = await response.json() as HomegateSuccessResponse;
+    body = JSON.parse(contents) as HomegateSuccessResponse;
   } catch {
     return failure("malformed_homegate_response");
   }
@@ -77,11 +86,8 @@ async function parseHomegateSuccess(response: Response): Promise<GoogleHomegateI
 }
 
 async function mapHomegateError(response: Response): Promise<GoogleHomegateInviteErrorCode> {
-  let body: string;
-
-  try {
-    body = await response.text();
-  } catch {
+  const body = await readBoundedText(response, maximumHomegateResponseBytes);
+  if (body === null || body === "too_large") {
     return "homegate_unavailable";
   }
 

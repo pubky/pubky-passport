@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import type { RequestGoogleHomegateInviteController } from "../../../../core/controllers/homegate/requestGoogleHomegateInviteController";
+import { readBoundedText } from "../../../../libs/security/boundedBody";
 
 export const runtime = "nodejs";
 
@@ -8,6 +9,7 @@ const responseHeaders = {
   "Cache-Control": "no-store",
   "Referrer-Policy": "no-referrer",
 };
+const maximumCredentialRequestBytes = 16 * 1024;
 
 type HomegateInviteRequestBody = {
   googleIdToken: string;
@@ -51,10 +53,15 @@ async function createDefaultController(): Promise<RequestGoogleHomegateInviteCon
 async function parseRequestBody(
   request: Request,
 ): Promise<{ ok: true; value: HomegateInviteRequestBody } | { ok: false }> {
+  const text = await readBoundedText(request, maximumCredentialRequestBytes);
+  if (text === null || text === "too_large") {
+    return { ok: false };
+  }
+
   let body: unknown;
 
   try {
-    body = await request.json();
+    body = JSON.parse(text);
   } catch {
     return { ok: false };
   }

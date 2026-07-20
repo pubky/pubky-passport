@@ -31,6 +31,20 @@ describe("POST /api/wrapping-key", () => {
     expect(response.headers.get("Cache-Control")).toBe("no-store");
   });
 
+  it("rejects oversized request bodies before calling the controller", async () => {
+    let controllerCalls = 0;
+    const post = createWrappingKeyPostHandler(async () => {
+      controllerCalls += 1;
+      return { status: 200, body: { wrappingKey: "opaque-key" } };
+    });
+
+    const response = await post(oversizedRequest("http://localhost/api/wrapping-key"));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: { code: "invalid_request" } });
+    expect(controllerCalls).toBe(0);
+  });
+
   it("rejects missing, non-string, and empty tokens", async () => {
     const post = createWrappingKeyPostHandler(controller({ status: 200, body: { wrappingKey: "opaque-key" } }));
 
@@ -117,6 +131,14 @@ function jsonRequest(body: unknown): Request {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+  });
+}
+
+function oversizedRequest(url: string): Request {
+  return new Request(url, {
+    method: "POST",
+    headers: { "Content-Length": String(16 * 1024 + 1) },
+    body: "{}",
   });
 }
 

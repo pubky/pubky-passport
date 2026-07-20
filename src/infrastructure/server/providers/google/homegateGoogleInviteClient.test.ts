@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ServerHomegateGoogleInviteClient } from "./homegateGoogleInviteClient";
-import type { GoogleHomegateInviteErrorCode } from "../../../core/ports/homegateInvite";
+import type { GoogleHomegateInviteErrorCode } from "../../../../core/ports/homegateInvite";
 
 const successBody = {
   signupCode: "signup-code",
@@ -41,6 +41,7 @@ describe("ServerHomegateGoogleInviteClient", () => {
       "Content-Type": "application/json",
     });
     expect(fetchCalls[0]?.init?.body).toBe(JSON.stringify({ googleIdToken: "SECRET-GOOGLE-ID-TOKEN" }));
+    expect(fetchCalls[0]?.init?.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("handles Homegate URLs with trailing slashes", async () => {
@@ -109,6 +110,30 @@ describe("ServerHomegateGoogleInviteClient", () => {
     });
   });
 
+  it("rejects oversized Homegate success bodies", async () => {
+    const client = new ServerHomegateGoogleInviteClient({
+      homegateUrl: "https://homegate.pubky.app",
+      fetchImpl: async () => oversizedResponse(200),
+    });
+
+    await expect(client.requestInvite({ googleIdToken: "google-id-token" })).resolves.toEqual({
+      ok: false,
+      error: { code: "malformed_homegate_response" },
+    });
+  });
+
+  it("rejects oversized Homegate error bodies", async () => {
+    const client = new ServerHomegateGoogleInviteClient({
+      homegateUrl: "https://homegate.pubky.app",
+      fetchImpl: async () => oversizedResponse(500),
+    });
+
+    await expect(client.requestInvite({ googleIdToken: "google-id-token" })).resolves.toEqual({
+      ok: false,
+      error: { code: "homegate_unavailable" },
+    });
+  });
+
   it.each([
     { signupCode: "", homeserverPubky: "homegate-returned-homeserver-pubky" },
     { signupCode: "signup-code", homeserverPubky: "" },
@@ -137,4 +162,11 @@ function jsonResponse(body: unknown, init?: ResponseInit): Response {
 
 function textResponse(body: string, init: ResponseInit): Response {
   return new Response(body, init);
+}
+
+function oversizedResponse(status: number): Response {
+  return new Response("ignored", {
+    status,
+    headers: { "Content-Length": String(16 * 1024 + 1) },
+  });
 }
