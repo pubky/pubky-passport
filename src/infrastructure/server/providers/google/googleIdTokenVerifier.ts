@@ -38,7 +38,8 @@ export type ServerGoogleIdTokenVerifierOptions = {
   clock: Clock;
 };
 
-const acceptedIssuers = new Set(["accounts.google.com", "https://accounts.google.com"]);
+const canonicalGoogleIssuer = "https://accounts.google.com";
+const acceptedIssuers = new Set(["accounts.google.com", canonicalGoogleIssuer]);
 
 export class ServerGoogleIdTokenVerifier implements ProviderIdTokenVerifier {
   readonly provider = "google";
@@ -117,7 +118,7 @@ function validatePayload(
     return { ok: false, reason: "missing_subject" };
   }
 
-  return { ok: true, payload: { iss: payload.iss, exp: payload.exp, sub: payload.sub } };
+  return { ok: true, payload: { iss: canonicalGoogleIssuer, exp: payload.exp, sub: payload.sub } };
 }
 
 function audienceMatches(

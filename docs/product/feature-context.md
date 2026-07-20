@@ -74,11 +74,11 @@ Application logic must depend on ports. Concrete token verification, secret deri
 
 Current server derivation contract:
 
-- Derive wrapping material only from verified Google issuer and subject plus `PASSPORT_SERVER_SECRET_BASE64`.
+- Derive wrapping material only from canonical verified Google issuer and subject plus `PASSPORT_SERVER_SECRET_BASE64`.
 - Do not derive from Google ID token values, Google email, Drive access tokens, encrypted Drive file contents, or Pubky private key material.
 - Use HKDF-SHA256 with decoded `PASSPORT_SERVER_SECRET_BASE64` as input key material.
 - Use UTF-8 salt `pubky-passport/wrapping-key/salt/v1`.
-- Use UTF-8 info `google:<issuer>\n<subject>` with exact verified issuer and subject values.
+- Use UTF-8 info `google:<issuer>\n<subject>` with canonical verified issuer and subject values. Google issuer values normalize to `https://accounts.google.com` before derivation.
 - The `google:` HKDF info prefix is frozen forever for Google-backed identities because it is baked into every existing user's wrapping key. Future provider prefixes must be added as explicit new constants without changing existing entries.
 - Return 32 derived bytes encoded as base64url; browser crypto adapters decode this string before use.
 

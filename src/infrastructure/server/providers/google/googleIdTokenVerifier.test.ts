@@ -49,12 +49,17 @@ describe("ServerGoogleIdTokenVerifier", () => {
     expect(calls).toEqual([{ idToken: token, audience }]);
   });
 
-  it("accepts Google issuer values returned by the official verifier", async () => {
+  it("normalizes Google issuer values returned by the official verifier", async () => {
     const verifier = createVerifierWithPayload({ ...validPayload(), iss: "accounts.google.com" });
 
-    const result = await verifier.verifyIdToken(token);
-
-    expect(result.ok).toBe(true);
+    await expect(verifier.verifyIdToken(token)).resolves.toEqual({
+      ok: true,
+      identity: {
+        provider: "google",
+        issuer: "https://accounts.google.com",
+        subject: "google-subject",
+      },
+    });
   });
 
   it("maps invalid verifier errors safely", async () => {
