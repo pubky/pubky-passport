@@ -2,17 +2,18 @@ import "server-only";
 
 import { OAuth2Client } from "google-auth-library";
 
-import type { Clock } from "../../../core/ports/clock";
+import type { Clock } from "../../../../core/ports/clock";
 import type {
-  GoogleIdTokenVerificationFailureReason,
-  GoogleIdTokenVerificationResult,
-  GoogleIdTokenVerifier,
-} from "../../../core/ports/googleIdTokenVerifier";
-import { systemClock } from "../systemClock";
+  ProviderIdTokenVerificationFailureReason,
+  ProviderIdTokenVerificationResult,
+  ProviderIdTokenVerifier,
+} from "../../../../core/ports/providerIdTokenVerifier";
+import { systemClock } from "../../systemClock";
 
 type GoogleIdTokenPayload = {
   iss?: string;
   aud?: string | string[];
+  azp?: string | undefined;
   exp?: number;
   sub?: string;
 };
@@ -37,9 +38,12 @@ export type ServerGoogleIdTokenVerifierOptions = {
   clock: Clock;
 };
 
-const acceptedIssuers = new Set(["accounts.google.com", "https://accounts.google.com"]);
+const canonicalGoogleIssuer = "https://accounts.google.com";
+const acceptedIssuers = new Set(["accounts.google.com", canonicalGoogleIssuer]);
 
-export class ServerGoogleIdTokenVerifier implements GoogleIdTokenVerifier {
+export class ServerGoogleIdTokenVerifier implements ProviderIdTokenVerifier {
+  readonly provider = "google";
+
   private readonly audience: string;
   private readonly verifier: GoogleTokenVerifierDependency;
   private readonly clock: Clock;
@@ -50,7 +54,7 @@ export class ServerGoogleIdTokenVerifier implements GoogleIdTokenVerifier {
     this.clock = options.clock;
   }
 
-  async verifyIdToken(idToken: string): Promise<GoogleIdTokenVerificationResult> {
+  async verifyIdToken(idToken: string): Promise<ProviderIdTokenVerificationResult> {
     let ticket: GoogleLoginTicket;
 
     try {
@@ -72,10 +76,9 @@ export class ServerGoogleIdTokenVerifier implements GoogleIdTokenVerifier {
     return {
       ok: true,
       identity: {
+        provider: "google",
         issuer: validatedPayload.payload.iss,
         subject: validatedPayload.payload.sub,
-        audience: this.audience,
-        expiresAt: new Date(validatedPayload.payload.exp * 1000),
       },
     };
   }
@@ -96,12 +99,14 @@ function validatePayload(
   payload: GoogleIdTokenPayload,
   expectedAudience: string,
   now: Date,
-): { ok: true; payload: ValidGoogleIdTokenPayload } | { ok: false; reason: GoogleIdTokenVerificationFailureReason } {
+):
+  | { ok: true; payload: ValidGoogleIdTokenPayload }
+  | { ok: false; reason: ProviderIdTokenVerificationFailureReason } {
   if (!payload.iss || !acceptedIssuers.has(payload.iss)) {
     return { ok: false, reason: "unsupported_issuer" };
   }
 
-  if (!audienceMatches(payload.aud, expectedAudience)) {
+  if (!audienceMatches(payload.aud, payload.azp, expectedAudience)) {
     return { ok: false, reason: "unsupported_audience" };
   }
 
@@ -113,18 +118,22 @@ function validatePayload(
     return { ok: false, reason: "missing_subject" };
   }
 
-  return { ok: true, payload: { iss: payload.iss, exp: payload.exp, sub: payload.sub } };
+  return { ok: true, payload: { iss: canonicalGoogleIssuer, exp: payload.exp, sub: payload.sub } };
 }
 
-function audienceMatches(audience: string | string[] | undefined, expectedAudience: string): boolean {
+function audienceMatches(
+  audience: string | string[] | undefined,
+  authorizedParty: string | undefined,
+  expectedAudience: string,
+): boolean {
   if (Array.isArray(audience)) {
-    return audience.includes(expectedAudience);
+    return audience.includes(expectedAudience) && (audience.length === 1 || authorizedParty === expectedAudience);
   }
 
   return audience === expectedAudience;
 }
 
-function mapGoogleVerifierError(error: unknown): GoogleIdTokenVerificationFailureReason {
+function mapGoogleVerifierError(error: unknown): ProviderIdTokenVerificationFailureReason {
   const message = error instanceof Error ? error.message.toLowerCase() : "";
 
   if (message.includes("expired")) {

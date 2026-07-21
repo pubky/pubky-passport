@@ -6,7 +6,7 @@ describe("Homegate invite fakes", () => {
   it("returns deterministic invite data without recording raw Google ID tokens", async () => {
     const homegate = new FakeHomegateInvite();
 
-    await expect(homegate.requestGoogleInvite({ googleIdToken: "SECRET-GOOGLE-ID-TOKEN" })).resolves.toEqual({
+    await expect(homegate.requestInvite({ googleIdToken: "SECRET-GOOGLE-ID-TOKEN" })).resolves.toEqual({
       ok: true,
       value: homegate.invite,
     });
@@ -18,7 +18,7 @@ describe("Homegate invite fakes", () => {
     const homegate = new FakeHomegateInvite();
     homegate.failure = "weekly_limit_exceeded";
 
-    await expect(homegate.requestGoogleInvite({ googleIdToken: "google-id-token" })).resolves.toEqual({
+    await expect(homegate.requestInvite({ googleIdToken: "google-id-token" })).resolves.toEqual({
       ok: false,
       error: { code: "weekly_limit_exceeded" },
     });

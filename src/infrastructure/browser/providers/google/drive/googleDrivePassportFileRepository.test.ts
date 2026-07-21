@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it, vi } from "vitest";
 
-import type { PassportFileEnvelopeV1 } from "../../../core/domain/passport-file/passportFile";
+import type { PassportFileEnvelopeV1 } from "../../../../../core/domain/passport-file/passportFile";
 import { GoogleDrivePassportFileRepository } from "./googleDrivePassportFileRepository";
 
 const accessToken = "test-drive-access-token";

@@ -3,17 +3,16 @@ import { describe, expect, it } from "vitest";
 import { createRequestWrappingKeyUseCase } from "./requestWrappingKey";
 import type { Clock } from "../../ports/clock";
 import type {
-  GoogleIdTokenVerifier,
-  GoogleIdTokenVerificationResult,
-} from "../../ports/googleIdTokenVerifier";
+  ProviderIdTokenVerificationResult,
+  ProviderIdTokenVerifier,
+} from "../../ports/providerIdTokenVerifier";
 import type { WrappingKeyDeriver } from "../../ports/wrappingKeyDeriver";
 import type { WrappingKeyRateLimiter } from "../../ports/wrappingKeyRateLimiter";
 
 const verifiedIdentity = {
+  provider: "google" as const,
   issuer: "https://accounts.google.com",
   subject: "google-subject",
-  audience: "google-client-id",
-  expiresAt: new Date("2030-01-01T00:00:00.000Z"),
 };
 
 const fixedClock: Clock = {
@@ -23,35 +22,43 @@ const fixedClock: Clock = {
 };
 
 describe("requestWrappingKey", () => {
-  it("verifies the Google ID token before deriving a wrapping key", async () => {
+  it("verifies the provider ID token before deriving a wrapping key", async () => {
     const calls: string[] = [];
+    let rateLimitInput: unknown;
     const useCase = createRequestWrappingKeyUseCase({
-      googleIdTokenVerifier: verifier(() => {
+      providerIdTokenVerifier: verifier(() => {
         calls.push("verify");
         return { ok: true, identity: verifiedIdentity };
       }),
-      wrappingKeyRateLimiter: rateLimiter(() => {
+      wrappingKeyRateLimiter: rateLimiter(input => {
+        rateLimitInput = input;
         calls.push("rate-limit");
         return { allowed: true };
       }),
-      wrappingKeyDeriver: deriver(() => {
-        calls.push("derive");
+      wrappingKeyDeriver: deriver(input => {
+        calls.push(`${input.provider}:${input.issuer}:${input.subject}`);
         return { wrappingKey: "derived-wrapping-key" };
       }),
       clock: fixedClock,
     });
 
-    await expect(useCase({ googleIdToken: "id-token" })).resolves.toEqual({
+    await expect(useCase({ provider: "google", idToken: "id-token" })).resolves.toEqual({
       ok: true,
       wrappingKey: "derived-wrapping-key",
     });
-    expect(calls).toEqual(["verify", "rate-limit", "derive"]);
+    expect(calls).toEqual(["verify", "rate-limit", "google:https://accounts.google.com:google-subject"]);
+    expect(rateLimitInput).toEqual({
+      provider: "google",
+      issuer: "https://accounts.google.com",
+      subject: "google-subject",
+      at: fixedClock.now(),
+    });
   });
 
   it("rejects invalid token verification results without deriving", async () => {
     let deriveCalls = 0;
     const useCase = createRequestWrappingKeyUseCase({
-      googleIdTokenVerifier: verifier(() => ({ ok: false, reason: "invalid" })),
+      providerIdTokenVerifier: verifier(() => ({ ok: false, reason: "invalid" })),
       wrappingKeyRateLimiter: rateLimiter(() => ({ allowed: true })),
       wrappingKeyDeriver: deriver(() => {
         deriveCalls += 1;
@@ -60,17 +67,17 @@ describe("requestWrappingKey", () => {
       clock: fixedClock,
     });
 
-    await expect(useCase({ googleIdToken: "id-token" })).resolves.toEqual({
+    await expect(useCase({ provider: "google", idToken: "id-token" })).resolves.toEqual({
       ok: false,
-      error: { code: "invalid_google_id_token" },
+      error: { code: "invalid_id_token" },
     });
     expect(deriveCalls).toBe(0);
   });
 
-  it("maps missing Google subjects without deriving", async () => {
+  it("maps missing provider subjects without deriving", async () => {
     let deriveCalls = 0;
     const useCase = createRequestWrappingKeyUseCase({
-      googleIdTokenVerifier: verifier(() => ({ ok: false, reason: "missing_subject" })),
+      providerIdTokenVerifier: verifier(() => ({ ok: false, reason: "missing_subject" })),
       wrappingKeyRateLimiter: rateLimiter(() => ({ allowed: true })),
       wrappingKeyDeriver: deriver(() => {
         deriveCalls += 1;
@@ -79,9 +86,9 @@ describe("requestWrappingKey", () => {
       clock: fixedClock,
     });
 
-    await expect(useCase({ googleIdToken: "id-token" })).resolves.toEqual({
+    await expect(useCase({ provider: "google", idToken: "id-token" })).resolves.toEqual({
       ok: false,
-      error: { code: "missing_google_subject" },
+      error: { code: "missing_subject" },
     });
     expect(deriveCalls).toBe(0);
   });
@@ -89,7 +96,7 @@ describe("requestWrappingKey", () => {
   it("rejects rate-limited requests without deriving", async () => {
     let deriveCalls = 0;
     const useCase = createRequestWrappingKeyUseCase({
-      googleIdTokenVerifier: verifier(() => ({ ok: true, identity: verifiedIdentity })),
+      providerIdTokenVerifier: verifier(() => ({ ok: true, identity: verifiedIdentity })),
       wrappingKeyRateLimiter: rateLimiter(() => ({ allowed: false })),
       wrappingKeyDeriver: deriver(() => {
         deriveCalls += 1;
@@ -98,7 +105,7 @@ describe("requestWrappingKey", () => {
       clock: fixedClock,
     });
 
-    await expect(useCase({ googleIdToken: "id-token" })).resolves.toEqual({
+    await expect(useCase({ provider: "google", idToken: "id-token" })).resolves.toEqual({
       ok: false,
       error: { code: "rate_limited" },
     });
@@ -107,7 +114,7 @@ describe("requestWrappingKey", () => {
 
   it("maps dependency errors to safe results", async () => {
     const useCase = createRequestWrappingKeyUseCase({
-      googleIdTokenVerifier: verifier(() => ({ ok: true, identity: verifiedIdentity })),
+      providerIdTokenVerifier: verifier(() => ({ ok: true, identity: verifiedIdentity })),
       wrappingKeyRateLimiter: rateLimiter(() => ({ allowed: true })),
       wrappingKeyDeriver: {
         async deriveWrappingKey() {
@@ -117,7 +124,7 @@ describe("requestWrappingKey", () => {
       clock: fixedClock,
     });
 
-    await expect(useCase({ googleIdToken: "id-token" })).resolves.toEqual({
+    await expect(useCase({ provider: "google", idToken: "id-token" })).resolves.toEqual({
       ok: false,
       error: { code: "dependency_unavailable" },
     });
@@ -125,7 +132,8 @@ describe("requestWrappingKey", () => {
 
   it("maps verifier dependency errors to safe results", async () => {
     const useCase = createRequestWrappingKeyUseCase({
-      googleIdTokenVerifier: {
+      providerIdTokenVerifier: {
+        provider: "google",
         async verifyIdToken() {
           throw new Error("id token must not leak");
         },
@@ -135,33 +143,38 @@ describe("requestWrappingKey", () => {
       clock: fixedClock,
     });
 
-    await expect(useCase({ googleIdToken: "id-token" })).resolves.toEqual({
+    await expect(useCase({ provider: "google", idToken: "id-token" })).resolves.toEqual({
       ok: false,
       error: { code: "dependency_unavailable" },
     });
   });
 });
 
-function verifier(verify: () => GoogleIdTokenVerificationResult): GoogleIdTokenVerifier {
+function verifier(verify: () => ProviderIdTokenVerificationResult): ProviderIdTokenVerifier {
   return {
+    provider: "google",
     async verifyIdToken() {
       return verify();
     },
   };
 }
 
-function rateLimiter(check: () => { allowed: true } | { allowed: false }): WrappingKeyRateLimiter {
+function rateLimiter(
+  check: (input: { provider: "google"; issuer: string; subject: string; at: Date }) => { allowed: true } | { allowed: false },
+): WrappingKeyRateLimiter {
   return {
-    async checkWrappingKeyRequest() {
-      return check();
+    async checkWrappingKeyRequest(input) {
+      return check(input);
     },
   };
 }
 
-function deriver(derive: () => { wrappingKey: string }): WrappingKeyDeriver {
+function deriver(
+  derive: (input: { provider: "google"; issuer: string; subject: string }) => { wrappingKey: string },
+): WrappingKeyDeriver {
   return {
-    async deriveWrappingKey() {
-      return derive();
+    async deriveWrappingKey(input) {
+      return derive(input);
     },
   };
 }

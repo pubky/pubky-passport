@@ -1,7 +1,7 @@
 import type {
-  GoogleHomegateInvite,
-  HomegateInviteErrorCode,
-  HomegateInvitePort,
+  GoogleHomegateInviteErrorCode,
+  GoogleHomegateInvitePort,
+  HomeserverSignupInvitation,
 } from "../../ports/homegateInvite";
 
 export type RequestGoogleHomegateInviteInput = {
@@ -9,12 +9,12 @@ export type RequestGoogleHomegateInviteInput = {
 };
 
 export type RequestGoogleHomegateInviteErrorCode =
-  | HomegateInviteErrorCode
+  | GoogleHomegateInviteErrorCode
   | "invalid_request"
   | "dependency_unavailable";
 
 export type RequestGoogleHomegateInviteResult =
-  | { ok: true; invite: GoogleHomegateInvite }
+  | { ok: true; invite: HomeserverSignupInvitation }
   | { ok: false; error: { code: RequestGoogleHomegateInviteErrorCode } };
 
 export type RequestGoogleHomegateInviteUseCase = (
@@ -22,7 +22,7 @@ export type RequestGoogleHomegateInviteUseCase = (
 ) => Promise<RequestGoogleHomegateInviteResult>;
 
 export type RequestGoogleHomegateInviteDependencies = {
-  homegateInvite: HomegateInvitePort;
+  homegateInvite: GoogleHomegateInvitePort;
 };
 
 export function createRequestGoogleHomegateInviteUseCase(
@@ -33,10 +33,10 @@ export function createRequestGoogleHomegateInviteUseCase(
       return failure("invalid_request");
     }
 
-    let result: Awaited<ReturnType<HomegateInvitePort["requestGoogleInvite"]>>;
+    let result: Awaited<ReturnType<GoogleHomegateInvitePort["requestInvite"]>>;
 
     try {
-      result = await dependencies.homegateInvite.requestGoogleInvite({
+      result = await dependencies.homegateInvite.requestInvite({
         googleIdToken: input.googleIdToken,
       });
     } catch {

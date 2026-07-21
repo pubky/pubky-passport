@@ -173,7 +173,8 @@ Interfaces for external dependencies.
 Examples:
 
 - `GoogleIdentityPort`
-- `GoogleDriveKeyRepository`
+- `ProviderIdTokenVerifier`
+- `PassportFileRepository`
 - `WrappingKeyPort`
 - `PassportCryptoPort`
 - `PubkyKeypairPort`
@@ -186,6 +187,8 @@ Examples:
 - `Clock`
 - `Logger`
 - `Metrics`
+
+Provider-specific identity and storage seams should stay narrow. Do not collapse browser provider identity, server ID-token verification, encrypted passport storage, and wrapping-secret source into one provider service.
 
 ### `src/core/controllers`
 
@@ -323,6 +326,7 @@ Required rules:
 - Browser infrastructure must not import server infrastructure.
 - Server infrastructure must not import browser infrastructure.
 - Server env modules must only be imported by server-capable locations.
+- Provider folders must not import sibling provider folders. For example, `src/infrastructure/server/providers/google` must not import a future `src/infrastructure/server/providers/apple` folder.
 - Feature folders inside a layer may import allowed dependencies for that layer only.
 - Matching feature names across layers do not weaken dependency direction.
 
