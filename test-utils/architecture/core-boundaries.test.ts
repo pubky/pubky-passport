@@ -131,6 +131,7 @@ describe("core architecture boundaries", () => {
     const violations = [
       ...missingRuntimeMarkers(serverInfrastructureRoot, "server-only"),
       ...missingRuntimeMarkers(browserInfrastructureRoot, "client-only"),
+      ...missingRuntimeMarkers(serverCompositionFiles(), "server-only"),
     ];
 
     expect(violations).toEqual([]);
@@ -199,8 +200,25 @@ function inspectForbiddenImports(
   return violations;
 }
 
-function missingRuntimeMarkers(rootPath: string, runtimeMarker: "client-only" | "server-only"): string[] {
-  return productionSourceFiles(rootPath)
+function serverCompositionFiles(): string[] {
+  return productionSourceFiles(compositionRoot).filter((filePath) =>
+    importSpecifiers(readFileSync(filePath, "utf8")).some((specifier) => {
+      const targetPath = importTargetPath(filePath, specifier);
+      return Boolean(
+        targetPath &&
+          (isSameOrInside(targetPath, serverInfrastructureRoot) || isSameOrInside(targetPath, serverEnvModule)),
+      );
+    }),
+  );
+}
+
+function missingRuntimeMarkers(
+  rootPathOrFiles: string | string[],
+  runtimeMarker: "client-only" | "server-only",
+): string[] {
+  const files = typeof rootPathOrFiles === "string" ? productionSourceFiles(rootPathOrFiles) : rootPathOrFiles;
+
+  return files
     .filter((filePath) => !importSpecifiers(readFileSync(filePath, "utf8")).includes(runtimeMarker))
     .map((filePath) => `${relative(repoRoot, filePath)} is missing runtime marker import "${runtimeMarker}"`);
 }

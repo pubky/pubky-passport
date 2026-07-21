@@ -99,42 +99,44 @@ export function normalizePassportFileOrigin(
   value: string,
   options: PassportFileUrlOptions = {},
 ): PassportFileOriginResult {
-  if (value.trim() !== value || value.length === 0) {
-    return invalidUrl();
-  }
-
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    return invalidUrl();
-  }
-
-  if (!isAllowedProtocol(url, options)) {
-    return invalidUrl();
-  }
-
-  if (url.username || url.password || url.search || url.hash) {
-    return invalidUrl();
-  }
-
-  if (url.pathname !== "/") {
+  const url = parseUrl(value);
+  if (!url || !isAllowedPassportFileOrigin(url, options)) {
     return invalidUrl();
   }
 
   return Result.ok(url.origin);
 }
 
+function parseUrl(value: string): URL | null {
+  if (value.length === 0 || value.trim() !== value) {
+    return null;
+  }
+
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype;
 }
 
-function isAllowedProtocol(url: URL, options: PassportFileUrlOptions): boolean {
+function isAllowedPassportFileOrigin(url: URL, options: PassportFileUrlOptions): boolean {
+  return hasAllowedProtocol(url, options) && hasNoCredentialsOrUrlParts(url) && url.pathname === "/";
+}
+
+function hasAllowedProtocol(url: URL, options: PassportFileUrlOptions): boolean {
   if (url.protocol === "https:") {
     return true;
   }
 
-  return Boolean(options.allowLocalhostHttp && url.protocol === "http:" && isLocalhost(url.hostname));
+  return options.allowLocalhostHttp === true && url.protocol === "http:" && isLocalhost(url.hostname);
+}
+
+function hasNoCredentialsOrUrlParts(url: URL): boolean {
+  return !url.username && !url.password && !url.search && !url.hash;
 }
 
 function isLocalhost(hostname: string): boolean {

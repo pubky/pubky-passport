@@ -1,3 +1,9 @@
+import type { IdentityProviderId } from "../domain/provider/identityProvider";
+
 export interface WrappingKeyDeriver {
-  deriveWrappingKey(input: { issuer: string; subject: string }): Promise<{ wrappingKey: string }>;
+  deriveWrappingKey(input: {
+    provider: IdentityProviderId;
+    issuer: string;
+    subject: string;
+  }): Promise<{ wrappingKey: string }>;
 }

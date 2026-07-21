@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
-import { expectAsyncResultError } from "../../../../test-utils/resultAssertions";
+import { expectAsyncResultError } from "../../../../../test-utils/resultAssertions";
 import { ServerHomegateGoogleInviteClient } from "./homegateGoogleInviteClient";
-import type { HomegateInviteErrorCode } from "../../../core/ports/homegateInvite";
+import type { GoogleHomegateInviteErrorCode } from "../../../../core/ports/homegateInvite";
 
 const successBody = {
   signupCode: "signup-code",
   homeserverPubky: "homegate-returned-homeserver-pubky",
 };
 
-const homegateErrorCases: Array<{ body: string; code: HomegateInviteErrorCode }> = [
+const homegateErrorCases: Array<{ body: string; code: GoogleHomegateInviteErrorCode }> = [
   { body: "invalid_request", code: "homegate_invalid_request" },
   { body: "invalid_google_id_token", code: "invalid_google_id_token" },
   { body: "weekly_limit_exceeded", code: "weekly_limit_exceeded" },
@@ -35,11 +35,7 @@ describe("ServerHomegateGoogleInviteClient", () => {
       },
     });
 
-    const result = await client.requestGoogleInvite({ googleIdToken: "SECRET-GOOGLE-ID-TOKEN" });
-    expect(Result.isOk(result)).toBe(true);
-    if (Result.isOk(result)) {
-      expect(result.value).toEqual(successBody);
-    }
+    await expect(client.requestInvite({ googleIdToken: "SECRET-GOOGLE-ID-TOKEN" })).resolves.toEqual(Result.ok(successBody));
     expect(fetchCalls).toHaveLength(1);
     expect(fetchCalls[0]?.url).toBe("https://homegate.pubky.app/google_verification");
     expect(fetchCalls[0]?.init?.method).toBe("POST");
@@ -48,6 +44,7 @@ describe("ServerHomegateGoogleInviteClient", () => {
       "Content-Type": "application/json",
     });
     expect(fetchCalls[0]?.init?.body).toBe(JSON.stringify({ googleIdToken: "SECRET-GOOGLE-ID-TOKEN" }));
+    expect(fetchCalls[0]?.init?.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("handles Homegate URLs with trailing slashes", async () => {
@@ -60,7 +57,7 @@ describe("ServerHomegateGoogleInviteClient", () => {
       },
     });
 
-    await client.requestGoogleInvite({ googleIdToken: "google-id-token" });
+    await client.requestInvite({ googleIdToken: "google-id-token" });
 
     expect(requestedUrl).toBe("https://homegate.pubky.app/google_verification");
   });
@@ -71,7 +68,7 @@ describe("ServerHomegateGoogleInviteClient", () => {
       fetchImpl: async () => textResponse(body, { status: 400 }),
     });
 
-    await expectError(client.requestGoogleInvite({ googleIdToken: "google-id-token" }), code);
+    await expectError(client.requestInvite({ googleIdToken: "google-id-token" }), code);
   });
 
   it("maps network failures to Homegate unavailable without leaking tokens", async () => {
@@ -82,7 +79,7 @@ describe("ServerHomegateGoogleInviteClient", () => {
       },
     });
 
-    const result = await client.requestGoogleInvite({ googleIdToken: "SECRET-GOOGLE-ID-TOKEN" });
+    const result = await client.requestInvite({ googleIdToken: "SECRET-GOOGLE-ID-TOKEN" });
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) {
@@ -97,7 +94,7 @@ describe("ServerHomegateGoogleInviteClient", () => {
       fetchImpl: async () => textResponse("unexpected body with SECRET-GOOGLE-ID-TOKEN", { status: 500 }),
     });
 
-    const result = await client.requestGoogleInvite({ googleIdToken: "google-id-token" });
+    const result = await client.requestInvite({ googleIdToken: "google-id-token" });
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) {
@@ -113,7 +110,25 @@ describe("ServerHomegateGoogleInviteClient", () => {
       fetchImpl: async () => textResponse("not json", { status: 200 }),
     });
 
-    await expectError(client.requestGoogleInvite({ googleIdToken: "google-id-token" }), "malformed_homegate_response");
+    await expectError(client.requestInvite({ googleIdToken: "google-id-token" }), "malformed_homegate_response");
+  });
+
+  it("rejects oversized Homegate success bodies", async () => {
+    const client = new ServerHomegateGoogleInviteClient({
+      homegateUrl: "https://homegate.pubky.app",
+      fetchImpl: async () => oversizedResponse(200),
+    });
+
+    await expectError(client.requestInvite({ googleIdToken: "google-id-token" }), "malformed_homegate_response");
+  });
+
+  it("rejects oversized Homegate error bodies", async () => {
+    const client = new ServerHomegateGoogleInviteClient({
+      homegateUrl: "https://homegate.pubky.app",
+      fetchImpl: async () => oversizedResponse(500),
+    });
+
+    await expectError(client.requestInvite({ googleIdToken: "google-id-token" }), "homegate_unavailable");
   });
 
   it.each([
@@ -127,7 +142,7 @@ describe("ServerHomegateGoogleInviteClient", () => {
       fetchImpl: async () => jsonResponse(body),
     });
 
-    await expectError(client.requestGoogleInvite({ googleIdToken: "google-id-token" }), "malformed_homegate_response");
+    await expectError(client.requestInvite({ googleIdToken: "google-id-token" }), "malformed_homegate_response");
   });
 });
 
@@ -141,4 +156,11 @@ function jsonResponse(body: unknown, init?: ResponseInit): Response {
 
 function textResponse(body: string, init: ResponseInit): Response {
   return new Response(body, init);
+}
+
+function oversizedResponse(status: number): Response {
+  return new Response("ignored", {
+    status,
+    headers: { "Content-Length": String(16 * 1024 + 1) },
+  });
 }

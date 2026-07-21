@@ -1,15 +1,16 @@
 import "server-only";
 
 import { createRequestWrappingKeyUseCase } from "../../core/application/identity/requestWrappingKey";
-import { createRequestWrappingKeyController } from "../../core/controllers/identity/requestWrappingKeyController";
-import type { GoogleIdTokenVerifier } from "../../core/ports/googleIdTokenVerifier";
+import { createRequestGoogleWrappingKeyController } from "../../core/controllers/identity/requestGoogleWrappingKeyController";
+import type { ProviderIdTokenVerifier } from "../../core/ports/providerIdTokenVerifier";
 import type { WrappingKeyDeriver } from "../../core/ports/wrappingKeyDeriver";
 import type { WrappingKeyRateLimiter } from "../../core/ports/wrappingKeyRateLimiter";
 import { systemClock } from "../server/systemClock";
 
-const notConfiguredGoogleIdTokenVerifier: GoogleIdTokenVerifier = {
+const notConfiguredProviderIdTokenVerifier: ProviderIdTokenVerifier = {
+  provider: "google",
   async verifyIdToken() {
-    throw new Error("Google ID token verifier is not configured.");
+    throw new Error("Provider ID token verifier is not configured.");
   },
 };
 
@@ -26,9 +27,9 @@ const notConfiguredWrappingKeyRateLimiter: WrappingKeyRateLimiter = {
 };
 
 export function createWrappingKeyRequestController() {
-  return createRequestWrappingKeyController(
+  return createRequestGoogleWrappingKeyController(
     createRequestWrappingKeyUseCase({
-      googleIdTokenVerifier: notConfiguredGoogleIdTokenVerifier,
+      providerIdTokenVerifier: notConfiguredProviderIdTokenVerifier,
       wrappingKeyDeriver: notConfiguredWrappingKeyDeriver,
       wrappingKeyRateLimiter: notConfiguredWrappingKeyRateLimiter,
       clock: systemClock,

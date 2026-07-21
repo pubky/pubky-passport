@@ -20,6 +20,7 @@ export type PubkyIdentityKeyErrorCode =
   | "invalid_secret_key"
   | "key_unavailable"
   | "keypair_creation_failed"
+  | "public_identity_failed"
   | "secret_export_failed"
   | "secret_restore_failed";
 
@@ -64,16 +65,20 @@ export class PubkyIdentityKeypair {
     }
   }
 
-  publicIdentity(): PubkyPublicIdentity {
-    const publicKey = sdkKeypairFor(this).publicKey;
-
+  publicIdentity(): PubkyIdentityKeyResult<PubkyPublicIdentity> {
     try {
-      return {
-        publicKeyZ32: publicKey.z32(),
-        publicKeyDisplay: publicKey.toString(),
-      };
-    } finally {
-      publicKey.free();
+      const publicKey = sdkKeypairFor(this).publicKey;
+
+      try {
+        return Result.ok({
+          publicKeyZ32: publicKey.z32(),
+          publicKeyDisplay: publicKey.toString(),
+        });
+      } finally {
+        publicKey.free();
+      }
+    } catch {
+      return failure("public_identity_failed", "Pubky public identity derivation failed.");
     }
   }
 
@@ -122,7 +127,7 @@ export class PubkyIdentityKeyAdapter {
     return PubkyIdentityKeypair.restoreFromSecretKey(input);
   }
 
-  getPublicIdentity(keypair: PubkyIdentityKeypair): PubkyPublicIdentity {
+  getPublicIdentity(keypair: PubkyIdentityKeypair): PubkyIdentityKeyResult<PubkyPublicIdentity> {
     return keypair.publicIdentity();
   }
 

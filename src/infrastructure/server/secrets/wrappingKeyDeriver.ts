@@ -2,6 +2,7 @@ import "server-only";
 
 import { hkdfSync } from "node:crypto";
 
+import type { IdentityProviderId } from "../../../core/domain/provider/identityProvider";
 import type { WrappingKeyDeriver } from "../../../core/ports/wrappingKeyDeriver";
 import { hasMinimumServerSecretBytes, isBase64 } from "../../../libs/security/serverSecret";
 
@@ -15,6 +16,9 @@ export type CreateServerWrappingKeyDeriverInput = {
 
 const wrappingKeyBytes = 32;
 const hkdfSalt = Buffer.from("pubky-passport/wrapping-key/salt/v1", "utf8");
+const hkdfInfoProviderPrefixes: Record<IdentityProviderId, string> = {
+  google: "google:",
+};
 
 export class ServerWrappingKeyDeriver implements WrappingKeyDeriver {
   private readonly serverSecret: Buffer;
@@ -27,14 +31,18 @@ export class ServerWrappingKeyDeriver implements WrappingKeyDeriver {
     this.serverSecret = Buffer.from(options.serverSecret);
   }
 
-  async deriveWrappingKey(input: { issuer: string; subject: string }): Promise<{ wrappingKey: string }> {
-    const { issuer, subject } = input;
+  async deriveWrappingKey(input: {
+    provider: IdentityProviderId;
+    issuer: string;
+    subject: string;
+  }): Promise<{ wrappingKey: string }> {
+    const { provider, issuer, subject } = input;
 
     if (!issuer.trim() || !subject.trim()) {
       throw new Error("Invalid wrapping key identity.");
     }
 
-    const info = Buffer.from(`google:${issuer}\n${subject}`, "utf8");
+    const info = Buffer.from(`${hkdfInfoProviderPrefixes[provider]}${issuer}\n${subject}`, "utf8");
     const derivedKey = Buffer.from(hkdfSync("sha256", this.serverSecret, hkdfSalt, info, wrappingKeyBytes));
 
     return { wrappingKey: derivedKey.toString("base64url") };

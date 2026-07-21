@@ -2,19 +2,19 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import type { PassportFileEnvelopeV1 } from "../../../core/domain/passport-file/passportFile";
+import type { PassportFileEnvelopeV1 } from "../../../../../core/domain/passport-file/passportFile";
 import {
   parsePassportFileContents,
   parsePassportFileEnvelope,
   type PassportFileUrlOptions,
-} from "../../../core/pipes/passport-file/parsePassportFile";
+} from "../../../../../core/pipes/passport-file/parsePassportFile";
 import type {
   PassportFileReadResult,
   PassportFileRepository,
   PassportFileRepositoryError,
   PassportFileRepositoryErrorCode,
   PassportFileRepositoryResult,
-} from "../../../core/ports/passportFileRepository";
+} from "../../../../../core/ports/passportFileRepository";
 
 export type GoogleDriveAccessTokenProvider = () => Promise<string | null | undefined>;
 
@@ -41,6 +41,7 @@ const driveUploadFilesUrl = "https://www.googleapis.com/upload/drive/v3/files";
 const passportFileName = "passport.json";
 const multipartBoundary = "pubky-passport-drive-boundary-v1";
 const maximumPassportFileBytes = 16 * 1024;
+const maximumDriveListResponseBytes = 16 * 1024;
 
 export class GoogleDrivePassportFileRepository implements PassportFileRepository {
   private readonly accessTokenProvider: GoogleDriveAccessTokenProvider;
@@ -143,13 +144,18 @@ export class GoogleDrivePassportFileRepository implements PassportFileRepository
       return failure(mapDriveStatus(response.status, "invalid_response"));
     }
 
-    const list = await safeReadJson(response);
+    const listContents = await safeReadText(response, maximumDriveListResponseBytes);
+    if (listContents === null || listContents === "too_large") {
+      return failure("invalid_response");
+    }
+
+    const list = parseJsonContents(listContents);
     if (!isDriveListResponse(list)) {
       return failure("invalid_response");
     }
 
     const files = list.files.filter((file): file is { id: string; name: string } => {
-      return typeof file.id === "string" && typeof file.name === "string";
+      return typeof file.id === "string" && file.name === passportFileName;
     });
 
     if (files.length !== list.files.length) {
@@ -222,7 +228,7 @@ function mediaUpdateUrl(fileId: string): string {
 }
 
 function authorizationHeaders(token: string): { Authorization: string } {
-  return { Authorization: `Bearer ${token}` };
+  return { Authorization: "Bearer " + token };
 }
 
 function createMultipartBody(envelopeJson: string): string {
@@ -251,17 +257,16 @@ function serializeEnvelope(
   }
 
   return success(JSON.stringify({
-      v: parsed.value.v,
-      iv: parsed.value.iv,
-      ct: parsed.value.ct,
-      url: parsed.value.url,
-    }),
-  );
+    v: parsed.value.v,
+    iv: parsed.value.iv,
+    ct: parsed.value.ct,
+    url: parsed.value.url,
+  }));
 }
 
-async function safeReadJson(response: Response): Promise<unknown> {
+function parseJsonContents(contents: string): unknown {
   try {
-    return await response.json();
+    return JSON.parse(contents);
   } catch {
     return null;
   }
@@ -269,6 +274,11 @@ async function safeReadJson(response: Response): Promise<unknown> {
 
 async function safeReadText(response: Response, maximumBytes: number): Promise<string | "too_large" | null> {
   if (contentLengthExceeds(response.headers.get("Content-Length"), maximumBytes)) {
+    try {
+      await response.body?.cancel();
+    } catch {
+      // The oversized response is already rejected; cancellation is best effort.
+    }
     return "too_large";
   }
 
@@ -288,7 +298,11 @@ async function safeReadText(response: Response, maximumBytes: number): Promise<s
 
       byteLength += value.byteLength;
       if (byteLength > maximumBytes) {
-        void reader.cancel();
+        try {
+          await reader.cancel();
+        } catch {
+          // The oversized response is already rejected; cancellation is best effort.
+        }
         return "too_large";
       }
 

@@ -2,10 +2,10 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { Result, type Result as ResultType } from "better-result";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { expectAsyncResultError, expectResultOk } from "../../../../test-utils/resultAssertions";
-import type { PassportFileEnvelopeV1 } from "../../../core/domain/passport-file/passportFile";
+import { expectAsyncResultError, expectResultOk } from "../../../../../../test-utils/resultAssertions";
+import type { PassportFileEnvelopeV1 } from "../../../../../core/domain/passport-file/passportFile";
 import { GoogleDrivePassportFileRepository } from "./googleDrivePassportFileRepository";
 
 const accessToken = "test-drive-access-token";
@@ -21,6 +21,8 @@ type FetchCall = {
   init: RequestInit;
 };
 
+type ByteChunk = Uint8Array<ArrayBuffer>;
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -32,21 +34,30 @@ function textResponse(body: string, status = 200): Response {
   return new Response(body, { status, headers: { "Content-Type": "application/json" } });
 }
 
-function oversizedMediaResponse(): Response {
-  return new Response("oversized", {
+function oversizedMediaResponse(onCancel?: () => void): Response {
+  return new Response(cancellableStream([new TextEncoder().encode("oversized")], onCancel), {
     headers: { "Content-Length": String(16 * 1024 + 1) },
   });
 }
 
-function streamResponse(chunks: Uint8Array[]): Response {
-  return new Response(new ReadableStream({
+function streamResponse(chunks: ByteChunk[], onCancel?: () => void): Response {
+  return new Response(cancellableStream(chunks, onCancel));
+}
+
+function cancellableStream(chunks: ByteChunk[], onCancel?: () => void): ReadableStream<ByteChunk> {
+  const source: UnderlyingDefaultSource<ByteChunk> = {
     start(controller) {
       for (const chunk of chunks) {
         controller.enqueue(chunk);
       }
-      controller.close();
     },
-  }));
+  };
+
+  if (onCancel !== undefined) {
+    source.cancel = onCancel;
+  }
+
+  return new ReadableStream(source);
 }
 
 function createRepository(responses: Array<Response | Error>, options: { allowLocalhostHttp?: boolean } = {}) {
@@ -73,7 +84,7 @@ function createRepository(responses: Array<Response | Error>, options: { allowLo
 }
 
 function expectAuthorizationHeader(call: FetchCall): void {
-  expect(call.init.headers).toMatchObject({ Authorization: expect.stringMatching(/^Bearer /) });
+  expect(call.init.headers).toMatchObject({ Authorization: "Bearer " + accessToken });
 }
 
 function parseJsonBody(body: BodyInit | null | undefined): unknown {
@@ -141,21 +152,41 @@ describe("GoogleDrivePassportFileRepository", () => {
   });
 
   it("rejects an oversized Drive media response before reading it", async () => {
+    const cancel = vi.fn();
     const { repository } = createRepository([
       jsonResponse({ files: [{ id: "file-1", name: "passport.json" }] }),
-      oversizedMediaResponse(),
+      oversizedMediaResponse(cancel),
     ]);
 
     await expectFailure(repository.readPassportFile(), "invalid_file");
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it("rejects an oversized Drive list response before reading it", async () => {
+    const cancel = vi.fn();
+    const { repository } = createRepository([oversizedMediaResponse(cancel)]);
+
+    await expectFailure(repository.readPassportFile(), "invalid_response");
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it("rejects streamed Drive list data that exceeds the size limit", async () => {
+    const cancel = vi.fn();
+    const { repository } = createRepository([streamResponse([new Uint8Array(16 * 1024), new Uint8Array(1)], cancel)]);
+
+    await expectFailure(repository.readPassportFile(), "invalid_response");
+    expect(cancel).toHaveBeenCalledOnce();
   });
 
   it("rejects streamed Drive media that exceeds the size limit", async () => {
+    const cancel = vi.fn();
     const { repository } = createRepository([
       jsonResponse({ files: [{ id: "file-1", name: "passport.json" }] }),
-      streamResponse([new Uint8Array(16 * 1024), new Uint8Array(1)]),
+      streamResponse([new Uint8Array(16 * 1024), new Uint8Array(1)], cancel),
     ]);
 
     await expectFailure(repository.readPassportFile(), "invalid_file");
+    expect(cancel).toHaveBeenCalledOnce();
   });
 
   it("maps Drive authorization failures safely", async () => {
@@ -183,15 +214,23 @@ describe("GoogleDrivePassportFileRepository", () => {
 
   it("rejects duplicate or paginated Drive matches", async () => {
     await expectFailure(createRepository([
-        jsonResponse({
-          files: [
-            { id: "file-1", name: "passport.json" },
-            { id: "file-2", name: "passport.json" },
-          ],
-        }),
-      ]).repository.readPassportFile(), "duplicate_files");
+      jsonResponse({
+        files: [
+          { id: "file-1", name: "passport.json" },
+          { id: "file-2", name: "passport.json" },
+        ],
+      }),
+    ]).repository.readPassportFile(), "duplicate_files");
 
     await expectFailure(createRepository([jsonResponse({ files: [{ id: "file-1", name: "passport.json" }], nextPageToken: "more" })]).repository.readPassportFile(), "duplicate_files");
+  });
+
+  it("rejects a Drive list response for a different file", async () => {
+    const { repository, calls } = createRepository([jsonResponse({ files: [{ id: "other-file", name: "other.json" }] })]);
+
+    await expectFailure(repository.readPassportFile(), "invalid_response");
+
+    expect(calls).toHaveLength(1);
   });
 
   it("treats a listed file that disappears before media read as missing", async () => {

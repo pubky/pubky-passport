@@ -101,8 +101,8 @@ export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
     }
 
     return Result.ok({
-        bytes: exported.value.bytes,
-        format: exported.value.format,
+      bytes: exported.value.bytes,
+      format: exported.value.format,
     });
   }
 
@@ -113,7 +113,13 @@ export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
       return keyFailure("key_unavailable");
     }
 
-    return Result.ok(this.#keyAdapter.getPublicIdentity(keypair));
+    const publicIdentity = this.#keyAdapter.getPublicIdentity(keypair);
+
+    if (Result.isError(publicIdentity)) {
+      return keyFailure(mapIdentityKeyErrorCode(publicIdentity.error.code));
+    }
+
+    return Result.ok(publicIdentity.value);
   }
 
   keypairForHandle(keyHandle: PubkyIdentityKeyHandle): PubkyIdentityKeyResult<PubkyIdentityKeypair> {
@@ -121,8 +127,8 @@ export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
 
     if (!keypair) {
       return Result.err({
-          code: "key_unavailable",
-          message: "Pubky identity keypair is not available.",
+        code: "key_unavailable",
+        message: "Pubky identity keypair is not available.",
       });
     }
 
@@ -145,11 +151,17 @@ export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
 
   private storeKeypair(keypair: PubkyIdentityKeypair): PubkyIdentityKeysResult<PubkyIdentityKey> {
     const publicIdentity = this.#keyAdapter.getPublicIdentity(keypair);
+
+    if (Result.isError(publicIdentity)) {
+      keypair.dispose();
+      return keyFailure(mapIdentityKeyErrorCode(publicIdentity.error.code));
+    }
+
     const keyHandle = {} as PubkyIdentityKeyHandle;
 
     this.#keypairs.set(keyHandle, keypair);
 
-    return Result.ok({ keyHandle, publicIdentity });
+    return Result.ok({ keyHandle, publicIdentity: publicIdentity.value });
   }
 }
 
@@ -257,6 +269,8 @@ export function mapIdentityKeyErrorCode(code: PubkyIdentityKeyErrorCode): PubkyI
       return code;
     case "keypair_creation_failed":
       return "create_failed";
+    case "public_identity_failed":
+      return "public_identity_failed";
     case "secret_export_failed":
       return "export_failed";
     case "secret_restore_failed":

@@ -87,10 +87,10 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
       );
 
       return Result.ok({
-          v: envelopeMetadata.v,
-          iv: encodeBase64Url(iv),
-          ct: encodeBase64Url(new Uint8Array(ciphertext)),
-          url: envelopeMetadata.url,
+        v: envelopeMetadata.v,
+        iv: encodeBase64Url(iv),
+        ct: encodeBase64Url(new Uint8Array(ciphertext)),
+        url: envelopeMetadata.url,
       });
     } catch {
       return failure("encrypt_failed");
@@ -102,6 +102,7 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
   async decryptSecretKeyBytes(input: {
     envelope: PassportFileEnvelopeV1;
     wrappingKey: string;
+    passportUrl: string;
   }): Promise<PassportFileCryptoResult<Uint8Array>> {
     const webCrypto = this.#getRequiredWebCrypto();
     if (Result.isError(webCrypto)) {
@@ -110,6 +111,11 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
 
     const envelope = parsePassportFileEnvelope(input.envelope);
     if (Result.isError(envelope)) {
+      return failure("invalid_envelope");
+    }
+
+    const expectedOrigin = normalizePassportFileOrigin(input.passportUrl);
+    if (Result.isError(expectedOrigin) || expectedOrigin.value !== envelope.value.url) {
       return failure("invalid_envelope");
     }
 
@@ -192,7 +198,6 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
       return failure("unsupported_browser_crypto");
     }
   }
-
 }
 
 function isValidSecretKeyBytes(secretKeyBytes: Uint8Array): boolean {

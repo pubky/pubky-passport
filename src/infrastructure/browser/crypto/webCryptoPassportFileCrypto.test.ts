@@ -56,14 +56,15 @@ describe("WebCryptoPassportFileCrypto", () => {
     const crypto = new WebCryptoPassportFileCrypto({ subtle: null, getRandomValues: null });
 
     await expectAsyncError(crypto.decryptSecretKeyBytes({
-        envelope: {
-          v: 1,
-          iv: encodeBase64Url(new Uint8Array(12)),
-          ct: encodeBase64Url(new Uint8Array([1])),
-          url: "https://passport.pubky.app",
-        },
-        wrappingKey: "not+decoded",
-      }), "unsupported_browser_crypto");
+      envelope: {
+        v: 1,
+        iv: encodeBase64Url(new Uint8Array(12)),
+        ct: encodeBase64Url(new Uint8Array([1])),
+        url: "https://passport.pubky.app",
+      },
+      wrappingKey: "not+decoded",
+      passportUrl: "https://passport.pubky.app",
+    }), "unsupported_browser_crypto");
   });
 
   it("maps unsupported HKDF import to unsupported_browser_crypto", async () => {
@@ -127,7 +128,11 @@ describe("WebCryptoPassportFileCrypto", () => {
       throw new Error(encrypted.error.code);
     }
 
-    const decrypted = await crypto.decryptSecretKeyBytes({ envelope: encrypted.value, wrappingKey });
+    const decrypted = await crypto.decryptSecretKeyBytes({
+      envelope: encrypted.value,
+      wrappingKey,
+      passportUrl: "https://passport.pubky.app",
+    });
 
     expect(Result.isOk(decrypted)).toBe(true);
     if (Result.isError(decrypted)) {
@@ -167,6 +172,7 @@ describe("WebCryptoPassportFileCrypto", () => {
     const decrypted = await createCrypto().decryptSecretKeyBytes({
       envelope: encrypted.value,
       wrappingKey: differentWrappingKey,
+      passportUrl: "https://passport.pubky.app",
     });
 
     expectError(decrypted, "decrypt_failed");
@@ -187,6 +193,7 @@ describe("WebCryptoPassportFileCrypto", () => {
     const decrypted = await createCrypto().decryptSecretKeyBytes({
       envelope: { ...encrypted.value, ct: tamperBase64Url(encrypted.value.ct) },
       wrappingKey,
+      passportUrl: "https://passport.pubky.app",
     });
 
     expectError(decrypted, "decrypt_failed");
@@ -207,6 +214,7 @@ describe("WebCryptoPassportFileCrypto", () => {
     const decrypted = await createCrypto().decryptSecretKeyBytes({
       envelope: { ...encrypted.value, iv: encodeBase64Url(new Uint8Array(11)) },
       wrappingKey,
+      passportUrl: "https://passport.pubky.app",
     });
 
     expectError(decrypted, "invalid_envelope");
@@ -221,6 +229,7 @@ describe("WebCryptoPassportFileCrypto", () => {
         url: "https://passport.pubky.app",
       },
       wrappingKey,
+      passportUrl: "https://passport.pubky.app",
     });
 
     expectError(decrypted, "invalid_envelope");
@@ -237,14 +246,15 @@ describe("WebCryptoPassportFileCrypto", () => {
     const crypto = new WebCryptoPassportFileCrypto({ subtle });
 
     await expectAsyncError(crypto.decryptSecretKeyBytes({
-        envelope: {
-          v: 1,
-          iv: encodeBase64Url(new Uint8Array(12)),
-          ct: encodeBase64Url(new Uint8Array(pubkySecretKeyBytes + 16)),
-          url: "https://passport.pubky.app",
-        },
-        wrappingKey,
-      }), "invalid_plaintext");
+      envelope: {
+        v: 1,
+        iv: encodeBase64Url(new Uint8Array(12)),
+        ct: encodeBase64Url(new Uint8Array(pubkySecretKeyBytes + 16)),
+        url: "https://passport.pubky.app",
+      },
+      wrappingKey,
+      passportUrl: "https://passport.pubky.app",
+    }), "invalid_plaintext");
 
     expect(rejectedPlaintext).toEqual(new Uint8Array(pubkySecretKeyBytes - 1));
   });
@@ -258,6 +268,7 @@ describe("WebCryptoPassportFileCrypto", () => {
         url: "https://passport.pubky.app",
       },
       wrappingKey,
+      passportUrl: "https://passport.pubky.app",
     });
 
     expectError(decrypted, "invalid_envelope");
@@ -278,9 +289,32 @@ describe("WebCryptoPassportFileCrypto", () => {
     const decrypted = await createCrypto().decryptSecretKeyBytes({
       envelope: { ...encrypted.value, url: "https://passport-staging.pubky.app" },
       wrappingKey,
+      passportUrl: "https://passport-staging.pubky.app",
     });
 
     expectError(decrypted, "decrypt_failed");
+  });
+
+  it("rejects an envelope created for a different Passport origin", async () => {
+    const encrypted = await createCrypto().encryptSecretKeyBytes({
+      secretKeyBytes,
+      wrappingKey,
+      passportUrl: "https://passport-staging.pubky.app",
+    });
+
+    expect(Result.isOk(encrypted)).toBe(true);
+    if (Result.isError(encrypted)) {
+      throw new Error(encrypted.error.code);
+    }
+
+    await expectAsyncError(
+      createCrypto().decryptSecretKeyBytes({
+        envelope: encrypted.value,
+        wrappingKey,
+        passportUrl: "https://passport.pubky.app",
+      }),
+      "invalid_envelope",
+    );
   });
 
   it("rejects invalid wrapping keys", async () => {
@@ -289,24 +323,23 @@ describe("WebCryptoPassportFileCrypto", () => {
     await expectAsyncError(crypto.encryptSecretKeyBytes({ secretKeyBytes, wrappingKey: "not+base64url", passportUrl: "https://passport.pubky.app" }), "invalid_wrapping_key");
 
     await expectAsyncError(crypto.encryptSecretKeyBytes({
-        secretKeyBytes,
-        wrappingKey: encodeBase64Url(new Uint8Array(31)),
-        passportUrl: "https://passport.pubky.app",
-      }), "invalid_wrapping_key");
+      secretKeyBytes,
+      wrappingKey: encodeBase64Url(new Uint8Array(31)),
+      passportUrl: "https://passport.pubky.app",
+    }), "invalid_wrapping_key");
   });
 
   it("rejects invalid plaintext and envelope inputs", async () => {
     const crypto = createCrypto();
 
     await expectAsyncError(crypto.encryptSecretKeyBytes({
-        secretKeyBytes: new Uint8Array(pubkySecretKeyBytes - 1),
-        wrappingKey,
-        passportUrl: "https://passport.pubky.app",
-      }), "invalid_plaintext");
+      secretKeyBytes: new Uint8Array(pubkySecretKeyBytes - 1),
+      wrappingKey,
+      passportUrl: "https://passport.pubky.app",
+    }), "invalid_plaintext");
 
     await expectAsyncError(crypto.encryptSecretKeyBytes({ secretKeyBytes, wrappingKey, passportUrl: "https://passport.pubky.app/path" }), "invalid_envelope");
   });
-
 });
 
 describe("base64url helpers", () => {

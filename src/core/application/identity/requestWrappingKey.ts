@@ -1,29 +1,30 @@
 import { Result, type Result as ResultType } from "better-result";
 
+import type { IdentityProviderId, VerifiedProviderIdentity } from "../../domain/provider/identityProvider";
 import type { Clock } from "../../ports/clock";
 import type {
-  GoogleIdTokenVerifier,
-  GoogleIdTokenVerificationFailureReason,
-  VerifiedGoogleIdentity,
-} from "../../ports/googleIdTokenVerifier";
+  ProviderIdTokenVerificationFailureReason,
+  ProviderIdTokenVerifier,
+} from "../../ports/providerIdTokenVerifier";
 import type { WrappingKeyDeriver } from "../../ports/wrappingKeyDeriver";
 import type { WrappingKeyRateLimiter } from "../../ports/wrappingKeyRateLimiter";
 
-type GoogleVerificationResult =
-  | { kind: "verified"; identity: VerifiedGoogleIdentity }
-  | { kind: "failed"; reason: GoogleIdTokenVerificationFailureReason }
+type ProviderVerificationResult =
+  | { kind: "verified"; identity: VerifiedProviderIdentity }
+  | { kind: "failed"; reason: ProviderIdTokenVerificationFailureReason }
   | { kind: "dependency_unavailable" };
 
 export type RequestWrappingKeyInput = {
-  googleIdToken: string;
+  provider: IdentityProviderId;
+  idToken: string;
 };
 
 export type RequestWrappingKeyErrorCode =
-  | "invalid_google_id_token"
-  | "expired_google_id_token"
-  | "unsupported_google_issuer"
-  | "unsupported_google_audience"
-  | "missing_google_subject"
+  | "invalid_id_token"
+  | "expired_id_token"
+  | "unsupported_issuer"
+  | "unsupported_audience"
+  | "missing_subject"
   | "rate_limited"
   | "dependency_unavailable";
 
@@ -32,7 +33,7 @@ export type RequestWrappingKeyResult = ResultType<string, { code: RequestWrappin
 export type RequestWrappingKeyUseCase = (input: RequestWrappingKeyInput) => Promise<RequestWrappingKeyResult>;
 
 export type RequestWrappingKeyDependencies = {
-  googleIdTokenVerifier: GoogleIdTokenVerifier;
+  providerIdTokenVerifier: ProviderIdTokenVerifier;
   wrappingKeyDeriver: WrappingKeyDeriver;
   wrappingKeyRateLimiter: WrappingKeyRateLimiter;
   clock: Clock;
@@ -42,13 +43,21 @@ export function createRequestWrappingKeyUseCase(
   dependencies: RequestWrappingKeyDependencies,
 ): RequestWrappingKeyUseCase {
   return async function requestWrappingKey(input) {
-    const verification = await verifyGoogleIdToken(dependencies.googleIdTokenVerifier, input.googleIdToken);
+    if (input.provider !== dependencies.providerIdTokenVerifier.provider) {
+      return failure("dependency_unavailable");
+    }
+
+    const verification = await verifyProviderIdToken(dependencies.providerIdTokenVerifier, input.idToken);
     if (verification.kind === "dependency_unavailable") {
       return failure("dependency_unavailable");
     }
 
     if (verification.kind === "failed") {
       return failure(mapVerificationFailure(verification.reason));
+    }
+
+    if (verification.identity.provider !== input.provider) {
+      return failure("dependency_unavailable");
     }
 
     const rateLimit = await checkRateLimit(dependencies, verification.identity.issuer, verification.identity.subject);
@@ -58,6 +67,7 @@ export function createRequestWrappingKeyUseCase(
 
     try {
       const { wrappingKey } = await dependencies.wrappingKeyDeriver.deriveWrappingKey({
+        provider: verification.identity.provider,
         issuer: verification.identity.issuer,
         subject: verification.identity.subject,
       });
@@ -69,18 +79,18 @@ export function createRequestWrappingKeyUseCase(
   };
 }
 
-async function verifyGoogleIdToken(
-  verifier: GoogleIdTokenVerifier,
-  googleIdToken: string,
-): Promise<GoogleVerificationResult> {
+async function verifyProviderIdToken(
+  verifier: ProviderIdTokenVerifier,
+  idToken: string,
+): Promise<ProviderVerificationResult> {
   try {
-    const result = await verifier.verifyIdToken(googleIdToken);
+    const result = await verifier.verifyIdToken(idToken);
 
-    if (Result.isOk(result)) {
-      return { kind: "verified", identity: result.value };
+    if (result.ok) {
+      return { kind: "verified", identity: result.identity };
     }
 
-    return { kind: "failed", reason: result.error };
+    return { kind: "failed", reason: result.reason };
   } catch {
     return { kind: "dependency_unavailable" };
   }
@@ -93,6 +103,7 @@ async function checkRateLimit(
 ): Promise<RequestWrappingKeyResult | undefined> {
   try {
     const result = await dependencies.wrappingKeyRateLimiter.checkWrappingKeyRequest({
+      provider: dependencies.providerIdTokenVerifier.provider,
       issuer,
       subject,
       at: dependencies.clock.now(),
@@ -112,17 +123,17 @@ function failure(code: RequestWrappingKeyErrorCode): RequestWrappingKeyResult {
   return Result.err({ code });
 }
 
-function mapVerificationFailure(reason: GoogleIdTokenVerificationFailureReason): RequestWrappingKeyErrorCode {
+function mapVerificationFailure(reason: ProviderIdTokenVerificationFailureReason): RequestWrappingKeyErrorCode {
   switch (reason) {
     case "expired":
-      return "expired_google_id_token";
+      return "expired_id_token";
     case "unsupported_issuer":
-      return "unsupported_google_issuer";
+      return "unsupported_issuer";
     case "unsupported_audience":
-      return "unsupported_google_audience";
+      return "unsupported_audience";
     case "missing_subject":
-      return "missing_google_subject";
+      return "missing_subject";
     case "invalid":
-      return "invalid_google_id_token";
+      return "invalid_id_token";
   }
 }

@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { Result, type Result as ResultType } from "better-result";
 
-import type { RequestWrappingKeyController } from "../../../core/controllers/identity/requestWrappingKeyController";
+import type { RequestGoogleWrappingKeyController } from "../../../core/controllers/identity/requestGoogleWrappingKeyController";
 import { createWrappingKeyRequestController } from "../../../infrastructure/composition/wrappingKeyServerContainer";
+import { readBoundedText } from "../../../libs/security/boundedBody";
 
 const responseHeaders = {
   "Cache-Control": "no-store",
   "Referrer-Policy": "no-referrer",
 };
+const maximumCredentialRequestBytes = 16 * 1024;
 
 type WrappingKeyRequestBody = {
   googleIdToken: string;
@@ -18,7 +20,7 @@ type WrappingKeyRouteBody =
   | { error: { code: string } };
 
 export function createWrappingKeyPostHandler(
-  controller: RequestWrappingKeyController = createWrappingKeyRequestController(),
+  controller: RequestGoogleWrappingKeyController = createWrappingKeyRequestController(),
 ) {
   return async function wrappingKeyPost(request: Request): Promise<NextResponse<WrappingKeyRouteBody>> {
     const body = await parseRequestBody(request);
@@ -40,10 +42,15 @@ export function createWrappingKeyPostHandler(
 async function parseRequestBody(
   request: Request,
 ): Promise<ResultType<WrappingKeyRequestBody, "invalid_request">> {
+  const text = await readBoundedText(request, maximumCredentialRequestBytes);
+  if (text === null || text === "too_large") {
+    return Result.err("invalid_request");
+  }
+
   let body: unknown;
 
   try {
-    body = await request.json();
+    body = JSON.parse(text);
   } catch {
     return Result.err("invalid_request");
   }

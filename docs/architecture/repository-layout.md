@@ -43,7 +43,7 @@ src/
     domain/
       auth/
       identity/
-      google/
+      provider/
       setup/
 
     application/
@@ -62,7 +62,6 @@ src/
 
     pipes/
       auth/
-      google/
       passport-file/
 
     stores/
@@ -71,14 +70,16 @@ src/
 
   infrastructure/
     browser/
-      google/
       crypto/
-      storage/
+      providers/
+        google/
+          drive/
       pubky/
       relay/
 
     server/
-      google/
+      providers/
+        google/
       secrets/
       homegate/
       rate-limit/
@@ -92,6 +93,8 @@ src/
       authorize/
       setup/
       dashboard/
+      providers/
+        google/
       settings/
 
   libs/
@@ -130,15 +133,17 @@ src/ui/features/setup/
 src/core/application/setup/
 src/core/application/identity/
 src/core/domain/identity/
-src/core/domain/google/
+src/core/domain/provider/
 src/core/ports/
-src/infrastructure/browser/google/
 src/infrastructure/browser/crypto/
-src/infrastructure/browser/storage/
+src/infrastructure/browser/providers/google/
+src/infrastructure/browser/providers/google/drive/
 src/infrastructure/browser/pubky/
-src/infrastructure/server/google/
+src/infrastructure/server/providers/google/
 src/infrastructure/server/secrets/
 ```
+
+Provider-owned UI components, such as a future Google Identity Services button, live under `src/ui/features/providers/google/`. Setup and authorize screens stay provider-neutral and are driven by neutral state.
 
 Homegate invite support should keep server-only network behavior out of core:
 

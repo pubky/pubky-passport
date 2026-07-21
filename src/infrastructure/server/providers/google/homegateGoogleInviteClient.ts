@@ -3,11 +3,12 @@ import "server-only";
 import { Result } from "better-result";
 
 import type {
-  HomegateInviteErrorCode,
-  HomegateInvitePort,
-  HomegateInviteResult,
-  RequestGoogleHomegateInviteInput,
-} from "../../../core/ports/homegateInvite";
+  GoogleHomegateInviteErrorCode,
+  GoogleHomegateInvitePort,
+  GoogleHomegateInviteRequest,
+  GoogleHomegateInviteResult,
+} from "../../../../core/ports/homegateInvite";
+import { readBoundedText } from "../../../../libs/security/boundedBody";
 
 type Fetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
@@ -22,8 +23,10 @@ type HomegateSuccessResponse = {
 };
 
 const googleVerificationPath = "google_verification";
+const maximumHomegateResponseBytes = 16 * 1024;
+const homegateTimeoutMilliseconds = 10_000;
 
-export class ServerHomegateGoogleInviteClient implements HomegateInvitePort {
+export class ServerHomegateGoogleInviteClient implements GoogleHomegateInvitePort {
   readonly #endpoint: URL;
   readonly #fetch: Fetch;
 
@@ -32,7 +35,7 @@ export class ServerHomegateGoogleInviteClient implements HomegateInvitePort {
     this.#fetch = options.fetchImpl ?? fetch;
   }
 
-  async requestGoogleInvite(input: RequestGoogleHomegateInviteInput): Promise<HomegateInviteResult> {
+  async requestInvite(input: GoogleHomegateInviteRequest): Promise<GoogleHomegateInviteResult> {
     let response: Response;
 
     try {
@@ -43,6 +46,7 @@ export class ServerHomegateGoogleInviteClient implements HomegateInvitePort {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ googleIdToken: input.googleIdToken }),
+        signal: AbortSignal.timeout(homegateTimeoutMilliseconds),
       });
     } catch {
       return failure("homegate_unavailable");
@@ -56,11 +60,16 @@ export class ServerHomegateGoogleInviteClient implements HomegateInvitePort {
   }
 }
 
-async function parseHomegateSuccess(response: Response): Promise<HomegateInviteResult> {
+async function parseHomegateSuccess(response: Response): Promise<GoogleHomegateInviteResult> {
+  const contents = await readBoundedText(response, maximumHomegateResponseBytes);
+  if (contents === null || contents === "too_large") {
+    return failure("malformed_homegate_response");
+  }
+
   let body: HomegateSuccessResponse;
 
   try {
-    body = await response.json() as HomegateSuccessResponse;
+    body = JSON.parse(contents) as HomegateSuccessResponse;
   } catch {
     return failure("malformed_homegate_response");
   }
@@ -70,17 +79,14 @@ async function parseHomegateSuccess(response: Response): Promise<HomegateInviteR
   }
 
   return Result.ok({
-      signupCode: body.signupCode,
-      homeserverPubky: body.homeserverPubky,
+    signupCode: body.signupCode,
+    homeserverPubky: body.homeserverPubky,
   });
 }
 
-async function mapHomegateError(response: Response): Promise<HomegateInviteErrorCode> {
-  let body: string;
-
-  try {
-    body = await response.text();
-  } catch {
+async function mapHomegateError(response: Response): Promise<GoogleHomegateInviteErrorCode> {
+  const body = await readBoundedText(response, maximumHomegateResponseBytes);
+  if (body === null || body === "too_large") {
     return "homegate_unavailable";
   }
 
@@ -112,6 +118,6 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function failure(code: HomegateInviteErrorCode): HomegateInviteResult {
+function failure(code: GoogleHomegateInviteErrorCode): GoogleHomegateInviteResult {
   return Result.err({ code });
 }

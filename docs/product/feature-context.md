@@ -39,6 +39,15 @@ Signing must remain blocked until the user explicitly confirms.
 
 MVP provider: Google only.
 
+Identity establishment is modeled through narrow, independent provider seams rather than one service per provider:
+
+- Browser provider identity covers sign-in and ID-token acquisition.
+- Server ID-token verification is represented by the neutral `ProviderIdTokenVerifier` port.
+- Encrypted passport storage is represented by the neutral `PassportFileRepository` port.
+- Wrapping secret acquisition is separate from provider identity and storage.
+
+Self-custody is not a degenerate provider. It is a future key-custody strategy that will compose neutral ports differently when a setup or restore use case first consumes it.
+
 Google-owned screens are not Passport UI. Passport initiates Google Identity and Drive consent flows but does not recreate account chooser or consent screens.
 
 Server-side Google ID token verification must check:
@@ -46,6 +55,7 @@ Server-side Google ID token verification must check:
 - Signature.
 - Issuer.
 - Audience.
+- Authorized party when a token has multiple audiences.
 - Expiration.
 - Subject availability.
 
@@ -64,11 +74,12 @@ Application logic must depend on ports. Concrete token verification, secret deri
 
 Current server derivation contract:
 
-- Derive wrapping material only from verified Google issuer and subject plus `PASSPORT_SERVER_SECRET_BASE64`.
+- Derive wrapping material only from canonical verified Google issuer and subject plus `PASSPORT_SERVER_SECRET_BASE64`.
 - Do not derive from Google ID token values, Google email, Drive access tokens, encrypted Drive file contents, or Pubky private key material.
 - Use HKDF-SHA256 with decoded `PASSPORT_SERVER_SECRET_BASE64` as input key material.
 - Use UTF-8 salt `pubky-passport/wrapping-key/salt/v1`.
-- Use UTF-8 info `google:<issuer>\n<subject>` with exact verified issuer and subject values.
+- Use UTF-8 info `google:<issuer>\n<subject>` with canonical verified issuer and subject values. Google issuer values normalize to `https://accounts.google.com` before derivation.
+- The `google:` HKDF info prefix is frozen forever for Google-backed identities because it is baked into every existing user's wrapping key. Future provider prefixes must be added as explicit new constants without changing existing entries.
 - Return 32 derived bytes encoded as base64url; browser crypto adapters decode this string before use.
 
 ## Google Drive Passport Storage
@@ -118,18 +129,21 @@ Confirmed browser crypto contract for encrypted Drive storage:
 - Passport file encryption uses AES-256-GCM with a fresh random 96-bit IV per encryption. `iv` and ciphertext `ct` are stored as unpadded base64url strings in the v1 envelope.
 - AES-GCM sub-key derivation uses IKM = decoded wrapping material, salt `pubky-passport/passport-file/aes-gcm/salt/v1`, info `passport-file:aes-gcm:v1`, and an AES-256-GCM output key.
 - AES-GCM authenticates envelope metadata as additional authenticated data using `pubky-passport/passport-file/v1\n<normalized-envelope-url>`, so tampering with the authenticated v1 context or stored Passport origin fails decryption.
+- Decryption also requires the normalized expected Passport origin and rejects an envelope created for a different origin.
+- Operational consequence: encrypted files are bound to their Passport origin. A file created by a staging, self-hosted, or other-origin Passport deployment cannot be restored by production Passport without an explicit migration or re-encryption flow. This protects against cross-deployment use even if deployments accidentally share compatible wrapping-key derivation.
 - Decryption authenticates ciphertext through AES-GCM and maps authentication failure to a safe typed error without exposing DOMException details.
 - Browser crypto must not persist Pubky secret key material, wrapping material, decrypted payloads, or Drive tokens in `localStorage`, `sessionStorage`, IndexedDB, cookies, or server requests.
 
 Confirmed Google Drive appDataFolder repository contract:
 
-- Concrete browser Drive storage lives in `src/infrastructure/browser/storage` behind the core `PassportFileRepository` port.
+- Concrete browser Drive storage lives in `src/infrastructure/browser/providers/google/drive` behind the core `PassportFileRepository` port.
 - The repository reads and writes encrypted `PassportFileEnvelopeV1` values only. It does not decrypt ciphertext, derive wrapping material, restore Pubky keys, request Homegate invites, import Pubky SDK code, or own Google login and consent UI.
 - The repository accepts an injected browser access-token provider and injected `fetch`; Drive access tokens do not appear in core method inputs and are not persisted by the repository.
 - Drive lookup uses Google Drive API v3 with `spaces=appDataFolder`, exact `passport.json` name matching, `trashed=false`, and the narrow Drive app data scope expected from future Google consent code.
 - A missing Drive file is an expected first-time setup state and returns `missing` rather than an error. If the file is listed but disappears before media fetch, the read also returns `missing`.
 - Multiple matching files or pagination evidence are rejected as `duplicate_files` rather than choosing a potentially wrong identity file.
 - Reads fetch file content through the Drive media endpoint and parse it with the v1 envelope parser. Malformed file contents map to `invalid_file` without returning raw Drive body, IV, ciphertext, or future decrypted key material.
+- Drive list and media response bodies are size-bounded before parsing to avoid unbounded browser memory use.
 - Writes revalidate outbound envelopes with the v1 parser before upload, serialize only `v`, `iv`, `ct`, and origin-normalized `url`, create `passport.json` in `appDataFolder` when missing, and update existing file media when exactly one file exists.
 - Repository errors are safe typed codes for authorization, permission, network, invalid-response, invalid-file, duplicate-file, and write-failure cases. Raw Google error bodies, access tokens, and envelope contents are not included in errors.
 - The repository must not use `localStorage`, `sessionStorage`, IndexedDB, cookies, or server requests for Drive tokens, encrypted envelopes, plaintext recovery bytes, wrapping material, or decrypted payloads.
@@ -241,6 +255,7 @@ Required boundaries:
 - Represent Homegate behind a core port.
 - For invite issuance, Homegate is the authoritative Google ID token verifier. Passport validates request shape and forwards only `{ googleIdToken }` to Homegate; Passport does not locally verify the token for this endpoint.
 - Homegate verifies the token server-side before issuing an invite.
+- Provider-specific Homegate flows own credential validation, request payloads, endpoints, and error mappings. Their successful result is the neutral `HomeserverSignupInvitation` `{ signupCode, homeserverPubky }`; a future setup use case consumes that invitation and never a provider credential.
 - Homegate rate-limits by verified Google identity derived from `iss || "\n" || sub`, not email. Passport maps Homegate's weekly and annual limit responses and does not duplicate this persistent invite quota in the initial adapter PR.
 - Keep concrete Homegate network calls in infrastructure.
 - The concrete Passport server adapter reads only `HOMEGATE_URL` for this flow and calls Homegate server-to-server. It does not require or use `PUBKY_HOMESERVER`.

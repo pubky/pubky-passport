@@ -1,12 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { Result, type Result as ResultType } from "better-result";
 
-import { expectAsyncResultError, expectResultError } from "../../../../test-utils/resultAssertions";
 import {
   ServerGoogleIdTokenVerifier,
   type GoogleTokenVerifierDependency,
 } from "./googleIdTokenVerifier";
-import type { Clock } from "../../../core/ports/clock";
+import type { Clock } from "../../../../core/ports/clock";
 
 const audience = "google-client-id";
 const token = "header.payload.signature";
@@ -20,17 +18,10 @@ const fixedClock: Clock = {
   },
 };
 
-function expectError(result: ResultType<unknown, string>, reason: string): void {
-  expectResultError(result, reason);
-}
-
-async function expectAsyncError(result: Promise<ResultType<unknown, string>>, reason: string): Promise<void> {
-  await expectAsyncResultError(result, reason);
-}
-
 type TestGoogleIdTokenPayload = {
   iss?: string;
   aud?: string | string[];
+  azp?: string | undefined;
   exp?: number;
   sub?: string;
 };
@@ -47,21 +38,28 @@ describe("ServerGoogleIdTokenVerifier", () => {
       }),
     });
 
-    await expect(verifier.verifyIdToken(token)).resolves.toEqual(Result.ok({
+    await expect(verifier.verifyIdToken(token)).resolves.toEqual({
+      ok: true,
+      identity: {
+        provider: "google",
         issuer: "https://accounts.google.com",
         subject: "google-subject",
-        audience,
-        expiresAt: new Date(futureExpiration * 1000),
-    }));
+      },
+    });
     expect(calls).toEqual([{ idToken: token, audience }]);
   });
 
-  it("accepts Google issuer values returned by the official verifier", async () => {
+  it("normalizes Google issuer values returned by the official verifier", async () => {
     const verifier = createVerifierWithPayload({ ...validPayload(), iss: "accounts.google.com" });
 
-    const result = await verifier.verifyIdToken(token);
-
-    expect(Result.isOk(result)).toBe(true);
+    await expect(verifier.verifyIdToken(token)).resolves.toEqual({
+      ok: true,
+      identity: {
+        provider: "google",
+        issuer: "https://accounts.google.com",
+        subject: "google-subject",
+      },
+    });
   });
 
   it("maps invalid verifier errors safely", async () => {
@@ -73,7 +71,7 @@ describe("ServerGoogleIdTokenVerifier", () => {
 
     const result = await verifier.verifyIdToken(token);
 
-    expectError(result, "invalid");
+    expect(result).toEqual({ ok: false, reason: "invalid" });
     expect(JSON.stringify(result)).not.toContain(token);
   });
 
@@ -84,7 +82,7 @@ describe("ServerGoogleIdTokenVerifier", () => {
       verifier: throwingGoogleVerifier(new Error("Token used too late, expired")),
     });
 
-    await expectAsyncError(verifier.verifyIdToken(token), "expired");
+    await expect(verifier.verifyIdToken(token)).resolves.toEqual({ ok: false, reason: "expired" });
   });
 
   it("maps audience verifier errors safely", async () => {
@@ -94,33 +92,55 @@ describe("ServerGoogleIdTokenVerifier", () => {
       verifier: throwingGoogleVerifier(new Error("Wrong recipient, audience mismatch")),
     });
 
-    await expectAsyncError(verifier.verifyIdToken(token), "unsupported_audience");
+    await expect(verifier.verifyIdToken(token)).resolves.toEqual({ ok: false, reason: "unsupported_audience" });
   });
 
   it("rejects unsupported issuers", async () => {
     const verifier = createVerifierWithPayload({ ...validPayload(), iss: "https://evil.example" });
 
-    await expectAsyncError(verifier.verifyIdToken(token), "unsupported_issuer");
+    await expect(verifier.verifyIdToken(token)).resolves.toEqual({ ok: false, reason: "unsupported_issuer" });
   });
 
   it("rejects audience mismatches", async () => {
     const verifier = createVerifierWithPayload({ ...validPayload(), aud: "other-client-id" });
 
-    await expectAsyncError(verifier.verifyIdToken(token), "unsupported_audience");
+    await expect(verifier.verifyIdToken(token)).resolves.toEqual({ ok: false, reason: "unsupported_audience" });
   });
 
-  it("accepts array audiences that contain the configured audience", async () => {
-    const verifier = createVerifierWithPayload({ ...validPayload(), aud: ["other-client-id", audience] });
+  it("accepts multi-audience tokens when the authorized party is Passport", async () => {
+    const verifier = createVerifierWithPayload({
+      ...validPayload(),
+      aud: ["other-client-id", audience],
+      azp: audience,
+    });
 
-    const result = await verifier.verifyIdToken(token);
+    await expect(verifier.verifyIdToken(token)).resolves.toEqual({
+      ok: true,
+      identity: {
+        provider: "google",
+        issuer: "https://accounts.google.com",
+        subject: "google-subject",
+      },
+    });
+  });
 
-    expect(Result.isOk(result)).toBe(true);
+  it.each([
+    { azp: undefined, description: "the authorized party is missing" },
+    { azp: "other-client-id", description: "the authorized party is another client" },
+  ])("rejects multi-audience tokens when $description", async ({ azp }) => {
+    const verifier = createVerifierWithPayload({
+      ...validPayload(),
+      aud: ["other-client-id", audience],
+      azp,
+    });
+
+    await expect(verifier.verifyIdToken(token)).resolves.toEqual({ ok: false, reason: "unsupported_audience" });
   });
 
   it("rejects expired payloads", async () => {
     const verifier = createVerifierWithPayload({ ...validPayload(), exp: pastExpiration });
 
-    await expectAsyncError(verifier.verifyIdToken(token), "expired");
+    await expect(verifier.verifyIdToken(token)).resolves.toEqual({ ok: false, reason: "expired" });
   });
 
   it("rejects missing subjects", async () => {
@@ -128,7 +148,7 @@ describe("ServerGoogleIdTokenVerifier", () => {
     delete payloadWithoutSubject.sub;
     const verifier = createVerifierWithPayload(payloadWithoutSubject);
 
-    await expectAsyncError(verifier.verifyIdToken(token), "missing_subject");
+    await expect(verifier.verifyIdToken(token)).resolves.toEqual({ ok: false, reason: "missing_subject" });
   });
 
   it("rejects missing payloads", async () => {
@@ -146,7 +166,7 @@ describe("ServerGoogleIdTokenVerifier", () => {
       },
     });
 
-    await expectAsyncError(verifier.verifyIdToken(token), "invalid");
+    await expect(verifier.verifyIdToken(token)).resolves.toEqual({ ok: false, reason: "invalid" });
   });
 });
 

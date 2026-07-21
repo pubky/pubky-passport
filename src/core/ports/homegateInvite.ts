@@ -1,11 +1,11 @@
 import type { Result } from "better-result";
 
-export type GoogleHomegateInvite = {
+export type HomeserverSignupInvitation = {
   signupCode: string;
   homeserverPubky: string;
 };
 
-export type HomegateInviteErrorCode =
+export type GoogleHomegateInviteErrorCode =
   | "invalid_google_id_token"
   | "weekly_limit_exceeded"
   | "annual_limit_exceeded"
@@ -15,16 +15,16 @@ export type HomegateInviteErrorCode =
   | "homegate_unavailable"
   | "malformed_homegate_response";
 
-export type HomegateInviteError = {
-  code: HomegateInviteErrorCode;
+export type GoogleHomegateInviteError = {
+  code: GoogleHomegateInviteErrorCode;
 };
 
-export type HomegateInviteResult = Result<GoogleHomegateInvite, HomegateInviteError>;
+export type GoogleHomegateInviteResult = Result<HomeserverSignupInvitation, GoogleHomegateInviteError>;
 
-export type RequestGoogleHomegateInviteInput = {
+export type GoogleHomegateInviteRequest = {
   googleIdToken: string;
 };
 
-export interface HomegateInvitePort {
-  requestGoogleInvite(input: RequestGoogleHomegateInviteInput): Promise<HomegateInviteResult>;
+export interface GoogleHomegateInvitePort {
+  requestInvite(input: GoogleHomegateInviteRequest): Promise<GoogleHomegateInviteResult>;
 }

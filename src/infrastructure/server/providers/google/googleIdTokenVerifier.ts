@@ -3,17 +3,18 @@ import "server-only";
 import { OAuth2Client } from "google-auth-library";
 import { Result, type Result as ResultType } from "better-result";
 
-import type { Clock } from "../../../core/ports/clock";
+import type { Clock } from "../../../../core/ports/clock";
 import type {
-  GoogleIdTokenVerificationFailureReason,
-  GoogleIdTokenVerificationResult,
-  GoogleIdTokenVerifier,
-} from "../../../core/ports/googleIdTokenVerifier";
-import { systemClock } from "../systemClock";
+  ProviderIdTokenVerificationFailureReason,
+  ProviderIdTokenVerificationResult,
+  ProviderIdTokenVerifier,
+} from "../../../../core/ports/providerIdTokenVerifier";
+import { systemClock } from "../../systemClock";
 
 type GoogleIdTokenPayload = {
   iss?: string;
   aud?: string | string[];
+  azp?: string | undefined;
   exp?: number;
   sub?: string;
 };
@@ -38,9 +39,12 @@ export type ServerGoogleIdTokenVerifierOptions = {
   clock: Clock;
 };
 
-const acceptedIssuers = new Set(["accounts.google.com", "https://accounts.google.com"]);
+const canonicalGoogleIssuer = "https://accounts.google.com";
+const acceptedIssuers = new Set(["accounts.google.com", canonicalGoogleIssuer]);
 
-export class ServerGoogleIdTokenVerifier implements GoogleIdTokenVerifier {
+export class ServerGoogleIdTokenVerifier implements ProviderIdTokenVerifier {
+  readonly provider = "google";
+
   private readonly audience: string;
   private readonly verifier: GoogleTokenVerifierDependency;
   private readonly clock: Clock;
@@ -51,31 +55,33 @@ export class ServerGoogleIdTokenVerifier implements GoogleIdTokenVerifier {
     this.clock = options.clock;
   }
 
-  async verifyIdToken(idToken: string): Promise<GoogleIdTokenVerificationResult> {
+  async verifyIdToken(idToken: string): Promise<ProviderIdTokenVerificationResult> {
     let ticket: GoogleLoginTicket;
 
     try {
       ticket = await this.verifier.verifyIdToken({ idToken, audience: this.audience });
     } catch (error) {
-      return Result.err(mapGoogleVerifierError(error));
+      return { ok: false, reason: mapGoogleVerifierError(error) };
     }
 
     const payload = ticket.getPayload();
     if (!payload) {
-      return Result.err("invalid");
+      return { ok: false, reason: "invalid" };
     }
 
     const validatedPayload = validatePayload(payload, this.audience, this.clock.now());
     if (Result.isError(validatedPayload)) {
-      return Result.err(validatedPayload.error);
+      return { ok: false, reason: validatedPayload.error };
     }
 
-    return Result.ok({
+    return {
+      ok: true,
+      identity: {
+        provider: "google",
         issuer: validatedPayload.value.iss,
         subject: validatedPayload.value.sub,
-        audience: this.audience,
-        expiresAt: new Date(validatedPayload.value.exp * 1000),
-    });
+      },
+    };
   }
 }
 
@@ -94,12 +100,12 @@ function validatePayload(
   payload: GoogleIdTokenPayload,
   expectedAudience: string,
   now: Date,
-): ResultType<ValidGoogleIdTokenPayload, GoogleIdTokenVerificationFailureReason> {
+): ResultType<ValidGoogleIdTokenPayload, ProviderIdTokenVerificationFailureReason> {
   if (!payload.iss || !acceptedIssuers.has(payload.iss)) {
     return Result.err("unsupported_issuer");
   }
 
-  if (!audienceMatches(payload.aud, expectedAudience)) {
+  if (!audienceMatches(payload.aud, payload.azp, expectedAudience)) {
     return Result.err("unsupported_audience");
   }
 
@@ -111,18 +117,22 @@ function validatePayload(
     return Result.err("missing_subject");
   }
 
-  return Result.ok({ iss: payload.iss, exp: payload.exp, sub: payload.sub });
+  return Result.ok({ iss: canonicalGoogleIssuer, exp: payload.exp, sub: payload.sub });
 }
 
-function audienceMatches(audience: string | string[] | undefined, expectedAudience: string): boolean {
+function audienceMatches(
+  audience: string | string[] | undefined,
+  authorizedParty: string | undefined,
+  expectedAudience: string,
+): boolean {
   if (Array.isArray(audience)) {
-    return audience.includes(expectedAudience);
+    return audience.includes(expectedAudience) && (audience.length === 1 || authorizedParty === expectedAudience);
   }
 
   return audience === expectedAudience;
 }
 
-function mapGoogleVerifierError(error: unknown): GoogleIdTokenVerificationFailureReason {
+function mapGoogleVerifierError(error: unknown): ProviderIdTokenVerificationFailureReason {
   const message = error instanceof Error ? error.message.toLowerCase() : "";
 
   if (message.includes("expired")) {
