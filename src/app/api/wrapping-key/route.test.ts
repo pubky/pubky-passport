@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { Result } from "better-result";
 
 import { createWrappingKeyPostHandler } from "./handler";
-import type { RequestGoogleWrappingKeyController } from "../../../server/identity/requestGoogleWrappingKeyController";
+import type {
+  GoogleWrappingKeyRequest,
+  GoogleWrappingKeyRequestResult,
+} from "../../../server/wrapping-key/requestGoogleWrappingKey";
 
 describe("POST /api/wrapping-key", () => {
-  it("maps valid controller results to HTTP success", async () => {
-    const post = createWrappingKeyPostHandler(controller({ status: 200, body: { wrappingKey: "opaque-key" } }));
+  it("maps valid wrapping-key results to HTTP success", async () => {
+    const post = createWrappingKeyPostHandler(wrappingKeyRequest(Result.ok("opaque-key")));
 
     const response = await post(jsonRequest({ googleIdToken: "id-token" }));
 
@@ -16,7 +20,7 @@ describe("POST /api/wrapping-key", () => {
   });
 
   it("rejects malformed JSON with a safe 400", async () => {
-    const post = createWrappingKeyPostHandler(controller({ status: 200, body: { wrappingKey: "opaque-key" } }));
+    const post = createWrappingKeyPostHandler(wrappingKeyRequest(Result.ok("opaque-key")));
 
     const response = await post(
       new Request("http://localhost/api/wrapping-key", {
@@ -31,7 +35,7 @@ describe("POST /api/wrapping-key", () => {
   });
 
   it("requires an application/json content type", async () => {
-    const post = createWrappingKeyPostHandler(controller({ status: 200, body: { wrappingKey: "opaque-key" } }));
+    const post = createWrappingKeyPostHandler(wrappingKeyRequest(Result.ok("opaque-key")));
 
     const response = await post(new Request("http://localhost/api/wrapping-key", {
       method: "POST",
@@ -43,22 +47,24 @@ describe("POST /api/wrapping-key", () => {
     await expect(response.json()).resolves.toEqual({ error: { code: "invalid_request" } });
   });
 
-  it("rejects oversized request bodies before calling the controller", async () => {
-    let controllerCalls = 0;
-    const post = createWrappingKeyPostHandler(async () => {
-      controllerCalls += 1;
-      return { status: 200, body: { wrappingKey: "opaque-key" } };
+  it("rejects oversized request bodies before deriving a wrapping key", async () => {
+    let requestCalls = 0;
+    const post = createWrappingKeyPostHandler({
+      async requestWrappingKey() {
+        requestCalls += 1;
+        return Result.ok("opaque-key");
+      },
     });
 
     const response = await post(oversizedRequest("http://localhost/api/wrapping-key"));
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: { code: "invalid_request" } });
-    expect(controllerCalls).toBe(0);
+    expect(requestCalls).toBe(0);
   });
 
   it("rejects missing, non-string, and empty tokens", async () => {
-    const post = createWrappingKeyPostHandler(controller({ status: 200, body: { wrappingKey: "opaque-key" } }));
+    const post = createWrappingKeyPostHandler(wrappingKeyRequest(Result.ok("opaque-key")));
 
     await expect(post(jsonRequest({})).then(responseSummary)).resolves.toEqual({
       status: 400,
@@ -75,10 +81,12 @@ describe("POST /api/wrapping-key", () => {
   });
 
   it("rejects unknown fields so Drive and key material cannot be sent", async () => {
-    let controllerCalls = 0;
-    const post = createWrappingKeyPostHandler(async () => {
-      controllerCalls += 1;
-      return { status: 200, body: { wrappingKey: "opaque-key" } };
+    let requestCalls = 0;
+    const post = createWrappingKeyPostHandler({
+      async requestWrappingKey() {
+        requestCalls += 1;
+        return Result.ok("opaque-key");
+      },
     });
 
     const response = await post(
@@ -90,32 +98,49 @@ describe("POST /api/wrapping-key", () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: { code: "invalid_request" } });
-    expect(controllerCalls).toBe(0);
+    expect(requestCalls).toBe(0);
   });
 
-  it("maps expected controller failures to fixed HTTP statuses", async () => {
+  it("maps expected wrapping-key failures to fixed HTTP statuses", async () => {
     await expect(
-      createWrappingKeyPostHandler(controller({ status: 401, body: { error: { code: "invalid_google_id_token" } } }))(
+      createWrappingKeyPostHandler(wrappingKeyRequest(Result.err({ code: "invalid_google_id_token" })))(
         jsonRequest({ googleIdToken: "id-token" }),
       ).then(responseSummary),
     ).resolves.toEqual({ status: 401, body: { error: { code: "invalid_google_id_token" } } });
 
     await expect(
-      createWrappingKeyPostHandler(controller({ status: 429, body: { error: { code: "rate_limited" } } }))(
+      createWrappingKeyPostHandler(wrappingKeyRequest(Result.err({ code: "rate_limited" })))(
         jsonRequest({ googleIdToken: "id-token" }),
       ).then(responseSummary),
     ).resolves.toEqual({ status: 429, body: { error: { code: "rate_limited" } } });
 
     await expect(
-      createWrappingKeyPostHandler(controller({ status: 503, body: { error: { code: "dependency_unavailable" } } }))(
+      createWrappingKeyPostHandler(wrappingKeyRequest(Result.err({ code: "dependency_unavailable" })))(
         jsonRequest({ googleIdToken: "id-token" }),
       ).then(responseSummary),
     ).resolves.toEqual({ status: 503, body: { error: { code: "dependency_unavailable" } } });
   });
 
-  it("maps unexpected controller failures to safe 500 responses", async () => {
-    const post = createWrappingKeyPostHandler(async () => {
-      throw new Error("token must not leak");
+  it("reuses the default wrapping-key request flow", async () => {
+    let factoryCalls = 0;
+    const post = createWrappingKeyPostHandler(undefined, async () => {
+      factoryCalls += 1;
+      return wrappingKeyRequest(Result.ok("opaque-key"));
+    });
+
+    await Promise.all([
+      post(jsonRequest({ googleIdToken: "first-id-token" })),
+      post(jsonRequest({ googleIdToken: "second-id-token" })),
+    ]);
+
+    expect(factoryCalls).toBe(1);
+  });
+
+  it("maps unexpected wrapping-key failures to safe 500 responses", async () => {
+    const post = createWrappingKeyPostHandler({
+      async requestWrappingKey() {
+        throw new Error("token must not leak");
+      },
     });
 
     const response = await post(jsonRequest({ googleIdToken: "id-token" }));
@@ -127,8 +152,12 @@ describe("POST /api/wrapping-key", () => {
 
 });
 
-function controller(result: Awaited<ReturnType<RequestGoogleWrappingKeyController>>): RequestGoogleWrappingKeyController {
-  return async () => result;
+function wrappingKeyRequest(result: GoogleWrappingKeyRequestResult): GoogleWrappingKeyRequest {
+  return {
+    async requestWrappingKey() {
+      return result;
+    },
+  };
 }
 
 function jsonRequest(body: unknown): Request {

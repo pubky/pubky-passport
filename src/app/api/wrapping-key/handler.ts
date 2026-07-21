@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { Result } from "better-result";
 
-import type { RequestGoogleWrappingKeyController } from "../../../server/identity/requestGoogleWrappingKeyController";
+import type {
+  GoogleWrappingKeyRequest,
+  GoogleWrappingKeyRequestErrorCode,
+} from "../../../server/wrapping-key/requestGoogleWrappingKey";
 import { parseBoundedJsonStringField } from "../../../libs/security/parseBoundedJsonStringField";
 
 const responseHeaders = {
@@ -15,38 +18,59 @@ type WrappingKeyRouteBody =
   | { error: { code: string } };
 
 export function createWrappingKeyPostHandler(
-  controller?: RequestGoogleWrappingKeyController,
+  wrappingKeyRequest?: GoogleWrappingKeyRequest,
+  createDefaultRequestFactory: () => Promise<GoogleWrappingKeyRequest> = createDefaultRequest,
 ) {
+  let defaultRequest: Promise<GoogleWrappingKeyRequest> | undefined;
+
   return async function wrappingKeyPost(request: Request): Promise<NextResponse<WrappingKeyRouteBody>> {
-    const body = await parseRequestBody(request);
+    const body = await parseBoundedJsonStringField(request, "googleIdToken", maximumCredentialRequestBytes);
 
     if (Result.isError(body)) {
       return json({ error: { code: "invalid_request" } }, 400);
     }
 
     try {
-      const activeController = controller ?? await createDefaultController();
-      const result = await activeController({ googleIdToken: body.value });
+      const activeRequest = wrappingKeyRequest ?? await getDefaultRequest();
+      const result = await activeRequest.requestWrappingKey({ googleIdToken: body.value });
 
-      return json(result.body, result.status);
+      if (Result.isError(result)) {
+        return json({ error: { code: result.error.code } }, statusForError(result.error.code));
+      }
+
+      return json({ wrappingKey: result.value }, 200);
     } catch {
       return json({ error: { code: "internal_error" } }, 500);
     }
   };
+
+  function getDefaultRequest(): Promise<GoogleWrappingKeyRequest> {
+    defaultRequest ??= createDefaultRequestFactory();
+    return defaultRequest;
+  }
 }
 
-async function createDefaultController(): Promise<RequestGoogleWrappingKeyController> {
-  const { createWrappingKeyRequestController } = await import("../../../server/identity/wrappingKey");
+async function createDefaultRequest(): Promise<GoogleWrappingKeyRequest> {
+  const { createGoogleWrappingKeyRequest } = await import("../../../server/wrapping-key/requestGoogleWrappingKey");
 
-  return createWrappingKeyRequestController();
-}
-
-async function parseRequestBody(
-  request: Request,
-): ReturnType<typeof parseBoundedJsonStringField> {
-  return parseBoundedJsonStringField(request, "googleIdToken", maximumCredentialRequestBytes);
+  return createGoogleWrappingKeyRequest();
 }
 
 function json(body: WrappingKeyRouteBody, status: number): NextResponse<WrappingKeyRouteBody> {
   return NextResponse.json(body, { status, headers: responseHeaders });
+}
+
+function statusForError(code: GoogleWrappingKeyRequestErrorCode): number {
+  switch (code) {
+    case "invalid_google_id_token":
+    case "expired_google_id_token":
+    case "unsupported_google_issuer":
+    case "unsupported_google_audience":
+    case "missing_google_subject":
+      return 401;
+    case "rate_limited":
+      return 429;
+    case "dependency_unavailable":
+      return 503;
+  }
 }
