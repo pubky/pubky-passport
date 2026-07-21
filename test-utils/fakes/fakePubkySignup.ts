@@ -3,12 +3,12 @@ import { Result } from "better-result";
 import type {
   PubkyIdentityKeyHandle,
   PubkyIdentitySession,
-} from "@/core/identity/pubkyIdentity";
+} from "@/features/identity/pubkyIdentity";
 import type {
   PubkySignup,
   PubkySignupErrorCode,
   PubkySignupResult,
-} from "@/core/identity/dependencies/pubky";
+} from "@/browser/identity/dependencies/pubky";
 
 export type FakePubkySignupCall = {
   keyHandle: PubkyIdentityKeyHandle;

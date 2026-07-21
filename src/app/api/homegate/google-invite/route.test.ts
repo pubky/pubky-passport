@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createHomegateInvitePostHandler } from "./route";
-import type { RequestGoogleHomegateInviteController } from "../../../../core/homegate/requestGoogleHomegateInviteController";
+import type { RequestGoogleHomegateInviteController } from "../../../../server/homegate/requestGoogleHomegateInviteController";
 
 const invite = {
   signupCode: "signup-code",
@@ -33,6 +33,19 @@ describe("POST /api/homegate/google-invite", () => {
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: { code: "invalid_request" } });
     expect(response.headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  it("requires an application/json content type", async () => {
+    const post = createHomegateInvitePostHandler(controller({ status: 200, body: invite }));
+
+    const response = await post(new Request("http://localhost/api/homegate/google-invite", {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ googleIdToken: "id-token" }),
+    }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: { code: "invalid_request" } });
   });
 
   it("rejects oversized request bodies before calling the controller", async () => {

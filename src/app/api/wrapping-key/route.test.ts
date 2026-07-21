@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createWrappingKeyPostHandler } from "./handler";
-import { POST } from "./route";
-import type { RequestGoogleWrappingKeyController } from "../../../core/identity/requestGoogleWrappingKeyController";
+import type { RequestGoogleWrappingKeyController } from "../../../server/identity/requestGoogleWrappingKeyController";
 
 describe("POST /api/wrapping-key", () => {
   it("maps valid controller results to HTTP success", async () => {
@@ -29,6 +28,19 @@ describe("POST /api/wrapping-key", () => {
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: { code: "invalid_request" } });
     expect(response.headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  it("requires an application/json content type", async () => {
+    const post = createWrappingKeyPostHandler(controller({ status: 200, body: { wrappingKey: "opaque-key" } }));
+
+    const response = await post(new Request("http://localhost/api/wrapping-key", {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ googleIdToken: "id-token" }),
+    }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: { code: "invalid_request" } });
   });
 
   it("rejects oversized request bodies before calling the controller", async () => {
@@ -113,13 +125,6 @@ describe("POST /api/wrapping-key", () => {
     expect(response.headers.get("Cache-Control")).toBe("no-store");
   });
 
-  it("fails safely with 503 until concrete server adapters are wired", async () => {
-    const response = await POST(jsonRequest({ googleIdToken: "id-token" }));
-
-    expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toEqual({ error: { code: "dependency_unavailable" } });
-    expect(response.headers.get("Cache-Control")).toBe("no-store");
-  });
 });
 
 function controller(result: Awaited<ReturnType<RequestGoogleWrappingKeyController>>): RequestGoogleWrappingKeyController {

@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { Result, type Result as ResultType } from "better-result";
+import { Result } from "better-result";
 
-import type { RequestGoogleWrappingKeyController } from "../../../core/identity/requestGoogleWrappingKeyController";
-import { createWrappingKeyRequestController } from "../../../composition/server/wrappingKeyServerContainer";
-import { readBoundedText } from "../../../libs/security/boundedBody";
+import type { RequestGoogleWrappingKeyController } from "../../../server/identity/requestGoogleWrappingKeyController";
+import { parseBoundedJsonStringField } from "../../../libs/security/parseBoundedJsonStringField";
 
 const responseHeaders = {
   "Cache-Control": "no-store",
@@ -11,16 +10,12 @@ const responseHeaders = {
 };
 const maximumCredentialRequestBytes = 16 * 1024;
 
-type WrappingKeyRequestBody = {
-  googleIdToken: string;
-};
-
 type WrappingKeyRouteBody =
   | { wrappingKey: string }
   | { error: { code: string } };
 
 export function createWrappingKeyPostHandler(
-  controller: RequestGoogleWrappingKeyController = createWrappingKeyRequestController(),
+  controller?: RequestGoogleWrappingKeyController,
 ) {
   return async function wrappingKeyPost(request: Request): Promise<NextResponse<WrappingKeyRouteBody>> {
     const body = await parseRequestBody(request);
@@ -30,7 +25,8 @@ export function createWrappingKeyPostHandler(
     }
 
     try {
-      const result = await controller({ googleIdToken: body.value.googleIdToken });
+      const activeController = controller ?? await createDefaultController();
+      const result = await activeController({ googleIdToken: body.value });
 
       return json(result.body, result.status);
     } catch {
@@ -39,40 +35,16 @@ export function createWrappingKeyPostHandler(
   };
 }
 
-async function parseRequestBody(
-  request: Request,
-): Promise<ResultType<WrappingKeyRequestBody, "invalid_request">> {
-  const text = await readBoundedText(request, maximumCredentialRequestBytes);
-  if (text === null || text === "too_large") {
-    return Result.err("invalid_request");
-  }
+async function createDefaultController(): Promise<RequestGoogleWrappingKeyController> {
+  const { createWrappingKeyRequestController } = await import("../../../server/identity/wrappingKey");
 
-  let body: unknown;
-
-  try {
-    body = JSON.parse(text);
-  } catch {
-    return Result.err("invalid_request");
-  }
-
-  if (!isRecord(body)) {
-    return Result.err("invalid_request");
-  }
-
-  const keys = Object.keys(body);
-  if (keys.length !== 1 || keys[0] !== "googleIdToken") {
-    return Result.err("invalid_request");
-  }
-
-  if (typeof body.googleIdToken !== "string" || body.googleIdToken.trim().length === 0) {
-    return Result.err("invalid_request");
-  }
-
-  return Result.ok({ googleIdToken: body.googleIdToken });
+  return createWrappingKeyRequestController();
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+async function parseRequestBody(
+  request: Request,
+): ReturnType<typeof parseBoundedJsonStringField> {
+  return parseBoundedJsonStringField(request, "googleIdToken", maximumCredentialRequestBytes);
 }
 
 function json(body: WrappingKeyRouteBody, status: number): NextResponse<WrappingKeyRouteBody> {

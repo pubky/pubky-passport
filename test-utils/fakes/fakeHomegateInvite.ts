@@ -5,7 +5,7 @@ import type {
   GoogleHomegateInviteResult,
   HomeserverSignupInvitation,
   GoogleHomegateInviteClient,
-} from "@/core/homegate/dependencies";
+} from "@/server/homegate/dependencies";
 
 export type FakeHomegateInviteCall = {
   hasGoogleIdToken: boolean;

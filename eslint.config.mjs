@@ -23,7 +23,7 @@ const eslintConfig = defineConfig([
     }
   },
   {
-    files: ["src/core/**/*.{ts,tsx}"],
+    files: ["src/features/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -43,11 +43,11 @@ const eslintConfig = defineConfig([
                 "server-only",
                 "@/app/*",
                 "@/ui/*",
-                "@/adapters/*",
-                "@/composition/*",
+                "@/browser/*",
+                "@/server/*",
                 "@/libs/env/*"
               ],
-              message: "Core must stay framework- and runtime-independent. Use feature-local dependency contracts and adapters instead."
+              message: "Features must stay framework- and runtime-independent. Use browser or server runtime code instead."
             }
           ]
         }
@@ -56,19 +56,19 @@ const eslintConfig = defineConfig([
         "error",
         {
           name: "window",
-          message: "Core must not access browser globals. Use a port instead."
+          message: "Features must not access browser globals. Use a dependency contract instead."
         },
         {
           name: "document",
-          message: "Core must not access browser globals. Use a port instead."
+          message: "Features must not access browser globals. Use a dependency contract instead."
         },
         {
           name: "localStorage",
-          message: "Core must not access browser storage directly. Use a port instead."
+          message: "Features must not access browser storage directly. Use a dependency contract instead."
         },
         {
           name: "process",
-          message: "Core must not read runtime environment directly. Pass configuration through ports or inputs."
+          message: "Features must not read runtime environment directly. Pass configuration through contracts or inputs."
         }
       ]
     }

@@ -1,11 +1,11 @@
-import type { PubkyIdentityKeyHandle } from "@/core/identity/pubkyIdentity";
+import type { PubkyIdentityKeyHandle } from "@/features/identity/pubkyIdentity";
 import { Result } from "better-result";
 
 import type {
   PubkyDiscovery,
   PubkyDiscoveryErrorCode,
   PubkyDiscoveryResult,
-} from "@/core/identity/dependencies/pubky";
+} from "@/browser/identity/dependencies/pubky";
 
 export type FakePubkyDiscoveryCall = {
   keyHandle: PubkyIdentityKeyHandle;

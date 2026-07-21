@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
-import { pubkySecretKeyFormat, type PubkyIdentityKey } from "../../src/core/identity/pubkyIdentity";
+import { pubkySecretKeyFormat, type PubkyIdentityKey } from "../../src/features/identity/pubkyIdentity";
+import { parsePubkyAuthRequest } from "../../src/features/auth/parsePubkyAuthRequest";
 import { FakePubkyAuthApproval } from "./fakePubkyAuthApproval";
 import { FakePubkyDiscovery } from "./fakePubkyDiscovery";
 import { FakePubkyIdentityKeys } from "./fakePubkyIdentityKeys";
@@ -112,10 +113,10 @@ describe("Pubky identity fakes", () => {
   it("simulates auth approval without recording raw pubkyauth URLs", async () => {
     const key = await fakeKey();
     const authApproval = new FakePubkyAuthApproval();
-    const authRequest = {
-      sensitivePubkyAuthUrl:
-        "pubkyauth://signin?secret=SECRET-AUTH-REQUEST&relay=https://httprelay.pubky.app/inbox&caps=/pub/pubky.app/:rw",
-    };
+    const parsedAuthRequest = parsePubkyAuthRequest(encodeURIComponent(
+      "pubkyauth://signin?secret=SECRET-AUTH-REQUEST&relay=https://httprelay.pubky.app/inbox&caps=/pub/pubky.app/:rw",
+    ), { allowedRelayOrigins: ["https://httprelay.pubky.app"] });
+    const authRequest = expectOk(parsedAuthRequest).approval;
 
     await expectOk(authApproval.approveAuthRequest({ keyHandle: key.keyHandle, authRequest }));
 
