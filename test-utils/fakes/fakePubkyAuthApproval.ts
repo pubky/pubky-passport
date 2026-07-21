@@ -1,12 +1,11 @@
-import type { PubkyIdentityKeyHandle } from "@/core/domain/identity/pubkyIdentity";
+import type { PubkyIdentityKeyHandle } from "@/core/identity/pubkyIdentity";
 import { Result } from "better-result";
 
 import type {
-  ApprovePubkyAuthRequestInput,
   PubkyAuthApproval,
   PubkyAuthApprovalErrorCode,
   PubkyAuthApprovalResult,
-} from "@/core/ports/pubkyAuthApproval";
+} from "@/core/identity/dependencies/pubky";
 
 export type FakePubkyAuthApprovalCall = {
   keyHandle: PubkyIdentityKeyHandle;
@@ -18,7 +17,7 @@ export class FakePubkyAuthApproval implements PubkyAuthApproval {
 
   approvalFailure?: PubkyAuthApprovalErrorCode;
 
-  async approveAuthRequest(input: ApprovePubkyAuthRequestInput): Promise<PubkyAuthApprovalResult> {
+  async approveAuthRequest(input: { keyHandle: PubkyIdentityKeyHandle; authRequest: { sensitivePubkyAuthUrl: string } }): Promise<PubkyAuthApprovalResult> {
     const authRequestScheme = safeProtocol(input.authRequest.sensitivePubkyAuthUrl);
 
     this.calls.push({

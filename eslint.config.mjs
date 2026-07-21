@@ -43,10 +43,11 @@ const eslintConfig = defineConfig([
                 "server-only",
                 "@/app/*",
                 "@/ui/*",
-                "@/infrastructure/*",
+                "@/adapters/*",
+                "@/composition/*",
                 "@/libs/env/*"
               ],
-              message: "Core must stay framework-independent. Use ports and adapters instead."
+              message: "Core must stay framework- and runtime-independent. Use feature-local dependency contracts and adapters instead."
             }
           ]
         }
@@ -72,29 +73,6 @@ const eslintConfig = defineConfig([
       ]
     }
   },
-  {
-    files: ["src/core/domain/**/*.{ts,tsx}"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              group: [
-                "@/core/application/*",
-                "@/core/controllers/*",
-                "@/core/stores/*",
-                "@/infrastructure/*",
-                "@/app/*",
-                "@/ui/*"
-              ],
-              message: "Domain must not depend on outer layers."
-            }
-          ]
-        }
-      ]
-    }
-  }
 ]);
 
 export default eslintConfig;

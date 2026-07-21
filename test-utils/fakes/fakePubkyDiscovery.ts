@@ -1,12 +1,11 @@
-import type { PubkyIdentityKeyHandle } from "@/core/domain/identity/pubkyIdentity";
+import type { PubkyIdentityKeyHandle } from "@/core/identity/pubkyIdentity";
 import { Result } from "better-result";
 
 import type {
-  PublishPubkyHomeserverInput,
   PubkyDiscovery,
   PubkyDiscoveryErrorCode,
   PubkyDiscoveryResult,
-} from "@/core/ports/pubkyDiscovery";
+} from "@/core/identity/dependencies/pubky";
 
 export type FakePubkyDiscoveryCall = {
   keyHandle: PubkyIdentityKeyHandle;
@@ -20,7 +19,7 @@ export class FakePubkyDiscovery implements PubkyDiscovery {
   ifStaleFailure?: PubkyDiscoveryErrorCode;
   forceFailure?: PubkyDiscoveryErrorCode;
 
-  async publishHomeserverIfStale(input: PublishPubkyHomeserverInput): Promise<PubkyDiscoveryResult> {
+  async publishHomeserverIfStale(input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky?: string | null }): Promise<PubkyDiscoveryResult> {
     this.calls.push({
       keyHandle: input.keyHandle,
       mode: "if_stale",
@@ -34,7 +33,7 @@ export class FakePubkyDiscovery implements PubkyDiscovery {
     return Result.ok();
   }
 
-  async publishHomeserverForce(input: PublishPubkyHomeserverInput): Promise<PubkyDiscoveryResult> {
+  async publishHomeserverForce(input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky?: string | null }): Promise<PubkyDiscoveryResult> {
     this.calls.push({
       keyHandle: input.keyHandle,
       mode: "force",

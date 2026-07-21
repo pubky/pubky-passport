@@ -1,19 +1,16 @@
 import { Result } from "better-result";
 
-import { pubkySecretKeyBytes, pubkySecretKeyFormat, type PubkySecretKeyMaterial } from "../../src/core/domain/identity/pubkyIdentity";
+import { pubkySecretKeyBytes, pubkySecretKeyFormat, type PubkySecretKeyMaterial } from "../../src/core/identity/pubkyIdentity";
 import type {
   PubkyIdentityKey,
   PubkyIdentityKeyHandle,
   PubkyPublicIdentity,
-} from "@/core/domain/identity/pubkyIdentity";
+} from "@/core/identity/pubkyIdentity";
 import type {
-  ExportPubkySecretKeyInput,
-  GetPubkyPublicIdentityInput,
   PubkyIdentityKeys,
   PubkyIdentityKeysErrorCode,
   PubkyIdentityKeysResult,
-  RestorePubkyIdentityKeyInput,
-} from "@/core/ports/pubkyIdentityKeys";
+} from "@/core/identity/dependencies/pubky";
 
 export type FakePubkyIdentityKeysRestoreCall = {
   secretKeyByteLength: number;
@@ -28,7 +25,7 @@ export class FakePubkyIdentityKeys implements PubkyIdentityKeys {
   createCalls = 0;
   restoreCalls: FakePubkyIdentityKeysRestoreCall[] = [];
   exportCalls: FakePubkyIdentityKeysExportCall[] = [];
-  publicIdentityCalls: GetPubkyPublicIdentityInput[] = [];
+  publicIdentityCalls: Array<{ keyHandle: PubkyIdentityKeyHandle }> = [];
 
   createFailure?: PubkyIdentityKeysErrorCode;
   restoreFailure?: PubkyIdentityKeysErrorCode;
@@ -57,7 +54,7 @@ export class FakePubkyIdentityKeys implements PubkyIdentityKeys {
     return Result.ok(this.createKey(this.nextPublicIdentity));
   }
 
-  async restoreIdentityKey(input: RestorePubkyIdentityKeyInput): Promise<PubkyIdentityKeysResult<PubkyIdentityKey>> {
+  async restoreIdentityKey(input: { secretKey: PubkySecretKeyMaterial }): Promise<PubkyIdentityKeysResult<PubkyIdentityKey>> {
     this.restoreCalls.push({
       secretKeyByteLength: input.secretKey.bytes.byteLength,
       secretKeyFormat: input.secretKey.format,
@@ -71,7 +68,7 @@ export class FakePubkyIdentityKeys implements PubkyIdentityKeys {
   }
 
   async exportSecretKey(
-    input: ExportPubkySecretKeyInput,
+    input: { keyHandle: PubkyIdentityKeyHandle },
   ): Promise<PubkyIdentityKeysResult<PubkySecretKeyMaterial>> {
     this.exportCalls.push({
       keyHandle: input.keyHandle,
@@ -88,7 +85,7 @@ export class FakePubkyIdentityKeys implements PubkyIdentityKeys {
     return Result.ok(this.secretKey);
   }
 
-  async getPublicIdentity(input: GetPubkyPublicIdentityInput): Promise<PubkyIdentityKeysResult<PubkyPublicIdentity>> {
+  async getPublicIdentity(input: { keyHandle: PubkyIdentityKeyHandle }): Promise<PubkyIdentityKeysResult<PubkyPublicIdentity>> {
     this.publicIdentityCalls.push(input);
 
     if (this.publicIdentityFailure) {

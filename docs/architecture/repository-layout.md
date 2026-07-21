@@ -1,177 +1,68 @@
 # Repository Layout
 
-## Layout principle
-
-Passport uses a hybrid structure:
-
-```txt
-Layer-first for dependency and runtime boundaries.
-Feature-namespaced inside layers for ownership and navigation.
-```
-
-Do not use top-level feature modules that mix Next.js routes, React UI, application logic, domain rules, and infrastructure adapters. Passport's sensitive browser/server and key-custody boundaries are easier to review and enforce when the top-level layers remain separate.
-
-## Target layout after scaffold
+Passport uses a small layer-first layout with feature-local core code. It keeps
+Next.js, browser APIs, server APIs, and sensitive key-handling integrations visible
+without forcing every feature through a global technical-layer taxonomy.
 
 ```txt
 src/
-  app/
-    layout.tsx
-    globals.css
-
-    authorize/
-      page.tsx
-
-    dashboard/
-      page.tsx
-
-    settings/
-      page.tsx
-
-    api/
-      wrapping-key/
-        route.ts
-
-      homegate/
-        google-invite/
-          route.ts
-
-      health/
-        route.ts
-
+  app/                         Next.js routes and route handlers
+  ui/                          React components and feature UI
   core/
-    domain/
-      auth/
-      identity/
-      provider/
-      setup/
-
-    application/
-      authorize/
-      identity/
-      backup/
-      homegate/
-      setup/
-
-    ports/
-
-    controllers/
-      authorize/
-      identity/
-      settings/
-
-    pipes/
-      auth/
-      passport-file/
-
-    stores/
-
-    errors/
-
-  infrastructure/
-    browser/
-      crypto/
-      providers/
-        google/
-          drive/
-      pubky/
-      relay/
-
-    server/
-      providers/
-        google/
-      secrets/
-      homegate/
-      rate-limit/
-
-    composition/
-
-  ui/
-    components/
-
-    features/
-      authorize/
-      setup/
-      dashboard/
-      providers/
-        google/
-      settings/
-
-  libs/
-    env/
-      public.ts
-      public-parser.ts
-      server.ts
-      server-parser.ts
-      url.ts
-    logger/
-    security/
-
-test-utils/
-  fakes/
-  builders/
+    auth/                      Pure Pubky auth parsing and validation
+    homegate/                  Invitation flow and its dependency contract
+    identity/                  Identity models, flow rules, and dependencies
+    passport-file/             Encrypted envelope model and parser
+  adapters/
+    browser/                   Drive, WebCrypto, Pubky SDK, Passport API clients
+    server/                    Google verification, Homegate HTTP, secret derivation
+  composition/
+    browser/                   Browser feature factories
+    server/                    Server route factories
+  libs/                        Shared utilities and environment parsing
 ```
 
-## Feature placement examples
+## Core Features
 
-Authorization request parsing and review should be split by layer:
+Each core folder owns pure rules and the contracts for external behavior it needs.
+For example, `core/identity/dependencies/passportFile.ts` describes encrypted file
+storage and crypto without knowing Google Drive or WebCrypto. Concrete browser
+adapters and test fakes import that type.
 
-```txt
-src/app/authorize/
-src/ui/features/authorize/
-src/core/controllers/authorize/
-src/core/application/authorize/
-src/core/domain/auth/
-src/core/pipes/auth/
-src/infrastructure/browser/relay/
-```
+Do not add a global `core/ports` directory. If a type is needed by only one feature,
+place it in that feature's `dependencies/` folder or dependency module. If it is a
+pure model or parser, keep it with the feature directly.
 
-Google-backed identity setup and restore should be split by runtime and layer:
+## Adapters
 
-```txt
-src/ui/features/setup/
-src/core/application/setup/
-src/core/application/identity/
-src/core/domain/identity/
-src/core/domain/provider/
-src/core/ports/
-src/infrastructure/browser/crypto/
-src/infrastructure/browser/providers/google/
-src/infrastructure/browser/providers/google/drive/
-src/infrastructure/browser/pubky/
-src/infrastructure/server/providers/google/
-src/infrastructure/server/secrets/
-```
+`adapters/browser` and `adapters/server` are runtime boundaries, not generic
+utility folders.
 
-Provider-owned UI components, such as a future Google Identity Services button, live under `src/ui/features/providers/google/`. Setup and authorize screens stay provider-neutral and are driven by neutral state.
+- Browser production modules start with `import "client-only"`.
+- Server production modules start with `import "server-only"`.
+- Browser adapters never import server adapters or server env.
+- Server adapters never import browser adapters or public env.
+- Concrete Pubky SDK imports stay in `adapters/browser/pubky`.
 
-Homegate invite support should keep server-only network behavior out of core:
+## Composition
 
-```txt
-src/app/api/homegate/google-invite/
-src/core/application/homegate/
-src/core/ports/
-src/infrastructure/server/homegate/
-src/infrastructure/server/rate-limit/
-```
+Composition selects concrete adapters and passes them to a core feature flow. It is
+not an adapter and does not belong inside `adapters`.
 
-Feature names may differ across layers when the domain concept is broader than a route. For example, the `/authorize` route uses the `auth` domain and pipes because Pubky auth parsing is a protocol concern, not just a page concern.
+- `composition/browser` is client-only and creates browser feature object graphs.
+- `composition/server` is server-only and creates server route object graphs.
+- Composition should remain short, stateless, and free of business rules.
 
-## Important rule
+## App And UI
 
-Do not collapse this into feature folders that mix:
+`app/` translates Next.js transport concerns into feature calls. `ui/` renders safe
+state and imports browser composition only from client components. Neither layer may
+import server adapters, server composition, or server environment configuration into
+browser-capable code.
 
-- React UI.
-- Next route handlers.
-- Google SDK calls.
-- Pubky SDK calls.
-- Domain logic.
-- Crypto details.
+## Security Review
 
-Feature folders are acceptable inside a layer, such as `src/ui/features/authorize` or `src/core/application/authorize`.
-
-Application/domain boundaries stay separate.
-
-Matching feature names across layers do not weaken dependency direction. For example, `src/core/application/authorize` may depend on `src/core/domain/auth` and `src/core/ports`, but it must not import `src/ui/features/authorize`, `src/app/authorize`, or `src/infrastructure/browser/relay`.
-
-The most important boundaries are enforced in `eslint.config.mjs` and `test-utils/architecture/core-boundaries.test.ts`; update those checks when adding new protected layers or forbidden dependencies.
+The architecture test enforces core isolation, browser/server runtime separation,
+runtime marker imports, Pubky SDK confinement, and server environment import rules.
+It complements, but does not replace, review of the actual split-secret data flow:
+Drive data and wrapping material meet only in browser memory.

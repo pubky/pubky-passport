@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { createWrappingKeyPostHandler } from "./handler";
 import { POST } from "./route";
-import type { RequestGoogleWrappingKeyController } from "../../../core/controllers/identity/requestGoogleWrappingKeyController";
+import type { RequestGoogleWrappingKeyController } from "../../../core/identity/requestGoogleWrappingKeyController";
 
 describe("POST /api/wrapping-key", () => {
   it("maps valid controller results to HTTP success", async () => {

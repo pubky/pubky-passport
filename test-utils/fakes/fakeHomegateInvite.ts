@@ -2,17 +2,16 @@ import { Result } from "better-result";
 
 import type {
   GoogleHomegateInviteErrorCode,
-  GoogleHomegateInvitePort,
-  GoogleHomegateInviteRequest,
   GoogleHomegateInviteResult,
   HomeserverSignupInvitation,
-} from "@/core/ports/homegateInvite";
+  GoogleHomegateInviteClient,
+} from "@/core/homegate/dependencies";
 
 export type FakeHomegateInviteCall = {
   hasGoogleIdToken: boolean;
 };
 
-export class FakeHomegateInvite implements GoogleHomegateInvitePort {
+export class FakeHomegateInvite implements GoogleHomegateInviteClient {
   calls: FakeHomegateInviteCall[] = [];
   failure?: GoogleHomegateInviteErrorCode;
 
@@ -21,7 +20,7 @@ export class FakeHomegateInvite implements GoogleHomegateInvitePort {
     homeserverPubky: "fakehomeserver11111111111111111111111111111111111111111111",
   };
 
-  async requestInvite(input: GoogleHomegateInviteRequest): Promise<GoogleHomegateInviteResult> {
+  async requestInvite(input: { googleIdToken: string }): Promise<GoogleHomegateInviteResult> {
     this.calls.push({
       hasGoogleIdToken: input.googleIdToken.trim().length > 0,
     });

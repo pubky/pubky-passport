@@ -1,29 +1,19 @@
-# Core Layer Rules
+# Core
 
-`src/core` contains framework-independent business logic.
+`src/core` holds pure Passport rules, models, and feature flows. It is shared by
+browser and server code, so it imports neither runtime framework APIs nor concrete adapters.
 
-Core uses feature-namespaced folders inside architectural layers, for example:
+Organize by product concept, not by technical layer:
 
-- `src/core/controllers/authorize`
-- `src/core/application/authorize`
-- `src/core/domain/auth`
-- `src/core/pipes/auth`
+- `auth/` parses and validates Pubky authorization requests.
+- `identity/` owns identity models and wrapping-key flow rules.
+- `homegate/` owns Homegate invitation flow rules.
+- `passport-file/` owns the encrypted Passport file format and parser.
 
-These matching feature names are for ownership and navigation only. They do not allow core code to import UI, app routes, infrastructure adapters, environment modules, React, or Next.js.
+Each feature declares the external behavior it needs beside that feature, usually
+in a `dependencies/` folder. These are small TypeScript contracts, not a shared
+`ports` registry. Concrete adapters and test fakes import the owning feature's
+types; composition chooses the concrete implementation.
 
-Forbidden imports from `src/core`:
-
-- `next`
-- `next/*`
-- `react`
-- `react/*`
-- `@/app/*`
-- `@/ui/*`
-- `@/infrastructure/*`
-- `@/libs/env/*`
-- Google SDKs
-- Pubky SDK concrete adapters
-- Browser globals such as `window`, `document`, `localStorage`
-- Environment reads such as `process.env`
-
-Use ports from `src/core/ports` for all external dependencies.
+Core must not import Next.js, React, adapters, composition, environment modules,
+Google or Pubky SDKs, browser globals, or `process.env`.

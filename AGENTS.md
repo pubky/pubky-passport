@@ -80,25 +80,26 @@ Dependency direction must point inward:
 Next.js app routes / UI
   -> controllers
     -> application use cases
-      -> domain models + ports
-        -> infrastructure adapters
+      -> feature-local dependency contracts
+
+Next.js app routes / UI and composition select concrete adapters outside `src/core`.
 ```
 
 Hard rules:
 
-- `src/core/domain` must be pure TypeScript.
-- `src/core/application` may depend on domain and ports only.
+- `src/core` must be pure TypeScript organized by feature rather than technical layers.
 - `src/core` must not import Next.js.
 - `src/core` must not import React.
 - `src/core` must not import Google SDKs.
-- `src/core` must not import Pubky SDK concrete adapters.
+- `src/core` must not import concrete adapters or composition.
 - `src/core` must not import browser globals such as `window`, `document`, or `localStorage`.
 - `src/core` must not read `process.env` or import `src/libs/env`.
 - Public browser config belongs in `src/libs/env/public.ts` and may only expose `NEXT_PUBLIC_*` values; it may read `NODE_ENV` only to enforce development-localhost URL validation.
 - Server-only config belongs in `src/libs/env/server.ts`; it must start with `import "server-only"` and only be imported by server-only code.
 - Do not add a mixed `src/libs/env/index.ts` barrel that re-exports server config.
-- External systems must be represented as ports in `src/core/ports`.
-- Concrete implementations belong in `src/infrastructure`.
+- External behavior contracts live beside the core feature that consumes them.
+- Concrete implementations belong in `src/adapters/browser` or `src/adapters/server`.
+- Object graph factories belong in `src/composition/browser` or `src/composition/server`.
 - Next.js `app/` files must stay thin.
 
 ## Security rules

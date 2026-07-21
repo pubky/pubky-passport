@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { Result, type Result as ResultType } from "better-result";
 
-import type { RequestGoogleWrappingKeyController } from "../../../core/controllers/identity/requestGoogleWrappingKeyController";
-import { createWrappingKeyRequestController } from "../../../infrastructure/composition/wrappingKeyServerContainer";
+import type { RequestGoogleWrappingKeyController } from "../../../core/identity/requestGoogleWrappingKeyController";
+import { createWrappingKeyRequestController } from "../../../composition/server/wrappingKeyServerContainer";
 import { readBoundedText } from "../../../libs/security/boundedBody";
 
 const responseHeaders = {

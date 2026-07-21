@@ -3,14 +3,12 @@ import { Result } from "better-result";
 import type {
   PubkyIdentityKeyHandle,
   PubkyIdentitySession,
-} from "@/core/domain/identity/pubkyIdentity";
+} from "@/core/identity/pubkyIdentity";
 import type {
   PubkySignup,
   PubkySignupErrorCode,
   PubkySignupResult,
-  SigninWithPubkyInput,
-  SignupWithPubkyInput,
-} from "@/core/ports/pubkySignup";
+} from "@/core/identity/dependencies/pubky";
 
 export type FakePubkySignupCall = {
   keyHandle: PubkyIdentityKeyHandle;
@@ -39,7 +37,7 @@ export class FakePubkySignup implements PubkySignup {
     sessionSnapshot: "fake-session-snapshot",
   };
 
-  async signup(input: SignupWithPubkyInput): Promise<PubkySignupResult<PubkyIdentitySession>> {
+  async signup(input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky: string; signupCode?: string | null }): Promise<PubkySignupResult<PubkyIdentitySession>> {
     this.signupCalls.push({
       keyHandle: input.keyHandle,
       homeserverPubky: input.homeserverPubky,
@@ -53,7 +51,7 @@ export class FakePubkySignup implements PubkySignup {
     return Result.ok(this.session);
   }
 
-  async signin(input: SigninWithPubkyInput): Promise<PubkySignupResult<PubkyIdentitySession>> {
+  async signin(input: { keyHandle: PubkyIdentityKeyHandle; waitForDiscovery?: boolean }): Promise<PubkySignupResult<PubkyIdentitySession>> {
     this.signinCalls.push({
       keyHandle: input.keyHandle,
       waitForDiscovery: input.waitForDiscovery === true,

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Result, type Result as ResultType } from "better-result";
 
-import type { RequestGoogleHomegateInviteController } from "../../../../core/controllers/homegate/requestGoogleHomegateInviteController";
+import type { RequestGoogleHomegateInviteController } from "../../../../core/homegate/requestGoogleHomegateInviteController";
 import { readBoundedText } from "../../../../libs/security/boundedBody";
 
 export const runtime = "nodejs";
@@ -45,7 +45,7 @@ export function createHomegateInvitePostHandler(
 
 async function createDefaultController(): Promise<RequestGoogleHomegateInviteController> {
   const { createHomegateInviteRequestController } = await import(
-    "../../../../infrastructure/composition/homegateServerContainer"
+    "../../../../composition/server/homegateServerContainer"
   );
 
   return createHomegateInviteRequestController();

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createHomegateInvitePostHandler } from "./route";
-import type { RequestGoogleHomegateInviteController } from "../../../../core/controllers/homegate/requestGoogleHomegateInviteController";
+import type { RequestGoogleHomegateInviteController } from "../../../../core/homegate/requestGoogleHomegateInviteController";
 
 const invite = {
   signupCode: "signup-code",

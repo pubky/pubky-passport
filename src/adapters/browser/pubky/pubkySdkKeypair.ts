@@ -1,0 +1,166 @@
+import "client-only";
+
+import { Keypair } from "@synonymdev/pubky";
+import { Result, type Result as ResultType } from "better-result";
+
+import {
+  pubkySecretKeyBytes,
+  pubkySecretKeyFormat,
+  type PubkyPublicIdentity,
+} from "../../../core/identity/pubkyIdentity";
+
+const sdkKeypairs = new WeakMap<PubkyIdentityKeypair, Keypair>();
+
+export type PubkySecretKey = {
+  bytes: Uint8Array;
+  format: typeof pubkySecretKeyFormat;
+};
+
+export type PubkyIdentityKeyErrorCode =
+  | "invalid_secret_key"
+  | "key_unavailable"
+  | "keypair_creation_failed"
+  | "public_identity_failed"
+  | "secret_export_failed"
+  | "secret_restore_failed";
+
+export type PubkyIdentityKeyError = {
+  code: PubkyIdentityKeyErrorCode;
+  message: string;
+};
+
+export type PubkyIdentityKeyResult<T> = ResultType<T, PubkyIdentityKeyError>;
+
+export type PubkyRestoreKeypairInput = {
+  secretKeyBytes: Uint8Array;
+};
+
+export class PubkyIdentityKeypair {
+  private constructor(keypair: Keypair) {
+    sdkKeypairs.set(this, keypair);
+  }
+
+  static create(): PubkyIdentityKeyResult<PubkyIdentityKeypair> {
+    try {
+      return Result.ok(new PubkyIdentityKeypair(Keypair.random()));
+    } catch {
+      return failure("keypair_creation_failed", "Pubky identity keypair creation failed.");
+    }
+  }
+
+  static restoreFromSecretKey(input: PubkyRestoreKeypairInput): PubkyIdentityKeyResult<PubkyIdentityKeypair> {
+    try {
+      const validationError = validateSecretKeyInput(input);
+
+      if (validationError) {
+        return Result.err(validationError);
+      }
+
+      return Result.ok(new PubkyIdentityKeypair(Keypair.fromSecret(input.secretKeyBytes)));
+    } catch {
+      return failure("secret_restore_failed", "Pubky identity secret key restoration failed.");
+    } finally {
+      // `fromSecret` has consumed the bytes; no caller-owned plaintext remains after restoration fails or succeeds.
+      input.secretKeyBytes.fill(0);
+    }
+  }
+
+  publicIdentity(): PubkyIdentityKeyResult<PubkyPublicIdentity> {
+    try {
+      const publicKey = sdkKeypairFor(this).publicKey;
+
+      try {
+        return Result.ok({
+          publicKeyZ32: publicKey.z32(),
+          publicKeyDisplay: publicKey.toString(),
+        });
+      } finally {
+        publicKey.free();
+      }
+    } catch {
+      return failure("public_identity_failed", "Pubky public identity derivation failed.");
+    }
+  }
+
+  exportSecretKey(): PubkyIdentityKeyResult<PubkySecretKey> {
+    try {
+      return Result.ok({
+          bytes: sdkKeypairFor(this).secret(),
+          format: pubkySecretKeyFormat,
+      });
+    } catch {
+      return failure("secret_export_failed", "Pubky identity secret key export failed.");
+    }
+  }
+
+  dispose(): void {
+    const keypair = sdkKeypairs.get(this);
+
+    if (!keypair) {
+      return;
+    }
+
+    keypair.free();
+    sdkKeypairs.delete(this);
+  }
+}
+
+export function withPubkySdkKeypair<T>(
+  keypair: PubkyIdentityKeypair,
+  handleKeypair: (keypair: Keypair) => T,
+): PubkyIdentityKeyResult<T> {
+  const sdkKeypair = sdkKeypairs.get(keypair);
+
+  if (!sdkKeypair) {
+    return failure("key_unavailable", "Pubky identity keypair is not available.");
+  }
+
+  return Result.ok(handleKeypair(sdkKeypair));
+}
+
+/**
+ * Direct bridge to the SDK Keypair API. BrowserPubkyIdentityKeys owns the
+ * opaque handles and uses this adapter for concrete keypair operations.
+ */
+export class PubkySdkKeypairAdapter {
+  createKeypair(): PubkyIdentityKeyResult<PubkyIdentityKeypair> {
+    return PubkyIdentityKeypair.create();
+  }
+
+  restoreKeypair(input: PubkyRestoreKeypairInput): PubkyIdentityKeyResult<PubkyIdentityKeypair> {
+    return PubkyIdentityKeypair.restoreFromSecretKey(input);
+  }
+
+  getPublicIdentity(keypair: PubkyIdentityKeypair): PubkyIdentityKeyResult<PubkyPublicIdentity> {
+    return keypair.publicIdentity();
+  }
+
+  exportSecretKey(keypair: PubkyIdentityKeypair): PubkyIdentityKeyResult<PubkySecretKey> {
+    return keypair.exportSecretKey();
+  }
+}
+
+function validateSecretKeyInput(input: PubkyRestoreKeypairInput): PubkyIdentityKeyError | undefined {
+  if (!(input.secretKeyBytes instanceof Uint8Array) || input.secretKeyBytes.byteLength !== pubkySecretKeyBytes) {
+    return {
+      code: "invalid_secret_key",
+      message: "Pubky identity secret key bytes are missing or invalid.",
+    };
+  }
+
+  return undefined;
+}
+
+function sdkKeypairFor(keypair: PubkyIdentityKeypair): Keypair {
+  const sdkKeypair = sdkKeypairs.get(keypair);
+
+  if (!sdkKeypair) {
+    throw new Error("Pubky identity keypair is not available.");
+  }
+
+  return sdkKeypair;
+}
+
+function failure<T>(code: PubkyIdentityKeyErrorCode, message: string): PubkyIdentityKeyResult<T> {
+  return Result.err({ code, message });
+}

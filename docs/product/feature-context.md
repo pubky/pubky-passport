@@ -70,7 +70,7 @@ Purpose:
 - Return a Passport-server-derived encryption/wrapping secret only after valid Google ID-token verification.
 - Keep the server from ever seeing Google Drive access tokens, encrypted Drive files, decrypted Pubky key material, or browser-local key material.
 
-Application logic must depend on ports. Concrete token verification, secret derivation, and rate limiting belong in server infrastructure adapters.
+Identity flow code depends on feature-local contracts. Concrete token verification, secret derivation, and rate limiting belong in server adapters.
 
 Current server derivation contract:
 
@@ -122,7 +122,7 @@ Confirmed v1 envelope parser contract:
 
 Confirmed browser crypto contract for encrypted Drive storage:
 
-- Concrete browser crypto implementation lives in `src/infrastructure/browser/crypto` behind the core `PassportFileCrypto` port.
+- Concrete browser crypto implementation lives in `src/adapters/browser/crypto` behind the identity feature's `PassportFileCrypto` contract.
 - The core crypto port encrypts and decrypts 32-byte Pubky secret key material only; the encrypted Drive storage contract does not include SDK metadata.
 - The adapter accepts the wrapping key as the 32-byte unpadded base64url string returned by the Passport wrapping-key API.
 - Browser crypto decodes wrapping material in browser memory only and derives purpose-specific material with WebCrypto HKDF-SHA256 instead of using the raw wrapping bytes directly as an operational key. The AES-GCM key is derived as a non-extractable WebCrypto `CryptoKey` via `deriveKey` rather than materializing raw AES key bytes in JavaScript.
@@ -136,7 +136,7 @@ Confirmed browser crypto contract for encrypted Drive storage:
 
 Confirmed Google Drive appDataFolder repository contract:
 
-- Concrete browser Drive storage lives in `src/infrastructure/browser/providers/google/drive` behind the core `PassportFileRepository` port.
+- Concrete browser Drive storage lives in `src/adapters/browser/google/drive` behind the identity feature's `PassportFileStore` contract.
 - The repository reads and writes encrypted `PassportFileEnvelopeV1` values only. It does not decrypt ciphertext, derive wrapping material, restore Pubky keys, request Homegate invites, import Pubky SDK code, or own Google login and consent UI.
 - The repository accepts an injected browser access-token provider and injected `fetch`; Drive access tokens do not appear in core method inputs and are not persisted by the repository.
 - Drive lookup uses Google Drive API v3 with `spaces=appDataFolder`, exact `passport.json` name matching, `trashed=false`, and the narrow Drive app data scope expected from future Google consent code.
@@ -151,7 +151,7 @@ Confirmed Google Drive appDataFolder repository contract:
 Confirmed Pubky SDK key-operation APIs:
 
 - Package: `@synonymdev/pubky` version `0.9.3`.
-- Concrete SDK imports are limited to `src/infrastructure/browser/pubky` and test-only verification files.
+- Concrete SDK imports are limited to `src/adapters/browser/pubky` and test-only verification files.
 - `Keypair.random()` creates a new Pubky identity keypair.
 - `keypair.publicKey.z32()` returns the z-base-32 public key representation for transport/storage identifiers.
 - `keypair.publicKey.toString()` returns the display representation, formatted as `pubky<z32>`.
@@ -257,7 +257,7 @@ Required boundaries:
 - Homegate verifies the token server-side before issuing an invite.
 - Provider-specific Homegate flows own credential validation, request payloads, endpoints, and error mappings. Their successful result is the neutral `HomeserverSignupInvitation` `{ signupCode, homeserverPubky }`; a future setup use case consumes that invitation and never a provider credential.
 - Homegate rate-limits by verified Google identity derived from `iss || "\n" || sub`, not email. Passport maps Homegate's weekly and annual limit responses and does not duplicate this persistent invite quota in the initial adapter PR.
-- Keep concrete Homegate network calls in infrastructure.
+- Keep concrete Homegate network calls in server adapters.
 - The concrete Passport server adapter reads only `HOMEGATE_URL` for this flow and calls Homegate server-to-server. It does not require or use `PUBKY_HOMESERVER`.
 - Unit tests inject `fetch` and do not hit live Homegate.
 

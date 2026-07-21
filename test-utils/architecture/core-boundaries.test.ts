@@ -6,9 +6,10 @@ import { describe, expect, it } from "vitest";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const srcRoot = join(repoRoot, "src");
 const coreRoot = join(srcRoot, "core");
-const browserInfrastructureRoot = join(srcRoot, "infrastructure", "browser");
-const serverInfrastructureRoot = join(srcRoot, "infrastructure", "server");
-const compositionRoot = join(srcRoot, "infrastructure", "composition");
+const browserAdaptersRoot = join(srcRoot, "adapters", "browser");
+const serverAdaptersRoot = join(srcRoot, "adapters", "server");
+const browserCompositionRoot = join(srcRoot, "composition", "browser");
+const serverCompositionRoot = join(srcRoot, "composition", "server");
 const appRoot = join(srcRoot, "app");
 const uiRoot = join(srcRoot, "ui");
 const libsEnvRoot = join(srcRoot, "libs", "env");
@@ -17,7 +18,7 @@ const publicEnvModule = join(libsEnvRoot, "public");
 
 const checkedExtensions = new Set([".ts", ".tsx"]);
 
-const forbiddenAliasImports = [
+const forbiddenCoreImports = [
   "@synonymdev/pubky",
   "google-auth-library",
   "google-auth-library/",
@@ -28,16 +29,19 @@ const forbiddenAliasImports = [
   "react",
   "react/",
   "server-only",
+  "client-only",
   "@/app/",
   "@/ui/",
-  "@/infrastructure/",
+  "@/adapters/",
+  "@/composition/",
   "@/libs/env/",
 ];
 
-const forbiddenRelativeTargets = [
+const forbiddenCoreTargets = [
   join(srcRoot, "app"),
   join(srcRoot, "ui"),
-  join(srcRoot, "infrastructure"),
+  join(srcRoot, "adapters"),
+  join(srcRoot, "composition"),
   join(srcRoot, "libs", "env"),
 ];
 
@@ -48,91 +52,97 @@ const forbiddenRuntimePatterns = [
   { pattern: /\blocalStorage\b/, label: "localStorage" },
 ];
 
-describe("core architecture boundaries", () => {
-  it("keeps src/core independent from framework, UI, infrastructure, env, and browser globals", () => {
-    const violations = coreSourceFiles().flatMap((filePath) => inspectCoreFile(filePath));
-
-    expect(violations).toEqual([]);
+describe("runtime architecture boundaries", () => {
+  it("keeps core independent from framework, runtime adapters, composition, env, and browser globals", () => {
+    expect(coreSourceFiles().flatMap(inspectCoreFile)).toEqual([]);
   });
 
-  it("keeps concrete Pubky SDK imports confined to browser Pubky infrastructure", () => {
+  it("confines concrete Pubky SDK imports to browser Pubky adapters", () => {
     const violations = sourceFiles(srcRoot)
-      .filter((filePath) => importsPubkySdk(filePath))
-      .filter((filePath) => !isSameOrInside(filePath, join(srcRoot, "infrastructure", "browser", "pubky")))
-      .map((filePath) => `${relative(repoRoot, filePath)} imports @synonymdev/pubky outside browser Pubky infrastructure`);
+      .filter(importsPubkySdk)
+      .filter((filePath) => !isSameOrInside(filePath, join(browserAdaptersRoot, "pubky")))
+      .map((filePath) => `${relative(repoRoot, filePath)} imports @synonymdev/pubky outside browser Pubky adapters`);
 
     expect(violations).toEqual([]);
   });
 
-  it("forbids concrete Google SDK and server-only imports from core", () => {
-    expect(isForbiddenAliasImport("google-auth-library")).toBe(true);
-    expect(isForbiddenAliasImport("google-auth-library/build/src/auth/oauth2client")).toBe(true);
-    expect(isForbiddenAliasImport("googleapis")).toBe(true);
-    expect(isForbiddenAliasImport("googleapis/build/src/apis/drive")).toBe(true);
-    expect(isForbiddenAliasImport("server-only")).toBe(true);
+  it("keeps browser adapters out of server code", () => {
+    expect(runtimeIsolationViolations(serverAdaptersRoot, [
+      { targetPath: browserAdaptersRoot, label: "browser adapters" },
+      { targetPath: publicEnvModule, label: "public env module" },
+    ], ["client-only"])).toEqual([]);
   });
 
-  it("keeps browser infrastructure out of server-only code", () => {
-    const violations = productionSourceFiles(serverInfrastructureRoot).flatMap((filePath) =>
-      inspectForbiddenImports(filePath, {
-        forbiddenModuleSpecifiers: ["client-only"],
-        forbiddenTargets: [
-          { targetPath: browserInfrastructureRoot, label: "browser infrastructure" },
-          { targetPath: publicEnvModule, label: "public env module" },
-        ],
-      }),
-    );
+  it("keeps server adapters out of browser code", () => {
+    expect(runtimeIsolationViolations(browserAdaptersRoot, [
+      { targetPath: serverAdaptersRoot, label: "server adapters" },
+      { targetPath: serverEnvModule, label: "server env module" },
+    ], ["server-only"])).toEqual([]);
+  });
+
+  it("keeps browser and server composition isolated", () => {
+    const violations = [
+      ...runtimeIsolationViolations(serverCompositionRoot, [
+        { targetPath: browserAdaptersRoot, label: "browser adapters" },
+        { targetPath: browserCompositionRoot, label: "browser composition" },
+        { targetPath: publicEnvModule, label: "public env module" },
+      ], ["client-only"]),
+      ...runtimeIsolationViolations(browserCompositionRoot, [
+        { targetPath: serverAdaptersRoot, label: "server adapters" },
+        { targetPath: serverCompositionRoot, label: "server composition" },
+        { targetPath: serverEnvModule, label: "server env module" },
+      ], ["server-only"]),
+    ];
 
     expect(violations).toEqual([]);
   });
 
-  it("keeps server infrastructure out of browser-only code", () => {
-    const violations = productionSourceFiles(browserInfrastructureRoot).flatMap((filePath) =>
-      inspectForbiddenImports(filePath, {
-        forbiddenModuleSpecifiers: ["server-only"],
-        forbiddenTargets: [
-          { targetPath: serverInfrastructureRoot, label: "server infrastructure" },
-          { targetPath: serverEnvModule, label: "server env module" },
-        ],
-      }),
-    );
+  it("marks adapters and composition with their runtime", () => {
+    const violations = [
+      ...missingRuntimeMarkers(serverAdaptersRoot, "server-only"),
+      ...missingRuntimeMarkers(browserAdaptersRoot, "client-only"),
+      ...missingRuntimeMarkers(serverCompositionRoot, "server-only"),
+      ...missingRuntimeMarkers(browserCompositionRoot, "client-only"),
+    ];
 
     expect(violations).toEqual([]);
   });
 
   it("keeps server-only dependencies out of UI code", () => {
-    const violations = productionSourceFiles(uiRoot).flatMap((filePath) =>
-      inspectForbiddenImports(filePath, {
+    const violations = productionSourceFiles(uiRoot).flatMap((filePath) => inspectForbiddenImports(filePath, {
+      forbiddenModuleSpecifiers: ["server-only"],
+      forbiddenTargets: [
+        { targetPath: serverAdaptersRoot, label: "server adapters" },
+        { targetPath: serverCompositionRoot, label: "server composition" },
+        { targetPath: serverEnvModule, label: "server env module" },
+      ],
+    }));
+
+    expect(violations).toEqual([]);
+  });
+
+  it("keeps server-only dependencies out of client app modules", () => {
+    const violations = productionSourceFiles(appRoot)
+      .filter(isClientModule)
+      .flatMap((filePath) => inspectForbiddenImports(filePath, {
         forbiddenModuleSpecifiers: ["server-only"],
         forbiddenTargets: [
-          { targetPath: serverInfrastructureRoot, label: "server infrastructure" },
+          { targetPath: serverAdaptersRoot, label: "server adapters" },
+          { targetPath: serverCompositionRoot, label: "server composition" },
           { targetPath: serverEnvModule, label: "server env module" },
         ],
-      }),
-    );
+      }));
 
     expect(violations).toEqual([]);
   });
 
-  it("limits server env imports to server-capable layers", () => {
-    const allowedImporters = [appRoot, serverInfrastructureRoot, compositionRoot, libsEnvRoot];
+  it("limits server env imports to server-capable code", () => {
+    const allowedImporters = [appRoot, serverAdaptersRoot, serverCompositionRoot, libsEnvRoot];
     const violations = productionSourceFiles(srcRoot)
-      .filter((filePath) => !allowedImporters.some((allowedRoot) => isSameOrInside(filePath, allowedRoot)))
-      .flatMap((filePath) =>
-        inspectForbiddenImports(filePath, {
-          forbiddenTargets: [{ targetPath: serverEnvModule, label: "server env module" }],
-        }),
-      );
-
-    expect(violations).toEqual([]);
-  });
-
-  it("marks runtime-pinned infrastructure adapters explicitly", () => {
-    const violations = [
-      ...missingRuntimeMarkers(serverInfrastructureRoot, "server-only"),
-      ...missingRuntimeMarkers(browserInfrastructureRoot, "client-only"),
-      ...missingRuntimeMarkers(serverCompositionFiles(), "server-only"),
-    ];
+      .filter((filePath) => !allowedImporters.some((root) => isSameOrInside(filePath, root)))
+      .flatMap((filePath) => inspectForbiddenImports(filePath, {
+        forbiddenTargets: [{ targetPath: serverEnvModule, label: "server env module" }],
+      }));
 
     expect(violations).toEqual([]);
   });
@@ -144,7 +154,7 @@ function inspectCoreFile(filePath: string): string[] {
   const violations: string[] = [];
 
   for (const specifier of importSpecifiers(source)) {
-    if (isForbiddenAliasImport(specifier) || isForbiddenRelativeImport(filePath, specifier)) {
+    if (isForbiddenCoreImport(specifier) || isForbiddenRelativeImport(filePath, specifier)) {
       violations.push(`${relativeFilePath} imports forbidden dependency "${specifier}"`);
     }
   }
@@ -158,6 +168,17 @@ function inspectCoreFile(filePath: string): string[] {
   return violations;
 }
 
+function runtimeIsolationViolations(
+  rootPath: string,
+  forbiddenTargets: Array<{ targetPath: string; label: string }>,
+  forbiddenModuleSpecifiers: string[],
+): string[] {
+  return productionSourceFiles(rootPath).flatMap((filePath) => inspectForbiddenImports(filePath, {
+    forbiddenModuleSpecifiers,
+    forbiddenTargets,
+  }));
+}
+
 function coreSourceFiles(): string[] {
   return sourceFiles(coreRoot);
 }
@@ -168,6 +189,10 @@ function sourceFiles(rootPath: string): string[] {
 
 function productionSourceFiles(rootPath: string): string[] {
   return sourceFiles(rootPath).filter((filePath) => !filePath.endsWith(".test.ts") && !filePath.endsWith(".test.tsx"));
+}
+
+function isClientModule(filePath: string): boolean {
+  return /^\s*["']use client["'];/.test(readFileSync(filePath, "utf8"));
 }
 
 function inspectForbiddenImports(
@@ -200,25 +225,8 @@ function inspectForbiddenImports(
   return violations;
 }
 
-function serverCompositionFiles(): string[] {
-  return productionSourceFiles(compositionRoot).filter((filePath) =>
-    importSpecifiers(readFileSync(filePath, "utf8")).some((specifier) => {
-      const targetPath = importTargetPath(filePath, specifier);
-      return Boolean(
-        targetPath &&
-          (isSameOrInside(targetPath, serverInfrastructureRoot) || isSameOrInside(targetPath, serverEnvModule)),
-      );
-    }),
-  );
-}
-
-function missingRuntimeMarkers(
-  rootPathOrFiles: string | string[],
-  runtimeMarker: "client-only" | "server-only",
-): string[] {
-  const files = typeof rootPathOrFiles === "string" ? productionSourceFiles(rootPathOrFiles) : rootPathOrFiles;
-
-  return files
+function missingRuntimeMarkers(rootPath: string, runtimeMarker: "client-only" | "server-only"): string[] {
+  return productionSourceFiles(rootPath)
     .filter((filePath) => !importSpecifiers(readFileSync(filePath, "utf8")).includes(runtimeMarker))
     .map((filePath) => `${relative(repoRoot, filePath)} is missing runtime marker import "${runtimeMarker}"`);
 }
@@ -232,23 +240,12 @@ function walk(directoryPath: string): string[] {
       return walk(entryPath);
     }
 
-    if (stats.isFile()) {
-      return [entryPath];
-    }
-
-    return [];
+    return stats.isFile() ? [entryPath] : [];
   });
 }
 
 function importSpecifiers(source: string): string[] {
   const specifiers: string[] = [];
-  // This test is the authoritative core boundary gate because ESLint cannot
-  // resolve every relative import escape. The regex intentionally covers ESM
-  // import/export and dynamic import only; require() is not scanned. Runtime
-  // checks below strip comments but not string literals, so literal-only
-  // mentions of globals can still produce false positives. If core grows beyond
-  // this heuristic, prefer a parser-backed rule such as eslint-plugin-boundaries
-  // or import/no-restricted-paths.
   const importPattern = /(?:import|export)\s+(?:type\s+)?(?:[^"']*?\s+from\s+)?["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']\s*\)/g;
 
   for (const match of source.matchAll(importPattern)) {
@@ -261,14 +258,8 @@ function importSpecifiers(source: string): string[] {
   return specifiers;
 }
 
-function isForbiddenAliasImport(specifier: string): boolean {
-  return forbiddenAliasImports.some((forbidden) => {
-    if (forbidden.endsWith("/")) {
-      return specifier.startsWith(forbidden);
-    }
-
-    return specifier === forbidden;
-  });
+function isForbiddenCoreImport(specifier: string): boolean {
+  return forbiddenCoreImports.some((forbidden) => forbidden.endsWith("/") ? specifier.startsWith(forbidden) : specifier === forbidden);
 }
 
 function importsPubkySdk(filePath: string): boolean {
@@ -280,32 +271,21 @@ function importTargetPath(fromFilePath: string, specifier: string): string | nul
     return normalize(join(srcRoot, specifier.slice(2)));
   }
 
-  if (specifier.startsWith(".")) {
-    return normalize(resolve(dirname(fromFilePath), specifier));
-  }
-
-  return null;
+  return specifier.startsWith(".") ? normalize(resolve(dirname(fromFilePath), specifier)) : null;
 }
 
 function isForbiddenRelativeImport(fromFilePath: string, specifier: string): boolean {
-  if (!specifier.startsWith(".")) {
-    return false;
-  }
-
-  const targetPath = normalize(resolve(dirname(fromFilePath), specifier));
-
-  return forbiddenRelativeTargets.some((forbiddenTarget) => isSameOrInside(targetPath, forbiddenTarget));
+  const targetPath = importTargetPath(fromFilePath, specifier);
+  return targetPath !== null && forbiddenCoreTargets.some((target) => isSameOrInside(targetPath, target));
 }
 
 function isSameOrInside(candidatePath: string, parentPath: string): boolean {
   const relativePath = relative(parentPath, candidatePath);
-
   return relativePath === "" || (!relativePath.startsWith("..") && !relativePath.startsWith(sep));
 }
 
 function extension(filePath: string): string {
   const dotIndex = filePath.lastIndexOf(".");
-
   return dotIndex === -1 ? "" : filePath.slice(dotIndex);
 }
 
