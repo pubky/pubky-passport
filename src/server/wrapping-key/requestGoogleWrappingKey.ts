@@ -9,8 +9,14 @@ import {
   type GoogleIdTokenVerifier,
   type VerifiedGoogleIdentity,
 } from "./googleIdTokenVerifier";
-import { createWrappingKeyMaterial, type WrappingKeyMaterial } from "./wrappingKeyDeriver";
-import { createInMemoryWrappingKeyRateLimiter, type WrappingKeyRateLimiter } from "./wrappingKeyRateLimiter";
+import {
+  createGoogleWrappingKeyMaterial,
+  type GoogleWrappingKeyMaterial,
+} from "./googleWrappingKeyDeriver";
+import {
+  createInMemoryGoogleWrappingKeyRateLimiter,
+  type GoogleWrappingKeyRateLimiter,
+} from "./googleWrappingKeyRateLimiter";
 
 export type GoogleWrappingKeyRequestErrorCode =
   | "invalid_google_id_token"
@@ -29,8 +35,8 @@ export type GoogleWrappingKeyRequest = {
 
 export type CreateGoogleWrappingKeyRequestInput = {
   googleIdTokenVerifier: GoogleIdTokenVerifier;
-  material: WrappingKeyMaterial;
-  rateLimiter: WrappingKeyRateLimiter;
+  material: GoogleWrappingKeyMaterial;
+  rateLimiter: GoogleWrappingKeyRateLimiter;
   now?: () => Date;
 };
 
@@ -66,8 +72,8 @@ function createConfiguredDependencies(): CreateGoogleWrappingKeyRequestInput {
 
   return {
     googleIdTokenVerifier: createGoogleIdTokenVerifier({ audience: env.GOOGLE_CLIENT_ID }),
-    material: createWrappingKeyMaterial({ serverSecretBase64: env.PASSPORT_SERVER_SECRET_BASE64 }),
-    rateLimiter: createInMemoryWrappingKeyRateLimiter({ serverSecretBase64: env.PASSPORT_SERVER_SECRET_BASE64 }),
+    material: createGoogleWrappingKeyMaterial({ serverSecretBase64: env.PASSPORT_SERVER_SECRET_BASE64 }),
+    rateLimiter: createInMemoryGoogleWrappingKeyRateLimiter({ serverSecretBase64: env.PASSPORT_SERVER_SECRET_BASE64 }),
   };
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createInMemoryWrappingKeyRateLimiter } from "./wrappingKeyRateLimiter";
+import { createInMemoryGoogleWrappingKeyRateLimiter } from "./googleWrappingKeyRateLimiter";
 
 const serverSecretBase64 = Buffer.alloc(32, 7).toString("base64");
 const identity = {
@@ -10,7 +10,7 @@ const identity = {
 
 describe("wrapping-key rate limit", () => {
   it("limits verified identities within a rolling window", async () => {
-    const limiter = createInMemoryWrappingKeyRateLimiter({
+    const limiter = createInMemoryGoogleWrappingKeyRateLimiter({
       serverSecretBase64,
       maximumRequests: 2,
       windowMilliseconds: 60_000,
@@ -23,7 +23,7 @@ describe("wrapping-key rate limit", () => {
   });
 
   it("limits identities independently and expires old requests", async () => {
-    const limiter = createInMemoryWrappingKeyRateLimiter({
+    const limiter = createInMemoryGoogleWrappingKeyRateLimiter({
       serverSecretBase64,
       maximumRequests: 1,
       windowMilliseconds: 60_000,

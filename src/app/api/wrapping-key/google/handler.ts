@@ -4,8 +4,8 @@ import { Result } from "better-result";
 import type {
   GoogleWrappingKeyRequest,
   GoogleWrappingKeyRequestErrorCode,
-} from "../../../server/wrapping-key/requestGoogleWrappingKey";
-import { parseBoundedJsonStringField } from "../../../libs/security/parseBoundedJsonStringField";
+} from "../../../../server/wrapping-key/requestGoogleWrappingKey";
+import { parseBoundedJsonStringField } from "../../../../libs/security/parseBoundedJsonStringField";
 
 const responseHeaders = {
   "Cache-Control": "no-store",
@@ -13,17 +13,17 @@ const responseHeaders = {
 };
 const maximumCredentialRequestBytes = 16 * 1024;
 
-type WrappingKeyRouteBody =
+type GoogleWrappingKeyRouteBody =
   | { wrappingKey: string }
   | { error: { code: string } };
 
-export function createWrappingKeyPostHandler(
+export function createGoogleWrappingKeyPostHandler(
   wrappingKeyRequest?: GoogleWrappingKeyRequest,
   createDefaultRequestFactory: () => Promise<GoogleWrappingKeyRequest> = createDefaultRequest,
 ) {
   let defaultRequest: Promise<GoogleWrappingKeyRequest> | undefined;
 
-  return async function wrappingKeyPost(request: Request): Promise<NextResponse<WrappingKeyRouteBody>> {
+  return async function googleWrappingKeyPost(request: Request): Promise<NextResponse<GoogleWrappingKeyRouteBody>> {
     const body = await parseBoundedJsonStringField(request, "googleIdToken", maximumCredentialRequestBytes);
 
     if (Result.isError(body)) {
@@ -51,12 +51,12 @@ export function createWrappingKeyPostHandler(
 }
 
 async function createDefaultRequest(): Promise<GoogleWrappingKeyRequest> {
-  const { createGoogleWrappingKeyRequest } = await import("../../../server/wrapping-key/requestGoogleWrappingKey");
+  const { createGoogleWrappingKeyRequest } = await import("../../../../server/wrapping-key/requestGoogleWrappingKey");
 
   return createGoogleWrappingKeyRequest();
 }
 
-function json(body: WrappingKeyRouteBody, status: number): NextResponse<WrappingKeyRouteBody> {
+function json(body: GoogleWrappingKeyRouteBody, status: number): NextResponse<GoogleWrappingKeyRouteBody> {
   return NextResponse.json(body, { status, headers: responseHeaders });
 }
 

@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
 
-import { createWrappingKeyPostHandler } from "./handler";
+import { createGoogleWrappingKeyPostHandler } from "./handler";
 import type {
   GoogleWrappingKeyRequest,
   GoogleWrappingKeyRequestResult,
-} from "../../../server/wrapping-key/requestGoogleWrappingKey";
+} from "../../../../server/wrapping-key/requestGoogleWrappingKey";
 
-describe("POST /api/wrapping-key", () => {
+describe("POST /api/wrapping-key/google", () => {
   it("maps valid wrapping-key results to HTTP success", async () => {
-    const post = createWrappingKeyPostHandler(wrappingKeyRequest(Result.ok("opaque-key")));
+    const post = createGoogleWrappingKeyPostHandler(wrappingKeyRequest(Result.ok("opaque-key")));
 
     const response = await post(jsonRequest({ googleIdToken: "id-token" }));
 
@@ -20,10 +20,10 @@ describe("POST /api/wrapping-key", () => {
   });
 
   it("rejects malformed JSON with a safe 400", async () => {
-    const post = createWrappingKeyPostHandler(wrappingKeyRequest(Result.ok("opaque-key")));
+    const post = createGoogleWrappingKeyPostHandler(wrappingKeyRequest(Result.ok("opaque-key")));
 
     const response = await post(
-      new Request("http://localhost/api/wrapping-key", {
+        new Request("http://localhost/api/wrapping-key/google", {
         method: "POST",
         body: "not json",
       }),
@@ -35,9 +35,9 @@ describe("POST /api/wrapping-key", () => {
   });
 
   it("requires an application/json content type", async () => {
-    const post = createWrappingKeyPostHandler(wrappingKeyRequest(Result.ok("opaque-key")));
+    const post = createGoogleWrappingKeyPostHandler(wrappingKeyRequest(Result.ok("opaque-key")));
 
-    const response = await post(new Request("http://localhost/api/wrapping-key", {
+    const response = await post(new Request("http://localhost/api/wrapping-key/google", {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ googleIdToken: "id-token" }),
@@ -49,14 +49,14 @@ describe("POST /api/wrapping-key", () => {
 
   it("rejects oversized request bodies before deriving a wrapping key", async () => {
     let requestCalls = 0;
-    const post = createWrappingKeyPostHandler({
+    const post = createGoogleWrappingKeyPostHandler({
       async requestWrappingKey() {
         requestCalls += 1;
         return Result.ok("opaque-key");
       },
     });
 
-    const response = await post(oversizedRequest("http://localhost/api/wrapping-key"));
+    const response = await post(oversizedRequest("http://localhost/api/wrapping-key/google"));
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: { code: "invalid_request" } });
@@ -64,7 +64,7 @@ describe("POST /api/wrapping-key", () => {
   });
 
   it("rejects missing, non-string, and empty tokens", async () => {
-    const post = createWrappingKeyPostHandler(wrappingKeyRequest(Result.ok("opaque-key")));
+    const post = createGoogleWrappingKeyPostHandler(wrappingKeyRequest(Result.ok("opaque-key")));
 
     await expect(post(jsonRequest({})).then(responseSummary)).resolves.toEqual({
       status: 400,
@@ -82,7 +82,7 @@ describe("POST /api/wrapping-key", () => {
 
   it("rejects unknown fields so Drive and key material cannot be sent", async () => {
     let requestCalls = 0;
-    const post = createWrappingKeyPostHandler({
+    const post = createGoogleWrappingKeyPostHandler({
       async requestWrappingKey() {
         requestCalls += 1;
         return Result.ok("opaque-key");
@@ -103,19 +103,19 @@ describe("POST /api/wrapping-key", () => {
 
   it("maps expected wrapping-key failures to fixed HTTP statuses", async () => {
     await expect(
-      createWrappingKeyPostHandler(wrappingKeyRequest(Result.err({ code: "invalid_google_id_token" })))(
+      createGoogleWrappingKeyPostHandler(wrappingKeyRequest(Result.err({ code: "invalid_google_id_token" })))(
         jsonRequest({ googleIdToken: "id-token" }),
       ).then(responseSummary),
     ).resolves.toEqual({ status: 401, body: { error: { code: "invalid_google_id_token" } } });
 
     await expect(
-      createWrappingKeyPostHandler(wrappingKeyRequest(Result.err({ code: "rate_limited" })))(
+      createGoogleWrappingKeyPostHandler(wrappingKeyRequest(Result.err({ code: "rate_limited" })))(
         jsonRequest({ googleIdToken: "id-token" }),
       ).then(responseSummary),
     ).resolves.toEqual({ status: 429, body: { error: { code: "rate_limited" } } });
 
     await expect(
-      createWrappingKeyPostHandler(wrappingKeyRequest(Result.err({ code: "dependency_unavailable" })))(
+      createGoogleWrappingKeyPostHandler(wrappingKeyRequest(Result.err({ code: "dependency_unavailable" })))(
         jsonRequest({ googleIdToken: "id-token" }),
       ).then(responseSummary),
     ).resolves.toEqual({ status: 503, body: { error: { code: "dependency_unavailable" } } });
@@ -123,7 +123,7 @@ describe("POST /api/wrapping-key", () => {
 
   it("reuses the default wrapping-key request flow", async () => {
     let factoryCalls = 0;
-    const post = createWrappingKeyPostHandler(undefined, async () => {
+    const post = createGoogleWrappingKeyPostHandler(undefined, async () => {
       factoryCalls += 1;
       return wrappingKeyRequest(Result.ok("opaque-key"));
     });
@@ -137,7 +137,7 @@ describe("POST /api/wrapping-key", () => {
   });
 
   it("maps unexpected wrapping-key failures to safe 500 responses", async () => {
-    const post = createWrappingKeyPostHandler({
+    const post = createGoogleWrappingKeyPostHandler({
       async requestWrappingKey() {
         throw new Error("token must not leak");
       },
@@ -161,7 +161,7 @@ function wrappingKeyRequest(result: GoogleWrappingKeyRequestResult): GoogleWrapp
 }
 
 function jsonRequest(body: unknown): Request {
-  return new Request("http://localhost/api/wrapping-key", {
+  return new Request("http://localhost/api/wrapping-key/google", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

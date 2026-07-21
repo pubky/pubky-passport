@@ -2,14 +2,14 @@ import "server-only";
 
 import { createHmac } from "node:crypto";
 
-import { decodeServerSecret } from "./wrappingKeyDeriver";
+import { decodeServerSecret } from "./googleWrappingKeyDeriver";
 import type { VerifiedGoogleIdentity } from "./googleIdTokenVerifier";
 
-export type WrappingKeyRateLimiter = {
+export type GoogleWrappingKeyRateLimiter = {
   checkRequest(input: { identity: VerifiedGoogleIdentity; at: Date }): Promise<{ allowed: true } | { allowed: false }>;
 };
 
-export type CreateInMemoryWrappingKeyRateLimiterInput = {
+export type CreateInMemoryGoogleWrappingKeyRateLimiterInput = {
   serverSecretBase64: string;
   maximumRequests?: number;
   windowMilliseconds?: number;
@@ -19,9 +19,9 @@ const defaultMaximumRequests = 10;
 const defaultWindowMilliseconds = 60_000;
 
 /** Process-local MVP limiter; multi-instance deployments need shared storage. */
-export function createInMemoryWrappingKeyRateLimiter(
-  input: CreateInMemoryWrappingKeyRateLimiterInput,
-): WrappingKeyRateLimiter {
+export function createInMemoryGoogleWrappingKeyRateLimiter(
+  input: CreateInMemoryGoogleWrappingKeyRateLimiterInput,
+): GoogleWrappingKeyRateLimiter {
   const identityPepper = decodeServerSecret(input.serverSecretBase64);
   const maximumRequests = input.maximumRequests ?? defaultMaximumRequests;
   const windowMilliseconds = input.windowMilliseconds ?? defaultWindowMilliseconds;

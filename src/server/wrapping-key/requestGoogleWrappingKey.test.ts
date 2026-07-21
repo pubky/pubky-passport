@@ -4,8 +4,8 @@ import { Result } from "better-result";
 import { expectAsyncResultError } from "../../../test-utils/resultAssertions";
 import { createGoogleWrappingKeyRequest } from "./requestGoogleWrappingKey";
 import type { GoogleIdTokenVerifier } from "./googleIdTokenVerifier";
-import type { WrappingKeyMaterial } from "./wrappingKeyDeriver";
-import type { WrappingKeyRateLimiter } from "./wrappingKeyRateLimiter";
+import type { GoogleWrappingKeyMaterial } from "./googleWrappingKeyDeriver";
+import type { GoogleWrappingKeyRateLimiter } from "./googleWrappingKeyRateLimiter";
 
 const identity = {
   issuer: "https://accounts.google.com" as const,
@@ -95,12 +95,12 @@ function verifier(
 
 function rateLimiter(
   check: (input: { identity: { issuer: "https://accounts.google.com"; subject: string }; at: Date }) => { allowed: true } | { allowed: false },
-): WrappingKeyRateLimiter {
+): GoogleWrappingKeyRateLimiter {
   return { async checkRequest(input) { return check(input); } };
 }
 
 function material(
   derive: (verifiedIdentity: { issuer: "https://accounts.google.com"; subject: string }) => { wrappingKey: string },
-): WrappingKeyMaterial {
+): GoogleWrappingKeyMaterial {
   return { async deriveWrappingKey(verifiedIdentity) { return derive(verifiedIdentity); } };
 }

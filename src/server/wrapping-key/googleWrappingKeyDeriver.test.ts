@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createWrappingKeyMaterial } from "./wrappingKeyDeriver";
+import { createGoogleWrappingKeyMaterial } from "./googleWrappingKeyDeriver";
 
 const serverSecretBase64 = Buffer.from(
   "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
@@ -14,7 +14,7 @@ const identity = {
 
 describe("wrapping-key material", () => {
   it("preserves the frozen Google HKDF fixture", async () => {
-    const material = createWrappingKeyMaterial({ serverSecretBase64 });
+    const material = createGoogleWrappingKeyMaterial({ serverSecretBase64 });
 
     await expect(material.deriveWrappingKey(identity)).resolves.toEqual({
       wrappingKey: "0Rvmd96LjmVRcQ7WjvQBSUKwlI1YHO_4xmqDELjAGOE",
@@ -22,7 +22,7 @@ describe("wrapping-key material", () => {
   });
 
   it("derives distinct material for distinct subjects", async () => {
-    const material = createWrappingKeyMaterial({ serverSecretBase64 });
+    const material = createGoogleWrappingKeyMaterial({ serverSecretBase64 });
 
     const first = await material.deriveWrappingKey(identity);
     const second = await material.deriveWrappingKey({ ...identity, subject: "other-google-subject" });
@@ -31,10 +31,10 @@ describe("wrapping-key material", () => {
   });
 
   it("rejects invalid server secret configuration", () => {
-    expect(() => createWrappingKeyMaterial({ serverSecretBase64: "not-base64!" })).toThrow(
+    expect(() => createGoogleWrappingKeyMaterial({ serverSecretBase64: "not-base64!" })).toThrow(
       "Invalid wrapping key configuration.",
     );
-    expect(() => createWrappingKeyMaterial({ serverSecretBase64: Buffer.alloc(31).toString("base64") })).toThrow(
+    expect(() => createGoogleWrappingKeyMaterial({ serverSecretBase64: Buffer.alloc(31).toString("base64") })).toThrow(
       "Invalid wrapping key configuration.",
     );
   });
