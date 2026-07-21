@@ -1,3 +1,9 @@
+// TODO: Check for gaps. Heavily AI generated. 
+
+// Should be reviewed for correctness but is defensive behavior 
+// and should not cause any security issues if it is not perfect. 
+// It is better to redact too much than too little.
+
 const AUTHORIZATION_URL_REDACTION = "[REDACTED_AUTHORIZATION_URL]";
 const URL_PARAMS_REDACTION = "[REDACTED_URL_PARAMS]";
 const TOKEN_REDACTION = "[REDACTED_TOKEN]";
