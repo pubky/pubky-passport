@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createHomegateInvitePostHandler } from "./route";
+import { createHomegateInvitePostHandler } from "./handler";
 import type { RequestGoogleHomegateInviteController } from "../../../../server/homegate/requestGoogleHomegateInviteController";
 
 const invite = {

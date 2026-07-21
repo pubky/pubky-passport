@@ -1,9 +1,7 @@
 # Shared Libraries
 
-This folder contains small utilities that are shared across features without
-becoming feature orchestration. It includes configuration parsing, bounded body
-reads, redaction, and the application logger.
+Small shared utilities: environment parsing, bounded request bodies, redaction, and
+logging. They provide mechanics, not product flows or integrations.
 
-Do not put product flows, Google/Drive/Pubky integrations, or Next.js route logic
-here. Server configuration stays under `env/server.ts`; browser-capable code may
-use only `env/public.ts` and must never import server configuration.
+`env/server.ts` is server-only; browser code may use only `env/public.ts`. Logger
+output is redacted, but callers must still use safe event names and error codes.

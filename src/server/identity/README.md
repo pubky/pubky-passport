@@ -1,17 +1,8 @@
 # Server Identity
 
-This folder contains server-owned identity operations: provider token verification,
-wrapping-key derivation, rate limiting, and the wrapping-key route flow. It may
-import pure provider identity models from `src/features`, but never imports
-`src/browser`.
+Verifies Google ID tokens, derives wrapping material from the canonical issuer and
+subject, and rate-limits requests before returning a key to the browser.
 
-The server derives wrapping material only from a verified canonical issuer and
-subject plus its own secret. It must never receive Drive access tokens, encrypted
-Drive files, decrypted Pubky key material, or browser-local wrapping material.
-
-Provider-specific server integration belongs in a nested provider folder such as
-`google/`, `apple/`, or `proton/` when its verification contract is confirmed.
-
-The MVP limiter is process-local and keys its short-lived counters with an HMAC of
-the verified issuer and subject. Production multi-instance deployments must replace
-it with a shared implementation before relying on its quota across instances.
+`google` performs verification; `secrets` owns HKDF and server-secret decoding. The
+MVP limiter is process-local and stores HMACed identities only; multi-instance
+deployments need a shared limiter. This code never receives Drive data or Pubky keys.
