@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { PUBKY_SDK_VERSION, PubkyIdentityKeyAdapter, withPubkySdkKeypair } from "./pubkyIdentityKeyAdapter";
-
-const recoveryPassphrase = "test-domain-separated-passphrase";
+import { pubkySecretKeyBytes, pubkySecretKeyFormat } from "../../../core/domain/identity/pubkyIdentity";
+import { PubkyIdentityKeyAdapter, withPubkySdkKeypair } from "./pubkyIdentityKeyAdapter";
 
 describe("PubkyIdentityKeyAdapter", () => {
   it("creates a keypair and derives public identity display values", () => {
@@ -11,7 +10,7 @@ describe("PubkyIdentityKeyAdapter", () => {
     const keypair = expectOk(created);
 
     try {
-      const publicIdentity = adapter.getPublicIdentity(keypair);
+      const publicIdentity = expectOk(adapter.getPublicIdentity(keypair));
 
       expect(publicIdentity.publicKeyZ32).toMatch(/^[13456789abcdefghijkmnopqrstuwxyz]+$/);
       expect(publicIdentity.publicKeyZ32.length).toBeGreaterThan(40);
@@ -21,26 +20,64 @@ describe("PubkyIdentityKeyAdapter", () => {
     }
   });
 
-  it("exports and restores SDK recovery file bytes", () => {
+  it.each([
+    ["accessing the SDK public key", () => {
+      throw new Error("public key unavailable");
+    }],
+    ["encoding the public key", () => ({
+      z32: () => {
+        throw new Error("z32 encoding failed");
+      },
+      toString: () => "pubkytest",
+      free: (): void => undefined,
+    })],
+    ["formatting the public key", () => ({
+      z32: () => "test",
+      toString: () => {
+        throw new Error("display formatting failed");
+      },
+      free: (): void => undefined,
+    })],
+  ])("maps SDK failures while %s", (_scenario, publicKey) => {
+    const adapter = new PubkyIdentityKeyAdapter();
+    const keypair = expectOk(adapter.createKeypair());
+    const sdkKeypair = expectOk(withPubkySdkKeypair(keypair, (value) => value));
+
+    try {
+      Object.defineProperty(sdkKeypair, "publicKey", {
+        configurable: true,
+        get: publicKey,
+      });
+
+      expect(adapter.getPublicIdentity(keypair)).toEqual({
+        ok: false,
+        error: {
+          code: "public_identity_failed",
+          message: "Pubky public identity derivation failed.",
+        },
+      });
+    } finally {
+      keypair.dispose();
+    }
+  });
+
+  it("exports and restores 32-byte SDK secret key bytes", () => {
     const adapter = new PubkyIdentityKeyAdapter();
     const createdKeypair = expectOk(adapter.createKeypair());
 
     try {
-      const originalPublicIdentity = adapter.getPublicIdentity(createdKeypair);
-      const recoveryFile = expectOk(adapter.exportRecoveryFile(createdKeypair, { passphrase: recoveryPassphrase }));
+      const originalPublicIdentity = expectOk(adapter.getPublicIdentity(createdKeypair));
+      const secretKey = expectOk(adapter.exportSecretKey(createdKeypair));
 
-      expect(recoveryFile.format).toBe("pubky-recovery-file");
-      expect(recoveryFile.sdkPackage).toBe("@synonymdev/pubky");
-      expect(recoveryFile.sdkVersion).toBe(PUBKY_SDK_VERSION);
-      expect(recoveryFile.bytes).toBeInstanceOf(Uint8Array);
-      expect(recoveryFile.bytes.byteLength).toBeGreaterThan(0);
+      expect(secretKey.format).toBe(pubkySecretKeyFormat);
+      expect(secretKey.bytes).toBeInstanceOf(Uint8Array);
+      expect(secretKey.bytes.byteLength).toBe(pubkySecretKeyBytes);
 
-      const restoredKeypair = expectOk(
-        adapter.restoreKeypair({ recoveryFileBytes: recoveryFile.bytes, passphrase: recoveryPassphrase }),
-      );
+      const restoredKeypair = expectOk(adapter.restoreKeypair({ secretKeyBytes: secretKey.bytes }));
 
       try {
-        expect(adapter.getPublicIdentity(restoredKeypair)).toEqual(originalPublicIdentity);
+        expect(secretKey.bytes).toEqual(new Uint8Array(pubkySecretKeyBytes));
+        expect(expectOk(adapter.getPublicIdentity(restoredKeypair))).toEqual(originalPublicIdentity);
       } finally {
         restoredKeypair.dispose();
       }
@@ -49,61 +86,19 @@ describe("PubkyIdentityKeyAdapter", () => {
     }
   });
 
-  it("rejects missing recovery passphrases without calling the SDK", () => {
+  it("rejects invalid secret key bytes before SDK restoration", () => {
     const adapter = new PubkyIdentityKeyAdapter();
-    const createdKeypair = expectOk(adapter.createKeypair());
-
-    try {
-      const exported = adapter.exportRecoveryFile(createdKeypair, { passphrase: "" });
-      const restored = adapter.restoreKeypair({ recoveryFileBytes: new Uint8Array([1]), passphrase: "" });
-
-      expect(exported).toEqual({
-        ok: false,
-        error: {
-          code: "invalid_passphrase",
-          message: "Pubky identity recovery passphrase is missing.",
-        },
-      });
-      expect(restored).toEqual(exported);
-    } finally {
-      createdKeypair.dispose();
-    }
-  });
-
-  it("rejects empty recovery file bytes before SDK restoration", () => {
-    const adapter = new PubkyIdentityKeyAdapter();
-    const restored = adapter.restoreKeypair({ recoveryFileBytes: new Uint8Array(), passphrase: recoveryPassphrase });
+    const secretKeyBytes = new Uint8Array(pubkySecretKeyBytes - 1).fill(7);
+    const restored = adapter.restoreKeypair({ secretKeyBytes });
 
     expect(restored).toEqual({
       ok: false,
       error: {
-        code: "invalid_recovery_file",
-        message: "Pubky identity recovery file bytes are missing or invalid.",
+        code: "invalid_secret_key",
+        message: "Pubky identity secret key bytes are missing or invalid.",
       },
     });
-  });
-
-  it("maps wrong recovery passphrases to safe restore errors", () => {
-    const adapter = new PubkyIdentityKeyAdapter();
-    const createdKeypair = expectOk(adapter.createKeypair());
-
-    try {
-      const recoveryFile = expectOk(adapter.exportRecoveryFile(createdKeypair, { passphrase: recoveryPassphrase }));
-      const restored = adapter.restoreKeypair({
-        recoveryFileBytes: recoveryFile.bytes,
-        passphrase: "wrong-passphrase",
-      });
-
-      expect(restored).toEqual({
-        ok: false,
-        error: {
-          code: "recovery_restore_failed",
-          message: "Pubky identity recovery file restoration failed.",
-        },
-      });
-    } finally {
-      createdKeypair.dispose();
-    }
+    expect(secretKeyBytes).toEqual(new Uint8Array(pubkySecretKeyBytes - 1));
   });
 
   it("maps disposed keypairs to key unavailable", () => {

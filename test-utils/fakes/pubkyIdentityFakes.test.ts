@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { PubkyIdentityKey } from "@/core/domain/identity/pubkyIdentity";
+import { pubkySecretKeyFormat, type PubkyIdentityKey } from "../../src/core/domain/identity/pubkyIdentity";
 import { FakePubkyAuthApproval } from "./fakePubkyAuthApproval";
 import { FakePubkyDiscovery } from "./fakePubkyDiscovery";
 import { FakePubkyIdentityKeys } from "./fakePubkyIdentityKeys";
@@ -11,24 +11,19 @@ describe("Pubky identity fakes", () => {
     const keys = new FakePubkyIdentityKeys();
     const created = expectOk(await keys.createIdentityKey());
     const publicIdentity = expectOk(await keys.getPublicIdentity({ keyHandle: created.keyHandle }));
-    const recoveryFile = expectOk(
-      await keys.exportRecoveryFile({ keyHandle: created.keyHandle, recoveryPassphrase: "derived-passphrase" }),
-    );
-    const restored = expectOk(
-      await keys.restoreIdentityKey({ recoveryFile, recoveryPassphrase: "derived-passphrase" }),
-    );
+    const secretKey = expectOk(await keys.exportSecretKey({ keyHandle: created.keyHandle }));
+    const restored = expectOk(await keys.restoreIdentityKey({ secretKey }));
 
     expect(created.publicIdentity).toEqual(keys.nextPublicIdentity);
     expect(publicIdentity).toEqual(keys.nextPublicIdentity);
     expect(restored.publicIdentity).toEqual(keys.nextPublicIdentity);
-    expect(recoveryFile).toEqual(keys.recoveryFile);
+    expect(secretKey).toEqual(keys.secretKey);
     expect(keys.createCalls).toBe(1);
-    expect(keys.exportCalls).toEqual([{ keyHandle: created.keyHandle, hasRecoveryPassphrase: true }]);
+    expect(keys.exportCalls).toEqual([{ keyHandle: created.keyHandle }]);
     expect(keys.restoreCalls).toEqual([
       {
-        recoveryFileByteLength: keys.recoveryFile.bytes.byteLength,
-        recoveryFileFormat: "pubky-recovery-file",
-        hasRecoveryPassphrase: true,
+        secretKeyByteLength: keys.secretKey.bytes.byteLength,
+        secretKeyFormat: pubkySecretKeyFormat,
       },
     ]);
   });
@@ -44,11 +39,11 @@ describe("Pubky identity fakes", () => {
 
     await expectError(keys.createIdentityKey(), "create_failed");
     await expectError(
-      keys.restoreIdentityKey({ recoveryFile: keys.recoveryFile, recoveryPassphrase: "derived-passphrase" }),
+      keys.restoreIdentityKey({ secretKey: keys.secretKey }),
       "restore_failed",
     );
     await expectError(
-      keys.exportRecoveryFile({ keyHandle: created.keyHandle, recoveryPassphrase: "derived-passphrase" }),
+      keys.exportSecretKey({ keyHandle: created.keyHandle }),
       "export_failed",
     );
     await expectError(keys.getPublicIdentity({ keyHandle: created.keyHandle }), "public_identity_failed");

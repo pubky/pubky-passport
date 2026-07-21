@@ -98,6 +98,45 @@ Rules:
 - Do not persist plaintext Pubky private key material.
 - Concrete `@synonymdev/pubky` key generation, export, import, public key, signup, discovery publication, session, and AuthToken approval APIs are verified below.
 
+Confirmed v1 envelope parser contract:
+
+- The accepted envelope has exactly the top-level fields `v`, `iv`, `ct`, and `url`.
+- `v` must be numeric version `1`; other numeric versions are rejected as unsupported.
+- Unknown top-level fields are rejected to avoid accidentally accepting plaintext or unrelated metadata.
+- `iv` and `ct` must be non-empty base64url-like strings. The parser does not decode, decrypt, or enforce crypto byte lengths; browser crypto owns those checks.
+- `url` must be an HTTPS Passport origin with no credentials, query, fragment, or non-root path.
+- Accepted `url` values normalize to `URL.origin`, for example `https://passport.pubky.app` with no trailing slash. A root-path form such as `https://passport.pubky.app/` parses to the same origin string.
+- HTTP localhost origins are allowed only when an explicit parser option enables local development support.
+- Parser errors are safe typed codes with optional field metadata and do not include raw file contents, IV, ciphertext, or future decrypted key material.
+
+Confirmed browser crypto contract for encrypted Drive storage:
+
+- Concrete browser crypto implementation lives in `src/infrastructure/browser/crypto` behind the core `PassportFileCrypto` port.
+- The core crypto port encrypts and decrypts 32-byte Pubky secret key material only; the encrypted Drive storage contract does not include SDK metadata.
+- The adapter accepts the wrapping key as the 32-byte unpadded base64url string returned by the Passport wrapping-key API.
+- Browser crypto decodes wrapping material in browser memory only and derives purpose-specific material with WebCrypto HKDF-SHA256 instead of using the raw wrapping bytes directly as an operational key. The AES-GCM key is derived as a non-extractable WebCrypto `CryptoKey` via `deriveKey` rather than materializing raw AES key bytes in JavaScript.
+- Passport file encryption uses AES-256-GCM with a fresh random 96-bit IV per encryption. `iv` and ciphertext `ct` are stored as unpadded base64url strings in the v1 envelope.
+- AES-GCM sub-key derivation uses IKM = decoded wrapping material, salt `pubky-passport/passport-file/aes-gcm/salt/v1`, info `passport-file:aes-gcm:v1`, and an AES-256-GCM output key.
+- AES-GCM authenticates envelope metadata as additional authenticated data using `pubky-passport/passport-file/v1\n<normalized-envelope-url>`, so tampering with the authenticated v1 context or stored Passport origin fails decryption.
+- Decryption also requires the normalized expected Passport origin and rejects an envelope created for a different origin.
+- Operational consequence: encrypted files are bound to their Passport origin. A file created by a staging, self-hosted, or other-origin Passport deployment cannot be restored by production Passport without an explicit migration or re-encryption flow. This protects against cross-deployment use even if deployments accidentally share compatible wrapping-key derivation.
+- Decryption authenticates ciphertext through AES-GCM and maps authentication failure to a safe typed error without exposing DOMException details.
+- Browser crypto must not persist Pubky secret key material, wrapping material, decrypted payloads, or Drive tokens in `localStorage`, `sessionStorage`, IndexedDB, cookies, or server requests.
+
+Confirmed Google Drive appDataFolder repository contract:
+
+- Concrete browser Drive storage lives in `src/infrastructure/browser/storage` behind the core `PassportFileRepository` port.
+- The repository reads and writes encrypted `PassportFileEnvelopeV1` values only. It does not decrypt ciphertext, derive wrapping material, restore Pubky keys, request Homegate invites, import Pubky SDK code, or own Google login and consent UI.
+- The repository accepts an injected browser access-token provider and injected `fetch`; Drive access tokens do not appear in core method inputs and are not persisted by the repository.
+- Drive lookup uses Google Drive API v3 with `spaces=appDataFolder`, exact `passport.json` name matching, `trashed=false`, and the narrow Drive app data scope expected from future Google consent code.
+- A missing Drive file is an expected first-time setup state and returns `missing` rather than an error. If the file is listed but disappears before media fetch, the read also returns `missing`.
+- Multiple matching files or pagination evidence are rejected as `duplicate_files` rather than choosing a potentially wrong identity file.
+- Reads fetch file content through the Drive media endpoint and parse it with the v1 envelope parser. Malformed file contents map to `invalid_file` without returning raw Drive body, IV, ciphertext, or future decrypted key material.
+- Drive list and media response bodies are size-bounded before parsing to avoid unbounded browser memory use.
+- Writes revalidate outbound envelopes with the v1 parser before upload, serialize only `v`, `iv`, `ct`, and origin-normalized `url`, create `passport.json` in `appDataFolder` when missing, and update existing file media when exactly one file exists.
+- Repository errors are safe typed codes for authorization, permission, network, invalid-response, invalid-file, duplicate-file, and write-failure cases. Raw Google error bodies, access tokens, and envelope contents are not included in errors.
+- The repository must not use `localStorage`, `sessionStorage`, IndexedDB, cookies, or server requests for Drive tokens, encrypted envelopes, plaintext recovery bytes, wrapping material, or decrypted payloads.
+
 Confirmed Pubky SDK key-operation APIs:
 
 - Package: `@synonymdev/pubky` version `0.9.3`.
@@ -105,18 +144,19 @@ Confirmed Pubky SDK key-operation APIs:
 - `Keypair.random()` creates a new Pubky identity keypair.
 - `keypair.publicKey.z32()` returns the z-base-32 public key representation for transport/storage identifiers.
 - `keypair.publicKey.toString()` returns the display representation, formatted as `pubky<z32>`.
-- `keypair.createRecoveryFile(passphrase)` exports SDK recovery file bytes as `Uint8Array`.
-- `Keypair.fromRecoveryFile(recoveryFileBytes, passphrase)` restores a keypair from SDK recovery file bytes and the same passphrase.
-- `keypair.secret()` and `Keypair.fromSecret(secret)` exist in the SDK, but Passport does not use raw secret export/import for MVP Google Drive storage.
+- `keypair.createRecoveryFile(passphrase)` exports SDK recovery file bytes as `Uint8Array`, but Passport does not use SDK recovery files for MVP Google Drive storage.
+- `Keypair.fromRecoveryFile(recoveryFileBytes, passphrase)` restores a keypair from SDK recovery file bytes and the same passphrase, but Passport does not use SDK recovery files for MVP Google Drive storage.
+- `keypair.secret()` exports the 32-byte Pubky secret key material used for MVP Google Drive storage.
+- `Keypair.fromSecret(secret)` restores a keypair from the same 32-byte secret key material.
 
 Confirmed key material representation for encrypted Drive storage:
 
-- Passport uses SDK recovery file bytes from `keypair.createRecoveryFile(passphrase)` as the key material representation that will be encrypted into the Google Drive `passport.json` envelope.
-- SDK recovery file bytes are sensitive and must stay in browser memory only before Passport envelope encryption.
-- Do not store raw SDK recovery file bytes directly in Google Drive, `localStorage`, logs, or server requests.
+- Passport uses 32-byte Pubky secret key material from `keypair.secret()` as the key material representation that is encrypted into the Google Drive `passport.json` envelope.
+- Pubky secret key material is sensitive and must stay in browser memory only before Passport envelope encryption.
+- Do not store raw Pubky secret key material directly in Google Drive, `localStorage`, logs, or server requests.
 - Do not store plaintext SDK keypair material in `localStorage`.
-- For the Google-only MVP, the SDK recovery passphrase is not user-managed. It will be derived in the browser from Passport server-derived wrapping material with domain separation in the browser crypto slice.
-- A user-added recovery passphrase remains a future custody-hardening option that requires separate product, UX, and security review.
+- Do not wrap the Pubky secret in the SDK recovery-file format before Passport encryption; Passport owns encryption through the v1 envelope and server-derived wrapping material.
+- A user-added recovery or export mechanism remains a future custody-hardening option that requires separate product, UX, and security review.
 
 Confirmed Pubky SDK signup, discovery, and auth approval APIs:
 
@@ -143,7 +183,7 @@ Current signup/auth adapter constraints:
 
 Core Pubky application ports:
 
-- `PubkyIdentityKeys` covers key creation, SDK recovery file export, SDK recovery file restoration, and public identity derivation.
+- `PubkyIdentityKeys` covers key creation, 32-byte secret key export, 32-byte secret key restoration, and public identity derivation.
 - `PubkySignup` covers homeserver signup with `{ homeserverPubky, signupCode }` and returning-user signin.
 - `PubkyDiscovery` covers `publishHomeserverIfStale` and `publishHomeserverForce`.
 - `PubkyAuthApproval` covers approval of a validated sensitive Pubky auth request URL.

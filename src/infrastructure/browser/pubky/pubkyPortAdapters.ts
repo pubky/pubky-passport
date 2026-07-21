@@ -4,10 +4,10 @@ import type {
   PubkyIdentityKey,
   PubkyIdentityKeyHandle,
   PubkyIdentitySession,
-  PubkyRecoveryFileMaterial,
+  PubkySecretKeyMaterial,
 } from "../../../core/domain/identity/pubkyIdentity";
 import type {
-  ExportPubkyRecoveryFileInput,
+  ExportPubkySecretKeyInput,
   GetPubkyPublicIdentityInput,
   PubkyIdentityKeys,
   PubkyIdentityKeysErrorCode,
@@ -48,12 +48,17 @@ import {
 export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
   readonly #keyAdapter: PubkyIdentityKeyAdapter;
   readonly #keypairs = new Map<PubkyIdentityKeyHandle, PubkyIdentityKeypair>();
+  #disposed = false;
 
   constructor(keyAdapter = new PubkyIdentityKeyAdapter()) {
     this.#keyAdapter = keyAdapter;
   }
 
   async createIdentityKey(): Promise<PubkyIdentityKeysResult<PubkyIdentityKey>> {
+    if (this.#disposed) {
+      return keyFailure("key_unavailable");
+    }
+
     const created = this.#keyAdapter.createKeypair();
 
     if (!created.ok) {
@@ -64,9 +69,13 @@ export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
   }
 
   async restoreIdentityKey(input: RestorePubkyIdentityKeyInput): Promise<PubkyIdentityKeysResult<PubkyIdentityKey>> {
+    if (this.#disposed) {
+      input.secretKey.bytes.fill(0);
+      return keyFailure("key_unavailable");
+    }
+
     const restored = this.#keyAdapter.restoreKeypair({
-      recoveryFileBytes: input.recoveryFile.bytes,
-      passphrase: input.recoveryPassphrase,
+      secretKeyBytes: input.secretKey.bytes,
     });
 
     if (!restored.ok) {
@@ -76,14 +85,14 @@ export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
     return this.storeKeypair(restored.value);
   }
 
-  async exportRecoveryFile(input: ExportPubkyRecoveryFileInput): Promise<PubkyIdentityKeysResult<PubkyRecoveryFileMaterial>> {
+  async exportSecretKey(input: ExportPubkySecretKeyInput): Promise<PubkyIdentityKeysResult<PubkySecretKeyMaterial>> {
     const keypair = this.#keypairs.get(input.keyHandle);
 
     if (!keypair) {
       return keyFailure("key_unavailable");
     }
 
-    const exported = this.#keyAdapter.exportRecoveryFile(keypair, { passphrase: input.recoveryPassphrase });
+    const exported = this.#keyAdapter.exportSecretKey(keypair);
 
     if (!exported.ok) {
       return keyFailure(mapIdentityKeyErrorCode(exported.error.code));
@@ -94,7 +103,6 @@ export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
       value: {
         bytes: exported.value.bytes,
         format: exported.value.format,
-        sdkVersion: exported.value.sdkVersion,
       },
     };
   }
@@ -106,7 +114,13 @@ export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
       return keyFailure("key_unavailable");
     }
 
-    return { ok: true, value: this.#keyAdapter.getPublicIdentity(keypair) };
+    const publicIdentity = this.#keyAdapter.getPublicIdentity(keypair);
+
+    if (!publicIdentity.ok) {
+      return keyFailure(mapIdentityKeyErrorCode(publicIdentity.error.code));
+    }
+
+    return { ok: true, value: publicIdentity.value };
   }
 
   keypairForHandle(keyHandle: PubkyIdentityKeyHandle): PubkyIdentityKeyResult<PubkyIdentityKeypair> {
@@ -126,6 +140,12 @@ export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
   }
 
   dispose(): void {
+    if (this.#disposed) {
+      return;
+    }
+
+    this.#disposed = true;
+
     for (const keypair of this.#keypairs.values()) {
       keypair.dispose();
     }
@@ -135,17 +155,24 @@ export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
 
   private storeKeypair(keypair: PubkyIdentityKeypair): PubkyIdentityKeysResult<PubkyIdentityKey> {
     const publicIdentity = this.#keyAdapter.getPublicIdentity(keypair);
+
+    if (!publicIdentity.ok) {
+      keypair.dispose();
+      return keyFailure(mapIdentityKeyErrorCode(publicIdentity.error.code));
+    }
+
     const keyHandle = {} as PubkyIdentityKeyHandle;
 
     this.#keypairs.set(keyHandle, keypair);
 
-    return { ok: true, value: { keyHandle, publicIdentity } };
+    return { ok: true, value: { keyHandle, publicIdentity: publicIdentity.value } };
   }
 }
 
 export class BrowserPubkyIdentity implements PubkySignup, PubkyDiscovery, PubkyAuthApproval {
   readonly #identityAdapter: PubkyIdentityAdapter;
   readonly #identityKeys: BrowserPubkyIdentityKeys;
+  #disposed = false;
 
   constructor(identityKeys: BrowserPubkyIdentityKeys, identityAdapter = new PubkyIdentityAdapter()) {
     this.#identityKeys = identityKeys;
@@ -229,21 +256,28 @@ export class BrowserPubkyIdentity implements PubkySignup, PubkyDiscovery, PubkyA
   }
 
   dispose(): void {
+    if (this.#disposed) {
+      return;
+    }
+
+    this.#disposed = true;
+    this.#identityKeys.dispose();
     this.#identityAdapter.dispose();
   }
 }
 
 export function mapIdentityKeyErrorCode(code: PubkyIdentityKeyErrorCode): PubkyIdentityKeysErrorCode {
   switch (code) {
-    case "invalid_passphrase":
-    case "invalid_recovery_file":
+    case "invalid_secret_key":
     case "key_unavailable":
       return code;
     case "keypair_creation_failed":
       return "create_failed";
-    case "recovery_export_failed":
+    case "public_identity_failed":
+      return "public_identity_failed";
+    case "secret_export_failed":
       return "export_failed";
-    case "recovery_restore_failed":
+    case "secret_restore_failed":
       return "restore_failed";
   }
 }
