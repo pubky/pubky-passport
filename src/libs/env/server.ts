@@ -1,14 +1,14 @@
 import "server-only";
 
-import { parseHomegateInviteServerEnv, parseServerEnv } from "./server-parser";
-import type { HomegateInviteServerEnv, ServerEnv } from "./server-parser";
+import { parseGoogleWrappingKeyServerEnv, parseHomegateServerEnv } from "./server-parser";
+import type { GoogleWrappingKeyServerEnv, HomegateServerEnv } from "./server-parser";
 
-export type { HomegateInviteServerEnv, ServerEnv } from "./server-parser";
+export type { GoogleWrappingKeyServerEnv, HomegateServerEnv } from "./server-parser";
 
-export function getServerEnv(): ServerEnv {
-  return parseServerEnv(process.env);
+export function getGoogleWrappingKeyServerEnv(): GoogleWrappingKeyServerEnv {
+  return parseGoogleWrappingKeyServerEnv(process.env);
 }
 
-export function getHomegateInviteServerEnv(): HomegateInviteServerEnv {
-  return parseHomegateInviteServerEnv(process.env);
+export function getHomegateServerEnv(): HomegateServerEnv {
+  return parseHomegateServerEnv(process.env);
 }

@@ -20,7 +20,7 @@ export class FakeHomegateInvite implements GoogleHomegateInvite {
     homeserverPubky: "fakehomeserver11111111111111111111111111111111111111111111",
   };
 
-  async requestInvite(input: { googleIdToken: string }): Promise<GoogleHomegateInviteResult> {
+  async requestSignupInvitation(input: { googleIdToken: string }): Promise<GoogleHomegateInviteResult> {
     this.calls.push({
       hasGoogleIdToken: input.googleIdToken.trim().length > 0,
     });

@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
 
-import { createHomegateInvitePostHandler } from "./handler";
+import { createGoogleHomegateInvitePostHandler } from "./handler";
 import type {
   GoogleHomegateInvite,
   GoogleHomegateInviteResult,
-} from "../../../../server/homegate/google/invite";
+} from "../../../../../server/homegate/google/invite";
 
 const invite = {
   signupCode: "signup-code",
   homeserverPubky: "homegate-returned-homeserver-pubky",
 };
 
-describe("POST /api/homegate/google-invite", () => {
+describe("POST /api/homegate/google/invite", () => {
   it("maps valid Homegate results to HTTP success", async () => {
-    const post = createHomegateInvitePostHandler(homegateInvite(Result.ok(invite)));
+    const post = createGoogleHomegateInvitePostHandler(homegateInvite(Result.ok(invite)));
 
     const response = await post(jsonRequest({ googleIdToken: "id-token" }));
 
@@ -25,10 +25,10 @@ describe("POST /api/homegate/google-invite", () => {
   });
 
   it("rejects malformed JSON with a safe 400", async () => {
-    const post = createHomegateInvitePostHandler(homegateInvite(Result.ok(invite)));
+    const post = createGoogleHomegateInvitePostHandler(homegateInvite(Result.ok(invite)));
 
     const response = await post(
-      new Request("http://localhost/api/homegate/google-invite", {
+        new Request("http://localhost/api/homegate/google/invite", {
         method: "POST",
         body: "not json",
       }),
@@ -40,9 +40,9 @@ describe("POST /api/homegate/google-invite", () => {
   });
 
   it("requires an application/json content type", async () => {
-    const post = createHomegateInvitePostHandler(homegateInvite(Result.ok(invite)));
+    const post = createGoogleHomegateInvitePostHandler(homegateInvite(Result.ok(invite)));
 
-    const response = await post(new Request("http://localhost/api/homegate/google-invite", {
+    const response = await post(new Request("http://localhost/api/homegate/google/invite", {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ googleIdToken: "id-token" }),
@@ -54,14 +54,14 @@ describe("POST /api/homegate/google-invite", () => {
 
   it("rejects oversized request bodies before calling Homegate", async () => {
     let inviteCalls = 0;
-    const post = createHomegateInvitePostHandler({
-      async requestInvite() {
+    const post = createGoogleHomegateInvitePostHandler({
+      async requestSignupInvitation() {
         inviteCalls += 1;
         return Result.ok(invite);
       },
     });
 
-    const response = await post(oversizedRequest("http://localhost/api/homegate/google-invite"));
+    const response = await post(oversizedRequest("http://localhost/api/homegate/google/invite"));
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: { code: "invalid_request" } });
@@ -69,7 +69,7 @@ describe("POST /api/homegate/google-invite", () => {
   });
 
   it("rejects missing, non-string, and empty tokens", async () => {
-    const post = createHomegateInvitePostHandler(homegateInvite(Result.ok(invite)));
+    const post = createGoogleHomegateInvitePostHandler(homegateInvite(Result.ok(invite)));
 
     await expect(post(jsonRequest({})).then(responseSummary)).resolves.toEqual({
       status: 400,
@@ -87,8 +87,8 @@ describe("POST /api/homegate/google-invite", () => {
 
   it("rejects unknown fields so Drive and key material cannot be sent", async () => {
     let inviteCalls = 0;
-    const post = createHomegateInvitePostHandler({
-      async requestInvite() {
+    const post = createGoogleHomegateInvitePostHandler({
+      async requestSignupInvitation() {
         inviteCalls += 1;
         return Result.ok(invite);
       },
@@ -108,33 +108,33 @@ describe("POST /api/homegate/google-invite", () => {
 
   it("maps expected Homegate failures to fixed HTTP statuses", async () => {
     await expect(
-      createHomegateInvitePostHandler(homegateInvite(Result.err({ code: "invalid_google_id_token" })))(
+      createGoogleHomegateInvitePostHandler(homegateInvite(Result.err({ code: "invalid_google_id_token" })))(
         jsonRequest({ googleIdToken: "id-token" }),
       ).then(responseSummary),
     ).resolves.toEqual({ status: 401, body: { error: { code: "invalid_google_id_token" } } });
 
     await expect(
-      createHomegateInvitePostHandler(homegateInvite(Result.err({ code: "weekly_limit_exceeded" })))(
+      createGoogleHomegateInvitePostHandler(homegateInvite(Result.err({ code: "weekly_limit_exceeded" })))(
         jsonRequest({ googleIdToken: "id-token" }),
       ).then(responseSummary),
     ).resolves.toEqual({ status: 429, body: { error: { code: "weekly_limit_exceeded" } } });
 
     await expect(
-      createHomegateInvitePostHandler(homegateInvite(Result.err({ code: "malformed_homegate_response" })))(
+      createGoogleHomegateInvitePostHandler(homegateInvite(Result.err({ code: "malformed_homegate_response" })))(
         jsonRequest({ googleIdToken: "id-token" }),
       ).then(responseSummary),
     ).resolves.toEqual({ status: 502, body: { error: { code: "malformed_homegate_response" } } });
 
     await expect(
-      createHomegateInvitePostHandler(homegateInvite(Result.err({ code: "homegate_unavailable" })))(
+      createGoogleHomegateInvitePostHandler(homegateInvite(Result.err({ code: "homegate_unavailable" })))(
         jsonRequest({ googleIdToken: "id-token" }),
       ).then(responseSummary),
     ).resolves.toEqual({ status: 503, body: { error: { code: "homegate_unavailable" } } });
   });
 
   it("maps unexpected Homegate failures to safe 500 responses", async () => {
-    const post = createHomegateInvitePostHandler({
-      async requestInvite() {
+    const post = createGoogleHomegateInvitePostHandler({
+      async requestSignupInvitation() {
         throw new Error("token must not leak");
       },
     });
@@ -149,14 +149,14 @@ describe("POST /api/homegate/google-invite", () => {
 
 function homegateInvite(result: GoogleHomegateInviteResult): GoogleHomegateInvite {
   return {
-    async requestInvite() {
+    async requestSignupInvitation() {
       return result;
     },
   };
 }
 
 function jsonRequest(body: unknown): Request {
-  return new Request("http://localhost/api/homegate/google-invite", {
+  return new Request("http://localhost/api/homegate/google/invite", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

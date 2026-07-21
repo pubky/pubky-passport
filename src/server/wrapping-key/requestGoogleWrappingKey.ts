@@ -2,7 +2,7 @@ import "server-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { getServerEnv } from "../../libs/env/server";
+import { getGoogleWrappingKeyServerEnv } from "../../libs/env/server";
 import {
   createGoogleIdTokenVerifier,
   type GoogleIdTokenVerificationErrorCode,
@@ -68,7 +68,7 @@ export function createGoogleWrappingKeyRequest(
 }
 
 function createConfiguredDependencies(): CreateGoogleWrappingKeyRequestInput {
-  const env = getServerEnv();
+  const env = getGoogleWrappingKeyServerEnv();
 
   return {
     googleIdTokenVerifier: createGoogleIdTokenVerifier({ audience: env.GOOGLE_CLIENT_ID }),

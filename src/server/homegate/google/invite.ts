@@ -2,7 +2,7 @@ import "server-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { getHomegateInviteServerEnv } from "../../../libs/env/server";
+import { getHomegateServerEnv } from "../../../libs/env/server";
 import { readBoundedText } from "../../../libs/security/boundedBody";
 import type { HomeserverSignupInvitation } from "../types";
 
@@ -21,7 +21,7 @@ export type GoogleHomegateInviteErrorCode =
 export type GoogleHomegateInviteResult = ResultType<HomeserverSignupInvitation, { code: GoogleHomegateInviteErrorCode }>;
 
 export type GoogleHomegateInvite = {
-  requestInvite(input: { googleIdToken: string }): Promise<GoogleHomegateInviteResult>;
+  requestSignupInvitation(input: { googleIdToken: string }): Promise<GoogleHomegateInviteResult>;
 };
 
 export type CreateGoogleHomegateInviteInput = {
@@ -38,12 +38,14 @@ const googleVerificationPath = "google_verification";
 const maximumHomegateResponseBytes = 16 * 1024;
 const homegateTimeoutMilliseconds = 10_000;
 
-export function createGoogleHomegateInvite(input: CreateGoogleHomegateInviteInput): GoogleHomegateInvite {
+export function createGoogleHomegateInvite(
+  input: CreateGoogleHomegateInviteInput = createConfiguredGoogleHomegateInviteInput(),
+): GoogleHomegateInvite {
   const endpoint = createGoogleVerificationEndpoint(input.homegateUrl);
   const fetchImpl = input.fetchImpl ?? fetch;
 
   return {
-    async requestInvite({ googleIdToken }) {
+    async requestSignupInvitation({ googleIdToken }) {
       let response: Response;
 
       try {
@@ -69,9 +71,9 @@ export function createGoogleHomegateInvite(input: CreateGoogleHomegateInviteInpu
   };
 }
 
-export function createProductionGoogleHomegateInvite(): GoogleHomegateInvite {
-  const env = getHomegateInviteServerEnv();
-  return createGoogleHomegateInvite({ homegateUrl: env.HOMEGATE_URL });
+function createConfiguredGoogleHomegateInviteInput(): CreateGoogleHomegateInviteInput {
+  const env = getHomegateServerEnv();
+  return { homegateUrl: env.HOMEGATE_URL };
 }
 
 async function parseHomegateSuccess(response: Response): Promise<GoogleHomegateInviteResult> {

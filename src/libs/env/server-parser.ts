@@ -7,13 +7,12 @@ import {
 } from "../security/serverSecret";
 import { type EnvLike, envUrlSchema, isDevelopmentEnv, requiredStringSchema } from "./url";
 
-export type ServerEnv = {
+export type GoogleWrappingKeyServerEnv = {
   GOOGLE_CLIENT_ID: string;
   PASSPORT_SERVER_SECRET_BASE64: string;
-  HOMEGATE_URL: string;
 };
 
-export type HomegateInviteServerEnv = {
+export type HomegateServerEnv = {
   HOMEGATE_URL: string;
 };
 
@@ -38,19 +37,16 @@ function serverSecretSchema() {
   });
 }
 
-export function parseServerEnv(input: EnvLike): ServerEnv {
-  const allowLocalhostHttp = isDevelopmentEnv(input);
-
+export function parseGoogleWrappingKeyServerEnv(input: EnvLike): GoogleWrappingKeyServerEnv {
   return z
     .object({
       GOOGLE_CLIENT_ID: requiredStringSchema("GOOGLE_CLIENT_ID"),
       PASSPORT_SERVER_SECRET_BASE64: serverSecretSchema(),
-      HOMEGATE_URL: envUrlSchema("HOMEGATE_URL", { allowLocalhostHttp }),
     })
     .parse(input);
 }
 
-export function parseHomegateInviteServerEnv(input: EnvLike): HomegateInviteServerEnv {
+export function parseHomegateServerEnv(input: EnvLike): HomegateServerEnv {
   const allowLocalhostHttp = isDevelopmentEnv(input);
 
   return z

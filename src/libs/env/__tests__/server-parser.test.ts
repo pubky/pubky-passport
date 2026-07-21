@@ -1,69 +1,35 @@
 import { describe, expect, it } from "vitest";
 
-import { parseHomegateInviteServerEnv, parseServerEnv } from "../server-parser";
+import { parseGoogleWrappingKeyServerEnv, parseHomegateServerEnv } from "../server-parser";
 
 const validServerSecret = Buffer.alloc(32, 1).toString("base64");
 
-const validServerEnv = {
+const validGoogleWrappingKeyServerEnv = {
   NODE_ENV: "production",
   GOOGLE_CLIENT_ID: "google-client-id",
   PASSPORT_SERVER_SECRET_BASE64: validServerSecret,
-  HOMEGATE_URL: "https://homegate.pubky.app",
 };
 
-describe("parseServerEnv", () => {
-  it("parses required server-only config", () => {
-    expect(parseServerEnv(validServerEnv)).toEqual({
+describe("server environment parsers", () => {
+  it("parses Google wrapping-key config without Homegate configuration", () => {
+    expect(parseGoogleWrappingKeyServerEnv(validGoogleWrappingKeyServerEnv)).toEqual({
       GOOGLE_CLIENT_ID: "google-client-id",
       PASSPORT_SERVER_SECRET_BASE64: validServerSecret,
-      HOMEGATE_URL: "https://homegate.pubky.app",
     });
   });
 
-  it("fails when required values are missing", () => {
+  it("fails when Google wrapping-key values are missing", () => {
     expect(() =>
-      parseServerEnv({
-        ...validServerEnv,
-        HOMEGATE_URL: undefined,
+      parseGoogleWrappingKeyServerEnv({
+        ...validGoogleWrappingKeyServerEnv,
+        GOOGLE_CLIENT_ID: undefined,
       }),
     ).toThrow();
   });
 
-  it("fails invalid URLs", () => {
-    expect(() =>
-      parseServerEnv({
-        ...validServerEnv,
-        HOMEGATE_URL: "not a url",
-      }),
-    ).toThrow();
-  });
-
-  it("fails non-HTTPS URLs in production", () => {
-    expect(() =>
-      parseServerEnv({
-        ...validServerEnv,
-        HOMEGATE_URL: "http://homegate.pubky.app",
-      }),
-    ).toThrow();
-  });
-
-  it("allows localhost HTTP URLs in development", () => {
+  it("parses Homegate config without unrelated wrapping-key secrets", () => {
     expect(
-      parseServerEnv({
-        ...validServerEnv,
-        NODE_ENV: "development",
-        HOMEGATE_URL: "http://localhost:4000",
-      }),
-    ).toEqual({
-      GOOGLE_CLIENT_ID: "google-client-id",
-      PASSPORT_SERVER_SECRET_BASE64: validServerSecret,
-      HOMEGATE_URL: "http://localhost:4000",
-    });
-  });
-
-  it("parses Homegate invite route config without unrelated server secrets", () => {
-    expect(
-      parseHomegateInviteServerEnv({
+      parseHomegateServerEnv({
         NODE_ENV: "production",
         HOMEGATE_URL: "https://homegate.pubky.app",
       }),
@@ -72,9 +38,9 @@ describe("parseServerEnv", () => {
     });
   });
 
-  it("allows localhost HTTP Homegate invite URLs in development", () => {
+  it("allows localhost HTTP Homegate URLs in development", () => {
     expect(
-      parseHomegateInviteServerEnv({
+      parseHomegateServerEnv({
         NODE_ENV: "development",
         HOMEGATE_URL: "http://127.0.0.1:8080",
       }),
@@ -85,8 +51,8 @@ describe("parseServerEnv", () => {
 
   it("fails invalid base64 server secrets", () => {
     expect(() =>
-      parseServerEnv({
-        ...validServerEnv,
+      parseGoogleWrappingKeyServerEnv({
+        ...validGoogleWrappingKeyServerEnv,
         PASSPORT_SERVER_SECRET_BASE64: "not-base64!",
       }),
 
@@ -95,8 +61,8 @@ describe("parseServerEnv", () => {
 
   it("fails base64 server secrets shorter than 32 decoded bytes", () => {
     expect(() =>
-      parseServerEnv({
-        ...validServerEnv,
+      parseGoogleWrappingKeyServerEnv({
+        ...validGoogleWrappingKeyServerEnv,
         PASSPORT_SERVER_SECRET_BASE64: Buffer.alloc(31, 1).toString("base64"),
       }),
     ).toThrow();
