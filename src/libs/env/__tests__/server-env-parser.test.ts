@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseGoogleWrappingKeyServerEnv, parseHomegateServerEnv } from "../server-parser";
+import { parseGoogleWrappingKeyServerEnv, parseHomegateServerEnv } from "../server-env-parser";
 
 const validServerSecret = Buffer.alloc(32, 1).toString("base64");
 

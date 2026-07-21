@@ -6,7 +6,7 @@ import {
   parsePubkyAuthRequest as parsePubkyAuthRequestImplementation,
   type PubkyAuthParseErrorCode,
   type ParsePubkyAuthRequestOptions,
-} from "./parsePubkyAuthRequest";
+} from "../parsePubkyAuthRequest";
 
 const validRequest =
   "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=test-secret&x-success=https://pubky.app/passport-success&x-error=https://pubky.app/passport-error&x-cancel=https://pubky.app/passport-cancel";

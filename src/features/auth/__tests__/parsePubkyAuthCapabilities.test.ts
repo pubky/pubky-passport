@@ -4,7 +4,7 @@ import { Result } from "better-result";
 import {
   parsePubkyAuthCapabilities,
   type PubkyAuthCapabilitiesParseErrorCode,
-} from "./parsePubkyAuthCapabilities";
+} from "../parsePubkyAuthCapabilities";
 
 function expectCapabilities(input: string) {
   const result = parsePubkyAuthCapabilities(input);

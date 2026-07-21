@@ -5,7 +5,7 @@ import {
   isBase64,
   minimumServerSecretByteLength,
 } from "../security/serverSecret";
-import { type EnvLike, envUrlSchema, isDevelopmentEnv, requiredStringSchema } from "./url";
+import { type EnvLike, envUrlSchema, isDevelopmentEnv, requiredStringSchema } from "./env-schema";
 
 export type GoogleWrappingKeyServerEnv = {
   GOOGLE_CLIENT_ID: string;

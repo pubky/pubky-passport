@@ -11,8 +11,8 @@ const serverRoot = join(srcRoot, "server");
 const appRoot = join(srcRoot, "app");
 const uiRoot = join(srcRoot, "ui");
 const libsEnvRoot = join(srcRoot, "libs", "env");
-const serverEnvModule = join(libsEnvRoot, "server");
-const publicEnvModule = join(libsEnvRoot, "public");
+const serverEnvModule = join(libsEnvRoot, "server-env");
+const publicEnvModule = join(libsEnvRoot, "public-env");
 
 const checkedExtensions = new Set([".ts", ".tsx"]);
 

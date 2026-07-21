@@ -1,6 +1,6 @@
-import { parsePublicEnv } from "./public-parser";
+import { parsePublicEnv } from "./public-env-parser";
 
-export type { PublicEnv } from "./public-parser";
+export type { PublicEnv } from "./public-env-parser";
 
 export const publicEnv = parsePublicEnv({
   NODE_ENV: process.env.NODE_ENV,

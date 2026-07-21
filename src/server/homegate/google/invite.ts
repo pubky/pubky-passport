@@ -2,7 +2,7 @@ import "server-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { getHomegateServerEnv } from "../../../libs/env/server";
+import { getHomegateServerEnv } from "../../../libs/env/server-env";
 import { readBoundedText } from "../../../libs/security/boundedBody";
 import type { HomeserverSignupInvitation } from "../types";
 

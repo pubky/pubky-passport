@@ -2,7 +2,7 @@ import "server-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { getGoogleWrappingKeyServerEnv } from "../../libs/env/server";
+import { getGoogleWrappingKeyServerEnv } from "../../libs/env/server-env";
 import {
   createGoogleIdTokenVerifier,
   type GoogleIdTokenVerificationErrorCode,

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { type EnvLike, envUrlSchema, isDevelopmentEnv, requiredStringSchema } from "./url";
+import { type EnvLike, envUrlSchema, isDevelopmentEnv, requiredStringSchema } from "./env-schema";
 
 export type PublicEnv = {
   NEXT_PUBLIC_PASSPORT_PUBLIC_URL: string;
