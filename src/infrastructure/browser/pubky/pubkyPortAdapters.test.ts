@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { Result, type Result as ResultType } from "better-result";
 
+import { expectAsyncResultError, expectResultError } from "../../../../test-utils/resultAssertions";
 import {
   pubkySecretKeyBytes,
   pubkySecretKeyFormat,
@@ -19,6 +21,14 @@ import {
   type PubkyIdentityKeyResult,
   withPubkySdkKeypair,
 } from "./pubkyIdentityKeyAdapter";
+
+async function expectKeyUnavailable(result: Promise<ResultType<unknown, { code: string }>>): Promise<void> {
+  const resolved = await result;
+  expect(Result.isError(resolved)).toBe(true);
+  if (Result.isError(resolved)) {
+    expect(resolved.error).toEqual({ code: "key_unavailable" });
+  }
+}
 
 describe("browser Pubky port adapters", () => {
   it("maps key adapter errors to identity-key port errors", () => {
@@ -64,49 +74,32 @@ describe("browser Pubky port adapters", () => {
     const keys = new BrowserPubkyIdentityKeys();
     const unknownHandle = {} as PubkyIdentityKeyHandle;
 
-    await expect(keys.getPublicIdentity({ keyHandle: unknownHandle })).resolves.toEqual({
-      ok: false,
-      error: { code: "key_unavailable" },
-    });
+    await expectKeyUnavailable(keys.getPublicIdentity({ keyHandle: unknownHandle }));
 
-    await expect(
-      keys.exportSecretKey({ keyHandle: unknownHandle }),
-    ).resolves.toEqual({
-      ok: false,
-      error: { code: "key_unavailable" },
-    });
+    await expectKeyUnavailable(keys.exportSecretKey({ keyHandle: unknownHandle }));
   });
 
   it("maps public identity failures and disposes unregistered keypairs", async () => {
     const created = new PubkyIdentityKeyAdapter().createKeypair();
 
-    expect(created.ok).toBe(true);
-    if (!created.ok) {
+    expect(Result.isOk(created)).toBe(true);
+    if (Result.isError(created)) {
       throw new Error(created.error.code);
     }
 
     const keyAdapter = {
       createKeypair: (): PubkyIdentityKeyResult<PubkyIdentityKeypair> => created,
-      getPublicIdentity: () => ({
-        ok: false as const,
-        error: {
-          code: "public_identity_failed" as const,
-          message: "Pubky public identity derivation failed.",
-        },
+      getPublicIdentity: () => Result.err({
+        code: "public_identity_failed" as const,
+        message: "Pubky public identity derivation failed.",
       }),
     } as unknown as PubkyIdentityKeyAdapter;
     const keys = new BrowserPubkyIdentityKeys(keyAdapter);
 
-    await expect(keys.createIdentityKey()).resolves.toEqual({
-      ok: false,
-      error: { code: "public_identity_failed" },
-    });
-    expect(withPubkySdkKeypair(created.value, (sdkKeypair) => sdkKeypair)).toEqual({
-      ok: false,
-      error: {
-        code: "key_unavailable",
-        message: "Pubky identity keypair is not available.",
-      },
+    await expectAsyncResultError(keys.createIdentityKey(), { code: "public_identity_failed" });
+    expectResultError(withPubkySdkKeypair(created.value, (sdkKeypair) => sdkKeypair), {
+      code: "key_unavailable",
+      message: "Pubky identity keypair is not available.",
     });
   });
 
@@ -115,16 +108,13 @@ describe("browser Pubky port adapters", () => {
     const created = expectOk(adapter.createKeypair());
     let publicIdentityFails = false;
     const keyAdapter = {
-      createKeypair: (): PubkyIdentityKeyResult<PubkyIdentityKeypair> => ({ ok: true, value: created }),
+      createKeypair: (): PubkyIdentityKeyResult<PubkyIdentityKeypair> => Result.ok(created),
       getPublicIdentity: (keypair: PubkyIdentityKeypair) => {
         if (publicIdentityFails) {
-          return {
-            ok: false as const,
-            error: {
-              code: "public_identity_failed" as const,
-              message: "Pubky public identity derivation failed.",
-            },
-          };
+          return Result.err({
+            code: "public_identity_failed" as const,
+            message: "Pubky public identity derivation failed.",
+          });
         }
 
         return adapter.getPublicIdentity(keypair);
@@ -136,9 +126,8 @@ describe("browser Pubky port adapters", () => {
       const registered = expectOk(await keys.createIdentityKey());
       publicIdentityFails = true;
 
-      await expect(keys.getPublicIdentity({ keyHandle: registered.keyHandle })).resolves.toEqual({
-        ok: false,
-        error: { code: "public_identity_failed" },
+      await expectAsyncResultError(keys.getPublicIdentity({ keyHandle: registered.keyHandle }), {
+        code: "public_identity_failed",
       });
     } finally {
       keys.dispose();
@@ -153,31 +142,23 @@ describe("browser Pubky port adapters", () => {
     sourceKeypair.dispose();
 
     const keyAdapter = {
-      restoreKeypair: (): PubkyIdentityKeyResult<PubkyIdentityKeypair> => ({ ok: true, value: restored }),
-      getPublicIdentity: () => ({
-        ok: false as const,
-        error: {
-          code: "public_identity_failed" as const,
-          message: "Pubky public identity derivation failed.",
-        },
+      restoreKeypair: (): PubkyIdentityKeyResult<PubkyIdentityKeypair> => Result.ok(restored),
+      getPublicIdentity: () => Result.err({
+        code: "public_identity_failed" as const,
+        message: "Pubky public identity derivation failed.",
       }),
     } as unknown as PubkyIdentityKeyAdapter;
     const keys = new BrowserPubkyIdentityKeys(keyAdapter);
 
-    await expect(
+    await expectAsyncResultError(
       keys.restoreIdentityKey({
         secretKey: { bytes: new Uint8Array(pubkySecretKeyBytes), format: pubkySecretKeyFormat },
       }),
-    ).resolves.toEqual({
-      ok: false,
-      error: { code: "public_identity_failed" },
-    });
-    expect(withPubkySdkKeypair(restored, (sdkKeypair) => sdkKeypair)).toEqual({
-      ok: false,
-      error: {
-        code: "key_unavailable",
-        message: "Pubky identity keypair is not available.",
-      },
+      { code: "public_identity_failed" },
+    );
+    expectResultError(withPubkySdkKeypair(restored, (sdkKeypair) => sdkKeypair), {
+      code: "key_unavailable",
+      message: "Pubky identity keypair is not available.",
     });
   });
 
@@ -186,26 +167,24 @@ describe("browser Pubky port adapters", () => {
     const identity = new BrowserPubkyIdentity(keys);
     const created = await keys.createIdentityKey();
 
-    expect(created.ok).toBe(true);
-    if (!created.ok) {
+    expect(Result.isOk(created)).toBe(true);
+    if (Result.isError(created)) {
       throw new Error(created.error.code);
     }
 
     identity.dispose();
     identity.dispose();
 
-    await expect(keys.getPublicIdentity({ keyHandle: created.value.keyHandle })).resolves.toEqual({
-      ok: false,
-      error: { code: "key_unavailable" },
-    });
-    await expect(keys.createIdentityKey()).resolves.toEqual({
-      ok: false,
-      error: { code: "key_unavailable" },
-    });
+    await expectKeyUnavailable(keys.getPublicIdentity({ keyHandle: created.value.keyHandle }));
+    await expectKeyUnavailable(keys.createIdentityKey());
   });
 });
 
-function expectOk<T>(result: { ok: true; value: T } | { ok: false; error: unknown }): T {
-  expect(result.ok).toBe(true);
-  return (result as { ok: true; value: T }).value;
+function expectOk<T, E>(result: ResultType<T, E>): T {
+  expect(Result.isOk(result)).toBe(true);
+  if (Result.isError(result)) {
+    throw result.error;
+  }
+
+  return result.value;
 }

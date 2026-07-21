@@ -1,3 +1,5 @@
+import { Result, type Err, type Result as ResultType } from "better-result";
+
 export type PubkyAuthCapabilityScope = "specific" | "broad";
 
 export type PubkyAuthCapability = {
@@ -18,9 +20,7 @@ export type PubkyAuthCapabilitiesParseError = {
   message: string;
 };
 
-export type PubkyAuthCapabilitiesParseResult =
-  | { ok: true; capabilities: PubkyAuthCapability[] }
-  | { ok: false; error: PubkyAuthCapabilitiesParseError };
+export type PubkyAuthCapabilitiesParseResult = ResultType<PubkyAuthCapability[], PubkyAuthCapabilitiesParseError>;
 
 export function parsePubkyAuthCapabilities(input: string | null | undefined): PubkyAuthCapabilitiesParseResult {
   if (input === null || input === undefined || input.trim().length === 0) {
@@ -35,19 +35,17 @@ export function parsePubkyAuthCapabilities(input: string | null | undefined): Pu
   const capabilities: PubkyAuthCapability[] = [];
   for (const rawCapability of rawCapabilities) {
     const capability = parseCapability(rawCapability);
-    if (!capability.ok) {
-      return capability;
+    if (Result.isError(capability)) {
+      return error(capability.error.code, capability.error.message);
     }
 
-    capabilities.push(capability.capability);
+    capabilities.push(capability.value);
   }
 
-  return { ok: true, capabilities };
+  return Result.ok(capabilities);
 }
 
-type CapabilityParseResult =
-  | { ok: true; capability: PubkyAuthCapability }
-  | { ok: false; error: PubkyAuthCapabilitiesParseError };
+type CapabilityParseResult = ResultType<PubkyAuthCapability, PubkyAuthCapabilitiesParseError>;
 
 function parseCapability(input: string): CapabilityParseResult {
   const actionsStart = input.lastIndexOf(":");
@@ -65,15 +63,12 @@ function parseCapability(input: string): CapabilityParseResult {
     return error("unsupported_capability_actions", "Pubky auth capability actions are unsupported.");
   }
 
-  return {
-    ok: true,
-    capability: {
+  return Result.ok({
       path,
       read: actions.includes("r"),
       write: actions.includes("w"),
       scope: getCapabilityScope(path),
-    },
-  };
+  });
 }
 
 function isValidCapabilityPath(path: string): boolean {
@@ -118,6 +113,6 @@ function getCapabilityScope(path: string): PubkyAuthCapabilityScope {
 function error(
   code: PubkyAuthCapabilitiesParseErrorCode,
   message: string,
-): { ok: false; error: PubkyAuthCapabilitiesParseError } {
-  return { ok: false, error: { code, message } };
+): Err<never, PubkyAuthCapabilitiesParseError> {
+  return Result.err<never, PubkyAuthCapabilitiesParseError>({ code, message });
 }

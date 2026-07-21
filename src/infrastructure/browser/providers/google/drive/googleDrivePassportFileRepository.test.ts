@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { Result, type Result as ResultType } from "better-result";
 import { describe, expect, it, vi } from "vitest";
 
+import { expectAsyncResultError, expectResultOk } from "../../../../../../test-utils/resultAssertions";
 import type { PassportFileEnvelopeV1 } from "../../../../../core/domain/passport-file/passportFile";
 import { GoogleDrivePassportFileRepository } from "./googleDrivePassportFileRepository";
 
@@ -82,7 +84,7 @@ function createRepository(responses: Array<Response | Error>, options: { allowLo
 }
 
 function expectAuthorizationHeader(call: FetchCall): void {
-  expect(call.init.headers).toMatchObject({ Authorization: expect.stringMatching(/^Bearer /) });
+  expect(call.init.headers).toMatchObject({ Authorization: "Bearer " + accessToken });
 }
 
 function parseJsonBody(body: BodyInit | null | undefined): unknown {
@@ -96,11 +98,19 @@ function expectCall(calls: FetchCall[], index: number): FetchCall {
   return call as FetchCall;
 }
 
+async function expectSuccess<T>(result: Promise<ResultType<T, unknown>>, value: T): Promise<void> {
+  expect(expectResultOk(await result)).toEqual(value);
+}
+
+async function expectFailure(result: Promise<ResultType<unknown, { code: string }>>, code: string): Promise<void> {
+  await expectAsyncResultError(result, { code });
+}
+
 describe("GoogleDrivePassportFileRepository", () => {
   it("returns missing when Drive list has no passport file", async () => {
     const { repository, calls } = createRepository([jsonResponse({ files: [] })]);
 
-    await expect(repository.readPassportFile()).resolves.toEqual({ ok: true, value: { status: "missing" } });
+    await expectSuccess(repository.readPassportFile(), { status: "missing" });
 
     expect(calls).toHaveLength(1);
     const listCall = expectCall(calls, 0);
@@ -118,10 +128,7 @@ describe("GoogleDrivePassportFileRepository", () => {
       textResponse(JSON.stringify(envelope)),
     ]);
 
-    await expect(repository.readPassportFile()).resolves.toEqual({
-      ok: true,
-      value: { status: "found", envelope },
-    });
+    await expectSuccess(repository.readPassportFile(), { status: "found", envelope });
 
     expect(calls).toHaveLength(2);
     const mediaCall = expectCall(calls, 1);
@@ -137,7 +144,10 @@ describe("GoogleDrivePassportFileRepository", () => {
 
     const result = await repository.readPassportFile();
 
-    expect(result).toEqual({ ok: false, error: { code: "invalid_file" } });
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error).toEqual({ code: "invalid_file" });
+    }
     expect(JSON.stringify(result)).not.toContain("do-not-return");
   });
 
@@ -148,7 +158,7 @@ describe("GoogleDrivePassportFileRepository", () => {
       oversizedMediaResponse(cancel),
     ]);
 
-    await expect(repository.readPassportFile()).resolves.toEqual({ ok: false, error: { code: "invalid_file" } });
+    await expectFailure(repository.readPassportFile(), "invalid_file");
     expect(cancel).toHaveBeenCalledOnce();
   });
 
@@ -156,7 +166,7 @@ describe("GoogleDrivePassportFileRepository", () => {
     const cancel = vi.fn();
     const { repository } = createRepository([oversizedMediaResponse(cancel)]);
 
-    await expect(repository.readPassportFile()).resolves.toEqual({ ok: false, error: { code: "invalid_response" } });
+    await expectFailure(repository.readPassportFile(), "invalid_response");
     expect(cancel).toHaveBeenCalledOnce();
   });
 
@@ -164,7 +174,7 @@ describe("GoogleDrivePassportFileRepository", () => {
     const cancel = vi.fn();
     const { repository } = createRepository([streamResponse([new Uint8Array(16 * 1024), new Uint8Array(1)], cancel)]);
 
-    await expect(repository.readPassportFile()).resolves.toEqual({ ok: false, error: { code: "invalid_response" } });
+    await expectFailure(repository.readPassportFile(), "invalid_response");
     expect(cancel).toHaveBeenCalledOnce();
   });
 
@@ -175,20 +185,14 @@ describe("GoogleDrivePassportFileRepository", () => {
       streamResponse([new Uint8Array(16 * 1024), new Uint8Array(1)], cancel),
     ]);
 
-    await expect(repository.readPassportFile()).resolves.toEqual({ ok: false, error: { code: "invalid_file" } });
+    await expectFailure(repository.readPassportFile(), "invalid_file");
     expect(cancel).toHaveBeenCalledOnce();
   });
 
   it("maps Drive authorization failures safely", async () => {
-    await expect(createRepository([jsonResponse({ error: "token" }, 401)]).repository.readPassportFile()).resolves.toEqual({
-      ok: false,
-      error: { code: "unauthorized" },
-    });
+    await expectFailure(createRepository([jsonResponse({ error: "token" }, 401)]).repository.readPassportFile(), "unauthorized");
 
-    await expect(createRepository([jsonResponse({ error: "scope" }, 403)]).repository.readPassportFile()).resolves.toEqual({
-      ok: false,
-      error: { code: "forbidden" },
-    });
+    await expectFailure(createRepository([jsonResponse({ error: "scope" }, 403)]).repository.readPassportFile(), "forbidden");
   });
 
   it("maps token provider and network failures safely", async () => {
@@ -196,40 +200,35 @@ describe("GoogleDrivePassportFileRepository", () => {
       accessTokenProvider: async () => "",
       fetch: (async () => jsonResponse({ files: [] })) as typeof fetch,
     });
-    await expect(unauthorizedRepository.readPassportFile()).resolves.toEqual({
-      ok: false,
-      error: { code: "unauthorized" },
-    });
+    await expectFailure(unauthorizedRepository.readPassportFile(), "unauthorized");
 
     const { repository } = createRepository([new Error("network includes secret details")]);
     const result = await repository.readPassportFile();
 
-    expect(result).toEqual({ ok: false, error: { code: "network_failed" } });
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error).toEqual({ code: "network_failed" });
+    }
     expect(JSON.stringify(result)).not.toContain("secret details");
   });
 
   it("rejects duplicate or paginated Drive matches", async () => {
-    await expect(
-      createRepository([
-        jsonResponse({
-          files: [
-            { id: "file-1", name: "passport.json" },
-            { id: "file-2", name: "passport.json" },
-          ],
-        }),
-      ]).repository.readPassportFile(),
-    ).resolves.toEqual({ ok: false, error: { code: "duplicate_files" } });
+    await expectFailure(createRepository([
+      jsonResponse({
+        files: [
+          { id: "file-1", name: "passport.json" },
+          { id: "file-2", name: "passport.json" },
+        ],
+      }),
+    ]).repository.readPassportFile(), "duplicate_files");
 
-    await expect(
-      createRepository([jsonResponse({ files: [{ id: "file-1", name: "passport.json" }], nextPageToken: "more" })]).repository
-        .readPassportFile(),
-    ).resolves.toEqual({ ok: false, error: { code: "duplicate_files" } });
+    await expectFailure(createRepository([jsonResponse({ files: [{ id: "file-1", name: "passport.json" }], nextPageToken: "more" })]).repository.readPassportFile(), "duplicate_files");
   });
 
   it("rejects a Drive list response for a different file", async () => {
     const { repository, calls } = createRepository([jsonResponse({ files: [{ id: "other-file", name: "other.json" }] })]);
 
-    await expect(repository.readPassportFile()).resolves.toEqual({ ok: false, error: { code: "invalid_response" } });
+    await expectFailure(repository.readPassportFile(), "invalid_response");
 
     expect(calls).toHaveLength(1);
   });
@@ -240,13 +239,13 @@ describe("GoogleDrivePassportFileRepository", () => {
       textResponse("not found", 404),
     ]);
 
-    await expect(repository.readPassportFile()).resolves.toEqual({ ok: true, value: { status: "missing" } });
+    await expectSuccess(repository.readPassportFile(), { status: "missing" });
   });
 
   it("creates passport.json in appDataFolder when no file exists", async () => {
     const { repository, calls } = createRepository([jsonResponse({ files: [] }), jsonResponse({ id: "created" })]);
 
-    await expect(repository.writePassportFile({ envelope })).resolves.toEqual({ ok: true, value: undefined });
+    await expectSuccess(repository.writePassportFile({ envelope }), undefined);
 
     expect(calls).toHaveLength(2);
     const createCall = expectCall(calls, 1);
@@ -268,7 +267,7 @@ describe("GoogleDrivePassportFileRepository", () => {
       jsonResponse({ id: "file-1" }),
     ]);
 
-    await expect(repository.writePassportFile({ envelope })).resolves.toEqual({ ok: true, value: undefined });
+    await expectSuccess(repository.writePassportFile({ envelope }), undefined);
 
     expect(calls).toHaveLength(2);
     const updateCall = expectCall(calls, 1);
@@ -284,7 +283,7 @@ describe("GoogleDrivePassportFileRepository", () => {
       allowLocalhostHttp: true,
     });
 
-    await expect(repository.writePassportFile({ envelope: localhostEnvelope })).resolves.toEqual({ ok: true, value: undefined });
+    await expectSuccess(repository.writePassportFile({ envelope: localhostEnvelope }), undefined);
 
     expect(String(expectCall(calls, 1).init.body)).toContain(
       JSON.stringify({ ...localhostEnvelope, url: "http://localhost:3000" }),
@@ -294,10 +293,7 @@ describe("GoogleDrivePassportFileRepository", () => {
   it("rejects invalid outbound envelopes without writing", async () => {
     const { repository, calls } = createRepository([jsonResponse({ files: [] })]);
 
-    await expect(repository.writePassportFile({ envelope: { ...envelope, url: "https://passport.pubky.app/path" } })).resolves.toEqual({
-      ok: false,
-      error: { code: "invalid_file" },
-    });
+    await expectFailure(repository.writePassportFile({ envelope: { ...envelope, url: "https://passport.pubky.app/path" } }), "invalid_file");
     expect(calls).toHaveLength(0);
   });
 
@@ -309,7 +305,10 @@ describe("GoogleDrivePassportFileRepository", () => {
 
     const result = await repository.writePassportFile({ envelope });
 
-    expect(result).toEqual({ ok: false, error: { code: "write_failed" } });
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error).toEqual({ code: "write_failed" });
+    }
     expect(JSON.stringify(result)).not.toContain("google raw error");
   });
 
@@ -319,10 +318,7 @@ describe("GoogleDrivePassportFileRepository", () => {
       jsonResponse({ error: "not found" }, 404),
     ]);
 
-    await expect(repository.writePassportFile({ envelope })).resolves.toEqual({
-      ok: false,
-      error: { code: "write_failed" },
-    });
+    await expectFailure(repository.writePassportFile({ envelope }), "write_failed");
   });
 
   it("does not use browser persistence APIs", () => {

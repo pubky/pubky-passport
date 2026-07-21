@@ -1,6 +1,7 @@
 import "client-only";
 
 import { Keypair } from "@synonymdev/pubky";
+import { Result, type Result as ResultType } from "better-result";
 
 import {
   pubkySecretKeyBytes,
@@ -28,9 +29,7 @@ export type PubkyIdentityKeyError = {
   message: string;
 };
 
-export type PubkyIdentityKeyResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: PubkyIdentityKeyError };
+export type PubkyIdentityKeyResult<T> = ResultType<T, PubkyIdentityKeyError>;
 
 export type PubkyRestoreKeypairInput = {
   secretKeyBytes: Uint8Array;
@@ -43,7 +42,7 @@ export class PubkyIdentityKeypair {
 
   static create(): PubkyIdentityKeyResult<PubkyIdentityKeypair> {
     try {
-      return { ok: true, value: new PubkyIdentityKeypair(Keypair.random()) };
+      return Result.ok(new PubkyIdentityKeypair(Keypair.random()));
     } catch {
       return failure("keypair_creation_failed", "Pubky identity keypair creation failed.");
     }
@@ -54,13 +53,10 @@ export class PubkyIdentityKeypair {
       const validationError = validateSecretKeyInput(input);
 
       if (validationError) {
-        return { ok: false, error: validationError };
+        return Result.err(validationError);
       }
 
-      return {
-        ok: true,
-        value: new PubkyIdentityKeypair(Keypair.fromSecret(input.secretKeyBytes)),
-      };
+      return Result.ok(new PubkyIdentityKeypair(Keypair.fromSecret(input.secretKeyBytes)));
     } catch {
       return failure("secret_restore_failed", "Pubky identity secret key restoration failed.");
     } finally {
@@ -74,13 +70,10 @@ export class PubkyIdentityKeypair {
       const publicKey = sdkKeypairFor(this).publicKey;
 
       try {
-        return {
-          ok: true,
-          value: {
-            publicKeyZ32: publicKey.z32(),
-            publicKeyDisplay: publicKey.toString(),
-          },
-        };
+        return Result.ok({
+          publicKeyZ32: publicKey.z32(),
+          publicKeyDisplay: publicKey.toString(),
+        });
       } finally {
         publicKey.free();
       }
@@ -91,13 +84,10 @@ export class PubkyIdentityKeypair {
 
   exportSecretKey(): PubkyIdentityKeyResult<PubkySecretKey> {
     try {
-      return {
-        ok: true,
-        value: {
+      return Result.ok({
           bytes: sdkKeypairFor(this).secret(),
           format: pubkySecretKeyFormat,
-        },
-      };
+      });
     } catch {
       return failure("secret_export_failed", "Pubky identity secret key export failed.");
     }
@@ -125,7 +115,7 @@ export function withPubkySdkKeypair<T>(
     return failure("key_unavailable", "Pubky identity keypair is not available.");
   }
 
-  return { ok: true, value: handleKeypair(sdkKeypair) };
+  return Result.ok(handleKeypair(sdkKeypair));
 }
 
 export class PubkyIdentityKeyAdapter {
@@ -168,5 +158,5 @@ function sdkKeypairFor(keypair: PubkyIdentityKeypair): Keypair {
 }
 
 function failure<T>(code: PubkyIdentityKeyErrorCode, message: string): PubkyIdentityKeyResult<T> {
-  return { ok: false, error: { code, message } };
+  return Result.err({ code, message });
 }

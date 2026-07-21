@@ -1,4 +1,6 @@
 import type { PubkyIdentityKeyHandle } from "@/core/domain/identity/pubkyIdentity";
+import { Result } from "better-result";
+
 import type {
   PublishPubkyHomeserverInput,
   PubkyDiscovery,
@@ -29,7 +31,7 @@ export class FakePubkyDiscovery implements PubkyDiscovery {
       return failure(this.ifStaleFailure);
     }
 
-    return { ok: true };
+    return Result.ok();
   }
 
   async publishHomeserverForce(input: PublishPubkyHomeserverInput): Promise<PubkyDiscoveryResult> {
@@ -43,10 +45,10 @@ export class FakePubkyDiscovery implements PubkyDiscovery {
       return failure(this.forceFailure);
     }
 
-    return { ok: true };
+    return Result.ok();
   }
 }
 
 function failure(code: PubkyDiscoveryErrorCode): PubkyDiscoveryResult {
-  return { ok: false, error: { code } };
+  return Result.err({ code });
 }

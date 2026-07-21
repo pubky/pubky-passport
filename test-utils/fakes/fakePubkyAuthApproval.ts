@@ -1,4 +1,6 @@
 import type { PubkyIdentityKeyHandle } from "@/core/domain/identity/pubkyIdentity";
+import { Result } from "better-result";
+
 import type {
   ApprovePubkyAuthRequestInput,
   PubkyAuthApproval,
@@ -25,10 +27,10 @@ export class FakePubkyAuthApproval implements PubkyAuthApproval {
     });
 
     if (this.approvalFailure) {
-      return { ok: false, error: { code: this.approvalFailure } };
+      return Result.err({ code: this.approvalFailure });
     }
 
-    return { ok: true };
+    return Result.ok();
   }
 }
 

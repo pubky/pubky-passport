@@ -1,3 +1,5 @@
+import { Result, type Result as ResultType } from "better-result";
+
 import type { IdentityProviderId, VerifiedProviderIdentity } from "../../domain/provider/identityProvider";
 import type { Clock } from "../../ports/clock";
 import type {
@@ -26,9 +28,7 @@ export type RequestWrappingKeyErrorCode =
   | "rate_limited"
   | "dependency_unavailable";
 
-export type RequestWrappingKeyResult =
-  | { ok: true; wrappingKey: string }
-  | { ok: false; error: { code: RequestWrappingKeyErrorCode } };
+export type RequestWrappingKeyResult = ResultType<string, { code: RequestWrappingKeyErrorCode }>;
 
 export type RequestWrappingKeyUseCase = (input: RequestWrappingKeyInput) => Promise<RequestWrappingKeyResult>;
 
@@ -44,25 +44,25 @@ export function createRequestWrappingKeyUseCase(
 ): RequestWrappingKeyUseCase {
   return async function requestWrappingKey(input) {
     if (input.provider !== dependencies.providerIdTokenVerifier.provider) {
-      return { ok: false, error: { code: "dependency_unavailable" } };
+      return failure("dependency_unavailable");
     }
 
     const verification = await verifyProviderIdToken(dependencies.providerIdTokenVerifier, input.idToken);
     if (verification.kind === "dependency_unavailable") {
-      return { ok: false, error: { code: "dependency_unavailable" } };
+      return failure("dependency_unavailable");
     }
 
     if (verification.kind === "failed") {
-      return { ok: false, error: { code: mapVerificationFailure(verification.reason) } };
+      return failure(mapVerificationFailure(verification.reason));
     }
 
     if (verification.identity.provider !== input.provider) {
-      return { ok: false, error: { code: "dependency_unavailable" } };
+      return failure("dependency_unavailable");
     }
 
     const rateLimit = await checkRateLimit(dependencies, verification.identity.issuer, verification.identity.subject);
-    if (!rateLimit.ok) {
-      return rateLimit.result;
+    if (rateLimit) {
+      return rateLimit;
     }
 
     try {
@@ -72,9 +72,9 @@ export function createRequestWrappingKeyUseCase(
         subject: verification.identity.subject,
       });
 
-      return { ok: true, wrappingKey };
+      return Result.ok(wrappingKey);
     } catch {
-      return { ok: false, error: { code: "dependency_unavailable" } };
+      return failure("dependency_unavailable");
     }
   };
 }
@@ -100,7 +100,7 @@ async function checkRateLimit(
   dependencies: RequestWrappingKeyDependencies,
   issuer: string,
   subject: string,
-): Promise<{ ok: true } | { ok: false; result: RequestWrappingKeyResult }> {
+): Promise<RequestWrappingKeyResult | undefined> {
   try {
     const result = await dependencies.wrappingKeyRateLimiter.checkWrappingKeyRequest({
       provider: dependencies.providerIdTokenVerifier.provider,
@@ -110,13 +110,17 @@ async function checkRateLimit(
     });
 
     if (!result.allowed) {
-      return { ok: false, result: { ok: false, error: { code: "rate_limited" } } };
+      return failure("rate_limited");
     }
 
-    return { ok: true };
+    return undefined;
   } catch {
-    return { ok: false, result: { ok: false, error: { code: "dependency_unavailable" } } };
+    return failure("dependency_unavailable");
   }
+}
+
+function failure(code: RequestWrappingKeyErrorCode): RequestWrappingKeyResult {
+  return Result.err({ code });
 }
 
 function mapVerificationFailure(reason: ProviderIdTokenVerificationFailureReason): RequestWrappingKeyErrorCode {

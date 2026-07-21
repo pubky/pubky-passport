@@ -1,6 +1,7 @@
 import "client-only";
 
 import { Pubky, PublicKey, type PubkyError, type PubkyErrorName, type Session } from "@synonymdev/pubky";
+import { Result, type Result as ResultType } from "better-result";
 
 import type { PubkyIdentitySession } from "../../../core/domain/identity/pubkyIdentity";
 import {
@@ -28,9 +29,7 @@ export type PubkyIdentityOperationError = {
   sdkErrorName?: PubkyErrorName;
 };
 
-export type PubkyIdentityOperationResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: PubkyIdentityOperationError };
+export type PubkyIdentityOperationResult<T> = ResultType<T, PubkyIdentityOperationError>;
 
 export type PubkyIdentitySignupInput = {
   keypair: PubkyIdentityKeypair;
@@ -63,8 +62,8 @@ export class PubkyIdentityAdapter {
   async signup(input: PubkyIdentitySignupInput): Promise<PubkyIdentityOperationResult<PubkyIdentitySession>> {
     const homeserver = parsePublicKey(input.homeserverPubky);
 
-    if (!homeserver.ok) {
-      return homeserver;
+    if (Result.isError(homeserver)) {
+      return failure(homeserver.error.code, homeserver.error.message, homeserver.error.sdkErrorName);
     }
 
     try {
@@ -115,8 +114,8 @@ export class PubkyIdentityAdapter {
     const homeserver = parseOptionalPublicKey(input.homeserverPubky);
     let homeserverTransferredToSdk = false;
 
-    if (!homeserver.ok) {
-      return homeserver;
+    if (Result.isError(homeserver)) {
+      return failure(homeserver.error.code, homeserver.error.message, homeserver.error.sdkErrorName);
     }
 
     try {
@@ -151,14 +150,14 @@ export class PubkyIdentityAdapter {
   ): Promise<PubkyIdentityOperationResult<T>> {
     const sdkKeypair = withPubkySdkKeypair(keypair, (value) => value);
 
-    if (!sdkKeypair.ok) {
+    if (Result.isError(sdkKeypair)) {
       return keyFailure(sdkKeypair.error, failureCode);
     }
 
     const signer = this.#pubky.signer(sdkKeypair.value);
 
     try {
-      return { ok: true, value: await handleSigner(signer) };
+      return Result.ok(await handleSigner(signer));
     } catch (error) {
       return failure(failureCode, failureMessage, pubkyErrorName(error));
     } finally {
@@ -201,7 +200,7 @@ function parsePublicKey(value: string): PubkyIdentityOperationResult<PublicKey> 
   }
 
   try {
-    return { ok: true, value: PublicKey.from(value) };
+    return Result.ok(PublicKey.from(value));
   } catch (error) {
     return failure("invalid_homeserver_pubky", "Homeserver public key is missing or invalid.", pubkyErrorName(error));
   }
@@ -209,7 +208,7 @@ function parsePublicKey(value: string): PubkyIdentityOperationResult<PublicKey> 
 
 function parseOptionalPublicKey(value: string | null | undefined): PubkyIdentityOperationResult<PublicKey | null> {
   if (value === null || value === undefined) {
-    return { ok: true, value: null };
+    return Result.ok(null);
   }
 
   return parsePublicKey(value);
@@ -231,13 +230,10 @@ function keyFailure(
     return failure("key_unavailable", error.message);
   }
 
-  return {
-    ok: false,
-    error: {
+  return Result.err({
       code,
       message: error.message,
-    },
-  };
+  });
 }
 
 function failure<T>(
@@ -245,7 +241,7 @@ function failure<T>(
   message: string,
   sdkErrorName?: PubkyErrorName,
 ): PubkyIdentityOperationResult<T> {
-  return { ok: false, error: { code, message, ...(sdkErrorName ? { sdkErrorName } : {}) } };
+  return Result.err({ code, message, ...(sdkErrorName ? { sdkErrorName } : {}) });
 }
 
 function pubkyErrorName(error: unknown): PubkyErrorName | undefined {

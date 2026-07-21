@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { Result } from "better-result";
 
-import { createRequestWrappingKeyUseCase } from "./requestWrappingKey";
+import { expectAsyncResultError } from "../../../../test-utils/resultAssertions";
+import {
+  createRequestWrappingKeyUseCase,
+  type RequestWrappingKeyResult,
+} from "./requestWrappingKey";
 import type { Clock } from "../../ports/clock";
 import type {
   ProviderIdTokenVerificationResult,
@@ -20,6 +25,10 @@ const fixedClock: Clock = {
     return new Date("2026-01-01T00:00:00.000Z");
   },
 };
+
+async function expectError(result: Promise<RequestWrappingKeyResult>, code: string): Promise<void> {
+  await expectAsyncResultError(result, { code });
+}
 
 describe("requestWrappingKey", () => {
   it("verifies the provider ID token before deriving a wrapping key", async () => {
@@ -42,10 +51,7 @@ describe("requestWrappingKey", () => {
       clock: fixedClock,
     });
 
-    await expect(useCase({ provider: "google", idToken: "id-token" })).resolves.toEqual({
-      ok: true,
-      wrappingKey: "derived-wrapping-key",
-    });
+    await expect(useCase({ provider: "google", idToken: "id-token" })).resolves.toEqual(Result.ok("derived-wrapping-key"));
     expect(calls).toEqual(["verify", "rate-limit", "google:https://accounts.google.com:google-subject"]);
     expect(rateLimitInput).toEqual({
       provider: "google",
@@ -67,10 +73,7 @@ describe("requestWrappingKey", () => {
       clock: fixedClock,
     });
 
-    await expect(useCase({ provider: "google", idToken: "id-token" })).resolves.toEqual({
-      ok: false,
-      error: { code: "invalid_id_token" },
-    });
+    await expectError(useCase({ provider: "google", idToken: "id-token" }), "invalid_id_token");
     expect(deriveCalls).toBe(0);
   });
 
@@ -86,10 +89,7 @@ describe("requestWrappingKey", () => {
       clock: fixedClock,
     });
 
-    await expect(useCase({ provider: "google", idToken: "id-token" })).resolves.toEqual({
-      ok: false,
-      error: { code: "missing_subject" },
-    });
+    await expectError(useCase({ provider: "google", idToken: "id-token" }), "missing_subject");
     expect(deriveCalls).toBe(0);
   });
 
@@ -105,10 +105,7 @@ describe("requestWrappingKey", () => {
       clock: fixedClock,
     });
 
-    await expect(useCase({ provider: "google", idToken: "id-token" })).resolves.toEqual({
-      ok: false,
-      error: { code: "rate_limited" },
-    });
+    await expectError(useCase({ provider: "google", idToken: "id-token" }), "rate_limited");
     expect(deriveCalls).toBe(0);
   });
 
@@ -124,10 +121,7 @@ describe("requestWrappingKey", () => {
       clock: fixedClock,
     });
 
-    await expect(useCase({ provider: "google", idToken: "id-token" })).resolves.toEqual({
-      ok: false,
-      error: { code: "dependency_unavailable" },
-    });
+    await expectError(useCase({ provider: "google", idToken: "id-token" }), "dependency_unavailable");
   });
 
   it("maps verifier dependency errors to safe results", async () => {
@@ -143,10 +137,7 @@ describe("requestWrappingKey", () => {
       clock: fixedClock,
     });
 
-    await expect(useCase({ provider: "google", idToken: "id-token" })).resolves.toEqual({
-      ok: false,
-      error: { code: "dependency_unavailable" },
-    });
+    await expectError(useCase({ provider: "google", idToken: "id-token" }), "dependency_unavailable");
   });
 });
 

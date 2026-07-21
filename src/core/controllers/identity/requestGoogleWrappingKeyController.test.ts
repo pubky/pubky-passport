@@ -1,3 +1,4 @@
+import { Result } from "better-result";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -10,7 +11,7 @@ describe("requestGoogleWrappingKeyController", () => {
     const calls: unknown[] = [];
     const controller = createRequestGoogleWrappingKeyController(async input => {
       calls.push(input);
-      return { ok: true, wrappingKey: "wrapping-key" };
+      return Result.ok("wrapping-key");
     });
 
     await expect(controller({ googleIdToken: "id-token" })).resolves.toEqual({
@@ -38,6 +39,6 @@ describe("requestGoogleWrappingKeyController", () => {
   });
 });
 
-function failure(code: RequestWrappingKeyErrorCode): Extract<RequestWrappingKeyResult, { ok: false }> {
-  return { ok: false, error: { code } };
+function failure(code: RequestWrappingKeyErrorCode): RequestWrappingKeyResult {
+  return Result.err({ code });
 }

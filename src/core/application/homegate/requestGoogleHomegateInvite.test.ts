@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { Result } from "better-result";
 
-import { createRequestGoogleHomegateInviteUseCase } from "./requestGoogleHomegateInvite";
+import { expectAsyncResultError } from "../../../../test-utils/resultAssertions";
+import {
+  createRequestGoogleHomegateInviteUseCase,
+  type RequestGoogleHomegateInviteResult,
+} from "./requestGoogleHomegateInvite";
 import type {
   GoogleHomegateInviteErrorCode,
   GoogleHomegateInvitePort,
@@ -24,20 +29,21 @@ const homegateErrorCodes: GoogleHomegateInviteErrorCode[] = [
   "malformed_homegate_response",
 ];
 
+async function expectError(result: Promise<RequestGoogleHomegateInviteResult>, code: string): Promise<void> {
+  await expectAsyncResultError(result, { code });
+}
+
 describe("requestGoogleHomegateInvite", () => {
   it("requests an invite from Homegate with the Google ID token", async () => {
     let receivedToken: string | undefined;
     const useCase = createRequestGoogleHomegateInviteUseCase({
       homegateInvite: homegateInvitePort((input) => {
         receivedToken = input.googleIdToken;
-        return { ok: true, value: invite };
+        return Result.ok(invite);
       }),
     });
 
-    await expect(useCase({ googleIdToken: "google-id-token" })).resolves.toEqual({
-      ok: true,
-      invite,
-    });
+    await expect(useCase({ googleIdToken: "google-id-token" })).resolves.toEqual(Result.ok(invite));
     expect(receivedToken).toBe("google-id-token");
   });
 
@@ -46,26 +52,20 @@ describe("requestGoogleHomegateInvite", () => {
     const useCase = createRequestGoogleHomegateInviteUseCase({
       homegateInvite: homegateInvitePort(() => {
         calls += 1;
-        return { ok: true, value: invite };
+        return Result.ok(invite);
       }),
     });
 
-    await expect(useCase({ googleIdToken: "   " })).resolves.toEqual({
-      ok: false,
-      error: { code: "invalid_request" },
-    });
+    await expectError(useCase({ googleIdToken: "   " }), "invalid_request");
     expect(calls).toBe(0);
   });
 
   it.each(homegateErrorCodes)("maps Homegate %s responses to safe application errors", async (code) => {
     const useCase = createRequestGoogleHomegateInviteUseCase({
-      homegateInvite: homegateInvitePort(() => ({ ok: false, error: { code } })),
+      homegateInvite: homegateInvitePort(() => Result.err({ code })),
     });
 
-    await expect(useCase({ googleIdToken: "google-id-token" })).resolves.toEqual({
-      ok: false,
-      error: { code },
-    });
+    await expectError(useCase({ googleIdToken: "google-id-token" }), code);
   });
 
   it("maps thrown Homegate dependencies to safe errors", async () => {
@@ -79,7 +79,7 @@ describe("requestGoogleHomegateInvite", () => {
 
     const result = await useCase({ googleIdToken: "google-id-token" });
 
-    expect(result).toEqual({ ok: false, error: { code: "dependency_unavailable" } });
+    await expectError(Promise.resolve(result), "dependency_unavailable");
     expect(JSON.stringify(result)).not.toContain("google-id-token");
     expect(JSON.stringify(result)).not.toContain("signup-code");
   });

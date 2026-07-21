@@ -1,3 +1,5 @@
+import type { Result } from "better-result";
+
 import type { PubkyIdentityKeyHandle } from "../domain/identity/pubkyIdentity";
 
 export type PubkyDiscoveryErrorCode =
@@ -9,9 +11,7 @@ export type PubkyDiscoveryError = {
   code: PubkyDiscoveryErrorCode;
 };
 
-export type PubkyDiscoveryResult =
-  | { ok: true }
-  | { ok: false; error: PubkyDiscoveryError };
+export type PubkyDiscoveryResult = Result<void, PubkyDiscoveryError>;
 
 export type PublishPubkyHomeserverInput = {
   keyHandle: PubkyIdentityKeyHandle;

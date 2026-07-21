@@ -1,3 +1,5 @@
+import { Result } from "better-result";
+
 import type {
   GoogleHomegateInviteErrorCode,
   GoogleHomegateInvitePort,
@@ -25,9 +27,9 @@ export class FakeHomegateInvite implements GoogleHomegateInvitePort {
     });
 
     if (this.failure) {
-      return { ok: false, error: { code: this.failure } };
+      return Result.err({ code: this.failure });
     }
 
-    return { ok: true, value: this.invite };
+    return Result.ok(this.invite);
   }
 }

@@ -1,3 +1,5 @@
+import type { Result } from "better-result";
+
 import type {
   PubkyIdentityKeyHandle,
   ValidatedSensitivePubkyAuthRequest,
@@ -13,9 +15,7 @@ export type PubkyAuthApprovalError = {
   code: PubkyAuthApprovalErrorCode;
 };
 
-export type PubkyAuthApprovalResult =
-  | { ok: true }
-  | { ok: false; error: PubkyAuthApprovalError };
+export type PubkyAuthApprovalResult = Result<void, PubkyAuthApprovalError>;
 
 export type ApprovePubkyAuthRequestInput = {
   keyHandle: PubkyIdentityKeyHandle;

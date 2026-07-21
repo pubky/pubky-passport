@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Result, type Result as ResultType } from "better-result";
 
 import { pubkySecretKeyFormat, type PubkyIdentityKey } from "../../src/core/domain/identity/pubkyIdentity";
 import { FakePubkyAuthApproval } from "./fakePubkyAuthApproval";
@@ -134,42 +135,53 @@ async function fakeKey(): Promise<PubkyIdentityKey> {
   return expectOk(await new FakePubkyIdentityKeys().createIdentityKey());
 }
 
-function expectOk<T>(result: Promise<{ ok: true; value?: T } | { ok: false; error: unknown }>): Promise<T>;
-function expectOk<T>(result: { ok: true; value: T } | { ok: false; error: unknown }): T;
+function expectOk<T>(result: Promise<ResultType<T, unknown>>): Promise<T>;
+function expectOk<T>(result: ResultType<T, unknown>): T;
 function expectOk<T>(
   result:
-    | Promise<{ ok: true; value?: T } | { ok: false; error: unknown }>
-    | { ok: true; value: T }
-    | { ok: false; error: unknown },
+    | Promise<ResultType<T, unknown>>
+    | ResultType<T, unknown>,
 ): T | Promise<T> {
   if (result instanceof Promise) {
     return result.then((resolved) => {
-      expect(resolved.ok).toBe(true);
-      return (resolved as { ok: true; value?: T }).value as T;
+      expect(Result.isOk(resolved)).toBe(true);
+      if (Result.isError(resolved)) {
+        throw resolved.error;
+      }
+
+      return resolved.value;
     });
   }
 
-  expect(result.ok).toBe(true);
-  return (result as { ok: true; value: T }).value;
+  expect(Result.isOk(result)).toBe(true);
+  if (Result.isError(result)) {
+    throw result.error;
+  }
+
+  return result.value;
 }
 
 async function expectError(
-  result: Promise<{ ok: true; value: unknown } | { ok: false; error: { code: string } }>,
+  result: Promise<ResultType<unknown, { code: string }>>,
   code: string,
 ): Promise<void> {
-  expect(await result).toEqual({ ok: false, error: { code } });
+  const resolved = await result;
+  expect(Result.isError(resolved)).toBe(true);
+  if (Result.isError(resolved)) {
+    expect(resolved.error).toEqual({ code });
+  }
 }
 
 async function expectDiscoveryError(
-  result: Promise<{ ok: true } | { ok: false; error: { code: string } }>,
+  result: Promise<ResultType<void, { code: string }>>,
   code: string,
 ): Promise<void> {
-  expect(await result).toEqual({ ok: false, error: { code } });
+  return expectError(result, code);
 }
 
 async function expectAuthApprovalError(
-  result: Promise<{ ok: true } | { ok: false; error: { code: string } }>,
+  result: Promise<ResultType<void, { code: string }>>,
   code: string,
 ): Promise<void> {
-  expect(await result).toEqual({ ok: false, error: { code } });
+  return expectError(result, code);
 }

@@ -1,3 +1,5 @@
+import { Result } from "better-result";
+
 import type {
   RequestWrappingKeyErrorCode,
   RequestWrappingKeyUseCase,
@@ -33,8 +35,8 @@ export function createRequestGoogleWrappingKeyController(
   return async function requestGoogleWrappingKeyController(input) {
     const result = await requestWrappingKey({ provider: "google", idToken: input.googleIdToken });
 
-    if (result.ok) {
-      return { status: 200, body: { wrappingKey: result.wrappingKey } };
+    if (Result.isOk(result)) {
+      return { status: 200, body: { wrappingKey: result.value } };
     }
 
     const wireCode = toWireErrorCode(result.error.code);

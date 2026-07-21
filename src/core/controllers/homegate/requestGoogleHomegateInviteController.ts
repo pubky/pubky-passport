@@ -1,3 +1,5 @@
+import { Result } from "better-result";
+
 import type {
   RequestGoogleHomegateInviteErrorCode,
   RequestGoogleHomegateInviteUseCase,
@@ -24,12 +26,12 @@ export function createRequestGoogleHomegateInviteController(
   return async function requestGoogleHomegateInviteController(input) {
     const result = await requestGoogleHomegateInvite(input);
 
-    if (result.ok) {
+    if (Result.isOk(result)) {
       return {
         status: 200,
         body: {
-          signupCode: result.invite.signupCode,
-          homeserverPubky: result.invite.homeserverPubky,
+          signupCode: result.value.signupCode,
+          homeserverPubky: result.value.homeserverPubky,
         },
       };
     }

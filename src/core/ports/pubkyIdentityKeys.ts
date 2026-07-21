@@ -1,3 +1,5 @@
+import type { Result } from "better-result";
+
 import type {
   PubkyIdentityKey,
   PubkyIdentityKeyHandle,
@@ -17,9 +19,7 @@ export type PubkyIdentityKeysError = {
   code: PubkyIdentityKeysErrorCode;
 };
 
-export type PubkyIdentityKeysResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: PubkyIdentityKeysError };
+export type PubkyIdentityKeysResult<T> = Result<T, PubkyIdentityKeysError>;
 
 export type RestorePubkyIdentityKeyInput = {
   secretKey: PubkySecretKeyMaterial;

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { Result } from "better-result";
+
 import type {
   GoogleHomegateInviteErrorCode,
   GoogleHomegateInvitePort,
@@ -76,13 +78,10 @@ async function parseHomegateSuccess(response: Response): Promise<GoogleHomegateI
     return failure("malformed_homegate_response");
   }
 
-  return {
-    ok: true,
-    value: {
-      signupCode: body.signupCode,
-      homeserverPubky: body.homeserverPubky,
-    },
-  };
+  return Result.ok({
+    signupCode: body.signupCode,
+    homeserverPubky: body.homeserverPubky,
+  });
 }
 
 async function mapHomegateError(response: Response): Promise<GoogleHomegateInviteErrorCode> {
@@ -120,5 +119,5 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 function failure(code: GoogleHomegateInviteErrorCode): GoogleHomegateInviteResult {
-  return { ok: false, error: { code } };
+  return Result.err({ code });
 }

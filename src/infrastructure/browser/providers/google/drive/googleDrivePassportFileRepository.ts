@@ -1,5 +1,7 @@
 import "client-only";
 
+import { Result, type Result as ResultType } from "better-result";
+
 import type { PassportFileEnvelopeV1 } from "../../../../../core/domain/passport-file/passportFile";
 import {
   parsePassportFileContents,
@@ -9,6 +11,7 @@ import {
 import type {
   PassportFileReadResult,
   PassportFileRepository,
+  PassportFileRepositoryError,
   PassportFileRepositoryErrorCode,
   PassportFileRepositoryResult,
 } from "../../../../../core/ports/passportFileRepository";
@@ -30,10 +33,8 @@ type DriveListResponse = {
   nextPageToken?: unknown;
 };
 
-type LocatedFileResult =
-  | { ok: true; status: "missing" }
-  | { ok: true; status: "found"; fileId: string }
-  | { ok: false; code: PassportFileRepositoryErrorCode };
+type LocatedFileState = { status: "missing" } | { status: "found"; fileId: string };
+type LocatedFileResult = ResultType<LocatedFileState, PassportFileRepositoryError>;
 
 const driveFilesUrl = "https://www.googleapis.com/drive/v3/files";
 const driveUploadFilesUrl = "https://www.googleapis.com/upload/drive/v3/files";
@@ -55,20 +56,20 @@ export class GoogleDrivePassportFileRepository implements PassportFileRepository
 
   async readPassportFile(): Promise<PassportFileRepositoryResult<PassportFileReadResult>> {
     const token = await this.getAccessToken();
-    if (!token.ok) {
-      return failure(token.code);
+    if (Result.isError(token)) {
+      return failure(token.error.code);
     }
 
     const locatedFile = await this.locatePassportFile(token.value);
-    if (!locatedFile.ok) {
-      return failure(locatedFile.code);
+    if (Result.isError(locatedFile)) {
+      return failure(locatedFile.error.code);
     }
 
-    if (locatedFile.status === "missing") {
+    if (locatedFile.value.status === "missing") {
       return success({ status: "missing" });
     }
 
-    const response = await this.fetchDrive(mediaReadUrl(locatedFile.fileId), {
+    const response = await this.fetchDrive(mediaReadUrl(locatedFile.value.fileId), {
       headers: authorizationHeaders(token.value),
     });
     if (response.status === 404) {
@@ -88,32 +89,32 @@ export class GoogleDrivePassportFileRepository implements PassportFileRepository
     }
 
     const parsed = parsePassportFileContents(contents, this.urlOptions);
-    if (!parsed.ok) {
+    if (Result.isError(parsed)) {
       return failure("invalid_file");
     }
 
-    return success({ status: "found", envelope: parsed.envelope });
+    return success({ status: "found", envelope: parsed.value });
   }
 
   async writePassportFile(input: { envelope: PassportFileEnvelopeV1 }): Promise<PassportFileRepositoryResult<void>> {
     const serializedEnvelope = serializeEnvelope(input.envelope, this.urlOptions);
-    if (!serializedEnvelope.ok) {
-      return failure("invalid_file");
+    if (Result.isError(serializedEnvelope)) {
+      return failure(serializedEnvelope.error.code);
     }
 
     const token = await this.getAccessToken();
-    if (!token.ok) {
-      return failure(token.code);
+    if (Result.isError(token)) {
+      return failure(token.error.code);
     }
 
     const locatedFile = await this.locatePassportFile(token.value);
-    if (!locatedFile.ok) {
-      return failure(locatedFile.code);
+    if (Result.isError(locatedFile)) {
+      return failure(locatedFile.error.code);
     }
 
-    const response = locatedFile.status === "missing"
+    const response = locatedFile.value.status === "missing"
       ? await this.createPassportFile(token.value, serializedEnvelope.value)
-      : await this.updatePassportFile(token.value, locatedFile.fileId, serializedEnvelope.value);
+      : await this.updatePassportFile(token.value, locatedFile.value.fileId, serializedEnvelope.value);
 
     if (!response.ok) {
       return failure(mapDriveStatus(response.status, "write_failed"));
@@ -122,59 +123,59 @@ export class GoogleDrivePassportFileRepository implements PassportFileRepository
     return success(undefined);
   }
 
-  private async getAccessToken(): Promise<{ ok: true; value: string } | { ok: false; code: PassportFileRepositoryErrorCode }> {
+  private async getAccessToken(): Promise<PassportFileRepositoryResult<string>> {
     let token: string | null | undefined;
     try {
       token = await this.accessTokenProvider();
     } catch {
-      return { ok: false, code: "unauthorized" };
+      return failure("unauthorized");
     }
 
     if (typeof token !== "string" || token.length === 0) {
-      return { ok: false, code: "unauthorized" };
+      return failure("unauthorized");
     }
 
-    return { ok: true, value: token };
+    return success(token);
   }
 
   private async locatePassportFile(token: string): Promise<LocatedFileResult> {
     const response = await this.fetchDrive(listUrl(), { headers: authorizationHeaders(token) });
     if (!response.ok) {
-      return { ok: false, code: mapDriveStatus(response.status, "invalid_response") };
+      return failure(mapDriveStatus(response.status, "invalid_response"));
     }
 
     const listContents = await safeReadText(response, maximumDriveListResponseBytes);
     if (listContents === null || listContents === "too_large") {
-      return { ok: false, code: "invalid_response" };
+      return failure("invalid_response");
     }
 
     const list = parseJsonContents(listContents);
     if (!isDriveListResponse(list)) {
-      return { ok: false, code: "invalid_response" };
+      return failure("invalid_response");
     }
 
     const files = list.files.filter((file): file is { id: string; name: string } => {
-      return typeof file.id === "string" && file.name === passportFileName;
+      return typeof file.id === "string" && typeof file.name === "string" && file.name === passportFileName;
     });
 
     if (files.length !== list.files.length) {
-      return { ok: false, code: "invalid_response" };
+      return failure("invalid_response");
     }
 
     if (files.length === 0 && !list.nextPageToken) {
-      return { ok: true, status: "missing" };
+      return Result.ok({ status: "missing" });
     }
 
     if (files.length !== 1 || list.nextPageToken) {
-      return { ok: false, code: "duplicate_files" };
+      return failure("duplicate_files");
     }
 
     const file = files[0];
     if (!file) {
-      return { ok: false, code: "invalid_response" };
+      return failure("invalid_response");
     }
 
-    return { ok: true, status: "found", fileId: file.id };
+    return Result.ok({ status: "found", fileId: file.id });
   }
 
   private async createPassportFile(token: string, envelopeJson: string): Promise<Response> {
@@ -249,21 +250,18 @@ function createMultipartBody(envelopeJson: string): string {
 function serializeEnvelope(
   envelope: PassportFileEnvelopeV1,
   options: PassportFileUrlOptions,
-): { ok: true; value: string } | { ok: false } {
+): PassportFileRepositoryResult<string> {
   const parsed = parsePassportFileEnvelope(envelope, options);
-  if (!parsed.ok) {
-    return { ok: false };
+  if (Result.isError(parsed)) {
+    return failure("invalid_file");
   }
 
-  return {
-    ok: true,
-    value: JSON.stringify({
-      v: parsed.envelope.v,
-      iv: parsed.envelope.iv,
-      ct: parsed.envelope.ct,
-      url: parsed.envelope.url,
-    }),
-  };
+  return success(JSON.stringify({
+    v: parsed.value.v,
+    iv: parsed.value.iv,
+    ct: parsed.value.ct,
+    url: parsed.value.url,
+  }));
 }
 
 function parseJsonContents(contents: string): unknown {
@@ -368,9 +366,9 @@ function mapDriveStatus(status: number, fallback: PassportFileRepositoryErrorCod
 }
 
 function success<T>(value: T): PassportFileRepositoryResult<T> {
-  return { ok: true, value };
+  return Result.ok(value);
 }
 
 function failure<T>(code: PassportFileRepositoryErrorCode): PassportFileRepositoryResult<T> {
-  return { ok: false, error: { code } };
+  return Result.err({ code });
 }

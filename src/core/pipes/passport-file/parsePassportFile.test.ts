@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Result } from "better-result";
 
 import {
   normalizePassportFileOrigin,
@@ -29,8 +30,8 @@ function expectParseError(
 ): void {
   const result = parsePassportFileContents(input);
 
-  expect(result.ok).toBe(false);
-  if (!result.ok) {
+  expect(Result.isError(result)).toBe(true);
+  if (Result.isError(result)) {
     expect(result.error).toEqual(field ? { code, field } : { code });
     expect(JSON.stringify(result.error)).not.toContain(validEnvelope.iv);
     expect(JSON.stringify(result.error)).not.toContain(validEnvelope.ct);
@@ -41,23 +42,23 @@ describe("parsePassportFileContents", () => {
   it("parses a valid v1 envelope", () => {
     const result = parsePassportFileContents(stringifyEnvelope());
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isError(result)) {
       throw new Error(result.error.code);
     }
 
-    expect(result.envelope).toEqual(validEnvelope);
+    expect(result.value).toEqual(validEnvelope);
   });
 
   it("normalizes root-path urls to origin-only output", () => {
     const result = parsePassportFileContents(stringifyEnvelope({ url: "https://passport.pubky.app/" }));
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isError(result)) {
       throw new Error(result.error.code);
     }
 
-    expect(result.envelope.url).toBe("https://passport.pubky.app");
+    expect(result.value.url).toBe("https://passport.pubky.app");
   });
 
   it("rejects malformed JSON", () => {
@@ -134,38 +135,42 @@ describe("parsePassportFileContents", () => {
       allowLocalhostHttp: true,
     });
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isError(result)) {
       throw new Error(result.error.code);
     }
 
-    expect(result.envelope.url).toBe("http://localhost:3000");
+    expect(result.value.url).toBe("http://localhost:3000");
   });
 
   it("parses already-decoded envelope objects", () => {
     const result = parsePassportFileEnvelope({ ...validEnvelope, url: "https://passport.pubky.app/" });
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isError(result)) {
       throw new Error(result.error.code);
     }
 
-    expect(result.envelope.url).toBe("https://passport.pubky.app");
+    expect(result.value.url).toBe("https://passport.pubky.app");
   });
 });
 
 describe("normalizePassportFileOrigin", () => {
   it("returns origin-only urls", () => {
-    expect(normalizePassportFileOrigin("https://passport.pubky.app/")).toEqual({
-      ok: true,
-      origin: "https://passport.pubky.app",
-    });
+    const result = normalizePassportFileOrigin("https://passport.pubky.app/");
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isOk(result)) {
+      expect(result.value).toBe("https://passport.pubky.app");
+    }
   });
 
   it("rejects invalid origins without returning input values", () => {
     const result = normalizePassportFileOrigin("https://passport.pubky.app/private?secret=value");
 
-    expect(result).toEqual({ ok: false, error: { code: "invalid_field", field: "url" } });
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error).toEqual({ code: "invalid_field", field: "url" });
+    }
     expect(JSON.stringify(result)).not.toContain("secret=value");
   });
 });

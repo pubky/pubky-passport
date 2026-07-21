@@ -1,3 +1,5 @@
+import { Result } from "better-result";
+
 import type {
   PubkyIdentityKeyHandle,
   PubkyIdentitySession,
@@ -48,7 +50,7 @@ export class FakePubkySignup implements PubkySignup {
       return failure(this.signupFailure);
     }
 
-    return { ok: true, value: this.session };
+    return Result.ok(this.session);
   }
 
   async signin(input: SigninWithPubkyInput): Promise<PubkySignupResult<PubkyIdentitySession>> {
@@ -61,10 +63,10 @@ export class FakePubkySignup implements PubkySignup {
       return failure(this.signinFailure);
     }
 
-    return { ok: true, value: this.session };
+    return Result.ok(this.session);
   }
 }
 
 function failure<T>(code: PubkySignupErrorCode): PubkySignupResult<T> {
-  return { ok: false, error: { code } };
+  return Result.err({ code });
 }

@@ -1,3 +1,4 @@
+import { Result, type Err, type Result as ResultType } from "better-result";
 import { z } from "zod";
 
 import type { PassportFileEnvelopeV1 } from "../../domain/passport-file/passportFile";
@@ -17,17 +18,13 @@ export type PassportFileParseError = {
   field?: PassportFileField;
 };
 
-export type PassportFileParseResult =
-  | { ok: true; envelope: PassportFileEnvelopeV1 }
-  | { ok: false; error: PassportFileParseError };
+export type PassportFileParseResult = ResultType<PassportFileEnvelopeV1, PassportFileParseError>;
 
 export type PassportFileUrlOptions = {
   allowLocalhostHttp?: boolean;
 };
 
-export type PassportFileOriginResult =
-  | { ok: true; origin: string }
-  | { ok: false; error: { code: "invalid_field"; field: "url" } };
+export type PassportFileOriginResult = ResultType<string, { code: "invalid_field"; field: "url" }>;
 
 const base64UrlPattern = /^[A-Za-z0-9_-]+$/;
 const passportFileEnvelopeSchema = z
@@ -86,19 +83,16 @@ export function parsePassportFileEnvelope(
   }
 
   const origin = normalizePassportFileOrigin(parsed.data.url, options);
-  if (!origin.ok) {
-    return origin;
+  if (Result.isError(origin)) {
+    return error(origin.error.code, origin.error.field);
   }
 
-  return {
-    ok: true,
-    envelope: {
+  return Result.ok({
       v: 1,
       iv: parsed.data.iv,
       ct: parsed.data.ct,
-      url: origin.origin,
-    },
-  };
+      url: origin.value,
+  });
 }
 
 export function normalizePassportFileOrigin(
@@ -110,7 +104,7 @@ export function normalizePassportFileOrigin(
     return invalidUrl();
   }
 
-  return { ok: true, origin: url.origin };
+  return Result.ok(url.origin);
 }
 
 function parseUrl(value: string): URL | null {
@@ -149,10 +143,13 @@ function isLocalhost(hostname: string): boolean {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]";
 }
 
-function invalidUrl(): { ok: false; error: { code: "invalid_field"; field: "url" } } {
-  return { ok: false, error: { code: "invalid_field", field: "url" } };
+function invalidUrl(): Err<never, { code: "invalid_field"; field: "url" }> {
+  return Result.err<never, { code: "invalid_field"; field: "url" }>({ code: "invalid_field", field: "url" });
 }
 
-function error(code: PassportFileParseErrorCode, field?: PassportFileField): { ok: false; error: PassportFileParseError } {
-  return { ok: false, error: field ? { code, field } : { code } };
+function error(
+  code: PassportFileParseErrorCode,
+  field?: PassportFileField,
+): Err<never, PassportFileParseError> {
+  return Result.err<never, PassportFileParseError>(field ? { code, field } : { code });
 }

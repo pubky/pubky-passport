@@ -17,6 +17,9 @@ importers:
       '@tailwindcss/postcss':
         specifier: ^4.3.1
         version: 4.3.1
+      better-result:
+        specifier: 2.9.2
+        version: 2.9.2
       client-only:
         specifier: 0.0.1
         version: 0.0.1
@@ -1338,6 +1341,9 @@ packages:
     resolution: {integrity: sha512-31/02mVB4yuQU6adKk5SlY6m+mxDwUq5KZkyYgnLrrKl7TEm1+3PyDtDBz2kOv/wxZz41GHsvV1A/u6RmiyBvw==}
     engines: {node: '>=6.0.0'}
     hasBin: true
+
+  better-result@2.9.2:
+    resolution: {integrity: sha512-WIFoBPCdnTOdk9inkE1ZRvCZ4P0CpSkAiLlchC65N7n9DcjZ3NhqkBOlafzpOVnO8ixyi37kicmSJ3ENhPZl7Q==}
 
   bidi-js@1.0.3:
     resolution: {integrity: sha512-RKshQI1R3YQ+n9YJz2QQ147P66ELpa1FQEg20Dk8oW9t2KgLbpDLLp9aGZ7y8WHSshDknG0bknqGw5/tyCs5tw==}
@@ -4072,6 +4078,8 @@ snapshots:
   base64-js@1.5.1: {}
 
   baseline-browser-mapping@2.10.38: {}
+
+  better-result@2.9.2: {}
 
   bidi-js@1.0.3:
     dependencies:

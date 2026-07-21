@@ -1,3 +1,5 @@
+import { Result } from "better-result";
+
 import { pubkySecretKeyBytes, pubkySecretKeyFormat, type PubkySecretKeyMaterial } from "../../src/core/domain/identity/pubkyIdentity";
 import type {
   PubkyIdentityKey,
@@ -52,7 +54,7 @@ export class FakePubkyIdentityKeys implements PubkyIdentityKeys {
       return failure(this.createFailure);
     }
 
-    return { ok: true, value: this.createKey(this.nextPublicIdentity) };
+    return Result.ok(this.createKey(this.nextPublicIdentity));
   }
 
   async restoreIdentityKey(input: RestorePubkyIdentityKeyInput): Promise<PubkyIdentityKeysResult<PubkyIdentityKey>> {
@@ -65,7 +67,7 @@ export class FakePubkyIdentityKeys implements PubkyIdentityKeys {
       return failure(this.restoreFailure);
     }
 
-    return { ok: true, value: this.createKey(this.nextPublicIdentity) };
+    return Result.ok(this.createKey(this.nextPublicIdentity));
   }
 
   async exportSecretKey(
@@ -83,7 +85,7 @@ export class FakePubkyIdentityKeys implements PubkyIdentityKeys {
       return failure("key_unavailable");
     }
 
-    return { ok: true, value: this.secretKey };
+    return Result.ok(this.secretKey);
   }
 
   async getPublicIdentity(input: GetPubkyPublicIdentityInput): Promise<PubkyIdentityKeysResult<PubkyPublicIdentity>> {
@@ -99,7 +101,7 @@ export class FakePubkyIdentityKeys implements PubkyIdentityKeys {
       return failure("key_unavailable");
     }
 
-    return { ok: true, value: publicIdentity };
+    return Result.ok(publicIdentity);
   }
 
   createKey(publicIdentity: PubkyPublicIdentity = this.nextPublicIdentity): PubkyIdentityKey {
@@ -111,5 +113,5 @@ export class FakePubkyIdentityKeys implements PubkyIdentityKeys {
 }
 
 function failure<T>(code: PubkyIdentityKeysErrorCode): PubkyIdentityKeysResult<T> {
-  return { ok: false, error: { code } };
+  return Result.err({ code });
 }

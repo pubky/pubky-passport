@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Result } from "better-result";
 
 import {
   parsePubkyAuthRequest,
@@ -15,8 +16,8 @@ function encodeRequest(request: string): string {
 function expectError(input: unknown, code: PubkyAuthParseErrorCode): void {
   const result = parsePubkyAuthRequest(input);
 
-  expect(result.ok).toBe(false);
-  if (!result.ok) {
+  expect(Result.isError(result)).toBe(true);
+  if (Result.isError(result)) {
     expect(result.error.code).toBe(code);
     expect(result.error.message).not.toContain("test-secret");
   }
@@ -26,12 +27,12 @@ describe("parsePubkyAuthRequest", () => {
   it("parses a valid x-callback-url Pubky auth request", () => {
     const result = parsePubkyAuthRequest(encodeRequest(validRequest));
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isError(result)) {
       throw new Error(result.error.code);
     }
 
-    expect(result.request).toEqual({
+    expect(result.value).toEqual({
       kind: "signin",
       relay: "https://httprelay.pubky.app/inbox",
       sensitiveSecret: "test-secret",
@@ -58,12 +59,12 @@ describe("parsePubkyAuthRequest", () => {
 
     const result = parsePubkyAuthRequest(encodeRequest(request));
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isError(result)) {
       throw new Error(result.error.code);
     }
 
-    expect(result.request.kind).toBe("signin");
+    expect(result.value.kind).toBe("signin");
   });
 
   it("parses comma-separated capabilities", () => {
@@ -72,12 +73,12 @@ describe("parsePubkyAuthRequest", () => {
 
     const result = parsePubkyAuthRequest(encodeRequest(request));
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isError(result)) {
       throw new Error(result.error.code);
     }
 
-    expect(result.request.capabilities).toEqual([
+    expect(result.value.capabilities).toEqual([
       { path: "/pub/pubky.app/", read: true, write: true, scope: "specific" },
       { path: "/pub/eventky/", read: true, write: false, scope: "specific" },
       { path: "/pub/mapky/", read: false, write: true, scope: "specific" },
@@ -90,12 +91,12 @@ describe("parsePubkyAuthRequest", () => {
 
     const result = parsePubkyAuthRequest(encodeRequest(request));
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isError(result)) {
       throw new Error(result.error.code);
     }
 
-    expect(result.request.capabilities).toEqual([
+    expect(result.value.capabilities).toEqual([
       { path: "/", read: true, write: true, scope: "broad" },
       { path: "/pub/", read: true, write: true, scope: "broad" },
     ]);
@@ -107,12 +108,12 @@ describe("parsePubkyAuthRequest", () => {
 
     const result = parsePubkyAuthRequest(encodeRequest(request));
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isError(result)) {
       throw new Error(result.error.code);
     }
 
-    expect(result.request.capabilities).toEqual([
+    expect(result.value.capabilities).toEqual([
       { path: "/pub/file.txt", read: true, write: false, scope: "specific" },
       { path: "/pub/repeated/", read: true, write: true, scope: "specific" },
     ]);
@@ -123,12 +124,12 @@ describe("parsePubkyAuthRequest", () => {
 
     const result = parsePubkyAuthRequest(encodeRequest(request));
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isError(result)) {
       throw new Error(result.error.code);
     }
 
-    expect(result.request.source).toBe("Pubky App");
+    expect(result.value.source).toBe("Pubky App");
   });
 
   it("allows localhost callbacks only when explicitly enabled", () => {
@@ -141,7 +142,7 @@ describe("parsePubkyAuthRequest", () => {
       allowLocalhostCallbacks: true,
     });
 
-    expect(result.ok).toBe(true);
+    expect(Result.isOk(result)).toBe(true);
   });
 
   it("rejects missing and empty d values", () => {
@@ -229,13 +230,13 @@ describe("parsePubkyAuthRequest", () => {
       ),
     );
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isError(result)) {
       throw new Error(result.error.code);
     }
 
-    expect(result.request.callbacks).toEqual({});
-    expect(result.request.requestingAppDisplayName).toBeUndefined();
+    expect(result.value.callbacks).toEqual({});
+    expect(result.value.requestingAppDisplayName).toBeUndefined();
   });
 
   it("derives display domain without exposing callback query parameters", () => {
@@ -245,12 +246,12 @@ describe("parsePubkyAuthRequest", () => {
       ),
     );
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isError(result)) {
       throw new Error(result.error.code);
     }
 
-    expect(result.request.requestingAppDisplayName).toBe("pubky.app");
+    expect(result.value.requestingAppDisplayName).toBe("pubky.app");
   });
 
   it("rejects unsafe callback schemes", () => {

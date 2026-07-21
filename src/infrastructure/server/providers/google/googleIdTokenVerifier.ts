@@ -1,6 +1,7 @@
 import "server-only";
 
 import { OAuth2Client } from "google-auth-library";
+import { Result, type Result as ResultType } from "better-result";
 
 import type { Clock } from "../../../../core/ports/clock";
 import type {
@@ -69,16 +70,16 @@ export class ServerGoogleIdTokenVerifier implements ProviderIdTokenVerifier {
     }
 
     const validatedPayload = validatePayload(payload, this.audience, this.clock.now());
-    if (!validatedPayload.ok) {
-      return { ok: false, reason: validatedPayload.reason };
+    if (Result.isError(validatedPayload)) {
+      return { ok: false, reason: validatedPayload.error };
     }
 
     return {
       ok: true,
       identity: {
         provider: "google",
-        issuer: validatedPayload.payload.iss,
-        subject: validatedPayload.payload.sub,
+        issuer: validatedPayload.value.iss,
+        subject: validatedPayload.value.sub,
       },
     };
   }
@@ -99,26 +100,24 @@ function validatePayload(
   payload: GoogleIdTokenPayload,
   expectedAudience: string,
   now: Date,
-):
-  | { ok: true; payload: ValidGoogleIdTokenPayload }
-  | { ok: false; reason: ProviderIdTokenVerificationFailureReason } {
+): ResultType<ValidGoogleIdTokenPayload, ProviderIdTokenVerificationFailureReason> {
   if (!payload.iss || !acceptedIssuers.has(payload.iss)) {
-    return { ok: false, reason: "unsupported_issuer" };
+    return Result.err("unsupported_issuer");
   }
 
   if (!audienceMatches(payload.aud, payload.azp, expectedAudience)) {
-    return { ok: false, reason: "unsupported_audience" };
+    return Result.err("unsupported_audience");
   }
 
   if (typeof payload.exp !== "number" || payload.exp <= Math.floor(now.getTime() / 1000)) {
-    return { ok: false, reason: "expired" };
+    return Result.err("expired");
   }
 
   if (!payload.sub) {
-    return { ok: false, reason: "missing_subject" };
+    return Result.err("missing_subject");
   }
 
-  return { ok: true, payload: { iss: canonicalGoogleIssuer, exp: payload.exp, sub: payload.sub } };
+  return Result.ok({ iss: canonicalGoogleIssuer, exp: payload.exp, sub: payload.sub });
 }
 
 function audienceMatches(

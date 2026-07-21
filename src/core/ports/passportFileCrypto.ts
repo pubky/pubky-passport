@@ -1,3 +1,5 @@
+import type { Result } from "better-result";
+
 import type { PassportFileEnvelopeV1 } from "../domain/passport-file/passportFile";
 
 export type PassportFileCryptoErrorCode =
@@ -12,9 +14,7 @@ export type PassportFileCryptoError = {
   code: PassportFileCryptoErrorCode;
 };
 
-export type PassportFileCryptoResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: PassportFileCryptoError };
+export type PassportFileCryptoResult<T> = Result<T, PassportFileCryptoError>;
 
 export interface PassportFileCrypto {
   encryptSecretKeyBytes(input: {

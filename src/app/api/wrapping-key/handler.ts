@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Result, type Result as ResultType } from "better-result";
 
 import type { RequestGoogleWrappingKeyController } from "../../../core/controllers/identity/requestGoogleWrappingKeyController";
 import { createWrappingKeyRequestController } from "../../../infrastructure/composition/wrappingKeyServerContainer";
@@ -24,7 +25,7 @@ export function createWrappingKeyPostHandler(
   return async function wrappingKeyPost(request: Request): Promise<NextResponse<WrappingKeyRouteBody>> {
     const body = await parseRequestBody(request);
 
-    if (!body.ok) {
+    if (Result.isError(body)) {
       return json({ error: { code: "invalid_request" } }, 400);
     }
 
@@ -40,10 +41,10 @@ export function createWrappingKeyPostHandler(
 
 async function parseRequestBody(
   request: Request,
-): Promise<{ ok: true; value: WrappingKeyRequestBody } | { ok: false }> {
+): Promise<ResultType<WrappingKeyRequestBody, "invalid_request">> {
   const text = await readBoundedText(request, maximumCredentialRequestBytes);
   if (text === null || text === "too_large") {
-    return { ok: false };
+    return Result.err("invalid_request");
   }
 
   let body: unknown;
@@ -51,23 +52,23 @@ async function parseRequestBody(
   try {
     body = JSON.parse(text);
   } catch {
-    return { ok: false };
+    return Result.err("invalid_request");
   }
 
   if (!isRecord(body)) {
-    return { ok: false };
+    return Result.err("invalid_request");
   }
 
   const keys = Object.keys(body);
   if (keys.length !== 1 || keys[0] !== "googleIdToken") {
-    return { ok: false };
+    return Result.err("invalid_request");
   }
 
   if (typeof body.googleIdToken !== "string" || body.googleIdToken.trim().length === 0) {
-    return { ok: false };
+    return Result.err("invalid_request");
   }
 
-  return { ok: true, value: { googleIdToken: body.googleIdToken } };
+  return Result.ok({ googleIdToken: body.googleIdToken });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

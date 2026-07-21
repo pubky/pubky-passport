@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Result } from "better-result";
 
 import {
   createRequestGoogleHomegateInviteController,
@@ -31,7 +32,7 @@ const errorStatusCases: Array<{
 
 describe("requestGoogleHomegateInviteController", () => {
   it("maps successful invite requests to safe response bodies", async () => {
-    const controller = createRequestGoogleHomegateInviteController(useCase(async () => ({ ok: true, invite })));
+    const controller = createRequestGoogleHomegateInviteController(useCase(async () => Result.ok(invite)));
 
     await expect(controller({ googleIdToken: "google-id-token" })).resolves.toEqual({
       status: 200,
@@ -41,7 +42,7 @@ describe("requestGoogleHomegateInviteController", () => {
 
   it.each(errorStatusCases)("maps $code to HTTP $status", async ({ code, status }) => {
     const controller = createRequestGoogleHomegateInviteController(
-      useCase(async () => ({ ok: false, error: { code } })),
+      useCase(async () => Result.err({ code })),
     );
 
     await expect(controller({ googleIdToken: "google-id-token" })).resolves.toEqual({
@@ -52,7 +53,7 @@ describe("requestGoogleHomegateInviteController", () => {
 
   it("does not include token or invite values in error responses", async () => {
     const controller = createRequestGoogleHomegateInviteController(
-      useCase(async () => ({ ok: false, error: { code: "homegate_unavailable" } })),
+      useCase(async () => Result.err({ code: "homegate_unavailable" })),
     );
 
     const result = await controller({ googleIdToken: "SECRET-GOOGLE-ID-TOKEN" });
