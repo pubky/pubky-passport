@@ -155,7 +155,7 @@ export class GoogleDrivePassportFileRepository implements PassportFileRepository
     }
 
     const files = list.files.filter((file): file is { id: string; name: string } => {
-      return typeof file.id === "string" && file.name === passportFileName;
+      return typeof file.id === "string" && typeof file.name === "string" && file.name === passportFileName;
     });
 
     if (files.length !== list.files.length) {
@@ -228,7 +228,7 @@ function mediaUpdateUrl(fileId: string): string {
 }
 
 function authorizationHeaders(token: string): { Authorization: string } {
-  return { Authorization: "Bearer " + token };
+  return { Authorization: `Bearer ${token}` };
 }
 
 function createMultipartBody(envelopeJson: string): string {
