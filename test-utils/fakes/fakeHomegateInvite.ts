@@ -3,15 +3,15 @@ import { Result } from "better-result";
 import type {
   GoogleHomegateInviteErrorCode,
   GoogleHomegateInviteResult,
-  HomeserverSignupInvitation,
-  GoogleHomegateInviteClient,
-} from "@/server/homegate/dependencies";
+  GoogleHomegateInvite,
+} from "@/server/homegate/google/invite";
+import type { HomeserverSignupInvitation } from "@/server/homegate/types";
 
 export type FakeHomegateInviteCall = {
   hasGoogleIdToken: boolean;
 };
 
-export class FakeHomegateInvite implements GoogleHomegateInviteClient {
+export class FakeHomegateInvite implements GoogleHomegateInvite {
   calls: FakeHomegateInviteCall[] = [];
   failure?: GoogleHomegateInviteErrorCode;
 

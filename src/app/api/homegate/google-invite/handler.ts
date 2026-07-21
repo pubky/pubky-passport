@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { Result } from "better-result";
 
-import type { RequestGoogleHomegateInviteController } from "../../../../server/homegate/requestGoogleHomegateInviteController";
+import type {
+  GoogleHomegateInvite,
+  GoogleHomegateInviteErrorCode,
+} from "../../../../server/homegate/google/invite";
 import { parseBoundedJsonStringField } from "../../../../libs/security/parseBoundedJsonStringField";
 
 const responseHeaders = {
@@ -15,7 +18,7 @@ type HomegateInviteRouteBody =
   | { error: { code: string } };
 
 export function createHomegateInvitePostHandler(
-  controller?: RequestGoogleHomegateInviteController,
+  invite?: GoogleHomegateInvite,
 ) {
   return async function homegateInvitePost(request: Request): Promise<NextResponse<HomegateInviteRouteBody>> {
     const body = await parseBoundedJsonStringField(request, "googleIdToken", maximumCredentialRequestBytes);
@@ -25,22 +28,43 @@ export function createHomegateInvitePostHandler(
     }
 
     try {
-      const activeController = controller ?? await createDefaultController();
-      const result = await activeController({ googleIdToken: body.value });
+      const activeInvite = invite ?? await createDefaultInvite();
+      const result = await activeInvite.requestInvite({ googleIdToken: body.value });
 
-      return json(result.body, result.status);
+      if (Result.isError(result)) {
+        return json({ error: { code: result.error.code } }, statusForError(result.error.code));
+      }
+
+      return json(result.value, 200);
     } catch {
       return json({ error: { code: "internal_error" } }, 500);
     }
   };
 }
 
-async function createDefaultController(): Promise<RequestGoogleHomegateInviteController> {
-  const { createHomegateInviteRequestController } = await import(
-    "../../../../server/homegate/googleInvite"
+async function createDefaultInvite(): Promise<GoogleHomegateInvite> {
+  const { createProductionGoogleHomegateInvite } = await import(
+    "../../../../server/homegate/google/invite"
   );
 
-  return createHomegateInviteRequestController();
+  return createProductionGoogleHomegateInvite();
+}
+
+function statusForError(code: GoogleHomegateInviteErrorCode): number {
+  switch (code) {
+    case "invalid_google_id_token":
+      return 401;
+    case "weekly_limit_exceeded":
+    case "annual_limit_exceeded":
+      return 429;
+    case "homegate_invalid_request":
+    case "malformed_homegate_response":
+      return 502;
+    case "homeserver_unavailable":
+    case "google_verifier_unavailable":
+    case "homegate_unavailable":
+      return 503;
+  }
 }
 
 function json(body: HomegateInviteRouteBody, status: number): NextResponse<HomegateInviteRouteBody> {

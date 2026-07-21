@@ -1,17 +1,30 @@
 import "server-only";
 
-import { Result } from "better-result";
+import { Result, type Result as ResultType } from "better-result";
 
-import type {
-  GoogleHomegateInviteErrorCode,
-  GoogleHomegateInviteResult,
-  GoogleHomegateInviteClient,
-} from "../dependencies";
+import { getHomegateInviteServerEnv } from "../../../libs/env/server";
 import { readBoundedText } from "../../../libs/security/boundedBody";
+import type { HomeserverSignupInvitation } from "../types";
 
 type Fetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
-export type ServerHomegateGoogleInviteClientOptions = {
+export type GoogleHomegateInviteErrorCode =
+  | "invalid_google_id_token"
+  | "weekly_limit_exceeded"
+  | "annual_limit_exceeded"
+  | "homegate_invalid_request"
+  | "homeserver_unavailable"
+  | "google_verifier_unavailable"
+  | "homegate_unavailable"
+  | "malformed_homegate_response";
+
+export type GoogleHomegateInviteResult = ResultType<HomeserverSignupInvitation, { code: GoogleHomegateInviteErrorCode }>;
+
+export type GoogleHomegateInvite = {
+  requestInvite(input: { googleIdToken: string }): Promise<GoogleHomegateInviteResult>;
+};
+
+export type CreateGoogleHomegateInviteInput = {
   homegateUrl: string;
   fetchImpl?: Fetch;
 };
@@ -25,38 +38,40 @@ const googleVerificationPath = "google_verification";
 const maximumHomegateResponseBytes = 16 * 1024;
 const homegateTimeoutMilliseconds = 10_000;
 
-export class ServerHomegateGoogleInviteClient implements GoogleHomegateInviteClient {
-  readonly #endpoint: URL;
-  readonly #fetch: Fetch;
+export function createGoogleHomegateInvite(input: CreateGoogleHomegateInviteInput): GoogleHomegateInvite {
+  const endpoint = createGoogleVerificationEndpoint(input.homegateUrl);
+  const fetchImpl = input.fetchImpl ?? fetch;
 
-  constructor(options: ServerHomegateGoogleInviteClientOptions) {
-    this.#endpoint = createGoogleVerificationEndpoint(options.homegateUrl);
-    this.#fetch = options.fetchImpl ?? fetch;
-  }
+  return {
+    async requestInvite({ googleIdToken }) {
+      let response: Response;
 
-  async requestInvite(input: { googleIdToken: string }): Promise<GoogleHomegateInviteResult> {
-    let response: Response;
+      try {
+        response = await fetchImpl(endpoint, {
+          method: "POST",
+          headers: {
+            Accept: "application/json, text/plain",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ googleIdToken }),
+          signal: AbortSignal.timeout(homegateTimeoutMilliseconds),
+        });
+      } catch {
+        return failure("homegate_unavailable");
+      }
 
-    try {
-      response = await this.#fetch(this.#endpoint, {
-        method: "POST",
-        headers: {
-          Accept: "application/json, text/plain",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ googleIdToken: input.googleIdToken }),
-        signal: AbortSignal.timeout(homegateTimeoutMilliseconds),
-      });
-    } catch {
-      return failure("homegate_unavailable");
-    }
+      if (!response.ok) {
+        return failure(await mapHomegateError(response));
+      }
 
-    if (!response.ok) {
-      return failure(await mapHomegateError(response));
-    }
+      return parseHomegateSuccess(response);
+    },
+  };
+}
 
-    return parseHomegateSuccess(response);
-  }
+export function createProductionGoogleHomegateInvite(): GoogleHomegateInvite {
+  const env = getHomegateInviteServerEnv();
+  return createGoogleHomegateInvite({ homegateUrl: env.HOMEGATE_URL });
 }
 
 async function parseHomegateSuccess(response: Response): Promise<GoogleHomegateInviteResult> {
@@ -66,7 +81,6 @@ async function parseHomegateSuccess(response: Response): Promise<GoogleHomegateI
   }
 
   let body: HomegateSuccessResponse;
-
   try {
     body = JSON.parse(contents) as HomegateSuccessResponse;
   } catch {
@@ -77,10 +91,7 @@ async function parseHomegateSuccess(response: Response): Promise<GoogleHomegateI
     return failure("malformed_homegate_response");
   }
 
-  return Result.ok({
-    signupCode: body.signupCode,
-    homeserverPubky: body.homeserverPubky,
-  });
+  return Result.ok({ signupCode: body.signupCode, homeserverPubky: body.homeserverPubky });
 }
 
 async function mapHomegateError(response: Response): Promise<GoogleHomegateInviteErrorCode> {
@@ -111,7 +122,6 @@ async function mapHomegateError(response: Response): Promise<GoogleHomegateInvit
 
 function createGoogleVerificationEndpoint(homegateUrl: string): URL {
   let base: URL;
-
   try {
     base = new URL(homegateUrl);
   } catch {
@@ -126,14 +136,14 @@ function createGoogleVerificationEndpoint(homegateUrl: string): URL {
   return new URL(googleVerificationPath, base);
 }
 
-function invalidConfigurationError(): Error {
-  return new Error("Invalid Homegate URL configuration.");
-}
-
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
 function failure(code: GoogleHomegateInviteErrorCode): GoogleHomegateInviteResult {
   return Result.err({ code });
+}
+
+function invalidConfigurationError(): Error {
+  return new Error("Invalid Homegate URL configuration.");
 }
