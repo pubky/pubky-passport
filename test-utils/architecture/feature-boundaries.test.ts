@@ -13,6 +13,7 @@ const uiRoot = join(srcRoot, "ui");
 const libsEnvRoot = join(srcRoot, "libs", "env");
 const serverEnvModule = join(libsEnvRoot, "server-env");
 const publicEnvModule = join(libsEnvRoot, "public-env");
+const localIdentityRepository = join(browserRoot, "identity", "localIdentityRepository.ts");
 
 const checkedExtensions = new Set([".ts", ".tsx"]);
 
@@ -95,7 +96,7 @@ describe("feature runtime boundaries", () => {
     expect(violations).toEqual([]);
   });
 
-  it("keeps browser-capable code free of persistence APIs", () => {
+  it("limits browser persistence to the local identity repository", () => {
     const browserCapableFiles = [
       ...productionSourceFiles(browserRoot),
       ...productionSourceFiles(uiRoot),
@@ -105,6 +106,7 @@ describe("feature runtime boundaries", () => {
       const source = sourceWithoutComments(readFileSync(filePath, "utf8"));
 
       return forbiddenBrowserPersistencePatterns
+        .filter(({ label }) => filePath !== localIdentityRepository || label !== "localStorage")
         .filter(({ pattern }) => pattern.test(source))
         .map(({ label }) => `${relative(repoRoot, filePath)} references forbidden browser persistence "${label}"`);
     });

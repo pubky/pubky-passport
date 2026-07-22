@@ -28,6 +28,7 @@ export type PubkyIdentityKeysResult<T> = Result<T, { code: PubkyIdentityKeysErro
 export type PubkyIdentityKeys = {
   createIdentityKey(): Promise<PubkyIdentityKeysResult<PubkyIdentityKey>>;
   restoreIdentityKey(input: { secretKey: PubkySecretKeyMaterial }): Promise<PubkyIdentityKeysResult<PubkyIdentityKey>>;
+  disposeIdentityKey(input: { keyHandle: PubkyIdentityKeyHandle }): void;
   exportSecretKey(input: { keyHandle: PubkyIdentityKeyHandle }): Promise<PubkyIdentityKeysResult<PubkySecretKeyMaterial>>;
   getPublicIdentity(input: { keyHandle: PubkyIdentityKeyHandle }): Promise<PubkyIdentityKeysResult<PubkyPublicIdentity>>;
 };

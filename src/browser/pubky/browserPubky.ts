@@ -79,6 +79,16 @@ export class BrowserPubky implements PubkyIdentityKeys, PubkySignup, PubkyDiscov
     }
   }
 
+  disposeIdentityKey(input: { keyHandle: PubkyIdentityKeyHandle }): void {
+    const keypair = this.#keypairs.get(input.keyHandle);
+    if (!keypair) {
+      return;
+    }
+
+    keypair.free();
+    this.#keypairs.delete(input.keyHandle);
+  }
+
   async exportSecretKey(input: { keyHandle: PubkyIdentityKeyHandle }): Promise<PubkyIdentityKeysResult<PubkySecretKeyMaterial>> {
     const keypair = this.keypairFor(input.keyHandle);
     if (!keypair) {

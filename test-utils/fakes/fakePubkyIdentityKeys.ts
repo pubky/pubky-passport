@@ -26,6 +26,7 @@ export class FakePubkyIdentityKeys implements PubkyIdentityKeys {
   restoreCalls: FakePubkyIdentityKeysRestoreCall[] = [];
   exportCalls: FakePubkyIdentityKeysExportCall[] = [];
   publicIdentityCalls: Array<{ keyHandle: PubkyIdentityKeyHandle }> = [];
+  disposedKeys: PubkyIdentityKeyHandle[] = [];
 
   createFailure?: PubkyIdentityKeysErrorCode;
   restoreFailure?: PubkyIdentityKeysErrorCode;
@@ -67,6 +68,11 @@ export class FakePubkyIdentityKeys implements PubkyIdentityKeys {
     return Result.ok(this.createKey(this.nextPublicIdentity));
   }
 
+  disposeIdentityKey(input: { keyHandle: PubkyIdentityKeyHandle }): void {
+    this.disposedKeys.push(input.keyHandle);
+    this.#identities.delete(input.keyHandle);
+  }
+
   async exportSecretKey(
     input: { keyHandle: PubkyIdentityKeyHandle },
   ): Promise<PubkyIdentityKeysResult<PubkySecretKeyMaterial>> {
@@ -82,7 +88,7 @@ export class FakePubkyIdentityKeys implements PubkyIdentityKeys {
       return failure("key_unavailable");
     }
 
-    return Result.ok(this.secretKey);
+    return Result.ok({ bytes: new Uint8Array(this.secretKey.bytes), format: this.secretKey.format });
   }
 
   async getPublicIdentity(input: { keyHandle: PubkyIdentityKeyHandle }): Promise<PubkyIdentityKeysResult<PubkyPublicIdentity>> {
