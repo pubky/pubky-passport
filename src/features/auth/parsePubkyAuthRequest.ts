@@ -8,6 +8,7 @@ import {
 import {
   validatePubkyAuthUrls,
   type PubkyAuthCallbackAvailability,
+  type ValidatedPubkyAuthCallbacks as ValidatedPubkyAuthCallbacksInternal,
   type PubkyAuthUrlValidationError,
   type PubkyAuthUrlValidationOptions,
 } from "./validatePubkyAuthUrls";
@@ -15,6 +16,7 @@ import {
   pubkyAuthRequestParameters,
   type PubkyAuthRequestParameterErrorCode,
 } from "./pubkyAuthRequestParameters";
+import { pubkyAuthRequestLimits } from "./pubkyAuthRequestLimits";
 
 export type { PubkyAuthCapability } from "./parsePubkyAuthCapabilities";
 export type { PubkyAuthCallbackAvailability } from "./validatePubkyAuthUrls";
@@ -23,9 +25,11 @@ export type PubkyAuthRequestKind = "signin";
 
 declare const validatedSensitivePubkyAuthRequestBrand: unique symbol;
 const parserIssuedApprovalRequests = new WeakSet<object>();
+const parserIssuedApprovalCallbacks = new WeakMap<object, Readonly<ValidatedPubkyAuthCallbacksInternal>>();
 
 export type PubkyAuthParseErrorCode =
   | "missing_d"
+  | "request_too_large"
   | "invalid_encoding"
   | "invalid_url"
   | "unsupported_scheme"
@@ -33,6 +37,7 @@ export type PubkyAuthParseErrorCode =
   | "missing_relay"
   | "invalid_relay"
   | "missing_secret"
+  | "invalid_secret"
   | "missing_capabilities"
   | "invalid_capability"
   | "invalid_callback"
@@ -56,6 +61,12 @@ export type ValidatedSensitivePubkyAuthRequest = {
   };
 };
 
+export type ValidatedPubkyAuthCallbacks = Readonly<{
+  success?: string;
+  error?: string;
+  cancel?: string;
+}>;
+
 export type ValidatedPubkyAuthRequest = {
   review: PubkyAuthRequestReview;
   approval: ValidatedSensitivePubkyAuthRequest;
@@ -77,9 +88,17 @@ export function parsePubkyAuthRequest(
     return error("missing_d", "Missing encoded Pubky auth request.");
   }
 
+  if (d.length > pubkyAuthRequestLimits.encodedDLength) {
+    return error("request_too_large", "Encoded Pubky auth request exceeds the allowed size.");
+  }
+
   const decoded = decodeDParam(d);
   if (Result.isError(decoded)) {
     return Result.err(decoded.error);
+  }
+
+  if (decoded.value.length > pubkyAuthRequestLimits.decodedAuthUrlLength) {
+    return error("request_too_large", "Pubky auth request exceeds the allowed size.");
   }
 
   if (decoded.value === d) {
@@ -100,14 +119,18 @@ export function parsePubkyAuthRequest(
     return Result.err(kind.error);
   }
 
-  const urls = validatePubkyAuthUrls(authUrl.value, options);
-  if (Result.isError(urls)) {
-    return mapUrlValidationError(urls.error);
-  }
-
   const secret = authUrl.value.searchParams.get(pubkyAuthRequestParameters.secret);
   if (!secret) {
     return error("missing_secret", "Pubky auth request is missing a secret.");
+  }
+
+  if (secret.length > pubkyAuthRequestLimits.secretLength) {
+    return error("invalid_secret", "Pubky auth request secret exceeds the allowed size.");
+  }
+
+  const urls = validatePubkyAuthUrls(authUrl.value, options);
+  if (Result.isError(urls)) {
+    return mapUrlValidationError(urls.error);
   }
 
   const capabilities = parsePubkyAuthCapabilities(authUrl.value.searchParams.get(pubkyAuthRequestParameters.capabilities));
@@ -125,10 +148,11 @@ export function parsePubkyAuthRequest(
     review.requestingAppDisplayName = urls.value.requestingAppDisplayName;
   }
 
-  const approval: ValidatedSensitivePubkyAuthRequest = {
+  const approval: ValidatedSensitivePubkyAuthRequest = Object.freeze({
     sensitivePubkyAuthUrl: authUrl.value.href as ValidatedSensitivePubkyAuthRequest["sensitivePubkyAuthUrl"],
-  };
+  });
   parserIssuedApprovalRequests.add(approval);
+  parserIssuedApprovalCallbacks.set(approval, Object.freeze({ ...urls.value.callbacks }));
 
   return Result.ok({ review, approval });
 }
@@ -137,6 +161,12 @@ export function isParserIssuedPubkyAuthRequest(
   value: unknown,
 ): value is ValidatedSensitivePubkyAuthRequest {
   return typeof value === "object" && value !== null && parserIssuedApprovalRequests.has(value);
+}
+
+export function getParserIssuedPubkyAuthCallbacks(
+  approval: ValidatedSensitivePubkyAuthRequest,
+): ValidatedPubkyAuthCallbacks | undefined {
+  return parserIssuedApprovalCallbacks.get(approval);
 }
 
 function decodeDParam(d: string): ParseValueResult<string> {

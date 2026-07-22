@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
 import { Result } from "better-result";
+import { NextResponse } from "next/server";
 
+import { parseBoundedJsonStringField } from "../../../../../libs/security/parseBoundedJsonStringField";
 import type {
   GoogleHomegateInvite,
   GoogleHomegateInviteErrorCode,
-} from "../../../../server/homegate/google/invite";
-import { parseBoundedJsonStringField } from "../../../../libs/security/parseBoundedJsonStringField";
+} from "../../../../../server/homegate/google/invite";
 
 const responseHeaders = {
   "Cache-Control": "no-store",
@@ -17,24 +17,17 @@ type GoogleHomegateInviteRouteBody =
   | { signupCode: string; homeserverPubky: string }
   | { error: { code: string } };
 
-export function createGoogleHomegateInvitePostHandler(
-  invite?: GoogleHomegateInvite,
-) {
+export function createGoogleHomegateInvitePostHandler(invite?: GoogleHomegateInvite) {
   return async function googleHomegateInvitePost(request: Request): Promise<NextResponse<GoogleHomegateInviteRouteBody>> {
     const body = await parseBoundedJsonStringField(request, "googleIdToken", maximumCredentialRequestBytes);
-
-    if (Result.isError(body)) {
-      return json({ error: { code: "invalid_request" } }, 400);
-    }
+    if (Result.isError(body)) return json({ error: { code: "invalid_request" } }, 400);
 
     try {
       const activeInvite = invite ?? await createDefaultInvite();
       const result = await activeInvite.requestSignupInvitation({ googleIdToken: body.value });
-
       if (Result.isError(result)) {
         return json({ error: { code: result.error.code } }, statusForError(result.error.code));
       }
-
       return json(result.value, 200);
     } catch {
       return json({ error: { code: "internal_error" } }, 500);
@@ -43,10 +36,7 @@ export function createGoogleHomegateInvitePostHandler(
 }
 
 async function createDefaultInvite(): Promise<GoogleHomegateInvite> {
-  const { createGoogleHomegateInvite } = await import(
-    "../../../../server/homegate/google/invite"
-  );
-
+  const { createGoogleHomegateInvite } = await import("../../../../../server/homegate/google/invite");
   return createGoogleHomegateInvite();
 }
 

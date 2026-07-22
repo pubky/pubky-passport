@@ -6,14 +6,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ManualAuthorizationForm } from "./manualAuthorizationForm";
 
-const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+const { replace } = vi.hoisted(() => ({ replace: vi.fn() }));
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
 
 describe("ManualAuthorizationForm", () => {
   afterEach(() => {
     cleanup();
-    push.mockReset();
+    replace.mockReset();
   });
 
   it("removes an invalid sensitive request from the UI", async () => {
@@ -27,7 +27,7 @@ describe("ManualAuthorizationForm", () => {
     expect((input as HTMLTextAreaElement).value).toBe("");
     expect(screen.getByRole("alert").textContent).toBe("Enter a valid Pubky authorization request.");
     expect(document.body.textContent).not.toContain("sensitive-secret");
-    expect(push).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled();
   });
 
   it("routes a valid request to capability review", async () => {
@@ -38,6 +38,6 @@ describe("ManualAuthorizationForm", () => {
     await user.type(screen.getByRole("textbox", { name: "Pubky authorization request" }), request);
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
-    await waitFor(() => expect(push).toHaveBeenCalledWith(`/authorize?d=${encodeURIComponent(request)}`));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(`/authorize?d=${encodeURIComponent(request)}`));
   });
 });

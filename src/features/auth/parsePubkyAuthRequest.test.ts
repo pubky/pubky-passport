@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
 
 import {
+  getParserIssuedPubkyAuthCallbacks,
   isParserIssuedPubkyAuthRequest,
   parsePubkyAuthRequest as parsePubkyAuthRequestImplementation,
   type PubkyAuthParseErrorCode,
   type ParsePubkyAuthRequestOptions,
 } from "./parsePubkyAuthRequest";
+import { pubkyAuthRequestLimits } from "./pubkyAuthRequestLimits";
 
 const validRequest =
   "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=test-secret&x-success=https://pubky.app/passport-success&x-error=https://pubky.app/passport-error&x-cancel=https://pubky.app/passport-cancel";
@@ -63,6 +65,38 @@ describe("parsePubkyAuthRequest", () => {
     expect(JSON.stringify(result.value.review)).not.toContain("passport-success");
     expect(JSON.stringify(result.value.review)).not.toContain("httprelay.pubky.app");
     expect(result.value.approval.sensitivePubkyAuthUrl).toContain("secret=test-secret");
+    expect(isParserIssuedPubkyAuthRequest(result.value.approval)).toBe(true);
+    expect(getParserIssuedPubkyAuthCallbacks(result.value.approval)).toEqual({
+      success: "https://pubky.app/passport-success",
+      error: "https://pubky.app/passport-error",
+      cancel: "https://pubky.app/passport-cancel",
+    });
+  });
+
+  it("returns callbacks only for the exact parser-issued approval object", () => {
+    const result = parsePubkyAuthRequest(encodeRequest(validRequest));
+    if (Result.isError(result)) throw new Error(result.error.code);
+
+    const clone = { ...result.value.approval };
+
+    expect(getParserIssuedPubkyAuthCallbacks(clone)).toBeUndefined();
+    expect(getParserIssuedPubkyAuthCallbacks({ sensitivePubkyAuthUrl: result.value.approval.sensitivePubkyAuthUrl })).toBeUndefined();
+  });
+
+  it("freezes parser-issued approvals before registering their provenance", () => {
+    const result = parsePubkyAuthRequest(encodeRequest(validRequest));
+    if (Result.isError(result)) throw new Error(result.error.code);
+    const originalRequest = result.value.approval.sensitivePubkyAuthUrl;
+
+    const mutated = Reflect.set(
+      result.value.approval,
+      "sensitivePubkyAuthUrl",
+      "pubkyauth://signin?secret=attacker-controlled",
+    );
+
+    expect(mutated).toBe(false);
+    expect(Object.isFrozen(result.value.approval)).toBe(true);
+    expect(result.value.approval.sensitivePubkyAuthUrl).toBe(originalRequest);
     expect(isParserIssuedPubkyAuthRequest(result.value.approval)).toBe(true);
   });
 
@@ -184,6 +218,21 @@ describe("parsePubkyAuthRequest", () => {
     expectError("%E0%A4%A", "invalid_encoding");
   });
 
+  it("allows encoded d at its size limit and rejects limit plus one", () => {
+    const atLimit = "%41".repeat(pubkyAuthRequestLimits.encodedDLength / 3);
+
+    expectError(atLimit, "invalid_url");
+    expectError(`${atLimit}A`, "request_too_large");
+  });
+
+  it("allows a decoded auth URL at its size limit and rejects limit plus one", () => {
+    const prefix = "pubkyauth:";
+    const atLimit = `${prefix}${"a".repeat(pubkyAuthRequestLimits.decodedAuthUrlLength - prefix.length)}`;
+
+    expectError(encodeRequest(atLimit), "invalid_auth_request_path");
+    expectError(encodeRequest(`${atLimit}a`), "request_too_large");
+  });
+
   it("rejects unencoded values", () => {
     expectError(validRequest, "invalid_encoding");
   });
@@ -236,6 +285,14 @@ describe("parsePubkyAuthRequest", () => {
     );
   });
 
+  it("accepts the secret length limit and rejects limit plus one", () => {
+    const atLimit = "s".repeat(pubkyAuthRequestLimits.secretLength);
+    const request = `pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=${atLimit}`;
+
+    expect(Result.isOk(parsePubkyAuthRequest(encodeRequest(request)))).toBe(true);
+    expectError(encodeRequest(`${request}s`), "invalid_secret");
+  });
+
   it("rejects missing capabilities", () => {
     expectError(
       encodeRequest(
@@ -252,6 +309,14 @@ describe("parsePubkyAuthRequest", () => {
     expectError(encodeRequest(validRequest.replace("/pub/pubky.app/:rw", "/pub/my app/:rw")), "invalid_capability");
   });
 
+  it("maps oversized capability arrays and paths to a safe error", () => {
+    const tooMany = Array(pubkyAuthRequestLimits.capabilityCount + 1).fill("/pub/app/:r").join(",");
+    const longPath = `/${"a".repeat(pubkyAuthRequestLimits.capabilityPathLength)}`;
+
+    expectError(encodeRequest(validRequest.replace("/pub/pubky.app/:rw", tooMany)), "invalid_capability");
+    expectError(encodeRequest(validRequest.replace("/pub/pubky.app/:rw", `${longPath}:r`)), "invalid_capability");
+  });
+
   it("allows missing callbacks", () => {
     const result = parsePubkyAuthRequest(
       encodeRequest(
@@ -266,6 +331,15 @@ describe("parsePubkyAuthRequest", () => {
 
     expect(result.value.review.callbackAvailability).toEqual({ success: false, error: false, cancel: false });
     expect(result.value.review.requestingAppDisplayName).toBeUndefined();
+  });
+
+  it("rejects mixed callback origins", () => {
+    const request = validRequest.replace(
+      "https://pubky.app/passport-error",
+      "https://other.example/passport-error",
+    );
+
+    expectError(encodeRequest(request), "invalid_callback");
   });
 
   it("derives display domain without exposing callback query parameters", () => {

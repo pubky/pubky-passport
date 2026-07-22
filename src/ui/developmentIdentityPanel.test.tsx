@@ -1,9 +1,40 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Result } from "better-result";
 
 import { DevelopmentIdentityPanel } from "./developmentIdentityPanel";
+
+const flowState = vi.hoisted(() => ({
+  establish: async (): Promise<unknown> => { throw new Error("establish result not configured"); },
+  deleteExpectedPublicKey: null as string | null,
+}));
+
+vi.mock("../browser/identity/google/googleBackedIdentityFlow", () => ({
+  GoogleBackedIdentityFlow: class {
+    establish(): Promise<unknown> {
+      return flowState.establish();
+    }
+
+    async deleteIdentity(_google: unknown, expectedPublicKeyZ32: string) {
+      flowState.deleteExpectedPublicKey = expectedPublicKeyZ32;
+      return Result.ok();
+    }
+  },
+}));
+
+vi.mock("../browser/pubky/browserPubky", () => ({
+  BrowserPubky: class {
+    dispose(): void {}
+  },
+}));
+
+vi.mock("./googleSignInButton", () => ({
+  GoogleSignInButton: ({ onAuthorized }: {
+    onAuthorized: (googleIdToken: string, driveAccessToken: string) => Promise<void>;
+  }) => <button onClick={() => void onAuthorized("fresh-id-token", "fresh-drive-token")} type="button">Authorize test Google</button>,
+}));
 
 const storedIdentity = {
   v: 1,
@@ -18,6 +49,7 @@ const storedIdentity = {
 describe("DevelopmentIdentityPanel", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", new MemoryStorage());
+    flowState.deleteExpectedPublicKey = null;
   });
 
   afterEach(() => {
@@ -41,6 +73,31 @@ describe("DevelopmentIdentityPanel", () => {
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Delete identity from Google" })).toBeDefined());
     expect(screen.getByRole("button", { name: "Clear local identities" })).toBeDefined();
+  });
+
+  it("keeps failed and selected Drive deletion as separate exact targets", async () => {
+    localStorage.setItem("pubky-passport/local-identities/v1", JSON.stringify(storedIdentity));
+    flowState.establish = async () => Result.err({
+      code: "signup_failed",
+      recoverablePublicIdentity: {
+        publicKeyZ32: "failed-drive-identity",
+        publicKeyDisplay: "pubkyfailed-drive-identity",
+      },
+    });
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    render(<DevelopmentIdentityPanel allowGoogleDriveReset googleClientId="google-client" passportUrl="https://passport.pubky.app" />);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add identity" })).toBeDefined());
+    fireEvent.click(screen.getByRole("button", { name: "Add identity" }));
+    fireEvent.click(screen.getByRole("button", { name: "Authorize test Google" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Delete failed identity from Google" })).toBeDefined());
+    expect(screen.getByRole("button", { name: "Delete identity from Google" })).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete failed identity from Google" }));
+    fireEvent.click(screen.getByRole("button", { name: "Authorize test Google" }));
+
+    await waitFor(() => expect(flowState.deleteExpectedPublicKey).toBe("failed-drive-identity"));
   });
 });
 

@@ -5,6 +5,7 @@ import {
   validatePubkyAuthRequestParameters,
   type PubkyAuthRequestParameterErrorCode,
 } from "./pubkyAuthRequestParameters";
+import { pubkyAuthRequestLimits } from "./pubkyAuthRequestLimits";
 
 export type PubkyAuthCallbackAvailability = {
   success: boolean;
@@ -32,6 +33,7 @@ export type PubkyAuthUrlValidationOptions = {
 
 export type PubkyAuthUrlValidationResult = ResultType<{
   callbackAvailability: PubkyAuthCallbackAvailability;
+  callbacks: ValidatedPubkyAuthCallbacks;
   requestingAppDisplayName?: string;
 }, PubkyAuthUrlValidationError>;
 
@@ -69,6 +71,7 @@ export function validatePubkyAuthUrls(
   const requestingAppDisplayName = deriveDisplayDomain(callbacks.value);
 
   return Result.ok({
+    callbacks: callbacks.value,
     callbackAvailability: {
       success: callbacks.value.success !== undefined,
       error: callbacks.value.error !== undefined,
@@ -84,6 +87,10 @@ export function validateRelayUrl(
 ): ResultType<URL, PubkyAuthUrlValidationError> {
   if (!value) {
     return error("missing_relay", "Pubky auth request is missing relay.");
+  }
+
+  if (value.length > pubkyAuthRequestLimits.relayUrlLength) {
+    return error("invalid_relay", "Pubky auth request relay is not an allowed URL.");
   }
 
   const parsed = parseAbsoluteUrl(value);
@@ -151,10 +158,19 @@ function validateCallbacks(
     callbacks.cancel = cancel.value.href;
   }
 
+  const callbackOrigins = new Set(
+    [success.value, errorCallback.value, cancel.value]
+      .filter((callback): callback is URL => callback !== undefined)
+      .map((callback) => callback.origin),
+  );
+  if (callbackOrigins.size > 1) {
+    return error("invalid_callback", "Pubky auth request callbacks must share one origin.");
+  }
+
   return Result.ok(callbacks);
 }
 
-type ValidatedPubkyAuthCallbacks = {
+export type ValidatedPubkyAuthCallbacks = {
   success?: string;
   error?: string;
   cancel?: string;
@@ -166,6 +182,10 @@ function validateOptionalCallback(
 ): ResultType<URL | undefined, PubkyAuthUrlValidationError> {
   if (!value) {
     return Result.ok(undefined);
+  }
+
+  if (value.length > pubkyAuthRequestLimits.callbackUrlLength) {
+    return error("invalid_callback", "Pubky auth request callback is not an allowed URL.");
   }
 
   const parsed = parseAbsoluteUrl(value);

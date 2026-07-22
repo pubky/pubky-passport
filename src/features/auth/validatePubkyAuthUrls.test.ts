@@ -7,6 +7,7 @@ import {
   type PubkyAuthUrlValidationErrorCode,
   type PubkyAuthUrlValidationOptions,
 } from "./validatePubkyAuthUrls";
+import { pubkyAuthRequestLimits } from "./pubkyAuthRequestLimits";
 
 const approvedRelayOrigins = ["https://httprelay.pubky.app"];
 
@@ -64,6 +65,18 @@ describe("validateRelayUrl", () => {
       }
     }
   });
+
+  it("accepts the relay URL length limit and rejects limit plus one", () => {
+    const prefix = "https://httprelay.pubky.app/";
+    const atLimit = `${prefix}${"a".repeat(pubkyAuthRequestLimits.relayUrlLength - prefix.length)}`;
+
+    expect(Result.isOk(validateRelayUrl(atLimit, approvedRelayOrigins))).toBe(true);
+    const overLimit = validateRelayUrl(`${atLimit}a`, approvedRelayOrigins);
+    expect(Result.isError(overLimit)).toBe(true);
+    if (Result.isError(overLimit)) {
+      expect(overLimit.error.code).toBe("invalid_relay");
+    }
+  });
 });
 
 describe("validatePubkyAuthUrls", () => {
@@ -84,6 +97,35 @@ describe("validatePubkyAuthUrls", () => {
       error: true,
       cancel: true,
     });
+  });
+
+  it("requires every present callback to share one origin", () => {
+    expectUrlError(
+      authUrl(
+        "relay=https://httprelay.pubky.app/inbox&secret=secret-value&x-success=https://third.example/success&x-error=https://other.example/error",
+      ),
+      "invalid_callback",
+    );
+    expectUrlError(
+      authUrl(
+        "relay=https://httprelay.pubky.app/inbox&secret=secret-value&x-success=https://third.example/success&x-cancel=https://other.example/cancel",
+      ),
+      "invalid_callback",
+    );
+  });
+
+  it("accepts the callback URL length limit and rejects limit plus one", () => {
+    const prefix = "https://third.example/";
+    const atLimit = `${prefix}${"a".repeat(pubkyAuthRequestLimits.callbackUrlLength - prefix.length)}`;
+    const accepted = validatePubkyAuthUrls(
+      authUrl(`relay=https://httprelay.pubky.app/inbox&secret=secret-value&x-success=${atLimit}`),
+    );
+
+    expect(Result.isOk(accepted)).toBe(true);
+    expectUrlError(
+      authUrl(`relay=https://httprelay.pubky.app/inbox&secret=secret-value&x-success=${atLimit}a`),
+      "invalid_callback",
+    );
   });
 
   it("allows missing callbacks", () => {

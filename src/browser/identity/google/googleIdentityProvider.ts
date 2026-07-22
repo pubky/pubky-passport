@@ -7,11 +7,21 @@ export type GoogleIdentitySession = {
   driveAccessToken: string;
 };
 
-export type GoogleIdentityProviderErrorCode = "google_unavailable" | "sign_in_failed" | "drive_consent_failed" | "drive_account_mismatch";
+export type GoogleIdentityProviderErrorCode =
+  | "google_unavailable"
+  | "sign_in_failed"
+  | "drive_consent_failed"
+  | "drive_popup_closed"
+  | "drive_popup_failed_to_open"
+  | "drive_consent_timeout"
+  | "drive_consent_aborted"
+  | "drive_account_verification_failed"
+  | "drive_account_mismatch";
 export type GoogleIdentityProviderResult<T> = ResultType<T, { code: GoogleIdentityProviderErrorCode }>;
 
 export type GoogleCredentialResponse = { credential?: unknown };
 type GoogleTokenResponse = { access_token?: unknown; error?: unknown; scope?: unknown };
+type GoogleOAuthError = { type?: unknown };
 export type GoogleAccounts = {
   id: {
     initialize(config: { client_id: string; callback: (response: GoogleCredentialResponse) => void; auto_select: boolean }): void;
@@ -22,8 +32,9 @@ export type GoogleAccounts = {
     initTokenClient(config: {
       client_id: string;
       scope: string;
-      hint?: string;
+      login_hint?: string;
       callback: (response: GoogleTokenResponse) => void;
+      error_callback: (error: GoogleOAuthError) => void;
     }): { requestAccessToken(input: { prompt: "" | "consent" | "select_account" }): void };
   };
 };
@@ -38,38 +49,53 @@ const googleGisScriptUrl = "https://accounts.google.com/gsi/client";
 export const googleDriveAppDataScope = "https://www.googleapis.com/auth/drive.appdata";
 const googleOpenIdScope = "openid";
 const googleUserInfoUrl = "https://openidconnect.googleapis.com/v1/userinfo";
+const gisScriptLoadTimeoutMs = 10_000;
+const driveConsentTimeoutMs = 60_000;
+const gisLoadStateAttribute = "data-pubky-passport-load-state";
+type GoogleSubjectVerification = "match" | "mismatch" | "unavailable" | "aborted";
+let gisScriptLoadPromise: Promise<void> | undefined;
 
-export async function loadGoogleAccounts(document: Document = globalThis.document): Promise<GoogleIdentityProviderResult<GoogleAccounts>> {
+export async function loadGoogleAccounts(
+  document: Document = globalThis.document,
+  timeoutMs = gisScriptLoadTimeoutMs,
+): Promise<GoogleIdentityProviderResult<GoogleAccounts>> {
   const existing = globalThis.window.google?.accounts;
   if (existing) return Result.ok(existing);
 
   try {
-    await loadGisScript(document);
+    await loadGisScript(document, timeoutMs);
   } catch {
     return Result.err({ code: "google_unavailable" });
   }
 
   const accounts = globalThis.window.google?.accounts;
+  if (!accounts) gisScriptLoadPromise = undefined;
   return accounts ? Result.ok(accounts) : Result.err({ code: "google_unavailable" });
 }
 
 export async function requestGoogleDriveAccess(input: {
   clientId: string;
-  hint?: string;
+  loginHint?: string;
   selectAccount?: boolean;
   expectedSubject?: string;
   fetch?: typeof fetch;
+  signal?: AbortSignal;
+  timeoutMs?: number;
 }): Promise<GoogleIdentityProviderResult<string>> {
+  if (input.signal?.aborted) return Result.err({ code: "drive_consent_aborted" });
   const accounts = await loadGoogleAccounts();
   if (Result.isError(accounts)) return Result.err(accounts.error);
+  if (input.signal?.aborted) return Result.err({ code: "drive_consent_aborted" });
 
   return requestDriveAccessToken(
     accounts.value,
     input.clientId,
     input.selectAccount === true,
-    input.hint,
+    input.loginHint,
     input.expectedSubject,
     input.fetch ?? globalThis.fetch.bind(globalThis),
+    input.signal,
+    input.timeoutMs ?? driveConsentTimeoutMs,
   );
 }
 
@@ -77,41 +103,79 @@ function requestDriveAccessToken(
   accounts: GoogleAccounts,
   clientId: string,
   selectAccount: boolean,
-  hint: string | undefined,
+  loginHint: string | undefined,
   expectedSubject: string | undefined,
   fetchImpl: typeof fetch,
+  signal: AbortSignal | undefined,
+  timeoutMs: number,
 ): Promise<GoogleIdentityProviderResult<string>> {
   return new Promise((resolve) => {
-    const tokenClient = accounts.oauth2.initTokenClient({
-      client_id: clientId,
-      scope: `${googleOpenIdScope} ${googleDriveAppDataScope}`,
-      ...(hint ? { hint } : {}),
-      async callback(response) {
-        if (typeof response.access_token !== "string" || response.access_token.length === 0 || response.error !== undefined || !hasGoogleScope(response.scope, googleDriveAppDataScope)) {
-          resolve(Result.err({ code: "drive_consent_failed" }));
-          return;
-        }
+    let settled = false;
+    const operationController = new AbortController();
+    const finish = (result: GoogleIdentityProviderResult<string>): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      resolve(result);
+    };
+    const abort = (): void => {
+      operationController.abort();
+      finish(Result.err({ code: "drive_consent_aborted" }));
+    };
+    const timer = setTimeout(() => {
+      operationController.abort();
+      finish(Result.err({ code: "drive_consent_timeout" }));
+    }, Math.max(0, timeoutMs));
+    signal?.addEventListener("abort", abort, { once: true });
 
-        if (expectedSubject && !await hasExpectedGoogleSubject(response.access_token, expectedSubject, fetchImpl)) {
-          resolve(Result.err({ code: "drive_account_mismatch" }));
-          return;
-        }
+    try {
+      const tokenClient = accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: `${googleOpenIdScope} ${googleDriveAppDataScope}`,
+        ...(loginHint ? { login_hint: loginHint } : {}),
+        async callback(response) {
+          if (settled) return;
+          if (typeof response.access_token !== "string" || response.access_token.length === 0 || response.error !== undefined || !hasGoogleScope(response.scope, googleDriveAppDataScope)) {
+            finish(Result.err({ code: "drive_consent_failed" }));
+            return;
+          }
 
-        resolve(Result.ok(response.access_token));
-      },
-    });
-    tokenClient.requestAccessToken({ prompt: selectAccount ? "select_account" : "" });
+          if (expectedSubject) {
+            const verification = await verifyGoogleSubject(response.access_token, expectedSubject, fetchImpl, operationController.signal);
+            if (verification !== "match") {
+              const code = verification === "mismatch"
+                ? "drive_account_mismatch"
+                : verification === "aborted"
+                  ? "drive_consent_aborted"
+                  : "drive_account_verification_failed";
+              finish(Result.err({ code }));
+              return;
+            }
+          }
+
+          finish(Result.ok(response.access_token));
+        },
+        error_callback(error) {
+          finish(Result.err({ code: error.type === "popup_closed" ? "drive_popup_closed" : "drive_popup_failed_to_open" }));
+        },
+      });
+      tokenClient.requestAccessToken({ prompt: selectAccount ? "select_account" : "" });
+    } catch {
+      finish(Result.err({ code: "drive_popup_failed_to_open" }));
+    }
   });
 }
 
-async function hasExpectedGoogleSubject(accessToken: string, expectedSubject: string, fetchImpl: typeof fetch): Promise<boolean> {
+async function verifyGoogleSubject(accessToken: string, expectedSubject: string, fetchImpl: typeof fetch, signal: AbortSignal): Promise<GoogleSubjectVerification> {
   try {
-    const response = await fetchImpl(googleUserInfoUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+    const response = await fetchImpl(googleUserInfoUrl, { headers: { Authorization: `Bearer ${accessToken}` }, signal });
+    if (!response.ok) return "unavailable";
     const body: unknown = await response.json();
-    if (!response.ok || !body || typeof body !== "object" || !("sub" in body)) return false;
-    return body.sub === expectedSubject;
+    if (!body || typeof body !== "object" || !("sub" in body) || typeof body.sub !== "string" || body.sub.length === 0) return "unavailable";
+    return body.sub === expectedSubject ? "match" : "mismatch";
   } catch {
-    return false;
+    return signal.aborted ? "aborted" : "unavailable";
   }
 }
 
@@ -132,28 +196,47 @@ export function hasGoogleScope(value: unknown, expectedScope: string): boolean {
   return typeof value === "string" && value.split(" ").includes(expectedScope);
 }
 
-export function clearGoogleAuthorization(): void {
-  globalThis.window.google?.accounts?.id.disableAutoSelect?.();
-}
+function loadGisScript(document: Document, timeoutMs: number): Promise<void> {
+  if (gisScriptLoadPromise) return gisScriptLoadPromise;
 
-function loadGisScript(document: Document): Promise<void> {
   const existing = document.querySelector(`script[src="${googleGisScriptUrl}"]`);
-  if (existing) {
-    return new Promise((resolve, reject) => {
-      existing.addEventListener("load", () => resolve(), { once: true });
-      existing.addEventListener("error", () => reject(new Error("GIS load failed")), { once: true });
-    });
+  const existingReadyState = (existing as (Element & { readyState?: string }) | null)?.readyState;
+  if (existing?.getAttribute(gisLoadStateAttribute) === "loaded" || existingReadyState === "loaded" || existingReadyState === "complete") {
+    return Promise.resolve();
   }
 
-  return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = googleGisScriptUrl;
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => {
+  const script = existing ?? document.createElement("script");
+  if (!existing) {
+    script.setAttribute("src", googleGisScriptUrl);
+    script.setAttribute("async", "");
+    script.setAttribute(gisLoadStateAttribute, "loading");
+  }
+
+  const loading = new Promise<void>((resolve, reject) => {
+    const cleanup = (): void => {
+      clearTimeout(timer);
+      script.removeEventListener("load", loaded);
+      script.removeEventListener("error", failed);
+    };
+    const loaded = (): void => {
+      script.setAttribute(gisLoadStateAttribute, "loaded");
+      cleanup();
+      resolve();
+    };
+    const failed = (): void => {
+      cleanup();
       script.remove();
       reject(new Error("GIS load failed"));
     };
-    document.head.append(script);
+    const timer = setTimeout(failed, Math.max(0, timeoutMs));
+    script.addEventListener("load", loaded, { once: true });
+    script.addEventListener("error", failed, { once: true });
+    if (!existing) document.head.append(script);
   });
+
+  const shared = loading.finally(() => {
+    if (gisScriptLoadPromise === shared) gisScriptLoadPromise = undefined;
+  });
+  gisScriptLoadPromise = shared;
+  return shared;
 }

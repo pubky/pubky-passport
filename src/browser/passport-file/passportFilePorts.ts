@@ -8,7 +8,14 @@ import type { PassportFileEnvelopeV1 } from "../../features/passport-file/passpo
  * Browser setup and restore flows use these capabilities to protect and store a key.
  * Adapters may call Drive or WebCrypto; feature code only sees these safe results.
  */
-export type PassportFileReadResult = { status: "found"; envelope: PassportFileEnvelopeV1 } | { status: "missing" };
+export type PassportFileReference = Readonly<{
+  storageId: string;
+  revision: string;
+}>;
+
+export type PassportFileReadResult =
+  | { status: "found"; envelope: PassportFileEnvelopeV1; reference: PassportFileReference }
+  | { status: "missing" };
 
 export type PassportFileStoreErrorCode =
   | "unauthorized"
@@ -17,6 +24,8 @@ export type PassportFileStoreErrorCode =
   | "invalid_response"
   | "invalid_file"
   | "duplicate_files"
+  | "create_conflict"
+  | "stale_file"
   | "write_failed"
   | "delete_failed";
 
@@ -24,8 +33,8 @@ export type PassportFileStoreResult<T> = Result<T, { code: PassportFileStoreErro
 
 export type PassportFileStore = {
   readPassportFile(): Promise<PassportFileStoreResult<PassportFileReadResult>>;
-  writePassportFile(input: { envelope: PassportFileEnvelopeV1 }): Promise<PassportFileStoreResult<void>>;
-  deletePassportFile(): Promise<PassportFileStoreResult<void>>;
+  createPassportFile(input: { envelope: PassportFileEnvelopeV1 }): Promise<PassportFileStoreResult<PassportFileReference>>;
+  deletePassportFile(input: { reference: PassportFileReference }): Promise<PassportFileStoreResult<void>>;
 };
 
 export type PassportFileCryptoErrorCode =

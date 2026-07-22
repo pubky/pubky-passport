@@ -29,7 +29,7 @@ export function ManualAuthorizationForm({ relayOrigin, allowLocalhostCallbacks }
 
     const destination = `/authorize?d=${encodeURIComponent(rawRequest)}`;
     setError(null);
-    router.push(destination);
+    router.replace(destination);
   }
 
   return (

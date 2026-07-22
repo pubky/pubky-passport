@@ -4,17 +4,18 @@ import { Result } from "better-result";
 import { useEffect, useRef, useState } from "react";
 
 import { GoogleBackedIdentityFlow } from "../browser/identity/google/googleBackedIdentityFlow";
+import { BrowserGoogleHomegateInviteRequester } from "../browser/identity/google/googleHomegateInviteRequester";
 import { BrowserGoogleWrappingKeyRequester } from "../browser/identity/google/googleWrappingKeyRequester";
 import { LocalStorageIdentityRepository } from "../browser/identity/localIdentityRepository";
 import { GoogleDrivePassportFileRepository } from "../browser/passport-file/googleDrivePassportFileRepository";
 import { WebCryptoPassportFileCrypto } from "../browser/passport-file/webCryptoPassportFileCrypto";
 import { BrowserPubky } from "../browser/pubky/browserPubky";
 import type { LocalIdentitySummary } from "../features/identity/localIdentity";
-import type { PubkyIdentityKeyHandle } from "../features/identity/pubkyIdentity";
+import type { PubkyIdentityKeyHandle, PubkyPublicIdentity } from "../features/identity/pubkyIdentity";
 import { logger } from "../libs/logger/logger";
 import { GoogleSignInButton } from "./googleSignInButton";
 
-type GoogleAction = "add" | "delete" | null;
+type GoogleAction = "add" | "delete-selected" | "delete-failed" | null;
 
 export function DevelopmentIdentityPanel({
   googleClientId,
@@ -33,6 +34,7 @@ export function DevelopmentIdentityPanel({
   const [googleAction, setGoogleAction] = useState<GoogleAction>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("Ready.");
+  const [recoverableDriveIdentity, setRecoverableDriveIdentity] = useState<PubkyPublicIdentity | null>(null);
 
   useEffect(() => {
     refreshIdentities();
@@ -86,6 +88,9 @@ export function DevelopmentIdentityPanel({
       }),
       crypto: new WebCryptoPassportFileCrypto(),
       identityKeys: pubkyAdapter,
+      homegateInvites: new BrowserGoogleHomegateInviteRequester(),
+      signup: pubkyAdapter,
+      discovery: pubkyAdapter,
       localIdentities: new LocalStorageIdentityRepository(),
       passportUrl,
     });
@@ -95,7 +100,7 @@ export function DevelopmentIdentityPanel({
     const activeOperation = operation.current;
     setBusy(true);
     try {
-    const pubkyAdapter = getPubky();
+      const pubkyAdapter = getPubky();
       if (!pubkyAdapter || operation.current !== activeOperation) return;
 
       disposeActiveKey();
@@ -104,10 +109,12 @@ export function DevelopmentIdentityPanel({
       const identity = await flow.establish({ googleIdToken, driveAccessToken });
       if (Result.isError(identity)) {
         logger.warn("identity.google.establish.failed", { code: identity.error.code });
+        setRecoverableDriveIdentity(identity.error.recoverablePublicIdentity ?? null);
         setMessage(messageForGoogleFailure(identity.error.code));
         return;
       }
 
+      setRecoverableDriveIdentity(null);
       activeKeyHandle.current = identity.value.keyHandle;
       refreshIdentities(identity.value.source === "created" ? "Identity created." : "Identity restored.");
     } catch {
@@ -121,10 +128,14 @@ export function DevelopmentIdentityPanel({
     }
   }
 
-  async function deleteIdentityFromGoogle(googleIdToken: string, driveAccessToken: string): Promise<void> {
+  async function deleteIdentityFromGoogle(
+    googleIdToken: string,
+    driveAccessToken: string,
+    expectedPublicIdentity: PubkyPublicIdentity | undefined,
+    target: "selected" | "failed",
+  ): Promise<void> {
     const activeOperation = operation.current;
-    const selectedIdentity = identities.find((identity) => identity.id === selectedIdentityId);
-    if (!allowGoogleDriveReset || !selectedIdentity) return;
+    if (!allowGoogleDriveReset || !expectedPublicIdentity) return;
 
     setBusy(true);
     try {
@@ -135,9 +146,14 @@ export function DevelopmentIdentityPanel({
       if (operation.current !== activeOperation) return;
       const deleted = await flow.deleteIdentity(
         { googleIdToken, driveAccessToken },
-        selectedIdentity.publicIdentity.publicKeyZ32,
+        expectedPublicIdentity.publicKeyZ32,
       );
-      setMessage(Result.isError(deleted) ? messageForGoogleFailure(deleted.error.code) : "Identity deleted from Google Drive.");
+      if (Result.isError(deleted)) {
+        setMessage(messageForGoogleFailure(deleted.error.code));
+      } else {
+        if (target === "failed") setRecoverableDriveIdentity(null);
+        setMessage("Identity deleted from Google Drive.");
+      }
     } catch {
       logger.warn("identity.google.delete.failed", { code: "unexpected" });
       setMessage("Could not delete the identity from Google Drive.");
@@ -204,12 +220,26 @@ export function DevelopmentIdentityPanel({
               disabled={busy}
               onClick={() => {
                 if (globalThis.confirm("Authorize Google again, verify the selected identity, and delete its Passport Drive file?")) {
-                  beginGoogleAction("delete");
+                  beginGoogleAction("delete-selected");
                 }
               }}
               type="button"
             >
               Delete identity from Google
+            </button>
+          ) : null}
+          {allowGoogleDriveReset && recoverableDriveIdentity ? (
+            <button
+              className="rounded border border-red-700 px-3 py-2 text-red-700"
+              disabled={busy}
+              onClick={() => {
+                if (globalThis.confirm("Authorize Google again, verify the identity that could not be activated, and delete its Passport Drive file?")) {
+                  beginGoogleAction("delete-failed");
+                }
+              }}
+              type="button"
+            >
+              Delete failed identity from Google
             </button>
           ) : null}
           {allowGoogleDriveReset && identities.length > 0 ? (
@@ -229,11 +259,29 @@ export function DevelopmentIdentityPanel({
         </div>
       ) : (
         <div className="flex flex-col items-start gap-3 rounded border p-3">
-          <p>{googleAction === "add" ? "Authorize Google to create or restore an identity." : "Authorize Google again to delete the selected identity."}</p>
+          <p>{googleAction === "add"
+            ? "Authorize Google to create or restore an identity."
+            : googleAction === "delete-selected"
+              ? "Authorize Google again to delete the selected identity."
+              : "Authorize Google again to delete the identity that could not be activated."}</p>
           <GoogleSignInButton
             clientId={googleClientId}
             disabled={busy}
-            onAuthorized={googleAction === "add" ? createOrRestoreIdentity : deleteIdentityFromGoogle}
+            onAuthorized={googleAction === "add"
+              ? createOrRestoreIdentity
+              : googleAction === "delete-selected"
+                ? (googleIdToken, driveAccessToken) => deleteIdentityFromGoogle(
+                  googleIdToken,
+                  driveAccessToken,
+                  selectedIdentity?.publicIdentity,
+                  "selected",
+                )
+                : (googleIdToken, driveAccessToken) => deleteIdentityFromGoogle(
+                  googleIdToken,
+                  driveAccessToken,
+                  recoverableDriveIdentity ?? undefined,
+                  "failed",
+                )}
           />
           <button className="rounded border px-3 py-2" disabled={busy} onClick={cancelGoogleAction} type="button">Cancel</button>
         </div>
@@ -256,6 +304,18 @@ function messageForGoogleFailure(code: string): string {
       return "The authorized Google account does not contain the selected identity.";
     case "drive_delete_failed":
       return "Passport could not delete the identity from Google Drive.";
+    case "drive_stale_file":
+      return "The Google Drive identity changed before it could be deleted. Try again.";
+    case "drive_create_conflict":
+      return "A Google Drive identity was created at the same time. Try again to restore it.";
+    case "homegate_invite_failed":
+      return "Passport stored the encrypted identity, but could not obtain a homeserver invitation. Delete the failed Drive identity and start again.";
+    case "signup_failed":
+      return "Passport stored the encrypted identity, but homeserver signup did not complete. Delete the failed Drive identity and start again.";
+    case "signin_failed":
+      return "Passport restored the identity, but could not activate its homeserver session. Delete the failed Drive identity and start again.";
+    case "discovery_failed":
+      return "Passport signed up the identity, but could not publish its homeserver discovery record. Try restoring it again.";
     default:
       return "The Google identity operation failed.";
   }
