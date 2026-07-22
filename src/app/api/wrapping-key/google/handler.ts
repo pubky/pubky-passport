@@ -4,7 +4,7 @@ import { Result } from "better-result";
 import type {
   GoogleWrappingKeyRequest,
   GoogleWrappingKeyRequestErrorCode,
-} from "../../../../server/wrapping-key/requestGoogleWrappingKey";
+} from "../../../../server/wrapping-key/google/request";
 import { parseBoundedJsonStringField } from "../../../../libs/security/parseBoundedJsonStringField";
 
 const responseHeaders = {
@@ -51,7 +51,7 @@ export function createGoogleWrappingKeyPostHandler(
 }
 
 async function createDefaultRequest(): Promise<GoogleWrappingKeyRequest> {
-  const { createGoogleWrappingKeyRequest } = await import("../../../../server/wrapping-key/requestGoogleWrappingKey");
+  const { createGoogleWrappingKeyRequest } = await import("../../../../server/wrapping-key/google/request");
 
   return createGoogleWrappingKeyRequest();
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createGoogleWrappingKeyMaterial } from "./googleWrappingKeyDeriver";
+import { createGoogleWrappingKeyMaterial } from "./keyDeriver";
 
 const serverSecretBase64 = Buffer.from(
   "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",

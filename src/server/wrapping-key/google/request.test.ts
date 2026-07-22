@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
 
-import { expectAsyncResultError } from "../../../test-utils/resultAssertions";
-import { createGoogleWrappingKeyRequest } from "./requestGoogleWrappingKey";
-import type { GoogleIdTokenVerifier } from "./googleIdTokenVerifier";
-import type { GoogleWrappingKeyMaterial } from "./googleWrappingKeyDeriver";
-import type { GoogleWrappingKeyRateLimiter } from "./googleWrappingKeyRateLimiter";
+import { expectAsyncResultError } from "../../../../test-utils/resultAssertions";
+import { createGoogleWrappingKeyRequest } from "./request";
+import type { GoogleIdTokenVerifier } from "./idTokenVerifier";
+import type { GoogleWrappingKeyMaterial } from "./keyDeriver";
+import type { GoogleWrappingKeyRateLimiter } from "./rateLimiter";
 
 const identity = {
   issuer: "https://accounts.google.com" as const,

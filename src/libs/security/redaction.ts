@@ -37,7 +37,7 @@ const SENSITIVE_TOKEN_KEYS = [
 const JSON_TOKEN_VALUE_PATTERN = new RegExp(`(["'])\\b(${SENSITIVE_TOKEN_KEYS})\\b\\1\\s*:\\s*(["'])[^"']+\\3`, "giu");
 const TOKEN_VALUE_PATTERN = new RegExp(`\\b(${SENSITIVE_TOKEN_KEYS})\\b\\s*[:=]\\s*([^\\s,;&'\"]+)`, "giu");
 // A 32-byte secret encoded as base64url is exactly 43 characters. This covers
-// the server-derived wrapping key (googleWrappingKeyDeriver.ts) and the Pubky auth
+// the server-derived wrapping key (server/wrapping-key/google/keyDeriver.ts) and the Pubky auth
 // client_secret, so bare tokens of 43+ characters must be redacted even when
 // they appear without key=value, JSON, or URL context. The threshold stays
 // above 40 so full git SHA-1 hashes (40 hex chars) remain visible as useful,
