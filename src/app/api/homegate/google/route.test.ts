@@ -5,7 +5,7 @@ import { createGoogleHomegateInvitePostHandler } from "./handler";
 import type {
   GoogleHomegateInvite,
   GoogleHomegateInviteResult,
-} from "../../../../../server/homegate/google/invite";
+} from "../../../../server/homegate/google/invite";
 
 const invite = {
   signupCode: "signup-code",

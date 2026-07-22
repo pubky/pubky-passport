@@ -6,7 +6,7 @@ import {
   validateRelayUrl,
   type PubkyAuthUrlValidationErrorCode,
   type PubkyAuthUrlValidationOptions,
-} from "../validatePubkyAuthUrls";
+} from "./validatePubkyAuthUrls";
 
 const approvedRelayOrigins = ["https://httprelay.pubky.app"];
 

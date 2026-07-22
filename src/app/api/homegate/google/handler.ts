@@ -4,8 +4,8 @@ import { Result } from "better-result";
 import type {
   GoogleHomegateInvite,
   GoogleHomegateInviteErrorCode,
-} from "../../../../../server/homegate/google/invite";
-import { parseBoundedJsonStringField } from "../../../../../libs/security/parseBoundedJsonStringField";
+} from "../../../../server/homegate/google/invite";
+import { parseBoundedJsonStringField } from "../../../../libs/security/parseBoundedJsonStringField";
 
 const responseHeaders = {
   "Cache-Control": "no-store",
@@ -44,7 +44,7 @@ export function createGoogleHomegateInvitePostHandler(
 
 async function createDefaultInvite(): Promise<GoogleHomegateInvite> {
   const { createGoogleHomegateInvite } = await import(
-    "../../../../../server/homegate/google/invite"
+    "../../../../server/homegate/google/invite"
   );
 
   return createGoogleHomegateInvite();

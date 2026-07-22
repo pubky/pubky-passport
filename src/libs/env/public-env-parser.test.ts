@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parsePublicEnv } from "../public-env-parser";
+import { parsePublicEnv } from "./public-env-parser";
 
 const validPublicEnv = {
   NODE_ENV: "production",
