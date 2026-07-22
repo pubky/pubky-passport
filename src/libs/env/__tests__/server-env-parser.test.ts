@@ -49,6 +49,19 @@ describe("server environment parsers", () => {
     });
   });
 
+  it.each([
+    undefined,
+    "not a url",
+    "http://homegate.pubky.app",
+  ])("rejects invalid Homegate URLs in production", (homegateUrl) => {
+    expect(() =>
+      parseHomegateServerEnv({
+        NODE_ENV: "production",
+        HOMEGATE_URL: homegateUrl,
+      }),
+    ).toThrow();
+  });
+
   it("fails invalid base64 server secrets", () => {
     expect(() =>
       parseGoogleWrappingKeyServerEnv({
