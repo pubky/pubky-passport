@@ -8,7 +8,7 @@ import type {
   PubkySignup,
   PubkySignupErrorCode,
   PubkySignupResult,
-} from "@/browser/pubky/pubky";
+} from "@/browser/pubky/pubkyPorts";
 
 export type FakePubkySignupCall = {
   keyHandle: PubkyIdentityKeyHandle;

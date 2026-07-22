@@ -1,0 +1,331 @@
+import "client-only";
+
+import { Keypair, Pubky, PublicKey, type Session } from "@synonymdev/pubky";
+import { Result, type Result as ResultType } from "better-result";
+
+import {
+  pubkySecretKeyBytes,
+  pubkySecretKeyFormat,
+  type PubkyIdentityKey,
+  type PubkyIdentityKeyHandle,
+  type PubkyIdentitySession,
+  type PubkyPublicIdentity,
+  type PubkySecretKeyMaterial,
+} from "../../features/identity/pubkyIdentity";
+import {
+  isParserIssuedPubkyAuthRequest,
+  type ValidatedSensitivePubkyAuthRequest,
+} from "../../features/auth/parsePubkyAuthRequest";
+import type {
+  PubkyAuthApproval,
+  PubkyAuthApprovalResult,
+  PubkyDiscovery,
+  PubkyDiscoveryResult,
+  PubkyIdentityKeys,
+  PubkyIdentityKeysResult,
+  PubkySignup,
+  PubkySignupResult,
+} from "./pubkyPorts";
+
+export type PubkyNetwork =
+  | { kind: "mainnet" }
+  | { kind: "testnet"; host?: string | null };
+
+type Signer = ReturnType<Pubky["signer"]>;
+type HomeserverResult = ResultType<PublicKey, { code: "invalid_homeserver_pubky" }>;
+
+/**
+ * Browser-local Pubky adapter. Opaque handles keep SDK keypairs out of feature and
+ * UI state while this adapter owns all SDK resource cleanup.
+ */
+export class BrowserPubky implements PubkyIdentityKeys, PubkySignup, PubkyDiscovery, PubkyAuthApproval {
+  readonly #pubky: Pubky;
+  readonly #keypairs = new Map<PubkyIdentityKeyHandle, Keypair>();
+  #disposed = false;
+
+  constructor(options: { network?: PubkyNetwork } = {}) {
+    this.#pubky = createPubky(options.network ?? { kind: "mainnet" });
+  }
+
+  async createIdentityKey(): Promise<PubkyIdentityKeysResult<PubkyIdentityKey>> {
+    if (this.#disposed) {
+      return keyFailure("key_unavailable");
+    }
+
+    try {
+      return this.registerKeypair(Keypair.random());
+    } catch {
+      return keyFailure("create_failed");
+    }
+  }
+
+  async restoreIdentityKey(input: { secretKey: PubkySecretKeyMaterial }): Promise<PubkyIdentityKeysResult<PubkyIdentityKey>> {
+    if (this.#disposed) {
+      input.secretKey.bytes.fill(0);
+      return keyFailure("key_unavailable");
+    }
+
+    if (!(input.secretKey.bytes instanceof Uint8Array) || input.secretKey.bytes.byteLength !== pubkySecretKeyBytes) {
+      input.secretKey.bytes.fill(0);
+      return keyFailure("invalid_secret_key");
+    }
+
+    try {
+      return this.registerKeypair(Keypair.fromSecret(input.secretKey.bytes));
+    } catch {
+      return keyFailure("restore_failed");
+    } finally {
+      input.secretKey.bytes.fill(0);
+    }
+  }
+
+  async exportSecretKey(input: { keyHandle: PubkyIdentityKeyHandle }): Promise<PubkyIdentityKeysResult<PubkySecretKeyMaterial>> {
+    const keypair = this.keypairFor(input.keyHandle);
+    if (!keypair) {
+      return keyFailure("key_unavailable");
+    }
+
+    try {
+      return Result.ok({
+        bytes: keypair.secret(),
+        format: pubkySecretKeyFormat,
+      });
+    } catch {
+      return keyFailure("export_failed");
+    }
+  }
+
+  async getPublicIdentity(input: { keyHandle: PubkyIdentityKeyHandle }): Promise<PubkyIdentityKeysResult<PubkyPublicIdentity>> {
+    const keypair = this.keypairFor(input.keyHandle);
+    if (!keypair) {
+      return keyFailure("key_unavailable");
+    }
+
+    return publicIdentity(keypair);
+  }
+
+  async signup(input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky: string; signupCode?: string | null }): Promise<PubkySignupResult<PubkyIdentitySession>> {
+    const keypair = this.keypairFor(input.keyHandle);
+    if (!keypair) {
+      return signupFailure("key_unavailable");
+    }
+
+    const homeserver = parseHomeserver(input.homeserverPubky);
+    if (Result.isError(homeserver)) {
+      return Result.err(homeserver.error);
+    }
+
+    try {
+      const session = await this.withSigner(keypair, (signer) => signer.signup(homeserver.value, input.signupCode ?? null));
+
+      return Result.ok(sessionDetails(session));
+    } catch {
+      return signupFailure("signup_failed");
+    } finally {
+      homeserver.value.free();
+    }
+  }
+
+  async signin(input: { keyHandle: PubkyIdentityKeyHandle; waitForDiscovery?: boolean }): Promise<PubkySignupResult<PubkyIdentitySession>> {
+    const keypair = this.keypairFor(input.keyHandle);
+    if (!keypair) {
+      return signupFailure("key_unavailable");
+    }
+
+    try {
+      const session = await this.withSigner(keypair, (signer) => input.waitForDiscovery ? signer.signinBlocking() : signer.signin());
+
+      return Result.ok(sessionDetails(session));
+    } catch {
+      return signupFailure("signin_failed");
+    }
+  }
+
+  async publishHomeserverIfStale(input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky?: string | null }): Promise<PubkyDiscoveryResult> {
+    return this.publishHomeserver(input, "if_stale");
+  }
+
+  async publishHomeserverForce(input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky?: string | null }): Promise<PubkyDiscoveryResult> {
+    return this.publishHomeserver(input, "force");
+  }
+
+  async approveAuthRequest(input: { keyHandle: PubkyIdentityKeyHandle; authRequest: ValidatedSensitivePubkyAuthRequest }): Promise<PubkyAuthApprovalResult> {
+    if (
+      !isParserIssuedPubkyAuthRequest(input.authRequest) ||
+      !isPubkyAuthRequestUrl(input.authRequest.sensitivePubkyAuthUrl)
+    ) {
+      return authApprovalFailure("request_rejected");
+    }
+
+    const keypair = this.keypairFor(input.keyHandle);
+    if (!keypair) {
+      return authApprovalFailure("key_unavailable");
+    }
+
+    try {
+      await this.withSigner(keypair, (signer) => signer.approveAuthRequest(input.authRequest.sensitivePubkyAuthUrl));
+
+      return Result.ok();
+    } catch {
+      return authApprovalFailure("approval_failed");
+    }
+  }
+
+  dispose(): void {
+    if (this.#disposed) {
+      return;
+    }
+
+    this.#disposed = true;
+    for (const keypair of this.#keypairs.values()) {
+      keypair.free();
+    }
+    this.#keypairs.clear();
+    this.#pubky.free();
+  }
+
+  private registerKeypair(keypair: Keypair): PubkyIdentityKeysResult<PubkyIdentityKey> {
+    const identity = publicIdentity(keypair);
+    if (Result.isError(identity)) {
+      keypair.free();
+      return keyFailure(identity.error.code);
+    }
+
+    const keyHandle = {} as PubkyIdentityKeyHandle;
+    this.#keypairs.set(keyHandle, keypair);
+
+    return Result.ok({ keyHandle, publicIdentity: identity.value });
+  }
+
+  private async publishHomeserver(
+    input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky?: string | null },
+    mode: "force" | "if_stale",
+  ): Promise<PubkyDiscoveryResult> {
+    const keypair = this.keypairFor(input.keyHandle);
+    if (!keypair) {
+      return discoveryFailure("key_unavailable");
+    }
+
+    const homeserver = parseOptionalHomeserver(input.homeserverPubky);
+    if (Result.isError(homeserver)) {
+      return Result.err(homeserver.error);
+    }
+
+    let transferredToSdk = false;
+    try {
+      await this.withSigner(keypair, async (signer) => {
+        const pkdns = signer.pkdns;
+        try {
+          transferredToSdk = homeserver.value !== null;
+          if (mode === "force") {
+            await pkdns.publishHomeserverForce(homeserver.value);
+          } else {
+            await pkdns.publishHomeserverIfStale(homeserver.value);
+          }
+        } finally {
+          pkdns.free();
+        }
+      });
+
+      return Result.ok();
+    } catch {
+      return discoveryFailure("publish_failed");
+    } finally {
+      if (!transferredToSdk) {
+        homeserver.value?.free();
+      }
+    }
+  }
+
+  private keypairFor(keyHandle: PubkyIdentityKeyHandle): Keypair | undefined {
+    return this.#disposed ? undefined : this.#keypairs.get(keyHandle);
+  }
+
+  private async withSigner<T>(keypair: Keypair, operation: (signer: Signer) => Promise<T>): Promise<T> {
+    const signer = this.#pubky.signer(keypair);
+    try {
+      return await operation(signer);
+    } finally {
+      signer.free();
+    }
+  }
+}
+
+function createPubky(network: PubkyNetwork): Pubky {
+  return network.kind === "testnet" ? Pubky.testnet(network.host ?? null) : new Pubky();
+}
+
+function publicIdentity(keypair: Keypair): PubkyIdentityKeysResult<PubkyPublicIdentity> {
+  try {
+    const publicKey = keypair.publicKey;
+    try {
+      return Result.ok({
+        publicKeyZ32: publicKey.z32(),
+        publicKeyDisplay: publicKey.toString(),
+      });
+    } finally {
+      publicKey.free();
+    }
+  } catch {
+    return keyFailure("public_identity_failed");
+  }
+}
+
+function parseHomeserver(value: string): HomeserverResult {
+  if (value.trim().length === 0) {
+    return Result.err({ code: "invalid_homeserver_pubky" });
+  }
+
+  try {
+    return Result.ok(PublicKey.from(value));
+  } catch {
+    return Result.err({ code: "invalid_homeserver_pubky" });
+  }
+}
+
+function parseOptionalHomeserver(value: string | null | undefined): ResultType<PublicKey | null, { code: "invalid_homeserver_pubky" }> {
+  return value === null || value === undefined ? Result.ok(null) : parseHomeserver(value);
+}
+
+function isPubkyAuthRequestUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === "pubkyauth:";
+  } catch {
+    return false;
+  }
+}
+
+function sessionDetails(session: Session): PubkyIdentitySession {
+  const info = session.info;
+  const publicKey = info.publicKey;
+  try {
+    return {
+      publicIdentity: {
+        publicKeyZ32: publicKey.z32(),
+        publicKeyDisplay: publicKey.toString(),
+      },
+      capabilities: [...info.capabilities],
+      sessionSnapshot: session.export(),
+    };
+  } finally {
+    publicKey.free();
+    info.free();
+    session.free();
+  }
+}
+
+function keyFailure<T>(code: "create_failed" | "export_failed" | "invalid_secret_key" | "key_unavailable" | "public_identity_failed" | "restore_failed"): PubkyIdentityKeysResult<T> {
+  return Result.err({ code });
+}
+
+function signupFailure<T>(code: "invalid_homeserver_pubky" | "key_unavailable" | "signin_failed" | "signup_failed"): PubkySignupResult<T> {
+  return Result.err({ code });
+}
+
+function discoveryFailure(code: "invalid_homeserver_pubky" | "key_unavailable" | "publish_failed"): PubkyDiscoveryResult {
+  return Result.err({ code });
+}
+
+function authApprovalFailure(code: "approval_failed" | "key_unavailable" | "relay_failed" | "request_rejected"): PubkyAuthApprovalResult {
+  return Result.err({ code });
+}

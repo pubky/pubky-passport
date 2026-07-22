@@ -10,7 +10,7 @@ import type {
   PubkyIdentityKeys,
   PubkyIdentityKeysErrorCode,
   PubkyIdentityKeysResult,
-} from "@/browser/pubky/pubky";
+} from "@/browser/pubky/pubkyPorts";
 
 export type FakePubkyIdentityKeysRestoreCall = {
   secretKeyByteLength: number;
