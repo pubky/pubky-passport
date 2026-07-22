@@ -29,6 +29,7 @@ export type LocalIdentityRepository = {
   list(): LocalIdentityRepositoryResult<{ activeIdentityId: string | null; identities: LocalIdentitySummary[] }>;
   saveIdentity(input: { identityKeys: PubkyIdentityKeys; keyHandle: PubkyIdentityKeyHandle }): Promise<LocalIdentityRepositoryResult<LocalIdentitySummary>>;
   select(id: string): LocalIdentityRepositoryResult<void>;
+  clear(): LocalIdentityRepositoryResult<void>;
   restoreActiveIdentity(input: { identityKeys: PubkyIdentityKeys }): Promise<LocalIdentityRepositoryResult<PubkyIdentityKey>>;
 };
 
@@ -112,6 +113,19 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
     }
 
     return this.writeStore({ ...store.value, activeIdentityId: id });
+  }
+
+  clear(): LocalIdentityRepositoryResult<void> {
+    if (!this.#storage) {
+      return failure("storage_unavailable");
+    }
+
+    try {
+      this.#storage.removeItem(storageKey);
+      return this.#storage.getItem(storageKey) === null ? Result.ok() : failure("storage_unavailable");
+    } catch {
+      return failure("storage_unavailable");
+    }
   }
 
   async restoreActiveIdentity(input: { identityKeys: PubkyIdentityKeys }): Promise<LocalIdentityRepositoryResult<PubkyIdentityKey>> {

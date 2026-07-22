@@ -39,6 +39,18 @@ describe("LocalStorageIdentityRepository", () => {
     storage.setItem("pubky-passport/local-identities/v1", '{"v":1,"identities":"secret"}');
     expectResultError(new LocalStorageIdentityRepository({ storage }).list(), { code: "invalid_store" });
   });
+
+  it("clears only Passport local identities", async () => {
+    const storage = new MemoryStorage();
+    const repository = new LocalStorageIdentityRepository({ storage });
+    storage.setItem("unrelated", "keep");
+    await save(repository, firstIdentity);
+
+    expectResultOk(repository.clear());
+
+    expect(expectResultOk(repository.list())).toEqual({ activeIdentityId: null, identities: [] });
+    expect(storage.getItem("unrelated")).toBe("keep");
+  });
 });
 
 async function save(repository: LocalStorageIdentityRepository, publicIdentity: typeof firstIdentity) {

@@ -4,19 +4,23 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const httpRelayOrigin = safeOrigin(process.env.NEXT_PUBLIC_HTTP_RELAY_URL) ?? "https://httprelay.pubky.app";
+const scriptSource = process.env.NODE_ENV === "development"
+  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com"
+  : "script-src 'self' https://accounts.google.com https://apis.google.com";
 
 const contentSecurityPolicy = [
   "default-src 'self'",
-  "script-src 'self' https://accounts.google.com https://apis.google.com",
+  scriptSource,
   [
     "connect-src 'self'",
     "https://accounts.google.com",
+    "https://openidconnect.googleapis.com",
     "https://oauth2.googleapis.com",
     "https://www.googleapis.com",
     httpRelayOrigin,
   ].join(" "),
   "img-src 'self' data: https://*.googleusercontent.com",
-  "style-src 'self'",
+  "style-src 'self' https://accounts.google.com",
   "font-src 'self'",
   "frame-src https://accounts.google.com",
   "object-src 'none'",
@@ -85,6 +89,7 @@ function safeOrigin(value) {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  devIndicators: false,
   outputFileTracingRoot: __dirname,
   serverExternalPackages: ["@synonymdev/pubky"],
   async headers() {

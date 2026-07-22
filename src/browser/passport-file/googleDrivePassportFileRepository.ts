@@ -123,6 +123,32 @@ export class GoogleDrivePassportFileRepository implements PassportFileStore {
     return success(undefined);
   }
 
+  async deletePassportFile(): Promise<PassportFileStoreResult<void>> {
+    const token = await this.getAccessToken();
+    if (Result.isError(token)) {
+      return failure(token.error.code);
+    }
+
+    const locatedFile = await this.locatePassportFile(token.value);
+    if (Result.isError(locatedFile)) {
+      return failure(locatedFile.error.code);
+    }
+
+    if (locatedFile.value.status === "missing") {
+      return success(undefined);
+    }
+
+    const response = await this.fetchDrive(deleteUrl(locatedFile.value.fileId), {
+      method: "DELETE",
+      headers: authorizationHeaders(token.value),
+    });
+    if (response.status === 404 || response.ok) {
+      return success(undefined);
+    }
+
+    return failure(mapDriveStatus(response.status, "delete_failed"));
+  }
+
   private async getAccessToken(): Promise<PassportFileStoreResult<string>> {
     let token: string | null | undefined;
     try {
@@ -225,6 +251,10 @@ function mediaReadUrl(fileId: string): string {
 
 function mediaUpdateUrl(fileId: string): string {
   return `${driveUploadFilesUrl}/${encodeURIComponent(fileId)}?uploadType=media`;
+}
+
+function deleteUrl(fileId: string): string {
+  return `${driveFilesUrl}/${encodeURIComponent(fileId)}`;
 }
 
 function authorizationHeaders(token: string): { Authorization: string } {

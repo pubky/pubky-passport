@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 import nextConfig from "../next.config.mjs";
 
 describe("next config headers", () => {
+  it("hides the Next.js development indicator", () => {
+    expect(nextConfig.devIndicators).toBe(false);
+  });
+
   it("sets baseline security headers for every response", async () => {
     const headers = await nextConfig.headers?.();
     const globalHeaders = headers?.find((entry) => entry.source === "/:path*")?.headers ?? [];
@@ -33,6 +37,7 @@ describe("next config headers", () => {
       expect.arrayContaining([
         "'self'",
         "https://accounts.google.com",
+        "https://openidconnect.googleapis.com",
         "https://oauth2.googleapis.com",
         "https://www.googleapis.com",
         "https://httprelay.pubky.app",

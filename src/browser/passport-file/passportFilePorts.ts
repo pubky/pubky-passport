@@ -17,13 +17,15 @@ export type PassportFileStoreErrorCode =
   | "invalid_response"
   | "invalid_file"
   | "duplicate_files"
-  | "write_failed";
+  | "write_failed"
+  | "delete_failed";
 
 export type PassportFileStoreResult<T> = Result<T, { code: PassportFileStoreErrorCode }>;
 
 export type PassportFileStore = {
   readPassportFile(): Promise<PassportFileStoreResult<PassportFileReadResult>>;
   writePassportFile(input: { envelope: PassportFileEnvelopeV1 }): Promise<PassportFileStoreResult<void>>;
+  deletePassportFile(): Promise<PassportFileStoreResult<void>>;
 };
 
 export type PassportFileCryptoErrorCode =

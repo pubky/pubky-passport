@@ -277,6 +277,30 @@ describe("GoogleDrivePassportFileRepository", () => {
     expect(parseJsonBody(updateCall.init.body)).toEqual(envelope);
   });
 
+  it("deletes exactly one existing passport.json when reset is confirmed", async () => {
+    const { repository, calls } = createRepository([
+      jsonResponse({ files: [{ id: "file-1", name: "passport.json" }] }),
+      new Response(null, { status: 204 }),
+    ]);
+
+    await expectSuccess(repository.deletePassportFile(), undefined);
+
+    expect(calls).toHaveLength(2);
+    const deleteCall = expectCall(calls, 1);
+    expect(deleteCall.url).toBe("https://www.googleapis.com/drive/v3/files/file-1");
+    expect(deleteCall.init.method).toBe("DELETE");
+    expectAuthorizationHeader(deleteCall);
+  });
+
+  it("treats a Drive file that disappears before deletion as reset", async () => {
+    const { repository } = createRepository([
+      jsonResponse({ files: [{ id: "file-1", name: "passport.json" }] }),
+      new Response(null, { status: 404 }),
+    ]);
+
+    await expectSuccess(repository.deletePassportFile(), undefined);
+  });
+
   it("serializes outbound envelopes through parser normalization", async () => {
     const localhostEnvelope = { ...envelope, url: "http://localhost:3000/" };
     const { repository, calls } = createRepository([jsonResponse({ files: [] }), jsonResponse({ id: "created" })], {
