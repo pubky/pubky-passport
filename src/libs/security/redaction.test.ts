@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   redactAuthorizationUrls,
-  redactCallbackUrlQuery,
+  redactHttpUrlParams,
   redactForLog,
   redactTokenLikeValues,
 } from "./redaction";
@@ -45,29 +45,29 @@ describe("redactAuthorizationUrls", () => {
   });
 });
 
-describe("redactCallbackUrlQuery", () => {
+describe("redactHttpUrlParams", () => {
   it("redacts callback URL query parameters", () => {
     const value = "callback=https://app.example/passport-success?code=secret&state=private";
 
-    expect(redactCallbackUrlQuery(value)).toBe("callback=https://app.example/passport-success?[REDACTED_URL_PARAMS]");
+    expect(redactHttpUrlParams(value)).toBe("callback=https://app.example/passport-success?[REDACTED_URL_PARAMS]");
   });
 
   it("drops fragments when query parameters are redacted", () => {
     const value = "callback=https://app.example/passport-success?code=secret#fragment-secret";
 
-    expect(redactCallbackUrlQuery(value)).toBe("callback=https://app.example/passport-success?[REDACTED_URL_PARAMS]");
+    expect(redactHttpUrlParams(value)).toBe("callback=https://app.example/passport-success?[REDACTED_URL_PARAMS]");
   });
 
   it("redacts callback URL fragments without query parameters", () => {
     const value = "callback=https://app.example/passport-success#token=fragment-secret";
 
-    expect(redactCallbackUrlQuery(value)).toBe("callback=https://app.example/passport-success?[REDACTED_URL_PARAMS]");
+    expect(redactHttpUrlParams(value)).toBe("callback=https://app.example/passport-success?[REDACTED_URL_PARAMS]");
   });
 
   it("leaves callback URLs without query parameters unchanged", () => {
     const value = "callback=https://app.example/passport-success";
 
-    expect(redactCallbackUrlQuery(value)).toBe(value);
+    expect(redactHttpUrlParams(value)).toBe(value);
   });
 });
 
@@ -123,6 +123,14 @@ describe("redactTokenLikeValues", () => {
     expect(wrappingKey).toHaveLength(43);
 
     expect(redactTokenLikeValues(`derived ${wrappingKey} value`)).toBe("derived [REDACTED_TOKEN] value");
+  });
+
+  it("redacts bare standard-base64 server secrets containing slash characters", () => {
+    const serverSecret = "//////////////////////////////////////////8=";
+    expect(Buffer.from(serverSecret, "base64")).toHaveLength(32);
+
+    expect(redactTokenLikeValues(`derived ${serverSecret} value`)).toBe("derived [REDACTED_TOKEN] value");
+    expect(redactTokenLikeValues(`serverSecretBase64=${serverSecret}`)).toBe("serverSecretBase64=[REDACTED_TOKEN]");
   });
 
   it("does not redact 40-char hex diagnostics such as git SHA-1 hashes", () => {

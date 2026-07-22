@@ -56,10 +56,14 @@ function formatLogLine(level: LogLevel, event: string, fields: LogFields | undef
       continue;
     }
 
-    parts.push(`${key}=${formatLogValue(value)}`);
+    parts.push(`${formatLogFieldKey(key)}=${formatLogValue(value)}`);
   }
 
   return parts.join(" ");
+}
+
+function formatLogFieldKey(key: string): string {
+  return /^[A-Za-z][A-Za-z0-9_]*$/.test(key) ? key : JSON.stringify(key);
 }
 
 function formatLogValue(value: Exclude<LogFieldValue, undefined>): string {

@@ -77,6 +77,18 @@ describe("createLogger", () => {
     expect(output).not.toContain("eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature");
     expect(output).not.toContain(wrappingKey);
   });
+
+  it("escapes dynamic field keys to prevent log-line injection", () => {
+    const records = createLogRecords();
+    const logger = createLogger(records.sink);
+
+    logger.info("authorize.parse.failed", { ["errorCode\nlevel=error"]: "missing_secret" });
+
+    expect(records.info).toEqual([
+      'level=info event="authorize.parse.failed" "errorCode\\nlevel=error"="missing_secret"',
+    ]);
+    expect(records.info[0]).not.toContain("\n");
+  });
 });
 
 function createLogRecords(): Record<LogLevel, string[]> & { sink: LogSink } {

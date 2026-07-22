@@ -1,8 +1,4 @@
-// TODO: Check for gaps. Heavily AI generated. 
-
-// Should be reviewed for correctness but is defensive behavior 
-// and should not cause any security issues if it is not perfect. 
-// It is better to redact too much than too little.
+// Defense in depth only: callers must still avoid logging sensitive values.
 
 const AUTHORIZATION_URL_REDACTION = "[REDACTED_AUTHORIZATION_URL]";
 const URL_PARAMS_REDACTION = "[REDACTED_URL_PARAMS]";
@@ -30,6 +26,13 @@ const SENSITIVE_TOKEN_KEYS = [
   "wrappingKey",
   "authSecret",
   "clientSecret",
+  "serverSecret",
+  "serverSecretBase64",
+  "PASSPORT_SERVER_SECRET_BASE64",
+  "signupCode",
+  "secretKey",
+  "privateKey",
+  "keyMaterial",
 ].join("|");
 const JSON_TOKEN_VALUE_PATTERN = new RegExp(`(["'])\\b(${SENSITIVE_TOKEN_KEYS})\\b\\1\\s*:\\s*(["'])[^"']+\\3`, "giu");
 const TOKEN_VALUE_PATTERN = new RegExp(`\\b(${SENSITIVE_TOKEN_KEYS})\\b\\s*[:=]\\s*([^\\s,;&'\"]+)`, "giu");
@@ -39,7 +42,7 @@ const TOKEN_VALUE_PATTERN = new RegExp(`\\b(${SENSITIVE_TOKEN_KEYS})\\b\\s*[:=]\
 // they appear without key=value, JSON, or URL context. The threshold stays
 // above 40 so full git SHA-1 hashes (40 hex chars) remain visible as useful,
 // non-sensitive diagnostics; we err toward redaction for anything longer.
-const OPAQUE_TOKEN_PATTERN = /\b[A-Za-z0-9_-]{43,}\b/gu;
+const OPAQUE_TOKEN_PATTERN = /(?<![A-Za-z0-9+/_-])[A-Za-z0-9+/_-]{43,}={0,2}(?![A-Za-z0-9+/_=-])/gu;
 
 export function redactAuthorizationUrls(value: string): string {
   return value
@@ -50,7 +53,7 @@ export function redactAuthorizationUrls(value: string): string {
     );
 }
 
-export function redactCallbackUrlQuery(value: string): string {
+export function redactHttpUrlParams(value: string): string {
   return value.replace(HTTP_URL_PATTERN, (match) => redactUrlQuery(match));
 }
 
@@ -64,7 +67,7 @@ export function redactTokenLikeValues(value: string): string {
 }
 
 export function redactForLog(value: string): string {
-  return redactTokenLikeValues(redactCallbackUrlQuery(redactAuthorizationUrls(value)));
+  return redactTokenLikeValues(redactHttpUrlParams(redactAuthorizationUrls(value)));
 }
 
 function isPassportAuthorizationUrl(value: string): boolean {
