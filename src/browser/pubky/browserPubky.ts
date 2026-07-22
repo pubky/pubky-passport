@@ -31,6 +31,12 @@ export type PubkyNetwork =
   | { kind: "mainnet" }
   | { kind: "testnet"; host?: string | null };
 
+export function pubkyNetworkForTestnetHost(testnetHost: string | undefined): PubkyNetwork {
+  return testnetHost
+    ? { kind: "testnet", host: testnetHost }
+    : { kind: "mainnet" };
+}
+
 type Signer = ReturnType<Pubky["signer"]>;
 type HomeserverResult = ResultType<PublicKey, { code: "invalid_homeserver_pubky" }>;
 

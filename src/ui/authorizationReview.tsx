@@ -16,7 +16,7 @@ import {
   type ActiveAuthorizationResult,
 } from "../browser/authorization/approveActiveAuthorization";
 import { LocalStorageIdentityRepository } from "../browser/identity/localIdentityRepository";
-import { BrowserPubky } from "../browser/pubky/browserPubky";
+import { BrowserPubky, pubkyNetworkForTestnetHost } from "../browser/pubky/browserPubky";
 
 type ParsedAuthorizationEntry =
   | { status: "valid"; review: PubkyAuthRequestReview; approval: ValidatedSensitivePubkyAuthRequest }
@@ -33,6 +33,7 @@ type PendingStrictModeEntry = { scrubbedHref: string; entry: ParsedAuthorization
 type AuthorizationReviewProps = {
   relayOrigin: string;
   allowLocalhostCallbacks: boolean;
+  pubkyTestnetHost?: string | undefined;
   approveAuthorization?: (approval: ValidatedSensitivePubkyAuthRequest) => Promise<ActiveAuthorizationResult>;
   navigate?: (url: string) => void;
 };
@@ -42,7 +43,8 @@ const pendingStrictModeEntries = new WeakMap<Window, PendingStrictModeEntry>();
 export function AuthorizationReview({
   relayOrigin,
   allowLocalhostCallbacks,
-  approveAuthorization = approveWithBrowserPubky,
+  pubkyTestnetHost,
+  approveAuthorization,
   navigate = replaceLocation,
 }: AuthorizationReviewProps) {
   const approvalRef = useRef<ValidatedSensitivePubkyAuthRequest | null>(null);
@@ -83,7 +85,9 @@ export function AuthorizationReview({
     setStatus("approving");
     let result: ActiveAuthorizationResult;
     try {
-      result = await approveAuthorization(approval);
+      result = await (approveAuthorization
+        ? approveAuthorization(approval)
+        : approveWithBrowserPubky(approval, pubkyTestnetHost));
     } catch {
       result = Result.err({ code: "approval_failed" });
     }
@@ -236,10 +240,13 @@ function authorizationFailureMessage(code: ActiveAuthorizationErrorCode | null):
 
 async function approveWithBrowserPubky(
   approval: ValidatedSensitivePubkyAuthRequest,
+  pubkyTestnetHost?: string,
 ): Promise<ActiveAuthorizationResult> {
   let pubky: BrowserPubky;
   try {
-    pubky = new BrowserPubky();
+    pubky = new BrowserPubky({
+      network: pubkyNetworkForTestnetHost(pubkyTestnetHost),
+    });
   } catch {
     return Result.err({ code: "approval_failed" });
   }

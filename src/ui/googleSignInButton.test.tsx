@@ -194,6 +194,34 @@ describe("GoogleSignInButton", () => {
     expect(userInfoSignal.current?.aborted).toBe(true);
     expect(onAuthorized).not.toHaveBeenCalled();
   });
+
+  it("initializes the global Google identity client once across component remounts", async () => {
+    const credentialCallbacks: Array<(response: { credential?: unknown }) => void> = [];
+    const initialize = vi.fn((config: { callback: (response: { credential?: unknown }) => void }) => {
+      credentialCallbacks.push(config.callback);
+    });
+    const renderButton = vi.fn();
+    const accounts: GoogleAccounts = {
+      id: { initialize, renderButton },
+      oauth2: {
+        initTokenClient() {
+          return { requestAccessToken: vi.fn() };
+        },
+      },
+    };
+    window.google = { accounts };
+
+    const first = render(<GoogleSignInButton clientId="google-client" disabled={false} onAuthorized={vi.fn(async () => {})} />);
+    await waitFor(() => expect(initialize).toHaveBeenCalledTimes(1));
+    first.unmount();
+
+    render(<GoogleSignInButton clientId="google-client" disabled={false} onAuthorized={vi.fn(async () => {})} />);
+    await waitFor(() => expect(renderButton).toHaveBeenCalledTimes(2));
+    expect(initialize).toHaveBeenCalledTimes(1);
+
+    await act(async () => credentialCallbacks[0]?.({ credential: googleIdToken("google-subject") }));
+    expect(screen.getByRole("button", { name: "Allow Drive access" })).toBeDefined();
+  });
 });
 
 function googleIdToken(subject: string): string {

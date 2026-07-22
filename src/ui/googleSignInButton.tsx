@@ -4,10 +4,11 @@ import { Result } from "better-result";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  bindGoogleCredentialCallback,
   googleIdTokenSubject,
   loadGoogleAccounts,
+  releaseGoogleCredentialCallback,
   requestGoogleDriveAccess,
-  type GoogleAccounts,
   type GoogleCredentialResponse,
   type GoogleIdentityProviderErrorCode,
 } from "../browser/identity/google/googleIdentityProvider";
@@ -23,8 +24,6 @@ export function GoogleSignInButton({ clientId, disabled, onAuthorized }: {
   const subject = useRef<string | undefined>(undefined);
   const attempt = useRef(0);
   const driveAbortController = useRef<AbortController | null>(null);
-  const initialized = useRef<{ accounts: GoogleAccounts; clientId: string } | null>(null);
-  const credentialCallback = useRef<((response: GoogleCredentialResponse) => void) | null>(null);
   const [stage, setStage] = useState<"sign-in" | "drive" | "submitting">("sign-in");
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
@@ -42,6 +41,7 @@ export function GoogleSignInButton({ clientId, disabled, onAuthorized }: {
 
   useEffect(() => {
     let mounted = true;
+    let boundCredentialCallback: ((response: GoogleCredentialResponse) => void) | null = null;
     const activeAttempt = attempt.current + 1;
     attempt.current = activeAttempt;
     void (async () => {
@@ -55,7 +55,7 @@ export function GoogleSignInButton({ clientId, disabled, onAuthorized }: {
         return;
       }
 
-      credentialCallback.current = (response) => {
+      boundCredentialCallback = (response) => {
         if (!mounted || attempt.current !== activeAttempt) return;
         if (typeof response.credential === "string" && response.credential.length > 0) {
           const googleSubject = googleIdTokenSubject(response.credential);
@@ -72,15 +72,15 @@ export function GoogleSignInButton({ clientId, disabled, onAuthorized }: {
           reset("Google sign-in did not return an identity. Try again.");
         }
       };
-      if (initialized.current?.accounts !== accounts.value || initialized.current.clientId !== clientId) {
-        accounts.value.id.initialize({
-          client_id: clientId,
-          auto_select: false,
-          callback(response) {
-            credentialCallback.current?.(response);
-          },
-        });
-        initialized.current = { accounts: accounts.value, clientId };
+      const bound = bindGoogleCredentialCallback({
+        accounts: accounts.value,
+        clientId,
+        callback: boundCredentialCallback,
+      });
+      if (Result.isError(bound)) {
+        logger.warn("identity.google.button.initialize_failed", { code: bound.error.code });
+        setError("Google sign-in is unavailable. Try again.");
+        return;
       }
       container.current.replaceChildren();
       accounts.value.id.renderButton(container.current, { theme: "outline", size: "large", text: "continue_with" });
@@ -88,6 +88,7 @@ export function GoogleSignInButton({ clientId, disabled, onAuthorized }: {
 
     return () => {
       mounted = false;
+      if (boundCredentialCallback) releaseGoogleCredentialCallback(boundCredentialCallback);
       driveAbortController.current?.abort();
       driveAbortController.current = null;
       attempt.current += 1;

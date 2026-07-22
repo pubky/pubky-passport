@@ -54,6 +54,9 @@ const driveConsentTimeoutMs = 60_000;
 const gisLoadStateAttribute = "data-pubky-passport-load-state";
 type GoogleSubjectVerification = "match" | "mismatch" | "unavailable" | "aborted";
 let gisScriptLoadPromise: Promise<void> | undefined;
+let initializedIdentityAccounts: GoogleAccounts | undefined;
+let initializedIdentityClientId: string | undefined;
+let activeCredentialCallback: ((response: GoogleCredentialResponse) => void) | undefined;
 
 export async function loadGoogleAccounts(
   document: Document = globalThis.document,
@@ -97,6 +100,52 @@ export async function requestGoogleDriveAccess(input: {
     input.signal,
     input.timeoutMs ?? driveConsentTimeoutMs,
   );
+}
+
+export function bindGoogleCredentialCallback(input: {
+  accounts: GoogleAccounts;
+  clientId: string;
+  callback: (response: GoogleCredentialResponse) => void;
+}): GoogleIdentityProviderResult<void> {
+  if (activeCredentialCallback && activeCredentialCallback !== input.callback) {
+    return Result.err({ code: "sign_in_failed" });
+  }
+
+  if (initializedIdentityAccounts === input.accounts) {
+    if (initializedIdentityClientId !== input.clientId) {
+      return Result.err({ code: "sign_in_failed" });
+    }
+
+    activeCredentialCallback = input.callback;
+    return Result.ok();
+  }
+
+  if (activeCredentialCallback) {
+    return Result.err({ code: "sign_in_failed" });
+  }
+
+  activeCredentialCallback = input.callback;
+  try {
+    input.accounts.id.initialize({
+      client_id: input.clientId,
+      auto_select: false,
+      callback(response) {
+        activeCredentialCallback?.(response);
+      },
+    });
+    initializedIdentityAccounts = input.accounts;
+    initializedIdentityClientId = input.clientId;
+    return Result.ok();
+  } catch {
+    if (activeCredentialCallback === input.callback) activeCredentialCallback = undefined;
+    return Result.err({ code: "sign_in_failed" });
+  }
+}
+
+export function releaseGoogleCredentialCallback(
+  callback: (response: GoogleCredentialResponse) => void,
+): void {
+  if (activeCredentialCallback === callback) activeCredentialCallback = undefined;
 }
 
 function requestDriveAccessToken(

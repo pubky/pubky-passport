@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import nextConfig from "../next.config.mjs";
+import nextConfig, { parseBrowserConnectOrigins } from "../next.config.mjs";
 
 describe("next config headers", () => {
   it("hides the Next.js development indicator", () => {
@@ -33,6 +33,11 @@ describe("next config headers", () => {
     expect(cspDirectives.get("script-src")).not.toContain("'unsafe-inline'");
     expect(cspDirectives.get("script-src")).not.toContain("'unsafe-eval'");
     expect(cspDirectives.get("script-src")).not.toContain("*");
+    expect(cspDirectives.get("style-src")).toEqual([
+      "'self'",
+      "'unsafe-inline'",
+      "https://accounts.google.com",
+    ]);
     expect(cspDirectives.get("connect-src")).toEqual(
       expect.arrayContaining([
         "'self'",
@@ -40,6 +45,8 @@ describe("next config headers", () => {
         "https://openidconnect.googleapis.com",
         "https://oauth2.googleapis.com",
         "https://www.googleapis.com",
+        "https://pkarr.pubky.app",
+        "https://pkarr.pubky.org",
         "https://httprelay.pubky.app",
       ]),
     );
@@ -64,6 +71,27 @@ describe("next config headers", () => {
       source: "/authorize/:path*",
       headers: authorizeHeaders,
     });
+  });
+
+  it("accepts only exact browser connection origins", () => {
+    expect(parseBrowserConnectOrigins("https://homeserver.example,https://homeserver.example:443", false)).toEqual([
+      "https://homeserver.example",
+    ]);
+    expect(parseBrowserConnectOrigins("http://localhost:6286", true)).toEqual([
+      "http://localhost:6286",
+    ]);
+
+    for (const value of [
+      "https://*.example.com",
+      "https://*",
+      "https://user@example.com",
+      "https://example.com/path",
+      "http://example.com",
+      "not a URL",
+      "https://example.com,",
+    ]) {
+      expect(() => parseBrowserConnectOrigins(value, false)).toThrow("Invalid PUBKY_BROWSER_CONNECT_ORIGINS");
+    }
   });
 });
 

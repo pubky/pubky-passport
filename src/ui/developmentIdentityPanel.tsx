@@ -9,7 +9,7 @@ import { BrowserGoogleWrappingKeyRequester } from "../browser/identity/google/go
 import { LocalStorageIdentityRepository } from "../browser/identity/localIdentityRepository";
 import { GoogleDrivePassportFileRepository } from "../browser/passport-file/googleDrivePassportFileRepository";
 import { WebCryptoPassportFileCrypto } from "../browser/passport-file/webCryptoPassportFileCrypto";
-import { BrowserPubky } from "../browser/pubky/browserPubky";
+import { BrowserPubky, pubkyNetworkForTestnetHost } from "../browser/pubky/browserPubky";
 import type { LocalIdentitySummary } from "../features/identity/localIdentity";
 import type { PubkyIdentityKeyHandle, PubkyPublicIdentity } from "../features/identity/pubkyIdentity";
 import { logger } from "../libs/logger/logger";
@@ -21,10 +21,12 @@ export function DevelopmentIdentityPanel({
   googleClientId,
   allowGoogleDriveReset,
   passportUrl,
+  pubkyTestnetHost,
 }: {
   googleClientId: string;
   allowGoogleDriveReset: boolean;
   passportUrl: string;
+  pubkyTestnetHost?: string | undefined;
 }) {
   const pubky = useRef<BrowserPubky | null>(null);
   const activeKeyHandle = useRef<PubkyIdentityKeyHandle | null>(null);
@@ -69,7 +71,9 @@ export function DevelopmentIdentityPanel({
 
   function getPubky(): BrowserPubky | null {
     try {
-      pubky.current ??= new BrowserPubky();
+      pubky.current ??= new BrowserPubky({
+        network: pubkyNetworkForTestnetHost(pubkyTestnetHost),
+      });
       return pubky.current;
     } catch {
       logger.warn("identity.pubky.initialize.failed");

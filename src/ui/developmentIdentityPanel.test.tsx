@@ -9,6 +9,7 @@ import { DevelopmentIdentityPanel } from "./developmentIdentityPanel";
 const flowState = vi.hoisted(() => ({
   establish: async (): Promise<unknown> => { throw new Error("establish result not configured"); },
   deleteExpectedPublicKey: null as string | null,
+  pubkyNetwork: null as unknown,
 }));
 
 vi.mock("../browser/identity/google/googleBackedIdentityFlow", () => ({
@@ -26,8 +27,14 @@ vi.mock("../browser/identity/google/googleBackedIdentityFlow", () => ({
 
 vi.mock("../browser/pubky/browserPubky", () => ({
   BrowserPubky: class {
+    constructor(options: unknown) {
+      flowState.pubkyNetwork = options;
+    }
     dispose(): void {}
   },
+  pubkyNetworkForTestnetHost: (host: string | undefined) => host
+    ? { kind: "testnet", host }
+    : { kind: "mainnet" },
 }));
 
 vi.mock("./googleSignInButton", () => ({
@@ -50,6 +57,7 @@ describe("DevelopmentIdentityPanel", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", new MemoryStorage());
     flowState.deleteExpectedPublicKey = null;
+    flowState.pubkyNetwork = null;
   });
 
   afterEach(() => {
@@ -73,6 +81,25 @@ describe("DevelopmentIdentityPanel", () => {
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Delete identity from Google" })).toBeDefined());
     expect(screen.getByRole("button", { name: "Clear local identities" })).toBeDefined();
+  });
+
+  it("uses the configured Pubky testnet for local identity operations", async () => {
+    flowState.establish = async () => Result.err({ code: "drive_read_failed" });
+    render(
+      <DevelopmentIdentityPanel
+        allowGoogleDriveReset
+        googleClientId="google-client"
+        passportUrl="https://localhost:3000"
+        pubkyTestnetHost="localhost"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add identity" }));
+    fireEvent.click(screen.getByRole("button", { name: "Authorize test Google" }));
+
+    await waitFor(() => expect(flowState.pubkyNetwork).toEqual({
+      network: { kind: "testnet", host: "localhost" },
+    }));
   });
 
   it("keeps failed and selected Drive deletion as separate exact targets", async () => {

@@ -4,6 +4,12 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const httpRelayOrigin = safeOrigin(process.env.NEXT_PUBLIC_HTTP_RELAY_URL) ?? "https://httprelay.pubky.app";
+const allowLocalhostPubkyConnections = process.env.NODE_ENV === "development"
+  || isLocalhostUrl(process.env.NEXT_PUBLIC_PASSPORT_PUBLIC_URL);
+const pubkyBrowserConnectOrigins = parseBrowserConnectOrigins(
+  process.env.PUBKY_BROWSER_CONNECT_ORIGINS,
+  allowLocalhostPubkyConnections,
+);
 const scriptSource = process.env.NODE_ENV === "development"
   ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com"
   : "script-src 'self' https://accounts.google.com https://apis.google.com";
@@ -17,10 +23,13 @@ const contentSecurityPolicy = [
     "https://openidconnect.googleapis.com",
     "https://oauth2.googleapis.com",
     "https://www.googleapis.com",
+    "https://pkarr.pubky.app",
+    "https://pkarr.pubky.org",
+    ...pubkyBrowserConnectOrigins,
     httpRelayOrigin,
   ].join(" "),
   "img-src 'self' data: https://*.googleusercontent.com",
-  "style-src 'self' https://accounts.google.com",
+  "style-src 'self' 'unsafe-inline' https://accounts.google.com",
   "font-src 'self'",
   "frame-src https://accounts.google.com",
   "object-src 'none'",
@@ -86,6 +95,56 @@ function safeOrigin(value) {
     return undefined;
   }
 }
+
+function isLocalhostUrl(value) {
+  if (!value) {
+    return false;
+  }
+
+  try {
+    return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(value).hostname);
+  } catch {
+    return false;
+  }
+}
+
+function parseBrowserConnectOrigins(value, allowLocalhostHttp) {
+  if (!value) {
+    return [];
+  }
+
+  const origins = [];
+  for (const candidate of value.split(",")) {
+    const trimmedCandidate = candidate.trim();
+    if (!trimmedCandidate) {
+      throw new Error("Invalid PUBKY_BROWSER_CONNECT_ORIGINS entry: empty origin");
+    }
+
+    try {
+      const url = new URL(trimmedCandidate);
+      const isLocalhostHttp = allowLocalhostHttp
+        && url.protocol === "http:"
+        && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+      const isExactOrigin = url.username === ""
+        && url.password === ""
+        && url.pathname === "/"
+        && url.search === ""
+        && url.hash === ""
+        && !url.hostname.includes("*");
+      if (!(url.protocol === "https:" || isLocalhostHttp) || !isExactOrigin) {
+        throw new Error("invalid browser connection origin");
+      }
+
+      origins.push(url.origin);
+    } catch {
+      throw new Error(`Invalid PUBKY_BROWSER_CONNECT_ORIGINS entry: ${trimmedCandidate}`);
+    }
+  }
+
+  return [...new Set(origins)];
+}
+
+export { parseBrowserConnectOrigins };
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {

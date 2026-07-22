@@ -4,11 +4,42 @@ import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  bindGoogleCredentialCallback,
   googleDriveAppDataScope,
   loadGoogleAccounts,
+  releaseGoogleCredentialCallback,
   requestGoogleDriveAccess,
   type GoogleAccounts,
 } from "./googleIdentityProvider";
+
+describe("Google credential callback ownership", () => {
+  it("keeps one live owner and never dispatches to a rejected binding", () => {
+    let dispatch: ((response: { credential?: unknown }) => void) | undefined;
+    const accounts = googleAccounts();
+    accounts.id.initialize = vi.fn((config) => { dispatch = config.callback; });
+    const first = vi.fn();
+    const second = vi.fn();
+
+    expect(Result.isError(bindGoogleCredentialCallback({ accounts, clientId: "google-client", callback: first }))).toBe(false);
+    expect(Result.isError(bindGoogleCredentialCallback({ accounts, clientId: "google-client", callback: second }))).toBe(true);
+    dispatch?.({ credential: "first-credential" });
+    expect(first).toHaveBeenCalledWith({ credential: "first-credential" });
+    expect(second).not.toHaveBeenCalled();
+
+    releaseGoogleCredentialCallback(second);
+    dispatch?.({ credential: "still-first" });
+    expect(first).toHaveBeenCalledWith({ credential: "still-first" });
+
+    releaseGoogleCredentialCallback(first);
+    expect(Result.isError(bindGoogleCredentialCallback({ accounts, clientId: "google-client", callback: second }))).toBe(false);
+    expect(Result.isError(bindGoogleCredentialCallback({ accounts, clientId: "different-client", callback: first }))).toBe(true);
+    dispatch?.({ credential: "second-credential" });
+    expect(second).toHaveBeenCalledWith({ credential: "second-credential" });
+    expect(first).not.toHaveBeenCalledWith({ credential: "second-credential" });
+
+    releaseGoogleCredentialCallback(second);
+  });
+});
 
 describe("requestGoogleDriveAccess", () => {
   afterEach(() => {
