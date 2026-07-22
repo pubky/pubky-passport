@@ -8,12 +8,12 @@ import type {
   PubkyIdentitySession,
   PubkyPublicIdentity,
   PubkySecretKeyMaterial,
-} from "../../../features/identity/pubkyIdentity";
-import type { ValidatedSensitivePubkyAuthRequest } from "../../../features/auth/parsePubkyAuthRequest";
+} from "../../features/identity/pubkyIdentity";
+import type { ValidatedSensitivePubkyAuthRequest } from "../../features/auth/parsePubkyAuthRequest";
 
 /**
  * The upcoming setup, restore, and authorization flows share this one Pubky
- * capability surface. It is local to identity because no other feature needs it.
+ * capability surface. It is local to Pubky because no other feature needs it.
  */
 export type PubkyIdentityKeysErrorCode =
   | "create_failed"

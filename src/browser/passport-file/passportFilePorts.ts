@@ -2,10 +2,10 @@ import "client-only";
 
 import type { Result } from "better-result";
 
-import type { PassportFileEnvelopeV1 } from "../../../features/passport-file/passportFile";
+import type { PassportFileEnvelopeV1 } from "../../features/passport-file/passportFile";
 
 /**
- * Browser identity flows use these capabilities to protect and store a key.
+ * Browser setup and restore flows use these capabilities to protect and store a key.
  * Adapters may call Drive or WebCrypto; feature code only sees these safe results.
  */
 export type PassportFileReadResult = { status: "found"; envelope: PassportFileEnvelopeV1 } | { status: "missing" };

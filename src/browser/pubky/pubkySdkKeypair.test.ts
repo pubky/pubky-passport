@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
-import { pubkySecretKeyBytes, pubkySecretKeyFormat } from "../../../features/identity/pubkyIdentity";
-import { expectResultError } from "../../../../test-utils/resultAssertions";
+import { pubkySecretKeyBytes, pubkySecretKeyFormat } from "../../features/identity/pubkyIdentity";
+import { expectResultError } from "../../../test-utils/resultAssertions";
 import { PubkySdkKeypairAdapter, withPubkySdkKeypair } from "./pubkySdkKeypair";
 
 describe("PubkySdkKeypairAdapter", () => {

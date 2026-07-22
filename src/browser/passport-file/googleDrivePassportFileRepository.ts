@@ -2,18 +2,18 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import type { PassportFileEnvelopeV1 } from "../../../features/passport-file/passportFile";
+import type { PassportFileEnvelopeV1 } from "../../features/passport-file/passportFile";
 import {
   parsePassportFileContents,
   parsePassportFileEnvelope,
   type PassportFileUrlOptions,
-} from "../../../features/passport-file/parsePassportFile";
+} from "../../features/passport-file/parsePassportFile";
 import type {
   PassportFileReadResult,
   PassportFileStore,
   PassportFileStoreErrorCode,
   PassportFileStoreResult,
-} from "../dependencies/passportFile";
+} from "./passportFilePorts";
 
 export type GoogleDriveAccessTokenProvider = () => Promise<string | null | undefined>;
 

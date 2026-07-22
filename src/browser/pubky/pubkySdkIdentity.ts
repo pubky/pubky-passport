@@ -3,11 +3,11 @@ import "client-only";
 import { Pubky, PublicKey, type PubkyError, type PubkyErrorName, type Session } from "@synonymdev/pubky";
 import { Result, type Result as ResultType } from "better-result";
 
-import type { PubkyIdentitySession } from "../../../features/identity/pubkyIdentity";
+import type { PubkyIdentitySession } from "../../features/identity/pubkyIdentity";
 import {
   isParserIssuedPubkyAuthRequest,
   type ValidatedSensitivePubkyAuthRequest,
-} from "../../../features/auth/parsePubkyAuthRequest";
+} from "../../features/auth/parsePubkyAuthRequest";
 import {
   type PubkyIdentityKeyError,
   type PubkyIdentityKeypair,

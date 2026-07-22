@@ -9,5 +9,4 @@ verification, server-secret derivation, rate limiting, and Homegate HTTP.
 `/api/wrapping-key/google`.
 
 Server flows import `features`, never `browser`, and receive only their required
-inputs. They must never receive Drive tokens/files, decrypted Pubky keys, or browser
-wrapping material.
+inputs.

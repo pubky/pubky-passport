@@ -4,9 +4,9 @@ import { fileURLToPath } from "node:url";
 import { Result, type Result as ResultType } from "better-result";
 import { describe, expect, it } from "vitest";
 
-import { expectAsyncResultError, expectResultError } from "../../../../test-utils/resultAssertions";
-import { pubkySecretKeyBytes } from "../../../features/identity/pubkyIdentity";
-import { parsePassportFileEnvelope } from "../../../features/passport-file/parsePassportFile";
+import { expectAsyncResultError, expectResultError } from "../../../test-utils/resultAssertions";
+import { pubkySecretKeyBytes } from "../../features/identity/pubkyIdentity";
+import { parsePassportFileEnvelope } from "../../features/passport-file/parsePassportFile";
 import {
   decodeBase64Url,
   encodeBase64Url,

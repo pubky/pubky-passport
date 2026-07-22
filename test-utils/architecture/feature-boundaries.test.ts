@@ -62,11 +62,11 @@ describe("feature runtime boundaries", () => {
     expect(sourceFiles(featuresRoot).flatMap(inspectFeatureFile)).toEqual([]);
   });
 
-  it("confines concrete Pubky SDK imports to browser identity", () => {
+  it("confines concrete Pubky SDK imports to browser Pubky adapters", () => {
     const violations = sourceFiles(srcRoot)
       .filter(importsPubkySdk)
-      .filter((filePath) => !isSameOrInside(filePath, join(browserRoot, "identity", "pubky")))
-      .map((filePath) => `${relative(repoRoot, filePath)} imports @synonymdev/pubky outside browser identity`);
+      .filter((filePath) => !isSameOrInside(filePath, join(browserRoot, "pubky")))
+      .map((filePath) => `${relative(repoRoot, filePath)} imports @synonymdev/pubky outside browser Pubky adapters`);
 
     expect(violations).toEqual([]);
   });

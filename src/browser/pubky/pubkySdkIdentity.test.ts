@@ -3,7 +3,7 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { PubkySdkIdentity } from "./pubkySdkIdentity";
 import { PubkySdkKeypairAdapter, type PubkyIdentityKeypair } from "./pubkySdkKeypair";
-import type { ValidatedSensitivePubkyAuthRequest } from "../../../features/auth/parsePubkyAuthRequest";
+import type { ValidatedSensitivePubkyAuthRequest } from "../../features/auth/parsePubkyAuthRequest";
 
 describe("PubkySdkIdentity", () => {
   it("constructs mainnet and testnet SDK facades", () => {

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
-import { expectAsyncResultError, expectResultError } from "../../../../test-utils/resultAssertions";
+import { expectAsyncResultError, expectResultError } from "../../../test-utils/resultAssertions";
 import {
   pubkySecretKeyBytes,
   pubkySecretKeyFormat,
   type PubkyIdentityKeyHandle,
-} from "../../../features/identity/pubkyIdentity";
+} from "../../features/identity/pubkyIdentity";
 import {
   BrowserPubkyIdentity,
   BrowserPubkyIdentityKeys,

@@ -7,11 +7,11 @@ import type {
   PubkyIdentityKeyHandle,
   PubkyIdentitySession,
   PubkySecretKeyMaterial,
-} from "../../../features/identity/pubkyIdentity";
+} from "../../features/identity/pubkyIdentity";
 import {
   isParserIssuedPubkyAuthRequest,
   type ValidatedSensitivePubkyAuthRequest,
-} from "../../../features/auth/parsePubkyAuthRequest";
+} from "../../features/auth/parsePubkyAuthRequest";
 import type {
   PubkyAuthApproval,
   PubkyAuthApprovalErrorCode,
@@ -25,7 +25,7 @@ import type {
   PubkySignup,
   PubkySignupErrorCode,
   PubkySignupResult,
-} from "../dependencies/pubky";
+} from "./pubky";
 import {
   PubkySdkKeypairAdapter,
   type PubkyIdentityKeyErrorCode,
@@ -39,8 +39,8 @@ import {
 } from "./pubkySdkIdentity";
 
 /**
- * Browser-facing identity service. It owns opaque key handles and translates
- * browser identity contracts into calls to concrete Pubky SDK code.
+ * Browser-facing Pubky service. It owns opaque key handles and translates
+ * Pubky contracts into calls to concrete Pubky SDK code.
  */
 export class BrowserPubkyIdentityKeys implements PubkyIdentityKeys {
   readonly #keyAdapter: PubkySdkKeypairAdapter;

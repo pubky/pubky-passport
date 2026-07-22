@@ -7,7 +7,7 @@ import {
   pubkySecretKeyBytes,
   pubkySecretKeyFormat,
   type PubkyPublicIdentity,
-} from "../../../features/identity/pubkyIdentity";
+} from "../../features/identity/pubkyIdentity";
 
 const sdkKeypairs = new WeakMap<PubkyIdentityKeypair, Keypair>();
 

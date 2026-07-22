@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 import { Result, type Result as ResultType } from "better-result";
 import { describe, expect, it, vi } from "vitest";
 
-import { expectAsyncResultError, expectResultOk } from "../../../../test-utils/resultAssertions";
-import type { PassportFileEnvelopeV1 } from "../../../features/passport-file/passportFile";
+import { expectAsyncResultError, expectResultOk } from "../../../test-utils/resultAssertions";
+import type { PassportFileEnvelopeV1 } from "../../features/passport-file/passportFile";
 import { GoogleDrivePassportFileRepository } from "./googleDrivePassportFileRepository";
 
 const accessToken = "test-drive-access-token";
