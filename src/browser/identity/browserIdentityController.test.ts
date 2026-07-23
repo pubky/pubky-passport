@@ -250,6 +250,62 @@ describe("DefaultBrowserIdentityController", () => {
     expect(disposePubky).toHaveBeenCalledOnce();
   });
 
+  it("preserves a failed establishment result after ordinary unmount", async () => {
+    const establishment = deferred<Awaited<ReturnType<BrowserIdentityControllerDependencies["identityFlow"]["establish"]>>>();
+    const establish = vi.fn(() => establishment.promise);
+    const { controller, credentialCallback } = await mountedController({ identityFlow: { establish } });
+    credentialCallback.current?.(googleCredential());
+
+    const pending = controller.continueGoogle({ kind: "establish" });
+    await vi.waitFor(() => expect(establish).toHaveBeenCalledOnce());
+    controller.unmountGoogleSignIn();
+    establishment.resolve(Result.err({ code: "signup_failed" }));
+
+    const completed = await pending;
+    expect(completed.status).toBe("action_finished_after_unmount");
+    if (completed.status !== "action_finished_after_unmount") throw new Error("Expected unmounted action result");
+    expect(Result.isError(completed.result)).toBe(true);
+    if (Result.isError(completed.result)) expect(completed.result.error).toEqual({ code: "signup_failed" });
+    controller.dispose();
+  });
+
+  it("preserves a successful deletion result after ordinary unmount", async () => {
+    const deletion = deferred<Awaited<ReturnType<BrowserIdentityControllerDependencies["identityDeletion"]["execute"]>>>();
+    const execute = vi.fn(() => deletion.promise);
+    const { controller, credentialCallback } = await mountedController({ identityDeletion: { execute } });
+    credentialCallback.current?.(googleCredential());
+
+    const pending = controller.continueGoogle({ kind: "delete", expectedPublicKeyZ32: "public-key" });
+    await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce());
+    controller.unmountGoogleSignIn();
+    deletion.resolve(Result.ok());
+
+    const completed = await pending;
+    expect(completed.status).toBe("action_finished_after_unmount");
+    if (completed.status !== "action_finished_after_unmount") throw new Error("Expected unmounted action result");
+    expect(completed.result).toEqual(Result.ok({ kind: "deleted" }));
+    controller.dispose();
+  });
+
+  it("preserves a failed deletion result after ordinary unmount", async () => {
+    const deletion = deferred<Awaited<ReturnType<BrowserIdentityControllerDependencies["identityDeletion"]["execute"]>>>();
+    const execute = vi.fn(() => deletion.promise);
+    const { controller, credentialCallback } = await mountedController({ identityDeletion: { execute } });
+    credentialCallback.current?.(googleCredential());
+
+    const pending = controller.continueGoogle({ kind: "delete", expectedPublicKeyZ32: "public-key" });
+    await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce());
+    controller.unmountGoogleSignIn();
+    deletion.resolve(Result.err({ code: "drive_delete_failed" }));
+
+    const completed = await pending;
+    expect(completed.status).toBe("action_finished_after_unmount");
+    if (completed.status !== "action_finished_after_unmount") throw new Error("Expected unmounted action result");
+    expect(Result.isError(completed.result)).toBe(true);
+    if (Result.isError(completed.result)) expect(completed.result.error).toEqual({ code: "drive_delete_failed" });
+    controller.dispose();
+  });
+
   it("delegates safe local identity operations and owns Pubky disposal", () => {
     const repository = fakeRepository();
     const disposePubky = vi.fn();
@@ -309,6 +365,12 @@ function dependencies(overrides: Partial<BrowserIdentityControllerDependencies> 
 
 function googleCredential() {
   return Result.ok({ googleIdToken: "google-id-token", subject: "google-subject" });
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((settle) => { resolve = settle; });
+  return { promise, resolve };
 }
 
 function fakeRepository(): BrowserIdentityControllerDependencies["repository"] {
