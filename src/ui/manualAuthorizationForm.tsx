@@ -16,12 +16,12 @@ export function ManualAuthorizationForm({ relayOrigin }: {
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     const rawRequest = request.trim();
-    setRequest("");
     const parsed = parsePubkyAuthRequest(encodeURIComponent(rawRequest), {
       allowedRelayOrigins: [relayOrigin],
     });
+    setRequest("");
     if (Result.isError(parsed)) {
-      setError("Enter a valid Pubky authorization request. Paste the complete request again.");
+      setError("The invalid request was cleared for security. Correct it in the source app, then paste the complete request again.");
       return;
     }
 

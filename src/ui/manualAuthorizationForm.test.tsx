@@ -26,7 +26,7 @@ describe("ManualAuthorizationForm", () => {
 
     expect((input as HTMLTextAreaElement).value).toBe("");
     expect(screen.getByRole("alert").textContent).toBe(
-      "Enter a valid Pubky authorization request. Paste the complete request again.",
+      "The invalid request was cleared for security. Correct it in the source app, then paste the complete request again.",
     );
     expect(input.getAttribute("autocomplete")).toBe("off");
     expect(input.getAttribute("autocapitalize")).toBe("none");
