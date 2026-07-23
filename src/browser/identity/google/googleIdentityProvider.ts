@@ -2,10 +2,10 @@ import "client-only";
 
 import { Result } from "better-result";
 
+import type { GoogleIdentityProviderResult } from "./applicationContracts";
 import type {
   GoogleAccounts,
   GoogleCredentialResponse,
-  GoogleIdentityProviderResult,
 } from "./googleIdentityProviderTypes";
 
 declare global {

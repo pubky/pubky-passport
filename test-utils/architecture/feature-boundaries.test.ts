@@ -25,22 +25,6 @@ const stableUiBrowserModules = new Set([
   join(browserRoot, "identity", "browserIdentityController.ts"),
   join(browserRoot, "identity", "createBrowserIdentityController.ts"),
 ]);
-const browserApplicationModules = [
-  join(browserRoot, "authorization", "approveActiveAuthorization.ts"),
-  join(browserRoot, "authorization", "browserAuthorizationController.ts"),
-  join(browserRoot, "authorization", "browserAuthorizationControllerInternals.ts"),
-  join(browserRoot, "passport-file", "ports.ts"),
-  join(browserRoot, "pubky", "ports.ts"),
-  join(browserRoot, "identity", "browserIdentityController.ts"),
-  join(browserRoot, "identity", "browserIdentityControllerInternals.ts"),
-  join(browserRoot, "identity", "localIdentityService.ts"),
-  join(browserRoot, "identity", "google", "applicationContracts.ts"),
-  join(browserRoot, "identity", "google", "createMissingGoogleDriveIdentity.ts"),
-  join(browserRoot, "identity", "google", "deleteGoogleBackedIdentity.ts"),
-  join(browserRoot, "identity", "google", "googleBackedIdentityFlow.ts"),
-  join(browserRoot, "identity", "google", "googleIdentityProviderTypes.ts"),
-  join(browserRoot, "identity", "google", "restoreExistingGoogleDriveIdentity.ts"),
-];
 const browserAdapterModules = [
   localIdentityRepository,
   browserPubky,
@@ -48,6 +32,7 @@ const browserAdapterModules = [
   join(browserRoot, "passport-file", "webCryptoPassportFileCrypto.ts"),
   join(browserRoot, "identity", "google", "googleHomegateInviteRequester.ts"),
   join(browserRoot, "identity", "google", "googleIdentityProvider.ts"),
+  join(browserRoot, "identity", "google", "googleIdentityProviderTypes.ts"),
   join(browserRoot, "identity", "google", "googleSignInWidget.ts"),
   join(browserRoot, "identity", "google", "googleWrappingKeyRequester.ts"),
 ];
@@ -58,6 +43,9 @@ const googleWrappingKeyApplicationModules = [
 ];
 
 const checkedExtensions = new Set([".ts", ".tsx"]);
+const browserApplicationModules = productionSourceFiles(browserRoot)
+  .filter((filePath) => !browserCompositionFactories.includes(filePath))
+  .filter((filePath) => !browserAdapterModules.includes(filePath));
 
 const forbiddenFeatureImports = [
   "@synonymdev/pubky",
@@ -234,6 +222,17 @@ describe("feature runtime boundaries", () => {
     );
 
     expect(violations).toEqual([]);
+  });
+
+  it("defaults browser modules to application policy behind an exact detail allowlist", () => {
+    const productionModules = new Set(productionSourceFiles(browserRoot));
+    const allowlistedDetails = [...browserCompositionFactories, ...browserAdapterModules];
+
+    expect(new Set(allowlistedDetails).size).toBe(allowlistedDetails.length);
+    expect(allowlistedDetails.filter((filePath) => !productionModules.has(filePath))).toEqual([]);
+    expect(browserApplicationModules).toEqual(
+      [...productionModules].filter((filePath) => !allowlistedDetails.includes(filePath)),
+    );
   });
 
   it("resolves aliases and transitive index re-exports for isolation checks", () => {

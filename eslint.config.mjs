@@ -106,21 +106,20 @@ const eslintConfig = defineConfig([
     }
   },
   {
-    files: [
-      "src/browser/authorization/approveActiveAuthorization.ts",
-      "src/browser/authorization/browserAuthorizationController.ts",
-      "src/browser/authorization/browserAuthorizationControllerInternals.ts",
-      "src/browser/passport-file/ports.ts",
-      "src/browser/pubky/ports.ts",
-      "src/browser/identity/browserIdentityController.ts",
-      "src/browser/identity/browserIdentityControllerInternals.ts",
-      "src/browser/identity/localIdentityService.ts",
-      "src/browser/identity/google/applicationContracts.ts",
-      "src/browser/identity/google/createMissingGoogleDriveIdentity.ts",
-      "src/browser/identity/google/deleteGoogleBackedIdentity.ts",
-      "src/browser/identity/google/googleBackedIdentityFlow.ts",
+    files: ["src/browser/**/*.{ts,tsx}"],
+    ignores: [
+      "src/browser/**/*.test.{ts,tsx}",
+      "src/browser/authorization/createBrowserAuthorizationController.ts",
+      "src/browser/identity/createBrowserIdentityController.ts",
+      "src/browser/identity/localIdentityRepository.ts",
+      "src/browser/passport-file/googleDrivePassportFileRepository.ts",
+      "src/browser/passport-file/webCryptoPassportFileCrypto.ts",
+      "src/browser/pubky/browserPubky.ts",
+      "src/browser/identity/google/googleHomegateInviteRequester.ts",
+      "src/browser/identity/google/googleIdentityProvider.ts",
       "src/browser/identity/google/googleIdentityProviderTypes.ts",
-      "src/browser/identity/google/restoreExistingGoogleDriveIdentity.ts"
+      "src/browser/identity/google/googleSignInWidget.ts",
+      "src/browser/identity/google/googleWrappingKeyRequester.ts"
     ],
     rules: {
       "no-restricted-imports": [

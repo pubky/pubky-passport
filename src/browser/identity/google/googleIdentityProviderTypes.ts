@@ -1,20 +1,5 @@
 import "client-only";
 
-import type { Result } from "better-result";
-
-export type GoogleIdentityProviderErrorCode =
-  | "google_unavailable"
-  | "sign_in_failed"
-  | "drive_consent_failed"
-  | "drive_popup_closed"
-  | "drive_popup_failed_to_open"
-  | "drive_consent_timeout"
-  | "drive_consent_aborted"
-  | "drive_account_verification_failed"
-  | "drive_account_mismatch";
-
-export type GoogleIdentityProviderResult<T> = Result<T, { code: GoogleIdentityProviderErrorCode }>;
-
 export type GoogleCredentialResponse = { credential?: unknown };
 export type GoogleTokenResponse = { access_token?: unknown; error?: unknown; scope?: unknown };
 export type GoogleOAuthError = { type?: unknown };

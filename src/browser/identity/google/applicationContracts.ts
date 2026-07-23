@@ -6,6 +6,19 @@ import type { PubkyIdentityKey, PubkyPublicIdentity } from "../../../features/id
 import type { PassportFileEnvelopeV1 } from "../../../features/passport-file/passportFile";
 import type { PassportFileStore } from "../../passport-file/ports";
 
+export type GoogleIdentityProviderErrorCode =
+  | "google_unavailable"
+  | "sign_in_failed"
+  | "drive_consent_failed"
+  | "drive_popup_closed"
+  | "drive_popup_failed_to_open"
+  | "drive_consent_timeout"
+  | "drive_consent_aborted"
+  | "drive_account_verification_failed"
+  | "drive_account_mismatch";
+
+export type GoogleIdentityProviderResult<T> = Result<T, { code: GoogleIdentityProviderErrorCode }>;
+
 export type GoogleIdentitySession = {
   googleIdToken: string;
   driveAccessToken: string;

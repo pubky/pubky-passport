@@ -12,12 +12,13 @@ import type {
   GoogleContinueResult,
   GoogleSignInState,
 } from "./browserIdentityController";
-import type { GoogleBackedIdentity, GoogleBackedIdentityFlowError } from "./google/applicationContracts";
-import type { DeleteGoogleBackedIdentityErrorCode } from "./google/deleteGoogleBackedIdentity";
 import type {
+  GoogleBackedIdentity,
+  GoogleBackedIdentityFlowError,
   GoogleIdentityProviderErrorCode,
   GoogleIdentityProviderResult,
-} from "./google/googleIdentityProviderTypes";
+} from "./google/applicationContracts";
+import type { DeleteGoogleBackedIdentityErrorCode } from "./google/deleteGoogleBackedIdentity";
 import type { LocalIdentityRepository } from "./localIdentityService";
 
 type IdentityFlow = {

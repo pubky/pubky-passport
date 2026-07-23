@@ -8,10 +8,10 @@ import type {
   GoogleSignInWidgetPort,
   GoogleSignInWidgetResult,
 } from "../browserIdentityControllerInternals";
+import type { GoogleIdentityProviderResult } from "./applicationContracts";
 import type {
   GoogleAccounts,
   GoogleCredentialResponse,
-  GoogleIdentityProviderResult,
 } from "./googleIdentityProviderTypes";
 import {
   bindGoogleCredentialCallback,
