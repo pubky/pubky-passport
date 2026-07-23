@@ -73,6 +73,65 @@ const eslintConfig = defineConfig([
       ]
     }
   },
+  {
+    files: ["src/ui/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "../features/auth/parsePubkyAuthRequest",
+              importNames: ["ValidatedSensitivePubkyAuthRequest"],
+              message: "UI must consume safe authorization controller state, not sensitive parser approval types."
+            },
+            {
+              name: "@/features/auth/parsePubkyAuthRequest",
+              importNames: ["ValidatedSensitivePubkyAuthRequest"],
+              message: "UI must consume safe authorization controller state, not sensitive parser approval types."
+            }
+          ],
+          patterns: [
+            {
+              regex: "^(?:\\.\\./)+browser/(?!(?:authorization/(?:browserAuthorizationController|createBrowserAuthorizationController)|identity/(?:browserIdentityController|createBrowserIdentityController))$)",
+              message: "UI may import browser runtime only through stable controller APIs and their concrete factories."
+            },
+            {
+              regex: "^@/browser/(?!(?:authorization/(?:browserAuthorizationController|createBrowserAuthorizationController)|identity/(?:browserIdentityController|createBrowserIdentityController))$)",
+              message: "UI may import browser runtime only through stable controller APIs and their concrete factories."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    files: [
+      "src/browser/authorization/applicationContracts.ts",
+      "src/browser/authorization/approveActiveAuthorization.ts",
+      "src/browser/authorization/browserAuthorizationController.ts",
+      "src/browser/authorization/browserAuthorizationControllerInternals.ts",
+      "src/browser/identity/applicationContracts.ts",
+      "src/browser/identity/browserIdentityController.ts",
+      "src/browser/identity/localIdentityService.ts",
+      "src/browser/identity/google/applicationContracts.ts",
+      "src/browser/identity/google/deleteGoogleBackedIdentity.ts",
+      "src/browser/identity/google/googleBackedIdentityFlow.ts"
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: "^(?:@/browser/|(?:\\.\\./)+)passport-file(?:/|$)|(?:^|/)(?:createBrowserAuthorizationController|createBrowserIdentityController|browserPubky|localIdentityRepository|googleHomegateInviteRequester|googleIdentityProvider|googleWrappingKeyRequester|public-env)$|(?:^|/)ui(?:/|$)",
+              message: "Browser application modules must depend on contracts, not composition, adapters, public env, or UI."
+            }
+          ]
+        }
+      ]
+    }
+  },
 ]);
 
 export default eslintConfig;

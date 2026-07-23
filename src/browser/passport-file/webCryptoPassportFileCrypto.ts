@@ -8,7 +8,7 @@ import type {
   PassportFileCrypto,
   PassportFileCryptoErrorCode,
   PassportFileCryptoResult,
-} from "./passportFilePorts";
+} from "../identity/applicationContracts";
 import { normalizePassportFileOrigin, parsePassportFileEnvelope } from "../../features/passport-file/parsePassportFile";
 
 export type WebCryptoPassportFileCryptoOptions = {

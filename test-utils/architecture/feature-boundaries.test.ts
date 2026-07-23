@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, normalize, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -11,9 +11,39 @@ const serverRoot = join(srcRoot, "server");
 const appRoot = join(srcRoot, "app");
 const uiRoot = join(srcRoot, "ui");
 const libsEnvRoot = join(srcRoot, "libs", "env");
-const serverEnvModule = join(libsEnvRoot, "server-env");
-const publicEnvModule = join(libsEnvRoot, "public-env");
+const serverEnvModule = join(libsEnvRoot, "server-env.ts");
+const publicEnvModule = join(libsEnvRoot, "public-env.ts");
 const localIdentityRepository = join(browserRoot, "identity", "localIdentityRepository.ts");
+const browserPubky = join(browserRoot, "pubky", "browserPubky.ts");
+const browserCompositionFactories = [
+  join(browserRoot, "authorization", "createBrowserAuthorizationController.ts"),
+  join(browserRoot, "identity", "createBrowserIdentityController.ts"),
+];
+const stableUiBrowserModules = new Set([
+  join(browserRoot, "authorization", "browserAuthorizationController.ts"),
+  join(browserRoot, "authorization", "createBrowserAuthorizationController.ts"),
+  join(browserRoot, "identity", "browserIdentityController.ts"),
+  join(browserRoot, "identity", "createBrowserIdentityController.ts"),
+]);
+const browserApplicationModules = [
+  join(browserRoot, "authorization", "applicationContracts.ts"),
+  join(browserRoot, "authorization", "approveActiveAuthorization.ts"),
+  join(browserRoot, "authorization", "browserAuthorizationController.ts"),
+  join(browserRoot, "authorization", "browserAuthorizationControllerInternals.ts"),
+  join(browserRoot, "identity", "applicationContracts.ts"),
+  join(browserRoot, "identity", "browserIdentityController.ts"),
+  join(browserRoot, "identity", "localIdentityService.ts"),
+  join(browserRoot, "identity", "google", "applicationContracts.ts"),
+  join(browserRoot, "identity", "google", "deleteGoogleBackedIdentity.ts"),
+  join(browserRoot, "identity", "google", "googleBackedIdentityFlow.ts"),
+];
+const browserAdapterModules = [
+  localIdentityRepository,
+  browserPubky,
+  join(browserRoot, "identity", "google", "googleHomegateInviteRequester.ts"),
+  join(browserRoot, "identity", "google", "googleIdentityProvider.ts"),
+  join(browserRoot, "identity", "google", "googleWrappingKeyRequester.ts"),
+];
 const googleWrappingKeyRoot = join(serverRoot, "wrapping-key", "google");
 const googleWrappingKeyApplicationModules = [
   join(googleWrappingKeyRoot, "applicationContracts.ts"),
@@ -153,6 +183,12 @@ describe("feature runtime boundaries", () => {
     expect(violations).toEqual([]);
   });
 
+  it("limits production UI browser imports to stable controller APIs and factories", () => {
+    const violations = productionSourceFiles(uiRoot).flatMap(inspectUiBrowserImports);
+
+    expect(violations).toEqual([]);
+  });
+
   it("limits server environment imports to server-capable code", () => {
     const allowedImporters = [appRoot, serverRoot, libsEnvRoot];
     const violations = productionSourceFiles(srcRoot)
@@ -178,6 +214,36 @@ describe("feature runtime boundaries", () => {
 
     expect(violations).toEqual([]);
   });
+
+  it("keeps browser application layers independent from composition, adapters, env, and UI", () => {
+    const forbiddenTargets = [
+      ...browserCompositionFactories.map((targetPath) => ({ targetPath, label: "browser composition factory" })),
+      ...browserAdapterModules.map((targetPath) => ({ targetPath, label: "browser adapter" })),
+      { targetPath: join(browserRoot, "passport-file"), label: "Drive or WebCrypto adapter" },
+      { targetPath: publicEnvModule, label: "public env module" },
+      { targetPath: uiRoot, label: "UI" },
+    ];
+    const violations = browserApplicationModules.flatMap((filePath) =>
+      inspectForbiddenImports(filePath, { forbiddenTargets, traverseLocalImports: true })
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it("resolves aliases and transitive index re-exports for isolation checks", () => {
+    expect(resolveLocalImportTarget(
+      join(uiRoot, "authorizationReview.tsx"),
+      "@/browser/authorization/browserAuthorizationController",
+    )).toBe(join(browserRoot, "authorization", "browserAuthorizationController.ts"));
+
+    const fixtureRoot = join(repoRoot, "test-utils", "architecture", "fixtures");
+    const violations = inspectForbiddenImports(join(fixtureRoot, "transitive-entry.ts"), {
+      forbiddenTargets: [{ targetPath: join(fixtureRoot, "server-target.ts"), label: "fixture server target" }],
+      traverseLocalImports: true,
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toContain("fixture server target");
+  });
 });
 
 function inspectFeatureFile(filePath: string): string[] {
@@ -200,6 +266,35 @@ function inspectFeatureFile(filePath: string): string[] {
   return violations;
 }
 
+function inspectUiBrowserImports(filePath: string): string[] {
+  const relativeFilePath = relative(repoRoot, filePath);
+  const source = readFileSync(filePath, "utf8");
+  const violations = /\bValidatedSensitivePubkyAuthRequest\b/.test(sourceWithoutComments(source))
+    ? [`${relativeFilePath} references the sensitive parser approval type`]
+    : [];
+  const visited = new Set<string>();
+
+  function inspect(currentFilePath: string): void {
+    if (visited.has(currentFilePath)) return;
+    visited.add(currentFilePath);
+
+    for (const specifier of importSpecifiers(readFileSync(currentFilePath, "utf8"))) {
+      const targetPath = resolveLocalImportTarget(currentFilePath, specifier);
+      if (!targetPath) continue;
+      if (isSameOrInside(targetPath, browserRoot)) {
+        if (!stableUiBrowserModules.has(targetPath)) {
+          violations.push(`${relativeFilePath} reaches non-public browser module via "${specifier}" from ${relative(repoRoot, currentFilePath)}`);
+        }
+        continue;
+      }
+      inspect(targetPath);
+    }
+  }
+
+  inspect(filePath);
+  return violations;
+}
+
 function runtimeIsolationViolations(
   rootPath: string,
   forbiddenTargets: Array<{ targetPath: string; label: string }>,
@@ -208,6 +303,7 @@ function runtimeIsolationViolations(
   return productionSourceFiles(rootPath).flatMap((filePath) => inspectForbiddenImports(filePath, {
     forbiddenModuleSpecifiers,
     forbiddenTargets,
+    traverseLocalImports: true,
   }));
 }
 
@@ -228,27 +324,40 @@ function inspectForbiddenImports(
   options: {
     forbiddenModuleSpecifiers?: string[];
     forbiddenTargets?: Array<{ targetPath: string; label: string }>;
+    traverseLocalImports?: boolean;
   },
 ): string[] {
   const relativeFilePath = relative(repoRoot, filePath);
   const violations: string[] = [];
+  const visited = new Set<string>();
 
-  for (const specifier of importSpecifiers(readFileSync(filePath, "utf8"))) {
-    if (options.forbiddenModuleSpecifiers?.includes(specifier)) {
-      violations.push(`${relativeFilePath} imports forbidden runtime marker "${specifier}"`);
-    }
+  function inspect(currentFilePath: string): void {
+    if (visited.has(currentFilePath)) return;
+    visited.add(currentFilePath);
 
-    const targetPath = importTargetPath(filePath, specifier);
-    if (!targetPath) {
-      continue;
-    }
+    for (const specifier of importSpecifiers(readFileSync(currentFilePath, "utf8"))) {
+      if (options.forbiddenModuleSpecifiers?.includes(specifier)) {
+        const through = currentFilePath === filePath ? "" : ` through ${relative(repoRoot, currentFilePath)}`;
+        violations.push(`${relativeFilePath} imports forbidden runtime marker "${specifier}"${through}`);
+      }
 
-    for (const forbiddenTarget of options.forbiddenTargets ?? []) {
-      if (isSameOrInside(targetPath, forbiddenTarget.targetPath)) {
-        violations.push(`${relativeFilePath} imports ${forbiddenTarget.label} via "${specifier}"`);
+      const targetPath = resolveLocalImportTarget(currentFilePath, specifier);
+      if (!targetPath) continue;
+
+      for (const forbiddenTarget of options.forbiddenTargets ?? []) {
+        if (isSameOrInside(targetPath, forbiddenTarget.targetPath)) {
+          const through = currentFilePath === filePath ? "" : ` through ${relative(repoRoot, currentFilePath)}`;
+          violations.push(`${relativeFilePath} imports ${forbiddenTarget.label} via "${specifier}"${through}`);
+        }
+      }
+
+      if (options.traverseLocalImports) {
+        inspect(targetPath);
       }
     }
   }
+
+  inspect(filePath);
 
   return violations;
 }
@@ -302,9 +411,24 @@ function importTargetPath(fromFilePath: string, specifier: string): string | nul
   return specifier.startsWith(".") ? normalize(resolve(dirname(fromFilePath), specifier)) : null;
 }
 
+function resolveLocalImportTarget(fromFilePath: string, specifier: string): string | null {
+  const unresolvedPath = importTargetPath(fromFilePath, specifier);
+  if (!unresolvedPath) return null;
+
+  const candidates = extension(unresolvedPath)
+    ? [unresolvedPath]
+    : [
+        `${unresolvedPath}.ts`,
+        `${unresolvedPath}.tsx`,
+        join(unresolvedPath, "index.ts"),
+        join(unresolvedPath, "index.tsx"),
+      ];
+  return candidates.find((candidate) => existsSync(candidate) && statSync(candidate).isFile()) ?? null;
+}
+
 function importsTarget(filePath: string, targetRoot: string): boolean {
   return importSpecifiers(readFileSync(filePath, "utf8")).some((specifier) => {
-    const targetPath = importTargetPath(filePath, specifier);
+    const targetPath = resolveLocalImportTarget(filePath, specifier);
     return targetPath !== null && isSameOrInside(targetPath, targetRoot);
   });
 }

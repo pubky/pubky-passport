@@ -3,8 +3,13 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import type { LocalIdentitySaver } from "../localIdentityService";
-import type { PassportFileCrypto, PassportFileStore } from "../../passport-file/passportFilePorts";
-import type { PubkyDiscovery, PubkyIdentityKeys, PubkySignup } from "../applicationContracts";
+import type {
+  PassportFileCrypto,
+  PassportFileStore,
+  PubkyDiscovery,
+  PubkyIdentityKeys,
+  PubkySignup,
+} from "../applicationContracts";
 import {
   pubkySecretKeyFormat,
   type PubkyIdentityKey,
