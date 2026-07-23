@@ -53,6 +53,9 @@ export type GoogleSignInState = {
 
 export type GoogleContinueResult =
   | { status: "credential_failed" }
+  | { status: "busy" }
+  | { status: "superseded" }
+  | { status: "action_finished_after_unmount"; result: BrowserIdentityActionResult }
   | { status: "action_completed"; result: BrowserIdentityActionResult };
 
 export type BrowserIdentityController = {

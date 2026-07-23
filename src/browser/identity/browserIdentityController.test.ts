@@ -91,7 +91,7 @@ describe("DefaultBrowserIdentityController", () => {
     controller.unmountGoogleSignIn();
     resolveDrive?.(Result.ok("late-drive-token"));
 
-    await expect(pending).resolves.toEqual({ status: "credential_failed" });
+    await expect(pending).resolves.toEqual({ status: "superseded" });
     expect(driveSignal?.aborted).toBe(true);
     expect(establish).not.toHaveBeenCalled();
   });
@@ -202,9 +202,11 @@ describe("DefaultBrowserIdentityController", () => {
     credentialCallback.current?.(googleCredential());
 
     const first = controller.continueGoogle({ kind: "establish" });
-    await expect(controller.continueGoogle({ kind: "establish" })).resolves.toEqual({ status: "credential_failed" });
+    await expect(controller.continueGoogle({ kind: "establish" })).resolves.toEqual({ status: "busy" });
     resolveDrive?.(Result.ok("drive-access-token"));
     await first;
+
+    await expect(controller.continueGoogle({ kind: "establish" })).resolves.toEqual({ status: "credential_failed" });
 
     expect(requestGoogleDriveAccess).toHaveBeenCalledOnce();
     expect(establish).toHaveBeenCalledOnce();
@@ -240,7 +242,10 @@ describe("DefaultBrowserIdentityController", () => {
       publicIdentity: { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" },
     }));
 
-    await expect(pending).resolves.toEqual({ status: "credential_failed" });
+    const completed = await pending;
+    expect(completed.status).toBe("action_finished_after_unmount");
+    if (completed.status !== "action_finished_after_unmount") throw new Error("Expected superseded action result");
+    expect(Result.isError(completed.result)).toBe(false);
     expect(disposeIdentityKey).toHaveBeenCalledWith({ keyHandle });
     expect(disposePubky).toHaveBeenCalledOnce();
   });

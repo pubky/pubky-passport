@@ -115,12 +115,13 @@ export class DefaultBrowserIdentityController implements BrowserIdentityControll
   }
 
   async continueGoogle(action: BrowserIdentityAction): Promise<GoogleContinueResult> {
-    if (this.#actionPending) return { status: "credential_failed" };
+    if (this.#actionPending) return { status: "busy" };
     const googleIdToken = this.#googleIdToken;
     const googleSubject = this.#googleSubject;
     const activeAttempt = this.#attempt;
-    if (!googleIdToken || !googleSubject || this.#disposed) {
-      if (!this.#disposed) this.resetGoogle("sign_in_failed");
+    if (this.#disposed) return { status: "superseded" };
+    if (!googleIdToken || !googleSubject) {
+      this.resetGoogle("sign_in_failed");
       return { status: "credential_failed" };
     }
 
@@ -139,13 +140,13 @@ export class DefaultBrowserIdentityController implements BrowserIdentityControll
           signal: abortController.signal,
         });
       } catch {
-        if (activeAttempt !== this.#attempt || this.#disposed) return { status: "credential_failed" };
+        if (activeAttempt !== this.#attempt || this.#disposed) return { status: "superseded" };
         logger.warn("identity.google.button.drive_consent_failed", { code: "unexpected" });
         this.resetGoogle("drive_consent_failed");
         return { status: "credential_failed" };
       }
       if (this.#driveAbortController === abortController) this.#driveAbortController = null;
-      if (activeAttempt !== this.#attempt || this.#disposed) return { status: "credential_failed" };
+      if (activeAttempt !== this.#attempt || this.#disposed) return { status: "superseded" };
       if (Result.isError(driveAccess)) {
         logger.warn("identity.google.button.drive_consent_failed", { code: driveAccess.error.code });
         this.resetGoogle(errorForDriveFailure(driveAccess.error.code));
@@ -155,7 +156,9 @@ export class DefaultBrowserIdentityController implements BrowserIdentityControll
       this.#googleIdToken = null;
       this.#googleSubject = null;
       const result = await this.executeAction(action, { googleIdToken, driveAccessToken: driveAccess.value });
-      if (this.#disposed || activeAttempt !== this.#attempt) return { status: "credential_failed" };
+      if (this.#disposed || activeAttempt !== this.#attempt) {
+        return { status: "action_finished_after_unmount", result };
+      }
       this.resetGoogle();
       return { status: "action_completed", result };
     } finally {
