@@ -147,6 +147,24 @@ describe("validatePubkyAuthUrls", () => {
     );
   });
 
+  it("allows configured HTTP localhost relays only when explicitly enabled", () => {
+    const request = authUrl("relay=http://localhost:15412/link&secret=secret-value");
+    const options = { allowedRelayOrigins: ["http://localhost:15412"] };
+
+    const disabled = validatePubkyAuthUrlsImplementation(request, options);
+    expect(Result.isError(disabled) && disabled.error.code).toBe("invalid_relay");
+    expect(Result.isOk(validatePubkyAuthUrlsImplementation(request, { ...options, allowLocalhostRelay: true }))).toBe(true);
+  });
+
+  it("rejects remote HTTP relays when localhost relay support is enabled", () => {
+    const result = validatePubkyAuthUrlsImplementation(
+      authUrl("relay=http://relay.example/link&secret=secret-value"),
+      { allowedRelayOrigins: ["http://relay.example"], allowLocalhostRelay: true },
+    );
+
+    expect(Result.isError(result) && result.error.code).toBe("invalid_relay");
+  });
+
   it("rejects duplicate and unsupported request parameters", () => {
     expectUrlError(
       authUrl("relay=https://httprelay.pubky.app/inbox&relay=https://other.example/inbox&secret=secret-value"),

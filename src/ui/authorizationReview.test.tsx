@@ -41,6 +41,26 @@ describe("AuthorizationReview", () => {
     expect(document.body.textContent).not.toContain(cancelCallback);
   });
 
+  it("bypasses framework-patched history methods while scrubbing", () => {
+    setAuthorizationUrl(validRequest({ callbacks: false }));
+    const frameworkReplaceState = vi.fn();
+    Object.defineProperty(window.history, "replaceState", {
+      configurable: true,
+      value: frameworkReplaceState,
+    });
+
+    try {
+      renderReview({ approve: vi.fn(async () => Result.ok()), navigate: vi.fn() });
+
+      expect(window.location.search).toBe("");
+      expect(frameworkReplaceState).not.toHaveBeenCalled();
+      expect(screen.getByRole("heading", { name: "An app" })).toBeTruthy();
+      expect(screen.getByText("/pub/example.app/")).toBeTruthy();
+    } finally {
+      Reflect.deleteProperty(window.history, "replaceState");
+    }
+  });
+
   it("does not reuse an approval from an abandoned render on a later no-d visit", async () => {
     setAuthorizationUrl(validRequest());
 

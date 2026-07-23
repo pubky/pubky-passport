@@ -18,12 +18,7 @@ test-results/
 .env
 .env.*
 !.env.example
-
-# OS / editor
-.DS_Store
-.idea/
-.vscode/*
-!.vscode/extensions.json
+                                                                                               y232
 
 # Local bootstrap recovery files
 .bootstrap-trash/

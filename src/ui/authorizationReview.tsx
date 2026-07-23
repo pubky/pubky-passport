@@ -32,6 +32,7 @@ type PendingStrictModeEntry = { scrubbedHref: string; entry: ParsedAuthorization
 
 type AuthorizationReviewProps = {
   relayOrigin: string;
+  allowLocalhostRelay?: boolean;
   allowLocalhostCallbacks: boolean;
   pubkyTestnetHost?: string | undefined;
   approveAuthorization?: (approval: ValidatedSensitivePubkyAuthRequest) => Promise<ActiveAuthorizationResult>;
@@ -42,6 +43,7 @@ const pendingStrictModeEntries = new WeakMap<Window, PendingStrictModeEntry>();
 
 export function AuthorizationReview({
   relayOrigin,
+  allowLocalhostRelay = false,
   allowLocalhostCallbacks,
   pubkyTestnetHost,
   approveAuthorization,
@@ -52,7 +54,7 @@ export function AuthorizationReview({
   // data leaves this initializer while the sensitive approval stays in this ref.
   /* eslint-disable react-hooks/refs */
   const [entry] = useState<SafeAuthorizationEntry>(() => {
-    const parsedEntry = readAndScrubAuthorizationEntry({ relayOrigin, allowLocalhostCallbacks });
+    const parsedEntry = readAndScrubAuthorizationEntry({ relayOrigin, allowLocalhostRelay, allowLocalhostCallbacks });
     if (parsedEntry.status === "invalid") return parsedEntry;
 
     approvalRef.current = parsedEntry.approval;
@@ -168,12 +170,21 @@ export function AuthorizationReview({
 
 function readAndScrubAuthorizationEntry(options: {
   relayOrigin: string;
+  allowLocalhostRelay: boolean;
   allowLocalhostCallbacks: boolean;
 }): ParsedAuthorizationEntry {
   const browserWindow = window;
   const rawSearch = browserWindow.location.search;
   const scrubbedHref = `${browserWindow.location.origin}${browserWindow.location.pathname}${browserWindow.location.hash}`;
-  browserWindow.history.replaceState(null, "", `${browserWindow.location.pathname}${browserWindow.location.hash}`);
+  // Next.js patches the history instance methods to update its Router. Calling
+  // the native method avoids a render-time Router update while still scrubbing
+  // the sensitive query synchronously before this component commits.
+  browserWindow.History.prototype.replaceState.call(
+    browserWindow.history,
+    null,
+    "",
+    `${browserWindow.location.pathname}${browserWindow.location.hash}`,
+  );
 
   if (rawSearch.length === 0) {
     const pending = pendingStrictModeEntries.get(browserWindow);
@@ -188,6 +199,7 @@ function readAndScrubAuthorizationEntry(options: {
     rawD.valid ? rawD.value : undefined,
     {
       allowedRelayOrigins: [options.relayOrigin],
+      allowLocalhostRelay: options.allowLocalhostRelay,
       allowLocalhostCallbacks: options.allowLocalhostCallbacks,
     },
   );

@@ -28,6 +28,8 @@ export type PubkyAuthUrlValidationOptions = {
   // This origin allowlist must be derived from the same configured relay as CSP.
   allowedRelayOrigins: readonly string[];
   // Route/controller wiring must only enable this in development.
+  allowLocalhostRelay?: boolean;
+  // Route/controller wiring must only enable this in development.
   allowLocalhostCallbacks?: boolean;
 };
 
@@ -58,6 +60,7 @@ export function validatePubkyAuthUrls(
   const relay = validateRelayUrl(
     authUrl.searchParams.get(pubkyAuthRequestParameters.relay),
     options.allowedRelayOrigins,
+    options.allowLocalhostRelay,
   );
   if (Result.isError(relay)) {
     return Result.err(relay.error);
@@ -84,6 +87,7 @@ export function validatePubkyAuthUrls(
 export function validateRelayUrl(
   value: string | null,
   allowedRelayOrigins: readonly string[],
+  allowLocalhostRelay = false,
 ): ResultType<URL, PubkyAuthUrlValidationError> {
   if (!value) {
     return error("missing_relay", "Pubky auth request is missing relay.");
@@ -96,13 +100,17 @@ export function validateRelayUrl(
   const parsed = parseAbsoluteUrl(value);
   if (
     Result.isError(parsed) ||
-    parsed.value.protocol !== "https:" ||
+    !isAllowedRelayProtocol(parsed.value, allowLocalhostRelay) ||
     !allowedRelayOrigins.includes(parsed.value.origin)
   ) {
     return error("invalid_relay", "Pubky auth request relay is not an allowed URL.");
   }
 
   return Result.ok(parsed.value);
+}
+
+function isAllowedRelayProtocol(url: URL, allowLocalhostRelay: boolean): boolean {
+  return url.protocol === "https:" || (allowLocalhostRelay && url.protocol === "http:" && isLocalhost(url.hostname));
 }
 
 function deriveDisplayDomain(callbacks: ValidatedPubkyAuthCallbacks): string | undefined {

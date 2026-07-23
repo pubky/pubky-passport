@@ -40,4 +40,21 @@ describe("ManualAuthorizationForm", () => {
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith(`/authorize?d=${encodeURIComponent(request)}`));
   });
+
+  it("routes a local HTTP relay request when development support is enabled", async () => {
+    const user = userEvent.setup();
+    const request = "pubkyauth://signin?caps=/pub/eventky.app/:rw&relay=http://localhost:15412/link&secret=secret";
+    render(
+      <ManualAuthorizationForm
+        allowLocalhostCallbacks={true}
+        allowLocalhostRelay={true}
+        relayOrigin="http://localhost:15412"
+      />,
+    );
+
+    await user.type(screen.getByRole("textbox", { name: "Pubky authorization request" }), request);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(`/authorize?d=${encodeURIComponent(request)}`));
+  });
 });
