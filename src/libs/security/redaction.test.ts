@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   redactAuthorizationUrls,
+  redactSensitiveAndOpaqueValues,
   redactHttpUrlParams,
   redactForLog,
-  redactTokenLikeValues,
 } from "./redaction";
 
 describe("redactAuthorizationUrls", () => {
@@ -71,29 +71,29 @@ describe("redactHttpUrlParams", () => {
   });
 });
 
-describe("redactTokenLikeValues", () => {
+describe("redactSensitiveAndOpaqueValues", () => {
   it("redacts bearer tokens", () => {
     const value = "Authorization: Bearer ya29.a0AfH6SMCvVerySecretToken";
 
-    expect(redactTokenLikeValues(value)).toBe("Authorization: Bearer [REDACTED_TOKEN]");
+    expect(redactSensitiveAndOpaqueValues(value)).toBe("Authorization: Bearer [REDACTED_TOKEN]");
   });
 
   it("redacts non-bearer authorization header tokens", () => {
     const value = "Authorization: Basic abc123-secret";
 
-    expect(redactTokenLikeValues(value)).toBe("Authorization: Basic [REDACTED_TOKEN]");
+    expect(redactSensitiveAndOpaqueValues(value)).toBe("Authorization: Basic [REDACTED_TOKEN]");
   });
 
   it("redacts JWT-like strings", () => {
     const value = "id=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature";
 
-    expect(redactTokenLikeValues(value)).toBe("id=[REDACTED_TOKEN]");
+    expect(redactSensitiveAndOpaqueValues(value)).toBe("id=[REDACTED_TOKEN]");
   });
 
   it("redacts sensitive key value pairs with equals and colon separators", () => {
     const value = "id_token=abc access_token:def token=ghi secret=jkl wrapping_key=mno credential=pqr";
 
-    expect(redactTokenLikeValues(value)).toBe(
+    expect(redactSensitiveAndOpaqueValues(value)).toBe(
       "id_token=[REDACTED_TOKEN] access_token=[REDACTED_TOKEN] token=[REDACTED_TOKEN] secret=[REDACTED_TOKEN] wrapping_key=[REDACTED_TOKEN] credential=[REDACTED_TOKEN]",
     );
   });
@@ -101,19 +101,19 @@ describe("redactTokenLikeValues", () => {
   it("redacts quoted JSON-style token values", () => {
     const value = '{"access_token":"secret-value","id_token":"another-secret"}';
 
-    expect(redactTokenLikeValues(value)).toBe('{"access_token":"[REDACTED_TOKEN]","id_token":"[REDACTED_TOKEN]"}');
+    expect(redactSensitiveAndOpaqueValues(value)).toBe('{"access_token":"[REDACTED_TOKEN]","id_token":"[REDACTED_TOKEN]"}');
   });
 
   it("redacts sensitive query-like pairs", () => {
     const value = "callback?access_token=secret-value&state=public";
 
-    expect(redactTokenLikeValues(value)).toBe("callback?access_token=[REDACTED_TOKEN]&state=public");
+    expect(redactSensitiveAndOpaqueValues(value)).toBe("callback?access_token=[REDACTED_TOKEN]&state=public");
   });
 
   it("redacts long opaque token-like strings", () => {
     const value = "opaque=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
-    expect(redactTokenLikeValues(value)).toBe("opaque=[REDACTED_TOKEN]");
+    expect(redactSensitiveAndOpaqueValues(value)).toBe("opaque=[REDACTED_TOKEN]");
   });
 
   it("redacts bare 43-char base64url secrets without key or URL context", () => {
@@ -122,15 +122,21 @@ describe("redactTokenLikeValues", () => {
     const wrappingKey = "MOHBXchuOcfSN--B55rzy9qrkZ8p5VhvVxAWqxszg7Y";
     expect(wrappingKey).toHaveLength(43);
 
-    expect(redactTokenLikeValues(`derived ${wrappingKey} value`)).toBe("derived [REDACTED_TOKEN] value");
+    expect(redactSensitiveAndOpaqueValues(`derived ${wrappingKey} value`)).toBe("derived [REDACTED_TOKEN] value");
   });
 
   it("redacts bare standard-base64 server secrets containing slash characters", () => {
     const serverSecret = "//////////////////////////////////////////8=";
     expect(Buffer.from(serverSecret, "base64")).toHaveLength(32);
 
-    expect(redactTokenLikeValues(`derived ${serverSecret} value`)).toBe("derived [REDACTED_TOKEN] value");
-    expect(redactTokenLikeValues(`serverSecretBase64=${serverSecret}`)).toBe("serverSecretBase64=[REDACTED_TOKEN]");
+    expect(redactSensitiveAndOpaqueValues(`derived ${serverSecret} value`)).toBe("derived [REDACTED_TOKEN] value");
+    expect(redactSensitiveAndOpaqueValues(`serverSecretBase64=${serverSecret}`)).toBe("serverSecretBase64=[REDACTED_TOKEN]");
+  });
+
+  it("intentionally redacts z32 public keys under the fail-closed opaque-value rule", () => {
+    const publicKeyZ32 = "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo";
+
+    expect(redactSensitiveAndOpaqueValues(`identity ${publicKeyZ32}`)).toBe("identity [REDACTED_TOKEN]");
   });
 
   it("does not redact 40-char hex diagnostics such as git SHA-1 hashes", () => {
@@ -138,7 +144,7 @@ describe("redactTokenLikeValues", () => {
     const gitSha = "da39a3ee5e6b4b0d3255bfef95601890afd80709";
     expect(gitSha).toHaveLength(40);
 
-    expect(redactTokenLikeValues(`commit ${gitSha} built`)).toBe(`commit ${gitSha} built`);
+    expect(redactSensitiveAndOpaqueValues(`commit ${gitSha} built`)).toBe(`commit ${gitSha} built`);
   });
 });
 

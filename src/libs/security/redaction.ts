@@ -43,7 +43,7 @@ const TOKEN_VALUE_PATTERN = new RegExp(`\\b(${SENSITIVE_TOKEN_KEYS})\\b\\s*[:=]\
 // above 40 so full git SHA-1 hashes (40 hex chars) remain visible as useful,
 // non-sensitive diagnostics. This intentionally also redacts z32 public keys;
 // preserving a fail-closed logger is more important than logging public identity.
-const OPAQUE_TOKEN_PATTERN = /(?<![A-Za-z0-9+/_-])[A-Za-z0-9+/_-]{43,}={0,2}(?![A-Za-z0-9+/_=-])/gu;
+const FAIL_CLOSED_OPAQUE_VALUE_PATTERN = /(?<![A-Za-z0-9+/_-])[A-Za-z0-9+/_-]{43,}={0,2}(?![A-Za-z0-9+/_=-])/gu;
 
 export function redactAuthorizationUrls(value: string): string {
   return value
@@ -58,17 +58,17 @@ export function redactHttpUrlParams(value: string): string {
   return value.replace(HTTP_URL_PATTERN, (match) => redactUrlQuery(match));
 }
 
-export function redactTokenLikeValues(value: string): string {
+export function redactSensitiveAndOpaqueValues(value: string): string {
   return value
     .replace(AUTHORIZATION_HEADER_PATTERN, (_match, scheme: string) => `Authorization: ${scheme} ${TOKEN_REDACTION}`)
     .replace(JWT_PATTERN, TOKEN_REDACTION)
     .replace(JSON_TOKEN_VALUE_PATTERN, (_match, keyQuote: string, key: string, valueQuote: string) => `${keyQuote}${key}${keyQuote}:${valueQuote}${TOKEN_REDACTION}${valueQuote}`)
     .replace(TOKEN_VALUE_PATTERN, (_match, key: string) => `${key}=${TOKEN_REDACTION}`)
-    .replace(OPAQUE_TOKEN_PATTERN, TOKEN_REDACTION);
+    .replace(FAIL_CLOSED_OPAQUE_VALUE_PATTERN, TOKEN_REDACTION);
 }
 
 export function redactForLog(value: string): string {
-  return redactTokenLikeValues(redactHttpUrlParams(redactAuthorizationUrls(value)));
+  return redactSensitiveAndOpaqueValues(redactHttpUrlParams(redactAuthorizationUrls(value)));
 }
 
 function isPassportAuthorizationUrl(value: string): boolean {
