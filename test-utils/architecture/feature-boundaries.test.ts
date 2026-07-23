@@ -42,7 +42,7 @@ const googleWrappingKeyApplicationModules = [
   join(googleWrappingKeyRoot, "request.ts"),
 ];
 
-const checkedExtensions = new Set([".ts", ".tsx"]);
+const checkedExtensions = new Set([".js", ".mjs", ".ts", ".tsx"]);
 const browserApplicationModules = productionSourceFiles(browserRoot)
   .filter((filePath) => !browserCompositionFactories.includes(filePath))
   .filter((filePath) => !browserAdapterModules.includes(filePath));
@@ -421,10 +421,14 @@ function resolveLocalImportTarget(fromFilePath: string, specifier: string): stri
   if (!unresolvedPath) return null;
 
   const candidates = extension(unresolvedPath)
-    ? [unresolvedPath]
-    : [
+      ? [unresolvedPath]
+      : [
+        `${unresolvedPath}.js`,
+        `${unresolvedPath}.mjs`,
         `${unresolvedPath}.ts`,
         `${unresolvedPath}.tsx`,
+        join(unresolvedPath, "index.js"),
+        join(unresolvedPath, "index.mjs"),
         join(unresolvedPath, "index.ts"),
         join(unresolvedPath, "index.tsx"),
       ];

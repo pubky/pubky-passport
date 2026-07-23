@@ -8,8 +8,8 @@ import type { BrowserIdentityControllerError } from "./browserIdentityController
 import {
   DefaultBrowserIdentityController,
   type BrowserIdentityControllerDependencies,
-  type GoogleSignInWidgetResult,
 } from "./browserIdentityControllerInternals";
+import type { GoogleSignInWidgetResult } from "./google/applicationContracts";
 
 describe("DefaultBrowserIdentityController", () => {
   it("exposes a finite action error code contract", () => {

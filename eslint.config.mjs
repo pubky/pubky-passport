@@ -127,7 +127,7 @@ const eslintConfig = defineConfig([
         {
           patterns: [
             {
-              regex: "(?:^|/)(?:createBrowserAuthorizationController|createBrowserIdentityController|browserPubky|localIdentityRepository|googleDrivePassportFileRepository|webCryptoPassportFileCrypto|googleHomegateInviteRequester|googleIdentityProvider|googleSignInWidget|googleWrappingKeyRequester|public-env)$|(?:^|/)ui(?:/|$)",
+              regex: "(?:^|/)(?:createBrowserAuthorizationController|createBrowserIdentityController|browserPubky|localIdentityRepository|googleDrivePassportFileRepository|webCryptoPassportFileCrypto|googleHomegateInviteRequester|googleIdentityProvider|googleIdentityProviderTypes|googleSignInWidget|googleWrappingKeyRequester|public-env)$|(?:^|/)ui(?:/|$)",
               message: "Browser application modules must depend on contracts, not composition, adapters, public env, or UI."
             }
           ]

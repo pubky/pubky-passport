@@ -5,10 +5,10 @@ import { Result } from "better-result";
 import { logger } from "../../../libs/logger/logger";
 import type {
   GoogleSignInCredential,
-  GoogleSignInWidgetPort,
+  GoogleIdentityProviderResult,
+  GoogleSignInWidget as GoogleSignInWidgetPort,
   GoogleSignInWidgetResult,
-} from "../browserIdentityControllerInternals";
-import type { GoogleIdentityProviderResult } from "./applicationContracts";
+} from "./applicationContracts";
 import type {
   GoogleAccounts,
   GoogleCredentialResponse,

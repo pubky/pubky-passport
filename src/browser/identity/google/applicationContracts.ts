@@ -19,6 +19,22 @@ export type GoogleIdentityProviderErrorCode =
 
 export type GoogleIdentityProviderResult<T> = Result<T, { code: GoogleIdentityProviderErrorCode }>;
 
+export type GoogleSignInCredential = {
+  googleIdToken: string;
+  subject: string;
+};
+
+export type GoogleSignInWidgetErrorCode = "google_unavailable" | "sign_in_failed";
+export type GoogleSignInWidgetResult<T> = Result<T, { code: GoogleSignInWidgetErrorCode }>;
+
+export type GoogleSignInWidget = {
+  mount(input: {
+    target: HTMLElement;
+    onCredential: (result: GoogleSignInWidgetResult<GoogleSignInCredential>) => void;
+  }): Promise<GoogleSignInWidgetResult<void>>;
+  unmount(): void;
+};
+
 export type GoogleIdentitySession = {
   googleIdToken: string;
   driveAccessToken: string;
@@ -48,6 +64,25 @@ export type GoogleBackedIdentityFlowError = {
 
 export type GoogleBackedIdentity = PubkyIdentityKey & { source: "restored" | "created" };
 export type GoogleBackedIdentityFlowResult<T> = Result<T, GoogleBackedIdentityFlowError>;
+
+export type GoogleBackedIdentityDeletionErrorCode =
+  | "wrapping_key_failed"
+  | "drive_read_failed"
+  | "decrypt_failed"
+  | "restore_failed"
+  | "identity_mismatch"
+  | "drive_stale_file"
+  | "drive_delete_failed"
+  | "unexpected_failure";
+
+export type GoogleBackedIdentityDeletionResult = Result<void, { code: GoogleBackedIdentityDeletionErrorCode }>;
+
+export type GoogleBackedIdentityDeletion = {
+  execute(
+    google: GoogleIdentitySession,
+    expectedPublicKeyZ32: string,
+  ): Promise<GoogleBackedIdentityDeletionResult>;
+};
 
 export type RestoreExistingGoogleDriveIdentity = {
   execute(input: {

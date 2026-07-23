@@ -4,8 +4,10 @@ import type { Result } from "better-result";
 
 import type { LocalIdentitySummary } from "../../features/identity/localIdentity";
 import type { PubkyPublicIdentity } from "../../features/identity/pubkyIdentity";
-import type { GoogleBackedIdentityFlowErrorCode } from "./google/applicationContracts";
-import type { DeleteGoogleBackedIdentityErrorCode } from "./google/deleteGoogleBackedIdentity";
+import type {
+  GoogleBackedIdentityDeletionErrorCode,
+  GoogleBackedIdentityFlowErrorCode,
+} from "./google/applicationContracts";
 import type { LocalIdentityRepositoryErrorCode } from "./localIdentityService";
 
 export type BrowserIdentityList = {
@@ -17,7 +19,7 @@ export type BrowserIdentityRepositoryErrorCode = LocalIdentityRepositoryErrorCod
 
 export type BrowserIdentityControllerErrorCode =
   | GoogleBackedIdentityFlowErrorCode
-  | DeleteGoogleBackedIdentityErrorCode;
+  | GoogleBackedIdentityDeletionErrorCode;
 
 export type BrowserIdentityControllerError = {
   code: BrowserIdentityControllerErrorCode;

@@ -14,47 +14,25 @@ import type {
 } from "./browserIdentityController";
 import type {
   GoogleBackedIdentity,
+  GoogleBackedIdentityDeletion,
   GoogleBackedIdentityFlowError,
   GoogleIdentityProviderErrorCode,
   GoogleIdentityProviderResult,
+  GoogleSignInWidget,
 } from "./google/applicationContracts";
-import type { DeleteGoogleBackedIdentityErrorCode } from "./google/deleteGoogleBackedIdentity";
 import type { LocalIdentityRepository } from "./localIdentityService";
 
 type IdentityFlow = {
   establish(google: { googleIdToken: string; driveAccessToken: string }): Promise<ResultType<GoogleBackedIdentity, GoogleBackedIdentityFlowError>>;
 };
 
-type IdentityDeletion = {
-  execute(
-    google: { googleIdToken: string; driveAccessToken: string },
-    expectedPublicKeyZ32: string,
-  ): Promise<ResultType<void, { code: DeleteGoogleBackedIdentityErrorCode }>>;
-};
-
-export type GoogleSignInCredential = {
-  googleIdToken: string;
-  subject: string;
-};
-
-export type GoogleSignInWidgetErrorCode = "google_unavailable" | "sign_in_failed";
-export type GoogleSignInWidgetResult<T> = ResultType<T, { code: GoogleSignInWidgetErrorCode }>;
-
-export type GoogleSignInWidgetPort = {
-  mount(input: {
-    target: HTMLElement;
-    onCredential: (result: GoogleSignInWidgetResult<GoogleSignInCredential>) => void;
-  }): Promise<GoogleSignInWidgetResult<void>>;
-  unmount(): void;
-};
-
 export type BrowserIdentityControllerDependencies = {
   repository: LocalIdentityRepository;
   identityFlow: IdentityFlow;
-  identityDeletion: IdentityDeletion;
+  identityDeletion: GoogleBackedIdentityDeletion;
   identityKeys: Pick<PubkyIdentityKeys, "disposeIdentityKey">;
   disposePubky(): void;
-  googleSignInWidget: GoogleSignInWidgetPort;
+  googleSignInWidget: GoogleSignInWidget;
   requestGoogleDriveAccess(input: {
     clientId: string;
     loginHint: string;
@@ -91,7 +69,7 @@ export class DefaultBrowserIdentityController implements BrowserIdentityControll
     this.#target = target;
     this.#onState = onState;
     const activeAttempt = ++this.#attempt;
-    let mounted: Awaited<ReturnType<GoogleSignInWidgetPort["mount"]>>;
+    let mounted: Awaited<ReturnType<GoogleSignInWidget["mount"]>>;
     try {
       mounted = await this.#dependencies.googleSignInWidget.mount({
         target,

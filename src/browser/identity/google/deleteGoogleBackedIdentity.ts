@@ -1,26 +1,20 @@
 import "client-only";
 
-import { Result, type Result as ResultType } from "better-result";
+import { Result } from "better-result";
 
 import { pubkySecretKeyFormat, type PubkyIdentityKey } from "../../../features/identity/pubkyIdentity";
 import { logger } from "../../../libs/logger/logger";
 import type { PassportFileCrypto, PassportFileStore } from "../../passport-file/ports";
 import type { PubkyIdentityKeys } from "../../pubky/ports";
-import type { GoogleIdentitySession, GoogleWrappingKeyRequester } from "./applicationContracts";
+import type {
+  GoogleBackedIdentityDeletion,
+  GoogleBackedIdentityDeletionErrorCode,
+  GoogleBackedIdentityDeletionResult,
+  GoogleIdentitySession,
+  GoogleWrappingKeyRequester,
+} from "./applicationContracts";
 
-export type DeleteGoogleBackedIdentityErrorCode =
-  | "wrapping_key_failed"
-  | "drive_read_failed"
-  | "decrypt_failed"
-  | "restore_failed"
-  | "identity_mismatch"
-  | "drive_stale_file"
-  | "drive_delete_failed"
-  | "unexpected_failure";
-
-export type DeleteGoogleBackedIdentityResult = ResultType<void, { code: DeleteGoogleBackedIdentityErrorCode }>;
-
-export class DeleteGoogleBackedIdentity {
+export class DeleteGoogleBackedIdentity implements GoogleBackedIdentityDeletion {
   readonly #wrappingKeys: GoogleWrappingKeyRequester;
   readonly #passportFilesForAccessToken: (driveAccessToken: string) => PassportFileStore;
   readonly #crypto: PassportFileCrypto;
@@ -41,7 +35,7 @@ export class DeleteGoogleBackedIdentity {
     this.#passportUrl = input.passportUrl;
   }
 
-  async execute(google: GoogleIdentitySession, expectedPublicKeyZ32: string): Promise<DeleteGoogleBackedIdentityResult> {
+  async execute(google: GoogleIdentitySession, expectedPublicKeyZ32: string): Promise<GoogleBackedIdentityDeletionResult> {
     try {
       return await this.deleteIdentity(google, expectedPublicKeyZ32);
     } catch {
@@ -50,7 +44,7 @@ export class DeleteGoogleBackedIdentity {
     }
   }
 
-  private async deleteIdentity(google: GoogleIdentitySession, expectedPublicKeyZ32: string): Promise<DeleteGoogleBackedIdentityResult> {
+  private async deleteIdentity(google: GoogleIdentitySession, expectedPublicKeyZ32: string): Promise<GoogleBackedIdentityDeletionResult> {
     const wrappingKey = await this.#wrappingKeys.requestWrappingKey({ googleIdToken: google.googleIdToken });
     if (Result.isError(wrappingKey)) return failure("wrapping_key_failed");
 
@@ -93,6 +87,6 @@ export class DeleteGoogleBackedIdentity {
   }
 }
 
-function failure(code: DeleteGoogleBackedIdentityErrorCode): DeleteGoogleBackedIdentityResult {
+function failure(code: GoogleBackedIdentityDeletionErrorCode): GoogleBackedIdentityDeletionResult {
   return Result.err({ code });
 }
