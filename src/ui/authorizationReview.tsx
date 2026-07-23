@@ -15,6 +15,7 @@ import {
   type ActiveAuthorizationErrorCode,
   type ActiveAuthorizationResult,
 } from "../browser/authorization/approveActiveAuthorization";
+import { LocalIdentityService } from "../browser/identity/localIdentityService";
 import { LocalStorageIdentityRepository } from "../browser/identity/localIdentityRepository";
 import { BrowserPubky } from "../browser/pubky/browserPubky";
 
@@ -251,7 +252,10 @@ async function approveWithBrowserPubky(
   try {
     const result = await approveActiveAuthorization({
       authRequest: approval,
-      localIdentities: new LocalStorageIdentityRepository(),
+      localIdentities: new LocalIdentityService({
+        repository: new LocalStorageIdentityRepository(),
+        identityKeys: pubky,
+      }),
       pubky,
     });
     return result;

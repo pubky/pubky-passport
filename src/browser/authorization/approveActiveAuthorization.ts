@@ -4,7 +4,7 @@ import { Result, type Result as ResultType } from "better-result";
 
 import type { ValidatedSensitivePubkyAuthRequest } from "../../features/auth/parsePubkyAuthRequest";
 import type { PubkyIdentityKeyHandle } from "../../features/identity/pubkyIdentity";
-import type { LocalIdentityRepository } from "../identity/localIdentityRepository";
+import type { ActiveLocalIdentityRestorer } from "../identity/localIdentityService";
 import type { PubkyAuthApproval, PubkyIdentityKeys } from "../pubky/pubkyPorts";
 
 export type ActiveAuthorizationErrorCode =
@@ -16,13 +16,13 @@ export type ActiveAuthorizationResult = ResultType<void, { code: ActiveAuthoriza
 
 export async function approveActiveAuthorization(input: {
   authRequest: ValidatedSensitivePubkyAuthRequest;
-  localIdentities: LocalIdentityRepository;
+  localIdentities: ActiveLocalIdentityRestorer;
   pubky: PubkyIdentityKeys & PubkyAuthApproval;
 }): Promise<ActiveAuthorizationResult> {
   let keyHandle: PubkyIdentityKeyHandle | undefined;
 
   try {
-    const restored = await input.localIdentities.restoreActiveIdentity({ identityKeys: input.pubky });
+    const restored = await input.localIdentities.restoreActiveIdentity();
     if (Result.isError(restored)) {
       return Result.err({
         code: restored.error.code === "no_active_identity" ? "no_active_identity" : "identity_restore_failed",

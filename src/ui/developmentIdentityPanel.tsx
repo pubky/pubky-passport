@@ -8,6 +8,7 @@ import { DeleteGoogleBackedIdentity } from "../browser/identity/google/deleteGoo
 import { BrowserGoogleHomegateInviteRequester } from "../browser/identity/google/googleHomegateInviteRequester";
 import { BrowserGoogleWrappingKeyRequester } from "../browser/identity/google/googleWrappingKeyRequester";
 import { LocalStorageIdentityRepository } from "../browser/identity/localIdentityRepository";
+import { LocalIdentityService } from "../browser/identity/localIdentityService";
 import { GoogleDrivePassportFileRepository } from "../browser/passport-file/googleDrivePassportFileRepository";
 import { WebCryptoPassportFileCrypto } from "../browser/passport-file/webCryptoPassportFileCrypto";
 import { BrowserPubky } from "../browser/pubky/browserPubky";
@@ -80,6 +81,10 @@ export function DevelopmentIdentityPanel({
   }
 
   function createIdentityFlow(pubkyAdapter: BrowserPubky): GoogleBackedIdentityFlow {
+    const localIdentities = new LocalIdentityService({
+      repository: new LocalStorageIdentityRepository(),
+      identityKeys: pubkyAdapter,
+    });
     return new GoogleBackedIdentityFlow({
       wrappingKeys: new BrowserGoogleWrappingKeyRequester(),
       passportFilesForAccessToken: (token) => new GoogleDrivePassportFileRepository({
@@ -92,7 +97,7 @@ export function DevelopmentIdentityPanel({
       homegateInvites: new BrowserGoogleHomegateInviteRequester(),
       signup: pubkyAdapter,
       discovery: pubkyAdapter,
-      localIdentities: new LocalStorageIdentityRepository(),
+      localIdentities,
       passportUrl,
     });
   }

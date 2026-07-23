@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import type { LocalIdentityRepository } from "../localIdentityRepository";
+import type { LocalIdentitySaver } from "../localIdentityService";
 import type { PassportFileCrypto, PassportFileStore } from "../../passport-file/passportFilePorts";
 import type { PubkyDiscovery, PubkyIdentityKeys, PubkySignup } from "../../pubky/pubkyPorts";
 import {
@@ -49,7 +49,7 @@ export class GoogleBackedIdentityFlow {
   readonly #homegateInvites: GoogleHomegateInviteRequester;
   readonly #signup: PubkySignup;
   readonly #discovery: PubkyDiscovery;
-  readonly #localIdentities: LocalIdentityRepository;
+  readonly #localIdentities: LocalIdentitySaver;
   readonly #passportUrl: string;
 
   constructor(input: {
@@ -60,7 +60,7 @@ export class GoogleBackedIdentityFlow {
     homegateInvites: GoogleHomegateInviteRequester;
     signup: PubkySignup;
     discovery: PubkyDiscovery;
-    localIdentities: LocalIdentityRepository;
+    localIdentities: LocalIdentitySaver;
     passportUrl: string;
   }) {
     this.#wrappingKeys = input.wrappingKeys;
@@ -223,7 +223,7 @@ export class GoogleBackedIdentityFlow {
 
   private async save(identity: PubkyIdentityKey, source: GoogleBackedIdentity["source"]): Promise<GoogleBackedIdentityFlowResult<GoogleBackedIdentity>> {
     logger.info("identity.local_save.started", { source });
-    const saved = await this.#localIdentities.saveIdentity({ identityKeys: this.#identityKeys, keyHandle: identity.keyHandle });
+    const saved = await this.#localIdentities.saveIdentity({ keyHandle: identity.keyHandle });
     if (Result.isError(saved)) {
       logger.warn("identity.local_save.failed", { code: saved.error.code });
       return failure("local_save_failed", identity.publicIdentity);

@@ -3,10 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { parsePubkyAuthRequest } from "../../features/auth/parsePubkyAuthRequest";
 import type { PubkyIdentityKey } from "../../features/identity/pubkyIdentity";
-import type {
-  LocalIdentityRepository,
-  LocalIdentityRepositoryResult,
-} from "../identity/localIdentityRepository";
+import type { ActiveLocalIdentityRestorer, LocalIdentityServiceResult } from "../identity/localIdentityService";
 import { FakePubkyAuthApproval } from "../../../test-utils/fakes/fakePubkyAuthApproval";
 import { FakePubkyIdentityKeys } from "../../../test-utils/fakes/fakePubkyIdentityKeys";
 import { approveActiveAuthorization } from "./approveActiveAuthorization";
@@ -26,7 +23,6 @@ describe("approveActiveAuthorization", () => {
     const result = await approveActiveAuthorization({ authRequest: parsed.value.approval, localIdentities, pubky });
 
     expect(Result.isOk(result)).toBe(true);
-    expect(localIdentities.identityKeys).toBe(pubky);
     expect(approval.calls).toEqual([{ keyHandle: restored.keyHandle, authRequestScheme: "pubkyauth:" }]);
     expect(keys.disposedKeys).toEqual([restored.keyHandle]);
   });
@@ -63,17 +59,10 @@ describe("approveActiveAuthorization", () => {
   });
 });
 
-class FakeLocalIdentities implements LocalIdentityRepository {
-  identityKeys: unknown;
+class FakeLocalIdentities implements ActiveLocalIdentityRestorer {
+  constructor(private readonly restored: LocalIdentityServiceResult<PubkyIdentityKey>) {}
 
-  constructor(private readonly restored: LocalIdentityRepositoryResult<PubkyIdentityKey>) {}
-
-  list() { return Result.ok({ activeIdentityId: null, identities: [] }); }
-  async saveIdentity() { return Result.err({ code: "storage_unavailable" as const }); }
-  select() { return Result.ok(); }
-  clear() { return Result.ok(); }
-  async restoreActiveIdentity(input: Parameters<LocalIdentityRepository["restoreActiveIdentity"]>[0]) {
-    this.identityKeys = input.identityKeys;
+  async restoreActiveIdentity() {
     return this.restored;
   }
 }

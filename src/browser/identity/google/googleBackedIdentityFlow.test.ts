@@ -4,8 +4,7 @@ import { Result } from "better-result";
 import { FakePubkyIdentityKeys } from "../../../../test-utils/fakes/fakePubkyIdentityKeys";
 import { FakePubkyDiscovery } from "../../../../test-utils/fakes/fakePubkyDiscovery";
 import { FakePubkySignup } from "../../../../test-utils/fakes/fakePubkySignup";
-import type { LocalIdentityRepository, LocalIdentityRepositoryResult } from "../localIdentityRepository";
-import type { PubkyIdentityKey } from "../../../features/identity/pubkyIdentity";
+import type { LocalIdentitySaver } from "../localIdentityService";
 import type {
   PassportFileCrypto,
   PassportFileCryptoResult,
@@ -484,21 +483,15 @@ class FakePassportCrypto implements PassportFileCrypto {
   }
 }
 
-class FakeLocalIdentities implements LocalIdentityRepository {
+class FakeLocalIdentities implements LocalIdentitySaver {
   savedHandles: unknown[] = [];
   throwOnSave = false;
   constructor(private readonly onSave?: () => void) {}
-  list() { return Result.ok({ activeIdentityId: null, identities: [] }); }
-  async saveIdentity(input: Parameters<LocalIdentityRepository["saveIdentity"]>[0]) {
+  async saveIdentity(input: Parameters<LocalIdentitySaver["saveIdentity"]>[0]) {
     if (this.throwOnSave) throw new Error("local save threw");
     this.onSave?.();
     this.savedHandles.push(input.keyHandle);
     return Result.ok({ id: "fake", publicIdentity: { publicKeyZ32: "fake", publicKeyDisplay: "pubkyfake" } });
-  }
-  select() { return Result.ok(); }
-  clear() { return Result.ok(); }
-  async restoreActiveIdentity(): Promise<LocalIdentityRepositoryResult<PubkyIdentityKey>> {
-    return Result.err({ code: "no_active_identity" });
   }
 }
 

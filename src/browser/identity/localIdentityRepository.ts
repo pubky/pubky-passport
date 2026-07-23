@@ -1,36 +1,27 @@
 import "client-only";
 
-import { Result, type Result as ResultType } from "better-result";
+import { Result } from "better-result";
 
-import { pubkySecretKeyBytes, pubkySecretKeyFormat, type PubkyIdentityKey, type PubkyIdentityKeyHandle, type PubkyPublicIdentity, type PubkySecretKeyMaterial } from "../../features/identity/pubkyIdentity";
-import type { PubkyIdentityKeys } from "../pubky/pubkyPorts";
-import {
-  localIdentityStoreVersion,
-  type LocalIdentityStoreV1,
-  type LocalIdentitySummary,
-  type StoredLocalIdentity,
-} from "../../features/identity/localIdentity";
+import { pubkySecretKeyBytes, pubkySecretKeyFormat, type PubkyPublicIdentity, type PubkySecretKeyMaterial } from "../../features/identity/pubkyIdentity";
+import type { LocalIdentitySummary } from "../../features/identity/localIdentity";
+import type {
+  LocalIdentityRepository,
+  LocalIdentityRepositoryErrorCode,
+  LocalIdentityRepositoryResult,
+} from "./localIdentityService";
 
 const storageKey = "pubky-passport/local-identities/v1";
+const localIdentityStoreVersion = 1;
 const base64UrlPattern = /^[A-Za-z0-9_-]{43}$/;
 
-export type LocalIdentityRepositoryErrorCode =
-  | "invalid_identity"
-  | "invalid_secret_key"
-  | "invalid_store"
-  | "identity_mismatch"
-  | "no_active_identity"
-  | "restore_failed"
-  | "storage_unavailable";
+type StoredLocalIdentity = LocalIdentitySummary & {
+  secretKey: string;
+};
 
-export type LocalIdentityRepositoryResult<T> = ResultType<T, { code: LocalIdentityRepositoryErrorCode }>;
-
-export type LocalIdentityRepository = {
-  list(): LocalIdentityRepositoryResult<{ activeIdentityId: string | null; identities: LocalIdentitySummary[] }>;
-  saveIdentity(input: { identityKeys: PubkyIdentityKeys; keyHandle: PubkyIdentityKeyHandle }): Promise<LocalIdentityRepositoryResult<LocalIdentitySummary>>;
-  select(id: string): LocalIdentityRepositoryResult<void>;
-  clear(): LocalIdentityRepositoryResult<void>;
-  restoreActiveIdentity(input: { identityKeys: PubkyIdentityKeys }): Promise<LocalIdentityRepositoryResult<PubkyIdentityKey>>;
+type LocalIdentityStoreV1 = {
+  v: typeof localIdentityStoreVersion;
+  activeIdentityId: string | null;
+  identities: StoredLocalIdentity[];
 };
 
 export class LocalStorageIdentityRepository implements LocalIdentityRepository {
@@ -52,24 +43,13 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
     });
   }
 
-  async saveIdentity(input: { identityKeys: PubkyIdentityKeys; keyHandle: PubkyIdentityKeyHandle }): Promise<LocalIdentityRepositoryResult<LocalIdentitySummary>> {
-    const publicIdentity = await input.identityKeys.getPublicIdentity({ keyHandle: input.keyHandle });
-    if (Result.isError(publicIdentity)) {
+  save(input: { identity: LocalIdentitySummary; secretKey: PubkySecretKeyMaterial }): LocalIdentityRepositoryResult<LocalIdentitySummary> {
+    if (input.identity.id !== input.identity.publicIdentity.publicKeyZ32) {
       return failure("invalid_identity");
     }
-    const secretKey = await input.identityKeys.exportSecretKey({ keyHandle: input.keyHandle });
-    if (Result.isError(secretKey)) {
+    if (input.secretKey.format !== pubkySecretKeyFormat || input.secretKey.bytes.byteLength !== pubkySecretKeyBytes) {
       return failure("invalid_secret_key");
     }
-
-    try {
-      return this.saveVerifiedIdentity({ publicIdentity: publicIdentity.value, secretKey: secretKey.value.bytes });
-    } finally {
-      secretKey.value.bytes.fill(0);
-    }
-  }
-
-  private saveVerifiedIdentity(input: { publicIdentity: PubkyPublicIdentity; secretKey: Uint8Array }): LocalIdentityRepositoryResult<LocalIdentitySummary> {
 
     const store = this.readStore();
     if (Result.isError(store)) {
@@ -77,9 +57,8 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
     }
 
     const identity: StoredLocalIdentity = {
-      id: input.publicIdentity.publicKeyZ32,
-      publicIdentity: input.publicIdentity,
-      secretKey: encodeBase64Url(input.secretKey),
+      ...input.identity,
+      secretKey: encodeBase64Url(input.secretKey.bytes),
     };
     const existingIndex = store.value.identities.findIndex((candidate) => candidate.id === identity.id);
     const identities = [...store.value.identities];
@@ -128,59 +107,30 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
     }
   }
 
-  async restoreActiveIdentity(input: { identityKeys: PubkyIdentityKeys }): Promise<LocalIdentityRepositoryResult<PubkyIdentityKey>> {
-    const identities = this.list();
-    if (Result.isError(identities)) {
-      return Result.err(identities.error);
-    }
-
-    if (!identities.value.activeIdentityId) {
-      return failure("no_active_identity");
-    }
-
-    const storedIdentity = identities.value.identities.find((identity) => identity.id === identities.value.activeIdentityId);
-    if (!storedIdentity) {
-      return failure("no_active_identity");
-    }
-
-    const secretKey = this.readSecretKey(identities.value.activeIdentityId);
-    if (Result.isError(secretKey)) {
-      return Result.err(secretKey.error);
-    }
-
-    try {
-      const restored = await input.identityKeys.restoreIdentityKey({ secretKey: secretKey.value });
-      if (Result.isError(restored)) {
-        return failure("restore_failed");
-      }
-
-      if (!isSamePublicIdentity(restored.value.publicIdentity, storedIdentity.publicIdentity)) {
-        input.identityKeys.disposeIdentityKey({ keyHandle: restored.value.keyHandle });
-        return failure("identity_mismatch");
-      }
-      return Result.ok(restored.value);
-    } finally {
-      secretKey.value.bytes.fill(0);
-    }
-  }
-
-  private readSecretKey(id: string): LocalIdentityRepositoryResult<PubkySecretKeyMaterial> {
+  readActive(): LocalIdentityRepositoryResult<{ identity: LocalIdentitySummary; secretKey: PubkySecretKeyMaterial }> {
     const store = this.readStore();
     if (Result.isError(store)) {
       return Result.err(store.error);
     }
 
-    const identity = store.value.identities.find((candidate) => candidate.id === id);
-    if (!identity) {
-      return failure("invalid_identity");
+    if (!store.value.activeIdentityId) {
+      return failure("no_active_identity");
     }
 
-    const secretKey = decodeBase64Url(identity.secretKey);
+    const storedIdentity = store.value.identities.find((candidate) => candidate.id === store.value.activeIdentityId);
+    if (!storedIdentity) {
+      return failure("no_active_identity");
+    }
+
+    const secretKey = decodeBase64Url(storedIdentity.secretKey);
     if (!secretKey) {
       return failure("invalid_store");
     }
 
-    return Result.ok({ bytes: secretKey, format: pubkySecretKeyFormat });
+    return Result.ok({
+      identity: toSummary(storedIdentity),
+      secretKey: { bytes: secretKey, format: pubkySecretKeyFormat },
+    });
   }
 
   private readStore(): LocalIdentityRepositoryResult<LocalIdentityStoreV1> {
@@ -292,10 +242,6 @@ function mergeStores(current: LocalIdentityStoreV1, update: LocalIdentityStoreV1
   const identities = new Map(current.identities.map((identity) => [identity.id, identity]));
   for (const identity of update.identities) identities.set(identity.id, identity);
   return { ...update, identities: [...identities.values()] };
-}
-
-function isSamePublicIdentity(left: PubkyPublicIdentity, right: PubkyPublicIdentity): boolean {
-  return left.publicKeyZ32 === right.publicKeyZ32 && left.publicKeyDisplay === right.publicKeyDisplay;
 }
 
 function encodeBase64Url(bytes: Uint8Array): string {
