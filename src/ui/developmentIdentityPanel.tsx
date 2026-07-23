@@ -25,7 +25,6 @@ export function DevelopmentIdentityPanel({
   passportUrl: string;
 }) {
   const controller = useRef<BrowserIdentityController | null>(null);
-  const operation = useRef(0);
   const [controllerReady, setControllerReady] = useState(false);
   const [identities, setIdentities] = useState<LocalIdentitySummary[]>([]);
   const [selectedIdentityId, setSelectedIdentityId] = useState("");
@@ -80,7 +79,6 @@ export function DevelopmentIdentityPanel({
   }
 
   function completeGoogleAction(result: BrowserIdentityActionResult): void {
-    const activeOperation = operation.current;
     if (Result.isError(result)) {
       logger.warn("identity.google.action.failed", { code: result.error.code });
       setRecoverableDriveIdentity(result.error.recoverablePublicIdentity ?? null);
@@ -92,10 +90,8 @@ export function DevelopmentIdentityPanel({
       if (googleAction === "delete-failed") setRecoverableDriveIdentity(null);
       setMessage("Identity deleted from Google Drive.");
     }
-    if (operation.current === activeOperation) {
-      setBusy(false);
-      setGoogleAction(null);
-    }
+    setBusy(false);
+    setGoogleAction(null);
   }
 
   function clearLocalIdentities(): void {
@@ -111,12 +107,10 @@ export function DevelopmentIdentityPanel({
   const selectedIdentity = identities.find((identity) => identity.id === selectedIdentityId);
 
   function beginGoogleAction(action: Exclude<GoogleAction, null>): void {
-    operation.current += 1;
     setGoogleAction(action);
   }
 
   function cancelGoogleAction(): void {
-    operation.current += 1;
     controller.current?.unmountGoogleSignIn();
     setBusy(false);
     setGoogleAction(null);

@@ -32,6 +32,7 @@ const browserApplicationModules = [
   join(browserRoot, "authorization", "browserAuthorizationControllerInternals.ts"),
   join(browserRoot, "identity", "applicationContracts.ts"),
   join(browserRoot, "identity", "browserIdentityController.ts"),
+  join(browserRoot, "identity", "browserIdentityControllerInternals.ts"),
   join(browserRoot, "identity", "localIdentityService.ts"),
   join(browserRoot, "identity", "google", "applicationContracts.ts"),
   join(browserRoot, "identity", "google", "createMissingGoogleDriveIdentity.ts"),

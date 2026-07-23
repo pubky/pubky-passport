@@ -28,6 +28,7 @@ import type {
   PubkySignup,
   PubkySignupResult,
 } from "../identity/applicationContracts";
+import { logger } from "../../libs/logger/logger";
 
 export type PubkyNetwork =
   | { kind: "mainnet" }
@@ -83,12 +84,13 @@ export class BrowserPubky implements PubkyIdentityKeys, PubkySignup, PubkyDiscov
 
   disposeIdentityKey(input: { keyHandle: PubkyIdentityKeyHandle }): void {
     const keypair = this.#keypairs.get(input.keyHandle);
-    if (!keypair) {
-      return;
-    }
-
-    keypair.free();
+    if (!keypair) return;
     this.#keypairs.delete(input.keyHandle);
+    try {
+      keypair.free();
+    } catch {
+      logger.warn("identity.pubky.cleanup.failed", { operation: "keypair_free" });
+    }
   }
 
   async exportSecretKey(input: { keyHandle: PubkyIdentityKeyHandle }): Promise<PubkyIdentityKeysResult<PubkySecretKeyMaterial>> {
@@ -189,11 +191,20 @@ export class BrowserPubky implements PubkyIdentityKeys, PubkySignup, PubkyDiscov
     }
 
     this.#disposed = true;
-    for (const keypair of this.#keypairs.values()) {
-      keypair.free();
-    }
+    const keypairs = [...this.#keypairs.values()];
     this.#keypairs.clear();
-    this.#pubky.free();
+    for (const keypair of keypairs) {
+      try {
+        keypair.free();
+      } catch {
+        logger.warn("identity.pubky.cleanup.failed", { operation: "keypair_free" });
+      }
+    }
+    try {
+      this.#pubky.free();
+    } catch {
+      logger.warn("identity.pubky.cleanup.failed", { operation: "pubky_free" });
+    }
   }
 
   private registerKeypair(keypair: Keypair): PubkyIdentityKeysResult<PubkyIdentityKey> {

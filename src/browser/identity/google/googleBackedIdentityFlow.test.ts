@@ -405,6 +405,45 @@ describe("GoogleBackedIdentityFlow", () => {
     expect(crypto.decryptedBytes.every((byte) => byte === 0)).toBe(true);
   });
 
+  it("preserves create, restore, and delete outcomes when key cleanup throws", async () => {
+    const createKeys = new FakePubkyIdentityKeys();
+    createKeys.disposeIdentityKey = () => { throw new Error("cleanup failed"); };
+    const createFiles = new FakePassportFiles({ status: "missing" });
+    createFiles.createFailure = "create_conflict";
+    const created = await createFlow({
+      keys: createKeys,
+      local: new FakeLocalIdentities(),
+      files: createFiles,
+      crypto: new FakePassportCrypto(),
+    }).establish({ googleIdToken: "id-token", driveAccessToken: "drive-token" });
+    expect(Result.isError(created) && created.error.code).toBe("drive_create_conflict");
+
+    const restoreKeys = new FakePubkyIdentityKeys();
+    restoreKeys.disposeIdentityKey = () => { throw new Error("cleanup failed"); };
+    const restoreDependencies = activationDependencies(restoreKeys);
+    restoreDependencies.signup.signinFailure = "signin_failed";
+    const restored = await createFlow({
+      keys: restoreKeys,
+      local: new FakeLocalIdentities(),
+      files: new FakePassportFiles({ status: "found", envelope, reference }),
+      crypto: new FakePassportCrypto(),
+      ...restoreDependencies,
+    }).establish({ googleIdToken: "id-token", driveAccessToken: "drive-token" });
+    expect(Result.isError(restored) && restored.error.code).toBe("signin_failed");
+
+    const deleteKeys = new FakePubkyIdentityKeys();
+    deleteKeys.disposeIdentityKey = () => { throw new Error("cleanup failed"); };
+    const deleted = await createDeletion({
+      keys: deleteKeys,
+      files: new FakePassportFiles({ status: "found", envelope, reference }),
+      crypto: new FakePassportCrypto(),
+    }).execute(
+      { googleIdToken: "id-token", driveAccessToken: "drive-token" },
+      deleteKeys.nextPublicIdentity.publicKeyZ32,
+    );
+    expect(Result.isError(deleted)).toBe(false);
+  });
+
 });
 
 function createFlow(input: {

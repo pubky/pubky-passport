@@ -16,7 +16,8 @@ import { DeleteGoogleBackedIdentity } from "./google/deleteGoogleBackedIdentity"
 import { BrowserGoogleHomegateInviteRequester } from "./google/googleHomegateInviteRequester";
 import { BrowserGoogleWrappingKeyRequester } from "./google/googleWrappingKeyRequester";
 import { RestoreExistingGoogleDriveIdentityUseCase } from "./google/restoreExistingGoogleDriveIdentity";
-import { DefaultBrowserIdentityController, type BrowserIdentityController } from "./browserIdentityController";
+import type { BrowserIdentityController } from "./browserIdentityController";
+import { DefaultBrowserIdentityController } from "./browserIdentityControllerInternals";
 import { LocalStorageIdentityRepository } from "./localIdentityRepository";
 import { LocalIdentityService } from "./localIdentityService";
 

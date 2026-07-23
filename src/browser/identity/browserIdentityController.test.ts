@@ -4,11 +4,11 @@ import { Result } from "better-result";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { PubkyIdentityKeyHandle } from "../../features/identity/pubkyIdentity";
+import type { BrowserIdentityControllerError } from "./browserIdentityController";
 import {
   DefaultBrowserIdentityController,
-  type BrowserIdentityControllerError,
   type BrowserIdentityControllerDependencies,
-} from "./browserIdentityController";
+} from "./browserIdentityControllerInternals";
 import type { GoogleCredentialResponse } from "./google/applicationContracts";
 
 describe("DefaultBrowserIdentityController", () => {
@@ -176,7 +176,7 @@ describe("DefaultBrowserIdentityController", () => {
     expect(completed.result.error).toEqual({ code: "unexpected_failure" });
   });
 
-  it("maps thrown key disposal to an unexpected failure result", async () => {
+  it("preserves successful establishment when key disposal throws", async () => {
     const keyHandle = {} as PubkyIdentityKeyHandle;
     const { controller, credentialCallback } = await mountedController({
       identityFlow: { establish: vi.fn(async () => Result.ok({
@@ -191,9 +191,69 @@ describe("DefaultBrowserIdentityController", () => {
     const completed = await controller.continueGoogle({ kind: "establish" });
     expect(completed.status).toBe("action_completed");
     if (completed.status !== "action_completed") throw new Error("Expected action result");
-    expect(Result.isError(completed.result)).toBe(true);
-    if (!Result.isError(completed.result)) throw new Error("Expected action failure");
-    expect(completed.result.error).toEqual({ code: "unexpected_failure" });
+    expect(Result.isError(completed.result)).toBe(false);
+    if (Result.isError(completed.result)) throw new Error("Expected action success");
+    expect(completed.result.value).toEqual({
+      kind: "established",
+      source: "created",
+      publicIdentity: { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" },
+    });
+  });
+
+  it("runs Google continuation single-flight without reusing credentials", async () => {
+    let resolveDrive: ((value: ReturnType<typeof Result.ok<string>>) => void) | undefined;
+    const requestGoogleDriveAccess = vi.fn(() => new Promise<ReturnType<typeof Result.ok<string>>>((resolve) => {
+      resolveDrive = resolve;
+    }));
+    const establish = vi.fn(async () => Result.err({ code: "unexpected_failure" as const }));
+    const { controller, credentialCallback } = await mountedController({
+      requestGoogleDriveAccess,
+      identityFlow: { establish },
+    });
+    credentialCallback.current?.({ credential: "google-id-token" });
+
+    const first = controller.continueGoogle({ kind: "establish" });
+    await expect(controller.continueGoogle({ kind: "establish" })).resolves.toEqual({ status: "credential_failed" });
+    resolveDrive?.(Result.ok("drive-access-token"));
+    await first;
+
+    expect(requestGoogleDriveAccess).toHaveBeenCalledOnce();
+    expect(establish).toHaveBeenCalledOnce();
+  });
+
+  it("defers one-time Pubky disposal and suppresses completion after dispose", async () => {
+    let resolveEstablish: ((value: ReturnType<typeof Result.ok<{
+      keyHandle: PubkyIdentityKeyHandle;
+      source: "restored";
+      publicIdentity: { publicKeyZ32: string; publicKeyDisplay: string };
+    }>>) => void) | undefined;
+    const keyHandle = {} as PubkyIdentityKeyHandle;
+    const disposePubky = vi.fn();
+    const disposeIdentityKey = vi.fn();
+    const establish = vi.fn<BrowserIdentityControllerDependencies["identityFlow"]["establish"]>(
+      () => new Promise((resolve) => { resolveEstablish = resolve; }),
+    );
+    const { controller, credentialCallback } = await mountedController({
+      identityFlow: { establish },
+      identityKeys: { disposeIdentityKey },
+      disposePubky,
+    });
+    credentialCallback.current?.({ credential: "google-id-token" });
+
+    const pending = controller.continueGoogle({ kind: "establish" });
+    await vi.waitFor(() => expect(establish).toHaveBeenCalledOnce());
+    controller.dispose();
+    controller.dispose();
+    expect(disposePubky).not.toHaveBeenCalled();
+    resolveEstablish?.(Result.ok({
+      keyHandle,
+      source: "restored",
+      publicIdentity: { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" },
+    }));
+
+    await expect(pending).resolves.toEqual({ status: "credential_failed" });
+    expect(disposeIdentityKey).toHaveBeenCalledWith({ keyHandle });
+    expect(disposePubky).toHaveBeenCalledOnce();
   });
 
   it("delegates safe local identity operations and owns Pubky disposal", () => {

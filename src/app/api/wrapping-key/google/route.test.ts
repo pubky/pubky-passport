@@ -149,6 +149,19 @@ describe("POST /api/wrapping-key/google", () => {
     expect(factoryCalls).toBe(1);
   });
 
+  it("retries default composition after a rejected factory promise", async () => {
+    let factoryCalls = 0;
+    const post = createGoogleWrappingKeyPostHandler(undefined, async () => {
+      factoryCalls += 1;
+      if (factoryCalls === 1) throw new Error("configuration temporarily unavailable");
+      return wrappingKeyRequest(Result.ok("opaque-key"));
+    });
+
+    expect((await post(jsonRequest({ googleIdToken: "first-id-token" }))).status).toBe(500);
+    expect((await post(jsonRequest({ googleIdToken: "second-id-token" }))).status).toBe(200);
+    expect(factoryCalls).toBe(2);
+  });
+
   it("maps unexpected wrapping-key failures to safe 500 responses", async () => {
     const post = createGoogleWrappingKeyPostHandler({
       async requestWrappingKey() {

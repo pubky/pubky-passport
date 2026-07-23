@@ -10,7 +10,8 @@ import type {
 } from "./applicationContracts";
 
 const maximumResponseBytes = 16 * 1024;
-const wrappingKeyPattern = /^[A-Za-z0-9_-]{42}[AQgw]$/;
+const wrappingKeyBytes = 32;
+const unpaddedBase64UrlPattern = /^[A-Za-z0-9_-]+$/;
 const knownRouteErrorCodes = new Set<GoogleWrappingKeyRequesterErrorCode>([
   "invalid_request",
   "invalid_google_id_token",
@@ -68,9 +69,17 @@ export class BrowserGoogleWrappingKeyRequester implements GoogleWrappingKeyReque
 
 function parseWrappingKey(value: unknown): string | null {
   if (!isExactRecord(value, ["wrappingKey"])) return null;
-  return typeof value.wrappingKey === "string" && wrappingKeyPattern.test(value.wrappingKey)
-    ? value.wrappingKey
-    : null;
+  if (typeof value.wrappingKey !== "string" || !unpaddedBase64UrlPattern.test(value.wrappingKey)) return null;
+
+  try {
+    const standard = value.wrappingKey.replaceAll("-", "+").replaceAll("_", "/");
+    const decoded = atob(`${standard}${"=".repeat((4 - standard.length % 4) % 4)}`);
+    if (decoded.length !== wrappingKeyBytes) return null;
+    const canonical = btoa(decoded).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+    return canonical === value.wrappingKey ? value.wrappingKey : null;
+  } catch {
+    return null;
+  }
 }
 
 function parseErrorCode(value: unknown): GoogleWrappingKeyRequesterErrorCode | null {

@@ -83,7 +83,11 @@ export class RestoreExistingGoogleDriveIdentityUseCase implements RestoreExistin
     } finally {
       secretKey.value.fill(0);
       if (restoredIdentity && !retainRestoredIdentity) {
-        this.#identityKeys.disposeIdentityKey({ keyHandle: restoredIdentity.keyHandle });
+        try {
+          this.#identityKeys.disposeIdentityKey({ keyHandle: restoredIdentity.keyHandle });
+        } catch {
+          logger.warn("identity.google.cleanup.failed", { operation: "restored_key_dispose" });
+        }
       }
     }
   }

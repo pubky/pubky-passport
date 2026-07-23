@@ -113,10 +113,13 @@ const eslintConfig = defineConfig([
       "src/browser/authorization/browserAuthorizationControllerInternals.ts",
       "src/browser/identity/applicationContracts.ts",
       "src/browser/identity/browserIdentityController.ts",
+      "src/browser/identity/browserIdentityControllerInternals.ts",
       "src/browser/identity/localIdentityService.ts",
       "src/browser/identity/google/applicationContracts.ts",
+      "src/browser/identity/google/createMissingGoogleDriveIdentity.ts",
       "src/browser/identity/google/deleteGoogleBackedIdentity.ts",
-      "src/browser/identity/google/googleBackedIdentityFlow.ts"
+      "src/browser/identity/google/googleBackedIdentityFlow.ts",
+      "src/browser/identity/google/restoreExistingGoogleDriveIdentity.ts"
     ],
     rules: {
       "no-restricted-imports": [

@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { Keypair } from "@synonymdev/pubky";
+import { describe, expect, it, vi } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
 import { pubkySecretKeyBytes, pubkySecretKeyFormat, type PubkyIdentityKeyHandle } from "../../features/identity/pubkyIdentity";
@@ -130,6 +131,24 @@ describe("BrowserPubky", () => {
 
     await expectError(pubky.getPublicIdentity({ keyHandle: created.keyHandle }), "key_unavailable");
     await expectError(pubky.createIdentityKey(), "key_unavailable");
+  });
+
+  it("invalidates handles before freeing and continues after cleanup failures", async () => {
+    const pubky = new BrowserPubky({ network: testNetwork });
+    const individuallyDisposed = expectOk(await pubky.createIdentityKey());
+    const firstBulkHandle = expectOk(await pubky.createIdentityKey()).keyHandle;
+    const secondBulkHandle = expectOk(await pubky.createIdentityKey()).keyHandle;
+    const free = vi.spyOn(Keypair.prototype, "free");
+
+    free.mockImplementationOnce(() => { throw new Error("free failed"); });
+    expect(() => pubky.disposeIdentityKey({ keyHandle: individuallyDisposed.keyHandle })).not.toThrow();
+    await expectError(pubky.getPublicIdentity({ keyHandle: individuallyDisposed.keyHandle }), "key_unavailable");
+
+    free.mockImplementationOnce(() => { throw new Error("free failed"); });
+    expect(() => pubky.dispose()).not.toThrow();
+    expect(free).toHaveBeenCalledTimes(3);
+    await expectError(pubky.getPublicIdentity({ keyHandle: firstBulkHandle }), "key_unavailable");
+    await expectError(pubky.getPublicIdentity({ keyHandle: secondBulkHandle }), "key_unavailable");
   });
 });
 

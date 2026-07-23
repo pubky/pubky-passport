@@ -41,9 +41,14 @@ export function createGoogleWrappingKeyPostHandler(
     }
   };
 
-  function getDefaultRequest(): Promise<GoogleWrappingKeyRequest> {
-    defaultRequest ??= createDefaultRequestFactory();
-    return defaultRequest;
+  async function getDefaultRequest(): Promise<GoogleWrappingKeyRequest> {
+    const pending = defaultRequest ??= createDefaultRequestFactory();
+    try {
+      return await pending;
+    } catch (error) {
+      if (defaultRequest === pending) defaultRequest = undefined;
+      throw error;
+    }
   }
 }
 

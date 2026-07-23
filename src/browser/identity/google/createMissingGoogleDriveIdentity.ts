@@ -130,7 +130,11 @@ export class CreateMissingGoogleDriveIdentityUseCase implements CreateMissingGoo
       return Result.ok({ ...created.value, source: "created" as const });
     } finally {
       if (!retainCreatedIdentity) {
-        this.#identityKeys.disposeIdentityKey({ keyHandle: created.value.keyHandle });
+        try {
+          this.#identityKeys.disposeIdentityKey({ keyHandle: created.value.keyHandle });
+        } catch {
+          logger.warn("identity.google.cleanup.failed", { operation: "created_key_dispose" });
+        }
       }
     }
   }

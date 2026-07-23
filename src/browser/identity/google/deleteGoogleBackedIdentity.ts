@@ -75,7 +75,13 @@ export class DeleteGoogleBackedIdentity {
       if (restored.value.publicIdentity.publicKeyZ32 !== expectedPublicKeyZ32) return failure("identity_mismatch");
     } finally {
       secretKey.value.fill(0);
-      if (restoredIdentity) this.#identityKeys.disposeIdentityKey({ keyHandle: restoredIdentity.keyHandle });
+      if (restoredIdentity) {
+        try {
+          this.#identityKeys.disposeIdentityKey({ keyHandle: restoredIdentity.keyHandle });
+        } catch {
+          logger.warn("identity.google.cleanup.failed", { operation: "deleted_key_dispose" });
+        }
+      }
     }
 
     const deleted = await passportFiles.deletePassportFile({ reference: storedFile.value.reference });
