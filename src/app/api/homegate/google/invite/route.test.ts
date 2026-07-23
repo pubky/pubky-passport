@@ -39,6 +39,19 @@ describe("POST /api/homegate/google/invite", () => {
     expect(response.headers.get("Cache-Control")).toBe("no-store");
   });
 
+  it("does not construct configured dependencies for invalid requests", async () => {
+    let factoryCalls = 0;
+    const post = createGoogleHomegateInvitePostHandler(undefined, async () => {
+      factoryCalls += 1;
+      return homegateInvite(Result.ok(invite));
+    });
+
+    const response = await post(jsonRequest({}));
+
+    expect(response.status).toBe(400);
+    expect(factoryCalls).toBe(0);
+  });
+
   it("requires an application/json content type", async () => {
     const post = createGoogleHomegateInvitePostHandler(homegateInvite(Result.ok(invite)));
 
@@ -130,6 +143,34 @@ describe("POST /api/homegate/google/invite", () => {
         jsonRequest({ googleIdToken: "id-token" }),
       ).then(responseSummary),
     ).resolves.toEqual({ status: 503, body: { error: { code: "homegate_unavailable" } } });
+  });
+
+  it("reuses the default Homegate invite flow", async () => {
+    let factoryCalls = 0;
+    const post = createGoogleHomegateInvitePostHandler(undefined, async () => {
+      factoryCalls += 1;
+      return homegateInvite(Result.ok(invite));
+    });
+
+    await Promise.all([
+      post(jsonRequest({ googleIdToken: "first-id-token" })),
+      post(jsonRequest({ googleIdToken: "second-id-token" })),
+    ]);
+
+    expect(factoryCalls).toBe(1);
+  });
+
+  it("retries default composition after a rejected factory promise", async () => {
+    let factoryCalls = 0;
+    const post = createGoogleHomegateInvitePostHandler(undefined, async () => {
+      factoryCalls += 1;
+      if (factoryCalls === 1) throw new Error("configuration temporarily unavailable");
+      return homegateInvite(Result.ok(invite));
+    });
+
+    expect((await post(jsonRequest({ googleIdToken: "first-id-token" }))).status).toBe(500);
+    expect((await post(jsonRequest({ googleIdToken: "second-id-token" }))).status).toBe(200);
+    expect(factoryCalls).toBe(2);
   });
 
   it("maps unexpected Homegate failures to safe 500 responses", async () => {

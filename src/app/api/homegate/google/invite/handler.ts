@@ -14,13 +14,18 @@ type GoogleHomegateInviteRouteBody =
   | { signupCode: string; homeserverPubky: string }
   | { error: { code: string } };
 
-export function createGoogleHomegateInvitePostHandler(invite?: GoogleHomegateInvite) {
+export function createGoogleHomegateInvitePostHandler(
+  invite?: GoogleHomegateInvite,
+  createDefaultInviteFactory: () => Promise<GoogleHomegateInvite> = createDefaultInvite,
+) {
+  let defaultInvite: Promise<GoogleHomegateInvite> | undefined;
+
   return async function googleHomegateInvitePost(request: Request): Promise<NextResponse<GoogleHomegateInviteRouteBody>> {
     const body = await parseGoogleIdTokenRequest(request);
     if (Result.isError(body)) return json({ error: { code: "invalid_request" } }, 400);
 
     try {
-      const activeInvite = invite ?? await createDefaultInvite();
+      const activeInvite = invite ?? await getDefaultInvite();
       const result = await activeInvite.requestSignupInvitation({ googleIdToken: body.value });
       if (Result.isError(result)) {
         return json({ error: { code: result.error.code } }, statusForError(result.error.code));
@@ -30,6 +35,16 @@ export function createGoogleHomegateInvitePostHandler(invite?: GoogleHomegateInv
       return json({ error: { code: "internal_error" } }, 500);
     }
   };
+
+  async function getDefaultInvite(): Promise<GoogleHomegateInvite> {
+    const pending = defaultInvite ??= createDefaultInviteFactory();
+    try {
+      return await pending;
+    } catch (error) {
+      if (defaultInvite === pending) defaultInvite = undefined;
+      throw error;
+    }
+  }
 }
 
 async function createDefaultInvite(): Promise<GoogleHomegateInvite> {

@@ -1,3 +1,5 @@
+import "server-only";
+
 import { parseBoundedJsonStringField } from "../../libs/security/parseBoundedJsonStringField";
 
 const maximumCredentialRequestBytes = 16 * 1024;
