@@ -4,7 +4,7 @@ import { Result, type Result as ResultType } from "better-result";
 
 import type { LocalIdentitySaver } from "../localIdentityService";
 import type { PassportFileCrypto, PassportFileStore } from "../../passport-file/passportFilePorts";
-import type { PubkyDiscovery, PubkyIdentityKeys, PubkySignup } from "../../pubky/pubkyPorts";
+import type { PubkyDiscovery, PubkyIdentityKeys, PubkySignup } from "../applicationContracts";
 import {
   pubkySecretKeyFormat,
   type PubkyIdentityKey,

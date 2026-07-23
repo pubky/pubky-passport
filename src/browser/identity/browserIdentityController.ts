@@ -5,7 +5,7 @@ import { Result, type Result as ResultType } from "better-result";
 import type { LocalIdentitySummary } from "../../features/identity/localIdentity";
 import type { PubkyPublicIdentity } from "../../features/identity/pubkyIdentity";
 import { logger } from "../../libs/logger/logger";
-import type { PubkyIdentityKeys } from "../pubky/pubkyPorts";
+import type { PubkyIdentityKeys } from "./applicationContracts";
 import type {
   GoogleBackedIdentity,
   GoogleBackedIdentityFlowError,
@@ -17,7 +17,7 @@ import type {
   GoogleCredentialResponse,
   GoogleIdentityProviderErrorCode,
   GoogleIdentityProviderResult,
-} from "./google/googleIdentityProvider";
+} from "./google/applicationContracts";
 import type { LocalIdentityRepository, LocalIdentityRepositoryErrorCode } from "./localIdentityService";
 
 export type BrowserIdentityList = {

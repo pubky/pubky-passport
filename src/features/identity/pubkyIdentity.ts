@@ -24,6 +24,4 @@ export type PubkySecretKeyMaterial = {
 
 export type PubkyIdentitySession = {
   publicIdentity: PubkyPublicIdentity;
-  capabilities: string[];
-  sessionSnapshot: string;
 };

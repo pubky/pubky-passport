@@ -9,12 +9,7 @@ import type {
   PubkyPublicIdentity,
   PubkySecretKeyMaterial,
 } from "../../features/identity/pubkyIdentity";
-import type { ValidatedSensitivePubkyAuthRequest } from "../../features/auth/parsePubkyAuthRequest";
 
-/**
- * The upcoming setup, restore, and authorization flows share this one Pubky
- * capability surface. It is local to Pubky because no other feature needs it.
- */
 export type PubkyIdentityKeysErrorCode =
   | "create_failed"
   | "export_failed"
@@ -51,14 +46,4 @@ export type PubkyDiscoveryResult = Result<void, { code: PubkyDiscoveryErrorCode 
 export type PubkyDiscovery = {
   publishHomeserverIfStale(input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky?: string | null }): Promise<PubkyDiscoveryResult>;
   publishHomeserverForce(input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky?: string | null }): Promise<PubkyDiscoveryResult>;
-};
-
-export type PubkyAuthApprovalErrorCode = "approval_failed" | "key_unavailable" | "relay_failed" | "request_rejected";
-export type PubkyAuthApprovalResult = Result<void, { code: PubkyAuthApprovalErrorCode }>;
-
-export type PubkyAuthApproval = {
-  approveAuthRequest(input: {
-    keyHandle: PubkyIdentityKeyHandle;
-    authRequest: ValidatedSensitivePubkyAuthRequest;
-  }): Promise<PubkyAuthApprovalResult>;
 };

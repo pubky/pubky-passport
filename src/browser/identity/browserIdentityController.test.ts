@@ -9,7 +9,7 @@ import {
   type BrowserIdentityControllerError,
   type BrowserIdentityControllerDependencies,
 } from "./browserIdentityController";
-import type { GoogleCredentialResponse } from "./google/googleIdentityProvider";
+import type { GoogleCredentialResponse } from "./google/applicationContracts";
 
 describe("DefaultBrowserIdentityController", () => {
   it("exposes a finite action error code contract", () => {

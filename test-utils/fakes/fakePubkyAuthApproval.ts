@@ -6,7 +6,7 @@ import type {
   PubkyAuthApproval,
   PubkyAuthApprovalErrorCode,
   PubkyAuthApprovalResult,
-} from "@/browser/pubky/pubkyPorts";
+} from "@/browser/authorization/applicationContracts";
 
 export type FakePubkyAuthApprovalCall = {
   keyHandle: PubkyIdentityKeyHandle;

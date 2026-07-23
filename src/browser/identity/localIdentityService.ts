@@ -4,7 +4,7 @@ import { Result, type Result as ResultType } from "better-result";
 
 import type { LocalIdentitySummary } from "../../features/identity/localIdentity";
 import type { PubkyIdentityKey, PubkyIdentityKeyHandle, PubkyPublicIdentity, PubkySecretKeyMaterial } from "../../features/identity/pubkyIdentity";
-import type { PubkyIdentityKeys } from "../pubky/pubkyPorts";
+import type { PubkyIdentityKeys } from "./applicationContracts";
 
 export type LocalIdentityRepositoryErrorCode =
   | "invalid_identity"

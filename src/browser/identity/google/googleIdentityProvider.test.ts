@@ -9,8 +9,8 @@ import {
   loadGoogleAccounts,
   releaseGoogleCredentialCallback,
   requestGoogleDriveAccess,
-  type GoogleAccounts,
 } from "./googleIdentityProvider";
+import type { GoogleAccounts } from "./applicationContracts";
 
 describe("Google credential callback ownership", () => {
   it("keeps one live owner and never dispatches to a rejected binding", () => {

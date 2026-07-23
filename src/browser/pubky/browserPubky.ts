@@ -19,13 +19,15 @@ import {
 import type {
   PubkyAuthApproval,
   PubkyAuthApprovalResult,
+} from "../authorization/applicationContracts";
+import type {
   PubkyDiscovery,
   PubkyDiscoveryResult,
   PubkyIdentityKeys,
   PubkyIdentityKeysResult,
   PubkySignup,
   PubkySignupResult,
-} from "./pubkyPorts";
+} from "../identity/applicationContracts";
 
 export type PubkyNetwork =
   | { kind: "mainnet" }
@@ -314,8 +316,6 @@ function sessionDetails(session: Session): PubkyIdentitySession {
         publicKeyZ32: publicKey.z32(),
         publicKeyDisplay: publicKey.toString(),
       },
-      capabilities: [...info.capabilities],
-      sessionSnapshot: session.export(),
     };
   } finally {
     publicKey.free();

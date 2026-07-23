@@ -5,7 +5,7 @@ import type {
   PubkyDiscovery,
   PubkyDiscoveryErrorCode,
   PubkyDiscoveryResult,
-} from "@/browser/pubky/pubkyPorts";
+} from "@/browser/identity/applicationContracts";
 
 export type FakePubkyDiscoveryCall = {
   keyHandle: PubkyIdentityKeyHandle;

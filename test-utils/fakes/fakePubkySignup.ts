@@ -8,7 +8,7 @@ import type {
   PubkySignup,
   PubkySignupErrorCode,
   PubkySignupResult,
-} from "@/browser/pubky/pubkyPorts";
+} from "@/browser/identity/applicationContracts";
 
 export type FakePubkySignupCall = {
   keyHandle: PubkyIdentityKeyHandle;
@@ -33,8 +33,6 @@ export class FakePubkySignup implements PubkySignup {
       publicKeyZ32: "fakepubkysession11111111111111111111111111111111111111111111",
       publicKeyDisplay: "pubkyfakepubkysession11111111111111111111111111111111111111111111",
     },
-    capabilities: ["/pub/pubky.app/:rw"],
-    sessionSnapshot: "fake-session-snapshot",
   };
 
   async signup(input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky: string; signupCode?: string | null }): Promise<PubkySignupResult<PubkyIdentitySession>> {
