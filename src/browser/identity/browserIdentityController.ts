@@ -4,37 +4,20 @@ import type { Result } from "better-result";
 
 import type { LocalIdentitySummary } from "../../features/identity/localIdentity";
 import type { PubkyPublicIdentity } from "../../features/identity/pubkyIdentity";
+import type { GoogleBackedIdentityFlowErrorCode } from "./google/applicationContracts";
+import type { DeleteGoogleBackedIdentityErrorCode } from "./google/deleteGoogleBackedIdentity";
+import type { LocalIdentityRepositoryErrorCode } from "./localIdentityService";
 
 export type BrowserIdentityList = {
   activeIdentityId: string | null;
   identities: LocalIdentitySummary[];
 };
 
-export type BrowserIdentityRepositoryErrorCode =
-  | "invalid_identity"
-  | "invalid_secret_key"
-  | "invalid_store"
-  | "no_active_identity"
-  | "storage_unavailable";
+export type BrowserIdentityRepositoryErrorCode = LocalIdentityRepositoryErrorCode;
 
 export type BrowserIdentityControllerErrorCode =
-  | "wrapping_key_failed"
-  | "drive_read_failed"
-  | "decrypt_failed"
-  | "restore_failed"
-  | "identity_mismatch"
-  | "create_failed"
-  | "encrypt_failed"
-  | "drive_create_conflict"
-  | "drive_write_failed"
-  | "homegate_invite_failed"
-  | "signup_failed"
-  | "signin_failed"
-  | "discovery_failed"
-  | "local_save_failed"
-  | "drive_stale_file"
-  | "drive_delete_failed"
-  | "unexpected_failure";
+  | GoogleBackedIdentityFlowErrorCode
+  | DeleteGoogleBackedIdentityErrorCode;
 
 export type BrowserIdentityControllerError = {
   code: BrowserIdentityControllerErrorCode;

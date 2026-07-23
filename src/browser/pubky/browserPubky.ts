@@ -18,14 +18,18 @@ import {
 } from "../../features/auth/parsePubkyAuthRequest";
 import type {
   PubkyAuthApproval,
+  PubkyAuthApprovalErrorCode,
   PubkyAuthApprovalResult,
 } from "../authorization/applicationContracts";
 import type {
   PubkyDiscovery,
+  PubkyDiscoveryErrorCode,
   PubkyDiscoveryResult,
   PubkyIdentityKeys,
+  PubkyIdentityKeysErrorCode,
   PubkyIdentityKeysResult,
   PubkySignup,
+  PubkySignupErrorCode,
   PubkySignupResult,
 } from "../identity/applicationContracts";
 import { logger } from "../../libs/logger/logger";
@@ -335,18 +339,18 @@ function sessionDetails(session: Session): PubkyIdentitySession {
   }
 }
 
-function keyFailure<T>(code: "create_failed" | "export_failed" | "invalid_secret_key" | "key_unavailable" | "public_identity_failed" | "restore_failed"): PubkyIdentityKeysResult<T> {
+function keyFailure<T>(code: PubkyIdentityKeysErrorCode): PubkyIdentityKeysResult<T> {
   return Result.err({ code });
 }
 
-function signupFailure<T>(code: "invalid_homeserver_pubky" | "key_unavailable" | "signin_failed" | "signup_failed"): PubkySignupResult<T> {
+function signupFailure<T>(code: PubkySignupErrorCode): PubkySignupResult<T> {
   return Result.err({ code });
 }
 
-function discoveryFailure(code: "invalid_homeserver_pubky" | "key_unavailable" | "publish_failed"): PubkyDiscoveryResult {
+function discoveryFailure(code: PubkyDiscoveryErrorCode): PubkyDiscoveryResult {
   return Result.err({ code });
 }
 
-function authApprovalFailure(code: "approval_failed" | "key_unavailable" | "relay_failed" | "request_rejected"): PubkyAuthApprovalResult {
+function authApprovalFailure(code: PubkyAuthApprovalErrorCode): PubkyAuthApprovalResult {
   return Result.err({ code });
 }
