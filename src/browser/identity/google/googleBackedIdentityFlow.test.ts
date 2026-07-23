@@ -95,6 +95,24 @@ describe("GoogleBackedIdentityFlow", () => {
     expect(crypto.decryptedBytes.every((byte) => byte === 0)).toBe(true);
   });
 
+  it("treats an already missing Drive identity as an idempotent deletion", async () => {
+    const keys = new FakePubkyIdentityKeys();
+    const files = new FakePassportFiles({ status: "missing" });
+    const crypto = new FakePassportCrypto();
+    const deletion = createDeletion({ keys, files, crypto });
+
+    const deleted = await deletion.execute(
+      { googleIdToken: "id-token", driveAccessToken: "drive-token" },
+      keys.nextPublicIdentity.publicKeyZ32,
+    );
+
+    expect(Result.isError(deleted)).toBe(false);
+    expect(files.deleteCalls).toBe(0);
+    expect(keys.restoreCalls).toEqual([]);
+    expect(keys.disposedKeys).toEqual([]);
+    expect(crypto.decryptedBytes).toEqual(new Uint8Array(32).fill(7));
+  });
+
   it("does not delete a Drive identity that differs from the selected identity", async () => {
     const keys = new FakePubkyIdentityKeys();
     const files = new FakePassportFiles({ status: "found", envelope, reference });

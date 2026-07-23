@@ -50,7 +50,8 @@ export class DeleteGoogleBackedIdentity implements GoogleBackedIdentityDeletion 
 
     const passportFiles = this.#passportFilesForAccessToken(google.driveAccessToken);
     const storedFile = await passportFiles.readPassportFile();
-    if (Result.isError(storedFile) || storedFile.value.status === "missing") return failure("drive_read_failed");
+    if (Result.isError(storedFile)) return failure("drive_read_failed");
+    if (storedFile.value.status === "missing") return Result.ok();
 
     const secretKey = await this.#crypto.decryptSecretKeyBytes({
       envelope: storedFile.value.envelope,

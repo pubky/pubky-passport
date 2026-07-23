@@ -428,6 +428,17 @@ describe("GoogleDrivePassportFileRepository", () => {
     expect(calls[0]?.url).toContain("/files/file-1?");
   });
 
+  it("treats a delete 404 after exact metadata validation as idempotent", async () => {
+    const { repository, calls } = createRepository([
+      jsonResponse(exactFile),
+      new Response(null, { status: 404 }),
+    ]);
+
+    await expectSuccess(repository.deletePassportFile({ reference }), undefined);
+    expect(calls).toHaveLength(2);
+    expect(calls[1]?.init.method).toBe("DELETE");
+  });
+
   it.each([
     ["version", { ...exactFile, version: "8" }],
     ["name", { ...exactFile, name: "renamed.json" }],
