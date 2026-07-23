@@ -7,14 +7,14 @@ import { logger } from "../../../libs/logger/logger";
 import type { PassportFileCrypto, PassportFileStore } from "../../passport-file/ports";
 import type { PubkyIdentityKeys } from "../../pubky/ports";
 import type {
-  GoogleBackedIdentityDeletion,
-  GoogleBackedIdentityDeletionErrorCode,
-  GoogleBackedIdentityDeletionResult,
+  GoogleDriveIdentityDeleter,
+  GoogleDriveIdentityDeletionErrorCode,
+  GoogleDriveIdentityDeletionResult,
   GoogleIdentitySession,
-  GoogleWrappingKeyRequester,
-} from "./ports";
+} from "./ports/googleIdentity";
+import type { GoogleWrappingKeyRequester } from "./ports/googleWrappingKey";
 
-export class DeleteGoogleBackedIdentity implements GoogleBackedIdentityDeletion {
+export class DeleteGoogleDriveIdentity implements GoogleDriveIdentityDeleter {
   readonly #wrappingKeys: GoogleWrappingKeyRequester;
   readonly #passportFilesForAccessToken: (driveAccessToken: string) => PassportFileStore;
   readonly #crypto: PassportFileCrypto;
@@ -35,7 +35,7 @@ export class DeleteGoogleBackedIdentity implements GoogleBackedIdentityDeletion 
     this.#passportUrl = input.passportUrl;
   }
 
-  async execute(google: GoogleIdentitySession, expectedPublicKeyZ32: string): Promise<GoogleBackedIdentityDeletionResult> {
+  async execute(google: GoogleIdentitySession, expectedPublicKeyZ32: string): Promise<GoogleDriveIdentityDeletionResult> {
     try {
       return await this.deleteIdentity(google, expectedPublicKeyZ32);
     } catch {
@@ -44,7 +44,7 @@ export class DeleteGoogleBackedIdentity implements GoogleBackedIdentityDeletion 
     }
   }
 
-  private async deleteIdentity(google: GoogleIdentitySession, expectedPublicKeyZ32: string): Promise<GoogleBackedIdentityDeletionResult> {
+  private async deleteIdentity(google: GoogleIdentitySession, expectedPublicKeyZ32: string): Promise<GoogleDriveIdentityDeletionResult> {
     const wrappingKey = await this.#wrappingKeys.requestWrappingKey({ googleIdToken: google.googleIdToken });
     if (Result.isError(wrappingKey)) return failure("wrapping_key_failed");
 
@@ -88,6 +88,6 @@ export class DeleteGoogleBackedIdentity implements GoogleBackedIdentityDeletion 
   }
 }
 
-function failure(code: GoogleBackedIdentityDeletionErrorCode): GoogleBackedIdentityDeletionResult {
+function failure(code: GoogleDriveIdentityDeletionErrorCode): GoogleDriveIdentityDeletionResult {
   return Result.err({ code });
 }

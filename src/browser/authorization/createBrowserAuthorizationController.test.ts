@@ -22,6 +22,7 @@ describe("createBrowserAuthorizationController", () => {
     mocks.BrowserPubky.mockImplementation(function () {
       return { dispose: mocks.dispose };
     });
+    localStorage.clear();
     window.history.replaceState({}, "", "/");
   });
 
@@ -38,6 +39,18 @@ describe("createBrowserAuthorizationController", () => {
       failureCode: "no_active_identity",
     });
     expect(mocks.BrowserPubky).toHaveBeenCalledOnce();
+    expect(mocks.dispose).toHaveBeenCalledOnce();
+  });
+
+  it("maps identity repository failures at the authorization composition boundary", async () => {
+    localStorage.setItem("pubky-passport/local-identities/v1", "invalid-store");
+    window.history.replaceState({}, "", `/authorize?d=${encodeURIComponent(validRequest())}`);
+    const controller = createBrowserAuthorizationController({ relayOrigin });
+
+    await expect(controller.approve()).resolves.toEqual({
+      status: "failed",
+      failureCode: "identity_restore_failed",
+    });
     expect(mocks.dispose).toHaveBeenCalledOnce();
   });
 });

@@ -7,9 +7,9 @@ import { pubkyAuthRequestLimits } from "../../features/auth/pubkyAuthRequestLimi
 import type { ActiveAuthorizationResult } from "./approveActiveAuthorization";
 import type { BrowserAuthorizationController, BrowserAuthorizationViewState } from "./browserAuthorizationController";
 import {
-  createBrowserAuthorizationControllerCore,
+  createDefaultBrowserAuthorizationController,
   type BrowserAuthorizationControllerDependencies,
-} from "./browserAuthorizationControllerInternals";
+} from "./defaultBrowserAuthorizationController";
 
 const relayOrigin = "https://relay.example";
 const successCallback = "https://app.example/success?code=private";
@@ -193,7 +193,7 @@ describe("BrowserAuthorizationController", () => {
 function createController(
   overrides: Partial<BrowserAuthorizationControllerDependencies> = {},
 ): BrowserAuthorizationController {
-  return createBrowserAuthorizationControllerCore({
+  return createDefaultBrowserAuthorizationController({
     browserWindow: window,
     relayOrigin,
     dependencies: {

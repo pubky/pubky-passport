@@ -3,13 +3,12 @@
 import { Result } from "better-result";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
-import type { PubkyIdentityKeyHandle } from "../../features/identity/pubkyIdentity";
 import type { BrowserIdentityControllerError } from "./browserIdentityController";
 import {
   DefaultBrowserIdentityController,
   type BrowserIdentityControllerDependencies,
-} from "./browserIdentityControllerInternals";
-import type { GoogleSignInWidgetResult } from "./google/ports";
+} from "./defaultBrowserIdentityController";
+import type { GoogleSignInWidgetResult } from "./application/ports/googleSignIn";
 
 describe("DefaultBrowserIdentityController", () => {
   it("exposes a finite action error code contract", () => {
@@ -17,17 +16,13 @@ describe("DefaultBrowserIdentityController", () => {
   });
 
   it("keeps Google credentials private and returns a safe established identity", async () => {
-    const keyHandle = {} as PubkyIdentityKeyHandle;
     const establish = vi.fn(async () => Result.ok({
-      keyHandle,
       source: "restored" as const,
       publicIdentity: { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" },
     }));
-    const disposeIdentityKey = vi.fn();
     const requestGoogleDriveAccess = vi.fn(async () => Result.ok("drive-access-token"));
     const { controller, credentialCallback } = await mountedController({
-      identityFlow: { establish },
-      identityKeys: { disposeIdentityKey },
+      identityEstablisher: { establish },
       requestGoogleDriveAccess,
     });
 
@@ -53,7 +48,6 @@ describe("DefaultBrowserIdentityController", () => {
       }),
     });
     expect("keyHandle" in (completed.status === "action_completed" && !Result.isError(completed.result) ? completed.result.value : {})).toBe(false);
-    expect(disposeIdentityKey).toHaveBeenCalledWith({ keyHandle });
   });
 
   it("account-matches Drive access and exposes only safe Google state", async () => {
@@ -82,7 +76,7 @@ describe("DefaultBrowserIdentityController", () => {
       return new Promise<ReturnType<typeof Result.ok<string>>>((resolve) => { resolveDrive = resolve; });
     });
     const { controller, credentialCallback } = await mountedController({
-      identityFlow: { establish },
+      identityEstablisher: { establish },
       requestGoogleDriveAccess,
     });
     credentialCallback.current?.(googleCredential());
@@ -150,7 +144,7 @@ describe("DefaultBrowserIdentityController", () => {
 
   it("maps thrown identity actions to an unexpected failure result", async () => {
     const { controller, credentialCallback } = await mountedController({
-      identityDeletion: { execute: vi.fn(async () => { throw new Error("delete failed"); }) },
+      identityDeleter: { execute: vi.fn(async () => { throw new Error("delete failed"); }) },
     });
     credentialCallback.current?.(googleCredential());
 
@@ -165,30 +159,6 @@ describe("DefaultBrowserIdentityController", () => {
     expect(completed.result.error).toEqual({ code: "unexpected_failure" });
   });
 
-  it("preserves successful establishment when key disposal throws", async () => {
-    const keyHandle = {} as PubkyIdentityKeyHandle;
-    const { controller, credentialCallback } = await mountedController({
-      identityFlow: { establish: vi.fn(async () => Result.ok({
-        keyHandle,
-        source: "created" as const,
-        publicIdentity: { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" },
-      })) },
-      identityKeys: { disposeIdentityKey: vi.fn(() => { throw new Error("dispose failed"); }) },
-    });
-    credentialCallback.current?.(googleCredential());
-
-    const completed = await controller.continueGoogle({ kind: "establish" });
-    expect(completed.status).toBe("action_completed");
-    if (completed.status !== "action_completed") throw new Error("Expected action result");
-    expect(Result.isError(completed.result)).toBe(false);
-    if (Result.isError(completed.result)) throw new Error("Expected action success");
-    expect(completed.result.value).toEqual({
-      kind: "established",
-      source: "created",
-      publicIdentity: { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" },
-    });
-  });
-
   it("runs Google continuation single-flight without reusing credentials", async () => {
     let resolveDrive: ((value: ReturnType<typeof Result.ok<string>>) => void) | undefined;
     const requestGoogleDriveAccess = vi.fn(() => new Promise<ReturnType<typeof Result.ok<string>>>((resolve) => {
@@ -197,7 +167,7 @@ describe("DefaultBrowserIdentityController", () => {
     const establish = vi.fn(async () => Result.err({ code: "unexpected_failure" as const }));
     const { controller, credentialCallback } = await mountedController({
       requestGoogleDriveAccess,
-      identityFlow: { establish },
+      identityEstablisher: { establish },
     });
     credentialCallback.current?.(googleCredential());
 
@@ -212,22 +182,18 @@ describe("DefaultBrowserIdentityController", () => {
     expect(establish).toHaveBeenCalledOnce();
   });
 
-  it("defers one-time Pubky disposal and suppresses completion after dispose", async () => {
+  it("defers one-time identity runtime disposal and suppresses completion after dispose", async () => {
     let resolveEstablish: ((value: ReturnType<typeof Result.ok<{
-      keyHandle: PubkyIdentityKeyHandle;
       source: "restored";
       publicIdentity: { publicKeyZ32: string; publicKeyDisplay: string };
     }>>) => void) | undefined;
-    const keyHandle = {} as PubkyIdentityKeyHandle;
-    const disposePubky = vi.fn();
-    const disposeIdentityKey = vi.fn();
-    const establish = vi.fn<BrowserIdentityControllerDependencies["identityFlow"]["establish"]>(
+    const disposeIdentityRuntime = vi.fn();
+    const establish = vi.fn<BrowserIdentityControllerDependencies["identityEstablisher"]["establish"]>(
       () => new Promise((resolve) => { resolveEstablish = resolve; }),
     );
     const { controller, credentialCallback } = await mountedController({
-      identityFlow: { establish },
-      identityKeys: { disposeIdentityKey },
-      disposePubky,
+      identityEstablisher: { establish },
+      disposeIdentityRuntime,
     });
     credentialCallback.current?.(googleCredential());
 
@@ -235,9 +201,8 @@ describe("DefaultBrowserIdentityController", () => {
     await vi.waitFor(() => expect(establish).toHaveBeenCalledOnce());
     controller.dispose();
     controller.dispose();
-    expect(disposePubky).not.toHaveBeenCalled();
+    expect(disposeIdentityRuntime).not.toHaveBeenCalled();
     resolveEstablish?.(Result.ok({
-      keyHandle,
       source: "restored",
       publicIdentity: { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" },
     }));
@@ -246,14 +211,13 @@ describe("DefaultBrowserIdentityController", () => {
     expect(completed.status).toBe("action_finished_after_unmount");
     if (completed.status !== "action_finished_after_unmount") throw new Error("Expected superseded action result");
     expect(Result.isError(completed.result)).toBe(false);
-    expect(disposeIdentityKey).toHaveBeenCalledWith({ keyHandle });
-    expect(disposePubky).toHaveBeenCalledOnce();
+    expect(disposeIdentityRuntime).toHaveBeenCalledOnce();
   });
 
   it("preserves a failed establishment result after ordinary unmount", async () => {
-    const establishment = deferred<Awaited<ReturnType<BrowserIdentityControllerDependencies["identityFlow"]["establish"]>>>();
+    const establishment = deferred<Awaited<ReturnType<BrowserIdentityControllerDependencies["identityEstablisher"]["establish"]>>>();
     const establish = vi.fn(() => establishment.promise);
-    const { controller, credentialCallback } = await mountedController({ identityFlow: { establish } });
+    const { controller, credentialCallback } = await mountedController({ identityEstablisher: { establish } });
     credentialCallback.current?.(googleCredential());
 
     const pending = controller.continueGoogle({ kind: "establish" });
@@ -270,9 +234,9 @@ describe("DefaultBrowserIdentityController", () => {
   });
 
   it("preserves a successful deletion result after ordinary unmount", async () => {
-    const deletion = deferred<Awaited<ReturnType<BrowserIdentityControllerDependencies["identityDeletion"]["execute"]>>>();
+    const deletion = deferred<Awaited<ReturnType<BrowserIdentityControllerDependencies["identityDeleter"]["execute"]>>>();
     const execute = vi.fn(() => deletion.promise);
-    const { controller, credentialCallback } = await mountedController({ identityDeletion: { execute } });
+    const { controller, credentialCallback } = await mountedController({ identityDeleter: { execute } });
     credentialCallback.current?.(googleCredential());
 
     const pending = controller.continueGoogle({ kind: "delete", expectedPublicKeyZ32: "public-key" });
@@ -288,9 +252,9 @@ describe("DefaultBrowserIdentityController", () => {
   });
 
   it("preserves a failed deletion result after ordinary unmount", async () => {
-    const deletion = deferred<Awaited<ReturnType<BrowserIdentityControllerDependencies["identityDeletion"]["execute"]>>>();
+    const deletion = deferred<Awaited<ReturnType<BrowserIdentityControllerDependencies["identityDeleter"]["execute"]>>>();
     const execute = vi.fn(() => deletion.promise);
-    const { controller, credentialCallback } = await mountedController({ identityDeletion: { execute } });
+    const { controller, credentialCallback } = await mountedController({ identityDeleter: { execute } });
     credentialCallback.current?.(googleCredential());
 
     const pending = controller.continueGoogle({ kind: "delete", expectedPublicKeyZ32: "public-key" });
@@ -308,10 +272,10 @@ describe("DefaultBrowserIdentityController", () => {
 
   it("delegates safe local identity operations and owns Pubky disposal", () => {
     const repository = fakeRepository();
-    const disposePubky = vi.fn();
+    const disposeIdentityRuntime = vi.fn();
     const controller = new DefaultBrowserIdentityController({
       clientId: "google-client",
-      dependencies: dependencies({ repository, disposePubky }),
+      dependencies: dependencies({ repository, disposeIdentityRuntime }),
     });
 
     expect(controller.list()).toEqual(Result.ok({ activeIdentityId: null, identities: [] }));
@@ -322,7 +286,7 @@ describe("DefaultBrowserIdentityController", () => {
 
     expect(repository.select).toHaveBeenCalledWith("identity");
     expect(repository.clear).toHaveBeenCalledOnce();
-    expect(disposePubky).toHaveBeenCalledOnce();
+    expect(disposeIdentityRuntime).toHaveBeenCalledOnce();
   });
 });
 
@@ -353,10 +317,9 @@ async function mountedController(
 function dependencies(overrides: Partial<BrowserIdentityControllerDependencies> = {}): BrowserIdentityControllerDependencies {
   return {
     repository: fakeRepository(),
-    identityFlow: { establish: vi.fn(async () => Result.err({ code: "unexpected_failure" as const })) },
-    identityDeletion: { execute: vi.fn(async () => Result.ok()) },
-    identityKeys: { disposeIdentityKey: vi.fn() },
-    disposePubky: vi.fn(),
+    identityEstablisher: { establish: vi.fn(async () => Result.err({ code: "unexpected_failure" as const })) },
+    identityDeleter: { execute: vi.fn(async () => Result.ok()) },
+    disposeIdentityRuntime: vi.fn(),
     googleSignInWidget: { mount: vi.fn(async () => Result.ok()), unmount: vi.fn() },
     requestGoogleDriveAccess: vi.fn(async () => Result.ok("drive-access-token")),
     ...overrides,

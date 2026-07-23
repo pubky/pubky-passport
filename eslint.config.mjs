@@ -109,15 +109,10 @@ const eslintConfig = defineConfig([
       "src/browser/**/*.test.{ts,tsx}",
       "src/browser/authorization/createBrowserAuthorizationController.ts",
       "src/browser/identity/createBrowserIdentityController.ts",
-      "src/browser/identity/localIdentityRepository.ts",
+      "src/browser/identity/adapters/**/*.{ts,tsx}",
       "src/browser/passport-file/googleDrivePassportFileRepository.ts",
       "src/browser/passport-file/webCryptoPassportFileCrypto.ts",
-      "src/browser/pubky/browserPubky.ts",
-      "src/browser/identity/google/googleHomegateInviteRequester.ts",
-      "src/browser/identity/google/googleIdentityProvider.ts",
-      "src/browser/identity/google/googleIdentityProviderTypes.ts",
-      "src/browser/identity/google/googleSignInWidget.ts",
-      "src/browser/identity/google/googleWrappingKeyRequester.ts"
+      "src/browser/pubky/browserPubky.ts"
     ],
     rules: {
       "no-restricted-imports": [
@@ -125,8 +120,30 @@ const eslintConfig = defineConfig([
         {
           patterns: [
             {
-              regex: "(?:^|/)(?:createBrowserAuthorizationController|createBrowserIdentityController|browserPubky|localIdentityRepository|googleDrivePassportFileRepository|webCryptoPassportFileCrypto|googleHomegateInviteRequester|googleIdentityProvider|googleIdentityProviderTypes|googleSignInWidget|googleWrappingKeyRequester|public-env)$|(?:^|/)ui(?:/|$)",
+              regex: "(?:^|/)adapters(?:/|$)|(?:^|/)(?:createBrowserAuthorizationController|createBrowserIdentityController|browserPubky|googleDrivePassportFileRepository|webCryptoPassportFileCrypto|public-env)$|(?:^|/)ui(?:/|$)",
               message: "Browser application modules must depend on contracts, not composition, adapters, public env, or UI."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    files: [
+      "src/browser/identity/adapters/**/*.{ts,tsx}",
+      "src/browser/passport-file/googleDrivePassportFileRepository.ts",
+      "src/browser/passport-file/webCryptoPassportFileCrypto.ts",
+      "src/browser/pubky/browserPubky.ts"
+    ],
+    ignores: ["src/browser/**/*.test.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: "^server-only$|(?:^|/)(?:ui|server|composition|env)(?:/|$)|(?:^|/)(?:createBrowserAuthorizationController|createBrowserIdentityController)$",
+              message: "Browser adapters may depend inward on application policy and contracts, not UI, composition roots, or runtime configuration."
             }
           ]
         }

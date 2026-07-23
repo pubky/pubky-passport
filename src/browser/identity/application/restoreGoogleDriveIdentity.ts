@@ -6,14 +6,14 @@ import { pubkySecretKeyFormat, type PubkyIdentityKey } from "../../../features/i
 import { logger } from "../../../libs/logger/logger";
 import type { PassportFileCrypto } from "../../passport-file/ports";
 import type { PubkyIdentityKeys, PubkySignup } from "../../pubky/ports";
-import type { LocalIdentitySaver } from "../localIdentityService";
 import type {
   GoogleBackedIdentity,
-  GoogleBackedIdentityFlowResult,
-  RestoreExistingGoogleDriveIdentity,
-} from "./ports";
+  GoogleBackedIdentityResult,
+  GoogleDriveIdentityRestorer,
+} from "./ports/googleIdentity";
+import type { LocalIdentitySaver } from "./ports/localIdentity";
 
-export class RestoreExistingGoogleDriveIdentityUseCase implements RestoreExistingGoogleDriveIdentity {
+export class RestoreGoogleDriveIdentity implements GoogleDriveIdentityRestorer {
   readonly #crypto: PassportFileCrypto;
   readonly #identityKeys: PubkyIdentityKeys;
   readonly #signup: PubkySignup;
@@ -35,8 +35,8 @@ export class RestoreExistingGoogleDriveIdentityUseCase implements RestoreExistin
   }
 
   async execute(
-    input: Parameters<RestoreExistingGoogleDriveIdentity["execute"]>[0],
-  ): Promise<GoogleBackedIdentityFlowResult<GoogleBackedIdentity>> {
+    input: Parameters<GoogleDriveIdentityRestorer["execute"]>[0],
+  ): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>> {
     logger.info("identity.google.decrypt.started");
     const secretKey = await this.#crypto.decryptSecretKeyBytes({
       envelope: input.envelope,
@@ -49,7 +49,6 @@ export class RestoreExistingGoogleDriveIdentityUseCase implements RestoreExistin
     }
 
     let restoredIdentity: PubkyIdentityKey | null = null;
-    let retainRestoredIdentity = false;
     try {
       const restored = await this.#identityKeys.restoreIdentityKey({
         secretKey: { bytes: secretKey.value, format: pubkySecretKeyFormat },
@@ -79,11 +78,13 @@ export class RestoreExistingGoogleDriveIdentityUseCase implements RestoreExistin
       }
 
       logger.info("identity.local_save.completed", { source: "restored" });
-      retainRestoredIdentity = true;
-      return Result.ok({ ...restored.value, source: "restored" as const });
+      return Result.ok({
+        source: "restored" as const,
+        publicIdentity: restored.value.publicIdentity,
+      });
     } finally {
       secretKey.value.fill(0);
-      if (restoredIdentity && !retainRestoredIdentity) {
+      if (restoredIdentity) {
         try {
           this.#identityKeys.disposeIdentityKey({ keyHandle: restoredIdentity.keyHandle });
         } catch {
@@ -97,7 +98,7 @@ export class RestoreExistingGoogleDriveIdentityUseCase implements RestoreExistin
 function failure<T>(
   code: Parameters<typeof createError>[0],
   recoverablePublicIdentity?: Parameters<typeof createError>[1],
-): GoogleBackedIdentityFlowResult<T> {
+): GoogleBackedIdentityResult<T> {
   return Result.err(createError(code, recoverablePublicIdentity));
 }
 

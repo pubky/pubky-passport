@@ -2,11 +2,13 @@ import { Result } from "better-result";
 import { describe, expect, it } from "vitest";
 
 import { parsePubkyAuthRequest } from "../../features/auth/parsePubkyAuthRequest";
-import type { PubkyIdentityKey } from "../../features/identity/pubkyIdentity";
-import type { ActiveLocalIdentityRestorer, LocalIdentityServiceResult } from "../identity/localIdentityService";
+import {
+  approveActiveAuthorization,
+  type ActiveAuthorizationIdentityRestorer,
+  type ActiveAuthorizationIdentityRestoreResult,
+} from "./approveActiveAuthorization";
 import { FakePubkyAuthApproval } from "../../../test-utils/fakes/fakePubkyAuthApproval";
 import { FakePubkyIdentityKeys } from "../../../test-utils/fakes/fakePubkyIdentityKeys";
-import { approveActiveAuthorization } from "./approveActiveAuthorization";
 
 const request = "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=sensitive";
 
@@ -59,8 +61,8 @@ describe("approveActiveAuthorization", () => {
   });
 });
 
-class FakeLocalIdentities implements ActiveLocalIdentityRestorer {
-  constructor(private readonly restored: LocalIdentityServiceResult<PubkyIdentityKey>) {}
+class FakeLocalIdentities implements ActiveAuthorizationIdentityRestorer {
+  constructor(private readonly restored: ActiveAuthorizationIdentityRestoreResult) {}
 
   async restoreActiveIdentity() {
     return this.restored;

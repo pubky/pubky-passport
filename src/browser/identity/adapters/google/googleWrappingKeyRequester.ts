@@ -2,12 +2,12 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { readBoundedText } from "../../../libs/security/boundedBody";
-import { logger } from "../../../libs/logger/logger";
+import { logger } from "../../../../libs/logger/logger";
+import { readBoundedText } from "../../../../libs/security/boundedBody";
 import type {
   GoogleWrappingKeyRequester,
   GoogleWrappingKeyRequesterErrorCode,
-} from "./ports";
+} from "../../application/ports/googleWrappingKey";
 
 const maximumResponseBytes = 16 * 1024;
 const wrappingKeyBytes = 32;

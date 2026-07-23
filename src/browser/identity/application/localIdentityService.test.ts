@@ -1,11 +1,12 @@
 import { Result } from "better-result";
 import { describe, expect, it } from "vitest";
 
-import { FakePubkyIdentityKeys } from "../../../test-utils/fakes/fakePubkyIdentityKeys";
-import { expectAsyncResultError, expectResultOk } from "../../../test-utils/resultAssertions";
-import type { LocalIdentitySummary } from "../../features/identity/localIdentity";
-import { pubkySecretKeyFormat, type PubkySecretKeyMaterial } from "../../features/identity/pubkyIdentity";
-import { LocalIdentityService, type LocalIdentityRepository, type LocalIdentityRepositoryResult } from "./localIdentityService";
+import { FakePubkyIdentityKeys } from "../../../../test-utils/fakes/fakePubkyIdentityKeys";
+import { expectAsyncResultError, expectResultOk } from "../../../../test-utils/resultAssertions";
+import type { LocalIdentitySummary } from "../../../features/identity/localIdentity";
+import { pubkySecretKeyFormat, type PubkySecretKeyMaterial } from "../../../features/identity/pubkyIdentity";
+import { LocalIdentityService } from "./localIdentityService";
+import type { LocalIdentityRepository, LocalIdentityRepositoryResult } from "./ports/localIdentityRepository";
 
 describe("LocalIdentityService", () => {
   it("exports, persists, and zeros secret bytes when saving", async () => {

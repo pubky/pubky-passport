@@ -1,44 +1,22 @@
 import "client-only";
 
-import { Result, type Result as ResultType } from "better-result";
+import { Result } from "better-result";
 
-import type { LocalIdentitySummary } from "../../features/identity/localIdentity";
-import type { PubkyIdentityKey, PubkyIdentityKeyHandle, PubkyPublicIdentity, PubkySecretKeyMaterial } from "../../features/identity/pubkyIdentity";
-import type { PubkyIdentityKeys } from "../pubky/ports";
+import type { LocalIdentitySummary } from "../../../features/identity/localIdentity";
+import type {
+  PubkyIdentityKey,
+  PubkyIdentityKeyHandle,
+  PubkyPublicIdentity,
+} from "../../../features/identity/pubkyIdentity";
+import type { PubkyIdentityKeys } from "../../pubky/ports";
+import type {
+  LocalIdentitySaver,
+  LocalIdentityServiceErrorCode,
+  LocalIdentityServiceResult,
+} from "./ports/localIdentity";
+import type { LocalIdentityRepository } from "./ports/localIdentityRepository";
 
-export type LocalIdentityRepositoryErrorCode =
-  | "invalid_identity"
-  | "invalid_secret_key"
-  | "invalid_store"
-  | "no_active_identity"
-  | "storage_unavailable";
-
-export type LocalIdentityRepositoryResult<T> = ResultType<T, { code: LocalIdentityRepositoryErrorCode }>;
-
-export type LocalIdentityRepository = {
-  list(): LocalIdentityRepositoryResult<{ activeIdentityId: string | null; identities: LocalIdentitySummary[] }>;
-  save(input: { identity: LocalIdentitySummary; secretKey: PubkySecretKeyMaterial }): LocalIdentityRepositoryResult<LocalIdentitySummary>;
-  select(id: string): LocalIdentityRepositoryResult<void>;
-  clear(): LocalIdentityRepositoryResult<void>;
-  readActive(): LocalIdentityRepositoryResult<{ identity: LocalIdentitySummary; secretKey: PubkySecretKeyMaterial }>;
-};
-
-export type LocalIdentityServiceErrorCode =
-  | LocalIdentityRepositoryErrorCode
-  | "identity_mismatch"
-  | "restore_failed";
-
-export type LocalIdentityServiceResult<T> = ResultType<T, { code: LocalIdentityServiceErrorCode }>;
-
-export type LocalIdentitySaver = {
-  saveIdentity(input: { keyHandle: PubkyIdentityKeyHandle }): Promise<LocalIdentityServiceResult<LocalIdentitySummary>>;
-};
-
-export type ActiveLocalIdentityRestorer = {
-  restoreActiveIdentity(): Promise<LocalIdentityServiceResult<PubkyIdentityKey>>;
-};
-
-export class LocalIdentityService implements LocalIdentitySaver, ActiveLocalIdentityRestorer {
+export class LocalIdentityService implements LocalIdentitySaver {
   readonly #repository: LocalIdentityRepository;
   readonly #identityKeys: PubkyIdentityKeys;
 

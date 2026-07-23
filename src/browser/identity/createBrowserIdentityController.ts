@@ -3,72 +3,107 @@ import "client-only";
 import { GoogleDrivePassportFileRepository } from "../passport-file/googleDrivePassportFileRepository";
 import { WebCryptoPassportFileCrypto } from "../passport-file/webCryptoPassportFileCrypto";
 import { BrowserPubky } from "../pubky/browserPubky";
-import { requestGoogleDriveAccess } from "./google/googleIdentityProvider";
-import { GoogleSignInWidget } from "./google/googleSignInWidget";
-import { GoogleBackedIdentityFlow } from "./google/googleBackedIdentityFlow";
-import { CreateMissingGoogleDriveIdentityUseCase } from "./google/createMissingGoogleDriveIdentity";
-import { DeleteGoogleBackedIdentity } from "./google/deleteGoogleBackedIdentity";
-import { BrowserGoogleHomegateInviteRequester } from "./google/googleHomegateInviteRequester";
-import { BrowserGoogleWrappingKeyRequester } from "./google/googleWrappingKeyRequester";
-import { RestoreExistingGoogleDriveIdentityUseCase } from "./google/restoreExistingGoogleDriveIdentity";
+import { BrowserGoogleHomegateInviteRequester } from "./adapters/google/googleHomegateInviteRequester";
+import { requestGoogleDriveAccess } from "./adapters/google/googleIdentityProvider";
+import { GoogleSignInWidget } from "./adapters/google/googleSignInWidget";
+import { BrowserGoogleWrappingKeyRequester } from "./adapters/google/googleWrappingKeyRequester";
+import { LocalStorageIdentityRepository } from "./adapters/localStorageIdentityRepository";
+import { CreateGoogleDriveIdentity } from "./application/createGoogleDriveIdentity";
+import { DeleteGoogleDriveIdentity } from "./application/deleteGoogleDriveIdentity";
+import { EstablishGoogleBackedIdentity } from "./application/establishGoogleBackedIdentity";
+import { LocalIdentityService } from "./application/localIdentityService";
+import { RestoreGoogleDriveIdentity } from "./application/restoreGoogleDriveIdentity";
 import type { BrowserIdentityController } from "./browserIdentityController";
-import { DefaultBrowserIdentityController } from "./browserIdentityControllerInternals";
-import { LocalStorageIdentityRepository } from "./localIdentityRepository";
-import { LocalIdentityService } from "./localIdentityService";
+import { DefaultBrowserIdentityController } from "./defaultBrowserIdentityController";
 
 export function createBrowserIdentityController(input: {
   googleClientId: string;
   passportUrl: string;
 }): BrowserIdentityController {
-  const pubky = new BrowserPubky();
   const repository = new LocalStorageIdentityRepository();
-  const localIdentities = new LocalIdentityService({ repository, identityKeys: pubky });
-  const wrappingKeys = new BrowserGoogleWrappingKeyRequester();
-  const crypto = new WebCryptoPassportFileCrypto();
-  const passportFilesForAccessToken = (token: string) => new GoogleDrivePassportFileRepository({
-    accessTokenProvider: async () => token,
-    fetch: globalThis.fetch.bind(globalThis),
-  });
-  const restoreExistingIdentity = new RestoreExistingGoogleDriveIdentityUseCase({
-    crypto,
-    identityKeys: pubky,
-    signup: pubky,
-    localIdentities,
-    passportUrl: input.passportUrl,
-  });
-  const createMissingIdentity = new CreateMissingGoogleDriveIdentityUseCase({
-    crypto,
-    identityKeys: pubky,
-    homegateInvites: new BrowserGoogleHomegateInviteRequester(),
-    signup: pubky,
-    discovery: pubky,
-    localIdentities,
-    passportUrl: input.passportUrl,
-  });
-  const identityFlow = new GoogleBackedIdentityFlow({
-    wrappingKeys,
-    passportFilesForAccessToken,
-    restoreExistingIdentity,
-    createMissingIdentity,
-  });
-  const identityDeletion = new DeleteGoogleBackedIdentity({
-    wrappingKeys,
-    passportFilesForAccessToken,
-    crypto,
-    identityKeys: pubky,
-    passportUrl: input.passportUrl,
-  });
+  let identityRuntime: ReturnType<typeof createIdentityRuntime> | undefined;
+  const getIdentityRuntime = () => {
+    identityRuntime ??= createIdentityRuntime({
+      repository,
+      passportUrl: input.passportUrl,
+    });
+    return identityRuntime;
+  };
 
   return new DefaultBrowserIdentityController({
     clientId: input.googleClientId,
     dependencies: {
       repository,
-      identityFlow,
-      identityDeletion,
-      identityKeys: pubky,
-      disposePubky: () => pubky.dispose(),
+      identityEstablisher: {
+        establish: (google) => getIdentityRuntime().identityEstablisher.establish(google),
+      },
+      identityDeleter: {
+        execute: (google, expectedPublicKeyZ32) => getIdentityRuntime().identityDeleter.execute(
+          google,
+          expectedPublicKeyZ32,
+        ),
+      },
+      disposeIdentityRuntime: () => {
+        const runtime = identityRuntime;
+        identityRuntime = undefined;
+        runtime?.pubky.dispose();
+      },
       googleSignInWidget: new GoogleSignInWidget({ clientId: input.googleClientId }),
       requestGoogleDriveAccess,
     },
   });
+}
+
+function createIdentityRuntime(input: {
+  repository: LocalStorageIdentityRepository;
+  passportUrl: string;
+}) {
+  const pubky = new BrowserPubky();
+  try {
+    const localIdentities = new LocalIdentityService({ repository: input.repository, identityKeys: pubky });
+    const wrappingKeys = new BrowserGoogleWrappingKeyRequester();
+    const crypto = new WebCryptoPassportFileCrypto();
+    const passportFilesForAccessToken = (token: string) => new GoogleDrivePassportFileRepository({
+      accessTokenProvider: async () => token,
+      fetch: globalThis.fetch.bind(globalThis),
+    });
+    const restoreExistingIdentity = new RestoreGoogleDriveIdentity({
+      crypto,
+      identityKeys: pubky,
+      signup: pubky,
+      localIdentities,
+      passportUrl: input.passportUrl,
+    });
+    const createMissingIdentity = new CreateGoogleDriveIdentity({
+      crypto,
+      identityKeys: pubky,
+      homegateInvites: new BrowserGoogleHomegateInviteRequester(),
+      signup: pubky,
+      discovery: pubky,
+      localIdentities,
+      passportUrl: input.passportUrl,
+    });
+    const identityEstablisher = new EstablishGoogleBackedIdentity({
+      wrappingKeys,
+      passportFilesForAccessToken,
+      restoreExistingIdentity,
+      createMissingIdentity,
+    });
+    const identityDeleter = new DeleteGoogleDriveIdentity({
+      wrappingKeys,
+      passportFilesForAccessToken,
+      crypto,
+      identityKeys: pubky,
+      passportUrl: input.passportUrl,
+    });
+
+    return { pubky, identityEstablisher, identityDeleter };
+  } catch (error) {
+    try {
+      pubky.dispose();
+    } catch {
+      // Preserve the construction failure after best-effort rollback.
+    }
+    throw error;
+  }
 }

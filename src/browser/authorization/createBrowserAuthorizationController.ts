@@ -2,17 +2,21 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { LocalIdentityService } from "../identity/localIdentityService";
-import { LocalStorageIdentityRepository } from "../identity/localIdentityRepository";
+import { LocalStorageIdentityRepository } from "../identity/adapters/localStorageIdentityRepository";
+import { LocalIdentityService } from "../identity/application/localIdentityService";
 import { BrowserPubky } from "../pubky/browserPubky";
-import { approveActiveAuthorization, type ActiveAuthorizationResult } from "./approveActiveAuthorization";
+import {
+  approveActiveAuthorization,
+  type ActiveAuthorizationIdentityRestorer,
+  type ActiveAuthorizationResult,
+} from "./approveActiveAuthorization";
 import type { BrowserAuthorizationController } from "./browserAuthorizationController";
-import { createBrowserAuthorizationControllerCore } from "./browserAuthorizationControllerInternals";
+import { createDefaultBrowserAuthorizationController } from "./defaultBrowserAuthorizationController";
 
 export function createBrowserAuthorizationController(input: {
   relayOrigin: string;
 }): BrowserAuthorizationController {
-  return createBrowserAuthorizationControllerCore({
+  return createDefaultBrowserAuthorizationController({
     browserWindow: window,
     relayOrigin: input.relayOrigin,
     dependencies: {
@@ -33,12 +37,10 @@ async function approveWithBrowserPubky(
   }
 
   try {
+    const localIdentities = createActiveAuthorizationIdentityRestorer(pubky);
     return await approveActiveAuthorization({
       authRequest,
-      localIdentities: new LocalIdentityService({
-        repository: new LocalStorageIdentityRepository(),
-        identityKeys: pubky,
-      }),
+      localIdentities,
       pubky,
     });
   } finally {
@@ -48,4 +50,27 @@ async function approveWithBrowserPubky(
       // Per-key cleanup was already attempted by the authorization use case.
     }
   }
+}
+
+function createActiveAuthorizationIdentityRestorer(
+  pubky: BrowserPubky,
+): ActiveAuthorizationIdentityRestorer {
+  const localIdentities = new LocalIdentityService({
+    repository: new LocalStorageIdentityRepository(),
+    identityKeys: pubky,
+  });
+
+  return {
+    async restoreActiveIdentity() {
+      const restored = await localIdentities.restoreActiveIdentity();
+      if (Result.isError(restored)) {
+        return Result.err({
+          code: restored.error.code === "no_active_identity"
+            ? "no_active_identity"
+            : "identity_restore_failed",
+        });
+      }
+      return Result.ok(restored.value);
+    },
+  };
 }

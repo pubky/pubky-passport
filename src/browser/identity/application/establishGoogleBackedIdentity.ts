@@ -2,35 +2,36 @@ import "client-only";
 
 import { Result } from "better-result";
 
+import { logger } from "../../../libs/logger/logger";
 import type { PassportFileStore } from "../../passport-file/ports";
 import type {
-  CreateMissingGoogleDriveIdentity,
+  GoogleDriveIdentityCreator,
+  GoogleDriveIdentityRestorer,
   GoogleBackedIdentity,
-  GoogleBackedIdentityFlowResult,
+  GoogleBackedIdentityResult,
+  GoogleIdentityEstablisher,
   GoogleIdentitySession,
-  GoogleWrappingKeyRequester,
-  RestoreExistingGoogleDriveIdentity,
-} from "./ports";
-import { logger } from "../../../libs/logger/logger";
+} from "./ports/googleIdentity";
+import type { GoogleWrappingKeyRequester } from "./ports/googleWrappingKey";
 
 export type {
   GoogleBackedIdentity,
-  GoogleBackedIdentityFlowError,
-  GoogleBackedIdentityFlowErrorCode,
-  GoogleBackedIdentityFlowResult,
-} from "./ports";
+  GoogleBackedIdentityError,
+  GoogleBackedIdentityErrorCode,
+  GoogleBackedIdentityResult,
+} from "./ports/googleIdentity";
 
-export class GoogleBackedIdentityFlow {
+export class EstablishGoogleBackedIdentity implements GoogleIdentityEstablisher {
   readonly #wrappingKeys: GoogleWrappingKeyRequester;
   readonly #passportFilesForAccessToken: (driveAccessToken: string) => PassportFileStore;
-  readonly #restoreExistingIdentity: RestoreExistingGoogleDriveIdentity;
-  readonly #createMissingIdentity: CreateMissingGoogleDriveIdentity;
+  readonly #restoreExistingIdentity: GoogleDriveIdentityRestorer;
+  readonly #createMissingIdentity: GoogleDriveIdentityCreator;
 
   constructor(input: {
     wrappingKeys: GoogleWrappingKeyRequester;
     passportFilesForAccessToken: (driveAccessToken: string) => PassportFileStore;
-    restoreExistingIdentity: RestoreExistingGoogleDriveIdentity;
-    createMissingIdentity: CreateMissingGoogleDriveIdentity;
+    restoreExistingIdentity: GoogleDriveIdentityRestorer;
+    createMissingIdentity: GoogleDriveIdentityCreator;
   }) {
     this.#wrappingKeys = input.wrappingKeys;
     this.#passportFilesForAccessToken = input.passportFilesForAccessToken;
@@ -38,7 +39,7 @@ export class GoogleBackedIdentityFlow {
     this.#createMissingIdentity = input.createMissingIdentity;
   }
 
-  async establish(google: GoogleIdentitySession): Promise<GoogleBackedIdentityFlowResult<GoogleBackedIdentity>> {
+  async establish(google: GoogleIdentitySession): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>> {
     try {
       return await this.establishIdentity(google);
     } catch {
@@ -47,7 +48,7 @@ export class GoogleBackedIdentityFlow {
     }
   }
 
-  private async establishIdentity(google: GoogleIdentitySession): Promise<GoogleBackedIdentityFlowResult<GoogleBackedIdentity>> {
+  private async establishIdentity(google: GoogleIdentitySession): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>> {
     logger.info("identity.google.wrapping_key.started");
     const wrappingKey = await this.#wrappingKeys.requestWrappingKey({ googleIdToken: google.googleIdToken });
     if (Result.isError(wrappingKey)) {
@@ -79,6 +80,6 @@ export class GoogleBackedIdentityFlow {
   }
 }
 
-function failure<T>(code: "wrapping_key_failed" | "drive_read_failed" | "unexpected_failure"): GoogleBackedIdentityFlowResult<T> {
+function failure<T>(code: "wrapping_key_failed" | "drive_read_failed" | "unexpected_failure"): GoogleBackedIdentityResult<T> {
   return Result.err({ code });
 }

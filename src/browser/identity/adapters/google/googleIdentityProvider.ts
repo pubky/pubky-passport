@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import type { GoogleIdentityProviderResult } from "./ports";
+import type { GoogleIdentityProviderResult } from "../../application/ports/googleSignIn";
 import type {
   GoogleAccounts,
   GoogleCredentialResponse,

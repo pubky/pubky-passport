@@ -11,9 +11,11 @@ const serverRoot = join(srcRoot, "server");
 const appRoot = join(srcRoot, "app");
 const uiRoot = join(srcRoot, "ui");
 const libsEnvRoot = join(srcRoot, "libs", "env");
+const checkedExtensions = new Set([".js", ".mjs", ".ts", ".tsx"]);
 const serverEnvModule = join(libsEnvRoot, "server-env.ts");
 const publicEnvModule = join(libsEnvRoot, "public-env.ts");
-const localIdentityRepository = join(browserRoot, "identity", "localIdentityRepository.ts");
+const identityAdaptersRoot = join(browserRoot, "identity", "adapters");
+const localIdentityRepository = join(identityAdaptersRoot, "localStorageIdentityRepository.ts");
 const browserPubky = join(browserRoot, "pubky", "browserPubky.ts");
 const browserCompositionFactories = [
   join(browserRoot, "authorization", "createBrowserAuthorizationController.ts"),
@@ -26,15 +28,10 @@ const stableUiBrowserModules = new Set([
   join(browserRoot, "identity", "createBrowserIdentityController.ts"),
 ]);
 const browserAdapterModules = [
-  localIdentityRepository,
+  ...productionSourceFiles(identityAdaptersRoot),
   browserPubky,
   join(browserRoot, "passport-file", "googleDrivePassportFileRepository.ts"),
   join(browserRoot, "passport-file", "webCryptoPassportFileCrypto.ts"),
-  join(browserRoot, "identity", "google", "googleHomegateInviteRequester.ts"),
-  join(browserRoot, "identity", "google", "googleIdentityProvider.ts"),
-  join(browserRoot, "identity", "google", "googleIdentityProviderTypes.ts"),
-  join(browserRoot, "identity", "google", "googleSignInWidget.ts"),
-  join(browserRoot, "identity", "google", "googleWrappingKeyRequester.ts"),
 ];
 const googleWrappingKeyRoot = join(serverRoot, "wrapping-key", "google");
 const googleWrappingKeyApplicationModules = [
@@ -42,7 +39,6 @@ const googleWrappingKeyApplicationModules = [
   join(googleWrappingKeyRoot, "request.ts"),
 ];
 
-const checkedExtensions = new Set([".js", ".mjs", ".ts", ".tsx"]);
 const browserApplicationModules = productionSourceFiles(browserRoot)
   .filter((filePath) => !browserCompositionFactories.includes(filePath))
   .filter((filePath) => !browserAdapterModules.includes(filePath));
@@ -224,7 +220,25 @@ describe("feature runtime boundaries", () => {
     expect(violations).toEqual([]);
   });
 
-  it("defaults browser modules to application policy behind an exact detail allowlist", () => {
+  it("keeps browser adapters independent from composition, env, UI, and server code", () => {
+    const forbiddenTargets = [
+      ...browserCompositionFactories.map((targetPath) => ({ targetPath, label: "browser composition factory" })),
+      { targetPath: libsEnvRoot, label: "env modules" },
+      { targetPath: uiRoot, label: "UI" },
+      { targetPath: serverRoot, label: "server runtime" },
+    ];
+    const violations = browserAdapterModules.flatMap((filePath) =>
+      inspectForbiddenImports(filePath, {
+        forbiddenModuleSpecifiers: ["server-only"],
+        forbiddenTargets,
+        traverseLocalImports: true,
+      })
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it("classifies every browser module as application, composition, or adapter code", () => {
     const productionModules = new Set(productionSourceFiles(browserRoot));
     const allowlistedDetails = [...browserCompositionFactories, ...browserAdapterModules];
 
@@ -242,7 +256,11 @@ describe("feature runtime boundaries", () => {
     )).toBe(join(browserRoot, "authorization", "browserAuthorizationController.ts"));
 
     const fixtureRoot = join(repoRoot, "test-utils", "architecture", "fixtures");
-    const violations = inspectForbiddenImports(join(fixtureRoot, "transitive-entry.ts"), {
+    const transitiveEntry = join(fixtureRoot, "transitive-entry.ts");
+    expect(resolveLocalImportTarget(transitiveEntry, "./shared/index.js")).toBe(
+      join(fixtureRoot, "shared", "index.ts"),
+    );
+    const violations = inspectForbiddenImports(transitiveEntry, {
       forbiddenTargets: [{ targetPath: join(fixtureRoot, "server-target.ts"), label: "fixture server target" }],
       traverseLocalImports: true,
     });
@@ -420,7 +438,14 @@ function resolveLocalImportTarget(fromFilePath: string, specifier: string): stri
   const unresolvedPath = importTargetPath(fromFilePath, specifier);
   if (!unresolvedPath) return null;
 
-  const candidates = extension(unresolvedPath)
+  const unresolvedExtension = extension(unresolvedPath);
+  const candidates = unresolvedExtension === ".js"
+    ? [
+      unresolvedPath,
+      `${unresolvedPath.slice(0, -unresolvedExtension.length)}.ts`,
+      `${unresolvedPath.slice(0, -unresolvedExtension.length)}.tsx`,
+    ]
+    : unresolvedExtension
       ? [unresolvedPath]
       : [
         `${unresolvedPath}.js`,

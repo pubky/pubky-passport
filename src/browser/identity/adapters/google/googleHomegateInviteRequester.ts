@@ -2,12 +2,12 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { readBoundedText } from "../../../libs/security/boundedBody";
+import { readBoundedText } from "../../../../libs/security/boundedBody";
 import type {
   GoogleHomegateInviteRequester,
   GoogleHomegateInviteRequesterErrorCode,
   HomeserverSignupInvitation,
-} from "./ports";
+} from "../../application/ports/homegateInvitation";
 
 const maximumResponseBytes = 16 * 1024;
 const maximumInvitationFieldCharacters = 1024;

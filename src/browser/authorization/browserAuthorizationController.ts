@@ -1,7 +1,11 @@
 import "client-only";
 
 import type { PubkyAuthRequestReview } from "../../features/auth/parsePubkyAuthRequest";
-import type { ActiveAuthorizationErrorCode } from "./approveActiveAuthorization";
+
+export type BrowserAuthorizationFailureCode =
+  | "no_active_identity"
+  | "identity_restore_failed"
+  | "approval_failed";
 
 export type BrowserAuthorizationViewState =
   | { status: "invalid" }
@@ -10,7 +14,7 @@ export type BrowserAuthorizationViewState =
   | { status: "redirecting"; review: PubkyAuthRequestReview }
   | { status: "approved" }
   | { status: "cancelled" }
-  | { status: "failed"; failureCode: ActiveAuthorizationErrorCode };
+  | { status: "failed"; failureCode: BrowserAuthorizationFailureCode };
 
 export type BrowserAuthorizationController = {
   getState(): BrowserAuthorizationViewState;

@@ -1,37 +1,37 @@
 import "client-only";
 
-import { Result, type Result as ResultType } from "better-result";
+import { Result } from "better-result";
 
 import { logger } from "../../libs/logger/logger";
-import type { PubkyIdentityKeys } from "../pubky/ports";
 import type {
   BrowserIdentityAction,
   BrowserIdentityActionResult,
   BrowserIdentityActionValue,
+  BrowserIdentityCatalogResult,
   BrowserIdentityController,
+  BrowserIdentityControllerError,
   GoogleContinueResult,
   GoogleSignInState,
 } from "./browserIdentityController";
 import type {
-  GoogleBackedIdentity,
-  GoogleBackedIdentityDeletion,
-  GoogleBackedIdentityFlowError,
+  GoogleDriveIdentityDeleter,
+  GoogleIdentityEstablisher,
+} from "./application/ports/googleIdentity";
+import type {
   GoogleIdentityProviderErrorCode,
   GoogleIdentityProviderResult,
   GoogleSignInWidget,
-} from "./google/ports";
-import type { LocalIdentityRepository } from "./localIdentityService";
-
-type IdentityFlow = {
-  establish(google: { googleIdToken: string; driveAccessToken: string }): Promise<ResultType<GoogleBackedIdentity, GoogleBackedIdentityFlowError>>;
-};
+} from "./application/ports/googleSignIn";
+import type {
+  LocalIdentityRepository,
+  LocalIdentityRepositoryResult,
+} from "./application/ports/localIdentityRepository";
 
 export type BrowserIdentityControllerDependencies = {
   repository: LocalIdentityRepository;
-  identityFlow: IdentityFlow;
-  identityDeletion: GoogleBackedIdentityDeletion;
-  identityKeys: Pick<PubkyIdentityKeys, "disposeIdentityKey">;
-  disposePubky(): void;
+  identityEstablisher: GoogleIdentityEstablisher;
+  identityDeleter: GoogleDriveIdentityDeleter;
+  disposeIdentityRuntime(): void;
   googleSignInWidget: GoogleSignInWidget;
   requestGoogleDriveAccess(input: {
     clientId: string;
@@ -52,16 +52,16 @@ export class DefaultBrowserIdentityController implements BrowserIdentityControll
   #attempt = 0;
   #actionPending = false;
   #disposed = false;
-  #pubkyDisposed = false;
+  #identityRuntimeDisposed = false;
 
   constructor(input: { clientId: string; dependencies: BrowserIdentityControllerDependencies }) {
     this.#clientId = input.clientId;
     this.#dependencies = input.dependencies;
   }
 
-  list() { return this.#dependencies.repository.list(); }
-  select(id: string) { return this.#dependencies.repository.select(id); }
-  clear() { return this.#dependencies.repository.clear(); }
+  list() { return toCatalogResult(this.#dependencies.repository.list()); }
+  select(id: string) { return toCatalogResult(this.#dependencies.repository.select(id)); }
+  clear() { return toCatalogResult(this.#dependencies.repository.clear()); }
 
   async mountGoogleSignIn(target: HTMLElement, onState: (state: GoogleSignInState) => void): Promise<void> {
     this.unmountGoogleSignIn();
@@ -163,7 +163,7 @@ export class DefaultBrowserIdentityController implements BrowserIdentityControll
       return { status: "action_completed", result };
     } finally {
       this.#actionPending = false;
-      if (this.#disposed) this.disposePubkyOnce();
+      if (this.#disposed) this.disposeIdentityRuntimeOnce();
     }
   }
 
@@ -171,27 +171,22 @@ export class DefaultBrowserIdentityController implements BrowserIdentityControll
     if (this.#disposed) return;
     this.#disposed = true;
     this.unmountGoogleSignIn();
-    if (!this.#actionPending) this.disposePubkyOnce();
+    if (!this.#actionPending) this.disposeIdentityRuntimeOnce();
   }
 
   private async executeAction(action: BrowserIdentityAction, google: { googleIdToken: string; driveAccessToken: string }): Promise<BrowserIdentityActionResult> {
     try {
       if (action.kind === "delete") {
-        const deleted = await this.#dependencies.identityDeletion.execute(google, action.expectedPublicKeyZ32);
-        return Result.isError(deleted) ? Result.err(deleted.error) : Result.ok({ kind: "deleted" });
+        const deleted = await this.#dependencies.identityDeleter.execute(google, action.expectedPublicKeyZ32);
+        return Result.isError(deleted) ? actionFailure(deleted.error) : Result.ok({ kind: "deleted" });
       }
-      const established = await this.#dependencies.identityFlow.establish(google);
-      if (Result.isError(established)) return Result.err(established.error);
+      const established = await this.#dependencies.identityEstablisher.establish(google);
+      if (Result.isError(established)) return actionFailure(established.error);
       const value: BrowserIdentityActionValue = {
         kind: "established",
         source: established.value.source,
         publicIdentity: established.value.publicIdentity,
       };
-      try {
-        this.#dependencies.identityKeys.disposeIdentityKey({ keyHandle: established.value.keyHandle });
-      } catch {
-        logger.warn("identity.google.cleanup.failed", { operation: "established_key_dispose" });
-      }
       return Result.ok(value);
     } catch {
       logger.warn("identity.google.action.failed", { code: "unexpected_failure" });
@@ -199,11 +194,11 @@ export class DefaultBrowserIdentityController implements BrowserIdentityControll
     }
   }
 
-  private disposePubkyOnce(): void {
-    if (this.#pubkyDisposed) return;
-    this.#pubkyDisposed = true;
+  private disposeIdentityRuntimeOnce(): void {
+    if (this.#identityRuntimeDisposed) return;
+    this.#identityRuntimeDisposed = true;
     try {
-      this.#dependencies.disposePubky();
+      this.#dependencies.disposeIdentityRuntime();
     } catch {
       logger.warn("identity.google.cleanup.failed", { operation: "pubky_dispose" });
     }
@@ -235,6 +230,23 @@ export class DefaultBrowserIdentityController implements BrowserIdentityControll
     try { this.#onState?.(state); }
     catch { logger.warn("identity.google.state_listener.failed"); }
   }
+}
+
+function toCatalogResult<T>(
+  result: LocalIdentityRepositoryResult<T>,
+): BrowserIdentityCatalogResult<T> {
+  return Result.isError(result)
+    ? Result.err({ code: result.error.code })
+    : Result.ok(result.value);
+}
+
+function actionFailure(error: BrowserIdentityControllerError): BrowserIdentityActionResult {
+  return Result.err({
+    code: error.code,
+    ...(error.recoverablePublicIdentity
+      ? { recoverablePublicIdentity: error.recoverablePublicIdentity }
+      : {}),
+  });
 }
 
 function errorForDriveFailure(code: GoogleIdentityProviderErrorCode): GoogleSignInState["errorCode"] {

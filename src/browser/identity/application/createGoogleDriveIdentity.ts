@@ -10,15 +10,15 @@ import type {
   PubkyIdentityKeys,
   PubkySignup,
 } from "../../pubky/ports";
-import type { LocalIdentitySaver } from "../localIdentityService";
 import type {
-  CreateMissingGoogleDriveIdentity,
+  GoogleDriveIdentityCreator,
   GoogleBackedIdentity,
-  GoogleBackedIdentityFlowResult,
-  GoogleHomegateInviteRequester,
-} from "./ports";
+  GoogleBackedIdentityResult,
+} from "./ports/googleIdentity";
+import type { GoogleHomegateInviteRequester } from "./ports/homegateInvitation";
+import type { LocalIdentitySaver } from "./ports/localIdentity";
 
-export class CreateMissingGoogleDriveIdentityUseCase implements CreateMissingGoogleDriveIdentity {
+export class CreateGoogleDriveIdentity implements GoogleDriveIdentityCreator {
   readonly #crypto: PassportFileCrypto;
   readonly #identityKeys: PubkyIdentityKeys;
   readonly #homegateInvites: GoogleHomegateInviteRequester;
@@ -46,8 +46,8 @@ export class CreateMissingGoogleDriveIdentityUseCase implements CreateMissingGoo
   }
 
   async execute(
-    input: Parameters<CreateMissingGoogleDriveIdentity["execute"]>[0],
-  ): Promise<GoogleBackedIdentityFlowResult<GoogleBackedIdentity>> {
+    input: Parameters<GoogleDriveIdentityCreator["execute"]>[0],
+  ): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>> {
     logger.info("identity.google.create.started");
     const created = await this.#identityKeys.createIdentityKey();
     if (Result.isError(created)) {
@@ -55,7 +55,6 @@ export class CreateMissingGoogleDriveIdentityUseCase implements CreateMissingGoo
       return failure("create_failed");
     }
 
-    let retainCreatedIdentity = false;
     try {
       const secretKey = await this.#identityKeys.exportSecretKey({ keyHandle: created.value.keyHandle });
       if (Result.isError(secretKey)) {
@@ -126,15 +125,15 @@ export class CreateMissingGoogleDriveIdentityUseCase implements CreateMissingGoo
       }
 
       logger.info("identity.local_save.completed", { source: "created" });
-      retainCreatedIdentity = true;
-      return Result.ok({ ...created.value, source: "created" as const });
+      return Result.ok({
+        source: "created" as const,
+        publicIdentity: created.value.publicIdentity,
+      });
     } finally {
-      if (!retainCreatedIdentity) {
-        try {
-          this.#identityKeys.disposeIdentityKey({ keyHandle: created.value.keyHandle });
-        } catch {
-          logger.warn("identity.google.cleanup.failed", { operation: "created_key_dispose" });
-        }
+      try {
+        this.#identityKeys.disposeIdentityKey({ keyHandle: created.value.keyHandle });
+      } catch {
+        logger.warn("identity.google.cleanup.failed", { operation: "created_key_dispose" });
       }
     }
   }
@@ -143,7 +142,7 @@ export class CreateMissingGoogleDriveIdentityUseCase implements CreateMissingGoo
 function failure<T>(
   code: Parameters<typeof createError>[0],
   recoverablePublicIdentity?: Parameters<typeof createError>[1],
-): GoogleBackedIdentityFlowResult<T> {
+): GoogleBackedIdentityResult<T> {
   return Result.err(createError(code, recoverablePublicIdentity));
 }
 

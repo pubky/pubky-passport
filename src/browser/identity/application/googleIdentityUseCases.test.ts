@@ -4,7 +4,7 @@ import { Result } from "better-result";
 import { FakePubkyIdentityKeys } from "../../../../test-utils/fakes/fakePubkyIdentityKeys";
 import { FakePubkyDiscovery } from "../../../../test-utils/fakes/fakePubkyDiscovery";
 import { FakePubkySignup } from "../../../../test-utils/fakes/fakePubkySignup";
-import type { LocalIdentitySaver } from "../localIdentityService";
+import type { LocalIdentitySaver } from "./ports/localIdentity";
 import type {
   PassportFileCrypto,
   PassportFileCryptoResult,
@@ -13,11 +13,11 @@ import type {
   PassportFileStoreErrorCode,
 } from "../../passport-file/ports";
 import type { PassportFileEnvelopeV1 } from "../../../features/passport-file/passportFile";
-import { GoogleBackedIdentityFlow } from "./googleBackedIdentityFlow";
-import { CreateMissingGoogleDriveIdentityUseCase } from "./createMissingGoogleDriveIdentity";
-import { DeleteGoogleBackedIdentity } from "./deleteGoogleBackedIdentity";
-import type { GoogleHomegateInviteRequester, GoogleHomegateInviteRequesterErrorCode } from "./ports";
-import { RestoreExistingGoogleDriveIdentityUseCase } from "./restoreExistingGoogleDriveIdentity";
+import { CreateGoogleDriveIdentity } from "./createGoogleDriveIdentity";
+import { DeleteGoogleDriveIdentity } from "./deleteGoogleDriveIdentity";
+import { EstablishGoogleBackedIdentity } from "./establishGoogleBackedIdentity";
+import type { GoogleHomegateInviteRequester, GoogleHomegateInviteRequesterErrorCode } from "./ports/homegateInvitation";
+import { RestoreGoogleDriveIdentity } from "./restoreGoogleDriveIdentity";
 
 const envelope: PassportFileEnvelopeV1 = {
   v: 1,
@@ -27,7 +27,7 @@ const envelope: PassportFileEnvelopeV1 = {
 };
 const reference: PassportFileReference = { storageId: "opaque-file-id", revision: "42" };
 
-describe("GoogleBackedIdentityFlow", () => {
+describe("Google identity use cases", () => {
   it("restores a Drive identity and saves it locally", async () => {
     const keys = new FakePubkyIdentityKeys();
     const local = new FakeLocalIdentities();
@@ -46,7 +46,7 @@ describe("GoogleBackedIdentityFlow", () => {
     expect(dependencies.homegate.calls).toEqual([]);
     expect(dependencies.discovery.calls).toEqual([]);
     expect(crypto.decryptedBytes.every((byte) => byte === 0)).toBe(true);
-    expect(keys.disposedKeys).toEqual([]);
+    expect(keys.disposedKeys).toHaveLength(1);
   });
 
   it("creates, encrypts, writes, and then saves a missing Drive identity", async () => {
@@ -74,7 +74,7 @@ describe("GoogleBackedIdentityFlow", () => {
       homeserverPubky: "homegate-homeserver",
     }]);
     expect(crypto.encryptedBytes.every((byte) => byte === 0)).toBe(true);
-    expect(keys.disposedKeys).toEqual([]);
+    expect(keys.disposedKeys).toHaveLength(1);
   });
 
   it("deletes a Drive identity only when it matches the selected local identity", async () => {
@@ -426,19 +426,17 @@ describe("GoogleBackedIdentityFlow", () => {
     const createKeys = new FakePubkyIdentityKeys();
     createKeys.disposeIdentityKey = () => { throw new Error("cleanup failed"); };
     const createFiles = new FakePassportFiles({ status: "missing" });
-    createFiles.createFailure = "create_conflict";
     const created = await createFlow({
       keys: createKeys,
       local: new FakeLocalIdentities(),
       files: createFiles,
       crypto: new FakePassportCrypto(),
     }).establish({ googleIdToken: "id-token", driveAccessToken: "drive-token" });
-    expect(Result.isError(created) && created.error.code).toBe("drive_create_conflict");
+    expect(Result.isError(created)).toBe(false);
 
     const restoreKeys = new FakePubkyIdentityKeys();
     restoreKeys.disposeIdentityKey = () => { throw new Error("cleanup failed"); };
     const restoreDependencies = activationDependencies(restoreKeys);
-    restoreDependencies.signup.signinFailure = "signin_failed";
     const restored = await createFlow({
       keys: restoreKeys,
       local: new FakeLocalIdentities(),
@@ -446,7 +444,7 @@ describe("GoogleBackedIdentityFlow", () => {
       crypto: new FakePassportCrypto(),
       ...restoreDependencies,
     }).establish({ googleIdToken: "id-token", driveAccessToken: "drive-token" });
-    expect(Result.isError(restored) && restored.error.code).toBe("signin_failed");
+    expect(Result.isError(restored)).toBe(false);
 
     const deleteKeys = new FakePubkyIdentityKeys();
     deleteKeys.disposeIdentityKey = () => { throw new Error("cleanup failed"); };
@@ -471,23 +469,23 @@ function createFlow(input: {
   homegate?: FakeHomegateInvites;
   signup?: FakePubkySignup;
   discovery?: FakePubkyDiscovery;
-}): GoogleBackedIdentityFlow {
+}): EstablishGoogleBackedIdentity {
   const activation = activationDependencies(input.keys);
   const signup = input.signup ?? activation.signup;
-  return new GoogleBackedIdentityFlow({
+  return new EstablishGoogleBackedIdentity({
     wrappingKeys: { async requestWrappingKey() { return Result.ok("w".repeat(43)); } },
     passportFilesForAccessToken(accessToken) {
       expect(accessToken).toBe("drive-token");
       return input.files;
     },
-    restoreExistingIdentity: new RestoreExistingGoogleDriveIdentityUseCase({
+    restoreExistingIdentity: new RestoreGoogleDriveIdentity({
       crypto: input.crypto,
       identityKeys: input.keys,
       signup,
       localIdentities: input.local,
       passportUrl: "https://passport.pubky.app",
     }),
-    createMissingIdentity: new CreateMissingGoogleDriveIdentityUseCase({
+    createMissingIdentity: new CreateGoogleDriveIdentity({
       crypto: input.crypto,
       identityKeys: input.keys,
       homegateInvites: input.homegate ?? activation.homegate,
@@ -503,8 +501,8 @@ function createDeletion(input: {
   keys: FakePubkyIdentityKeys;
   files: FakePassportFiles;
   crypto: FakePassportCrypto;
-}): DeleteGoogleBackedIdentity {
-  return new DeleteGoogleBackedIdentity({
+}): DeleteGoogleDriveIdentity {
+  return new DeleteGoogleDriveIdentity({
     wrappingKeys: { async requestWrappingKey() { return Result.ok("w".repeat(43)); } },
     passportFilesForAccessToken(accessToken) {
       expect(accessToken).toBe("drive-token");

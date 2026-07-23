@@ -2,13 +2,13 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { logger } from "../../../libs/logger/logger";
+import { logger } from "../../../../libs/logger/logger";
 import type {
   GoogleSignInCredential,
   GoogleIdentityProviderResult,
   GoogleSignInWidget as GoogleSignInWidgetPort,
   GoogleSignInWidgetResult,
-} from "./ports";
+} from "../../application/ports/googleSignIn";
 import type {
   GoogleAccounts,
   GoogleCredentialResponse,
