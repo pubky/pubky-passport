@@ -15,8 +15,6 @@ import type {
 import type { GoogleBackedIdentity, GoogleBackedIdentityFlowError } from "./google/applicationContracts";
 import type { DeleteGoogleBackedIdentityErrorCode } from "./google/deleteGoogleBackedIdentity";
 import type {
-  GoogleAccounts,
-  GoogleCredentialResponse,
   GoogleIdentityProviderErrorCode,
   GoogleIdentityProviderResult,
 } from "./google/applicationContracts";
@@ -33,20 +31,29 @@ type IdentityDeletion = {
   ): Promise<ResultType<void, { code: DeleteGoogleBackedIdentityErrorCode }>>;
 };
 
+export type GoogleSignInCredential = {
+  googleIdToken: string;
+  subject: string;
+};
+
+export type GoogleSignInWidgetErrorCode = "google_unavailable" | "sign_in_failed";
+export type GoogleSignInWidgetResult<T> = ResultType<T, { code: GoogleSignInWidgetErrorCode }>;
+
+export type GoogleSignInWidgetPort = {
+  mount(input: {
+    target: HTMLElement;
+    onCredential: (result: GoogleSignInWidgetResult<GoogleSignInCredential>) => void;
+  }): Promise<GoogleSignInWidgetResult<void>>;
+  unmount(): void;
+};
+
 export type BrowserIdentityControllerDependencies = {
   repository: LocalIdentityRepository;
   identityFlow: IdentityFlow;
   identityDeletion: IdentityDeletion;
   identityKeys: Pick<PubkyIdentityKeys, "disposeIdentityKey">;
   disposePubky(): void;
-  loadGoogleAccounts(): Promise<GoogleIdentityProviderResult<GoogleAccounts>>;
-  bindGoogleCredentialCallback(input: {
-    accounts: GoogleAccounts;
-    clientId: string;
-    callback: (response: GoogleCredentialResponse) => void;
-  }): GoogleIdentityProviderResult<void>;
-  releaseGoogleCredentialCallback(callback: (response: GoogleCredentialResponse) => void): void;
-  googleIdTokenSubject(token: string): string | undefined;
+  googleSignInWidget: GoogleSignInWidgetPort;
   requestGoogleDriveAccess(input: {
     clientId: string;
     loginHint: string;
@@ -58,10 +65,8 @@ export type BrowserIdentityControllerDependencies = {
 export class DefaultBrowserIdentityController implements BrowserIdentityController {
   readonly #clientId: string;
   readonly #dependencies: BrowserIdentityControllerDependencies;
-  #accounts: GoogleAccounts | null = null;
   #target: HTMLElement | null = null;
   #onState: ((state: GoogleSignInState) => void) | null = null;
-  #credentialCallback: ((response: GoogleCredentialResponse) => void) | null = null;
   #googleIdToken: string | null = null;
   #googleSubject: string | null = null;
   #driveAbortController: AbortController | null = null;
@@ -85,66 +90,37 @@ export class DefaultBrowserIdentityController implements BrowserIdentityControll
     this.#target = target;
     this.#onState = onState;
     const activeAttempt = ++this.#attempt;
-    let accounts: GoogleIdentityProviderResult<GoogleAccounts>;
+    let mounted: Awaited<ReturnType<GoogleSignInWidgetPort["mount"]>>;
     try {
-      accounts = await this.#dependencies.loadGoogleAccounts();
+      mounted = await this.#dependencies.googleSignInWidget.mount({
+        target,
+        onCredential: (credential) => {
+          if (this.#disposed || activeAttempt !== this.#attempt) return;
+          if (Result.isError(credential)) {
+            logger.warn("identity.google.button.credential_failed", { code: credential.error.code });
+            this.resetGoogle("sign_in_failed");
+            return;
+          }
+          this.#googleIdToken = credential.value.googleIdToken;
+          this.#googleSubject = credential.value.subject;
+          this.emit({ stage: "drive", errorCode: null });
+        },
+      });
     } catch {
-      if (activeAttempt === this.#attempt) this.showGoogleUnavailable("load_threw");
+      if (activeAttempt === this.#attempt) this.showGoogleUnavailable("mount_threw");
       return;
     }
     if (this.#disposed || activeAttempt !== this.#attempt) return;
-    if (Result.isError(accounts)) {
-      logger.warn("identity.google.button.unavailable", { code: accounts.error.code });
-      this.emit({ stage: "sign-in", error: "Google sign-in is unavailable. Try again." });
+    if (Result.isError(mounted)) {
+      this.showGoogleUnavailable(mounted.error.code);
       return;
     }
-
-    const callback = (response: GoogleCredentialResponse): void => {
-      if (this.#disposed || activeAttempt !== this.#attempt) return;
-      try {
-        if (typeof response.credential !== "string" || response.credential.length === 0) {
-          logger.warn("identity.google.button.credential_failed");
-          this.resetGoogle("Google sign-in did not return an identity. Try again.");
-          return;
-        }
-        const subject = this.#dependencies.googleIdTokenSubject(response.credential);
-        if (!subject) {
-          this.resetGoogle("Google sign-in did not return an identity. Try again.");
-          return;
-        }
-        this.#googleIdToken = response.credential;
-        this.#googleSubject = subject;
-        this.emit({ stage: "drive", error: null });
-      } catch {
-        logger.warn("identity.google.button.credential_failed", { code: "unexpected" });
-        this.resetGoogle("Google sign-in did not return an identity. Try again.");
-      }
-    };
-    this.#accounts = accounts.value;
-    this.#credentialCallback = callback;
-    let bound: GoogleIdentityProviderResult<void>;
-    try {
-      bound = this.#dependencies.bindGoogleCredentialCallback({ accounts: accounts.value, clientId: this.#clientId, callback });
-    } catch {
-      this.showGoogleUnavailable("bind_threw");
-      return;
-    }
-    if (Result.isError(bound)) {
-      logger.warn("identity.google.button.initialize_failed", { code: bound.error.code });
-      this.showGoogleUnavailable("bind_failed");
-      return;
-    }
-    if (!this.renderGoogleButton()) {
-      this.showGoogleUnavailable("render_failed");
-      return;
-    }
-    this.emit({ stage: "sign-in", error: null });
+    if (!this.#googleIdToken) this.emit({ stage: "sign-in", errorCode: null });
   }
 
   unmountGoogleSignIn(): void {
     this.abortDriveAccess();
-    this.releaseGoogleCredentialCallback();
-    this.#accounts = null;
+    this.#dependencies.googleSignInWidget.unmount();
     this.#target = null;
     this.#onState = null;
     this.#googleIdToken = null;
@@ -165,13 +141,13 @@ export class DefaultBrowserIdentityController implements BrowserIdentityControll
     const googleSubject = this.#googleSubject;
     const activeAttempt = this.#attempt;
     if (!googleIdToken || !googleSubject || this.#disposed) {
-      if (!this.#disposed) this.resetGoogle("Google sign-in did not return an identity. Try again.");
+      if (!this.#disposed) this.resetGoogle("sign_in_failed");
       return { status: "credential_failed" };
     }
 
     this.#actionPending = true;
     try {
-      this.emit({ stage: "submitting", error: null });
+      this.emit({ stage: "submitting", errorCode: null });
       const abortController = new AbortController();
       this.abortDriveAccess();
       this.#driveAbortController = abortController;
@@ -186,14 +162,14 @@ export class DefaultBrowserIdentityController implements BrowserIdentityControll
       } catch {
         if (activeAttempt !== this.#attempt || this.#disposed) return { status: "credential_failed" };
         logger.warn("identity.google.button.drive_consent_failed", { code: "unexpected" });
-        this.resetGoogle("Google Drive permission was not granted. Try again.");
+        this.resetGoogle("drive_consent_failed");
         return { status: "credential_failed" };
       }
       if (this.#driveAbortController === abortController) this.#driveAbortController = null;
       if (activeAttempt !== this.#attempt || this.#disposed) return { status: "credential_failed" };
       if (Result.isError(driveAccess)) {
         logger.warn("identity.google.button.drive_consent_failed", { code: driveAccess.error.code });
-        this.resetGoogle(messageForDriveFailure(driveAccess.error.code));
+        this.resetGoogle(errorForDriveFailure(driveAccess.error.code));
         return { status: "credential_failed" };
       }
 
@@ -251,12 +227,11 @@ export class DefaultBrowserIdentityController implements BrowserIdentityControll
     }
   }
 
-  private resetGoogle(error: string | null = null): void {
+  private resetGoogle(errorCode: GoogleSignInState["errorCode"] = null): void {
     this.abortDriveAccess();
     this.#googleIdToken = null;
     this.#googleSubject = null;
-    if (this.#accounts && this.#target && !this.renderGoogleButton()) this.showGoogleUnavailable("render_failed");
-    else this.emit({ stage: "sign-in", error });
+    this.emit({ stage: "sign-in", errorCode });
   }
 
   private abortDriveAccess(): void {
@@ -265,29 +240,12 @@ export class DefaultBrowserIdentityController implements BrowserIdentityControll
     this.#driveAbortController = null;
   }
 
-  private renderGoogleButton(): boolean {
-    if (!this.#accounts || !this.#target) return false;
-    try {
-      this.#target.replaceChildren();
-      this.#accounts.id.renderButton(this.#target, { theme: "outline", size: "large", text: "continue_with" });
-      return true;
-    } catch { return false; }
-  }
-
   private showGoogleUnavailable(code: string): void {
     logger.warn("identity.google.button.unavailable", { code });
-    this.releaseGoogleCredentialCallback();
-    this.#accounts = null;
+    this.#dependencies.googleSignInWidget.unmount();
     this.#googleIdToken = null;
     this.#googleSubject = null;
-    this.emit({ stage: "sign-in", error: "Google sign-in is unavailable. Try again." });
-  }
-
-  private releaseGoogleCredentialCallback(): void {
-    if (!this.#credentialCallback) return;
-    try { this.#dependencies.releaseGoogleCredentialCallback(this.#credentialCallback); }
-    catch { logger.warn("identity.google.cleanup.failed", { operation: "credential_release" }); }
-    this.#credentialCallback = null;
+    this.emit({ stage: "sign-in", errorCode: "sign_in_unavailable" });
   }
 
   private emit(state: GoogleSignInState): void {
@@ -297,13 +255,13 @@ export class DefaultBrowserIdentityController implements BrowserIdentityControll
   }
 }
 
-function messageForDriveFailure(code: GoogleIdentityProviderErrorCode): string {
+function errorForDriveFailure(code: GoogleIdentityProviderErrorCode): GoogleSignInState["errorCode"] {
   switch (code) {
-    case "drive_popup_closed": return "The Google Drive window was closed. Try again.";
-    case "drive_popup_failed_to_open": return "The Google Drive window could not open. Check popup blocking and try again.";
-    case "drive_consent_timeout": return "Google Drive permission timed out. Try again.";
-    case "drive_account_mismatch": return "Choose the same Google account for sign-in and Drive, then try again.";
-    case "drive_account_verification_failed": return "Google Drive account verification is unavailable. Check your connection and try again.";
-    default: return "Google Drive permission was not granted. Try again.";
+    case "drive_popup_closed": return "drive_popup_closed";
+    case "drive_popup_failed_to_open": return "drive_popup_failed_to_open";
+    case "drive_consent_timeout": return "drive_consent_timeout";
+    case "drive_account_mismatch": return "drive_account_mismatch";
+    case "drive_account_verification_failed": return "drive_account_verification_failed";
+    default: return "drive_consent_failed";
   }
 }

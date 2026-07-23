@@ -3,13 +3,8 @@ import "client-only";
 import { GoogleDrivePassportFileRepository } from "../passport-file/googleDrivePassportFileRepository";
 import { WebCryptoPassportFileCrypto } from "../passport-file/webCryptoPassportFileCrypto";
 import { BrowserPubky } from "../pubky/browserPubky";
-import {
-  bindGoogleCredentialCallback,
-  googleIdTokenSubject,
-  loadGoogleAccounts,
-  releaseGoogleCredentialCallback,
-  requestGoogleDriveAccess,
-} from "./google/googleIdentityProvider";
+import { requestGoogleDriveAccess } from "./google/googleIdentityProvider";
+import { GoogleSignInWidget } from "./google/googleSignInWidget";
 import { GoogleBackedIdentityFlow } from "./google/googleBackedIdentityFlow";
 import { CreateMissingGoogleDriveIdentityUseCase } from "./google/createMissingGoogleDriveIdentity";
 import { DeleteGoogleBackedIdentity } from "./google/deleteGoogleBackedIdentity";
@@ -74,10 +69,7 @@ export function createBrowserIdentityController(input: {
       identityDeletion,
       identityKeys: pubky,
       disposePubky: () => pubky.dispose(),
-      loadGoogleAccounts,
-      bindGoogleCredentialCallback,
-      releaseGoogleCredentialCallback,
-      googleIdTokenSubject,
+      googleSignInWidget: new GoogleSignInWidget({ clientId: input.googleClientId }),
       requestGoogleDriveAccess,
     },
   });

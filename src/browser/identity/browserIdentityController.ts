@@ -34,9 +34,19 @@ export type BrowserIdentityActionValue =
 
 export type BrowserIdentityActionResult = Result<BrowserIdentityActionValue, BrowserIdentityControllerError>;
 
+export type GoogleSignInErrorCode =
+  | "sign_in_unavailable"
+  | "sign_in_failed"
+  | "drive_consent_failed"
+  | "drive_popup_closed"
+  | "drive_popup_failed_to_open"
+  | "drive_consent_timeout"
+  | "drive_account_mismatch"
+  | "drive_account_verification_failed";
+
 export type GoogleSignInState = {
   stage: "sign-in" | "drive" | "submitting";
-  error: string | null;
+  errorCode: GoogleSignInErrorCode | null;
 };
 
 export type GoogleContinueResult =

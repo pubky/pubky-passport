@@ -33,7 +33,7 @@ describe("GoogleSignInButton", () => {
     );
 
     await waitFor(() => expect(emitState).toBeDefined());
-    emitState?.({ stage: "drive", error: null });
+    emitState?.({ stage: "drive", errorCode: null });
     await userEvent.setup().click(await screen.findByRole("button", { name: "Allow Drive access" }));
 
     expect(continueGoogle).toHaveBeenCalledWith({ kind: "delete", expectedPublicKeyZ32: "public-key" });
@@ -44,7 +44,7 @@ describe("GoogleSignInButton", () => {
     const retryGoogleSignIn = vi.fn();
     const controller = fakeController({
       mountGoogleSignIn: vi.fn(async (_target, onState) => {
-        onState({ stage: "sign-in", error: "Google sign-in is unavailable. Try again." });
+        onState({ stage: "sign-in", errorCode: "sign_in_unavailable" });
       }),
       retryGoogleSignIn,
     });

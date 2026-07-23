@@ -8,8 +8,8 @@ import type { BrowserIdentityControllerError } from "./browserIdentityController
 import {
   DefaultBrowserIdentityController,
   type BrowserIdentityControllerDependencies,
+  type GoogleSignInWidgetResult,
 } from "./browserIdentityControllerInternals";
-import type { GoogleCredentialResponse } from "./google/applicationContracts";
 
 describe("DefaultBrowserIdentityController", () => {
   it("exposes a finite action error code contract", () => {
@@ -31,7 +31,7 @@ describe("DefaultBrowserIdentityController", () => {
       requestGoogleDriveAccess,
     });
 
-    credentialCallback.current?.({ credential: "google-id-token" });
+    credentialCallback.current?.(googleCredential());
     const completed = await controller.continueGoogle({ kind: "establish" });
 
     expect(requestGoogleDriveAccess).toHaveBeenCalledWith({
@@ -61,14 +61,14 @@ describe("DefaultBrowserIdentityController", () => {
     const requestGoogleDriveAccess = vi.fn(async () => Result.err({ code: "drive_account_mismatch" as const }));
     const { controller, credentialCallback } = await mountedController({ requestGoogleDriveAccess }, states);
 
-    credentialCallback.current?.({ credential: "google-id-token" });
+    credentialCallback.current?.(googleCredential());
     const completed = await controller.continueGoogle({ kind: "establish" });
 
     expect(completed).toEqual({ status: "credential_failed" });
-    expect(states).toContainEqual({ stage: "drive", error: null });
+    expect(states).toContainEqual({ stage: "drive", errorCode: null });
     expect(states).toContainEqual({
       stage: "sign-in",
-      error: "Choose the same Google account for sign-in and Drive, then try again.",
+      errorCode: "drive_account_mismatch",
     });
     expect(JSON.stringify(states)).not.toContain("google-id-token");
   });
@@ -85,7 +85,7 @@ describe("DefaultBrowserIdentityController", () => {
       identityFlow: { establish },
       requestGoogleDriveAccess,
     });
-    credentialCallback.current?.({ credential: "google-id-token" });
+    credentialCallback.current?.(googleCredential());
 
     const pending = controller.continueGoogle({ kind: "establish" });
     controller.unmountGoogleSignIn();
@@ -97,52 +97,41 @@ describe("DefaultBrowserIdentityController", () => {
   });
 
   it.each([
-    ["loading", { loadGoogleAccounts: vi.fn(async () => { throw new Error("load failed"); }) }],
-    ["binding", { bindGoogleCredentialCallback: vi.fn(() => { throw new Error("bind failed"); }) }],
-    ["rendering", {
-      loadGoogleAccounts: vi.fn(async () => Result.ok({
-        id: { initialize: vi.fn(), renderButton: vi.fn(() => { throw new Error("render failed"); }) },
-        oauth2: { initTokenClient: vi.fn() },
-      })),
-    }],
-  ])("maps thrown Google provider %s failures to safe state", async (_operation, overrides) => {
+    ["throw", vi.fn(async () => { throw new Error("mount failed"); })],
+    ["error", vi.fn(async () => Result.err({ code: "google_unavailable" as const }))],
+  ])("maps a Google widget mount %s to safe state", async (_operation, mount) => {
     const states: unknown[] = [];
     const controller = new DefaultBrowserIdentityController({
       clientId: "google-client",
-      dependencies: dependencies(overrides),
+      dependencies: dependencies({ googleSignInWidget: { mount, unmount: vi.fn() } }),
     });
 
     await expect(controller.mountGoogleSignIn(document.createElement("div"), (state) => states.push(state))).resolves.toBeUndefined();
 
     expect(states.at(-1)).toEqual({
       stage: "sign-in",
-      error: "Google sign-in is unavailable. Try again.",
+      errorCode: "sign_in_unavailable",
     });
   });
 
-  it("releases a partially mounted provider callback and retries initialization", async () => {
-    const renderButton = vi.fn()
-      .mockImplementationOnce(() => { throw new Error("render failed"); })
-      .mockImplementationOnce(() => {});
-    const loadGoogleAccounts = vi.fn(async () => Result.ok({
-      id: { initialize: vi.fn(), renderButton },
-      oauth2: { initTokenClient: vi.fn() },
-    }));
-    const releaseGoogleCredentialCallback = vi.fn();
+  it("unmounts a failed widget and retries initialization", async () => {
+    const mount = vi.fn()
+      .mockResolvedValueOnce(Result.err({ code: "google_unavailable" as const }))
+      .mockResolvedValueOnce(Result.ok());
+    const unmount = vi.fn();
     const states: unknown[] = [];
     const controller = new DefaultBrowserIdentityController({
       clientId: "google-client",
-      dependencies: dependencies({ loadGoogleAccounts, releaseGoogleCredentialCallback }),
+      dependencies: dependencies({ googleSignInWidget: { mount, unmount } }),
     });
 
     await controller.mountGoogleSignIn(document.createElement("div"), (state) => states.push(state));
-    expect(releaseGoogleCredentialCallback).toHaveBeenCalledOnce();
+    expect(unmount).toHaveBeenCalled();
 
     controller.retryGoogleSignIn();
-    await vi.waitFor(() => expect(loadGoogleAccounts).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(mount).toHaveBeenCalledTimes(2));
 
-    expect(renderButton).toHaveBeenCalledTimes(2);
-    expect(states.at(-1)).toEqual({ stage: "sign-in", error: null });
+    expect(states.at(-1)).toEqual({ stage: "sign-in", errorCode: null });
   });
 
   it("maps thrown Drive acquisition to credential failure without rejecting", async () => {
@@ -150,12 +139,12 @@ describe("DefaultBrowserIdentityController", () => {
     const { controller, credentialCallback } = await mountedController({
       requestGoogleDriveAccess: vi.fn(async () => { throw new Error("Drive failed"); }),
     }, states);
-    credentialCallback.current?.({ credential: "google-id-token" });
+    credentialCallback.current?.(googleCredential());
 
     await expect(controller.continueGoogle({ kind: "establish" })).resolves.toEqual({ status: "credential_failed" });
     expect(states.at(-1)).toEqual({
       stage: "sign-in",
-      error: "Google Drive permission was not granted. Try again.",
+      errorCode: "drive_consent_failed",
     });
   });
 
@@ -163,7 +152,7 @@ describe("DefaultBrowserIdentityController", () => {
     const { controller, credentialCallback } = await mountedController({
       identityDeletion: { execute: vi.fn(async () => { throw new Error("delete failed"); }) },
     });
-    credentialCallback.current?.({ credential: "google-id-token" });
+    credentialCallback.current?.(googleCredential());
 
     const completed = await controller.continueGoogle({
       kind: "delete",
@@ -186,7 +175,7 @@ describe("DefaultBrowserIdentityController", () => {
       })) },
       identityKeys: { disposeIdentityKey: vi.fn(() => { throw new Error("dispose failed"); }) },
     });
-    credentialCallback.current?.({ credential: "google-id-token" });
+    credentialCallback.current?.(googleCredential());
 
     const completed = await controller.continueGoogle({ kind: "establish" });
     expect(completed.status).toBe("action_completed");
@@ -210,7 +199,7 @@ describe("DefaultBrowserIdentityController", () => {
       requestGoogleDriveAccess,
       identityFlow: { establish },
     });
-    credentialCallback.current?.({ credential: "google-id-token" });
+    credentialCallback.current?.(googleCredential());
 
     const first = controller.continueGoogle({ kind: "establish" });
     await expect(controller.continueGoogle({ kind: "establish" })).resolves.toEqual({ status: "credential_failed" });
@@ -238,7 +227,7 @@ describe("DefaultBrowserIdentityController", () => {
       identityKeys: { disposeIdentityKey },
       disposePubky,
     });
-    credentialCallback.current?.({ credential: "google-id-token" });
+    credentialCallback.current?.(googleCredential());
 
     const pending = controller.continueGoogle({ kind: "establish" });
     await vi.waitFor(() => expect(establish).toHaveBeenCalledOnce());
@@ -280,14 +269,19 @@ async function mountedController(
   overrides: Partial<BrowserIdentityControllerDependencies> = {},
   states: unknown[] = [],
 ) {
-  const credentialCallback: { current: ((response: GoogleCredentialResponse) => void) | null } = { current: null };
+  const credentialCallback: {
+    current: ((result: GoogleSignInWidgetResult<{ googleIdToken: string; subject: string }>) => void) | null;
+  } = { current: null };
   const controller = new DefaultBrowserIdentityController({
     clientId: "google-client",
     dependencies: dependencies({
-      bindGoogleCredentialCallback: vi.fn((input) => {
-        credentialCallback.current = input.callback;
-        return Result.ok();
-      }),
+      googleSignInWidget: {
+        mount: vi.fn(async (input) => {
+          credentialCallback.current = input.onCredential;
+          return Result.ok();
+        }),
+        unmount: vi.fn(),
+      },
       ...overrides,
     }),
   });
@@ -302,16 +296,14 @@ function dependencies(overrides: Partial<BrowserIdentityControllerDependencies> 
     identityDeletion: { execute: vi.fn(async () => Result.ok()) },
     identityKeys: { disposeIdentityKey: vi.fn() },
     disposePubky: vi.fn(),
-    loadGoogleAccounts: vi.fn(async () => Result.ok({
-      id: { initialize: vi.fn(), renderButton: vi.fn() },
-      oauth2: { initTokenClient: vi.fn() },
-    })),
-    bindGoogleCredentialCallback: vi.fn(() => Result.ok()),
-    releaseGoogleCredentialCallback: vi.fn(),
-    googleIdTokenSubject: vi.fn(() => "google-subject"),
+    googleSignInWidget: { mount: vi.fn(async () => Result.ok()), unmount: vi.fn() },
     requestGoogleDriveAccess: vi.fn(async () => Result.ok("drive-access-token")),
     ...overrides,
   };
+}
+
+function googleCredential() {
+  return Result.ok({ googleIdToken: "google-id-token", subject: "google-subject" });
 }
 
 function fakeRepository(): BrowserIdentityControllerDependencies["repository"] {
