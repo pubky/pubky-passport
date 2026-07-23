@@ -8,19 +8,28 @@ import type {
   BrowserAuthorizationViewState,
 } from "../browser/authorization/browserAuthorizationController";
 import { createBrowserAuthorizationController } from "../browser/authorization/createBrowserAuthorizationController";
+import type { createBrowserIdentityController } from "../browser/identity/createBrowserIdentityController";
+import { AuthorizationIdentityPanel } from "./authorizationIdentityPanel";
 
 type AuthorizationReviewProps = {
   relayOrigin: string;
+  googleClientId: string;
+  passportUrl: string;
   controllerFactory?: (input: { relayOrigin: string }) => BrowserAuthorizationController;
+  identityControllerFactory?: typeof createBrowserIdentityController;
 };
 
 export function AuthorizationReview({
   relayOrigin,
+  googleClientId,
+  passportUrl,
   controllerFactory = createBrowserAuthorizationController,
+  identityControllerFactory,
 }: AuthorizationReviewProps) {
   // The factory owns synchronous query scrubbing and StrictMode parser provenance.
   const [controller] = useState(() => controllerFactory({ relayOrigin }));
   const [state, setState] = useState<BrowserAuthorizationViewState>(() => controller.getState());
+  const [identityReady, setIdentityReady] = useState(false);
 
   useEffect(() => {
     const unsubscribe = controller.subscribe(setState);
@@ -76,8 +85,15 @@ export function AuthorizationReview({
           </div>
         ))}
       </section>
+      <AuthorizationIdentityPanel
+        disabled={pending}
+        googleClientId={googleClientId}
+        onReadyChange={setIdentityReady}
+        passportUrl={passportUrl}
+        {...(identityControllerFactory ? { controllerFactory: identityControllerFactory } : {})}
+      />
       <div aria-live="polite" className="flex gap-2">
-        <button className="rounded border px-3 py-2" disabled={pending} onClick={() => void controller.approve()} type="button">
+        <button className="rounded border px-3 py-2" disabled={pending || !identityReady} onClick={() => void controller.approve()} type="button">
           {state.status === "approving" ? "Approving..." : "Approve"}
         </button>
         <button className="rounded border px-3 py-2" disabled={pending} onClick={() => controller.cancel()} type="button">Cancel</button>
