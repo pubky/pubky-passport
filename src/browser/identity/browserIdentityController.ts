@@ -15,8 +15,6 @@ export type BrowserIdentityList = {
   identities: LocalIdentitySummary[];
 };
 
-export type BrowserIdentityRepositoryErrorCode = LocalIdentityRepositoryErrorCode;
-
 export type BrowserIdentityControllerErrorCode =
   | GoogleBackedIdentityFlowErrorCode
   | GoogleBackedIdentityDeletionErrorCode;
@@ -59,9 +57,9 @@ export type GoogleContinueResult =
   | { status: "action_completed"; result: BrowserIdentityActionResult };
 
 export type BrowserIdentityController = {
-  list(): Result<BrowserIdentityList, { code: BrowserIdentityRepositoryErrorCode }>;
-  select(id: string): Result<void, { code: BrowserIdentityRepositoryErrorCode }>;
-  clear(): Result<void, { code: BrowserIdentityRepositoryErrorCode }>;
+  list(): Result<BrowserIdentityList, { code: LocalIdentityRepositoryErrorCode }>;
+  select(id: string): Result<void, { code: LocalIdentityRepositoryErrorCode }>;
+  clear(): Result<void, { code: LocalIdentityRepositoryErrorCode }>;
   mountGoogleSignIn(target: HTMLElement, onState: (state: GoogleSignInState) => void): Promise<void>;
   unmountGoogleSignIn(): void;
   retryGoogleSignIn(): void;
