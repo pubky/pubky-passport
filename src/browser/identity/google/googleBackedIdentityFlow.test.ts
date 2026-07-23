@@ -14,8 +14,10 @@ import type {
 } from "../applicationContracts";
 import type { PassportFileEnvelopeV1 } from "../../../features/passport-file/passportFile";
 import { GoogleBackedIdentityFlow } from "./googleBackedIdentityFlow";
+import { CreateMissingGoogleDriveIdentityUseCase } from "./createMissingGoogleDriveIdentity";
 import { DeleteGoogleBackedIdentity } from "./deleteGoogleBackedIdentity";
 import type { GoogleHomegateInviteRequester, GoogleHomegateInviteRequesterErrorCode } from "./applicationContracts";
+import { RestoreExistingGoogleDriveIdentityUseCase } from "./restoreExistingGoogleDriveIdentity";
 
 const envelope: PassportFileEnvelopeV1 = {
   v: 1,
@@ -415,19 +417,29 @@ function createFlow(input: {
   discovery?: FakePubkyDiscovery;
 }): GoogleBackedIdentityFlow {
   const activation = activationDependencies(input.keys);
+  const signup = input.signup ?? activation.signup;
   return new GoogleBackedIdentityFlow({
     wrappingKeys: { async requestWrappingKey() { return Result.ok("w".repeat(43)); } },
     passportFilesForAccessToken(accessToken) {
       expect(accessToken).toBe("drive-token");
       return input.files;
     },
-    crypto: input.crypto,
-    identityKeys: input.keys,
-    homegateInvites: input.homegate ?? activation.homegate,
-    signup: input.signup ?? activation.signup,
-    discovery: input.discovery ?? activation.discovery,
-    localIdentities: input.local,
-    passportUrl: "https://passport.pubky.app",
+    restoreExistingIdentity: new RestoreExistingGoogleDriveIdentityUseCase({
+      crypto: input.crypto,
+      identityKeys: input.keys,
+      signup,
+      localIdentities: input.local,
+      passportUrl: "https://passport.pubky.app",
+    }),
+    createMissingIdentity: new CreateMissingGoogleDriveIdentityUseCase({
+      crypto: input.crypto,
+      identityKeys: input.keys,
+      homegateInvites: input.homegate ?? activation.homegate,
+      signup,
+      discovery: input.discovery ?? activation.discovery,
+      localIdentities: input.local,
+      passportUrl: "https://passport.pubky.app",
+    }),
   });
 }
 

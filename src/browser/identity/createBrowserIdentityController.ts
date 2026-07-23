@@ -11,9 +11,11 @@ import {
   requestGoogleDriveAccess,
 } from "./google/googleIdentityProvider";
 import { GoogleBackedIdentityFlow } from "./google/googleBackedIdentityFlow";
+import { CreateMissingGoogleDriveIdentityUseCase } from "./google/createMissingGoogleDriveIdentity";
 import { DeleteGoogleBackedIdentity } from "./google/deleteGoogleBackedIdentity";
 import { BrowserGoogleHomegateInviteRequester } from "./google/googleHomegateInviteRequester";
 import { BrowserGoogleWrappingKeyRequester } from "./google/googleWrappingKeyRequester";
+import { RestoreExistingGoogleDriveIdentityUseCase } from "./google/restoreExistingGoogleDriveIdentity";
 import { DefaultBrowserIdentityController, type BrowserIdentityController } from "./browserIdentityController";
 import { LocalStorageIdentityRepository } from "./localIdentityRepository";
 import { LocalIdentityService } from "./localIdentityService";
@@ -33,9 +35,14 @@ export function createBrowserIdentityController(input: {
     fetch: globalThis.fetch.bind(globalThis),
     allowLocalhostHttp,
   });
-  const identityFlow = new GoogleBackedIdentityFlow({
-    wrappingKeys,
-    passportFilesForAccessToken,
+  const restoreExistingIdentity = new RestoreExistingGoogleDriveIdentityUseCase({
+    crypto,
+    identityKeys: pubky,
+    signup: pubky,
+    localIdentities,
+    passportUrl: input.passportUrl,
+  });
+  const createMissingIdentity = new CreateMissingGoogleDriveIdentityUseCase({
     crypto,
     identityKeys: pubky,
     homegateInvites: new BrowserGoogleHomegateInviteRequester(),
@@ -43,6 +50,12 @@ export function createBrowserIdentityController(input: {
     discovery: pubky,
     localIdentities,
     passportUrl: input.passportUrl,
+  });
+  const identityFlow = new GoogleBackedIdentityFlow({
+    wrappingKeys,
+    passportFilesForAccessToken,
+    restoreExistingIdentity,
+    createMissingIdentity,
   });
   const identityDeletion = new DeleteGoogleBackedIdentity({
     wrappingKeys,

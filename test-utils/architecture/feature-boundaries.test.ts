@@ -34,8 +34,10 @@ const browserApplicationModules = [
   join(browserRoot, "identity", "browserIdentityController.ts"),
   join(browserRoot, "identity", "localIdentityService.ts"),
   join(browserRoot, "identity", "google", "applicationContracts.ts"),
+  join(browserRoot, "identity", "google", "createMissingGoogleDriveIdentity.ts"),
   join(browserRoot, "identity", "google", "deleteGoogleBackedIdentity.ts"),
   join(browserRoot, "identity", "google", "googleBackedIdentityFlow.ts"),
+  join(browserRoot, "identity", "google", "restoreExistingGoogleDriveIdentity.ts"),
 ];
 const browserAdapterModules = [
   localIdentityRepository,

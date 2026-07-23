@@ -2,6 +2,10 @@ import "client-only";
 
 import type { Result } from "better-result";
 
+import type { PubkyIdentityKey, PubkyPublicIdentity } from "../../../features/identity/pubkyIdentity";
+import type { PassportFileEnvelopeV1 } from "../../../features/passport-file/passportFile";
+import type { PassportFileStore } from "../applicationContracts";
+
 export type GoogleIdentityProviderErrorCode =
   | "google_unavailable"
   | "sign_in_failed"
@@ -39,6 +43,46 @@ export type GoogleAccounts = {
 export type GoogleIdentitySession = {
   googleIdToken: string;
   driveAccessToken: string;
+};
+
+export type GoogleBackedIdentityFlowErrorCode =
+  | "wrapping_key_failed"
+  | "drive_read_failed"
+  | "decrypt_failed"
+  | "restore_failed"
+  | "identity_mismatch"
+  | "create_failed"
+  | "encrypt_failed"
+  | "drive_create_conflict"
+  | "drive_write_failed"
+  | "homegate_invite_failed"
+  | "signup_failed"
+  | "signin_failed"
+  | "discovery_failed"
+  | "local_save_failed"
+  | "unexpected_failure";
+
+export type GoogleBackedIdentityFlowError = {
+  code: GoogleBackedIdentityFlowErrorCode;
+  recoverablePublicIdentity?: PubkyPublicIdentity;
+};
+
+export type GoogleBackedIdentity = PubkyIdentityKey & { source: "restored" | "created" };
+export type GoogleBackedIdentityFlowResult<T> = Result<T, GoogleBackedIdentityFlowError>;
+
+export type RestoreExistingGoogleDriveIdentity = {
+  execute(input: {
+    envelope: PassportFileEnvelopeV1;
+    wrappingKey: string;
+  }): Promise<GoogleBackedIdentityFlowResult<GoogleBackedIdentity>>;
+};
+
+export type CreateMissingGoogleDriveIdentity = {
+  execute(input: {
+    googleIdToken: string;
+    passportFiles: Pick<PassportFileStore, "createPassportFile">;
+    wrappingKey: string;
+  }): Promise<GoogleBackedIdentityFlowResult<GoogleBackedIdentity>>;
 };
 
 export type HomeserverSignupInvitation = {
