@@ -221,7 +221,7 @@ sequenceDiagram
     end
     box rgba(17, 24, 39, 0.12) External
         participant SDK as @synonymdev/pubky@0.9.3<br/>Keypair / Signer
-        participant Relay as Request-supplied HTTPS Relay<br/>Signer.approveAuthRequest() delivery
+        participant Relay as Request-supplied HTTPS Relay<br/>encrypted AuthToken destination
     end
     box rgba(107, 114, 128, 0.18) Browser platform
         participant Window as PLATFORM<br/>Passport tab window
@@ -556,7 +556,7 @@ sequenceDiagram
         participant API as handler.ts<br/>googleHomegateInvitePost()
     end
     box rgba(17, 24, 39, 0.12) External
-        participant SDK as @synonymdev/pubky@0.9.3<br/>Signer / PKDNS
+        participant SDK as @synonymdev/pubky@0.9.3<br/>Signer / Pkdns
         participant Homeserver as Homegate-supplied Pubky homeserver
     end
 
