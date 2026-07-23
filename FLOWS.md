@@ -1,6 +1,6 @@
 # Runtime Flows
 
-Current code only.
+Current code only. UI wiring is not yet complete and only includes minimal development surface that will be replaced.
 
 ```mermaid
 flowchart TB
@@ -87,8 +87,6 @@ Enforced by `test-utils/architecture/feature-boundaries.test.ts` and the
 
 In the remaining diagrams:
 
-- Box title: exact repository directory.
-- Participant title: exact filename, then concrete symbol.
 - Solid arrow: call or network request.
 - Dashed arrow: return or result.
 
@@ -106,7 +104,7 @@ sequenceDiagram
         participant Client as PLATFORM<br/>Passport tab<br/>(window, history, location)
         participant Next as PLATFORM<br/>Next.js request runtime
     end
-    box rgba(240, 228, 66, 0.18) .
+    box rgba(240, 228, 66, 0.18) repository root
         participant Proxy as proxy.ts<br/>proxy()
     end
     box rgba(240, 228, 66, 0.18) src/app/authorize
@@ -155,8 +153,7 @@ sequenceDiagram
     Default->>Entry: clearPendingAuthorizationEntry(window)
 ```
 
-The server parse contributes only `relayOrigin` to CSP. The browser parse retains
-the parser-issued approval object and private callback metadata.
+
 
 ### Manual Authorization
 
@@ -221,7 +218,7 @@ sequenceDiagram
     end
     box rgba(17, 24, 39, 0.12) External
         participant SDK as @synonymdev/pubky@0.9.3<br/>Keypair / Signer
-        participant Relay as Request-supplied HTTPS Relay<br/>encrypted AuthToken destination
+        participant Relay as Request-supplied HTTPS Relay<br/>Signer.approveAuthRequest() delivery
     end
     box rgba(107, 114, 128, 0.18) Browser platform
         participant Window as PLATFORM<br/>Passport tab window
@@ -363,9 +360,7 @@ sequenceDiagram
     Controller->>Establish: establish(ID token, Drive token)
 ```
 
-Tokens pass through browser controller, application, and adapter locals; the Drive
-token is also held by the repository's token-provider closure. They never enter
-React state or browser persistence.
+
 
 ### Establish Google-Backed Identity
 
@@ -390,7 +385,7 @@ sequenceDiagram
         participant DriveRepo as googleDrivePassportFileRepository.ts<br/>GoogleDrivePassportFileRepository
     end
     box rgba(240, 228, 66, 0.18) src/app/api/wrapping-key/google
-        participant API as handler.ts<br/>googleWrappingKeyPost()
+        participant API as handler.ts<br/>googleWrappingKeyPost()<br/>exported as route.ts::POST
     end
     box rgba(17, 24, 39, 0.12) External
         participant Drive as Google Drive API v3<br/>appDataFolder/passport.json
@@ -398,7 +393,6 @@ sequenceDiagram
 
     Controller->>Establish: establish(ID token, Drive token)
     Establish->>Wrapping: requestWrappingKey(ID token)
-    Note over API: route.ts exports this function as POST
     Wrapping->>API: POST { googleIdToken }
     API-->>Wrapping: wrapping-key result
     Wrapping-->>Establish: wrapping-key result
@@ -428,8 +422,7 @@ sequenceDiagram
     end
 ```
 
-The wrapping key stays with the identity coordinator; it is never passed to the
-Drive repository.
+
 
 ### Restore Existing Identity
 
@@ -453,6 +446,7 @@ sequenceDiagram
     end
     box rgba(17, 24, 39, 0.12) External
         participant SDK as @synonymdev/pubky@0.9.3<br/>Keypair / Signer
+        participant Network as Pubky network operations<br/>homeserver sign-in + SDK-owned PKDNS
     end
 
     Restore->>Crypto: decryptSecretKeyBytes(envelope, wrapping key, origin)
@@ -463,7 +457,8 @@ sequenceDiagram
     Pubky-->>Restore: opaque handle + public identity
     Restore->>Pubky: signin(handle, waitForDiscovery=true)
     Pubky->>SDK: signer.signinBlocking()
-    Note over SDK: SDK owns homeserver sign-in + PKDNS network behavior
+    SDK->>Network: sign in and publish discovery
+    Network-->>SDK: session result
     SDK-->>Pubky: Session
     Pubky-->>Restore: session public identity
     Note over Restore: Require session identity to match key
@@ -553,15 +548,15 @@ sequenceDiagram
         participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
     end
     box rgba(240, 228, 66, 0.18) src/app/api/homegate/google/invite
-        participant API as handler.ts<br/>googleHomegateInvitePost()
+        participant API as handler.ts<br/>googleHomegateInvitePost()<br/>exported as route.ts::POST
     end
     box rgba(17, 24, 39, 0.12) External
-        participant SDK as @synonymdev/pubky@0.9.3<br/>Signer / Pkdns
+        participant SDK as @synonymdev/pubky@0.9.3<br/>Signer / PKDNS
         participant Homeserver as Homegate-supplied Pubky homeserver
+        participant PKARR as SDK-owned PKDNS / PKARR network
     end
 
     Creator->>Invite: requestSignupInvitation(ID token)
-    Note over API: route.ts exports this function as POST
     Invite->>API: POST { googleIdToken }
     API-->>Invite: fixed JSON invitation or safe error
     alt API error
@@ -579,7 +574,8 @@ sequenceDiagram
         Note over Creator: Require session identity to match key
         Creator->>Pubky: publishHomeserverIfStale(...)
         Pubky->>SDK: signer.pkdns.publishHomeserverIfStale(...)
-        Note over SDK: SDK owns PKDNS / PKARR network behavior
+        SDK->>PKARR: publish PKDNS / PKARR
+        PKARR-->>SDK: completion
         SDK-->>Pubky: completion
         Pubky-->>Creator: completion
         Creator->>Local: saveIdentity(handle)
@@ -593,12 +589,14 @@ sequenceDiagram
 ```
 
 Local ready state is saved last. Failure after Drive creation leaves the encrypted
-Drive file but no local ready identity.
+Drive file but no local ready identity. This might have to be addressed again during UI wiring.
 
 ### Development-Only Drive Reset
 
 Credential acquisition follows the Google flow above with a delete action. This
 diagram starts after verified Google and Drive tokens return to the controller.
+
+Actual implementation of this flow for migration to Ring will differ from current implementation, but the call flow is expected to remain similar.
 
 ```mermaid
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
@@ -623,7 +621,7 @@ sequenceDiagram
         participant Pubky as browserPubky.ts<br/>BrowserPubky
     end
     box rgba(240, 228, 66, 0.18) src/app/api/wrapping-key/google
-        participant WrappingAPI as handler.ts<br/>googleWrappingKeyPost()
+        participant WrappingAPI as handler.ts<br/>googleWrappingKeyPost()<br/>exported as route.ts::POST
     end
     box rgba(17, 24, 39, 0.12) External
         participant Drive as Google Drive API v3<br/>appDataFolder/passport.json
@@ -631,7 +629,6 @@ sequenceDiagram
 
     Controller->>Delete: execute(credentials, expected public key)
     Delete->>Wrapping: requestWrappingKey(ID token)
-    Note over WrappingAPI: route.ts exports this function as POST
     Wrapping->>WrappingAPI: POST { googleIdToken }
     WrappingAPI-->>Wrapping: wrapping-key result
     Wrapping-->>Delete: wrapping-key result
@@ -706,37 +703,29 @@ sequenceDiagram
 sequenceDiagram
     accTitle: Google wrapping-key API call flow
     accDescr: The route validates its request, verifies Google identity claims, applies a keyed identity rate limit, and derives wrapping material with HKDF.
-    box rgba(0, 158, 115, 0.18) src/browser/identity/adapters/google
-        participant Browser as googleWrappingKeyRequester.ts<br/>BrowserGoogleWrappingKeyRequester
+    box rgba(0, 158, 115, 0.18) Browser runtime
+        participant Browser as BROWSER<br/>WrappingKeyRequester
     end
-    box rgba(240, 228, 66, 0.18) src/app/api/wrapping-key/google
-        participant Handler as handler.ts<br/>googleWrappingKeyPost()
+    box rgba(240, 228, 66, 0.18) Next transport
+        participant Handler as APP<br/>wrapping-key handler
+        participant Policy as APP<br/>googleCredentialRoutePolicy
     end
-    box rgba(240, 228, 66, 0.18) src/app/api
-        participant Policy as googleCredentialRoutePolicy.ts<br/>parseGoogleIdTokenRequest()
-    end
-    box rgba(213, 94, 0, 0.18) src/server/wrapping-key/google
-        participant Composition as composition.ts<br/>createConfiguredGoogleWrappingKeyRequest()
-        participant Request as request.ts<br/>createGoogleWrappingKeyRequest()<br/>returned requestWrappingKey()
-        participant Verifier as idTokenVerifier.ts<br/>createGoogleIdTokenVerifier()<br/>returned verifyGoogleIdToken()
-        participant Limiter as rateLimiter.ts<br/>createInMemoryGoogleWrappingKeyRateLimiter()<br/>returned checkRequest()
-        participant Deriver as keyDeriver.ts<br/>createGoogleWrappingKeyMaterial()<br/>returned deriveWrappingKey()
+    box rgba(213, 94, 0, 0.18) Server
+        participant Request as SERVER<br/>GoogleWrappingKeyRequest
+        participant Verifier as SERVER<br/>GoogleIdTokenVerifier
+        participant Limiter as SERVER<br/>rate limiter
+        participant Deriver as SERVER<br/>HKDF key deriver
     end
     box rgba(17, 24, 39, 0.12) External
-        participant Google as google-auth-library@10.9.0<br/>OAuth2Client / LoginTicket
+        participant Google as google-auth-library / Google
     end
 
     Browser->>Handler: POST { googleIdToken }
-    Note over Handler: route.ts exports this function as POST
     Handler->>Policy: parseGoogleIdTokenRequest(request)
     Policy-->>Handler: Google ID token or invalid_request
     alt Invalid request
         Handler-->>Browser: fixed 400 invalid_request
     else Valid Google ID token
-        opt First valid request in this route module
-            Handler->>Composition: createConfiguredGoogleWrappingKeyRequest()
-            Composition-->>Handler: configured request object
-        end
         Handler->>Request: requestWrappingKey(token)
         Request->>Verifier: verifyGoogleIdToken(token)
         Verifier->>Google: verifyIdToken(token, audience)
@@ -769,24 +758,21 @@ sequenceDiagram
 sequenceDiagram
     accTitle: Homegate invitation API call flow
     accDescr: The route forwards only the Google ID token to Homegate and maps the invitation or error to a fixed browser response.
-    box rgba(0, 158, 115, 0.18) src/browser/identity/adapters/google
-        participant Browser as googleHomegateInviteRequester.ts<br/>BrowserGoogleHomegateInviteRequester
+    box rgba(0, 158, 115, 0.18) Browser runtime
+        participant Browser as BROWSER<br/>HomegateInviteRequester
     end
-    box rgba(240, 228, 66, 0.18) src/app/api/homegate/google/invite
-        participant Handler as handler.ts<br/>googleHomegateInvitePost()
+    box rgba(240, 228, 66, 0.18) Next transport
+        participant Handler as APP<br/>Homegate invite handler
+        participant Policy as APP<br/>googleCredentialRoutePolicy
     end
-    box rgba(240, 228, 66, 0.18) src/app/api
-        participant Policy as googleCredentialRoutePolicy.ts<br/>parseGoogleIdTokenRequest()
-    end
-    box rgba(213, 94, 0, 0.18) src/server/homegate/google
-        participant Adapter as invite.ts<br/>createGoogleHomegateInvite()<br/>returned requestSignupInvitation()
+    box rgba(213, 94, 0, 0.18) Server
+        participant Adapter as SERVER<br/>Homegate Google adapter
     end
     box rgba(17, 24, 39, 0.12) External
-        participant Homegate as configured HOMEGATE_URL<br/>POST /google_verification
+        participant Homegate as Homegate
     end
 
     Browser->>Handler: POST { googleIdToken }
-    Note over Handler: route.ts exports this function as POST
     Handler->>Policy: parseGoogleIdTokenRequest(request)
     Policy-->>Handler: Google ID token or invalid_request
     alt Invalid request
