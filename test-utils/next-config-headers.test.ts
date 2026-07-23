@@ -74,11 +74,8 @@ describe("next config headers", () => {
   });
 
   it("accepts only exact browser connection origins", () => {
-    expect(parseBrowserConnectOrigins("https://homeserver.example,https://homeserver.example:443", false)).toEqual([
+    expect(parseBrowserConnectOrigins("https://homeserver.example,https://homeserver.example:443")).toEqual([
       "https://homeserver.example",
-    ]);
-    expect(parseBrowserConnectOrigins("http://localhost:6286", true)).toEqual([
-      "http://localhost:6286",
     ]);
 
     for (const value of [
@@ -87,10 +84,11 @@ describe("next config headers", () => {
       "https://user@example.com",
       "https://example.com/path",
       "http://example.com",
+      "http://localhost:6286",
       "not a URL",
       "https://example.com,",
     ]) {
-      expect(() => parseBrowserConnectOrigins(value, false)).toThrow("Invalid PUBKY_BROWSER_CONNECT_ORIGINS");
+      expect(() => parseBrowserConnectOrigins(value)).toThrow("Invalid PUBKY_BROWSER_CONNECT_ORIGINS");
     }
   });
 });

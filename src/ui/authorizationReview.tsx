@@ -16,7 +16,7 @@ import {
   type ActiveAuthorizationResult,
 } from "../browser/authorization/approveActiveAuthorization";
 import { LocalStorageIdentityRepository } from "../browser/identity/localIdentityRepository";
-import { BrowserPubky, pubkyNetworkForTestnetHost } from "../browser/pubky/browserPubky";
+import { BrowserPubky } from "../browser/pubky/browserPubky";
 
 type ParsedAuthorizationEntry =
   | { status: "valid"; review: PubkyAuthRequestReview; approval: ValidatedSensitivePubkyAuthRequest }
@@ -32,9 +32,6 @@ type PendingStrictModeEntry = { scrubbedHref: string; entry: ParsedAuthorization
 
 type AuthorizationReviewProps = {
   relayOrigin: string;
-  allowLocalhostRelay?: boolean;
-  allowLocalhostCallbacks: boolean;
-  pubkyTestnetHost?: string | undefined;
   approveAuthorization?: (approval: ValidatedSensitivePubkyAuthRequest) => Promise<ActiveAuthorizationResult>;
   navigate?: (url: string) => void;
 };
@@ -43,10 +40,7 @@ const pendingStrictModeEntries = new WeakMap<Window, PendingStrictModeEntry>();
 
 export function AuthorizationReview({
   relayOrigin,
-  allowLocalhostRelay = false,
-  allowLocalhostCallbacks,
-  pubkyTestnetHost,
-  approveAuthorization,
+  approveAuthorization = approveWithBrowserPubky,
   navigate = replaceLocation,
 }: AuthorizationReviewProps) {
   const approvalRef = useRef<ValidatedSensitivePubkyAuthRequest | null>(null);
@@ -54,7 +48,7 @@ export function AuthorizationReview({
   // data leaves this initializer while the sensitive approval stays in this ref.
   /* eslint-disable react-hooks/refs */
   const [entry] = useState<SafeAuthorizationEntry>(() => {
-    const parsedEntry = readAndScrubAuthorizationEntry({ relayOrigin, allowLocalhostRelay, allowLocalhostCallbacks });
+    const parsedEntry = readAndScrubAuthorizationEntry({ relayOrigin });
     if (parsedEntry.status === "invalid") return parsedEntry;
 
     approvalRef.current = parsedEntry.approval;
@@ -87,9 +81,7 @@ export function AuthorizationReview({
     setStatus("approving");
     let result: ActiveAuthorizationResult;
     try {
-      result = await (approveAuthorization
-        ? approveAuthorization(approval)
-        : approveWithBrowserPubky(approval, pubkyTestnetHost));
+      result = await approveAuthorization(approval);
     } catch {
       result = Result.err({ code: "approval_failed" });
     }
@@ -170,8 +162,6 @@ export function AuthorizationReview({
 
 function readAndScrubAuthorizationEntry(options: {
   relayOrigin: string;
-  allowLocalhostRelay: boolean;
-  allowLocalhostCallbacks: boolean;
 }): ParsedAuthorizationEntry {
   const browserWindow = window;
   const rawSearch = browserWindow.location.search;
@@ -199,8 +189,6 @@ function readAndScrubAuthorizationEntry(options: {
     rawD.valid ? rawD.value : undefined,
     {
       allowedRelayOrigins: [options.relayOrigin],
-      allowLocalhostRelay: options.allowLocalhostRelay,
-      allowLocalhostCallbacks: options.allowLocalhostCallbacks,
     },
   );
   const entry: ParsedAuthorizationEntry = Result.isError(parsed)
@@ -252,13 +240,10 @@ function authorizationFailureMessage(code: ActiveAuthorizationErrorCode | null):
 
 async function approveWithBrowserPubky(
   approval: ValidatedSensitivePubkyAuthRequest,
-  pubkyTestnetHost?: string,
 ): Promise<ActiveAuthorizationResult> {
   let pubky: BrowserPubky;
   try {
-    pubky = new BrowserPubky({
-      network: pubkyNetworkForTestnetHost(pubkyTestnetHost),
-    });
+    pubky = new BrowserPubky();
   } catch {
     return Result.err({ code: "approval_failed" });
   }

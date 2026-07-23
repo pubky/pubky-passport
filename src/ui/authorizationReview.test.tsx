@@ -27,7 +27,7 @@ describe("AuthorizationReview", () => {
 
     render(
       <StrictMode>
-        <AuthorizationReview allowLocalhostCallbacks={false} relayOrigin={relayOrigin} />
+        <AuthorizationReview relayOrigin={relayOrigin} />
       </StrictMode>,
     );
 
@@ -66,7 +66,7 @@ describe("AuthorizationReview", () => {
 
     expect(() => render(
       <>
-        <AuthorizationReview allowLocalhostCallbacks={false} relayOrigin={relayOrigin} />
+        <AuthorizationReview relayOrigin={relayOrigin} />
         <AbandonRender />
       </>,
     )).toThrow("abandoned render");
@@ -229,7 +229,6 @@ function renderReview(input: {
 }) {
   return render(
     <AuthorizationReview
-      allowLocalhostCallbacks={false}
       approveAuthorization={input.approve}
       navigate={input.navigate}
       relayOrigin={relayOrigin}

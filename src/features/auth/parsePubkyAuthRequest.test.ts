@@ -195,19 +195,6 @@ describe("parsePubkyAuthRequest", () => {
     expectError(encodeRequest(`${validRequest}&x-unreviewed=true`), "unsupported_parameter");
   });
 
-  it("allows localhost callbacks only when explicitly enabled", () => {
-    const request =
-      "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=test-secret&x-success=http://localhost:3000/passport-success&x-error=http://localhost:3000/passport-error&x-cancel=http://localhost:3000/passport-cancel";
-
-    expectError(encodeRequest(request), "invalid_callback");
-
-    const result = parsePubkyAuthRequest(encodeRequest(request), {
-      allowLocalhostCallbacks: true,
-    });
-
-    expect(Result.isOk(result)).toBe(true);
-  });
-
   it("rejects missing and empty d values", () => {
     expectError(undefined, "missing_d");
     expectError(null, "missing_d");

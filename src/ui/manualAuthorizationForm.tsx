@@ -6,10 +6,8 @@ import { useState, type FormEvent } from "react";
 
 import { parsePubkyAuthRequest } from "../features/auth/parsePubkyAuthRequest";
 
-export function ManualAuthorizationForm({ relayOrigin, allowLocalhostRelay = false, allowLocalhostCallbacks }: {
+export function ManualAuthorizationForm({ relayOrigin }: {
   relayOrigin: string;
-  allowLocalhostRelay?: boolean;
-  allowLocalhostCallbacks: boolean;
 }) {
   const router = useRouter();
   const [request, setRequest] = useState("");
@@ -21,8 +19,6 @@ export function ManualAuthorizationForm({ relayOrigin, allowLocalhostRelay = fal
     setRequest("");
     const parsed = parsePubkyAuthRequest(encodeURIComponent(rawRequest), {
       allowedRelayOrigins: [relayOrigin],
-      allowLocalhostRelay,
-      allowLocalhostCallbacks,
     });
     if (Result.isError(parsed)) {
       setError("Enter a valid Pubky authorization request.");

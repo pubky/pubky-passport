@@ -3,16 +3,11 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { pubkySecretKeyBytes, pubkySecretKeyFormat, type PubkyIdentityKeyHandle } from "../../features/identity/pubkyIdentity";
 import type { ValidatedSensitivePubkyAuthRequest } from "../../features/auth/parsePubkyAuthRequest";
-import { BrowserPubky, pubkyNetworkForTestnetHost } from "./browserPubky";
+import { BrowserPubky } from "./browserPubky";
 
 const testNetwork = { kind: "testnet" as const, host: "localhost" };
 
 describe("BrowserPubky", () => {
-  it("selects testnet only when an explicit host is configured", () => {
-    expect(pubkyNetworkForTestnetHost(undefined)).toEqual({ kind: "mainnet" });
-    expect(pubkyNetworkForTestnetHost("localhost")).toEqual(testNetwork);
-  });
-
   it("constructs mainnet and testnet SDK facades", () => {
     const mainnet = new BrowserPubky();
     const testnet = new BrowserPubky({ network: testNetwork });

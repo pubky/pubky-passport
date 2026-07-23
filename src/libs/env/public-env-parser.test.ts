@@ -54,25 +54,6 @@ describe("parsePublicEnv", () => {
     ).toThrow();
   });
 
-  it("accepts an optional Pubky testnet hostname", () => {
-    expect(parsePublicEnv({
-      ...validPublicEnv,
-      NEXT_PUBLIC_PUBKY_TESTNET_HOST: "localhost",
-    })).toMatchObject({ NEXT_PUBLIC_PUBKY_TESTNET_HOST: "localhost" });
-
-    expect(parsePublicEnv({
-      ...validPublicEnv,
-      NEXT_PUBLIC_PUBKY_TESTNET_HOST: "  ",
-    }).NEXT_PUBLIC_PUBKY_TESTNET_HOST).toBeUndefined();
-
-    for (const value of ["http://localhost", "localhost:15411", "localhost/path", "user@localhost"]) {
-      expect(() => parsePublicEnv({
-        ...validPublicEnv,
-        NEXT_PUBLIC_PUBKY_TESTNET_HOST: value,
-      })).toThrow();
-    }
-  });
-
   it("allows localhost HTTP URLs in development", () => {
     expect(
       parsePublicEnv({

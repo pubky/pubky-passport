@@ -4,12 +4,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const httpRelayOrigin = safeOrigin(process.env.NEXT_PUBLIC_HTTP_RELAY_URL) ?? "https://httprelay.pubky.app";
-const allowLocalhostPubkyConnections = process.env.NODE_ENV === "development"
-  || isLocalhostUrl(process.env.NEXT_PUBLIC_PASSPORT_PUBLIC_URL);
-const pubkyBrowserConnectOrigins = parseBrowserConnectOrigins(
-  process.env.PUBKY_BROWSER_CONNECT_ORIGINS,
-  allowLocalhostPubkyConnections,
-);
+const pubkyBrowserConnectOrigins = parseBrowserConnectOrigins(process.env.PUBKY_BROWSER_CONNECT_ORIGINS);
 const scriptSource = process.env.NODE_ENV === "development"
   ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com"
   : "script-src 'self' https://accounts.google.com https://apis.google.com";
@@ -96,19 +91,7 @@ function safeOrigin(value) {
   }
 }
 
-function isLocalhostUrl(value) {
-  if (!value) {
-    return false;
-  }
-
-  try {
-    return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(value).hostname);
-  } catch {
-    return false;
-  }
-}
-
-function parseBrowserConnectOrigins(value, allowLocalhostHttp) {
+function parseBrowserConnectOrigins(value) {
   if (!value) {
     return [];
   }
@@ -122,16 +105,13 @@ function parseBrowserConnectOrigins(value, allowLocalhostHttp) {
 
     try {
       const url = new URL(trimmedCandidate);
-      const isLocalhostHttp = allowLocalhostHttp
-        && url.protocol === "http:"
-        && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
       const isExactOrigin = url.username === ""
         && url.password === ""
         && url.pathname === "/"
         && url.search === ""
         && url.hash === ""
         && !url.hostname.includes("*");
-      if (!(url.protocol === "https:" || isLocalhostHttp) || !isExactOrigin) {
+      if (url.protocol !== "https:" || !isExactOrigin) {
         throw new Error("invalid browser connection origin");
       }
 

@@ -10,11 +10,8 @@ export default function Home() {
         googleClientId={publicEnv.NEXT_PUBLIC_GOOGLE_CLIENT_ID}
         allowGoogleDriveReset={process.env.NODE_ENV === "development"}
         passportUrl={publicEnv.NEXT_PUBLIC_PASSPORT_PUBLIC_URL}
-        pubkyTestnetHost={publicEnv.NEXT_PUBLIC_PUBKY_TESTNET_HOST}
       />
       <ManualAuthorizationForm
-        allowLocalhostRelay={process.env.NODE_ENV === "development"}
-        allowLocalhostCallbacks={process.env.NODE_ENV === "development"}
         relayOrigin={new URL(publicEnv.NEXT_PUBLIC_HTTP_RELAY_URL).origin}
       />
     </main>

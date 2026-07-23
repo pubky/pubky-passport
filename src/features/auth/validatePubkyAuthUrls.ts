@@ -27,10 +27,6 @@ export type PubkyAuthUrlValidationError = {
 export type PubkyAuthUrlValidationOptions = {
   // This origin allowlist must be derived from the same configured relay as CSP.
   allowedRelayOrigins: readonly string[];
-  // Route/controller wiring must only enable this in development.
-  allowLocalhostRelay?: boolean;
-  // Route/controller wiring must only enable this in development.
-  allowLocalhostCallbacks?: boolean;
 };
 
 export type PubkyAuthUrlValidationResult = ResultType<{
@@ -60,13 +56,12 @@ export function validatePubkyAuthUrls(
   const relay = validateRelayUrl(
     authUrl.searchParams.get(pubkyAuthRequestParameters.relay),
     options.allowedRelayOrigins,
-    options.allowLocalhostRelay,
   );
   if (Result.isError(relay)) {
     return Result.err(relay.error);
   }
 
-  const callbacks = validateCallbacks(authUrl, options);
+  const callbacks = validateCallbacks(authUrl);
   if (Result.isError(callbacks)) {
     return Result.err(callbacks.error);
   }
@@ -87,7 +82,6 @@ export function validatePubkyAuthUrls(
 export function validateRelayUrl(
   value: string | null,
   allowedRelayOrigins: readonly string[],
-  allowLocalhostRelay = false,
 ): ResultType<URL, PubkyAuthUrlValidationError> {
   if (!value) {
     return error("missing_relay", "Pubky auth request is missing relay.");
@@ -100,17 +94,13 @@ export function validateRelayUrl(
   const parsed = parseAbsoluteUrl(value);
   if (
     Result.isError(parsed) ||
-    !isAllowedRelayProtocol(parsed.value, allowLocalhostRelay) ||
+    parsed.value.protocol !== "https:" ||
     !allowedRelayOrigins.includes(parsed.value.origin)
   ) {
     return error("invalid_relay", "Pubky auth request relay is not an allowed URL.");
   }
 
   return Result.ok(parsed.value);
-}
-
-function isAllowedRelayProtocol(url: URL, allowLocalhostRelay: boolean): boolean {
-  return url.protocol === "https:" || (allowLocalhostRelay && url.protocol === "http:" && isLocalhost(url.hostname));
 }
 
 function deriveDisplayDomain(callbacks: ValidatedPubkyAuthCallbacks): string | undefined {
@@ -136,19 +126,18 @@ function deriveDisplayDomain(callbacks: ValidatedPubkyAuthCallbacks): string | u
 
 function validateCallbacks(
   authUrl: URL,
-  options: PubkyAuthUrlValidationOptions,
 ): ResultType<ValidatedPubkyAuthCallbacks, PubkyAuthUrlValidationError> {
-  const success = validateOptionalCallback(authUrl.searchParams.get(pubkyAuthRequestParameters.success), options);
+  const success = validateOptionalCallback(authUrl.searchParams.get(pubkyAuthRequestParameters.success));
   if (Result.isError(success)) {
     return Result.err(success.error);
   }
 
-  const errorCallback = validateOptionalCallback(authUrl.searchParams.get(pubkyAuthRequestParameters.error), options);
+  const errorCallback = validateOptionalCallback(authUrl.searchParams.get(pubkyAuthRequestParameters.error));
   if (Result.isError(errorCallback)) {
     return Result.err(errorCallback.error);
   }
 
-  const cancel = validateOptionalCallback(authUrl.searchParams.get(pubkyAuthRequestParameters.cancel), options);
+  const cancel = validateOptionalCallback(authUrl.searchParams.get(pubkyAuthRequestParameters.cancel));
   if (Result.isError(cancel)) {
     return Result.err(cancel.error);
   }
@@ -186,7 +175,6 @@ export type ValidatedPubkyAuthCallbacks = {
 
 function validateOptionalCallback(
   value: string | null,
-  options: PubkyAuthUrlValidationOptions,
 ): ResultType<URL | undefined, PubkyAuthUrlValidationError> {
   if (!value) {
     return Result.ok(undefined);
@@ -197,27 +185,19 @@ function validateOptionalCallback(
   }
 
   const parsed = parseAbsoluteUrl(value);
-  if (Result.isError(parsed) || !isAllowedCallbackUrl(parsed.value, options)) {
+  if (Result.isError(parsed) || !isAllowedCallbackUrl(parsed.value)) {
     return error("invalid_callback", "Pubky auth request callback is not an allowed URL.");
   }
 
   return Result.ok(parsed.value);
 }
 
-function isAllowedCallbackUrl(url: URL, options: PubkyAuthUrlValidationOptions): boolean {
+function isAllowedCallbackUrl(url: URL): boolean {
   if (UNSAFE_CALLBACK_PROTOCOLS.has(url.protocol)) {
     return false;
   }
 
-  if (url.protocol === "https:") {
-    return true;
-  }
-
-  return Boolean(options.allowLocalhostCallbacks && url.protocol === "http:" && isLocalhost(url.hostname));
-}
-
-function isLocalhost(hostname: string): boolean {
-  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]";
+  return url.protocol === "https:";
 }
 
 function parseAbsoluteUrl(value: string): UrlParseResult {
