@@ -2,11 +2,6 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-export type GoogleIdentitySession = {
-  googleIdToken: string;
-  driveAccessToken: string;
-};
-
 export type GoogleIdentityProviderErrorCode =
   | "google_unavailable"
   | "sign_in_failed"

@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import type { GoogleWrappingKeyRequester } from "./googleBackedIdentityFlow";
+import type { GoogleWrappingKeyRequester } from "./applicationContracts";
 import { logger } from "../../../libs/logger/logger";
 
 export class BrowserGoogleWrappingKeyRequester implements GoogleWrappingKeyRequester {

@@ -15,7 +15,8 @@ import type {
 } from "../../passport-file/passportFilePorts";
 import type { PassportFileEnvelopeV1 } from "../../../features/passport-file/passportFile";
 import { GoogleBackedIdentityFlow } from "./googleBackedIdentityFlow";
-import type { GoogleHomegateInviteRequester, GoogleHomegateInviteRequesterErrorCode } from "./googleHomegateInviteRequester";
+import { DeleteGoogleBackedIdentity } from "./deleteGoogleBackedIdentity";
+import type { GoogleHomegateInviteRequester, GoogleHomegateInviteRequesterErrorCode } from "./applicationContracts";
 
 const envelope: PassportFileEnvelopeV1 = {
   v: 1,
@@ -78,12 +79,11 @@ describe("GoogleBackedIdentityFlow", () => {
 
   it("deletes a Drive identity only when it matches the selected local identity", async () => {
     const keys = new FakePubkyIdentityKeys();
-    const local = new FakeLocalIdentities();
     const files = new FakePassportFiles({ status: "found", envelope, reference });
     const crypto = new FakePassportCrypto();
-    const flow = createFlow({ keys, local, files, crypto });
+    const deletion = createDeletion({ keys, files, crypto });
 
-    const deleted = await flow.deleteIdentity(
+    const deleted = await deletion.execute(
       { googleIdToken: "id-token", driveAccessToken: "drive-token" },
       keys.nextPublicIdentity.publicKeyZ32,
     );
@@ -98,9 +98,9 @@ describe("GoogleBackedIdentityFlow", () => {
   it("does not delete a Drive identity that differs from the selected identity", async () => {
     const keys = new FakePubkyIdentityKeys();
     const files = new FakePassportFiles({ status: "found", envelope, reference });
-    const flow = createFlow({ keys, local: new FakeLocalIdentities(), files, crypto: new FakePassportCrypto() });
+    const deletion = createDeletion({ keys, files, crypto: new FakePassportCrypto() });
 
-    const deleted = await flow.deleteIdentity(
+    const deleted = await deletion.execute(
       { googleIdToken: "id-token", driveAccessToken: "drive-token" },
       "different-local-identity",
     );
@@ -155,9 +155,9 @@ describe("GoogleBackedIdentityFlow", () => {
     const files = new FakePassportFiles({ status: "found", envelope, reference });
     files.deleteFailure = "stale_file";
     const crypto = new FakePassportCrypto();
-    const flow = createFlow({ keys, local: new FakeLocalIdentities(), files, crypto });
+    const deletion = createDeletion({ keys, files, crypto });
 
-    const result = await flow.deleteIdentity(
+    const result = await deletion.execute(
       { googleIdToken: "id-token", driveAccessToken: "drive-token" },
       keys.nextPublicIdentity.publicKeyZ32,
     );
@@ -343,8 +343,9 @@ describe("GoogleBackedIdentityFlow", () => {
         ...dependencies,
       });
 
-      await expect(flow.establish({ googleIdToken: "id-token", driveAccessToken: "drive-token" })).rejects.toThrow();
+      const result = await flow.establish({ googleIdToken: "id-token", driveAccessToken: "drive-token" });
 
+      expect(Result.isError(result) && result.error.code).toBe("unexpected_failure");
       expect(keys.disposedKeys).toHaveLength(1);
       expect(crypto.decryptedBytes.every((byte) => byte === 0)).toBe(true);
     },
@@ -378,12 +379,30 @@ describe("GoogleBackedIdentityFlow", () => {
 
       const flow = createFlow({ keys, local, files, crypto, ...dependencies });
 
-      await expect(flow.establish({ googleIdToken: "id-token", driveAccessToken: "drive-token" })).rejects.toThrow();
+      const result = await flow.establish({ googleIdToken: "id-token", driveAccessToken: "drive-token" });
 
+      expect(Result.isError(result) && result.error.code).toBe("unexpected_failure");
       expect(keys.disposedKeys).toHaveLength(1);
       expect(crypto.encryptedBytes.every((byte) => byte === 0)).toBe(true);
     },
   );
+
+  it("maps unexpected Drive deletion exceptions and still cleans restored key material", async () => {
+    const keys = new FakePubkyIdentityKeys();
+    const files = new FakePassportFiles({ status: "found", envelope, reference });
+    files.deletePassportFile = async () => { throw new Error("Drive deletion threw"); };
+    const crypto = new FakePassportCrypto();
+    const deletion = createDeletion({ keys, files, crypto });
+
+    const result = await deletion.execute(
+      { googleIdToken: "id-token", driveAccessToken: "drive-token" },
+      keys.nextPublicIdentity.publicKeyZ32,
+    );
+
+    expect(Result.isError(result) && result.error.code).toBe("unexpected_failure");
+    expect(keys.disposedKeys).toHaveLength(1);
+    expect(crypto.decryptedBytes.every((byte) => byte === 0)).toBe(true);
+  });
 
 });
 
@@ -409,6 +428,23 @@ function createFlow(input: {
     signup: input.signup ?? activation.signup,
     discovery: input.discovery ?? activation.discovery,
     localIdentities: input.local,
+    passportUrl: "https://passport.pubky.app",
+  });
+}
+
+function createDeletion(input: {
+  keys: FakePubkyIdentityKeys;
+  files: FakePassportFiles;
+  crypto: FakePassportCrypto;
+}): DeleteGoogleBackedIdentity {
+  return new DeleteGoogleBackedIdentity({
+    wrappingKeys: { async requestWrappingKey() { return Result.ok("w".repeat(43)); } },
+    passportFilesForAccessToken(accessToken) {
+      expect(accessToken).toBe("drive-token");
+      return input.files;
+    },
+    crypto: input.crypto,
+    identityKeys: input.keys,
     passportUrl: "https://passport.pubky.app",
   });
 }

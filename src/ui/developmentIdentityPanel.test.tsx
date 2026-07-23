@@ -17,7 +17,12 @@ vi.mock("../browser/identity/google/googleBackedIdentityFlow", () => ({
       return flowState.establish();
     }
 
-    async deleteIdentity(_google: unknown, expectedPublicKeyZ32: string) {
+  },
+}));
+
+vi.mock("../browser/identity/google/deleteGoogleBackedIdentity", () => ({
+  DeleteGoogleBackedIdentity: class {
+    async execute(_google: unknown, expectedPublicKeyZ32: string) {
       flowState.deleteExpectedPublicKey = expectedPublicKeyZ32;
       return Result.ok();
     }

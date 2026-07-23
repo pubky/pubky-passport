@@ -4,6 +4,7 @@ import { Result } from "better-result";
 import { useEffect, useRef, useState } from "react";
 
 import { GoogleBackedIdentityFlow } from "../browser/identity/google/googleBackedIdentityFlow";
+import { DeleteGoogleBackedIdentity } from "../browser/identity/google/deleteGoogleBackedIdentity";
 import { BrowserGoogleHomegateInviteRequester } from "../browser/identity/google/googleHomegateInviteRequester";
 import { BrowserGoogleWrappingKeyRequester } from "../browser/identity/google/googleWrappingKeyRequester";
 import { LocalStorageIdentityRepository } from "../browser/identity/localIdentityRepository";
@@ -96,6 +97,20 @@ export function DevelopmentIdentityPanel({
     });
   }
 
+  function createIdentityDeletion(pubkyAdapter: BrowserPubky): DeleteGoogleBackedIdentity {
+    return new DeleteGoogleBackedIdentity({
+      wrappingKeys: new BrowserGoogleWrappingKeyRequester(),
+      passportFilesForAccessToken: (token) => new GoogleDrivePassportFileRepository({
+        accessTokenProvider: async () => token,
+        fetch: globalThis.fetch.bind(globalThis),
+        allowLocalhostHttp: new URL(passportUrl).protocol === "http:",
+      }),
+      crypto: new WebCryptoPassportFileCrypto(),
+      identityKeys: pubkyAdapter,
+      passportUrl,
+    });
+  }
+
   async function createOrRestoreIdentity(googleIdToken: string, driveAccessToken: string): Promise<void> {
     const activeOperation = operation.current;
     setBusy(true);
@@ -142,9 +157,9 @@ export function DevelopmentIdentityPanel({
       const pubkyAdapter = getPubky();
       if (!pubkyAdapter || operation.current !== activeOperation) return;
 
-      const flow = createIdentityFlow(pubkyAdapter);
+      const deletion = createIdentityDeletion(pubkyAdapter);
       if (operation.current !== activeOperation) return;
-      const deleted = await flow.deleteIdentity(
+      const deleted = await deletion.execute(
         { googleIdToken, driveAccessToken },
         expectedPublicIdentity.publicKeyZ32,
       );

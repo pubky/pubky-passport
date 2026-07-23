@@ -10,14 +10,14 @@ import {
   type PubkyIdentityKey,
   type PubkyPublicIdentity,
 } from "../../../features/identity/pubkyIdentity";
-import type { GoogleIdentitySession } from "./googleIdentityProvider";
-import type { GoogleHomegateInviteRequester } from "./googleHomegateInviteRequester";
+import type {
+  GoogleHomegateInviteRequester,
+  GoogleIdentitySession,
+  GoogleWrappingKeyRequester,
+} from "./applicationContracts";
 import { logger } from "../../../libs/logger/logger";
 
 export type GoogleBackedIdentityFlowErrorCode =
-  | "google_unavailable"
-  | "sign_in_failed"
-  | "drive_consent_failed"
   | "wrapping_key_failed"
   | "drive_read_failed"
   | "decrypt_failed"
@@ -31,9 +31,8 @@ export type GoogleBackedIdentityFlowErrorCode =
   | "signup_failed"
   | "signin_failed"
   | "discovery_failed"
-  | "drive_stale_file"
-  | "drive_delete_failed"
-  | "local_save_failed";
+  | "local_save_failed"
+  | "unexpected_failure";
 
 export type GoogleBackedIdentityFlowError = {
   code: GoogleBackedIdentityFlowErrorCode;
@@ -41,10 +40,6 @@ export type GoogleBackedIdentityFlowError = {
 };
 export type GoogleBackedIdentityFlowResult<T> = ResultType<T, GoogleBackedIdentityFlowError>;
 export type GoogleBackedIdentity = PubkyIdentityKey & { source: "restored" | "created" };
-
-export type GoogleWrappingKeyRequester = {
-  requestWrappingKey(input: { googleIdToken: string }): Promise<ResultType<string, { code: string }>>;
-};
 
 export class GoogleBackedIdentityFlow {
   readonly #wrappingKeys: GoogleWrappingKeyRequester;
@@ -80,6 +75,15 @@ export class GoogleBackedIdentityFlow {
   }
 
   async establish(google: GoogleIdentitySession): Promise<GoogleBackedIdentityFlowResult<GoogleBackedIdentity>> {
+    try {
+      return await this.establishIdentity(google);
+    } catch {
+      logger.warn("identity.google.establish.failed", { code: "unexpected_failure" });
+      return failure("unexpected_failure");
+    }
+  }
+
+  private async establishIdentity(google: GoogleIdentitySession): Promise<GoogleBackedIdentityFlowResult<GoogleBackedIdentity>> {
     logger.info("identity.google.wrapping_key.started");
     const wrappingKey = await this.#wrappingKeys.requestWrappingKey({ googleIdToken: google.googleIdToken });
     if (Result.isError(wrappingKey)) {
@@ -215,40 +219,6 @@ export class GoogleBackedIdentityFlow {
         this.#identityKeys.disposeIdentityKey({ keyHandle: created.value.keyHandle });
       }
     }
-  }
-
-  async deleteIdentity(google: GoogleIdentitySession, expectedPublicKeyZ32: string): Promise<GoogleBackedIdentityFlowResult<void>> {
-    const wrappingKey = await this.#wrappingKeys.requestWrappingKey({ googleIdToken: google.googleIdToken });
-    if (Result.isError(wrappingKey)) return failure("wrapping_key_failed");
-
-    const passportFiles = this.#passportFilesForAccessToken(google.driveAccessToken);
-    const storedFile = await passportFiles.readPassportFile();
-    if (Result.isError(storedFile) || storedFile.value.status === "missing") return failure("drive_read_failed");
-
-    const secretKey = await this.#crypto.decryptSecretKeyBytes({
-      envelope: storedFile.value.envelope,
-      wrappingKey: wrappingKey.value,
-      passportUrl: this.#passportUrl,
-    });
-    if (Result.isError(secretKey)) return failure("decrypt_failed");
-
-    let restoredIdentity: PubkyIdentityKey | null = null;
-    try {
-      const restored = await this.#identityKeys.restoreIdentityKey({ secretKey: { bytes: secretKey.value, format: pubkySecretKeyFormat } });
-      if (Result.isError(restored)) return failure("restore_failed");
-      restoredIdentity = restored.value;
-
-      if (restored.value.publicIdentity.publicKeyZ32 !== expectedPublicKeyZ32) return failure("identity_mismatch");
-    } finally {
-      secretKey.value.fill(0);
-      if (restoredIdentity) this.#identityKeys.disposeIdentityKey({ keyHandle: restoredIdentity.keyHandle });
-    }
-
-    const deleted = await passportFiles.deletePassportFile({ reference: storedFile.value.reference });
-    if (Result.isError(deleted)) {
-      return failure(deleted.error.code === "stale_file" ? "drive_stale_file" : "drive_delete_failed");
-    }
-    return Result.ok();
   }
 
   private async save(identity: PubkyIdentityKey, source: GoogleBackedIdentity["source"]): Promise<GoogleBackedIdentityFlowResult<GoogleBackedIdentity>> {

@@ -1,31 +1,13 @@
 import "client-only";
 
-import { Result, type Result as ResultType } from "better-result";
+import { Result } from "better-result";
 
 import { readBoundedText } from "../../../libs/security/boundedBody";
-
-export type HomeserverSignupInvitation = {
-  signupCode: string;
-  homeserverPubky: string;
-};
-
-export type GoogleHomegateInviteRequesterErrorCode =
-  | "invalid_google_id_token"
-  | "weekly_limit_exceeded"
-  | "annual_limit_exceeded"
-  | "homegate_invalid_request"
-  | "homeserver_unavailable"
-  | "google_verifier_unavailable"
-  | "homegate_unavailable"
-  | "malformed_homegate_response"
-  | "invalid_response"
-  | "network_failed";
-
-export type GoogleHomegateInviteRequester = {
-  requestSignupInvitation(input: {
-    googleIdToken: string;
-  }): Promise<ResultType<HomeserverSignupInvitation, { code: GoogleHomegateInviteRequesterErrorCode }>>;
-};
+import type {
+  GoogleHomegateInviteRequester,
+  GoogleHomegateInviteRequesterErrorCode,
+  HomeserverSignupInvitation,
+} from "./applicationContracts";
 
 const maximumResponseBytes = 16 * 1024;
 const maximumInvitationFieldCharacters = 1024;
