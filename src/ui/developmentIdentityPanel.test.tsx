@@ -69,6 +69,7 @@ describe("DevelopmentIdentityPanel", () => {
     localStorage.setItem("pubky-passport/local-identities/v1", JSON.stringify(storedIdentity));
     render(<DevelopmentIdentityPanel allowGoogleDriveReset={false} googleClientId="google-client" passportUrl="https://passport.pubky.app" />);
 
+    expect(screen.getByRole("combobox", { name: "Selected identity" }).getAttribute("autocomplete")).toBe("off");
     await waitFor(() => expect(screen.getByRole("option", { name: "pubkyselected-identity" })).toBeDefined());
     expect(screen.getByRole("button", { name: "Add identity" })).toBeDefined();
     expect(screen.queryByRole("button", { name: "Delete identity from Google" })).toBeNull();

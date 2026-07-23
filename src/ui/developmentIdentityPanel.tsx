@@ -205,8 +205,10 @@ export function DevelopmentIdentityPanel({
       <h2 className="font-medium">Identities</h2>
       <select
         aria-label="Selected identity"
+        autoComplete="off"
         disabled={busy || googleAction !== null || identities.length === 0}
         onChange={(event) => selectIdentity(event.target.value)}
+        suppressHydrationWarning
         value={selectedIdentityId}
       >
         {identities.length === 0 ? <option value="">None</option> : null}
