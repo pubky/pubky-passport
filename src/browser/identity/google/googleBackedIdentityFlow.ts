@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import type { PassportFileStore } from "../applicationContracts";
+import type { PassportFileStore } from "../../passport-file/ports";
 import type {
   CreateMissingGoogleDriveIdentity,
   GoogleBackedIdentity,

@@ -4,12 +4,12 @@ import { Result } from "better-result";
 
 import type { PubkyIdentityKey } from "../../../features/identity/pubkyIdentity";
 import { logger } from "../../../libs/logger/logger";
+import type { PassportFileCrypto } from "../../passport-file/ports";
 import type {
-  PassportFileCrypto,
   PubkyDiscovery,
   PubkyIdentityKeys,
   PubkySignup,
-} from "../applicationContracts";
+} from "../../pubky/ports";
 import type { LocalIdentitySaver } from "../localIdentityService";
 import type {
   CreateMissingGoogleDriveIdentity,

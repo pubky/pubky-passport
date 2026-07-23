@@ -3,7 +3,7 @@
 import { Result } from "better-result";
 import { describe, expect, it, vi } from "vitest";
 
-import type { GoogleAccounts, GoogleCredentialResponse } from "./applicationContracts";
+import type { GoogleAccounts, GoogleCredentialResponse } from "./googleIdentityProviderTypes";
 import { GoogleSignInWidget } from "./googleSignInWidget";
 
 describe("GoogleSignInWidget", () => {

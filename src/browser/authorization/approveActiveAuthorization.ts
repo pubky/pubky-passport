@@ -5,8 +5,7 @@ import { Result, type Result as ResultType } from "better-result";
 import type { ValidatedSensitivePubkyAuthRequest } from "../../features/auth/parsePubkyAuthRequest";
 import type { PubkyIdentityKeyHandle } from "../../features/identity/pubkyIdentity";
 import type { ActiveLocalIdentityRestorer } from "../identity/localIdentityService";
-import type { PubkyIdentityKeys } from "../identity/applicationContracts";
-import type { PubkyAuthApproval } from "./applicationContracts";
+import type { PubkyAuthApproval, PubkyIdentityKeys } from "../pubky/ports";
 
 export type ActiveAuthorizationErrorCode =
   | "no_active_identity"

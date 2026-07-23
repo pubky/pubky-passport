@@ -4,7 +4,8 @@ import { Result } from "better-result";
 
 import { pubkySecretKeyFormat, type PubkyIdentityKey } from "../../../features/identity/pubkyIdentity";
 import { logger } from "../../../libs/logger/logger";
-import type { PassportFileCrypto, PubkyIdentityKeys, PubkySignup } from "../applicationContracts";
+import type { PassportFileCrypto } from "../../passport-file/ports";
+import type { PubkyIdentityKeys, PubkySignup } from "../../pubky/ports";
 import type { LocalIdentitySaver } from "../localIdentityService";
 import type {
   GoogleBackedIdentity,

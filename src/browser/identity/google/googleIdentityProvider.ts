@@ -6,7 +6,7 @@ import type {
   GoogleAccounts,
   GoogleCredentialResponse,
   GoogleIdentityProviderResult,
-} from "./applicationContracts";
+} from "./googleIdentityProviderTypes";
 
 declare global {
   interface Window {

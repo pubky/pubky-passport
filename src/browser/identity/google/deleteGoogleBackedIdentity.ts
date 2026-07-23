@@ -4,7 +4,8 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { pubkySecretKeyFormat, type PubkyIdentityKey } from "../../../features/identity/pubkyIdentity";
 import { logger } from "../../../libs/logger/logger";
-import type { PassportFileCrypto, PassportFileStore, PubkyIdentityKeys } from "../applicationContracts";
+import type { PassportFileCrypto, PassportFileStore } from "../../passport-file/ports";
+import type { PubkyIdentityKeys } from "../../pubky/ports";
 import type { GoogleIdentitySession, GoogleWrappingKeyRequester } from "./applicationContracts";
 
 export type DeleteGoogleBackedIdentityErrorCode =

@@ -15,7 +15,7 @@ import type {
   PassportFileStore,
   PassportFileStoreErrorCode,
   PassportFileStoreResult,
-} from "../identity/applicationContracts";
+} from "./ports";
 
 export type GoogleDriveAccessTokenProvider = () => Promise<string | null | undefined>;
 

@@ -107,11 +107,11 @@ const eslintConfig = defineConfig([
   },
   {
     files: [
-      "src/browser/authorization/applicationContracts.ts",
       "src/browser/authorization/approveActiveAuthorization.ts",
       "src/browser/authorization/browserAuthorizationController.ts",
       "src/browser/authorization/browserAuthorizationControllerInternals.ts",
-      "src/browser/identity/applicationContracts.ts",
+      "src/browser/passport-file/ports.ts",
+      "src/browser/pubky/ports.ts",
       "src/browser/identity/browserIdentityController.ts",
       "src/browser/identity/browserIdentityControllerInternals.ts",
       "src/browser/identity/localIdentityService.ts",
@@ -119,6 +119,7 @@ const eslintConfig = defineConfig([
       "src/browser/identity/google/createMissingGoogleDriveIdentity.ts",
       "src/browser/identity/google/deleteGoogleBackedIdentity.ts",
       "src/browser/identity/google/googleBackedIdentityFlow.ts",
+      "src/browser/identity/google/googleIdentityProviderTypes.ts",
       "src/browser/identity/google/restoreExistingGoogleDriveIdentity.ts"
     ],
     rules: {
@@ -127,7 +128,7 @@ const eslintConfig = defineConfig([
         {
           patterns: [
             {
-              regex: "^(?:@/browser/|(?:\\.\\./)+)passport-file(?:/|$)|(?:^|/)(?:createBrowserAuthorizationController|createBrowserIdentityController|browserPubky|localIdentityRepository|googleHomegateInviteRequester|googleIdentityProvider|googleWrappingKeyRequester|public-env)$|(?:^|/)ui(?:/|$)",
+              regex: "(?:^|/)(?:createBrowserAuthorizationController|createBrowserIdentityController|browserPubky|localIdentityRepository|googleDrivePassportFileRepository|webCryptoPassportFileCrypto|googleHomegateInviteRequester|googleIdentityProvider|googleSignInWidget|googleWrappingKeyRequester|public-env)$|(?:^|/)ui(?:/|$)",
               message: "Browser application modules must depend on contracts, not composition, adapters, public env, or UI."
             }
           ]

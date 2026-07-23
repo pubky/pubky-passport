@@ -12,7 +12,7 @@ import type {
   GoogleAccounts,
   GoogleCredentialResponse,
   GoogleIdentityProviderResult,
-} from "./applicationContracts";
+} from "./googleIdentityProviderTypes";
 import {
   bindGoogleCredentialCallback,
   googleIdTokenSubject,

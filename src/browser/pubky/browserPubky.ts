@@ -20,8 +20,6 @@ import type {
   PubkyAuthApproval,
   PubkyAuthApprovalErrorCode,
   PubkyAuthApprovalResult,
-} from "../authorization/applicationContracts";
-import type {
   PubkyDiscovery,
   PubkyDiscoveryErrorCode,
   PubkyDiscoveryResult,
@@ -31,7 +29,7 @@ import type {
   PubkySignup,
   PubkySignupErrorCode,
   PubkySignupResult,
-} from "../identity/applicationContracts";
+} from "./ports";
 import { logger } from "../../libs/logger/logger";
 
 export type PubkyNetwork =

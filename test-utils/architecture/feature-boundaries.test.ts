@@ -26,11 +26,11 @@ const stableUiBrowserModules = new Set([
   join(browserRoot, "identity", "createBrowserIdentityController.ts"),
 ]);
 const browserApplicationModules = [
-  join(browserRoot, "authorization", "applicationContracts.ts"),
   join(browserRoot, "authorization", "approveActiveAuthorization.ts"),
   join(browserRoot, "authorization", "browserAuthorizationController.ts"),
   join(browserRoot, "authorization", "browserAuthorizationControllerInternals.ts"),
-  join(browserRoot, "identity", "applicationContracts.ts"),
+  join(browserRoot, "passport-file", "ports.ts"),
+  join(browserRoot, "pubky", "ports.ts"),
   join(browserRoot, "identity", "browserIdentityController.ts"),
   join(browserRoot, "identity", "browserIdentityControllerInternals.ts"),
   join(browserRoot, "identity", "localIdentityService.ts"),
@@ -38,13 +38,17 @@ const browserApplicationModules = [
   join(browserRoot, "identity", "google", "createMissingGoogleDriveIdentity.ts"),
   join(browserRoot, "identity", "google", "deleteGoogleBackedIdentity.ts"),
   join(browserRoot, "identity", "google", "googleBackedIdentityFlow.ts"),
+  join(browserRoot, "identity", "google", "googleIdentityProviderTypes.ts"),
   join(browserRoot, "identity", "google", "restoreExistingGoogleDriveIdentity.ts"),
 ];
 const browserAdapterModules = [
   localIdentityRepository,
   browserPubky,
+  join(browserRoot, "passport-file", "googleDrivePassportFileRepository.ts"),
+  join(browserRoot, "passport-file", "webCryptoPassportFileCrypto.ts"),
   join(browserRoot, "identity", "google", "googleHomegateInviteRequester.ts"),
   join(browserRoot, "identity", "google", "googleIdentityProvider.ts"),
+  join(browserRoot, "identity", "google", "googleSignInWidget.ts"),
   join(browserRoot, "identity", "google", "googleWrappingKeyRequester.ts"),
 ];
 const googleWrappingKeyRoot = join(serverRoot, "wrapping-key", "google");
@@ -222,7 +226,6 @@ describe("feature runtime boundaries", () => {
     const forbiddenTargets = [
       ...browserCompositionFactories.map((targetPath) => ({ targetPath, label: "browser composition factory" })),
       ...browserAdapterModules.map((targetPath) => ({ targetPath, label: "browser adapter" })),
-      { targetPath: join(browserRoot, "passport-file"), label: "Drive or WebCrypto adapter" },
       { targetPath: publicEnvModule, label: "public env module" },
       { targetPath: uiRoot, label: "UI" },
     ];

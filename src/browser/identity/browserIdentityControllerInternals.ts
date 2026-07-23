@@ -3,7 +3,7 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import { logger } from "../../libs/logger/logger";
-import type { PubkyIdentityKeys } from "./applicationContracts";
+import type { PubkyIdentityKeys } from "../pubky/ports";
 import type {
   BrowserIdentityAction,
   BrowserIdentityActionResult,
@@ -17,7 +17,7 @@ import type { DeleteGoogleBackedIdentityErrorCode } from "./google/deleteGoogleB
 import type {
   GoogleIdentityProviderErrorCode,
   GoogleIdentityProviderResult,
-} from "./google/applicationContracts";
+} from "./google/googleIdentityProviderTypes";
 import type { LocalIdentityRepository } from "./localIdentityService";
 
 type IdentityFlow = {

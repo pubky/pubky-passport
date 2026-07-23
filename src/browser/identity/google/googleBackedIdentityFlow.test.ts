@@ -11,7 +11,7 @@ import type {
   PassportFileReference,
   PassportFileStore,
   PassportFileStoreErrorCode,
-} from "../applicationContracts";
+} from "../../passport-file/ports";
 import type { PassportFileEnvelopeV1 } from "../../../features/passport-file/passportFile";
 import { GoogleBackedIdentityFlow } from "./googleBackedIdentityFlow";
 import { CreateMissingGoogleDriveIdentityUseCase } from "./createMissingGoogleDriveIdentity";
