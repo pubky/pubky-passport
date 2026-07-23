@@ -3,17 +3,13 @@
 import { Result } from "better-result";
 import { useEffect, useRef, useState } from "react";
 
-import { GoogleBackedIdentityFlow } from "../browser/identity/google/googleBackedIdentityFlow";
-import { DeleteGoogleBackedIdentity } from "../browser/identity/google/deleteGoogleBackedIdentity";
-import { BrowserGoogleHomegateInviteRequester } from "../browser/identity/google/googleHomegateInviteRequester";
-import { BrowserGoogleWrappingKeyRequester } from "../browser/identity/google/googleWrappingKeyRequester";
-import { LocalStorageIdentityRepository } from "../browser/identity/localIdentityRepository";
-import { LocalIdentityService } from "../browser/identity/localIdentityService";
-import { GoogleDrivePassportFileRepository } from "../browser/passport-file/googleDrivePassportFileRepository";
-import { WebCryptoPassportFileCrypto } from "../browser/passport-file/webCryptoPassportFileCrypto";
-import { BrowserPubky } from "../browser/pubky/browserPubky";
+import type {
+  BrowserIdentityActionResult,
+  BrowserIdentityController,
+} from "../browser/identity/browserIdentityController";
+import { createBrowserIdentityController } from "../browser/identity/createBrowserIdentityController";
 import type { LocalIdentitySummary } from "../features/identity/localIdentity";
-import type { PubkyIdentityKeyHandle, PubkyPublicIdentity } from "../features/identity/pubkyIdentity";
+import type { PubkyPublicIdentity } from "../features/identity/pubkyIdentity";
 import { logger } from "../libs/logger/logger";
 import { GoogleSignInButton } from "./googleSignInButton";
 
@@ -28,9 +24,9 @@ export function DevelopmentIdentityPanel({
   allowGoogleDriveReset: boolean;
   passportUrl: string;
 }) {
-  const pubky = useRef<BrowserPubky | null>(null);
-  const activeKeyHandle = useRef<PubkyIdentityKeyHandle | null>(null);
+  const controller = useRef<BrowserIdentityController | null>(null);
   const operation = useRef(0);
+  const [controllerReady, setControllerReady] = useState(false);
   const [identities, setIdentities] = useState<LocalIdentitySummary[]>([]);
   const [selectedIdentityId, setSelectedIdentityId] = useState("");
   const [googleAction, setGoogleAction] = useState<GoogleAction>(null);
@@ -39,13 +35,28 @@ export function DevelopmentIdentityPanel({
   const [recoverableDriveIdentity, setRecoverableDriveIdentity] = useState<PubkyPublicIdentity | null>(null);
 
   useEffect(() => {
-    refreshIdentities();
-    return () => pubky.current?.dispose();
-  }, []);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      try {
+        controller.current = createBrowserIdentityController({ googleClientId, passportUrl });
+        setControllerReady(true);
+        refreshIdentities();
+      } catch {
+        logger.warn("identity.pubky.initialize.failed");
+        setMessage("Could not initialize Pubky in this browser.");
+      }
+    });
+    return () => {
+      cancelled = true;
+      controller.current?.dispose();
+      controller.current = null;
+    };
+  }, [googleClientId, passportUrl]);
 
   function refreshIdentities(nextMessage?: string): void {
-    const stored = new LocalStorageIdentityRepository().list();
-    if (Result.isError(stored)) {
+    const stored = controller.current?.list();
+    if (!stored || Result.isError(stored)) {
       setIdentities([]);
       setSelectedIdentityId("");
       setMessage("Could not read local identities.");
@@ -58,149 +69,43 @@ export function DevelopmentIdentityPanel({
   }
 
   function selectIdentity(id: string): void {
-    const selected = new LocalStorageIdentityRepository().select(id);
-    if (Result.isError(selected)) {
+    const selected = controller.current?.select(id);
+    if (!selected || Result.isError(selected)) {
       setMessage("Could not select that identity.");
       return;
     }
 
-    disposeActiveKey();
     setSelectedIdentityId(id);
     setMessage("Identity selected.");
   }
 
-  function getPubky(): BrowserPubky | null {
-    try {
-      pubky.current ??= new BrowserPubky();
-      return pubky.current;
-    } catch {
-      logger.warn("identity.pubky.initialize.failed");
-      setMessage("Could not initialize Pubky in this browser.");
-      return null;
-    }
-  }
-
-  function createIdentityFlow(pubkyAdapter: BrowserPubky): GoogleBackedIdentityFlow {
-    const localIdentities = new LocalIdentityService({
-      repository: new LocalStorageIdentityRepository(),
-      identityKeys: pubkyAdapter,
-    });
-    return new GoogleBackedIdentityFlow({
-      wrappingKeys: new BrowserGoogleWrappingKeyRequester(),
-      passportFilesForAccessToken: (token) => new GoogleDrivePassportFileRepository({
-        accessTokenProvider: async () => token,
-        fetch: globalThis.fetch.bind(globalThis),
-        allowLocalhostHttp: new URL(passportUrl).protocol === "http:",
-      }),
-      crypto: new WebCryptoPassportFileCrypto(),
-      identityKeys: pubkyAdapter,
-      homegateInvites: new BrowserGoogleHomegateInviteRequester(),
-      signup: pubkyAdapter,
-      discovery: pubkyAdapter,
-      localIdentities,
-      passportUrl,
-    });
-  }
-
-  function createIdentityDeletion(pubkyAdapter: BrowserPubky): DeleteGoogleBackedIdentity {
-    return new DeleteGoogleBackedIdentity({
-      wrappingKeys: new BrowserGoogleWrappingKeyRequester(),
-      passportFilesForAccessToken: (token) => new GoogleDrivePassportFileRepository({
-        accessTokenProvider: async () => token,
-        fetch: globalThis.fetch.bind(globalThis),
-        allowLocalhostHttp: new URL(passportUrl).protocol === "http:",
-      }),
-      crypto: new WebCryptoPassportFileCrypto(),
-      identityKeys: pubkyAdapter,
-      passportUrl,
-    });
-  }
-
-  async function createOrRestoreIdentity(googleIdToken: string, driveAccessToken: string): Promise<void> {
+  function completeGoogleAction(result: BrowserIdentityActionResult): void {
     const activeOperation = operation.current;
-    setBusy(true);
-    try {
-      const pubkyAdapter = getPubky();
-      if (!pubkyAdapter || operation.current !== activeOperation) return;
-
-      disposeActiveKey();
-      const flow = createIdentityFlow(pubkyAdapter);
-      if (operation.current !== activeOperation) return;
-      const identity = await flow.establish({ googleIdToken, driveAccessToken });
-      if (Result.isError(identity)) {
-        logger.warn("identity.google.establish.failed", { code: identity.error.code });
-        setRecoverableDriveIdentity(identity.error.recoverablePublicIdentity ?? null);
-        setMessage(messageForGoogleFailure(identity.error.code));
-        return;
-      }
-
+    if (Result.isError(result)) {
+      logger.warn("identity.google.action.failed", { code: result.error.code });
+      setRecoverableDriveIdentity(result.error.recoverablePublicIdentity ?? null);
+      setMessage(messageForGoogleFailure(result.error.code));
+    } else if (result.value.kind === "established") {
       setRecoverableDriveIdentity(null);
-      activeKeyHandle.current = identity.value.keyHandle;
-      refreshIdentities(identity.value.source === "created" ? "Identity created." : "Identity restored.");
-    } catch {
-      logger.warn("identity.google.establish.failed", { code: "unexpected" });
-      setMessage("Could not add the Google-backed identity.");
-    } finally {
-      if (operation.current === activeOperation) {
-        setBusy(false);
-        setGoogleAction(null);
-      }
+      refreshIdentities(result.value.source === "created" ? "Identity created." : "Identity restored.");
+    } else {
+      if (googleAction === "delete-failed") setRecoverableDriveIdentity(null);
+      setMessage("Identity deleted from Google Drive.");
     }
-  }
-
-  async function deleteIdentityFromGoogle(
-    googleIdToken: string,
-    driveAccessToken: string,
-    expectedPublicIdentity: PubkyPublicIdentity | undefined,
-    target: "selected" | "failed",
-  ): Promise<void> {
-    const activeOperation = operation.current;
-    if (!allowGoogleDriveReset || !expectedPublicIdentity) return;
-
-    setBusy(true);
-    try {
-      const pubkyAdapter = getPubky();
-      if (!pubkyAdapter || operation.current !== activeOperation) return;
-
-      const deletion = createIdentityDeletion(pubkyAdapter);
-      if (operation.current !== activeOperation) return;
-      const deleted = await deletion.execute(
-        { googleIdToken, driveAccessToken },
-        expectedPublicIdentity.publicKeyZ32,
-      );
-      if (Result.isError(deleted)) {
-        setMessage(messageForGoogleFailure(deleted.error.code));
-      } else {
-        if (target === "failed") setRecoverableDriveIdentity(null);
-        setMessage("Identity deleted from Google Drive.");
-      }
-    } catch {
-      logger.warn("identity.google.delete.failed", { code: "unexpected" });
-      setMessage("Could not delete the identity from Google Drive.");
-    } finally {
-      if (operation.current === activeOperation) {
-        setBusy(false);
-        setGoogleAction(null);
-      }
+    if (operation.current === activeOperation) {
+      setBusy(false);
+      setGoogleAction(null);
     }
   }
 
   function clearLocalIdentities(): void {
-    const cleared = new LocalStorageIdentityRepository().clear();
-    if (Result.isError(cleared)) {
+    const cleared = controller.current?.clear();
+    if (!cleared || Result.isError(cleared)) {
       setMessage("Could not clear local identities.");
       return;
     }
 
-    disposeActiveKey();
     refreshIdentities("Local identities cleared.");
-  }
-
-  function disposeActiveKey(): void {
-    if (activeKeyHandle.current && pubky.current) {
-      pubky.current.disposeIdentityKey({ keyHandle: activeKeyHandle.current });
-      activeKeyHandle.current = null;
-    }
   }
 
   const selectedIdentity = identities.find((identity) => identity.id === selectedIdentityId);
@@ -212,9 +117,18 @@ export function DevelopmentIdentityPanel({
 
   function cancelGoogleAction(): void {
     operation.current += 1;
+    controller.current?.unmountGoogleSignIn();
     setBusy(false);
     setGoogleAction(null);
   }
+
+  const googleIdentityAction = googleAction === "add"
+    ? { kind: "establish" } as const
+    : googleAction === "delete-selected" && selectedIdentity
+      ? { kind: "delete", expectedPublicKeyZ32: selectedIdentity.publicIdentity.publicKeyZ32 } as const
+      : googleAction === "delete-failed" && recoverableDriveIdentity
+        ? { kind: "delete", expectedPublicKeyZ32: recoverableDriveIdentity.publicKeyZ32 } as const
+        : null;
 
   return (
     <section className="flex flex-col gap-4 rounded border p-4">
@@ -235,15 +149,13 @@ export function DevelopmentIdentityPanel({
 
       {googleAction === null ? (
         <div className="flex flex-wrap gap-2">
-          <button className="rounded border px-3 py-2" disabled={busy} onClick={() => beginGoogleAction("add")} type="button">Add identity</button>
+          <button className="rounded border px-3 py-2" disabled={busy || !controllerReady} onClick={() => beginGoogleAction("add")} type="button">Add identity</button>
           {allowGoogleDriveReset && selectedIdentity ? (
             <button
               className="rounded border border-red-700 px-3 py-2 text-red-700"
               disabled={busy}
               onClick={() => {
-                if (globalThis.confirm("Authorize Google again, verify the selected identity, and delete its Passport Drive file?")) {
-                  beginGoogleAction("delete-selected");
-                }
+                if (globalThis.confirm("Authorize Google again, verify the selected identity, and delete its Passport Drive file?")) beginGoogleAction("delete-selected");
               }}
               type="button"
             >
@@ -255,9 +167,7 @@ export function DevelopmentIdentityPanel({
               className="rounded border border-red-700 px-3 py-2 text-red-700"
               disabled={busy}
               onClick={() => {
-                if (globalThis.confirm("Authorize Google again, verify the identity that could not be activated, and delete its Passport Drive file?")) {
-                  beginGoogleAction("delete-failed");
-                }
+                if (globalThis.confirm("Authorize Google again, verify the identity that could not be activated, and delete its Passport Drive file?")) beginGoogleAction("delete-failed");
               }}
               type="button"
             >
@@ -269,9 +179,7 @@ export function DevelopmentIdentityPanel({
               className="rounded border border-red-700 px-3 py-2 text-red-700"
               disabled={busy}
               onClick={() => {
-                if (globalThis.confirm("Clear all Passport identities stored in this browser? Google Drive data will not be changed.")) {
-                  clearLocalIdentities();
-                }
+                if (globalThis.confirm("Clear all Passport identities stored in this browser? Google Drive data will not be changed.")) clearLocalIdentities();
               }}
               type="button"
             >
@@ -279,7 +187,7 @@ export function DevelopmentIdentityPanel({
             </button>
           ) : null}
         </div>
-      ) : (
+      ) : googleIdentityAction && controller.current ? (
         <div className="flex flex-col items-start gap-3 rounded border p-3">
           <p>{googleAction === "add"
             ? "Authorize Google to create or restore an identity."
@@ -287,27 +195,15 @@ export function DevelopmentIdentityPanel({
               ? "Authorize Google again to delete the selected identity."
               : "Authorize Google again to delete the identity that could not be activated."}</p>
           <GoogleSignInButton
-            clientId={googleClientId}
+            action={googleIdentityAction}
+            controller={controller.current}
             disabled={busy}
-            onAuthorized={googleAction === "add"
-              ? createOrRestoreIdentity
-              : googleAction === "delete-selected"
-                ? (googleIdToken, driveAccessToken) => deleteIdentityFromGoogle(
-                  googleIdToken,
-                  driveAccessToken,
-                  selectedIdentity?.publicIdentity,
-                  "selected",
-                )
-                : (googleIdToken, driveAccessToken) => deleteIdentityFromGoogle(
-                  googleIdToken,
-                  driveAccessToken,
-                  recoverableDriveIdentity ?? undefined,
-                  "failed",
-                )}
+            onActionCompleted={completeGoogleAction}
+            onBusyChange={setBusy}
           />
           <button className="rounded border px-3 py-2" disabled={busy} onClick={cancelGoogleAction} type="button">Cancel</button>
         </div>
-      )}
+      ) : null}
 
       <p aria-live="polite" className="text-sm text-neutral-600">{message}</p>
     </section>

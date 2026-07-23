@@ -9,36 +9,21 @@ import { DevelopmentIdentityPanel } from "./developmentIdentityPanel";
 const flowState = vi.hoisted(() => ({
   establish: async (): Promise<unknown> => { throw new Error("establish result not configured"); },
   deleteExpectedPublicKey: null as string | null,
+  controller: null as unknown,
 }));
 
-vi.mock("../browser/identity/google/googleBackedIdentityFlow", () => ({
-  GoogleBackedIdentityFlow: class {
-    establish(): Promise<unknown> {
-      return flowState.establish();
-    }
-
-  },
-}));
-
-vi.mock("../browser/identity/google/deleteGoogleBackedIdentity", () => ({
-  DeleteGoogleBackedIdentity: class {
-    async execute(_google: unknown, expectedPublicKeyZ32: string) {
-      flowState.deleteExpectedPublicKey = expectedPublicKeyZ32;
-      return Result.ok();
-    }
-  },
-}));
-
-vi.mock("../browser/pubky/browserPubky", () => ({
-  BrowserPubky: class {
-    dispose(): void {}
-  },
+vi.mock("../browser/identity/createBrowserIdentityController", () => ({
+  createBrowserIdentityController: () => flowState.controller,
 }));
 
 vi.mock("./googleSignInButton", () => ({
-  GoogleSignInButton: ({ onAuthorized }: {
-    onAuthorized: (googleIdToken: string, driveAccessToken: string) => Promise<void>;
-  }) => <button onClick={() => void onAuthorized("fresh-id-token", "fresh-drive-token")} type="button">Authorize test Google</button>,
+  GoogleSignInButton: ({ action, controller, onActionCompleted }: {
+    action: { kind: "establish" } | { kind: "delete"; expectedPublicKeyZ32: string };
+    controller: { continueGoogle(action: unknown): Promise<{ status: string; result?: unknown }> };
+    onActionCompleted: (result: unknown) => void;
+  }) => <button onClick={() => void controller.continueGoogle(action).then((completed) => {
+    if (completed.status === "action_completed") onActionCompleted(completed.result);
+  })} type="button">Authorize test Google</button>,
 }));
 
 const storedIdentity = {
@@ -55,6 +40,7 @@ describe("DevelopmentIdentityPanel", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", new MemoryStorage());
     flowState.deleteExpectedPublicKey = null;
+    flowState.controller = controllerForLocalStorage();
   });
 
   afterEach(() => {
@@ -115,4 +101,48 @@ class MemoryStorage implements Storage {
   key(index: number): string | null { return Array.from(this.#values.keys())[index] ?? null; }
   removeItem(key: string): void { this.#values.delete(key); }
   setItem(key: string, value: string): void { this.#values.set(key, value); }
+}
+
+function controllerForLocalStorage() {
+  return {
+    list: () => listStoredIdentities(),
+    select: (id: string) => {
+      const stored = listStoredIdentities();
+      if (Result.isError(stored)) return stored;
+      localStorage.setItem("pubky-passport/local-identities/v1", JSON.stringify({
+        v: 1,
+        activeIdentityId: id,
+        identities: JSON.parse(localStorage.getItem("pubky-passport/local-identities/v1") ?? "{}").identities ?? [],
+      }));
+      return Result.ok();
+    },
+    clear: () => {
+      localStorage.removeItem("pubky-passport/local-identities/v1");
+      return Result.ok();
+    },
+    continueGoogle: async (action: { kind: "establish" } | { kind: "delete"; expectedPublicKeyZ32: string }) => {
+      if (action.kind === "establish") {
+        return { status: "action_completed", result: await flowState.establish() };
+      }
+      flowState.deleteExpectedPublicKey = action.expectedPublicKeyZ32;
+      return { status: "action_completed", result: Result.ok({ kind: "deleted" }) };
+    },
+    mountGoogleSignIn: async () => {},
+    unmountGoogleSignIn: () => {},
+    retryGoogleSignIn: () => {},
+    dispose: () => {},
+  };
+}
+
+function listStoredIdentities() {
+  const raw = localStorage.getItem("pubky-passport/local-identities/v1");
+  if (!raw) return Result.ok({ activeIdentityId: null, identities: [] });
+  const value = JSON.parse(raw);
+  return Result.ok({
+    activeIdentityId: value.activeIdentityId,
+    identities: value.identities.map((identity: { id: string; publicIdentity: unknown }) => ({
+      id: identity.id,
+      publicIdentity: identity.publicIdentity,
+    })),
+  });
 }
