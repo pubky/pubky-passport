@@ -22,6 +22,7 @@ export function createInMemoryGoogleWrappingKeyRateLimiter(
   const maximumRequests = input.maximumRequests ?? defaultMaximumRequests;
   const windowMilliseconds = input.windowMilliseconds ?? defaultWindowMilliseconds;
   const requestsByIdentity = new Map<string, number[]>();
+  let nextCleanupAt = Number.NEGATIVE_INFINITY;
 
   if (maximumRequests < 1 || windowMilliseconds < 1) {
     throw new Error("Invalid wrapping key rate limit configuration.");
@@ -35,12 +36,15 @@ export function createInMemoryGoogleWrappingKeyRateLimiter(
       }
 
       const cutoff = now - windowMilliseconds;
-      removeExpiredRequests(requestsByIdentity, cutoff);
+      if (now >= nextCleanupAt) {
+        removeExpiredRequests(requestsByIdentity, cutoff);
+        nextCleanupAt = now + windowMilliseconds;
+      }
 
       const identityHash = createHmac("sha256", identityPepper)
         .update(`${identity.issuer}\n${identity.subject}`, "utf8")
         .digest("base64url");
-      const requests = requestsByIdentity.get(identityHash) ?? [];
+      const requests = recentRequests(requestsByIdentity.get(identityHash) ?? [], cutoff);
       if (requests.length >= maximumRequests) {
         return { allowed: false };
       }
@@ -54,11 +58,15 @@ export function createInMemoryGoogleWrappingKeyRateLimiter(
 
 function removeExpiredRequests(requestsByIdentity: Map<string, number[]>, cutoff: number): void {
   for (const [identity, requests] of requestsByIdentity) {
-    const recentRequests = requests.filter((timestamp) => timestamp > cutoff);
-    if (recentRequests.length === 0) {
+    const activeRequests = recentRequests(requests, cutoff);
+    if (activeRequests.length === 0) {
       requestsByIdentity.delete(identity);
-    } else if (recentRequests.length !== requests.length) {
-      requestsByIdentity.set(identity, recentRequests);
+    } else if (activeRequests.length !== requests.length) {
+      requestsByIdentity.set(identity, activeRequests);
     }
   }
+}
+
+function recentRequests(requests: number[], cutoff: number): number[] {
+  return requests.filter((timestamp) => timestamp > cutoff);
 }

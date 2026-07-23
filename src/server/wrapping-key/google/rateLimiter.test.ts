@@ -37,7 +37,33 @@ describe("wrapping-key rate limit", () => {
     })).resolves.toEqual({ allowed: true });
     await expect(limiter.checkRequest({
       identity,
-      at: new Date("2026-01-01T00:01:00.001Z"),
+      at: new Date("2026-01-01T00:01:00.000Z"),
+    })).resolves.toEqual({ allowed: true });
+  });
+
+  it("prunes the active identity without waiting for a global sweep", async () => {
+    const limiter = createInMemoryGoogleWrappingKeyRateLimiter({
+      serverSecretBase64,
+      maximumRequests: 1,
+      windowMilliseconds: 60_000,
+    });
+
+    const otherIdentity = { ...identity, subject: "other-google-subject" };
+    await expect(limiter.checkRequest({
+      identity: otherIdentity,
+      at: new Date("2026-01-01T00:00:00.000Z"),
+    })).resolves.toEqual({ allowed: true });
+    await expect(limiter.checkRequest({
+      identity,
+      at: new Date("2026-01-01T00:00:30.000Z"),
+    })).resolves.toEqual({ allowed: true });
+    await expect(limiter.checkRequest({
+      identity: otherIdentity,
+      at: new Date("2026-01-01T00:01:00.000Z"),
+    })).resolves.toEqual({ allowed: true });
+    await expect(limiter.checkRequest({
+      identity,
+      at: new Date("2026-01-01T00:01:30.000Z"),
     })).resolves.toEqual({ allowed: true });
   });
 });
