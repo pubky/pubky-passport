@@ -32,10 +32,6 @@ import type {
 } from "./ports";
 import { logger } from "../../libs/logger/logger";
 
-export type PubkyNetwork =
-  | { kind: "mainnet" }
-  | { kind: "testnet"; host?: string | null };
-
 type Signer = ReturnType<Pubky["signer"]>;
 type HomeserverResult = ResultType<PublicKey, { code: "invalid_homeserver_pubky" }>;
 
@@ -48,8 +44,8 @@ export class BrowserPubky implements PubkyIdentityKeys, PubkySignup, PubkyDiscov
   readonly #keypairs = new Map<PubkyIdentityKeyHandle, Keypair>();
   #disposed = false;
 
-  constructor(options: { network?: PubkyNetwork } = {}) {
-    this.#pubky = createPubky(options.network ?? { kind: "mainnet" });
+  constructor() {
+    this.#pubky = new Pubky();
   }
 
   async createIdentityKey(): Promise<PubkyIdentityKeysResult<PubkyIdentityKey>> {
@@ -158,11 +154,7 @@ export class BrowserPubky implements PubkyIdentityKeys, PubkySignup, PubkyDiscov
   }
 
   async publishHomeserverIfStale(input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky?: string | null }): Promise<PubkyDiscoveryResult> {
-    return this.publishHomeserver(input, "if_stale");
-  }
-
-  async publishHomeserverForce(input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky?: string | null }): Promise<PubkyDiscoveryResult> {
-    return this.publishHomeserver(input, "force");
+    return this.publishHomeserver(input);
   }
 
   async approveAuthRequest(input: { keyHandle: PubkyIdentityKeyHandle; authRequest: ValidatedSensitivePubkyAuthRequest }): Promise<PubkyAuthApprovalResult> {
@@ -224,7 +216,6 @@ export class BrowserPubky implements PubkyIdentityKeys, PubkySignup, PubkyDiscov
 
   private async publishHomeserver(
     input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky?: string | null },
-    mode: "force" | "if_stale",
   ): Promise<PubkyDiscoveryResult> {
     const keypair = this.keypairFor(input.keyHandle);
     if (!keypair) {
@@ -242,11 +233,7 @@ export class BrowserPubky implements PubkyIdentityKeys, PubkySignup, PubkyDiscov
         const pkdns = signer.pkdns;
         try {
           transferredToSdk = homeserver.value !== null;
-          if (mode === "force") {
-            await pkdns.publishHomeserverForce(homeserver.value);
-          } else {
-            await pkdns.publishHomeserverIfStale(homeserver.value);
-          }
+          await pkdns.publishHomeserverIfStale(homeserver.value);
         } finally {
           pkdns.free();
         }
@@ -274,10 +261,6 @@ export class BrowserPubky implements PubkyIdentityKeys, PubkySignup, PubkyDiscov
       signer.free();
     }
   }
-}
-
-function createPubky(network: PubkyNetwork): Pubky {
-  return network.kind === "testnet" ? Pubky.testnet(network.host ?? null) : new Pubky();
 }
 
 function publicIdentity(keypair: Keypair): PubkyIdentityKeysResult<PubkyPublicIdentity> {

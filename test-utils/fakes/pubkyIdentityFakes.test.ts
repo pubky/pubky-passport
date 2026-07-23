@@ -92,22 +92,16 @@ describe("Pubky identity fakes", () => {
         homeserverPubky: "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo",
       }),
     );
-    await expectOk(discovery.publishHomeserverForce({ keyHandle: key.keyHandle, homeserverPubky: null }));
-
     expect(discovery.calls).toEqual([
       {
         keyHandle: key.keyHandle,
-        mode: "if_stale",
         homeserverPubky: "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo",
       },
-      { keyHandle: key.keyHandle, mode: "force", homeserverPubky: null },
     ]);
 
     discovery.ifStaleFailure = "publish_failed";
-    discovery.forceFailure = "key_unavailable";
 
     await expectDiscoveryError(discovery.publishHomeserverIfStale({ keyHandle: key.keyHandle }), "publish_failed");
-    await expectDiscoveryError(discovery.publishHomeserverForce({ keyHandle: key.keyHandle }), "key_unavailable");
   });
 
   it("simulates auth approval without recording raw pubkyauth URLs", async () => {

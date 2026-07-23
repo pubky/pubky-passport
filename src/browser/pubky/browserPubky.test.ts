@@ -6,19 +6,9 @@ import { pubkySecretKeyBytes, pubkySecretKeyFormat, type PubkyIdentityKeyHandle 
 import type { ValidatedSensitivePubkyAuthRequest } from "../../features/auth/parsePubkyAuthRequest";
 import { BrowserPubky } from "./browserPubky";
 
-const testNetwork = { kind: "testnet" as const, host: "localhost" };
-
 describe("BrowserPubky", () => {
-  it("constructs mainnet and testnet SDK facades", () => {
-    const mainnet = new BrowserPubky();
-    const testnet = new BrowserPubky({ network: testNetwork });
-
-    mainnet.dispose();
-    testnet.dispose();
-  });
-
   it("creates an opaque key handle and derives public identity", async () => {
-    const pubky = new BrowserPubky({ network: testNetwork });
+    const pubky = new BrowserPubky();
 
     try {
       const created = expectOk(await pubky.createIdentityKey());
@@ -33,7 +23,7 @@ describe("BrowserPubky", () => {
   });
 
   it("exports and restores 32-byte key material without retaining plaintext input", async () => {
-    const pubky = new BrowserPubky({ network: testNetwork });
+    const pubky = new BrowserPubky();
 
     try {
       const created = expectOk(await pubky.createIdentityKey());
@@ -52,7 +42,7 @@ describe("BrowserPubky", () => {
   });
 
   it("rejects and clears invalid key material before restoration", async () => {
-    const pubky = new BrowserPubky({ network: testNetwork });
+    const pubky = new BrowserPubky();
     const bytes = new Uint8Array(pubkySecretKeyBytes - 1).fill(7);
 
     try {
@@ -67,7 +57,7 @@ describe("BrowserPubky", () => {
   });
 
   it("returns safe unavailable errors for unknown key handles", async () => {
-    const pubky = new BrowserPubky({ network: testNetwork });
+    const pubky = new BrowserPubky();
     const keyHandle = {} as PubkyIdentityKeyHandle;
 
     try {
@@ -81,7 +71,7 @@ describe("BrowserPubky", () => {
   });
 
   it("maps invalid homeserver values without exposing signup codes", async () => {
-    const pubky = new BrowserPubky({ network: testNetwork });
+    const pubky = new BrowserPubky();
 
     try {
       const created = expectOk(await pubky.createIdentityKey());
@@ -90,7 +80,7 @@ describe("BrowserPubky", () => {
         homeserverPubky: "not a public key",
         signupCode: "sensitive-signup-code",
       });
-      const discovery = await pubky.publishHomeserverForce({
+      const discovery = await pubky.publishHomeserverIfStale({
         keyHandle: created.keyHandle,
         homeserverPubky: "not a public key",
       });
@@ -104,7 +94,7 @@ describe("BrowserPubky", () => {
   });
 
   it("rejects auth requests not issued by the parser before SDK approval", async () => {
-    const pubky = new BrowserPubky({ network: testNetwork });
+    const pubky = new BrowserPubky();
 
     try {
       const result = await pubky.approveAuthRequest({
@@ -123,7 +113,7 @@ describe("BrowserPubky", () => {
   });
 
   it("disposes keypairs and rejects old handles", async () => {
-    const pubky = new BrowserPubky({ network: testNetwork });
+    const pubky = new BrowserPubky();
     const created = expectOk(await pubky.createIdentityKey());
 
     pubky.dispose();
@@ -134,7 +124,7 @@ describe("BrowserPubky", () => {
   });
 
   it("invalidates handles before freeing and continues after cleanup failures", async () => {
-    const pubky = new BrowserPubky({ network: testNetwork });
+    const pubky = new BrowserPubky();
     const individuallyDisposed = expectOk(await pubky.createIdentityKey());
     const firstBulkHandle = expectOk(await pubky.createIdentityKey()).keyHandle;
     const secondBulkHandle = expectOk(await pubky.createIdentityKey()).keyHandle;

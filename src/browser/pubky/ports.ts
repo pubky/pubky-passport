@@ -46,7 +46,6 @@ export type PubkyDiscoveryResult = Result<void, { code: PubkyDiscoveryErrorCode 
 
 export type PubkyDiscovery = {
   publishHomeserverIfStale(input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky?: string | null }): Promise<PubkyDiscoveryResult>;
-  publishHomeserverForce(input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky?: string | null }): Promise<PubkyDiscoveryResult>;
 };
 
 export type PubkyAuthApprovalErrorCode = "approval_failed" | "key_unavailable" | "relay_failed" | "request_rejected";

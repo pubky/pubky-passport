@@ -71,7 +71,6 @@ describe("GoogleBackedIdentityFlow", () => {
     }]);
     expect(dependencies.discovery.calls).toEqual([{
       keyHandle: local.savedHandles[0],
-      mode: "if_stale",
       homeserverPubky: "homegate-homeserver",
     }]);
     expect(crypto.encryptedBytes.every((byte) => byte === 0)).toBe(true);
