@@ -1,17 +1,14 @@
 import { Result } from "better-result";
 import { NextResponse } from "next/server";
 
-import { parseBoundedJsonStringField } from "../../../../../libs/security/parseBoundedJsonStringField";
 import type {
   GoogleHomegateInvite,
   GoogleHomegateInviteErrorCode,
 } from "../../../../../server/homegate/google/invite";
-
-const responseHeaders = {
-  "Cache-Control": "no-store",
-  "Referrer-Policy": "no-referrer",
-};
-const maximumCredentialRequestBytes = 16 * 1024;
+import {
+  googleCredentialResponseHeaders,
+  parseGoogleIdTokenRequest,
+} from "../../../googleCredentialRoutePolicy";
 
 type GoogleHomegateInviteRouteBody =
   | { signupCode: string; homeserverPubky: string }
@@ -19,7 +16,7 @@ type GoogleHomegateInviteRouteBody =
 
 export function createGoogleHomegateInvitePostHandler(invite?: GoogleHomegateInvite) {
   return async function googleHomegateInvitePost(request: Request): Promise<NextResponse<GoogleHomegateInviteRouteBody>> {
-    const body = await parseBoundedJsonStringField(request, "googleIdToken", maximumCredentialRequestBytes);
+    const body = await parseGoogleIdTokenRequest(request);
     if (Result.isError(body)) return json({ error: { code: "invalid_request" } }, 400);
 
     try {
@@ -58,5 +55,5 @@ function statusForError(code: GoogleHomegateInviteErrorCode): number {
 }
 
 function json(body: GoogleHomegateInviteRouteBody, status: number): NextResponse<GoogleHomegateInviteRouteBody> {
-  return NextResponse.json(body, { status, headers: responseHeaders });
+  return NextResponse.json(body, { status, headers: googleCredentialResponseHeaders });
 }

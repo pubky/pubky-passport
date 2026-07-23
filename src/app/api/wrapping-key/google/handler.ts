@@ -5,13 +5,10 @@ import type {
   GoogleWrappingKeyRequest,
   GoogleWrappingKeyRequestErrorCode,
 } from "../../../../server/wrapping-key/google/request";
-import { parseBoundedJsonStringField } from "../../../../libs/security/parseBoundedJsonStringField";
-
-const responseHeaders = {
-  "Cache-Control": "no-store",
-  "Referrer-Policy": "no-referrer",
-};
-const maximumCredentialRequestBytes = 16 * 1024;
+import {
+  googleCredentialResponseHeaders,
+  parseGoogleIdTokenRequest,
+} from "../../googleCredentialRoutePolicy";
 
 type GoogleWrappingKeyRouteBody =
   | { wrappingKey: string }
@@ -24,7 +21,7 @@ export function createGoogleWrappingKeyPostHandler(
   let defaultRequest: Promise<GoogleWrappingKeyRequest> | undefined;
 
   return async function googleWrappingKeyPost(request: Request): Promise<NextResponse<GoogleWrappingKeyRouteBody>> {
-    const body = await parseBoundedJsonStringField(request, "googleIdToken", maximumCredentialRequestBytes);
+    const body = await parseGoogleIdTokenRequest(request);
 
     if (Result.isError(body)) {
       return json({ error: { code: "invalid_request" } }, 400);
@@ -59,7 +56,7 @@ async function createDefaultRequest(): Promise<GoogleWrappingKeyRequest> {
 }
 
 function json(body: GoogleWrappingKeyRouteBody, status: number): NextResponse<GoogleWrappingKeyRouteBody> {
-  return NextResponse.json(body, { status, headers: responseHeaders });
+  return NextResponse.json(body, { status, headers: googleCredentialResponseHeaders });
 }
 
 function statusForError(code: GoogleWrappingKeyRequestErrorCode): number {
