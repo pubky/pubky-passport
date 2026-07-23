@@ -1,6 +1,8 @@
 # Runtime Flows
 
-Current code only. UI wiring is not yet complete and only includes minimal development surface that will be replaced.
+Current implementation. The home route is a development identity surface;
+`/authorize` includes capability review, local identity selection, Google-backed
+create or restore, approval, cancellation, callbacks, and local terminal states.
 
 ```mermaid
 flowchart TB
@@ -143,7 +145,7 @@ sequenceDiagram
     Review->>Factory: createBrowserAuthorizationController()
     Factory->>Default: createDefaultBrowserAuthorizationController(...)
     Default->>Entry: readAndScrubAuthorizationEntry(window)
-    Entry->>Client: History.prototype.replaceState("/authorize")
+    Entry->>Client: History.prototype.replaceState(current pathname + hash, query removed)
     Entry->>Parser: parse captured d
     Parser-->>Entry: safe review + private approval
     Entry-->>Default: valid entry or invalid
@@ -199,9 +201,8 @@ sequenceDiagram
     end
     box rgba(0, 158, 115, 0.18) src/browser/authorization
         participant Controller as defaultBrowserAuthorizationController.ts<br/>DefaultBrowserAuthorizationController
-        participant Composition as createBrowserAuthorizationController.ts<br/>approveWithBrowserPubky()
+        participant Composition as createBrowserAuthorizationController.ts<br/>approveWithBrowserPubky()<br/>createActiveAuthorizationIdentityRestorer()
         participant UseCase as approveActiveAuthorization.ts<br/>approveActiveAuthorization()
-        participant Restorer as createBrowserAuthorizationController.ts<br/>createActiveAuthorizationIdentityRestorer()<br/>returned restoreActiveIdentity()
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/application
         participant Local as localIdentityService.ts<br/>LocalIdentityService
@@ -213,8 +214,7 @@ sequenceDiagram
         participant Pubky as browserPubky.ts<br/>BrowserPubky
     end
     box rgba(204, 121, 167, 0.18) src/features/auth
-        participant Provenance as parsePubkyAuthRequest.ts<br/>isParserIssuedPubkyAuthRequest()
-        participant Callbacks as parsePubkyAuthRequest.ts<br/>getParserIssuedPubkyAuthCallbacks()
+        participant AuthParser as parsePubkyAuthRequest.ts<br/>isParserIssuedPubkyAuthRequest()<br/>getParserIssuedPubkyAuthCallbacks()
     end
     box rgba(17, 24, 39, 0.12) External
         participant SDK as @synonymdev/pubky@0.9.3<br/>Keypair / Signer
@@ -228,9 +228,10 @@ sequenceDiagram
     Review->>Controller: approve()
     Controller->>Composition: approveAuthorization(approval)
     Composition->>Pubky: new BrowserPubky()
+    Composition->>Composition: createActiveAuthorizationIdentityRestorer(pubky)
     Composition->>UseCase: approveActiveAuthorization(...)
-    UseCase->>Restorer: restoreActiveIdentity()
-    Restorer->>Local: restoreActiveIdentity()
+    UseCase->>Composition: returned restoreActiveIdentity()
+    Composition->>Local: restoreActiveIdentity()
     Local->>Repo: readActive()
     Repo-->>Local: public metadata + 32-byte secret
     Local->>Pubky: restoreIdentityKey(secret)
@@ -238,22 +239,21 @@ sequenceDiagram
     SDK-->>Pubky: concrete Keypair
     Pubky-->>Local: opaque handle + public identity
     Note over Local: Compare persisted public metadata
-    Local-->>Restorer: verified active identity
-    Restorer-->>UseCase: verified active identity
+    Local-->>Composition: verified active identity
+    Composition-->>UseCase: verified active identity
     UseCase->>Pubky: approveAuthRequest(handle, approval)
-    Pubky->>Provenance: isParserIssuedPubkyAuthRequest(approval)
-    Provenance-->>Pubky: parser provenance
+    Pubky->>AuthParser: isParserIssuedPubkyAuthRequest(approval)
+    AuthParser-->>Pubky: parser provenance
     Pubky->>SDK: signer.approveAuthRequest(sensitive URL)
-    SDK->>Relay: signed encrypted AuthToken
-    Relay-->>SDK: delivery result
+    Note over SDK,Relay: AuthToken signing, encryption, and Relay delivery are SDK-owned internals
     SDK-->>Pubky: completion or failure
     Pubky-->>UseCase: typed result
     UseCase->>Pubky: disposeIdentityKey(handle)
     UseCase-->>Composition: safe result
     Composition->>Pubky: dispose()
     Composition-->>Controller: safe result
-    Controller->>Callbacks: getParserIssuedPubkyAuthCallbacks(approval)
-    Callbacks-->>Controller: success or error callback
+    Controller->>AuthParser: getParserIssuedPubkyAuthCallbacks(approval)
+    AuthParser-->>Controller: success or error callback
     alt Callback exists
         Controller->>Window: location.replace(callback)
     else No callback or navigation fails
@@ -312,8 +312,7 @@ sequenceDiagram
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/adapters/google
         participant Widget as googleSignInWidget.ts<br/>GoogleSignInWidget
-        participant CredentialProvider as googleIdentityProvider.ts<br/>bindGoogleCredentialCallback()<br/>googleIdTokenSubject()
-        participant DriveProvider as googleIdentityProvider.ts<br/>requestGoogleDriveAccess()
+        participant GoogleProvider as googleIdentityProvider.ts<br/>bindGoogleCredentialCallback()<br/>googleIdTokenSubject()<br/>requestGoogleDriveAccess()
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/application
         participant Establish as establishGoogleBackedIdentity.ts<br/>EstablishGoogleBackedIdentity
@@ -337,26 +336,26 @@ sequenceDiagram
     end
     Button->>Controller: mountGoogleSignIn(target, onState)
     Controller->>Widget: mount(...)
-    Widget->>CredentialProvider: bindGoogleCredentialCallback(...)
-    CredentialProvider->>GIS: initialize credential callback
-    CredentialProvider-->>Widget: callback bound
+    Widget->>GoogleProvider: bindGoogleCredentialCallback(...)
+    GoogleProvider->>GIS: initialize credential callback
+    GoogleProvider-->>Widget: callback bound
     Widget->>GIS: renderButton(...)
     User->>GIS: Select account
-    GIS-->>CredentialProvider: Google credential callback
-    CredentialProvider->>Widget: invoke active credential callback
-    Widget->>CredentialProvider: googleIdTokenSubject(token)
-    CredentialProvider-->>Widget: decoded subject
+    GIS-->>GoogleProvider: Google credential callback
+    GoogleProvider->>Widget: invoke active credential callback
+    Widget->>GoogleProvider: googleIdTokenSubject(token)
+    GoogleProvider-->>Widget: decoded subject
     Widget-->>Controller: ID token + subject
     Controller-->>Button: stage = drive
     User->>Button: Allow Drive access
     Button->>Controller: continueGoogle(establish)
-    Controller->>DriveProvider: requestGoogleDriveAccess(...)
-    DriveProvider->>OAuth: request openid + drive.appdata
-    OAuth-->>DriveProvider: Drive access token
-    DriveProvider->>UserInfo: GET /userinfo with Drive token
-    UserInfo-->>DriveProvider: Drive account subject
-    Note over DriveProvider: Require subjects to match
-    DriveProvider-->>Controller: verified Drive token
+    Controller->>GoogleProvider: requestGoogleDriveAccess(...)
+    GoogleProvider->>OAuth: request openid + drive.appdata
+    OAuth-->>GoogleProvider: Drive access token
+    GoogleProvider->>UserInfo: GET /userinfo with Drive token
+    UserInfo-->>GoogleProvider: Drive account subject
+    Note over GoogleProvider: Require subjects to match
+    GoogleProvider-->>Controller: verified Drive token
     Controller->>Establish: establish(ID token, Drive token)
 ```
 
@@ -407,7 +406,8 @@ sequenceDiagram
         Drive-->>DriveRepo: list response
         opt One file found
             DriveRepo->>Drive: GET media for exact file ID
-            Drive-->>DriveRepo: encrypted envelope
+            Drive-->>DriveRepo: media response body
+            DriveRepo->>DriveRepo: bounded read + parsePassportFileContents()
             DriveRepo->>Drive: GET metadata for exact file ID
             Drive-->>DriveRepo: ID + name + version + trashed state
         end
@@ -430,7 +430,7 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Existing identity restore call flow
-    accDescr: Browser crypto decrypts the Drive envelope, BrowserPubky signs in with the restored key, and the verified identity is saved locally.
+    accDescr: Browser crypto decrypts the Drive envelope, BrowserPubky signs in with the restored key, and only a matching activated identity is saved locally; failures stop before later stages and cleanup runs after decryption succeeds.
     box rgba(0, 158, 115, 0.18) src/browser/identity/application
         participant Restore as restoreGoogleDriveIdentity.ts<br/>RestoreGoogleDriveIdentity
         participant Local as localIdentityService.ts<br/>LocalIdentityService
@@ -446,30 +446,45 @@ sequenceDiagram
     end
     box rgba(17, 24, 39, 0.12) External
         participant SDK as @synonymdev/pubky@0.9.3<br/>Keypair / Signer
-        participant Network as Pubky network operations<br/>homeserver sign-in + SDK-owned PKDNS
     end
 
     Restore->>Crypto: decryptSecretKeyBytes(envelope, wrapping key, origin)
-    Crypto-->>Restore: 32-byte Pubky secret
-    Restore->>Pubky: restoreIdentityKey(secret)
-    Pubky->>SDK: Keypair.fromSecret(secret)
-    SDK-->>Pubky: concrete Keypair
-    Pubky-->>Restore: opaque handle + public identity
-    Restore->>Pubky: signin(handle, waitForDiscovery=true)
-    Pubky->>SDK: signer.signinBlocking()
-    SDK->>Network: sign in and publish discovery
-    Network-->>SDK: session result
-    SDK-->>Pubky: Session
-    Pubky-->>Restore: session public identity
-    Note over Restore: Require session identity to match key
-    Restore->>Local: saveIdentity(handle)
-    Local->>Pubky: getPublicIdentity + exportSecretKey
-    Pubky-->>Local: public metadata + secret
-    Local->>Repo: save metadata + base64url secret
-    Repo-->>Local: saved active identity
-    Local-->>Restore: saved
-    Note over Restore: Zero decrypted bytes
-    Restore->>Pubky: disposeIdentityKey(handle)
+    Crypto-->>Restore: 32-byte Pubky secret or decrypt error
+    alt Decrypt error
+        Restore-->>Restore: decrypt_failed
+    else Decrypted secret
+        Restore->>Pubky: restoreIdentityKey(secret)
+        Pubky->>SDK: Keypair.fromSecret(secret)
+        SDK-->>Pubky: concrete Keypair or failure
+        Pubky-->>Restore: opaque handle + public identity, or restore error
+        alt Restore error
+            Restore-->>Restore: restore_failed
+        else Restored identity
+            Restore->>Pubky: signin(handle, waitForDiscovery=true)
+            Pubky->>SDK: signer.signinBlocking()
+            Note over SDK: Homeserver and discovery work inside signinBlocking is SDK-owned
+            SDK-->>Pubky: Session or failure
+            Pubky-->>Restore: session public identity or signin error
+            alt Sign-in error
+                Restore-->>Restore: signin_failed
+            else Session identity mismatch
+                Restore-->>Restore: identity_mismatch
+            else Matching session identity
+                Restore->>Local: saveIdentity(handle)
+                Local->>Pubky: getPublicIdentity + exportSecretKey
+                Pubky-->>Local: public metadata + secret
+                Local->>Repo: save metadata + base64url secret
+                Repo-->>Local: saved active identity or error
+                Local-->>Restore: saved or local-save error
+                alt Local-save error
+                    Restore-->>Restore: local_save_failed
+                else Saved
+                    Restore-->>Restore: restored identity
+                end
+            end
+        end
+        Note over Restore,Pubky: finally zero secret bytes and dispose the restored handle if created
+    end
 ```
 
 ### Create Missing Identity: Encrypt And Store
@@ -533,7 +548,7 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Missing identity activation and local save call flow
-    accDescr: CreateGoogleDriveIdentity requests and parses a Homegate invitation through the Passport API, signs up and publishes discovery through BrowserPubky and the Pubky SDK, verifies the session identity, saves public metadata and the base64url secret through LocalIdentityService and LocalStorageIdentityRepository, and disposes the key handle.
+    accDescr: CreateGoogleDriveIdentity requests and parses a Homegate invitation, then signs up, verifies, publishes discovery, and saves in order; each failure stops later stages and the generated key handle is always disposed.
     box rgba(0, 158, 115, 0.18) src/browser/identity/application
         participant Creator as createGoogleDriveIdentity.ts<br/>CreateGoogleDriveIdentity
         participant Local as localIdentityService.ts<br/>LocalIdentityService
@@ -552,8 +567,6 @@ sequenceDiagram
     end
     box rgba(17, 24, 39, 0.12) External
         participant SDK as @synonymdev/pubky@0.9.3<br/>Signer / PKDNS
-        participant Homeserver as Homegate-supplied Pubky homeserver
-        participant PKARR as SDK-owned PKDNS / PKARR network
     end
 
     Creator->>Invite: requestSignupInvitation(ID token)
@@ -561,42 +574,55 @@ sequenceDiagram
     API-->>Invite: fixed JSON invitation or safe error
     alt API error
         Invite-->>Creator: safe invitation failure
-        Creator->>Pubky: disposeIdentityKey(handle)
     else Invitation response
         Note over Invite: Parse exact bounded response
         Invite-->>Creator: validated invitation
         Creator->>Pubky: signup(handle, homeserver, signup code)
         Pubky->>SDK: signer.signup(...)
-        SDK->>Homeserver: homeserver signup
-        Homeserver-->>SDK: session
-        SDK-->>Pubky: Session
-        Pubky-->>Creator: session public identity
-        Note over Creator: Require session identity to match key
-        Creator->>Pubky: publishHomeserverIfStale(...)
-        Pubky->>SDK: signer.pkdns.publishHomeserverIfStale(...)
-        SDK->>PKARR: publish PKDNS / PKARR
-        PKARR-->>SDK: completion
-        SDK-->>Pubky: completion
-        Pubky-->>Creator: completion
-        Creator->>Local: saveIdentity(handle)
-        Local->>Pubky: getPublicIdentity + exportSecretKey
-        Pubky-->>Local: public metadata + secret
-        Local->>Repo: save metadata + base64url secret
-        Repo-->>Local: saved active identity
-        Local-->>Creator: saved active identity
-        Creator->>Pubky: disposeIdentityKey(handle)
+        Note over SDK: Homeserver signup transport is SDK-owned
+        SDK-->>Pubky: Session or failure
+        Pubky-->>Creator: session public identity or signup error
+        alt Signup error
+            Creator-->>Creator: signup_failed
+        else Session identity mismatch
+            Creator-->>Creator: identity_mismatch
+        else Matching session identity
+            Creator->>Pubky: publishHomeserverIfStale(...)
+            Pubky->>SDK: signer.pkdns.publishHomeserverIfStale(...)
+            Note over SDK: PKDNS / PKARR publication transport is SDK-owned
+            SDK-->>Pubky: completion or failure
+            Pubky-->>Creator: completion or discovery error
+            alt Discovery error
+                Creator-->>Creator: discovery_failed
+            else Discovery complete
+                Creator->>Local: saveIdentity(handle)
+                Local->>Pubky: getPublicIdentity + exportSecretKey
+                Pubky-->>Local: public metadata + secret
+                Local->>Repo: save metadata + base64url secret
+                Repo-->>Local: saved active identity or error
+                Local-->>Creator: saved active identity or local-save error
+                alt Local-save error
+                    Creator-->>Creator: local_save_failed
+                else Saved
+                    Creator-->>Creator: created identity
+                end
+            end
+        end
     end
+    Note over Creator,Pubky: finally dispose the generated key handle on every outcome
 ```
 
 Local ready state is saved last. Failure after Drive creation leaves the encrypted
-Drive file but no local ready identity. This might have to be addressed again during UI wiring.
+Drive file but no local ready identity. When a recoverable public identity is
+available, the development panel can offer the verified deletion flow below.
 
 ### Development-Only Drive Reset
 
 Credential acquisition follows the Google flow above with a delete action. This
-diagram starts after verified Google and Drive tokens return to the controller.
+diagram starts after the Google ID token and subject-matched Drive access token
+return to the controller; the wrapping-key API verifies the ID token below.
 
-Actual implementation of this flow for migration to Ring will differ from current implementation, but the call flow is expected to remain similar.
+This diagram documents the current development-only Drive reset implementation.
 
 ```mermaid
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
@@ -643,7 +669,8 @@ sequenceDiagram
         Drive-->>DriveRepo: list response
         opt One file found
             DriveRepo->>Drive: GET media for exact file ID
-            Drive-->>DriveRepo: encrypted envelope
+            Drive-->>DriveRepo: media response body
+            DriveRepo->>DriveRepo: bounded read + parsePassportFileContents()
             DriveRepo->>Drive: GET metadata for exact file ID
             Drive-->>DriveRepo: ID + name + version + trashed state
         end
@@ -718,6 +745,7 @@ sequenceDiagram
     end
     box rgba(17, 24, 39, 0.12) External
         participant Google as google-auth-library / Google
+        participant Ticket as google-auth-library<br/>LoginTicket
     end
 
     Browser->>Handler: POST { googleIdToken }
@@ -730,8 +758,8 @@ sequenceDiagram
         Request->>Verifier: verifyGoogleIdToken(token)
         Verifier->>Google: verifyIdToken(token, audience)
         Google-->>Verifier: LoginTicket
-        Verifier->>Google: LoginTicket.getPayload()
-        Google-->>Verifier: token payload
+        Verifier->>Ticket: getPayload()
+        Ticket-->>Verifier: token payload
         Note over Verifier: Validate issuer + audience/azp + expiry + sub
         Verifier-->>Request: verified identity or safe error
         alt Verification error
@@ -747,8 +775,9 @@ sequenceDiagram
                 Request-->>Handler: wrapping key
             end
         end
-        Handler-->>Browser: fixed JSON + no-store + no-referrer
+        Handler-->>Browser: fixed JSON response
     end
+    Note over Handler,Browser: Every response includes no-store and no-referrer
 ```
 
 ### Homegate Invitation
@@ -782,8 +811,9 @@ sequenceDiagram
         Adapter->>Homegate: POST /google_verification
         Homegate-->>Adapter: invitation or plaintext error
         Adapter-->>Handler: neutral invitation or safe mapped error
-        Handler-->>Browser: fixed JSON + no-store + no-referrer
+        Handler-->>Browser: fixed JSON response
     end
+    Note over Handler,Browser: Every response includes no-store and no-referrer
 ```
 
 ## Reviewer Index
