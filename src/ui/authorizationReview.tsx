@@ -1,70 +1,34 @@
 "use client";
 
-import { Result } from "better-result";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
-import {
-  getParserIssuedPubkyAuthCallbacks,
-  parsePubkyAuthRequest,
-  type PubkyAuthRequestReview,
-  type ValidatedSensitivePubkyAuthRequest,
-} from "../features/auth/parsePubkyAuthRequest";
-import {
-  approveActiveAuthorization,
-  type ActiveAuthorizationErrorCode,
-  type ActiveAuthorizationResult,
-} from "../browser/authorization/approveActiveAuthorization";
-import { LocalIdentityService } from "../browser/identity/localIdentityService";
-import { LocalStorageIdentityRepository } from "../browser/identity/localIdentityRepository";
-import { BrowserPubky } from "../browser/pubky/browserPubky";
-
-type ParsedAuthorizationEntry =
-  | { status: "valid"; review: PubkyAuthRequestReview; approval: ValidatedSensitivePubkyAuthRequest }
-  | { status: "invalid" };
-
-type SafeAuthorizationEntry =
-  | { status: "valid"; review: PubkyAuthRequestReview }
-  | { status: "invalid" };
-
-type AuthorizationStatus = "review" | "approving" | "approved" | "cancelled" | "failed";
-
-type PendingStrictModeEntry = { scrubbedHref: string; entry: ParsedAuthorizationEntry };
+import type {
+  BrowserAuthorizationController,
+  BrowserAuthorizationViewState,
+} from "../browser/authorization/browserAuthorizationController";
+import { createBrowserAuthorizationController } from "../browser/authorization/createBrowserAuthorizationController";
 
 type AuthorizationReviewProps = {
   relayOrigin: string;
-  approveAuthorization?: (approval: ValidatedSensitivePubkyAuthRequest) => Promise<ActiveAuthorizationResult>;
-  navigate?: (url: string) => void;
+  controllerFactory?: (input: { relayOrigin: string }) => BrowserAuthorizationController;
 };
-
-const pendingStrictModeEntries = new WeakMap<Window, PendingStrictModeEntry>();
 
 export function AuthorizationReview({
   relayOrigin,
-  approveAuthorization = approveWithBrowserPubky,
-  navigate = replaceLocation,
+  controllerFactory = createBrowserAuthorizationController,
 }: AuthorizationReviewProps) {
-  const approvalRef = useRef<ValidatedSensitivePubkyAuthRequest | null>(null);
-  // Security initialization must scrub the query before commit; only safe review
-  // data leaves this initializer while the sensitive approval stays in this ref.
-  /* eslint-disable react-hooks/refs */
-  const [entry] = useState<SafeAuthorizationEntry>(() => {
-    const parsedEntry = readAndScrubAuthorizationEntry({ relayOrigin });
-    if (parsedEntry.status === "invalid") return parsedEntry;
-
-    approvalRef.current = parsedEntry.approval;
-    return { status: "valid", review: parsedEntry.review };
-  });
-  /* eslint-enable react-hooks/refs */
-  const approvalPendingRef = useRef(false);
-  const [status, setStatus] = useState<AuthorizationStatus>("review");
-  const [failureCode, setFailureCode] = useState<ActiveAuthorizationErrorCode | null>(null);
+  // The factory owns synchronous query scrubbing and StrictMode parser provenance.
+  const [controller] = useState(() => controllerFactory({ relayOrigin }));
+  const [state, setState] = useState<BrowserAuthorizationViewState>(() => controller.getState());
 
   useEffect(() => {
-    pendingStrictModeEntries.delete(window);
-  }, []);
+    const unsubscribe = controller.subscribe(setState);
+    controller.mounted();
+    return unsubscribe;
+  }, [controller]);
 
-  if (entry.status === "invalid") {
+  if (state.status === "invalid") {
     return (
       <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 p-4 sm:p-8">
         <h1 className="text-2xl font-semibold">Invalid authorization request</h1>
@@ -74,76 +38,37 @@ export function AuthorizationReview({
     );
   }
 
-  async function approve(): Promise<void> {
-    const approval = approvalRef.current;
-    if (!approval || approvalPendingRef.current || status !== "review") return;
-
-    approvalPendingRef.current = true;
-    setStatus("approving");
-    let result: ActiveAuthorizationResult;
-    try {
-      result = await approveAuthorization(approval);
-    } catch {
-      result = Result.err({ code: "approval_failed" });
-    }
-    if (Result.isOk(result)) {
-      const success = getParserIssuedPubkyAuthCallbacks(approval)?.success;
-      if (success && tryNavigate(navigate, success)) {
-        return;
-      }
-      setStatus("approved");
-      return;
-    }
-
-    setFailureCode(result.error.code);
-    const errorCallback = getParserIssuedPubkyAuthCallbacks(approval)?.error;
-    if (errorCallback && tryNavigate(navigate, errorCallback)) {
-      return;
-    }
-    setStatus("failed");
-  }
-
-  function cancel(): void {
-    const approval = approvalRef.current;
-    if (!approval || approvalPendingRef.current || status !== "review") return;
-
-    const cancelCallback = getParserIssuedPubkyAuthCallbacks(approval)?.cancel;
-    if (cancelCallback && tryNavigate(navigate, cancelCallback)) {
-      return;
-    }
-    setStatus("cancelled");
-  }
-
-  if (status === "approved" || status === "cancelled" || status === "failed") {
+  if (state.status === "approved" || state.status === "cancelled" || state.status === "failed") {
     return (
       <main aria-live="polite" className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 p-4 sm:p-8">
         <h1 className="text-2xl font-semibold">
-          {status === "approved" ? "Authorization complete" : status === "cancelled" ? "Authorization cancelled" : "Authorization failed"}
+          {state.status === "approved" ? "Authorization complete" : state.status === "cancelled" ? "Authorization cancelled" : "Authorization failed"}
         </h1>
         <p>
-          {status === "approved"
+          {state.status === "approved"
             ? "The app was authorized. You can close this page."
-            : status === "cancelled"
+            : state.status === "cancelled"
               ? "No authorization was granted."
-              : authorizationFailureMessage(failureCode)}
+              : authorizationFailureMessage(state.failureCode)}
         </p>
         <Link className="w-fit underline" href="/">Back to Passport</Link>
       </main>
     );
   }
 
+  const pending = state.status !== "review";
   return (
     <main
-      aria-busy={status === "approving"}
+      aria-busy={pending}
       className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 p-4 sm:p-8"
     >
       <header>
         <p className="text-sm text-neutral-600">Authorization request</p>
-        <h1 className="text-2xl font-semibold">{entry.review.requestingAppDisplayName ?? "An app"}</h1>
+        <h1 className="text-2xl font-semibold">{state.review.requestingAppDisplayName ?? "An app"}</h1>
       </header>
       <section className="flex flex-col gap-3 rounded border p-4">
         <h2 className="font-medium">Requested permissions</h2>
-        {entry.review.capabilities.map((capability, index) => (
+        {state.review.capabilities.map((capability, index) => (
           <div className="rounded border p-3" key={`${index}:${capability.path}`}>
             <code className="block max-w-full break-all whitespace-normal">{capability.path}</code>
             <p className="text-sm">{[capability.read ? "Read" : null, capability.write ? "Write" : null].filter(Boolean).join(" and ")}</p>
@@ -152,83 +77,16 @@ export function AuthorizationReview({
         ))}
       </section>
       <div aria-live="polite" className="flex gap-2">
-        <button className="rounded border px-3 py-2" disabled={status !== "review"} onClick={() => void approve()} type="button">
-          {status === "approving" ? "Approving..." : "Approve"}
+        <button className="rounded border px-3 py-2" disabled={pending} onClick={() => void controller.approve()} type="button">
+          {state.status === "approving" ? "Approving..." : "Approve"}
         </button>
-        <button className="rounded border px-3 py-2" disabled={status !== "review"} onClick={cancel} type="button">Cancel</button>
+        <button className="rounded border px-3 py-2" disabled={pending} onClick={() => controller.cancel()} type="button">Cancel</button>
       </div>
     </main>
   );
 }
 
-function readAndScrubAuthorizationEntry(options: {
-  relayOrigin: string;
-}): ParsedAuthorizationEntry {
-  const browserWindow = window;
-  const rawSearch = browserWindow.location.search;
-  const scrubbedHref = `${browserWindow.location.origin}${browserWindow.location.pathname}${browserWindow.location.hash}`;
-  // Next.js patches the history instance methods to update its Router. Calling
-  // the native method avoids a render-time Router update while still scrubbing
-  // the sensitive query synchronously before this component commits.
-  browserWindow.History.prototype.replaceState.call(
-    browserWindow.history,
-    null,
-    "",
-    `${browserWindow.location.pathname}${browserWindow.location.hash}`,
-  );
-
-  if (rawSearch.length === 0) {
-    const pending = pendingStrictModeEntries.get(browserWindow);
-    if (pending?.scrubbedHref === scrubbedHref) {
-      pendingStrictModeEntries.delete(browserWindow);
-      return pending.entry;
-    }
-  }
-
-  const rawD = extractRawDQueryValue(rawSearch);
-  const parsed = parsePubkyAuthRequest(
-    rawD.valid ? rawD.value : undefined,
-    {
-      allowedRelayOrigins: [options.relayOrigin],
-    },
-  );
-  const entry: ParsedAuthorizationEntry = Result.isError(parsed)
-    ? { status: "invalid" }
-    : { status: "valid", review: parsed.value.review, approval: parsed.value.approval };
-  const pending = { scrubbedHref, entry };
-  pendingStrictModeEntries.set(browserWindow, pending);
-  queueMicrotask(() => {
-    if (pendingStrictModeEntries.get(browserWindow) === pending) {
-      pendingStrictModeEntries.delete(browserWindow);
-    }
-  });
-  return entry;
-}
-
-function extractRawDQueryValue(search: string): { valid: true; value?: string } | { valid: false } {
-  let value: string | undefined;
-
-  for (const parameter of search.slice(1).split("&")) {
-    const separator = parameter.indexOf("=");
-    const name = separator === -1 ? parameter : parameter.slice(0, separator);
-    if (name !== "d") continue;
-    if (separator === -1 || value !== undefined) return { valid: false };
-    value = parameter.slice(separator + 1);
-  }
-
-  return value === undefined ? { valid: true } : { valid: true, value };
-}
-
-function tryNavigate(navigate: (url: string) => void, url: string): boolean {
-  try {
-    navigate(url);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function authorizationFailureMessage(code: ActiveAuthorizationErrorCode | null): string {
+function authorizationFailureMessage(code: "no_active_identity" | "identity_restore_failed" | "approval_failed"): string {
   switch (code) {
     case "no_active_identity":
       return "Passport could not find an active identity. Set up or select an identity before trying again.";
@@ -237,37 +95,4 @@ function authorizationFailureMessage(code: ActiveAuthorizationErrorCode | null):
     default:
       return "Passport could not sign or deliver this authorization. Please try again.";
   }
-}
-
-async function approveWithBrowserPubky(
-  approval: ValidatedSensitivePubkyAuthRequest,
-): Promise<ActiveAuthorizationResult> {
-  let pubky: BrowserPubky;
-  try {
-    pubky = new BrowserPubky();
-  } catch {
-    return Result.err({ code: "approval_failed" });
-  }
-
-  try {
-    const result = await approveActiveAuthorization({
-      authRequest: approval,
-      localIdentities: new LocalIdentityService({
-        repository: new LocalStorageIdentityRepository(),
-        identityKeys: pubky,
-      }),
-      pubky,
-    });
-    return result;
-  } finally {
-    try {
-      pubky.dispose();
-    } catch {
-      // Per-key cleanup was already attempted by the authorization use case.
-    }
-  }
-}
-
-function replaceLocation(url: string): void {
-  window.location.replace(url);
 }
