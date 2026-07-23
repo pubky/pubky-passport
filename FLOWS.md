@@ -1,0 +1,816 @@
+# Runtime Flows
+
+Current code only.
+
+```mermaid
+flowchart TB
+    accTitle: Runtime location color legend
+    accDescr: Colorblind-safe legend for Next transport, React UI, browser runtime, server runtime, pure features, shared libraries, runtime platforms, and external systems.
+    subgraph runtime[Runtime-facing code]
+        direction LR
+        transport["Next transport<br/>src/app, proxy.ts"]:::transport
+        ui["React UI<br/>src/ui"]:::ui
+        browser["Browser runtime<br/>src/browser"]:::browser
+        server["Server runtime<br/>src/server"]:::server
+    end
+
+    subgraph supporting[Rules, helpers, and dependencies]
+        direction LR
+        feature["Pure rules<br/>src/features"]:::feature
+        libs["Shared helpers<br/>src/libs"]:::libs
+        platform["Runtime platform<br/>browser, Next.js"]:::platform
+        external["External package or service"]:::external
+    end
+
+    classDef transport fill:#F0E442,stroke:#8A7F00,color:#111827;
+    classDef ui fill:#0072B2,stroke:#56B4E9,color:#fff;
+    classDef browser fill:#009E73,stroke:#005A45,color:#111827;
+    classDef server fill:#D55E00,stroke:#8A3C00,color:#111827;
+    classDef feature fill:#CC79A7,stroke:#7A3E62,color:#111827;
+    classDef libs fill:#475569,stroke:#cbd5e1,color:#fff;
+    classDef platform fill:#6B7280,stroke:#374151,color:#fff;
+    classDef external fill:#111827,stroke:#9ca3af,color:#fff;
+```
+
+## Import Boundaries
+
+Arrows in this diagram only mean direct imports in current production code.
+
+```mermaid
+flowchart LR
+    accTitle: Current production import boundaries
+    accDescr: Direct imports from app pages and route handlers into UI, browser, server, features, libraries, and the Pubky SDK adapter.
+    subgraph browserLane[Browser import lane]
+        direction TB
+        pages["src/app<br/>pages"]:::transport --> ui["src/ui"]:::ui --> browser["src/browser"]:::browser
+        ui --> browserFeature["src/features"]:::feature
+        ui --> browserLibs["src/libs"]:::libs
+        pages --> browserLibs
+        browser --> browserFeature
+        browser --> browserLibs
+        browser --> sdk["@synonymdev/pubky<br/>only via browser/pubky"]:::external
+    end
+
+    subgraph serverLane[Server import lane]
+        direction TB
+        routes["src/app/api<br/>route handlers"]:::transport --> server["src/server"]:::server
+        proxy["proxy.ts"]:::transport --> server
+        routes --> serverLibs["src/libs"]:::libs
+        server --> serverFeature["src/features"]:::feature
+        server --> serverLibs
+    end
+
+    classDef transport fill:#F0E442,stroke:#8A7F00,color:#111827;
+    classDef ui fill:#0072B2,stroke:#56B4E9,color:#fff;
+    classDef browser fill:#009E73,stroke:#005A45,color:#111827;
+    classDef server fill:#D55E00,stroke:#8A3C00,color:#111827;
+    classDef feature fill:#CC79A7,stroke:#7A3E62,color:#111827;
+    classDef libs fill:#475569,stroke:#cbd5e1,color:#fff;
+    classDef external fill:#111827,stroke:#9ca3af,color:#fff;
+    linkStyle default stroke:#64748B,stroke-width:2.5px;
+```
+
+Enforced by `test-utils/architecture/feature-boundaries.test.ts` and the
+`client-only` / `server-only` markers.
+
+## Routes
+
+| Route | Entry | Responsibility |
+| --- | --- | --- |
+| `/` | `src/app/page.tsx::Home` | Development identity panel and manual auth entry. |
+| `/authorize` | `src/app/authorize/page.tsx::AuthorizePage` | Review, approve, cancel, callbacks. |
+| `GET /api/health` | `src/app/api/health/route.ts::GET` | Health response. |
+| `POST /api/wrapping-key/google` | `src/app/api/wrapping-key/google/route.ts::POST` | Verify Google identity and derive wrapping material. |
+| `POST /api/homegate/google/invite` | `src/app/api/homegate/google/invite/route.ts::POST` | Request a Homegate signup invitation. |
+
+## Call Flows
+
+In the remaining diagrams:
+
+- Box title: exact repository directory.
+- Participant title: exact filename, then concrete symbol.
+- Solid arrow: call or network request.
+- Dashed arrow: return or result.
+
+### `/authorize` Document Entry
+
+```mermaid
+%%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
+sequenceDiagram
+    accTitle: Authorization document entry call flow
+    accDescr: A request passes through Next proxy and CSP parsing before the client scrubs and parses the authorization query for review.
+    box rgba(17, 24, 39, 0.12) External
+        participant App as Third-party requesting app
+    end
+    box rgba(107, 114, 128, 0.18) Runtime platforms
+        participant Client as PLATFORM<br/>Passport tab<br/>(window, history, location)
+        participant Next as PLATFORM<br/>Next.js request runtime
+    end
+    box rgba(240, 228, 66, 0.18) .
+        participant Proxy as proxy.ts<br/>proxy()
+    end
+    box rgba(240, 228, 66, 0.18) src/app/authorize
+        participant Page as page.tsx<br/>AuthorizePage()
+    end
+    box rgba(213, 94, 0, 0.18) src/server/content-security-policy
+        participant CSP as policy.ts<br/>createContentSecurityPolicy()
+    end
+    box rgba(204, 121, 167, 0.18) src/features/auth
+        participant Parser as parsePubkyAuthRequest.ts<br/>extractRawPubkyAuthRequestQueryValue()<br/>parsePubkyAuthRequest()
+    end
+    box rgba(0, 114, 178, 0.18) src/ui
+        participant Loader as authorizationReviewLoader.tsx<br/>AuthorizationReviewLoader
+        participant Review as authorizationReview.tsx<br/>AuthorizationReview()
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/authorization
+        participant Factory as createBrowserAuthorizationController.ts<br/>createBrowserAuthorizationController()
+        participant Default as defaultBrowserAuthorizationController.ts<br/>createDefaultBrowserAuthorizationController()<br/>DefaultBrowserAuthorizationController
+        participant Entry as authorizationEntry.ts<br/>readAndScrubAuthorizationEntry()<br/>clearPendingAuthorizationEntry()
+    end
+
+    App->>Client: Navigate to Passport /authorize?d=...
+    Client->>Next: GET /authorize?d=encoded-request
+    Next->>Proxy: proxy(request)
+    Proxy->>CSP: createContentSecurityPolicy(search, nonce)
+    CSP->>Parser: extract d and parse request
+    Parser-->>CSP: review + sensitive approval + relayOrigin, or error
+    Note over CSP: Policy uses only relayOrigin
+    CSP-->>Proxy: document CSP
+    Proxy-->>Next: NextResponse.next + CSP headers
+    Next->>Page: AuthorizePage()
+    Page->>Loader: render client boundary with public config
+    Next-->>Client: document + CSP + no-store + no-referrer
+    Client->>Loader: hydrate
+    Loader->>Review: dynamic import, SSR disabled
+    Review->>Factory: createBrowserAuthorizationController()
+    Factory->>Default: createDefaultBrowserAuthorizationController(...)
+    Default->>Entry: readAndScrubAuthorizationEntry(window)
+    Entry->>Client: History.prototype.replaceState("/authorize")
+    Entry->>Parser: parse captured d
+    Parser-->>Entry: safe review + private approval
+    Entry-->>Default: valid entry or invalid
+    Default-->>Factory: controller
+    Factory-->>Review: controller with safe view state
+    Review->>Default: mounted()
+    Default->>Entry: clearPendingAuthorizationEntry(window)
+```
+
+The server parse contributes only `relayOrigin` to CSP. The browser parse retains
+the parser-issued approval object and private callback metadata.
+
+### Manual Authorization
+
+```mermaid
+%%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
+sequenceDiagram
+    accTitle: Manual authorization call flow
+    accDescr: The form validates and clears a pasted request before either showing a safe error or starting a full authorization document navigation.
+    actor User
+    box rgba(0, 114, 178, 0.18) src/ui
+        participant Form as manualAuthorizationForm.tsx<br/>ManualAuthorizationForm()<br/>submit() / replaceDocument()
+    end
+    box rgba(204, 121, 167, 0.18) src/features/auth
+        participant Parser as parsePubkyAuthRequest.ts<br/>parsePubkyAuthRequest()
+    end
+    box rgba(107, 114, 128, 0.18) Runtime platforms
+        participant Window as PLATFORM<br/>Passport tab window
+        participant Next as PLATFORM<br/>Next.js request runtime
+    end
+
+    User->>Form: Submit pasted pubkyauth URL
+    Form->>Parser: parsePubkyAuthRequest(encodeURIComponent(input))
+    Parser-->>Form: validated request or typed error
+    Note over Form: Clear textarea state
+    alt Invalid
+        Form-->>User: safe local error
+    else Valid
+        Form->>Window: location.replace(/authorize?d=...)
+        Window->>Next: full document request
+    end
+```
+
+### Approval
+
+```mermaid
+%%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
+sequenceDiagram
+    accTitle: Authorization approval call flow
+    accDescr: Passport restores the active local key, asks the Pubky SDK to deliver approval, disposes key resources, and then resolves the validated outcome callback.
+    actor User
+    box rgba(0, 114, 178, 0.18) src/ui
+        participant Review as authorizationReview.tsx<br/>AuthorizationReview()
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/authorization
+        participant Controller as defaultBrowserAuthorizationController.ts<br/>DefaultBrowserAuthorizationController
+        participant Composition as createBrowserAuthorizationController.ts<br/>approveWithBrowserPubky()
+        participant UseCase as approveActiveAuthorization.ts<br/>approveActiveAuthorization()
+        participant Restorer as createBrowserAuthorizationController.ts<br/>createActiveAuthorizationIdentityRestorer()<br/>returned restoreActiveIdentity()
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/identity/application
+        participant Local as localIdentityService.ts<br/>LocalIdentityService
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/identity/adapters
+        participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/pubky
+        participant Pubky as browserPubky.ts<br/>BrowserPubky
+    end
+    box rgba(204, 121, 167, 0.18) src/features/auth
+        participant Provenance as parsePubkyAuthRequest.ts<br/>isParserIssuedPubkyAuthRequest()
+        participant Callbacks as parsePubkyAuthRequest.ts<br/>getParserIssuedPubkyAuthCallbacks()
+    end
+    box rgba(17, 24, 39, 0.12) External
+        participant SDK as @synonymdev/pubky@0.9.3<br/>Keypair / Signer
+        participant Relay as Request-supplied HTTPS Relay<br/>Signer.approveAuthRequest() delivery
+    end
+    box rgba(107, 114, 128, 0.18) Browser platform
+        participant Window as PLATFORM<br/>Passport tab window
+    end
+
+    User->>Review: Approve
+    Review->>Controller: approve()
+    Controller->>Composition: approveAuthorization(approval)
+    Composition->>Pubky: new BrowserPubky()
+    Composition->>UseCase: approveActiveAuthorization(...)
+    UseCase->>Restorer: restoreActiveIdentity()
+    Restorer->>Local: restoreActiveIdentity()
+    Local->>Repo: readActive()
+    Repo-->>Local: public metadata + 32-byte secret
+    Local->>Pubky: restoreIdentityKey(secret)
+    Pubky->>SDK: Keypair.fromSecret(secret)
+    SDK-->>Pubky: concrete Keypair
+    Pubky-->>Local: opaque handle + public identity
+    Note over Local: Compare persisted public metadata
+    Local-->>Restorer: verified active identity
+    Restorer-->>UseCase: verified active identity
+    UseCase->>Pubky: approveAuthRequest(handle, approval)
+    Pubky->>Provenance: isParserIssuedPubkyAuthRequest(approval)
+    Provenance-->>Pubky: parser provenance
+    Pubky->>SDK: signer.approveAuthRequest(sensitive URL)
+    SDK->>Relay: signed encrypted AuthToken
+    Relay-->>SDK: delivery result
+    SDK-->>Pubky: completion or failure
+    Pubky-->>UseCase: typed result
+    UseCase->>Pubky: disposeIdentityKey(handle)
+    UseCase-->>Composition: safe result
+    Composition->>Pubky: dispose()
+    Composition-->>Controller: safe result
+    Controller->>Callbacks: getParserIssuedPubkyAuthCallbacks(approval)
+    Callbacks-->>Controller: success or error callback
+    alt Callback exists
+        Controller->>Window: location.replace(callback)
+    else No callback or navigation fails
+        Controller-->>Review: safe local terminal state
+    end
+```
+
+### Cancellation
+
+```mermaid
+%%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
+sequenceDiagram
+    accTitle: Authorization cancellation call flow
+    accDescr: Cancellation retrieves only the parser-owned cancel callback and redirects or renders a local cancelled state without restoring a key.
+    actor User
+    box rgba(0, 114, 178, 0.18) src/ui
+        participant Review as authorizationReview.tsx<br/>AuthorizationReview()
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/authorization
+        participant Controller as defaultBrowserAuthorizationController.ts<br/>DefaultBrowserAuthorizationController
+    end
+    box rgba(204, 121, 167, 0.18) src/features/auth
+        participant Callbacks as parsePubkyAuthRequest.ts<br/>getParserIssuedPubkyAuthCallbacks()
+    end
+    box rgba(107, 114, 128, 0.18) Browser platform
+        participant Window as PLATFORM<br/>Passport tab window
+    end
+
+    User->>Review: Cancel before approval
+    Review->>Controller: cancel()
+    Controller->>Callbacks: getParserIssuedPubkyAuthCallbacks(approval)
+    Callbacks-->>Controller: cancel callback or none
+    alt Callback exists
+        Controller->>Window: location.replace(callback)
+    else No callback or navigation fails
+        Controller-->>Review: local cancelled state
+    end
+```
+
+### Google Sign-In And Drive Consent
+
+```mermaid
+%%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
+sequenceDiagram
+    accTitle: Google sign-in and Drive consent call flow
+    accDescr: The UI delegates sign-in and Drive consent to the browser controller and Google adapters while credentials remain outside React state.
+    actor User
+    box rgba(0, 114, 178, 0.18) src/ui
+        participant DevPanel as developmentIdentityPanel.tsx<br/>DevelopmentIdentityPanel()
+        participant AuthPanel as authorizationIdentityPanel.tsx<br/>AuthorizationIdentityPanel()
+        participant Button as googleSignInButton.tsx<br/>GoogleSignInButton()
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/identity
+        participant Factory as createBrowserIdentityController.ts<br/>createBrowserIdentityController()
+        participant Controller as defaultBrowserIdentityController.ts<br/>DefaultBrowserIdentityController
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/identity/adapters/google
+        participant Widget as googleSignInWidget.ts<br/>GoogleSignInWidget
+        participant CredentialProvider as googleIdentityProvider.ts<br/>bindGoogleCredentialCallback()<br/>googleIdTokenSubject()
+        participant DriveProvider as googleIdentityProvider.ts<br/>requestGoogleDriveAccess()
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/identity/application
+        participant Establish as establishGoogleBackedIdentity.ts<br/>EstablishGoogleBackedIdentity
+    end
+    box rgba(17, 24, 39, 0.12) External
+        participant GIS as Google Identity Services JS API<br/>google.accounts.id
+        participant OAuth as Google GIS OAuth token client<br/>google.accounts.oauth2.initTokenClient
+        participant UserInfo as Google OpenID Connect UserInfo<br/>openidconnect.googleapis.com/v1/userinfo
+    end
+
+    alt Home identity panel
+        DevPanel->>Factory: createBrowserIdentityController(...)
+        Factory->>Controller: new DefaultBrowserIdentityController(...)
+        Factory-->>DevPanel: controller
+        DevPanel->>Button: render with controller
+    else Authorization identity panel
+        AuthPanel->>Factory: createBrowserIdentityController(...)
+        Factory->>Controller: new DefaultBrowserIdentityController(...)
+        Factory-->>AuthPanel: controller
+        AuthPanel->>Button: render with controller
+    end
+    Button->>Controller: mountGoogleSignIn(target, onState)
+    Controller->>Widget: mount(...)
+    Widget->>CredentialProvider: bindGoogleCredentialCallback(...)
+    CredentialProvider->>GIS: initialize credential callback
+    CredentialProvider-->>Widget: callback bound
+    Widget->>GIS: renderButton(...)
+    User->>GIS: Select account
+    GIS-->>CredentialProvider: Google credential callback
+    CredentialProvider->>Widget: invoke active credential callback
+    Widget->>CredentialProvider: googleIdTokenSubject(token)
+    CredentialProvider-->>Widget: decoded subject
+    Widget-->>Controller: ID token + subject
+    Controller-->>Button: stage = drive
+    User->>Button: Allow Drive access
+    Button->>Controller: continueGoogle(establish)
+    Controller->>DriveProvider: requestGoogleDriveAccess(...)
+    DriveProvider->>OAuth: request openid + drive.appdata
+    OAuth-->>DriveProvider: Drive access token
+    DriveProvider->>UserInfo: GET /userinfo with Drive token
+    UserInfo-->>DriveProvider: Drive account subject
+    Note over DriveProvider: Require subjects to match
+    DriveProvider-->>Controller: verified Drive token
+    Controller->>Establish: establish(ID token, Drive token)
+```
+
+Tokens pass through browser controller, application, and adapter locals; the Drive
+token is also held by the repository's token-provider closure. They never enter
+React state or browser persistence.
+
+### Establish Google-Backed Identity
+
+```mermaid
+%%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
+sequenceDiagram
+    accTitle: Google-backed identity establishment call flow
+    accDescr: The coordinator requests a wrapping key, reads the encrypted Drive file, and dispatches to restore or create without passing wrapping material to Drive storage.
+    box rgba(0, 158, 115, 0.18) src/browser/identity
+        participant Controller as defaultBrowserIdentityController.ts<br/>DefaultBrowserIdentityController
+        participant DriveFactory as createBrowserIdentityController.ts<br/>passportFilesForAccessToken()
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/identity/application
+        participant Establish as establishGoogleBackedIdentity.ts<br/>EstablishGoogleBackedIdentity
+        participant Restore as restoreGoogleDriveIdentity.ts<br/>RestoreGoogleDriveIdentity
+        participant Creator as createGoogleDriveIdentity.ts<br/>CreateGoogleDriveIdentity
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/identity/adapters/google
+        participant Wrapping as googleWrappingKeyRequester.ts<br/>BrowserGoogleWrappingKeyRequester
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/passport-file
+        participant DriveRepo as googleDrivePassportFileRepository.ts<br/>GoogleDrivePassportFileRepository
+    end
+    box rgba(240, 228, 66, 0.18) src/app/api/wrapping-key/google
+        participant API as handler.ts<br/>googleWrappingKeyPost()
+    end
+    box rgba(17, 24, 39, 0.12) External
+        participant Drive as Google Drive API v3<br/>appDataFolder/passport.json
+    end
+
+    Controller->>Establish: establish(ID token, Drive token)
+    Establish->>Wrapping: requestWrappingKey(ID token)
+    Note over API: route.ts exports this function as POST
+    Wrapping->>API: POST { googleIdToken }
+    API-->>Wrapping: wrapping-key result
+    Wrapping-->>Establish: wrapping-key result
+    alt Wrapping-key error
+        Establish-->>Controller: safe failure
+    else Wrapping key
+        Establish->>DriveFactory: passportFilesForAccessToken(Drive token)
+        DriveFactory->>DriveRepo: new GoogleDrivePassportFileRepository(...)
+        DriveFactory-->>Establish: repository
+        Establish->>DriveRepo: readPassportFile()
+        DriveRepo->>Drive: list passport.json
+        Drive-->>DriveRepo: list response
+        opt One file found
+            DriveRepo->>Drive: GET media for exact file ID
+            Drive-->>DriveRepo: encrypted envelope
+            DriveRepo->>Drive: GET metadata for exact file ID
+            Drive-->>DriveRepo: ID + name + version + trashed state
+        end
+        DriveRepo-->>Establish: found, missing, or safe error
+        alt Found
+            Establish->>Restore: execute(envelope, wrapping key)
+        else Missing
+            Establish->>Creator: execute(ID token, Drive repo, wrapping key)
+        else Storage error
+            Establish-->>Controller: safe failure
+        end
+    end
+```
+
+The wrapping key stays with the identity coordinator; it is never passed to the
+Drive repository.
+
+### Restore Existing Identity
+
+```mermaid
+%%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
+sequenceDiagram
+    accTitle: Existing identity restore call flow
+    accDescr: Browser crypto decrypts the Drive envelope, BrowserPubky signs in with the restored key, and the verified identity is saved locally.
+    box rgba(0, 158, 115, 0.18) src/browser/identity/application
+        participant Restore as restoreGoogleDriveIdentity.ts<br/>RestoreGoogleDriveIdentity
+        participant Local as localIdentityService.ts<br/>LocalIdentityService
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/passport-file
+        participant Crypto as webCryptoPassportFileCrypto.ts<br/>WebCryptoPassportFileCrypto
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/pubky
+        participant Pubky as browserPubky.ts<br/>BrowserPubky
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/identity/adapters
+        participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
+    end
+    box rgba(17, 24, 39, 0.12) External
+        participant SDK as @synonymdev/pubky@0.9.3<br/>Keypair / Signer
+    end
+
+    Restore->>Crypto: decryptSecretKeyBytes(envelope, wrapping key, origin)
+    Crypto-->>Restore: 32-byte Pubky secret
+    Restore->>Pubky: restoreIdentityKey(secret)
+    Pubky->>SDK: Keypair.fromSecret(secret)
+    SDK-->>Pubky: concrete Keypair
+    Pubky-->>Restore: opaque handle + public identity
+    Restore->>Pubky: signin(handle, waitForDiscovery=true)
+    Pubky->>SDK: signer.signinBlocking()
+    Note over SDK: SDK owns homeserver sign-in + PKDNS network behavior
+    SDK-->>Pubky: Session
+    Pubky-->>Restore: session public identity
+    Note over Restore: Require session identity to match key
+    Restore->>Local: saveIdentity(handle)
+    Local->>Pubky: getPublicIdentity + exportSecretKey
+    Pubky-->>Local: public metadata + secret
+    Local->>Repo: save metadata + base64url secret
+    Repo-->>Local: saved active identity
+    Local-->>Restore: saved
+    Note over Restore: Zero decrypted bytes
+    Restore->>Pubky: disposeIdentityKey(handle)
+```
+
+### Create Missing Identity: Encrypt And Store
+
+```mermaid
+%%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
+sequenceDiagram
+    accTitle: Missing identity encryption and Drive storage call flow
+    accDescr: CreateGoogleDriveIdentity asks BrowserPubky and the Pubky SDK for a new key and exported secret, encrypts the secret through PassportFileCrypto, creates the encrypted Drive file through the Drive repository, and then zeros the exported bytes.
+    box rgba(0, 158, 115, 0.18) src/browser/identity/application
+        participant Creator as createGoogleDriveIdentity.ts<br/>CreateGoogleDriveIdentity
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/pubky
+        participant Pubky as browserPubky.ts<br/>BrowserPubky
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/passport-file
+        participant Crypto as webCryptoPassportFileCrypto.ts<br/>WebCryptoPassportFileCrypto
+        participant DriveRepo as googleDrivePassportFileRepository.ts<br/>GoogleDrivePassportFileRepository
+    end
+    box rgba(17, 24, 39, 0.12) External
+        participant SDK as @synonymdev/pubky@0.9.3<br/>Keypair
+        participant Drive as Google Drive API v3<br/>appDataFolder/passport.json
+    end
+
+    Creator->>Pubky: createIdentityKey()
+    Pubky->>SDK: Keypair.random()
+    SDK-->>Pubky: concrete Keypair
+    Pubky-->>Creator: opaque handle + public identity
+    Creator->>Pubky: exportSecretKey(handle)
+    Pubky-->>Creator: 32-byte secret
+    Creator->>Crypto: encryptSecretKeyBytes(secret, wrapping key, origin)
+    Crypto-->>Creator: encrypted envelope
+    Creator->>DriveRepo: createPassportFile(envelope)
+    DriveRepo->>Drive: pre-list passport.json
+    Drive-->>DriveRepo: pre-list response
+    break Pre-list error
+        Note over DriveRepo: Preserve authorization, network, or response error
+    end
+    break Existing or duplicate
+        Note over DriveRepo: Result is create_conflict
+    end
+    DriveRepo->>Drive: create-only multipart POST
+    Drive-->>DriveRepo: create response
+    break Create failed or response malformed
+        Note over DriveRepo: Return write or invalid-response error
+    end
+    DriveRepo->>Drive: post-list passport.json
+    Drive-->>DriveRepo: post-list response
+    DriveRepo-->>Creator: stored reference or safe error
+    Note over Creator: Zero exported secret bytes
+    alt Storage error
+        Creator->>Pubky: disposeIdentityKey(handle)
+    else Stored
+        Note over Creator: Key handle continues into activation
+    end
+```
+
+### Create Missing Identity: Activate And Save
+
+```mermaid
+%%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
+sequenceDiagram
+    accTitle: Missing identity activation and local save call flow
+    accDescr: CreateGoogleDriveIdentity requests and parses a Homegate invitation through the Passport API, signs up and publishes discovery through BrowserPubky and the Pubky SDK, verifies the session identity, saves public metadata and the base64url secret through LocalIdentityService and LocalStorageIdentityRepository, and disposes the key handle.
+    box rgba(0, 158, 115, 0.18) src/browser/identity/application
+        participant Creator as createGoogleDriveIdentity.ts<br/>CreateGoogleDriveIdentity
+        participant Local as localIdentityService.ts<br/>LocalIdentityService
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/identity/adapters/google
+        participant Invite as googleHomegateInviteRequester.ts<br/>BrowserGoogleHomegateInviteRequester
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/pubky
+        participant Pubky as browserPubky.ts<br/>BrowserPubky
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/identity/adapters
+        participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
+    end
+    box rgba(240, 228, 66, 0.18) src/app/api/homegate/google/invite
+        participant API as handler.ts<br/>googleHomegateInvitePost()
+    end
+    box rgba(17, 24, 39, 0.12) External
+        participant SDK as @synonymdev/pubky@0.9.3<br/>Signer / PKDNS
+        participant Homeserver as Homegate-supplied Pubky homeserver
+    end
+
+    Creator->>Invite: requestSignupInvitation(ID token)
+    Note over API: route.ts exports this function as POST
+    Invite->>API: POST { googleIdToken }
+    API-->>Invite: fixed JSON invitation or safe error
+    alt API error
+        Invite-->>Creator: safe invitation failure
+        Creator->>Pubky: disposeIdentityKey(handle)
+    else Invitation response
+        Note over Invite: Parse exact bounded response
+        Invite-->>Creator: validated invitation
+        Creator->>Pubky: signup(handle, homeserver, signup code)
+        Pubky->>SDK: signer.signup(...)
+        SDK->>Homeserver: homeserver signup
+        Homeserver-->>SDK: session
+        SDK-->>Pubky: Session
+        Pubky-->>Creator: session public identity
+        Note over Creator: Require session identity to match key
+        Creator->>Pubky: publishHomeserverIfStale(...)
+        Pubky->>SDK: signer.pkdns.publishHomeserverIfStale(...)
+        Note over SDK: SDK owns PKDNS / PKARR network behavior
+        SDK-->>Pubky: completion
+        Pubky-->>Creator: completion
+        Creator->>Local: saveIdentity(handle)
+        Local->>Pubky: getPublicIdentity + exportSecretKey
+        Pubky-->>Local: public metadata + secret
+        Local->>Repo: save metadata + base64url secret
+        Repo-->>Local: saved active identity
+        Local-->>Creator: saved active identity
+        Creator->>Pubky: disposeIdentityKey(handle)
+    end
+```
+
+Local ready state is saved last. Failure after Drive creation leaves the encrypted
+Drive file but no local ready identity.
+
+### Development-Only Drive Reset
+
+Credential acquisition follows the Google flow above with a delete action. This
+diagram starts after verified Google and Drive tokens return to the controller.
+
+```mermaid
+%%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
+sequenceDiagram
+    accTitle: Development Drive reset call flow
+    accDescr: After the shared Google flow returns verified tokens, the identity controller invokes DeleteGoogleDriveIdentity, which requests wrapping material, reads and decrypts the exact Drive revision, restores and compares the public identity, disposes the key, and deletes only the verified file reference.
+    box rgba(0, 158, 115, 0.18) src/browser/identity
+        participant Controller as defaultBrowserIdentityController.ts<br/>DefaultBrowserIdentityController
+        participant DriveFactory as createBrowserIdentityController.ts<br/>passportFilesForAccessToken()
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/identity/application
+        participant Delete as deleteGoogleDriveIdentity.ts<br/>DeleteGoogleDriveIdentity
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/identity/adapters/google
+        participant Wrapping as googleWrappingKeyRequester.ts<br/>BrowserGoogleWrappingKeyRequester
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/passport-file
+        participant DriveRepo as googleDrivePassportFileRepository.ts<br/>GoogleDrivePassportFileRepository
+        participant Crypto as webCryptoPassportFileCrypto.ts<br/>WebCryptoPassportFileCrypto
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/pubky
+        participant Pubky as browserPubky.ts<br/>BrowserPubky
+    end
+    box rgba(240, 228, 66, 0.18) src/app/api/wrapping-key/google
+        participant WrappingAPI as handler.ts<br/>googleWrappingKeyPost()
+    end
+    box rgba(17, 24, 39, 0.12) External
+        participant Drive as Google Drive API v3<br/>appDataFolder/passport.json
+    end
+
+    Controller->>Delete: execute(credentials, expected public key)
+    Delete->>Wrapping: requestWrappingKey(ID token)
+    Note over WrappingAPI: route.ts exports this function as POST
+    Wrapping->>WrappingAPI: POST { googleIdToken }
+    WrappingAPI-->>Wrapping: wrapping-key result
+    Wrapping-->>Delete: wrapping-key result
+    alt Wrapping-key error
+        Delete-->>Controller: safe failure
+    else Wrapping key
+        Delete->>DriveFactory: passportFilesForAccessToken(Drive token)
+        DriveFactory->>DriveRepo: new GoogleDrivePassportFileRepository(...)
+        DriveFactory-->>Delete: repository
+        Delete->>DriveRepo: readPassportFile()
+        DriveRepo->>Drive: list passport.json
+        Drive-->>DriveRepo: list response
+        opt One file found
+            DriveRepo->>Drive: GET media for exact file ID
+            Drive-->>DriveRepo: encrypted envelope
+            DriveRepo->>Drive: GET metadata for exact file ID
+            Drive-->>DriveRepo: ID + name + version + trashed state
+        end
+        DriveRepo-->>Delete: found, missing, or safe error
+        alt Read error
+            Delete-->>Controller: safe failure
+        else Missing
+            Delete-->>Controller: idempotent success
+        else Found
+            Delete->>Crypto: decryptSecretKeyBytes(...)
+            Crypto-->>Delete: secret or decrypt error
+            alt Decrypt error
+                Delete-->>Controller: safe failure
+            else Decrypted secret
+                Delete->>Pubky: restoreIdentityKey(secret)
+                Pubky-->>Delete: identity + handle, or restore error
+                alt Restore error
+            Note over Delete: Zero decrypted bytes
+                    Delete-->>Controller: safe failure
+                else Restored identity
+                    Note over Delete: Compare expected public key
+                    alt Identity mismatch
+                        Note over Delete: Zero decrypted bytes
+                        Delete->>Pubky: disposeIdentityKey(handle)
+                        Delete-->>Controller: safe failure
+                    else Identity matches
+                        Note over Delete: Zero decrypted bytes
+                        Delete->>Pubky: disposeIdentityKey(handle)
+                        Delete->>DriveRepo: deletePassportFile(exact reference)
+                        DriveRepo->>Drive: GET metadata for exact file ID
+                        Drive-->>DriveRepo: metadata, missing, or failure
+                        alt Metadata error
+                            DriveRepo-->>Delete: authorization, network, or response error
+                        else Exact file missing
+                            DriveRepo-->>Delete: idempotent success
+                        else Name, revision, or trashed state changed
+                            DriveRepo-->>Delete: stale_file
+                        else Exact revision
+                            DriveRepo->>Drive: DELETE exact file ID
+                            Drive-->>DriveRepo: deleted, missing, or failure
+                            DriveRepo-->>Delete: typed result
+                        end
+                        Delete-->>Controller: safe result
+                    end
+                end
+            end
+        end
+    end
+```
+
+## Server APIs
+
+### Wrapping Key
+
+```mermaid
+%%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
+sequenceDiagram
+    accTitle: Google wrapping-key API call flow
+    accDescr: The route validates its request, verifies Google identity claims, applies a keyed identity rate limit, and derives wrapping material with HKDF.
+    box rgba(0, 158, 115, 0.18) src/browser/identity/adapters/google
+        participant Browser as googleWrappingKeyRequester.ts<br/>BrowserGoogleWrappingKeyRequester
+    end
+    box rgba(240, 228, 66, 0.18) src/app/api/wrapping-key/google
+        participant Handler as handler.ts<br/>googleWrappingKeyPost()
+    end
+    box rgba(240, 228, 66, 0.18) src/app/api
+        participant Policy as googleCredentialRoutePolicy.ts<br/>parseGoogleIdTokenRequest()
+    end
+    box rgba(213, 94, 0, 0.18) src/server/wrapping-key/google
+        participant Composition as composition.ts<br/>createConfiguredGoogleWrappingKeyRequest()
+        participant Request as request.ts<br/>createGoogleWrappingKeyRequest()<br/>returned requestWrappingKey()
+        participant Verifier as idTokenVerifier.ts<br/>createGoogleIdTokenVerifier()<br/>returned verifyGoogleIdToken()
+        participant Limiter as rateLimiter.ts<br/>createInMemoryGoogleWrappingKeyRateLimiter()<br/>returned checkRequest()
+        participant Deriver as keyDeriver.ts<br/>createGoogleWrappingKeyMaterial()<br/>returned deriveWrappingKey()
+    end
+    box rgba(17, 24, 39, 0.12) External
+        participant Google as google-auth-library@10.9.0<br/>OAuth2Client / LoginTicket
+    end
+
+    Browser->>Handler: POST { googleIdToken }
+    Note over Handler: route.ts exports this function as POST
+    Handler->>Policy: parseGoogleIdTokenRequest(request)
+    Policy-->>Handler: Google ID token or invalid_request
+    alt Invalid request
+        Handler-->>Browser: fixed 400 invalid_request
+    else Valid Google ID token
+        opt First valid request in this route module
+            Handler->>Composition: createConfiguredGoogleWrappingKeyRequest()
+            Composition-->>Handler: configured request object
+        end
+        Handler->>Request: requestWrappingKey(token)
+        Request->>Verifier: verifyGoogleIdToken(token)
+        Verifier->>Google: verifyIdToken(token, audience)
+        Google-->>Verifier: LoginTicket
+        Verifier->>Google: LoginTicket.getPayload()
+        Google-->>Verifier: token payload
+        Note over Verifier: Validate issuer + audience/azp + expiry + sub
+        Verifier-->>Request: verified identity or safe error
+        alt Verification error
+            Request-->>Handler: safe authentication error
+        else Verified identity
+            Request->>Limiter: checkRequest(identity)
+            Limiter-->>Request: allowed or rate-limited
+            alt Rate-limited
+                Request-->>Handler: rate_limited
+            else Allowed
+                Request->>Deriver: deriveWrappingKey(identity)
+                Deriver-->>Request: 32-byte base64url key
+                Request-->>Handler: wrapping key
+            end
+        end
+        Handler-->>Browser: fixed JSON + no-store + no-referrer
+    end
+```
+
+### Homegate Invitation
+
+```mermaid
+%%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
+sequenceDiagram
+    accTitle: Homegate invitation API call flow
+    accDescr: The route forwards only the Google ID token to Homegate and maps the invitation or error to a fixed browser response.
+    box rgba(0, 158, 115, 0.18) src/browser/identity/adapters/google
+        participant Browser as googleHomegateInviteRequester.ts<br/>BrowserGoogleHomegateInviteRequester
+    end
+    box rgba(240, 228, 66, 0.18) src/app/api/homegate/google/invite
+        participant Handler as handler.ts<br/>googleHomegateInvitePost()
+    end
+    box rgba(240, 228, 66, 0.18) src/app/api
+        participant Policy as googleCredentialRoutePolicy.ts<br/>parseGoogleIdTokenRequest()
+    end
+    box rgba(213, 94, 0, 0.18) src/server/homegate/google
+        participant Adapter as invite.ts<br/>createGoogleHomegateInvite()<br/>returned requestSignupInvitation()
+    end
+    box rgba(17, 24, 39, 0.12) External
+        participant Homegate as configured HOMEGATE_URL<br/>POST /google_verification
+    end
+
+    Browser->>Handler: POST { googleIdToken }
+    Note over Handler: route.ts exports this function as POST
+    Handler->>Policy: parseGoogleIdTokenRequest(request)
+    Policy-->>Handler: Google ID token or invalid_request
+    alt Invalid request
+        Handler-->>Browser: fixed 400 invalid_request
+    else Valid Google ID token
+        Handler->>Adapter: requestSignupInvitation(token)
+        Adapter->>Homegate: POST /google_verification
+        Homegate-->>Adapter: invitation or plaintext error
+        Adapter-->>Handler: neutral invitation or safe mapped error
+        Handler-->>Browser: fixed JSON + no-store + no-referrer
+    end
+```
+
+## Reviewer Index
+
+| Flow | Code | Main tests |
+| --- | --- | --- |
+| Authorization parser | `src/features/auth` | `src/features/auth/*.test.ts` |
+| Authorization controller | `src/browser/authorization` | `src/browser/authorization/*.test.ts` |
+| Authorization UI | `src/ui/authorizationReview.tsx` | `src/ui/authorizationReview.test.tsx` |
+| Google controller and adapters | `src/browser/identity` | `browserIdentityController.test.ts`, adapter tests |
+| Create / restore / reset | `src/browser/identity/application` | `googleIdentityUseCases.test.ts` |
+| Drive and WebCrypto | `src/browser/passport-file` | Repository and crypto tests |
+| Pubky SDK adapter | `src/browser/pubky/browserPubky.ts` | `browserPubky.test.ts` |
+| Wrapping-key API | `src/app/api/wrapping-key/google`, `src/server/wrapping-key/google` | Route and server tests |
+| Homegate API | `src/app/api/homegate/google/invite`, `src/server/homegate/google` | Route and adapter tests |
+| CSP and boundaries | `proxy.ts`, `next.config.mjs`, architecture test | Proxy, header, policy, architecture tests |
