@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import nextConfig, { parseBrowserConnectOrigins } from "../next.config.mjs";
+import nextConfig from "../next.config.mjs";
 
 describe("next config headers", () => {
   it("hides the Next.js development indicator", () => {
@@ -39,23 +39,6 @@ describe("next config headers", () => {
     });
   });
 
-  it("accepts only exact browser connection origins", () => {
-    expect(parseBrowserConnectOrigins("https://homeserver.example,https://homeserver.example:443")).toEqual([
-      "https://homeserver.example",
-    ]);
-
-    for (const value of [
-      "https://*.example.com",
-      "https://*",
-      "https://user@example.com",
-      "https://example.com/path",
-      "http://example.com",
-      "not a URL",
-      "https://example.com,",
-    ]) {
-      expect(() => parseBrowserConnectOrigins(value)).toThrow("Invalid PUBKY_BROWSER_CONNECT_ORIGINS");
-    }
-  });
 });
 
 function headerValue(headers: Array<{ key: string; value: string }>, key: string): string {

@@ -195,7 +195,6 @@ function createController(
 ): BrowserAuthorizationController {
   return createDefaultBrowserAuthorizationController({
     browserWindow: window,
-    relayOrigin,
     dependencies: {
       approveAuthorization: async () => Result.ok(),
       navigate: vi.fn(),

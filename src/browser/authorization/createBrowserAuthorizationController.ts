@@ -13,12 +13,9 @@ import {
 import type { BrowserAuthorizationController } from "./browserAuthorizationController";
 import { createDefaultBrowserAuthorizationController } from "./defaultBrowserAuthorizationController";
 
-export function createBrowserAuthorizationController(input: {
-  relayOrigin: string;
-}): BrowserAuthorizationController {
+export function createBrowserAuthorizationController(): BrowserAuthorizationController {
   return createDefaultBrowserAuthorizationController({
     browserWindow: window,
-    relayOrigin: input.relayOrigin,
     dependencies: {
       approveAuthorization: approveWithBrowserPubky,
       navigate: (url) => window.location.replace(url),

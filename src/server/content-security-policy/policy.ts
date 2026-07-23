@@ -1,12 +1,16 @@
 import "server-only";
 
-const defaultHttpRelayOrigin = "https://httprelay.pubky.app";
+import { Result } from "better-result";
+
+import {
+  extractRawPubkyAuthRequestQueryValue,
+  parsePubkyAuthRequest,
+} from "../../features/auth/parsePubkyAuthRequest";
 
 export function createContentSecurityPolicy(input: {
   nonce: string;
   development: boolean;
-  httpRelayUrl?: string;
-  browserConnectOrigins?: string;
+  authorizationRequestSearch?: string;
 }): string {
   const scriptSource = [
     "script-src 'self'",
@@ -17,8 +21,9 @@ export function createContentSecurityPolicy(input: {
     "https://accounts.google.com",
     "https://apis.google.com",
   ].join(" ");
-  const httpRelayOrigin = safeOrigin(input.httpRelayUrl) ?? defaultHttpRelayOrigin;
-  const browserConnectOrigins = parseBrowserConnectOrigins(input.browserConnectOrigins);
+  const authorizationRelayOrigin = input.authorizationRequestSearch
+    ? parseAuthorizationRelayOrigin(input.authorizationRequestSearch)
+    : undefined;
 
   return [
     "default-src 'self'",
@@ -31,8 +36,7 @@ export function createContentSecurityPolicy(input: {
       "https://www.googleapis.com",
       "https://pkarr.pubky.app",
       "https://pkarr.pubky.org",
-      ...browserConnectOrigins,
-      httpRelayOrigin,
+      ...(authorizationRelayOrigin ? [authorizationRelayOrigin] : []),
     ].join(" "),
     "img-src 'self' data: https://*.googleusercontent.com",
     "style-src 'self' 'unsafe-inline' https://accounts.google.com",
@@ -46,41 +50,12 @@ export function createContentSecurityPolicy(input: {
   ].join("; ");
 }
 
-export function parseBrowserConnectOrigins(value: string | undefined): string[] {
-  if (!value) return [];
+function parseAuthorizationRelayOrigin(search: string): string | undefined {
+  const rawD = extractRawPubkyAuthRequestQueryValue(search);
+  if (!rawD.valid) return undefined;
 
-  const origins = [];
-  for (const candidate of value.split(",")) {
-    const trimmedCandidate = candidate.trim();
-    if (!trimmedCandidate) throw invalidBrowserConnectOrigin("empty origin");
+  const parsed = parsePubkyAuthRequest(rawD.value);
+  if (Result.isError(parsed)) return undefined;
 
-    try {
-      const url = new URL(trimmedCandidate);
-      const isExactOrigin = url.username === ""
-        && url.password === ""
-        && url.pathname === "/"
-        && url.search === ""
-        && url.hash === ""
-        && !url.hostname.includes("*");
-      if (url.protocol !== "https:" || !isExactOrigin) throw new Error("invalid origin");
-      origins.push(url.origin);
-    } catch {
-      throw invalidBrowserConnectOrigin(trimmedCandidate);
-    }
-  }
-
-  return [...new Set(origins)];
-}
-
-function safeOrigin(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  try {
-    return new URL(value).origin;
-  } catch {
-    return undefined;
-  }
-}
-
-function invalidBrowserConnectOrigin(value: string): Error {
-  return new Error(`Invalid PUBKY_BROWSER_CONNECT_ORIGINS entry: ${value}`);
+  return parsed.value.relayOrigin;
 }

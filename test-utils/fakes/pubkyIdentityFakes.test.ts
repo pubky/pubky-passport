@@ -109,7 +109,7 @@ describe("Pubky identity fakes", () => {
     const authApproval = new FakePubkyAuthApproval();
     const parsedAuthRequest = parsePubkyAuthRequest(encodeURIComponent(
       "pubkyauth://signin?secret=SECRET-AUTH-REQUEST&relay=https://httprelay.pubky.app/inbox&caps=/pub/pubky.app/:rw",
-    ), { allowedRelayOrigins: ["https://httprelay.pubky.app"] });
+    ));
     const authRequest = expectOk(parsedAuthRequest).approval;
 
     await expectOk(authApproval.approveAuthRequest({ keyHandle: key.keyHandle, authRequest }));

@@ -4,25 +4,15 @@ import { Result } from "better-result";
 import {
   getParserIssuedPubkyAuthCallbacks,
   isParserIssuedPubkyAuthRequest,
-  parsePubkyAuthRequest as parsePubkyAuthRequestImplementation,
+  parsePubkyAuthRequest,
   type PubkyAuthParseErrorCode,
-  type ParsePubkyAuthRequestOptions,
 } from "./parsePubkyAuthRequest";
 import { pubkyAuthRequestLimits } from "./pubkyAuthRequestLimits";
 import type { PubkyAuthUrlValidationErrorCode } from "./validatePubkyAuthUrls";
 
 const validRequest =
   "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=test-secret&x-success=https://pubky.app/passport-success&x-error=https://pubky.app/passport-error&x-cancel=https://pubky.app/passport-cancel";
-const approvedRelayOrigins = ["https://httprelay.pubky.app"];
-
 expectTypeOf<PubkyAuthUrlValidationErrorCode>().toMatchTypeOf<PubkyAuthParseErrorCode>();
-
-function parsePubkyAuthRequest(
-  input: unknown,
-  options: Omit<ParsePubkyAuthRequestOptions, "allowedRelayOrigins"> = {},
-) {
-  return parsePubkyAuthRequestImplementation(input, { allowedRelayOrigins: approvedRelayOrigins, ...options });
-}
 
 function encodeRequest(request: string): string {
   return encodeURIComponent(request);
@@ -62,11 +52,12 @@ describe("parsePubkyAuthRequest", () => {
         error: true,
         cancel: true,
       },
+      relayHost: "httprelay.pubky.app",
       requestingAppDisplayName: "pubky.app",
     });
     expect(JSON.stringify(result.value.review)).not.toContain("test-secret");
     expect(JSON.stringify(result.value.review)).not.toContain("passport-success");
-    expect(JSON.stringify(result.value.review)).not.toContain("httprelay.pubky.app");
+    expect(JSON.stringify(result.value.review)).not.toContain("/inbox");
     expect(result.value.approval.sensitivePubkyAuthUrl).toContain("secret=test-secret");
     expect(isParserIssuedPubkyAuthRequest(result.value.approval)).toBe(true);
     expect(getParserIssuedPubkyAuthCallbacks(result.value.approval)).toEqual({
@@ -74,6 +65,7 @@ describe("parsePubkyAuthRequest", () => {
       error: "https://pubky.app/passport-error",
       cancel: "https://pubky.app/passport-cancel",
     });
+    expect(result.value.relayOrigin).toBe("https://httprelay.pubky.app");
   });
 
   it("returns callbacks only for the exact parser-issued approval object", () => {
@@ -84,6 +76,16 @@ describe("parsePubkyAuthRequest", () => {
 
     expect(getParserIssuedPubkyAuthCallbacks(clone)).toBeUndefined();
     expect(getParserIssuedPubkyAuthCallbacks({ sensitivePubkyAuthUrl: result.value.approval.sensitivePubkyAuthUrl })).toBeUndefined();
+  });
+
+  it("accepts a client-provided HTTPS relay", () => {
+    const result = parsePubkyAuthRequest(encodeRequest(
+      validRequest.replace("https://httprelay.pubky.app/inbox", "https://relay.client.example/custom-inbox"),
+    ));
+
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isError(result)) throw new Error(result.error.code);
+    expect(result.value.relayOrigin).toBe("https://relay.client.example");
   });
 
   it("freezes parser-issued approvals before registering their provenance", () => {
@@ -261,6 +263,13 @@ describe("parsePubkyAuthRequest", () => {
     expectError(
       encodeRequest(
         "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=http://httprelay.pubky.app/inbox&secret=test-secret&x-success=https://pubky.app/passport-success&x-error=https://pubky.app/passport-error&x-cancel=https://pubky.app/passport-cancel",
+      ),
+      "invalid_relay",
+    );
+
+    expectError(
+      encodeRequest(
+        "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://user:password@relay.example/inbox&secret=test-secret",
       ),
       "invalid_relay",
     );

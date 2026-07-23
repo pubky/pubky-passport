@@ -10,7 +10,6 @@ import {
   type PubkyAuthCallbackAvailability,
   type ValidatedPubkyAuthCallbacks as ValidatedPubkyAuthCallbacksInternal,
   type PubkyAuthUrlValidationError,
-  type PubkyAuthUrlValidationOptions,
 } from "./validatePubkyAuthUrls";
 import {
   pubkyAuthRequestParameters,
@@ -48,6 +47,7 @@ export type PubkyAuthRequestReview = {
   kind: PubkyAuthRequestKind;
   capabilities: PubkyAuthCapability[];
   callbackAvailability: PubkyAuthCallbackAvailability;
+  relayHost: string;
   requestingAppDisplayName?: string;
 };
 
@@ -66,19 +66,17 @@ export type ValidatedPubkyAuthCallbacks = Readonly<{
 export type ValidatedPubkyAuthRequest = {
   review: PubkyAuthRequestReview;
   approval: ValidatedSensitivePubkyAuthRequest;
+  relayOrigin: string;
 };
 
 export type PubkyAuthParseResult = ResultType<ValidatedPubkyAuthRequest, PubkyAuthParseError>;
 
 type ParseValueResult<T> = ResultType<T, PubkyAuthParseError>;
 
-export type ParsePubkyAuthRequestOptions = PubkyAuthUrlValidationOptions;
-
 const PUBKY_AUTH_PROTOCOL = "pubkyauth:";
 
 export function parsePubkyAuthRequest(
   d: unknown,
-  options: ParsePubkyAuthRequestOptions = { allowedRelayOrigins: [] },
 ): PubkyAuthParseResult {
   if (typeof d !== "string" || d.length === 0) {
     return error("missing_d", "Missing encoded Pubky auth request.");
@@ -124,7 +122,7 @@ export function parsePubkyAuthRequest(
     return error("invalid_secret", "Pubky auth request secret exceeds the allowed size.");
   }
 
-  const urls = validatePubkyAuthUrls(authUrl.value, options);
+  const urls = validatePubkyAuthUrls(authUrl.value);
   if (Result.isError(urls)) {
     return mapUrlValidationError(urls.error);
   }
@@ -138,6 +136,7 @@ export function parsePubkyAuthRequest(
     kind: kind.value,
     capabilities: capabilities.value,
     callbackAvailability: urls.value.callbackAvailability,
+    relayHost: urls.value.relayHost,
   };
 
   if (urls.value.requestingAppDisplayName) {
@@ -150,7 +149,7 @@ export function parsePubkyAuthRequest(
   parserIssuedApprovalRequests.add(approval);
   parserIssuedApprovalCallbacks.set(approval, Object.freeze({ ...urls.value.callbacks }));
 
-  return Result.ok({ review, approval });
+  return Result.ok({ review, approval, relayOrigin: urls.value.relayOrigin });
 }
 
 export function isParserIssuedPubkyAuthRequest(
@@ -163,6 +162,22 @@ export function getParserIssuedPubkyAuthCallbacks(
   approval: ValidatedSensitivePubkyAuthRequest,
 ): ValidatedPubkyAuthCallbacks | undefined {
   return parserIssuedApprovalCallbacks.get(approval);
+}
+
+export function extractRawPubkyAuthRequestQueryValue(
+  search: string,
+): { valid: true; value?: string } | { valid: false } {
+  let value: string | undefined;
+
+  for (const parameter of search.slice(1).split("&")) {
+    const separator = parameter.indexOf("=");
+    const name = separator === -1 ? parameter : parameter.slice(0, separator);
+    if (name !== "d") continue;
+    if (separator === -1 || value !== undefined) return { valid: false };
+    value = parameter.slice(separator + 1);
+  }
+
+  return value === undefined ? { valid: true } : { valid: true, value };
 }
 
 function decodeDParam(d: string): ParseValueResult<string> {

@@ -6,7 +6,6 @@ export default function AuthorizePage() {
     <AuthorizationReviewLoader
       googleClientId={publicEnv.NEXT_PUBLIC_GOOGLE_CLIENT_ID}
       passportUrl={publicEnv.NEXT_PUBLIC_PASSPORT_PUBLIC_URL}
-      relayOrigin={new URL(publicEnv.NEXT_PUBLIC_HTTP_RELAY_URL).origin}
     />
   );
 }

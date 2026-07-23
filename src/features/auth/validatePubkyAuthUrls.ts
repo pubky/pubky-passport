@@ -24,14 +24,11 @@ export type PubkyAuthUrlValidationError = {
   message: string;
 };
 
-export type PubkyAuthUrlValidationOptions = {
-  // This origin allowlist must be derived from the same configured relay as CSP.
-  allowedRelayOrigins: readonly string[];
-};
-
 export type PubkyAuthUrlValidationResult = ResultType<{
   callbackAvailability: PubkyAuthCallbackAvailability;
   callbacks: ValidatedPubkyAuthCallbacks;
+  relayHost: string;
+  relayOrigin: string;
   requestingAppDisplayName?: string;
 }, PubkyAuthUrlValidationError>;
 
@@ -46,7 +43,6 @@ type UrlParseResult = ResultType<URL, "invalid_url">;
 
 export function validatePubkyAuthUrls(
   authUrl: URL,
-  options: PubkyAuthUrlValidationOptions = { allowedRelayOrigins: [] },
 ): PubkyAuthUrlValidationResult {
   const parameters = validatePubkyAuthRequestParameters(authUrl.searchParams);
   if (Result.isError(parameters)) {
@@ -55,7 +51,6 @@ export function validatePubkyAuthUrls(
 
   const relay = validateRelayUrl(
     authUrl.searchParams.get(pubkyAuthRequestParameters.relay),
-    options.allowedRelayOrigins,
   );
   if (Result.isError(relay)) {
     return Result.err(relay.error);
@@ -70,6 +65,8 @@ export function validatePubkyAuthUrls(
 
   return Result.ok({
     callbacks: callbacks.value,
+    relayHost: relay.value.host,
+    relayOrigin: relay.value.origin,
     callbackAvailability: {
       success: callbacks.value.success !== undefined,
       error: callbacks.value.error !== undefined,
@@ -81,7 +78,6 @@ export function validatePubkyAuthUrls(
 
 export function validateRelayUrl(
   value: string | null,
-  allowedRelayOrigins: readonly string[],
 ): ResultType<URL, PubkyAuthUrlValidationError> {
   if (!value) {
     return error("missing_relay", "Pubky auth request is missing relay.");
@@ -95,12 +91,26 @@ export function validateRelayUrl(
   if (
     Result.isError(parsed) ||
     parsed.value.protocol !== "https:" ||
-    !allowedRelayOrigins.includes(parsed.value.origin)
+    parsed.value.username !== "" ||
+    parsed.value.password !== "" ||
+    parsed.value.hash !== "" ||
+    !isExactRelayHostname(parsed.value.hostname)
   ) {
     return error("invalid_relay", "Pubky auth request relay is not an allowed URL.");
   }
 
   return Result.ok(parsed.value);
+}
+
+function isExactRelayHostname(hostname: string): boolean {
+  if (/^\[[0-9a-f:.]+\]$/i.test(hostname)) return true;
+
+  const normalized = hostname.endsWith(".") ? hostname.slice(0, -1) : hostname;
+  if (normalized.length === 0 || normalized.length > 253) return false;
+
+  return normalized.split(".").every((label) =>
+    /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label)
+  );
 }
 
 function deriveDisplayDomain(callbacks: ValidatedPubkyAuthCallbacks): string | undefined {

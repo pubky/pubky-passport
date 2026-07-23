@@ -16,6 +16,7 @@ const review = {
   kind: "signin" as const,
   requestingAppDisplayName: "app.example",
   callbackAvailability: { success: true, error: true, cancel: true },
+  relayHost: "relay.client.example",
   capabilities: [{ path: "/pub/example.app/", read: true, write: true, scope: "broad" as const }],
 };
 
@@ -29,6 +30,8 @@ describe("AuthorizationReview", () => {
     renderReview(controller);
 
     expect(screen.getByRole("heading", { name: "app.example" })).toBeTruthy();
+    expect(screen.getByText("Requesting app (unverified)")).toBeTruthy();
+    expect(screen.getByText("relay.client.example")).toBeTruthy();
     expect(screen.getByText("/pub/example.app/")).toBeTruthy();
     expect(screen.getByText("Read and Write")).toBeTruthy();
     expect(screen.getByText("Broad access")).toBeTruthy();
@@ -78,7 +81,6 @@ function renderReview(controller: BrowserAuthorizationController) {
       googleClientId="google-client"
       identityControllerFactory={() => fakeIdentityController()}
       passportUrl="https://passport.example"
-      relayOrigin="https://relay.example"
     />,
   );
 }

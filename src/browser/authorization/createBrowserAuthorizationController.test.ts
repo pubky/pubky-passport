@@ -29,7 +29,7 @@ describe("createBrowserAuthorizationController", () => {
   it("constructs Pubky lazily for approval and owns adapter cleanup", async () => {
     window.history.replaceState({}, "", `/authorize?d=${encodeURIComponent(validRequest())}`);
 
-    const controller = createBrowserAuthorizationController({ relayOrigin });
+    const controller = createBrowserAuthorizationController();
 
     expect(controller.getState().status).toBe("review");
     expect(mocks.BrowserPubky).not.toHaveBeenCalled();
@@ -45,7 +45,7 @@ describe("createBrowserAuthorizationController", () => {
   it("maps identity repository failures at the authorization composition boundary", async () => {
     localStorage.setItem("pubky-passport/local-identities/v1", "invalid-store");
     window.history.replaceState({}, "", `/authorize?d=${encodeURIComponent(validRequest())}`);
-    const controller = createBrowserAuthorizationController({ relayOrigin });
+    const controller = createBrowserAuthorizationController();
 
     await expect(controller.approve()).resolves.toEqual({
       status: "failed",

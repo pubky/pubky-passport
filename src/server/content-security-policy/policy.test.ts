@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { createContentSecurityPolicy, parseBrowserConnectOrigins } from "./policy";
+import { createContentSecurityPolicy } from "./policy";
 
 describe("content security policy", () => {
-  it("uses a strict production nonce while allowing required Pubky and Google connections", () => {
-    const directives = parseCsp(createContentSecurityPolicy({
+  it("uses a strict production nonce while allowing the request's validated relay origin", () => {
+    const policy = createContentSecurityPolicy({
       nonce: "request-nonce",
       development: false,
-      httpRelayUrl: "https://relay.example/inbox",
-      browserConnectOrigins: "https://homeserver.example,https://homeserver.example:443",
-    }));
+      authorizationRequestSearch: authorizationSearch("https://relay.client.example/inbox?region=eu"),
+    });
+    const directives = parseCsp(policy);
 
     expect(directives.get("script-src")).toEqual([
       "'self'",
@@ -25,11 +25,41 @@ describe("content security policy", () => {
       "'self'",
       "https://pkarr.pubky.app",
       "https://pkarr.pubky.org",
-      "https://homeserver.example",
-      "https://relay.example",
+      "https://relay.client.example",
     ]));
+    expect(policy).not.toContain("/inbox");
+    expect(policy).not.toContain("sensitive-secret");
     expect(directives.get("frame-ancestors")).toEqual(["'none'"]);
     expect(directives.get("object-src")).toEqual(["'none'"]);
+  });
+
+  it("does not allow a relay for invalid authorization requests", () => {
+    for (const request of [
+      "?d=not-encoded",
+      authorizationSearch("http://relay.client.example/inbox"),
+      authorizationSearch("https://user:password@relay.client.example/inbox"),
+      authorizationSearch("https://*/inbox"),
+      authorizationSearch("https://a;b.example/inbox"),
+      `?d=${encodeURIComponent("pubkyauth://signin?relay=https://relay.client.example/inbox&secret=sensitive-secret")}`,
+    ]) {
+      const directives = parseCsp(createContentSecurityPolicy({
+        nonce: "request-nonce",
+        development: false,
+        authorizationRequestSearch: request,
+      }));
+
+      expect(directives.get("connect-src")).not.toContain("https://relay.client.example");
+    }
+  });
+
+  it("does not configure a global HTTP relay or browser connection origin", () => {
+    const directives = parseCsp(createContentSecurityPolicy({
+      nonce: "request-nonce",
+      development: false,
+    }));
+
+    expect(directives.get("connect-src")).not.toContain("https://httprelay.pubky.app");
+    expect(directives.get("connect-src")).not.toContain("https://homeserver.example");
   });
 
   it("adds unsafe-eval only for React development tooling", () => {
@@ -41,25 +71,12 @@ describe("content security policy", () => {
     expect(directives.get("script-src")).toContain("'unsafe-eval'");
     expect(directives.get("script-src")).not.toContain("'unsafe-inline'");
   });
-
-  it("accepts only exact HTTPS browser connection origins", () => {
-    expect(parseBrowserConnectOrigins("https://homeserver.example,https://homeserver.example:443")).toEqual([
-      "https://homeserver.example",
-    ]);
-
-    for (const value of [
-      "https://*.example.com",
-      "https://*",
-      "https://user@example.com",
-      "https://example.com/path",
-      "http://example.com",
-      "not a URL",
-      "https://example.com,",
-    ]) {
-      expect(() => parseBrowserConnectOrigins(value)).toThrow("Invalid PUBKY_BROWSER_CONNECT_ORIGINS");
-    }
-  });
 });
+
+function authorizationSearch(relay: string): string {
+  const request = `pubkyauth://signin?caps=/pub/example.app/:rw&relay=${encodeURIComponent(relay)}&secret=sensitive-secret`;
+  return `?d=${encodeURIComponent(request)}`;
+}
 
 function parseCsp(value: string): Map<string, string[]> {
   return new Map(value.split(";").map((directive) => {

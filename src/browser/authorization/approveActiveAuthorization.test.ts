@@ -19,7 +19,7 @@ describe("approveActiveAuthorization", () => {
     const pubky = Object.assign(keys, { approveAuthRequest: approval.approveAuthRequest.bind(approval) });
     const restored = keys.createKey();
     const localIdentities = new FakeLocalIdentities(Result.ok(restored));
-    const parsed = parsePubkyAuthRequest(encodeURIComponent(request), { allowedRelayOrigins: ["https://relay.example"] });
+    const parsed = parsePubkyAuthRequest(encodeURIComponent(request));
     if (Result.isError(parsed)) throw new Error(parsed.error.code);
 
     const result = await approveActiveAuthorization({ authRequest: parsed.value.approval, localIdentities, pubky });
@@ -34,7 +34,7 @@ describe("approveActiveAuthorization", () => {
     const approval = new FakePubkyAuthApproval();
     const pubky = Object.assign(keys, { approveAuthRequest: approval.approveAuthRequest.bind(approval) });
     const localIdentities = new FakeLocalIdentities(Result.err({ code: "no_active_identity" }));
-    const parsed = parsePubkyAuthRequest(encodeURIComponent(request), { allowedRelayOrigins: ["https://relay.example"] });
+    const parsed = parsePubkyAuthRequest(encodeURIComponent(request));
     if (Result.isError(parsed)) throw new Error(parsed.error.code);
 
     const result = await approveActiveAuthorization({ authRequest: parsed.value.approval, localIdentities, pubky });
@@ -51,7 +51,7 @@ describe("approveActiveAuthorization", () => {
     const pubky = Object.assign(keys, { approveAuthRequest: approval.approveAuthRequest.bind(approval) });
     const restored = keys.createKey();
     const localIdentities = new FakeLocalIdentities(Result.ok(restored));
-    const parsed = parsePubkyAuthRequest(encodeURIComponent(request), { allowedRelayOrigins: ["https://relay.example"] });
+    const parsed = parsePubkyAuthRequest(encodeURIComponent(request));
     if (Result.isError(parsed)) throw new Error(parsed.error.code);
 
     const result = await approveActiveAuthorization({ authRequest: parsed.value.approval, localIdentities, pubky });

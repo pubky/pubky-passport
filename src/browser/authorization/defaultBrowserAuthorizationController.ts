@@ -24,10 +24,9 @@ export type BrowserAuthorizationControllerDependencies = {
 
 export function createDefaultBrowserAuthorizationController(input: {
   browserWindow: Window;
-  relayOrigin: string;
   dependencies: BrowserAuthorizationControllerDependencies;
 }): BrowserAuthorizationController {
-  const entry = readAndScrubAuthorizationEntry(input.browserWindow, input.relayOrigin);
+  const entry = readAndScrubAuthorizationEntry(input.browserWindow);
   return new DefaultBrowserAuthorizationController({
     browserWindow: input.browserWindow,
     entry,

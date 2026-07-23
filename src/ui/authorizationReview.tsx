@@ -12,22 +12,20 @@ import type { createBrowserIdentityController } from "../browser/identity/create
 import { AuthorizationIdentityPanel } from "./authorizationIdentityPanel";
 
 type AuthorizationReviewProps = {
-  relayOrigin: string;
   googleClientId: string;
   passportUrl: string;
-  controllerFactory?: (input: { relayOrigin: string }) => BrowserAuthorizationController;
+  controllerFactory?: () => BrowserAuthorizationController;
   identityControllerFactory?: typeof createBrowserIdentityController;
 };
 
 export function AuthorizationReview({
-  relayOrigin,
   googleClientId,
   passportUrl,
   controllerFactory = createBrowserAuthorizationController,
   identityControllerFactory,
 }: AuthorizationReviewProps) {
   // The factory owns synchronous query scrubbing and StrictMode parser provenance.
-  const [controller] = useState(() => controllerFactory({ relayOrigin }));
+  const [controller] = useState(controllerFactory);
   const [state, setState] = useState<BrowserAuthorizationViewState>(() => controller.getState());
   const [identityReady, setIdentityReady] = useState(false);
 
@@ -72,8 +70,11 @@ export function AuthorizationReview({
       className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 p-4 sm:p-8"
     >
       <header>
-        <p className="text-sm text-neutral-600">Authorization request</p>
+        <p className="text-sm text-neutral-600">Requesting app (unverified)</p>
         <h1 className="text-2xl font-semibold">{state.review.requestingAppDisplayName ?? "An app"}</h1>
+        <p className="mt-2 text-sm text-neutral-600">
+          Encrypted handoff relay: <code>{state.review.relayHost}</code>
+        </p>
       </header>
       <section className="flex flex-col gap-3 rounded border p-4">
         <h2 className="font-medium">Requested permissions</h2>

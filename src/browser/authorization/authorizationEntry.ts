@@ -3,6 +3,7 @@ import "client-only";
 import { Result } from "better-result";
 
 import {
+  extractRawPubkyAuthRequestQueryValue,
   parsePubkyAuthRequest,
   type PubkyAuthRequestReview,
   type ValidatedSensitivePubkyAuthRequest,
@@ -21,7 +22,6 @@ const pendingStrictModeEntries = new WeakMap<Window, PendingStrictModeEntry>();
 
 export function readAndScrubAuthorizationEntry(
   browserWindow: Window,
-  relayOrigin: string,
 ): ParsedAuthorizationEntry {
   const rawSearch = browserWindow.location.search;
   const scrubbedHref = `${browserWindow.location.origin}${browserWindow.location.pathname}${browserWindow.location.hash}`;
@@ -42,10 +42,8 @@ export function readAndScrubAuthorizationEntry(
     }
   }
 
-  const rawD = extractRawDQueryValue(rawSearch);
-  const parsed = parsePubkyAuthRequest(rawD.valid ? rawD.value : undefined, {
-    allowedRelayOrigins: [relayOrigin],
-  });
+  const rawD = extractRawPubkyAuthRequestQueryValue(rawSearch);
+  const parsed = parsePubkyAuthRequest(rawD.valid ? rawD.value : undefined);
   const entry: ParsedAuthorizationEntry = Result.isError(parsed)
     ? { status: "invalid" }
     : { status: "valid", review: parsed.value.review, approval: parsed.value.approval };
@@ -61,18 +59,4 @@ export function readAndScrubAuthorizationEntry(
 
 export function clearPendingAuthorizationEntry(browserWindow: Window): void {
   pendingStrictModeEntries.delete(browserWindow);
-}
-
-function extractRawDQueryValue(search: string): { valid: true; value?: string } | { valid: false } {
-  let value: string | undefined;
-
-  for (const parameter of search.slice(1).split("&")) {
-    const separator = parameter.indexOf("=");
-    const name = separator === -1 ? parameter : parameter.slice(0, separator);
-    if (name !== "d") continue;
-    if (separator === -1 || value !== undefined) return { valid: false };
-    value = parameter.slice(separator + 1);
-  }
-
-  return value === undefined ? { valid: true } : { valid: true, value };
 }

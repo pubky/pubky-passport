@@ -11,9 +11,7 @@ export default function Home() {
         allowGoogleDriveReset={process.env.NODE_ENV === "development"}
         passportUrl={publicEnv.NEXT_PUBLIC_PASSPORT_PUBLIC_URL}
       />
-      <ManualAuthorizationForm
-        relayOrigin={new URL(publicEnv.NEXT_PUBLIC_HTTP_RELAY_URL).origin}
-      />
+      <ManualAuthorizationForm />
     </main>
   );
 }

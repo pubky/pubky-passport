@@ -6,7 +6,6 @@ const validPublicEnv = {
   NODE_ENV: "production",
   NEXT_PUBLIC_PASSPORT_PUBLIC_URL: "https://passport.pubky.app",
   NEXT_PUBLIC_GOOGLE_CLIENT_ID: "google-client-id",
-  NEXT_PUBLIC_HTTP_RELAY_URL: "https://httprelay.pubky.app/inbox",
 };
 
 describe("parsePublicEnv", () => {
@@ -14,7 +13,6 @@ describe("parsePublicEnv", () => {
     expect(parsePublicEnv(validPublicEnv)).toEqual({
       NEXT_PUBLIC_PASSPORT_PUBLIC_URL: "https://passport.pubky.app",
       NEXT_PUBLIC_GOOGLE_CLIENT_ID: "google-client-id",
-      NEXT_PUBLIC_HTTP_RELAY_URL: "https://httprelay.pubky.app/inbox",
     });
   });
 
@@ -27,29 +25,11 @@ describe("parsePublicEnv", () => {
     ).toThrow();
   });
 
-  it("fails invalid URLs", () => {
-    expect(() =>
-      parsePublicEnv({
-        ...validPublicEnv,
-        NEXT_PUBLIC_HTTP_RELAY_URL: "not a url",
-      }),
-    ).toThrow();
-  });
-
   it("fails non-HTTPS URLs in production", () => {
     expect(() =>
       parsePublicEnv({
         ...validPublicEnv,
         NEXT_PUBLIC_PASSPORT_PUBLIC_URL: "http://passport.pubky.app",
-      }),
-    ).toThrow();
-  });
-
-  it("fails unsafe URL schemes", () => {
-    expect(() =>
-      parsePublicEnv({
-        ...validPublicEnv,
-        NEXT_PUBLIC_HTTP_RELAY_URL: "javascript:alert(1)",
       }),
     ).toThrow();
   });

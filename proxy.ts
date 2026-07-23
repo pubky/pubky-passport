@@ -7,11 +7,8 @@ export function proxy(request: NextRequest) {
   const contentSecurityPolicy = createContentSecurityPolicy({
     nonce,
     development: process.env.NODE_ENV === "development",
-    ...(process.env.NEXT_PUBLIC_HTTP_RELAY_URL
-      ? { httpRelayUrl: process.env.NEXT_PUBLIC_HTTP_RELAY_URL }
-      : {}),
-    ...(process.env.PUBKY_BROWSER_CONNECT_ORIGINS
-      ? { browserConnectOrigins: process.env.PUBKY_BROWSER_CONNECT_ORIGINS }
+    ...(request.nextUrl.pathname === "/authorize" && request.nextUrl.search
+      ? { authorizationRequestSearch: request.nextUrl.search }
       : {}),
   });
   const requestHeaders = new Headers(request.headers);

@@ -1,24 +1,22 @@
 "use client";
 
 import { Result } from "better-result";
-import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 import { parsePubkyAuthRequest } from "../features/auth/parsePubkyAuthRequest";
 
-export function ManualAuthorizationForm({ relayOrigin }: {
-  relayOrigin: string;
+export function ManualAuthorizationForm({
+  navigate = replaceDocument,
+}: {
+  navigate?: (url: string) => void;
 }) {
-  const router = useRouter();
   const [request, setRequest] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     const rawRequest = request.trim();
-    const parsed = parsePubkyAuthRequest(encodeURIComponent(rawRequest), {
-      allowedRelayOrigins: [relayOrigin],
-    });
+    const parsed = parsePubkyAuthRequest(encodeURIComponent(rawRequest));
     setRequest("");
     if (Result.isError(parsed)) {
       setError("The invalid request was cleared for security. Correct it in the source app, then paste the complete request again.");
@@ -27,7 +25,7 @@ export function ManualAuthorizationForm({ relayOrigin }: {
 
     const destination = `/authorize?d=${encodeURIComponent(rawRequest)}`;
     setError(null);
-    router.replace(destination);
+    navigate(destination);
   }
 
   return (
@@ -50,4 +48,8 @@ export function ManualAuthorizationForm({ relayOrigin }: {
       {error ? <p className="text-sm text-red-700" role="alert">{error}</p> : null}
     </section>
   );
+}
+
+function replaceDocument(url: string): void {
+  window.location.replace(url);
 }

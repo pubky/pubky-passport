@@ -2,24 +2,14 @@ import { Result } from "better-result";
 import { describe, expect, it } from "vitest";
 
 import {
-  validatePubkyAuthUrls as validatePubkyAuthUrlsImplementation,
+  validatePubkyAuthUrls,
   validateRelayUrl,
   type PubkyAuthUrlValidationErrorCode,
-  type PubkyAuthUrlValidationOptions,
 } from "./validatePubkyAuthUrls";
 import { pubkyAuthRequestLimits } from "./pubkyAuthRequestLimits";
 
-const approvedRelayOrigins = ["https://httprelay.pubky.app"];
-
 function authUrl(query: string): URL {
   return new URL(`pubkyauth://signin?${query}`);
-}
-
-function validatePubkyAuthUrls(
-  url: URL,
-  options: Omit<PubkyAuthUrlValidationOptions, "allowedRelayOrigins"> = {},
-) {
-  return validatePubkyAuthUrlsImplementation(url, { allowedRelayOrigins: approvedRelayOrigins, ...options });
 }
 
 function expectUrlError(url: URL, code: PubkyAuthUrlValidationErrorCode): void {
@@ -35,19 +25,19 @@ function expectUrlError(url: URL, code: PubkyAuthUrlValidationErrorCode): void {
 }
 
 describe("validateRelayUrl", () => {
-  it("allows HTTPS relay URLs", () => {
-    const result = validateRelayUrl("https://httprelay.pubky.app/inbox", approvedRelayOrigins);
+  it("allows client-provided HTTPS relay URLs", () => {
+    const result = validateRelayUrl("https://custom-relay.example/inbox?region=eu");
 
     expect(Result.isOk(result)).toBe(true);
     if (Result.isError(result)) {
       throw new Error(result.error.code);
     }
 
-    expect(result.value.href).toBe("https://httprelay.pubky.app/inbox");
+    expect(result.value.href).toBe("https://custom-relay.example/inbox?region=eu");
   });
 
   it("rejects missing relay URLs", () => {
-    const result = validateRelayUrl(null, approvedRelayOrigins);
+    const result = validateRelayUrl(null);
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) {
@@ -55,9 +45,19 @@ describe("validateRelayUrl", () => {
     }
   });
 
-  it("rejects relative, malformed, and non-HTTPS relay URLs", () => {
-    for (const relay of ["/inbox", "not a url", "http://httprelay.pubky.app/inbox"]) {
-      const result = validateRelayUrl(relay, approvedRelayOrigins);
+  it("rejects relative, malformed, non-HTTPS, credentialed, and fragmented relay URLs", () => {
+    for (const relay of [
+      "/inbox",
+      "not a url",
+      "http://httprelay.pubky.app/inbox",
+      "https://user:password@relay.example/inbox",
+      "https://relay.example/inbox#channel",
+      "https://*/inbox",
+      "https://*.example/inbox",
+      "https://a;b.example/inbox",
+      "https://a'b.example/inbox",
+    ]) {
+      const result = validateRelayUrl(relay);
 
       expect(Result.isError(result)).toBe(true);
       if (Result.isError(result)) {
@@ -70,8 +70,8 @@ describe("validateRelayUrl", () => {
     const prefix = "https://httprelay.pubky.app/";
     const atLimit = `${prefix}${"a".repeat(pubkyAuthRequestLimits.relayUrlLength - prefix.length)}`;
 
-    expect(Result.isOk(validateRelayUrl(atLimit, approvedRelayOrigins))).toBe(true);
-    const overLimit = validateRelayUrl(`${atLimit}a`, approvedRelayOrigins);
+    expect(Result.isOk(validateRelayUrl(atLimit))).toBe(true);
+    const overLimit = validateRelayUrl(`${atLimit}a`);
     expect(Result.isError(overLimit)).toBe(true);
     if (Result.isError(overLimit)) {
       expect(overLimit.error.code).toBe("invalid_relay");
@@ -140,11 +140,15 @@ describe("validatePubkyAuthUrls", () => {
     expect(result.value.requestingAppDisplayName).toBeUndefined();
   });
 
-  it("rejects HTTPS relays outside the configured allowlist", () => {
-    expectUrlError(
-      authUrl("relay=https://other-relay.example/inbox&secret=secret-value"),
-      "invalid_relay",
+  it("returns the normalized client-provided relay origin", () => {
+    const result = validatePubkyAuthUrls(
+      authUrl("relay=https://custom-relay.example:443/inbox&secret=secret-value"),
     );
+
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isError(result)) throw new Error(result.error.code);
+    expect(result.value.relayHost).toBe("custom-relay.example");
+    expect(result.value.relayOrigin).toBe("https://custom-relay.example");
   });
 
   it("rejects duplicate and unsupported request parameters", () => {
