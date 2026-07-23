@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHmac } from "node:crypto";
 
-import type { GoogleWrappingKeyRateLimiter } from "./applicationContracts";
+import type { GoogleWrappingKeyRateLimiter } from "./ports";
 import { decodeServerSecret } from "./keyDeriver";
 
 export type CreateInMemoryGoogleWrappingKeyRateLimiterInput = {

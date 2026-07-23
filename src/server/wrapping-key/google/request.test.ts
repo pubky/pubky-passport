@@ -6,7 +6,7 @@ import type {
   GoogleIdTokenVerifier,
   GoogleWrappingKeyMaterial,
   GoogleWrappingKeyRateLimiter,
-} from "./applicationContracts";
+} from "./ports";
 import { createGoogleWrappingKeyRequest } from "./request";
 
 const identity = {

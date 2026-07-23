@@ -38,7 +38,7 @@ const browserAdapterModules = [
 ];
 const googleWrappingKeyRoot = join(serverRoot, "wrapping-key", "google");
 const googleWrappingKeyApplicationModules = [
-  join(googleWrappingKeyRoot, "applicationContracts.ts"),
+  join(googleWrappingKeyRoot, "ports.ts"),
   join(googleWrappingKeyRoot, "request.ts"),
 ];
 

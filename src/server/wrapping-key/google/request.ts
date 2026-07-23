@@ -8,7 +8,7 @@ import type {
   VerifiedGoogleIdentity,
   GoogleWrappingKeyMaterial,
   GoogleWrappingKeyRateLimiter,
-} from "./applicationContracts";
+} from "./ports";
 
 export type GoogleWrappingKeyRequestErrorCode =
   | "invalid_google_id_token"

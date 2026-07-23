@@ -7,7 +7,7 @@ import type { PubkyPublicIdentity } from "../../features/identity/pubkyIdentity"
 import type {
   GoogleBackedIdentityDeletionErrorCode,
   GoogleBackedIdentityFlowErrorCode,
-} from "./google/applicationContracts";
+} from "./google/ports";
 import type { LocalIdentityRepositoryErrorCode } from "./localIdentityService";
 
 export type BrowserIdentityList = {

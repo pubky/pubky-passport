@@ -11,7 +11,7 @@ import type {
   GoogleBackedIdentity,
   GoogleBackedIdentityFlowResult,
   RestoreExistingGoogleDriveIdentity,
-} from "./applicationContracts";
+} from "./ports";
 
 export class RestoreExistingGoogleDriveIdentityUseCase implements RestoreExistingGoogleDriveIdentity {
   readonly #crypto: PassportFileCrypto;

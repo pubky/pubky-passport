@@ -19,7 +19,7 @@ import type {
   GoogleIdentityProviderErrorCode,
   GoogleIdentityProviderResult,
   GoogleSignInWidget,
-} from "./google/applicationContracts";
+} from "./google/ports";
 import type { LocalIdentityRepository } from "./localIdentityService";
 
 type IdentityFlow = {

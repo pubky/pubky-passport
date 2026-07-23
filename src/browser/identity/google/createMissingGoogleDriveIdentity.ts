@@ -16,7 +16,7 @@ import type {
   GoogleBackedIdentity,
   GoogleBackedIdentityFlowResult,
   GoogleHomegateInviteRequester,
-} from "./applicationContracts";
+} from "./ports";
 
 export class CreateMissingGoogleDriveIdentityUseCase implements CreateMissingGoogleDriveIdentity {
   readonly #crypto: PassportFileCrypto;

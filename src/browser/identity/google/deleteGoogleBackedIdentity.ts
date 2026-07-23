@@ -12,7 +12,7 @@ import type {
   GoogleBackedIdentityDeletionResult,
   GoogleIdentitySession,
   GoogleWrappingKeyRequester,
-} from "./applicationContracts";
+} from "./ports";
 
 export class DeleteGoogleBackedIdentity implements GoogleBackedIdentityDeletion {
   readonly #wrappingKeys: GoogleWrappingKeyRequester;

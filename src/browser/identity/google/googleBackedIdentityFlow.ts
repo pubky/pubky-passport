@@ -10,7 +10,7 @@ import type {
   GoogleIdentitySession,
   GoogleWrappingKeyRequester,
   RestoreExistingGoogleDriveIdentity,
-} from "./applicationContracts";
+} from "./ports";
 import { logger } from "../../../libs/logger/logger";
 
 export type {
@@ -18,7 +18,7 @@ export type {
   GoogleBackedIdentityFlowError,
   GoogleBackedIdentityFlowErrorCode,
   GoogleBackedIdentityFlowResult,
-} from "./applicationContracts";
+} from "./ports";
 
 export class GoogleBackedIdentityFlow {
   readonly #wrappingKeys: GoogleWrappingKeyRequester;

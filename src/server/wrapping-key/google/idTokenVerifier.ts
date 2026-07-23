@@ -8,7 +8,7 @@ import {
   type GoogleIdTokenVerificationErrorCode,
   type GoogleIdTokenVerificationResult,
   type GoogleIdTokenVerifier,
-} from "./applicationContracts";
+} from "./ports";
 
 type GoogleIdTokenPayload = {
   iss?: string;

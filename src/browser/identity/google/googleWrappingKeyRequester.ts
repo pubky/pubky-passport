@@ -7,7 +7,7 @@ import { logger } from "../../../libs/logger/logger";
 import type {
   GoogleWrappingKeyRequester,
   GoogleWrappingKeyRequesterErrorCode,
-} from "./applicationContracts";
+} from "./ports";
 
 const maximumResponseBytes = 16 * 1024;
 const wrappingKeyBytes = 32;
