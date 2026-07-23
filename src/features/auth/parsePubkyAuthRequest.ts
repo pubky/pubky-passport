@@ -14,7 +14,6 @@ import {
 } from "./validatePubkyAuthUrls";
 import {
   pubkyAuthRequestParameters,
-  type PubkyAuthRequestParameterErrorCode,
 } from "./pubkyAuthRequestParameters";
 import { pubkyAuthRequestLimits } from "./pubkyAuthRequestLimits";
 
@@ -34,14 +33,11 @@ export type PubkyAuthParseErrorCode =
   | "invalid_url"
   | "unsupported_scheme"
   | "invalid_auth_request_path"
-  | "missing_relay"
-  | "invalid_relay"
   | "missing_secret"
   | "invalid_secret"
   | "missing_capabilities"
   | "invalid_capability"
-  | "invalid_callback"
-  | PubkyAuthRequestParameterErrorCode;
+  | PubkyAuthUrlValidationError["code"];
 
 export type PubkyAuthParseError = {
   code: PubkyAuthParseErrorCode;

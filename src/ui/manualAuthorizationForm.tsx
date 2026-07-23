@@ -21,7 +21,7 @@ export function ManualAuthorizationForm({ relayOrigin }: {
       allowedRelayOrigins: [relayOrigin],
     });
     if (Result.isError(parsed)) {
-      setError("Enter a valid Pubky authorization request.");
+      setError("Enter a valid Pubky authorization request. Paste the complete request again.");
       return;
     }
 
@@ -36,9 +36,13 @@ export function ManualAuthorizationForm({ relayOrigin }: {
       <form className="flex flex-col gap-3" onSubmit={submit}>
         <textarea
           aria-label="Pubky authorization request"
+          autoCapitalize="none"
+          autoComplete="off"
+          autoCorrect="off"
           onChange={(event) => setRequest(event.target.value)}
           placeholder="pubkyauth://signin?..."
           rows={4}
+          spellCheck={false}
           value={request}
         />
         <button className="w-fit rounded border px-3 py-2" type="submit">Continue</button>

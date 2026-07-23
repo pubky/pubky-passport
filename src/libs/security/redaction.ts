@@ -41,7 +41,8 @@ const TOKEN_VALUE_PATTERN = new RegExp(`\\b(${SENSITIVE_TOKEN_KEYS})\\b\\s*[:=]\
 // client_secret, so bare tokens of 43+ characters must be redacted even when
 // they appear without key=value, JSON, or URL context. The threshold stays
 // above 40 so full git SHA-1 hashes (40 hex chars) remain visible as useful,
-// non-sensitive diagnostics; we err toward redaction for anything longer.
+// non-sensitive diagnostics. This intentionally also redacts z32 public keys;
+// preserving a fail-closed logger is more important than logging public identity.
 const OPAQUE_TOKEN_PATTERN = /(?<![A-Za-z0-9+/_-])[A-Za-z0-9+/_-]{43,}={0,2}(?![A-Za-z0-9+/_=-])/gu;
 
 export function redactAuthorizationUrls(value: string): string {

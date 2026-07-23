@@ -25,7 +25,13 @@ describe("ManualAuthorizationForm", () => {
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
     expect((input as HTMLTextAreaElement).value).toBe("");
-    expect(screen.getByRole("alert").textContent).toBe("Enter a valid Pubky authorization request.");
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Enter a valid Pubky authorization request. Paste the complete request again.",
+    );
+    expect(input.getAttribute("autocomplete")).toBe("off");
+    expect(input.getAttribute("autocapitalize")).toBe("none");
+    expect(input.getAttribute("autocorrect")).toBe("off");
+    expect(input.getAttribute("spellcheck")).toBe("false");
     expect(document.body.textContent).not.toContain("sensitive-secret");
     expect(replace).not.toHaveBeenCalled();
   });

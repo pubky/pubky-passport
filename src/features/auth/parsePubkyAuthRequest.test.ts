@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import { Result } from "better-result";
 
 import {
@@ -9,10 +9,13 @@ import {
   type ParsePubkyAuthRequestOptions,
 } from "./parsePubkyAuthRequest";
 import { pubkyAuthRequestLimits } from "./pubkyAuthRequestLimits";
+import type { PubkyAuthUrlValidationErrorCode } from "./validatePubkyAuthUrls";
 
 const validRequest =
   "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=test-secret&x-success=https://pubky.app/passport-success&x-error=https://pubky.app/passport-error&x-cancel=https://pubky.app/passport-cancel";
 const approvedRelayOrigins = ["https://httprelay.pubky.app"];
+
+expectTypeOf<PubkyAuthUrlValidationErrorCode>().toMatchTypeOf<PubkyAuthParseErrorCode>();
 
 function parsePubkyAuthRequest(
   input: unknown,
