@@ -163,7 +163,7 @@ function messageForGoogleFailure(code: string): string {
     case "signin_failed":
     case "discovery_failed":
     case "local_save_failed":
-      return "Identity setup did not finish and may require recovery before authorization.";
+      return "Identity setup did not finish and may require recovery before authorization." + ` (Error code: ${code})`;
     default:
       return "Passport could not create or restore the Google identity. Try again.";
   }
