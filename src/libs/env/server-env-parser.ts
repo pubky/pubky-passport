@@ -5,7 +5,7 @@ import {
   isBase64,
   minimumServerSecretByteLength,
 } from "../security/serverSecret";
-import { type EnvLike, envUrlSchema, isDevelopmentEnv, requiredStringSchema } from "./env-schema";
+import { type EnvLike, envUrlSchema, requiredStringSchema } from "./env-schema";
 
 export type GoogleWrappingKeyServerEnv = {
   GOOGLE_CLIENT_ID: string;
@@ -47,11 +47,9 @@ export function parseGoogleWrappingKeyServerEnv(input: EnvLike): GoogleWrappingK
 }
 
 export function parseHomegateServerEnv(input: EnvLike): HomegateServerEnv {
-  const allowLocalhostHttp = isDevelopmentEnv(input);
-
   return z
     .object({
-      HOMEGATE_URL: envUrlSchema("HOMEGATE_URL", { allowLocalhostHttp }),
+      HOMEGATE_URL: envUrlSchema("HOMEGATE_URL"),
     })
     .parse(input);
 }

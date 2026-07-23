@@ -20,10 +20,6 @@ export type PassportFileParseError = {
 
 export type PassportFileParseResult = ResultType<PassportFileEnvelopeV1, PassportFileParseError>;
 
-export type PassportFileUrlOptions = {
-  allowLocalhostHttp?: boolean;
-};
-
 export type PassportFileOriginResult = ResultType<string, { code: "invalid_field"; field: "url" }>;
 
 const base64UrlPattern = /^[A-Za-z0-9_-]+$/;
@@ -36,7 +32,7 @@ const passportFileEnvelopeSchema = z
   })
   .strict();
 
-export function parsePassportFileContents(input: unknown, options: PassportFileUrlOptions = {}): PassportFileParseResult {
+export function parsePassportFileContents(input: unknown): PassportFileParseResult {
   if (typeof input !== "string") {
     return error("invalid_json");
   }
@@ -48,13 +44,10 @@ export function parsePassportFileContents(input: unknown, options: PassportFileU
     return error("invalid_json");
   }
 
-  return parsePassportFileEnvelope(parsed, options);
+  return parsePassportFileEnvelope(parsed);
 }
 
-export function parsePassportFileEnvelope(
-  input: unknown,
-  options: PassportFileUrlOptions = {},
-): PassportFileParseResult {
+export function parsePassportFileEnvelope(input: unknown): PassportFileParseResult {
   if (!isPlainObject(input)) {
     return error("invalid_shape");
   }
@@ -82,25 +75,22 @@ export function parsePassportFileEnvelope(
     return error("unsupported_version", "v");
   }
 
-  const origin = normalizePassportFileOrigin(parsed.data.url, options);
+  const origin = normalizePassportFileOrigin(parsed.data.url);
   if (Result.isError(origin)) {
     return error(origin.error.code, origin.error.field);
   }
 
   return Result.ok({
-      v: 1,
-      iv: parsed.data.iv,
-      ct: parsed.data.ct,
-      url: origin.value,
+    v: 1,
+    iv: parsed.data.iv,
+    ct: parsed.data.ct,
+    url: origin.value,
   });
 }
 
-export function normalizePassportFileOrigin(
-  value: string,
-  options: PassportFileUrlOptions = {},
-): PassportFileOriginResult {
+export function normalizePassportFileOrigin(value: string): PassportFileOriginResult {
   const url = parseUrl(value);
-  if (!url || !isAllowedPassportFileOrigin(url, options)) {
+  if (!url || !isAllowedPassportFileOrigin(url)) {
     return invalidUrl();
   }
 
@@ -123,24 +113,12 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype;
 }
 
-function isAllowedPassportFileOrigin(url: URL, options: PassportFileUrlOptions): boolean {
-  return hasAllowedProtocol(url, options) && hasNoCredentialsOrUrlParts(url) && url.pathname === "/";
-}
-
-function hasAllowedProtocol(url: URL, options: PassportFileUrlOptions): boolean {
-  if (url.protocol === "https:") {
-    return true;
-  }
-
-  return options.allowLocalhostHttp === true && url.protocol === "http:" && isLocalhost(url.hostname);
+function isAllowedPassportFileOrigin(url: URL): boolean {
+  return url.protocol === "https:" && hasNoCredentialsOrUrlParts(url) && url.pathname === "/";
 }
 
 function hasNoCredentialsOrUrlParts(url: URL): boolean {
   return !url.username && !url.password && !url.search && !url.hash;
-}
-
-function isLocalhost(hostname: string): boolean {
-  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]";
 }
 
 function invalidUrl(): Err<never, { code: "invalid_field"; field: "url" }> {

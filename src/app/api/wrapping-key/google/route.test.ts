@@ -23,7 +23,7 @@ describe("POST /api/wrapping-key/google", () => {
     const post = createGoogleWrappingKeyPostHandler(wrappingKeyRequest(Result.ok("opaque-key")));
 
     const response = await post(
-        new Request("http://localhost/api/wrapping-key/google", {
+        new Request("https://passport.pubky.app/api/wrapping-key/google", {
         method: "POST",
         body: "not json",
       }),
@@ -50,7 +50,7 @@ describe("POST /api/wrapping-key/google", () => {
   it("requires an application/json content type", async () => {
     const post = createGoogleWrappingKeyPostHandler(wrappingKeyRequest(Result.ok("opaque-key")));
 
-    const response = await post(new Request("http://localhost/api/wrapping-key/google", {
+    const response = await post(new Request("https://passport.pubky.app/api/wrapping-key/google", {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ googleIdToken: "id-token" }),
@@ -69,7 +69,7 @@ describe("POST /api/wrapping-key/google", () => {
       },
     });
 
-    const response = await post(oversizedRequest("http://localhost/api/wrapping-key/google"));
+    const response = await post(oversizedRequest("https://passport.pubky.app/api/wrapping-key/google"));
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: { code: "invalid_request" } });
@@ -187,7 +187,7 @@ function wrappingKeyRequest(result: GoogleWrappingKeyRequestResult): GoogleWrapp
 }
 
 function jsonRequest(body: unknown): Request {
-  return new Request("http://localhost/api/wrapping-key/google", {
+  return new Request("https://passport.pubky.app/api/wrapping-key/google", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

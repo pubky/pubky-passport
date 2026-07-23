@@ -28,7 +28,7 @@ describe("POST /api/homegate/google/invite", () => {
     const post = createGoogleHomegateInvitePostHandler(homegateInvite(Result.ok(invite)));
 
     const response = await post(
-        new Request("http://localhost/api/homegate/google/invite", {
+        new Request("https://passport.pubky.app/api/homegate/google/invite", {
         method: "POST",
         body: "not json",
       }),
@@ -55,7 +55,7 @@ describe("POST /api/homegate/google/invite", () => {
   it("requires an application/json content type", async () => {
     const post = createGoogleHomegateInvitePostHandler(homegateInvite(Result.ok(invite)));
 
-    const response = await post(new Request("http://localhost/api/homegate/google/invite", {
+    const response = await post(new Request("https://passport.pubky.app/api/homegate/google/invite", {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ googleIdToken: "id-token" }),
@@ -74,7 +74,7 @@ describe("POST /api/homegate/google/invite", () => {
       },
     });
 
-    const response = await post(oversizedRequest("http://localhost/api/homegate/google/invite"));
+    const response = await post(oversizedRequest("https://passport.pubky.app/api/homegate/google/invite"));
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: { code: "invalid_request" } });
@@ -197,7 +197,7 @@ function homegateInvite(result: GoogleHomegateInviteResult): GoogleHomegateInvit
 }
 
 function jsonRequest(body: unknown): Request {
-  return new Request("http://localhost/api/homegate/google/invite", {
+  return new Request("https://passport.pubky.app/api/homegate/google/invite", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

@@ -32,8 +32,8 @@ describe("redactAuthorizationUrls", () => {
     expect(redactAuthorizationUrls(value)).toBe("url=[REDACTED_AUTHORIZATION_URL]");
   });
 
-  it("redacts localhost authorization URLs for development log safety", () => {
-    const value = "GET http://localhost:3000/authorize?d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value";
+  it("redacts authorization URLs containing sensitive requests", () => {
+    const value = "GET https://passport.pubky.app/authorize?d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value";
 
     expect(redactAuthorizationUrls(value)).toBe("GET [REDACTED_AUTHORIZATION_URL]");
   });

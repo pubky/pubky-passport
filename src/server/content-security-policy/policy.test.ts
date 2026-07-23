@@ -53,7 +53,6 @@ describe("content security policy", () => {
       "https://user@example.com",
       "https://example.com/path",
       "http://example.com",
-      "http://localhost:6286",
       "not a URL",
       "https://example.com,",
     ]) {

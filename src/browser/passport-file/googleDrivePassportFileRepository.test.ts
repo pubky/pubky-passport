@@ -93,7 +93,7 @@ function cancellableStream(chunks: ByteChunk[], onCancel?: () => void): Readable
 
 function createRepository(
   responses: Array<Response | Error>,
-  options: { allowLocalhostHttp?: boolean; lockManager?: PassportFileCreateLockManager | null } = {},
+  options: { lockManager?: PassportFileCreateLockManager | null } = {},
 ) {
   const calls: FetchCall[] = [];
   const fetchMock = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -452,20 +452,18 @@ describe("GoogleDrivePassportFileRepository", () => {
   });
 
   it("serializes outbound envelopes through parser normalization", async () => {
-    const localhostEnvelope = { ...envelope, url: "http://localhost:3000/" };
+    const rootPathEnvelope = { ...envelope, url: "https://passport.pubky.app/" };
     const created = { id: "created", name: "passport.json", version: "1" };
     const { repository, calls } = createRepository([
       jsonResponse({ files: [] }),
       jsonResponse(created),
       jsonResponse({ files: [created] }),
-    ], {
-      allowLocalhostHttp: true,
-    });
+    ]);
 
-    await expectSuccess(repository.createPassportFile({ envelope: localhostEnvelope }), { storageId: "created", revision: "1" });
+    await expectSuccess(repository.createPassportFile({ envelope: rootPathEnvelope }), { storageId: "created", revision: "1" });
 
     expect(String(expectCall(calls, 1).init.body)).toContain(
-      JSON.stringify({ ...localhostEnvelope, url: "http://localhost:3000" }),
+      JSON.stringify({ ...rootPathEnvelope, url: "https://passport.pubky.app" }),
     );
   });
 

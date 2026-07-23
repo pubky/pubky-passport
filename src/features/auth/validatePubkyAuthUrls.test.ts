@@ -172,9 +172,6 @@ describe("validatePubkyAuthUrls", () => {
   it("rejects other non-HTTPS callback schemes by default", () => {
     for (const callback of [
       "http://third.example/success",
-      "http://localhost:3000/success",
-      "http://127.0.0.1:3000/success",
-      "http://[::1]:3000/success",
       "pubky://third.example/success",
     ]) {
       expectUrlError(

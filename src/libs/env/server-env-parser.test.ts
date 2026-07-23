@@ -38,15 +38,13 @@ describe("server environment parsers", () => {
     });
   });
 
-  it("allows localhost HTTP Homegate URLs in development", () => {
-    expect(
+  it("rejects HTTP Homegate URLs in development", () => {
+    expect(() =>
       parseHomegateServerEnv({
         NODE_ENV: "development",
-        HOMEGATE_URL: "http://127.0.0.1:8080",
+        HOMEGATE_URL: "http://homegate.pubky.app",
       }),
-    ).toEqual({
-      HOMEGATE_URL: "http://127.0.0.1:8080",
-    });
+    ).toThrow();
   });
 
   it.each([

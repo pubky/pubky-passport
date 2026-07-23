@@ -54,27 +54,12 @@ describe("parsePublicEnv", () => {
     ).toThrow();
   });
 
-  it("allows localhost HTTP URLs in development", () => {
-    expect(
-      parsePublicEnv({
-        ...validPublicEnv,
-        NODE_ENV: "development",
-        NEXT_PUBLIC_PASSPORT_PUBLIC_URL: "http://localhost:3000",
-        NEXT_PUBLIC_HTTP_RELAY_URL: "http://127.0.0.1:8080/inbox",
-      }),
-    ).toEqual({
-      NEXT_PUBLIC_PASSPORT_PUBLIC_URL: "http://localhost:3000",
-      NEXT_PUBLIC_GOOGLE_CLIENT_ID: "google-client-id",
-      NEXT_PUBLIC_HTTP_RELAY_URL: "http://127.0.0.1:8080/inbox",
-    });
-  });
-
-  it("fails non-localhost HTTP URLs in development", () => {
+  it("rejects HTTP URLs in development", () => {
     expect(() =>
       parsePublicEnv({
         ...validPublicEnv,
         NODE_ENV: "development",
-        NEXT_PUBLIC_HTTP_RELAY_URL: "http://httprelay.pubky.app/inbox",
+        NEXT_PUBLIC_PASSPORT_PUBLIC_URL: "http://passport.pubky.app",
       }),
     ).toThrow();
   });

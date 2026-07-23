@@ -128,19 +128,8 @@ describe("parsePassportFileContents", () => {
     }
   });
 
-  it("allows localhost http urls only when explicitly enabled", () => {
-    expectParseError(stringifyEnvelope({ url: "http://localhost:3000/" }), "invalid_field", "url");
-
-    const result = parsePassportFileContents(stringifyEnvelope({ url: "http://localhost:3000/" }), {
-      allowLocalhostHttp: true,
-    });
-
-    expect(Result.isOk(result)).toBe(true);
-    if (Result.isError(result)) {
-      throw new Error(result.error.code);
-    }
-
-    expect(result.value.url).toBe("http://localhost:3000");
+  it("rejects non-HTTPS urls", () => {
+    expectParseError(stringifyEnvelope({ url: "http://passport.pubky.app/" }), "invalid_field", "url");
   });
 
   it("parses already-decoded envelope objects", () => {

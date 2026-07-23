@@ -10,7 +10,7 @@ describe("BrowserGoogleWrappingKeyRequester", () => {
     const requester = new BrowserGoogleWrappingKeyRequester({
       async fetch(input, init) {
         endpoint = input;
-        request = new Request("http://localhost/api/wrapping-key/google", init);
+        request = new Request("https://passport.pubky.app/api/wrapping-key/google", init);
         return Response.json({ wrappingKey: encodeBase64Url(new Uint8Array(32).fill(7)) });
       },
     });

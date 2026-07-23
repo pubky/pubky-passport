@@ -20,7 +20,6 @@ export function createBrowserIdentityController(input: {
   googleClientId: string;
   passportUrl: string;
 }): BrowserIdentityController {
-  const allowLocalhostHttp = new URL(input.passportUrl).protocol === "http:";
   const pubky = new BrowserPubky();
   const repository = new LocalStorageIdentityRepository();
   const localIdentities = new LocalIdentityService({ repository, identityKeys: pubky });
@@ -29,7 +28,6 @@ export function createBrowserIdentityController(input: {
   const passportFilesForAccessToken = (token: string) => new GoogleDrivePassportFileRepository({
     accessTokenProvider: async () => token,
     fetch: globalThis.fetch.bind(globalThis),
-    allowLocalhostHttp,
   });
   const restoreExistingIdentity = new RestoreExistingGoogleDriveIdentityUseCase({
     crypto,

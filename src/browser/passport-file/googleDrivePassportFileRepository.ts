@@ -6,7 +6,6 @@ import type { PassportFileEnvelopeV1 } from "../../features/passport-file/passpo
 import {
   parsePassportFileContents,
   parsePassportFileEnvelope,
-  type PassportFileUrlOptions,
 } from "../../features/passport-file/parsePassportFile";
 import { readBoundedText } from "../../libs/security/boundedBody";
 import type {
@@ -23,7 +22,7 @@ export type PassportFileCreateLockManager = {
   request<T>(name: string, callback: () => Promise<T>): Promise<T>;
 };
 
-export type GoogleDrivePassportFileRepositoryOptions = PassportFileUrlOptions & {
+export type GoogleDrivePassportFileRepositoryOptions = {
   accessTokenProvider: GoogleDriveAccessTokenProvider;
   fetch: typeof fetch;
   lockManager?: PassportFileCreateLockManager | null;
@@ -56,13 +55,11 @@ export class GoogleDrivePassportFileRepository implements PassportFileStore {
   private readonly accessTokenProvider: GoogleDriveAccessTokenProvider;
   private readonly fetchImpl: typeof fetch;
   private readonly lockManager: PassportFileCreateLockManager | null;
-  private readonly urlOptions: PassportFileUrlOptions;
 
   constructor(options: GoogleDrivePassportFileRepositoryOptions) {
     this.accessTokenProvider = options.accessTokenProvider;
     this.fetchImpl = options.fetch;
     this.lockManager = options.lockManager === undefined ? browserLockManager() : options.lockManager;
-    this.urlOptions = options.allowLocalhostHttp === undefined ? {} : { allowLocalhostHttp: options.allowLocalhostHttp };
   }
 
   async readPassportFile(): Promise<PassportFileStoreResult<PassportFileReadResult>> {
@@ -83,7 +80,7 @@ export class GoogleDrivePassportFileRepository implements PassportFileStore {
     if (contents === "too_large") return failure("invalid_file");
     if (contents === null) return failure("invalid_response");
 
-    const parsed = parsePassportFileContents(contents, this.urlOptions);
+    const parsed = parsePassportFileContents(contents);
     if (Result.isError(parsed)) return failure("invalid_file");
 
     const revalidated = await this.readExactMetadata(token.value, located.value.reference.storageId);
@@ -96,7 +93,7 @@ export class GoogleDrivePassportFileRepository implements PassportFileStore {
   }
 
   async createPassportFile(input: { envelope: PassportFileEnvelopeV1 }): Promise<PassportFileStoreResult<PassportFileReference>> {
-    const serializedEnvelope = serializeEnvelope(input.envelope, this.urlOptions);
+    const serializedEnvelope = serializeEnvelope(input.envelope);
     if (Result.isError(serializedEnvelope)) return failure(serializedEnvelope.error.code);
 
     const token = await this.getAccessToken();
@@ -275,9 +272,8 @@ function createMultipartBody(envelopeJson: string): string {
 
 function serializeEnvelope(
   envelope: PassportFileEnvelopeV1,
-  options: PassportFileUrlOptions,
 ): PassportFileStoreResult<string> {
-  const parsed = parsePassportFileEnvelope(envelope, options);
+  const parsed = parsePassportFileEnvelope(envelope);
   if (Result.isError(parsed)) return failure("invalid_file");
   return success(JSON.stringify({ v: parsed.value.v, iv: parsed.value.iv, ct: parsed.value.ct, url: parsed.value.url }));
 }
