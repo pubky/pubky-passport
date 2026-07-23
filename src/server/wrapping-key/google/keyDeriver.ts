@@ -3,11 +3,7 @@ import "server-only";
 import { hkdfSync } from "node:crypto";
 
 import { hasMinimumServerSecretBytes, isBase64 } from "../../../libs/security/serverSecret";
-import { canonicalGoogleIssuer, type VerifiedGoogleIdentity } from "./idTokenVerifier";
-
-export type GoogleWrappingKeyMaterial = {
-  deriveWrappingKey(identity: VerifiedGoogleIdentity): Promise<{ wrappingKey: string }>;
-};
+import { canonicalGoogleIssuer, type GoogleWrappingKeyMaterial } from "./applicationContracts";
 
 export type CreateGoogleWrappingKeyMaterialInput = {
   serverSecretBase64: string;

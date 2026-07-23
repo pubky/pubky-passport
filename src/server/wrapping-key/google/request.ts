@@ -2,21 +2,13 @@ import "server-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { getGoogleWrappingKeyServerEnv } from "../../../libs/env/server-env";
-import {
-  createGoogleIdTokenVerifier,
-  type GoogleIdTokenVerificationErrorCode,
-  type GoogleIdTokenVerifier,
-  type VerifiedGoogleIdentity,
-} from "./idTokenVerifier";
-import {
-  createGoogleWrappingKeyMaterial,
-  type GoogleWrappingKeyMaterial,
-} from "./keyDeriver";
-import {
-  createInMemoryGoogleWrappingKeyRateLimiter,
-  type GoogleWrappingKeyRateLimiter,
-} from "./rateLimiter";
+import type {
+  GoogleIdTokenVerificationErrorCode,
+  GoogleIdTokenVerifier,
+  VerifiedGoogleIdentity,
+  GoogleWrappingKeyMaterial,
+  GoogleWrappingKeyRateLimiter,
+} from "./applicationContracts";
 
 export type GoogleWrappingKeyRequestErrorCode =
   | "invalid_google_id_token"
@@ -37,14 +29,12 @@ export type CreateGoogleWrappingKeyRequestInput = {
   googleIdTokenVerifier: GoogleIdTokenVerifier;
   material: GoogleWrappingKeyMaterial;
   rateLimiter: GoogleWrappingKeyRateLimiter;
-  now?: () => Date;
+  now: () => Date;
 };
 
 export function createGoogleWrappingKeyRequest(
-  input: CreateGoogleWrappingKeyRequestInput = createConfiguredDependencies(),
+  input: CreateGoogleWrappingKeyRequestInput,
 ): GoogleWrappingKeyRequest {
-  const now = input.now ?? (() => new Date());
-
   return {
     async requestWrappingKey({ googleIdToken }) {
       const identity = await verifyGoogleIdToken(input.googleIdTokenVerifier, googleIdToken);
@@ -53,7 +43,7 @@ export function createGoogleWrappingKeyRequest(
       }
 
       try {
-        const rateLimit = await input.rateLimiter.checkRequest({ identity: identity.value, at: now() });
+        const rateLimit = await input.rateLimiter.checkRequest({ identity: identity.value, at: input.now() });
         if (!rateLimit.allowed) {
           return failure("rate_limited");
         }
@@ -64,16 +54,6 @@ export function createGoogleWrappingKeyRequest(
         return failure("dependency_unavailable");
       }
     },
-  };
-}
-
-function createConfiguredDependencies(): CreateGoogleWrappingKeyRequestInput {
-  const env = getGoogleWrappingKeyServerEnv();
-
-  return {
-    googleIdTokenVerifier: createGoogleIdTokenVerifier({ audience: env.GOOGLE_CLIENT_ID }),
-    material: createGoogleWrappingKeyMaterial({ serverSecretBase64: env.PASSPORT_SERVER_SECRET_BASE64 }),
-    rateLimiter: createInMemoryGoogleWrappingKeyRateLimiter({ serverSecretBase64: env.PASSPORT_SERVER_SECRET_BASE64 }),
   };
 }
 

@@ -1,29 +1,14 @@
 import "server-only";
 
 import { OAuth2Client } from "google-auth-library";
-import { Result, type Result as ResultType } from "better-result";
-export const canonicalGoogleIssuer = "https://accounts.google.com";
+import { Result } from "better-result";
 
-export type VerifiedGoogleIdentity = {
-  issuer: typeof canonicalGoogleIssuer;
-  subject: string;
-};
-
-export type GoogleIdTokenVerificationErrorCode =
-  | "invalid"
-  | "expired"
-  | "unsupported_issuer"
-  | "unsupported_audience"
-  | "missing_subject";
-
-export type GoogleIdTokenVerificationResult = ResultType<
-  VerifiedGoogleIdentity,
-  { code: GoogleIdTokenVerificationErrorCode }
->;
-
-export type GoogleIdTokenVerifier = {
-  verifyGoogleIdToken(idToken: string): Promise<GoogleIdTokenVerificationResult>;
-};
+import {
+  canonicalGoogleIssuer,
+  type GoogleIdTokenVerificationErrorCode,
+  type GoogleIdTokenVerificationResult,
+  type GoogleIdTokenVerifier,
+} from "./applicationContracts";
 
 type GoogleIdTokenPayload = {
   iss?: string;

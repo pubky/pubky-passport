@@ -2,12 +2,8 @@ import "server-only";
 
 import { createHmac } from "node:crypto";
 
+import type { GoogleWrappingKeyRateLimiter } from "./applicationContracts";
 import { decodeServerSecret } from "./keyDeriver";
-import type { VerifiedGoogleIdentity } from "./idTokenVerifier";
-
-export type GoogleWrappingKeyRateLimiter = {
-  checkRequest(input: { identity: VerifiedGoogleIdentity; at: Date }): Promise<{ allowed: true } | { allowed: false }>;
-};
 
 export type CreateInMemoryGoogleWrappingKeyRateLimiterInput = {
   serverSecretBase64: string;

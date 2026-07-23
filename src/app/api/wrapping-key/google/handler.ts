@@ -51,9 +51,11 @@ export function createGoogleWrappingKeyPostHandler(
 }
 
 async function createDefaultRequest(): Promise<GoogleWrappingKeyRequest> {
-  const { createGoogleWrappingKeyRequest } = await import("../../../../server/wrapping-key/google/request");
+  const { createConfiguredGoogleWrappingKeyRequest } = await import(
+    "../../../../server/wrapping-key/google/composition"
+  );
 
-  return createGoogleWrappingKeyRequest();
+  return createConfiguredGoogleWrappingKeyRequest();
 }
 
 function json(body: GoogleWrappingKeyRouteBody, status: number): NextResponse<GoogleWrappingKeyRouteBody> {

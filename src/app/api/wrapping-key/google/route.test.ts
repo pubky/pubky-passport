@@ -34,6 +34,19 @@ describe("POST /api/wrapping-key/google", () => {
     expect(response.headers.get("Cache-Control")).toBe("no-store");
   });
 
+  it("does not construct configured dependencies for invalid requests", async () => {
+    let factoryCalls = 0;
+    const post = createGoogleWrappingKeyPostHandler(undefined, async () => {
+      factoryCalls += 1;
+      return wrappingKeyRequest(Result.ok("opaque-key"));
+    });
+
+    const response = await post(jsonRequest({}));
+
+    expect(response.status).toBe(400);
+    expect(factoryCalls).toBe(0);
+  });
+
   it("requires an application/json content type", async () => {
     const post = createGoogleWrappingKeyPostHandler(wrappingKeyRequest(Result.ok("opaque-key")));
 

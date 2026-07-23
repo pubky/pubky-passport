@@ -14,6 +14,11 @@ const libsEnvRoot = join(srcRoot, "libs", "env");
 const serverEnvModule = join(libsEnvRoot, "server-env");
 const publicEnvModule = join(libsEnvRoot, "public-env");
 const localIdentityRepository = join(browserRoot, "identity", "localIdentityRepository.ts");
+const googleWrappingKeyRoot = join(serverRoot, "wrapping-key", "google");
+const googleWrappingKeyApplicationModules = [
+  join(googleWrappingKeyRoot, "applicationContracts.ts"),
+  join(googleWrappingKeyRoot, "request.ts"),
+];
 
 const checkedExtensions = new Set([".ts", ".tsx"]);
 
@@ -155,6 +160,21 @@ describe("feature runtime boundaries", () => {
       .flatMap((filePath) => inspectForbiddenImports(filePath, {
         forbiddenTargets: [{ targetPath: serverEnvModule, label: "server env module" }],
       }));
+
+    expect(violations).toEqual([]);
+  });
+
+  it("keeps the Google wrapping-key application layer independent from configuration and adapters", () => {
+    const forbiddenTargets = [
+      { targetPath: serverEnvModule, label: "server env module" },
+      { targetPath: join(googleWrappingKeyRoot, "composition"), label: "wrapping-key composition" },
+      { targetPath: join(googleWrappingKeyRoot, "idTokenVerifier"), label: "Google verifier adapter" },
+      { targetPath: join(googleWrappingKeyRoot, "keyDeriver"), label: "key derivation adapter" },
+      { targetPath: join(googleWrappingKeyRoot, "rateLimiter"), label: "rate limiter adapter" },
+    ];
+    const violations = googleWrappingKeyApplicationModules.flatMap((filePath) =>
+      inspectForbiddenImports(filePath, { forbiddenTargets })
+    );
 
     expect(violations).toEqual([]);
   });
