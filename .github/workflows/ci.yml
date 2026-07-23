@@ -43,3 +43,6 @@ jobs:
 
       - name: Unit tests
         run: pnpm test:run
+
+      - name: Production build
+        run: pnpm build
