@@ -3,42 +3,9 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const httpRelayOrigin = safeOrigin(process.env.NEXT_PUBLIC_HTTP_RELAY_URL) ?? "https://httprelay.pubky.app";
-const pubkyBrowserConnectOrigins = parseBrowserConnectOrigins(process.env.PUBKY_BROWSER_CONNECT_ORIGINS);
-const scriptSource = process.env.NODE_ENV === "development"
-  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com"
-  : "script-src 'self' https://accounts.google.com https://apis.google.com";
-
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  scriptSource,
-  [
-    "connect-src 'self'",
-    "https://accounts.google.com",
-    "https://openidconnect.googleapis.com",
-    "https://oauth2.googleapis.com",
-    "https://www.googleapis.com",
-    "https://pkarr.pubky.app",
-    "https://pkarr.pubky.org",
-    ...pubkyBrowserConnectOrigins,
-    httpRelayOrigin,
-  ].join(" "),
-  "img-src 'self' data: https://*.googleusercontent.com",
-  "style-src 'self' 'unsafe-inline' https://accounts.google.com",
-  "font-src 'self'",
-  "frame-src https://accounts.google.com",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self' https://accounts.google.com",
-  "frame-ancestors 'none'",
-  "manifest-src 'self'",
-].join("; ");
+parseBrowserConnectOrigins(process.env.PUBKY_BROWSER_CONNECT_ORIGINS);
 
 const baselineSecurityHeaders = [
-  {
-    key: "Content-Security-Policy",
-    value: contentSecurityPolicy,
-  },
   {
     key: "X-Content-Type-Options",
     value: "nosniff",
@@ -78,18 +45,6 @@ const authorizeTransportHeaders = [
     value: "no-referrer",
   },
 ];
-
-function safeOrigin(value) {
-  if (!value) {
-    return undefined;
-  }
-
-  try {
-    return new URL(value).origin;
-  } catch {
-    return undefined;
-  }
-}
 
 function parseBrowserConnectOrigins(value) {
   if (!value) {
