@@ -14,8 +14,8 @@ import type {
   GoogleDriveIdentityCreator,
   GoogleBackedIdentity,
   GoogleBackedIdentityResult,
-} from "./ports/googleIdentity";
-import type { GoogleHomegateInviteRequester } from "./ports/homegateInvitation";
+} from "./ports/google/googleIdentity";
+import type { GoogleHomegateInviteRequester } from "./ports/google/homegateInvitation";
 import type { LocalIdentitySaver } from "./ports/localIdentity";
 
 export class CreateGoogleDriveIdentity implements GoogleDriveIdentityCreator {

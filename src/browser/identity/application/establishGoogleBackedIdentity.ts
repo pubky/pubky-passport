@@ -11,15 +11,15 @@ import type {
   GoogleBackedIdentityResult,
   GoogleIdentityEstablisher,
   GoogleIdentitySession,
-} from "./ports/googleIdentity";
-import type { GoogleWrappingKeyRequester } from "./ports/googleWrappingKey";
+} from "./ports/google/googleIdentity";
+import type { GoogleWrappingKeyRequester } from "./ports/google/googleWrappingKey";
 
 export type {
   GoogleBackedIdentity,
   GoogleBackedIdentityError,
   GoogleBackedIdentityErrorCode,
   GoogleBackedIdentityResult,
-} from "./ports/googleIdentity";
+} from "./ports/google/googleIdentity";
 
 export class EstablishGoogleBackedIdentity implements GoogleIdentityEstablisher {
   readonly #wrappingKeys: GoogleWrappingKeyRequester;

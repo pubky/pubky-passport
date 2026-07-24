@@ -16,7 +16,7 @@ import type { PassportFileEnvelopeV1 } from "../../../core/passport-file/passpor
 import { CreateGoogleDriveIdentity } from "./createGoogleDriveIdentity";
 import { DeleteGoogleDriveIdentity } from "./deleteGoogleDriveIdentity";
 import { EstablishGoogleBackedIdentity } from "./establishGoogleBackedIdentity";
-import type { GoogleHomegateInviteRequester, GoogleHomegateInviteRequesterErrorCode } from "./ports/homegateInvitation";
+import type { GoogleHomegateInviteRequester, GoogleHomegateInviteRequesterErrorCode } from "./ports/google/homegateInvitation";
 import { RestoreGoogleDriveIdentity } from "./restoreGoogleDriveIdentity";
 
 const envelope: PassportFileEnvelopeV1 = {

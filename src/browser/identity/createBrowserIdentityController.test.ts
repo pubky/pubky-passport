@@ -3,7 +3,7 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { GoogleSignInWidgetResult } from "./application/ports/googleSignIn";
+import type { GoogleSignInWidgetResult } from "./application/ports/google/googleSignIn";
 
 type CredentialCallback = (
   result: GoogleSignInWidgetResult<{ googleIdToken: string; subject: string }>,

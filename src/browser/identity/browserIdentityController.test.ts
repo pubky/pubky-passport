@@ -8,7 +8,7 @@ import {
   DefaultBrowserIdentityController,
   type BrowserIdentityControllerDependencies,
 } from "./defaultBrowserIdentityController";
-import type { GoogleSignInWidgetResult } from "./application/ports/googleSignIn";
+import type { GoogleSignInWidgetResult } from "./application/ports/google/googleSignIn";
 
 describe("DefaultBrowserIdentityController", () => {
   it("exposes a finite action error code contract", () => {

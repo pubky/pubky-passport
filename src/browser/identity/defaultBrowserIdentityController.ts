@@ -16,12 +16,12 @@ import type {
 import type {
   GoogleDriveIdentityDeleter,
   GoogleIdentityEstablisher,
-} from "./application/ports/googleIdentity";
+} from "./application/ports/google/googleIdentity";
 import type {
   GoogleIdentityProviderErrorCode,
   GoogleIdentityProviderResult,
   GoogleSignInWidget,
-} from "./application/ports/googleSignIn";
+} from "./application/ports/google/googleSignIn";
 import type {
   LocalIdentityRepository,
   LocalIdentityRepositoryResult,

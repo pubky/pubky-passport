@@ -10,7 +10,7 @@ import type {
   GoogleBackedIdentity,
   GoogleBackedIdentityResult,
   GoogleDriveIdentityRestorer,
-} from "./ports/googleIdentity";
+} from "./ports/google/googleIdentity";
 import type { LocalIdentitySaver } from "./ports/localIdentity";
 
 export class RestoreGoogleDriveIdentity implements GoogleDriveIdentityRestorer {

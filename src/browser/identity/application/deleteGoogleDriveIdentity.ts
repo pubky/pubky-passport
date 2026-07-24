@@ -11,8 +11,8 @@ import type {
   GoogleDriveIdentityDeletionErrorCode,
   GoogleDriveIdentityDeletionResult,
   GoogleIdentitySession,
-} from "./ports/googleIdentity";
-import type { GoogleWrappingKeyRequester } from "./ports/googleWrappingKey";
+} from "./ports/google/googleIdentity";
+import type { GoogleWrappingKeyRequester } from "./ports/google/googleWrappingKey";
 
 export class DeleteGoogleDriveIdentity implements GoogleDriveIdentityDeleter {
   readonly #wrappingKeys: GoogleWrappingKeyRequester;

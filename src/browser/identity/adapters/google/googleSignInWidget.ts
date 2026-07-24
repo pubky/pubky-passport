@@ -8,7 +8,7 @@ import type {
   GoogleIdentityProviderResult,
   GoogleSignInWidget as GoogleSignInWidgetPort,
   GoogleSignInWidgetResult,
-} from "../../application/ports/googleSignIn";
+} from "../../application/ports/google/googleSignIn";
 import type {
   GoogleAccounts,
   GoogleCredentialResponse,
