@@ -19,7 +19,6 @@ import { DefaultBrowserIdentityController } from "./defaultBrowserIdentityContro
 export function createBrowserIdentityController(input: {
   googleClientId: string;
   homegateBaseUrl: string;
-  passportUrl: string;
 }): BrowserIdentityController {
   const repository = new LocalStorageIdentityRepository();
   let identityRuntime: ReturnType<typeof createIdentityRuntime> | undefined;
@@ -27,7 +26,7 @@ export function createBrowserIdentityController(input: {
     identityRuntime ??= createIdentityRuntime({
       repository,
       homegateBaseUrl: input.homegateBaseUrl,
-      passportUrl: input.passportUrl,
+      passportOrigin: globalThis.location.origin,
     });
     return identityRuntime;
   };
@@ -59,7 +58,7 @@ export function createBrowserIdentityController(input: {
 function createIdentityRuntime(input: {
   repository: LocalStorageIdentityRepository;
   homegateBaseUrl: string;
-  passportUrl: string;
+  passportOrigin: string;
 }) {
   const pubky = new BrowserPubky();
   try {
@@ -75,7 +74,7 @@ function createIdentityRuntime(input: {
       identityKeys: pubky,
       signup: pubky,
       localIdentities,
-      passportUrl: input.passportUrl,
+      passportOrigin: input.passportOrigin,
     });
     const createMissingIdentity = new CreateGoogleDriveIdentity({
       crypto,
@@ -86,7 +85,7 @@ function createIdentityRuntime(input: {
       signup: pubky,
       discovery: pubky,
       localIdentities,
-      passportUrl: input.passportUrl,
+      passportOrigin: input.passportOrigin,
     });
     const identityEstablisher = new EstablishGoogleBackedIdentity({
       wrappingKeys,
@@ -99,7 +98,7 @@ function createIdentityRuntime(input: {
       passportFilesForAccessToken,
       crypto,
       identityKeys: pubky,
-      passportUrl: input.passportUrl,
+      passportOrigin: input.passportOrigin,
     });
 
     return { pubky, identityEstablisher, identityDeleter };

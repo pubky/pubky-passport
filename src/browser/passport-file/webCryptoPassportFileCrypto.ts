@@ -50,7 +50,7 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
   async encryptSecretKeyBytes(input: {
     secretKeyBytes: Uint8Array;
     wrappingKey: string;
-    passportUrl: string;
+    passportOrigin: string;
   }): Promise<PassportFileCryptoResult<PassportFileEnvelopeV1>> {
     const webCrypto = this.#getRequiredWebCrypto();
     if (Result.isError(webCrypto)) {
@@ -61,7 +61,7 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
       return failure("invalid_plaintext");
     }
 
-    const origin = normalizePassportFileOrigin(input.passportUrl);
+    const origin = normalizePassportFileOrigin(input.passportOrigin);
     if (Result.isError(origin)) {
       return failure("invalid_envelope");
     }
@@ -102,7 +102,7 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
   async decryptSecretKeyBytes(input: {
     envelope: PassportFileEnvelopeV1;
     wrappingKey: string;
-    passportUrl: string;
+    passportOrigin: string;
   }): Promise<PassportFileCryptoResult<Uint8Array>> {
     const webCrypto = this.#getRequiredWebCrypto();
     if (Result.isError(webCrypto)) {
@@ -114,7 +114,7 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
       return failure("invalid_envelope");
     }
 
-    const expectedOrigin = normalizePassportFileOrigin(input.passportUrl);
+    const expectedOrigin = normalizePassportFileOrigin(input.passportOrigin);
     if (Result.isError(expectedOrigin) || expectedOrigin.value !== envelope.value.url) {
       return failure("invalid_envelope");
     }

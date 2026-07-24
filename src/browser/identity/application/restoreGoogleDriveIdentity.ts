@@ -18,20 +18,20 @@ export class RestoreGoogleDriveIdentity implements GoogleDriveIdentityRestorer {
   readonly #identityKeys: PubkyIdentityKeys;
   readonly #signup: PubkySignup;
   readonly #localIdentities: LocalIdentitySaver;
-  readonly #passportUrl: string;
+  readonly #passportOrigin: string;
 
   constructor(input: {
     crypto: PassportFileCrypto;
     identityKeys: PubkyIdentityKeys;
     signup: PubkySignup;
     localIdentities: LocalIdentitySaver;
-    passportUrl: string;
+    passportOrigin: string;
   }) {
     this.#crypto = input.crypto;
     this.#identityKeys = input.identityKeys;
     this.#signup = input.signup;
     this.#localIdentities = input.localIdentities;
-    this.#passportUrl = input.passportUrl;
+    this.#passportOrigin = input.passportOrigin;
   }
 
   async execute(
@@ -41,7 +41,7 @@ export class RestoreGoogleDriveIdentity implements GoogleDriveIdentityRestorer {
     const secretKey = await this.#crypto.decryptSecretKeyBytes({
       envelope: input.envelope,
       wrappingKey: input.wrappingKey,
-      passportUrl: this.#passportUrl,
+      passportOrigin: this.#passportOrigin,
     });
     if (Result.isError(secretKey)) {
       logger.warn("identity.google.decrypt.failed", { code: secretKey.error.code });

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getGoogleClientId } from "../../config/googleClientId";
 import { getGoogleWrappingKeyServerConfig } from "./config";
 import { createGoogleIdTokenVerifier } from "./idTokenVerifier";
 import { createGoogleWrappingKeyMaterial } from "./keyDeriver";
@@ -10,7 +11,7 @@ export function createConfiguredGoogleWrappingKeyRequest(): GoogleWrappingKeyReq
   const env = getGoogleWrappingKeyServerConfig();
 
   return createGoogleWrappingKeyRequest({
-    googleIdTokenVerifier: createGoogleIdTokenVerifier({ audience: env.GOOGLE_CLIENT_ID }),
+    googleIdTokenVerifier: createGoogleIdTokenVerifier({ audience: getGoogleClientId() }),
     material: createGoogleWrappingKeyMaterial({ serverSecretBase64: env.PASSPORT_SERVER_SECRET_BASE64 }),
     rateLimiter: createInMemoryGoogleWrappingKeyRateLimiter({
       serverSecretBase64: env.PASSPORT_SERVER_SECRET_BASE64,

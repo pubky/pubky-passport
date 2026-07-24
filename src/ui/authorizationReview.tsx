@@ -14,7 +14,6 @@ import { AuthorizationIdentityPanel } from "./authorizationIdentityPanel";
 type AuthorizationReviewProps = {
   googleClientId: string;
   homegateBaseUrl: string;
-  passportUrl: string;
   controllerFactory?: () => BrowserAuthorizationController;
   identityControllerFactory?: typeof createBrowserIdentityController;
 };
@@ -22,7 +21,6 @@ type AuthorizationReviewProps = {
 export function AuthorizationReview({
   googleClientId,
   homegateBaseUrl,
-  passportUrl,
   controllerFactory = createBrowserAuthorizationController,
   identityControllerFactory,
 }: AuthorizationReviewProps) {
@@ -93,7 +91,6 @@ export function AuthorizationReview({
         googleClientId={googleClientId}
         homegateBaseUrl={homegateBaseUrl}
         onReadyChange={setIdentityReady}
-        passportUrl={passportUrl}
         {...(identityControllerFactory ? { controllerFactory: identityControllerFactory } : {})}
       />
       <div aria-live="polite" className="flex gap-2">

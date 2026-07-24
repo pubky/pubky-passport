@@ -47,11 +47,11 @@ export type PassportFileCrypto = {
   encryptSecretKeyBytes(input: {
     secretKeyBytes: Uint8Array;
     wrappingKey: string;
-    passportUrl: string;
+    passportOrigin: string;
   }): Promise<PassportFileCryptoResult<PassportFileEnvelopeV1>>;
   decryptSecretKeyBytes(input: {
     envelope: PassportFileEnvelopeV1;
     wrappingKey: string;
-    passportUrl: string;
+    passportOrigin: string;
   }): Promise<PassportFileCryptoResult<Uint8Array>>;
 };

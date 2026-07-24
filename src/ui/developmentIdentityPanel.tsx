@@ -19,12 +19,10 @@ export function DevelopmentIdentityPanel({
   googleClientId,
   homegateBaseUrl,
   allowGoogleDriveReset,
-  passportUrl,
 }: {
   googleClientId: string;
   homegateBaseUrl: string;
   allowGoogleDriveReset: boolean;
-  passportUrl: string;
 }) {
   const controller = useRef<BrowserIdentityController | null>(null);
   const [controllerReady, setControllerReady] = useState(false);
@@ -40,7 +38,7 @@ export function DevelopmentIdentityPanel({
     queueMicrotask(() => {
       if (cancelled) return;
       try {
-        controller.current = createBrowserIdentityController({ googleClientId, homegateBaseUrl, passportUrl });
+        controller.current = createBrowserIdentityController({ googleClientId, homegateBaseUrl });
         setControllerReady(true);
         refreshIdentities();
       } catch {
@@ -53,7 +51,7 @@ export function DevelopmentIdentityPanel({
       controller.current?.dispose();
       controller.current = null;
     };
-  }, [googleClientId, homegateBaseUrl, passportUrl]);
+  }, [googleClientId, homegateBaseUrl]);
 
   function refreshIdentities(nextMessage?: string): void {
     const stored = controller.current?.list();

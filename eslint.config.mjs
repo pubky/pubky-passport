@@ -121,7 +121,7 @@ const eslintConfig = defineConfig([
         {
           patterns: [
             {
-              regex: "(?:^|/)adapters(?:/|$)|(?:^|/)(?:createBrowserAuthorizationController|createBrowserIdentityController|browserPubky|googleDrivePassportFileRepository|webCryptoPassportFileCrypto|public-env)$|(?:^|/)ui(?:/|$)",
+              regex: "(?:^|/)adapters(?:/|$)|(?:^|/)(?:createBrowserAuthorizationController|createBrowserIdentityController|browserPubky|googleDrivePassportFileRepository|webCryptoPassportFileCrypto)$|(?:^|/)ui(?:/|$)",
               message: "Browser application modules must depend on contracts, not composition, adapters, public env, or UI."
             }
           ]

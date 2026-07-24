@@ -53,26 +53,19 @@ describe("BrowserGoogleHomegateInviteRequester", () => {
     expect(JSON.parse(String(init?.body))).toEqual({ googleIdToken: "id-token" });
   });
 
-  it("preserves an explicitly configured Homegate base path", async () => {
+  it("appends the endpoint to the normalized Homegate base path", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
       signupCode: "signup-code",
       homeserverPubky: "homeserver-pubky",
     }));
     const requester = new BrowserGoogleHomegateInviteRequester({
       fetch,
-      homegateBaseUrl: "https://homegate.example/api",
+      homegateBaseUrl: "https://homegate.example/api/",
     });
 
     await requester.requestSignupInvitation({ googleIdToken: "id-token" });
 
     expect(String(fetch.mock.calls[0]?.[0])).toBe("https://homegate.example/api/google_verification");
-  });
-
-  it("rejects unsafe Homegate configuration without exposing it", () => {
-    expect(() => new BrowserGoogleHomegateInviteRequester({
-      fetch: vi.fn<typeof globalThis.fetch>(),
-      homegateBaseUrl: "https://*.example.com",
-    })).toThrow("Invalid Homegate URL configuration.");
   });
 
   it.each(["", "   ", "x".repeat(16 * 1024 + 1)])(

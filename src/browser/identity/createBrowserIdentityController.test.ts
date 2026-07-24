@@ -53,7 +53,6 @@ import { createBrowserIdentityController } from "./createBrowserIdentityControll
 const validControllerConfig = {
   googleClientId: "google-client-id",
   homegateBaseUrl: "https://homegate.example/",
-  passportUrl: "https://localhost:3000",
 };
 
 describe("createBrowserIdentityController", () => {
@@ -133,6 +132,9 @@ describe("createBrowserIdentityController", () => {
     expect(mocks.BrowserGoogleHomegateInviteRequester).toHaveBeenCalledWith({
       homegateBaseUrl: "https://homegate.example/",
     });
+    expect(mocks.DeleteGoogleDriveIdentity).toHaveBeenCalledWith(expect.objectContaining({
+      passportOrigin: window.location.origin,
+    }));
     expect(mocks.establish).toHaveBeenCalledWith({
       googleIdToken: "google-id-token",
       driveAccessToken: "drive-access-token",

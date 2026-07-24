@@ -11,7 +11,6 @@ import {
 type EnvLike = Record<string, string | undefined>;
 
 export type GoogleWrappingKeyServerConfig = {
-  GOOGLE_CLIENT_ID: string;
   PASSPORT_SERVER_SECRET_BASE64: string;
 };
 
@@ -42,7 +41,6 @@ function serverSecretSchema() {
 export function parseGoogleWrappingKeyServerConfig(input: EnvLike): GoogleWrappingKeyServerConfig {
   return z
     .object({
-      GOOGLE_CLIENT_ID: requiredStringSchema("GOOGLE_CLIENT_ID"),
       PASSPORT_SERVER_SECRET_BASE64: serverSecretSchema(),
     })
     .parse(input);

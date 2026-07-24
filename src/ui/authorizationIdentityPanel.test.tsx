@@ -23,7 +23,6 @@ describe("AuthorizationIdentityPanel", () => {
         googleClientId="google-client"
         homegateBaseUrl="https://homegate.example/"
         onReadyChange={onReadyChange}
-        passportUrl="https://passport.example"
       />,
     );
 
@@ -47,7 +46,6 @@ describe("AuthorizationIdentityPanel", () => {
         googleClientId="google-client"
         homegateBaseUrl="https://homegate.example/"
         onReadyChange={onReadyChange}
-        passportUrl="https://passport.example"
       />,
     );
 

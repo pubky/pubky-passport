@@ -490,7 +490,7 @@ function createFlow(input: {
       identityKeys: input.keys,
       signup,
       localIdentities: input.local,
-      passportUrl: "https://passport.pubky.app",
+      passportOrigin: "https://passport.pubky.app",
     }),
     createMissingIdentity: new CreateGoogleDriveIdentity({
       crypto: input.crypto,
@@ -499,7 +499,7 @@ function createFlow(input: {
       signup,
       discovery: input.discovery ?? activation.discovery,
       localIdentities: input.local,
-      passportUrl: "https://passport.pubky.app",
+      passportOrigin: "https://passport.pubky.app",
     }),
   });
 }
@@ -517,7 +517,7 @@ function createDeletion(input: {
     },
     crypto: input.crypto,
     identityKeys: input.keys,
-    passportUrl: "https://passport.pubky.app",
+    passportOrigin: "https://passport.pubky.app",
   });
 }
 

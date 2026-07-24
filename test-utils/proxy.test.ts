@@ -5,7 +5,8 @@ import { proxy } from "../proxy";
 
 describe("request CSP proxy", () => {
   beforeEach(() => {
-    vi.stubEnv("NEXT_PUBLIC_HOMEGATE_URL", "https://homegate.example/config/path");
+    vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
+    vi.stubEnv("HOMEGATE_URL", "https://homegate.example/config/path");
   });
 
   afterEach(() => vi.unstubAllEnvs());
@@ -38,10 +39,10 @@ describe("request CSP proxy", () => {
   });
 
   it("rejects unsafe configured Homegate origins before emitting CSP", () => {
-    vi.stubEnv("NEXT_PUBLIC_HOMEGATE_URL", "https://*.example.com");
+    vi.stubEnv("HOMEGATE_URL", "https://*.example.com");
 
     expect(() => proxy(new NextRequest("https://passport.example/")))
-      .toThrow("Invalid Homegate URL configuration.");
+      .toThrow("HOMEGATE_URL must be a CSP-safe HTTPS base URL");
   });
 });
 

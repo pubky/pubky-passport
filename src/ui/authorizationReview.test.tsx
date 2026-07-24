@@ -81,7 +81,6 @@ function renderReview(controller: BrowserAuthorizationController) {
       googleClientId="google-client"
       homegateBaseUrl="https://homegate.example/"
       identityControllerFactory={() => fakeIdentityController()}
-      passportUrl="https://passport.example"
     />,
   );
 }

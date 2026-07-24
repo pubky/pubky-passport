@@ -11,9 +11,8 @@ const serverRoot = join(srcRoot, "server");
 const appRoot = join(srcRoot, "app");
 const uiRoot = join(srcRoot, "ui");
 const libsRoot = join(srcRoot, "libs");
-const libsEnvRoot = join(srcRoot, "libs", "env");
+const serverConfigRoot = join(serverRoot, "config");
 const checkedExtensions = new Set([".js", ".mjs", ".ts", ".tsx"]);
-const publicEnvModule = join(libsEnvRoot, "public-env.ts");
 const identityAdaptersRoot = join(browserRoot, "identity", "adapters");
 const localIdentityRepository = join(identityAdaptersRoot, "localStorageIdentityRepository.ts");
 const browserPubky = join(browserRoot, "pubky", "browserPubky.ts");
@@ -107,7 +106,6 @@ describe("architecture boundaries", () => {
       ], ["server-only"]),
       ...runtimeIsolationViolations(serverRoot, [
         { targetPath: browserRoot, label: "browser runtime" },
-        { targetPath: publicEnvModule, label: "public env module" },
       ], ["client-only"]),
     ];
 
@@ -196,6 +194,7 @@ describe("architecture boundaries", () => {
     const forbiddenTargets = [
       { targetPath: googleWrappingKeyConfig, label: "wrapping-key config" },
       { targetPath: googleWrappingKeyServerSecret, label: "wrapping-key server secret" },
+      { targetPath: serverConfigRoot, label: "browser bootstrap config" },
       { targetPath: join(googleWrappingKeyRoot, "composition"), label: "wrapping-key composition" },
       { targetPath: join(googleWrappingKeyRoot, "idTokenVerifier"), label: "Google verifier adapter" },
       { targetPath: join(googleWrappingKeyRoot, "keyDeriver"), label: "key derivation adapter" },
@@ -212,7 +211,6 @@ describe("architecture boundaries", () => {
     const forbiddenTargets = [
       ...browserCompositionFactories.map((targetPath) => ({ targetPath, label: "browser composition factory" })),
       ...browserAdapterModules.map((targetPath) => ({ targetPath, label: "browser adapter" })),
-      { targetPath: publicEnvModule, label: "public env module" },
       { targetPath: uiRoot, label: "UI" },
     ];
     const violations = browserApplicationModules.flatMap((filePath) =>
@@ -225,7 +223,6 @@ describe("architecture boundaries", () => {
   it("keeps browser adapters independent from composition, env, UI, and server code", () => {
     const forbiddenTargets = [
       ...browserCompositionFactories.map((targetPath) => ({ targetPath, label: "browser composition factory" })),
-      { targetPath: libsEnvRoot, label: "env modules" },
       { targetPath: uiRoot, label: "UI" },
       { targetPath: serverRoot, label: "server runtime" },
     ];

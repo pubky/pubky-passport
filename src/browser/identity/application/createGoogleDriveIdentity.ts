@@ -25,7 +25,7 @@ export class CreateGoogleDriveIdentity implements GoogleDriveIdentityCreator {
   readonly #signup: PubkySignup;
   readonly #discovery: PubkyDiscovery;
   readonly #localIdentities: LocalIdentitySaver;
-  readonly #passportUrl: string;
+  readonly #passportOrigin: string;
 
   constructor(input: {
     crypto: PassportFileCrypto;
@@ -34,7 +34,7 @@ export class CreateGoogleDriveIdentity implements GoogleDriveIdentityCreator {
     signup: PubkySignup;
     discovery: PubkyDiscovery;
     localIdentities: LocalIdentitySaver;
-    passportUrl: string;
+    passportOrigin: string;
   }) {
     this.#crypto = input.crypto;
     this.#identityKeys = input.identityKeys;
@@ -42,7 +42,7 @@ export class CreateGoogleDriveIdentity implements GoogleDriveIdentityCreator {
     this.#signup = input.signup;
     this.#discovery = input.discovery;
     this.#localIdentities = input.localIdentities;
-    this.#passportUrl = input.passportUrl;
+    this.#passportOrigin = input.passportOrigin;
   }
 
   async execute(
@@ -67,7 +67,7 @@ export class CreateGoogleDriveIdentity implements GoogleDriveIdentityCreator {
         const envelope = await this.#crypto.encryptSecretKeyBytes({
           secretKeyBytes: secretKey.value.bytes,
           wrappingKey: input.wrappingKey,
-          passportUrl: this.#passportUrl,
+          passportOrigin: this.#passportOrigin,
         });
         if (Result.isError(envelope)) {
           logger.warn("identity.google.encrypt.failed", { code: envelope.error.code });

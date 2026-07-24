@@ -2,7 +2,6 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { parseHomegateBaseUrl } from "../../../../core/homegate/parseHomegateBaseUrl";
 import { readBoundedText } from "../../../../libs/http/boundedBody";
 import type {
   GoogleHomegateInviteRequester,
@@ -71,9 +70,7 @@ export class BrowserGoogleHomegateInviteRequester implements GoogleHomegateInvit
 }
 
 function createGoogleVerificationEndpoint(homegateBaseUrl: string): URL {
-  const baseUrl = parseHomegateBaseUrl(homegateBaseUrl);
-  if (!baseUrl) throw new Error("Invalid Homegate URL configuration.");
-  return new URL(googleVerificationPath, baseUrl.href);
+  return new URL(googleVerificationPath, homegateBaseUrl);
 }
 
 function parseInvitation(value: unknown): HomeserverSignupInvitation | null {

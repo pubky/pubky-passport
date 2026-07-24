@@ -20,6 +20,9 @@ describe("BrowserGoogleWrappingKeyRequester", () => {
     expect(Result.isError(result)).toBe(false);
     expect(endpoint).toBe("/api/wrapping-key/google");
     await expect(request?.json()).resolves.toEqual({ googleIdToken: "id-token" });
+    expect(request?.cache).toBe("no-store");
+    expect(request?.redirect).toBe("error");
+    expect(request?.referrerPolicy).toBe("no-referrer");
   });
 
   it("returns the route's safe typed error code", async () => {

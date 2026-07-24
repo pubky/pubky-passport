@@ -34,10 +34,8 @@ Configure `.env.local`:
 
 | Variable | Purpose |
 | --- | --- |
-| `NEXT_PUBLIC_PASSPORT_PUBLIC_URL` | Passport origin. Keep `https://localhost:3000` for local development. |
-| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google OAuth client used by the browser. |
-| `NEXT_PUBLIC_HOMEGATE_URL` | CSP-safe HTTPS Homegate base URL used directly by the browser. |
-| `GOOGLE_CLIENT_ID` | Expected Google ID-token audience. Use the same OAuth client ID. |
+| `GOOGLE_CLIENT_ID` | Google OAuth client passed to the browser and used as the server ID-token audience. |
+| `HOMEGATE_URL` | CSP-safe HTTPS Homegate base URL passed to the browser. |
 | `PASSPORT_SERVER_SECRET_BASE64` | Server secret with at least 32 decoded bytes. Generate one with `openssl rand -base64 32`. |
 
 Add `https://localhost:3000` as an authorized JavaScript origin on the Google OAuth
@@ -49,8 +47,13 @@ pnpm run dev --experimental-https
 
 Open <https://localhost:3000>. On first run, Next.js uses `mkcert` to create trusted,
 ignored certificates under `certificates/` and may ask for permission to trust its
-local certificate authority. HTTPS is required by the Google flow and by Passport's
-public URL validation.
+local certificate authority. HTTPS is required by the Google flow and Passport-file
+origin binding.
+
+When upgrading an existing deployment, rename the old `NEXT_PUBLIC_*` variables and
+confirm its previous Passport public URL exactly matched the browser origin serving
+the app. Existing `passport.json` files are authenticated to that origin; changing
+their `url` field does not migrate them and will make decryption fail.
 
 Run the full local validation suite with:
 

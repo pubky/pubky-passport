@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { createContentSecurityPolicy } from "./policy";
 
-const homegateBaseUrl = "https://homegate.example/google";
+const homegateOrigin = "https://homegate.example";
 
 describe("content security policy", () => {
   it("uses a strict production nonce and allows Homegate plus the request relay", () => {
     const policy = createContentSecurityPolicy({
       nonce: "request-nonce",
       development: false,
-      homegateBaseUrl,
+      homegateOrigin,
       authorizationRequestSearch: authorizationSearch("https://relay.client.example/inbox?region=eu"),
     });
     const directives = parseCsp(policy);
@@ -49,7 +49,7 @@ describe("content security policy", () => {
       const directives = parseCsp(createContentSecurityPolicy({
         nonce: "request-nonce",
         development: false,
-        homegateBaseUrl,
+        homegateOrigin,
         authorizationRequestSearch: request,
       }));
 
@@ -61,20 +61,19 @@ describe("content security policy", () => {
     const directives = parseCsp(createContentSecurityPolicy({
       nonce: "request-nonce",
       development: false,
-      homegateBaseUrl,
+      homegateOrigin,
     }));
 
     expect(directives.get("connect-src")).not.toContain("https://httprelay.pubky.app");
     expect(directives.get("connect-src")).not.toContain("https://homeserver.example");
     expect(directives.get("connect-src")).toContain("https://homegate.example");
-    expect(directives.get("connect-src")).not.toContain(homegateBaseUrl);
   });
 
   it("adds unsafe-eval only for React development tooling", () => {
     const directives = parseCsp(createContentSecurityPolicy({
       nonce: "request-nonce",
       development: true,
-      homegateBaseUrl,
+      homegateOrigin,
     }));
 
     expect(directives.get("script-src")).toContain("'unsafe-eval'");

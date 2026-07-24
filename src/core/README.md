@@ -4,7 +4,6 @@
 server code. It imports neither runtime framework APIs nor concrete integrations.
 
 - `auth/` parses and validates Pubky authorization requests.
-- `homegate/` owns canonical Homegate URL policy.
 - `identity/` owns public, runtime-neutral identity models.
 - `passport-file/` owns the encrypted Passport file format and parser.
 

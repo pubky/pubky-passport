@@ -26,23 +26,23 @@ const knownRouteErrorCodes = new Set<GoogleWrappingKeyRequesterErrorCode>([
 
 export class BrowserGoogleWrappingKeyRequester implements GoogleWrappingKeyRequester {
   readonly #fetch: typeof fetch;
-  readonly #origin: string;
 
-  constructor(options: { fetch?: typeof fetch; origin?: string } = {}) {
+  constructor(options: { fetch?: typeof fetch } = {}) {
     this.#fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
-    this.#origin = options.origin ?? globalThis.location?.origin ?? "";
   }
 
   async requestWrappingKey(input: { googleIdToken: string }) {
     let response: Response;
     try {
-      const endpoint = this.#origin ? new URL("/api/wrapping-key/google", this.#origin) : "/api/wrapping-key/google";
-      response = await this.#fetch(endpoint, {
+      response = await this.#fetch("/api/wrapping-key/google", {
         method: "POST",
         headers: { Accept: "application/json", "Content-Type": "application/json" },
         // This endpoint intentionally receives only the Google ID token.
         body: JSON.stringify({ googleIdToken: input.googleIdToken }),
+        cache: "no-store",
         credentials: "same-origin",
+        redirect: "error",
+        referrerPolicy: "no-referrer",
       });
     } catch (error) {
       logger.warn("identity.google.wrapping_key.network_failed", {

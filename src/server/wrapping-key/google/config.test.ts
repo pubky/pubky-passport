@@ -6,25 +6,14 @@ const validServerSecret = Buffer.alloc(32, 1).toString("base64");
 
 const validGoogleWrappingKeyServerConfig = {
   NODE_ENV: "production",
-  GOOGLE_CLIENT_ID: "google-client-id",
   PASSPORT_SERVER_SECRET_BASE64: validServerSecret,
 };
 
 describe("Google wrapping-key server config", () => {
   it("parses Google wrapping-key config without Homegate configuration", () => {
     expect(parseGoogleWrappingKeyServerConfig(validGoogleWrappingKeyServerConfig)).toEqual({
-      GOOGLE_CLIENT_ID: "google-client-id",
       PASSPORT_SERVER_SECRET_BASE64: validServerSecret,
     });
-  });
-
-  it("fails when Google wrapping-key values are missing", () => {
-    expect(() =>
-      parseGoogleWrappingKeyServerConfig({
-        ...validGoogleWrappingKeyServerConfig,
-        GOOGLE_CLIENT_ID: undefined,
-      }),
-    ).toThrow();
   });
 
   it("fails invalid base64 server secrets", () => {

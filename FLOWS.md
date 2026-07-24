@@ -45,12 +45,11 @@ flowchart LR
     subgraph browserLane[Browser import lane]
         direction TB
         pages["src/app<br/>pages"]:::transport --> ui["src/ui"]:::ui --> browser["src/browser"]:::browser
+        pages --> bootstrap["src/server/config<br/>browser bootstrap"]:::server
         ui --> browserCore["src/core"]:::core
         ui --> browserLibs["src/libs"]:::libs
-        pages --> browserLibs
         browser --> browserCore
         browser --> browserLibs
-        browserLibs --> browserCore
         browser --> sdk["@synonymdev/pubky<br/>only via browser/pubky"]:::external
     end
 
@@ -58,6 +57,8 @@ flowchart LR
         direction TB
         routes["src/app/api<br/>route handlers"]:::transport --> server["src/server"]:::server
         proxy["proxy.ts"]:::transport --> server
+        proxy --> bootstrap
+        server --> bootstrap
         routes --> serverLibs["src/libs"]:::libs
         server --> serverCore["src/core"]:::core
     end
@@ -137,7 +138,7 @@ sequenceDiagram
     CSP-->>Proxy: document CSP
     Proxy-->>Next: NextResponse.next + CSP headers
     Next->>Page: AuthorizePage()
-    Page->>Loader: render client boundary with public config
+    Page->>Loader: render client boundary with validated bootstrap values
     Next-->>Client: document + CSP + no-store + no-referrer
     Client->>Loader: hydrate
     Loader->>Review: dynamic import, SSR disabled
@@ -816,5 +817,6 @@ sequenceDiagram
 | Drive and WebCrypto | `src/browser/passport-file` | Repository and crypto tests |
 | Pubky SDK adapter | `src/browser/pubky/browserPubky.ts` | `browserPubky.test.ts` |
 | Wrapping-key API | `src/app/api/wrapping-key/google`, `src/server/wrapping-key/google` | Route and server tests |
+| Browser bootstrap config | `src/server/config/browserBootstrapConfig.ts` | `browserBootstrapConfig.test.ts`, proxy tests |
 | Homegate invitation | `src/browser/identity/adapters/google/googleHomegateInviteRequester.ts` | Browser adapter tests |
 | CSP and boundaries | `proxy.ts`, `next.config.mjs`, architecture test | Proxy, header, policy, architecture tests |

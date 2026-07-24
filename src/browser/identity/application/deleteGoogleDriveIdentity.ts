@@ -19,20 +19,20 @@ export class DeleteGoogleDriveIdentity implements GoogleDriveIdentityDeleter {
   readonly #passportFilesForAccessToken: (driveAccessToken: string) => PassportFileStore;
   readonly #crypto: PassportFileCrypto;
   readonly #identityKeys: PubkyIdentityKeys;
-  readonly #passportUrl: string;
+  readonly #passportOrigin: string;
 
   constructor(input: {
     wrappingKeys: GoogleWrappingKeyRequester;
     passportFilesForAccessToken: (driveAccessToken: string) => PassportFileStore;
     crypto: PassportFileCrypto;
     identityKeys: PubkyIdentityKeys;
-    passportUrl: string;
+    passportOrigin: string;
   }) {
     this.#wrappingKeys = input.wrappingKeys;
     this.#passportFilesForAccessToken = input.passportFilesForAccessToken;
     this.#crypto = input.crypto;
     this.#identityKeys = input.identityKeys;
-    this.#passportUrl = input.passportUrl;
+    this.#passportOrigin = input.passportOrigin;
   }
 
   async execute(google: GoogleIdentitySession, expectedPublicKeyZ32: string): Promise<GoogleDriveIdentityDeletionResult> {
@@ -56,7 +56,7 @@ export class DeleteGoogleDriveIdentity implements GoogleDriveIdentityDeleter {
     const secretKey = await this.#crypto.decryptSecretKeyBytes({
       envelope: storedFile.value.envelope,
       wrappingKey: wrappingKey.value,
-      passportUrl: this.#passportUrl,
+      passportOrigin: this.#passportOrigin,
     });
     if (Result.isError(secretKey)) return failure("decrypt_failed");
 

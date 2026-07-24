@@ -1,13 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { getBrowserBootstrapConfig } from "./src/server/config/browserBootstrapConfig";
 import { createContentSecurityPolicy } from "./src/server/content-security-policy/policy";
 
 export function proxy(request: NextRequest) {
+  const config = getBrowserBootstrapConfig();
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const contentSecurityPolicy = createContentSecurityPolicy({
     nonce,
     development: process.env.NODE_ENV === "development",
-    homegateBaseUrl: requiredPublicHomegateBaseUrl(),
+    homegateOrigin: config.homegateOrigin,
     ...(request.nextUrl.pathname === "/authorize" && request.nextUrl.search
       ? { authorizationRequestSearch: request.nextUrl.search }
       : {}),
@@ -19,12 +21,6 @@ export function proxy(request: NextRequest) {
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", contentSecurityPolicy);
   return response;
-}
-
-function requiredPublicHomegateBaseUrl(): string {
-  const homegateBaseUrl = process.env.NEXT_PUBLIC_HOMEGATE_URL;
-  if (!homegateBaseUrl) throw new Error("NEXT_PUBLIC_HOMEGATE_URL is required");
-  return homegateBaseUrl;
 }
 
 export const config = {

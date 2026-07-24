@@ -1,0 +1,91 @@
+import "server-only";
+
+import { z } from "zod";
+
+import { parseGoogleClientId } from "./googleClientId";
+
+type EnvLike = Record<string, string | undefined>;
+
+export type BrowserBootstrapConfig = {
+  googleClientId: string;
+  homegateBaseUrl: string;
+  homegateOrigin: string;
+};
+
+const maximumUrlCharacters = 2_048;
+const maximumHostnameCharacters = 253;
+const maximumHostnameLabelCharacters = 63;
+const hostnameLabelPattern = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/iu;
+const ipv4AddressPattern = /^\d+(?:\.\d+){3}$/u;
+
+export function parseBrowserBootstrapConfig(input: EnvLike): BrowserBootstrapConfig {
+  const googleClientId = parseGoogleClientId(input);
+  const homegate = z
+    .object({
+      HOMEGATE_URL: requiredString("HOMEGATE_URL").transform((value, context) => {
+        const homegate = parseHomegateUrl(value);
+        if (homegate) return homegate;
+
+        context.addIssue({
+          code: "custom",
+          message: "HOMEGATE_URL must be a CSP-safe HTTPS base URL",
+        });
+        return z.NEVER;
+      }),
+    })
+    .parse(input);
+
+  return {
+    googleClientId,
+    homegateBaseUrl: homegate.HOMEGATE_URL.baseUrl,
+    homegateOrigin: homegate.HOMEGATE_URL.origin,
+  };
+}
+
+export function getBrowserBootstrapConfig(): BrowserBootstrapConfig {
+  return parseBrowserBootstrapConfig(process.env);
+}
+
+function requiredString(name: string) {
+  return z.string().trim().min(1, `${name} is required`);
+}
+
+function parseHomegateUrl(value: string): { baseUrl: string; origin: string } | null {
+  if (value.length > maximumUrlCharacters) return null;
+
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+
+  if (
+    url.protocol !== "https:"
+    || url.username
+    || url.password
+    || url.search
+    || url.hash
+    || !isCspSafeHostname(url.hostname)
+  ) {
+    return null;
+  }
+
+  url.pathname = url.pathname.endsWith("/") ? url.pathname : `${url.pathname}/`;
+  if (url.href.length > maximumUrlCharacters) return null;
+  return { baseUrl: url.href, origin: url.origin };
+}
+
+function isCspSafeHostname(hostname: string): boolean {
+  if (
+    hostname.length === 0
+    || hostname.length > maximumHostnameCharacters
+    || ipv4AddressPattern.test(hostname)
+  ) {
+    return false;
+  }
+
+  return hostname.split(".").every((label) =>
+    label.length <= maximumHostnameLabelCharacters && hostnameLabelPattern.test(label)
+  );
+}
