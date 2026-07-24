@@ -13,6 +13,7 @@ import { AuthorizationIdentityPanel } from "./authorizationIdentityPanel";
 
 type AuthorizationReviewProps = {
   googleClientId: string;
+  homegateBaseUrl: string;
   passportUrl: string;
   controllerFactory?: () => BrowserAuthorizationController;
   identityControllerFactory?: typeof createBrowserIdentityController;
@@ -20,6 +21,7 @@ type AuthorizationReviewProps = {
 
 export function AuthorizationReview({
   googleClientId,
+  homegateBaseUrl,
   passportUrl,
   controllerFactory = createBrowserAuthorizationController,
   identityControllerFactory,
@@ -89,6 +91,7 @@ export function AuthorizationReview({
       <AuthorizationIdentityPanel
         disabled={pending}
         googleClientId={googleClientId}
+        homegateBaseUrl={homegateBaseUrl}
         onReadyChange={setIdentityReady}
         passportUrl={passportUrl}
         {...(identityControllerFactory ? { controllerFactory: identityControllerFactory } : {})}

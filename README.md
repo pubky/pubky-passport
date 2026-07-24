@@ -36,9 +36,9 @@ Configure `.env.local`:
 | --- | --- |
 | `NEXT_PUBLIC_PASSPORT_PUBLIC_URL` | Passport origin. Keep `https://localhost:3000` for local development. |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google OAuth client used by the browser. |
+| `NEXT_PUBLIC_HOMEGATE_URL` | CSP-safe HTTPS Homegate base URL used directly by the browser. |
 | `GOOGLE_CLIENT_ID` | Expected Google ID-token audience. Use the same OAuth client ID. |
 | `PASSPORT_SERVER_SECRET_BASE64` | Server secret with at least 32 decoded bytes. Generate one with `openssl rand -base64 32`. |
-| `HOMEGATE_URL` | HTTPS base URL of the Homegate service. |
 
 Add `https://localhost:3000` as an authorized JavaScript origin on the Google OAuth
 client, then start Next.js with local HTTPS:

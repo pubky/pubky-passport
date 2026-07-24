@@ -5,15 +5,11 @@ import {
   isBase64,
   minimumServerSecretByteLength,
 } from "../security/serverSecret";
-import { type EnvLike, envUrlSchema, requiredStringSchema } from "./env-schema";
+import { type EnvLike, requiredStringSchema } from "./env-schema";
 
 export type GoogleWrappingKeyServerEnv = {
   GOOGLE_CLIENT_ID: string;
   PASSPORT_SERVER_SECRET_BASE64: string;
-};
-
-export type HomegateServerEnv = {
-  HOMEGATE_URL: string;
 };
 
 function serverSecretSchema() {
@@ -42,14 +38,6 @@ export function parseGoogleWrappingKeyServerEnv(input: EnvLike): GoogleWrappingK
     .object({
       GOOGLE_CLIENT_ID: requiredStringSchema("GOOGLE_CLIENT_ID"),
       PASSPORT_SERVER_SECRET_BASE64: serverSecretSchema(),
-    })
-    .parse(input);
-}
-
-export function parseHomegateServerEnv(input: EnvLike): HomegateServerEnv {
-  return z
-    .object({
-      HOMEGATE_URL: envUrlSchema("HOMEGATE_URL"),
     })
     .parse(input);
 }

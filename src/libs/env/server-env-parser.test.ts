@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseGoogleWrappingKeyServerEnv, parseHomegateServerEnv } from "./server-env-parser";
+import { parseGoogleWrappingKeyServerEnv } from "./server-env-parser";
 
 const validServerSecret = Buffer.alloc(32, 1).toString("base64");
 
@@ -23,39 +23,6 @@ describe("server environment parsers", () => {
       parseGoogleWrappingKeyServerEnv({
         ...validGoogleWrappingKeyServerEnv,
         GOOGLE_CLIENT_ID: undefined,
-      }),
-    ).toThrow();
-  });
-
-  it("parses Homegate config without unrelated wrapping-key secrets", () => {
-    expect(
-      parseHomegateServerEnv({
-        NODE_ENV: "production",
-        HOMEGATE_URL: "https://homegate.pubky.app",
-      }),
-    ).toEqual({
-      HOMEGATE_URL: "https://homegate.pubky.app",
-    });
-  });
-
-  it("rejects HTTP Homegate URLs in development", () => {
-    expect(() =>
-      parseHomegateServerEnv({
-        NODE_ENV: "development",
-        HOMEGATE_URL: "http://homegate.pubky.app",
-      }),
-    ).toThrow();
-  });
-
-  it.each([
-    undefined,
-    "not a url",
-    "http://homegate.pubky.app",
-  ])("rejects invalid Homegate URLs in production", (homegateUrl) => {
-    expect(() =>
-      parseHomegateServerEnv({
-        NODE_ENV: "production",
-        HOMEGATE_URL: homegateUrl,
       }),
     ).toThrow();
   });

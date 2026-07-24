@@ -49,3 +49,4 @@ jobs:
         env:
           NEXT_PUBLIC_PASSPORT_PUBLIC_URL: https://passport.pubky.app
           NEXT_PUBLIC_GOOGLE_CLIENT_ID: ci-google-client-id
+          NEXT_PUBLIC_HOMEGATE_URL: https://homegate.example/

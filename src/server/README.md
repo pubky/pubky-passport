@@ -1,7 +1,7 @@
 # Server Runtime
 
 Server-only implementation. Production modules use `server-only` for provider token
-verification, server-secret derivation, rate limiting, and Homegate HTTP.
+verification, server-secret derivation, and rate limiting.
 
 `wrapping-key/google/` contains the complete Google wrapping-key flow:
 `idTokenVerifier.ts` verifies tokens, `keyDeriver.ts` derives frozen HKDF material,

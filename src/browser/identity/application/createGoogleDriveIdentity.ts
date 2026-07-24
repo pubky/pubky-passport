@@ -21,7 +21,7 @@ import type { LocalIdentitySaver } from "./ports/localIdentity";
 export class CreateGoogleDriveIdentity implements GoogleDriveIdentityCreator {
   readonly #crypto: PassportFileCrypto;
   readonly #identityKeys: PubkyIdentityKeys;
-  readonly #homegateInvites: GoogleHomegateInviteRequester;
+  readonly #homegateInvitationRequester: GoogleHomegateInviteRequester;
   readonly #signup: PubkySignup;
   readonly #discovery: PubkyDiscovery;
   readonly #localIdentities: LocalIdentitySaver;
@@ -30,7 +30,7 @@ export class CreateGoogleDriveIdentity implements GoogleDriveIdentityCreator {
   constructor(input: {
     crypto: PassportFileCrypto;
     identityKeys: PubkyIdentityKeys;
-    homegateInvites: GoogleHomegateInviteRequester;
+    homegateInvitationRequester: GoogleHomegateInviteRequester;
     signup: PubkySignup;
     discovery: PubkyDiscovery;
     localIdentities: LocalIdentitySaver;
@@ -38,7 +38,7 @@ export class CreateGoogleDriveIdentity implements GoogleDriveIdentityCreator {
   }) {
     this.#crypto = input.crypto;
     this.#identityKeys = input.identityKeys;
-    this.#homegateInvites = input.homegateInvites;
+    this.#homegateInvitationRequester = input.homegateInvitationRequester;
     this.#signup = input.signup;
     this.#discovery = input.discovery;
     this.#localIdentities = input.localIdentities;
@@ -86,7 +86,9 @@ export class CreateGoogleDriveIdentity implements GoogleDriveIdentityCreator {
       }
 
       logger.info("identity.google.homegate_invite.started");
-      const invitation = await this.#homegateInvites.requestSignupInvitation({ googleIdToken: input.googleIdToken });
+      const invitation = await this.#homegateInvitationRequester.requestSignupInvitation({
+        googleIdToken: input.googleIdToken,
+      });
       if (Result.isError(invitation)) {
         logger.warn("identity.google.homegate_invite.failed", { code: invitation.error.code });
         return failure("homegate_invite_failed", created.value.publicIdentity);

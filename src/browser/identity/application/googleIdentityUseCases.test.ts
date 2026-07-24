@@ -55,6 +55,12 @@ describe("Google identity use cases", () => {
     const files = new FakePassportFiles({ status: "missing" });
     const crypto = new FakePassportCrypto();
     const dependencies = activationDependencies(keys);
+    let receivedExpectedSignupCode = false;
+    const signup = dependencies.signup.signup.bind(dependencies.signup);
+    dependencies.signup.signup = async (input) => {
+      receivedExpectedSignupCode = input.signupCode === "homegate-signup-code";
+      return signup(input);
+    };
     const flow = createFlow({ keys, local, files, crypto, ...dependencies });
 
     const result = await flow.establish({ googleIdToken: "id-token", driveAccessToken: "drive-token" });
@@ -63,7 +69,8 @@ describe("Google identity use cases", () => {
     expect(keys.createCalls).toBe(1);
     expect(files.written).toEqual([envelope]);
     expect(local.savedHandles).toHaveLength(1);
-    expect(dependencies.homegate.calls).toEqual([{ googleIdToken: "id-token" }]);
+    expect(dependencies.homegate.calls).toEqual([{ hasGoogleIdToken: true }]);
+    expect(receivedExpectedSignupCode).toBe(true);
     expect(dependencies.signup.signupCalls).toEqual([{
       keyHandle: local.savedHandles[0],
       homeserverPubky: "homegate-homeserver",
@@ -191,7 +198,7 @@ describe("Google identity use cases", () => {
     const keys = new FakePubkyIdentityKeys();
     const local = new FakeLocalIdentities(() => events.push("save"));
     const files = new FakePassportFiles({ status: "missing" }, () => events.push("drive-create"));
-    const homegate = new FakeHomegateInvites(() => events.push("homegate"));
+    const homegate = new FakeGoogleHomegateInviteRequester(() => events.push("homegate"));
     const signup = new FakePubkySignup();
     signup.session.publicIdentity = keys.nextPublicIdentity;
     const originalSignup = signup.signup.bind(signup);
@@ -207,10 +214,10 @@ describe("Google identity use cases", () => {
     };
     const flow = createFlow({ keys, local, files, crypto: new FakePassportCrypto(), homegate, signup, discovery });
 
-    await flow.establish({ googleIdToken: "id-token", driveAccessToken: "drive-token" });
+    const result = await flow.establish({ googleIdToken: "id-token", driveAccessToken: "drive-token" });
 
+    expect(Result.isError(result)).toBe(false);
     expect(events).toEqual(["drive-create", "homegate", "signup", "discovery", "save"]);
-    expect(homegate.calls).toEqual([{ googleIdToken: "id-token" }]);
   });
 
   it("stops after created activation failure without saving locally and disposes the key", async () => {
@@ -466,7 +473,7 @@ function createFlow(input: {
   local: FakeLocalIdentities;
   files: FakePassportFiles;
   crypto: FakePassportCrypto;
-  homegate?: FakeHomegateInvites;
+  homegate?: FakeGoogleHomegateInviteRequester;
   signup?: FakePubkySignup;
   discovery?: FakePubkyDiscovery;
 }): EstablishGoogleBackedIdentity {
@@ -488,7 +495,7 @@ function createFlow(input: {
     createMissingIdentity: new CreateGoogleDriveIdentity({
       crypto: input.crypto,
       identityKeys: input.keys,
-      homegateInvites: input.homegate ?? activation.homegate,
+      homegateInvitationRequester: input.homegate ?? activation.homegate,
       signup,
       discovery: input.discovery ?? activation.discovery,
       localIdentities: input.local,
@@ -561,15 +568,15 @@ class FakeLocalIdentities implements LocalIdentitySaver {
   }
 }
 
-class FakeHomegateInvites implements GoogleHomegateInviteRequester {
-  calls: Array<{ googleIdToken: string }> = [];
+class FakeGoogleHomegateInviteRequester implements GoogleHomegateInviteRequester {
+  calls: Array<{ hasGoogleIdToken: boolean }> = [];
   failure?: GoogleHomegateInviteRequesterErrorCode;
 
   constructor(private readonly onRequest?: () => void) {}
 
   async requestSignupInvitation(input: { googleIdToken: string }) {
     this.onRequest?.();
-    this.calls.push(input);
+    this.calls.push({ hasGoogleIdToken: input.googleIdToken.trim().length > 0 });
     if (this.failure) return Result.err({ code: this.failure });
     return Result.ok({ signupCode: "homegate-signup-code", homeserverPubky: "homegate-homeserver" });
   }
@@ -579,7 +586,7 @@ function activationDependencies(keys: FakePubkyIdentityKeys) {
   const signup = new FakePubkySignup();
   signup.session.publicIdentity = keys.nextPublicIdentity;
   return {
-    homegate: new FakeHomegateInvites(),
+    homegate: new FakeGoogleHomegateInviteRequester(),
     signup,
     discovery: new FakePubkyDiscovery(),
   };

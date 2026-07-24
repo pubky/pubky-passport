@@ -16,7 +16,6 @@ export type GoogleHomegateInviteRequesterErrorCode =
   | "google_verifier_unavailable"
   | "homegate_unavailable"
   | "malformed_homegate_response"
-  | "invalid_response"
   | "network_failed";
 
 export type GoogleHomegateInviteRequester = {

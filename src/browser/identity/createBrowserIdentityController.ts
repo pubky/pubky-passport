@@ -18,6 +18,7 @@ import { DefaultBrowserIdentityController } from "./defaultBrowserIdentityContro
 
 export function createBrowserIdentityController(input: {
   googleClientId: string;
+  homegateBaseUrl: string;
   passportUrl: string;
 }): BrowserIdentityController {
   const repository = new LocalStorageIdentityRepository();
@@ -25,6 +26,7 @@ export function createBrowserIdentityController(input: {
   const getIdentityRuntime = () => {
     identityRuntime ??= createIdentityRuntime({
       repository,
+      homegateBaseUrl: input.homegateBaseUrl,
       passportUrl: input.passportUrl,
     });
     return identityRuntime;
@@ -56,6 +58,7 @@ export function createBrowserIdentityController(input: {
 
 function createIdentityRuntime(input: {
   repository: LocalStorageIdentityRepository;
+  homegateBaseUrl: string;
   passportUrl: string;
 }) {
   const pubky = new BrowserPubky();
@@ -77,7 +80,9 @@ function createIdentityRuntime(input: {
     const createMissingIdentity = new CreateGoogleDriveIdentity({
       crypto,
       identityKeys: pubky,
-      homegateInvites: new BrowserGoogleHomegateInviteRequester(),
+      homegateInvitationRequester: new BrowserGoogleHomegateInviteRequester({
+        homegateBaseUrl: input.homegateBaseUrl,
+      }),
       signup: pubky,
       discovery: pubky,
       localIdentities,

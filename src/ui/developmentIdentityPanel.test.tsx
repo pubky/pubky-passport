@@ -50,7 +50,7 @@ describe("DevelopmentIdentityPanel", () => {
 
   it("shows the identity dropdown but hides destructive tools outside development", async () => {
     localStorage.setItem("pubky-passport/local-identities/v1", JSON.stringify(storedIdentity));
-    render(<DevelopmentIdentityPanel allowGoogleDriveReset={false} googleClientId="google-client" passportUrl="https://passport.pubky.app" />);
+    render(<DevelopmentIdentityPanel allowGoogleDriveReset={false} googleClientId="google-client" homegateBaseUrl={homegateBaseUrl} passportUrl="https://passport.pubky.app" />);
 
     expect(screen.getByRole("combobox", { name: "Selected identity" }).getAttribute("autocomplete")).toBe("off");
     await waitFor(() => expect(screen.getByRole("option", { name: "pubkyselected-identity" })).toBeDefined());
@@ -61,7 +61,7 @@ describe("DevelopmentIdentityPanel", () => {
 
   it("shows selected-identity deletion and local clear in development", async () => {
     localStorage.setItem("pubky-passport/local-identities/v1", JSON.stringify(storedIdentity));
-    render(<DevelopmentIdentityPanel allowGoogleDriveReset googleClientId="google-client" passportUrl="https://passport.pubky.app" />);
+    render(<DevelopmentIdentityPanel allowGoogleDriveReset googleClientId="google-client" homegateBaseUrl={homegateBaseUrl} passportUrl="https://passport.pubky.app" />);
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Delete identity from Google" })).toBeDefined());
     expect(screen.getByRole("button", { name: "Clear local identities" })).toBeDefined();
@@ -77,7 +77,7 @@ describe("DevelopmentIdentityPanel", () => {
       },
     });
     vi.stubGlobal("confirm", vi.fn(() => true));
-    render(<DevelopmentIdentityPanel allowGoogleDriveReset googleClientId="google-client" passportUrl="https://passport.pubky.app" />);
+    render(<DevelopmentIdentityPanel allowGoogleDriveReset googleClientId="google-client" homegateBaseUrl={homegateBaseUrl} passportUrl="https://passport.pubky.app" />);
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Add identity" })).toBeDefined());
     fireEvent.click(screen.getByRole("button", { name: "Add identity" }));
@@ -92,6 +92,8 @@ describe("DevelopmentIdentityPanel", () => {
     await waitFor(() => expect(flowState.deleteExpectedPublicKey).toBe("failed-drive-identity"));
   });
 });
+
+const homegateBaseUrl = "https://homegate.example/";
 
 class MemoryStorage implements Storage {
   readonly #values = new Map<string, string>();

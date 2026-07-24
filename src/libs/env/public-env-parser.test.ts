@@ -6,6 +6,7 @@ const validPublicEnv = {
   NODE_ENV: "production",
   NEXT_PUBLIC_PASSPORT_PUBLIC_URL: "https://passport.pubky.app",
   NEXT_PUBLIC_GOOGLE_CLIENT_ID: "google-client-id",
+  NEXT_PUBLIC_HOMEGATE_URL: "https://homegate.example/",
 };
 
 describe("parsePublicEnv", () => {
@@ -13,6 +14,7 @@ describe("parsePublicEnv", () => {
     expect(parsePublicEnv(validPublicEnv)).toEqual({
       NEXT_PUBLIC_PASSPORT_PUBLIC_URL: "https://passport.pubky.app",
       NEXT_PUBLIC_GOOGLE_CLIENT_ID: "google-client-id",
+      NEXT_PUBLIC_HOMEGATE_URL: "https://homegate.example/",
     });
   });
 
@@ -30,6 +32,15 @@ describe("parsePublicEnv", () => {
       parsePublicEnv({
         ...validPublicEnv,
         NEXT_PUBLIC_PASSPORT_PUBLIC_URL: "http://passport.pubky.app",
+      }),
+    ).toThrow();
+  });
+
+  it("rejects a non-HTTPS Homegate URL", () => {
+    expect(() =>
+      parsePublicEnv({
+        ...validPublicEnv,
+        NEXT_PUBLIC_HOMEGATE_URL: "http://homegate.example",
       }),
     ).toThrow();
   });

@@ -6,10 +6,12 @@ import {
   extractRawPubkyAuthRequestQueryValue,
   parsePubkyAuthRequest,
 } from "../../features/auth/parsePubkyAuthRequest";
+import { parseHomegateBaseUrl } from "../../libs/homegate/parseHomegateBaseUrl";
 
 export function createContentSecurityPolicy(input: {
   nonce: string;
   development: boolean;
+  homegateBaseUrl: string;
   authorizationRequestSearch?: string;
 }): string {
   const scriptSource = [
@@ -24,6 +26,8 @@ export function createContentSecurityPolicy(input: {
   const authorizationRelayOrigin = input.authorizationRequestSearch
     ? parseAuthorizationRelayOrigin(input.authorizationRequestSearch)
     : undefined;
+  const homegateBaseUrl = parseHomegateBaseUrl(input.homegateBaseUrl);
+  if (!homegateBaseUrl) throw new Error("Invalid Homegate URL configuration.");
 
   return [
     "default-src 'self'",
@@ -34,6 +38,7 @@ export function createContentSecurityPolicy(input: {
       "https://openidconnect.googleapis.com",
       "https://oauth2.googleapis.com",
       "https://www.googleapis.com",
+      homegateBaseUrl.origin,
       "https://pkarr.pubky.app",
       "https://pkarr.pubky.org",
       ...(authorizationRelayOrigin ? [authorizationRelayOrigin] : []),

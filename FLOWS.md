@@ -83,7 +83,6 @@ Enforced by `test-utils/architecture/feature-boundaries.test.ts` and the
 | `/authorize` | `src/app/authorize/page.tsx::AuthorizePage` | Review, approve, cancel, callbacks. |
 | `GET /api/health` | `src/app/api/health/route.ts::GET` | Health response. |
 | `POST /api/wrapping-key/google` | `src/app/api/wrapping-key/google/route.ts::POST` | Verify Google identity and derive wrapping material. |
-| `POST /api/homegate/google/invite` | `src/app/api/homegate/google/invite/route.ts::POST` | Request a Homegate signup invitation. |
 
 ## Call Flows
 
@@ -562,17 +561,15 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/identity/adapters
         participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
     end
-    box rgba(240, 228, 66, 0.18) src/app/api/homegate/google/invite
-        participant API as handler.ts<br/>googleHomegateInvitePost()<br/>exported as route.ts::POST
-    end
     box rgba(17, 24, 39, 0.12) External
         participant SDK as @synonymdev/pubky@0.9.3<br/>Signer / PKDNS
+        participant Homegate as Homegate<br/>/google_verification
     end
 
     Creator->>Invite: requestSignupInvitation(ID token)
-    Invite->>API: POST { googleIdToken }
-    API-->>Invite: fixed JSON invitation or safe error
-    alt API error
+    Invite->>Homegate: POST { googleIdToken }
+    Homegate-->>Invite: invitation or plaintext error
+    alt Homegate error
         Invite-->>Creator: safe invitation failure
     else Invitation response
         Note over Invite: Parse exact bounded response
@@ -785,35 +782,26 @@ sequenceDiagram
 ```mermaid
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
-    accTitle: Homegate invitation API call flow
-    accDescr: The route forwards only the Google ID token to Homegate and maps the invitation or error to a fixed browser response.
+    accTitle: Direct browser Homegate invitation call flow
+    accDescr: The browser adapter sends only the Google ID token directly to configured Homegate, then bounds and maps the invitation or plaintext error to a safe application result.
     box rgba(0, 158, 115, 0.18) Browser runtime
-        participant Browser as BROWSER<br/>HomegateInviteRequester
-    end
-    box rgba(240, 228, 66, 0.18) Next transport
-        participant Handler as APP<br/>Homegate invite handler
-        participant Policy as APP<br/>googleCredentialRoutePolicy
-    end
-    box rgba(213, 94, 0, 0.18) Server
-        participant Adapter as SERVER<br/>Homegate Google adapter
+        participant UseCase as APPLICATION<br/>CreateGoogleDriveIdentity
+        participant Adapter as BROWSER<br/>BrowserGoogleHomegateInviteRequester
     end
     box rgba(17, 24, 39, 0.12) External
         participant Homegate as Homegate
     end
 
-    Browser->>Handler: POST { googleIdToken }
-    Handler->>Policy: parseGoogleIdTokenRequest(request)
-    Policy-->>Handler: Google ID token or invalid_request
-    alt Invalid request
-        Handler-->>Browser: fixed 400 invalid_request
-    else Valid Google ID token
-        Handler->>Adapter: requestSignupInvitation(token)
-        Adapter->>Homegate: POST /google_verification
-        Homegate-->>Adapter: invitation or plaintext error
-        Adapter-->>Handler: neutral invitation or safe mapped error
-        Handler-->>Browser: fixed JSON response
+    UseCase->>Adapter: requestSignupInvitation(ID token)
+    alt Empty or oversized token
+        Adapter-->>UseCase: homegate_invalid_request
+    else Valid bounded token
+        Adapter->>Homegate: POST /google_verification<br/>{ googleIdToken }
+        Note over Adapter,Homegate: credentials omitted, no-referrer, no-store
+        Homegate-->>Adapter: invitation JSON or plaintext error
+        Note over Adapter: Bound body and parse exact response shape
+        Adapter-->>UseCase: neutral invitation or safe typed error
     end
-    Note over Handler,Browser: Every response includes no-store and no-referrer
 ```
 
 ## Reviewer Index
@@ -828,5 +816,5 @@ sequenceDiagram
 | Drive and WebCrypto | `src/browser/passport-file` | Repository and crypto tests |
 | Pubky SDK adapter | `src/browser/pubky/browserPubky.ts` | `browserPubky.test.ts` |
 | Wrapping-key API | `src/app/api/wrapping-key/google`, `src/server/wrapping-key/google` | Route and server tests |
-| Homegate API | `src/app/api/homegate/google/invite`, `src/server/homegate/google` | Route and adapter tests |
+| Homegate invitation | `src/browser/identity/adapters/google/googleHomegateInviteRequester.ts` | Browser adapter tests |
 | CSP and boundaries | `proxy.ts`, `next.config.mjs`, architecture test | Proxy, header, policy, architecture tests |

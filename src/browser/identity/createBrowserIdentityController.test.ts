@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   mountGoogleSignIn: vi.fn(),
   unmountGoogleSignIn: vi.fn(),
   requestGoogleDriveAccess: vi.fn(),
+  BrowserGoogleHomegateInviteRequester: vi.fn(),
   credentialCallback: null as CredentialCallback | null,
 }));
 
@@ -43,7 +44,17 @@ vi.mock("./adapters/google/googleIdentityProvider", () => ({
   requestGoogleDriveAccess: mocks.requestGoogleDriveAccess,
 }));
 
+vi.mock("./adapters/google/googleHomegateInviteRequester", () => ({
+  BrowserGoogleHomegateInviteRequester: mocks.BrowserGoogleHomegateInviteRequester,
+}));
+
 import { createBrowserIdentityController } from "./createBrowserIdentityController";
+
+const validControllerConfig = {
+  googleClientId: "google-client-id",
+  homegateBaseUrl: "https://homegate.example/",
+  passportUrl: "https://localhost:3000",
+};
 
 describe("createBrowserIdentityController", () => {
   beforeEach(() => {
@@ -57,6 +68,7 @@ describe("createBrowserIdentityController", () => {
     mocks.mountGoogleSignIn.mockReset();
     mocks.unmountGoogleSignIn.mockReset();
     mocks.requestGoogleDriveAccess.mockReset();
+    mocks.BrowserGoogleHomegateInviteRequester.mockReset();
     mocks.credentialCallback = null;
 
     mocks.BrowserPubky.mockImplementation(function () {
@@ -74,6 +86,9 @@ describe("createBrowserIdentityController", () => {
         unmount: mocks.unmountGoogleSignIn,
       };
     });
+    mocks.BrowserGoogleHomegateInviteRequester.mockImplementation(function () {
+      return {};
+    });
     mocks.mountGoogleSignIn.mockImplementation(async (input: {
       onCredential: CredentialCallback;
     }) => {
@@ -90,10 +105,7 @@ describe("createBrowserIdentityController", () => {
   afterEach(() => localStorage.clear());
 
   it("serves the local identity catalog without constructing the Pubky action graph", () => {
-    const controller = createBrowserIdentityController({
-      googleClientId: "google-client-id",
-      passportUrl: "https://localhost:3000",
-    });
+    const controller = createBrowserIdentityController(validControllerConfig);
 
     const identities = controller.list();
     expect(Result.isError(identities)).toBe(false);
@@ -106,10 +118,7 @@ describe("createBrowserIdentityController", () => {
   });
 
   it("constructs one action graph and delegates establish and delete", async () => {
-    const controller = createBrowserIdentityController({
-      googleClientId: "google-client-id",
-      passportUrl: "https://localhost:3000",
-    });
+    const controller = createBrowserIdentityController(validControllerConfig);
     await mountWithGoogleCredential(controller);
 
     await expect(controller.continueGoogle({ kind: "establish" })).resolves.toEqual({
@@ -121,6 +130,9 @@ describe("createBrowserIdentityController", () => {
       }),
     });
     expect(mocks.BrowserPubky).toHaveBeenCalledOnce();
+    expect(mocks.BrowserGoogleHomegateInviteRequester).toHaveBeenCalledWith({
+      homegateBaseUrl: "https://homegate.example/",
+    });
     expect(mocks.establish).toHaveBeenCalledWith({
       googleIdToken: "google-id-token",
       driveAccessToken: "drive-access-token",
@@ -146,10 +158,7 @@ describe("createBrowserIdentityController", () => {
   });
 
   it("constructs the action graph when delete is the first action", async () => {
-    const controller = createBrowserIdentityController({
-      googleClientId: "google-client-id",
-      passportUrl: "https://localhost:3000",
-    });
+    const controller = createBrowserIdentityController(validControllerConfig);
     await mountWithGoogleCredential(controller);
 
     await expect(controller.continueGoogle({
@@ -173,10 +182,7 @@ describe("createBrowserIdentityController", () => {
     mocks.EstablishGoogleBackedIdentity.mockImplementationOnce(function () {
       throw new Error("construction failed");
     });
-    const controller = createBrowserIdentityController({
-      googleClientId: "google-client-id",
-      passportUrl: "https://localhost:3000",
-    });
+    const controller = createBrowserIdentityController(validControllerConfig);
     await mountWithGoogleCredential(controller);
 
     const failed = await controller.continueGoogle({ kind: "establish" });
@@ -205,10 +211,7 @@ describe("createBrowserIdentityController", () => {
     mocks.establish.mockImplementationOnce(() => new Promise((resolve) => {
       resolveEstablish = resolve;
     }));
-    const controller = createBrowserIdentityController({
-      googleClientId: "google-client-id",
-      passportUrl: "https://localhost:3000",
-    });
+    const controller = createBrowserIdentityController(validControllerConfig);
     await mountWithGoogleCredential(controller);
 
     const pending = controller.continueGoogle({ kind: "establish" });

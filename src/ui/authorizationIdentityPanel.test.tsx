@@ -21,6 +21,7 @@ describe("AuthorizationIdentityPanel", () => {
         controllerFactory={() => controller}
         disabled={false}
         googleClientId="google-client"
+        homegateBaseUrl="https://homegate.example/"
         onReadyChange={onReadyChange}
         passportUrl="https://passport.example"
       />,
@@ -44,6 +45,7 @@ describe("AuthorizationIdentityPanel", () => {
         controllerFactory={() => controller}
         disabled={false}
         googleClientId="google-client"
+        homegateBaseUrl="https://homegate.example/"
         onReadyChange={onReadyChange}
         passportUrl="https://passport.example"
       />,

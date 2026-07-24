@@ -79,6 +79,7 @@ function renderReview(controller: BrowserAuthorizationController) {
     <AuthorizationReview
       controllerFactory={() => controller}
       googleClientId="google-client"
+      homegateBaseUrl="https://homegate.example/"
       identityControllerFactory={() => fakeIdentityController()}
       passportUrl="https://passport.example"
     />,

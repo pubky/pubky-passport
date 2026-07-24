@@ -8,6 +8,7 @@ export default function Home() {
       <h1 className="text-2xl font-semibold">Pubky Passport development</h1>
       <DevelopmentIdentityPanel
         googleClientId={publicEnv.NEXT_PUBLIC_GOOGLE_CLIENT_ID}
+        homegateBaseUrl={publicEnv.NEXT_PUBLIC_HOMEGATE_URL}
         allowGoogleDriveReset={process.env.NODE_ENV === "development"}
         passportUrl={publicEnv.NEXT_PUBLIC_PASSPORT_PUBLIC_URL}
       />

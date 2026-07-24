@@ -2,6 +2,7 @@ import "client-only";
 
 import { Result } from "better-result";
 
+import { parseHomegateBaseUrl } from "../../../../libs/homegate/parseHomegateBaseUrl";
 import { readBoundedText } from "../../../../libs/security/boundedBody";
 import type {
   GoogleHomegateInviteRequester,
@@ -9,62 +10,70 @@ import type {
   HomeserverSignupInvitation,
 } from "../../application/ports/homegateInvitation";
 
-const maximumResponseBytes = 16 * 1024;
+const maximumSuccessResponseBytes = 16 * 1024;
+const maximumErrorResponseBytes = 256;
 const maximumInvitationFieldCharacters = 1024;
-const knownErrorCodes = new Set<GoogleHomegateInviteRequesterErrorCode>([
-  "invalid_google_id_token",
-  "weekly_limit_exceeded",
-  "annual_limit_exceeded",
-  "homegate_invalid_request",
-  "homeserver_unavailable",
-  "google_verifier_unavailable",
-  "homegate_unavailable",
-  "malformed_homegate_response",
-]);
+const maximumGoogleIdTokenCharacters = 16 * 1024;
+const homegateRequestTimeoutMilliseconds = 10_000;
+const googleVerificationPath = "google_verification";
 
 export class BrowserGoogleHomegateInviteRequester implements GoogleHomegateInviteRequester {
   readonly #fetch: typeof fetch;
-  readonly #origin: string;
+  readonly #googleVerificationEndpoint: URL;
 
-  constructor(options: { fetch?: typeof fetch; origin?: string } = {}) {
+  constructor(options: { homegateBaseUrl: string; fetch?: typeof fetch }) {
     this.#fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
-    this.#origin = options.origin ?? globalThis.location?.origin ?? "";
+    this.#googleVerificationEndpoint = createGoogleVerificationEndpoint(options.homegateBaseUrl);
   }
 
   async requestSignupInvitation(input: { googleIdToken: string }) {
+    if (!isValidGoogleIdToken(input.googleIdToken)) return failure("homegate_invalid_request");
+
+    let requestSignal: AbortSignal;
     let response: Response;
     try {
-      const endpoint = this.#origin
-        ? new URL("/api/homegate/google/invite", this.#origin)
-        : "/api/homegate/google/invite";
-      response = await this.#fetch(endpoint, {
+      requestSignal = AbortSignal.timeout(homegateRequestTimeoutMilliseconds);
+      response = await this.#fetch(this.#googleVerificationEndpoint, {
         method: "POST",
-        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        headers: { Accept: "application/json, text/plain", "Content-Type": "application/json" },
         body: JSON.stringify({ googleIdToken: input.googleIdToken }),
-        credentials: "same-origin",
+        cache: "no-store",
+        credentials: "omit",
+        redirect: "error",
+        referrerPolicy: "no-referrer",
+        signal: requestSignal,
       });
     } catch {
       return failure("network_failed");
     }
 
-    const contents = await readBoundedText(response, maximumResponseBytes);
-    if (contents === null || contents === "too_large") return failure("invalid_response");
+    const contents = await readBoundedText(
+      response,
+      response.ok ? maximumSuccessResponseBytes : maximumErrorResponseBytes,
+    );
+    if (contents === null && requestSignal.aborted) return failure("network_failed");
+    if (contents === null || contents === "too_large") {
+      return failure(response.ok ? "malformed_homegate_response" : "homegate_unavailable");
+    }
+
+    if (!response.ok) return failure(mapHomegateError(contents));
 
     let body: unknown;
     try {
       body = JSON.parse(contents);
     } catch {
-      return failure("invalid_response");
-    }
-
-    if (!response.ok) {
-      const code = parseErrorCode(body);
-      return failure(code ?? "invalid_response");
+      return failure("malformed_homegate_response");
     }
 
     const invitation = parseInvitation(body);
-    return invitation ? Result.ok(invitation) : failure("invalid_response");
+    return invitation ? Result.ok(invitation) : failure("malformed_homegate_response");
   }
+}
+
+function createGoogleVerificationEndpoint(homegateBaseUrl: string): URL {
+  const baseUrl = parseHomegateBaseUrl(homegateBaseUrl);
+  if (!baseUrl) throw new Error("Invalid Homegate URL configuration.");
+  return new URL(googleVerificationPath, baseUrl.href);
 }
 
 function parseInvitation(value: unknown): HomeserverSignupInvitation | null {
@@ -73,10 +82,25 @@ function parseInvitation(value: unknown): HomeserverSignupInvitation | null {
   return { signupCode: value.signupCode, homeserverPubky: value.homeserverPubky };
 }
 
-function parseErrorCode(value: unknown): GoogleHomegateInviteRequesterErrorCode | null {
-  if (!isExactRecord(value, ["error"]) || !isExactRecord(value.error, ["code"])) return null;
-  if (typeof value.error.code !== "string" || !knownErrorCodes.has(value.error.code as GoogleHomegateInviteRequesterErrorCode)) return null;
-  return value.error.code as GoogleHomegateInviteRequesterErrorCode;
+function mapHomegateError(body: string): GoogleHomegateInviteRequesterErrorCode {
+  switch (body.trim()) {
+    case "invalid_request":
+      return "homegate_invalid_request";
+    case "invalid_google_id_token":
+      return "invalid_google_id_token";
+    case "weekly_limit_exceeded":
+      return "weekly_limit_exceeded";
+    case "annual_limit_exceeded":
+      return "annual_limit_exceeded";
+    case "homeserver_unavailable":
+      return "homeserver_unavailable";
+    case "google_verifier_unavailable":
+      return "google_verifier_unavailable";
+    case "internal_error":
+      return "homegate_unavailable";
+    default:
+      return "malformed_homegate_response";
+  }
 }
 
 function isExactRecord(value: unknown, keys: string[]): value is Record<string, unknown> {
@@ -86,7 +110,16 @@ function isExactRecord(value: unknown, keys: string[]): value is Record<string, 
 }
 
 function isBoundedNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length > 0 && value.length <= maximumInvitationFieldCharacters;
+  return typeof value === "string"
+    && value.length > 0
+    && value.length <= maximumInvitationFieldCharacters
+    && value.trim().length > 0;
+}
+
+function isValidGoogleIdToken(value: string): boolean {
+  return value.length > 0
+    && value.length <= maximumGoogleIdTokenCharacters
+    && value.trim().length > 0;
 }
 
 function failure(code: GoogleHomegateInviteRequesterErrorCode) {

@@ -14,12 +14,14 @@ import { GoogleSignInButton } from "./googleSignInButton";
 
 export function AuthorizationIdentityPanel({
   googleClientId,
+  homegateBaseUrl,
   passportUrl,
   disabled,
   onReadyChange,
   controllerFactory = createBrowserIdentityController,
 }: {
   googleClientId: string;
+  homegateBaseUrl: string;
   passportUrl: string;
   disabled: boolean;
   onReadyChange: (ready: boolean) => void;
@@ -42,7 +44,7 @@ export function AuthorizationIdentityPanel({
     queueMicrotask(() => {
       if (cancelled) return;
       try {
-        controller.current = controllerFactory({ googleClientId, passportUrl });
+        controller.current = controllerFactory({ googleClientId, homegateBaseUrl, passportUrl });
         refreshIdentities();
       } catch {
         logger.warn("authorize.identity.initialize.failed");
@@ -55,7 +57,7 @@ export function AuthorizationIdentityPanel({
       controller.current?.dispose();
       controller.current = null;
     };
-  }, [controllerFactory, googleClientId, passportUrl]);
+  }, [controllerFactory, googleClientId, homegateBaseUrl, passportUrl]);
 
   function refreshIdentities(nextMessage?: string): void {
     const stored = controller.current?.list();

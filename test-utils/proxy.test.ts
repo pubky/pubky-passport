@@ -1,9 +1,15 @@
 import { NextRequest } from "next/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { proxy } from "../proxy";
 
 describe("request CSP proxy", () => {
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_HOMEGATE_URL", "https://homegate.example/config/path");
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
   it("allows only the validated relay origin on an authorization document", () => {
     const request = authorizationRequest("https://relay.client.example/inbox?region=eu");
 
@@ -13,6 +19,8 @@ describe("request CSP proxy", () => {
     expect(policy).toContain("https://relay.client.example");
     expect(policy).not.toContain("/inbox");
     expect(policy).not.toContain("sensitive-secret");
+    expect(cspSources(policy, "connect-src")).toContain("https://homegate.example");
+    expect(policy).not.toContain("/config/path");
   });
 
   it("does not allow request-derived origins on other routes or invalid requests", () => {
@@ -27,6 +35,13 @@ describe("request CSP proxy", () => {
     expect(otherRoute.headers.get("Content-Security-Policy")).not.toContain("https://relay.client.example");
     expect(invalidAuthorization.headers.get("Content-Security-Policy")).not.toContain("https://relay.client.example");
     expect(cspSources(wildcardAuthorization.headers.get("Content-Security-Policy"), "connect-src")).not.toContain("https://*");
+  });
+
+  it("rejects unsafe configured Homegate origins before emitting CSP", () => {
+    vi.stubEnv("NEXT_PUBLIC_HOMEGATE_URL", "https://*.example.com");
+
+    expect(() => proxy(new NextRequest("https://passport.example/")))
+      .toThrow("Invalid Homegate URL configuration.");
   });
 });
 
