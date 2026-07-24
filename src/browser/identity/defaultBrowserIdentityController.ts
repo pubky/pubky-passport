@@ -16,7 +16,7 @@ import type {
 import type {
   GoogleDriveIdentityDeleter,
   GoogleIdentityEstablisher,
-} from "./application/ports/google/googleIdentity";
+} from "./google-backed-identity/application/googleBackedIdentity";
 import type {
   GoogleIdentityProviderErrorCode,
   GoogleIdentityProviderResult,

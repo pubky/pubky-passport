@@ -110,7 +110,9 @@ const eslintConfig = defineConfig([
       "src/browser/**/*.test.{ts,tsx}",
       "src/browser/authorization/createBrowserAuthorizationController.ts",
       "src/browser/identity/createBrowserIdentityController.ts",
+      "src/browser/identity/google-backed-identity/createGoogleBackedIdentityRuntime.ts",
       "src/browser/identity/adapters/**/*.{ts,tsx}",
+      "src/browser/identity/google-backed-identity/**/adapters/**/*.{ts,tsx}",
       "src/browser/passport-file/googleDrivePassportFileRepository.ts",
       "src/browser/passport-file/webCryptoPassportFileCrypto.ts",
       "src/browser/pubky/browserPubky.ts"
@@ -121,7 +123,7 @@ const eslintConfig = defineConfig([
         {
           patterns: [
             {
-              regex: "(?:^|/)adapters(?:/|$)|(?:^|/)(?:createBrowserAuthorizationController|createBrowserIdentityController|browserPubky|googleDrivePassportFileRepository|webCryptoPassportFileCrypto)$|(?:^|/)ui(?:/|$)",
+              regex: "(?:^|/)adapters(?:/|$)|(?:^|/)(?:createBrowserAuthorizationController|createBrowserIdentityController|createGoogleBackedIdentityRuntime|browserPubky|googleDrivePassportFileRepository|webCryptoPassportFileCrypto)$|(?:^|/)ui(?:/|$)",
               message: "Browser application modules must depend on contracts, not composition, adapters, public env, or UI."
             }
           ]
@@ -132,6 +134,7 @@ const eslintConfig = defineConfig([
   {
     files: [
       "src/browser/identity/adapters/**/*.{ts,tsx}",
+      "src/browser/identity/google-backed-identity/**/adapters/**/*.{ts,tsx}",
       "src/browser/passport-file/googleDrivePassportFileRepository.ts",
       "src/browser/passport-file/webCryptoPassportFileCrypto.ts",
       "src/browser/pubky/browserPubky.ts"
@@ -143,7 +146,7 @@ const eslintConfig = defineConfig([
         {
           patterns: [
             {
-              regex: "^server-only$|(?:^|/)(?:ui|server|composition|env)(?:/|$)|(?:^|/)(?:createBrowserAuthorizationController|createBrowserIdentityController)$",
+              regex: "^server-only$|(?:^|/)(?:ui|server|composition|env)(?:/|$)|(?:^|/)(?:createBrowserAuthorizationController|createBrowserIdentityController|createGoogleBackedIdentityRuntime)$",
               message: "Browser adapters may depend inward on application policy and contracts, not UI, composition roots, or runtime configuration."
             }
           ]

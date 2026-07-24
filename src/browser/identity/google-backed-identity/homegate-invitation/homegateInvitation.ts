@@ -7,7 +7,7 @@ export type HomeserverSignupInvitation = {
   homeserverPubky: string;
 };
 
-export type GoogleHomegateInviteRequesterErrorCode =
+export type GoogleHomegateInvitationRequesterErrorCode =
   | "invalid_google_id_token"
   | "weekly_limit_exceeded"
   | "annual_limit_exceeded"
@@ -18,8 +18,8 @@ export type GoogleHomegateInviteRequesterErrorCode =
   | "malformed_homegate_response"
   | "network_failed";
 
-export type GoogleHomegateInviteRequester = {
+export type GoogleHomegateInvitationRequester = {
   requestSignupInvitation(input: {
     googleIdToken: string;
-  }): Promise<Result<HomeserverSignupInvitation, { code: GoogleHomegateInviteRequesterErrorCode }>>;
+  }): Promise<Result<HomeserverSignupInvitation, { code: GoogleHomegateInvitationRequesterErrorCode }>>;
 };

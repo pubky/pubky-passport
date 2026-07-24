@@ -2,12 +2,12 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { readBoundedText } from "../../../../libs/http/boundedBody";
+import { readBoundedText } from "../../../../../libs/http/boundedBody";
 import type {
-  GoogleHomegateInviteRequester,
-  GoogleHomegateInviteRequesterErrorCode,
+  GoogleHomegateInvitationRequester,
+  GoogleHomegateInvitationRequesterErrorCode,
   HomeserverSignupInvitation,
-} from "../../application/ports/google/homegateInvitation";
+} from "../homegateInvitation";
 
 const maximumSuccessResponseBytes = 16 * 1024;
 const maximumErrorResponseBytes = 256;
@@ -16,7 +16,7 @@ const maximumGoogleIdTokenCharacters = 16 * 1024;
 const homegateRequestTimeoutMilliseconds = 10_000;
 const googleVerificationPath = "google_verification";
 
-export class BrowserGoogleHomegateInviteRequester implements GoogleHomegateInviteRequester {
+export class BrowserGoogleHomegateInvitationRequester implements GoogleHomegateInvitationRequester {
   readonly #fetch: typeof fetch;
   readonly #googleVerificationEndpoint: URL;
 
@@ -79,7 +79,7 @@ function parseInvitation(value: unknown): HomeserverSignupInvitation | null {
   return { signupCode: value.signupCode, homeserverPubky: value.homeserverPubky };
 }
 
-function mapHomegateError(body: string): GoogleHomegateInviteRequesterErrorCode {
+function mapHomegateError(body: string): GoogleHomegateInvitationRequesterErrorCode {
   switch (body.trim()) {
     case "invalid_request":
       return "homegate_invalid_request";
@@ -119,6 +119,6 @@ function isValidGoogleIdToken(value: string): boolean {
     && value.trim().length > 0;
 }
 
-function failure(code: GoogleHomegateInviteRequesterErrorCode) {
+function failure(code: GoogleHomegateInvitationRequesterErrorCode) {
   return Result.err({ code });
 }

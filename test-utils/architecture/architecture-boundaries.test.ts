@@ -13,12 +13,15 @@ const uiRoot = join(srcRoot, "ui");
 const libsRoot = join(srcRoot, "libs");
 const serverConfigRoot = join(serverRoot, "config");
 const checkedExtensions = new Set([".js", ".mjs", ".ts", ".tsx"]);
+const identityRoot = join(browserRoot, "identity");
 const identityAdaptersRoot = join(browserRoot, "identity", "adapters");
+const googleBackedIdentityRoot = join(browserRoot, "identity", "google-backed-identity");
 const localIdentityRepository = join(identityAdaptersRoot, "localStorageIdentityRepository.ts");
 const browserPubky = join(browserRoot, "pubky", "browserPubky.ts");
 const browserCompositionFactories = [
   join(browserRoot, "authorization", "createBrowserAuthorizationController.ts"),
   join(browserRoot, "identity", "createBrowserIdentityController.ts"),
+  join(googleBackedIdentityRoot, "createGoogleBackedIdentityRuntime.ts"),
 ];
 const stableUiBrowserModules = new Set([
   join(browserRoot, "authorization", "browserAuthorizationController.ts"),
@@ -27,7 +30,9 @@ const stableUiBrowserModules = new Set([
   join(browserRoot, "identity", "createBrowserIdentityController.ts"),
 ]);
 const browserAdapterModules = [
-  ...productionSourceFiles(identityAdaptersRoot),
+  ...productionSourceFiles(identityRoot).filter((filePath) =>
+    relative(identityRoot, filePath).split(sep).includes("adapters")
+  ),
   browserPubky,
   join(browserRoot, "passport-file", "googleDrivePassportFileRepository.ts"),
   join(browserRoot, "passport-file", "webCryptoPassportFileCrypto.ts"),

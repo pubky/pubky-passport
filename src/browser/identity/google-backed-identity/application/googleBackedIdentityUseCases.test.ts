@@ -1,23 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
 
-import { FakePubkyIdentityKeys } from "../../../../test-utils/fakes/fakePubkyIdentityKeys";
-import { FakePubkyDiscovery } from "../../../../test-utils/fakes/fakePubkyDiscovery";
-import { FakePubkySignup } from "../../../../test-utils/fakes/fakePubkySignup";
-import type { LocalIdentitySaver } from "./ports/localIdentity";
+import { FakePubkyIdentityKeys } from "../../../../../test-utils/fakes/fakePubkyIdentityKeys";
+import { FakePubkyDiscovery } from "../../../../../test-utils/fakes/fakePubkyDiscovery";
+import { FakePubkySignup } from "../../../../../test-utils/fakes/fakePubkySignup";
+import type { LocalIdentitySaver } from "../../application/ports/localIdentity";
 import type {
   PassportFileCrypto,
   PassportFileCryptoResult,
   PassportFileReference,
   PassportFileStore,
   PassportFileStoreErrorCode,
-} from "../../passport-file/ports";
-import type { PassportFileEnvelopeV1 } from "../../../core/passport-file/passportFile";
-import { CreateGoogleDriveIdentity } from "./createGoogleDriveIdentity";
+} from "../../../passport-file/ports";
+import type { PassportFileEnvelopeV1 } from "../../../../core/passport-file/passportFile";
+import { CreateGoogleBackedIdentity } from "./createGoogleBackedIdentity";
 import { DeleteGoogleDriveIdentity } from "./deleteGoogleDriveIdentity";
 import { EstablishGoogleBackedIdentity } from "./establishGoogleBackedIdentity";
-import type { GoogleHomegateInviteRequester, GoogleHomegateInviteRequesterErrorCode } from "./ports/google/homegateInvitation";
-import { RestoreGoogleDriveIdentity } from "./restoreGoogleDriveIdentity";
+import type { GoogleHomegateInvitationRequester, GoogleHomegateInvitationRequesterErrorCode } from "../homegate-invitation/homegateInvitation";
+import { RestoreGoogleBackedIdentity } from "./restoreGoogleBackedIdentity";
 
 const envelope: PassportFileEnvelopeV1 = {
   v: 1,
@@ -27,7 +27,7 @@ const envelope: PassportFileEnvelopeV1 = {
 };
 const reference: PassportFileReference = { storageId: "opaque-file-id", revision: "42" };
 
-describe("Google identity use cases", () => {
+describe("Google-backed identity use cases", () => {
   it("restores a Drive identity and saves it locally", async () => {
     const keys = new FakePubkyIdentityKeys();
     const local = new FakeLocalIdentities();
@@ -198,7 +198,7 @@ describe("Google identity use cases", () => {
     const keys = new FakePubkyIdentityKeys();
     const local = new FakeLocalIdentities(() => events.push("save"));
     const files = new FakePassportFiles({ status: "missing" }, () => events.push("drive-create"));
-    const homegate = new FakeGoogleHomegateInviteRequester(() => events.push("homegate"));
+    const homegate = new FakeGoogleHomegateInvitationRequester(() => events.push("homegate"));
     const signup = new FakePubkySignup();
     signup.session.publicIdentity = keys.nextPublicIdentity;
     const originalSignup = signup.signup.bind(signup);
@@ -473,7 +473,7 @@ function createFlow(input: {
   local: FakeLocalIdentities;
   files: FakePassportFiles;
   crypto: FakePassportCrypto;
-  homegate?: FakeGoogleHomegateInviteRequester;
+  homegate?: FakeGoogleHomegateInvitationRequester;
   signup?: FakePubkySignup;
   discovery?: FakePubkyDiscovery;
 }): EstablishGoogleBackedIdentity {
@@ -485,14 +485,14 @@ function createFlow(input: {
       expect(accessToken).toBe("drive-token");
       return input.files;
     },
-    restoreExistingIdentity: new RestoreGoogleDriveIdentity({
+    restoreExistingIdentity: new RestoreGoogleBackedIdentity({
       crypto: input.crypto,
       identityKeys: input.keys,
       signup,
       localIdentities: input.local,
       passportOrigin: "https://passport.pubky.app",
     }),
-    createMissingIdentity: new CreateGoogleDriveIdentity({
+    createMissingIdentity: new CreateGoogleBackedIdentity({
       crypto: input.crypto,
       identityKeys: input.keys,
       homegateInvitationRequester: input.homegate ?? activation.homegate,
@@ -568,9 +568,9 @@ class FakeLocalIdentities implements LocalIdentitySaver {
   }
 }
 
-class FakeGoogleHomegateInviteRequester implements GoogleHomegateInviteRequester {
+class FakeGoogleHomegateInvitationRequester implements GoogleHomegateInvitationRequester {
   calls: Array<{ hasGoogleIdToken: boolean }> = [];
-  failure?: GoogleHomegateInviteRequesterErrorCode;
+  failure?: GoogleHomegateInvitationRequesterErrorCode;
 
   constructor(private readonly onRequest?: () => void) {}
 
@@ -586,7 +586,7 @@ function activationDependencies(keys: FakePubkyIdentityKeys) {
   const signup = new FakePubkySignup();
   signup.session.publicIdentity = keys.nextPublicIdentity;
   return {
-    homegate: new FakeGoogleHomegateInviteRequester(),
+    homegate: new FakeGoogleHomegateInvitationRequester(),
     signup,
     discovery: new FakePubkyDiscovery(),
   };

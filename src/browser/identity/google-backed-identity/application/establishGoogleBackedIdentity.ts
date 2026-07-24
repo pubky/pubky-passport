@@ -2,36 +2,36 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { logger } from "../../../libs/logger/logger";
-import type { PassportFileStore } from "../../passport-file/ports";
+import { logger } from "../../../../libs/logger/logger";
+import type { PassportFileStore } from "../../../passport-file/ports";
 import type {
-  GoogleDriveIdentityCreator,
-  GoogleDriveIdentityRestorer,
+  GoogleBackedIdentityCreator,
+  GoogleBackedIdentityRestorer,
   GoogleBackedIdentity,
   GoogleBackedIdentityResult,
   GoogleIdentityEstablisher,
   GoogleIdentitySession,
-} from "./ports/google/googleIdentity";
-import type { GoogleWrappingKeyRequester } from "./ports/google/googleWrappingKey";
+} from "./googleBackedIdentity";
+import type { GoogleWrappingKeyRequester } from "../wrapping-key/googleWrappingKey";
 
 export type {
   GoogleBackedIdentity,
   GoogleBackedIdentityError,
   GoogleBackedIdentityErrorCode,
   GoogleBackedIdentityResult,
-} from "./ports/google/googleIdentity";
+} from "./googleBackedIdentity";
 
 export class EstablishGoogleBackedIdentity implements GoogleIdentityEstablisher {
   readonly #wrappingKeys: GoogleWrappingKeyRequester;
   readonly #passportFilesForAccessToken: (driveAccessToken: string) => PassportFileStore;
-  readonly #restoreExistingIdentity: GoogleDriveIdentityRestorer;
-  readonly #createMissingIdentity: GoogleDriveIdentityCreator;
+  readonly #restoreExistingIdentity: GoogleBackedIdentityRestorer;
+  readonly #createMissingIdentity: GoogleBackedIdentityCreator;
 
   constructor(input: {
     wrappingKeys: GoogleWrappingKeyRequester;
     passportFilesForAccessToken: (driveAccessToken: string) => PassportFileStore;
-    restoreExistingIdentity: GoogleDriveIdentityRestorer;
-    createMissingIdentity: GoogleDriveIdentityCreator;
+    restoreExistingIdentity: GoogleBackedIdentityRestorer;
+    createMissingIdentity: GoogleBackedIdentityCreator;
   }) {
     this.#wrappingKeys = input.wrappingKeys;
     this.#passportFilesForAccessToken = input.passportFilesForAccessToken;

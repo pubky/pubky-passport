@@ -2,17 +2,17 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { pubkySecretKeyFormat, type PubkyIdentityKey } from "../../pubky/ports";
-import { logger } from "../../../libs/logger/logger";
-import type { PassportFileCrypto, PassportFileStore } from "../../passport-file/ports";
-import type { PubkyIdentityKeys } from "../../pubky/ports";
+import { pubkySecretKeyFormat, type PubkyIdentityKey } from "../../../pubky/ports";
+import { logger } from "../../../../libs/logger/logger";
+import type { PassportFileCrypto, PassportFileStore } from "../../../passport-file/ports";
+import type { PubkyIdentityKeys } from "../../../pubky/ports";
 import type {
   GoogleDriveIdentityDeleter,
   GoogleDriveIdentityDeletionErrorCode,
   GoogleDriveIdentityDeletionResult,
   GoogleIdentitySession,
-} from "./ports/google/googleIdentity";
-import type { GoogleWrappingKeyRequester } from "./ports/google/googleWrappingKey";
+} from "./googleBackedIdentity";
+import type { GoogleWrappingKeyRequester } from "../wrapping-key/googleWrappingKey";
 
 export class DeleteGoogleDriveIdentity implements GoogleDriveIdentityDeleter {
   readonly #wrappingKeys: GoogleWrappingKeyRequester;

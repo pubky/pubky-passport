@@ -184,7 +184,7 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
 
 function getLocalStorage(): Storage | null {
   try {
-    return globalThis.localStorage;
+    return globalThis.window?.localStorage ?? globalThis.localStorage;
   } catch {
     return null;
   }

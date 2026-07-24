@@ -2,26 +2,26 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import type { PubkyIdentityKey } from "../../pubky/ports";
-import { logger } from "../../../libs/logger/logger";
-import type { PassportFileCrypto } from "../../passport-file/ports";
+import type { PubkyIdentityKey } from "../../../pubky/ports";
+import { logger } from "../../../../libs/logger/logger";
+import type { PassportFileCrypto } from "../../../passport-file/ports";
 import type {
   PubkyDiscovery,
   PubkyIdentityKeys,
   PubkySignup,
-} from "../../pubky/ports";
+} from "../../../pubky/ports";
 import type {
-  GoogleDriveIdentityCreator,
+  GoogleBackedIdentityCreator,
   GoogleBackedIdentity,
   GoogleBackedIdentityResult,
-} from "./ports/google/googleIdentity";
-import type { GoogleHomegateInviteRequester } from "./ports/google/homegateInvitation";
-import type { LocalIdentitySaver } from "./ports/localIdentity";
+} from "./googleBackedIdentity";
+import type { GoogleHomegateInvitationRequester } from "../homegate-invitation/homegateInvitation";
+import type { LocalIdentitySaver } from "../../application/ports/localIdentity";
 
-export class CreateGoogleDriveIdentity implements GoogleDriveIdentityCreator {
+export class CreateGoogleBackedIdentity implements GoogleBackedIdentityCreator {
   readonly #crypto: PassportFileCrypto;
   readonly #identityKeys: PubkyIdentityKeys;
-  readonly #homegateInvitationRequester: GoogleHomegateInviteRequester;
+  readonly #homegateInvitationRequester: GoogleHomegateInvitationRequester;
   readonly #signup: PubkySignup;
   readonly #discovery: PubkyDiscovery;
   readonly #localIdentities: LocalIdentitySaver;
@@ -30,7 +30,7 @@ export class CreateGoogleDriveIdentity implements GoogleDriveIdentityCreator {
   constructor(input: {
     crypto: PassportFileCrypto;
     identityKeys: PubkyIdentityKeys;
-    homegateInvitationRequester: GoogleHomegateInviteRequester;
+    homegateInvitationRequester: GoogleHomegateInvitationRequester;
     signup: PubkySignup;
     discovery: PubkyDiscovery;
     localIdentities: LocalIdentitySaver;
@@ -46,7 +46,7 @@ export class CreateGoogleDriveIdentity implements GoogleDriveIdentityCreator {
   }
 
   async execute(
-    input: Parameters<GoogleDriveIdentityCreator["execute"]>[0],
+    input: Parameters<GoogleBackedIdentityCreator["execute"]>[0],
   ): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>> {
     logger.info("identity.google.create.started");
     const created = await this.#identityKeys.createIdentityKey();

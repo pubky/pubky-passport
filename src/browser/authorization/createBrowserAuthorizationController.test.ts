@@ -1,6 +1,8 @@
 /** @vitest-environment jsdom */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { MemoryStorage } from "../../../test-utils/fakes/memoryStorage";
 
 const mocks = vi.hoisted(() => ({
   BrowserPubky: vi.fn(),
@@ -17,14 +19,15 @@ const relayOrigin = "https://relay.example";
 
 describe("createBrowserAuthorizationController", () => {
   beforeEach(() => {
+    vi.stubGlobal("localStorage", new MemoryStorage());
     mocks.BrowserPubky.mockReset();
     mocks.dispose.mockReset();
     mocks.BrowserPubky.mockImplementation(function () {
       return { dispose: mocks.dispose };
     });
-    localStorage.clear();
     window.history.replaceState({}, "", "/");
   });
+  afterEach(() => vi.unstubAllGlobals());
 
   it("constructs Pubky lazily for approval and owns adapter cleanup", async () => {
     window.history.replaceState({}, "", `/authorize?d=${encodeURIComponent(validRequest())}`);
@@ -43,7 +46,7 @@ describe("createBrowserAuthorizationController", () => {
   });
 
   it("maps identity repository failures at the authorization composition boundary", async () => {
-    localStorage.setItem("pubky-passport/local-identities/v1", "invalid-store");
+    window.localStorage.setItem("pubky-passport/local-identities/v1", "invalid-store");
     window.history.replaceState({}, "", `/authorize?d=${encodeURIComponent(validRequest())}`);
     const controller = createBrowserAuthorizationController();
 

@@ -2,9 +2,9 @@ import "client-only";
 
 import type { Result } from "better-result";
 
-import type { PubkyPublicIdentity } from "../../../../../core/identity/pubkyIdentity";
-import type { PassportFileEnvelopeV1 } from "../../../../../core/passport-file/passportFile";
-import type { PassportFileStore } from "../../../../passport-file/ports";
+import type { PubkyPublicIdentity } from "../../../../core/identity/pubkyIdentity";
+import type { PassportFileEnvelopeV1 } from "../../../../core/passport-file/passportFile";
+import type { PassportFileStore } from "../../../passport-file/ports";
 
 export type GoogleIdentitySession = {
   googleIdToken: string;
@@ -43,14 +43,14 @@ export type GoogleIdentityEstablisher = {
   establish(google: GoogleIdentitySession): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>>;
 };
 
-export type GoogleDriveIdentityRestorer = {
+export type GoogleBackedIdentityRestorer = {
   execute(input: {
     envelope: PassportFileEnvelopeV1;
     wrappingKey: string;
   }): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>>;
 };
 
-export type GoogleDriveIdentityCreator = {
+export type GoogleBackedIdentityCreator = {
   execute(input: {
     googleIdToken: string;
     passportFiles: Pick<PassportFileStore, "createPassportFile">;

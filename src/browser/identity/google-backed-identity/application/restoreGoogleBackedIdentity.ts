@@ -2,18 +2,18 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { pubkySecretKeyFormat, type PubkyIdentityKey } from "../../pubky/ports";
-import { logger } from "../../../libs/logger/logger";
-import type { PassportFileCrypto } from "../../passport-file/ports";
-import type { PubkyIdentityKeys, PubkySignup } from "../../pubky/ports";
+import { pubkySecretKeyFormat, type PubkyIdentityKey } from "../../../pubky/ports";
+import { logger } from "../../../../libs/logger/logger";
+import type { PassportFileCrypto } from "../../../passport-file/ports";
+import type { PubkyIdentityKeys, PubkySignup } from "../../../pubky/ports";
 import type {
   GoogleBackedIdentity,
   GoogleBackedIdentityResult,
-  GoogleDriveIdentityRestorer,
-} from "./ports/google/googleIdentity";
-import type { LocalIdentitySaver } from "./ports/localIdentity";
+  GoogleBackedIdentityRestorer,
+} from "./googleBackedIdentity";
+import type { LocalIdentitySaver } from "../../application/ports/localIdentity";
 
-export class RestoreGoogleDriveIdentity implements GoogleDriveIdentityRestorer {
+export class RestoreGoogleBackedIdentity implements GoogleBackedIdentityRestorer {
   readonly #crypto: PassportFileCrypto;
   readonly #identityKeys: PubkyIdentityKeys;
   readonly #signup: PubkySignup;
@@ -35,7 +35,7 @@ export class RestoreGoogleDriveIdentity implements GoogleDriveIdentityRestorer {
   }
 
   async execute(
-    input: Parameters<GoogleDriveIdentityRestorer["execute"]>[0],
+    input: Parameters<GoogleBackedIdentityRestorer["execute"]>[0],
   ): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>> {
     logger.info("identity.google.decrypt.started");
     const secretKey = await this.#crypto.decryptSecretKeyBytes({

@@ -314,7 +314,7 @@ sequenceDiagram
         participant Widget as googleSignInWidget.ts<br/>GoogleSignInWidget
         participant GoogleProvider as googleIdentityProvider.ts<br/>bindGoogleCredentialCallback()<br/>googleIdTokenSubject()<br/>requestGoogleDriveAccess()
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/application
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
         participant Establish as establishGoogleBackedIdentity.ts<br/>EstablishGoogleBackedIdentity
     end
     box rgba(17, 24, 39, 0.12) External
@@ -370,14 +370,16 @@ sequenceDiagram
     accDescr: The coordinator requests a wrapping key, reads the encrypted Drive file, and dispatches to restore or create without passing wrapping material to Drive storage.
     box rgba(0, 158, 115, 0.18) src/browser/identity
         participant Controller as defaultBrowserIdentityController.ts<br/>DefaultBrowserIdentityController
-        participant DriveFactory as createBrowserIdentityController.ts<br/>passportFilesForAccessToken()
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/application
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity
+        participant DriveFactory as createGoogleBackedIdentityRuntime.ts<br/>passportFilesForAccessToken()
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
         participant Establish as establishGoogleBackedIdentity.ts<br/>EstablishGoogleBackedIdentity
-        participant Restore as restoreGoogleDriveIdentity.ts<br/>RestoreGoogleDriveIdentity
-        participant Creator as createGoogleDriveIdentity.ts<br/>CreateGoogleDriveIdentity
+        participant Restore as restoreGoogleBackedIdentity.ts<br/>RestoreGoogleBackedIdentity
+        participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/adapters/google
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/wrapping-key/adapters
         participant Wrapping as googleWrappingKeyRequester.ts<br/>BrowserGoogleWrappingKeyRequester
     end
     box rgba(0, 158, 115, 0.18) src/browser/passport-file
@@ -431,8 +433,10 @@ sequenceDiagram
 sequenceDiagram
     accTitle: Existing identity restore call flow
     accDescr: Browser crypto decrypts the Drive envelope, BrowserPubky signs in with the restored key, and only a matching activated identity is saved locally; failures stop before later stages and cleanup runs after decryption succeeds.
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
+        participant Restore as restoreGoogleBackedIdentity.ts<br/>RestoreGoogleBackedIdentity
+    end
     box rgba(0, 158, 115, 0.18) src/browser/identity/application
-        participant Restore as restoreGoogleDriveIdentity.ts<br/>RestoreGoogleDriveIdentity
         participant Local as localIdentityService.ts<br/>LocalIdentityService
     end
     box rgba(0, 158, 115, 0.18) src/browser/passport-file
@@ -493,9 +497,9 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Missing identity encryption and Drive storage call flow
-    accDescr: CreateGoogleDriveIdentity asks BrowserPubky and the Pubky SDK for a new key and exported secret, encrypts the secret through PassportFileCrypto, creates the encrypted Drive file through the Drive repository, and then zeros the exported bytes.
-    box rgba(0, 158, 115, 0.18) src/browser/identity/application
-        participant Creator as createGoogleDriveIdentity.ts<br/>CreateGoogleDriveIdentity
+    accDescr: CreateGoogleBackedIdentity asks BrowserPubky and the Pubky SDK for a new key and exported secret, encrypts the secret through PassportFileCrypto, creates the encrypted Drive file through the Drive repository, and then zeros the exported bytes.
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
+        participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
     end
     box rgba(0, 158, 115, 0.18) src/browser/pubky
         participant Pubky as browserPubky.ts<br/>BrowserPubky
@@ -548,13 +552,15 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Missing identity activation and local save call flow
-    accDescr: CreateGoogleDriveIdentity requests and parses a Homegate invitation, then signs up, verifies, publishes discovery, and saves in order; each failure stops later stages and the generated key handle is always disposed.
+    accDescr: CreateGoogleBackedIdentity requests and parses a Homegate invitation, then signs up, verifies, publishes discovery, and saves in order; each failure stops later stages and the generated key handle is always disposed.
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
+        participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
+    end
     box rgba(0, 158, 115, 0.18) src/browser/identity/application
-        participant Creator as createGoogleDriveIdentity.ts<br/>CreateGoogleDriveIdentity
         participant Local as localIdentityService.ts<br/>LocalIdentityService
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/adapters/google
-        participant Invite as googleHomegateInviteRequester.ts<br/>BrowserGoogleHomegateInviteRequester
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/homegate-invitation/adapters
+        participant Invite as googleHomegateInvitationRequester.ts<br/>BrowserGoogleHomegateInvitationRequester
     end
     box rgba(0, 158, 115, 0.18) src/browser/pubky
         participant Pubky as browserPubky.ts<br/>BrowserPubky
@@ -629,12 +635,14 @@ sequenceDiagram
     accDescr: After the shared Google flow returns verified tokens, the identity controller invokes DeleteGoogleDriveIdentity, which requests wrapping material, reads and decrypts the exact Drive revision, restores and compares the public identity, disposes the key, and deletes only the verified file reference.
     box rgba(0, 158, 115, 0.18) src/browser/identity
         participant Controller as defaultBrowserIdentityController.ts<br/>DefaultBrowserIdentityController
-        participant DriveFactory as createBrowserIdentityController.ts<br/>passportFilesForAccessToken()
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/application
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity
+        participant DriveFactory as createGoogleBackedIdentityRuntime.ts<br/>passportFilesForAccessToken()
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
         participant Delete as deleteGoogleDriveIdentity.ts<br/>DeleteGoogleDriveIdentity
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/adapters/google
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/wrapping-key/adapters
         participant Wrapping as googleWrappingKeyRequester.ts<br/>BrowserGoogleWrappingKeyRequester
     end
     box rgba(0, 158, 115, 0.18) src/browser/passport-file
@@ -786,8 +794,8 @@ sequenceDiagram
     accTitle: Direct browser Homegate invitation call flow
     accDescr: The browser adapter sends only the Google ID token directly to configured Homegate, then bounds and maps the invitation or plaintext error to a safe application result.
     box rgba(0, 158, 115, 0.18) Browser runtime
-        participant UseCase as APPLICATION<br/>CreateGoogleDriveIdentity
-        participant Adapter as BROWSER<br/>BrowserGoogleHomegateInviteRequester
+        participant UseCase as APPLICATION<br/>CreateGoogleBackedIdentity
+        participant Adapter as BROWSER<br/>BrowserGoogleHomegateInvitationRequester
     end
     box rgba(17, 24, 39, 0.12) External
         participant Homegate as Homegate
@@ -813,10 +821,10 @@ sequenceDiagram
 | Authorization controller | `src/browser/authorization` | `src/browser/authorization/*.test.ts` |
 | Authorization UI | `src/ui/authorizationReview.tsx` | `src/ui/authorizationReview.test.tsx` |
 | Google controller and adapters | `src/browser/identity` | `browserIdentityController.test.ts`, adapter tests |
-| Create / restore / reset | `src/browser/identity/application` | `googleIdentityUseCases.test.ts` |
+| Google-backed identity lifecycle | `src/browser/identity/google-backed-identity` | Colocated application, adapter, and composition tests |
 | Drive and WebCrypto | `src/browser/passport-file` | Repository and crypto tests |
 | Pubky SDK adapter | `src/browser/pubky/browserPubky.ts` | `browserPubky.test.ts` |
 | Wrapping-key API | `src/app/api/wrapping-key/google`, `src/server/wrapping-key/google` | Route and server tests |
 | Browser bootstrap config | `src/server/config/browserBootstrapConfig.ts` | `browserBootstrapConfig.test.ts`, proxy tests |
-| Homegate invitation | `src/browser/identity/adapters/google/googleHomegateInviteRequester.ts` | Browser adapter tests |
+| Homegate invitation | `src/browser/identity/google-backed-identity/homegate-invitation` | Colocated browser adapter tests |
 | CSP and boundaries | `proxy.ts`, `next.config.mjs`, architecture test | Proxy, header, policy, architecture tests |
