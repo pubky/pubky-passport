@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { expectResultError, expectResultOk } from "../../../../test-utils/resultAssertions";
-import { pubkySecretKeyFormat } from "../../pubky/ports";
+import { MemoryStorage } from "../../../../../test-utils/fakes/memoryStorage";
+import { expectResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
+import { pubkySecretKeyFormat } from "../../../pubky/ports";
 import { LocalStorageIdentityRepository } from "./localStorageIdentityRepository";
 
 const firstIdentity = { publicKeyZ32: "firstidentity111111111111111111111111111111111111111111", publicKeyDisplay: "pubkyfirstidentity111111111111111111111111111111111111111111" };
@@ -70,14 +71,4 @@ function save(repository: LocalStorageIdentityRepository, publicIdentity: typeof
     identity: { id: publicIdentity.publicKeyZ32, publicIdentity },
     secretKey: { bytes: new Uint8Array(32).fill(byte), format: pubkySecretKeyFormat },
   }));
-}
-
-class MemoryStorage implements Storage {
-  readonly #values = new Map<string, string>();
-  get length(): number { return this.#values.size; }
-  clear(): void { this.#values.clear(); }
-  getItem(key: string): string | null { return this.#values.get(key) ?? null; }
-  key(index: number): string | null { return Array.from(this.#values.keys())[index] ?? null; }
-  removeItem(key: string): void { this.#values.delete(key); }
-  setItem(key: string, value: string): void { this.#values.set(key, value); }
 }

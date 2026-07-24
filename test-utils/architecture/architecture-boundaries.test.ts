@@ -14,14 +14,16 @@ const libsRoot = join(srcRoot, "libs");
 const serverConfigRoot = join(serverRoot, "config");
 const checkedExtensions = new Set([".js", ".mjs", ".ts", ".tsx"]);
 const identityRoot = join(browserRoot, "identity");
-const identityAdaptersRoot = join(browserRoot, "identity", "adapters");
-const googleBackedIdentityRoot = join(browserRoot, "identity", "google-backed-identity");
-const localIdentityRepository = join(identityAdaptersRoot, "localStorageIdentityRepository.ts");
+const localIdentityRepository = join(identityRoot, "local-identity", "adapters", "localStorageIdentityRepository.ts");
 const browserPubky = join(browserRoot, "pubky", "browserPubky.ts");
+const identityProductionModules = productionSourceFiles(identityRoot);
+const identityModulesByRole = Map.groupBy(identityProductionModules, identityModuleRole);
 const browserCompositionFactories = [
   join(browserRoot, "authorization", "createBrowserAuthorizationController.ts"),
-  join(browserRoot, "identity", "createBrowserIdentityController.ts"),
-  join(googleBackedIdentityRoot, "createGoogleBackedIdentityRuntime.ts"),
+  join(identityRoot, "createBrowserIdentityController.ts"),
+  ...productionSourceFiles(browserRoot).filter((filePath) =>
+    relative(browserRoot, filePath).split(sep).includes("composition")
+  ),
 ];
 const stableUiBrowserModules = new Set([
   join(browserRoot, "authorization", "browserAuthorizationController.ts"),
@@ -30,9 +32,7 @@ const stableUiBrowserModules = new Set([
   join(browserRoot, "identity", "createBrowserIdentityController.ts"),
 ]);
 const browserAdapterModules = [
-  ...productionSourceFiles(identityRoot).filter((filePath) =>
-    relative(identityRoot, filePath).split(sep).includes("adapters")
-  ),
+  ...(identityModulesByRole.get("adapter") ?? []),
   browserPubky,
   join(browserRoot, "passport-file", "googleDrivePassportFileRepository.ts"),
   join(browserRoot, "passport-file", "webCryptoPassportFileCrypto.ts"),
@@ -45,9 +45,16 @@ const googleWrappingKeyApplicationModules = [
   join(googleWrappingKeyRoot, "request.ts"),
 ];
 
-const browserApplicationModules = productionSourceFiles(browserRoot)
+const nonIdentityBrowserApplicationModules = productionSourceFiles(browserRoot)
+  .filter((filePath) => !isSameOrInside(filePath, identityRoot))
   .filter((filePath) => !browserCompositionFactories.includes(filePath))
   .filter((filePath) => !browserAdapterModules.includes(filePath));
+const browserApplicationModules = [
+  ...nonIdentityBrowserApplicationModules,
+  ...(identityModulesByRole.get("application") ?? []),
+  ...(identityModulesByRole.get("controller") ?? []),
+  ...(identityModulesByRole.get("public") ?? []),
+].sort();
 
 const forbiddenCoreImports = [
   "@synonymdev/pubky",
@@ -226,12 +233,30 @@ describe("architecture boundaries", () => {
   });
 
   it("keeps browser adapters independent from composition, env, UI, and server code", () => {
+    const violations = browserAdapterModules.flatMap((filePath) =>
+      inspectForbiddenImports(filePath, {
+        forbiddenModuleSpecifiers: ["server-only"],
+        forbiddenTargets: [
+          ...browserCompositionFactories.map((targetPath) => ({ targetPath, label: "browser composition factory" })),
+          ...browserAdapterModules
+            .filter((targetPath) => targetPath !== filePath)
+            .map((targetPath) => ({ targetPath, label: "another browser adapter" })),
+          { targetPath: uiRoot, label: "UI" },
+          { targetPath: serverRoot, label: "server runtime" },
+        ],
+        traverseLocalImports: true,
+      })
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it("keeps browser composition roots independent from UI and server code", () => {
     const forbiddenTargets = [
-      ...browserCompositionFactories.map((targetPath) => ({ targetPath, label: "browser composition factory" })),
       { targetPath: uiRoot, label: "UI" },
       { targetPath: serverRoot, label: "server runtime" },
     ];
-    const violations = browserAdapterModules.flatMap((filePath) =>
+    const violations = browserCompositionFactories.flatMap((filePath) =>
       inspectForbiddenImports(filePath, {
         forbiddenModuleSpecifiers: ["server-only"],
         forbiddenTargets,
@@ -242,6 +267,17 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
+  it("classifies every identity module by an explicit architectural role", () => {
+    expect(identityModulesByRole.get("unclassified") ?? []).toEqual([]);
+    expect(identityProductionModules).toEqual([
+      ...(identityModulesByRole.get("application") ?? []),
+      ...(identityModulesByRole.get("adapter") ?? []),
+      ...(identityModulesByRole.get("composition") ?? []),
+      ...(identityModulesByRole.get("controller") ?? []),
+      ...(identityModulesByRole.get("public") ?? []),
+    ].sort());
+  });
+
   it("classifies every browser module as application, composition, or adapter code", () => {
     const productionModules = new Set(productionSourceFiles(browserRoot));
     const allowlistedDetails = [...browserCompositionFactories, ...browserAdapterModules];
@@ -249,7 +285,7 @@ describe("architecture boundaries", () => {
     expect(new Set(allowlistedDetails).size).toBe(allowlistedDetails.length);
     expect(allowlistedDetails.filter((filePath) => !productionModules.has(filePath))).toEqual([]);
     expect(browserApplicationModules).toEqual(
-      [...productionModules].filter((filePath) => !allowlistedDetails.includes(filePath)),
+      [...productionModules].filter((filePath) => !allowlistedDetails.includes(filePath)).sort(),
     );
   });
 
@@ -272,6 +308,22 @@ describe("architecture boundaries", () => {
     expect(violations[0]).toContain("fixture server target");
   });
 });
+
+type IdentityModuleRole = "application" | "adapter" | "composition" | "controller" | "public" | "unclassified";
+
+function identityModuleRole(filePath: string): IdentityModuleRole {
+  const relativePath = relative(identityRoot, filePath);
+  if (relativePath === "browserIdentityController.ts") return "public";
+  if (relativePath === "createBrowserIdentityController.ts") return "composition";
+  if (relativePath === "passportIdentityController.ts") return "controller";
+
+  const segments = relativePath.split(sep);
+  if (segments.includes("application")) return "application";
+  if (segments.includes("adapters")) return "adapter";
+  if (segments.includes("composition")) return "composition";
+  if (segments.includes("controller")) return "controller";
+  return "unclassified";
+}
 
 function inspectCoreFile(filePath: string): string[] {
   const source = readFileSync(filePath, "utf8");

@@ -12,7 +12,7 @@ import type {
   GoogleIdentityEstablisher,
   GoogleIdentitySession,
 } from "./googleBackedIdentity";
-import type { GoogleWrappingKeyRequester } from "../wrapping-key/googleWrappingKey";
+import type { GoogleWrappingKeyRequester } from "../wrapping-key/application/googleWrappingKey";
 
 export type {
   GoogleBackedIdentity,

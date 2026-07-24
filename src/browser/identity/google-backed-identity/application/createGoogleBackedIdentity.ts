@@ -15,8 +15,8 @@ import type {
   GoogleBackedIdentity,
   GoogleBackedIdentityResult,
 } from "./googleBackedIdentity";
-import type { GoogleHomegateInvitationRequester } from "../homegate-invitation/homegateInvitation";
-import type { LocalIdentitySaver } from "../../application/ports/localIdentity";
+import type { GoogleHomegateInvitationRequester } from "../homegate-invitation/application/homegateInvitation";
+import type { LocalIdentitySaver } from "../../local-identity/application/saveLocalIdentity";
 
 export class CreateGoogleBackedIdentity implements GoogleBackedIdentityCreator {
   readonly #crypto: PassportFileCrypto;

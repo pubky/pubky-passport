@@ -7,7 +7,7 @@ import type {
   GoogleHomegateInvitationRequester,
   GoogleHomegateInvitationRequesterErrorCode,
   HomeserverSignupInvitation,
-} from "../homegateInvitation";
+} from "../application/homegateInvitation";
 
 const maximumSuccessResponseBytes = 16 * 1024;
 const maximumErrorResponseBytes = 256;

@@ -5,12 +5,12 @@ import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { BrowserIdentityControllerError } from "./browserIdentityController";
 import {
-  DefaultBrowserIdentityController,
+  PassportIdentityController,
   type BrowserIdentityControllerDependencies,
-} from "./defaultBrowserIdentityController";
-import type { GoogleSignInWidgetResult } from "./application/ports/google/googleSignIn";
+} from "./passportIdentityController";
+import type { GoogleSignInResult } from "./google-sign-in/application/googleSignIn";
 
-describe("DefaultBrowserIdentityController", () => {
+describe("PassportIdentityController", () => {
   it("exposes a finite action error code contract", () => {
     expectTypeOf<BrowserIdentityControllerError["code"]>().not.toEqualTypeOf<string>();
   });
@@ -23,7 +23,7 @@ describe("DefaultBrowserIdentityController", () => {
     const requestGoogleDriveAccess = vi.fn(async () => Result.ok("drive-access-token"));
     const { controller, credentialCallback } = await mountedController({
       identityEstablisher: { establish },
-      requestGoogleDriveAccess,
+      googleDriveAccessRequester: { request: requestGoogleDriveAccess },
     });
 
     credentialCallback.current?.(googleCredential());
@@ -53,7 +53,9 @@ describe("DefaultBrowserIdentityController", () => {
   it("account-matches Drive access and exposes only safe Google state", async () => {
     const states: unknown[] = [];
     const requestGoogleDriveAccess = vi.fn(async () => Result.err({ code: "drive_account_mismatch" as const }));
-    const { controller, credentialCallback } = await mountedController({ requestGoogleDriveAccess }, states);
+    const { controller, credentialCallback } = await mountedController({
+      googleDriveAccessRequester: { request: requestGoogleDriveAccess },
+    }, states);
 
     credentialCallback.current?.(googleCredential());
     const completed = await controller.continueGoogle({ kind: "establish" });
@@ -77,7 +79,7 @@ describe("DefaultBrowserIdentityController", () => {
     });
     const { controller, credentialCallback } = await mountedController({
       identityEstablisher: { establish },
-      requestGoogleDriveAccess,
+      googleDriveAccessRequester: { request: requestGoogleDriveAccess },
     });
     credentialCallback.current?.(googleCredential());
 
@@ -95,9 +97,9 @@ describe("DefaultBrowserIdentityController", () => {
     ["error", vi.fn(async () => Result.err({ code: "google_unavailable" as const }))],
   ])("maps a Google widget mount %s to safe state", async (_operation, mount) => {
     const states: unknown[] = [];
-    const controller = new DefaultBrowserIdentityController({
+    const controller = new PassportIdentityController({
       clientId: "google-client",
-      dependencies: dependencies({ googleSignInWidget: { mount, unmount: vi.fn() } }),
+      dependencies: dependencies({ googleSignInButton: { mount, unmount: vi.fn() } }),
     });
 
     await expect(controller.mountGoogleSignIn(document.createElement("div"), (state) => states.push(state))).resolves.toBeUndefined();
@@ -114,9 +116,9 @@ describe("DefaultBrowserIdentityController", () => {
       .mockResolvedValueOnce(Result.ok());
     const unmount = vi.fn();
     const states: unknown[] = [];
-    const controller = new DefaultBrowserIdentityController({
+    const controller = new PassportIdentityController({
       clientId: "google-client",
-      dependencies: dependencies({ googleSignInWidget: { mount, unmount } }),
+      dependencies: dependencies({ googleSignInButton: { mount, unmount } }),
     });
 
     await controller.mountGoogleSignIn(document.createElement("div"), (state) => states.push(state));
@@ -131,7 +133,7 @@ describe("DefaultBrowserIdentityController", () => {
   it("maps thrown Drive acquisition to credential failure without rejecting", async () => {
     const states: unknown[] = [];
     const { controller, credentialCallback } = await mountedController({
-      requestGoogleDriveAccess: vi.fn(async () => { throw new Error("Drive failed"); }),
+      googleDriveAccessRequester: { request: vi.fn(async () => { throw new Error("Drive failed"); }) },
     }, states);
     credentialCallback.current?.(googleCredential());
 
@@ -166,7 +168,7 @@ describe("DefaultBrowserIdentityController", () => {
     }));
     const establish = vi.fn(async () => Result.err({ code: "unexpected_failure" as const }));
     const { controller, credentialCallback } = await mountedController({
-      requestGoogleDriveAccess,
+      googleDriveAccessRequester: { request: requestGoogleDriveAccess },
       identityEstablisher: { establish },
     });
     credentialCallback.current?.(googleCredential());
@@ -273,7 +275,7 @@ describe("DefaultBrowserIdentityController", () => {
   it("delegates safe local identity operations and owns Pubky disposal", () => {
     const repository = fakeRepository();
     const disposeIdentityRuntime = vi.fn();
-    const controller = new DefaultBrowserIdentityController({
+    const controller = new PassportIdentityController({
       clientId: "google-client",
       dependencies: dependencies({ repository, disposeIdentityRuntime }),
     });
@@ -295,12 +297,12 @@ async function mountedController(
   states: unknown[] = [],
 ) {
   const credentialCallback: {
-    current: ((result: GoogleSignInWidgetResult<{ googleIdToken: string; subject: string }>) => void) | null;
+    current: ((result: GoogleSignInResult<{ googleIdToken: string; subject: string }>) => void) | null;
   } = { current: null };
-  const controller = new DefaultBrowserIdentityController({
+  const controller = new PassportIdentityController({
     clientId: "google-client",
     dependencies: dependencies({
-      googleSignInWidget: {
+      googleSignInButton: {
         mount: vi.fn(async (input) => {
           credentialCallback.current = input.onCredential;
           return Result.ok();
@@ -320,8 +322,8 @@ function dependencies(overrides: Partial<BrowserIdentityControllerDependencies> 
     identityEstablisher: { establish: vi.fn(async () => Result.err({ code: "unexpected_failure" as const })) },
     identityDeleter: { execute: vi.fn(async () => Result.ok()) },
     disposeIdentityRuntime: vi.fn(),
-    googleSignInWidget: { mount: vi.fn(async () => Result.ok()), unmount: vi.fn() },
-    requestGoogleDriveAccess: vi.fn(async () => Result.ok("drive-access-token")),
+    googleSignInButton: { mount: vi.fn(async () => Result.ok()), unmount: vi.fn() },
+    googleDriveAccessRequester: { request: vi.fn(async () => Result.ok("drive-access-token")) },
     ...overrides,
   };
 }
@@ -339,9 +341,7 @@ function deferred<T>() {
 function fakeRepository(): BrowserIdentityControllerDependencies["repository"] {
   return {
     list: vi.fn(() => Result.ok({ activeIdentityId: null, identities: [] })),
-    save: vi.fn((input) => Result.ok(input.identity)),
     select: vi.fn(() => Result.ok()),
     clear: vi.fn(() => Result.ok()),
-    readActive: vi.fn(() => Result.err({ code: "no_active_identity" as const })),
   };
 }

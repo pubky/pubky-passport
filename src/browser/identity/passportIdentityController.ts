@@ -18,30 +18,26 @@ import type {
   GoogleIdentityEstablisher,
 } from "./google-backed-identity/application/googleBackedIdentity";
 import type {
-  GoogleIdentityProviderErrorCode,
-  GoogleIdentityProviderResult,
-  GoogleSignInWidget,
-} from "./application/ports/google/googleSignIn";
+  GoogleDriveAccessErrorCode,
+  GoogleDriveAccessRequester,
+  GoogleDriveAccessResult,
+} from "./google-drive-access/application/googleDriveAccess";
+import type { GoogleSignInButton } from "./google-sign-in/application/googleSignIn";
 import type {
-  LocalIdentityRepository,
+  LocalIdentityCatalog,
   LocalIdentityRepositoryResult,
-} from "./application/ports/localIdentityRepository";
+} from "./local-identity/application/localIdentityRepository";
 
 export type BrowserIdentityControllerDependencies = {
-  repository: LocalIdentityRepository;
+  repository: LocalIdentityCatalog;
   identityEstablisher: GoogleIdentityEstablisher;
   identityDeleter: GoogleDriveIdentityDeleter;
   disposeIdentityRuntime(): void;
-  googleSignInWidget: GoogleSignInWidget;
-  requestGoogleDriveAccess(input: {
-    clientId: string;
-    loginHint: string;
-    expectedSubject: string;
-    signal: AbortSignal;
-  }): Promise<GoogleIdentityProviderResult<string>>;
+  googleSignInButton: GoogleSignInButton;
+  googleDriveAccessRequester: GoogleDriveAccessRequester;
 };
 
-export class DefaultBrowserIdentityController implements BrowserIdentityController {
+export class PassportIdentityController implements BrowserIdentityController {
   readonly #clientId: string;
   readonly #dependencies: BrowserIdentityControllerDependencies;
   #target: HTMLElement | null = null;
@@ -69,9 +65,9 @@ export class DefaultBrowserIdentityController implements BrowserIdentityControll
     this.#target = target;
     this.#onState = onState;
     const activeAttempt = ++this.#attempt;
-    let mounted: Awaited<ReturnType<GoogleSignInWidget["mount"]>>;
+    let mounted: Awaited<ReturnType<GoogleSignInButton["mount"]>>;
     try {
-      mounted = await this.#dependencies.googleSignInWidget.mount({
+      mounted = await this.#dependencies.googleSignInButton.mount({
         target,
         onCredential: (credential) => {
           if (this.#disposed || activeAttempt !== this.#attempt) return;
@@ -99,7 +95,7 @@ export class DefaultBrowserIdentityController implements BrowserIdentityControll
 
   unmountGoogleSignIn(): void {
     this.abortDriveAccess();
-    this.#dependencies.googleSignInWidget.unmount();
+    this.#dependencies.googleSignInButton.unmount();
     this.#target = null;
     this.#onState = null;
     this.#googleIdToken = null;
@@ -131,9 +127,9 @@ export class DefaultBrowserIdentityController implements BrowserIdentityControll
       const abortController = new AbortController();
       this.abortDriveAccess();
       this.#driveAbortController = abortController;
-      let driveAccess: GoogleIdentityProviderResult<string>;
+      let driveAccess: GoogleDriveAccessResult<string>;
       try {
-        driveAccess = await this.#dependencies.requestGoogleDriveAccess({
+        driveAccess = await this.#dependencies.googleDriveAccessRequester.request({
           clientId: this.#clientId,
           loginHint: googleSubject,
           expectedSubject: googleSubject,
@@ -219,7 +215,7 @@ export class DefaultBrowserIdentityController implements BrowserIdentityControll
 
   private showGoogleUnavailable(code: string): void {
     logger.warn("identity.google.button.unavailable", { code });
-    this.#dependencies.googleSignInWidget.unmount();
+    this.#dependencies.googleSignInButton.unmount();
     this.#googleIdToken = null;
     this.#googleSubject = null;
     this.emit({ stage: "sign-in", errorCode: "sign_in_unavailable" });
@@ -249,7 +245,7 @@ function actionFailure(error: BrowserIdentityControllerError): BrowserIdentityAc
   });
 }
 
-function errorForDriveFailure(code: GoogleIdentityProviderErrorCode): GoogleSignInState["errorCode"] {
+function errorForDriveFailure(code: GoogleDriveAccessErrorCode): GoogleSignInState["errorCode"] {
   switch (code) {
     case "drive_popup_closed": return "drive_popup_closed";
     case "drive_popup_failed_to_open": return "drive_popup_failed_to_open";

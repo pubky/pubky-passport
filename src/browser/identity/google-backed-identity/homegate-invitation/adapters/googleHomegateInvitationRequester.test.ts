@@ -1,7 +1,7 @@
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { GoogleHomegateInvitationRequesterErrorCode } from "../homegateInvitation";
+import type { GoogleHomegateInvitationRequesterErrorCode } from "../application/homegateInvitation";
 import { BrowserGoogleHomegateInvitationRequester } from "./googleHomegateInvitationRequester";
 
 const homegateBaseUrl = "https://homegate.example/";

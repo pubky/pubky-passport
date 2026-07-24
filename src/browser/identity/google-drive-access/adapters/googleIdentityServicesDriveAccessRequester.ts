@@ -1,0 +1,164 @@
+import "client-only";
+
+import { Result } from "better-result";
+
+import type {
+  GoogleAccounts,
+  GoogleIdentityServicesLoader,
+} from "../../google-identity-services/application/googleIdentityServices";
+import type { GoogleDriveAccessRequester, GoogleDriveAccessResult } from "../application/googleDriveAccess";
+
+export const googleDriveAppDataScope = "https://www.googleapis.com/auth/drive.appdata";
+const googleOpenIdScope = "openid";
+const googleUserInfoUrl = "https://openidconnect.googleapis.com/v1/userinfo";
+const driveConsentTimeoutMs = 60_000;
+type GoogleSubjectVerification = "match" | "mismatch" | "unavailable" | "aborted";
+
+export class GoogleIdentityServicesDriveAccessRequester implements GoogleDriveAccessRequester {
+  readonly #fetch: typeof fetch;
+  readonly #googleIdentityServices: GoogleIdentityServicesLoader;
+  readonly #timeoutMs: number;
+
+  constructor(options: { googleIdentityServices: GoogleIdentityServicesLoader; fetch?: typeof fetch; timeoutMs?: number }) {
+    this.#googleIdentityServices = options.googleIdentityServices;
+    this.#fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
+    this.#timeoutMs = options.timeoutMs ?? driveConsentTimeoutMs;
+  }
+
+  async request(input: {
+    clientId: string;
+    loginHint: string;
+    expectedSubject: string;
+    signal: AbortSignal;
+  }): Promise<GoogleDriveAccessResult<string>> {
+    return requestGoogleDriveAccessToken({
+      ...input,
+      googleIdentityServices: this.#googleIdentityServices,
+      fetch: this.#fetch,
+      timeoutMs: this.#timeoutMs,
+    });
+  }
+}
+
+export async function requestGoogleDriveAccessToken(input: {
+  googleIdentityServices: GoogleIdentityServicesLoader;
+  clientId: string;
+  loginHint?: string;
+  selectAccount?: boolean;
+  expectedSubject?: string;
+  fetch?: typeof fetch;
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}): Promise<GoogleDriveAccessResult<string>> {
+  if (input.signal?.aborted) return Result.err({ code: "drive_consent_aborted" });
+  let accounts: Awaited<ReturnType<GoogleIdentityServicesLoader["loadGoogleAccounts"]>>;
+  try {
+    accounts = await input.googleIdentityServices.loadGoogleAccounts();
+  } catch {
+    return Result.err({ code: "google_unavailable" });
+  }
+  if (Result.isError(accounts)) return Result.err(accounts.error);
+  if (input.signal?.aborted) return Result.err({ code: "drive_consent_aborted" });
+
+  return requestDriveAccessToken(
+    accounts.value,
+    input.clientId,
+    input.selectAccount === true,
+    input.loginHint,
+    input.expectedSubject,
+    input.fetch ?? globalThis.fetch.bind(globalThis),
+    input.signal,
+    input.timeoutMs ?? driveConsentTimeoutMs,
+  );
+}
+
+function requestDriveAccessToken(
+  accounts: GoogleAccounts,
+  clientId: string,
+  selectAccount: boolean,
+  loginHint: string | undefined,
+  expectedSubject: string | undefined,
+  fetchImpl: typeof fetch,
+  signal: AbortSignal | undefined,
+  timeoutMs: number,
+): Promise<GoogleDriveAccessResult<string>> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const operationController = new AbortController();
+    const finish = (result: GoogleDriveAccessResult<string>): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      resolve(result);
+    };
+    const abort = (): void => {
+      operationController.abort();
+      finish(Result.err({ code: "drive_consent_aborted" }));
+    };
+    const timer = setTimeout(() => {
+      operationController.abort();
+      finish(Result.err({ code: "drive_consent_timeout" }));
+    }, Math.max(0, timeoutMs));
+    signal?.addEventListener("abort", abort, { once: true });
+
+    try {
+      const tokenClient = accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: `${googleOpenIdScope} ${googleDriveAppDataScope}`,
+        ...(loginHint ? { login_hint: loginHint } : {}),
+        async callback(response) {
+          if (settled) return;
+          if (typeof response.access_token !== "string" || response.access_token.length === 0 || response.error !== undefined || !hasGoogleScope(response.scope, googleDriveAppDataScope)) {
+            finish(Result.err({ code: "drive_consent_failed" }));
+            return;
+          }
+
+          if (expectedSubject) {
+            const verification = await verifyGoogleSubject(response.access_token, expectedSubject, fetchImpl, operationController.signal);
+            if (verification !== "match") {
+              const code = verification === "mismatch"
+                ? "drive_account_mismatch"
+                : verification === "aborted"
+                  ? "drive_consent_aborted"
+                  : "drive_account_verification_failed";
+              finish(Result.err({ code }));
+              return;
+            }
+          }
+
+          finish(Result.ok(response.access_token));
+        },
+        error_callback(error) {
+          finish(Result.err({ code: error.type === "popup_closed" ? "drive_popup_closed" : "drive_popup_failed_to_open" }));
+        },
+      });
+      tokenClient.requestAccessToken({ prompt: selectAccount ? "select_account" : "" });
+    } catch {
+      finish(Result.err({ code: "drive_popup_failed_to_open" }));
+    }
+  });
+}
+
+async function verifyGoogleSubject(
+  accessToken: string,
+  expectedSubject: string,
+  fetchImpl: typeof fetch,
+  signal: AbortSignal,
+): Promise<GoogleSubjectVerification> {
+  try {
+    const response = await fetchImpl(googleUserInfoUrl, { headers: { Authorization: `Bearer ${accessToken}` }, signal });
+    if (!response.ok) return "unavailable";
+    const body: unknown = await response.json();
+    if (!body || typeof body !== "object" || !("sub" in body) || typeof body.sub !== "string" || body.sub.length === 0) {
+      return "unavailable";
+    }
+    return body.sub === expectedSubject ? "match" : "mismatch";
+  } catch {
+    return signal.aborted ? "aborted" : "unavailable";
+  }
+}
+
+function hasGoogleScope(value: unknown, expectedScope: string): boolean {
+  return typeof value === "string" && value.split(" ").includes(expectedScope);
+}

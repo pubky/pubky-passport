@@ -1,5 +1,13 @@
 import "client-only";
 
+import type { Result } from "better-result";
+
+export type GoogleIdentityServicesResult<T> = Result<T, { code: "google_unavailable" }>;
+
+export type GoogleIdentityServicesLoader = {
+  loadGoogleAccounts(): Promise<GoogleIdentityServicesResult<GoogleAccounts>>;
+};
+
 export type GoogleCredentialResponse = { credential?: unknown };
 export type GoogleTokenResponse = { access_token?: unknown; error?: unknown; scope?: unknown };
 export type GoogleOAuthError = { type?: unknown };

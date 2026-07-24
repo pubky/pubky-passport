@@ -11,7 +11,7 @@ import type {
   GoogleBackedIdentityResult,
   GoogleBackedIdentityRestorer,
 } from "./googleBackedIdentity";
-import type { LocalIdentitySaver } from "../../application/ports/localIdentity";
+import type { LocalIdentitySaver } from "../../local-identity/application/saveLocalIdentity";
 
 export class RestoreGoogleBackedIdentity implements GoogleBackedIdentityRestorer {
   readonly #crypto: PassportFileCrypto;

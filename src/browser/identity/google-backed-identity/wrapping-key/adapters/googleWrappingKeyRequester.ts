@@ -7,7 +7,7 @@ import { readBoundedText } from "../../../../../libs/http/boundedBody";
 import type {
   GoogleWrappingKeyRequester,
   GoogleWrappingKeyRequesterErrorCode,
-} from "../googleWrappingKey";
+} from "../application/googleWrappingKey";
 
 const maximumResponseBytes = 16 * 1024;
 const wrappingKeyBytes = 32;

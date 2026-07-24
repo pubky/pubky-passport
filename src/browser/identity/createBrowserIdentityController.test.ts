@@ -4,10 +4,10 @@ import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MemoryStorage } from "../../../test-utils/fakes/memoryStorage";
-import type { GoogleSignInWidgetResult } from "./application/ports/google/googleSignIn";
+import type { GoogleSignInResult } from "./google-sign-in/application/googleSignIn";
 
 type CredentialCallback = (
-  result: GoogleSignInWidgetResult<{ googleIdToken: string; subject: string }>,
+  result: GoogleSignInResult<{ googleIdToken: string; subject: string }>,
 ) => void;
 
 const mocks = vi.hoisted(() => ({
@@ -15,23 +15,24 @@ const mocks = vi.hoisted(() => ({
   disposeIdentityRuntime: vi.fn(),
   establish: vi.fn(),
   deleteIdentity: vi.fn(),
-  GoogleSignInWidget: vi.fn(),
+  GoogleIdentityServicesSignInButton: vi.fn(),
+  GoogleIdentityServicesDriveAccessRequester: vi.fn(),
   mountGoogleSignIn: vi.fn(),
   unmountGoogleSignIn: vi.fn(),
   requestGoogleDriveAccess: vi.fn(),
   credentialCallback: null as CredentialCallback | null,
 }));
 
-vi.mock("./google-backed-identity/createGoogleBackedIdentityRuntime", () => ({
+vi.mock("./google-backed-identity/composition/createGoogleBackedIdentityRuntime", () => ({
   createGoogleBackedIdentityRuntime: mocks.createGoogleBackedIdentityRuntime,
 }));
 
-vi.mock("./adapters/google/googleSignInWidget", () => ({
-  GoogleSignInWidget: mocks.GoogleSignInWidget,
+vi.mock("./google-sign-in/adapters/googleIdentityServicesSignInButton", () => ({
+  GoogleIdentityServicesSignInButton: mocks.GoogleIdentityServicesSignInButton,
 }));
 
-vi.mock("./adapters/google/googleIdentityProvider", () => ({
-  requestGoogleDriveAccess: mocks.requestGoogleDriveAccess,
+vi.mock("./google-drive-access/adapters/googleIdentityServicesDriveAccessRequester", () => ({
+  GoogleIdentityServicesDriveAccessRequester: mocks.GoogleIdentityServicesDriveAccessRequester,
 }));
 
 import { createBrowserIdentityController } from "./createBrowserIdentityController";
@@ -48,7 +49,8 @@ describe("createBrowserIdentityController", () => {
     mocks.disposeIdentityRuntime.mockReset();
     mocks.establish.mockReset();
     mocks.deleteIdentity.mockReset();
-    mocks.GoogleSignInWidget.mockReset();
+    mocks.GoogleIdentityServicesSignInButton.mockReset();
+    mocks.GoogleIdentityServicesDriveAccessRequester.mockReset();
     mocks.mountGoogleSignIn.mockReset();
     mocks.unmountGoogleSignIn.mockReset();
     mocks.requestGoogleDriveAccess.mockReset();
@@ -61,11 +63,14 @@ describe("createBrowserIdentityController", () => {
         dispose: mocks.disposeIdentityRuntime,
       };
     });
-    mocks.GoogleSignInWidget.mockImplementation(function () {
+    mocks.GoogleIdentityServicesSignInButton.mockImplementation(function () {
       return {
         mount: mocks.mountGoogleSignIn,
         unmount: mocks.unmountGoogleSignIn,
       };
+    });
+    mocks.GoogleIdentityServicesDriveAccessRequester.mockImplementation(function () {
+      return { request: mocks.requestGoogleDriveAccess };
     });
     mocks.mountGoogleSignIn.mockImplementation(async (input: {
       onCredential: CredentialCallback;
@@ -108,7 +113,7 @@ describe("createBrowserIdentityController", () => {
       }),
     });
     expect(mocks.createGoogleBackedIdentityRuntime).toHaveBeenCalledWith({
-      repository: expect.anything(),
+      keyStore: expect.anything(),
       homegateBaseUrl: "https://homegate.example/",
       passportOrigin: window.location.origin,
     });

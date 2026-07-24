@@ -2,8 +2,8 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { LocalStorageIdentityRepository } from "../identity/adapters/localStorageIdentityRepository";
-import { LocalIdentityService } from "../identity/application/localIdentityService";
+import { RestoreActiveLocalIdentityKey } from "../identity/local-identity/application/restoreActiveLocalIdentityKey";
+import { LocalStorageIdentityRepository } from "../identity/local-identity/adapters/localStorageIdentityRepository";
 import { BrowserPubky } from "../pubky/browserPubky";
 import {
   approveActiveAuthorization,
@@ -52,14 +52,14 @@ async function approveWithBrowserPubky(
 function createActiveAuthorizationIdentityRestorer(
   pubky: BrowserPubky,
 ): ActiveAuthorizationIdentityRestorer {
-  const localIdentities = new LocalIdentityService({
-    repository: new LocalStorageIdentityRepository(),
+  const localIdentities = new RestoreActiveLocalIdentityKey({
+    keyStore: new LocalStorageIdentityRepository(),
     identityKeys: pubky,
   });
 
   return {
     async restoreActiveIdentity() {
-      const restored = await localIdentities.restoreActiveIdentity();
+      const restored = await localIdentities.restore();
       if (Result.isError(restored)) {
         return Result.err({
           code: restored.error.code === "no_active_identity"

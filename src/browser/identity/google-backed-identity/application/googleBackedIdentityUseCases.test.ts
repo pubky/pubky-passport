@@ -4,7 +4,7 @@ import { Result } from "better-result";
 import { FakePubkyIdentityKeys } from "../../../../../test-utils/fakes/fakePubkyIdentityKeys";
 import { FakePubkyDiscovery } from "../../../../../test-utils/fakes/fakePubkyDiscovery";
 import { FakePubkySignup } from "../../../../../test-utils/fakes/fakePubkySignup";
-import type { LocalIdentitySaver } from "../../application/ports/localIdentity";
+import type { LocalIdentitySaver } from "../../local-identity/application/saveLocalIdentity";
 import type {
   PassportFileCrypto,
   PassportFileCryptoResult,
@@ -16,7 +16,7 @@ import type { PassportFileEnvelopeV1 } from "../../../../core/passport-file/pass
 import { CreateGoogleBackedIdentity } from "./createGoogleBackedIdentity";
 import { DeleteGoogleDriveIdentity } from "./deleteGoogleDriveIdentity";
 import { EstablishGoogleBackedIdentity } from "./establishGoogleBackedIdentity";
-import type { GoogleHomegateInvitationRequester, GoogleHomegateInvitationRequesterErrorCode } from "../homegate-invitation/homegateInvitation";
+import type { GoogleHomegateInvitationRequester, GoogleHomegateInvitationRequesterErrorCode } from "../homegate-invitation/application/homegateInvitation";
 import { RestoreGoogleBackedIdentity } from "./restoreGoogleBackedIdentity";
 
 const envelope: PassportFileEnvelopeV1 = {

@@ -1,20 +1,20 @@
 import "client-only";
 
-import { GoogleDrivePassportFileRepository } from "../../passport-file/googleDrivePassportFileRepository";
-import { WebCryptoPassportFileCrypto } from "../../passport-file/webCryptoPassportFileCrypto";
-import { BrowserPubky } from "../../pubky/browserPubky";
-import { LocalIdentityService } from "../application/localIdentityService";
-import type { LocalIdentityRepository } from "../application/ports/localIdentityRepository";
-import { CreateGoogleBackedIdentity } from "./application/createGoogleBackedIdentity";
-import { DeleteGoogleDriveIdentity } from "./application/deleteGoogleDriveIdentity";
-import { EstablishGoogleBackedIdentity } from "./application/establishGoogleBackedIdentity";
+import { GoogleDrivePassportFileRepository } from "../../../passport-file/googleDrivePassportFileRepository";
+import { WebCryptoPassportFileCrypto } from "../../../passport-file/webCryptoPassportFileCrypto";
+import { BrowserPubky } from "../../../pubky/browserPubky";
+import type { LocalIdentityKeyStore } from "../../local-identity/application/localIdentityRepository";
+import { SaveLocalIdentity } from "../../local-identity/application/saveLocalIdentity";
+import { CreateGoogleBackedIdentity } from "../application/createGoogleBackedIdentity";
+import { DeleteGoogleDriveIdentity } from "../application/deleteGoogleDriveIdentity";
+import { EstablishGoogleBackedIdentity } from "../application/establishGoogleBackedIdentity";
 import type {
   GoogleDriveIdentityDeleter,
   GoogleIdentityEstablisher,
-} from "./application/googleBackedIdentity";
-import { RestoreGoogleBackedIdentity } from "./application/restoreGoogleBackedIdentity";
-import { BrowserGoogleHomegateInvitationRequester } from "./homegate-invitation/adapters/googleHomegateInvitationRequester";
-import { BrowserGoogleWrappingKeyRequester } from "./wrapping-key/adapters/googleWrappingKeyRequester";
+} from "../application/googleBackedIdentity";
+import { RestoreGoogleBackedIdentity } from "../application/restoreGoogleBackedIdentity";
+import { BrowserGoogleHomegateInvitationRequester } from "../homegate-invitation/adapters/googleHomegateInvitationRequester";
+import { BrowserGoogleWrappingKeyRequester } from "../wrapping-key/adapters/googleWrappingKeyRequester";
 
 export type GoogleBackedIdentityRuntime = {
   identityEstablisher: GoogleIdentityEstablisher;
@@ -23,13 +23,13 @@ export type GoogleBackedIdentityRuntime = {
 };
 
 export function createGoogleBackedIdentityRuntime(input: {
-  repository: LocalIdentityRepository;
+  keyStore: LocalIdentityKeyStore;
   homegateBaseUrl: string;
   passportOrigin: string;
 }): GoogleBackedIdentityRuntime {
   const pubky = new BrowserPubky();
   try {
-    const localIdentities = new LocalIdentityService({ repository: input.repository, identityKeys: pubky });
+    const localIdentities = new SaveLocalIdentity({ keyStore: input.keyStore, identityKeys: pubky });
     const wrappingKeys = new BrowserGoogleWrappingKeyRequester();
     const crypto = new WebCryptoPassportFileCrypto();
     const passportFilesForAccessToken = (token: string) => new GoogleDrivePassportFileRepository({

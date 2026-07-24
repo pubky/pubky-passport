@@ -204,10 +204,10 @@ sequenceDiagram
         participant Composition as createBrowserAuthorizationController.ts<br/>approveWithBrowserPubky()<br/>createActiveAuthorizationIdentityRestorer()
         participant UseCase as approveActiveAuthorization.ts<br/>approveActiveAuthorization()
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/application
-        participant Local as localIdentityService.ts<br/>LocalIdentityService
+    box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/application
+        participant Local as restoreActiveLocalIdentityKey.ts<br/>RestoreActiveLocalIdentityKey
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/adapters
+    box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/adapters
         participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
     end
     box rgba(0, 158, 115, 0.18) src/browser/pubky
@@ -231,7 +231,7 @@ sequenceDiagram
     Composition->>Composition: createActiveAuthorizationIdentityRestorer(pubky)
     Composition->>UseCase: approveActiveAuthorization(...)
     UseCase->>Composition: returned restoreActiveIdentity()
-    Composition->>Local: restoreActiveIdentity()
+    Composition->>Local: restore()
     Local->>Repo: readActive()
     Repo-->>Local: public metadata + 32-byte secret
     Local->>Pubky: restoreIdentityKey(secret)
@@ -308,11 +308,16 @@ sequenceDiagram
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity
         participant Factory as createBrowserIdentityController.ts<br/>createBrowserIdentityController()
-        participant Controller as defaultBrowserIdentityController.ts<br/>DefaultBrowserIdentityController
+        participant Controller as passportIdentityController.ts<br/>PassportIdentityController
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/adapters/google
-        participant Widget as googleSignInWidget.ts<br/>GoogleSignInWidget
-        participant GoogleProvider as googleIdentityProvider.ts<br/>bindGoogleCredentialCallback()<br/>googleIdTokenSubject()<br/>requestGoogleDriveAccess()
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-sign-in/adapters
+        participant SignIn as googleIdentityServicesSignInButton.ts<br/>GoogleIdentityServicesSignInButton
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-drive-access/adapters
+        participant DriveAccess as googleIdentityServicesDriveAccessRequester.ts<br/>GoogleIdentityServicesDriveAccessRequester
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-identity-services/adapters
+        participant GISLoader as googleIdentityServicesLoader.ts<br/>loadGoogleAccounts()
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
         participant Establish as establishGoogleBackedIdentity.ts<br/>EstablishGoogleBackedIdentity
@@ -325,37 +330,37 @@ sequenceDiagram
 
     alt Home identity panel
         DevPanel->>Factory: createBrowserIdentityController(...)
-        Factory->>Controller: new DefaultBrowserIdentityController(...)
+        Factory->>Controller: new PassportIdentityController(...)
         Factory-->>DevPanel: controller
         DevPanel->>Button: render with controller
     else Authorization identity panel
         AuthPanel->>Factory: createBrowserIdentityController(...)
-        Factory->>Controller: new DefaultBrowserIdentityController(...)
+        Factory->>Controller: new PassportIdentityController(...)
         Factory-->>AuthPanel: controller
         AuthPanel->>Button: render with controller
     end
     Button->>Controller: mountGoogleSignIn(target, onState)
-    Controller->>Widget: mount(...)
-    Widget->>GoogleProvider: bindGoogleCredentialCallback(...)
-    GoogleProvider->>GIS: initialize credential callback
-    GoogleProvider-->>Widget: callback bound
-    Widget->>GIS: renderButton(...)
+    Controller->>SignIn: mount(...)
+    SignIn->>GISLoader: loadGoogleAccounts()
+    GISLoader-->>SignIn: google.accounts
+    SignIn->>GIS: initialize credential callback
+    SignIn->>GIS: renderButton(...)
     User->>GIS: Select account
-    GIS-->>GoogleProvider: Google credential callback
-    GoogleProvider->>Widget: invoke active credential callback
-    Widget->>GoogleProvider: googleIdTokenSubject(token)
-    GoogleProvider-->>Widget: decoded subject
-    Widget-->>Controller: ID token + subject
+    GIS-->>SignIn: Google credential callback
+    SignIn->>SignIn: readUnverifiedGoogleIdTokenSubject(token)
+    SignIn-->>Controller: ID token + subject hint
     Controller-->>Button: stage = drive
     User->>Button: Allow Drive access
     Button->>Controller: continueGoogle(establish)
-    Controller->>GoogleProvider: requestGoogleDriveAccess(...)
-    GoogleProvider->>OAuth: request openid + drive.appdata
-    OAuth-->>GoogleProvider: Drive access token
-    GoogleProvider->>UserInfo: GET /userinfo with Drive token
-    UserInfo-->>GoogleProvider: Drive account subject
-    Note over GoogleProvider: Require subjects to match
-    GoogleProvider-->>Controller: verified Drive token
+    Controller->>DriveAccess: request(...)
+    DriveAccess->>GISLoader: loadGoogleAccounts()
+    GISLoader-->>DriveAccess: google.accounts
+    DriveAccess->>OAuth: request openid + drive.appdata
+    OAuth-->>DriveAccess: Drive access token
+    DriveAccess->>UserInfo: GET /userinfo with Drive token
+    UserInfo-->>DriveAccess: Drive account subject
+    Note over DriveAccess: Require subjects to match
+    DriveAccess-->>Controller: verified Drive token
     Controller->>Establish: establish(ID token, Drive token)
 ```
 
@@ -369,9 +374,9 @@ sequenceDiagram
     accTitle: Google-backed identity establishment call flow
     accDescr: The coordinator requests a wrapping key, reads the encrypted Drive file, and dispatches to restore or create without passing wrapping material to Drive storage.
     box rgba(0, 158, 115, 0.18) src/browser/identity
-        participant Controller as defaultBrowserIdentityController.ts<br/>DefaultBrowserIdentityController
+        participant Controller as passportIdentityController.ts<br/>PassportIdentityController
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/composition
         participant DriveFactory as createGoogleBackedIdentityRuntime.ts<br/>passportFilesForAccessToken()
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
@@ -436,8 +441,8 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
         participant Restore as restoreGoogleBackedIdentity.ts<br/>RestoreGoogleBackedIdentity
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/application
-        participant Local as localIdentityService.ts<br/>LocalIdentityService
+    box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/application
+        participant Local as saveLocalIdentity.ts<br/>SaveLocalIdentity
     end
     box rgba(0, 158, 115, 0.18) src/browser/passport-file
         participant Crypto as webCryptoPassportFileCrypto.ts<br/>WebCryptoPassportFileCrypto
@@ -445,7 +450,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/pubky
         participant Pubky as browserPubky.ts<br/>BrowserPubky
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/adapters
+    box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/adapters
         participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
     end
     box rgba(17, 24, 39, 0.12) External
@@ -556,8 +561,8 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
         participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/application
-        participant Local as localIdentityService.ts<br/>LocalIdentityService
+    box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/application
+        participant Local as saveLocalIdentity.ts<br/>SaveLocalIdentity
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/homegate-invitation/adapters
         participant Invite as googleHomegateInvitationRequester.ts<br/>BrowserGoogleHomegateInvitationRequester
@@ -565,7 +570,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/pubky
         participant Pubky as browserPubky.ts<br/>BrowserPubky
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/adapters
+    box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/adapters
         participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
     end
     box rgba(17, 24, 39, 0.12) External
@@ -634,9 +639,9 @@ sequenceDiagram
     accTitle: Development Drive reset call flow
     accDescr: After the shared Google flow returns verified tokens, the identity controller invokes DeleteGoogleDriveIdentity, which requests wrapping material, reads and decrypts the exact Drive revision, restores and compares the public identity, disposes the key, and deletes only the verified file reference.
     box rgba(0, 158, 115, 0.18) src/browser/identity
-        participant Controller as defaultBrowserIdentityController.ts<br/>DefaultBrowserIdentityController
+        participant Controller as passportIdentityController.ts<br/>PassportIdentityController
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/composition
         participant DriveFactory as createGoogleBackedIdentityRuntime.ts<br/>passportFilesForAccessToken()
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
@@ -820,7 +825,7 @@ sequenceDiagram
 | Authorization parser | `src/core/auth` | `src/core/auth/*.test.ts` |
 | Authorization controller | `src/browser/authorization` | `src/browser/authorization/*.test.ts` |
 | Authorization UI | `src/ui/authorizationReview.tsx` | `src/ui/authorizationReview.test.tsx` |
-| Google controller and adapters | `src/browser/identity` | `browserIdentityController.test.ts`, adapter tests |
+| Google controller and adapters | `src/browser/identity` | `passportIdentityController.test.ts`, capability adapter tests |
 | Google-backed identity lifecycle | `src/browser/identity/google-backed-identity` | Colocated application, adapter, and composition tests |
 | Drive and WebCrypto | `src/browser/passport-file` | Repository and crypto tests |
 | Pubky SDK adapter | `src/browser/pubky/browserPubky.ts` | `browserPubky.test.ts` |

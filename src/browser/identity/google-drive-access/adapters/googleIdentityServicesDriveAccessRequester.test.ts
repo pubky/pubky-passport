@@ -4,48 +4,29 @@ import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  bindGoogleCredentialCallback,
   googleDriveAppDataScope,
-  loadGoogleAccounts,
-  releaseGoogleCredentialCallback,
-  requestGoogleDriveAccess,
-} from "./googleIdentityProvider";
-import type { GoogleAccounts } from "./googleIdentityProviderTypes";
+  requestGoogleDriveAccessToken as requestGoogleDriveAccessTokenWithLoader,
+} from "./googleIdentityServicesDriveAccessRequester";
+import type { GoogleAccounts } from "../../google-identity-services/application/googleIdentityServices";
 
-describe("Google credential callback ownership", () => {
-  it("keeps one live owner and never dispatches to a rejected binding", () => {
-    let dispatch: ((response: { credential?: unknown }) => void) | undefined;
-    const accounts = googleAccounts();
-    accounts.id.initialize = vi.fn((config) => { dispatch = config.callback; });
-    const first = vi.fn();
-    const second = vi.fn();
+let loadedGoogleAccounts: GoogleAccounts | undefined;
 
-    expect(Result.isError(bindGoogleCredentialCallback({ accounts, clientId: "google-client", callback: first }))).toBe(false);
-    expect(Result.isError(bindGoogleCredentialCallback({ accounts, clientId: "google-client", callback: second }))).toBe(true);
-    dispatch?.({ credential: "first-credential" });
-    expect(first).toHaveBeenCalledWith({ credential: "first-credential" });
-    expect(second).not.toHaveBeenCalled();
-
-    releaseGoogleCredentialCallback(second);
-    dispatch?.({ credential: "still-first" });
-    expect(first).toHaveBeenCalledWith({ credential: "still-first" });
-
-    releaseGoogleCredentialCallback(first);
-    expect(Result.isError(bindGoogleCredentialCallback({ accounts, clientId: "google-client", callback: second }))).toBe(false);
-    expect(Result.isError(bindGoogleCredentialCallback({ accounts, clientId: "different-client", callback: first }))).toBe(true);
-    dispatch?.({ credential: "second-credential" });
-    expect(second).toHaveBeenCalledWith({ credential: "second-credential" });
-    expect(first).not.toHaveBeenCalledWith({ credential: "second-credential" });
-
-    releaseGoogleCredentialCallback(second);
-  });
-});
-
-describe("requestGoogleDriveAccess", () => {
+describe("requestGoogleDriveAccessToken", () => {
   afterEach(() => {
-    delete window.google;
-    document.querySelectorAll('script[src="https://accounts.google.com/gsi/client"]').forEach((script) => script.remove());
+    loadedGoogleAccounts = undefined;
     vi.useRealTimers();
+  });
+
+  it("maps a throwing GIS loader to google_unavailable", async () => {
+    const result = await requestGoogleDriveAccessTokenWithLoader({
+      clientId: "google-client",
+      googleIdentityServices: {
+        loadGoogleAccounts: async () => { throw new Error("GIS unavailable"); },
+      },
+    });
+
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) expect(result.error).toEqual({ code: "google_unavailable" });
   });
 
   it("rejects an OAuth response that lacks the Drive app data scope", async () => {
@@ -65,8 +46,8 @@ describe("requestGoogleDriveAccess", () => {
         },
       },
     };
-    window.google = { accounts };
-    const resultPromise = requestGoogleDriveAccess({ clientId: "google-client", loginHint: "google-subject" });
+    loadedGoogleAccounts = accounts;
+    const resultPromise = requestGoogleDriveAccessToken({ clientId: "google-client", loginHint: "google-subject" });
 
     await vi.waitFor(() => expect(accessTokenCallback).toBeDefined());
     expect(tokenClientConfig).toMatchObject({
@@ -96,9 +77,9 @@ describe("requestGoogleDriveAccess", () => {
         },
       },
     };
-    window.google = { accounts };
+    loadedGoogleAccounts = accounts;
 
-    const resultPromise = requestGoogleDriveAccess({
+    const resultPromise = requestGoogleDriveAccessToken({
       clientId: "google-client",
       expectedSubject: "google-subject",
       fetch: (async () => Response.json({ sub: "different-subject" })) as typeof fetch,
@@ -120,10 +101,10 @@ describe("requestGoogleDriveAccess", () => {
     ["invalid subject", async () => Response.json({ sub: 42 })],
   ])("maps %s during Drive account verification to a safe unavailable error", async (_case, userInfoResponse) => {
     let callback: ((response: { access_token?: unknown; error?: unknown; scope?: unknown }) => void) | undefined;
-    window.google = { accounts: googleAccounts({ captureCallback(value) { callback = value; } }) };
+    loadedGoogleAccounts = googleAccounts({ captureCallback(value) { callback = value; } });
     const fetchImpl = vi.fn(userInfoResponse) as unknown as typeof fetch;
 
-    const resultPromise = requestGoogleDriveAccess({
+    const resultPromise = requestGoogleDriveAccessToken({
       clientId: "google-client",
       expectedSubject: "google-subject",
       fetch: fetchImpl,
@@ -142,9 +123,9 @@ describe("requestGoogleDriveAccess", () => {
     ["unexpected", "drive_popup_failed_to_open"],
   ])("maps the %s OAuth popup error", async (type, code) => {
     let errorCallback: ((error: { type?: unknown }) => void) | undefined;
-    window.google = { accounts: googleAccounts({ captureErrorCallback(callback) { errorCallback = callback; } }) };
+    loadedGoogleAccounts = googleAccounts({ captureErrorCallback(callback) { errorCallback = callback; } });
 
-    const resultPromise = requestGoogleDriveAccess({ clientId: "google-client" });
+    const resultPromise = requestGoogleDriveAccessToken({ clientId: "google-client" });
     await vi.waitFor(() => expect(errorCallback).toBeDefined());
     errorCallback?.({ type });
 
@@ -155,9 +136,9 @@ describe("requestGoogleDriveAccess", () => {
 
   it("times out an interactive Drive request", async () => {
     vi.useFakeTimers();
-    window.google = { accounts: googleAccounts() };
+    loadedGoogleAccounts = googleAccounts();
 
-    const resultPromise = requestGoogleDriveAccess({ clientId: "google-client", timeoutMs: 25 });
+    const resultPromise = requestGoogleDriveAccessToken({ clientId: "google-client", timeoutMs: 25 });
     await vi.advanceTimersByTimeAsync(25);
 
     const result = await resultPromise;
@@ -171,10 +152,10 @@ describe("requestGoogleDriveAccess", () => {
       expect(init?.signal).toBeInstanceOf(AbortSignal);
       return Response.json({ sub: "google-subject" });
     }) as unknown as typeof fetch;
-    window.google = { accounts: googleAccounts({ captureCallback(value) { callback = value; } }) };
+    loadedGoogleAccounts = googleAccounts({ captureCallback(value) { callback = value; } });
     const controller = new AbortController();
 
-    const resultPromise = requestGoogleDriveAccess({
+    const resultPromise = requestGoogleDriveAccessToken({
       clientId: "google-client",
       expectedSubject: "google-subject",
       fetch: fetchImpl,
@@ -195,10 +176,10 @@ describe("requestGoogleDriveAccess", () => {
     const fetchImpl = vi.fn((_url: string | URL | Request, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
       init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
     })) as unknown as typeof fetch;
-    window.google = { accounts: googleAccounts({ captureCallback(value) { callback = value; } }) };
+    loadedGoogleAccounts = googleAccounts({ captureCallback(value) { callback = value; } });
     const controller = new AbortController();
 
-    const resultPromise = requestGoogleDriveAccess({
+    const resultPromise = requestGoogleDriveAccessToken({
       clientId: "google-client",
       expectedSubject: "google-subject",
       fetch: fetchImpl,
@@ -217,63 +198,12 @@ describe("requestGoogleDriveAccess", () => {
   it("maps synchronous GIS failures instead of rejecting", async () => {
     const accounts = googleAccounts();
     accounts.oauth2.initTokenClient = () => { throw new Error("GIS failed"); };
-    window.google = { accounts };
+    loadedGoogleAccounts = accounts;
 
-    const result = await requestGoogleDriveAccess({ clientId: "google-client" });
+    const result = await requestGoogleDriveAccessToken({ clientId: "google-client" });
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "drive_popup_failed_to_open" });
-  });
-});
-
-describe("loadGoogleAccounts", () => {
-  afterEach(() => {
-    delete window.google;
-    document.querySelectorAll('script[src="https://accounts.google.com/gsi/client"]').forEach((script) => script.remove());
-    vi.useRealTimers();
-  });
-
-  it("shares one pending script load and cleans up its listeners", async () => {
-    const first = loadGoogleAccounts(document, 100);
-    const script = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
-    expect(script).toBeInstanceOf(HTMLScriptElement);
-    const removeEventListener = vi.spyOn(script as HTMLScriptElement, "removeEventListener");
-    const second = loadGoogleAccounts(document, 100);
-    window.google = { accounts: googleAccounts() };
-    script?.dispatchEvent(new Event("load"));
-
-    expect(Result.isError(await first)).toBe(false);
-    expect(Result.isError(await second)).toBe(false);
-    expect(document.querySelectorAll('script[src="https://accounts.google.com/gsi/client"]')).toHaveLength(1);
-    expect(removeEventListener).toHaveBeenCalledWith("load", expect.any(Function));
-    expect(removeEventListener).toHaveBeenCalledWith("error", expect.any(Function));
-  });
-
-  it("observes an already-present loading script", async () => {
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    document.head.append(script);
-
-    const resultPromise = loadGoogleAccounts(document, 100);
-    window.google = { accounts: googleAccounts() };
-    script.dispatchEvent(new Event("load"));
-
-    expect(Result.isError(await resultPromise)).toBe(false);
-    expect(document.querySelectorAll('script[src="https://accounts.google.com/gsi/client"]')).toHaveLength(1);
-  });
-
-  it("bounds a failed load and permits a retry", async () => {
-    vi.useFakeTimers();
-    const failedPromise = loadGoogleAccounts(document, 20);
-    await vi.advanceTimersByTimeAsync(20);
-    expect(Result.isError(await failedPromise)).toBe(true);
-    expect(document.querySelector('script[src="https://accounts.google.com/gsi/client"]')).toBeNull();
-
-    const retried = loadGoogleAccounts(document, 20);
-    const script = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
-    window.google = { accounts: googleAccounts() };
-    script?.dispatchEvent(new Event("load"));
-    expect(Result.isError(await retried)).toBe(false);
   });
 });
 
@@ -291,4 +221,17 @@ function googleAccounts(input: {
       },
     },
   };
+}
+
+function requestGoogleDriveAccessToken(
+  input: Omit<Parameters<typeof requestGoogleDriveAccessTokenWithLoader>[0], "googleIdentityServices">,
+) {
+  return requestGoogleDriveAccessTokenWithLoader({
+    ...input,
+    googleIdentityServices: {
+      loadGoogleAccounts: async () => loadedGoogleAccounts
+        ? Result.ok(loadedGoogleAccounts)
+        : Result.err({ code: "google_unavailable" }),
+    },
+  });
 }

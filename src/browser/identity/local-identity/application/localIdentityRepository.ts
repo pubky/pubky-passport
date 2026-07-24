@@ -3,7 +3,7 @@ import "client-only";
 import type { Result } from "better-result";
 
 import type { PubkySecretKeyMaterial } from "../../../pubky/ports";
-import type { LocalIdentitySummary } from "../localIdentity";
+import type { LocalIdentitySummary } from "./localIdentity";
 
 export type LocalIdentityRepositoryErrorCode =
   | "invalid_identity"
@@ -14,10 +14,15 @@ export type LocalIdentityRepositoryErrorCode =
 
 export type LocalIdentityRepositoryResult<T> = Result<T, { code: LocalIdentityRepositoryErrorCode }>;
 
-export type LocalIdentityRepository = {
+export type LocalIdentityCatalog = {
   list(): LocalIdentityRepositoryResult<{ activeIdentityId: string | null; identities: LocalIdentitySummary[] }>;
-  save(input: { identity: LocalIdentitySummary; secretKey: PubkySecretKeyMaterial }): LocalIdentityRepositoryResult<LocalIdentitySummary>;
   select(id: string): LocalIdentityRepositoryResult<void>;
   clear(): LocalIdentityRepositoryResult<void>;
+};
+
+export type LocalIdentityKeyStore = {
+  save(input: { identity: LocalIdentitySummary; secretKey: PubkySecretKeyMaterial }): LocalIdentityRepositoryResult<LocalIdentitySummary>;
   readActive(): LocalIdentityRepositoryResult<{ identity: LocalIdentitySummary; secretKey: PubkySecretKeyMaterial }>;
 };
+
+export type LocalIdentityRepository = LocalIdentityCatalog & LocalIdentityKeyStore;

@@ -12,7 +12,7 @@ import type {
   GoogleDriveIdentityDeletionResult,
   GoogleIdentitySession,
 } from "./googleBackedIdentity";
-import type { GoogleWrappingKeyRequester } from "../wrapping-key/googleWrappingKey";
+import type { GoogleWrappingKeyRequester } from "../wrapping-key/application/googleWrappingKey";
 
 export class DeleteGoogleDriveIdentity implements GoogleDriveIdentityDeleter {
   readonly #wrappingKeys: GoogleWrappingKeyRequester;

@@ -2,14 +2,14 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
-import { pubkySecretKeyBytes, pubkySecretKeyFormat, type PubkySecretKeyMaterial } from "../../pubky/ports";
+import type { PubkyPublicIdentity } from "../../../../core/identity/pubkyIdentity";
+import { pubkySecretKeyBytes, pubkySecretKeyFormat, type PubkySecretKeyMaterial } from "../../../pubky/ports";
 import type { LocalIdentitySummary } from "../application/localIdentity";
 import type {
   LocalIdentityRepository,
   LocalIdentityRepositoryErrorCode,
   LocalIdentityRepositoryResult,
-} from "../application/ports/localIdentityRepository";
+} from "../application/localIdentityRepository";
 
 const storageKey = "pubky-passport/local-identities/v1";
 const localIdentityStoreVersion = 1;
