@@ -7,7 +7,7 @@ create or restore, approval, cancellation, callbacks, and local terminal states.
 ```mermaid
 flowchart TB
     accTitle: Runtime location color legend
-    accDescr: Colorblind-safe legend for Next transport, React UI, browser runtime, server runtime, pure features, shared libraries, runtime platforms, and external systems.
+    accDescr: Colorblind-safe legend for Next transport, React UI, browser runtime, server runtime, pure core, shared libraries, runtime platforms, and external systems.
     subgraph runtime[Runtime-facing code]
         direction LR
         transport["Next transport<br/>src/app, proxy.ts"]:::transport
@@ -18,7 +18,7 @@ flowchart TB
 
     subgraph supporting[Rules, helpers, and dependencies]
         direction LR
-        feature["Pure rules<br/>src/features"]:::feature
+        core["Pure rules<br/>src/core"]:::core
         libs["Shared helpers<br/>src/libs"]:::libs
         platform["Runtime platform<br/>browser, Next.js"]:::platform
         external["External package or service"]:::external
@@ -28,7 +28,7 @@ flowchart TB
     classDef ui fill:#0072B2,stroke:#56B4E9,color:#fff;
     classDef browser fill:#009E73,stroke:#005A45,color:#111827;
     classDef server fill:#D55E00,stroke:#8A3C00,color:#111827;
-    classDef feature fill:#CC79A7,stroke:#7A3E62,color:#111827;
+    classDef core fill:#CC79A7,stroke:#7A3E62,color:#111827;
     classDef libs fill:#475569,stroke:#cbd5e1,color:#fff;
     classDef platform fill:#6B7280,stroke:#374151,color:#fff;
     classDef external fill:#111827,stroke:#9ca3af,color:#fff;
@@ -41,15 +41,16 @@ Arrows in this diagram only mean direct imports in current production code.
 ```mermaid
 flowchart LR
     accTitle: Current production import boundaries
-    accDescr: Direct imports from app pages and route handlers into UI, browser, server, features, libraries, and the Pubky SDK adapter.
+    accDescr: Direct imports from app pages and route handlers into UI, browser, server, core, libraries, and the Pubky SDK adapter.
     subgraph browserLane[Browser import lane]
         direction TB
         pages["src/app<br/>pages"]:::transport --> ui["src/ui"]:::ui --> browser["src/browser"]:::browser
-        ui --> browserFeature["src/features"]:::feature
+        ui --> browserCore["src/core"]:::core
         ui --> browserLibs["src/libs"]:::libs
         pages --> browserLibs
-        browser --> browserFeature
+        browser --> browserCore
         browser --> browserLibs
+        browserLibs --> browserCore
         browser --> sdk["@synonymdev/pubky<br/>only via browser/pubky"]:::external
     end
 
@@ -58,21 +59,20 @@ flowchart LR
         routes["src/app/api<br/>route handlers"]:::transport --> server["src/server"]:::server
         proxy["proxy.ts"]:::transport --> server
         routes --> serverLibs["src/libs"]:::libs
-        server --> serverFeature["src/features"]:::feature
-        server --> serverLibs
+        server --> serverCore["src/core"]:::core
     end
 
     classDef transport fill:#F0E442,stroke:#8A7F00,color:#111827;
     classDef ui fill:#0072B2,stroke:#56B4E9,color:#fff;
     classDef browser fill:#009E73,stroke:#005A45,color:#111827;
     classDef server fill:#D55E00,stroke:#8A3C00,color:#111827;
-    classDef feature fill:#CC79A7,stroke:#7A3E62,color:#111827;
+    classDef core fill:#CC79A7,stroke:#7A3E62,color:#111827;
     classDef libs fill:#475569,stroke:#cbd5e1,color:#fff;
     classDef external fill:#111827,stroke:#9ca3af,color:#fff;
     linkStyle default stroke:#64748B,stroke-width:2.5px;
 ```
 
-Enforced by `test-utils/architecture/feature-boundaries.test.ts` and the
+Enforced by `test-utils/architecture/architecture-boundaries.test.ts` and the
 `client-only` / `server-only` markers.
 
 ## Routes
@@ -114,7 +114,7 @@ sequenceDiagram
     box rgba(213, 94, 0, 0.18) src/server/content-security-policy
         participant CSP as policy.ts<br/>createContentSecurityPolicy()
     end
-    box rgba(204, 121, 167, 0.18) src/features/auth
+    box rgba(204, 121, 167, 0.18) src/core/auth
         participant Parser as parsePubkyAuthRequest.ts<br/>extractRawPubkyAuthRequestQueryValue()<br/>parsePubkyAuthRequest()
     end
     box rgba(0, 114, 178, 0.18) src/ui
@@ -167,7 +167,7 @@ sequenceDiagram
     box rgba(0, 114, 178, 0.18) src/ui
         participant Form as manualAuthorizationForm.tsx<br/>ManualAuthorizationForm()<br/>submit() / replaceDocument()
     end
-    box rgba(204, 121, 167, 0.18) src/features/auth
+    box rgba(204, 121, 167, 0.18) src/core/auth
         participant Parser as parsePubkyAuthRequest.ts<br/>parsePubkyAuthRequest()
     end
     box rgba(107, 114, 128, 0.18) Runtime platforms
@@ -212,7 +212,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/pubky
         participant Pubky as browserPubky.ts<br/>BrowserPubky
     end
-    box rgba(204, 121, 167, 0.18) src/features/auth
+    box rgba(204, 121, 167, 0.18) src/core/auth
         participant AuthParser as parsePubkyAuthRequest.ts<br/>isParserIssuedPubkyAuthRequest()<br/>getParserIssuedPubkyAuthCallbacks()
     end
     box rgba(17, 24, 39, 0.12) External
@@ -274,7 +274,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/authorization
         participant Controller as defaultBrowserAuthorizationController.ts<br/>DefaultBrowserAuthorizationController
     end
-    box rgba(204, 121, 167, 0.18) src/features/auth
+    box rgba(204, 121, 167, 0.18) src/core/auth
         participant Callbacks as parsePubkyAuthRequest.ts<br/>getParserIssuedPubkyAuthCallbacks()
     end
     box rgba(107, 114, 128, 0.18) Browser platform
@@ -808,7 +808,7 @@ sequenceDiagram
 
 | Flow | Code | Main tests |
 | --- | --- | --- |
-| Authorization parser | `src/features/auth` | `src/features/auth/*.test.ts` |
+| Authorization parser | `src/core/auth` | `src/core/auth/*.test.ts` |
 | Authorization controller | `src/browser/authorization` | `src/browser/authorization/*.test.ts` |
 | Authorization UI | `src/ui/authorizationReview.tsx` | `src/ui/authorizationReview.test.tsx` |
 | Google controller and adapters | `src/browser/identity` | `browserIdentityController.test.ts`, adapter tests |

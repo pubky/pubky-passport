@@ -1,13 +1,13 @@
 import "server-only";
 
-import { getGoogleWrappingKeyServerEnv } from "../../../libs/env/server-env";
+import { getGoogleWrappingKeyServerConfig } from "./config";
 import { createGoogleIdTokenVerifier } from "./idTokenVerifier";
 import { createGoogleWrappingKeyMaterial } from "./keyDeriver";
 import { createInMemoryGoogleWrappingKeyRateLimiter } from "./rateLimiter";
 import { createGoogleWrappingKeyRequest, type GoogleWrappingKeyRequest } from "./request";
 
 export function createConfiguredGoogleWrappingKeyRequest(): GoogleWrappingKeyRequest {
-  const env = getGoogleWrappingKeyServerEnv();
+  const env = getGoogleWrappingKeyServerConfig();
 
   return createGoogleWrappingKeyRequest({
     googleIdTokenVerifier: createGoogleIdTokenVerifier({ audience: env.GOOGLE_CLIENT_ID }),

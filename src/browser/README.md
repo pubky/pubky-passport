@@ -9,5 +9,5 @@ persistence. A browser setup or restore flow is the only code that may combine a
 Drive envelope with wrapping material. Drive tokens and wrapping material stay in
 memory and are never sent to the server. The interim local identity store persists
 Pubky secret keys in localStorage until passkey-backed encryption is implemented;
-its secret-key API is not for UI state. Browser code imports `features`, never
+its secret-key API is not for UI state. Browser code imports `core`, never
 `server` or server environment configuration.

@@ -5,7 +5,7 @@ import { Result, type Result as ResultType } from "better-result";
 import { describe, expect, it, vi } from "vitest";
 
 import { expectAsyncResultError, expectResultOk } from "../../../test-utils/resultAssertions";
-import type { PassportFileEnvelopeV1 } from "../../features/passport-file/passportFile";
+import type { PassportFileEnvelopeV1 } from "../../core/passport-file/passportFile";
 import {
   GoogleDrivePassportFileRepository,
   type PassportFileCreateLockManager,

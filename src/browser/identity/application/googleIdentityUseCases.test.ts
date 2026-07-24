@@ -12,7 +12,7 @@ import type {
   PassportFileStore,
   PassportFileStoreErrorCode,
 } from "../../passport-file/ports";
-import type { PassportFileEnvelopeV1 } from "../../../features/passport-file/passportFile";
+import type { PassportFileEnvelopeV1 } from "../../../core/passport-file/passportFile";
 import { CreateGoogleDriveIdentity } from "./createGoogleDriveIdentity";
 import { DeleteGoogleDriveIdentity } from "./deleteGoogleDriveIdentity";
 import { EstablishGoogleBackedIdentity } from "./establishGoogleBackedIdentity";

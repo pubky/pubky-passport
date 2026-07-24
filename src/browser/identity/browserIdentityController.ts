@@ -2,8 +2,10 @@ import "client-only";
 
 import type { Result } from "better-result";
 
-import type { LocalIdentitySummary } from "../../features/identity/localIdentity";
-import type { PubkyPublicIdentity } from "../../features/identity/pubkyIdentity";
+import type { PubkyPublicIdentity } from "../../core/identity/pubkyIdentity";
+import type { LocalIdentitySummary } from "./application/localIdentity";
+
+export type { LocalIdentitySummary } from "./application/localIdentity";
 
 export type BrowserIdentityList = {
   activeIdentityId: string | null;

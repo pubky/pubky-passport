@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { parseHomegateBaseUrl } from "../homegate/parseHomegateBaseUrl";
+import { parseHomegateBaseUrl } from "../../core/homegate/parseHomegateBaseUrl";
 import { type EnvLike, envUrlSchema, requiredStringSchema } from "./env-schema";
 
 export type PublicEnv = {

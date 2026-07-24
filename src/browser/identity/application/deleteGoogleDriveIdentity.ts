@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { pubkySecretKeyFormat, type PubkyIdentityKey } from "../../../features/identity/pubkyIdentity";
+import { pubkySecretKeyFormat, type PubkyIdentityKey } from "../../pubky/ports";
 import { logger } from "../../../libs/logger/logger";
 import type { PassportFileCrypto, PassportFileStore } from "../../passport-file/ports";
 import type { PubkyIdentityKeys } from "../../pubky/ports";

@@ -2,8 +2,9 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { pubkySecretKeyBytes, pubkySecretKeyFormat, type PubkyPublicIdentity, type PubkySecretKeyMaterial } from "../../../features/identity/pubkyIdentity";
-import type { LocalIdentitySummary } from "../../../features/identity/localIdentity";
+import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
+import { pubkySecretKeyBytes, pubkySecretKeyFormat, type PubkySecretKeyMaterial } from "../../pubky/ports";
+import type { LocalIdentitySummary } from "../application/localIdentity";
 import type {
   LocalIdentityRepository,
   LocalIdentityRepositoryErrorCode,

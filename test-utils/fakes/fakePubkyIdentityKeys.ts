@@ -1,16 +1,16 @@
 import { Result } from "better-result";
 
-import { pubkySecretKeyBytes, pubkySecretKeyFormat, type PubkySecretKeyMaterial } from "../../src/features/identity/pubkyIdentity";
-import type {
-  PubkyIdentityKey,
-  PubkyIdentityKeyHandle,
-  PubkyPublicIdentity,
-} from "@/features/identity/pubkyIdentity";
-import type {
-  PubkyIdentityKeys,
-  PubkyIdentityKeysErrorCode,
-  PubkyIdentityKeysResult,
-} from "@/browser/pubky/ports";
+import {
+  pubkySecretKeyBytes,
+  pubkySecretKeyFormat,
+  type PubkyIdentityKeys,
+  type PubkyIdentityKeysErrorCode,
+  type PubkyIdentityKeysResult,
+  type PubkyIdentityKey,
+  type PubkyIdentityKeyHandle,
+  type PubkySecretKeyMaterial,
+} from "../../src/browser/pubky/ports";
+import type { PubkyPublicIdentity } from "../../src/core/identity/pubkyIdentity";
 
 export type FakePubkyIdentityKeysRestoreCall = {
   secretKeyByteLength: number;

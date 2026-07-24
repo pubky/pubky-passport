@@ -3,32 +3,30 @@ import "client-only";
 import { Keypair, Pubky, PublicKey, type Session } from "@synonymdev/pubky";
 import { Result, type Result as ResultType } from "better-result";
 
-import {
-  pubkySecretKeyBytes,
-  pubkySecretKeyFormat,
-  type PubkyIdentityKey,
-  type PubkyIdentityKeyHandle,
-  type PubkyIdentitySession,
-  type PubkyPublicIdentity,
-  type PubkySecretKeyMaterial,
-} from "../../features/identity/pubkyIdentity";
+import type { PubkyPublicIdentity } from "../../core/identity/pubkyIdentity";
 import {
   isParserIssuedPubkyAuthRequest,
   type ValidatedSensitivePubkyAuthRequest,
-} from "../../features/auth/parsePubkyAuthRequest";
-import type {
-  PubkyAuthApproval,
-  PubkyAuthApprovalErrorCode,
-  PubkyAuthApprovalResult,
-  PubkyDiscovery,
-  PubkyDiscoveryErrorCode,
-  PubkyDiscoveryResult,
-  PubkyIdentityKeys,
-  PubkyIdentityKeysErrorCode,
-  PubkyIdentityKeysResult,
-  PubkySignup,
-  PubkySignupErrorCode,
-  PubkySignupResult,
+} from "../../core/auth/parsePubkyAuthRequest";
+import {
+  pubkySecretKeyBytes,
+  pubkySecretKeyFormat,
+  type PubkyAuthApproval,
+  type PubkyAuthApprovalErrorCode,
+  type PubkyAuthApprovalResult,
+  type PubkyDiscovery,
+  type PubkyDiscoveryErrorCode,
+  type PubkyDiscoveryResult,
+  type PubkyIdentityKey,
+  type PubkyIdentityKeyHandle,
+  type PubkyIdentityKeys,
+  type PubkyIdentityKeysErrorCode,
+  type PubkyIdentityKeysResult,
+  type PubkyIdentitySession,
+  type PubkySecretKeyMaterial,
+  type PubkySignup,
+  type PubkySignupErrorCode,
+  type PubkySignupResult,
 } from "./ports";
 import { logger } from "../../libs/logger/logger";
 
@@ -36,7 +34,7 @@ type Signer = ReturnType<Pubky["signer"]>;
 type HomeserverResult = ResultType<PublicKey, { code: "invalid_homeserver_pubky" }>;
 
 /**
- * Browser-local Pubky adapter. Opaque handles keep SDK keypairs out of feature and
+ * Browser-local Pubky adapter. Opaque handles keep SDK keypairs out of application and
  * UI state while this adapter owns all SDK resource cleanup.
  */
 export class BrowserPubky implements PubkyIdentityKeys, PubkySignup, PubkyDiscovery, PubkyAuthApproval {

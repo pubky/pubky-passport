@@ -2,8 +2,8 @@ import "client-only";
 
 import type { Result } from "better-result";
 
-import type { LocalIdentitySummary } from "../../../../features/identity/localIdentity";
-import type { PubkyIdentityKeyHandle } from "../../../../features/identity/pubkyIdentity";
+import type { PubkyIdentityKeyHandle } from "../../../pubky/ports";
+import type { LocalIdentitySummary } from "../localIdentity";
 import type { LocalIdentityRepositoryErrorCode } from "./localIdentityRepository";
 
 export type LocalIdentityServiceErrorCode =

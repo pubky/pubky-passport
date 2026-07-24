@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import { FakePubkyIdentityKeys } from "../../../../test-utils/fakes/fakePubkyIdentityKeys";
 import { expectAsyncResultError, expectResultOk } from "../../../../test-utils/resultAssertions";
-import type { LocalIdentitySummary } from "../../../features/identity/localIdentity";
-import { pubkySecretKeyFormat, type PubkySecretKeyMaterial } from "../../../features/identity/pubkyIdentity";
+import { pubkySecretKeyFormat, type PubkySecretKeyMaterial } from "../../pubky/ports";
+import type { LocalIdentitySummary } from "./localIdentity";
 import { LocalIdentityService } from "./localIdentityService";
 import type { LocalIdentityRepository, LocalIdentityRepositoryResult } from "./ports/localIdentityRepository";
 

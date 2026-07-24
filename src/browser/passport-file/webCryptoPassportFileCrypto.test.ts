@@ -5,8 +5,8 @@ import { Result, type Result as ResultType } from "better-result";
 import { describe, expect, it } from "vitest";
 
 import { expectAsyncResultError, expectResultError } from "../../../test-utils/resultAssertions";
-import { pubkySecretKeyBytes } from "../../features/identity/pubkyIdentity";
-import { parsePassportFileEnvelope } from "../../features/passport-file/parsePassportFile";
+import { parsePassportFileEnvelope } from "../../core/passport-file/parsePassportFile";
+import { pubkySecretKeyBytes } from "../pubky/ports";
 import {
   decodeBase64Url,
   encodeBase64Url,

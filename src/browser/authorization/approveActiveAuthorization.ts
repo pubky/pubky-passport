@@ -2,9 +2,13 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import type { ValidatedSensitivePubkyAuthRequest } from "../../features/auth/parsePubkyAuthRequest";
-import type { PubkyIdentityKey, PubkyIdentityKeyHandle } from "../../features/identity/pubkyIdentity";
-import type { PubkyAuthApproval, PubkyIdentityKeys } from "../pubky/ports";
+import type { ValidatedSensitivePubkyAuthRequest } from "../../core/auth/parsePubkyAuthRequest";
+import type {
+  PubkyAuthApproval,
+  PubkyIdentityKey,
+  PubkyIdentityKeyHandle,
+  PubkyIdentityKeys,
+} from "../pubky/ports";
 
 export type ActiveAuthorizationErrorCode =
   | "no_active_identity"

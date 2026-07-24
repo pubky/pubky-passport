@@ -3,7 +3,7 @@
 import { Result } from "better-result";
 import { useState, type FormEvent } from "react";
 
-import { parsePubkyAuthRequest } from "../features/auth/parsePubkyAuthRequest";
+import { parsePubkyAuthRequest } from "../core/auth/parsePubkyAuthRequest";
 
 export function ManualAuthorizationForm({
   navigate = replaceDocument,

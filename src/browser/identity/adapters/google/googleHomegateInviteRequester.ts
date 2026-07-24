@@ -2,8 +2,8 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { parseHomegateBaseUrl } from "../../../../libs/homegate/parseHomegateBaseUrl";
-import { readBoundedText } from "../../../../libs/security/boundedBody";
+import { parseHomegateBaseUrl } from "../../../../core/homegate/parseHomegateBaseUrl";
+import { readBoundedText } from "../../../../libs/http/boundedBody";
 import type {
   GoogleHomegateInviteRequester,
   GoogleHomegateInviteRequesterErrorCode,

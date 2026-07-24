@@ -3,7 +3,7 @@ import "client-only";
 import { Result } from "better-result";
 
 import { logger } from "../../../../libs/logger/logger";
-import { readBoundedText } from "../../../../libs/security/boundedBody";
+import { readBoundedText } from "../../../../libs/http/boundedBody";
 import type {
   GoogleWrappingKeyRequester,
   GoogleWrappingKeyRequesterErrorCode,

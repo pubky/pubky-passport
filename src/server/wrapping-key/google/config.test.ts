@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { parseGoogleWrappingKeyServerEnv } from "./server-env-parser";
+import { parseGoogleWrappingKeyServerConfig } from "./config";
 
 const validServerSecret = Buffer.alloc(32, 1).toString("base64");
 
-const validGoogleWrappingKeyServerEnv = {
+const validGoogleWrappingKeyServerConfig = {
   NODE_ENV: "production",
   GOOGLE_CLIENT_ID: "google-client-id",
   PASSPORT_SERVER_SECRET_BASE64: validServerSecret,
 };
 
-describe("server environment parsers", () => {
+describe("Google wrapping-key server config", () => {
   it("parses Google wrapping-key config without Homegate configuration", () => {
-    expect(parseGoogleWrappingKeyServerEnv(validGoogleWrappingKeyServerEnv)).toEqual({
+    expect(parseGoogleWrappingKeyServerConfig(validGoogleWrappingKeyServerConfig)).toEqual({
       GOOGLE_CLIENT_ID: "google-client-id",
       PASSPORT_SERVER_SECRET_BASE64: validServerSecret,
     });
@@ -20,8 +20,8 @@ describe("server environment parsers", () => {
 
   it("fails when Google wrapping-key values are missing", () => {
     expect(() =>
-      parseGoogleWrappingKeyServerEnv({
-        ...validGoogleWrappingKeyServerEnv,
+      parseGoogleWrappingKeyServerConfig({
+        ...validGoogleWrappingKeyServerConfig,
         GOOGLE_CLIENT_ID: undefined,
       }),
     ).toThrow();
@@ -29,8 +29,8 @@ describe("server environment parsers", () => {
 
   it("fails invalid base64 server secrets", () => {
     expect(() =>
-      parseGoogleWrappingKeyServerEnv({
-        ...validGoogleWrappingKeyServerEnv,
+      parseGoogleWrappingKeyServerConfig({
+        ...validGoogleWrappingKeyServerConfig,
         PASSPORT_SERVER_SECRET_BASE64: "not-base64!",
       }),
 
@@ -39,8 +39,8 @@ describe("server environment parsers", () => {
 
   it("fails base64 server secrets shorter than 32 decoded bytes", () => {
     expect(() =>
-      parseGoogleWrappingKeyServerEnv({
-        ...validGoogleWrappingKeyServerEnv,
+      parseGoogleWrappingKeyServerConfig({
+        ...validGoogleWrappingKeyServerConfig,
         PASSPORT_SERVER_SECRET_BASE64: Buffer.alloc(31, 1).toString("base64"),
       }),
     ).toThrow();

@@ -1,6 +1,6 @@
 import "client-only";
 
-import type { PubkyAuthRequestReview } from "../../features/auth/parsePubkyAuthRequest";
+import type { PubkyAuthRequestReview } from "../../core/auth/parsePubkyAuthRequest";
 
 export type BrowserAuthorizationFailureCode =
   | "no_active_identity"

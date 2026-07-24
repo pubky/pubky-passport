@@ -1,4 +1,4 @@
-# Authorization Feature
+# Authorization Core
 
 Parses `pubkyauth://` requests, capabilities, relay policy, and callbacks. The
 shared parameter grammar rejects duplicate or unsupported fields.

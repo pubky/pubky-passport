@@ -21,7 +21,7 @@ const eslintConfig = defineConfig([
     }
   },
   {
-    files: ["src/features/**/*.{ts,tsx}"],
+    files: ["src/core/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -39,13 +39,14 @@ const eslintConfig = defineConfig([
                 "googleapis",
                 "googleapis/*",
                 "server-only",
+                "client-only",
                 "@/app/*",
                 "@/ui/*",
                 "@/browser/*",
                 "@/server/*",
-                "@/libs/env/*"
+                "@/libs/*"
               ],
-              message: "Features must stay framework- and runtime-independent. Use browser or server runtime code instead."
+              message: "Core modules must stay framework-, runtime-, and infrastructure-independent."
             }
           ]
         }
@@ -54,19 +55,19 @@ const eslintConfig = defineConfig([
         "error",
         {
           name: "window",
-          message: "Features must not access browser globals. Use a dependency contract instead."
+            message: "Core modules must not access browser globals. Use a runtime dependency instead."
         },
         {
           name: "document",
-          message: "Features must not access browser globals. Use a dependency contract instead."
+            message: "Core modules must not access browser globals. Use a runtime dependency instead."
         },
         {
           name: "localStorage",
-          message: "Features must not access browser storage directly. Use a dependency contract instead."
+            message: "Core modules must not access browser storage. Use a runtime dependency instead."
         },
         {
           name: "process",
-          message: "Features must not read runtime environment directly. Pass configuration through contracts or inputs."
+            message: "Core modules must not read runtime environment. Pass validated values as inputs."
         }
       ]
     }
@@ -79,12 +80,12 @@ const eslintConfig = defineConfig([
         {
           paths: [
             {
-              name: "../features/auth/parsePubkyAuthRequest",
+              name: "../core/auth/parsePubkyAuthRequest",
               importNames: ["ValidatedSensitivePubkyAuthRequest"],
               message: "UI must consume safe authorization controller state, not sensitive parser approval types."
             },
             {
-              name: "@/features/auth/parsePubkyAuthRequest",
+              name: "@/core/auth/parsePubkyAuthRequest",
               importNames: ["ValidatedSensitivePubkyAuthRequest"],
               message: "UI must consume safe authorization controller state, not sensitive parser approval types."
             }

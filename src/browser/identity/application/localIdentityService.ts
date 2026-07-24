@@ -2,13 +2,9 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import type { LocalIdentitySummary } from "../../../features/identity/localIdentity";
-import type {
-  PubkyIdentityKey,
-  PubkyIdentityKeyHandle,
-  PubkyPublicIdentity,
-} from "../../../features/identity/pubkyIdentity";
-import type { PubkyIdentityKeys } from "../../pubky/ports";
+import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
+import type { PubkyIdentityKey, PubkyIdentityKeyHandle, PubkyIdentityKeys } from "../../pubky/ports";
+import type { LocalIdentitySummary } from "./localIdentity";
 import type {
   LocalIdentitySaver,
   LocalIdentityServiceErrorCode,

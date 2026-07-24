@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { expectResultError, expectResultOk } from "../../../../test-utils/resultAssertions";
-import { pubkySecretKeyFormat } from "../../../features/identity/pubkyIdentity";
+import { pubkySecretKeyFormat } from "../../pubky/ports";
 import { LocalStorageIdentityRepository } from "./localStorageIdentityRepository";
 
 const firstIdentity = { publicKeyZ32: "firstidentity111111111111111111111111111111111111111111", publicKeyDisplay: "pubkyfirstidentity111111111111111111111111111111111111111111" };

@@ -2,8 +2,8 @@ import "server-only";
 
 import { hkdfSync } from "node:crypto";
 
-import { hasMinimumServerSecretBytes, isBase64 } from "../../../libs/security/serverSecret";
 import { canonicalGoogleIssuer, type GoogleWrappingKeyMaterial } from "./ports";
+import { decodeServerSecret } from "./serverSecret";
 
 export type CreateGoogleWrappingKeyMaterialInput = {
   serverSecretBase64: string;
@@ -30,21 +30,4 @@ export function createGoogleWrappingKeyMaterial(
       return { wrappingKey: derivedKey.toString("base64url") };
     },
   };
-}
-
-export function decodeServerSecret(serverSecretBase64: string): Buffer {
-  if (!isBase64(serverSecretBase64)) {
-    throw invalidConfigurationError();
-  }
-
-  const decoded = Buffer.from(serverSecretBase64, "base64");
-  if (!hasMinimumServerSecretBytes(decoded)) {
-    throw invalidConfigurationError();
-  }
-
-  return decoded;
-}
-
-function invalidConfigurationError(): Error {
-  return new Error("Invalid wrapping key configuration.");
 }

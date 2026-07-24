@@ -5,8 +5,8 @@ import { Result } from "better-result";
 import {
   extractRawPubkyAuthRequestQueryValue,
   parsePubkyAuthRequest,
-} from "../../features/auth/parsePubkyAuthRequest";
-import { parseHomegateBaseUrl } from "../../libs/homegate/parseHomegateBaseUrl";
+} from "../../core/auth/parsePubkyAuthRequest";
+import { parseHomegateBaseUrl } from "../../core/homegate/parseHomegateBaseUrl";
 
 export function createContentSecurityPolicy(input: {
   nonce: string;

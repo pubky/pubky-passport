@@ -3,7 +3,7 @@
 import { Result } from "better-result";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
-import { pubkyAuthRequestLimits } from "../../features/auth/pubkyAuthRequestLimits";
+import { pubkyAuthRequestLimits } from "../../core/auth/pubkyAuthRequestLimits";
 import type { ActiveAuthorizationResult } from "./approveActiveAuthorization";
 import type { BrowserAuthorizationController, BrowserAuthorizationViewState } from "./browserAuthorizationController";
 import {

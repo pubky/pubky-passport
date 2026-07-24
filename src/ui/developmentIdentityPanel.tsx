@@ -6,10 +6,10 @@ import { useEffect, useRef, useState } from "react";
 import type {
   BrowserIdentityActionResult,
   BrowserIdentityController,
+  LocalIdentitySummary,
 } from "../browser/identity/browserIdentityController";
 import { createBrowserIdentityController } from "../browser/identity/createBrowserIdentityController";
-import type { LocalIdentitySummary } from "../features/identity/localIdentity";
-import type { PubkyPublicIdentity } from "../features/identity/pubkyIdentity";
+import type { PubkyPublicIdentity } from "../core/identity/pubkyIdentity";
 import { logger } from "../libs/logger/logger";
 import { GoogleSignInButton } from "./googleSignInButton";
 

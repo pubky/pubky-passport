@@ -1,7 +1,7 @@
 import { Result } from "better-result";
 import { describe, expect, it } from "vitest";
 
-import { parsePubkyAuthRequest } from "../../features/auth/parsePubkyAuthRequest";
+import { parsePubkyAuthRequest } from "../../core/auth/parsePubkyAuthRequest";
 import {
   approveActiveAuthorization,
   type ActiveAuthorizationIdentityRestorer,

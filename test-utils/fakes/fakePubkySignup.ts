@@ -3,7 +3,7 @@ import { Result } from "better-result";
 import type {
   PubkyIdentityKeyHandle,
   PubkyIdentitySession,
-} from "@/features/identity/pubkyIdentity";
+} from "@/browser/pubky/ports";
 import type {
   PubkySignup,
   PubkySignupErrorCode,

@@ -7,7 +7,7 @@ import {
   parsePubkyAuthRequest,
   type PubkyAuthRequestReview,
   type ValidatedSensitivePubkyAuthRequest,
-} from "../../features/auth/parsePubkyAuthRequest";
+} from "../../core/auth/parsePubkyAuthRequest";
 
 export type ParsedAuthorizationEntry =
   | { status: "valid"; review: PubkyAuthRequestReview; approval: ValidatedSensitivePubkyAuthRequest }

@@ -2,8 +2,8 @@ import "client-only";
 
 import type { Result } from "better-result";
 
-import type { PubkyPublicIdentity } from "../../../../features/identity/pubkyIdentity";
-import type { PassportFileEnvelopeV1 } from "../../../../features/passport-file/passportFile";
+import type { PubkyPublicIdentity } from "../../../../core/identity/pubkyIdentity";
+import type { PassportFileEnvelopeV1 } from "../../../../core/passport-file/passportFile";
 import type { PassportFileStore } from "../../../passport-file/ports";
 
 export type GoogleIdentitySession = {

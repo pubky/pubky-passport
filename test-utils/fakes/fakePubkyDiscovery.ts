@@ -1,4 +1,4 @@
-import type { PubkyIdentityKeyHandle } from "@/features/identity/pubkyIdentity";
+import type { PubkyIdentityKeyHandle } from "@/browser/pubky/ports";
 import { Result } from "better-result";
 
 import type {

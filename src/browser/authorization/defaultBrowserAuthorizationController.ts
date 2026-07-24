@@ -5,7 +5,7 @@ import { Result } from "better-result";
 import {
   getParserIssuedPubkyAuthCallbacks,
   type ValidatedSensitivePubkyAuthRequest,
-} from "../../features/auth/parsePubkyAuthRequest";
+} from "../../core/auth/parsePubkyAuthRequest";
 import {
   clearPendingAuthorizationEntry,
   readAndScrubAuthorizationEntry,

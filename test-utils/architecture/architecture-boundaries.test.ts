@@ -5,14 +5,14 @@ import { describe, expect, it } from "vitest";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const srcRoot = join(repoRoot, "src");
-const featuresRoot = join(srcRoot, "features");
+const coreRoot = join(srcRoot, "core");
 const browserRoot = join(srcRoot, "browser");
 const serverRoot = join(srcRoot, "server");
 const appRoot = join(srcRoot, "app");
 const uiRoot = join(srcRoot, "ui");
+const libsRoot = join(srcRoot, "libs");
 const libsEnvRoot = join(srcRoot, "libs", "env");
 const checkedExtensions = new Set([".js", ".mjs", ".ts", ".tsx"]);
-const serverEnvModule = join(libsEnvRoot, "server-env.ts");
 const publicEnvModule = join(libsEnvRoot, "public-env.ts");
 const identityAdaptersRoot = join(browserRoot, "identity", "adapters");
 const localIdentityRepository = join(identityAdaptersRoot, "localStorageIdentityRepository.ts");
@@ -34,6 +34,8 @@ const browserAdapterModules = [
   join(browserRoot, "passport-file", "webCryptoPassportFileCrypto.ts"),
 ];
 const googleWrappingKeyRoot = join(serverRoot, "wrapping-key", "google");
+const googleWrappingKeyConfig = join(googleWrappingKeyRoot, "config.ts");
+const googleWrappingKeyServerSecret = join(googleWrappingKeyRoot, "serverSecret.ts");
 const googleWrappingKeyApplicationModules = [
   join(googleWrappingKeyRoot, "ports.ts"),
   join(googleWrappingKeyRoot, "request.ts"),
@@ -43,7 +45,7 @@ const browserApplicationModules = productionSourceFiles(browserRoot)
   .filter((filePath) => !browserCompositionFactories.includes(filePath))
   .filter((filePath) => !browserAdapterModules.includes(filePath));
 
-const forbiddenFeatureImports = [
+const forbiddenCoreImports = [
   "@synonymdev/pubky",
   "google-auth-library",
   "google-auth-library/",
@@ -59,15 +61,15 @@ const forbiddenFeatureImports = [
   "@/ui/",
   "@/browser/",
   "@/server/",
-  "@/libs/env/",
+  "@/libs/",
 ];
 
-const forbiddenFeatureTargets = [
+const forbiddenCoreTargets = [
   appRoot,
   uiRoot,
   browserRoot,
   serverRoot,
-  libsEnvRoot,
+  libsRoot,
 ];
 
 const forbiddenRuntimePatterns = [
@@ -84,9 +86,9 @@ const forbiddenBrowserPersistencePatterns = [
   { pattern: /\bdocument\.cookie\b/, label: "document.cookie" },
 ];
 
-describe("feature runtime boundaries", () => {
-  it("keeps features independent from framework, browser, server, env, and browser globals", () => {
-    expect(sourceFiles(featuresRoot).flatMap(inspectFeatureFile)).toEqual([]);
+describe("architecture boundaries", () => {
+  it("keeps core independent from frameworks, runtimes, libraries, config, and runtime globals", () => {
+    expect(sourceFiles(coreRoot).flatMap(inspectCoreFile)).toEqual([]);
   });
 
   it("confines concrete Pubky SDK imports to browser Pubky adapters", () => {
@@ -102,7 +104,6 @@ describe("feature runtime boundaries", () => {
     const violations = [
       ...runtimeIsolationViolations(browserRoot, [
         { targetPath: serverRoot, label: "server runtime" },
-        { targetPath: serverEnvModule, label: "server env module" },
       ], ["server-only"]),
       ...runtimeIsolationViolations(serverRoot, [
         { targetPath: browserRoot, label: "browser runtime" },
@@ -156,7 +157,6 @@ describe("feature runtime boundaries", () => {
   it("keeps server-only dependencies out of UI and client app modules", () => {
     const forbiddenTargets = [
       { targetPath: serverRoot, label: "server runtime" },
-      { targetPath: serverEnvModule, label: "server env module" },
     ];
     const violations = [
       ...productionSourceFiles(uiRoot).flatMap((filePath) => inspectForbiddenImports(filePath, {
@@ -180,27 +180,29 @@ describe("feature runtime boundaries", () => {
     expect(violations).toEqual([]);
   });
 
-  it("limits server environment imports to server-capable code", () => {
-    const allowedImporters = [appRoot, serverRoot, libsEnvRoot];
+  it("keeps wrapping-key configuration inside its owning server feature", () => {
+    const forbiddenTargets = [
+      { targetPath: googleWrappingKeyConfig, label: "Google wrapping-key config" },
+      { targetPath: googleWrappingKeyServerSecret, label: "Google wrapping-key server secret" },
+    ];
     const violations = productionSourceFiles(srcRoot)
-      .filter((filePath) => !allowedImporters.some((root) => isSameOrInside(filePath, root)))
-      .flatMap((filePath) => inspectForbiddenImports(filePath, {
-        forbiddenTargets: [{ targetPath: serverEnvModule, label: "server env module" }],
-      }));
+      .filter((filePath) => !isSameOrInside(filePath, googleWrappingKeyRoot))
+      .flatMap((filePath) => inspectForbiddenImports(filePath, { forbiddenTargets }));
 
     expect(violations).toEqual([]);
   });
 
   it("keeps the Google wrapping-key application layer independent from configuration and adapters", () => {
     const forbiddenTargets = [
-      { targetPath: serverEnvModule, label: "server env module" },
+      { targetPath: googleWrappingKeyConfig, label: "wrapping-key config" },
+      { targetPath: googleWrappingKeyServerSecret, label: "wrapping-key server secret" },
       { targetPath: join(googleWrappingKeyRoot, "composition"), label: "wrapping-key composition" },
       { targetPath: join(googleWrappingKeyRoot, "idTokenVerifier"), label: "Google verifier adapter" },
       { targetPath: join(googleWrappingKeyRoot, "keyDeriver"), label: "key derivation adapter" },
       { targetPath: join(googleWrappingKeyRoot, "rateLimiter"), label: "rate limiter adapter" },
     ];
     const violations = googleWrappingKeyApplicationModules.flatMap((filePath) =>
-      inspectForbiddenImports(filePath, { forbiddenTargets })
+      inspectForbiddenImports(filePath, { forbiddenTargets, traverseLocalImports: true })
     );
 
     expect(violations).toEqual([]);
@@ -269,13 +271,13 @@ describe("feature runtime boundaries", () => {
   });
 });
 
-function inspectFeatureFile(filePath: string): string[] {
+function inspectCoreFile(filePath: string): string[] {
   const source = readFileSync(filePath, "utf8");
   const relativeFilePath = relative(repoRoot, filePath);
   const violations: string[] = [];
 
   for (const specifier of importSpecifiers(source)) {
-    if (isForbiddenFeatureImport(specifier) || isForbiddenRelativeImport(filePath, specifier)) {
+    if (isForbiddenCoreImport(specifier) || isForbiddenCoreRelativeImport(filePath, specifier)) {
       violations.push(`${relativeFilePath} imports forbidden dependency "${specifier}"`);
     }
   }
@@ -418,8 +420,8 @@ function importSpecifiers(source: string): string[] {
   return specifiers;
 }
 
-function isForbiddenFeatureImport(specifier: string): boolean {
-  return forbiddenFeatureImports.some((forbidden) => forbidden.endsWith("/") ? specifier.startsWith(forbidden) : specifier === forbidden);
+function isForbiddenCoreImport(specifier: string): boolean {
+  return forbiddenCoreImports.some((forbidden) => forbidden.endsWith("/") ? specifier.startsWith(forbidden) : specifier === forbidden);
 }
 
 function importsPubkySdk(filePath: string): boolean {
@@ -467,9 +469,9 @@ function importsTarget(filePath: string, targetRoot: string): boolean {
   });
 }
 
-function isForbiddenRelativeImport(fromFilePath: string, specifier: string): boolean {
+function isForbiddenCoreRelativeImport(fromFilePath: string, specifier: string): boolean {
   const targetPath = importTargetPath(fromFilePath, specifier);
-  return targetPath !== null && forbiddenFeatureTargets.some((target) => isSameOrInside(targetPath, target));
+  return targetPath !== null && forbiddenCoreTargets.some((target) => isSameOrInside(targetPath, target));
 }
 
 function isSameOrInside(candidatePath: string, parentPath: string): boolean {

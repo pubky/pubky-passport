@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
-import { pubkySecretKeyFormat, type PubkyIdentityKey } from "../../src/features/identity/pubkyIdentity";
-import { parsePubkyAuthRequest } from "../../src/features/auth/parsePubkyAuthRequest";
+import { parsePubkyAuthRequest } from "../../src/core/auth/parsePubkyAuthRequest";
+import { pubkySecretKeyFormat, type PubkyIdentityKey } from "../../src/browser/pubky/ports";
 import { FakePubkyAuthApproval } from "./fakePubkyAuthApproval";
 import { FakePubkyDiscovery } from "./fakePubkyDiscovery";
 import { FakePubkyIdentityKeys } from "./fakePubkyIdentityKeys";

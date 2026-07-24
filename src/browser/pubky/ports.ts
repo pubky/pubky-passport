@@ -2,14 +2,31 @@ import "client-only";
 
 import type { Result } from "better-result";
 
-import type { ValidatedSensitivePubkyAuthRequest } from "../../features/auth/parsePubkyAuthRequest";
-import type {
-  PubkyIdentityKey,
-  PubkyIdentityKeyHandle,
-  PubkyIdentitySession,
-  PubkyPublicIdentity,
-  PubkySecretKeyMaterial,
-} from "../../features/identity/pubkyIdentity";
+import type { ValidatedSensitivePubkyAuthRequest } from "../../core/auth/parsePubkyAuthRequest";
+import type { PubkyPublicIdentity } from "../../core/identity/pubkyIdentity";
+
+declare const pubkyIdentityKeyHandleBrand: unique symbol;
+
+export const pubkySecretKeyBytes = 32;
+export const pubkySecretKeyFormat = "pubky-secret-key";
+
+export type PubkyIdentityKeyHandle = {
+  readonly [pubkyIdentityKeyHandleBrand]: "PubkyIdentityKeyHandle";
+};
+
+export type PubkyIdentityKey = {
+  keyHandle: PubkyIdentityKeyHandle;
+  publicIdentity: PubkyPublicIdentity;
+};
+
+export type PubkySecretKeyMaterial = {
+  bytes: Uint8Array;
+  format: typeof pubkySecretKeyFormat;
+};
+
+export type PubkyIdentitySession = {
+  publicIdentity: PubkyPublicIdentity;
+};
 
 export type PubkyIdentityKeysErrorCode =
   | "create_failed"

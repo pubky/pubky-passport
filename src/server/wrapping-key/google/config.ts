@@ -1,16 +1,22 @@
+import "server-only";
+
 import { z } from "zod";
 
 import {
   hasMinimumServerSecretBytes,
   isBase64,
   minimumServerSecretByteLength,
-} from "../security/serverSecret";
-import { type EnvLike, requiredStringSchema } from "./env-schema";
+} from "./serverSecret";
 
-export type GoogleWrappingKeyServerEnv = {
+type EnvLike = Record<string, string | undefined>;
+
+export type GoogleWrappingKeyServerConfig = {
   GOOGLE_CLIENT_ID: string;
   PASSPORT_SERVER_SECRET_BASE64: string;
 };
+
+const requiredStringSchema = (name: string) =>
+  z.string().trim().min(1, `${name} is required`);
 
 function serverSecretSchema() {
   return requiredStringSchema("PASSPORT_SERVER_SECRET_BASE64").superRefine((value, context) => {
@@ -33,11 +39,15 @@ function serverSecretSchema() {
   });
 }
 
-export function parseGoogleWrappingKeyServerEnv(input: EnvLike): GoogleWrappingKeyServerEnv {
+export function parseGoogleWrappingKeyServerConfig(input: EnvLike): GoogleWrappingKeyServerConfig {
   return z
     .object({
       GOOGLE_CLIENT_ID: requiredStringSchema("GOOGLE_CLIENT_ID"),
       PASSPORT_SERVER_SECRET_BASE64: serverSecretSchema(),
     })
     .parse(input);
+}
+
+export function getGoogleWrappingKeyServerConfig(): GoogleWrappingKeyServerConfig {
+  return parseGoogleWrappingKeyServerConfig(process.env);
 }

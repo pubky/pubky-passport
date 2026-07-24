@@ -1,5 +1,5 @@
-import type { PubkyIdentityKeyHandle } from "@/features/identity/pubkyIdentity";
-import type { ValidatedSensitivePubkyAuthRequest } from "@/features/auth/parsePubkyAuthRequest";
+import type { PubkyIdentityKeyHandle } from "@/browser/pubky/ports";
+import type { ValidatedSensitivePubkyAuthRequest } from "@/core/auth/parsePubkyAuthRequest";
 import { Result } from "better-result";
 
 import type {

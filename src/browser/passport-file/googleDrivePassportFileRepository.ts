@@ -2,12 +2,12 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import type { PassportFileEnvelopeV1 } from "../../features/passport-file/passportFile";
+import type { PassportFileEnvelopeV1 } from "../../core/passport-file/passportFile";
 import {
   parsePassportFileContents,
   parsePassportFileEnvelope,
-} from "../../features/passport-file/parsePassportFile";
-import { readBoundedText } from "../../libs/security/boundedBody";
+} from "../../core/passport-file/parsePassportFile";
+import { readBoundedText } from "../../libs/http/boundedBody";
 import type {
   PassportFileReadResult,
   PassportFileReference,

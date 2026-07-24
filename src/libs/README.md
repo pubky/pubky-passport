@@ -1,7 +1,9 @@
 # Shared Libraries
 
-Small shared utilities: environment parsing, bounded request bodies, redaction, and
-logging. They provide mechanics, not product flows or integrations.
+Small shared mechanisms only: public environment parsing, bounded HTTP bodies, and
+redacted logging. Product policy and provider-owned configuration live with their
+core or runtime owner.
 
-`env/server.ts` is server-only; browser code may use only `env/public.ts`. Logger
-output is redacted, but callers must still use safe event names and error codes.
+`env/public-env.ts` exposes only validated `NEXT_PUBLIC_*` values. `http/` owns
+cross-runtime body reading, and `logger/` owns both formatting and mandatory
+redaction. Callers must still use safe event names and error codes.

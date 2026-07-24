@@ -1,4 +1,4 @@
-import { redactForLog } from "../security/redaction";
+import { redactForLog } from "./redaction";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
