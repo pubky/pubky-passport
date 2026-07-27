@@ -58,6 +58,7 @@ export class PassportIdentityController implements BrowserIdentityController {
   list() { return toCatalogResult(this.#dependencies.repository.list()); }
   select(id: string) { return toCatalogResult(this.#dependencies.repository.select(id)); }
   clear() { return toCatalogResult(this.#dependencies.repository.clear()); }
+  subscribe(listener: () => void) { return this.#dependencies.repository.subscribe(listener); }
 
   async mountGoogleSignIn(target: HTMLElement, onState: (state: GoogleSignInState) => void): Promise<void> {
     this.unmountGoogleSignIn();

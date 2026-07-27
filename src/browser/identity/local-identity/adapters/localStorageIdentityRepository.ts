@@ -102,10 +102,24 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
 
     try {
       this.#storage.removeItem(storageKey);
-      return this.#storage.getItem(storageKey) === null ? Result.ok() : failure("storage_unavailable");
+      return Result.ok();
     } catch {
       return failure("storage_unavailable");
     }
+  }
+
+  subscribe(listener: () => void): () => void {
+    const target = getStorageEventTarget();
+    if (!target) return () => {};
+
+    const onStorage = (event: StorageEvent) => {
+      if ((event.key === storageKey || event.key === null)
+        && (!event.storageArea || event.storageArea === this.#storage)) {
+        listener();
+      }
+    };
+    target.addEventListener("storage", onStorage);
+    return () => target.removeEventListener("storage", onStorage);
   }
 
   readActive(): LocalIdentityRepositoryResult<{ identity: LocalIdentitySummary; secretKey: PubkySecretKeyMaterial }> {
@@ -163,22 +177,12 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
       return failure("storage_unavailable");
     }
 
-    let pending = store;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const latest = this.readStore();
-      if (Result.isError(latest)) return Result.err(latest.error);
-      pending = mergeStores(latest.value, pending);
-
-      try {
-        const serialized = JSON.stringify(pending);
-        this.#storage.setItem(storageKey, serialized);
-        if (this.#storage.getItem(storageKey) === serialized) return Result.ok();
-      } catch {
-        return failure("storage_unavailable");
-      }
+    try {
+      this.#storage.setItem(storageKey, JSON.stringify(store));
+      return Result.ok();
+    } catch {
+      return failure("storage_unavailable");
     }
-
-    return failure("storage_unavailable");
   }
 }
 
@@ -188,6 +192,10 @@ function getLocalStorage(): Storage | null {
   } catch {
     return null;
   }
+}
+
+function getStorageEventTarget(): Window | null {
+  return globalThis.window ?? null;
 }
 
 function isStoreV1(value: unknown): value is LocalIdentityStoreV1 {
@@ -237,12 +245,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function toSummary(identity: StoredLocalIdentity): LocalIdentitySummary {
   return { id: identity.id, publicIdentity: identity.publicIdentity };
-}
-
-function mergeStores(current: LocalIdentityStoreV1, update: LocalIdentityStoreV1): LocalIdentityStoreV1 {
-  const identities = new Map(current.identities.map((identity) => [identity.id, identity]));
-  for (const identity of update.identities) identities.set(identity.id, identity);
-  return { ...update, identities: [...identities.values()] };
 }
 
 function encodeBase64Url(bytes: Uint8Array): string {

@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 
@@ -9,6 +9,7 @@ import { DevelopmentIdentityPanel } from "./developmentIdentityPanel";
 const flowState = vi.hoisted(() => ({
   establish: async (): Promise<unknown> => { throw new Error("establish result not configured"); },
   deleteExpectedPublicKey: null as string | null,
+  refresh: null as (() => void) | null,
   controller: null as unknown,
 }));
 
@@ -40,6 +41,7 @@ describe("DevelopmentIdentityPanel", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", new MemoryStorage());
     flowState.deleteExpectedPublicKey = null;
+    flowState.refresh = null;
     flowState.controller = controllerForLocalStorage();
   });
 
@@ -91,6 +93,28 @@ describe("DevelopmentIdentityPanel", () => {
 
     await waitFor(() => expect(flowState.deleteExpectedPublicKey).toBe("failed-drive-identity"));
   });
+
+  it("keeps the confirmed Drive deletion target across external catalog refreshes", async () => {
+    localStorage.setItem("pubky-passport/local-identities/v1", JSON.stringify(storedIdentity));
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    render(<DevelopmentIdentityPanel allowGoogleDriveReset googleClientId="google-client" homegateBaseUrl={homegateBaseUrl} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Delete identity from Google" })).toBeDefined());
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete identity from Google" }));
+    localStorage.setItem("pubky-passport/local-identities/v1", JSON.stringify({
+      v: 1,
+      activeIdentityId: "other-identity",
+      identities: [{
+        id: "other-identity",
+        publicIdentity: { publicKeyZ32: "other-identity", publicKeyDisplay: "pubkyother-identity" },
+        secretKey: "b".repeat(43),
+      }],
+    }));
+    act(() => flowState.refresh?.());
+    fireEvent.click(screen.getByRole("button", { name: "Authorize test Google" }));
+
+    await waitFor(() => expect(flowState.deleteExpectedPublicKey).toBe("selected-identity"));
+  });
 });
 
 const homegateBaseUrl = "https://homegate.example/";
@@ -121,6 +145,10 @@ function controllerForLocalStorage() {
     clear: () => {
       localStorage.removeItem("pubky-passport/local-identities/v1");
       return Result.ok();
+    },
+    subscribe: (listener: () => void) => {
+      flowState.refresh = listener;
+      return () => { flowState.refresh = null; };
     },
     continueGoogle: async (action: { kind: "establish" } | { kind: "delete"; expectedPublicKeyZ32: string }) => {
       if (action.kind === "establish") {

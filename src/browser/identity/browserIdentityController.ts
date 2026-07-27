@@ -81,6 +81,7 @@ export type BrowserIdentityController = {
   list(): BrowserIdentityCatalogResult<BrowserIdentityList>;
   select(id: string): BrowserIdentityCatalogResult<void>;
   clear(): BrowserIdentityCatalogResult<void>;
+  subscribe(listener: () => void): () => void;
   mountGoogleSignIn(target: HTMLElement, onState: (state: GoogleSignInState) => void): Promise<void>;
   unmountGoogleSignIn(): void;
   retryGoogleSignIn(): void;

@@ -18,6 +18,7 @@ export type LocalIdentityCatalog = {
   list(): LocalIdentityRepositoryResult<{ activeIdentityId: string | null; identities: LocalIdentitySummary[] }>;
   select(id: string): LocalIdentityRepositoryResult<void>;
   clear(): LocalIdentityRepositoryResult<void>;
+  subscribe(listener: () => void): () => void;
 };
 
 export type LocalIdentityKeyStore = {

@@ -25,6 +25,7 @@ export function DevelopmentIdentityPanel({
   allowGoogleDriveReset: boolean;
 }) {
   const controller = useRef<BrowserIdentityController | null>(null);
+  const googleActionTarget = useRef<string | null>(null);
   const [controllerReady, setControllerReady] = useState(false);
   const [identities, setIdentities] = useState<LocalIdentitySummary[]>([]);
   const [selectedIdentityId, setSelectedIdentityId] = useState("");
@@ -35,11 +36,13 @@ export function DevelopmentIdentityPanel({
 
   useEffect(() => {
     let cancelled = false;
+    let unsubscribe = () => {};
     queueMicrotask(() => {
       if (cancelled) return;
       try {
         controller.current = createBrowserIdentityController({ googleClientId, homegateBaseUrl });
         setControllerReady(true);
+        unsubscribe = controller.current.subscribe(() => refreshIdentities());
         refreshIdentities();
       } catch {
         logger.warn("identity.pubky.initialize.failed");
@@ -48,6 +51,7 @@ export function DevelopmentIdentityPanel({
     });
     return () => {
       cancelled = true;
+      unsubscribe();
       controller.current?.dispose();
       controller.current = null;
     };
@@ -91,6 +95,7 @@ export function DevelopmentIdentityPanel({
       setMessage("Identity deleted from Google Drive.");
     }
     setBusy(false);
+    googleActionTarget.current = null;
     setGoogleAction(null);
   }
 
@@ -106,22 +111,24 @@ export function DevelopmentIdentityPanel({
 
   const selectedIdentity = identities.find((identity) => identity.id === selectedIdentityId);
 
-  function beginGoogleAction(action: Exclude<GoogleAction, null>): void {
+  function beginGoogleAction(action: Exclude<GoogleAction, null>, target: string | null = null): void {
+    googleActionTarget.current = target;
     setGoogleAction(action);
   }
 
   function cancelGoogleAction(): void {
     controller.current?.unmountGoogleSignIn();
     setBusy(false);
+    googleActionTarget.current = null;
     setGoogleAction(null);
   }
 
   const googleIdentityAction = googleAction === "add"
     ? { kind: "establish" } as const
-    : googleAction === "delete-selected" && selectedIdentity
-      ? { kind: "delete", expectedPublicKeyZ32: selectedIdentity.publicIdentity.publicKeyZ32 } as const
-      : googleAction === "delete-failed" && recoverableDriveIdentity
-        ? { kind: "delete", expectedPublicKeyZ32: recoverableDriveIdentity.publicKeyZ32 } as const
+    : googleAction === "delete-selected" && googleActionTarget.current
+      ? { kind: "delete", expectedPublicKeyZ32: googleActionTarget.current } as const
+      : googleAction === "delete-failed" && googleActionTarget.current
+        ? { kind: "delete", expectedPublicKeyZ32: googleActionTarget.current } as const
         : null;
 
   return (
@@ -149,7 +156,9 @@ export function DevelopmentIdentityPanel({
               className="rounded border border-red-700 px-3 py-2 text-red-700"
               disabled={busy}
               onClick={() => {
-                if (globalThis.confirm("Authorize Google again, verify the selected identity, and delete its Passport Drive file?")) beginGoogleAction("delete-selected");
+                if (globalThis.confirm("Authorize Google again, verify the selected identity, and delete its Passport Drive file?")) {
+                  beginGoogleAction("delete-selected", selectedIdentity.publicIdentity.publicKeyZ32);
+                }
               }}
               type="button"
             >
@@ -161,7 +170,9 @@ export function DevelopmentIdentityPanel({
               className="rounded border border-red-700 px-3 py-2 text-red-700"
               disabled={busy}
               onClick={() => {
-                if (globalThis.confirm("Authorize Google again, verify the identity that could not be activated, and delete its Passport Drive file?")) beginGoogleAction("delete-failed");
+                if (globalThis.confirm("Authorize Google again, verify the identity that could not be activated, and delete its Passport Drive file?")) {
+                  beginGoogleAction("delete-failed", recoverableDriveIdentity.publicKeyZ32);
+                }
               }}
               type="button"
             >

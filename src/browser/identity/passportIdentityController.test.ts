@@ -343,5 +343,6 @@ function fakeRepository(): BrowserIdentityControllerDependencies["repository"] {
     list: vi.fn(() => Result.ok({ activeIdentityId: null, identities: [] })),
     select: vi.fn(() => Result.ok()),
     clear: vi.fn(() => Result.ok()),
+    subscribe: vi.fn(() => () => {}),
   };
 }

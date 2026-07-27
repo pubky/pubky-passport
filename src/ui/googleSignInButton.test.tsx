@@ -69,6 +69,7 @@ function fakeController(overrides: Partial<BrowserIdentityController>): BrowserI
     list: vi.fn(() => Result.ok({ activeIdentityId: null, identities: [] })),
     select: vi.fn(() => Result.ok()),
     clear: vi.fn(() => Result.ok()),
+    subscribe: vi.fn(() => () => {}),
     mountGoogleSignIn: vi.fn(async () => {}),
     unmountGoogleSignIn: vi.fn(),
     retryGoogleSignIn: vi.fn(),

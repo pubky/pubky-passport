@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+/** @vitest-environment jsdom */
+
+import { describe, expect, it, vi } from "vitest";
 
 import { MemoryStorage } from "../../../../../test-utils/fakes/memoryStorage";
 import { expectResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
@@ -63,6 +65,32 @@ describe("LocalStorageIdentityRepository", () => {
 
     expect(expectResultOk(repository.list())).toEqual({ activeIdentityId: null, identities: [] });
     expect(storage.getItem("unrelated")).toBe("keep");
+  });
+
+  it("uses one last-write-wins write without read-back retries", () => {
+    const storage = new MemoryStorage();
+    const getItem = vi.spyOn(storage, "getItem");
+    const setItem = vi.spyOn(storage, "setItem");
+    const repository = new LocalStorageIdentityRepository({ storage });
+
+    save(repository, firstIdentity, 1);
+
+    expect(setItem).toHaveBeenCalledOnce();
+    expect(getItem).toHaveBeenCalledOnce();
+  });
+
+  it("notifies subscribers when another document changes the identity store", () => {
+    const repository = new LocalStorageIdentityRepository({ storage: new MemoryStorage() });
+    const listener = vi.fn();
+    const unsubscribe = repository.subscribe(listener);
+
+    window.dispatchEvent(new StorageEvent("storage", { key: "unrelated" }));
+    window.dispatchEvent(new StorageEvent("storage", { key: "pubky-passport/local-identities/v1" }));
+    window.dispatchEvent(new StorageEvent("storage", { key: null }));
+    unsubscribe();
+    window.dispatchEvent(new StorageEvent("storage", { key: "pubky-passport/local-identities/v1" }));
+
+    expect(listener).toHaveBeenCalledTimes(2);
   });
 });
 

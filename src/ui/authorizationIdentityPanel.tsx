@@ -27,6 +27,7 @@ export function AuthorizationIdentityPanel({
 }) {
   const controller = useRef<BrowserIdentityController | null>(null);
   const readyCallback = useRef(onReadyChange);
+  const identityActionPending = useRef(false);
   const [identities, setIdentities] = useState<LocalIdentitySummary[]>([]);
   const [selectedIdentityId, setSelectedIdentityId] = useState("");
   const [addingIdentity, setAddingIdentity] = useState(false);
@@ -39,10 +40,14 @@ export function AuthorizationIdentityPanel({
 
   useEffect(() => {
     let cancelled = false;
+    let unsubscribe = () => {};
     queueMicrotask(() => {
       if (cancelled) return;
       try {
         controller.current = controllerFactory({ googleClientId, homegateBaseUrl });
+        unsubscribe = controller.current.subscribe(() => {
+          if (!identityActionPending.current) refreshIdentities();
+        });
         refreshIdentities();
       } catch {
         logger.warn("authorize.identity.initialize.failed");
@@ -52,6 +57,7 @@ export function AuthorizationIdentityPanel({
     });
     return () => {
       cancelled = true;
+      unsubscribe();
       controller.current?.dispose();
       controller.current = null;
     };
@@ -86,6 +92,7 @@ export function AuthorizationIdentityPanel({
   }
 
   function completeGoogleAction(result: BrowserIdentityActionResult): void {
+    identityActionPending.current = false;
     setBusy(false);
     setAddingIdentity(false);
     if (Result.isError(result)) {
@@ -101,12 +108,14 @@ export function AuthorizationIdentityPanel({
 
   function cancelGoogleAction(): void {
     controller.current?.unmountGoogleSignIn();
+    identityActionPending.current = false;
     setBusy(false);
     setAddingIdentity(false);
     refreshIdentities("Google identity setup cancelled.");
   }
 
   function beginGoogleAction(): void {
+    identityActionPending.current = true;
     readyCallback.current(false);
     setAddingIdentity(true);
   }

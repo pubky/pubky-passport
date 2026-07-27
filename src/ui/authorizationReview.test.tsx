@@ -120,6 +120,7 @@ function fakeIdentityController(): BrowserIdentityController {
     })),
     select: vi.fn(() => Result.ok()),
     clear: vi.fn(() => Result.ok()),
+    subscribe: vi.fn(() => () => {}),
     mountGoogleSignIn: vi.fn(async () => undefined),
     unmountGoogleSignIn: vi.fn(),
     retryGoogleSignIn: vi.fn(),
