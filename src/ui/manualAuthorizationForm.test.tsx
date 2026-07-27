@@ -4,19 +4,22 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { BrowserManualAuthorizationController } from "../browser/authorization/browserManualAuthorizationController";
 import { ManualAuthorizationForm } from "./manualAuthorizationForm";
 
-const navigate = vi.fn();
+const enter = vi.fn<BrowserManualAuthorizationController["enter"]>();
+const authorization: BrowserManualAuthorizationController = { enter };
 
 describe("ManualAuthorizationForm", () => {
   afterEach(() => {
     cleanup();
-    navigate.mockReset();
+    enter.mockReset();
   });
 
   it("removes an invalid sensitive request from the UI", async () => {
     const user = userEvent.setup();
-    render(<ManualAuthorizationForm navigate={navigate} />);
+    enter.mockReturnValue("invalid");
+    render(<ManualAuthorizationForm authorization={authorization} />);
     const input = screen.getByRole("textbox", { name: "Pubky authorization request" });
 
     await user.type(input, "pubkyauth://signin?secret=sensitive-secret");
@@ -31,18 +34,20 @@ describe("ManualAuthorizationForm", () => {
     expect(input.getAttribute("autocorrect")).toBe("off");
     expect(input.getAttribute("spellcheck")).toBe("false");
     expect(document.body.textContent).not.toContain("sensitive-secret");
-    expect(navigate).not.toHaveBeenCalled();
+    expect(enter).toHaveBeenCalledWith("pubkyauth://signin?secret=sensitive-secret");
   });
 
   it("routes a valid request to capability review", async () => {
     const user = userEvent.setup();
     const request = "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.client.example/inbox&secret=secret&x-success=https://example.app/success";
-    render(<ManualAuthorizationForm navigate={navigate} />);
+    enter.mockReturnValue("navigating");
+    render(<ManualAuthorizationForm authorization={authorization} />);
 
     await user.type(screen.getByRole("textbox", { name: "Pubky authorization request" }), request);
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(navigate).toHaveBeenCalledWith(`/authorize?d=${encodeURIComponent(request)}`);
+    expect(enter).toHaveBeenCalledWith(request);
+    expect((screen.getByRole("textbox", { name: "Pubky authorization request" }) as HTMLTextAreaElement).value).toBe("");
   });
 
 });

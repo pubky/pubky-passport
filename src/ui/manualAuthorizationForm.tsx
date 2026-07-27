@@ -1,31 +1,30 @@
 "use client";
 
-import { Result } from "better-result";
 import { useState, type FormEvent } from "react";
 
-import { parsePubkyAuthRequest } from "../core/auth/parsePubkyAuthRequest";
+import type { BrowserManualAuthorizationController } from "../browser/authorization/browserManualAuthorizationController";
+import { createBrowserManualAuthorizationController } from "../browser/authorization/createBrowserManualAuthorizationController";
+
+const defaultAuthorization = createBrowserManualAuthorizationController();
 
 export function ManualAuthorizationForm({
-  navigate = replaceDocument,
+  authorization = defaultAuthorization,
 }: {
-  navigate?: (url: string) => void;
+  authorization?: BrowserManualAuthorizationController;
 }) {
   const [request, setRequest] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    const rawRequest = request.trim();
-    const parsed = parsePubkyAuthRequest(encodeURIComponent(rawRequest));
+    const result = authorization.enter(request);
     setRequest("");
-    if (Result.isError(parsed)) {
+    if (result === "invalid") {
       setError("The invalid request was cleared for security. Correct it in the source app, then paste the complete request again.");
       return;
     }
 
-    const destination = `/authorize?d=${encodeURIComponent(rawRequest)}`;
     setError(null);
-    navigate(destination);
   }
 
   return (
@@ -48,8 +47,4 @@ export function ManualAuthorizationForm({
       {error ? <p className="text-sm text-red-700" role="alert">{error}</p> : null}
     </section>
   );
-}
-
-function replaceDocument(url: string): void {
-  window.location.replace(url);
 }
