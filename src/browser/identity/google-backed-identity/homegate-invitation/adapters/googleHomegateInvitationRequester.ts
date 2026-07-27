@@ -6,8 +6,8 @@ import { readBoundedText } from "../../../../../libs/http/boundedBody";
 import type {
   GoogleHomegateInvitationRequester,
   GoogleHomegateInvitationRequesterErrorCode,
-  HomeserverSignupInvitation,
 } from "../application/homegateInvitation";
+import type { HomeserverSignupInvitation } from "../../application/homeserverSignupInvitation";
 
 const maximumSuccessResponseBytes = 16 * 1024;
 const maximumErrorResponseBytes = 256;

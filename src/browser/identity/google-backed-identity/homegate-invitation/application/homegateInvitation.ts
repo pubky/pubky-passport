@@ -1,11 +1,7 @@
 import "client-only";
 
 import type { Result } from "better-result";
-
-export type HomeserverSignupInvitation = {
-  signupCode: string;
-  homeserverPubky: string;
-};
+import type { HomeserverSignupInvitation } from "../../application/homeserverSignupInvitation";
 
 export type GoogleHomegateInvitationRequesterErrorCode =
   | "invalid_google_id_token"

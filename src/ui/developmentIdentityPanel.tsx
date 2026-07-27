@@ -221,7 +221,7 @@ function messageForGoogleFailure(code: string): string {
     case "drive_create_conflict":
       return "A Google Drive identity was created at the same time. Try again to restore it.";
     case "homegate_invite_failed":
-      return "Passport stored the encrypted identity, but could not obtain a homeserver invitation. Delete the failed Drive identity and start again.";
+      return "Passport could not obtain a homeserver invitation and did not create an identity. Try again later.";
     case "signup_failed":
       return "Passport stored the encrypted identity, but homeserver signup did not complete. Delete the failed Drive identity and start again.";
     case "signin_failed":

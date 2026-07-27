@@ -12,13 +12,11 @@ import type {
   GoogleBackedIdentity,
   GoogleBackedIdentityResult,
 } from "./googleBackedIdentity";
-import type { GoogleHomegateInvitationRequester } from "../homegate-invitation/application/homegateInvitation";
 import type { LocalIdentitySaver } from "../../local-identity/application/saveLocalIdentity";
 
 export class CreateGoogleBackedIdentity implements GoogleBackedIdentityCreator {
   readonly #crypto: PassportFileCrypto;
   readonly #identityKeys: PubkyIdentityKeys;
-  readonly #homegateInvitationRequester: GoogleHomegateInvitationRequester;
   readonly #sessionAccess: PubkySessionAccess;
   readonly #discovery: PubkyDiscovery;
   readonly #localIdentities: LocalIdentitySaver;
@@ -27,7 +25,6 @@ export class CreateGoogleBackedIdentity implements GoogleBackedIdentityCreator {
   constructor(input: {
     crypto: PassportFileCrypto;
     identityKeys: PubkyIdentityKeys;
-    homegateInvitationRequester: GoogleHomegateInvitationRequester;
     sessionAccess: PubkySessionAccess;
     discovery: PubkyDiscovery;
     localIdentities: LocalIdentitySaver;
@@ -35,7 +32,6 @@ export class CreateGoogleBackedIdentity implements GoogleBackedIdentityCreator {
   }) {
     this.#crypto = input.crypto;
     this.#identityKeys = input.identityKeys;
-    this.#homegateInvitationRequester = input.homegateInvitationRequester;
     this.#sessionAccess = input.sessionAccess;
     this.#discovery = input.discovery;
     this.#localIdentities = input.localIdentities;
@@ -82,20 +78,11 @@ export class CreateGoogleBackedIdentity implements GoogleBackedIdentityCreator {
         secretKey.value.bytes.fill(0);
       }
 
-      logger.info("identity.google.homegate_invite.started");
-      const invitation = await this.#homegateInvitationRequester.requestSignupInvitation({
-        googleIdToken: input.googleIdToken,
-      });
-      if (Result.isError(invitation)) {
-        logger.warn("identity.google.homegate_invite.failed", { code: invitation.error.code });
-        return failure("homegate_invite_failed", created.value.publicIdentity);
-      }
-
       logger.info("identity.google.signup.started");
       const signedUp = await this.#sessionAccess.signup({
         keyHandle: created.value.keyHandle,
-        homeserverPubky: invitation.value.homeserverPubky,
-        signupCode: invitation.value.signupCode,
+        homeserverPubky: input.invitation.homeserverPubky,
+        signupCode: input.invitation.signupCode,
       });
       if (Result.isError(signedUp)) {
         logger.warn("identity.google.signup.failed", { code: signedUp.error.code });
@@ -109,7 +96,7 @@ export class CreateGoogleBackedIdentity implements GoogleBackedIdentityCreator {
       logger.info("identity.google.discovery.started");
       const published = await this.#discovery.publishHomeserverIfStale({
         keyHandle: created.value.keyHandle,
-        homeserverPubky: invitation.value.homeserverPubky,
+        homeserverPubky: input.invitation.homeserverPubky,
       });
       if (Result.isError(published)) {
         logger.warn("identity.google.discovery.failed", { code: published.error.code });
@@ -151,7 +138,6 @@ function createError(
     | "encrypt_failed"
     | "drive_create_conflict"
     | "drive_write_failed"
-    | "homegate_invite_failed"
     | "signup_failed"
     | "identity_mismatch"
     | "discovery_failed"

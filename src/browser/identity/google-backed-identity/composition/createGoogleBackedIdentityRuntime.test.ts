@@ -91,7 +91,6 @@ describe("createGoogleBackedIdentityRuntime", () => {
     expect(mocks.CreateGoogleBackedIdentity).toHaveBeenCalledWith({
       crypto: mocks.crypto,
       identityKeys: mocks.pubky,
-      homegateInvitationRequester: mocks.homegateInvitationRequester,
       sessionAccess: mocks.pubky,
       discovery: mocks.pubky,
       localIdentities: mocks.localIdentities,
@@ -100,6 +99,7 @@ describe("createGoogleBackedIdentityRuntime", () => {
     expect(mocks.EstablishGoogleBackedIdentity).toHaveBeenCalledWith({
       wrappingKeys: mocks.wrappingKeys,
       passportFileStoreForAccessToken: expect.any(Function),
+      homegateInvitationRequester: mocks.homegateInvitationRequester,
       restoreExistingIdentity: mocks.restoreExistingIdentity,
       createMissingIdentity: mocks.createMissingIdentity,
     });

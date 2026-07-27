@@ -5,6 +5,8 @@ import type { Result } from "better-result";
 import type { PubkyPublicIdentity } from "../../../../core/identity/pubkyIdentity";
 import type { PassportFileEnvelopeV1 } from "../../../../core/passport-file/passportFile";
 import type { PassportFileStore } from "../../../passport-file/application/passportFileStore";
+import type { GoogleHomegateInvitationRequesterErrorCode } from "../homegate-invitation/application/homegateInvitation";
+import type { HomeserverSignupInvitation } from "./homeserverSignupInvitation";
 
 export type GoogleIdentitySession = {
   googleIdToken: string;
@@ -28,10 +30,16 @@ export type GoogleBackedIdentityErrorCode =
   | "local_save_failed"
   | "unexpected_failure";
 
-export type GoogleBackedIdentityError = {
-  code: GoogleBackedIdentityErrorCode;
-  recoverablePublicIdentity?: PubkyPublicIdentity;
-};
+export type GoogleBackedIdentityError =
+  | {
+      code: Exclude<GoogleBackedIdentityErrorCode, "homegate_invite_failed">;
+      recoverablePublicIdentity?: PubkyPublicIdentity;
+    }
+  | {
+      code: "homegate_invite_failed";
+      cause: GoogleHomegateInvitationRequesterErrorCode;
+      recoverablePublicIdentity?: never;
+    };
 
 export type GoogleBackedIdentity = {
   source: "restored" | "created";
@@ -52,7 +60,7 @@ export type GoogleBackedIdentityRestorer = {
 
 export type GoogleBackedIdentityCreator = {
   execute(input: {
-    googleIdToken: string;
+    invitation: HomeserverSignupInvitation;
     passportFileStore: Pick<PassportFileStore, "createPassportFile">;
     wrappingKey: string;
   }): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>>;

@@ -13,6 +13,7 @@ import type {
   GoogleIdentitySession,
 } from "./googleBackedIdentity";
 import type { GoogleWrappingKeyRequester } from "../wrapping-key/application/googleWrappingKey";
+import type { GoogleHomegateInvitationRequester } from "../homegate-invitation/application/homegateInvitation";
 
 export type {
   GoogleBackedIdentity,
@@ -24,17 +25,20 @@ export type {
 export class EstablishGoogleBackedIdentity implements GoogleIdentityEstablisher {
   readonly #wrappingKeys: GoogleWrappingKeyRequester;
   readonly #passportFileStoreForAccessToken: (driveAccessToken: string) => PassportFileStore;
+  readonly #homegateInvitationRequester: GoogleHomegateInvitationRequester;
   readonly #restoreExistingIdentity: GoogleBackedIdentityRestorer;
   readonly #createMissingIdentity: GoogleBackedIdentityCreator;
 
   constructor(input: {
     wrappingKeys: GoogleWrappingKeyRequester;
     passportFileStoreForAccessToken: (driveAccessToken: string) => PassportFileStore;
+    homegateInvitationRequester: GoogleHomegateInvitationRequester;
     restoreExistingIdentity: GoogleBackedIdentityRestorer;
     createMissingIdentity: GoogleBackedIdentityCreator;
   }) {
     this.#wrappingKeys = input.wrappingKeys;
     this.#passportFileStoreForAccessToken = input.passportFileStoreForAccessToken;
+    this.#homegateInvitationRequester = input.homegateInvitationRequester;
     this.#restoreExistingIdentity = input.restoreExistingIdentity;
     this.#createMissingIdentity = input.createMissingIdentity;
   }
@@ -72,8 +76,17 @@ export class EstablishGoogleBackedIdentity implements GoogleIdentityEstablisher 
     }
 
     logger.info("identity.google.drive_read.completed", { status: "missing" });
-    return this.#createMissingIdentity.execute({
+    logger.info("identity.google.homegate_invite.started");
+    const invitation = await this.#homegateInvitationRequester.requestSignupInvitation({
       googleIdToken: google.googleIdToken,
+    });
+    if (Result.isError(invitation)) {
+      logger.warn("identity.google.homegate_invite.failed", { code: invitation.error.code });
+      return Result.err({ code: "homegate_invite_failed", cause: invitation.error.code });
+    }
+
+    return this.#createMissingIdentity.execute({
+      invitation: invitation.value,
       passportFileStore,
       wrappingKey: wrappingKey.value,
     });

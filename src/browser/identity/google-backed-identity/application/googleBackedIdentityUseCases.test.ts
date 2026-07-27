@@ -195,7 +195,7 @@ describe("Google-backed identity use cases", () => {
     expect(crypto.decryptedBytes.every((byte) => byte === 0)).toBe(true);
   });
 
-  it("performs created activation in order and sends only the Google ID token to Homegate", async () => {
+  it("obtains an invitation before created activation and sends only the Google ID token to Homegate", async () => {
     const events: string[] = [];
     const keys = new FakePubkyIdentityKeys();
     const local = new FakeLocalIdentities(() => events.push("save"));
@@ -219,7 +219,7 @@ describe("Google-backed identity use cases", () => {
     const result = await flow.establish({ googleIdToken: "id-token", driveAccessToken: "drive-token" });
 
     expect(Result.isError(result)).toBe(false);
-    expect(events).toEqual(["drive-create", "homegate", "signup", "discovery", "save"]);
+    expect(events).toEqual(["homegate", "drive-create", "signup", "discovery", "save"]);
   });
 
   it("stops after created activation failure without saving locally and disposes the key", async () => {
@@ -247,7 +247,7 @@ describe("Google-backed identity use cases", () => {
     expect(keys.disposedKeys).toHaveLength(1);
   });
 
-  it("stops before signup when Homegate fails", async () => {
+  it("stops before identity creation when Homegate fails", async () => {
     const keys = new FakePubkyIdentityKeys();
     const local = new FakeLocalIdentities();
     const dependencies = activationDependencies(keys);
@@ -265,12 +265,13 @@ describe("Google-backed identity use cases", () => {
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({
       code: "homegate_invite_failed",
-      recoverablePublicIdentity: keys.nextPublicIdentity,
+      cause: "homegate_unavailable",
     });
+    expect(keys.createCalls).toBe(0);
+    expect(keys.disposedKeys).toEqual([]);
     expect(dependencies.sessionAccess.signupCalls).toEqual([]);
     expect(dependencies.discovery.calls).toEqual([]);
     expect(local.savedHandles).toEqual([]);
-    expect(keys.disposedKeys).toHaveLength(1);
   });
 
   it("rejects a signup session for a different identity before discovery or local save", async () => {
@@ -378,7 +379,28 @@ describe("Google-backed identity use cases", () => {
     },
   );
 
-  it.each(["encrypt", "drive-write", "homegate", "signup", "discovery", "local-save"] as const)(
+  it("maps an unexpected Homegate exception before creating an identity", async () => {
+    const keys = new FakePubkyIdentityKeys();
+    const dependencies = activationDependencies(keys);
+    dependencies.homegate.requestSignupInvitation = async () => { throw new Error("Homegate threw"); };
+    const files = new FakePassportFileStore({ status: "missing" });
+    const flow = createFlow({
+      keys,
+      local: new FakeLocalIdentities(),
+      fileStore: files,
+      crypto: new FakePassportCrypto(),
+      ...dependencies,
+    });
+
+    const result = await flow.establish({ googleIdToken: "id-token", driveAccessToken: "drive-token" });
+
+    expect(Result.isError(result) && result.error.code).toBe("unexpected_failure");
+    expect(keys.createCalls).toBe(0);
+    expect(keys.disposedKeys).toEqual([]);
+    expect(files.written).toEqual([]);
+  });
+
+  it.each(["encrypt", "drive-write", "signup", "discovery", "local-save"] as const)(
     "disposes a created key once and zeroes exported bytes when %s throws",
     async (stage) => {
       const keys = new FakePubkyIdentityKeys();
@@ -394,8 +416,6 @@ describe("Google-backed identity use cases", () => {
         };
       } else if (stage === "drive-write") {
         files.createPassportFile = async () => { throw new Error("Drive write threw"); };
-      } else if (stage === "homegate") {
-        dependencies.homegate.requestSignupInvitation = async () => { throw new Error("Homegate threw"); };
       } else if (stage === "signup") {
         dependencies.sessionAccess.signup = async () => { throw new Error("signup threw"); };
       } else if (stage === "discovery") {
@@ -487,6 +507,7 @@ function createFlow(input: {
       expect(accessToken).toBe("drive-token");
       return input.fileStore;
     },
+    homegateInvitationRequester: input.homegate ?? activation.homegate,
     restoreExistingIdentity: new RestoreGoogleBackedIdentity({
       crypto: input.crypto,
       identityKeys: input.keys,
@@ -497,7 +518,6 @@ function createFlow(input: {
     createMissingIdentity: new CreateGoogleBackedIdentity({
       crypto: input.crypto,
       identityKeys: input.keys,
-      homegateInvitationRequester: input.homegate ?? activation.homegate,
       sessionAccess,
       discovery: input.discovery ?? activation.discovery,
       localIdentities: input.local,

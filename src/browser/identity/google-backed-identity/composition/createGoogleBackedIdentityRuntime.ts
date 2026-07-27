@@ -31,6 +31,9 @@ export function createGoogleBackedIdentityRuntime(input: {
   try {
     const localIdentities = new SaveLocalIdentity({ keyStore: input.keyStore, identityKeys: pubky });
     const wrappingKeys = new BrowserGoogleWrappingKeyRequester();
+    const homegateInvitationRequester = new BrowserGoogleHomegateInvitationRequester({
+      homegateBaseUrl: input.homegateBaseUrl,
+    });
     const crypto = new WebCryptoPassportFileCrypto();
     const passportFileStoreForAccessToken = (token: string) => new GoogleDrivePassportFileStore({
       accessTokenProvider: async () => token,
@@ -46,9 +49,6 @@ export function createGoogleBackedIdentityRuntime(input: {
     const createMissingIdentity = new CreateGoogleBackedIdentity({
       crypto,
       identityKeys: pubky,
-      homegateInvitationRequester: new BrowserGoogleHomegateInvitationRequester({
-        homegateBaseUrl: input.homegateBaseUrl,
-      }),
       sessionAccess: pubky,
       discovery: pubky,
       localIdentities,
@@ -57,6 +57,7 @@ export function createGoogleBackedIdentityRuntime(input: {
     const identityEstablisher = new EstablishGoogleBackedIdentity({
       wrappingKeys,
       passportFileStoreForAccessToken,
+      homegateInvitationRequester,
       restoreExistingIdentity,
       createMissingIdentity,
     });
