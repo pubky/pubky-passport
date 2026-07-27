@@ -10,6 +10,7 @@ import type {
   BrowserAuthorizationViewState,
 } from "../browser/authorization/browserAuthorizationController";
 import type { BrowserIdentityController } from "../browser/identity/browserIdentityController";
+import { fakeBrowserIdentityController } from "../../test-utils/fakes/fakeBrowserIdentityController";
 import { AuthorizationReview } from "./authorizationReview";
 
 const review = {
@@ -29,12 +30,12 @@ describe("AuthorizationReview", () => {
 
     renderReview(controller);
 
-    expect(screen.getByRole("heading", { name: "app.example" })).toBeTruthy();
-    expect(screen.getByText("Requesting app (unverified)")).toBeTruthy();
-    expect(screen.getByText("relay.client.example")).toBeTruthy();
-    expect(screen.getByText("/pub/example.app/")).toBeTruthy();
-    expect(screen.getByText("Read and Write")).toBeTruthy();
-    expect(screen.getByText("Broad access")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "app.example" })).toBeInTheDocument();
+    expect(screen.getByText("Requesting app (unverified)")).toBeInTheDocument();
+    expect(screen.getByText("relay.client.example")).toBeInTheDocument();
+    expect(screen.getByText("/pub/example.app/")).toBeInTheDocument();
+    expect(screen.getByText("Read and Write")).toBeInTheDocument();
+    expect(screen.getByText("Broad access")).toBeInTheDocument();
     await waitFor(() => expect((screen.getByRole("combobox", { name: "Authorization identity" }) as HTMLSelectElement).value).toBe("identity-1"));
     await waitFor(() => expect((screen.getByRole("button", { name: "Approve" }) as HTMLButtonElement).disabled).toBe(false));
     await user.click(screen.getByRole("button", { name: "Add or restore with Google" }));
@@ -56,7 +57,7 @@ describe("AuthorizationReview", () => {
     expect(screen.getByRole("button", { name: "Approving..." })).toHaveProperty("disabled", true);
 
     act(() => controller.emit({ status: "approved" }));
-    expect(screen.getByRole("heading", { name: "Authorization complete" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Authorization complete" })).toBeInTheDocument();
     rendered.unmount();
   });
 
@@ -69,8 +70,8 @@ describe("AuthorizationReview", () => {
   ])("renders the safe %s terminal state", (state, heading, message) => {
     renderReview(fakeController(state));
 
-    expect(screen.getByRole("heading", { name: heading })).toBeTruthy();
-    expect(screen.getByText(message)).toBeTruthy();
+    expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument();
+    expect(screen.getByText(message)).toBeInTheDocument();
   });
 });
 
@@ -107,7 +108,7 @@ function fakeController(initialState: BrowserAuthorizationViewState): BrowserAut
 }
 
 function fakeIdentityController(): BrowserIdentityController {
-  return {
+  return fakeBrowserIdentityController({
     list: vi.fn(() => Result.ok({
       activeIdentityId: "identity-1",
       identities: [{
@@ -119,12 +120,6 @@ function fakeIdentityController(): BrowserIdentityController {
       }],
     })),
     select: vi.fn(() => Result.ok()),
-    clear: vi.fn(() => Result.ok()),
-    subscribe: vi.fn(() => () => {}),
-    mountGoogleSignIn: vi.fn(async () => undefined),
-    unmountGoogleSignIn: vi.fn(),
-    retryGoogleSignIn: vi.fn(),
     continueGoogle: vi.fn(async () => ({ status: "busy" as const })),
-    dispose: vi.fn(),
-  };
+  });
 }

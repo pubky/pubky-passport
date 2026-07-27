@@ -4,12 +4,19 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 
+import type {
+  BrowserIdentityActionResult,
+  BrowserIdentityController,
+  BrowserIdentityList,
+} from "../browser/identity/browserIdentityController";
+import { fakeBrowserIdentityController } from "../../test-utils/fakes/fakeBrowserIdentityController";
 import { DevelopmentIdentityPanel } from "./developmentIdentityPanel";
 
 const flowState = vi.hoisted(() => ({
-  establish: async (): Promise<unknown> => { throw new Error("establish result not configured"); },
+  establish: async (): Promise<BrowserIdentityActionResult> => { throw new Error("establish result not configured"); },
   deleteExpectedPublicKey: null as string | null,
   refresh: null as (() => void) | null,
+  setCatalog: null as ((catalog: BrowserIdentityList) => void) | null,
   controller: null as unknown,
 }));
 
@@ -27,23 +34,21 @@ vi.mock("./googleSignInButton", () => ({
   })} type="button">Authorize test Google</button>,
 }));
 
-const storedIdentity = {
-  v: 1,
+const selectedCatalog: BrowserIdentityList = {
   activeIdentityId: "selected-identity",
   identities: [{
     id: "selected-identity",
     publicIdentity: { publicKeyZ32: "selected-identity", publicKeyDisplay: "pubkyselected-identity" },
-    secretKey: "a".repeat(43),
   }],
 };
 
 describe("DevelopmentIdentityPanel", () => {
   beforeEach(() => {
-    vi.stubGlobal("localStorage", new MemoryStorage());
     flowState.establish = async () => { throw new Error("establish result not configured"); };
     flowState.deleteExpectedPublicKey = null;
     flowState.refresh = null;
-    flowState.controller = controllerForLocalStorage();
+    flowState.setCatalog = null;
+    flowState.controller = controllerWithCatalog();
   });
 
   afterEach(() => {
@@ -52,26 +57,26 @@ describe("DevelopmentIdentityPanel", () => {
   });
 
   it("shows the identity dropdown but hides destructive tools outside development", async () => {
-    localStorage.setItem("pubky-passport/local-identities/v1", JSON.stringify(storedIdentity));
+    flowState.controller = controllerWithCatalog(selectedCatalog);
     render(<DevelopmentIdentityPanel allowGoogleDriveReset={false} googleClientId="google-client" homegateBaseUrl={homegateBaseUrl} />);
 
     expect(screen.getByRole("combobox", { name: "Selected identity" }).getAttribute("autocomplete")).toBe("off");
-    await waitFor(() => expect(screen.getByRole("option", { name: "pubkyselected-identity" })).toBeDefined());
-    expect(screen.getByRole("button", { name: "Add identity" })).toBeDefined();
-    expect(screen.queryByRole("button", { name: "Delete identity from Google" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Clear local identities" })).toBeNull();
+    expect(await screen.findByRole("option", { name: "pubkyselected-identity" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add identity" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete identity from Google" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear local identities" })).not.toBeInTheDocument();
   });
 
   it("shows selected-identity deletion and local clear in development", async () => {
-    localStorage.setItem("pubky-passport/local-identities/v1", JSON.stringify(storedIdentity));
+    flowState.controller = controllerWithCatalog(selectedCatalog);
     render(<DevelopmentIdentityPanel allowGoogleDriveReset googleClientId="google-client" homegateBaseUrl={homegateBaseUrl} />);
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Delete identity from Google" })).toBeDefined());
-    expect(screen.getByRole("button", { name: "Clear local identities" })).toBeDefined();
+    expect(await screen.findByRole("button", { name: "Delete identity from Google" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear local identities" })).toBeInTheDocument();
   });
 
   it("keeps failed and selected Drive deletion as separate exact targets", async () => {
-    localStorage.setItem("pubky-passport/local-identities/v1", JSON.stringify(storedIdentity));
+    flowState.controller = controllerWithCatalog(selectedCatalog);
     flowState.establish = async () => Result.err({
       code: "signup_failed",
       recoverablePublicIdentity: {
@@ -82,12 +87,12 @@ describe("DevelopmentIdentityPanel", () => {
     vi.stubGlobal("confirm", vi.fn(() => true));
     render(<DevelopmentIdentityPanel allowGoogleDriveReset googleClientId="google-client" homegateBaseUrl={homegateBaseUrl} />);
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Add identity" })).toBeDefined());
+    expect(await screen.findByRole("button", { name: "Add identity" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Add identity" }));
     fireEvent.click(screen.getByRole("button", { name: "Authorize test Google" }));
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Delete failed identity from Google" })).toBeDefined());
-    expect(screen.getByRole("button", { name: "Delete identity from Google" })).toBeDefined();
+    expect(await screen.findByRole("button", { name: "Delete failed identity from Google" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete identity from Google" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Delete failed identity from Google" }));
     fireEvent.click(screen.getByRole("button", { name: "Authorize test Google" }));
@@ -96,21 +101,19 @@ describe("DevelopmentIdentityPanel", () => {
   });
 
   it("keeps the confirmed Drive deletion target across external catalog refreshes", async () => {
-    localStorage.setItem("pubky-passport/local-identities/v1", JSON.stringify(storedIdentity));
+    flowState.controller = controllerWithCatalog(selectedCatalog);
     vi.stubGlobal("confirm", vi.fn(() => true));
     render(<DevelopmentIdentityPanel allowGoogleDriveReset googleClientId="google-client" homegateBaseUrl={homegateBaseUrl} />);
-    await waitFor(() => expect(screen.getByRole("button", { name: "Delete identity from Google" })).toBeDefined());
+    expect(await screen.findByRole("button", { name: "Delete identity from Google" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Delete identity from Google" }));
-    localStorage.setItem("pubky-passport/local-identities/v1", JSON.stringify({
-      v: 1,
+    flowState.setCatalog?.({
       activeIdentityId: "other-identity",
       identities: [{
         id: "other-identity",
         publicIdentity: { publicKeyZ32: "other-identity", publicKeyDisplay: "pubkyother-identity" },
-        secretKey: "b".repeat(43),
       }],
-    }));
+    });
     act(() => flowState.refresh?.());
     fireEvent.click(screen.getByRole("button", { name: "Authorize test Google" }));
 
@@ -121,42 +124,34 @@ describe("DevelopmentIdentityPanel", () => {
     flowState.establish = async () => Result.err({ code: "homegate_unavailable" });
     render(<DevelopmentIdentityPanel allowGoogleDriveReset googleClientId="google-client" homegateBaseUrl={homegateBaseUrl} />);
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Add identity" })).toBeDefined());
+    expect(await screen.findByRole("button", { name: "Add identity" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Add identity" }));
     fireEvent.click(screen.getByRole("button", { name: "Authorize test Google" }));
 
-    await waitFor(() => expect(screen.getByText(/Passport did not create an identity/)).toBeDefined());
-    expect(screen.queryByRole("button", { name: "Delete failed identity from Google" })).toBeNull();
+    expect(await screen.findByText(/Passport did not create an identity/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete failed identity from Google" })).not.toBeInTheDocument();
   });
 });
 
 const homegateBaseUrl = "https://homegate.example/";
 
-class MemoryStorage implements Storage {
-  readonly #values = new Map<string, string>();
-  get length(): number { return this.#values.size; }
-  clear(): void { this.#values.clear(); }
-  getItem(key: string): string | null { return this.#values.get(key) ?? null; }
-  key(index: number): string | null { return Array.from(this.#values.keys())[index] ?? null; }
-  removeItem(key: string): void { this.#values.delete(key); }
-  setItem(key: string, value: string): void { this.#values.set(key, value); }
-}
+function controllerWithCatalog(
+  initialCatalog: BrowserIdentityList = { activeIdentityId: null, identities: [] },
+): BrowserIdentityController {
+  let catalog = initialCatalog;
+  flowState.setCatalog = (nextCatalog) => { catalog = nextCatalog; };
 
-function controllerForLocalStorage() {
-  return {
-    list: () => listStoredIdentities(),
+  return fakeBrowserIdentityController({
+    list: () => Result.ok(catalog),
     select: (id: string) => {
-      const stored = listStoredIdentities();
-      if (Result.isError(stored)) return stored;
-      localStorage.setItem("pubky-passport/local-identities/v1", JSON.stringify({
-        v: 1,
+      catalog = {
         activeIdentityId: id,
-        identities: JSON.parse(localStorage.getItem("pubky-passport/local-identities/v1") ?? "{}").identities ?? [],
-      }));
+        identities: catalog.identities,
+      };
       return Result.ok();
     },
     clear: () => {
-      localStorage.removeItem("pubky-passport/local-identities/v1");
+      catalog = { activeIdentityId: null, identities: [] };
       return Result.ok();
     },
     subscribe: (listener: () => void) => {
@@ -170,22 +165,5 @@ function controllerForLocalStorage() {
       flowState.deleteExpectedPublicKey = action.expectedPublicKeyZ32;
       return { status: "action_completed", result: Result.ok({ kind: "deleted" }) };
     },
-    mountGoogleSignIn: async () => {},
-    unmountGoogleSignIn: () => {},
-    retryGoogleSignIn: () => {},
-    dispose: () => {},
-  };
-}
-
-function listStoredIdentities() {
-  const raw = localStorage.getItem("pubky-passport/local-identities/v1");
-  if (!raw) return Result.ok({ activeIdentityId: null, identities: [] });
-  const value = JSON.parse(raw);
-  return Result.ok({
-    activeIdentityId: value.activeIdentityId,
-    identities: value.identities.map((identity: { id: string; publicIdentity: unknown }) => ({
-      id: identity.id,
-      publicIdentity: identity.publicIdentity,
-    })),
   });
 }

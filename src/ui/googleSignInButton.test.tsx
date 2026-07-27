@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 
 import type { BrowserIdentityController, GoogleSignInState } from "../browser/identity/browserIdentityController";
+import { fakeBrowserIdentityController } from "../../test-utils/fakes/fakeBrowserIdentityController";
 import { GoogleSignInButton } from "./googleSignInButton";
 
 describe("GoogleSignInButton", () => {
@@ -65,16 +66,5 @@ describe("GoogleSignInButton", () => {
 });
 
 function fakeController(overrides: Partial<BrowserIdentityController>): BrowserIdentityController {
-  return {
-    list: vi.fn(() => Result.ok({ activeIdentityId: null, identities: [] })),
-    select: vi.fn(() => Result.ok()),
-    clear: vi.fn(() => Result.ok()),
-    subscribe: vi.fn(() => () => {}),
-    mountGoogleSignIn: vi.fn(async () => {}),
-    unmountGoogleSignIn: vi.fn(),
-    retryGoogleSignIn: vi.fn(),
-    continueGoogle: vi.fn(async () => ({ status: "credential_failed" as const })),
-    dispose: vi.fn(),
-    ...overrides,
-  };
+  return fakeBrowserIdentityController(overrides);
 }

@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { BrowserIdentityController } from "../browser/identity/browserIdentityController";
+import { fakeBrowserIdentityController } from "../../test-utils/fakes/fakeBrowserIdentityController";
 import { AuthorizationIdentityPanel } from "./authorizationIdentityPanel";
 
 describe("AuthorizationIdentityPanel", () => {
@@ -31,7 +32,7 @@ describe("AuthorizationIdentityPanel", () => {
 
     expect(controller.select).toHaveBeenCalledWith("identity-2");
     expect(onReadyChange).toHaveBeenLastCalledWith(true);
-    expect(screen.getByText("Identity ready.")).toBeTruthy();
+    expect(screen.getByText("Identity ready.")).toBeInTheDocument();
   });
 
   it("blocks readiness and offers Google establishment when no identity exists", async () => {
@@ -52,7 +53,7 @@ describe("AuthorizationIdentityPanel", () => {
     await waitFor(() => expect(onReadyChange).toHaveBeenCalledWith(false));
     await user.click(screen.getByRole("button", { name: "Add or restore with Google" }));
 
-    expect(screen.getByText("Sign in with Google to create or restore your Pubky identity.")).toBeTruthy();
+    expect(screen.getByText("Sign in with Google to create or restore your Pubky identity.")).toBeInTheDocument();
     expect(controller.mountGoogleSignIn).toHaveBeenCalledOnce();
   });
 
@@ -91,7 +92,7 @@ describe("AuthorizationIdentityPanel", () => {
     act(() => refresh());
 
     await waitFor(() => expect(onReadyChange).toHaveBeenLastCalledWith(false));
-    expect(screen.getByRole("option", { name: "No local identity" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "No local identity" })).toBeInTheDocument();
   });
 });
 
@@ -106,7 +107,7 @@ function fakeIdentityController(input: { empty?: boolean } = {}): BrowserIdentit
       publicIdentity: { publicKeyZ32: "identity-2", publicKeyDisplay: "pubkyidentity-2" },
     },
   ];
-  return {
+  return fakeBrowserIdentityController({
     list: vi.fn(() => Result.ok({
       activeIdentityId: input.empty ? null : "identity-1",
       identities,
@@ -115,9 +116,6 @@ function fakeIdentityController(input: { empty?: boolean } = {}): BrowserIdentit
     clear: vi.fn(() => Result.ok()),
     subscribe: vi.fn(() => () => {}),
     mountGoogleSignIn: vi.fn(async (_target, onState) => onState({ stage: "sign-in", errorCode: null })),
-    unmountGoogleSignIn: vi.fn(),
-    retryGoogleSignIn: vi.fn(),
     continueGoogle: vi.fn(async () => ({ status: "busy" as const })),
-    dispose: vi.fn(),
-  };
+  });
 }

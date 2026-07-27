@@ -13,5 +13,7 @@ export default defineConfig({
     environment: "node",
     globals: false,
     include: ["src/**/*.test.ts", "src/**/*.test.tsx", "test-utils/**/*.test.ts"],
+    setupFiles: ["./test-utils/vitest-setup.ts"],
+    silent: "passed-only",
   },
 });
