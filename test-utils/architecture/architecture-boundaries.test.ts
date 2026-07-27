@@ -1,7 +1,13 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, normalize, relative, resolve, sep } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
+
+import {
+  browserModuleRole,
+  browserRoleRules,
+} from "./architecturePolicy.mjs";
+import { isSameOrInside, ModuleGraph, type ForbiddenTarget } from "./moduleGraph";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const srcRoot = join(repoRoot, "src");
@@ -13,17 +19,9 @@ const uiRoot = join(srcRoot, "ui");
 const libsRoot = join(srcRoot, "libs");
 const publicEnvRoot = join(libsRoot, "env");
 const serverConfigRoot = join(serverRoot, "config");
-const checkedExtensions = new Set([".js", ".mjs", ".ts", ".tsx"]);
 const identityRoot = join(browserRoot, "identity");
 const localIdentityRepository = join(identityRoot, "local-identity", "adapters", "localStorageIdentityRepository.ts");
 const pubkySdkAdaptersRoot = join(browserRoot, "pubky", "adapters");
-const browserProductionModules = productionSourceFiles(browserRoot);
-const browserModulesByRole = Map.groupBy(browserProductionModules, browserModuleRole);
-const browserApplicationModules = browserModulesByRole.get("application") ?? [];
-const browserCompositionModules = browserModulesByRole.get("composition") ?? [];
-const browserAdapterModules = browserModulesByRole.get("adapter") ?? [];
-const browserControllerModules = browserModulesByRole.get("controller") ?? [];
-const browserPublicModules = browserModulesByRole.get("public") ?? [];
 const googleWrappingKeyRoot = join(serverRoot, "wrapping-key", "google");
 const googleWrappingKeyConfig = join(googleWrappingKeyRoot, "config.ts");
 const googleWrappingKeyServerSecret = join(googleWrappingKeyRoot, "serverSecret.ts");
@@ -31,6 +29,12 @@ const googleWrappingKeyApplicationModules = [
   join(googleWrappingKeyRoot, "ports.ts"),
   join(googleWrappingKeyRoot, "request.ts"),
 ];
+const graph = new ModuleGraph(repoRoot);
+const browserProductionModules = graph.productionSourceFiles(browserRoot);
+const browserModulesByRole = Map.groupBy(
+  browserProductionModules,
+  (filePath) => browserModuleRole(relative(browserRoot, filePath)),
+);
 
 const forbiddenCoreImports = [
   "@synonymdev/pubky",
@@ -51,36 +55,16 @@ const forbiddenCoreImports = [
   "@/libs/",
 ];
 
-const forbiddenCoreTargets = [
-  appRoot,
-  uiRoot,
-  browserRoot,
-  serverRoot,
-  libsRoot,
-];
-
-const forbiddenRuntimePatterns = [
-  { pattern: /\bprocess\.env\b/, label: "process.env" },
-  { pattern: /\bwindow\b/, label: "window" },
-  { pattern: /\bdocument\b/, label: "document" },
-  { pattern: /\blocalStorage\b/, label: "localStorage" },
-];
-
-const forbiddenBrowserPersistencePatterns = [
-  { pattern: /\blocalStorage\b/, label: "localStorage" },
-  { pattern: /\bsessionStorage\b/, label: "sessionStorage" },
-  { pattern: /\bindexedDB\b/, label: "indexedDB" },
-  { pattern: /\bdocument\.cookie\b/, label: "document.cookie" },
-];
-
 describe("architecture boundaries", () => {
   it("keeps core independent from frameworks, runtimes, libraries, config, and runtime globals", () => {
-    expect(sourceFiles(coreRoot).flatMap(inspectCoreFile)).toEqual([]);
+    expect(graph.sourceFiles(coreRoot).flatMap(inspectCoreFile)).toEqual([]);
   });
 
   it("confines concrete Pubky SDK imports to browser Pubky adapters", () => {
-    const violations = sourceFiles(srcRoot)
-      .filter(importsPubkySdk)
+    const violations = graph.sourceFiles(srcRoot)
+      .filter((filePath) => graph.importSpecifiers(filePath).some((specifier) =>
+        specifier === "@synonymdev/pubky" || specifier.startsWith("@synonymdev/pubky/")
+      ))
       .filter((filePath) => !isSameOrInside(filePath, pubkySdkAdaptersRoot))
       .map((filePath) => `${relative(repoRoot, filePath)} imports @synonymdev/pubky outside browser Pubky adapters`);
 
@@ -94,46 +78,65 @@ describe("architecture boundaries", () => {
       ], ["server-only"]),
       ...runtimeIsolationViolations(serverRoot, [
         { targetPath: browserRoot, label: "browser runtime" },
+        { targetPath: publicEnvRoot, label: "public environment configuration" },
       ], ["client-only"]),
     ];
 
     expect(violations).toEqual([]);
   });
 
-  it("marks every runtime module explicitly", () => {
+  it("starts every runtime module with its runtime marker", () => {
     const violations = [
-      ...missingRuntimeMarkers(browserRoot, "client-only"),
-      ...missingRuntimeMarkers(serverRoot, "server-only"),
+      ...missingOpeningRuntimeMarkers(browserRoot, "client-only"),
+      ...missingOpeningRuntimeMarkers(serverRoot, "server-only"),
     ];
+
+    expect(violations).toEqual([]);
+  });
+
+  it("requires production module loads to use statically analyzable specifiers", () => {
+    const violations = graph.productionSourceFiles(srcRoot).flatMap((filePath) =>
+      graph.nonLiteralModuleLoads(filePath).map((load) =>
+        `${relative(repoRoot, filePath)} contains non-literal ${load}`
+      )
+    );
 
     expect(violations).toEqual([]);
   });
 
   it("limits browser persistence to the local identity repository", () => {
     const browserCapableFiles = [
-      ...productionSourceFiles(browserRoot),
-      ...productionSourceFiles(uiRoot),
-      ...productionSourceFiles(appRoot).filter(isClientModule),
+      ...graph.productionSourceFiles(browserRoot),
+      ...graph.productionSourceFiles(uiRoot),
+      ...graph.productionSourceFiles(appRoot).filter(isClientModule),
     ];
-    const violations = browserCapableFiles.flatMap((filePath) => {
-      const source = sourceWithoutComments(readFileSync(filePath, "utf8"));
-
-      return forbiddenBrowserPersistencePatterns
-        .filter(({ label }) => filePath !== localIdentityRepository || label !== "localStorage")
-        .filter(({ pattern }) => pattern.test(source))
-        .map(({ label }) => `${relative(repoRoot, filePath)} references forbidden browser persistence "${label}"`);
-    });
+    const violations = browserCapableFiles.flatMap((filePath) => [
+      ...(filePath === localIdentityRepository || !graph.referencesIdentifier(filePath, "localStorage")
+        ? []
+        : [`${relative(repoRoot, filePath)} references forbidden browser persistence "localStorage"`]),
+      ...["sessionStorage", "indexedDB"]
+        .filter((identifier) => graph.referencesIdentifier(filePath, identifier))
+        .map((identifier) => `${relative(repoRoot, filePath)} references forbidden browser persistence "${identifier}"`),
+      ...(graph.referencesProperty(filePath, "document", "cookie")
+        ? [`${relative(repoRoot, filePath)} references forbidden browser persistence "document.cookie"`]
+        : []),
+      ...["localStorage", "sessionStorage", "indexedDB"]
+        .filter((property) => graph.referencesElementProperty(filePath, ["globalThis", "window"], property))
+        .map((property) => `${relative(repoRoot, filePath)} references forbidden computed browser persistence "${property}"`),
+      ...(graph.referencesElementProperty(filePath, ["document"], "cookie")
+        ? [`${relative(repoRoot, filePath)} references forbidden computed browser persistence "document.cookie"`]
+        : []),
+    ]);
 
     expect(violations).toEqual([]);
   });
 
   it("requires UI and app modules to opt into client rendering before importing browser runtime", () => {
-    const importers = [
-      ...productionSourceFiles(uiRoot),
-      ...productionSourceFiles(appRoot),
-    ];
-    const violations = importers
-      .filter((filePath) => importsTarget(filePath, browserRoot))
+    const violations = [
+      ...graph.productionSourceFiles(uiRoot),
+      ...graph.productionSourceFiles(appRoot),
+    ]
+      .filter((filePath) => graph.importsTarget(filePath, browserRoot))
       .filter((filePath) => !isClientModule(filePath))
       .map((filePath) => `${relative(repoRoot, filePath)} imports browser runtime without "use client"`);
 
@@ -141,29 +144,20 @@ describe("architecture boundaries", () => {
   });
 
   it("keeps server-only dependencies out of UI and client app modules", () => {
-    const forbiddenTargets = [
-      { targetPath: serverRoot, label: "server runtime" },
-    ];
+    const forbiddenTargets = [{ targetPath: serverRoot, label: "server runtime" }];
     const violations = [
-      ...productionSourceFiles(uiRoot).flatMap((filePath) => inspectForbiddenImports(filePath, {
-        forbiddenModuleSpecifiers: ["server-only"],
-        forbiddenTargets,
-      })),
-      ...productionSourceFiles(appRoot)
-        .filter(isClientModule)
-        .flatMap((filePath) => inspectForbiddenImports(filePath, {
-          forbiddenModuleSpecifiers: ["server-only"],
-          forbiddenTargets,
-        })),
-    ];
+      ...graph.productionSourceFiles(uiRoot),
+      ...graph.productionSourceFiles(appRoot).filter(isClientModule),
+    ].flatMap((filePath) => graph.inspectForbiddenImports(filePath, {
+      forbiddenModuleSpecifiers: ["server-only"],
+      forbiddenTargets,
+    }));
 
     expect(violations).toEqual([]);
   });
 
   it("limits production UI browser imports to stable controller APIs and factories", () => {
-    const violations = productionSourceFiles(uiRoot).flatMap(inspectUiBrowserImports);
-
-    expect(violations).toEqual([]);
+    expect(graph.productionSourceFiles(uiRoot).flatMap(inspectUiBrowserImports)).toEqual([]);
   });
 
   it("keeps wrapping-key configuration inside its owning server feature", () => {
@@ -171,9 +165,9 @@ describe("architecture boundaries", () => {
       { targetPath: googleWrappingKeyConfig, label: "Google wrapping-key config" },
       { targetPath: googleWrappingKeyServerSecret, label: "Google wrapping-key server secret" },
     ];
-    const violations = productionSourceFiles(srcRoot)
+    const violations = graph.productionSourceFiles(srcRoot)
       .filter((filePath) => !isSameOrInside(filePath, googleWrappingKeyRoot))
-      .flatMap((filePath) => inspectForbiddenImports(filePath, { forbiddenTargets }));
+      .flatMap((filePath) => graph.inspectForbiddenImports(filePath, { forbiddenTargets }));
 
     expect(violations).toEqual([]);
   });
@@ -189,191 +183,93 @@ describe("architecture boundaries", () => {
       { targetPath: join(googleWrappingKeyRoot, "rateLimiter"), label: "rate limiter adapter" },
     ];
     const violations = googleWrappingKeyApplicationModules.flatMap((filePath) =>
-      inspectForbiddenImports(filePath, { forbiddenTargets, traverseLocalImports: true })
+      graph.inspectForbiddenImports(filePath, { forbiddenTargets, traverseLocalImports: true })
     );
 
     expect(violations).toEqual([]);
   });
 
-  it("keeps browser application modules independent from controllers and outward layers", () => {
-    const forbiddenTargets = [
-      ...browserCompositionModules.map((targetPath) => ({ targetPath, label: "browser composition module" })),
-      ...browserAdapterModules.map((targetPath) => ({ targetPath, label: "browser adapter" })),
-      ...browserControllerModules.map((targetPath) => ({ targetPath, label: "browser controller" })),
-      ...browserPublicModules.map((targetPath) => ({ targetPath, label: "public browser contract" })),
-      { targetPath: publicEnvRoot, label: "public environment configuration" },
-      { targetPath: uiRoot, label: "UI" },
-    ];
-    const violations = browserApplicationModules.flatMap((filePath) =>
-      inspectForbiddenImports(filePath, { forbiddenTargets, traverseLocalImports: true })
-    );
+  for (const rule of browserRoleRules) {
+    it(`${rule.id}: ${rule.description}`, () => {
+      const sourceModules = browserModulesByRole.get(rule.sourceRole) ?? [];
+      const violations = sourceModules.flatMap((filePath) => {
+        const forbiddenTargets: ForbiddenTarget[] = [
+          ...rule.forbiddenRoles.flatMap((role) =>
+            (browserModulesByRole.get(role) ?? [])
+              .filter((targetPath) => targetPath !== filePath)
+              .map((targetPath) => ({ targetPath, label: `browser ${role} module` }))
+          ),
+          ...rule.forbiddenRoots.map((root) => ({
+            targetPath: resolve(repoRoot, root),
+            label: root,
+          })),
+        ];
+        return graph.inspectForbiddenImports(filePath, {
+          forbiddenModuleSpecifiers: [...rule.forbiddenSpecifiers],
+          forbiddenTargets,
+          traverseLocalImports: true,
+        });
+      });
 
-    expect(violations).toEqual([]);
-  });
-
-  it("keeps public browser contracts independent from concrete controllers and outward layers", () => {
-    const forbiddenTargets = [
-      ...browserCompositionModules.map((targetPath) => ({ targetPath, label: "browser composition module" })),
-      ...browserAdapterModules.map((targetPath) => ({ targetPath, label: "browser adapter" })),
-      ...browserControllerModules.map((targetPath) => ({ targetPath, label: "browser controller" })),
-      { targetPath: publicEnvRoot, label: "public environment configuration" },
-      { targetPath: uiRoot, label: "UI" },
-    ];
-    const violations = browserPublicModules.flatMap((filePath) =>
-      inspectForbiddenImports(filePath, { forbiddenTargets, traverseLocalImports: true })
-    );
-
-    expect(violations).toEqual([]);
-  });
+      expect(violations).toEqual([]);
+    });
+  }
 
   it("keeps sensitive parser approval types out of public browser contracts", () => {
-    const violations = browserPublicModules
-      .filter((filePath) => /\bValidatedSensitivePubkyAuthRequest\b/.test(sourceWithoutComments(readFileSync(filePath, "utf8"))))
+    const violations = (browserModulesByRole.get("public") ?? [])
+      .filter((filePath) => graph.referencesIdentifier(filePath, "ValidatedSensitivePubkyAuthRequest"))
       .map((filePath) => `${relative(repoRoot, filePath)} references the sensitive parser approval type`);
-
-    expect(violations).toEqual([]);
-  });
-
-  it("keeps browser controllers independent from composition and adapters", () => {
-    const forbiddenTargets = [
-      ...browserCompositionModules.map((targetPath) => ({ targetPath, label: "browser composition module" })),
-      ...browserAdapterModules.map((targetPath) => ({ targetPath, label: "browser adapter" })),
-      { targetPath: publicEnvRoot, label: "public environment configuration" },
-      { targetPath: uiRoot, label: "UI" },
-    ];
-    const violations = browserControllerModules.flatMap((filePath) =>
-      inspectForbiddenImports(filePath, { forbiddenTargets, traverseLocalImports: true })
-    );
-
-    expect(violations).toEqual([]);
-  });
-
-  it("keeps browser adapters independent from composition, env, UI, and server code", () => {
-    const violations = browserAdapterModules.flatMap((filePath) =>
-      inspectForbiddenImports(filePath, {
-        forbiddenModuleSpecifiers: ["server-only"],
-        forbiddenTargets: [
-          ...browserCompositionModules.map((targetPath) => ({ targetPath, label: "browser composition module" })),
-          ...browserAdapterModules
-            .filter((targetPath) => targetPath !== filePath)
-            .map((targetPath) => ({ targetPath, label: "another browser adapter" })),
-          ...browserControllerModules.map((targetPath) => ({ targetPath, label: "browser controller" })),
-          ...browserPublicModules.map((targetPath) => ({ targetPath, label: "public browser contract" })),
-          { targetPath: publicEnvRoot, label: "public environment configuration" },
-          { targetPath: uiRoot, label: "UI" },
-          { targetPath: serverRoot, label: "server runtime" },
-        ],
-        traverseLocalImports: true,
-      })
-    );
-
-    expect(violations).toEqual([]);
-  });
-
-  it("keeps browser composition roots independent from UI and server code", () => {
-    const forbiddenTargets = [
-      { targetPath: uiRoot, label: "UI" },
-      { targetPath: serverRoot, label: "server runtime" },
-    ];
-    const violations = browserCompositionModules.flatMap((filePath) =>
-      inspectForbiddenImports(filePath, {
-        forbiddenModuleSpecifiers: ["server-only"],
-        forbiddenTargets,
-        traverseLocalImports: true,
-      })
-    );
 
     expect(violations).toEqual([]);
   });
 
   it("classifies every browser module by an explicit architectural role", () => {
     expect(browserModulesByRole.get("unclassified") ?? []).toEqual([]);
-    expect(browserProductionModules).toEqual([
-      ...(browserModulesByRole.get("application") ?? []),
-      ...(browserModulesByRole.get("adapter") ?? []),
-      ...(browserModulesByRole.get("composition") ?? []),
-      ...(browserModulesByRole.get("controller") ?? []),
-      ...(browserModulesByRole.get("public") ?? []),
-    ].sort());
   });
 
-  it("resolves aliases and transitive index re-exports for isolation checks", () => {
-    expect(resolveLocalImportTarget(
-      join(uiRoot, "authorizationReview.tsx"),
-      "@/browser/authorization/browserAuthorizationController",
-    )).toBe(join(browserRoot, "authorization", "browserAuthorizationController.ts"));
-
-    const fixtureRoot = join(repoRoot, "test-utils", "architecture", "fixtures");
-    const transitiveEntry = join(fixtureRoot, "transitive-entry.ts");
-    expect(resolveLocalImportTarget(transitiveEntry, "./shared/index.js")).toBe(
-      join(fixtureRoot, "shared", "index.ts"),
-    );
-    const violations = inspectForbiddenImports(transitiveEntry, {
-      forbiddenTargets: [{ targetPath: join(fixtureRoot, "server-target.ts"), label: "fixture server target" }],
-      traverseLocalImports: true,
-    });
-    expect(violations).toHaveLength(1);
-    expect(violations[0]).toContain("fixture server target");
-  });
 });
 
-type BrowserModuleRole = "application" | "adapter" | "composition" | "controller" | "public" | "unclassified";
-
-function browserModuleRole(filePath: string): BrowserModuleRole {
-  const relativePath = relative(browserRoot, filePath);
-  const segments = relativePath.split(sep);
-  if (segments.length === 2) {
-    const fileName = segments[1] ?? "";
-    if (/^browser[A-Z][A-Za-z0-9]*Controller\.tsx?$/.test(fileName)) return "public";
-    if (/^createBrowser[A-Z][A-Za-z0-9]*Controller\.tsx?$/.test(fileName)) return "composition";
-    if (/^passport[A-Z][A-Za-z0-9]*Controller\.tsx?$/.test(fileName)) return "controller";
-  }
-
-  const hasApplicationRole = segments.includes("application");
-  const hasAdapterRole = segments.includes("adapters");
-  const hasCompositionRole = segments.includes("composition");
-  const roleCount = Number(hasApplicationRole) + Number(hasAdapterRole) + Number(hasCompositionRole);
-  if (roleCount !== 1) return "unclassified";
-  if (hasApplicationRole) return "application";
-  if (hasAdapterRole) return "adapter";
-  if (hasCompositionRole) return "composition";
-  return "unclassified";
-}
-
 function inspectCoreFile(filePath: string): string[] {
-  const source = readFileSync(filePath, "utf8");
   const relativeFilePath = relative(repoRoot, filePath);
-  const violations: string[] = [];
+  const violations = graph.importSpecifiers(filePath)
+    .filter((specifier) => forbiddenCoreImports.some((forbidden) =>
+      forbidden.endsWith("/") ? specifier.startsWith(forbidden) : specifier === forbidden
+    ))
+    .map((specifier) => `${relativeFilePath} imports forbidden dependency "${specifier}"`);
+  const forbiddenTargets = [appRoot, uiRoot, browserRoot, serverRoot, libsRoot];
 
-  for (const specifier of importSpecifiers(source)) {
-    if (isForbiddenCoreImport(specifier) || isForbiddenCoreRelativeImport(filePath, specifier)) {
+  for (const specifier of graph.importSpecifiers(filePath)) {
+    const targetPath = graph.resolveLocalImportTarget(filePath, specifier);
+    if (targetPath && forbiddenTargets.some((target) => isSameOrInside(targetPath, target))) {
       violations.push(`${relativeFilePath} imports forbidden dependency "${specifier}"`);
     }
   }
 
-  for (const { pattern, label } of forbiddenRuntimePatterns) {
-    if (pattern.test(sourceWithoutComments(source))) {
-      violations.push(`${relativeFilePath} references forbidden runtime value "${label}"`);
-    }
-  }
-
+  const runtimeReferences = [
+    ...(graph.referencesProperty(filePath, "process", "env") ? ["process.env"] : []),
+    ...["window", "document", "localStorage"].filter((identifier) =>
+      graph.referencesIdentifier(filePath, identifier)
+    ),
+  ];
+  violations.push(...runtimeReferences.map((label) =>
+    `${relativeFilePath} references forbidden runtime value "${label}"`
+  ));
   return violations;
 }
 
 function inspectUiBrowserImports(filePath: string): string[] {
   const relativeFilePath = relative(repoRoot, filePath);
-  const source = readFileSync(filePath, "utf8");
-  const violations = /\bValidatedSensitivePubkyAuthRequest\b/.test(sourceWithoutComments(source))
+  const violations = graph.referencesIdentifier(filePath, "ValidatedSensitivePubkyAuthRequest")
     ? [`${relativeFilePath} references the sensitive parser approval type`]
     : [];
   const visited = new Set<string>();
 
-  function inspect(currentFilePath: string): void {
+  const inspect = (currentFilePath: string): void => {
     if (visited.has(currentFilePath)) return;
     visited.add(currentFilePath);
 
-    for (const specifier of importSpecifiers(readFileSync(currentFilePath, "utf8"))) {
-      const targetPath = resolveLocalImportTarget(currentFilePath, specifier);
+    for (const specifier of graph.importSpecifiers(currentFilePath)) {
+      const targetPath = graph.resolveLocalImportTarget(currentFilePath, specifier);
       if (!targetPath) continue;
       if (isSameOrInside(targetPath, browserRoot)) {
         if (!isStableUiBrowserModule(targetPath)) {
@@ -383,182 +279,39 @@ function inspectUiBrowserImports(filePath: string): string[] {
       }
       inspect(targetPath);
     }
-  }
+  };
 
   inspect(filePath);
   return violations;
 }
 
 function isStableUiBrowserModule(filePath: string): boolean {
-  const role = browserModuleRole(filePath);
-  if (role !== "public" && role !== "composition") return false;
-  return relative(browserRoot, filePath).split(sep).length === 2;
+  const role = browserModuleRole(relative(browserRoot, filePath));
+  return (role === "public" || role === "composition")
+    && relative(browserRoot, filePath).split(/[\\/]/u).length === 2;
 }
 
 function runtimeIsolationViolations(
   rootPath: string,
-  forbiddenTargets: Array<{ targetPath: string; label: string }>,
+  forbiddenTargets: ForbiddenTarget[],
   forbiddenModuleSpecifiers: string[],
 ): string[] {
-  return productionSourceFiles(rootPath).flatMap((filePath) => inspectForbiddenImports(filePath, {
+  return graph.productionSourceFiles(rootPath).flatMap((filePath) => graph.inspectForbiddenImports(filePath, {
     forbiddenModuleSpecifiers,
     forbiddenTargets,
     traverseLocalImports: true,
   }));
 }
 
-function sourceFiles(rootPath: string): string[] {
-  return walk(rootPath).filter((filePath) => checkedExtensions.has(extension(filePath)));
-}
-
-function productionSourceFiles(rootPath: string): string[] {
-  return sourceFiles(rootPath).filter((filePath) => !filePath.endsWith(".test.ts") && !filePath.endsWith(".test.tsx"));
+function missingOpeningRuntimeMarkers(
+  rootPath: string,
+  runtimeMarker: "client-only" | "server-only",
+): string[] {
+  return graph.productionSourceFiles(rootPath)
+    .filter((filePath) => !graph.hasOpeningImport(filePath, runtimeMarker))
+    .map((filePath) => `${relative(repoRoot, filePath)} must start with import "${runtimeMarker}"`);
 }
 
 function isClientModule(filePath: string): boolean {
-  return /^\s*["']use client["'];/.test(readFileSync(filePath, "utf8"));
-}
-
-function inspectForbiddenImports(
-  filePath: string,
-  options: {
-    forbiddenModuleSpecifiers?: string[];
-    forbiddenTargets?: Array<{ targetPath: string; label: string }>;
-    traverseLocalImports?: boolean;
-  },
-): string[] {
-  const relativeFilePath = relative(repoRoot, filePath);
-  const violations: string[] = [];
-  const visited = new Set<string>();
-
-  function inspect(currentFilePath: string): void {
-    if (visited.has(currentFilePath)) return;
-    visited.add(currentFilePath);
-
-    for (const specifier of importSpecifiers(readFileSync(currentFilePath, "utf8"))) {
-      if (options.forbiddenModuleSpecifiers?.includes(specifier)) {
-        const through = currentFilePath === filePath ? "" : ` through ${relative(repoRoot, currentFilePath)}`;
-        violations.push(`${relativeFilePath} imports forbidden runtime marker "${specifier}"${through}`);
-      }
-
-      const targetPath = resolveLocalImportTarget(currentFilePath, specifier);
-      if (!targetPath) continue;
-
-      for (const forbiddenTarget of options.forbiddenTargets ?? []) {
-        if (isSameOrInside(targetPath, forbiddenTarget.targetPath)) {
-          const through = currentFilePath === filePath ? "" : ` through ${relative(repoRoot, currentFilePath)}`;
-          violations.push(`${relativeFilePath} imports ${forbiddenTarget.label} via "${specifier}"${through}`);
-        }
-      }
-
-      if (options.traverseLocalImports) {
-        inspect(targetPath);
-      }
-    }
-  }
-
-  inspect(filePath);
-
-  return violations;
-}
-
-function missingRuntimeMarkers(rootPath: string, runtimeMarker: "client-only" | "server-only"): string[] {
-  return productionSourceFiles(rootPath)
-    .filter((filePath) => !importSpecifiers(readFileSync(filePath, "utf8")).includes(runtimeMarker))
-    .map((filePath) => `${relative(repoRoot, filePath)} is missing runtime marker import "${runtimeMarker}"`);
-}
-
-function walk(directoryPath: string): string[] {
-  return readdirSync(directoryPath).flatMap((entry) => {
-    const entryPath = join(directoryPath, entry);
-    const stats = statSync(entryPath);
-
-    if (stats.isDirectory()) {
-      return walk(entryPath);
-    }
-
-    return stats.isFile() ? [entryPath] : [];
-  });
-}
-
-function importSpecifiers(source: string): string[] {
-  const specifiers: string[] = [];
-  const importPattern = /(?:import|export)\s+(?:type\s+)?(?:[^"']*?\s+from\s+)?["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']\s*\)/g;
-
-  for (const match of source.matchAll(importPattern)) {
-    const specifier = match[1] ?? match[2];
-    if (specifier) {
-      specifiers.push(specifier);
-    }
-  }
-
-  return specifiers;
-}
-
-function isForbiddenCoreImport(specifier: string): boolean {
-  return forbiddenCoreImports.some((forbidden) => forbidden.endsWith("/") ? specifier.startsWith(forbidden) : specifier === forbidden);
-}
-
-function importsPubkySdk(filePath: string): boolean {
-  return importSpecifiers(readFileSync(filePath, "utf8")).includes("@synonymdev/pubky");
-}
-
-function importTargetPath(fromFilePath: string, specifier: string): string | null {
-  if (specifier.startsWith("@/")) {
-    return normalize(join(srcRoot, specifier.slice(2)));
-  }
-
-  return specifier.startsWith(".") ? normalize(resolve(dirname(fromFilePath), specifier)) : null;
-}
-
-function resolveLocalImportTarget(fromFilePath: string, specifier: string): string | null {
-  const unresolvedPath = importTargetPath(fromFilePath, specifier);
-  if (!unresolvedPath) return null;
-
-  const unresolvedExtension = extension(unresolvedPath);
-  const candidates = unresolvedExtension === ".js"
-    ? [
-      unresolvedPath,
-      `${unresolvedPath.slice(0, -unresolvedExtension.length)}.ts`,
-      `${unresolvedPath.slice(0, -unresolvedExtension.length)}.tsx`,
-    ]
-    : unresolvedExtension
-      ? [unresolvedPath]
-      : [
-        `${unresolvedPath}.js`,
-        `${unresolvedPath}.mjs`,
-        `${unresolvedPath}.ts`,
-        `${unresolvedPath}.tsx`,
-        join(unresolvedPath, "index.js"),
-        join(unresolvedPath, "index.mjs"),
-        join(unresolvedPath, "index.ts"),
-        join(unresolvedPath, "index.tsx"),
-      ];
-  return candidates.find((candidate) => existsSync(candidate) && statSync(candidate).isFile()) ?? null;
-}
-
-function importsTarget(filePath: string, targetRoot: string): boolean {
-  return importSpecifiers(readFileSync(filePath, "utf8")).some((specifier) => {
-    const targetPath = resolveLocalImportTarget(filePath, specifier);
-    return targetPath !== null && isSameOrInside(targetPath, targetRoot);
-  });
-}
-
-function isForbiddenCoreRelativeImport(fromFilePath: string, specifier: string): boolean {
-  const targetPath = importTargetPath(fromFilePath, specifier);
-  return targetPath !== null && forbiddenCoreTargets.some((target) => isSameOrInside(targetPath, target));
-}
-
-function isSameOrInside(candidatePath: string, parentPath: string): boolean {
-  const relativePath = relative(parentPath, candidatePath);
-  return relativePath === "" || (!relativePath.startsWith("..") && !relativePath.startsWith(sep));
-}
-
-function extension(filePath: string): string {
-  const dotIndex = filePath.lastIndexOf(".");
-  return dotIndex === -1 ? "" : filePath.slice(dotIndex);
-}
-
-function sourceWithoutComments(source: string): string {
-  return source.replaceAll(/\/\*[\s\S]*?\*\//g, "").replaceAll(/(^|[^:])\/\/.*$/gm, "$1");
+  return graph.hasOpeningDirective(filePath, "use client");
 }

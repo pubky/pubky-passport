@@ -2,11 +2,11 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
-const browserControllerContract = "browser[A-Z][A-Za-z0-9]*Controller";
-const browserControllerFactory = "createBrowser[A-Z][A-Za-z0-9]*Controller";
-const browserControllerImplementation = "passport[A-Z][A-Za-z0-9]*Controller";
-const stableBrowserEntry = `(?:${browserControllerContract}|${browserControllerFactory})`;
-const anyBrowserController = `(?:${browserControllerContract}|${browserControllerFactory}|${browserControllerImplementation})`;
+import {
+  browserRoleRules,
+  restrictedImportRegexForRoleRule,
+  stableBrowserEntry,
+} from "./test-utils/architecture/architecturePolicy.mjs";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -17,17 +17,18 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "coverage/**",
+    "test-utils/architecture/fixtures/**",
     "next-env.d.ts"
   ]),
   {
-    files: ["**/*.{js,mjs,ts,tsx}"],
+    files: ["**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     ignores: ["src/libs/logger/logger.ts"],
     rules: {
       "no-console": "error"
     }
   },
   {
-    files: ["src/core/**/*.{ts,tsx}"],
+    files: ["src/core/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -79,7 +80,7 @@ const eslintConfig = defineConfig([
     }
   },
   {
-    files: ["src/ui/**/*.{ts,tsx}"],
+    files: ["src/ui/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -111,25 +112,8 @@ const eslintConfig = defineConfig([
     }
   },
   {
-    files: ["src/browser/**/application/**/*.{ts,tsx}"],
-    ignores: ["src/browser/**/*.test.{ts,tsx}"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              regex: `(?:^|/)(?:adapters|composition|env)(?:/|$)|(?:^|/)${anyBrowserController}$|(?:^|/)ui(?:/|$)`,
-              message: "Browser application modules must not depend on controllers, composition, adapters, public env, or UI."
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    files: ["src/browser/*/browser*Controller.{ts,tsx}"],
-    ignores: ["src/browser/**/*.test.{ts,tsx}"],
+    files: ["src/browser/*/browser*Controller.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    ignores: ["src/browser/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -141,75 +125,30 @@ const eslintConfig = defineConfig([
               message: "Public browser contracts must expose safe review state, not sensitive parser approval types."
             }
           ],
-          patterns: [
-            {
-              regex: "^(?:\\.\\./)+core/auth/parsePubkyAuthRequest$",
-              importNames: ["ValidatedSensitivePubkyAuthRequest"],
-              message: "Public browser contracts must expose safe review state, not sensitive parser approval types."
-            },
-            {
-              regex: `(?:^|/)(?:adapters|composition|env)(?:/|$)|(?:^|/)(?:${browserControllerImplementation}|${browserControllerFactory})$|(?:^|/)ui(?:/|$)`,
-              message: "Public browser controller contracts must not depend on concrete controllers, composition, adapters, public env, or UI."
-            }
-          ]
+          patterns: [{
+            regex: "^(?:\\.\\./)+core/auth/parsePubkyAuthRequest$",
+            importNames: ["ValidatedSensitivePubkyAuthRequest"],
+            message: "Public browser contracts must expose safe review state, not sensitive parser approval types."
+          }]
         }
       ]
     }
   },
-  {
-    files: ["src/browser/*/passport*Controller.{ts,tsx}"],
-    ignores: ["src/browser/**/*.test.{ts,tsx}"],
+  ...browserRoleRules.map((rule) => ({
+    files: [...rule.eslintFiles],
+    ignores: ["src/browser/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
-          patterns: [
-            {
-              regex: `(?:^|/)(?:adapters|composition|env)(?:/|$)|(?:^|/)${browserControllerFactory}$|(?:^|/)ui(?:/|$)`,
-              message: "Browser controllers may depend on public and application contracts, not composition, adapters, public env, or UI."
-            }
-          ]
+          patterns: [{
+            regex: restrictedImportRegexForRoleRule(rule),
+            message: `[${rule.id}] ${rule.message}`
+          }]
         }
       ]
     }
-  },
-  {
-    files: [
-      "src/browser/**/composition/**/*.{ts,tsx}",
-      "src/browser/*/createBrowser*Controller.{ts,tsx}"
-    ],
-    ignores: ["src/browser/**/*.test.{ts,tsx}"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              regex: "^server-only$|(?:^|/)(?:ui|server)(?:/|$)",
-              message: "Browser composition roots may wire browser features but must not depend on UI or server runtime code."
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    files: ["src/browser/**/adapters/**/*.{ts,tsx}"],
-    ignores: ["src/browser/**/*.test.{ts,tsx}"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              regex: `^server-only$|(?:^|/)(?:adapters|ui|server|composition|env)(?:/|$)|(?:^|/)${anyBrowserController}$`,
-              message: "Browser adapters may depend on application contracts, not controllers, UI, composition roots, or runtime configuration."
-            }
-          ]
-        }
-      ]
-    }
-  },
+  })),
 ]);
 
 export default eslintConfig;
