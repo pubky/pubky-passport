@@ -4,7 +4,7 @@ import { Result } from "better-result";
 import type {
   GoogleWrappingKeyRequest,
   GoogleWrappingKeyRequestErrorCode,
-} from "../../../../server/wrapping-key/google/request";
+} from "../../../../server/wrapping-key/google/application/requestGoogleWrappingKey";
 import {
   googleCredentialResponseHeaders,
   parseGoogleIdTokenRequest,
@@ -54,7 +54,7 @@ export function createGoogleWrappingKeyPostHandler(
 
 async function createDefaultRequest(): Promise<GoogleWrappingKeyRequest> {
   const { createConfiguredGoogleWrappingKeyRequest } = await import(
-    "../../../../server/wrapping-key/google/composition"
+    "../../../../server/wrapping-key/google/composition/createConfiguredGoogleWrappingKeyRequest"
   );
 
   return createConfiguredGoogleWrappingKeyRequest();

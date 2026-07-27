@@ -6,7 +6,7 @@ import {
   hasMinimumServerSecretBytes,
   isBase64,
   minimumServerSecretByteLength,
-} from "./serverSecret";
+} from "../adapters/serverSecret";
 
 type EnvLike = Record<string, string | undefined>;
 

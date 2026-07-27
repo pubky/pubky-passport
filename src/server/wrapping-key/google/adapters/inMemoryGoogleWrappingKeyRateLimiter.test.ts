@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createInMemoryGoogleWrappingKeyRateLimiter } from "./rateLimiter";
+import { createInMemoryGoogleWrappingKeyRateLimiter } from "./inMemoryGoogleWrappingKeyRateLimiter";
 
 const serverSecretBase64 = Buffer.alloc(32, 7).toString("base64");
 const identity = {

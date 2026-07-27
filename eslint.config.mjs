@@ -3,8 +3,11 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
 import {
+  appServerEntryRule,
   browserRoleRules,
   restrictedImportRegexForRoleRule,
+  restrictedServerImportRegexForAppRule,
+  serverRoleRules,
   stableBrowserEntry,
 } from "./test-utils/architecture/architecturePolicy.mjs";
 
@@ -149,6 +152,36 @@ const eslintConfig = defineConfig([
       ]
     }
   })),
+  ...serverRoleRules.map((rule) => ({
+    files: [...rule.eslintFiles],
+    ignores: ["src/server/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [{
+            regex: restrictedImportRegexForRoleRule(rule),
+            message: `[${rule.id}] ${rule.message}`
+          }]
+        }
+      ]
+    }
+  })),
+  {
+    files: [...appServerEntryRule.eslintFiles],
+    ignores: ["src/app/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [{
+            regex: restrictedServerImportRegexForAppRule(appServerEntryRule),
+            message: `[${appServerEntryRule.id}] ${appServerEntryRule.message}`
+          }]
+        }
+      ]
+    }
+  },
 ]);
 
 export default eslintConfig;

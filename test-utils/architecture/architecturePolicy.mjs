@@ -22,6 +22,14 @@ const roleImportPatterns = Object.freeze({
   public: `(?:^|/)${browserControllerContract}$`,
 });
 
+const rolePathSegments = Object.freeze({
+  application: "application",
+  adapter: "adapters",
+  composition: "composition",
+  controller: browserControllerImplementation,
+  public: browserControllerContract,
+});
+
 export const browserRoleRules = Object.freeze([
   Object.freeze({
     id: "browser-application-inward",
@@ -78,6 +86,47 @@ export const browserRoleRules = Object.freeze([
   }),
 ]);
 
+export const serverRoleRules = Object.freeze([
+  Object.freeze({
+    id: "server-application-inward",
+    description: "keeps server application modules independent from runtime implementation",
+    sourceRole: "application",
+    eslintFiles: ["src/server/**/application/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    forbiddenRoles: ["adapter", "composition"],
+    forbiddenRoots: ["src/app", "src/ui", "src/browser", "src/server/config"],
+    forbiddenSpecifiers: [],
+    message: "Server application modules must not depend on adapters, composition, runtime configuration, app, UI, or browser code.",
+  }),
+  Object.freeze({
+    id: "server-adapter-inward",
+    description: "keeps server adapters independent from composition and outward runtimes",
+    sourceRole: "adapter",
+    eslintFiles: ["src/server/**/adapters/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    forbiddenRoles: ["composition"],
+    forbiddenRoots: ["src/app", "src/ui", "src/browser", "src/server/config"],
+    forbiddenSpecifiers: ["client-only"],
+    message: "Server adapters may depend on application contracts, not composition, runtime configuration, app, UI, or browser code.",
+  }),
+  Object.freeze({
+    id: "server-composition-runtime",
+    description: "keeps server composition roots independent from outward application layers",
+    sourceRole: "composition",
+    eslintFiles: ["src/server/**/composition/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    forbiddenRoles: [],
+    forbiddenRoots: ["src/app", "src/ui", "src/browser"],
+    forbiddenSpecifiers: ["client-only"],
+    message: "Server composition roots may wire server features but must not depend on app, UI, or browser code.",
+  }),
+]);
+
+export const appServerEntryRule = Object.freeze({
+  id: "app-server-entry",
+  description: "keeps app routes from bypassing layered server entry points",
+  eslintFiles: ["src/app/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+  forbiddenRoles: ["adapter"],
+  message: "App modules must enter layered server features through application contracts or composition, not adapters.",
+});
+
 export function browserModuleRole(relativePath) {
   const segments = relativePath.replaceAll("\\", "/").split("/");
   if (segments.length === 2) {
@@ -95,16 +144,28 @@ export function browserModuleRole(relativePath) {
   return roles.length === 1 ? roles[0] : "unclassified";
 }
 
+export function serverModuleRole(relativePath) {
+  const segments = relativePath.replaceAll("\\", "/").split("/");
+  const roles = [
+    segments.includes("application") ? "application" : null,
+    segments.includes("adapters") ? "adapter" : null,
+    segments.includes("composition") ? "composition" : null,
+  ].filter(Boolean);
+  return roles.length === 1 ? roles[0] : "unclassified";
+}
+
 export function restrictedImportRegexForRoleRule(rule) {
   const patterns = [
     ...rule.forbiddenSpecifiers.map((specifier) => `^${escapeRegex(specifier)}$`),
     ...rule.forbiddenRoles.map((role) => roleImportPatterns[role]),
-    ...rule.forbiddenRoots.map((root) => {
-      const segment = root.split("/").at(-1) ?? root;
-      return `(?:^|/)${escapeRegex(segment)}(?:/|$)`;
-    }),
+    ...rule.forbiddenRoots.flatMap(restrictedRootImportPatterns),
   ];
   return patterns.join("|");
+}
+
+export function restrictedServerImportRegexForAppRule(rule) {
+  const forbiddenSegments = rule.forbiddenRoles.map((role) => rolePathSegments[role]);
+  return `^(?:@/server/|(?:\\.\\./)+server/)(?:[^/]+/)*(?:${forbiddenSegments.join("|")})(?:/|$)`;
 }
 
 export function isTestSourcePath(filePath) {
@@ -113,4 +174,17 @@ export function isTestSourcePath(filePath) {
 
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+function restrictedRootImportPatterns(root) {
+  const normalizedRoot = root.replaceAll("\\", "/");
+  if (!normalizedRoot.startsWith("src/")) {
+    return [`^${escapeRegex(normalizedRoot)}(?:/|$)`];
+  }
+
+  const sourceRoot = normalizedRoot.slice("src/".length);
+  return [
+    `^@/${escapeRegex(sourceRoot)}(?:/|$)`,
+    `^(?:\\.\\./)+${escapeRegex(normalizedRoot)}(?:/|$)`,
+  ];
 }

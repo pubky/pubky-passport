@@ -4,9 +4,13 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  appServerEntryRule,
   browserModuleRole,
   browserRoleRules,
   restrictedImportRegexForRoleRule,
+  restrictedServerImportRegexForAppRule,
+  serverModuleRole,
+  serverRoleRules,
 } from "./architecturePolicy.mjs";
 import {
   importSpecifiersFromSource,
@@ -115,9 +119,51 @@ describe("architecture policy", () => {
     expect(browserModuleRole(relativePath)).toBe(role);
   });
 
+  it.each([
+    ["wrapping-key/google/application/useCase.ts", "application"],
+    ["wrapping-key/google/adapters/provider.ts", "adapter"],
+    ["wrapping-key/google/composition/runtime.ts", "composition"],
+    ["wrapping-key/google/application/adapters/mixed.ts", "unclassified"],
+    ["config/runtime.ts", "unclassified"],
+  ])("classifies server module %s as %s", (relativePath, role) => {
+    expect(serverModuleRole(relativePath)).toBe(role);
+  });
+
   it("gives every role rule a unique stable ID", () => {
-    const ids = browserRoleRules.map((rule) => rule.id);
+    const ids = [
+      ...browserRoleRules.map((rule) => rule.id),
+      ...serverRoleRules.map((rule) => rule.id),
+      appServerEntryRule.id,
+    ];
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("pins the server role dependency matrix", () => {
+    expect(serverRoleRules.map((rule) => ({
+      id: rule.id,
+      forbiddenRoles: rule.forbiddenRoles,
+      forbiddenRoots: rule.forbiddenRoots,
+      forbiddenSpecifiers: rule.forbiddenSpecifiers,
+    }))).toEqual([
+      {
+        id: "server-application-inward",
+        forbiddenRoles: ["adapter", "composition"],
+        forbiddenRoots: ["src/app", "src/ui", "src/browser", "src/server/config"],
+        forbiddenSpecifiers: [],
+      },
+      {
+        id: "server-adapter-inward",
+        forbiddenRoles: ["composition"],
+        forbiddenRoots: ["src/app", "src/ui", "src/browser", "src/server/config"],
+        forbiddenSpecifiers: ["client-only"],
+      },
+      {
+        id: "server-composition-runtime",
+        forbiddenRoles: [],
+        forbiddenRoots: ["src/app", "src/ui", "src/browser"],
+        forbiddenSpecifiers: ["client-only"],
+      },
+    ]);
   });
 
   it("pins the security-relevant browser role dependency matrix", () => {
@@ -168,6 +214,37 @@ describe("architecture policy", () => {
     ["browser-composition-runtime", "@/server/config"],
   ])("generates direct-import enforcement for %s", (ruleId, forbiddenImport) => {
     const rule = browserRoleRules.find((candidate) => candidate.id === ruleId);
+    expect(rule).toBeDefined();
+    expect(new RegExp(restrictedImportRegexForRoleRule(rule), "u").test(forbiddenImport)).toBe(true);
+  });
+
+  it("matches forbidden roots exactly instead of matching unrelated config segments", () => {
+    const rule = serverRoleRules.find((candidate) => candidate.id === "server-application-inward");
+    expect(rule).toBeDefined();
+    const restricted = new RegExp(restrictedImportRegexForRoleRule(rule), "u");
+
+    expect(restricted.test("@/server/config/runtime")).toBe(true);
+    expect(restricted.test("../../../src/server/config/runtime")).toBe(true);
+    expect(restricted.test("@vendor/config")).toBe(false);
+    expect(restricted.test("../config/runtime")).toBe(false);
+  });
+
+  it("restricts direct app imports of server adapters only", () => {
+    const restricted = new RegExp(restrictedServerImportRegexForAppRule(appServerEntryRule), "u");
+
+    expect(restricted.test("@/server/wrapping-key/google/adapters/googleIdTokenVerifier")).toBe(true);
+    expect(restricted.test("../../../../server/wrapping-key/google/adapters/googleIdTokenVerifier")).toBe(true);
+    expect(restricted.test("@/server/wrapping-key/google/application/requestGoogleWrappingKey")).toBe(false);
+    expect(restricted.test("../../../../server/wrapping-key/google/composition/createConfiguredGoogleWrappingKeyRequest")).toBe(false);
+    expect(restricted.test("@vendor/server/adapters")).toBe(false);
+  });
+
+  it.each([
+    ["server-application-inward", "../adapters/provider"],
+    ["server-adapter-inward", "../composition/runtime"],
+    ["server-composition-runtime", "@/browser/identity"],
+  ])("generates server direct-import enforcement for %s", (ruleId, forbiddenImport) => {
+    const rule = serverRoleRules.find((candidate) => candidate.id === ruleId);
     expect(rule).toBeDefined();
     expect(new RegExp(restrictedImportRegexForRoleRule(rule), "u").test(forbiddenImport)).toBe(true);
   });

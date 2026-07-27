@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
 
-import { expectAsyncResultError } from "../../../../test-utils/resultAssertions";
+import { expectAsyncResultError } from "../../../../../test-utils/resultAssertions";
 import {
   createGoogleIdTokenVerifier,
   type GoogleTokenVerifierDependency,
-} from "./idTokenVerifier";
+} from "./googleIdTokenVerifier";
 
 const audience = "google-client-id";
 const token = "header.payload.signature";

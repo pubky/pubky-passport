@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
 
-import { expectAsyncResultError } from "../../../../test-utils/resultAssertions";
+import { expectAsyncResultError } from "../../../../../test-utils/resultAssertions";
 import type {
   GoogleIdTokenVerifier,
   GoogleWrappingKeyMaterial,
   GoogleWrappingKeyRateLimiter,
-} from "./ports";
-import { createGoogleWrappingKeyRequest } from "./request";
+} from "./googleWrappingKey";
+import { createGoogleWrappingKeyRequest } from "./requestGoogleWrappingKey";
 
 const identity = {
   issuer: "https://accounts.google.com" as const,

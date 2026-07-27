@@ -5,7 +5,7 @@ import { createGoogleWrappingKeyPostHandler } from "./handler";
 import type {
   GoogleWrappingKeyRequest,
   GoogleWrappingKeyRequestResult,
-} from "../../../../server/wrapping-key/google/request";
+} from "../../../../server/wrapping-key/google/application/requestGoogleWrappingKey";
 
 describe("POST /api/wrapping-key/google", () => {
   it("maps valid wrapping-key results to HTTP success", async () => {

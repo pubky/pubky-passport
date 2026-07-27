@@ -2,7 +2,10 @@ import "server-only";
 
 import { hkdfSync } from "node:crypto";
 
-import { canonicalGoogleIssuer, type GoogleWrappingKeyMaterial } from "./ports";
+import {
+  canonicalGoogleIssuer,
+  type GoogleWrappingKeyMaterial,
+} from "../application/googleWrappingKey";
 import { decodeServerSecret } from "./serverSecret";
 
 export type CreateGoogleWrappingKeyMaterialInput = {

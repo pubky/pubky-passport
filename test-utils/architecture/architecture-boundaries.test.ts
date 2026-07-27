@@ -4,8 +4,11 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  appServerEntryRule,
   browserModuleRole,
   browserRoleRules,
+  serverModuleRole,
+  serverRoleRules,
 } from "./architecturePolicy.mjs";
 import { isSameOrInside, ModuleGraph, type ForbiddenTarget } from "./moduleGraph";
 
@@ -18,22 +21,22 @@ const appRoot = join(srcRoot, "app");
 const uiRoot = join(srcRoot, "ui");
 const libsRoot = join(srcRoot, "libs");
 const publicEnvRoot = join(libsRoot, "env");
-const serverConfigRoot = join(serverRoot, "config");
 const identityRoot = join(browserRoot, "identity");
 const localIdentityRepository = join(identityRoot, "local-identity", "adapters", "localStorageIdentityRepository.ts");
 const pubkySdkAdaptersRoot = join(browserRoot, "pubky", "adapters");
 const googleWrappingKeyRoot = join(serverRoot, "wrapping-key", "google");
-const googleWrappingKeyConfig = join(googleWrappingKeyRoot, "config.ts");
-const googleWrappingKeyServerSecret = join(googleWrappingKeyRoot, "serverSecret.ts");
-const googleWrappingKeyApplicationModules = [
-  join(googleWrappingKeyRoot, "ports.ts"),
-  join(googleWrappingKeyRoot, "request.ts"),
-];
+const googleWrappingKeyConfig = join(googleWrappingKeyRoot, "composition", "googleWrappingKeyConfig.ts");
+const googleWrappingKeyServerSecret = join(googleWrappingKeyRoot, "adapters", "serverSecret.ts");
 const graph = new ModuleGraph(repoRoot);
 const browserProductionModules = graph.productionSourceFiles(browserRoot);
 const browserModulesByRole = Map.groupBy(
   browserProductionModules,
   (filePath) => browserModuleRole(relative(browserRoot, filePath)),
+);
+const serverProductionModules = graph.productionSourceFiles(serverRoot);
+const serverModulesByRole = Map.groupBy(
+  serverProductionModules,
+  (filePath) => serverModuleRole(relative(serverRoot, filePath)),
 );
 
 const forbiddenCoreImports = [
@@ -156,6 +159,22 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
+  it(`${appServerEntryRule.id}: ${appServerEntryRule.description}`, () => {
+    const violations = graph.productionSourceFiles(appRoot).flatMap((filePath) =>
+      graph.importSpecifiers(filePath).flatMap((specifier) => {
+        const targetPath = graph.resolveLocalImportTarget(filePath, specifier);
+        if (!targetPath || !isSameOrInside(targetPath, serverRoot)) return [];
+
+        const role = serverModuleRole(relative(serverRoot, targetPath));
+        return appServerEntryRule.forbiddenRoles.some((forbiddenRole) => forbiddenRole === role)
+          ? [`${relative(repoRoot, filePath)} imports server ${role} directly via "${specifier}"`]
+          : [];
+      })
+    );
+
+    expect(violations).toEqual([]);
+  });
+
   it("limits production UI browser imports to stable controller APIs and factories", () => {
     expect(graph.productionSourceFiles(uiRoot).flatMap(inspectUiBrowserImports)).toEqual([]);
   });
@@ -168,23 +187,6 @@ describe("architecture boundaries", () => {
     const violations = graph.productionSourceFiles(srcRoot)
       .filter((filePath) => !isSameOrInside(filePath, googleWrappingKeyRoot))
       .flatMap((filePath) => graph.inspectForbiddenImports(filePath, { forbiddenTargets }));
-
-    expect(violations).toEqual([]);
-  });
-
-  it("keeps the Google wrapping-key application layer independent from configuration and adapters", () => {
-    const forbiddenTargets = [
-      { targetPath: googleWrappingKeyConfig, label: "wrapping-key config" },
-      { targetPath: googleWrappingKeyServerSecret, label: "wrapping-key server secret" },
-      { targetPath: serverConfigRoot, label: "browser bootstrap config" },
-      { targetPath: join(googleWrappingKeyRoot, "composition"), label: "wrapping-key composition" },
-      { targetPath: join(googleWrappingKeyRoot, "idTokenVerifier"), label: "Google verifier adapter" },
-      { targetPath: join(googleWrappingKeyRoot, "keyDeriver"), label: "key derivation adapter" },
-      { targetPath: join(googleWrappingKeyRoot, "rateLimiter"), label: "rate limiter adapter" },
-    ];
-    const violations = googleWrappingKeyApplicationModules.flatMap((filePath) =>
-      graph.inspectForbiddenImports(filePath, { forbiddenTargets, traverseLocalImports: true })
-    );
 
     expect(violations).toEqual([]);
   });
@@ -215,6 +217,32 @@ describe("architecture boundaries", () => {
     });
   }
 
+  for (const rule of serverRoleRules) {
+    it(`${rule.id}: ${rule.description}`, () => {
+      const sourceModules = serverModulesByRole.get(rule.sourceRole) ?? [];
+      const violations = sourceModules.flatMap((filePath) => {
+        const forbiddenTargets: ForbiddenTarget[] = [
+          ...rule.forbiddenRoles.flatMap((role) =>
+            (serverModulesByRole.get(role) ?? [])
+              .filter((targetPath) => targetPath !== filePath)
+              .map((targetPath) => ({ targetPath, label: `server ${role} module` }))
+          ),
+          ...rule.forbiddenRoots.map((root) => ({
+            targetPath: resolve(repoRoot, root),
+            label: root,
+          })),
+        ];
+        return graph.inspectForbiddenImports(filePath, {
+          forbiddenModuleSpecifiers: [...rule.forbiddenSpecifiers],
+          forbiddenTargets,
+          traverseLocalImports: true,
+        });
+      });
+
+      expect(violations).toEqual([]);
+    });
+  }
+
   it("keeps sensitive parser approval types out of public browser contracts", () => {
     const violations = (browserModulesByRole.get("public") ?? [])
       .filter((filePath) => graph.referencesIdentifier(filePath, "ValidatedSensitivePubkyAuthRequest"))
@@ -225,6 +253,13 @@ describe("architecture boundaries", () => {
 
   it("classifies every browser module by an explicit architectural role", () => {
     expect(browserModulesByRole.get("unclassified") ?? []).toEqual([]);
+  });
+
+  it("classifies every Google wrapping-key module by an explicit server role", () => {
+    const unclassified = graph.productionSourceFiles(googleWrappingKeyRoot)
+      .filter((filePath) => serverModuleRole(relative(serverRoot, filePath)) === "unclassified");
+
+    expect(unclassified).toEqual([]);
   });
 
 });
