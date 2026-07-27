@@ -12,6 +12,8 @@ import {
   releaseGoogleCredentialCallback,
 } from "./googleIdentityServicesSignInButton";
 
+const maximumGoogleIdTokenCharacters = 16 * 1024 - '{"googleIdToken":""}'.length;
+
 describe("Google credential callback ownership", () => {
   it("keeps one live owner and never dispatches to a rejected binding", () => {
     let dispatch: ((response: GoogleCredentialResponse) => void) | undefined;
@@ -49,6 +51,32 @@ describe("readUnverifiedGoogleIdTokenSubject", () => {
   it("rejects malformed and non-canonical payloads", () => {
     expect(readUnverifiedGoogleIdTokenSubject("header.A.signature")).toBeUndefined();
     expect(readUnverifiedGoogleIdTokenSubject("header.AB.signature")).toBeUndefined();
+  });
+
+  it("rejects malformed JWT segment counts and empty segments", () => {
+    const payload = encodeBase64Url(new TextEncoder().encode(JSON.stringify({ sub: "google-subject" })));
+
+    expect(readUnverifiedGoogleIdTokenSubject(`header.${payload}`)).toBeUndefined();
+    expect(readUnverifiedGoogleIdTokenSubject(`header.${payload}.signature.extra`)).toBeUndefined();
+    expect(readUnverifiedGoogleIdTokenSubject(`.${payload}.signature`)).toBeUndefined();
+    expect(readUnverifiedGoogleIdTokenSubject(`header.${payload}.`)).toBeUndefined();
+  });
+
+  it("rejects oversized tokens and decoded payloads", () => {
+    const oversizedPayload = encodeBase64Url(new Uint8Array(8 * 1024 + 1));
+
+    expect(readUnverifiedGoogleIdTokenSubject("a".repeat(maximumGoogleIdTokenCharacters + 1))).toBeUndefined();
+    expect(readUnverifiedGoogleIdTokenSubject(`header.${oversizedPayload}.signature`)).toBeUndefined();
+  });
+
+  it("rejects empty and oversized subjects", () => {
+    const tokenFor = (subject: string) => {
+      const payload = encodeBase64Url(new TextEncoder().encode(JSON.stringify({ sub: subject })));
+      return `header.${payload}.signature`;
+    };
+
+    expect(readUnverifiedGoogleIdTokenSubject(tokenFor("   "))).toBeUndefined();
+    expect(readUnverifiedGoogleIdTokenSubject(tokenFor("s".repeat(256)))).toBeUndefined();
   });
 
   it("rejects malformed UTF-8 payloads", () => {
@@ -119,6 +147,32 @@ describe("GoogleIdentityServicesSignInButton", () => {
     expect(Result.isError(credentialResult)).toBe(true);
     if (Result.isError(credentialResult)) expect(credentialResult.error).toEqual({ code: "sign_in_failed" });
     expect(JSON.stringify(onCredential.mock.calls)).not.toContain("invalid-token");
+  });
+
+  it("rejects oversized credentials before decoding or retaining them", async () => {
+    let providerCallback: ((response: GoogleCredentialResponse) => void) | undefined;
+    const onCredential = vi.fn();
+    const readUnverifiedGoogleIdTokenSubject = vi.fn(() => "google-subject");
+    const widget = new GoogleIdentityServicesSignInButton({
+      clientId: "google-client",
+      googleIdentityServices: { loadGoogleAccounts: vi.fn(async () => Result.ok(googleAccounts())) },
+      dependencies: {
+        bindGoogleCredentialCallback: vi.fn((input) => {
+          providerCallback = input.callback;
+          return Result.ok();
+        }),
+        releaseGoogleCredentialCallback: vi.fn(),
+        readUnverifiedGoogleIdTokenSubject,
+      },
+    });
+    await widget.mount({ target: document.createElement("div"), onCredential });
+
+    providerCallback?.({ credential: "a".repeat(maximumGoogleIdTokenCharacters + 1) });
+
+    expect(readUnverifiedGoogleIdTokenSubject).not.toHaveBeenCalled();
+    const credentialResult = onCredential.mock.calls[0]?.[0];
+    expect(Result.isError(credentialResult)).toBe(true);
+    if (Result.isError(credentialResult)) expect(credentialResult.error).toEqual({ code: "sign_in_failed" });
   });
 
   it("releases callback ownership when rendering fails", async () => {

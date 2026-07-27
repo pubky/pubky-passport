@@ -3,6 +3,7 @@ import "client-only";
 import { Result } from "better-result";
 
 import { parsePubkyAuthRequest } from "../../core/auth/parsePubkyAuthRequest";
+import { pubkyAuthRequestLimits } from "../../core/auth/pubkyAuthRequestLimits";
 import type {
   BrowserManualAuthorizationController,
   ManualAuthorizationEntryResult,
@@ -12,13 +13,24 @@ export class PassportManualAuthorizationController implements BrowserManualAutho
   constructor(private readonly navigate: (url: string) => void) {}
 
   enter(rawRequest: string): ManualAuthorizationEntryResult {
+    if (rawRequest.length > pubkyAuthRequestLimits.decodedAuthUrlLength) {
+      return "invalid";
+    }
+
     const request = rawRequest.trim();
-    const parsed = parsePubkyAuthRequest(encodeURIComponent(request));
+    let encodedRequest: string;
+    try {
+      encodedRequest = encodeURIComponent(request);
+    } catch {
+      return "invalid";
+    }
+
+    const parsed = parsePubkyAuthRequest(encodedRequest);
     if (Result.isError(parsed)) {
       return "invalid";
     }
 
-    this.navigate(`/authorize?d=${encodeURIComponent(request)}`);
+    this.navigate(`/authorize?d=${encodedRequest}`);
     return "navigating";
   }
 }

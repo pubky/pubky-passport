@@ -26,6 +26,12 @@ type GoogleSignInButtonDependencies = {
   readUnverifiedGoogleIdTokenSubject(token: string): string | undefined;
 };
 
+const googleIdTokenRequestEnvelopeCharacters = '{"googleIdToken":""}'.length;
+const maximumGoogleIdTokenCharacters = 16 * 1024 - googleIdTokenRequestEnvelopeCharacters;
+const maximumGoogleIdTokenPayloadBytes = 8 * 1024;
+const maximumGoogleSubjectCharacters = 255;
+const base64UrlSegmentPattern = /^[A-Za-z0-9_-]+$/;
+
 const defaultDependencies: GoogleSignInButtonDependencies = {
   bindGoogleCredentialCallback,
   releaseGoogleCredentialCallback,
@@ -67,7 +73,11 @@ export class GoogleIdentityServicesSignInButton implements GoogleSignInButton {
     const callback = (response: GoogleCredentialResponse): void => {
       if (activeAttempt !== this.#attempt) return;
       try {
-        if (typeof response.credential !== "string" || response.credential.length === 0) {
+        if (
+          typeof response.credential !== "string"
+          || response.credential.length === 0
+          || response.credential.length > maximumGoogleIdTokenCharacters
+        ) {
           logger.warn("identity.google.button.credential_failed");
           input.onCredential(Result.err({ code: "sign_in_failed" }));
           return;
@@ -168,15 +178,29 @@ export function releaseGoogleCredentialCallback(callback: (response: GoogleCrede
 }
 
 export function readUnverifiedGoogleIdTokenSubject(token: string): string | undefined {
-  const payload = token.split(".")[1];
+  if (token.length === 0 || token.length > maximumGoogleIdTokenCharacters) return undefined;
+
+  const segments = token.split(".");
+  if (segments.length !== 3 || segments.some((segment) => !base64UrlSegmentPattern.test(segment))) {
+    return undefined;
+  }
+
+  const payload = segments[1];
   if (!payload) return undefined;
   try {
     const bytes = decodeBase64Url(payload);
-    if (!bytes) return undefined;
+    if (!bytes || bytes.byteLength > maximumGoogleIdTokenPayloadBytes) return undefined;
     const json = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     const value: unknown = JSON.parse(json);
-    return typeof value === "object" && value !== null && "sub" in value && typeof value.sub === "string"
-      ? value.sub
+    if (!value || typeof value !== "object" || Array.isArray(value) || !Object.hasOwn(value, "sub")) {
+      return undefined;
+    }
+
+    const subject = (value as Record<string, unknown>).sub;
+    return typeof subject === "string"
+      && subject.length <= maximumGoogleSubjectCharacters
+      && subject.trim().length > 0
+      ? subject
       : undefined;
   } catch {
     return undefined;

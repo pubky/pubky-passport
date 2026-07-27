@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { pubkyAuthRequestLimits } from "../../core/auth/pubkyAuthRequestLimits";
 import { PassportManualAuthorizationController } from "./passportManualAuthorizationController";
 
 describe("PassportManualAuthorizationController", () => {
@@ -8,6 +9,23 @@ describe("PassportManualAuthorizationController", () => {
     const controller = new PassportManualAuthorizationController(navigate);
 
     expect(controller.enter("pubkyauth://signin?secret=sensitive-secret")).toBe("invalid");
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed UTF-16 without throwing or navigating", () => {
+    const navigate = vi.fn();
+    const controller = new PassportManualAuthorizationController(navigate);
+
+    expect(controller.enter("pubkyauth://signin?secret=\ud800")).toBe("invalid");
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it("rejects oversized input before encoding or navigating", () => {
+    const navigate = vi.fn();
+    const controller = new PassportManualAuthorizationController(navigate);
+
+    expect(controller.enter("a".repeat(pubkyAuthRequestLimits.decodedAuthUrlLength + 1))).toBe("invalid");
+    expect(controller.enter(`${" ".repeat(pubkyAuthRequestLimits.decodedAuthUrlLength)}a`)).toBe("invalid");
     expect(navigate).not.toHaveBeenCalled();
   });
 
