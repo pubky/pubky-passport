@@ -167,7 +167,21 @@ export function AuthorizationIdentityPanel({
 
 function messageForGoogleFailure(code: string): string {
   switch (code) {
-    case "homegate_invite_failed":
+    case "invalid_google_id_token":
+      return "Your Google session is no longer valid. Sign in again to continue.";
+    case "weekly_limit_exceeded":
+      return "This Google account has reached its weekly homeserver signup limit.";
+    case "annual_limit_exceeded":
+      return "This Google account has reached its annual homeserver signup limit.";
+    case "homeserver_unavailable":
+      return "The homeserver is temporarily unavailable. Try again later.";
+    case "google_verifier_unavailable":
+    case "homegate_unavailable":
+    case "network_failed":
+      return "The homeserver invitation service is temporarily unavailable. Try again later.";
+    case "homegate_invalid_request":
+    case "malformed_homegate_response":
+      return "Passport could not process the homeserver invitation response. Try again later.";
     case "signup_failed":
     case "signin_failed":
     case "discovery_failed":

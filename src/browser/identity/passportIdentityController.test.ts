@@ -50,6 +50,36 @@ describe("PassportIdentityController", () => {
     expect("keyHandle" in (completed.status === "action_completed" && !Result.isError(completed.result) ? completed.result.value : {})).toBe(false);
   });
 
+  it.each([
+    "invalid_google_id_token",
+    "weekly_limit_exceeded",
+    "annual_limit_exceeded",
+    "homegate_invalid_request",
+    "homeserver_unavailable",
+    "google_verifier_unavailable",
+    "homegate_unavailable",
+    "malformed_homegate_response",
+    "network_failed",
+  ] as const)("translates the Homegate %s cause for UI consumers", async (cause) => {
+    const establish = vi.fn(async () => Result.err({
+      code: "homegate_invite_failed" as const,
+      cause,
+    }));
+    const { controller, credentialCallback } = await mountedController({
+      identityEstablisher: { establish },
+    });
+    credentialCallback.current?.(googleCredential());
+
+    const completed = await controller.continueGoogle({ kind: "establish" });
+
+    expect(completed.status).toBe("action_completed");
+    if (completed.status !== "action_completed") throw new Error("Expected completed action");
+    expect(Result.isError(completed.result)).toBe(true);
+    if (Result.isError(completed.result)) {
+      expect(completed.result.error).toEqual({ code: cause });
+    }
+  });
+
   it("account-matches Drive access and exposes only safe Google state", async () => {
     const states: unknown[] = [];
     const requestGoogleDriveAccess = vi.fn(async () => Result.err({ code: "drive_account_mismatch" as const }));

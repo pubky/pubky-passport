@@ -14,6 +14,7 @@ import type {
   GoogleSignInState,
 } from "./browserIdentityController";
 import type {
+  GoogleBackedIdentityError,
   GoogleDriveIdentityDeleter,
   GoogleIdentityEstablisher,
 } from "./google-backed-identity/application/googleBackedIdentity";
@@ -178,7 +179,7 @@ export class PassportIdentityController implements BrowserIdentityController {
         return Result.isError(deleted) ? actionFailure(deleted.error) : Result.ok({ kind: "deleted" });
       }
       const established = await this.#dependencies.identityEstablisher.establish(google);
-      if (Result.isError(established)) return actionFailure(established.error);
+      if (Result.isError(established)) return establishmentFailure(established.error);
       const value: BrowserIdentityActionValue = {
         kind: "established",
         source: established.value.source,
@@ -240,6 +241,15 @@ function toCatalogResult<T>(
 function actionFailure(error: BrowserIdentityControllerError): BrowserIdentityActionResult {
   return Result.err({
     code: error.code,
+    ...(error.recoverablePublicIdentity
+      ? { recoverablePublicIdentity: error.recoverablePublicIdentity }
+      : {}),
+  });
+}
+
+function establishmentFailure(error: GoogleBackedIdentityError): BrowserIdentityActionResult {
+  return actionFailure({
+    code: error.code === "homegate_invite_failed" ? error.cause : error.code,
     ...(error.recoverablePublicIdentity
       ? { recoverablePublicIdentity: error.recoverablePublicIdentity }
       : {}),

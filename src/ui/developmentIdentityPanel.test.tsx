@@ -40,6 +40,7 @@ const storedIdentity = {
 describe("DevelopmentIdentityPanel", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", new MemoryStorage());
+    flowState.establish = async () => { throw new Error("establish result not configured"); };
     flowState.deleteExpectedPublicKey = null;
     flowState.refresh = null;
     flowState.controller = controllerForLocalStorage();
@@ -114,6 +115,18 @@ describe("DevelopmentIdentityPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Authorize test Google" }));
 
     await waitFor(() => expect(flowState.deleteExpectedPublicKey).toBe("selected-identity"));
+  });
+
+  it("does not offer Drive cleanup when invitation retrieval fails before creation", async () => {
+    flowState.establish = async () => Result.err({ code: "homegate_unavailable" });
+    render(<DevelopmentIdentityPanel allowGoogleDriveReset googleClientId="google-client" homegateBaseUrl={homegateBaseUrl} />);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add identity" })).toBeDefined());
+    fireEvent.click(screen.getByRole("button", { name: "Add identity" }));
+    fireEvent.click(screen.getByRole("button", { name: "Authorize test Google" }));
+
+    await waitFor(() => expect(screen.getByText(/Passport did not create an identity/)).toBeDefined());
+    expect(screen.queryByRole("button", { name: "Delete failed identity from Google" })).toBeNull();
   });
 });
 

@@ -231,8 +231,21 @@ function messageForGoogleFailure(code: string): string {
       return "The Google Drive identity changed before it could be deleted. Try again.";
     case "drive_create_conflict":
       return "A Google Drive identity was created at the same time. Try again to restore it.";
-    case "homegate_invite_failed":
-      return "Passport could not obtain a homeserver invitation and did not create an identity. Try again later.";
+    case "invalid_google_id_token":
+      return "Your Google session is no longer valid. Passport did not create an identity.";
+    case "weekly_limit_exceeded":
+      return "This Google account reached its weekly homeserver signup limit. Passport did not create an identity; retry later.";
+    case "annual_limit_exceeded":
+      return "This Google account reached its annual homeserver signup limit. Passport did not create an identity; retry later.";
+    case "homeserver_unavailable":
+      return "The homeserver is unavailable. Passport did not create an identity; retry later.";
+    case "google_verifier_unavailable":
+    case "homegate_unavailable":
+    case "network_failed":
+      return "The invitation service is unavailable. Passport did not create an identity; retry later.";
+    case "homegate_invalid_request":
+    case "malformed_homegate_response":
+      return "The invitation response could not be processed. Passport did not create an identity.";
     case "signup_failed":
       return "Passport stored the encrypted identity, but homeserver signup did not complete. Delete the failed Drive identity and start again.";
     case "signin_failed":
