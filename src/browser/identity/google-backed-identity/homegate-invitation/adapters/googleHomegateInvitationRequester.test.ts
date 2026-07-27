@@ -15,6 +15,16 @@ const homegateErrorCases = [
   ["internal_error", "homegate_unavailable"],
   ["unknown error containing SECRET-GOOGLE-ID-TOKEN", "malformed_homegate_response"],
 ] satisfies ReadonlyArray<readonly [string, GoogleHomegateInvitationRequesterErrorCode]>;
+const malformedSuccessCases = [
+  ["an unknown field", () => jsonResponse({ signupCode: "code", homeserverPubky: "home", extra: "unsafe" })],
+  ["an empty signup code", () => jsonResponse({ signupCode: "", homeserverPubky: "home" })],
+  ["an oversized signup code", () => jsonResponse({ signupCode: "x".repeat(1025), homeserverPubky: "home" })],
+  ["an empty homeserver public key", () => jsonResponse({ signupCode: "code", homeserverPubky: "" })],
+  ["an oversized homeserver public key", () => jsonResponse({ signupCode: "code", homeserverPubky: "x".repeat(1025) })],
+  ["a non-string field", () => jsonResponse({ signupCode: 42, homeserverPubky: "home" })],
+  ["invalid JSON", () => new Response("not-json", { status: 200 })],
+  ["an oversized body", () => new Response("x".repeat(16 * 1024 + 1), { status: 200 })],
+] satisfies ReadonlyArray<readonly [string, () => Response]>;
 
 describe("BrowserGoogleHomegateInvitationRequester", () => {
   afterEach(() => vi.restoreAllMocks());
@@ -83,28 +93,38 @@ describe("BrowserGoogleHomegateInvitationRequester", () => {
     },
   );
 
-  it("rejects unknown, malformed, and oversized success responses", async () => {
-    for (const response of [
-      jsonResponse({ signupCode: "code", homeserverPubky: "home", extra: "unsafe" }),
-      jsonResponse({ signupCode: "", homeserverPubky: "home" }),
-      jsonResponse({ signupCode: "x".repeat(1025), homeserverPubky: "home" }),
-      jsonResponse({ signupCode: "code", homeserverPubky: "" }),
-      jsonResponse({ signupCode: "code", homeserverPubky: "x".repeat(1025) }),
-      jsonResponse({ signupCode: 42, homeserverPubky: "home" }),
-      new Response("not-json", { status: 200 }),
-      new Response("x".repeat(16 * 1024 + 1), { status: 200 }),
-    ]) {
-      const requester = new BrowserGoogleHomegateInvitationRequester({
-        fetch: vi.fn<typeof globalThis.fetch>().mockResolvedValue(response),
-        homegateBaseUrl,
-      });
+  it.each(malformedSuccessCases)("rejects a success response with %s", async (_name, response) => {
+    const requester = new BrowserGoogleHomegateInvitationRequester({
+      fetch: vi.fn<typeof globalThis.fetch>().mockResolvedValue(response()),
+      homegateBaseUrl,
+    });
 
-      const result = await requester.requestSignupInvitation({ googleIdToken: "id-token" });
+    const result = await requester.requestSignupInvitation({ googleIdToken: "id-token" });
 
-      expect(Result.isError(result)).toBe(true);
-      if (!Result.isError(result)) throw new Error("Expected malformed Homegate response failure.");
-      expect(result.error).toEqual({ code: "malformed_homegate_response" });
-    }
+    expect(Result.isError(result)).toBe(true);
+    if (!Result.isError(result)) throw new Error("Expected malformed Homegate response failure.");
+    expect(result.error).toEqual({ code: "malformed_homegate_response" });
+  });
+
+  it("maps an error-body stream failure to Homegate unavailable", async () => {
+    const requestController = new AbortController();
+    vi.spyOn(AbortSignal, "timeout").mockReturnValue(requestController.signal);
+    const response = new Response(new ReadableStream({
+      start(controller) {
+        controller.error(new Error("upstream body failed"));
+      },
+    }), { status: 500 });
+    const requester = new BrowserGoogleHomegateInvitationRequester({
+      fetch: vi.fn<typeof globalThis.fetch>().mockResolvedValue(response),
+      homegateBaseUrl,
+    });
+
+    const result = await requester.requestSignupInvitation({ googleIdToken: "id-token" });
+
+    expect(requestController.signal.aborted).toBe(false);
+    expect(Result.isError(result)).toBe(true);
+    if (!Result.isError(result)) throw new Error("Expected unavailable Homegate failure.");
+    expect(result.error).toEqual({ code: "homegate_unavailable" });
   });
 
   it.each(homegateErrorCases)("maps Homegate plaintext error %s to %s", async (body, expectedCode) => {
