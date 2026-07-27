@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { proxy } from "../proxy";
+import { proxy } from "../src/proxy";
 
 describe("request CSP proxy", () => {
   beforeEach(() => {

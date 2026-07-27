@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { getBrowserBootstrapConfig } from "./src/server/config/browserBootstrapConfig";
-import { createContentSecurityPolicy } from "./src/server/content-security-policy/policy";
+import { getBrowserBootstrapConfig } from "./server/config/browserBootstrapConfig";
+import { createContentSecurityPolicy } from "./server/content-security-policy/policy";
 
 export function proxy(request: NextRequest) {
   const config = getBrowserBootstrapConfig();

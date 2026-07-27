@@ -44,8 +44,8 @@ jobs:
       - name: Unit tests
         run: pnpm test:run
 
-      - name: Production build
-        run: pnpm build
-        env:
-          GOOGLE_CLIENT_ID: ci-google-client-id
-          HOMEGATE_URL: https://homegate.example/
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: End-to-end tests
+        run: pnpm test:e2e
