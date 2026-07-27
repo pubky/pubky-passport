@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
 
+import { encodeBase64Url } from "../../../../../libs/encoding/base64Url";
 import { BrowserGoogleWrappingKeyRequester } from "./googleWrappingKeyRequester";
 
 describe("BrowserGoogleWrappingKeyRequester", () => {
@@ -122,7 +123,3 @@ describe("BrowserGoogleWrappingKeyRequester", () => {
     if (Result.isError(result)) expect(result.error).toEqual({ code: "network_failed" });
   });
 });
-
-function encodeBase64Url(bytes: Uint8Array): string {
-  return Buffer.from(bytes).toString("base64url");
-}

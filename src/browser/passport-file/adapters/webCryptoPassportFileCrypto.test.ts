@@ -3,12 +3,9 @@ import { describe, expect, it } from "vitest";
 
 import { expectAsyncResultError, expectResultError } from "../../../../test-utils/resultAssertions";
 import { parsePassportFileEnvelope } from "../../../core/passport-file/parsePassportFile";
+import { encodeBase64Url } from "../../../libs/encoding/base64Url";
 import { pubkySecretKeyBytes } from "../../pubky/application/pubkyIdentityKeys";
-import {
-  decodeBase64Url,
-  encodeBase64Url,
-  WebCryptoPassportFileCrypto,
-} from "./webCryptoPassportFileCrypto";
+import { WebCryptoPassportFileCrypto } from "./webCryptoPassportFileCrypto";
 
 const secretKeyBytes = new Uint8Array(Array.from({ length: pubkySecretKeyBytes }, (_, index) => index + 11));
 
@@ -336,22 +333,5 @@ describe("WebCryptoPassportFileCrypto", () => {
     }), "invalid_plaintext");
 
     await expectAsyncError(crypto.encryptSecretKeyBytes({ secretKeyBytes, wrappingKey, passportOrigin: "https://passport.pubky.app/path" }), "invalid_envelope");
-  });
-});
-
-describe("base64url helpers", () => {
-  it("round-trips unpadded base64url bytes", () => {
-    const bytes = new Uint8Array([0, 1, 2, 252, 253, 254, 255]);
-    const encoded = encodeBase64Url(bytes);
-
-    expect(encoded).toBe("AAEC_P3-_w");
-    expect(encoded).not.toContain("=");
-    expect(decodeBase64Url(encoded)).toEqual(Result.ok(bytes));
-  });
-
-  it("rejects invalid base64url strings", () => {
-    for (const value of ["", "abc+", "abc/", "abc=", "A"]) {
-      expectError(decodeBase64Url(value), "invalid_envelope");
-    }
   });
 });

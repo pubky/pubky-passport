@@ -2,6 +2,8 @@ import "client-only";
 
 import { Result } from "better-result";
 
+import { decodeBase64Url } from "../../../../libs/encoding/base64Url";
+
 import { logger } from "../../../../libs/logger/logger";
 import type {
   GoogleSignInCredential,
@@ -169,7 +171,9 @@ export function readUnverifiedGoogleIdTokenSubject(token: string): string | unde
   const payload = token.split(".")[1];
   if (!payload) return undefined;
   try {
-    const json = globalThis.atob(payload.replaceAll("-", "+").replaceAll("_", "/").padEnd(Math.ceil(payload.length / 4) * 4, "="));
+    const bytes = decodeBase64Url(payload);
+    if (!bytes) return undefined;
+    const json = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     const value: unknown = JSON.parse(json);
     return typeof value === "object" && value !== null && "sub" in value && typeof value.sub === "string"
       ? value.sub

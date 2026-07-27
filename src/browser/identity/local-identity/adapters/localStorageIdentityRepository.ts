@@ -3,6 +3,7 @@ import "client-only";
 import { Result } from "better-result";
 
 import type { PubkyPublicIdentity } from "../../../../core/identity/pubkyIdentity";
+import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "../../../../libs/encoding/base64Url";
 import { pubkySecretKeyBytes, pubkySecretKeyFormat, type PubkySecretKeyMaterial } from "../../../pubky/application/pubkyIdentityKeys";
 import type { LocalIdentitySummary } from "../application/localIdentity";
 import type {
@@ -13,7 +14,6 @@ import type {
 
 const storageKey = "pubky-passport/local-identities/v1";
 const localIdentityStoreVersion = 1;
-const base64UrlPattern = /^[A-Za-z0-9_-]{43}$/;
 
 type StoredLocalIdentity = LocalIdentitySummary & {
   secretKey: string;
@@ -137,7 +137,7 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
       return failure("no_active_identity");
     }
 
-    const secretKey = decodeBase64Url(storedIdentity.secretKey);
+    const secretKey = decodeStoredSecretKey(storedIdentity.secretKey);
     if (!secretKey) {
       return failure("invalid_store");
     }
@@ -232,7 +232,7 @@ function isActiveIdentityId(value: unknown): value is string | null {
 }
 
 function isEncodedSecretKey(value: unknown): value is string {
-  return typeof value === "string" && base64UrlPattern.test(value);
+  return typeof value === "string" && value.length === 43 && isCanonicalBase64Url(value);
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -247,30 +247,9 @@ function toSummary(identity: StoredLocalIdentity): LocalIdentitySummary {
   return { id: identity.id, publicIdentity: identity.publicIdentity };
 }
 
-function encodeBase64Url(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-
-  return globalThis.btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
-}
-
-function decodeBase64Url(value: string): Uint8Array | undefined {
-  if (!base64UrlPattern.test(value)) {
-    return undefined;
-  }
-
-  try {
-    const binary = globalThis.atob(`${value.replaceAll("-", "+").replaceAll("_", "/")}=`);
-    if (binary.length !== pubkySecretKeyBytes) {
-      return undefined;
-    }
-
-    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
-  } catch {
-    return undefined;
-  }
+function decodeStoredSecretKey(value: string): Uint8Array | undefined {
+  const decoded = decodeBase64Url(value);
+  return decoded?.byteLength === pubkySecretKeyBytes ? decoded : undefined;
 }
 
 function failure<T>(code: LocalIdentityRepositoryErrorCode): LocalIdentityRepositoryResult<T> {

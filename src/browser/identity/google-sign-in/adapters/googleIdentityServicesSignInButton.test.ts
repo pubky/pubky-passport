@@ -3,10 +3,12 @@
 import { Result } from "better-result";
 import { describe, expect, it, vi } from "vitest";
 
+import { encodeBase64Url } from "../../../../libs/encoding/base64Url";
 import type { GoogleAccounts, GoogleCredentialResponse } from "../../google-identity-services/application/googleIdentityServices";
 import {
   bindGoogleCredentialCallback,
   GoogleIdentityServicesSignInButton,
+  readUnverifiedGoogleIdTokenSubject,
   releaseGoogleCredentialCallback,
 } from "./googleIdentityServicesSignInButton";
 
@@ -34,6 +36,30 @@ describe("Google credential callback ownership", () => {
     dispatch?.({ credential: "second-credential" });
     expect(second).toHaveBeenCalledWith({ credential: "second-credential" });
     releaseGoogleCredentialCallback(second);
+  });
+});
+
+describe("readUnverifiedGoogleIdTokenSubject", () => {
+  it("reads a subject from a canonical Base64url payload", () => {
+    const payload = encodeBase64Url(new TextEncoder().encode(JSON.stringify({ sub: "google-subject" })));
+
+    expect(readUnverifiedGoogleIdTokenSubject(`header.${payload}.signature`)).toBe("google-subject");
+  });
+
+  it("rejects malformed and non-canonical payloads", () => {
+    expect(readUnverifiedGoogleIdTokenSubject("header.A.signature")).toBeUndefined();
+    expect(readUnverifiedGoogleIdTokenSubject("header.AB.signature")).toBeUndefined();
+  });
+
+  it("rejects malformed UTF-8 payloads", () => {
+    const prefix = new TextEncoder().encode('{"sub":"');
+    const suffix = new TextEncoder().encode('"}');
+    const malformedJson = new Uint8Array(prefix.length + 1 + suffix.length);
+    malformedJson.set(prefix);
+    malformedJson[prefix.length] = 0xff;
+    malformedJson.set(suffix, prefix.length + 1);
+
+    expect(readUnverifiedGoogleIdTokenSubject(`header.${encodeBase64Url(malformedJson)}.signature`)).toBeUndefined();
   });
 });
 

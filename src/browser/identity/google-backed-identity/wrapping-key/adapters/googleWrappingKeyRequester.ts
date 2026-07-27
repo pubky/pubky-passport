@@ -4,6 +4,7 @@ import { Result } from "better-result";
 
 import { logger } from "../../../../../libs/logger/logger";
 import { readBoundedText } from "../../../../../libs/http/boundedBody";
+import { isCanonicalBase64Url } from "../../../../../libs/encoding/base64Url";
 import type {
   GoogleWrappingKeyRequester,
   GoogleWrappingKeyRequesterErrorCode,
@@ -11,7 +12,6 @@ import type {
 
 const maximumResponseBytes = 16 * 1024;
 const wrappingKeyBytes = 32;
-const unpaddedBase64UrlPattern = /^[A-Za-z0-9_-]+$/;
 const knownRouteErrorCodes = new Set<GoogleWrappingKeyRequesterErrorCode>([
   "invalid_request",
   "invalid_google_id_token",
@@ -69,17 +69,12 @@ export class BrowserGoogleWrappingKeyRequester implements GoogleWrappingKeyReque
 
 function parseWrappingKey(value: unknown): string | null {
   if (!isExactRecord(value, ["wrappingKey"])) return null;
-  if (typeof value.wrappingKey !== "string" || !unpaddedBase64UrlPattern.test(value.wrappingKey)) return null;
+  if (typeof value.wrappingKey !== "string") return null;
 
-  try {
-    const standard = value.wrappingKey.replaceAll("-", "+").replaceAll("_", "/");
-    const decoded = atob(`${standard}${"=".repeat((4 - standard.length % 4) % 4)}`);
-    if (decoded.length !== wrappingKeyBytes) return null;
-    const canonical = btoa(decoded).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
-    return canonical === value.wrappingKey ? value.wrappingKey : null;
-  } catch {
-    return null;
-  }
+  const expectedLength = Math.ceil(wrappingKeyBytes * 4 / 3);
+  return value.wrappingKey.length === expectedLength && isCanonicalBase64Url(value.wrappingKey)
+    ? value.wrappingKey
+    : null;
 }
 
 function parseErrorCode(value: unknown): GoogleWrappingKeyRequesterErrorCode | null {

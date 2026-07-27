@@ -3,6 +3,7 @@ import "client-only";
 import { Result } from "better-result";
 
 import type { PassportFileEnvelopeV1 } from "../../../core/passport-file/passportFile";
+import { decodeBase64Url, encodeBase64Url } from "../../../libs/encoding/base64Url";
 import type {
   PassportFileCrypto,
   PassportFileCryptoErrorCode,
@@ -27,7 +28,6 @@ const wrappingKeyBytes = 32;
 const aesGcmIvBytes = 12;
 const aesGcmTagBytes = 16;
 const aesGcmCiphertextBytes = pubkySecretKeyBytes + aesGcmTagBytes;
-const base64UrlPattern = /^[A-Za-z0-9_-]+$/;
 const textEncoder = new TextEncoder();
 
 const aesGcmDerivationSalt = textEncoder.encode("pubky-passport/passport-file/aes-gcm/salt/v1");
@@ -206,11 +206,11 @@ function isValidSecretKeyBytes(secretKeyBytes: Uint8Array): boolean {
 
 function decodeWrappingKey(value: string): PassportFileCryptoResult<Uint8Array> {
   const decoded = decodeBase64Url(value);
-  if (Result.isError(decoded) || decoded.value.byteLength !== wrappingKeyBytes) {
+  if (!decoded || decoded.byteLength !== wrappingKeyBytes) {
     return failure("invalid_wrapping_key");
   }
 
-  return decoded;
+  return Result.ok(decoded);
 }
 
 function decodeFixedLengthBase64Url(value: string, expectedByteLength: number): PassportFileCryptoResult<Uint8Array> {
@@ -219,11 +219,11 @@ function decodeFixedLengthBase64Url(value: string, expectedByteLength: number): 
   }
 
   const decoded = decodeBase64Url(value);
-  if (Result.isError(decoded) || decoded.value.byteLength !== expectedByteLength) {
+  if (!decoded || decoded.byteLength !== expectedByteLength) {
     return failure("invalid_envelope");
   }
 
-  return decoded;
+  return Result.ok(decoded);
 }
 
 function base64UrlLength(byteLength: number): number {
@@ -234,46 +234,11 @@ function aadForEnvelope(envelope: Pick<PassportFileEnvelopeV1, "v" | "url">): Ar
   return toArrayBuffer(textEncoder.encode(`pubky-passport/passport-file/v${envelope.v}\n${envelope.url}`));
 }
 
-export function encodeBase64Url(bytes: Uint8Array): string {
-  let binary = "";
-  for (let index = 0; index < bytes.byteLength; index += 1) {
-    binary += String.fromCharCode(bytes[index] ?? 0);
-  }
-
-  return globalThis.btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
-}
-
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   const copy = new Uint8Array(bytes.byteLength);
   copy.set(bytes);
 
   return copy.buffer;
-}
-
-export function decodeBase64Url(value: string): PassportFileCryptoResult<Uint8Array> {
-  if (value.length === 0 || !base64UrlPattern.test(value)) {
-    return failure("invalid_envelope");
-  }
-
-  const paddedLength = Math.ceil(value.length / 4) * 4;
-  const paddingLength = paddedLength - value.length;
-  if (paddingLength === 3) {
-    return failure("invalid_envelope");
-  }
-
-  const base64 = `${value}${"=".repeat(paddingLength)}`.replaceAll("-", "+").replaceAll("_", "/");
-
-  try {
-    const binary = globalThis.atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let index = 0; index < binary.length; index += 1) {
-      bytes[index] = binary.charCodeAt(index);
-    }
-
-    return Result.ok(bytes);
-  } catch {
-    return failure("invalid_envelope");
-  }
 }
 
 function failure<T>(code: PassportFileCryptoErrorCode): PassportFileCryptoResult<T> {
