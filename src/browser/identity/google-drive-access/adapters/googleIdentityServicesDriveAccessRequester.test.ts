@@ -93,12 +93,42 @@ describe("requestGoogleDriveAccessToken", () => {
     if (Result.isError(result)) expect(result.error).toEqual({ code: "drive_account_mismatch" });
   });
 
+  it("hardens the Google user-info request and accepts a matching subject", async () => {
+    let callback: ((response: { access_token?: unknown; error?: unknown; scope?: unknown }) => void) | undefined;
+    const fetchImpl = vi.fn(async () => Response.json({ sub: "google-subject", name: "User" })) as unknown as typeof fetch;
+    loadedGoogleAccounts = googleAccounts({ captureCallback(value) { callback = value; } });
+
+    const resultPromise = requestGoogleDriveAccessToken({
+      clientId: "google-client",
+      expectedSubject: "google-subject",
+      fetch: fetchImpl,
+    });
+    await vi.waitFor(() => expect(callback).toBeDefined());
+    callback?.({ access_token: "drive-token", scope: googleDriveAppDataScope });
+
+    const result = await resultPromise;
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isOk(result)) expect(result.value).toBe("drive-token");
+    expect(fetchImpl).toHaveBeenCalledWith("https://openidconnect.googleapis.com/v1/userinfo", {
+      headers: { Accept: "application/json", Authorization: "Bearer drive-token" },
+      cache: "no-store",
+      credentials: "omit",
+      redirect: "error",
+      referrerPolicy: "no-referrer",
+      signal: expect.any(AbortSignal),
+    });
+  });
+
   it.each([
     ["network failure", async () => { throw new TypeError("network unavailable"); }],
     ["non-2xx response", async () => Response.json({}, { status: 503 })],
     ["malformed body", async () => new Response("not-json")],
+    ["oversized body", async () => new Response("{}", { headers: { "Content-Length": String(16 * 1024 + 1) } })],
     ["missing subject", async () => Response.json({})],
     ["invalid subject", async () => Response.json({ sub: 42 })],
+    ["blank subject", async () => Response.json({ sub: " " })],
+    ["oversized subject", async () => Response.json({ sub: "s".repeat(256) })],
+    ["array body", async () => Response.json([{ sub: "google-subject" }])],
   ])("maps %s during Drive account verification to a safe unavailable error", async (_case, userInfoResponse) => {
     let callback: ((response: { access_token?: unknown; error?: unknown; scope?: unknown }) => void) | undefined;
     loadedGoogleAccounts = googleAccounts({ captureCallback(value) { callback = value; } });

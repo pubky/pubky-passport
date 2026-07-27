@@ -2,6 +2,7 @@ import "client-only";
 
 import { Result } from "better-result";
 
+import { readBoundedText } from "../../../../libs/http/boundedBody";
 import type {
   GoogleAccounts,
   GoogleIdentityServicesLoader,
@@ -12,6 +13,8 @@ export const googleDriveAppDataScope = "https://www.googleapis.com/auth/drive.ap
 const googleOpenIdScope = "openid";
 const googleUserInfoUrl = "https://openidconnect.googleapis.com/v1/userinfo";
 const driveConsentTimeoutMs = 60_000;
+const maximumUserInfoResponseBytes = 16 * 1024;
+const maximumGoogleSubjectCharacters = 255;
 type GoogleSubjectVerification = "match" | "mismatch" | "unavailable" | "aborted";
 
 export class GoogleIdentityServicesDriveAccessRequester implements GoogleDriveAccessRequester {
@@ -147,16 +150,41 @@ async function verifyGoogleSubject(
   signal: AbortSignal,
 ): Promise<GoogleSubjectVerification> {
   try {
-    const response = await fetchImpl(googleUserInfoUrl, { headers: { Authorization: `Bearer ${accessToken}` }, signal });
+    const response = await fetchImpl(googleUserInfoUrl, {
+      headers: { Accept: "application/json", Authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+      credentials: "omit",
+      redirect: "error",
+      referrerPolicy: "no-referrer",
+      signal,
+    });
     if (!response.ok) return "unavailable";
-    const body: unknown = await response.json();
-    if (!body || typeof body !== "object" || !("sub" in body) || typeof body.sub !== "string" || body.sub.length === 0) {
+    const contents = await readBoundedText(response, maximumUserInfoResponseBytes);
+    if (contents === null || contents === "too_large") return "unavailable";
+
+    let body: unknown;
+    try {
+      body = JSON.parse(contents);
+    } catch {
       return "unavailable";
     }
-    return body.sub === expectedSubject ? "match" : "mismatch";
+
+    const subject = parseGoogleSubject(body);
+    if (subject === null) return "unavailable";
+    return subject === expectedSubject ? "match" : "mismatch";
   } catch {
     return signal.aborted ? "aborted" : "unavailable";
   }
+}
+
+function parseGoogleSubject(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value) || !Object.hasOwn(value, "sub")) return null;
+  const subject = (value as Record<string, unknown>).sub;
+  return typeof subject === "string"
+    && subject.length <= maximumGoogleSubjectCharacters
+    && subject.trim().length > 0
+    ? subject
+    : null;
 }
 
 function hasGoogleScope(value: unknown, expectedScope: string): boolean {
