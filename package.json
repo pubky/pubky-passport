@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": ">=24.18.0 <25"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -15,30 +18,31 @@
   },
   "dependencies": {
     "@synonymdev/pubky": "0.9.3",
-    "@tailwindcss/postcss": "^4.3.1",
-    "better-result": "2.9.2",
+    "@tailwindcss/postcss": "^4.3.3",
+    "better-result": "2.10.0",
     "client-only": "0.0.1",
-    "google-auth-library": "^10.9.0",
-    "next": "^16.2.11",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
+    "google-auth-library": "^10.9.1",
+    "next": "^16.2.12",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "server-only": "^0.0.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.3.5",
-    "@testing-library/jest-dom": "^6.9.1",
+    "@eslint/eslintrc": "^3.3.6",
+    "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
-    "@types/node": "22",
+    "@types/node": "24",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.4",
-    "eslint-config-next": "^16.2.11",
-    "jsdom": "^29.1.1",
-    "msw": "^2.14.6",
-    "tailwindcss": "^4.3.1",
+    "eslint-config-next": "^16.2.12",
+    "jsdom": "^30.0.0",
+    "msw": "^2.15.0",
+    "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.9"
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
   }
 }
