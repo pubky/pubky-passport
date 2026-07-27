@@ -6,48 +6,34 @@ import {
   getParserIssuedPubkyAuthCallbacks,
   type ValidatedSensitivePubkyAuthRequest,
 } from "../../core/auth/parsePubkyAuthRequest";
-import {
-  clearPendingAuthorizationEntry,
-  readAndScrubAuthorizationEntry,
-  type ParsedAuthorizationEntry,
-} from "./authorizationEntry";
-import type { ActiveAuthorizationResult } from "./approveActiveAuthorization";
+import type { ParsedAuthorizationEntry } from "./application/authorizationEntry";
+import type {
+  ActiveAuthorizationErrorCode,
+  ActiveAuthorizationResult,
+} from "./application/approveActiveAuthorization";
 import type {
   BrowserAuthorizationController,
+  BrowserAuthorizationFailureCode,
   BrowserAuthorizationViewState,
 } from "./browserAuthorizationController";
 
-export type BrowserAuthorizationControllerDependencies = {
+export type PassportAuthorizationControllerDependencies = {
   approveAuthorization(approval: ValidatedSensitivePubkyAuthRequest): Promise<ActiveAuthorizationResult>;
+  commitAuthorizationEntry(): void;
   navigate(url: string): void;
 };
 
-export function createDefaultBrowserAuthorizationController(input: {
-  browserWindow: Window;
-  dependencies: BrowserAuthorizationControllerDependencies;
-}): BrowserAuthorizationController {
-  const entry = readAndScrubAuthorizationEntry(input.browserWindow);
-  return new DefaultBrowserAuthorizationController({
-    browserWindow: input.browserWindow,
-    entry,
-    dependencies: input.dependencies,
-  });
-}
-
-class DefaultBrowserAuthorizationController implements BrowserAuthorizationController {
-  readonly #browserWindow: Window;
+export class PassportAuthorizationController implements BrowserAuthorizationController {
   readonly #entry: ParsedAuthorizationEntry;
-  readonly #dependencies: BrowserAuthorizationControllerDependencies;
+  readonly #dependencies: PassportAuthorizationControllerDependencies;
   readonly #listeners = new Set<(state: BrowserAuthorizationViewState) => void>();
   #state: BrowserAuthorizationViewState;
   #approvalPending = false;
 
   constructor(input: {
-    browserWindow: Window;
     entry: ParsedAuthorizationEntry;
-    dependencies: BrowserAuthorizationControllerDependencies;
+    dependencies: PassportAuthorizationControllerDependencies;
   }) {
-    this.#browserWindow = input.browserWindow;
     this.#entry = input.entry;
     this.#dependencies = input.dependencies;
     this.#state = input.entry.status === "valid"
@@ -65,7 +51,7 @@ class DefaultBrowserAuthorizationController implements BrowserAuthorizationContr
   }
 
   mounted(): void {
-    clearPendingAuthorizationEntry(this.#browserWindow);
+    this.#dependencies.commitAuthorizationEntry();
   }
 
   async approve(): Promise<BrowserAuthorizationViewState> {
@@ -95,7 +81,10 @@ class DefaultBrowserAuthorizationController implements BrowserAuthorizationContr
       if (errorCallback && this.tryNavigate(errorCallback)) {
         return this.update({ status: "redirecting", review: this.#entry.review });
       }
-      return this.update({ status: "failed", failureCode: result.error.code });
+      return this.update({
+        status: "failed",
+        failureCode: browserAuthorizationFailureCode(result.error.code),
+      });
     } catch {
       return this.update({ status: "failed", failureCode: "approval_failed" });
     }
@@ -136,5 +125,16 @@ class DefaultBrowserAuthorizationController implements BrowserAuthorizationContr
       }
     }
     return state;
+  }
+}
+
+function browserAuthorizationFailureCode(
+  code: ActiveAuthorizationErrorCode,
+): BrowserAuthorizationFailureCode {
+  switch (code) {
+    case "no_active_identity":
+    case "identity_restore_failed":
+    case "approval_failed":
+      return code;
   }
 }

@@ -2,7 +2,7 @@ import "client-only";
 
 import type { Result } from "better-result";
 
-import type { PubkySecretKeyMaterial } from "../../../pubky/ports";
+import type { PubkySecretKeyMaterial } from "../../../pubky/application/pubkyIdentityKeys";
 import type { LocalIdentitySummary } from "./localIdentity";
 
 export type LocalIdentityRepositoryErrorCode =

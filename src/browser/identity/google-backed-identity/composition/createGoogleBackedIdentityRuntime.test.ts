@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { LocalIdentityKeyStore } from "../../local-identity/application/localIdentityRepository";
 
 const mocks = vi.hoisted(() => ({
-  BrowserPubky: vi.fn(),
+  PubkySdkAdapter: vi.fn(),
   pubky: { dispose: vi.fn() },
   WebCryptoPassportFileCrypto: vi.fn(),
   crypto: {},
@@ -23,11 +23,11 @@ const mocks = vi.hoisted(() => ({
   wrappingKeys: {},
 }));
 
-vi.mock("../../../pubky/browserPubky", () => ({
-  BrowserPubky: mocks.BrowserPubky,
+vi.mock("../../../pubky/adapters/pubkySdkAdapter", () => ({
+  PubkySdkAdapter: mocks.PubkySdkAdapter,
 }));
 
-vi.mock("../../../passport-file/webCryptoPassportFileCrypto", () => ({
+vi.mock("../../../passport-file/adapters/webCryptoPassportFileCrypto", () => ({
   WebCryptoPassportFileCrypto: mocks.WebCryptoPassportFileCrypto,
 }));
 
@@ -84,7 +84,7 @@ describe("createGoogleBackedIdentityRuntime", () => {
     expect(mocks.RestoreGoogleBackedIdentity).toHaveBeenCalledWith({
       crypto: mocks.crypto,
       identityKeys: mocks.pubky,
-      signup: mocks.pubky,
+      sessionAccess: mocks.pubky,
       localIdentities: mocks.localIdentities,
       passportOrigin: "https://passport.example",
     });
@@ -92,14 +92,14 @@ describe("createGoogleBackedIdentityRuntime", () => {
       crypto: mocks.crypto,
       identityKeys: mocks.pubky,
       homegateInvitationRequester: mocks.homegateInvitationRequester,
-      signup: mocks.pubky,
+      sessionAccess: mocks.pubky,
       discovery: mocks.pubky,
       localIdentities: mocks.localIdentities,
       passportOrigin: "https://passport.example",
     });
     expect(mocks.EstablishGoogleBackedIdentity).toHaveBeenCalledWith({
       wrappingKeys: mocks.wrappingKeys,
-      passportFilesForAccessToken: expect.any(Function),
+      passportFileStoreForAccessToken: expect.any(Function),
       restoreExistingIdentity: mocks.restoreExistingIdentity,
       createMissingIdentity: mocks.createMissingIdentity,
     });
@@ -139,7 +139,7 @@ function prepareConstructors(input: {
   identityDeleter: { execute: ReturnType<typeof vi.fn> };
 }): void {
   vi.clearAllMocks();
-  mocks.BrowserPubky.mockImplementation(function () {
+  mocks.PubkySdkAdapter.mockImplementation(function () {
     return mocks.pubky;
   });
   mocks.WebCryptoPassportFileCrypto.mockImplementation(function () {

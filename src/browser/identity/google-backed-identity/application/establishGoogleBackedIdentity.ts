@@ -3,7 +3,7 @@ import "client-only";
 import { Result } from "better-result";
 
 import { logger } from "../../../../libs/logger/logger";
-import type { PassportFileStore } from "../../../passport-file/ports";
+import type { PassportFileStore } from "../../../passport-file/application/passportFileStore";
 import type {
   GoogleBackedIdentityCreator,
   GoogleBackedIdentityRestorer,
@@ -23,18 +23,18 @@ export type {
 
 export class EstablishGoogleBackedIdentity implements GoogleIdentityEstablisher {
   readonly #wrappingKeys: GoogleWrappingKeyRequester;
-  readonly #passportFilesForAccessToken: (driveAccessToken: string) => PassportFileStore;
+  readonly #passportFileStoreForAccessToken: (driveAccessToken: string) => PassportFileStore;
   readonly #restoreExistingIdentity: GoogleBackedIdentityRestorer;
   readonly #createMissingIdentity: GoogleBackedIdentityCreator;
 
   constructor(input: {
     wrappingKeys: GoogleWrappingKeyRequester;
-    passportFilesForAccessToken: (driveAccessToken: string) => PassportFileStore;
+    passportFileStoreForAccessToken: (driveAccessToken: string) => PassportFileStore;
     restoreExistingIdentity: GoogleBackedIdentityRestorer;
     createMissingIdentity: GoogleBackedIdentityCreator;
   }) {
     this.#wrappingKeys = input.wrappingKeys;
-    this.#passportFilesForAccessToken = input.passportFilesForAccessToken;
+    this.#passportFileStoreForAccessToken = input.passportFileStoreForAccessToken;
     this.#restoreExistingIdentity = input.restoreExistingIdentity;
     this.#createMissingIdentity = input.createMissingIdentity;
   }
@@ -57,9 +57,9 @@ export class EstablishGoogleBackedIdentity implements GoogleIdentityEstablisher 
     }
     logger.info("identity.google.wrapping_key.completed");
 
-    const passportFiles = this.#passportFilesForAccessToken(google.driveAccessToken);
+    const passportFileStore = this.#passportFileStoreForAccessToken(google.driveAccessToken);
     logger.info("identity.google.drive_read.started");
-    const storedFile = await passportFiles.readPassportFile();
+    const storedFile = await passportFileStore.readPassportFile();
     if (Result.isError(storedFile)) {
       logger.warn("identity.google.drive_read.failed", { code: storedFile.error.code });
       return failure("drive_read_failed");
@@ -74,7 +74,7 @@ export class EstablishGoogleBackedIdentity implements GoogleIdentityEstablisher 
     logger.info("identity.google.drive_read.completed", { status: "missing" });
     return this.#createMissingIdentity.execute({
       googleIdToken: google.googleIdToken,
-      passportFiles,
+      passportFileStore,
       wrappingKey: wrappingKey.value,
     });
   }

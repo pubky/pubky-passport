@@ -14,17 +14,20 @@ flows are not implemented yet.
 - Browser/server boundaries that keep Drive data and Pubky secret material off the
   Passport server.
 
-The interim local identity repository stores the 32-byte Pubky secret unencrypted
-in browser localStorage. This must be replaced before treating the app as a
-production signer.
+The local identity store intentionally persists the 32-byte Pubky secret unencrypted
+in browser localStorage. This accepted custody model lets Passport restore active
+identities without repeating the Google Drive flow. Same-origin XSS, malicious
+extensions, or shared browser profiles can extract those identities, so no other
+plaintext key storage should be added.
 
 See [FLOWS.md](./FLOWS.md) for the runtime call paths and import boundaries.
 
 ## Local Development
 
-Requirements: Node.js 22 and Corepack.
+Requirements: Node.js 24.18.0 LTS and Corepack.
 
 ```bash
+nvm use
 corepack enable
 pnpm install
 cp .env.example .env.local

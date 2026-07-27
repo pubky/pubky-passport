@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { FakePubkyIdentityKeys } from "../../../../../test-utils/fakes/fakePubkyIdentityKeys";
 import { expectResultOk } from "../../../../../test-utils/resultAssertions";
-import type { PubkySecretKeyMaterial } from "../../../pubky/ports";
+import type { PubkySecretKeyMaterial } from "../../../pubky/application/pubkyIdentityKeys";
 import type { LocalIdentitySummary } from "./localIdentity";
 import type { LocalIdentityKeyStore } from "./localIdentityRepository";
 import { SaveLocalIdentity } from "./saveLocalIdentity";

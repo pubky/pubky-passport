@@ -2,10 +2,10 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { pubkySecretKeyFormat, type PubkyIdentityKey } from "../../../pubky/ports";
+import { pubkySecretKeyFormat, type PubkyIdentityKey, type PubkyIdentityKeys } from "../../../pubky/application/pubkyIdentityKeys";
 import { logger } from "../../../../libs/logger/logger";
-import type { PassportFileCrypto } from "../../../passport-file/ports";
-import type { PubkyIdentityKeys, PubkySignup } from "../../../pubky/ports";
+import type { PassportFileCrypto } from "../../../passport-file/application/passportFileCrypto";
+import type { PubkySessionAccess } from "../../../pubky/application/pubkySessionAccess";
 import type {
   GoogleBackedIdentity,
   GoogleBackedIdentityResult,
@@ -16,20 +16,20 @@ import type { LocalIdentitySaver } from "../../local-identity/application/saveLo
 export class RestoreGoogleBackedIdentity implements GoogleBackedIdentityRestorer {
   readonly #crypto: PassportFileCrypto;
   readonly #identityKeys: PubkyIdentityKeys;
-  readonly #signup: PubkySignup;
+  readonly #sessionAccess: PubkySessionAccess;
   readonly #localIdentities: LocalIdentitySaver;
   readonly #passportOrigin: string;
 
   constructor(input: {
     crypto: PassportFileCrypto;
     identityKeys: PubkyIdentityKeys;
-    signup: PubkySignup;
+    sessionAccess: PubkySessionAccess;
     localIdentities: LocalIdentitySaver;
     passportOrigin: string;
   }) {
     this.#crypto = input.crypto;
     this.#identityKeys = input.identityKeys;
-    this.#signup = input.signup;
+    this.#sessionAccess = input.sessionAccess;
     this.#localIdentities = input.localIdentities;
     this.#passportOrigin = input.passportOrigin;
   }
@@ -60,7 +60,7 @@ export class RestoreGoogleBackedIdentity implements GoogleBackedIdentityRestorer
       restoredIdentity = restored.value;
       logger.info("identity.google.restore.completed");
 
-      const signedIn = await this.#signup.signin({ keyHandle: restored.value.keyHandle, waitForDiscovery: true });
+      const signedIn = await this.#sessionAccess.signin({ keyHandle: restored.value.keyHandle, waitForDiscovery: true });
       if (Result.isError(signedIn)) {
         logger.warn("identity.google.signin.failed", { code: signedIn.error.code });
         return failure("signin_failed", restored.value.publicIdentity);

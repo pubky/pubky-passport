@@ -50,7 +50,7 @@ flowchart LR
         ui --> browserLibs["src/libs"]:::libs
         browser --> browserCore
         browser --> browserLibs
-        browser --> sdk["@synonymdev/pubky<br/>only via browser/pubky"]:::external
+        browser --> sdk["@synonymdev/pubky<br/>only via browser/pubky/adapters"]:::external
     end
 
     subgraph serverLane[Server import lane]
@@ -73,8 +73,11 @@ flowchart LR
     linkStyle default stroke:#64748B,stroke-width:2.5px;
 ```
 
-Enforced by `test-utils/architecture/architecture-boundaries.test.ts` and the
-`client-only` / `server-only` markers.
+Enforced by ESLint, `test-utils/architecture/architecture-boundaries.test.ts`, and
+the `client-only` / `server-only` markers. Browser application modules do not depend
+on controllers or outward layers. Adapters implement application contracts without
+depending on controllers. Concrete controllers may use public and application
+contracts, while composition modules own adapter and controller wiring.
 
 ## Routes
 
@@ -124,8 +127,10 @@ sequenceDiagram
     end
     box rgba(0, 158, 115, 0.18) src/browser/authorization
         participant Factory as createBrowserAuthorizationController.ts<br/>createBrowserAuthorizationController()
-        participant Default as defaultBrowserAuthorizationController.ts<br/>createDefaultBrowserAuthorizationController()<br/>DefaultBrowserAuthorizationController
-        participant Entry as authorizationEntry.ts<br/>readAndScrubAuthorizationEntry()<br/>clearPendingAuthorizationEntry()
+        participant Controller as passportAuthorizationController.ts<br/>PassportAuthorizationController
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/authorization/adapters
+        participant Entry as browserAuthorizationEntry.ts<br/>readAndScrubAuthorizationEntry()<br/>commitAuthorizationEntry()
     end
 
     App->>Client: Navigate to Passport /authorize?d=...
@@ -143,16 +148,15 @@ sequenceDiagram
     Client->>Loader: hydrate
     Loader->>Review: dynamic import, SSR disabled
     Review->>Factory: createBrowserAuthorizationController()
-    Factory->>Default: createDefaultBrowserAuthorizationController(...)
-    Default->>Entry: readAndScrubAuthorizationEntry(window)
+    Factory->>Entry: readAndScrubAuthorizationEntry(window)
     Entry->>Client: History.prototype.replaceState(current pathname + hash, query removed)
     Entry->>Parser: parse captured d
     Parser-->>Entry: safe review + private approval
-    Entry-->>Default: valid entry or invalid
-    Default-->>Factory: controller
+    Entry-->>Factory: valid entry or invalid
+    Factory->>Controller: new PassportAuthorizationController(...)
     Factory-->>Review: controller with safe view state
-    Review->>Default: mounted()
-    Default->>Entry: clearPendingAuthorizationEntry(window)
+    Review->>Controller: mounted()
+    Controller->>Entry: commitAuthorizationEntry(window)
 ```
 
 
@@ -200,8 +204,10 @@ sequenceDiagram
         participant Review as authorizationReview.tsx<br/>AuthorizationReview()
     end
     box rgba(0, 158, 115, 0.18) src/browser/authorization
-        participant Controller as defaultBrowserAuthorizationController.ts<br/>DefaultBrowserAuthorizationController
-        participant Composition as createBrowserAuthorizationController.ts<br/>approveWithBrowserPubky()<br/>createActiveAuthorizationIdentityRestorer()
+        participant Controller as passportAuthorizationController.ts<br/>PassportAuthorizationController
+        participant Composition as createBrowserAuthorizationController.ts<br/>approveWithPubkySdk()<br/>createActiveAuthorizationIdentityRestorer()
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/authorization/application
         participant UseCase as approveActiveAuthorization.ts<br/>approveActiveAuthorization()
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/application
@@ -210,8 +216,8 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/adapters
         participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
     end
-    box rgba(0, 158, 115, 0.18) src/browser/pubky
-        participant Pubky as browserPubky.ts<br/>BrowserPubky
+    box rgba(0, 158, 115, 0.18) src/browser/pubky/adapters
+        participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
     box rgba(204, 121, 167, 0.18) src/core/auth
         participant AuthParser as parsePubkyAuthRequest.ts<br/>isParserIssuedPubkyAuthRequest()<br/>getParserIssuedPubkyAuthCallbacks()
@@ -227,7 +233,7 @@ sequenceDiagram
     User->>Review: Approve
     Review->>Controller: approve()
     Controller->>Composition: approveAuthorization(approval)
-    Composition->>Pubky: new BrowserPubky()
+    Composition->>Pubky: new PubkySdkAdapter()
     Composition->>Composition: createActiveAuthorizationIdentityRestorer(pubky)
     Composition->>UseCase: approveActiveAuthorization(...)
     UseCase->>Composition: returned restoreActiveIdentity()
@@ -273,7 +279,7 @@ sequenceDiagram
         participant Review as authorizationReview.tsx<br/>AuthorizationReview()
     end
     box rgba(0, 158, 115, 0.18) src/browser/authorization
-        participant Controller as defaultBrowserAuthorizationController.ts<br/>DefaultBrowserAuthorizationController
+        participant Controller as passportAuthorizationController.ts<br/>PassportAuthorizationController
     end
     box rgba(204, 121, 167, 0.18) src/core/auth
         participant Callbacks as parsePubkyAuthRequest.ts<br/>getParserIssuedPubkyAuthCallbacks()
@@ -377,7 +383,7 @@ sequenceDiagram
         participant Controller as passportIdentityController.ts<br/>PassportIdentityController
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/composition
-        participant DriveFactory as createGoogleBackedIdentityRuntime.ts<br/>passportFilesForAccessToken()
+        participant DriveFactory as createGoogleBackedIdentityRuntime.ts<br/>passportFileStoreForAccessToken()
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
         participant Establish as establishGoogleBackedIdentity.ts<br/>EstablishGoogleBackedIdentity
@@ -387,8 +393,8 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/wrapping-key/adapters
         participant Wrapping as googleWrappingKeyRequester.ts<br/>BrowserGoogleWrappingKeyRequester
     end
-    box rgba(0, 158, 115, 0.18) src/browser/passport-file
-        participant DriveRepo as googleDrivePassportFileRepository.ts<br/>GoogleDrivePassportFileRepository
+    box rgba(0, 158, 115, 0.18) src/browser/passport-file/adapters
+        participant DriveStore as googleDrivePassportFileStore.ts<br/>GoogleDrivePassportFileStore
     end
     box rgba(240, 228, 66, 0.18) src/app/api/wrapping-key/google
         participant API as handler.ts<br/>googleWrappingKeyPost()<br/>exported as route.ts::POST
@@ -405,24 +411,24 @@ sequenceDiagram
     alt Wrapping-key error
         Establish-->>Controller: safe failure
     else Wrapping key
-        Establish->>DriveFactory: passportFilesForAccessToken(Drive token)
-        DriveFactory->>DriveRepo: new GoogleDrivePassportFileRepository(...)
-        DriveFactory-->>Establish: repository
-        Establish->>DriveRepo: readPassportFile()
-        DriveRepo->>Drive: list passport.json
-        Drive-->>DriveRepo: list response
+        Establish->>DriveFactory: passportFileStoreForAccessToken(Drive token)
+        DriveFactory->>DriveStore: new GoogleDrivePassportFileStore(...)
+        DriveFactory-->>Establish: store
+        Establish->>DriveStore: readPassportFile()
+        DriveStore->>Drive: list passport.json
+        Drive-->>DriveStore: list response
         opt One file found
-            DriveRepo->>Drive: GET media for exact file ID
-            Drive-->>DriveRepo: media response body
-            DriveRepo->>DriveRepo: bounded read + parsePassportFileContents()
-            DriveRepo->>Drive: GET metadata for exact file ID
-            Drive-->>DriveRepo: ID + name + version + trashed state
+            DriveStore->>Drive: GET media for exact file ID
+            Drive-->>DriveStore: media response body
+            DriveStore->>DriveStore: bounded read + parsePassportFileContents()
+            DriveStore->>Drive: GET metadata for exact file ID
+            Drive-->>DriveStore: ID + name + version + trashed state
         end
-        DriveRepo-->>Establish: found, missing, or safe error
+        DriveStore-->>Establish: found, missing, or safe error
         alt Found
             Establish->>Restore: execute(envelope, wrapping key)
         else Missing
-            Establish->>Creator: execute(ID token, Drive repo, wrapping key)
+            Establish->>Creator: execute(ID token, Drive store, wrapping key)
         else Storage error
             Establish-->>Controller: safe failure
         end
@@ -437,18 +443,18 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Existing identity restore call flow
-    accDescr: Browser crypto decrypts the Drive envelope, BrowserPubky signs in with the restored key, and only a matching activated identity is saved locally; failures stop before later stages and cleanup runs after decryption succeeds.
+    accDescr: Browser crypto decrypts the Drive envelope, PubkySdkAdapter signs in with the restored key, and only a matching activated identity is saved locally; failures stop before later stages and cleanup runs after decryption succeeds.
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
         participant Restore as restoreGoogleBackedIdentity.ts<br/>RestoreGoogleBackedIdentity
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/application
         participant Local as saveLocalIdentity.ts<br/>SaveLocalIdentity
     end
-    box rgba(0, 158, 115, 0.18) src/browser/passport-file
+    box rgba(0, 158, 115, 0.18) src/browser/passport-file/adapters
         participant Crypto as webCryptoPassportFileCrypto.ts<br/>WebCryptoPassportFileCrypto
     end
-    box rgba(0, 158, 115, 0.18) src/browser/pubky
-        participant Pubky as browserPubky.ts<br/>BrowserPubky
+    box rgba(0, 158, 115, 0.18) src/browser/pubky/adapters
+        participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/adapters
         participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
@@ -502,16 +508,16 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Missing identity encryption and Drive storage call flow
-    accDescr: CreateGoogleBackedIdentity asks BrowserPubky and the Pubky SDK for a new key and exported secret, encrypts the secret through PassportFileCrypto, creates the encrypted Drive file through the Drive repository, and then zeros the exported bytes.
+    accDescr: CreateGoogleBackedIdentity asks PubkySdkAdapter and the Pubky SDK for a new key and exported secret, encrypts the secret through PassportFileCrypto, creates the encrypted Drive file through PassportFileStore, and then zeros the exported bytes.
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
         participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
     end
-    box rgba(0, 158, 115, 0.18) src/browser/pubky
-        participant Pubky as browserPubky.ts<br/>BrowserPubky
+    box rgba(0, 158, 115, 0.18) src/browser/pubky/adapters
+        participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
-    box rgba(0, 158, 115, 0.18) src/browser/passport-file
+    box rgba(0, 158, 115, 0.18) src/browser/passport-file/adapters
         participant Crypto as webCryptoPassportFileCrypto.ts<br/>WebCryptoPassportFileCrypto
-        participant DriveRepo as googleDrivePassportFileRepository.ts<br/>GoogleDrivePassportFileRepository
+        participant DriveStore as googleDrivePassportFileStore.ts<br/>GoogleDrivePassportFileStore
     end
     box rgba(17, 24, 39, 0.12) External
         participant SDK as @synonymdev/pubky@0.9.3<br/>Keypair
@@ -526,23 +532,23 @@ sequenceDiagram
     Pubky-->>Creator: 32-byte secret
     Creator->>Crypto: encryptSecretKeyBytes(secret, wrapping key, origin)
     Crypto-->>Creator: encrypted envelope
-    Creator->>DriveRepo: createPassportFile(envelope)
-    DriveRepo->>Drive: pre-list passport.json
-    Drive-->>DriveRepo: pre-list response
+    Creator->>DriveStore: createPassportFile(envelope)
+    DriveStore->>Drive: pre-list passport.json
+    Drive-->>DriveStore: pre-list response
     break Pre-list error
-        Note over DriveRepo: Preserve authorization, network, or response error
+        Note over DriveStore: Preserve authorization, network, or response error
     end
     break Existing or duplicate
-        Note over DriveRepo: Result is create_conflict
+        Note over DriveStore: Result is create_conflict
     end
-    DriveRepo->>Drive: create-only multipart POST
-    Drive-->>DriveRepo: create response
+    DriveStore->>Drive: create-only multipart POST
+    Drive-->>DriveStore: create response
     break Create failed or response malformed
-        Note over DriveRepo: Return write or invalid-response error
+        Note over DriveStore: Return write or invalid-response error
     end
-    DriveRepo->>Drive: post-list passport.json
-    Drive-->>DriveRepo: post-list response
-    DriveRepo-->>Creator: stored reference or safe error
+    DriveStore->>Drive: post-list passport.json
+    Drive-->>DriveStore: post-list response
+    DriveStore-->>Creator: stored reference or safe error
     Note over Creator: Zero exported secret bytes
     alt Storage error
         Creator->>Pubky: disposeIdentityKey(handle)
@@ -567,8 +573,8 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/homegate-invitation/adapters
         participant Invite as googleHomegateInvitationRequester.ts<br/>BrowserGoogleHomegateInvitationRequester
     end
-    box rgba(0, 158, 115, 0.18) src/browser/pubky
-        participant Pubky as browserPubky.ts<br/>BrowserPubky
+    box rgba(0, 158, 115, 0.18) src/browser/pubky/adapters
+        participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/adapters
         participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
@@ -642,7 +648,7 @@ sequenceDiagram
         participant Controller as passportIdentityController.ts<br/>PassportIdentityController
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/composition
-        participant DriveFactory as createGoogleBackedIdentityRuntime.ts<br/>passportFilesForAccessToken()
+        participant DriveFactory as createGoogleBackedIdentityRuntime.ts<br/>passportFileStoreForAccessToken()
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
         participant Delete as deleteGoogleDriveIdentity.ts<br/>DeleteGoogleDriveIdentity
@@ -650,12 +656,12 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/wrapping-key/adapters
         participant Wrapping as googleWrappingKeyRequester.ts<br/>BrowserGoogleWrappingKeyRequester
     end
-    box rgba(0, 158, 115, 0.18) src/browser/passport-file
-        participant DriveRepo as googleDrivePassportFileRepository.ts<br/>GoogleDrivePassportFileRepository
+    box rgba(0, 158, 115, 0.18) src/browser/passport-file/adapters
+        participant DriveStore as googleDrivePassportFileStore.ts<br/>GoogleDrivePassportFileStore
         participant Crypto as webCryptoPassportFileCrypto.ts<br/>WebCryptoPassportFileCrypto
     end
-    box rgba(0, 158, 115, 0.18) src/browser/pubky
-        participant Pubky as browserPubky.ts<br/>BrowserPubky
+    box rgba(0, 158, 115, 0.18) src/browser/pubky/adapters
+        participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
     box rgba(240, 228, 66, 0.18) src/app/api/wrapping-key/google
         participant WrappingAPI as handler.ts<br/>googleWrappingKeyPost()<br/>exported as route.ts::POST
@@ -672,20 +678,20 @@ sequenceDiagram
     alt Wrapping-key error
         Delete-->>Controller: safe failure
     else Wrapping key
-        Delete->>DriveFactory: passportFilesForAccessToken(Drive token)
-        DriveFactory->>DriveRepo: new GoogleDrivePassportFileRepository(...)
-        DriveFactory-->>Delete: repository
-        Delete->>DriveRepo: readPassportFile()
-        DriveRepo->>Drive: list passport.json
-        Drive-->>DriveRepo: list response
+        Delete->>DriveFactory: passportFileStoreForAccessToken(Drive token)
+        DriveFactory->>DriveStore: new GoogleDrivePassportFileStore(...)
+        DriveFactory-->>Delete: store
+        Delete->>DriveStore: readPassportFile()
+        DriveStore->>Drive: list passport.json
+        Drive-->>DriveStore: list response
         opt One file found
-            DriveRepo->>Drive: GET media for exact file ID
-            Drive-->>DriveRepo: media response body
-            DriveRepo->>DriveRepo: bounded read + parsePassportFileContents()
-            DriveRepo->>Drive: GET metadata for exact file ID
-            Drive-->>DriveRepo: ID + name + version + trashed state
+            DriveStore->>Drive: GET media for exact file ID
+            Drive-->>DriveStore: media response body
+            DriveStore->>DriveStore: bounded read + parsePassportFileContents()
+            DriveStore->>Drive: GET metadata for exact file ID
+            Drive-->>DriveStore: ID + name + version + trashed state
         end
-        DriveRepo-->>Delete: found, missing, or safe error
+        DriveStore-->>Delete: found, missing, or safe error
         alt Read error
             Delete-->>Controller: safe failure
         else Missing
@@ -710,19 +716,19 @@ sequenceDiagram
                     else Identity matches
                         Note over Delete: Zero decrypted bytes
                         Delete->>Pubky: disposeIdentityKey(handle)
-                        Delete->>DriveRepo: deletePassportFile(exact reference)
-                        DriveRepo->>Drive: GET metadata for exact file ID
-                        Drive-->>DriveRepo: metadata, missing, or failure
+                        Delete->>DriveStore: deletePassportFile(exact reference)
+                        DriveStore->>Drive: GET metadata for exact file ID
+                        Drive-->>DriveStore: metadata, missing, or failure
                         alt Metadata error
-                            DriveRepo-->>Delete: authorization, network, or response error
+                            DriveStore-->>Delete: authorization, network, or response error
                         else Exact file missing
-                            DriveRepo-->>Delete: idempotent success
+                            DriveStore-->>Delete: idempotent success
                         else Name, revision, or trashed state changed
-                            DriveRepo-->>Delete: stale_file
+                            DriveStore-->>Delete: stale_file
                         else Exact revision
-                            DriveRepo->>Drive: DELETE exact file ID
-                            Drive-->>DriveRepo: deleted, missing, or failure
-                            DriveRepo-->>Delete: typed result
+                            DriveStore->>Drive: DELETE exact file ID
+                            Drive-->>DriveStore: deleted, missing, or failure
+                            DriveStore-->>Delete: typed result
                         end
                         Delete-->>Controller: safe result
                     end
@@ -823,12 +829,13 @@ sequenceDiagram
 | Flow | Code | Main tests |
 | --- | --- | --- |
 | Authorization parser | `src/core/auth` | `src/core/auth/*.test.ts` |
-| Authorization controller | `src/browser/authorization` | `src/browser/authorization/*.test.ts` |
+| Authorization controller | `src/browser/authorization` | Root controller/factory tests and colocated application tests |
+| Authorization browser entry | `src/browser/authorization/adapters/browserAuthorizationEntry.ts` | `adapters/browserAuthorizationEntry.test.ts` |
 | Authorization UI | `src/ui/authorizationReview.tsx` | `src/ui/authorizationReview.test.tsx` |
 | Google controller and adapters | `src/browser/identity` | `passportIdentityController.test.ts`, capability adapter tests |
 | Google-backed identity lifecycle | `src/browser/identity/google-backed-identity` | Colocated application, adapter, and composition tests |
-| Drive and WebCrypto | `src/browser/passport-file` | Repository and crypto tests |
-| Pubky SDK adapter | `src/browser/pubky/browserPubky.ts` | `browserPubky.test.ts` |
+| Drive store and WebCrypto | `src/browser/passport-file/application`, `src/browser/passport-file/adapters` | Colocated adapter tests |
+| Pubky SDK adapter | `src/browser/pubky/adapters/pubkySdkAdapter.ts` | `adapters/pubkySdkAdapter.test.ts` |
 | Wrapping-key API | `src/app/api/wrapping-key/google`, `src/server/wrapping-key/google` | Route and server tests |
 | Browser bootstrap config | `src/server/config/browserBootstrapConfig.ts` | `browserBootstrapConfig.test.ts`, proxy tests |
 | Homegate invitation | `src/browser/identity/google-backed-identity/homegate-invitation` | Colocated browser adapter tests |

@@ -5,12 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryStorage } from "../../../test-utils/fakes/memoryStorage";
 
 const mocks = vi.hoisted(() => ({
-  BrowserPubky: vi.fn(),
+  PubkySdkAdapter: vi.fn(),
   dispose: vi.fn(),
 }));
 
-vi.mock("../pubky/browserPubky", () => ({
-  BrowserPubky: mocks.BrowserPubky,
+vi.mock("../pubky/adapters/pubkySdkAdapter", () => ({
+  PubkySdkAdapter: mocks.PubkySdkAdapter,
 }));
 
 import { createBrowserAuthorizationController } from "./createBrowserAuthorizationController";
@@ -20,9 +20,9 @@ const relayOrigin = "https://relay.example";
 describe("createBrowserAuthorizationController", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", new MemoryStorage());
-    mocks.BrowserPubky.mockReset();
+    mocks.PubkySdkAdapter.mockReset();
     mocks.dispose.mockReset();
-    mocks.BrowserPubky.mockImplementation(function () {
+    mocks.PubkySdkAdapter.mockImplementation(function () {
       return { dispose: mocks.dispose };
     });
     window.history.replaceState({}, "", "/");
@@ -35,13 +35,13 @@ describe("createBrowserAuthorizationController", () => {
     const controller = createBrowserAuthorizationController();
 
     expect(controller.getState().status).toBe("review");
-    expect(mocks.BrowserPubky).not.toHaveBeenCalled();
+    expect(mocks.PubkySdkAdapter).not.toHaveBeenCalled();
 
     await expect(controller.approve()).resolves.toEqual({
       status: "failed",
       failureCode: "no_active_identity",
     });
-    expect(mocks.BrowserPubky).toHaveBeenCalledOnce();
+    expect(mocks.PubkySdkAdapter).toHaveBeenCalledOnce();
     expect(mocks.dispose).toHaveBeenCalledOnce();
   });
 

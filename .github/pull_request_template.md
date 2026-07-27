@@ -20,7 +20,7 @@ Manual validation:
 ## Security notes
 
 - [ ] No secrets logged.
-- [ ] No private key material persisted in plaintext.
+- [ ] Plaintext Pubky key persistence remains confined to the dedicated local identity repository.
 - [ ] No broadening of Google Drive scopes unless documented.
 - [ ] No clean architecture boundary violations.
 

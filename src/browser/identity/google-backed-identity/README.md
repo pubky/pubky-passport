@@ -37,5 +37,5 @@ Passport-file and Pubky implementations remain separate reusable browser feature
 base URL into the browser identity factory; the Homegate adapter deliberately trusts
 that bootstrap contract. Browser modules never import the server config module.
 Google ID tokens are sent only to Homegate invitation verification and Passport's
-wrapping-key endpoint. Drive access tokens are supplied only to the Drive repository.
+wrapping-key endpoint. Drive access tokens are supplied only to the Drive store.
 Wrapping material and decrypted key bytes stay in browser flow variables.

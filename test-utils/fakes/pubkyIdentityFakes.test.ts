@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
 import { parsePubkyAuthRequest } from "../../src/core/auth/parsePubkyAuthRequest";
-import { pubkySecretKeyFormat, type PubkyIdentityKey } from "../../src/browser/pubky/ports";
+import { pubkySecretKeyFormat, type PubkyIdentityKey } from "../../src/browser/pubky/application/pubkyIdentityKeys";
 import { FakePubkyAuthApproval } from "./fakePubkyAuthApproval";
 import { FakePubkyDiscovery } from "./fakePubkyDiscovery";
 import { FakePubkyIdentityKeys } from "./fakePubkyIdentityKeys";
-import { FakePubkySignup } from "./fakePubkySignup";
+import { FakePubkySessionAccess } from "./fakePubkySessionAccess";
 
 describe("Pubky identity fakes", () => {
   it("creates, restores, exports, and returns deterministic public identity data", async () => {
@@ -53,33 +53,33 @@ describe("Pubky identity fakes", () => {
 
   it("simulates signup and signin without recording raw signup codes", async () => {
     const key = await fakeKey();
-    const signup = new FakePubkySignup();
+    const sessionAccess = new FakePubkySessionAccess();
     const signupResult = expectOk(
-      await signup.signup({
+      await sessionAccess.signup({
         keyHandle: key.keyHandle,
         homeserverPubky: "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo",
         signupCode: "SECRET-SIGNUP-CODE",
       }),
     );
-    const signinResult = expectOk(await signup.signin({ keyHandle: key.keyHandle, waitForDiscovery: true }));
+    const signinResult = expectOk(await sessionAccess.signin({ keyHandle: key.keyHandle, waitForDiscovery: true }));
 
-    expect(signupResult).toEqual(signup.session);
-    expect(signinResult).toEqual(signup.session);
-    expect(signup.signupCalls).toEqual([
+    expect(signupResult).toEqual(sessionAccess.session);
+    expect(signinResult).toEqual(sessionAccess.session);
+    expect(sessionAccess.signupCalls).toEqual([
       {
         keyHandle: key.keyHandle,
         homeserverPubky: "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo",
         hasSignupCode: true,
       },
     ]);
-    expect(signup.signinCalls).toEqual([{ keyHandle: key.keyHandle, waitForDiscovery: true }]);
-    expect(JSON.stringify(signup.signupCalls)).not.toContain("SECRET-SIGNUP-CODE");
+    expect(sessionAccess.signinCalls).toEqual([{ keyHandle: key.keyHandle, waitForDiscovery: true }]);
+    expect(JSON.stringify(sessionAccess.signupCalls)).not.toContain("SECRET-SIGNUP-CODE");
 
-    signup.signupFailure = "signup_failed";
-    signup.signinFailure = "signin_failed";
+    sessionAccess.signupFailure = "signup_failed";
+    sessionAccess.signinFailure = "signin_failed";
 
-    await expectError(signup.signup({ keyHandle: key.keyHandle, homeserverPubky: "invalid" }), "signup_failed");
-    await expectError(signup.signin({ keyHandle: key.keyHandle }), "signin_failed");
+    await expectError(sessionAccess.signup({ keyHandle: key.keyHandle, homeserverPubky: "invalid" }), "signup_failed");
+    await expectError(sessionAccess.signin({ keyHandle: key.keyHandle }), "signin_failed");
   });
 
   it("simulates discovery publication success and failure", async () => {

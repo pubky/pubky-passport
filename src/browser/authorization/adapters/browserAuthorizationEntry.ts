@@ -5,13 +5,8 @@ import { Result } from "better-result";
 import {
   extractRawPubkyAuthRequestQueryValue,
   parsePubkyAuthRequest,
-  type PubkyAuthRequestReview,
-  type ValidatedSensitivePubkyAuthRequest,
-} from "../../core/auth/parsePubkyAuthRequest";
-
-export type ParsedAuthorizationEntry =
-  | { status: "valid"; review: PubkyAuthRequestReview; approval: ValidatedSensitivePubkyAuthRequest }
-  | { status: "invalid" };
+} from "../../../core/auth/parsePubkyAuthRequest";
+import type { ParsedAuthorizationEntry } from "../application/authorizationEntry";
 
 type PendingStrictModeEntry = {
   scrubbedHref: string;
@@ -57,6 +52,6 @@ export function readAndScrubAuthorizationEntry(
   return entry;
 }
 
-export function clearPendingAuthorizationEntry(browserWindow: Window): void {
+export function commitAuthorizationEntry(browserWindow: Window): void {
   pendingStrictModeEntries.delete(browserWindow);
 }

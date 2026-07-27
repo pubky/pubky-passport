@@ -4,31 +4,37 @@ import { Result } from "better-result";
 
 import { RestoreActiveLocalIdentityKey } from "../identity/local-identity/application/restoreActiveLocalIdentityKey";
 import { LocalStorageIdentityRepository } from "../identity/local-identity/adapters/localStorageIdentityRepository";
-import { BrowserPubky } from "../pubky/browserPubky";
+import { PubkySdkAdapter } from "../pubky/adapters/pubkySdkAdapter";
 import {
   approveActiveAuthorization,
   type ActiveAuthorizationIdentityRestorer,
   type ActiveAuthorizationResult,
-} from "./approveActiveAuthorization";
+} from "./application/approveActiveAuthorization";
+import {
+  commitAuthorizationEntry,
+  readAndScrubAuthorizationEntry,
+} from "./adapters/browserAuthorizationEntry";
 import type { BrowserAuthorizationController } from "./browserAuthorizationController";
-import { createDefaultBrowserAuthorizationController } from "./defaultBrowserAuthorizationController";
+import { PassportAuthorizationController } from "./passportAuthorizationController";
 
 export function createBrowserAuthorizationController(): BrowserAuthorizationController {
-  return createDefaultBrowserAuthorizationController({
-    browserWindow: window,
+  const entry = readAndScrubAuthorizationEntry(window);
+  return new PassportAuthorizationController({
+    entry,
     dependencies: {
-      approveAuthorization: approveWithBrowserPubky,
+      approveAuthorization: approveWithPubkySdk,
+      commitAuthorizationEntry: () => commitAuthorizationEntry(window),
       navigate: (url) => window.location.replace(url),
     },
   });
 }
 
-async function approveWithBrowserPubky(
+async function approveWithPubkySdk(
   authRequest: Parameters<typeof approveActiveAuthorization>[0]["authRequest"],
 ): Promise<ActiveAuthorizationResult> {
-  let pubky: BrowserPubky;
+  let pubky: PubkySdkAdapter;
   try {
-    pubky = new BrowserPubky();
+    pubky = new PubkySdkAdapter();
   } catch {
     return Result.err({ code: "approval_failed" });
   }
@@ -50,7 +56,7 @@ async function approveWithBrowserPubky(
 }
 
 function createActiveAuthorizationIdentityRestorer(
-  pubky: BrowserPubky,
+  pubky: PubkySdkAdapter,
 ): ActiveAuthorizationIdentityRestorer {
   const localIdentities = new RestoreActiveLocalIdentityKey({
     keyStore: new LocalStorageIdentityRepository(),

@@ -3,32 +3,38 @@ import "client-only";
 import { Keypair, Pubky, PublicKey, type Session } from "@synonymdev/pubky";
 import { Result, type Result as ResultType } from "better-result";
 
-import type { PubkyPublicIdentity } from "../../core/identity/pubkyIdentity";
+import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
 import {
   isParserIssuedPubkyAuthRequest,
   type ValidatedSensitivePubkyAuthRequest,
-} from "../../core/auth/parsePubkyAuthRequest";
+} from "../../../core/auth/parsePubkyAuthRequest";
 import {
-  pubkySecretKeyBytes,
-  pubkySecretKeyFormat,
   type PubkyAuthApproval,
   type PubkyAuthApprovalErrorCode,
   type PubkyAuthApprovalResult,
+} from "../application/pubkyAuthApproval";
+import {
   type PubkyDiscovery,
   type PubkyDiscoveryErrorCode,
   type PubkyDiscoveryResult,
+} from "../application/pubkyDiscovery";
+import {
+  pubkySecretKeyBytes,
+  pubkySecretKeyFormat,
   type PubkyIdentityKey,
   type PubkyIdentityKeyHandle,
   type PubkyIdentityKeys,
   type PubkyIdentityKeysErrorCode,
   type PubkyIdentityKeysResult,
-  type PubkyIdentitySession,
   type PubkySecretKeyMaterial,
-  type PubkySignup,
-  type PubkySignupErrorCode,
-  type PubkySignupResult,
-} from "./ports";
-import { logger } from "../../libs/logger/logger";
+} from "../application/pubkyIdentityKeys";
+import {
+  type PubkyIdentitySession,
+  type PubkySessionAccess,
+  type PubkySessionAccessErrorCode,
+  type PubkySessionAccessResult,
+} from "../application/pubkySessionAccess";
+import { logger } from "../../../libs/logger/logger";
 
 type Signer = ReturnType<Pubky["signer"]>;
 type HomeserverResult = ResultType<PublicKey, { code: "invalid_homeserver_pubky" }>;
@@ -37,7 +43,7 @@ type HomeserverResult = ResultType<PublicKey, { code: "invalid_homeserver_pubky"
  * Browser-local Pubky adapter. Opaque handles keep SDK keypairs out of application and
  * UI state while this adapter owns all SDK resource cleanup.
  */
-export class BrowserPubky implements PubkyIdentityKeys, PubkySignup, PubkyDiscovery, PubkyAuthApproval {
+export class PubkySdkAdapter implements PubkyIdentityKeys, PubkySessionAccess, PubkyDiscovery, PubkyAuthApproval {
   readonly #pubky: Pubky;
   readonly #keypairs = new Map<PubkyIdentityKeyHandle, Keypair>();
   #disposed = false;
@@ -114,10 +120,10 @@ export class BrowserPubky implements PubkyIdentityKeys, PubkySignup, PubkyDiscov
     return publicIdentity(keypair);
   }
 
-  async signup(input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky: string; signupCode?: string | null }): Promise<PubkySignupResult<PubkyIdentitySession>> {
+  async signup(input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky: string; signupCode?: string | null }): Promise<PubkySessionAccessResult<PubkyIdentitySession>> {
     const keypair = this.keypairFor(input.keyHandle);
     if (!keypair) {
-      return signupFailure("key_unavailable");
+      return sessionAccessFailure("key_unavailable");
     }
 
     const homeserver = parseHomeserver(input.homeserverPubky);
@@ -130,16 +136,16 @@ export class BrowserPubky implements PubkyIdentityKeys, PubkySignup, PubkyDiscov
 
       return Result.ok(sessionDetails(session));
     } catch {
-      return signupFailure("signup_failed");
+      return sessionAccessFailure("signup_failed");
     } finally {
       homeserver.value.free();
     }
   }
 
-  async signin(input: { keyHandle: PubkyIdentityKeyHandle; waitForDiscovery?: boolean }): Promise<PubkySignupResult<PubkyIdentitySession>> {
+  async signin(input: { keyHandle: PubkyIdentityKeyHandle; waitForDiscovery?: boolean }): Promise<PubkySessionAccessResult<PubkyIdentitySession>> {
     const keypair = this.keypairFor(input.keyHandle);
     if (!keypair) {
-      return signupFailure("key_unavailable");
+      return sessionAccessFailure("key_unavailable");
     }
 
     try {
@@ -147,7 +153,7 @@ export class BrowserPubky implements PubkyIdentityKeys, PubkySignup, PubkyDiscov
 
       return Result.ok(sessionDetails(session));
     } catch {
-      return signupFailure("signin_failed");
+      return sessionAccessFailure("signin_failed");
     }
   }
 
@@ -322,7 +328,7 @@ function keyFailure<T>(code: PubkyIdentityKeysErrorCode): PubkyIdentityKeysResul
   return Result.err({ code });
 }
 
-function signupFailure<T>(code: PubkySignupErrorCode): PubkySignupResult<T> {
+function sessionAccessFailure<T>(code: PubkySessionAccessErrorCode): PubkySessionAccessResult<T> {
   return Result.err({ code });
 }
 

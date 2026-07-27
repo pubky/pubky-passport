@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { MemoryStorage } from "../../../../../test-utils/fakes/memoryStorage";
 import { expectResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
-import { pubkySecretKeyFormat } from "../../../pubky/ports";
+import { pubkySecretKeyFormat } from "../../../pubky/application/pubkyIdentityKeys";
 import { LocalStorageIdentityRepository } from "./localStorageIdentityRepository";
 
 const firstIdentity = { publicKeyZ32: "firstidentity111111111111111111111111111111111111111111", publicKeyDisplay: "pubkyfirstidentity111111111111111111111111111111111111111111" };

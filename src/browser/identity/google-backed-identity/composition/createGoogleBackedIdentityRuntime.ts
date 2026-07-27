@@ -1,8 +1,8 @@
 import "client-only";
 
-import { GoogleDrivePassportFileRepository } from "../../../passport-file/googleDrivePassportFileRepository";
-import { WebCryptoPassportFileCrypto } from "../../../passport-file/webCryptoPassportFileCrypto";
-import { BrowserPubky } from "../../../pubky/browserPubky";
+import { GoogleDrivePassportFileStore } from "../../../passport-file/adapters/googleDrivePassportFileStore";
+import { WebCryptoPassportFileCrypto } from "../../../passport-file/adapters/webCryptoPassportFileCrypto";
+import { PubkySdkAdapter } from "../../../pubky/adapters/pubkySdkAdapter";
 import type { LocalIdentityKeyStore } from "../../local-identity/application/localIdentityRepository";
 import { SaveLocalIdentity } from "../../local-identity/application/saveLocalIdentity";
 import { CreateGoogleBackedIdentity } from "../application/createGoogleBackedIdentity";
@@ -27,19 +27,19 @@ export function createGoogleBackedIdentityRuntime(input: {
   homegateBaseUrl: string;
   passportOrigin: string;
 }): GoogleBackedIdentityRuntime {
-  const pubky = new BrowserPubky();
+  const pubky = new PubkySdkAdapter();
   try {
     const localIdentities = new SaveLocalIdentity({ keyStore: input.keyStore, identityKeys: pubky });
     const wrappingKeys = new BrowserGoogleWrappingKeyRequester();
     const crypto = new WebCryptoPassportFileCrypto();
-    const passportFilesForAccessToken = (token: string) => new GoogleDrivePassportFileRepository({
+    const passportFileStoreForAccessToken = (token: string) => new GoogleDrivePassportFileStore({
       accessTokenProvider: async () => token,
       fetch: globalThis.fetch.bind(globalThis),
     });
     const restoreExistingIdentity = new RestoreGoogleBackedIdentity({
       crypto,
       identityKeys: pubky,
-      signup: pubky,
+      sessionAccess: pubky,
       localIdentities,
       passportOrigin: input.passportOrigin,
     });
@@ -49,20 +49,20 @@ export function createGoogleBackedIdentityRuntime(input: {
       homegateInvitationRequester: new BrowserGoogleHomegateInvitationRequester({
         homegateBaseUrl: input.homegateBaseUrl,
       }),
-      signup: pubky,
+      sessionAccess: pubky,
       discovery: pubky,
       localIdentities,
       passportOrigin: input.passportOrigin,
     });
     const identityEstablisher = new EstablishGoogleBackedIdentity({
       wrappingKeys,
-      passportFilesForAccessToken,
+      passportFileStoreForAccessToken,
       restoreExistingIdentity,
       createMissingIdentity,
     });
     const identityDeleter = new DeleteGoogleDriveIdentity({
       wrappingKeys,
-      passportFilesForAccessToken,
+      passportFileStoreForAccessToken,
       crypto,
       identityKeys: pubky,
       passportOrigin: input.passportOrigin,

@@ -2,19 +2,19 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import type { PassportFileEnvelopeV1 } from "../../core/passport-file/passportFile";
+import type { PassportFileEnvelopeV1 } from "../../../core/passport-file/passportFile";
 import {
   parsePassportFileContents,
   parsePassportFileEnvelope,
-} from "../../core/passport-file/parsePassportFile";
-import { readBoundedText } from "../../libs/http/boundedBody";
+} from "../../../core/passport-file/parsePassportFile";
+import { readBoundedText } from "../../../libs/http/boundedBody";
 import type {
   PassportFileReadResult,
   PassportFileReference,
   PassportFileStore,
   PassportFileStoreErrorCode,
   PassportFileStoreResult,
-} from "./ports";
+} from "../application/passportFileStore";
 
 export type GoogleDriveAccessTokenProvider = () => Promise<string | null | undefined>;
 
@@ -22,7 +22,7 @@ export type PassportFileCreateLockManager = {
   request<T>(name: string, callback: () => Promise<T>): Promise<T>;
 };
 
-export type GoogleDrivePassportFileRepositoryOptions = {
+export type GoogleDrivePassportFileStoreOptions = {
   accessTokenProvider: GoogleDriveAccessTokenProvider;
   fetch: typeof fetch;
   lockManager?: PassportFileCreateLockManager | null;
@@ -51,12 +51,12 @@ const maximumPassportFileBytes = 16 * 1024;
 const maximumDriveResponseBytes = 16 * 1024;
 const createPassportFileLockName = "pubky-passport:google-drive:passport-file:create:v1";
 
-export class GoogleDrivePassportFileRepository implements PassportFileStore {
+export class GoogleDrivePassportFileStore implements PassportFileStore {
   private readonly accessTokenProvider: GoogleDriveAccessTokenProvider;
   private readonly fetchImpl: typeof fetch;
   private readonly lockManager: PassportFileCreateLockManager | null;
 
-  constructor(options: GoogleDrivePassportFileRepositoryOptions) {
+  constructor(options: GoogleDrivePassportFileStoreOptions) {
     this.accessTokenProvider = options.accessTokenProvider;
     this.fetchImpl = options.fetch;
     this.lockManager = options.lockManager === undefined ? browserLockManager() : options.lockManager;

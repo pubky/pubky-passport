@@ -2,6 +2,12 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
+const browserControllerContract = "browser[A-Z][A-Za-z0-9]*Controller";
+const browserControllerFactory = "createBrowser[A-Z][A-Za-z0-9]*Controller";
+const browserControllerImplementation = "passport[A-Z][A-Za-z0-9]*Controller";
+const stableBrowserEntry = `(?:${browserControllerContract}|${browserControllerFactory})`;
+const anyBrowserController = `(?:${browserControllerContract}|${browserControllerFactory}|${browserControllerImplementation})`;
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -92,11 +98,11 @@ const eslintConfig = defineConfig([
           ],
           patterns: [
             {
-              regex: "^(?:\\.\\./)+browser/(?!(?:authorization/(?:browserAuthorizationController|createBrowserAuthorizationController)|identity/(?:browserIdentityController|createBrowserIdentityController))$)",
+              regex: `^(?:\\.\\./)+browser/(?![^/]+/${stableBrowserEntry}$)`,
               message: "UI may import browser runtime only through stable controller APIs and their concrete factories."
             },
             {
-              regex: "^@/browser/(?!(?:authorization/(?:browserAuthorizationController|createBrowserAuthorizationController)|identity/(?:browserIdentityController|createBrowserIdentityController))$)",
+              regex: `^@/browser/(?![^/]+/${stableBrowserEntry}$)`,
               message: "UI may import browser runtime only through stable controller APIs and their concrete factories."
             }
           ]
@@ -105,25 +111,62 @@ const eslintConfig = defineConfig([
     }
   },
   {
-    files: ["src/browser/**/*.{ts,tsx}"],
-    ignores: [
-      "src/browser/**/*.test.{ts,tsx}",
-      "src/browser/authorization/createBrowserAuthorizationController.ts",
-      "src/browser/identity/createBrowserIdentityController.ts",
-      "src/browser/**/composition/**/*.{ts,tsx}",
-      "src/browser/**/adapters/**/*.{ts,tsx}",
-      "src/browser/passport-file/googleDrivePassportFileRepository.ts",
-      "src/browser/passport-file/webCryptoPassportFileCrypto.ts",
-      "src/browser/pubky/browserPubky.ts"
-    ],
+    files: ["src/browser/**/application/**/*.{ts,tsx}"],
+    ignores: ["src/browser/**/*.test.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
           patterns: [
             {
-              regex: "(?:^|/)(?:adapters|composition)(?:/|$)|(?:^|/)(?:createBrowserAuthorizationController|createBrowserIdentityController|browserPubky|googleDrivePassportFileRepository|webCryptoPassportFileCrypto)$|(?:^|/)ui(?:/|$)",
-              message: "Browser application modules must depend on contracts, not composition, adapters, public env, or UI."
+              regex: `(?:^|/)(?:adapters|composition|env)(?:/|$)|(?:^|/)${anyBrowserController}$|(?:^|/)ui(?:/|$)`,
+              message: "Browser application modules must not depend on controllers, composition, adapters, public env, or UI."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    files: ["src/browser/*/browser*Controller.{ts,tsx}"],
+    ignores: ["src/browser/**/*.test.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@/core/auth/parsePubkyAuthRequest",
+              importNames: ["ValidatedSensitivePubkyAuthRequest"],
+              message: "Public browser contracts must expose safe review state, not sensitive parser approval types."
+            }
+          ],
+          patterns: [
+            {
+              regex: "^(?:\\.\\./)+core/auth/parsePubkyAuthRequest$",
+              importNames: ["ValidatedSensitivePubkyAuthRequest"],
+              message: "Public browser contracts must expose safe review state, not sensitive parser approval types."
+            },
+            {
+              regex: `(?:^|/)(?:adapters|composition|env)(?:/|$)|(?:^|/)(?:${browserControllerImplementation}|${browserControllerFactory})$|(?:^|/)ui(?:/|$)`,
+              message: "Public browser controller contracts must not depend on concrete controllers, composition, adapters, public env, or UI."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    files: ["src/browser/*/passport*Controller.{ts,tsx}"],
+    ignores: ["src/browser/**/*.test.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: `(?:^|/)(?:adapters|composition|env)(?:/|$)|(?:^|/)${browserControllerFactory}$|(?:^|/)ui(?:/|$)`,
+              message: "Browser controllers may depend on public and application contracts, not composition, adapters, public env, or UI."
             }
           ]
         }
@@ -133,8 +176,7 @@ const eslintConfig = defineConfig([
   {
     files: [
       "src/browser/**/composition/**/*.{ts,tsx}",
-      "src/browser/authorization/createBrowserAuthorizationController.ts",
-      "src/browser/identity/createBrowserIdentityController.ts"
+      "src/browser/*/createBrowser*Controller.{ts,tsx}"
     ],
     ignores: ["src/browser/**/*.test.{ts,tsx}"],
     rules: {
@@ -152,12 +194,7 @@ const eslintConfig = defineConfig([
     }
   },
   {
-    files: [
-      "src/browser/**/adapters/**/*.{ts,tsx}",
-      "src/browser/passport-file/googleDrivePassportFileRepository.ts",
-      "src/browser/passport-file/webCryptoPassportFileCrypto.ts",
-      "src/browser/pubky/browserPubky.ts"
-    ],
+    files: ["src/browser/**/adapters/**/*.{ts,tsx}"],
     ignores: ["src/browser/**/*.test.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [
@@ -165,8 +202,8 @@ const eslintConfig = defineConfig([
         {
           patterns: [
             {
-              regex: "^server-only$|(?:^|/)(?:adapters|ui|server|composition|env)(?:/|$)|(?:^|/)(?:createBrowserAuthorizationController|createBrowserIdentityController)$",
-              message: "Browser adapters may depend inward on application policy and contracts, not UI, composition roots, or runtime configuration."
+              regex: `^server-only$|(?:^|/)(?:adapters|ui|server|composition|env)(?:/|$)|(?:^|/)${anyBrowserController}$`,
+              message: "Browser adapters may depend on application contracts, not controllers, UI, composition roots, or runtime configuration."
             }
           ]
         }

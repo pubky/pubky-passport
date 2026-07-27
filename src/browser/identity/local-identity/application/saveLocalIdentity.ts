@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import type { PubkyIdentityKeyHandle, PubkyIdentityKeys } from "../../../pubky/ports";
+import type { PubkyIdentityKeyHandle, PubkyIdentityKeys } from "../../../pubky/application/pubkyIdentityKeys";
 import type { LocalIdentitySummary } from "./localIdentity";
 import type { LocalIdentityKeyStore, LocalIdentityRepositoryErrorCode } from "./localIdentityRepository";
 

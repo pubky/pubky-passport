@@ -4,7 +4,7 @@ import type { Result } from "better-result";
 
 import type { PubkyPublicIdentity } from "../../../../core/identity/pubkyIdentity";
 import type { PassportFileEnvelopeV1 } from "../../../../core/passport-file/passportFile";
-import type { PassportFileStore } from "../../../passport-file/ports";
+import type { PassportFileStore } from "../../../passport-file/application/passportFileStore";
 
 export type GoogleIdentitySession = {
   googleIdToken: string;
@@ -53,7 +53,7 @@ export type GoogleBackedIdentityRestorer = {
 export type GoogleBackedIdentityCreator = {
   execute(input: {
     googleIdToken: string;
-    passportFiles: Pick<PassportFileStore, "createPassportFile">;
+    passportFileStore: Pick<PassportFileStore, "createPassportFile">;
     wrappingKey: string;
   }): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>>;
 };

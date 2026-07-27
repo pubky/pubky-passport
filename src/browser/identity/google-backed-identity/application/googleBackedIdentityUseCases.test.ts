@@ -3,15 +3,17 @@ import { Result } from "better-result";
 
 import { FakePubkyIdentityKeys } from "../../../../../test-utils/fakes/fakePubkyIdentityKeys";
 import { FakePubkyDiscovery } from "../../../../../test-utils/fakes/fakePubkyDiscovery";
-import { FakePubkySignup } from "../../../../../test-utils/fakes/fakePubkySignup";
+import { FakePubkySessionAccess } from "../../../../../test-utils/fakes/fakePubkySessionAccess";
 import type { LocalIdentitySaver } from "../../local-identity/application/saveLocalIdentity";
 import type {
   PassportFileCrypto,
   PassportFileCryptoResult,
+} from "../../../passport-file/application/passportFileCrypto";
+import type {
   PassportFileReference,
   PassportFileStore,
   PassportFileStoreErrorCode,
-} from "../../../passport-file/ports";
+} from "../../../passport-file/application/passportFileStore";
 import type { PassportFileEnvelopeV1 } from "../../../../core/passport-file/passportFile";
 import { CreateGoogleBackedIdentity } from "./createGoogleBackedIdentity";
 import { DeleteGoogleDriveIdentity } from "./deleteGoogleDriveIdentity";
@@ -31,10 +33,10 @@ describe("Google-backed identity use cases", () => {
   it("restores a Drive identity and saves it locally", async () => {
     const keys = new FakePubkyIdentityKeys();
     const local = new FakeLocalIdentities();
-    const files = new FakePassportFiles({ status: "found", envelope, reference });
+    const files = new FakePassportFileStore({ status: "found", envelope, reference });
     const crypto = new FakePassportCrypto();
     const dependencies = activationDependencies(keys);
-    const flow = createFlow({ keys, local, files, crypto, ...dependencies });
+    const flow = createFlow({ keys, local, fileStore: files, crypto, ...dependencies });
 
     const result = await flow.establish({ googleIdToken: "id-token", driveAccessToken: "drive-token" });
 
@@ -42,7 +44,7 @@ describe("Google-backed identity use cases", () => {
     expect(keys.createCalls).toBe(0);
     expect(keys.restoreCalls).toHaveLength(1);
     expect(local.savedHandles).toHaveLength(1);
-    expect(dependencies.signup.signinCalls).toEqual([{ keyHandle: local.savedHandles[0], waitForDiscovery: true }]);
+    expect(dependencies.sessionAccess.signinCalls).toEqual([{ keyHandle: local.savedHandles[0], waitForDiscovery: true }]);
     expect(dependencies.homegate.calls).toEqual([]);
     expect(dependencies.discovery.calls).toEqual([]);
     expect(crypto.decryptedBytes.every((byte) => byte === 0)).toBe(true);
@@ -52,16 +54,16 @@ describe("Google-backed identity use cases", () => {
   it("creates, encrypts, writes, and then saves a missing Drive identity", async () => {
     const keys = new FakePubkyIdentityKeys();
     const local = new FakeLocalIdentities();
-    const files = new FakePassportFiles({ status: "missing" });
+    const files = new FakePassportFileStore({ status: "missing" });
     const crypto = new FakePassportCrypto();
     const dependencies = activationDependencies(keys);
     let receivedExpectedSignupCode = false;
-    const signup = dependencies.signup.signup.bind(dependencies.signup);
-    dependencies.signup.signup = async (input) => {
+    const signup = dependencies.sessionAccess.signup.bind(dependencies.sessionAccess);
+    dependencies.sessionAccess.signup = async (input) => {
       receivedExpectedSignupCode = input.signupCode === "homegate-signup-code";
       return signup(input);
     };
-    const flow = createFlow({ keys, local, files, crypto, ...dependencies });
+    const flow = createFlow({ keys, local, fileStore: files, crypto, ...dependencies });
 
     const result = await flow.establish({ googleIdToken: "id-token", driveAccessToken: "drive-token" });
 
@@ -71,7 +73,7 @@ describe("Google-backed identity use cases", () => {
     expect(local.savedHandles).toHaveLength(1);
     expect(dependencies.homegate.calls).toEqual([{ hasGoogleIdToken: true }]);
     expect(receivedExpectedSignupCode).toBe(true);
-    expect(dependencies.signup.signupCalls).toEqual([{
+    expect(dependencies.sessionAccess.signupCalls).toEqual([{
       keyHandle: local.savedHandles[0],
       homeserverPubky: "homegate-homeserver",
       hasSignupCode: true,
@@ -86,9 +88,9 @@ describe("Google-backed identity use cases", () => {
 
   it("deletes a Drive identity only when it matches the selected local identity", async () => {
     const keys = new FakePubkyIdentityKeys();
-    const files = new FakePassportFiles({ status: "found", envelope, reference });
+    const files = new FakePassportFileStore({ status: "found", envelope, reference });
     const crypto = new FakePassportCrypto();
-    const deletion = createDeletion({ keys, files, crypto });
+    const deletion = createDeletion({ keys, fileStore: files, crypto });
 
     const deleted = await deletion.execute(
       { googleIdToken: "id-token", driveAccessToken: "drive-token" },
@@ -104,9 +106,9 @@ describe("Google-backed identity use cases", () => {
 
   it("treats an already missing Drive identity as an idempotent deletion", async () => {
     const keys = new FakePubkyIdentityKeys();
-    const files = new FakePassportFiles({ status: "missing" });
+    const files = new FakePassportFileStore({ status: "missing" });
     const crypto = new FakePassportCrypto();
-    const deletion = createDeletion({ keys, files, crypto });
+    const deletion = createDeletion({ keys, fileStore: files, crypto });
 
     const deleted = await deletion.execute(
       { googleIdToken: "id-token", driveAccessToken: "drive-token" },
@@ -122,8 +124,8 @@ describe("Google-backed identity use cases", () => {
 
   it("does not delete a Drive identity that differs from the selected identity", async () => {
     const keys = new FakePubkyIdentityKeys();
-    const files = new FakePassportFiles({ status: "found", envelope, reference });
-    const deletion = createDeletion({ keys, files, crypto: new FakePassportCrypto() });
+    const files = new FakePassportFileStore({ status: "found", envelope, reference });
+    const deletion = createDeletion({ keys, fileStore: files, crypto: new FakePassportCrypto() });
 
     const deleted = await deletion.execute(
       { googleIdToken: "id-token", driveAccessToken: "drive-token" },
@@ -137,10 +139,10 @@ describe("Google-backed identity use cases", () => {
 
   it("maps a create conflict and disposes the unpersisted key", async () => {
     const keys = new FakePubkyIdentityKeys();
-    const files = new FakePassportFiles({ status: "missing" });
+    const files = new FakePassportFileStore({ status: "missing" });
     files.createFailure = "create_conflict";
     const crypto = new FakePassportCrypto();
-    const flow = createFlow({ keys, local: new FakeLocalIdentities(), files, crypto });
+    const flow = createFlow({ keys, local: new FakeLocalIdentities(), fileStore: files, crypto });
 
     const result = await flow.establish({ googleIdToken: "id-token", driveAccessToken: "drive-token" });
 
@@ -154,7 +156,7 @@ describe("Google-backed identity use cases", () => {
     "does not expose a recoverable identity when %s fails before a Drive file exists",
     async (stage) => {
       const keys = new FakePubkyIdentityKeys();
-      const files = new FakePassportFiles({ status: "missing" });
+      const files = new FakePassportFileStore({ status: "missing" });
       const crypto = new FakePassportCrypto();
       if (stage === "encrypt") {
         crypto.encryptSecretKeyBytes = async (input) => {
@@ -164,7 +166,7 @@ describe("Google-backed identity use cases", () => {
       } else {
         files.createFailure = "write_failed";
       }
-      const flow = createFlow({ keys, local: new FakeLocalIdentities(), files, crypto });
+      const flow = createFlow({ keys, local: new FakeLocalIdentities(), fileStore: files, crypto });
 
       const result = await flow.establish({ googleIdToken: "id-token", driveAccessToken: "drive-token" });
 
@@ -177,10 +179,10 @@ describe("Google-backed identity use cases", () => {
 
   it("maps stale deletion and still disposes and zeroes restored key material", async () => {
     const keys = new FakePubkyIdentityKeys();
-    const files = new FakePassportFiles({ status: "found", envelope, reference });
+    const files = new FakePassportFileStore({ status: "found", envelope, reference });
     files.deleteFailure = "stale_file";
     const crypto = new FakePassportCrypto();
-    const deletion = createDeletion({ keys, files, crypto });
+    const deletion = createDeletion({ keys, fileStore: files, crypto });
 
     const result = await deletion.execute(
       { googleIdToken: "id-token", driveAccessToken: "drive-token" },
@@ -197,12 +199,12 @@ describe("Google-backed identity use cases", () => {
     const events: string[] = [];
     const keys = new FakePubkyIdentityKeys();
     const local = new FakeLocalIdentities(() => events.push("save"));
-    const files = new FakePassportFiles({ status: "missing" }, () => events.push("drive-create"));
+    const files = new FakePassportFileStore({ status: "missing" }, () => events.push("drive-create"));
     const homegate = new FakeGoogleHomegateInvitationRequester(() => events.push("homegate"));
-    const signup = new FakePubkySignup();
-    signup.session.publicIdentity = keys.nextPublicIdentity;
-    const originalSignup = signup.signup.bind(signup);
-    signup.signup = async (input) => {
+    const sessionAccess = new FakePubkySessionAccess();
+    sessionAccess.session.publicIdentity = keys.nextPublicIdentity;
+    const originalSignup = sessionAccess.signup.bind(sessionAccess);
+    sessionAccess.signup = async (input) => {
       events.push("signup");
       return originalSignup(input);
     };
@@ -212,7 +214,7 @@ describe("Google-backed identity use cases", () => {
       events.push("discovery");
       return originalPublish(input);
     };
-    const flow = createFlow({ keys, local, files, crypto: new FakePassportCrypto(), homegate, signup, discovery });
+    const flow = createFlow({ keys, local, fileStore: files, crypto: new FakePassportCrypto(), homegate, sessionAccess, discovery });
 
     const result = await flow.establish({ googleIdToken: "id-token", driveAccessToken: "drive-token" });
 
@@ -224,11 +226,11 @@ describe("Google-backed identity use cases", () => {
     const keys = new FakePubkyIdentityKeys();
     const local = new FakeLocalIdentities();
     const dependencies = activationDependencies(keys);
-    dependencies.signup.signupFailure = "signup_failed";
+    dependencies.sessionAccess.signupFailure = "signup_failed";
     const flow = createFlow({
       keys,
       local,
-      files: new FakePassportFiles({ status: "missing" }),
+      fileStore: new FakePassportFileStore({ status: "missing" }),
       crypto: new FakePassportCrypto(),
       ...dependencies,
     });
@@ -253,7 +255,7 @@ describe("Google-backed identity use cases", () => {
     const flow = createFlow({
       keys,
       local,
-      files: new FakePassportFiles({ status: "missing" }),
+      fileStore: new FakePassportFileStore({ status: "missing" }),
       crypto: new FakePassportCrypto(),
       ...dependencies,
     });
@@ -265,7 +267,7 @@ describe("Google-backed identity use cases", () => {
       code: "homegate_invite_failed",
       recoverablePublicIdentity: keys.nextPublicIdentity,
     });
-    expect(dependencies.signup.signupCalls).toEqual([]);
+    expect(dependencies.sessionAccess.signupCalls).toEqual([]);
     expect(dependencies.discovery.calls).toEqual([]);
     expect(local.savedHandles).toEqual([]);
     expect(keys.disposedKeys).toHaveLength(1);
@@ -275,14 +277,14 @@ describe("Google-backed identity use cases", () => {
     const keys = new FakePubkyIdentityKeys();
     const local = new FakeLocalIdentities();
     const dependencies = activationDependencies(keys);
-    dependencies.signup.session.publicIdentity = {
+    dependencies.sessionAccess.session.publicIdentity = {
       publicKeyZ32: "different-session-identity",
       publicKeyDisplay: "pubkydifferent-session-identity",
     };
     const flow = createFlow({
       keys,
       local,
-      files: new FakePassportFiles({ status: "missing" }),
+      fileStore: new FakePassportFileStore({ status: "missing" }),
       crypto: new FakePassportCrypto(),
       ...dependencies,
     });
@@ -307,7 +309,7 @@ describe("Google-backed identity use cases", () => {
     const flow = createFlow({
       keys,
       local,
-      files: new FakePassportFiles({ status: "missing" }),
+      fileStore: new FakePassportFileStore({ status: "missing" }),
       crypto: new FakePassportCrypto(),
       ...dependencies,
     });
@@ -327,11 +329,11 @@ describe("Google-backed identity use cases", () => {
     const keys = new FakePubkyIdentityKeys();
     const local = new FakeLocalIdentities();
     const dependencies = activationDependencies(keys);
-    dependencies.signup.signinFailure = "signin_failed";
+    dependencies.sessionAccess.signinFailure = "signin_failed";
     const flow = createFlow({
       keys,
       local,
-      files: new FakePassportFiles({ status: "found", envelope, reference }),
+      fileStore: new FakePassportFileStore({ status: "found", envelope, reference }),
       crypto: new FakePassportCrypto(),
       ...dependencies,
     });
@@ -356,14 +358,14 @@ describe("Google-backed identity use cases", () => {
       const crypto = new FakePassportCrypto();
       const dependencies = activationDependencies(keys);
       if (stage === "signin") {
-        dependencies.signup.signin = async () => { throw new Error("signin threw"); };
+        dependencies.sessionAccess.signin = async () => { throw new Error("signin threw"); };
       } else {
         local.throwOnSave = true;
       }
       const flow = createFlow({
         keys,
         local,
-        files: new FakePassportFiles({ status: "found", envelope, reference }),
+        fileStore: new FakePassportFileStore({ status: "found", envelope, reference }),
         crypto,
         ...dependencies,
       });
@@ -381,7 +383,7 @@ describe("Google-backed identity use cases", () => {
     async (stage) => {
       const keys = new FakePubkyIdentityKeys();
       const local = new FakeLocalIdentities();
-      const files = new FakePassportFiles({ status: "missing" });
+      const files = new FakePassportFileStore({ status: "missing" });
       const crypto = new FakePassportCrypto();
       const dependencies = activationDependencies(keys);
 
@@ -395,14 +397,14 @@ describe("Google-backed identity use cases", () => {
       } else if (stage === "homegate") {
         dependencies.homegate.requestSignupInvitation = async () => { throw new Error("Homegate threw"); };
       } else if (stage === "signup") {
-        dependencies.signup.signup = async () => { throw new Error("signup threw"); };
+        dependencies.sessionAccess.signup = async () => { throw new Error("signup threw"); };
       } else if (stage === "discovery") {
         dependencies.discovery.publishHomeserverIfStale = async () => { throw new Error("discovery threw"); };
       } else {
         local.throwOnSave = true;
       }
 
-      const flow = createFlow({ keys, local, files, crypto, ...dependencies });
+      const flow = createFlow({ keys, local, fileStore: files, crypto, ...dependencies });
 
       const result = await flow.establish({ googleIdToken: "id-token", driveAccessToken: "drive-token" });
 
@@ -414,10 +416,10 @@ describe("Google-backed identity use cases", () => {
 
   it("maps unexpected Drive deletion exceptions and still cleans restored key material", async () => {
     const keys = new FakePubkyIdentityKeys();
-    const files = new FakePassportFiles({ status: "found", envelope, reference });
+    const files = new FakePassportFileStore({ status: "found", envelope, reference });
     files.deletePassportFile = async () => { throw new Error("Drive deletion threw"); };
     const crypto = new FakePassportCrypto();
-    const deletion = createDeletion({ keys, files, crypto });
+    const deletion = createDeletion({ keys, fileStore: files, crypto });
 
     const result = await deletion.execute(
       { googleIdToken: "id-token", driveAccessToken: "drive-token" },
@@ -432,11 +434,11 @@ describe("Google-backed identity use cases", () => {
   it("preserves create, restore, and delete outcomes when key cleanup throws", async () => {
     const createKeys = new FakePubkyIdentityKeys();
     createKeys.disposeIdentityKey = () => { throw new Error("cleanup failed"); };
-    const createFiles = new FakePassportFiles({ status: "missing" });
+    const createFileStore = new FakePassportFileStore({ status: "missing" });
     const created = await createFlow({
       keys: createKeys,
       local: new FakeLocalIdentities(),
-      files: createFiles,
+      fileStore: createFileStore,
       crypto: new FakePassportCrypto(),
     }).establish({ googleIdToken: "id-token", driveAccessToken: "drive-token" });
     expect(Result.isError(created)).toBe(false);
@@ -447,7 +449,7 @@ describe("Google-backed identity use cases", () => {
     const restored = await createFlow({
       keys: restoreKeys,
       local: new FakeLocalIdentities(),
-      files: new FakePassportFiles({ status: "found", envelope, reference }),
+      fileStore: new FakePassportFileStore({ status: "found", envelope, reference }),
       crypto: new FakePassportCrypto(),
       ...restoreDependencies,
     }).establish({ googleIdToken: "id-token", driveAccessToken: "drive-token" });
@@ -457,7 +459,7 @@ describe("Google-backed identity use cases", () => {
     deleteKeys.disposeIdentityKey = () => { throw new Error("cleanup failed"); };
     const deleted = await createDeletion({
       keys: deleteKeys,
-      files: new FakePassportFiles({ status: "found", envelope, reference }),
+      fileStore: new FakePassportFileStore({ status: "found", envelope, reference }),
       crypto: new FakePassportCrypto(),
     }).execute(
       { googleIdToken: "id-token", driveAccessToken: "drive-token" },
@@ -471,24 +473,24 @@ describe("Google-backed identity use cases", () => {
 function createFlow(input: {
   keys: FakePubkyIdentityKeys;
   local: FakeLocalIdentities;
-  files: FakePassportFiles;
+  fileStore: FakePassportFileStore;
   crypto: FakePassportCrypto;
   homegate?: FakeGoogleHomegateInvitationRequester;
-  signup?: FakePubkySignup;
+  sessionAccess?: FakePubkySessionAccess;
   discovery?: FakePubkyDiscovery;
 }): EstablishGoogleBackedIdentity {
   const activation = activationDependencies(input.keys);
-  const signup = input.signup ?? activation.signup;
+  const sessionAccess = input.sessionAccess ?? activation.sessionAccess;
   return new EstablishGoogleBackedIdentity({
     wrappingKeys: { async requestWrappingKey() { return Result.ok("w".repeat(43)); } },
-    passportFilesForAccessToken(accessToken) {
+    passportFileStoreForAccessToken(accessToken) {
       expect(accessToken).toBe("drive-token");
-      return input.files;
+      return input.fileStore;
     },
     restoreExistingIdentity: new RestoreGoogleBackedIdentity({
       crypto: input.crypto,
       identityKeys: input.keys,
-      signup,
+      sessionAccess,
       localIdentities: input.local,
       passportOrigin: "https://passport.pubky.app",
     }),
@@ -496,7 +498,7 @@ function createFlow(input: {
       crypto: input.crypto,
       identityKeys: input.keys,
       homegateInvitationRequester: input.homegate ?? activation.homegate,
-      signup,
+      sessionAccess,
       discovery: input.discovery ?? activation.discovery,
       localIdentities: input.local,
       passportOrigin: "https://passport.pubky.app",
@@ -506,14 +508,14 @@ function createFlow(input: {
 
 function createDeletion(input: {
   keys: FakePubkyIdentityKeys;
-  files: FakePassportFiles;
+  fileStore: FakePassportFileStore;
   crypto: FakePassportCrypto;
 }): DeleteGoogleDriveIdentity {
   return new DeleteGoogleDriveIdentity({
     wrappingKeys: { async requestWrappingKey() { return Result.ok("w".repeat(43)); } },
-    passportFilesForAccessToken(accessToken) {
+    passportFileStoreForAccessToken(accessToken) {
       expect(accessToken).toBe("drive-token");
-      return input.files;
+      return input.fileStore;
     },
     crypto: input.crypto,
     identityKeys: input.keys,
@@ -521,7 +523,7 @@ function createDeletion(input: {
   });
 }
 
-class FakePassportFiles implements PassportFileStore {
+class FakePassportFileStore implements PassportFileStore {
   written: PassportFileEnvelopeV1[] = [];
   deleteCalls = 0;
   deletedReferences: PassportFileReference[] = [];
@@ -583,11 +585,11 @@ class FakeGoogleHomegateInvitationRequester implements GoogleHomegateInvitationR
 }
 
 function activationDependencies(keys: FakePubkyIdentityKeys) {
-  const signup = new FakePubkySignup();
-  signup.session.publicIdentity = keys.nextPublicIdentity;
+  const sessionAccess = new FakePubkySessionAccess();
+  sessionAccess.session.publicIdentity = keys.nextPublicIdentity;
   return {
     homegate: new FakeGoogleHomegateInvitationRequester(),
-    signup,
+    sessionAccess,
     discovery: new FakePubkyDiscovery(),
   };
 }

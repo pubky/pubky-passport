@@ -9,7 +9,7 @@ import {
   type PubkyIdentityKey,
   type PubkyIdentityKeyHandle,
   type PubkySecretKeyMaterial,
-} from "../../src/browser/pubky/ports";
+} from "../../src/browser/pubky/application/pubkyIdentityKeys";
 import type { PubkyPublicIdentity } from "../../src/core/identity/pubkyIdentity";
 
 export type FakePubkyIdentityKeysRestoreCall = {

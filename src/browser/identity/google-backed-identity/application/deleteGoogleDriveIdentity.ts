@@ -2,10 +2,10 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { pubkySecretKeyFormat, type PubkyIdentityKey } from "../../../pubky/ports";
+import { pubkySecretKeyFormat, type PubkyIdentityKey, type PubkyIdentityKeys } from "../../../pubky/application/pubkyIdentityKeys";
 import { logger } from "../../../../libs/logger/logger";
-import type { PassportFileCrypto, PassportFileStore } from "../../../passport-file/ports";
-import type { PubkyIdentityKeys } from "../../../pubky/ports";
+import type { PassportFileCrypto } from "../../../passport-file/application/passportFileCrypto";
+import type { PassportFileStore } from "../../../passport-file/application/passportFileStore";
 import type {
   GoogleDriveIdentityDeleter,
   GoogleDriveIdentityDeletionErrorCode,
@@ -16,20 +16,20 @@ import type { GoogleWrappingKeyRequester } from "../wrapping-key/application/goo
 
 export class DeleteGoogleDriveIdentity implements GoogleDriveIdentityDeleter {
   readonly #wrappingKeys: GoogleWrappingKeyRequester;
-  readonly #passportFilesForAccessToken: (driveAccessToken: string) => PassportFileStore;
+  readonly #passportFileStoreForAccessToken: (driveAccessToken: string) => PassportFileStore;
   readonly #crypto: PassportFileCrypto;
   readonly #identityKeys: PubkyIdentityKeys;
   readonly #passportOrigin: string;
 
   constructor(input: {
     wrappingKeys: GoogleWrappingKeyRequester;
-    passportFilesForAccessToken: (driveAccessToken: string) => PassportFileStore;
+    passportFileStoreForAccessToken: (driveAccessToken: string) => PassportFileStore;
     crypto: PassportFileCrypto;
     identityKeys: PubkyIdentityKeys;
     passportOrigin: string;
   }) {
     this.#wrappingKeys = input.wrappingKeys;
-    this.#passportFilesForAccessToken = input.passportFilesForAccessToken;
+    this.#passportFileStoreForAccessToken = input.passportFileStoreForAccessToken;
     this.#crypto = input.crypto;
     this.#identityKeys = input.identityKeys;
     this.#passportOrigin = input.passportOrigin;
@@ -48,8 +48,8 @@ export class DeleteGoogleDriveIdentity implements GoogleDriveIdentityDeleter {
     const wrappingKey = await this.#wrappingKeys.requestWrappingKey({ googleIdToken: google.googleIdToken });
     if (Result.isError(wrappingKey)) return failure("wrapping_key_failed");
 
-    const passportFiles = this.#passportFilesForAccessToken(google.driveAccessToken);
-    const storedFile = await passportFiles.readPassportFile();
+    const passportFileStore = this.#passportFileStoreForAccessToken(google.driveAccessToken);
+    const storedFile = await passportFileStore.readPassportFile();
     if (Result.isError(storedFile)) return failure("drive_read_failed");
     if (storedFile.value.status === "missing") return Result.ok();
 
@@ -80,7 +80,7 @@ export class DeleteGoogleDriveIdentity implements GoogleDriveIdentityDeleter {
       }
     }
 
-    const deleted = await passportFiles.deletePassportFile({ reference: storedFile.value.reference });
+    const deleted = await passportFileStore.deletePassportFile({ reference: storedFile.value.reference });
     if (Result.isError(deleted)) {
       return failure(deleted.error.code === "stale_file" ? "drive_stale_file" : "drive_delete_failed");
     }

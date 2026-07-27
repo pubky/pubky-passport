@@ -1,14 +1,14 @@
 import { Result } from "better-result";
 import { describe, expect, it } from "vitest";
 
-import { parsePubkyAuthRequest } from "../../core/auth/parsePubkyAuthRequest";
+import { parsePubkyAuthRequest } from "../../../core/auth/parsePubkyAuthRequest";
 import {
   approveActiveAuthorization,
   type ActiveAuthorizationIdentityRestorer,
   type ActiveAuthorizationIdentityRestoreResult,
 } from "./approveActiveAuthorization";
-import { FakePubkyAuthApproval } from "../../../test-utils/fakes/fakePubkyAuthApproval";
-import { FakePubkyIdentityKeys } from "../../../test-utils/fakes/fakePubkyIdentityKeys";
+import { FakePubkyAuthApproval } from "../../../../test-utils/fakes/fakePubkyAuthApproval";
+import { FakePubkyIdentityKeys } from "../../../../test-utils/fakes/fakePubkyIdentityKeys";
 
 const request = "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=sensitive";
 

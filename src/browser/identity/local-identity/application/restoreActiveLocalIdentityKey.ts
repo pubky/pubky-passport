@@ -3,7 +3,7 @@ import "client-only";
 import { Result } from "better-result";
 
 import type { PubkyPublicIdentity } from "../../../../core/identity/pubkyIdentity";
-import type { PubkyIdentityKey, PubkyIdentityKeys } from "../../../pubky/ports";
+import type { PubkyIdentityKey, PubkyIdentityKeys } from "../../../pubky/application/pubkyIdentityKeys";
 import type { LocalIdentityKeyStore } from "./localIdentityRepository";
 import type { LocalIdentityOperationResult } from "./saveLocalIdentity";
 

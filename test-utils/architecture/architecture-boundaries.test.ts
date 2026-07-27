@@ -11,32 +11,19 @@ const serverRoot = join(srcRoot, "server");
 const appRoot = join(srcRoot, "app");
 const uiRoot = join(srcRoot, "ui");
 const libsRoot = join(srcRoot, "libs");
+const publicEnvRoot = join(libsRoot, "env");
 const serverConfigRoot = join(serverRoot, "config");
 const checkedExtensions = new Set([".js", ".mjs", ".ts", ".tsx"]);
 const identityRoot = join(browserRoot, "identity");
 const localIdentityRepository = join(identityRoot, "local-identity", "adapters", "localStorageIdentityRepository.ts");
-const browserPubky = join(browserRoot, "pubky", "browserPubky.ts");
-const identityProductionModules = productionSourceFiles(identityRoot);
-const identityModulesByRole = Map.groupBy(identityProductionModules, identityModuleRole);
-const browserCompositionFactories = [
-  join(browserRoot, "authorization", "createBrowserAuthorizationController.ts"),
-  join(identityRoot, "createBrowserIdentityController.ts"),
-  ...productionSourceFiles(browserRoot).filter((filePath) =>
-    relative(browserRoot, filePath).split(sep).includes("composition")
-  ),
-];
-const stableUiBrowserModules = new Set([
-  join(browserRoot, "authorization", "browserAuthorizationController.ts"),
-  join(browserRoot, "authorization", "createBrowserAuthorizationController.ts"),
-  join(browserRoot, "identity", "browserIdentityController.ts"),
-  join(browserRoot, "identity", "createBrowserIdentityController.ts"),
-]);
-const browserAdapterModules = [
-  ...(identityModulesByRole.get("adapter") ?? []),
-  browserPubky,
-  join(browserRoot, "passport-file", "googleDrivePassportFileRepository.ts"),
-  join(browserRoot, "passport-file", "webCryptoPassportFileCrypto.ts"),
-];
+const pubkySdkAdaptersRoot = join(browserRoot, "pubky", "adapters");
+const browserProductionModules = productionSourceFiles(browserRoot);
+const browserModulesByRole = Map.groupBy(browserProductionModules, browserModuleRole);
+const browserApplicationModules = browserModulesByRole.get("application") ?? [];
+const browserCompositionModules = browserModulesByRole.get("composition") ?? [];
+const browserAdapterModules = browserModulesByRole.get("adapter") ?? [];
+const browserControllerModules = browserModulesByRole.get("controller") ?? [];
+const browserPublicModules = browserModulesByRole.get("public") ?? [];
 const googleWrappingKeyRoot = join(serverRoot, "wrapping-key", "google");
 const googleWrappingKeyConfig = join(googleWrappingKeyRoot, "config.ts");
 const googleWrappingKeyServerSecret = join(googleWrappingKeyRoot, "serverSecret.ts");
@@ -44,17 +31,6 @@ const googleWrappingKeyApplicationModules = [
   join(googleWrappingKeyRoot, "ports.ts"),
   join(googleWrappingKeyRoot, "request.ts"),
 ];
-
-const nonIdentityBrowserApplicationModules = productionSourceFiles(browserRoot)
-  .filter((filePath) => !isSameOrInside(filePath, identityRoot))
-  .filter((filePath) => !browserCompositionFactories.includes(filePath))
-  .filter((filePath) => !browserAdapterModules.includes(filePath));
-const browserApplicationModules = [
-  ...nonIdentityBrowserApplicationModules,
-  ...(identityModulesByRole.get("application") ?? []),
-  ...(identityModulesByRole.get("controller") ?? []),
-  ...(identityModulesByRole.get("public") ?? []),
-].sort();
 
 const forbiddenCoreImports = [
   "@synonymdev/pubky",
@@ -105,7 +81,7 @@ describe("architecture boundaries", () => {
   it("confines concrete Pubky SDK imports to browser Pubky adapters", () => {
     const violations = sourceFiles(srcRoot)
       .filter(importsPubkySdk)
-      .filter((filePath) => !isSameOrInside(filePath, join(browserRoot, "pubky")))
+      .filter((filePath) => !isSameOrInside(filePath, pubkySdkAdaptersRoot))
       .map((filePath) => `${relative(repoRoot, filePath)} imports @synonymdev/pubky outside browser Pubky adapters`);
 
     expect(violations).toEqual([]);
@@ -219,13 +195,53 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
-  it("keeps browser application layers independent from composition, adapters, env, and UI", () => {
+  it("keeps browser application modules independent from controllers and outward layers", () => {
     const forbiddenTargets = [
-      ...browserCompositionFactories.map((targetPath) => ({ targetPath, label: "browser composition factory" })),
+      ...browserCompositionModules.map((targetPath) => ({ targetPath, label: "browser composition module" })),
       ...browserAdapterModules.map((targetPath) => ({ targetPath, label: "browser adapter" })),
+      ...browserControllerModules.map((targetPath) => ({ targetPath, label: "browser controller" })),
+      ...browserPublicModules.map((targetPath) => ({ targetPath, label: "public browser contract" })),
+      { targetPath: publicEnvRoot, label: "public environment configuration" },
       { targetPath: uiRoot, label: "UI" },
     ];
     const violations = browserApplicationModules.flatMap((filePath) =>
+      inspectForbiddenImports(filePath, { forbiddenTargets, traverseLocalImports: true })
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it("keeps public browser contracts independent from concrete controllers and outward layers", () => {
+    const forbiddenTargets = [
+      ...browserCompositionModules.map((targetPath) => ({ targetPath, label: "browser composition module" })),
+      ...browserAdapterModules.map((targetPath) => ({ targetPath, label: "browser adapter" })),
+      ...browserControllerModules.map((targetPath) => ({ targetPath, label: "browser controller" })),
+      { targetPath: publicEnvRoot, label: "public environment configuration" },
+      { targetPath: uiRoot, label: "UI" },
+    ];
+    const violations = browserPublicModules.flatMap((filePath) =>
+      inspectForbiddenImports(filePath, { forbiddenTargets, traverseLocalImports: true })
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it("keeps sensitive parser approval types out of public browser contracts", () => {
+    const violations = browserPublicModules
+      .filter((filePath) => /\bValidatedSensitivePubkyAuthRequest\b/.test(sourceWithoutComments(readFileSync(filePath, "utf8"))))
+      .map((filePath) => `${relative(repoRoot, filePath)} references the sensitive parser approval type`);
+
+    expect(violations).toEqual([]);
+  });
+
+  it("keeps browser controllers independent from composition and adapters", () => {
+    const forbiddenTargets = [
+      ...browserCompositionModules.map((targetPath) => ({ targetPath, label: "browser composition module" })),
+      ...browserAdapterModules.map((targetPath) => ({ targetPath, label: "browser adapter" })),
+      { targetPath: publicEnvRoot, label: "public environment configuration" },
+      { targetPath: uiRoot, label: "UI" },
+    ];
+    const violations = browserControllerModules.flatMap((filePath) =>
       inspectForbiddenImports(filePath, { forbiddenTargets, traverseLocalImports: true })
     );
 
@@ -237,10 +253,13 @@ describe("architecture boundaries", () => {
       inspectForbiddenImports(filePath, {
         forbiddenModuleSpecifiers: ["server-only"],
         forbiddenTargets: [
-          ...browserCompositionFactories.map((targetPath) => ({ targetPath, label: "browser composition factory" })),
+          ...browserCompositionModules.map((targetPath) => ({ targetPath, label: "browser composition module" })),
           ...browserAdapterModules
             .filter((targetPath) => targetPath !== filePath)
             .map((targetPath) => ({ targetPath, label: "another browser adapter" })),
+          ...browserControllerModules.map((targetPath) => ({ targetPath, label: "browser controller" })),
+          ...browserPublicModules.map((targetPath) => ({ targetPath, label: "public browser contract" })),
+          { targetPath: publicEnvRoot, label: "public environment configuration" },
           { targetPath: uiRoot, label: "UI" },
           { targetPath: serverRoot, label: "server runtime" },
         ],
@@ -256,7 +275,7 @@ describe("architecture boundaries", () => {
       { targetPath: uiRoot, label: "UI" },
       { targetPath: serverRoot, label: "server runtime" },
     ];
-    const violations = browserCompositionFactories.flatMap((filePath) =>
+    const violations = browserCompositionModules.flatMap((filePath) =>
       inspectForbiddenImports(filePath, {
         forbiddenModuleSpecifiers: ["server-only"],
         forbiddenTargets,
@@ -267,26 +286,15 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
-  it("classifies every identity module by an explicit architectural role", () => {
-    expect(identityModulesByRole.get("unclassified") ?? []).toEqual([]);
-    expect(identityProductionModules).toEqual([
-      ...(identityModulesByRole.get("application") ?? []),
-      ...(identityModulesByRole.get("adapter") ?? []),
-      ...(identityModulesByRole.get("composition") ?? []),
-      ...(identityModulesByRole.get("controller") ?? []),
-      ...(identityModulesByRole.get("public") ?? []),
+  it("classifies every browser module by an explicit architectural role", () => {
+    expect(browserModulesByRole.get("unclassified") ?? []).toEqual([]);
+    expect(browserProductionModules).toEqual([
+      ...(browserModulesByRole.get("application") ?? []),
+      ...(browserModulesByRole.get("adapter") ?? []),
+      ...(browserModulesByRole.get("composition") ?? []),
+      ...(browserModulesByRole.get("controller") ?? []),
+      ...(browserModulesByRole.get("public") ?? []),
     ].sort());
-  });
-
-  it("classifies every browser module as application, composition, or adapter code", () => {
-    const productionModules = new Set(productionSourceFiles(browserRoot));
-    const allowlistedDetails = [...browserCompositionFactories, ...browserAdapterModules];
-
-    expect(new Set(allowlistedDetails).size).toBe(allowlistedDetails.length);
-    expect(allowlistedDetails.filter((filePath) => !productionModules.has(filePath))).toEqual([]);
-    expect(browserApplicationModules).toEqual(
-      [...productionModules].filter((filePath) => !allowlistedDetails.includes(filePath)).sort(),
-    );
   });
 
   it("resolves aliases and transitive index re-exports for isolation checks", () => {
@@ -309,19 +317,26 @@ describe("architecture boundaries", () => {
   });
 });
 
-type IdentityModuleRole = "application" | "adapter" | "composition" | "controller" | "public" | "unclassified";
+type BrowserModuleRole = "application" | "adapter" | "composition" | "controller" | "public" | "unclassified";
 
-function identityModuleRole(filePath: string): IdentityModuleRole {
-  const relativePath = relative(identityRoot, filePath);
-  if (relativePath === "browserIdentityController.ts") return "public";
-  if (relativePath === "createBrowserIdentityController.ts") return "composition";
-  if (relativePath === "passportIdentityController.ts") return "controller";
-
+function browserModuleRole(filePath: string): BrowserModuleRole {
+  const relativePath = relative(browserRoot, filePath);
   const segments = relativePath.split(sep);
-  if (segments.includes("application")) return "application";
-  if (segments.includes("adapters")) return "adapter";
-  if (segments.includes("composition")) return "composition";
-  if (segments.includes("controller")) return "controller";
+  if (segments.length === 2) {
+    const fileName = segments[1] ?? "";
+    if (/^browser[A-Z][A-Za-z0-9]*Controller\.tsx?$/.test(fileName)) return "public";
+    if (/^createBrowser[A-Z][A-Za-z0-9]*Controller\.tsx?$/.test(fileName)) return "composition";
+    if (/^passport[A-Z][A-Za-z0-9]*Controller\.tsx?$/.test(fileName)) return "controller";
+  }
+
+  const hasApplicationRole = segments.includes("application");
+  const hasAdapterRole = segments.includes("adapters");
+  const hasCompositionRole = segments.includes("composition");
+  const roleCount = Number(hasApplicationRole) + Number(hasAdapterRole) + Number(hasCompositionRole);
+  if (roleCount !== 1) return "unclassified";
+  if (hasApplicationRole) return "application";
+  if (hasAdapterRole) return "adapter";
+  if (hasCompositionRole) return "composition";
   return "unclassified";
 }
 
@@ -361,7 +376,7 @@ function inspectUiBrowserImports(filePath: string): string[] {
       const targetPath = resolveLocalImportTarget(currentFilePath, specifier);
       if (!targetPath) continue;
       if (isSameOrInside(targetPath, browserRoot)) {
-        if (!stableUiBrowserModules.has(targetPath)) {
+        if (!isStableUiBrowserModule(targetPath)) {
           violations.push(`${relativeFilePath} reaches non-public browser module via "${specifier}" from ${relative(repoRoot, currentFilePath)}`);
         }
         continue;
@@ -372,6 +387,12 @@ function inspectUiBrowserImports(filePath: string): string[] {
 
   inspect(filePath);
   return violations;
+}
+
+function isStableUiBrowserModule(filePath: string): boolean {
+  const role = browserModuleRole(filePath);
+  if (role !== "public" && role !== "composition") return false;
+  return relative(browserRoot, filePath).split(sep).length === 2;
 }
 
 function runtimeIsolationViolations(

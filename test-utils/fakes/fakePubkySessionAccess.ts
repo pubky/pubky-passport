@@ -2,15 +2,15 @@ import { Result } from "better-result";
 
 import type {
   PubkyIdentityKeyHandle,
-  PubkyIdentitySession,
-} from "@/browser/pubky/ports";
+} from "@/browser/pubky/application/pubkyIdentityKeys";
 import type {
-  PubkySignup,
-  PubkySignupErrorCode,
-  PubkySignupResult,
-} from "@/browser/pubky/ports";
+  PubkyIdentitySession,
+  PubkySessionAccess,
+  PubkySessionAccessErrorCode,
+  PubkySessionAccessResult,
+} from "@/browser/pubky/application/pubkySessionAccess";
 
-export type FakePubkySignupCall = {
+export type FakePubkySessionSignupCall = {
   keyHandle: PubkyIdentityKeyHandle;
   homeserverPubky: string;
   hasSignupCode: boolean;
@@ -21,12 +21,12 @@ export type FakePubkySigninCall = {
   waitForDiscovery: boolean;
 };
 
-export class FakePubkySignup implements PubkySignup {
-  signupCalls: FakePubkySignupCall[] = [];
+export class FakePubkySessionAccess implements PubkySessionAccess {
+  signupCalls: FakePubkySessionSignupCall[] = [];
   signinCalls: FakePubkySigninCall[] = [];
 
-  signupFailure?: PubkySignupErrorCode;
-  signinFailure?: PubkySignupErrorCode;
+  signupFailure?: PubkySessionAccessErrorCode;
+  signinFailure?: PubkySessionAccessErrorCode;
 
   session: PubkyIdentitySession = {
     publicIdentity: {
@@ -35,7 +35,7 @@ export class FakePubkySignup implements PubkySignup {
     },
   };
 
-  async signup(input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky: string; signupCode?: string | null }): Promise<PubkySignupResult<PubkyIdentitySession>> {
+  async signup(input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky: string; signupCode?: string | null }): Promise<PubkySessionAccessResult<PubkyIdentitySession>> {
     this.signupCalls.push({
       keyHandle: input.keyHandle,
       homeserverPubky: input.homeserverPubky,
@@ -49,7 +49,7 @@ export class FakePubkySignup implements PubkySignup {
     return Result.ok(this.session);
   }
 
-  async signin(input: { keyHandle: PubkyIdentityKeyHandle; waitForDiscovery?: boolean }): Promise<PubkySignupResult<PubkyIdentitySession>> {
+  async signin(input: { keyHandle: PubkyIdentityKeyHandle; waitForDiscovery?: boolean }): Promise<PubkySessionAccessResult<PubkyIdentitySession>> {
     this.signinCalls.push({
       keyHandle: input.keyHandle,
       waitForDiscovery: input.waitForDiscovery === true,
@@ -63,6 +63,6 @@ export class FakePubkySignup implements PubkySignup {
   }
 }
 
-function failure<T>(code: PubkySignupErrorCode): PubkySignupResult<T> {
+function failure<T>(code: PubkySessionAccessErrorCode): PubkySessionAccessResult<T> {
   return Result.err({ code });
 }

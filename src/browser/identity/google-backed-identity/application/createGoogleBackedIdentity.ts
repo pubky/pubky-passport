@@ -2,14 +2,11 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import type { PubkyIdentityKey } from "../../../pubky/ports";
+import type { PubkyIdentityKey, PubkyIdentityKeys } from "../../../pubky/application/pubkyIdentityKeys";
 import { logger } from "../../../../libs/logger/logger";
-import type { PassportFileCrypto } from "../../../passport-file/ports";
-import type {
-  PubkyDiscovery,
-  PubkyIdentityKeys,
-  PubkySignup,
-} from "../../../pubky/ports";
+import type { PassportFileCrypto } from "../../../passport-file/application/passportFileCrypto";
+import type { PubkyDiscovery } from "../../../pubky/application/pubkyDiscovery";
+import type { PubkySessionAccess } from "../../../pubky/application/pubkySessionAccess";
 import type {
   GoogleBackedIdentityCreator,
   GoogleBackedIdentity,
@@ -22,7 +19,7 @@ export class CreateGoogleBackedIdentity implements GoogleBackedIdentityCreator {
   readonly #crypto: PassportFileCrypto;
   readonly #identityKeys: PubkyIdentityKeys;
   readonly #homegateInvitationRequester: GoogleHomegateInvitationRequester;
-  readonly #signup: PubkySignup;
+  readonly #sessionAccess: PubkySessionAccess;
   readonly #discovery: PubkyDiscovery;
   readonly #localIdentities: LocalIdentitySaver;
   readonly #passportOrigin: string;
@@ -31,7 +28,7 @@ export class CreateGoogleBackedIdentity implements GoogleBackedIdentityCreator {
     crypto: PassportFileCrypto;
     identityKeys: PubkyIdentityKeys;
     homegateInvitationRequester: GoogleHomegateInvitationRequester;
-    signup: PubkySignup;
+    sessionAccess: PubkySessionAccess;
     discovery: PubkyDiscovery;
     localIdentities: LocalIdentitySaver;
     passportOrigin: string;
@@ -39,7 +36,7 @@ export class CreateGoogleBackedIdentity implements GoogleBackedIdentityCreator {
     this.#crypto = input.crypto;
     this.#identityKeys = input.identityKeys;
     this.#homegateInvitationRequester = input.homegateInvitationRequester;
-    this.#signup = input.signup;
+    this.#sessionAccess = input.sessionAccess;
     this.#discovery = input.discovery;
     this.#localIdentities = input.localIdentities;
     this.#passportOrigin = input.passportOrigin;
@@ -75,7 +72,7 @@ export class CreateGoogleBackedIdentity implements GoogleBackedIdentityCreator {
         }
 
         logger.info("identity.google.drive_write.started");
-        const written = await input.passportFiles.createPassportFile({ envelope: envelope.value });
+        const written = await input.passportFileStore.createPassportFile({ envelope: envelope.value });
         if (Result.isError(written)) {
           logger.warn("identity.google.drive_write.failed", { code: written.error.code });
           return failure(written.error.code === "create_conflict" ? "drive_create_conflict" : "drive_write_failed");
@@ -95,7 +92,7 @@ export class CreateGoogleBackedIdentity implements GoogleBackedIdentityCreator {
       }
 
       logger.info("identity.google.signup.started");
-      const signedUp = await this.#signup.signup({
+      const signedUp = await this.#sessionAccess.signup({
         keyHandle: created.value.keyHandle,
         homeserverPubky: invitation.value.homeserverPubky,
         signupCode: invitation.value.signupCode,

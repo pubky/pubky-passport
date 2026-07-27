@@ -1,12 +1,9 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-
 import { Result, type Result as ResultType } from "better-result";
 import { describe, expect, it } from "vitest";
 
-import { expectAsyncResultError, expectResultError } from "../../../test-utils/resultAssertions";
-import { parsePassportFileEnvelope } from "../../core/passport-file/parsePassportFile";
-import { pubkySecretKeyBytes } from "../pubky/ports";
+import { expectAsyncResultError, expectResultError } from "../../../../test-utils/resultAssertions";
+import { parsePassportFileEnvelope } from "../../../core/passport-file/parsePassportFile";
+import { pubkySecretKeyBytes } from "../../pubky/application/pubkyIdentityKeys";
 import {
   decodeBase64Url,
   encodeBase64Url,
@@ -356,15 +353,5 @@ describe("base64url helpers", () => {
     for (const value of ["", "abc+", "abc/", "abc=", "A"]) {
       expectError(decodeBase64Url(value), "invalid_envelope");
     }
-  });
-});
-
-describe("browser storage safety", () => {
-  it("does not persist crypto material in browser storage APIs", () => {
-    const source = readFileSync(fileURLToPath(new URL("./webCryptoPassportFileCrypto.ts", import.meta.url)), "utf8");
-
-    expect(source).not.toContain("localStorage");
-    expect(source).not.toContain("sessionStorage");
-    expect(source).not.toContain("indexedDB");
   });
 });

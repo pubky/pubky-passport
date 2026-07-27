@@ -1,4 +1,4 @@
-import type { PubkyIdentityKeyHandle } from "@/browser/pubky/ports";
+import type { PubkyIdentityKeyHandle } from "@/browser/pubky/application/pubkyIdentityKeys";
 import type { ValidatedSensitivePubkyAuthRequest } from "@/core/auth/parsePubkyAuthRequest";
 import { Result } from "better-result";
 
@@ -6,7 +6,7 @@ import type {
   PubkyAuthApproval,
   PubkyAuthApprovalErrorCode,
   PubkyAuthApprovalResult,
-} from "@/browser/pubky/ports";
+} from "@/browser/pubky/application/pubkyAuthApproval";
 
 export type FakePubkyAuthApprovalCall = {
   keyHandle: PubkyIdentityKeyHandle;
