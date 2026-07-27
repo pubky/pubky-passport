@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  quality:
     runs-on: ubuntu-latest
 
     steps:
@@ -44,8 +44,47 @@ jobs:
       - name: Unit tests
         run: pnpm test:run
 
+  browser:
+    runs-on: ubuntu-latest
+    env:
+      GOOGLE_CLIENT_ID: "e2e-google-client-id"
+      HOMEGATE_URL: "https://homegate.example/"
+
+    steps:
+      - name: Checkout
+        # actions/checkout v4, pinned to a commit SHA to avoid mutable tag drift.
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node
+        # actions/setup-node v4, pinned to a commit SHA to avoid mutable tag drift.
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Production build
+        run: pnpm build
+
       - name: Install Playwright browser
         run: pnpm exec playwright install --with-deps chromium
 
       - name: End-to-end tests
-        run: pnpm test:e2e
+        run: pnpm test:e2e:run
+
+      - name: Upload Playwright diagnostics
+        if: failure()
+        # actions/upload-artifact v4, pinned to a commit SHA to avoid mutable tag drift.
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: playwright-diagnostics
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7

@@ -14,8 +14,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:e2e": "playwright test",
-    "check": "pnpm lint && pnpm typecheck && pnpm test:run && pnpm build"
+    "test:e2e": "pnpm build && pnpm test:e2e:run",
+    "test:e2e:run": "playwright test",
+    "check": "pnpm lint && pnpm typecheck && pnpm test:run && pnpm build",
+    "check:critical": "pnpm audit --prod && pnpm check && pnpm test:e2e:run"
   },
   "dependencies": {
     "@synonymdev/pubky": "0.9.3",
