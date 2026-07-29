@@ -33,7 +33,7 @@ export type BrowserIdentityControllerDependencies = {
   repository: LocalIdentityCatalog;
   identityEstablisher: GoogleIdentityEstablisher;
   identityDeleter: GoogleDriveIdentityDeleter;
-  disposeIdentityRuntime(): void;
+  disposeIdentityActions(): void;
   googleSignInButton: GoogleSignInButton;
   googleDriveAccessRequester: GoogleDriveAccessRequester;
 };
@@ -49,7 +49,7 @@ export class PassportIdentityController implements BrowserIdentityController {
   #attempt = 0;
   #actionPending = false;
   #disposed = false;
-  #identityRuntimeDisposed = false;
+  #identityActionsDisposed = false;
 
   constructor(input: { clientId: string; dependencies: BrowserIdentityControllerDependencies }) {
     this.#clientId = input.clientId;
@@ -161,7 +161,7 @@ export class PassportIdentityController implements BrowserIdentityController {
       return { status: "action_completed", result };
     } finally {
       this.#actionPending = false;
-      if (this.#disposed) this.disposeIdentityRuntimeOnce();
+      if (this.#disposed) this.disposeIdentityActionsOnce();
     }
   }
 
@@ -169,7 +169,7 @@ export class PassportIdentityController implements BrowserIdentityController {
     if (this.#disposed) return;
     this.#disposed = true;
     this.unmountGoogleSignIn();
-    if (!this.#actionPending) this.disposeIdentityRuntimeOnce();
+    if (!this.#actionPending) this.disposeIdentityActionsOnce();
   }
 
   private async executeAction(action: BrowserIdentityAction, google: { googleIdToken: string; driveAccessToken: string }): Promise<BrowserIdentityActionResult> {
@@ -192,11 +192,11 @@ export class PassportIdentityController implements BrowserIdentityController {
     }
   }
 
-  private disposeIdentityRuntimeOnce(): void {
-    if (this.#identityRuntimeDisposed) return;
-    this.#identityRuntimeDisposed = true;
+  private disposeIdentityActionsOnce(): void {
+    if (this.#identityActionsDisposed) return;
+    this.#identityActionsDisposed = true;
     try {
-      this.#dependencies.disposeIdentityRuntime();
+      this.#dependencies.disposeIdentityActions();
     } catch {
       logger.warn("identity.google.cleanup.failed", { operation: "pubky_dispose" });
     }

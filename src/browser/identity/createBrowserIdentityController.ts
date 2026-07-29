@@ -7,9 +7,9 @@ import { LocalStorageIdentityRepository } from "./local-identity/adapters/localS
 import type { BrowserIdentityController } from "./browserIdentityController";
 import { PassportIdentityController } from "./passportIdentityController";
 import {
-  createGoogleBackedIdentityRuntime,
-  type GoogleBackedIdentityRuntime,
-} from "./google-backed-identity/composition/createGoogleBackedIdentityRuntime";
+  GoogleIdentityActions,
+  type GoogleIdentityLifecycle,
+} from "./google-backed-identity/composition/googleIdentityActions";
 
 export function createBrowserIdentityController(input: {
   googleClientId: string;
@@ -17,14 +17,14 @@ export function createBrowserIdentityController(input: {
 }): BrowserIdentityController {
   const repository = new LocalStorageIdentityRepository();
   const googleIdentityServices = { loadGoogleAccounts };
-  let identityRuntime: GoogleBackedIdentityRuntime | undefined;
-  const getIdentityRuntime = () => {
-    identityRuntime ??= createGoogleBackedIdentityRuntime({
+  let identityActions: GoogleIdentityLifecycle | undefined;
+  const getIdentityActions = () => {
+    identityActions ??= new GoogleIdentityActions({
       keyStore: repository,
       homegateBaseUrl: input.homegateBaseUrl,
       passportOrigin: globalThis.location.origin,
     });
-    return identityRuntime;
+    return identityActions;
   };
 
   return new PassportIdentityController({
@@ -32,18 +32,18 @@ export function createBrowserIdentityController(input: {
     dependencies: {
       repository,
       identityEstablisher: {
-        establish: (google) => getIdentityRuntime().identityEstablisher.establish(google),
+        establish: (google) => getIdentityActions().establish(google),
       },
       identityDeleter: {
-        execute: (google, expectedPublicKeyZ32) => getIdentityRuntime().identityDeleter.execute(
+        execute: (google, expectedPublicKeyZ32) => getIdentityActions().deleteDriveIdentity(
           google,
           expectedPublicKeyZ32,
         ),
       },
-      disposeIdentityRuntime: () => {
-        const runtime = identityRuntime;
-        identityRuntime = undefined;
-        runtime?.dispose();
+      disposeIdentityActions: () => {
+        const actions = identityActions;
+        identityActions = undefined;
+        actions?.dispose();
       },
       googleSignInButton: new GoogleIdentityServicesSignInButton({
         clientId: input.googleClientId,

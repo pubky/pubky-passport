@@ -59,16 +59,17 @@ vi.mock("../wrapping-key/adapters/googleWrappingKeyRequester", () => ({
   BrowserGoogleWrappingKeyRequester: mocks.BrowserGoogleWrappingKeyRequester,
 }));
 
-import { createGoogleBackedIdentityRuntime } from "./createGoogleBackedIdentityRuntime";
+import { GoogleIdentityActions } from "./googleIdentityActions";
 
-describe("createGoogleBackedIdentityRuntime", () => {
-  it("wires the feature with its validated Homegate URL and Passport origin", () => {
+describe("GoogleIdentityActions", () => {
+  it("wires and delegates Google identity actions", async () => {
     const identityEstablisher = { establish: vi.fn() };
     const identityDeleter = { execute: vi.fn() };
     const keyStore = keyStoreStub();
     prepareConstructors({ identityEstablisher, identityDeleter });
+    const google = { googleIdToken: "google-id-token", driveAccessToken: "drive-access-token" };
 
-    const runtime = createGoogleBackedIdentityRuntime({
+    const actions = new GoogleIdentityActions({
       keyStore,
       homegateBaseUrl: "https://homegate.example/api/",
       passportOrigin: "https://passport.example",
@@ -109,14 +110,18 @@ describe("createGoogleBackedIdentityRuntime", () => {
       identityKeys: mocks.pubky,
       passportOrigin: "https://passport.example",
     }));
-    expect(runtime.identityEstablisher).toBe(identityEstablisher);
-    expect(runtime.identityDeleter).toBe(identityDeleter);
 
-    runtime.dispose();
+    await actions.establish(google);
+    await actions.deleteDriveIdentity(google, "public-key");
+    expect(identityEstablisher.establish).toHaveBeenCalledWith(google);
+    expect(identityDeleter.execute).toHaveBeenCalledWith(google, "public-key");
+
+    actions.dispose();
+    actions.dispose();
     expect(mocks.pubky.dispose).toHaveBeenCalledOnce();
   });
 
-  it("disposes Pubky when feature construction fails", () => {
+  it("disposes Pubky when construction fails", () => {
     prepareConstructors({
       identityEstablisher: { establish: vi.fn() },
       identityDeleter: { execute: vi.fn() },
@@ -124,8 +129,11 @@ describe("createGoogleBackedIdentityRuntime", () => {
     mocks.CreateGoogleBackedIdentity.mockImplementationOnce(function () {
       throw new Error("construction failed");
     });
+    mocks.pubky.dispose.mockImplementationOnce(() => {
+      throw new Error("dispose failed");
+    });
 
-    expect(() => createGoogleBackedIdentityRuntime({
+    expect(() => new GoogleIdentityActions({
       keyStore: keyStoreStub(),
       homegateBaseUrl: "https://homegate.example/",
       passportOrigin: "https://passport.example",

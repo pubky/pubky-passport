@@ -21,9 +21,10 @@ ordering for one action.
 
 ## Google-Backed Flow
 
-`google-backed-identity/composition/createGoogleBackedIdentityRuntime.ts` wires the
-application use cases to Passport-file storage and crypto, Pubky operations, local
-persistence, Homegate invitation retrieval, and the wrapping-key endpoint.
+`google-backed-identity/composition/googleIdentityActions.ts` implements the Google
+identity lifecycle and wires application use cases to Passport-file storage and
+crypto, Pubky operations, local persistence, Homegate invitation retrieval, and the
+wrapping-key endpoint.
 
 ```txt
 request wrapping key -> read encrypted Drive file -> restore or create identity
@@ -34,7 +35,7 @@ signup, discovery publication, and local save. Restoration decrypts the Drive fi
 performs blocking sign-in, verifies the identity, and saves it locally.
 
 Inside this lifecycle feature, `application/` owns orchestration and contracts,
-`homegate-invitation/` and `wrapping-key/` own focused provider capabilities, and
+`browser/homegate` and `wrapping-key/` own focused provider capabilities, and
 `composition/` is the only location that constructs their concrete dependencies.
 
 ## Security Boundary

@@ -214,18 +214,18 @@ describe("PassportIdentityController", () => {
     expect(establish).toHaveBeenCalledOnce();
   });
 
-  it("defers one-time identity runtime disposal and suppresses completion after dispose", async () => {
+  it("defers one-time identity action disposal and suppresses completion after dispose", async () => {
     let resolveEstablish: ((value: ReturnType<typeof Result.ok<{
       source: "restored";
       publicIdentity: { publicKeyZ32: string; publicKeyDisplay: string };
     }>>) => void) | undefined;
-    const disposeIdentityRuntime = vi.fn();
+    const disposeIdentityActions = vi.fn();
     const establish = vi.fn<BrowserIdentityControllerDependencies["identityEstablisher"]["establish"]>(
       () => new Promise((resolve) => { resolveEstablish = resolve; }),
     );
     const { controller, credentialCallback } = await mountedController({
       identityEstablisher: { establish },
-      disposeIdentityRuntime,
+      disposeIdentityActions,
     });
     credentialCallback.current?.(googleCredential());
 
@@ -233,7 +233,7 @@ describe("PassportIdentityController", () => {
     await vi.waitFor(() => expect(establish).toHaveBeenCalledOnce());
     controller.dispose();
     controller.dispose();
-    expect(disposeIdentityRuntime).not.toHaveBeenCalled();
+    expect(disposeIdentityActions).not.toHaveBeenCalled();
     resolveEstablish?.(Result.ok({
       source: "restored",
       publicIdentity: { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" },
@@ -243,7 +243,7 @@ describe("PassportIdentityController", () => {
     expect(completed.status).toBe("action_finished_after_unmount");
     if (completed.status !== "action_finished_after_unmount") throw new Error("Expected superseded action result");
     expect(Result.isError(completed.result)).toBe(false);
-    expect(disposeIdentityRuntime).toHaveBeenCalledOnce();
+    expect(disposeIdentityActions).toHaveBeenCalledOnce();
   });
 
   it("preserves a failed establishment result after ordinary unmount", async () => {
@@ -304,10 +304,10 @@ describe("PassportIdentityController", () => {
 
   it("delegates safe local identity operations and owns Pubky disposal", () => {
     const repository = fakeRepository();
-    const disposeIdentityRuntime = vi.fn();
+    const disposeIdentityActions = vi.fn();
     const controller = new PassportIdentityController({
       clientId: "google-client",
-      dependencies: dependencies({ repository, disposeIdentityRuntime }),
+      dependencies: dependencies({ repository, disposeIdentityActions }),
     });
 
     expect(controller.list()).toEqual(Result.ok({ activeIdentityId: null, identities: [] }));
@@ -318,7 +318,7 @@ describe("PassportIdentityController", () => {
 
     expect(repository.select).toHaveBeenCalledWith("identity");
     expect(repository.clear).toHaveBeenCalledOnce();
-    expect(disposeIdentityRuntime).toHaveBeenCalledOnce();
+    expect(disposeIdentityActions).toHaveBeenCalledOnce();
   });
 });
 
@@ -351,7 +351,7 @@ function dependencies(overrides: Partial<BrowserIdentityControllerDependencies> 
     repository: fakeRepository(),
     identityEstablisher: { establish: vi.fn(async () => Result.err({ code: "unexpected_failure" as const })) },
     identityDeleter: { execute: vi.fn(async () => Result.ok()) },
-    disposeIdentityRuntime: vi.fn(),
+    disposeIdentityActions: vi.fn(),
     googleSignInButton: { mount: vi.fn(async () => Result.ok()), unmount: vi.fn() },
     googleDriveAccessRequester: { request: vi.fn(async () => Result.ok("drive-access-token")) },
     ...overrides,

@@ -383,7 +383,7 @@ sequenceDiagram
         participant Controller as passportIdentityController.ts<br/>PassportIdentityController
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/composition
-        participant DriveFactory as createGoogleBackedIdentityRuntime.ts<br/>passportFileStoreForAccessToken()
+        participant Actions as googleIdentityActions.ts<br/>GoogleIdentityActions
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
         participant Establish as establishGoogleBackedIdentity.ts<br/>EstablishGoogleBackedIdentity
@@ -411,9 +411,9 @@ sequenceDiagram
     alt Wrapping-key error
         Establish-->>Controller: safe failure
     else Wrapping key
-        Establish->>DriveFactory: passportFileStoreForAccessToken(Drive token)
-        DriveFactory->>DriveStore: new GoogleDrivePassportFileStore(...)
-        DriveFactory-->>Establish: store
+        Establish->>Actions: passportFileStoreForAccessToken(Drive token)
+        Actions->>DriveStore: new GoogleDrivePassportFileStore(...)
+        Actions-->>Establish: store
         Establish->>DriveStore: readPassportFile()
         DriveStore->>Drive: list passport.json
         Drive-->>DriveStore: list response
@@ -650,7 +650,7 @@ sequenceDiagram
         participant Controller as passportIdentityController.ts<br/>PassportIdentityController
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/composition
-        participant DriveFactory as createGoogleBackedIdentityRuntime.ts<br/>passportFileStoreForAccessToken()
+        participant Actions as googleIdentityActions.ts<br/>GoogleIdentityActions
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
         participant Delete as deleteGoogleDriveIdentity.ts<br/>DeleteGoogleDriveIdentity
@@ -680,9 +680,9 @@ sequenceDiagram
     alt Wrapping-key error
         Delete-->>Controller: safe failure
     else Wrapping key
-        Delete->>DriveFactory: passportFileStoreForAccessToken(Drive token)
-        DriveFactory->>DriveStore: new GoogleDrivePassportFileStore(...)
-        DriveFactory-->>Delete: store
+        Delete->>Actions: passportFileStoreForAccessToken(Drive token)
+        Actions->>DriveStore: new GoogleDrivePassportFileStore(...)
+        Actions-->>Delete: store
         Delete->>DriveStore: readPassportFile()
         DriveStore->>Drive: list passport.json
         Drive-->>DriveStore: list response
