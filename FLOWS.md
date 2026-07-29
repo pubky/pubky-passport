@@ -396,8 +396,8 @@ sequenceDiagram
         participant Restore as restoreGoogleBackedIdentity.ts<br/>RestoreGoogleBackedIdentity
         participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/wrapping-key/adapters
-        participant Wrapping as googleWrappingKeyApiClient.ts<br/>GoogleWrappingKeyApiClient
+    box rgba(0, 158, 115, 0.18) src/browser/wrapping-key/adapters
+        participant Wrapping as wrappingKeyApiClient.ts<br/>WrappingKeyApiClient
     end
     box rgba(0, 158, 115, 0.18) src/browser/passport-file/adapters
         participant DriveStore as googleDrivePassportFileStore.ts<br/>GoogleDrivePassportFileStore
@@ -414,7 +414,7 @@ sequenceDiagram
 
     Controller->>Operations: establishGoogleBackedIdentity<br/>(GoogleBackedIdentityCredentials)
     Operations->>Establish: establish(credentials)
-    Establish->>Wrapping: requestWrappingKey(ID token)
+    Establish->>Wrapping: requestGoogleWrappingKey(ID token)
     Wrapping->>API: POST { googleIdToken }
     API-->>Wrapping: wrapping-key result
     Wrapping-->>Establish: wrapping-key result
@@ -677,8 +677,8 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
         participant Delete as deleteGoogleDrivePassportFile.ts<br/>DeleteGoogleDrivePassportFile
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/wrapping-key/adapters
-        participant Wrapping as googleWrappingKeyApiClient.ts<br/>GoogleWrappingKeyApiClient
+    box rgba(0, 158, 115, 0.18) src/browser/wrapping-key/adapters
+        participant Wrapping as wrappingKeyApiClient.ts<br/>WrappingKeyApiClient
     end
     box rgba(0, 158, 115, 0.18) src/browser/passport-file/adapters
         participant DriveStore as googleDrivePassportFileStore.ts<br/>GoogleDrivePassportFileStore
@@ -696,7 +696,7 @@ sequenceDiagram
 
     Controller->>Operations: deleteGoogleDrivePassportFile<br/>(credentials, expected public key)
     Operations->>Delete: deleteGoogleDrivePassportFile(...)
-    Delete->>Wrapping: requestWrappingKey(ID token)
+    Delete->>Wrapping: requestGoogleWrappingKey(ID token)
     Wrapping->>WrappingAPI: POST { googleIdToken }
     WrappingAPI-->>Wrapping: wrapping-key result
     Wrapping-->>Delete: wrapping-key result
@@ -773,7 +773,7 @@ sequenceDiagram
     accTitle: Google wrapping-key API call flow
     accDescr: The route validates its request, verifies provider-account claims, applies a keyed identity rate limit, and derives a wrapping key with HKDF.
     box rgba(0, 158, 115, 0.18) Browser runtime
-        participant Browser as BROWSER<br/>GoogleWrappingKeyApiClient
+        participant Browser as BROWSER<br/>WrappingKeyApiClient
     end
     box rgba(240, 228, 66, 0.18) Next transport
         participant Handler as APP<br/>wrapping-key handler

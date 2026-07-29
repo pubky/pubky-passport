@@ -1,10 +1,11 @@
 import "client-only";
 
 import { Result } from "better-result";
+import { z } from "zod";
 
-import { LOGGER } from "../../../../../libs/logger/logger";
-import { readBoundedText } from "../../../../../libs/http/boundedBody";
-import { isCanonicalBase64Url } from "../../../../../libs/encoding/base64Url";
+import { LOGGER } from "../../../libs/logger/logger";
+import { readBoundedText } from "../../../libs/http/boundedBody";
+import { isCanonicalBase64Url } from "../../../libs/encoding/base64Url";
 import type {
   GoogleWrappingKeyErrorCode,
   GoogleWrappingKeyResult,
@@ -12,7 +13,8 @@ import type {
 
 const MAXIMUM_RESPONSE_BYTES = 16 * 1024;
 const WRAPPING_KEY_BYTES = 32;
-const KNOWN_ROUTE_ERROR_CODES = new Set<GoogleWrappingKeyErrorCode>([
+const WRAPPING_KEY_LENGTH = Math.ceil(WRAPPING_KEY_BYTES * 4 / 3);
+const ROUTE_ERROR_CODE_SCHEMA = z.enum([
   "invalid_request",
   "invalid_google_id_token",
   "expired_google_id_token",
@@ -23,15 +25,21 @@ const KNOWN_ROUTE_ERROR_CODES = new Set<GoogleWrappingKeyErrorCode>([
   "dependency_unavailable",
   "internal_error",
 ]);
+const SUCCESS_RESPONSE_SCHEMA = z.object({
+  wrappingKey: z.string().length(WRAPPING_KEY_LENGTH).refine(isCanonicalBase64Url),
+}).strict();
+const ERROR_RESPONSE_SCHEMA = z.object({
+  error: z.object({ code: ROUTE_ERROR_CODE_SCHEMA }).strict(),
+}).strict();
 
-export class GoogleWrappingKeyApiClient {
+export class WrappingKeyApiClient {
   readonly #fetch: typeof fetch;
 
   constructor(options: { fetch?: typeof fetch } = {}) {
     this.#fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
   }
 
-  async requestWrappingKey(googleIdToken: string): Promise<GoogleWrappingKeyResult> {
+  async requestGoogleWrappingKey(googleIdToken: string): Promise<GoogleWrappingKeyResult> {
     let response: Response;
     try {
       response = await this.#fetch("/api/wrapping-key/google", {
@@ -61,34 +69,14 @@ export class GoogleWrappingKeyApiClient {
       return failure("invalid_response");
     }
 
-    if (!response.ok) return failure(parseErrorCode(body) ?? "invalid_response");
-    const wrappingKey = parseWrappingKey(body);
-    return wrappingKey ? Result.ok(wrappingKey) : failure("invalid_response");
+    if (!response.ok) {
+      const parsed = ERROR_RESPONSE_SCHEMA.safeParse(body);
+      return failure(parsed.success ? parsed.data.error.code : "invalid_response");
+    }
+
+    const parsed = SUCCESS_RESPONSE_SCHEMA.safeParse(body);
+    return parsed.success ? Result.ok(parsed.data.wrappingKey) : failure("invalid_response");
   }
-}
-
-function parseWrappingKey(value: unknown): string | null {
-  if (!isExactRecord(value, ["wrappingKey"])) return null;
-  if (typeof value.wrappingKey !== "string") return null;
-
-  const expectedLength = Math.ceil(WRAPPING_KEY_BYTES * 4 / 3);
-  return value.wrappingKey.length === expectedLength && isCanonicalBase64Url(value.wrappingKey)
-    ? value.wrappingKey
-    : null;
-}
-
-function parseErrorCode(value: unknown): GoogleWrappingKeyErrorCode | null {
-  if (!isExactRecord(value, ["error"]) || !isExactRecord(value.error, ["code"])) return null;
-  if (typeof value.error.code !== "string") return null;
-  return KNOWN_ROUTE_ERROR_CODES.has(value.error.code as GoogleWrappingKeyErrorCode)
-    ? value.error.code as GoogleWrappingKeyErrorCode
-    : null;
-}
-
-function isExactRecord(value: unknown, keys: string[]): value is Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const actualKeys = Object.keys(value);
-  return actualKeys.length === keys.length && keys.every((key) => Object.hasOwn(value, key));
 }
 
 function failure(code: GoogleWrappingKeyErrorCode): GoogleWrappingKeyResult {

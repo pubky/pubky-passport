@@ -26,7 +26,7 @@ ordering for one action.
 Google-backed custody/recovery operations. It accepts
 `GoogleBackedIdentityCredentials` and wires application use cases to Passport file
 storage and crypto, Pubky operations, local persistence, Homegate homeserver signup
-invitation retrieval, and `GoogleWrappingKeyApiClient`.
+invitation retrieval, and `WrappingKeyApiClient.requestGoogleWrappingKey`.
 
 ```txt
 request wrapping key -> read Google Drive Passport file -> restore or create Pubky identity
@@ -37,7 +37,7 @@ invitation, homeserver signup, discovery publication, and local save. Restoratio
 performs blocking sign-in, verifies the identity, and saves it locally.
 
 Inside this lifecycle feature, `application/` owns orchestration and capability contracts,
-`browser/homegate` and `wrapping-key/` own focused provider capabilities, and
+`browser/homegate` and `browser/wrapping-key` own focused provider capabilities, and
 `composition/` is the only location that constructs their concrete dependencies.
 
 ## Security Boundary

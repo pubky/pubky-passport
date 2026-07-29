@@ -31,8 +31,8 @@ const MOCKS = vi.hoisted(() => ({
   restoreExistingIdentity: {},
   HomegateClient: vi.fn(),
   homegate: {},
-  GoogleWrappingKeyApiClient: vi.fn(),
-  wrappingKeyApiClient: { requestWrappingKey() {} },
+  WrappingKeyApiClient: vi.fn(),
+  wrappingKeyApiClient: { requestGoogleWrappingKey() {} },
 }));
 
 vi.mock("../../../pubky/adapters/pubkySdkAdapter", () => ({
@@ -67,8 +67,8 @@ vi.mock("../../../homegate/adapters/homegateClient", () => ({
   HomegateClient: MOCKS.HomegateClient,
 }));
 
-vi.mock("../wrapping-key/adapters/googleWrappingKeyApiClient", () => ({
-  GoogleWrappingKeyApiClient: MOCKS.GoogleWrappingKeyApiClient,
+vi.mock("../../../wrapping-key/adapters/wrappingKeyApiClient", () => ({
+  WrappingKeyApiClient: MOCKS.WrappingKeyApiClient,
 }));
 
 import { GoogleBackedIdentityOperations } from "./googleBackedIdentityOperations";
@@ -168,7 +168,7 @@ function prepareConstructors(input: {
   MOCKS.SaveLocalIdentity.mockImplementation(function () {
     return MOCKS.localIdentities;
   });
-  MOCKS.GoogleWrappingKeyApiClient.mockImplementation(function () {
+  MOCKS.WrappingKeyApiClient.mockImplementation(function () {
     return MOCKS.wrappingKeyApiClient;
   });
   MOCKS.HomegateClient.mockImplementation(function () {

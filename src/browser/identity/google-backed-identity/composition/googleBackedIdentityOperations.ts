@@ -5,6 +5,7 @@ import { GoogleDrivePassportFileStore } from "../../../passport-file/adapters/go
 import { WebCryptoPassportFileCrypto } from "../../../passport-file/adapters/webCryptoPassportFileCrypto";
 import { PubkySdkAdapter } from "../../../pubky/adapters/pubkySdkAdapter";
 import type { PubkySecretKeyMaterial } from "../../../pubky/application/pubkyIdentityKey";
+import { WrappingKeyApiClient } from "../../../wrapping-key/adapters/wrappingKeyApiClient";
 import type { LocalIdentityResult, LocalIdentitySummary } from "../../local-identity/application/localIdentityModels";
 import { SaveLocalIdentity } from "../../local-identity/application/saveLocalIdentity";
 import { CreateGoogleBackedIdentity } from "../application/createGoogleBackedIdentity";
@@ -14,7 +15,6 @@ import type {
   GoogleBackedIdentityCredentials,
 } from "../application/googleBackedIdentity";
 import { RestoreGoogleBackedIdentity } from "../application/restoreGoogleBackedIdentity";
-import { GoogleWrappingKeyApiClient } from "../wrapping-key/adapters/googleWrappingKeyApiClient";
 
 export class GoogleBackedIdentityOperations {
   readonly #pubky: PubkySdkAdapter;
@@ -36,8 +36,8 @@ export class GoogleBackedIdentityOperations {
         saveIdentityRecord: input.saveIdentityRecord,
         pubky,
       });
-      const wrappingKeyApiClient = new GoogleWrappingKeyApiClient();
-      const requestWrappingKey = wrappingKeyApiClient.requestWrappingKey.bind(wrappingKeyApiClient);
+      const wrappingKeyApiClient = new WrappingKeyApiClient();
+      const requestWrappingKey = wrappingKeyApiClient.requestGoogleWrappingKey.bind(wrappingKeyApiClient);
       const homegate = new HomegateClient({ homegateBaseUrl: input.homegateBaseUrl });
       const crypto = new WebCryptoPassportFileCrypto();
       const encryptSecretKeyBytes = crypto.encryptSecretKeyBytes.bind(crypto);
