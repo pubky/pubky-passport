@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { FakePubkyIdentityKeys } from "../../../../../test-utils/fakes/fakePubkyIdentityKeys";
 import { expectAsyncResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
-import { pubkySecretKeyFormat, type PubkySecretKeyMaterial } from "../../../pubky/application/pubkyIdentityKeys";
+import { PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../../../pubky/application/pubkyIdentityKeys";
 import type { LocalIdentitySummary } from "./localIdentity";
 import type { LocalIdentityKeyStore, LocalIdentityRepositoryResult } from "./localIdentityRepository";
 import { RestoreActiveLocalIdentityKey } from "./restoreActiveLocalIdentityKey";
@@ -39,7 +39,7 @@ describe("RestoreActiveLocalIdentityKey", () => {
 
 class FakeLocalIdentityKeyStore implements LocalIdentityKeyStore {
   activeIdentity: LocalIdentitySummary | null = null;
-  activeSecret: PubkySecretKeyMaterial = { bytes: new Uint8Array(32).fill(7), format: pubkySecretKeyFormat };
+  activeSecret: PubkySecretKeyMaterial = { bytes: new Uint8Array(32).fill(7), format: PUBKY_SECRET_KEY_FORMAT };
 
   save(input: Parameters<LocalIdentityKeyStore["save"]>[0]) { return Result.ok(input.identity); }
   readActive(): LocalIdentityRepositoryResult<{ identity: LocalIdentitySummary; secretKey: PubkySecretKeyMaterial }> {

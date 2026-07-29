@@ -19,8 +19,8 @@ import {
   type PubkyDiscoveryResult,
 } from "../application/pubkyDiscovery";
 import {
-  pubkySecretKeyBytes,
-  pubkySecretKeyFormat,
+  PUBKY_SECRET_KEY_BYTES,
+  PUBKY_SECRET_KEY_FORMAT,
   type PubkyIdentityKey,
   type PubkyIdentityKeyHandle,
   type PubkyIdentityKeys,
@@ -34,7 +34,7 @@ import {
   type PubkySessionAccessErrorCode,
   type PubkySessionAccessResult,
 } from "../application/pubkySessionAccess";
-import { logger } from "../../../libs/logger/logger";
+import { LOGGER } from "../../../libs/logger/logger";
 
 type Signer = ReturnType<Pubky["signer"]>;
 type HomeserverResult = ResultType<PublicKey, { code: "invalid_homeserver_pubky" }>;
@@ -70,7 +70,7 @@ export class PubkySdkAdapter implements PubkyIdentityKeys, PubkySessionAccess, P
       return keyFailure("key_unavailable");
     }
 
-    if (!(input.secretKey.bytes instanceof Uint8Array) || input.secretKey.bytes.byteLength !== pubkySecretKeyBytes) {
+    if (!(input.secretKey.bytes instanceof Uint8Array) || input.secretKey.bytes.byteLength !== PUBKY_SECRET_KEY_BYTES) {
       input.secretKey.bytes.fill(0);
       return keyFailure("invalid_secret_key");
     }
@@ -91,7 +91,7 @@ export class PubkySdkAdapter implements PubkyIdentityKeys, PubkySessionAccess, P
     try {
       keypair.free();
     } catch {
-      logger.warn("identity.pubky.cleanup.failed", { operation: "keypair_free" });
+      LOGGER.warn("identity.pubky.cleanup.failed", { operation: "keypair_free" });
     }
   }
 
@@ -104,7 +104,7 @@ export class PubkySdkAdapter implements PubkyIdentityKeys, PubkySessionAccess, P
     try {
       return Result.ok({
         bytes: keypair.secret(),
-        format: pubkySecretKeyFormat,
+        format: PUBKY_SECRET_KEY_FORMAT,
       });
     } catch {
       return keyFailure("export_failed");
@@ -195,13 +195,13 @@ export class PubkySdkAdapter implements PubkyIdentityKeys, PubkySessionAccess, P
       try {
         keypair.free();
       } catch {
-        logger.warn("identity.pubky.cleanup.failed", { operation: "keypair_free" });
+        LOGGER.warn("identity.pubky.cleanup.failed", { operation: "keypair_free" });
       }
     }
     try {
       this.#pubky.free();
     } catch {
-      logger.warn("identity.pubky.cleanup.failed", { operation: "pubky_free" });
+      LOGGER.warn("identity.pubky.cleanup.failed", { operation: "pubky_free" });
     }
   }
 

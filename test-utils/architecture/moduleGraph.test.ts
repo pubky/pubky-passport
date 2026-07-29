@@ -4,13 +4,13 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
-  appServerEntryRule,
+  APP_SERVER_ENTRY_RULE,
   browserModuleRole,
-  browserRoleRules,
+  BROWSER_ROLE_RULES,
   restrictedImportRegexForRoleRule,
   restrictedServerImportRegexForAppRule,
   serverModuleRole,
-  serverRoleRules,
+  SERVER_ROLE_RULES,
 } from "./architecturePolicy.mjs";
 import {
   importSpecifiersFromSource,
@@ -18,9 +18,9 @@ import {
   nonLiteralModuleLoadsFromSource,
 } from "./moduleGraph";
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const fixtureRoot = join(repoRoot, "test-utils", "architecture", "fixtures");
-const graph = new ModuleGraph(repoRoot);
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const FIXTURE_ROOT = join(REPO_ROOT, "test-utils", "architecture", "fixtures");
+const GRAPH = new ModuleGraph(REPO_ROOT);
 
 describe("ModuleGraph", () => {
   it("discovers static imports, re-exports, import-equals, and literal dynamic imports", () => {
@@ -49,26 +49,26 @@ describe("ModuleGraph", () => {
   });
 
   it("resolves aliases, JavaScript specifiers, index re-exports, and mts modules", () => {
-    expect(graph.resolveLocalImportTarget(
-      join(repoRoot, "src", "ui", "authorizationReview.tsx"),
+    expect(GRAPH.resolveLocalImportTarget(
+      join(REPO_ROOT, "src", "ui", "authorizationReview.tsx"),
       "@/browser/authorization/browserAuthorizationController",
-    )).toBe(join(repoRoot, "src", "browser", "authorization", "browserAuthorizationController.ts"));
-    expect(graph.resolveLocalImportTarget(
-      join(fixtureRoot, "transitive-entry.ts"),
+    )).toBe(join(REPO_ROOT, "src", "browser", "authorization", "browserAuthorizationController.ts"));
+    expect(GRAPH.resolveLocalImportTarget(
+      join(FIXTURE_ROOT, "transitive-entry.ts"),
       "./shared/index.js",
-    )).toBe(join(fixtureRoot, "shared", "index.ts"));
-    expect(graph.sourceFiles(fixtureRoot)).toContain(join(fixtureRoot, "dynamic-entry.mts"));
-    expect(graph.sourceFiles(fixtureRoot)).toContain(join(fixtureRoot, "jsx-entry.jsx"));
-    expect(graph.resolveLocalImportTarget(
-      join(fixtureRoot, "dynamic-entry.mts"),
+    )).toBe(join(FIXTURE_ROOT, "shared", "index.ts"));
+    expect(GRAPH.sourceFiles(FIXTURE_ROOT)).toContain(join(FIXTURE_ROOT, "dynamic-entry.mts"));
+    expect(GRAPH.sourceFiles(FIXTURE_ROOT)).toContain(join(FIXTURE_ROOT, "jsx-entry.jsx"));
+    expect(GRAPH.resolveLocalImportTarget(
+      join(FIXTURE_ROOT, "dynamic-entry.mts"),
       "./server-target.js",
-    )).toBe(join(fixtureRoot, "server-target.ts"));
+    )).toBe(join(FIXTURE_ROOT, "server-target.ts"));
   });
 
   it("resolves CommonJS require calls for transitive boundary checks", () => {
-    const violations = graph.inspectForbiddenImports(join(fixtureRoot, "require-entry.cjs"), {
+    const violations = GRAPH.inspectForbiddenImports(join(FIXTURE_ROOT, "require-entry.cjs"), {
       forbiddenTargets: [{
-        targetPath: join(fixtureRoot, "server-target.ts"),
+        targetPath: join(FIXTURE_ROOT, "server-target.ts"),
         label: "fixture server target",
       }],
       traverseLocalImports: true,
@@ -79,9 +79,9 @@ describe("ModuleGraph", () => {
   });
 
   it("reports forbidden targets through transitive re-exports", () => {
-    const violations = graph.inspectForbiddenImports(join(fixtureRoot, "transitive-entry.ts"), {
+    const violations = GRAPH.inspectForbiddenImports(join(FIXTURE_ROOT, "transitive-entry.ts"), {
       forbiddenTargets: [{
-        targetPath: join(fixtureRoot, "server-target.ts"),
+        targetPath: join(FIXTURE_ROOT, "server-target.ts"),
         label: "fixture server target",
       }],
       traverseLocalImports: true,
@@ -92,15 +92,15 @@ describe("ModuleGraph", () => {
   });
 
   it("requires a runtime marker to be the opening import", () => {
-    expect(graph.hasOpeningImport(join(fixtureRoot, "marker-first.mts"), "client-only")).toBe(true);
-    expect(graph.hasOpeningImport(join(fixtureRoot, "marker-late.ts"), "client-only")).toBe(false);
+    expect(GRAPH.hasOpeningImport(join(FIXTURE_ROOT, "marker-first.mts"), "client-only")).toBe(true);
+    expect(GRAPH.hasOpeningImport(join(FIXTURE_ROOT, "marker-late.ts"), "client-only")).toBe(false);
   });
 
   it("detects computed access to persistence globals", () => {
-    const fixture = join(fixtureRoot, "computed-persistence.ts");
-    expect(graph.referencesElementProperty(fixture, ["globalThis", "window"], "localStorage")).toBe(true);
-    expect(graph.referencesElementProperty(fixture, ["globalThis", "window"], "sessionStorage")).toBe(true);
-    expect(graph.referencesElementProperty(fixture, ["document"], "cookie")).toBe(true);
+    const fixture = join(FIXTURE_ROOT, "computed-persistence.ts");
+    expect(GRAPH.referencesElementProperty(fixture, ["globalThis", "window"], "localStorage")).toBe(true);
+    expect(GRAPH.referencesElementProperty(fixture, ["globalThis", "window"], "sessionStorage")).toBe(true);
+    expect(GRAPH.referencesElementProperty(fixture, ["document"], "cookie")).toBe(true);
   });
 });
 
@@ -131,15 +131,15 @@ describe("architecture policy", () => {
 
   it("gives every role rule a unique stable ID", () => {
     const ids = [
-      ...browserRoleRules.map((rule) => rule.id),
-      ...serverRoleRules.map((rule) => rule.id),
-      appServerEntryRule.id,
+      ...BROWSER_ROLE_RULES.map((rule) => rule.id),
+      ...SERVER_ROLE_RULES.map((rule) => rule.id),
+      APP_SERVER_ENTRY_RULE.id,
     ];
     expect(new Set(ids).size).toBe(ids.length);
   });
 
   it("pins the server role dependency matrix", () => {
-    expect(serverRoleRules.map((rule) => ({
+    expect(SERVER_ROLE_RULES.map((rule) => ({
       id: rule.id,
       forbiddenRoles: rule.forbiddenRoles,
       forbiddenRoots: rule.forbiddenRoots,
@@ -167,7 +167,7 @@ describe("architecture policy", () => {
   });
 
   it("pins the security-relevant browser role dependency matrix", () => {
-    expect(browserRoleRules.map((rule) => ({
+    expect(BROWSER_ROLE_RULES.map((rule) => ({
       id: rule.id,
       forbiddenRoles: rule.forbiddenRoles,
       forbiddenRoots: rule.forbiddenRoots,
@@ -213,13 +213,13 @@ describe("architecture policy", () => {
     ["browser-adapter-inward", "server-only"],
     ["browser-composition-runtime", "@/server/config"],
   ])("generates direct-import enforcement for %s", (ruleId, forbiddenImport) => {
-    const rule = browserRoleRules.find((candidate) => candidate.id === ruleId);
+    const rule = BROWSER_ROLE_RULES.find((candidate) => candidate.id === ruleId);
     expect(rule).toBeDefined();
     expect(new RegExp(restrictedImportRegexForRoleRule(rule), "u").test(forbiddenImport)).toBe(true);
   });
 
   it("allows browser application modules to import adapters", () => {
-    const rule = browserRoleRules.find((candidate) => candidate.id === "browser-application-inward");
+    const rule = BROWSER_ROLE_RULES.find((candidate) => candidate.id === "browser-application-inward");
     expect(rule).toBeDefined();
     const restricted = new RegExp(restrictedImportRegexForRoleRule(rule), "u");
 
@@ -227,7 +227,7 @@ describe("architecture policy", () => {
   });
 
   it("matches forbidden roots exactly instead of matching unrelated config segments", () => {
-    const rule = serverRoleRules.find((candidate) => candidate.id === "server-application-inward");
+    const rule = SERVER_ROLE_RULES.find((candidate) => candidate.id === "server-application-inward");
     expect(rule).toBeDefined();
     const restricted = new RegExp(restrictedImportRegexForRoleRule(rule), "u");
 
@@ -238,7 +238,7 @@ describe("architecture policy", () => {
   });
 
   it("restricts direct app imports of server adapters only", () => {
-    const restricted = new RegExp(restrictedServerImportRegexForAppRule(appServerEntryRule), "u");
+    const restricted = new RegExp(restrictedServerImportRegexForAppRule(APP_SERVER_ENTRY_RULE), "u");
 
     expect(restricted.test("@/server/wrapping-key/google/adapters/googleIdTokenVerifier")).toBe(true);
     expect(restricted.test("../../../../server/wrapping-key/google/adapters/googleIdTokenVerifier")).toBe(true);
@@ -252,7 +252,7 @@ describe("architecture policy", () => {
     ["server-adapter-inward", "../composition/runtime"],
     ["server-composition-runtime", "@/browser/identity"],
   ])("generates server direct-import enforcement for %s", (ruleId, forbiddenImport) => {
-    const rule = serverRoleRules.find((candidate) => candidate.id === ruleId);
+    const rule = SERVER_ROLE_RULES.find((candidate) => candidate.id === ruleId);
     expect(rule).toBeDefined();
     expect(new RegExp(restrictedImportRegexForRoleRule(rule), "u").test(forbiddenImport)).toBe(true);
   });

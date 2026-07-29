@@ -10,7 +10,7 @@ export type LogSink = Record<LogLevel, (message: string) => void>;
 
 export type Logger = Record<LogLevel, (event: string, fields?: LogFields) => void>;
 
-const consoleSink: LogSink = {
+const CONSOLE_SINK: LogSink = {
   debug(message) {
     console.debug(message);
   },
@@ -25,7 +25,7 @@ const consoleSink: LogSink = {
   },
 };
 
-export function createLogger(sink: LogSink = consoleSink): Logger {
+export function createLogger(sink: LogSink = CONSOLE_SINK): Logger {
   return {
     debug(event, fields) {
       writeLog(sink, "debug", event, fields);
@@ -42,7 +42,7 @@ export function createLogger(sink: LogSink = consoleSink): Logger {
   };
 }
 
-export const logger = createLogger();
+export const LOGGER = createLogger();
 
 function writeLog(sink: LogSink, level: LogLevel, event: string, fields: LogFields | undefined): void {
   sink[level](redactForLog(formatLogLine(level, event, fields)));

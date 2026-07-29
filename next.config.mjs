@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const baselineSecurityHeaders = [
+const BASELINE_SECURITY_HEADERS = [
   {
     key: "X-Content-Type-Options",
     value: "nosniff",
@@ -33,7 +33,7 @@ const baselineSecurityHeaders = [
   },
 ];
 
-const authorizeTransportHeaders = [
+const AUTHORIZE_TRANSPORT_HEADERS = [
   {
     key: "Cache-Control",
     value: "no-store",
@@ -45,7 +45,7 @@ const authorizeTransportHeaders = [
 ];
 
 /** @type {import('next').NextConfig} */
-const nextConfig = {
+const NEXT_CONFIG = {
   devIndicators: false,
   outputFileTracingRoot: __dirname,
   serverExternalPackages: ["@synonymdev/pubky"],
@@ -53,18 +53,18 @@ const nextConfig = {
     return [
       {
         source: "/:path*",
-        headers: baselineSecurityHeaders,
+        headers: BASELINE_SECURITY_HEADERS,
       },
       {
         source: "/authorize",
-        headers: authorizeTransportHeaders,
+        headers: AUTHORIZE_TRANSPORT_HEADERS,
       },
       {
         source: "/authorize/:path*",
-        headers: authorizeTransportHeaders,
+        headers: AUTHORIZE_TRANSPORT_HEADERS,
       },
     ];
   },
 };
 
-export default nextConfig;
+export default NEXT_CONFIG;

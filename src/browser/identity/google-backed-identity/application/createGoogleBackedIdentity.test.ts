@@ -5,7 +5,7 @@ import { FakePubkyDiscovery } from "../../../../../test-utils/fakes/fakePubkyDis
 import { FakePubkyIdentityKeys } from "../../../../../test-utils/fakes/fakePubkyIdentityKeys";
 import { FakePubkySessionAccess } from "../../../../../test-utils/fakes/fakePubkySessionAccess";
 import {
-  fakeSignupInvitation,
+  FAKE_SIGNUP_INVITATION,
   FakeLocalIdentitySaver,
   FakePassportCrypto,
   FakePassportFileStore,
@@ -189,7 +189,7 @@ function createSetup(input: {
 
 function executionInput(fileStore: FakePassportFileStore) {
   return {
-    invitation: fakeSignupInvitation,
+    invitation: FAKE_SIGNUP_INVITATION,
     passportFileStore: fileStore,
     wrappingKey: "w".repeat(43),
   };

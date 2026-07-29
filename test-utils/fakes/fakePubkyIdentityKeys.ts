@@ -1,8 +1,8 @@
 import { Result } from "better-result";
 
 import {
-  pubkySecretKeyBytes,
-  pubkySecretKeyFormat,
+  PUBKY_SECRET_KEY_BYTES,
+  PUBKY_SECRET_KEY_FORMAT,
   type PubkyIdentityKeys,
   type PubkyIdentityKeysErrorCode,
   type PubkyIdentityKeysResult,
@@ -39,8 +39,8 @@ export class FakePubkyIdentityKeys implements PubkyIdentityKeys {
   };
 
   secretKey: PubkySecretKeyMaterial = {
-    bytes: new Uint8Array(Array.from({ length: pubkySecretKeyBytes }, (_, index) => index + 1)),
-    format: pubkySecretKeyFormat,
+    bytes: new Uint8Array(Array.from({ length: PUBKY_SECRET_KEY_BYTES }, (_, index) => index + 1)),
+    format: PUBKY_SECRET_KEY_FORMAT,
   };
 
   readonly #identities = new Map<PubkyIdentityKeyHandle, PubkyPublicIdentity>();

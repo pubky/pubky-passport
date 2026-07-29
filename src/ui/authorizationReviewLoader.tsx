@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 
-export const AuthorizationReviewLoader = dynamic(
+export const AUTHORIZATION_REVIEW_LOADER = dynamic(
   () => import("./authorizationReview").then((module) => module.AuthorizationReview),
   {
     ssr: false,

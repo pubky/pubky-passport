@@ -2,8 +2,8 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { pubkySecretKeyFormat, type PubkyIdentityKey, type PubkyIdentityKeys } from "../../../pubky/application/pubkyIdentityKeys";
-import { logger } from "../../../../libs/logger/logger";
+import { PUBKY_SECRET_KEY_FORMAT, type PubkyIdentityKey, type PubkyIdentityKeys } from "../../../pubky/application/pubkyIdentityKeys";
+import { LOGGER } from "../../../../libs/logger/logger";
 import type { PassportFileCrypto } from "../../../passport-file/application/passportFileCrypto";
 import type { PubkySessionAccess } from "../../../pubky/application/pubkySessionAccess";
 import type {
@@ -37,47 +37,47 @@ export class RestoreGoogleBackedIdentity implements GoogleBackedIdentityRestorer
   async execute(
     input: Parameters<GoogleBackedIdentityRestorer["execute"]>[0],
   ): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>> {
-    logger.info("identity.google.decrypt.started");
+    LOGGER.info("identity.google.decrypt.started");
     const secretKey = await this.#crypto.decryptSecretKeyBytes({
       envelope: input.envelope,
       wrappingKey: input.wrappingKey,
       passportOrigin: this.#passportOrigin,
     });
     if (Result.isError(secretKey)) {
-      logger.warn("identity.google.decrypt.failed", { code: secretKey.error.code });
+      LOGGER.warn("identity.google.decrypt.failed", { code: secretKey.error.code });
       return failure("decrypt_failed");
     }
 
     let restoredIdentity: PubkyIdentityKey | null = null;
     try {
       const restored = await this.#identityKeys.restoreIdentityKey({
-        secretKey: { bytes: secretKey.value, format: pubkySecretKeyFormat },
+        secretKey: { bytes: secretKey.value, format: PUBKY_SECRET_KEY_FORMAT },
       });
       if (Result.isError(restored)) {
-        logger.warn("identity.google.restore.failed", { code: restored.error.code });
+        LOGGER.warn("identity.google.restore.failed", { code: restored.error.code });
         return failure("restore_failed");
       }
       restoredIdentity = restored.value;
-      logger.info("identity.google.restore.completed");
+      LOGGER.info("identity.google.restore.completed");
 
       const signedIn = await this.#sessionAccess.signin({ keyHandle: restored.value.keyHandle, waitForDiscovery: true });
       if (Result.isError(signedIn)) {
-        logger.warn("identity.google.signin.failed", { code: signedIn.error.code });
+        LOGGER.warn("identity.google.signin.failed", { code: signedIn.error.code });
         return failure("signin_failed", restored.value.publicIdentity);
       }
       if (signedIn.value.publicIdentity.publicKeyZ32 !== restored.value.publicIdentity.publicKeyZ32) {
-        logger.warn("identity.google.activation_identity.failed");
+        LOGGER.warn("identity.google.activation_identity.failed");
         return failure("identity_mismatch", restored.value.publicIdentity);
       }
 
-      logger.info("identity.local_save.started", { source: "restored" });
+      LOGGER.info("identity.local_save.started", { source: "restored" });
       const saved = await this.#localIdentities.saveIdentity({ keyHandle: restored.value.keyHandle });
       if (Result.isError(saved)) {
-        logger.warn("identity.local_save.failed", { code: saved.error.code });
+        LOGGER.warn("identity.local_save.failed", { code: saved.error.code });
         return failure("local_save_failed", restored.value.publicIdentity);
       }
 
-      logger.info("identity.local_save.completed", { source: "restored" });
+      LOGGER.info("identity.local_save.completed", { source: "restored" });
       return Result.ok({
         source: "restored" as const,
         publicIdentity: restored.value.publicIdentity,
@@ -88,7 +88,7 @@ export class RestoreGoogleBackedIdentity implements GoogleBackedIdentityRestorer
         try {
           this.#identityKeys.disposeIdentityKey({ keyHandle: restoredIdentity.keyHandle });
         } catch {
-          logger.warn("identity.google.cleanup.failed", { operation: "restored_key_dispose" });
+          LOGGER.warn("identity.google.cleanup.failed", { operation: "restored_key_dispose" });
         }
       }
     }

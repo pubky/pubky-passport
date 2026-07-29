@@ -14,11 +14,11 @@ export type GoogleWrappingKeyServerConfig = {
   PASSPORT_SERVER_SECRET_BASE64: string;
 };
 
-const requiredStringSchema = (name: string) =>
+const REQUIRED_STRING_SCHEMA = (name: string) =>
   z.string().trim().min(1, `${name} is required`);
 
 function serverSecretSchema() {
-  return requiredStringSchema("PASSPORT_SERVER_SECRET_BASE64").superRefine((value, context) => {
+  return REQUIRED_STRING_SCHEMA("PASSPORT_SERVER_SECRET_BASE64").superRefine((value, context) => {
     if (!isBase64(value)) {
       context.addIssue({
         code: "custom",

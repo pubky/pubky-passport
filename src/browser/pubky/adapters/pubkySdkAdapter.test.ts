@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
 import type { ValidatedSensitivePubkyAuthRequest } from "../../../core/auth/parsePubkyAuthRequest";
-import { pubkySecretKeyBytes, pubkySecretKeyFormat, type PubkyIdentityKeyHandle } from "../application/pubkyIdentityKeys";
+import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkyIdentityKeyHandle } from "../application/pubkyIdentityKeys";
 import { PubkySdkAdapter } from "./pubkySdkAdapter";
 
 describe("PubkySdkAdapter", () => {
@@ -29,12 +29,12 @@ describe("PubkySdkAdapter", () => {
       const created = expectOk(await pubky.createIdentityKey());
       const exported = expectOk(await pubky.exportSecretKey({ keyHandle: created.keyHandle }));
 
-      expect(exported.format).toBe(pubkySecretKeyFormat);
-      expect(exported.bytes).toHaveLength(pubkySecretKeyBytes);
+      expect(exported.format).toBe(PUBKY_SECRET_KEY_FORMAT);
+      expect(exported.bytes).toHaveLength(PUBKY_SECRET_KEY_BYTES);
 
       const restored = expectOk(await pubky.restoreIdentityKey({ secretKey: exported }));
 
-      expect(exported.bytes).toEqual(new Uint8Array(pubkySecretKeyBytes));
+      expect(exported.bytes).toEqual(new Uint8Array(PUBKY_SECRET_KEY_BYTES));
       expect(restored.publicIdentity).toEqual(created.publicIdentity);
     } finally {
       pubky.dispose();
@@ -43,14 +43,14 @@ describe("PubkySdkAdapter", () => {
 
   it("rejects and clears invalid key material before restoration", async () => {
     const pubky = new PubkySdkAdapter();
-    const bytes = new Uint8Array(pubkySecretKeyBytes - 1).fill(7);
+    const bytes = new Uint8Array(PUBKY_SECRET_KEY_BYTES - 1).fill(7);
 
     try {
       await expectError(
-        pubky.restoreIdentityKey({ secretKey: { bytes, format: pubkySecretKeyFormat } }),
+        pubky.restoreIdentityKey({ secretKey: { bytes, format: PUBKY_SECRET_KEY_FORMAT } }),
         "invalid_secret_key",
       );
-      expect(bytes).toEqual(new Uint8Array(pubkySecretKeyBytes - 1));
+      expect(bytes).toEqual(new Uint8Array(PUBKY_SECRET_KEY_BYTES - 1));
     } finally {
       pubky.dispose();
     }

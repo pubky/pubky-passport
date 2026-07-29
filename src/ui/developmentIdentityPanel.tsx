@@ -10,7 +10,7 @@ import type {
 } from "../browser/identity/browserIdentityController";
 import { createBrowserIdentityController } from "../browser/identity/createBrowserIdentityController";
 import type { PubkyPublicIdentity } from "../core/identity/pubkyIdentity";
-import { logger } from "../libs/logger/logger";
+import { LOGGER } from "../libs/logger/logger";
 import { GoogleSignInButton } from "./googleSignInButton";
 
 type GoogleAction = "add" | "delete-selected" | "delete-failed" | null;
@@ -45,7 +45,7 @@ export function DevelopmentIdentityPanel({
         unsubscribe = controller.current.subscribe(() => refreshIdentities());
         refreshIdentities();
       } catch {
-        logger.warn("identity.pubky.initialize.failed");
+        LOGGER.warn("identity.pubky.initialize.failed");
         setMessage("Could not initialize Pubky in this browser.");
       }
     });
@@ -84,7 +84,7 @@ export function DevelopmentIdentityPanel({
 
   function completeGoogleAction(result: BrowserIdentityActionResult): void {
     if (Result.isError(result)) {
-      logger.warn("identity.google.action.failed", { code: result.error.code });
+      LOGGER.warn("identity.google.action.failed", { code: result.error.code });
       setRecoverableDriveIdentity(result.error.recoverablePublicIdentity ?? null);
       setMessage(messageForGoogleFailure(result.error.code));
     } else if (result.value.kind === "established") {

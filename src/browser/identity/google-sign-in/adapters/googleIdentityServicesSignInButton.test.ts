@@ -12,7 +12,7 @@ import {
   releaseGoogleCredentialCallback,
 } from "./googleIdentityServicesSignInButton";
 
-const maximumGoogleIdTokenCharacters = 16 * 1024 - '{"googleIdToken":""}'.length;
+const MAXIMUM_GOOGLE_ID_TOKEN_CHARACTERS = 16 * 1024 - '{"googleIdToken":""}'.length;
 
 describe("Google credential callback ownership", () => {
   it("keeps one live owner and never dispatches to a rejected binding", () => {
@@ -65,7 +65,7 @@ describe("readUnverifiedGoogleIdTokenSubject", () => {
   it("rejects oversized tokens and decoded payloads", () => {
     const oversizedPayload = encodeBase64Url(new Uint8Array(8 * 1024 + 1));
 
-    expect(readUnverifiedGoogleIdTokenSubject("a".repeat(maximumGoogleIdTokenCharacters + 1))).toBeUndefined();
+    expect(readUnverifiedGoogleIdTokenSubject("a".repeat(MAXIMUM_GOOGLE_ID_TOKEN_CHARACTERS + 1))).toBeUndefined();
     expect(readUnverifiedGoogleIdTokenSubject(`header.${oversizedPayload}.signature`)).toBeUndefined();
   });
 
@@ -167,7 +167,7 @@ describe("GoogleIdentityServicesSignInButton", () => {
     });
     await widget.mount({ target: document.createElement("div"), onCredential });
 
-    providerCallback?.({ credential: "a".repeat(maximumGoogleIdTokenCharacters + 1) });
+    providerCallback?.({ credential: "a".repeat(MAXIMUM_GOOGLE_ID_TOKEN_CHARACTERS + 1) });
 
     expect(readUnverifiedGoogleIdTokenSubject).not.toHaveBeenCalled();
     const credentialResult = onCredential.mock.calls[0]?.[0];

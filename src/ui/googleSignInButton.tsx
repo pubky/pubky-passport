@@ -10,7 +10,7 @@ import type {
   GoogleSignInState,
 } from "../browser/identity/browserIdentityController";
 
-const googleSignInErrorMessages: Record<GoogleSignInErrorCode, string> = {
+const GOOGLE_SIGN_IN_ERROR_MESSAGES: Record<GoogleSignInErrorCode, string> = {
   sign_in_unavailable: "Google sign-in is unavailable. Try again.",
   sign_in_failed: "Google sign-in did not return an identity. Try again.",
   drive_consent_failed: "Google Drive permission was not granted. Try again.",
@@ -66,7 +66,7 @@ export function GoogleSignInButton({
       {!disabled && state.stage === "drive" ? (
         <button className="rounded border px-3 py-2" onClick={() => void continueWithGoogle()} type="button">Allow Drive access</button>
       ) : null}
-      {!disabled && state.stage === "sign-in" && state.errorCode ? <p className="text-sm text-red-700" role="alert">{googleSignInErrorMessages[state.errorCode]}</p> : null}
+      {!disabled && state.stage === "sign-in" && state.errorCode ? <p className="text-sm text-red-700" role="alert">{GOOGLE_SIGN_IN_ERROR_MESSAGES[state.errorCode]}</p> : null}
       {!disabled && state.stage === "sign-in" && state.errorCode ? (
         <button className="rounded border px-3 py-2" onClick={() => controller.retryGoogleSignIn()} type="button">Try again</button>
       ) : null}

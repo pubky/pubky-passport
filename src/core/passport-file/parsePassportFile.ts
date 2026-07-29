@@ -22,12 +22,12 @@ export type PassportFileParseResult = ResultType<PassportFileEnvelopeV1, Passpor
 
 export type PassportFileOriginResult = ResultType<string, { code: "invalid_field"; field: "url" }>;
 
-const base64UrlPattern = /^[A-Za-z0-9_-]+$/;
-const passportFileEnvelopeSchema = z
+const BASE64_URL_PATTERN = /^[A-Za-z0-9_-]+$/;
+const PASSPORT_FILE_ENVELOPE_SCHEMA = z
   .object({
     v: z.number(),
-    iv: z.string().regex(base64UrlPattern),
-    ct: z.string().regex(base64UrlPattern),
+    iv: z.string().regex(BASE64_URL_PATTERN),
+    ct: z.string().regex(BASE64_URL_PATTERN),
     url: z.string(),
   })
   .strict();
@@ -52,7 +52,7 @@ export function parsePassportFileEnvelope(input: unknown): PassportFileParseResu
     return error("invalid_shape");
   }
 
-  const parsed = passportFileEnvelopeSchema.safeParse(input);
+  const parsed = PASSPORT_FILE_ENVELOPE_SCHEMA.safeParse(input);
   if (!parsed.success) {
     if (parsed.error.issues.some((issue) => issue.code === "unrecognized_keys")) {
       return error("unknown_field");
@@ -62,7 +62,7 @@ export function parsePassportFileEnvelope(input: unknown): PassportFileParseResu
       .map((issue) => issue.path[0])
       .find(
         (value): value is PassportFileField =>
-          typeof value === "string" && Object.hasOwn(passportFileEnvelopeSchema.shape, value),
+          typeof value === "string" && Object.hasOwn(PASSPORT_FILE_ENVELOPE_SCHEMA.shape, value),
       );
     if (!field) {
       return error("invalid_shape");

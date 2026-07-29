@@ -3,7 +3,7 @@ import "client-only";
 import { Result } from "better-result";
 
 import { parsePubkyAuthRequest } from "../../core/auth/parsePubkyAuthRequest";
-import { pubkyAuthRequestLimits } from "../../core/auth/pubkyAuthRequestLimits";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "../../core/auth/pubkyAuthRequestLimits";
 import type {
   BrowserManualAuthorizationController,
   ManualAuthorizationEntryResult,
@@ -13,7 +13,7 @@ export class PassportManualAuthorizationController implements BrowserManualAutho
   constructor(private readonly navigate: (url: string) => void) {}
 
   enter(rawRequest: string): ManualAuthorizationEntryResult {
-    if (rawRequest.length > pubkyAuthRequestLimits.decodedAuthUrlLength) {
+    if (rawRequest.length > PUBKY_AUTH_REQUEST_LIMITS.decodedAuthUrlLength) {
       return "invalid";
     }
 

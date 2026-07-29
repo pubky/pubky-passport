@@ -8,16 +8,16 @@ import {
   type PassportFileCreateLockManager,
 } from "./googleDrivePassportFileStore";
 
-const accessToken = "test-drive-access-token";
-const envelope: PassportFileEnvelopeV1 = {
+const ACCESS_TOKEN = "test-drive-access-token";
+const ENVELOPE: PassportFileEnvelopeV1 = {
   v: 1,
   iv: "iv_value",
   ct: "ct_value",
   url: "https://passport.pubky.app",
 };
-const reference = { storageId: "file-1", revision: "7" };
-const listedFile = { id: "file-1", name: "passport.json", version: "7" };
-const exactFile = { ...listedFile, trashed: false };
+const REFERENCE = { storageId: "file-1", revision: "7" };
+const LISTED_FILE = { id: "file-1", name: "passport.json", version: "7" };
+const EXACT_FILE = { ...LISTED_FILE, trashed: false };
 
 type FetchCall = {
   url: string;
@@ -106,7 +106,7 @@ function createStore(
   }) as typeof fetch;
 
   const store = new GoogleDrivePassportFileStore({
-    accessTokenProvider: async () => accessToken,
+    accessTokenProvider: async () => ACCESS_TOKEN,
     fetch: fetchMock,
     ...options,
   });
@@ -115,7 +115,7 @@ function createStore(
 }
 
 function expectAuthorizationHeader(call: FetchCall): void {
-  expect(call.init.headers).toMatchObject({ Authorization: "Bearer " + accessToken });
+  expect(call.init.headers).toMatchObject({ Authorization: "Bearer " + ACCESS_TOKEN });
 }
 
 function expectCall(calls: FetchCall[], index: number): FetchCall {
@@ -151,12 +151,12 @@ describe("GoogleDrivePassportFileStore", () => {
 
   it("reads and parses an encrypted v1 envelope from Drive media", async () => {
     const { store, calls } = createStore([
-      jsonResponse({ files: [listedFile] }),
-      textResponse(JSON.stringify(envelope)),
-      jsonResponse(exactFile),
+      jsonResponse({ files: [LISTED_FILE] }),
+      textResponse(JSON.stringify(ENVELOPE)),
+      jsonResponse(EXACT_FILE),
     ]);
 
-    await expectSuccess(store.readPassportFile(), { status: "found", envelope, reference });
+    await expectSuccess(store.readPassportFile(), { status: "found", envelope: ENVELOPE, reference: REFERENCE });
 
     expect(calls).toHaveLength(3);
     const mediaCall = expectCall(calls, 1);
@@ -168,8 +168,8 @@ describe("GoogleDrivePassportFileStore", () => {
 
   it("maps malformed Drive envelope contents to a safe invalid_file error", async () => {
     const { store } = createStore([
-      jsonResponse({ files: [listedFile] }),
-      textResponse(JSON.stringify({ ...envelope, secret: "do-not-return" })),
+      jsonResponse({ files: [LISTED_FILE] }),
+      textResponse(JSON.stringify({ ...ENVELOPE, secret: "do-not-return" })),
     ]);
 
     const result = await store.readPassportFile();
@@ -184,7 +184,7 @@ describe("GoogleDrivePassportFileStore", () => {
   it("rejects an oversized Drive media response before reading it", async () => {
     const cancel = vi.fn();
     const { store } = createStore([
-      jsonResponse({ files: [listedFile] }),
+      jsonResponse({ files: [LISTED_FILE] }),
       oversizedMediaResponse(cancel),
     ]);
 
@@ -211,7 +211,7 @@ describe("GoogleDrivePassportFileStore", () => {
   it("rejects streamed Drive media that exceeds the size limit", async () => {
     const cancel = vi.fn();
     const { store } = createStore([
-      jsonResponse({ files: [listedFile] }),
+      jsonResponse({ files: [LISTED_FILE] }),
       streamResponse([new Uint8Array(16 * 1024), new Uint8Array(1)], cancel),
     ]);
 
@@ -246,13 +246,13 @@ describe("GoogleDrivePassportFileStore", () => {
     await expectFailure(createStore([
       jsonResponse({
         files: [
-          listedFile,
+          LISTED_FILE,
           { id: "file-2", name: "passport.json", version: "1" },
         ],
       }),
     ]).store.readPassportFile(), "duplicate_files");
 
-    await expectFailure(createStore([jsonResponse({ files: [listedFile], nextPageToken: "more" })]).store.readPassportFile(), "duplicate_files");
+    await expectFailure(createStore([jsonResponse({ files: [LISTED_FILE], nextPageToken: "more" })]).store.readPassportFile(), "duplicate_files");
   });
 
   it("rejects a Drive list response for a different file", async () => {
@@ -265,7 +265,7 @@ describe("GoogleDrivePassportFileStore", () => {
 
   it("returns stale_file when a listed file disappears before media read", async () => {
     const { store } = createStore([
-      jsonResponse({ files: [listedFile] }),
+      jsonResponse({ files: [LISTED_FILE] }),
       textResponse("not found", 404),
     ]);
 
@@ -273,13 +273,13 @@ describe("GoogleDrivePassportFileStore", () => {
   });
 
   it.each([
-    ["version", { ...exactFile, version: "8" }],
-    ["name", { ...exactFile, name: "renamed.json" }],
-    ["trashed", { ...exactFile, trashed: true }],
+    ["version", { ...EXACT_FILE, version: "8" }],
+    ["name", { ...EXACT_FILE, name: "renamed.json" }],
+    ["trashed", { ...EXACT_FILE, trashed: true }],
   ])("returns stale_file when exact metadata changes by %s after media read", async (_field, metadata) => {
     const { store } = createStore([
-      jsonResponse({ files: [listedFile] }),
-      textResponse(JSON.stringify(envelope)),
+      jsonResponse({ files: [LISTED_FILE] }),
+      textResponse(JSON.stringify(ENVELOPE)),
       jsonResponse(metadata),
     ]);
 
@@ -292,8 +292,8 @@ describe("GoogleDrivePassportFileStore", () => {
     ]).store.readPassportFile(), "invalid_response");
 
     await expectFailure(createStore([
-      jsonResponse({ files: [listedFile] }),
-      textResponse(JSON.stringify(envelope)),
+      jsonResponse({ files: [LISTED_FILE] }),
+      textResponse(JSON.stringify(ENVELOPE)),
       jsonResponse({ id: "file-1", name: "passport.json", trashed: false }),
     ]).store.readPassportFile(), "invalid_response");
   });
@@ -306,7 +306,7 @@ describe("GoogleDrivePassportFileStore", () => {
       jsonResponse({ files: [created] }),
     ]);
 
-    await expectSuccess(store.createPassportFile({ envelope }), { storageId: "created", revision: "1" });
+    await expectSuccess(store.createPassportFile({ envelope: ENVELOPE }), { storageId: "created", revision: "1" });
 
     expect(calls).toHaveLength(3);
     const createCall = expectCall(calls, 1);
@@ -320,7 +320,7 @@ describe("GoogleDrivePassportFileStore", () => {
 
     const body = String(createCall.init.body);
     expect(body).toContain(JSON.stringify({ name: "passport.json", parents: ["appDataFolder"] }));
-    expect(body).toContain(JSON.stringify(envelope));
+    expect(body).toContain(JSON.stringify(ENVELOPE));
     expect(body).not.toContain("secretKeyBytes");
     expect(body).not.toContain("wrappingKey");
   });
@@ -342,13 +342,13 @@ describe("GoogleDrivePassportFileStore", () => {
       return jsonResponse({ files: stored ? [created] : [] });
     }) as typeof fetch;
     const createLockedStore = () => new GoogleDrivePassportFileStore({
-      accessTokenProvider: async () => accessToken,
+      accessTokenProvider: async () => ACCESS_TOKEN,
       fetch: fetchMock,
       lockManager,
     });
 
-    const firstCreate = createLockedStore().createPassportFile({ envelope });
-    const secondCreate = createLockedStore().createPassportFile({ envelope });
+    const firstCreate = createLockedStore().createPassportFile({ envelope: ENVELOPE });
+    const secondCreate = createLockedStore().createPassportFile({ envelope: ENVELOPE });
     const [first, second] = await Promise.all([firstCreate, secondCreate]);
 
     expect(expectResultOk(first)).toEqual({ storageId: "created", revision: "1" });
@@ -368,14 +368,14 @@ describe("GoogleDrivePassportFileStore", () => {
       jsonResponse({ files: [created] }),
     ], { lockManager: null });
 
-    await expectSuccess(store.createPassportFile({ envelope }), { storageId: "created", revision: "1" });
+    await expectSuccess(store.createPassportFile({ envelope: ENVELOPE }), { storageId: "created", revision: "1" });
     expect(calls).toHaveLength(3);
   });
 
   it("rejects create when passport.json already exists without PATCHing it", async () => {
-    const { store, calls } = createStore([jsonResponse({ files: [listedFile] })]);
+    const { store, calls } = createStore([jsonResponse({ files: [LISTED_FILE] })]);
 
-    await expectFailure(store.createPassportFile({ envelope }), "create_conflict");
+    await expectFailure(store.createPassportFile({ envelope: ENVELOPE }), "create_conflict");
 
     expect(calls).toHaveLength(1);
     expect(calls.some((call) => call.init.method === "PATCH")).toBe(false);
@@ -383,10 +383,10 @@ describe("GoogleDrivePassportFileStore", () => {
 
   it("maps duplicate files found before create to create_conflict", async () => {
     const { store, calls } = createStore([jsonResponse({
-      files: [listedFile, { ...listedFile, id: "file-2" }],
+      files: [LISTED_FILE, { ...LISTED_FILE, id: "file-2" }],
     })]);
 
-    await expectFailure(store.createPassportFile({ envelope }), "create_conflict");
+    await expectFailure(store.createPassportFile({ envelope: ENVELOPE }), "create_conflict");
     expect(calls).toHaveLength(1);
   });
 
@@ -395,20 +395,20 @@ describe("GoogleDrivePassportFileStore", () => {
     const { store, calls } = createStore([
       jsonResponse({ files: [] }),
       jsonResponse(created),
-      jsonResponse({ files: [created, { ...listedFile, id: "racing-create" }] }),
+      jsonResponse({ files: [created, { ...LISTED_FILE, id: "racing-create" }] }),
     ]);
 
-    await expectFailure(store.createPassportFile({ envelope }), "create_conflict");
+    await expectFailure(store.createPassportFile({ envelope: ENVELOPE }), "create_conflict");
     expect(calls.some((call) => call.init.method === "PATCH")).toBe(false);
   });
 
   it("revalidates and deletes the exact referenced passport file", async () => {
     const { store, calls } = createStore([
-      jsonResponse(exactFile),
+      jsonResponse(EXACT_FILE),
       new Response(null, { status: 204 }),
     ]);
 
-    await expectSuccess(store.deletePassportFile({ reference }), undefined);
+    await expectSuccess(store.deletePassportFile({ reference: REFERENCE }), undefined);
 
     expect(calls).toHaveLength(2);
     const deleteCall = expectCall(calls, 1);
@@ -420,36 +420,36 @@ describe("GoogleDrivePassportFileStore", () => {
   it("treats an exact referenced file 404 as idempotent deletion", async () => {
     const { store, calls } = createStore([new Response(null, { status: 404 })]);
 
-    await expectSuccess(store.deletePassportFile({ reference }), undefined);
+    await expectSuccess(store.deletePassportFile({ reference: REFERENCE }), undefined);
     expect(calls).toHaveLength(1);
     expect(calls[0]?.url).toContain("/files/file-1?");
   });
 
   it("treats a delete 404 after exact metadata validation as idempotent", async () => {
     const { store, calls } = createStore([
-      jsonResponse(exactFile),
+      jsonResponse(EXACT_FILE),
       new Response(null, { status: 404 }),
     ]);
 
-    await expectSuccess(store.deletePassportFile({ reference }), undefined);
+    await expectSuccess(store.deletePassportFile({ reference: REFERENCE }), undefined);
     expect(calls).toHaveLength(2);
     expect(calls[1]?.init.method).toBe("DELETE");
   });
 
   it.each([
-    ["version", { ...exactFile, version: "8" }],
-    ["name", { ...exactFile, name: "renamed.json" }],
-    ["trashed", { ...exactFile, trashed: true }],
+    ["version", { ...EXACT_FILE, version: "8" }],
+    ["name", { ...EXACT_FILE, name: "renamed.json" }],
+    ["trashed", { ...EXACT_FILE, trashed: true }],
   ])("rejects deletion when exact metadata has stale %s", async (_field, metadata) => {
     const { store, calls } = createStore([jsonResponse(metadata)]);
 
-    await expectFailure(store.deletePassportFile({ reference }), "stale_file");
+    await expectFailure(store.deletePassportFile({ reference: REFERENCE }), "stale_file");
     expect(calls).toHaveLength(1);
     expect(calls[0]?.init.method).toBeUndefined();
   });
 
   it("serializes outbound envelopes through parser normalization", async () => {
-    const rootPathEnvelope = { ...envelope, url: "https://passport.pubky.app/" };
+    const rootPathEnvelope = { ...ENVELOPE, url: "https://passport.pubky.app/" };
     const created = { id: "created", name: "passport.json", version: "1" };
     const { store, calls } = createStore([
       jsonResponse({ files: [] }),
@@ -467,7 +467,7 @@ describe("GoogleDrivePassportFileStore", () => {
   it("rejects invalid outbound envelopes without writing", async () => {
     const { store, calls } = createStore([jsonResponse({ files: [] })]);
 
-    await expectFailure(store.createPassportFile({ envelope: { ...envelope, url: "https://passport.pubky.app/path" } }), "invalid_file");
+    await expectFailure(store.createPassportFile({ envelope: { ...ENVELOPE, url: "https://passport.pubky.app/path" } }), "invalid_file");
     expect(calls).toHaveLength(0);
   });
 
@@ -477,7 +477,7 @@ describe("GoogleDrivePassportFileStore", () => {
       jsonResponse({ error: "google raw error with token-ish details" }, 500),
     ]);
 
-    const result = await store.createPassportFile({ envelope });
+    const result = await store.createPassportFile({ envelope: ENVELOPE });
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) {

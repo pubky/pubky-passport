@@ -1,1 +1,1 @@
-export const fixtureValue = "server";
+export const FIXTURE_VALUE = "server";

@@ -13,24 +13,24 @@ import type {
 } from "@/browser/passport-file/application/passportFileStore";
 import type { PassportFileEnvelopeV1 } from "@/core/passport-file/passportFile";
 
-export const fakePassportEnvelope: PassportFileEnvelopeV1 = {
+export const FAKE_PASSPORT_ENVELOPE: PassportFileEnvelopeV1 = {
   v: 1,
   iv: "a".repeat(16),
   ct: "b".repeat(64),
   url: "https://passport.pubky.app",
 };
 
-export const fakePassportReference: PassportFileReference = {
+export const FAKE_PASSPORT_REFERENCE: PassportFileReference = {
   storageId: "opaque-file-id",
   revision: "42",
 };
 
-export const fakeGoogleIdentitySession = {
+export const FAKE_GOOGLE_IDENTITY_SESSION = {
   googleIdToken: "id-token",
   driveAccessToken: "drive-token",
 };
 
-export const fakeSignupInvitation = {
+export const FAKE_SIGNUP_INVITATION = {
   signupCode: "homegate-signup-code",
   homeserverPubky: "homegate-homeserver",
 };
@@ -69,14 +69,14 @@ export class FakePassportFileStore implements PassportFileStore {
       ivCharacters: input.envelope.iv.length,
       ciphertextCharacters: input.envelope.ct.length,
     });
-    return this.createFailure ? Result.err({ code: this.createFailure }) : Result.ok(fakePassportReference);
+    return this.createFailure ? Result.err({ code: this.createFailure }) : Result.ok(FAKE_PASSPORT_REFERENCE);
   }
 
   async deletePassportFile(input: { reference: PassportFileReference }) {
     this.deleteCalls += 1;
     this.deletedExpectedReferences.push(
-      input.reference.storageId === fakePassportReference.storageId
-      && input.reference.revision === fakePassportReference.revision,
+      input.reference.storageId === FAKE_PASSPORT_REFERENCE.storageId
+      && input.reference.revision === FAKE_PASSPORT_REFERENCE.revision,
     );
     return this.deleteFailure ? Result.err({ code: this.deleteFailure }) : Result.ok();
   }
@@ -103,7 +103,7 @@ export class FakePassportCrypto implements PassportFileCrypto {
     this.#encryptedBytes = input.secretKeyBytes;
     if (this.throwOnEncrypt) throw new Error("encryption threw");
     if (this.encryptFailure) return Result.err({ code: "encrypt_failed" });
-    return Result.ok(fakePassportEnvelope);
+    return Result.ok(FAKE_PASSPORT_ENVELOPE);
   }
 
   encryptedInputIsZeroed(): boolean {

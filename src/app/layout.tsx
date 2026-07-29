@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import type { ReactNode } from "react";
 import "./globals.css";
 
-export const metadata: Metadata = {
+export const METADATA: Metadata = {
   title: "Pubky Passport",
   description: "Google-backed Pubky Passport authorization app.",
 };

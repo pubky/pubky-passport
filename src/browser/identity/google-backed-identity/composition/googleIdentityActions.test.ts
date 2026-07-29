@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { LocalIdentityKeyStore } from "../../local-identity/application/localIdentityRepository";
 
-const mocks = vi.hoisted(() => ({
+const MOCKS = vi.hoisted(() => ({
   PubkySdkAdapter: vi.fn(),
   pubky: { dispose: vi.fn() },
   WebCryptoPassportFileCrypto: vi.fn(),
@@ -24,39 +24,39 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../pubky/adapters/pubkySdkAdapter", () => ({
-  PubkySdkAdapter: mocks.PubkySdkAdapter,
+  PubkySdkAdapter: MOCKS.PubkySdkAdapter,
 }));
 
 vi.mock("../../../passport-file/adapters/webCryptoPassportFileCrypto", () => ({
-  WebCryptoPassportFileCrypto: mocks.WebCryptoPassportFileCrypto,
+  WebCryptoPassportFileCrypto: MOCKS.WebCryptoPassportFileCrypto,
 }));
 
 vi.mock("../../local-identity/application/saveLocalIdentity", () => ({
-  SaveLocalIdentity: mocks.SaveLocalIdentity,
+  SaveLocalIdentity: MOCKS.SaveLocalIdentity,
 }));
 
 vi.mock("../application/createGoogleBackedIdentity", () => ({
-  CreateGoogleBackedIdentity: mocks.CreateGoogleBackedIdentity,
+  CreateGoogleBackedIdentity: MOCKS.CreateGoogleBackedIdentity,
 }));
 
 vi.mock("../application/deleteGoogleDriveIdentity", () => ({
-  DeleteGoogleDriveIdentity: mocks.DeleteGoogleDriveIdentity,
+  DeleteGoogleDriveIdentity: MOCKS.DeleteGoogleDriveIdentity,
 }));
 
 vi.mock("../application/establishGoogleBackedIdentity", () => ({
-  EstablishGoogleBackedIdentity: mocks.EstablishGoogleBackedIdentity,
+  EstablishGoogleBackedIdentity: MOCKS.EstablishGoogleBackedIdentity,
 }));
 
 vi.mock("../application/restoreGoogleBackedIdentity", () => ({
-  RestoreGoogleBackedIdentity: mocks.RestoreGoogleBackedIdentity,
+  RestoreGoogleBackedIdentity: MOCKS.RestoreGoogleBackedIdentity,
 }));
 
 vi.mock("../../../homegate/adapters/homegateClient", () => ({
-  HomegateClient: mocks.HomegateClient,
+  HomegateClient: MOCKS.HomegateClient,
 }));
 
 vi.mock("../wrapping-key/adapters/googleWrappingKeyRequester", () => ({
-  BrowserGoogleWrappingKeyRequester: mocks.BrowserGoogleWrappingKeyRequester,
+  BrowserGoogleWrappingKeyRequester: MOCKS.BrowserGoogleWrappingKeyRequester,
 }));
 
 import { GoogleIdentityActions } from "./googleIdentityActions";
@@ -75,39 +75,39 @@ describe("GoogleIdentityActions", () => {
       passportOrigin: "https://passport.example",
     });
 
-    expect(mocks.HomegateClient).toHaveBeenCalledWith({
+    expect(MOCKS.HomegateClient).toHaveBeenCalledWith({
       homegateBaseUrl: "https://homegate.example/api/",
     });
-    expect(mocks.SaveLocalIdentity).toHaveBeenCalledWith({
+    expect(MOCKS.SaveLocalIdentity).toHaveBeenCalledWith({
       keyStore,
-      identityKeys: mocks.pubky,
+      identityKeys: MOCKS.pubky,
     });
-    expect(mocks.RestoreGoogleBackedIdentity).toHaveBeenCalledWith({
-      crypto: mocks.crypto,
-      identityKeys: mocks.pubky,
-      sessionAccess: mocks.pubky,
-      localIdentities: mocks.localIdentities,
+    expect(MOCKS.RestoreGoogleBackedIdentity).toHaveBeenCalledWith({
+      crypto: MOCKS.crypto,
+      identityKeys: MOCKS.pubky,
+      sessionAccess: MOCKS.pubky,
+      localIdentities: MOCKS.localIdentities,
       passportOrigin: "https://passport.example",
     });
-    expect(mocks.CreateGoogleBackedIdentity).toHaveBeenCalledWith({
-      crypto: mocks.crypto,
-      identityKeys: mocks.pubky,
-      sessionAccess: mocks.pubky,
-      discovery: mocks.pubky,
-      localIdentities: mocks.localIdentities,
+    expect(MOCKS.CreateGoogleBackedIdentity).toHaveBeenCalledWith({
+      crypto: MOCKS.crypto,
+      identityKeys: MOCKS.pubky,
+      sessionAccess: MOCKS.pubky,
+      discovery: MOCKS.pubky,
+      localIdentities: MOCKS.localIdentities,
       passportOrigin: "https://passport.example",
     });
-    expect(mocks.EstablishGoogleBackedIdentity).toHaveBeenCalledWith({
-      wrappingKeys: mocks.wrappingKeys,
+    expect(MOCKS.EstablishGoogleBackedIdentity).toHaveBeenCalledWith({
+      wrappingKeys: MOCKS.wrappingKeys,
       passportFileStoreForAccessToken: expect.any(Function),
-      homegate: mocks.homegate,
-      restoreExistingIdentity: mocks.restoreExistingIdentity,
-      createMissingIdentity: mocks.createMissingIdentity,
+      homegate: MOCKS.homegate,
+      restoreExistingIdentity: MOCKS.restoreExistingIdentity,
+      createMissingIdentity: MOCKS.createMissingIdentity,
     });
-    expect(mocks.DeleteGoogleDriveIdentity).toHaveBeenCalledWith(expect.objectContaining({
-      wrappingKeys: mocks.wrappingKeys,
-      crypto: mocks.crypto,
-      identityKeys: mocks.pubky,
+    expect(MOCKS.DeleteGoogleDriveIdentity).toHaveBeenCalledWith(expect.objectContaining({
+      wrappingKeys: MOCKS.wrappingKeys,
+      crypto: MOCKS.crypto,
+      identityKeys: MOCKS.pubky,
       passportOrigin: "https://passport.example",
     }));
 
@@ -118,7 +118,7 @@ describe("GoogleIdentityActions", () => {
 
     actions.dispose();
     actions.dispose();
-    expect(mocks.pubky.dispose).toHaveBeenCalledOnce();
+    expect(MOCKS.pubky.dispose).toHaveBeenCalledOnce();
   });
 
   it("disposes Pubky when construction fails", () => {
@@ -126,10 +126,10 @@ describe("GoogleIdentityActions", () => {
       identityEstablisher: { establish: vi.fn() },
       identityDeleter: { execute: vi.fn() },
     });
-    mocks.CreateGoogleBackedIdentity.mockImplementationOnce(function () {
+    MOCKS.CreateGoogleBackedIdentity.mockImplementationOnce(function () {
       throw new Error("construction failed");
     });
-    mocks.pubky.dispose.mockImplementationOnce(() => {
+    MOCKS.pubky.dispose.mockImplementationOnce(() => {
       throw new Error("dispose failed");
     });
 
@@ -138,7 +138,7 @@ describe("GoogleIdentityActions", () => {
       homegateBaseUrl: "https://homegate.example/",
       passportOrigin: "https://passport.example",
     })).toThrow("construction failed");
-    expect(mocks.pubky.dispose).toHaveBeenCalledOnce();
+    expect(MOCKS.pubky.dispose).toHaveBeenCalledOnce();
   });
 });
 
@@ -147,31 +147,31 @@ function prepareConstructors(input: {
   identityDeleter: { execute: ReturnType<typeof vi.fn> };
 }): void {
   vi.clearAllMocks();
-  mocks.PubkySdkAdapter.mockImplementation(function () {
-    return mocks.pubky;
+  MOCKS.PubkySdkAdapter.mockImplementation(function () {
+    return MOCKS.pubky;
   });
-  mocks.WebCryptoPassportFileCrypto.mockImplementation(function () {
-    return mocks.crypto;
+  MOCKS.WebCryptoPassportFileCrypto.mockImplementation(function () {
+    return MOCKS.crypto;
   });
-  mocks.SaveLocalIdentity.mockImplementation(function () {
-    return mocks.localIdentities;
+  MOCKS.SaveLocalIdentity.mockImplementation(function () {
+    return MOCKS.localIdentities;
   });
-  mocks.BrowserGoogleWrappingKeyRequester.mockImplementation(function () {
-    return mocks.wrappingKeys;
+  MOCKS.BrowserGoogleWrappingKeyRequester.mockImplementation(function () {
+    return MOCKS.wrappingKeys;
   });
-  mocks.HomegateClient.mockImplementation(function () {
-    return mocks.homegate;
+  MOCKS.HomegateClient.mockImplementation(function () {
+    return MOCKS.homegate;
   });
-  mocks.RestoreGoogleBackedIdentity.mockImplementation(function () {
-    return mocks.restoreExistingIdentity;
+  MOCKS.RestoreGoogleBackedIdentity.mockImplementation(function () {
+    return MOCKS.restoreExistingIdentity;
   });
-  mocks.CreateGoogleBackedIdentity.mockImplementation(function () {
-    return mocks.createMissingIdentity;
+  MOCKS.CreateGoogleBackedIdentity.mockImplementation(function () {
+    return MOCKS.createMissingIdentity;
   });
-  mocks.EstablishGoogleBackedIdentity.mockImplementation(function () {
+  MOCKS.EstablishGoogleBackedIdentity.mockImplementation(function () {
     return input.identityEstablisher;
   });
-  mocks.DeleteGoogleDriveIdentity.mockImplementation(function () {
+  MOCKS.DeleteGoogleDriveIdentity.mockImplementation(function () {
     return input.identityDeleter;
   });
 }

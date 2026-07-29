@@ -1,4 +1,4 @@
-export const pubkyAuthRequestLimits = {
+export const PUBKY_AUTH_REQUEST_LIMITS = {
   encodedDLength: 24_576,
   decodedAuthUrlLength: 8_192,
   secretLength: 1_024,

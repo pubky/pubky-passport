@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { logger } from "../../../../libs/logger/logger";
+import { LOGGER } from "../../../../libs/logger/logger";
 import { HomegateClient } from "../../../homegate/adapters/homegateClient";
 import type { PassportFileStore } from "../../../passport-file/application/passportFileStore";
 import type {
@@ -47,39 +47,39 @@ export class EstablishGoogleBackedIdentity implements GoogleIdentityEstablisher 
     try {
       return await this.establishIdentity(google);
     } catch {
-      logger.warn("identity.google.establish.failed", { code: "unexpected_failure" });
+      LOGGER.warn("identity.google.establish.failed", { code: "unexpected_failure" });
       return failure("unexpected_failure");
     }
   }
 
   private async establishIdentity(google: GoogleIdentitySession): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>> {
-    logger.info("identity.google.wrapping_key.started");
+    LOGGER.info("identity.google.wrapping_key.started");
     const wrappingKey = await this.#wrappingKeys.requestWrappingKey({ googleIdToken: google.googleIdToken });
     if (Result.isError(wrappingKey)) {
-      logger.warn("identity.google.wrapping_key.failed", { code: wrappingKey.error.code });
+      LOGGER.warn("identity.google.wrapping_key.failed", { code: wrappingKey.error.code });
       return failure("wrapping_key_failed");
     }
-    logger.info("identity.google.wrapping_key.completed");
+    LOGGER.info("identity.google.wrapping_key.completed");
 
     const passportFileStore = this.#passportFileStoreForAccessToken(google.driveAccessToken);
-    logger.info("identity.google.drive_read.started");
+    LOGGER.info("identity.google.drive_read.started");
     const storedFile = await passportFileStore.readPassportFile();
     if (Result.isError(storedFile)) {
-      logger.warn("identity.google.drive_read.failed", { code: storedFile.error.code });
+      LOGGER.warn("identity.google.drive_read.failed", { code: storedFile.error.code });
       return failure("drive_read_failed");
     } else if (storedFile.value.status === "found") {
-      logger.info("identity.google.drive_read.completed", { status: "found" });
+      LOGGER.info("identity.google.drive_read.completed", { status: "found" });
       return this.#restoreExistingIdentity.execute({
         envelope: storedFile.value.envelope,
         wrappingKey: wrappingKey.value,
       });
     }
 
-    logger.info("identity.google.drive_read.completed", { status: "missing" });
-    logger.info("identity.google.homegate_invite.started");
+    LOGGER.info("identity.google.drive_read.completed", { status: "missing" });
+    LOGGER.info("identity.google.homegate_invite.started");
     const invitation = await this.#homegate.requestGoogleSignupInvitation(google.googleIdToken);
     if (Result.isError(invitation)) {
-      logger.warn("identity.google.homegate_invite.failed", { code: invitation.error.code });
+      LOGGER.warn("identity.google.homegate_invite.failed", { code: invitation.error.code });
       return Result.err({ code: "homegate_invite_failed", cause: invitation.error.code });
     }
 

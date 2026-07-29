@@ -4,23 +4,23 @@ import { Result } from "better-result";
 import { z } from "zod";
 
 import { readBoundedText } from "../../../libs/http/boundedBody";
-import { logger } from "../../../libs/logger/logger";
+import { LOGGER } from "../../../libs/logger/logger";
 import type {
   HomegateInvitationErrorCode,
   HomeserverSignupInvitation,
 } from "../application/homegateInvitation";
 
-const maxSuccessResponseBytes = 16 * 1024;
-const maxErrorResponseBytes = 256;
-const maxInvitationFieldLength = 1024;
-const maxGoogleIdTokenLength = 16 * 1024;
-const requestTimeoutMs = 10_000;
-const googleVerificationPath = "google_verification";
-const invitationFieldSchema = z.string().min(1).max(maxInvitationFieldLength)
+const MAX_SUCCESS_RESPONSE_BYTES = 16 * 1024;
+const MAX_ERROR_RESPONSE_BYTES = 256;
+const MAX_INVITATION_FIELD_LENGTH = 1024;
+const MAX_GOOGLE_ID_TOKEN_LENGTH = 16 * 1024;
+const REQUEST_TIMEOUT_MS = 10_000;
+const GOOGLE_VERIFICATION_PATH = "google_verification";
+const INVITATION_FIELD_SCHEMA = z.string().min(1).max(MAX_INVITATION_FIELD_LENGTH)
   .refine((value) => value.trim().length > 0);
-const invitationSchema = z.object({
-  signupCode: invitationFieldSchema,
-  homeserverPubky: invitationFieldSchema,
+const INVITATION_SCHEMA = z.object({
+  signupCode: INVITATION_FIELD_SCHEMA,
+  homeserverPubky: INVITATION_FIELD_SCHEMA,
 }).strict();
 
 export class HomegateClient {
@@ -29,7 +29,7 @@ export class HomegateClient {
 
   constructor(options: { homegateBaseUrl: string; fetch?: typeof fetch }) {
     this.#fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
-    this.#googleVerificationEndpoint = new URL(googleVerificationPath, options.homegateBaseUrl);
+    this.#googleVerificationEndpoint = new URL(GOOGLE_VERIFICATION_PATH, options.homegateBaseUrl);
   }
 
   async requestGoogleSignupInvitation(
@@ -40,7 +40,7 @@ export class HomegateClient {
     let signal: AbortSignal;
     let response: Response;
     try {
-      signal = AbortSignal.timeout(requestTimeoutMs);
+      signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
       response = await this.#fetch(this.#googleVerificationEndpoint, {
         method: "POST",
         headers: { Accept: "application/json, text/plain", "Content-Type": "application/json" },
@@ -52,7 +52,7 @@ export class HomegateClient {
         signal,
       });
     } catch (error) {
-      logger.warn("identity.google.homegate_invite.network_failed", {
+      LOGGER.warn("identity.google.homegate_invite.network_failed", {
         errorName: error instanceof Error ? error.name : "unknown",
       });
       return failure("network_failed");
@@ -60,7 +60,7 @@ export class HomegateClient {
 
     const responseText = await readBoundedText(
       response,
-      response.ok ? maxSuccessResponseBytes : maxErrorResponseBytes,
+      response.ok ? MAX_SUCCESS_RESPONSE_BYTES : MAX_ERROR_RESPONSE_BYTES,
     );
     if (responseText === null && signal.aborted) return failure("network_failed");
     if (responseText === null || responseText === "too_large") {
@@ -76,7 +76,7 @@ export class HomegateClient {
       return failure("malformed_homegate_response");
     }
 
-    const invitation = invitationSchema.safeParse(responseJson);
+    const invitation = INVITATION_SCHEMA.safeParse(responseJson);
     return invitation.success ? Result.ok(invitation.data) : failure("malformed_homegate_response");
   }
 }
@@ -103,7 +103,7 @@ function mapHomegateError(body: string): HomegateInvitationErrorCode {
 }
 
 function isValidGoogleIdToken(value: string): boolean {
-  return value.length <= maxGoogleIdTokenLength
+  return value.length <= MAX_GOOGLE_ID_TOKEN_LENGTH
     && value.trim().length > 0;
 }
 

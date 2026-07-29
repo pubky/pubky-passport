@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { parseBrowserBootstrapConfig } from "./browserBootstrapConfig";
 
-const validConfig = {
+const VALID_CONFIG = {
   GOOGLE_CLIENT_ID: "google-client-id",
   HOMEGATE_URL: "https://homegate.example/api",
 };
 
 describe("browser bootstrap config", () => {
   it("normalizes public browser values", () => {
-    expect(parseBrowserBootstrapConfig(validConfig)).toEqual({
+    expect(parseBrowserBootstrapConfig(VALID_CONFIG)).toEqual({
       googleClientId: "google-client-id",
       homegateBaseUrl: "https://homegate.example/api/",
       homegateOrigin: "https://homegate.example",
@@ -17,7 +17,7 @@ describe("browser bootstrap config", () => {
   });
 
   it("requires the Google client ID", () => {
-    expect(() => parseBrowserBootstrapConfig({ ...validConfig, GOOGLE_CLIENT_ID: undefined })).toThrow();
+    expect(() => parseBrowserBootstrapConfig({ ...VALID_CONFIG, GOOGLE_CLIENT_ID: undefined })).toThrow();
   });
 
   it.each([
@@ -35,6 +35,6 @@ describe("browser bootstrap config", () => {
     `https://${"a".repeat(64)}.example`,
     `https://${"a".repeat(2048)}.example`,
   ])("rejects an unsafe Homegate URL: %s", (homegateUrl) => {
-    expect(() => parseBrowserBootstrapConfig({ ...validConfig, HOMEGATE_URL: homegateUrl })).toThrow();
+    expect(() => parseBrowserBootstrapConfig({ ...VALID_CONFIG, HOMEGATE_URL: homegateUrl })).toThrow();
   });
 });

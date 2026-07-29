@@ -9,11 +9,11 @@ import type {
 } from "./googleWrappingKey";
 import { createGoogleWrappingKeyRequest } from "./requestGoogleWrappingKey";
 
-const identity = {
+const IDENTITY = {
   issuer: "https://accounts.google.com" as const,
   subject: "google-subject",
 };
-const now = new Date("2026-01-01T00:00:00.000Z");
+const NOW = new Date("2026-01-01T00:00:00.000Z");
 
 describe("Google wrapping-key request", () => {
   it("verifies Google, rate limits, then derives wrapping material", async () => {
@@ -21,7 +21,7 @@ describe("Google wrapping-key request", () => {
     const request = createGoogleWrappingKeyRequest({
       googleIdTokenVerifier: verifier(() => {
         calls.push("verify");
-        return Result.ok(identity);
+        return Result.ok(IDENTITY);
       }),
       rateLimiter: rateLimiter(({ identity: limitedIdentity, at }) => {
         calls.push(`rate-limit:${limitedIdentity.subject}:${at.toISOString()}`);
@@ -31,7 +31,7 @@ describe("Google wrapping-key request", () => {
         calls.push(`derive:${verifiedIdentity.issuer}:${verifiedIdentity.subject}`);
         return { wrappingKey: "derived-wrapping-key" };
       }),
-      now: () => now,
+      now: () => NOW,
     });
 
     await expect(request.requestWrappingKey({ googleIdToken: "id-token" })).resolves.toEqual(Result.ok("derived-wrapping-key"));
@@ -55,7 +55,7 @@ describe("Google wrapping-key request", () => {
         deriveCalls += 1;
         return { wrappingKey: "derived-wrapping-key" };
       }),
-      now: () => now,
+      now: () => NOW,
     });
 
     await expectAsyncResultError(
@@ -68,10 +68,10 @@ describe("Google wrapping-key request", () => {
 
   it("rejects rate-limited and unavailable dependencies without leaking values", async () => {
     const rateLimited = createGoogleWrappingKeyRequest({
-      googleIdTokenVerifier: verifier(() => Result.ok(identity)),
+      googleIdTokenVerifier: verifier(() => Result.ok(IDENTITY)),
       rateLimiter: rateLimiter(() => ({ allowed: false })),
       material: material(() => ({ wrappingKey: "derived-wrapping-key" })),
-      now: () => now,
+      now: () => NOW,
     });
     const unavailable = createGoogleWrappingKeyRequest({
       googleIdTokenVerifier: {
@@ -81,7 +81,7 @@ describe("Google wrapping-key request", () => {
       },
       rateLimiter: rateLimiter(() => ({ allowed: true })),
       material: material(() => ({ wrappingKey: "derived-wrapping-key" })),
-      now: () => now,
+      now: () => NOW,
     });
 
     await expectAsyncResultError(rateLimited.requestWrappingKey({ googleIdToken: "id-token" }), { code: "rate_limited" });

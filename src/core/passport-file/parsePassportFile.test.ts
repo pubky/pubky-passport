@@ -10,17 +10,17 @@ import {
 } from "./parsePassportFile";
 import type { PassportFileEnvelopeV1 } from "./passportFile";
 
-const validEnvelope = {
+const VALID_ENVELOPE = {
   v: 1,
   iv: "abc123_-",
   ct: "ciphertext_123-ABC",
   url: "https://passport.pubky.app",
 } satisfies PassportFileEnvelopeV1;
 
-const passportFileFields = Object.keys(validEnvelope) as PassportFileField[];
+const PASSPORT_FILE_FIELDS = Object.keys(VALID_ENVELOPE) as PassportFileField[];
 
 function stringifyEnvelope(overrides: Record<string, unknown> = {}): string {
-  return JSON.stringify({ ...validEnvelope, ...overrides });
+  return JSON.stringify({ ...VALID_ENVELOPE, ...overrides });
 }
 
 function expectParseError(
@@ -33,8 +33,8 @@ function expectParseError(
   expect(Result.isError(result)).toBe(true);
   if (Result.isError(result)) {
     expect(result.error).toEqual(field ? { code, field } : { code });
-    expect(JSON.stringify(result.error)).not.toContain(validEnvelope.iv);
-    expect(JSON.stringify(result.error)).not.toContain(validEnvelope.ct);
+    expect(JSON.stringify(result.error)).not.toContain(VALID_ENVELOPE.iv);
+    expect(JSON.stringify(result.error)).not.toContain(VALID_ENVELOPE.ct);
   }
 }
 
@@ -47,7 +47,7 @@ describe("parsePassportFileContents", () => {
       throw new Error(result.error.code);
     }
 
-    expect(result.value).toEqual(validEnvelope);
+    expect(result.value).toEqual(VALID_ENVELOPE);
   });
 
   it("normalizes root-path urls to origin-only output", () => {
@@ -73,8 +73,8 @@ describe("parsePassportFileContents", () => {
   });
 
   it("rejects missing required fields with typed field errors", () => {
-    for (const field of passportFileFields) {
-      const envelope: Record<string, unknown> = { ...validEnvelope };
+    for (const field of PASSPORT_FILE_FIELDS) {
+      const envelope: Record<string, unknown> = { ...VALID_ENVELOPE };
       delete envelope[field];
 
       expectParseError(JSON.stringify(envelope), "missing_field", field);
@@ -133,7 +133,7 @@ describe("parsePassportFileContents", () => {
   });
 
   it("parses already-decoded envelope objects", () => {
-    const result = parsePassportFileEnvelope({ ...validEnvelope, url: "https://passport.pubky.app/" });
+    const result = parsePassportFileEnvelope({ ...VALID_ENVELOPE, url: "https://passport.pubky.app/" });
 
     expect(Result.isOk(result)).toBe(true);
     if (Result.isError(result)) {

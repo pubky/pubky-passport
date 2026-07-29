@@ -2,10 +2,10 @@ import "server-only";
 
 import type { Result } from "better-result";
 
-export const canonicalGoogleIssuer = "https://accounts.google.com";
+export const CANONICAL_GOOGLE_ISSUER = "https://accounts.google.com";
 
 export type VerifiedGoogleIdentity = {
-  issuer: typeof canonicalGoogleIssuer;
+  issuer: typeof CANONICAL_GOOGLE_ISSUER;
   subject: string;
 };
 

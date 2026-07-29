@@ -1,5 +1,5 @@
-const base64UrlAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-const unpaddedBase64UrlPattern = /^[A-Za-z0-9_-]*$/;
+const BASE64_URL_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+const UNPADDED_BASE64_URL_PATTERN = /^[A-Za-z0-9_-]*$/;
 
 export function encodeBase64Url(bytes: Uint8Array): string {
   let binary = "";
@@ -27,13 +27,13 @@ export function decodeBase64Url(value: string): Uint8Array | undefined {
 }
 
 export function isCanonicalBase64Url(value: string): boolean {
-  if (!unpaddedBase64UrlPattern.test(value) || value.length % 4 === 1) {
+  if (!UNPADDED_BASE64_URL_PATTERN.test(value) || value.length % 4 === 1) {
     return false;
   }
 
   const remainder = value.length % 4;
   if (remainder === 0) return true;
 
-  const terminalValue = base64UrlAlphabet.indexOf(value.at(-1) ?? "");
+  const terminalValue = BASE64_URL_ALPHABET.indexOf(value.at(-1) ?? "");
   return remainder === 2 ? terminalValue % 16 === 0 : terminalValue % 4 === 0;
 }

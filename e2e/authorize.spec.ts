@@ -1,13 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const sensitiveSecret = "e2e-sensitive-secret";
-const relayOrigin = "https://relay.client.example";
-const relayPathCanary = "private-inbox";
-const callbackQueryCanary = "session=sensitive";
-const sensitiveCanaries = [sensitiveSecret, relayPathCanary, callbackQueryCanary];
+const SENSITIVE_SECRET = "e2e-sensitive-secret";
+const RELAY_ORIGIN = "https://relay.client.example";
+const RELAY_PATH_CANARY = "private-inbox";
+const CALLBACK_QUERY_CANARY = "session=sensitive";
+const SENSITIVE_CANARIES = [SENSITIVE_SECRET, RELAY_PATH_CANARY, CALLBACK_QUERY_CANARY];
 
 test("scrubs a valid request and renders only safe review data", async ({ page, request }) => {
-  const url = authorizationUrl(authorizationRequest(`${relayOrigin}/${relayPathCanary}?region=eu`));
+  const url = authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}?region=eu`));
   const leakMonitor = await installAuthorizationLeakMonitor(page);
   const baselineResponse = await request.get("/authorize");
   await page.goto("/");
@@ -21,10 +21,10 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   const policy = headers["content-security-policy"] ?? "";
   const baselineSources = new Set(cspSources(baselineResponse.headers()["content-security-policy"] ?? "", "connect-src"));
   const authorizationSources = cspSources(policy, "connect-src");
-  expect(authorizationSources.filter((source) => !baselineSources.has(source))).toEqual([relayOrigin]);
+  expect(authorizationSources.filter((source) => !baselineSources.has(source))).toEqual([RELAY_ORIGIN]);
   expect(authorizationSources).not.toContain("https://client.example");
   expect(policy).not.toContain("/private-inbox");
-  expect(policy).not.toContain(sensitiveSecret);
+  expect(policy).not.toContain(SENSITIVE_SECRET);
 
   await expect(page).toHaveURL(/\/authorize$/u);
   await expect(page.getByRole("heading", { name: "client.example" })).toBeVisible();
@@ -32,7 +32,7 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   await expect(page.getByText("/pub/example.app/", { exact: true })).toBeVisible();
 
   const renderedReview = await page.locator("main").innerHTML();
-  for (const canary of sensitiveCanaries) expect(renderedReview).not.toContain(canary);
+  for (const canary of SENSITIVE_CANARIES) expect(renderedReview).not.toContain(canary);
   expect(renderedReview).not.toContain("authorization-success");
   expect(await page.evaluate(() => window.location.search)).toBe("");
   const authorizationPersistence = await browserPersistenceSnapshot(page);
@@ -62,7 +62,7 @@ test("rejects an unsafe relay without adding it to CSP", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Invalid authorization request" })).toBeVisible();
   expect(await page.evaluate(() => window.location.search)).toBe("");
   const renderedState = await page.locator("main").innerHTML();
-  for (const canary of sensitiveCanaries) expect(renderedState).not.toContain(canary);
+  for (const canary of SENSITIVE_CANARIES) expect(renderedState).not.toContain(canary);
   const persistence = await browserPersistenceSnapshot(page);
   expectAuthorizationPersistenceEmpty(persistence);
   await expectNoSensitiveBrowserLeaks(page, leakMonitor, [persistence]);
@@ -72,10 +72,10 @@ function authorizationRequest(relay: string): string {
   const request = new URL("pubkyauth://signin");
   request.searchParams.set("caps", "/pub/example.app/:rw");
   request.searchParams.set("relay", relay);
-  request.searchParams.set("secret", sensitiveSecret);
-  request.searchParams.set("x-success", `https://client.example/authorization-success?${callbackQueryCanary}`);
-  request.searchParams.set("x-error", `https://client.example/authorization-error?${callbackQueryCanary}`);
-  request.searchParams.set("x-cancel", `https://client.example/authorization-cancel?${callbackQueryCanary}`);
+  request.searchParams.set("secret", SENSITIVE_SECRET);
+  request.searchParams.set("x-success", `https://client.example/authorization-success?${CALLBACK_QUERY_CANARY}`);
+  request.searchParams.set("x-error", `https://client.example/authorization-error?${CALLBACK_QUERY_CANARY}`);
+  request.searchParams.set("x-cancel", `https://client.example/authorization-cancel?${CALLBACK_QUERY_CANARY}`);
   return request.href;
 }
 
@@ -152,7 +152,7 @@ async function expectNoSensitiveBrowserLeaks(
     persistence,
     cookies: await page.context().cookies(),
   });
-  for (const canary of sensitiveCanaries) expect(observedBrowserData).not.toContain(canary);
+  for (const canary of SENSITIVE_CANARIES) expect(observedBrowserData).not.toContain(canary);
 }
 
 function expectAuthorizationPersistenceEmpty(snapshot: BrowserPersistenceSnapshot): void {

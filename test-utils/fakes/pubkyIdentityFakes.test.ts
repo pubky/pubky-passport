@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
 import { parsePubkyAuthRequest } from "../../src/core/auth/parsePubkyAuthRequest";
-import { pubkySecretKeyFormat, type PubkyIdentityKey } from "../../src/browser/pubky/application/pubkyIdentityKeys";
+import { PUBKY_SECRET_KEY_FORMAT, type PubkyIdentityKey } from "../../src/browser/pubky/application/pubkyIdentityKeys";
 import { FakePubkyAuthApproval } from "./fakePubkyAuthApproval";
 import { FakePubkyDiscovery } from "./fakePubkyDiscovery";
 import { FakePubkyIdentityKeys } from "./fakePubkyIdentityKeys";
@@ -25,7 +25,7 @@ describe("Pubky identity fakes", () => {
     expect(keys.restoreCalls).toEqual([
       {
         secretKeyByteLength: keys.secretKey.bytes.byteLength,
-        secretKeyFormat: pubkySecretKeyFormat,
+        secretKeyFormat: PUBKY_SECRET_KEY_FORMAT,
       },
     ]);
   });

@@ -1,3 +1,3 @@
-import { fixtureValue } from "./shared/index.js";
+import { FIXTURE_VALUE } from "./shared/index.js";
 
-export { fixtureValue };
+export { FIXTURE_VALUE };

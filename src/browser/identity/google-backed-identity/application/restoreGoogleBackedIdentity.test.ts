@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { FakePubkyIdentityKeys } from "../../../../../test-utils/fakes/fakePubkyIdentityKeys";
 import { FakePubkySessionAccess } from "../../../../../test-utils/fakes/fakePubkySessionAccess";
 import {
-  fakePassportEnvelope,
+  FAKE_PASSPORT_ENVELOPE,
   FakeLocalIdentitySaver,
   FakePassportCrypto,
 } from "../../../../../test-utils/fakes/googleBackedIdentityFakes";
@@ -14,7 +14,7 @@ describe("RestoreGoogleBackedIdentity", () => {
   it("decrypts, signs in with discovery blocking, and saves the restored identity", async () => {
     const setup = createSetup();
 
-    const result = await setup.subject.execute(executionInput);
+    const result = await setup.subject.execute(EXECUTION_INPUT);
 
     expectResultOk(result);
     expect(setup.keys.createCalls).toBe(0);
@@ -32,7 +32,7 @@ describe("RestoreGoogleBackedIdentity", () => {
     const setup = createSetup();
     setup.sessionAccess.signinFailure = "signin_failed";
 
-    const result = await setup.subject.execute(executionInput);
+    const result = await setup.subject.execute(EXECUTION_INPUT);
 
     expectResultError(result, {
       code: "signin_failed",
@@ -49,7 +49,7 @@ describe("RestoreGoogleBackedIdentity", () => {
       publicKeyDisplay: "pubkydifferent-session-identity",
     };
 
-    const result = await setup.subject.execute(executionInput);
+    const result = await setup.subject.execute(EXECUTION_INPUT);
 
     expectResultError(result, {
       code: "identity_mismatch",
@@ -62,7 +62,7 @@ describe("RestoreGoogleBackedIdentity", () => {
     const setup = createSetup();
     setup.crypto.decryptFailure = true;
 
-    const result = await setup.subject.execute(executionInput);
+    const result = await setup.subject.execute(EXECUTION_INPUT);
 
     expectResultError(result, { code: "decrypt_failed" });
     expect(setup.keys.restoreCalls).toEqual([]);
@@ -78,7 +78,7 @@ describe("RestoreGoogleBackedIdentity", () => {
         setup.local.throwOnSave = true;
       }
 
-      await expect(setup.subject.execute(executionInput)).rejects.toThrow();
+      await expect(setup.subject.execute(EXECUTION_INPUT)).rejects.toThrow();
 
       expect(setup.keys.disposedKeys).toHaveLength(1);
       expect(setup.crypto.decryptedOutputIsZeroed()).toBe(true);
@@ -89,14 +89,14 @@ describe("RestoreGoogleBackedIdentity", () => {
     const setup = createSetup();
     setup.keys.disposeIdentityKey = () => { throw new Error("cleanup failed"); };
 
-    const result = await setup.subject.execute(executionInput);
+    const result = await setup.subject.execute(EXECUTION_INPUT);
 
     expectResultOk(result);
   });
 });
 
-const executionInput = {
-  envelope: fakePassportEnvelope,
+const EXECUTION_INPUT = {
+  envelope: FAKE_PASSPORT_ENVELOPE,
   wrappingKey: "w".repeat(43),
 };
 

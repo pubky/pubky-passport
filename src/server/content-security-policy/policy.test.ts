@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { createContentSecurityPolicy } from "./policy";
 
-const homegateOrigin = "https://homegate.example";
+const HOMEGATE_ORIGIN = "https://homegate.example";
 
 describe("content security policy", () => {
   it("uses a strict production nonce and allows Homegate plus the request relay", () => {
     const policy = createContentSecurityPolicy({
       nonce: "request-nonce",
       development: false,
-      homegateOrigin,
+      homegateOrigin: HOMEGATE_ORIGIN,
       authorizationRequestSearch: authorizationSearch("https://relay.client.example/inbox?region=eu"),
     });
     const directives = parseCsp(policy);
@@ -49,7 +49,7 @@ describe("content security policy", () => {
       const directives = parseCsp(createContentSecurityPolicy({
         nonce: "request-nonce",
         development: false,
-        homegateOrigin,
+        homegateOrigin: HOMEGATE_ORIGIN,
         authorizationRequestSearch: request,
       }));
 
@@ -61,7 +61,7 @@ describe("content security policy", () => {
     const directives = parseCsp(createContentSecurityPolicy({
       nonce: "request-nonce",
       development: false,
-      homegateOrigin,
+      homegateOrigin: HOMEGATE_ORIGIN,
     }));
 
     expect(directives.get("connect-src")).not.toContain("https://httprelay.pubky.app");
@@ -73,7 +73,7 @@ describe("content security policy", () => {
     const directives = parseCsp(createContentSecurityPolicy({
       nonce: "request-nonce",
       development: true,
-      homegateOrigin,
+      homegateOrigin: HOMEGATE_ORIGIN,
     }));
 
     expect(directives.get("script-src")).toContain("'unsafe-eval'");

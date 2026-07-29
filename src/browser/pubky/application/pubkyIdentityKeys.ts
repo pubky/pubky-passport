@@ -6,8 +6,8 @@ import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
 
 declare const pubkyIdentityKeyHandleBrand: unique symbol;
 
-export const pubkySecretKeyBytes = 32;
-export const pubkySecretKeyFormat = "pubky-secret-key";
+export const PUBKY_SECRET_KEY_BYTES = 32;
+export const PUBKY_SECRET_KEY_FORMAT = "pubky-secret-key";
 
 export type PubkyIdentityKeyHandle = {
   readonly [pubkyIdentityKeyHandleBrand]: "PubkyIdentityKeyHandle";
@@ -20,7 +20,7 @@ export type PubkyIdentityKey = {
 
 export type PubkySecretKeyMaterial = {
   bytes: Uint8Array;
-  format: typeof pubkySecretKeyFormat;
+  format: typeof PUBKY_SECRET_KEY_FORMAT;
 };
 
 export type PubkyIdentityKeysErrorCode =

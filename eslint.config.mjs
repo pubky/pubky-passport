@@ -3,15 +3,15 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
 import {
-  appServerEntryRule,
-  browserRoleRules,
+  APP_SERVER_ENTRY_RULE,
+  BROWSER_ROLE_RULES,
   restrictedImportRegexForRoleRule,
   restrictedServerImportRegexForAppRule,
-  serverRoleRules,
-  stableBrowserEntry,
+  SERVER_ROLE_RULES,
+  STABLE_BROWSER_ENTRY,
 } from "./test-utils/architecture/architecturePolicy.mjs";
 
-const eslintConfig = defineConfig([
+const ESLINT_CONFIG = defineConfig([
   ...nextVitals,
   ...nextTs,
   globalIgnores([
@@ -102,11 +102,11 @@ const eslintConfig = defineConfig([
           ],
           patterns: [
             {
-              regex: `^(?:\\.\\./)+browser/(?![^/]+/${stableBrowserEntry}$)`,
+              regex: `^(?:\\.\\./)+browser/(?![^/]+/${STABLE_BROWSER_ENTRY}$)`,
               message: "UI may import browser runtime only through stable controller APIs and their concrete factories."
             },
             {
-              regex: `^@/browser/(?![^/]+/${stableBrowserEntry}$)`,
+              regex: `^@/browser/(?![^/]+/${STABLE_BROWSER_ENTRY}$)`,
               message: "UI may import browser runtime only through stable controller APIs and their concrete factories."
             }
           ]
@@ -137,7 +137,7 @@ const eslintConfig = defineConfig([
       ]
     }
   },
-  ...browserRoleRules.map((rule) => ({
+  ...BROWSER_ROLE_RULES.map((rule) => ({
     files: [...rule.eslintFiles],
     ignores: ["src/browser/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     rules: {
@@ -152,7 +152,7 @@ const eslintConfig = defineConfig([
       ]
     }
   })),
-  ...serverRoleRules.map((rule) => ({
+  ...SERVER_ROLE_RULES.map((rule) => ({
     files: [...rule.eslintFiles],
     ignores: ["src/server/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     rules: {
@@ -168,15 +168,15 @@ const eslintConfig = defineConfig([
     }
   })),
   {
-    files: [...appServerEntryRule.eslintFiles],
+    files: [...APP_SERVER_ENTRY_RULE.eslintFiles],
     ignores: ["src/app/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
           patterns: [{
-            regex: restrictedServerImportRegexForAppRule(appServerEntryRule),
-            message: `[${appServerEntryRule.id}] ${appServerEntryRule.message}`
+            regex: restrictedServerImportRegexForAppRule(APP_SERVER_ENTRY_RULE),
+            message: `[${APP_SERVER_ENTRY_RULE.id}] ${APP_SERVER_ENTRY_RULE.message}`
           }]
         }
       ]
@@ -184,4 +184,4 @@ const eslintConfig = defineConfig([
   },
 ]);
 
-export default eslintConfig;
+export default ESLINT_CONFIG;

@@ -12,11 +12,11 @@ export type BrowserBootstrapConfig = {
   homegateOrigin: string;
 };
 
-const maximumUrlCharacters = 2_048;
-const maximumHostnameCharacters = 253;
-const maximumHostnameLabelCharacters = 63;
-const hostnameLabelPattern = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/iu;
-const ipv4AddressPattern = /^\d+(?:\.\d+){3}$/u;
+const MAXIMUM_URL_CHARACTERS = 2_048;
+const MAXIMUM_HOSTNAME_CHARACTERS = 253;
+const MAXIMUM_HOSTNAME_LABEL_CHARACTERS = 63;
+const HOSTNAME_LABEL_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/iu;
+const IPV4_ADDRESS_PATTERN = /^\d+(?:\.\d+){3}$/u;
 
 export function parseBrowserBootstrapConfig(input: EnvLike): BrowserBootstrapConfig {
   const googleClientId = parseGoogleClientId(input);
@@ -51,7 +51,7 @@ function requiredString(name: string) {
 }
 
 function parseHomegateUrl(value: string): { baseUrl: string; origin: string } | null {
-  if (value.length > maximumUrlCharacters) return null;
+  if (value.length > MAXIMUM_URL_CHARACTERS) return null;
 
   let url: URL;
   try {
@@ -72,20 +72,20 @@ function parseHomegateUrl(value: string): { baseUrl: string; origin: string } | 
   }
 
   url.pathname = url.pathname.endsWith("/") ? url.pathname : `${url.pathname}/`;
-  if (url.href.length > maximumUrlCharacters) return null;
+  if (url.href.length > MAXIMUM_URL_CHARACTERS) return null;
   return { baseUrl: url.href, origin: url.origin };
 }
 
 function isCspSafeHostname(hostname: string): boolean {
   if (
     hostname.length === 0
-    || hostname.length > maximumHostnameCharacters
-    || ipv4AddressPattern.test(hostname)
+    || hostname.length > MAXIMUM_HOSTNAME_CHARACTERS
+    || IPV4_ADDRESS_PATTERN.test(hostname)
   ) {
     return false;
   }
 
   return hostname.split(".").every((label) =>
-    label.length <= maximumHostnameLabelCharacters && hostnameLabelPattern.test(label)
+    label.length <= MAXIMUM_HOSTNAME_LABEL_CHARACTERS && HOSTNAME_LABEL_PATTERN.test(label)
   );
 }

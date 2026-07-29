@@ -4,7 +4,7 @@ import { Result } from "better-result";
 
 import type { PubkyPublicIdentity } from "../../../../core/identity/pubkyIdentity";
 import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "../../../../libs/encoding/base64Url";
-import { pubkySecretKeyBytes, pubkySecretKeyFormat, type PubkySecretKeyMaterial } from "../../../pubky/application/pubkyIdentityKeys";
+import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../../../pubky/application/pubkyIdentityKeys";
 import type { LocalIdentitySummary } from "../application/localIdentity";
 import type {
   LocalIdentityRepository,
@@ -12,15 +12,15 @@ import type {
   LocalIdentityRepositoryResult,
 } from "../application/localIdentityRepository";
 
-const storageKey = "pubky-passport/local-identities/v1";
-const localIdentityStoreVersion = 1;
+const STORAGE_KEY = "pubky-passport/local-identities/v1";
+const LOCAL_IDENTITY_STORE_VERSION = 1;
 
 type StoredLocalIdentity = LocalIdentitySummary & {
   secretKey: string;
 };
 
 type LocalIdentityStoreV1 = {
-  v: typeof localIdentityStoreVersion;
+  v: typeof LOCAL_IDENTITY_STORE_VERSION;
   activeIdentityId: string | null;
   identities: StoredLocalIdentity[];
 };
@@ -48,7 +48,7 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
     if (input.identity.id !== input.identity.publicIdentity.publicKeyZ32) {
       return failure("invalid_identity");
     }
-    if (input.secretKey.format !== pubkySecretKeyFormat || input.secretKey.bytes.byteLength !== pubkySecretKeyBytes) {
+    if (input.secretKey.format !== PUBKY_SECRET_KEY_FORMAT || input.secretKey.bytes.byteLength !== PUBKY_SECRET_KEY_BYTES) {
       return failure("invalid_secret_key");
     }
 
@@ -70,7 +70,7 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
     }
 
     const nextStore: LocalIdentityStoreV1 = {
-      v: localIdentityStoreVersion,
+      v: LOCAL_IDENTITY_STORE_VERSION,
       activeIdentityId: identity.id,
       identities,
     };
@@ -101,7 +101,7 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
     }
 
     try {
-      this.#storage.removeItem(storageKey);
+      this.#storage.removeItem(STORAGE_KEY);
       return Result.ok();
     } catch {
       return failure("storage_unavailable");
@@ -113,7 +113,7 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
     if (!target) return () => {};
 
     const onStorage = (event: StorageEvent) => {
-      if ((event.key === storageKey || event.key === null)
+      if ((event.key === STORAGE_KEY || event.key === null)
         && (!event.storageArea || event.storageArea === this.#storage)) {
         listener();
       }
@@ -144,7 +144,7 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
 
     return Result.ok({
       identity: toSummary(storedIdentity),
-      secretKey: { bytes: secretKey, format: pubkySecretKeyFormat },
+      secretKey: { bytes: secretKey, format: PUBKY_SECRET_KEY_FORMAT },
     });
   }
 
@@ -155,13 +155,13 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
 
     let stored: string | null;
     try {
-      stored = this.#storage.getItem(storageKey);
+      stored = this.#storage.getItem(STORAGE_KEY);
     } catch {
       return failure("storage_unavailable");
     }
 
     if (stored === null) {
-      return Result.ok({ v: localIdentityStoreVersion, activeIdentityId: null, identities: [] });
+      return Result.ok({ v: LOCAL_IDENTITY_STORE_VERSION, activeIdentityId: null, identities: [] });
     }
 
     try {
@@ -178,7 +178,7 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
     }
 
     try {
-      this.#storage.setItem(storageKey, JSON.stringify(store));
+      this.#storage.setItem(STORAGE_KEY, JSON.stringify(store));
       return Result.ok();
     } catch {
       return failure("storage_unavailable");
@@ -203,7 +203,7 @@ function isStoreV1(value: unknown): value is LocalIdentityStoreV1 {
     return false;
   }
 
-  if (value.v !== localIdentityStoreVersion || !Array.isArray(value.identities)) {
+  if (value.v !== LOCAL_IDENTITY_STORE_VERSION || !Array.isArray(value.identities)) {
     return false;
   }
 
@@ -216,11 +216,11 @@ function isStoreV1(value: unknown): value is LocalIdentityStoreV1 {
 }
 
 function isStoredIdentity(value: unknown): value is StoredLocalIdentity {
-  if (!isRecord(value) || !isNonEmptyString(value.id) || !isPublicIdentity(value.publicIdentity)) {
+  if (!isRecord(value) || !isNonEmptyString(value.id) || !isPublicIdentity(value.PUBLIC_IDENTITY)) {
     return false;
   }
 
-  return value.id === value.publicIdentity.publicKeyZ32 && isEncodedSecretKey(value.secretKey);
+  return value.id === value.PUBLIC_IDENTITY.publicKeyZ32 && isEncodedSecretKey(value.secretKey);
 }
 
 function isPublicIdentity(value: unknown): value is PubkyPublicIdentity {
@@ -249,7 +249,7 @@ function toSummary(identity: StoredLocalIdentity): LocalIdentitySummary {
 
 function decodeStoredSecretKey(value: string): Uint8Array | undefined {
   const decoded = decodeBase64Url(value);
-  return decoded?.byteLength === pubkySecretKeyBytes ? decoded : undefined;
+  return decoded?.byteLength === PUBKY_SECRET_KEY_BYTES ? decoded : undefined;
 }
 
 function failure<T>(code: LocalIdentityRepositoryErrorCode): LocalIdentityRepositoryResult<T> {

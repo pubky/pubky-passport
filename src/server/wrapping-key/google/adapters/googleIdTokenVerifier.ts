@@ -4,7 +4,7 @@ import { OAuth2Client } from "google-auth-library";
 import { Result } from "better-result";
 
 import {
-  canonicalGoogleIssuer,
+  CANONICAL_GOOGLE_ISSUER,
   type GoogleIdTokenVerificationErrorCode,
   type GoogleIdTokenVerificationResult,
   type GoogleIdTokenVerifier,
@@ -32,7 +32,7 @@ export type CreateGoogleIdTokenVerifierInput = {
   now?: () => Date;
 };
 
-const acceptedGoogleIssuers = new Set(["accounts.google.com", canonicalGoogleIssuer]);
+const ACCEPTED_GOOGLE_ISSUERS = new Set(["accounts.google.com", CANONICAL_GOOGLE_ISSUER]);
 
 export function createGoogleIdTokenVerifier(input: CreateGoogleIdTokenVerifierInput): GoogleIdTokenVerifier {
   const verifier = input.verifier ?? new OAuth2Client();
@@ -52,7 +52,7 @@ export function createGoogleIdTokenVerifier(input: CreateGoogleIdTokenVerifierIn
         return failure("invalid");
       }
 
-      if (!payload.iss || !acceptedGoogleIssuers.has(payload.iss)) {
+      if (!payload.iss || !ACCEPTED_GOOGLE_ISSUERS.has(payload.iss)) {
         return failure("unsupported_issuer");
       }
 
@@ -68,7 +68,7 @@ export function createGoogleIdTokenVerifier(input: CreateGoogleIdTokenVerifierIn
         return failure("missing_subject");
       }
 
-      return Result.ok({ issuer: canonicalGoogleIssuer, subject: payload.sub });
+      return Result.ok({ issuer: CANONICAL_GOOGLE_ISSUER, subject: payload.sub });
     },
   };
 }

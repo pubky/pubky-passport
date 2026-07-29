@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { logger } from "../../../../../libs/logger/logger";
+import { LOGGER } from "../../../../../libs/logger/logger";
 import { readBoundedText } from "../../../../../libs/http/boundedBody";
 import { isCanonicalBase64Url } from "../../../../../libs/encoding/base64Url";
 import type {
@@ -10,9 +10,9 @@ import type {
   GoogleWrappingKeyRequesterErrorCode,
 } from "../application/googleWrappingKey";
 
-const maximumResponseBytes = 16 * 1024;
-const wrappingKeyBytes = 32;
-const knownRouteErrorCodes = new Set<GoogleWrappingKeyRequesterErrorCode>([
+const MAXIMUM_RESPONSE_BYTES = 16 * 1024;
+const WRAPPING_KEY_BYTES = 32;
+const KNOWN_ROUTE_ERROR_CODES = new Set<GoogleWrappingKeyRequesterErrorCode>([
   "invalid_request",
   "invalid_google_id_token",
   "expired_google_id_token",
@@ -45,13 +45,13 @@ export class BrowserGoogleWrappingKeyRequester implements GoogleWrappingKeyReque
         referrerPolicy: "no-referrer",
       });
     } catch (error) {
-      logger.warn("identity.google.wrapping_key.network_failed", {
+      LOGGER.warn("identity.google.wrapping_key.network_failed", {
         errorName: error instanceof Error ? error.name : "unknown",
       });
       return failure("network_failed");
     }
 
-    const contents = await readBoundedText(response, maximumResponseBytes);
+    const contents = await readBoundedText(response, MAXIMUM_RESPONSE_BYTES);
     if (contents === null || contents === "too_large") return failure("invalid_response");
 
     let body: unknown;
@@ -69,18 +69,18 @@ export class BrowserGoogleWrappingKeyRequester implements GoogleWrappingKeyReque
 
 function parseWrappingKey(value: unknown): string | null {
   if (!isExactRecord(value, ["wrappingKey"])) return null;
-  if (typeof value.wrappingKey !== "string") return null;
+  if (typeof value.WRAPPING_KEY !== "string") return null;
 
-  const expectedLength = Math.ceil(wrappingKeyBytes * 4 / 3);
-  return value.wrappingKey.length === expectedLength && isCanonicalBase64Url(value.wrappingKey)
-    ? value.wrappingKey
+  const expectedLength = Math.ceil(WRAPPING_KEY_BYTES * 4 / 3);
+  return value.WRAPPING_KEY.length === expectedLength && isCanonicalBase64Url(value.WRAPPING_KEY)
+    ? value.WRAPPING_KEY
     : null;
 }
 
 function parseErrorCode(value: unknown): GoogleWrappingKeyRequesterErrorCode | null {
   if (!isExactRecord(value, ["error"]) || !isExactRecord(value.error, ["code"])) return null;
   if (typeof value.error.code !== "string") return null;
-  return knownRouteErrorCodes.has(value.error.code as GoogleWrappingKeyRequesterErrorCode)
+  return KNOWN_ROUTE_ERROR_CODES.has(value.error.code as GoogleWrappingKeyRequesterErrorCode)
     ? value.error.code as GoogleWrappingKeyRequesterErrorCode
     : null;
 }

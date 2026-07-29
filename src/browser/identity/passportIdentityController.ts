@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { logger } from "../../libs/logger/logger";
+import { LOGGER } from "../../libs/logger/logger";
 import type {
   BrowserIdentityAction,
   BrowserIdentityActionResult,
@@ -74,7 +74,7 @@ export class PassportIdentityController implements BrowserIdentityController {
         onCredential: (credential) => {
           if (this.#disposed || activeAttempt !== this.#attempt) return;
           if (Result.isError(credential)) {
-            logger.warn("identity.google.button.credential_failed", { code: credential.error.code });
+            LOGGER.warn("identity.google.button.credential_failed", { code: credential.error.code });
             this.resetGoogle("sign_in_failed");
             return;
           }
@@ -139,14 +139,14 @@ export class PassportIdentityController implements BrowserIdentityController {
         });
       } catch {
         if (activeAttempt !== this.#attempt || this.#disposed) return { status: "superseded" };
-        logger.warn("identity.google.button.drive_consent_failed", { code: "unexpected" });
+        LOGGER.warn("identity.google.button.drive_consent_failed", { code: "unexpected" });
         this.resetGoogle("drive_consent_failed");
         return { status: "credential_failed" };
       }
       if (this.#driveAbortController === abortController) this.#driveAbortController = null;
       if (activeAttempt !== this.#attempt || this.#disposed) return { status: "superseded" };
       if (Result.isError(driveAccess)) {
-        logger.warn("identity.google.button.drive_consent_failed", { code: driveAccess.error.code });
+        LOGGER.warn("identity.google.button.drive_consent_failed", { code: driveAccess.error.code });
         this.resetGoogle(errorForDriveFailure(driveAccess.error.code));
         return { status: "credential_failed" };
       }
@@ -187,7 +187,7 @@ export class PassportIdentityController implements BrowserIdentityController {
       };
       return Result.ok(value);
     } catch {
-      logger.warn("identity.google.action.failed", { code: "unexpected_failure" });
+      LOGGER.warn("identity.google.action.failed", { code: "unexpected_failure" });
       return Result.err({ code: "unexpected_failure" });
     }
   }
@@ -198,7 +198,7 @@ export class PassportIdentityController implements BrowserIdentityController {
     try {
       this.#dependencies.disposeIdentityActions();
     } catch {
-      logger.warn("identity.google.cleanup.failed", { operation: "pubky_dispose" });
+      LOGGER.warn("identity.google.cleanup.failed", { operation: "pubky_dispose" });
     }
   }
 
@@ -211,12 +211,12 @@ export class PassportIdentityController implements BrowserIdentityController {
 
   private abortDriveAccess(): void {
     try { this.#driveAbortController?.abort(); }
-    catch { logger.warn("identity.google.cleanup.failed", { operation: "drive_abort" }); }
+    catch { LOGGER.warn("identity.google.cleanup.failed", { operation: "drive_abort" }); }
     this.#driveAbortController = null;
   }
 
   private showGoogleUnavailable(code: string): void {
-    logger.warn("identity.google.button.unavailable", { code });
+    LOGGER.warn("identity.google.button.unavailable", { code });
     this.#dependencies.googleSignInButton.unmount();
     this.#googleIdToken = null;
     this.#googleSubject = null;
@@ -226,7 +226,7 @@ export class PassportIdentityController implements BrowserIdentityController {
   private emit(state: GoogleSignInState): void {
     if (this.#disposed) return;
     try { this.#onState?.(state); }
-    catch { logger.warn("identity.google.state_listener.failed"); }
+    catch { LOGGER.warn("identity.google.state_listener.failed"); }
   }
 }
 

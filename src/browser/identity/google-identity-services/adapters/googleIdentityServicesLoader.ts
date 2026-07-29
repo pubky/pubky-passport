@@ -13,14 +13,14 @@ declare global {
   }
 }
 
-const googleGisScriptUrl = "https://accounts.google.com/gsi/client";
-const gisScriptLoadTimeoutMs = 10_000;
-const gisLoadStateAttribute = "data-pubky-passport-load-state";
+const GOOGLE_GIS_SCRIPT_URL = "https://accounts.google.com/gsi/client";
+const GIS_SCRIPT_LOAD_TIMEOUT_MS = 10_000;
+const GIS_LOAD_STATE_ATTRIBUTE = "data-pubky-passport-load-state";
 let gisScriptLoadPromise: Promise<void> | undefined;
 
 export async function loadGoogleAccounts(
   document: Document = globalThis.document,
-  timeoutMs = gisScriptLoadTimeoutMs,
+  timeoutMs = GIS_SCRIPT_LOAD_TIMEOUT_MS,
 ): Promise<GoogleIdentityServicesResult<GoogleAccounts>> {
   const existing = globalThis.window.google?.accounts;
   if (existing) return Result.ok(existing);
@@ -39,17 +39,17 @@ export async function loadGoogleAccounts(
 function loadGisScript(document: Document, timeoutMs: number): Promise<void> {
   if (gisScriptLoadPromise) return gisScriptLoadPromise;
 
-  const existing = document.querySelector(`script[src="${googleGisScriptUrl}"]`);
+  const existing = document.querySelector(`script[src="${GOOGLE_GIS_SCRIPT_URL}"]`);
   const existingReadyState = (existing as (Element & { readyState?: string }) | null)?.readyState;
-  if (existing?.getAttribute(gisLoadStateAttribute) === "loaded" || existingReadyState === "loaded" || existingReadyState === "complete") {
+  if (existing?.getAttribute(GIS_LOAD_STATE_ATTRIBUTE) === "loaded" || existingReadyState === "loaded" || existingReadyState === "complete") {
     return Promise.resolve();
   }
 
   const script = existing ?? document.createElement("script");
   if (!existing) {
-    script.setAttribute("src", googleGisScriptUrl);
+    script.setAttribute("src", GOOGLE_GIS_SCRIPT_URL);
     script.setAttribute("async", "");
-    script.setAttribute(gisLoadStateAttribute, "loading");
+    script.setAttribute(GIS_LOAD_STATE_ATTRIBUTE, "loading");
   }
 
   const loading = new Promise<void>((resolve, reject) => {
@@ -59,7 +59,7 @@ function loadGisScript(document: Document, timeoutMs: number): Promise<void> {
       script.removeEventListener("error", failed);
     };
     const loaded = (): void => {
-      script.setAttribute(gisLoadStateAttribute, "loaded");
+      script.setAttribute(GIS_LOAD_STATE_ATTRIBUTE, "loaded");
       cleanup();
       resolve();
     };

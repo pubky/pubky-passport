@@ -2,8 +2,8 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { pubkySecretKeyFormat, type PubkyIdentityKey, type PubkyIdentityKeys } from "../../../pubky/application/pubkyIdentityKeys";
-import { logger } from "../../../../libs/logger/logger";
+import { PUBKY_SECRET_KEY_FORMAT, type PubkyIdentityKey, type PubkyIdentityKeys } from "../../../pubky/application/pubkyIdentityKeys";
+import { LOGGER } from "../../../../libs/logger/logger";
 import type { PassportFileCrypto } from "../../../passport-file/application/passportFileCrypto";
 import type { PassportFileStore } from "../../../passport-file/application/passportFileStore";
 import type {
@@ -39,7 +39,7 @@ export class DeleteGoogleDriveIdentity implements GoogleDriveIdentityDeleter {
     try {
       return await this.deleteIdentity(google, expectedPublicKeyZ32);
     } catch {
-      logger.warn("identity.google.delete.failed", { code: "unexpected_failure" });
+      LOGGER.warn("identity.google.delete.failed", { code: "unexpected_failure" });
       return failure("unexpected_failure");
     }
   }
@@ -63,7 +63,7 @@ export class DeleteGoogleDriveIdentity implements GoogleDriveIdentityDeleter {
     let restoredIdentity: PubkyIdentityKey | null = null;
     try {
       const restored = await this.#identityKeys.restoreIdentityKey({
-        secretKey: { bytes: secretKey.value, format: pubkySecretKeyFormat },
+        secretKey: { bytes: secretKey.value, format: PUBKY_SECRET_KEY_FORMAT },
       });
       if (Result.isError(restored)) return failure("restore_failed");
       restoredIdentity = restored.value;
@@ -75,7 +75,7 @@ export class DeleteGoogleDriveIdentity implements GoogleDriveIdentityDeleter {
         try {
           this.#identityKeys.disposeIdentityKey({ keyHandle: restoredIdentity.keyHandle });
         } catch {
-          logger.warn("identity.google.cleanup.failed", { operation: "deleted_key_dispose" });
+          LOGGER.warn("identity.google.cleanup.failed", { operation: "deleted_key_dispose" });
         }
       }
     }

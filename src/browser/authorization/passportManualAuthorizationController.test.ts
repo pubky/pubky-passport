@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { pubkyAuthRequestLimits } from "../../core/auth/pubkyAuthRequestLimits";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "../../core/auth/pubkyAuthRequestLimits";
 import { PassportManualAuthorizationController } from "./passportManualAuthorizationController";
 
 describe("PassportManualAuthorizationController", () => {
@@ -24,8 +24,8 @@ describe("PassportManualAuthorizationController", () => {
     const navigate = vi.fn();
     const controller = new PassportManualAuthorizationController(navigate);
 
-    expect(controller.enter("a".repeat(pubkyAuthRequestLimits.decodedAuthUrlLength + 1))).toBe("invalid");
-    expect(controller.enter(`${" ".repeat(pubkyAuthRequestLimits.decodedAuthUrlLength)}a`)).toBe("invalid");
+    expect(controller.enter("a".repeat(PUBKY_AUTH_REQUEST_LIMITS.decodedAuthUrlLength + 1))).toBe("invalid");
+    expect(controller.enter(`${" ".repeat(PUBKY_AUTH_REQUEST_LIMITS.decodedAuthUrlLength)}a`)).toBe("invalid");
     expect(navigate).not.toHaveBeenCalled();
   });
 

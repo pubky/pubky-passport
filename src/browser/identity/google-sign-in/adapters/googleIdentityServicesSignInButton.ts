@@ -4,7 +4,7 @@ import { Result } from "better-result";
 
 import { decodeBase64Url } from "../../../../libs/encoding/base64Url";
 
-import { logger } from "../../../../libs/logger/logger";
+import { LOGGER } from "../../../../libs/logger/logger";
 import type {
   GoogleSignInCredential,
   GoogleSignInButton,
@@ -26,13 +26,13 @@ type GoogleSignInButtonDependencies = {
   readUnverifiedGoogleIdTokenSubject(token: string): string | undefined;
 };
 
-const googleIdTokenRequestEnvelopeCharacters = '{"googleIdToken":""}'.length;
-const maximumGoogleIdTokenCharacters = 16 * 1024 - googleIdTokenRequestEnvelopeCharacters;
-const maximumGoogleIdTokenPayloadBytes = 8 * 1024;
-const maximumGoogleSubjectCharacters = 255;
-const base64UrlSegmentPattern = /^[A-Za-z0-9_-]+$/;
+const GOOGLE_ID_TOKEN_REQUEST_ENVELOPE_CHARACTERS = '{"googleIdToken":""}'.length;
+const MAXIMUM_GOOGLE_ID_TOKEN_CHARACTERS = 16 * 1024 - GOOGLE_ID_TOKEN_REQUEST_ENVELOPE_CHARACTERS;
+const MAXIMUM_GOOGLE_ID_TOKEN_PAYLOAD_BYTES = 8 * 1024;
+const MAXIMUM_GOOGLE_SUBJECT_CHARACTERS = 255;
+const BASE64_URL_SEGMENT_PATTERN = /^[A-Za-z0-9_-]+$/;
 
-const defaultDependencies: GoogleSignInButtonDependencies = {
+const DEFAULT_DEPENDENCIES: GoogleSignInButtonDependencies = {
   bindGoogleCredentialCallback,
   releaseGoogleCredentialCallback,
   readUnverifiedGoogleIdTokenSubject,
@@ -52,7 +52,7 @@ export class GoogleIdentityServicesSignInButton implements GoogleSignInButton {
   }) {
     this.#clientId = input.clientId;
     this.#googleIdentityServices = input.googleIdentityServices;
-    this.#dependencies = input.dependencies ?? defaultDependencies;
+    this.#dependencies = input.dependencies ?? DEFAULT_DEPENDENCIES;
   }
 
   async mount(input: {
@@ -76,9 +76,9 @@ export class GoogleIdentityServicesSignInButton implements GoogleSignInButton {
         if (
           typeof response.credential !== "string"
           || response.credential.length === 0
-          || response.credential.length > maximumGoogleIdTokenCharacters
+          || response.credential.length > MAXIMUM_GOOGLE_ID_TOKEN_CHARACTERS
         ) {
-          logger.warn("identity.google.button.credential_failed");
+          LOGGER.warn("identity.google.button.credential_failed");
           input.onCredential(Result.err({ code: "sign_in_failed" }));
           return;
         }
@@ -89,7 +89,7 @@ export class GoogleIdentityServicesSignInButton implements GoogleSignInButton {
         }
         input.onCredential(Result.ok({ googleIdToken: response.credential, subject }));
       } catch {
-        logger.warn("identity.google.button.credential_failed", { code: "unexpected" });
+        LOGGER.warn("identity.google.button.credential_failed", { code: "unexpected" });
         input.onCredential(Result.err({ code: "sign_in_failed" }));
       }
     };
@@ -126,13 +126,13 @@ export class GoogleIdentityServicesSignInButton implements GoogleSignInButton {
     try {
       this.#dependencies.releaseGoogleCredentialCallback(this.#credentialCallback);
     } catch {
-      logger.warn("identity.google.cleanup.failed", { operation: "credential_release" });
+      LOGGER.warn("identity.google.cleanup.failed", { operation: "credential_release" });
     }
     this.#credentialCallback = null;
   }
 
   private unavailable(code: string): GoogleSignInResult<never> {
-    logger.warn("identity.google.button.unavailable", { code });
+    LOGGER.warn("identity.google.button.unavailable", { code });
     this.unmount();
     return Result.err({ code: "google_unavailable" });
   }
@@ -178,10 +178,10 @@ export function releaseGoogleCredentialCallback(callback: (response: GoogleCrede
 }
 
 export function readUnverifiedGoogleIdTokenSubject(token: string): string | undefined {
-  if (token.length === 0 || token.length > maximumGoogleIdTokenCharacters) return undefined;
+  if (token.length === 0 || token.length > MAXIMUM_GOOGLE_ID_TOKEN_CHARACTERS) return undefined;
 
   const segments = token.split(".");
-  if (segments.length !== 3 || segments.some((segment) => !base64UrlSegmentPattern.test(segment))) {
+  if (segments.length !== 3 || segments.some((segment) => !BASE64_URL_SEGMENT_PATTERN.test(segment))) {
     return undefined;
   }
 
@@ -189,7 +189,7 @@ export function readUnverifiedGoogleIdTokenSubject(token: string): string | unde
   if (!payload) return undefined;
   try {
     const bytes = decodeBase64Url(payload);
-    if (!bytes || bytes.byteLength > maximumGoogleIdTokenPayloadBytes) return undefined;
+    if (!bytes || bytes.byteLength > MAXIMUM_GOOGLE_ID_TOKEN_PAYLOAD_BYTES) return undefined;
     const json = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     const value: unknown = JSON.parse(json);
     if (!value || typeof value !== "object" || Array.isArray(value) || !Object.hasOwn(value, "sub")) {
@@ -198,7 +198,7 @@ export function readUnverifiedGoogleIdTokenSubject(token: string): string | unde
 
     const subject = (value as Record<string, unknown>).sub;
     return typeof subject === "string"
-      && subject.length <= maximumGoogleSubjectCharacters
+      && subject.length <= MAXIMUM_GOOGLE_SUBJECT_CHARACTERS
       && subject.trim().length > 0
       ? subject
       : undefined;

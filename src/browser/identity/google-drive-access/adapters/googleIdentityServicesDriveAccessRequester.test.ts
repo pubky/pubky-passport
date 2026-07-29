@@ -4,7 +4,7 @@ import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  googleDriveAppDataScope,
+  GOOGLE_DRIVE_APP_DATA_SCOPE,
   requestGoogleDriveAccessToken as requestGoogleDriveAccessTokenWithLoader,
 } from "./googleIdentityServicesDriveAccessRequester";
 import type { GoogleAccounts } from "../../google-identity-services/application/googleIdentityServices";
@@ -52,7 +52,7 @@ describe("requestGoogleDriveAccessToken", () => {
     await vi.waitFor(() => expect(accessTokenCallback).toBeDefined());
     expect(tokenClientConfig).toMatchObject({
       login_hint: "google-subject",
-      scope: `openid ${googleDriveAppDataScope}`,
+      scope: `openid ${GOOGLE_DRIVE_APP_DATA_SCOPE}`,
     });
     expect(requestAccessToken).toHaveBeenCalledWith({ prompt: "" });
 
@@ -86,7 +86,7 @@ describe("requestGoogleDriveAccessToken", () => {
     });
 
     await vi.waitFor(() => expect(accessTokenCallback).toBeDefined());
-    accessTokenCallback?.({ access_token: "drive-token", scope: googleDriveAppDataScope });
+    accessTokenCallback?.({ access_token: "drive-token", scope: GOOGLE_DRIVE_APP_DATA_SCOPE });
 
     const result = await resultPromise;
     expect(Result.isError(result)).toBe(true);
@@ -104,7 +104,7 @@ describe("requestGoogleDriveAccessToken", () => {
       fetch: fetchImpl,
     });
     await vi.waitFor(() => expect(callback).toBeDefined());
-    callback?.({ access_token: "drive-token", scope: googleDriveAppDataScope });
+    callback?.({ access_token: "drive-token", scope: GOOGLE_DRIVE_APP_DATA_SCOPE });
 
     const result = await resultPromise;
     expect(Result.isOk(result)).toBe(true);
@@ -140,7 +140,7 @@ describe("requestGoogleDriveAccessToken", () => {
       fetch: fetchImpl,
     });
     await vi.waitFor(() => expect(callback).toBeDefined());
-    callback?.({ access_token: "drive-token", scope: googleDriveAppDataScope });
+    callback?.({ access_token: "drive-token", scope: GOOGLE_DRIVE_APP_DATA_SCOPE });
 
     const result = await resultPromise;
     expect(Result.isError(result)).toBe(true);
@@ -193,7 +193,7 @@ describe("requestGoogleDriveAccessToken", () => {
     });
     await vi.waitFor(() => expect(callback).toBeDefined());
     controller.abort();
-    callback?.({ access_token: "late-token", scope: googleDriveAppDataScope });
+    callback?.({ access_token: "late-token", scope: GOOGLE_DRIVE_APP_DATA_SCOPE });
 
     const result = await resultPromise;
     expect(Result.isError(result)).toBe(true);
@@ -216,7 +216,7 @@ describe("requestGoogleDriveAccessToken", () => {
       signal: controller.signal,
     });
     await vi.waitFor(() => expect(callback).toBeDefined());
-    callback?.({ access_token: "drive-token", scope: googleDriveAppDataScope });
+    callback?.({ access_token: "drive-token", scope: GOOGLE_DRIVE_APP_DATA_SCOPE });
     await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledOnce());
     controller.abort();
 

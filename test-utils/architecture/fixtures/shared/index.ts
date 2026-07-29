@@ -1,1 +1,1 @@
-export { fixtureValue } from "../server-target";
+export { FIXTURE_VALUE } from "../server-target";

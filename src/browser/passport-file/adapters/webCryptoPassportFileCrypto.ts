@@ -10,7 +10,7 @@ import type {
   PassportFileCryptoResult,
 } from "../application/passportFileCrypto";
 import { normalizePassportFileOrigin, parsePassportFileEnvelope } from "../../../core/passport-file/parsePassportFile";
-import { pubkySecretKeyBytes } from "../../pubky/application/pubkyIdentityKeys";
+import { PUBKY_SECRET_KEY_BYTES } from "../../pubky/application/pubkyIdentityKeys";
 
 export type WebCryptoPassportFileCryptoOptions = {
   subtle?: SubtleCrypto | null;
@@ -24,14 +24,14 @@ type RequiredWebCrypto = {
   getRandomValues: RandomValuesProvider;
 };
 
-const wrappingKeyBytes = 32;
-const aesGcmIvBytes = 12;
-const aesGcmTagBytes = 16;
-const aesGcmCiphertextBytes = pubkySecretKeyBytes + aesGcmTagBytes;
-const textEncoder = new TextEncoder();
+const WRAPPING_KEY_BYTES = 32;
+const AES_GCM_IV_BYTES = 12;
+const AES_GCM_TAG_BYTES = 16;
+const AES_GCM_CIPHERTEXT_BYTES = PUBKY_SECRET_KEY_BYTES + AES_GCM_TAG_BYTES;
+const TEXT_ENCODER = new TextEncoder();
 
-const aesGcmDerivationSalt = textEncoder.encode("pubky-passport/passport-file/aes-gcm/salt/v1");
-const aesGcmDerivationInfo = textEncoder.encode("passport-file:aes-gcm:v1");
+const AES_GCM_DERIVATION_SALT = TEXT_ENCODER.encode("pubky-passport/passport-file/aes-gcm/salt/v1");
+const AES_GCM_DERIVATION_INFO = TEXT_ENCODER.encode("passport-file:aes-gcm:v1");
 
 export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
   readonly #subtle: SubtleCrypto | null | undefined;
@@ -79,7 +79,7 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
         return failure(key.error.code);
       }
 
-      const iv = webCrypto.value.getRandomValues(new Uint8Array(aesGcmIvBytes));
+      const iv = webCrypto.value.getRandomValues(new Uint8Array(AES_GCM_IV_BYTES));
       const ciphertext = await webCrypto.value.subtle.encrypt(
         { name: "AES-GCM", iv, additionalData: aadForEnvelope(envelopeMetadata) },
         key.value,
@@ -119,12 +119,12 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
       return failure("invalid_envelope");
     }
 
-    const iv = decodeFixedLengthBase64Url(envelope.value.iv, aesGcmIvBytes);
+    const iv = decodeFixedLengthBase64Url(envelope.value.iv, AES_GCM_IV_BYTES);
     if (Result.isError(iv)) {
       return failure("invalid_envelope");
     }
 
-    const ciphertext = decodeFixedLengthBase64Url(envelope.value.ct, aesGcmCiphertextBytes);
+    const ciphertext = decodeFixedLengthBase64Url(envelope.value.ct, AES_GCM_CIPHERTEXT_BYTES);
     if (Result.isError(ciphertext)) {
       return failure("invalid_envelope");
     }
@@ -184,8 +184,8 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
         {
           name: "HKDF",
           hash: "SHA-256",
-          salt: toArrayBuffer(aesGcmDerivationSalt),
-          info: toArrayBuffer(aesGcmDerivationInfo),
+          salt: toArrayBuffer(AES_GCM_DERIVATION_SALT),
+          info: toArrayBuffer(AES_GCM_DERIVATION_INFO),
         },
         hkdfKey,
         { name: "AES-GCM", length: 256 },
@@ -201,12 +201,12 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
 }
 
 function isValidSecretKeyBytes(secretKeyBytes: Uint8Array): boolean {
-  return secretKeyBytes instanceof Uint8Array && secretKeyBytes.byteLength === pubkySecretKeyBytes;
+  return secretKeyBytes instanceof Uint8Array && secretKeyBytes.byteLength === PUBKY_SECRET_KEY_BYTES;
 }
 
 function decodeWrappingKey(value: string): PassportFileCryptoResult<Uint8Array> {
   const decoded = decodeBase64Url(value);
-  if (!decoded || decoded.byteLength !== wrappingKeyBytes) {
+  if (!decoded || decoded.byteLength !== WRAPPING_KEY_BYTES) {
     return failure("invalid_wrapping_key");
   }
 
@@ -231,7 +231,7 @@ function base64UrlLength(byteLength: number): number {
 }
 
 function aadForEnvelope(envelope: Pick<PassportFileEnvelopeV1, "v" | "url">): ArrayBuffer {
-  return toArrayBuffer(textEncoder.encode(`pubky-passport/passport-file/v${envelope.v}\n${envelope.url}`));
+  return toArrayBuffer(TEXT_ENCODER.encode(`pubky-passport/passport-file/v${envelope.v}\n${envelope.url}`));
 }
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {

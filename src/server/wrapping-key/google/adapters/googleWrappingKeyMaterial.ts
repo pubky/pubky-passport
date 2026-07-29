@@ -3,7 +3,7 @@ import "server-only";
 import { hkdfSync } from "node:crypto";
 
 import {
-  canonicalGoogleIssuer,
+  CANONICAL_GOOGLE_ISSUER,
   type GoogleWrappingKeyMaterial,
 } from "../application/googleWrappingKey";
 import { decodeServerSecret } from "./serverSecret";
@@ -12,9 +12,9 @@ export type CreateGoogleWrappingKeyMaterialInput = {
   serverSecretBase64: string;
 };
 
-const wrappingKeyBytes = 32;
-const googleWrappingKeyHkdfSalt = Buffer.from("pubky-passport/wrapping-key/salt/v1", "utf8");
-const googleWrappingKeyHkdfInfoPrefix = "google:";
+const WRAPPING_KEY_BYTES = 32;
+const GOOGLE_WRAPPING_KEY_HKDF_SALT = Buffer.from("pubky-passport/wrapping-key/salt/v1", "utf8");
+const GOOGLE_WRAPPING_KEY_HKDF_INFO_PREFIX = "google:";
 
 export function createGoogleWrappingKeyMaterial(
   input: CreateGoogleWrappingKeyMaterialInput,
@@ -23,12 +23,12 @@ export function createGoogleWrappingKeyMaterial(
 
   return {
     async deriveWrappingKey(identity) {
-      if (identity.issuer !== canonicalGoogleIssuer || !identity.subject.trim()) {
+      if (identity.issuer !== CANONICAL_GOOGLE_ISSUER || !identity.subject.trim()) {
         throw new Error("Invalid wrapping key identity.");
       }
 
-      const info = Buffer.from(`${googleWrappingKeyHkdfInfoPrefix}${identity.issuer}\n${identity.subject}`, "utf8");
-      const derivedKey = Buffer.from(hkdfSync("sha256", serverSecret, googleWrappingKeyHkdfSalt, info, wrappingKeyBytes));
+      const info = Buffer.from(`${GOOGLE_WRAPPING_KEY_HKDF_INFO_PREFIX}${identity.issuer}\n${identity.subject}`, "utf8");
+      const derivedKey = Buffer.from(hkdfSync("sha256", serverSecret, GOOGLE_WRAPPING_KEY_HKDF_SALT, info, WRAPPING_KEY_BYTES));
 
       return { wrappingKey: derivedKey.toString("base64url") };
     },

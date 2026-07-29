@@ -3,10 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { HomegateClient } from "../../../homegate/adapters/homegateClient";
 import {
-  fakeGoogleIdentitySession,
-  fakePassportEnvelope,
-  fakePassportReference,
-  fakeSignupInvitation,
+  FAKE_GOOGLE_IDENTITY_SESSION,
+  FAKE_PASSPORT_ENVELOPE,
+  FAKE_PASSPORT_REFERENCE,
+  FAKE_SIGNUP_INVITATION,
   FakePassportFileStore,
 } from "../../../../../test-utils/fakes/googleBackedIdentityFakes";
 import { expectResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
@@ -16,7 +16,7 @@ import type {
 } from "./googleBackedIdentity";
 import { EstablishGoogleBackedIdentity } from "./establishGoogleBackedIdentity";
 
-const publicIdentity = {
+const PUBLIC_IDENTITY = {
   publicKeyZ32: "public-identity",
   publicKeyDisplay: "pubkypublic-identity",
 };
@@ -25,8 +25,8 @@ describe("EstablishGoogleBackedIdentity", () => {
   it("routes a found Drive identity to restoration without requesting Homegate", async () => {
     const fileStore = new FakePassportFileStore({
       status: "found",
-      envelope: fakePassportEnvelope,
-      reference: fakePassportReference,
+      envelope: FAKE_PASSPORT_ENVELOPE,
+      reference: FAKE_PASSPORT_REFERENCE,
     });
     const restoreExistingIdentity = restorer();
     const createMissingIdentity = creator();
@@ -38,11 +38,11 @@ describe("EstablishGoogleBackedIdentity", () => {
       homegate: homegate.client,
     });
 
-    const result = await subject.establish(fakeGoogleIdentitySession);
+    const result = await subject.establish(FAKE_GOOGLE_IDENTITY_SESSION);
 
     expectResultOk(result);
     expect(restoreExistingIdentity.execute).toHaveBeenCalledWith({
-      envelope: fakePassportEnvelope,
+      envelope: FAKE_PASSPORT_ENVELOPE,
       wrappingKey: "w".repeat(43),
     });
     expect(createMissingIdentity.execute).not.toHaveBeenCalled();
@@ -54,21 +54,21 @@ describe("EstablishGoogleBackedIdentity", () => {
     const fileStore = new FakePassportFileStore({ status: "missing" });
     const homegate = homegateDouble(async () => {
       events.push("homegate");
-      return Result.ok(fakeSignupInvitation);
+      return Result.ok(FAKE_SIGNUP_INVITATION);
     });
     const createMissingIdentity = creator(async () => {
       events.push("create");
-      return Result.ok({ source: "created", publicIdentity });
+      return Result.ok({ source: "created", publicIdentity: PUBLIC_IDENTITY });
     });
     const subject = createSubject({ fileStore, createMissingIdentity, homegate: homegate.client });
 
-    const result = await subject.establish(fakeGoogleIdentitySession);
+    const result = await subject.establish(FAKE_GOOGLE_IDENTITY_SESSION);
 
     expectResultOk(result);
     expect(homegate.calls).toEqual({ count: 1, hasGoogleIdToken: true });
-    expect(JSON.stringify(homegate)).not.toContain(fakeGoogleIdentitySession.googleIdToken);
+    expect(JSON.stringify(homegate)).not.toContain(FAKE_GOOGLE_IDENTITY_SESSION.googleIdToken);
     expect(createMissingIdentity.execute).toHaveBeenCalledWith({
-      invitation: fakeSignupInvitation,
+      invitation: FAKE_SIGNUP_INVITATION,
       passportFileStore: fileStore,
       wrappingKey: "w".repeat(43),
     });
@@ -84,7 +84,7 @@ describe("EstablishGoogleBackedIdentity", () => {
       homegate: homegate.client,
     });
 
-    const result = await subject.establish(fakeGoogleIdentitySession);
+    const result = await subject.establish(FAKE_GOOGLE_IDENTITY_SESSION);
 
     expectResultError(result, {
       code: "homegate_invite_failed",
@@ -95,14 +95,14 @@ describe("EstablishGoogleBackedIdentity", () => {
 
   it("maps wrapping-key and Drive read failures at the coordinator boundary", async () => {
     const wrappingFailure = createSubject({ wrappingFailure: true });
-    expectResultError(await wrappingFailure.establish(fakeGoogleIdentitySession), {
+    expectResultError(await wrappingFailure.establish(FAKE_GOOGLE_IDENTITY_SESSION), {
       code: "wrapping_key_failed",
     });
 
     const readFailure = createSubject({
       fileStore: new FakePassportFileStore({ code: "network_failed" }),
     });
-    expectResultError(await readFailure.establish(fakeGoogleIdentitySession), {
+    expectResultError(await readFailure.establish(FAKE_GOOGLE_IDENTITY_SESSION), {
       code: "drive_read_failed",
     });
   });
@@ -111,7 +111,7 @@ describe("EstablishGoogleBackedIdentity", () => {
     "maps an unexpected %s exception without exposing dependency details",
     async (stage) => {
       const fileStore = new FakePassportFileStore(stage === "restore"
-        ? { status: "found", envelope: fakePassportEnvelope, reference: fakePassportReference }
+        ? { status: "found", envelope: FAKE_PASSPORT_ENVELOPE, reference: FAKE_PASSPORT_REFERENCE }
         : { status: "missing" });
       const restoreExistingIdentity = restorer(async () => { throw new Error("restore secret"); });
       const createMissingIdentity = creator(async () => { throw new Error("create secret"); });
@@ -125,7 +125,7 @@ describe("EstablishGoogleBackedIdentity", () => {
         homegate: homegate.client,
       });
 
-      const result = await subject.establish(fakeGoogleIdentitySession);
+      const result = await subject.establish(FAKE_GOOGLE_IDENTITY_SESSION);
 
       expectResultError(result, { code: "unexpected_failure" });
     },
@@ -160,7 +160,7 @@ function createSubject(input: {
 }
 
 function homegateDouble(
-  implementation: () => ReturnType<HomegateClient["requestGoogleSignupInvitation"]> = async () => Result.ok(fakeSignupInvitation),
+  implementation: () => ReturnType<HomegateClient["requestGoogleSignupInvitation"]> = async () => Result.ok(FAKE_SIGNUP_INVITATION),
 ) {
   const calls = { count: 0, hasGoogleIdToken: false };
   const client = new HomegateClient({
@@ -176,13 +176,13 @@ function homegateDouble(
 }
 
 function restorer(
-  implementation = async () => Result.ok({ source: "restored" as const, publicIdentity }),
+  implementation = async () => Result.ok({ source: "restored" as const, publicIdentity: PUBLIC_IDENTITY }),
 ): GoogleBackedIdentityRestorer {
   return { execute: vi.fn(implementation) };
 }
 
 function creator(
-  implementation = async () => Result.ok({ source: "created" as const, publicIdentity }),
+  implementation = async () => Result.ok({ source: "created" as const, publicIdentity: PUBLIC_IDENTITY }),
 ): GoogleBackedIdentityCreator {
   return { execute: vi.fn(implementation) };
 }

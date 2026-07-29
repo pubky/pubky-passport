@@ -13,7 +13,7 @@ type PendingStrictModeEntry = {
   entry: ParsedAuthorizationEntry;
 };
 
-const pendingStrictModeEntries = new WeakMap<Window, PendingStrictModeEntry>();
+const PENDING_STRICT_MODE_ENTRIES = new WeakMap<Window, PendingStrictModeEntry>();
 
 export function readAndScrubAuthorizationEntry(
   browserWindow: Window,
@@ -30,9 +30,9 @@ export function readAndScrubAuthorizationEntry(
   );
 
   if (rawSearch.length === 0) {
-    const pending = pendingStrictModeEntries.get(browserWindow);
+    const pending = PENDING_STRICT_MODE_ENTRIES.get(browserWindow);
     if (pending?.scrubbedHref === scrubbedHref) {
-      pendingStrictModeEntries.delete(browserWindow);
+      PENDING_STRICT_MODE_ENTRIES.delete(browserWindow);
       return pending.entry;
     }
   }
@@ -43,15 +43,15 @@ export function readAndScrubAuthorizationEntry(
     ? { status: "invalid" }
     : { status: "valid", review: parsed.value.review, approval: parsed.value.approval };
   const pending = { scrubbedHref, entry };
-  pendingStrictModeEntries.set(browserWindow, pending);
+  PENDING_STRICT_MODE_ENTRIES.set(browserWindow, pending);
   queueMicrotask(() => {
-    if (pendingStrictModeEntries.get(browserWindow) === pending) {
-      pendingStrictModeEntries.delete(browserWindow);
+    if (PENDING_STRICT_MODE_ENTRIES.get(browserWindow) === pending) {
+      PENDING_STRICT_MODE_ENTRIES.delete(browserWindow);
     }
   });
   return entry;
 }
 
 export function commitAuthorizationEntry(browserWindow: Window): void {
-  pendingStrictModeEntries.delete(browserWindow);
+  PENDING_STRICT_MODE_ENTRIES.delete(browserWindow);
 }

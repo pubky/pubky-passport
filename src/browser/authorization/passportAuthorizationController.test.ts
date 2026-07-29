@@ -10,11 +10,11 @@ import {
   type PassportAuthorizationControllerDependencies,
 } from "./passportAuthorizationController";
 
-const relayOrigin = "https://relay.example";
-const successCallback = "https://app.example/success?code=private";
-const errorCallback = "https://app.example/error?code=private";
-const cancelCallback = "https://app.example/cancel?code=private";
-const secret = "sensitive-authorization-secret";
+const RELAY_ORIGIN = "https://relay.example";
+const SUCCESS_CALLBACK = "https://app.example/success?code=private";
+const ERROR_CALLBACK = "https://app.example/error?code=private";
+const CANCEL_CALLBACK = "https://app.example/cancel?code=private";
+const SECRET = "sensitive-authorization-secret";
 
 describe("PassportAuthorizationController", () => {
   it("exposes only finite safe view states and intent methods", () => {
@@ -27,10 +27,10 @@ describe("PassportAuthorizationController", () => {
       status: "review",
       review: { requestingAppDisplayName: "app.example" },
     });
-    expect(serialized).not.toContain(secret);
-    expect(serialized).not.toContain(successCallback);
-    expect(serialized).not.toContain(errorCallback);
-    expect(serialized).not.toContain(cancelCallback);
+    expect(serialized).not.toContain(SECRET);
+    expect(serialized).not.toContain(SUCCESS_CALLBACK);
+    expect(serialized).not.toContain(ERROR_CALLBACK);
+    expect(serialized).not.toContain(CANCEL_CALLBACK);
     expect(Object.keys(controller).sort()).toEqual([]);
   });
 
@@ -57,7 +57,7 @@ describe("PassportAuthorizationController", () => {
 
     await expect(first).resolves.toMatchObject({ status: "redirecting" });
     await expect(second).resolves.toMatchObject({ status: "approving" });
-    expect(navigate).toHaveBeenCalledWith(successCallback);
+    expect(navigate).toHaveBeenCalledWith(SUCCESS_CALLBACK);
   });
 
   it("routes approval errors and cancellation through exact parser-owned callbacks", async () => {
@@ -67,11 +67,11 @@ describe("PassportAuthorizationController", () => {
       navigate,
     });
     await failed.approve();
-    expect(navigate).toHaveBeenLastCalledWith(errorCallback);
+    expect(navigate).toHaveBeenLastCalledWith(ERROR_CALLBACK);
 
     const cancelled = createController({ navigate });
     cancelled.cancel();
-    expect(navigate).toHaveBeenLastCalledWith(cancelCallback);
+    expect(navigate).toHaveBeenLastCalledWith(CANCEL_CALLBACK);
   });
 
   it.each([
@@ -148,6 +148,6 @@ function validEntry(options: { callbacks?: boolean } = {}): ParsedAuthorizationE
 function validRequest(options: { callbacks?: boolean } = {}): string {
   const callbacks = options.callbacks === false
     ? ""
-    : `&x-success=${encodeURIComponent(successCallback)}&x-error=${encodeURIComponent(errorCallback)}&x-cancel=${encodeURIComponent(cancelCallback)}`;
-  return `pubkyauth://signin?caps=/pub/example.app/:rw&relay=${encodeURIComponent(`${relayOrigin}/inbox`)}&secret=${secret}${callbacks}`;
+    : `&x-success=${encodeURIComponent(SUCCESS_CALLBACK)}&x-error=${encodeURIComponent(ERROR_CALLBACK)}&x-cancel=${encodeURIComponent(CANCEL_CALLBACK)}`;
+  return `pubkyauth://signin?caps=/pub/example.app/:rw&relay=${encodeURIComponent(`${RELAY_ORIGIN}/inbox`)}&secret=${SECRET}${callbacks}`;
 }

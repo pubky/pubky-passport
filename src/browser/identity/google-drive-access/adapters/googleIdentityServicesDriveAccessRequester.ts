@@ -9,12 +9,12 @@ import type {
 } from "../../google-identity-services/application/googleIdentityServices";
 import type { GoogleDriveAccessRequester, GoogleDriveAccessResult } from "../application/googleDriveAccess";
 
-export const googleDriveAppDataScope = "https://www.googleapis.com/auth/drive.appdata";
-const googleOpenIdScope = "openid";
-const googleUserInfoUrl = "https://openidconnect.googleapis.com/v1/userinfo";
-const driveConsentTimeoutMs = 60_000;
-const maximumUserInfoResponseBytes = 16 * 1024;
-const maximumGoogleSubjectCharacters = 255;
+export const GOOGLE_DRIVE_APP_DATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
+const GOOGLE_OPEN_ID_SCOPE = "openid";
+const GOOGLE_USER_INFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
+const DRIVE_CONSENT_TIMEOUT_MS = 60_000;
+const MAXIMUM_USER_INFO_RESPONSE_BYTES = 16 * 1024;
+const MAXIMUM_GOOGLE_SUBJECT_CHARACTERS = 255;
 type GoogleSubjectVerification = "match" | "mismatch" | "unavailable" | "aborted";
 
 export class GoogleIdentityServicesDriveAccessRequester implements GoogleDriveAccessRequester {
@@ -25,7 +25,7 @@ export class GoogleIdentityServicesDriveAccessRequester implements GoogleDriveAc
   constructor(options: { googleIdentityServices: GoogleIdentityServicesLoader; fetch?: typeof fetch; timeoutMs?: number }) {
     this.#googleIdentityServices = options.googleIdentityServices;
     this.#fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
-    this.#timeoutMs = options.timeoutMs ?? driveConsentTimeoutMs;
+    this.#timeoutMs = options.timeoutMs ?? DRIVE_CONSENT_TIMEOUT_MS;
   }
 
   async request(input: {
@@ -71,7 +71,7 @@ export async function requestGoogleDriveAccessToken(input: {
     input.expectedSubject,
     input.fetch ?? globalThis.fetch.bind(globalThis),
     input.signal,
-    input.timeoutMs ?? driveConsentTimeoutMs,
+    input.timeoutMs ?? DRIVE_CONSENT_TIMEOUT_MS,
   );
 }
 
@@ -108,11 +108,11 @@ function requestDriveAccessToken(
     try {
       const tokenClient = accounts.oauth2.initTokenClient({
         client_id: clientId,
-        scope: `${googleOpenIdScope} ${googleDriveAppDataScope}`,
+        scope: `${GOOGLE_OPEN_ID_SCOPE} ${GOOGLE_DRIVE_APP_DATA_SCOPE}`,
         ...(loginHint ? { login_hint: loginHint } : {}),
         async callback(response) {
           if (settled) return;
-          if (typeof response.access_token !== "string" || response.access_token.length === 0 || response.error !== undefined || !hasGoogleScope(response.scope, googleDriveAppDataScope)) {
+          if (typeof response.access_token !== "string" || response.access_token.length === 0 || response.error !== undefined || !hasGoogleScope(response.scope, GOOGLE_DRIVE_APP_DATA_SCOPE)) {
             finish(Result.err({ code: "drive_consent_failed" }));
             return;
           }
@@ -150,7 +150,7 @@ async function verifyGoogleSubject(
   signal: AbortSignal,
 ): Promise<GoogleSubjectVerification> {
   try {
-    const response = await fetchImpl(googleUserInfoUrl, {
+    const response = await fetchImpl(GOOGLE_USER_INFO_URL, {
       headers: { Accept: "application/json", Authorization: `Bearer ${accessToken}` },
       cache: "no-store",
       credentials: "omit",
@@ -159,7 +159,7 @@ async function verifyGoogleSubject(
       signal,
     });
     if (!response.ok) return "unavailable";
-    const contents = await readBoundedText(response, maximumUserInfoResponseBytes);
+    const contents = await readBoundedText(response, MAXIMUM_USER_INFO_RESPONSE_BYTES);
     if (contents === null || contents === "too_large") return "unavailable";
 
     let body: unknown;
@@ -181,7 +181,7 @@ function parseGoogleSubject(value: unknown): string | null {
   if (!value || typeof value !== "object" || Array.isArray(value) || !Object.hasOwn(value, "sub")) return null;
   const subject = (value as Record<string, unknown>).sub;
   return typeof subject === "string"
-    && subject.length <= maximumGoogleSubjectCharacters
+    && subject.length <= MAXIMUM_GOOGLE_SUBJECT_CHARACTERS
     && subject.trim().length > 0
     ? subject
     : null;

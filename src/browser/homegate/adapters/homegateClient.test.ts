@@ -1,12 +1,12 @@
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { logger } from "../../../libs/logger/logger";
+import { LOGGER } from "../../../libs/logger/logger";
 import type { HomegateInvitationErrorCode } from "../application/homegateInvitation";
 import { HomegateClient } from "./homegateClient";
 
-const homegateBaseUrl = "https://homegate.example/";
-const homegateErrorCases = [
+const HOMEGATE_BASE_URL = "https://homegate.example/";
+const HOMEGATE_ERROR_CASES = [
   ["invalid_request", "homegate_invalid_request"],
   ["invalid_google_id_token", "invalid_google_id_token"],
   ["weekly_limit_exceeded", "weekly_limit_exceeded"],
@@ -16,7 +16,7 @@ const homegateErrorCases = [
   ["internal_error", "homegate_unavailable"],
   ["unknown error containing SECRET-GOOGLE-ID-TOKEN", "malformed_homegate_response"],
 ] satisfies ReadonlyArray<readonly [string, HomegateInvitationErrorCode]>;
-const malformedSuccessCases = [
+const MALFORMED_SUCCESS_CASES = [
   ["an unknown field", () => jsonResponse({ signupCode: "code", homeserverPubky: "home", extra: "unsafe" })],
   ["an empty signup code", () => jsonResponse({ signupCode: "", homeserverPubky: "home" })],
   ["an oversized signup code", () => jsonResponse({ signupCode: "x".repeat(1025), homeserverPubky: "home" })],
@@ -37,7 +37,7 @@ describe("HomegateClient", () => {
       signupCode: "signup-code",
       homeserverPubky: "homeserver-pubky",
     }));
-    const client = new HomegateClient({ fetch, homegateBaseUrl });
+    const client = new HomegateClient({ fetch, homegateBaseUrl: HOMEGATE_BASE_URL });
 
     const result = await client.requestGoogleSignupInvitation("id-token");
 
@@ -83,7 +83,7 @@ describe("HomegateClient", () => {
     "rejects an invalid Google ID token before contacting Homegate",
     async (googleIdToken) => {
       const fetch = vi.fn<typeof globalThis.fetch>();
-      const client = new HomegateClient({ fetch, homegateBaseUrl });
+      const client = new HomegateClient({ fetch, homegateBaseUrl: HOMEGATE_BASE_URL });
 
       const result = await client.requestGoogleSignupInvitation(googleIdToken);
 
@@ -94,10 +94,10 @@ describe("HomegateClient", () => {
     },
   );
 
-  it.each(malformedSuccessCases)("rejects a success response with %s", async (_name, response) => {
+  it.each(MALFORMED_SUCCESS_CASES)("rejects a success response with %s", async (_name, response) => {
     const client = new HomegateClient({
       fetch: vi.fn<typeof globalThis.fetch>().mockResolvedValue(response()),
-      homegateBaseUrl,
+      homegateBaseUrl: HOMEGATE_BASE_URL,
     });
 
     const result = await client.requestGoogleSignupInvitation("id-token");
@@ -117,7 +117,7 @@ describe("HomegateClient", () => {
     }), { status: 500 });
     const client = new HomegateClient({
       fetch: vi.fn<typeof globalThis.fetch>().mockResolvedValue(response),
-      homegateBaseUrl,
+      homegateBaseUrl: HOMEGATE_BASE_URL,
     });
 
     const result = await client.requestGoogleSignupInvitation("id-token");
@@ -128,10 +128,10 @@ describe("HomegateClient", () => {
     expect(result.error).toEqual({ code: "homegate_unavailable" });
   });
 
-  it.each(homegateErrorCases)("maps Homegate plaintext error %s to %s", async (body, expectedCode) => {
+  it.each(HOMEGATE_ERROR_CASES)("maps Homegate plaintext error %s to %s", async (body, expectedCode) => {
     const client = new HomegateClient({
       fetch: vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response(body, { status: 500 })),
-      homegateBaseUrl,
+      homegateBaseUrl: HOMEGATE_BASE_URL,
     });
 
     const result = await client.requestGoogleSignupInvitation("id-token");
@@ -148,7 +148,7 @@ describe("HomegateClient", () => {
     ]) {
       const client = new HomegateClient({
         fetch: vi.fn<typeof globalThis.fetch>().mockResolvedValue(response),
-        homegateBaseUrl,
+        homegateBaseUrl: HOMEGATE_BASE_URL,
       });
 
       const result = await client.requestGoogleSignupInvitation("id-token");
@@ -160,10 +160,10 @@ describe("HomegateClient", () => {
   });
 
   it("maps network failures without leaking the Google ID token", async () => {
-    const warn = vi.spyOn(logger, "warn").mockImplementation(() => undefined);
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const client = new HomegateClient({
       fetch: vi.fn<typeof globalThis.fetch>().mockRejectedValue(new Error("SECRET-GOOGLE-ID-TOKEN")),
-      homegateBaseUrl,
+      homegateBaseUrl: HOMEGATE_BASE_URL,
     });
 
     const result = await client.requestGoogleSignupInvitation("SECRET-GOOGLE-ID-TOKEN");
@@ -182,7 +182,7 @@ describe("HomegateClient", () => {
       throw new Error("unsupported");
     });
     const fetch = vi.fn<typeof globalThis.fetch>();
-    const client = new HomegateClient({ fetch, homegateBaseUrl });
+    const client = new HomegateClient({ fetch, homegateBaseUrl: HOMEGATE_BASE_URL });
 
     const result = await client.requestGoogleSignupInvitation("id-token");
 
@@ -202,7 +202,7 @@ describe("HomegateClient", () => {
         },
       })))
     );
-    const client = new HomegateClient({ fetch, homegateBaseUrl });
+    const client = new HomegateClient({ fetch, homegateBaseUrl: HOMEGATE_BASE_URL });
 
     const resultPromise = client.requestGoogleSignupInvitation("id-token");
     requestController.abort();

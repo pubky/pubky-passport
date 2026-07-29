@@ -5,7 +5,7 @@ import ts from "typescript";
 
 import {
   isTestSourcePath,
-  sourceExtensions,
+  SOURCE_EXTENSIONS,
 } from "./architecturePolicy.mjs";
 
 export type ForbiddenTarget = {
@@ -25,7 +25,7 @@ export class ModuleGraph {
   }
 
   sourceFiles(rootPath: string): string[] {
-    return walk(rootPath).filter((filePath) => sourceExtensions.includes(extname(filePath)));
+    return walk(rootPath).filter((filePath) => SOURCE_EXTENSIONS.includes(extname(filePath)));
   }
 
   productionSourceFiles(rootPath: string): string[] {

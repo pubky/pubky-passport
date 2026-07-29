@@ -1,11 +1,11 @@
 import { getBrowserBootstrapConfig } from "../../server/config/browserBootstrapConfig";
-import { AuthorizationReviewLoader } from "../../ui/authorizationReviewLoader";
+import { AUTHORIZATION_REVIEW_LOADER } from "../../ui/authorizationReviewLoader";
 
 export default function AuthorizePage() {
   const config = getBrowserBootstrapConfig();
 
   return (
-    <AuthorizationReviewLoader
+    <AUTHORIZATION_REVIEW_LOADER
       googleClientId={config.googleClientId}
       homegateBaseUrl={config.homegateBaseUrl}
     />

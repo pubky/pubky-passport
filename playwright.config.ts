@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const port = 3_100;
-const baseURL = `http://127.0.0.1:${port}`;
+const PORT = 3_100;
+const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -14,7 +14,7 @@ export default defineConfig({
     ? [["github"], ["html", { open: "never" }]]
     : "line",
   use: {
-    baseURL,
+    baseURL: BASE_URL,
     trace: "on-first-retry",
   },
   projects: [
@@ -24,12 +24,12 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `pnpm start --port ${port}`,
+    command: `pnpm start --port ${PORT}`,
     env: {
       GOOGLE_CLIENT_ID: "e2e-google-client-id",
       HOMEGATE_URL: "https://homegate.example/",
     },
-    url: baseURL,
+    url: BASE_URL,
     reuseExistingServer: false,
     timeout: 180_000,
   },

@@ -6,7 +6,7 @@ import type {
   GoogleWrappingKeyRequestErrorCode,
 } from "../../../../server/wrapping-key/google/application/requestGoogleWrappingKey";
 import {
-  googleCredentialResponseHeaders,
+  GOOGLE_CREDENTIAL_RESPONSE_HEADERS,
   parseGoogleIdTokenRequest,
 } from "../../googleCredentialRoutePolicy";
 
@@ -61,7 +61,7 @@ async function createDefaultRequest(): Promise<GoogleWrappingKeyRequest> {
 }
 
 function json(body: GoogleWrappingKeyRouteBody, status: number): NextResponse<GoogleWrappingKeyRouteBody> {
-  return NextResponse.json(body, { status, headers: googleCredentialResponseHeaders });
+  return NextResponse.json(body, { status, headers: GOOGLE_CREDENTIAL_RESPONSE_HEADERS });
 }
 
 function statusForError(code: GoogleWrappingKeyRequestErrorCode): number {

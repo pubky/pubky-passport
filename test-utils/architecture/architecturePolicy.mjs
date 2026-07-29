@@ -1,4 +1,4 @@
-export const sourceExtensions = Object.freeze([
+export const SOURCE_EXTENSIONS = Object.freeze([
   ".js",
   ".jsx",
   ".mjs",
@@ -9,28 +9,28 @@ export const sourceExtensions = Object.freeze([
   ".tsx",
 ]);
 
-export const browserControllerContract = "browser[A-Z][A-Za-z0-9]*Controller";
-export const browserControllerFactory = "createBrowser[A-Z][A-Za-z0-9]*Controller";
-export const browserControllerImplementation = "passport[A-Z][A-Za-z0-9]*Controller";
-export const stableBrowserEntry = `(?:${browserControllerContract}|${browserControllerFactory})`;
+export const BROWSER_CONTROLLER_CONTRACT = "browser[A-Z][A-Za-z0-9]*Controller";
+export const BROWSER_CONTROLLER_FACTORY = "createBrowser[A-Z][A-Za-z0-9]*Controller";
+export const BROWSER_CONTROLLER_IMPLEMENTATION = "passport[A-Z][A-Za-z0-9]*Controller";
+export const STABLE_BROWSER_ENTRY = `(?:${BROWSER_CONTROLLER_CONTRACT}|${BROWSER_CONTROLLER_FACTORY})`;
 
-const roleImportPatterns = Object.freeze({
+const ROLE_IMPORT_PATTERNS = Object.freeze({
   application: "(?:^|/)application(?:/|$)",
   adapter: "(?:^|/)adapters(?:/|$)",
-  composition: `(?:^|/)composition(?:/|$)|(?:^|/)${browserControllerFactory}$`,
-  controller: `(?:^|/)${browserControllerImplementation}$`,
-  public: `(?:^|/)${browserControllerContract}$`,
+  composition: `(?:^|/)composition(?:/|$)|(?:^|/)${BROWSER_CONTROLLER_FACTORY}$`,
+  controller: `(?:^|/)${BROWSER_CONTROLLER_IMPLEMENTATION}$`,
+  public: `(?:^|/)${BROWSER_CONTROLLER_CONTRACT}$`,
 });
 
-const rolePathSegments = Object.freeze({
+const ROLE_PATH_SEGMENTS = Object.freeze({
   application: "application",
   adapter: "adapters",
   composition: "composition",
-  controller: browserControllerImplementation,
-  public: browserControllerContract,
+  controller: BROWSER_CONTROLLER_IMPLEMENTATION,
+  public: BROWSER_CONTROLLER_CONTRACT,
 });
 
-export const browserRoleRules = Object.freeze([
+export const BROWSER_ROLE_RULES = Object.freeze([
   Object.freeze({
     id: "browser-application-inward",
     description: "keeps browser application modules independent from controllers and composition",
@@ -86,7 +86,7 @@ export const browserRoleRules = Object.freeze([
   }),
 ]);
 
-export const serverRoleRules = Object.freeze([
+export const SERVER_ROLE_RULES = Object.freeze([
   Object.freeze({
     id: "server-application-inward",
     description: "keeps server application modules independent from runtime implementation",
@@ -119,7 +119,7 @@ export const serverRoleRules = Object.freeze([
   }),
 ]);
 
-export const appServerEntryRule = Object.freeze({
+export const APP_SERVER_ENTRY_RULE = Object.freeze({
   id: "app-server-entry",
   description: "keeps app routes from bypassing layered server entry points",
   eslintFiles: ["src/app/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
@@ -131,9 +131,9 @@ export function browserModuleRole(relativePath) {
   const segments = relativePath.replaceAll("\\", "/").split("/");
   if (segments.length === 2) {
     const fileName = segments[1] ?? "";
-    if (new RegExp(`^${browserControllerContract}\\.(?:[cm]?[jt]sx?)$`, "u").test(fileName)) return "public";
-    if (new RegExp(`^${browserControllerFactory}\\.(?:[cm]?[jt]sx?)$`, "u").test(fileName)) return "composition";
-    if (new RegExp(`^${browserControllerImplementation}\\.(?:[cm]?[jt]sx?)$`, "u").test(fileName)) return "controller";
+    if (new RegExp(`^${BROWSER_CONTROLLER_CONTRACT}\\.(?:[cm]?[jt]sx?)$`, "u").test(fileName)) return "public";
+    if (new RegExp(`^${BROWSER_CONTROLLER_FACTORY}\\.(?:[cm]?[jt]sx?)$`, "u").test(fileName)) return "composition";
+    if (new RegExp(`^${BROWSER_CONTROLLER_IMPLEMENTATION}\\.(?:[cm]?[jt]sx?)$`, "u").test(fileName)) return "controller";
   }
 
   const roles = [
@@ -157,14 +157,14 @@ export function serverModuleRole(relativePath) {
 export function restrictedImportRegexForRoleRule(rule) {
   const patterns = [
     ...rule.forbiddenSpecifiers.map((specifier) => `^${escapeRegex(specifier)}$`),
-    ...rule.forbiddenRoles.map((role) => roleImportPatterns[role]),
+    ...rule.forbiddenRoles.map((role) => ROLE_IMPORT_PATTERNS[role]),
     ...rule.forbiddenRoots.flatMap(restrictedRootImportPatterns),
   ];
   return patterns.join("|");
 }
 
 export function restrictedServerImportRegexForAppRule(rule) {
-  const forbiddenSegments = rule.forbiddenRoles.map((role) => rolePathSegments[role]);
+  const forbiddenSegments = rule.forbiddenRoles.map((role) => ROLE_PATH_SEGMENTS[role]);
   return `^(?:@/server/|(?:\\.\\./)+server/)(?:[^/]+/)*(?:${forbiddenSegments.join("|")})(?:/|$)`;
 }
 

@@ -1,6 +1,6 @@
 import { Result, type Err, type Result as ResultType } from "better-result";
 
-import { pubkyAuthRequestLimits } from "./pubkyAuthRequestLimits";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 
 export type PubkyAuthCapabilityScope = "specific" | "broad";
 
@@ -32,7 +32,7 @@ export function parsePubkyAuthCapabilities(input: string | null | undefined): Pu
   }
 
   const rawCapabilities = input.split(",");
-  if (rawCapabilities.length > pubkyAuthRequestLimits.capabilityCount) {
+  if (rawCapabilities.length > PUBKY_AUTH_REQUEST_LIMITS.capabilityCount) {
     return error("too_many_capabilities", "Pubky auth request contains too many capabilities.");
   }
 
@@ -40,7 +40,7 @@ export function parsePubkyAuthCapabilities(input: string | null | undefined): Pu
     return error("empty_capability", "Pubky auth request contains an empty capability.");
   }
 
-  if (rawCapabilities.some((capability) => capability.length > pubkyAuthRequestLimits.capabilityLength)) {
+  if (rawCapabilities.some((capability) => capability.length > PUBKY_AUTH_REQUEST_LIMITS.capabilityLength)) {
     return error("capability_too_long", "Pubky auth request contains an oversized capability.");
   }
 
@@ -67,7 +67,7 @@ function parseCapability(input: string): CapabilityParseResult {
 
   const path = input.slice(0, actionsStart);
   const actions = input.slice(actionsStart + 1);
-  if (path.length > pubkyAuthRequestLimits.capabilityPathLength) {
+  if (path.length > PUBKY_AUTH_REQUEST_LIMITS.capabilityPathLength) {
     return error("capability_too_long", "Pubky auth request contains an oversized capability path.");
   }
 

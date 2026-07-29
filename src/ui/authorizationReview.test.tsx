@@ -13,7 +13,7 @@ import type { BrowserIdentityController } from "../browser/identity/browserIdent
 import { fakeBrowserIdentityController } from "../../test-utils/fakes/fakeBrowserIdentityController";
 import { AuthorizationReview } from "./authorizationReview";
 
-const review = {
+const REVIEW = {
   kind: "signin" as const,
   requestingAppDisplayName: "app.example",
   callbackAvailability: { success: true, error: true, cancel: true },
@@ -26,7 +26,7 @@ describe("AuthorizationReview", () => {
 
   it("renders safe review state and delegates approval and cancellation intents", async () => {
     const user = userEvent.setup();
-    const controller = fakeController({ status: "review", review });
+    const controller = fakeController({ status: "review", review: REVIEW });
 
     renderReview(controller);
 
@@ -50,10 +50,10 @@ describe("AuthorizationReview", () => {
   });
 
   it("renders controller state transitions without receiving sensitive values", () => {
-    const controller = fakeController({ status: "review", review });
+    const controller = fakeController({ status: "review", review: REVIEW });
     const rendered = renderReview(controller);
 
-    act(() => controller.emit({ status: "approving", review }));
+    act(() => controller.emit({ status: "approving", review: REVIEW }));
     expect(screen.getByRole("button", { name: "Approving..." })).toHaveProperty("disabled", true);
 
     act(() => controller.emit({ status: "approved" }));

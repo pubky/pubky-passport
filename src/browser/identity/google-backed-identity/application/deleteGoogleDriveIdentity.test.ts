@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 
 import { FakePubkyIdentityKeys } from "../../../../../test-utils/fakes/fakePubkyIdentityKeys";
 import {
-  fakeGoogleIdentitySession,
-  fakePassportEnvelope,
-  fakePassportReference,
+  FAKE_GOOGLE_IDENTITY_SESSION,
+  FAKE_PASSPORT_ENVELOPE,
+  FAKE_PASSPORT_REFERENCE,
   FakePassportCrypto,
   FakePassportFileStore,
 } from "../../../../../test-utils/fakes/googleBackedIdentityFakes";
@@ -17,7 +17,7 @@ describe("DeleteGoogleDriveIdentity", () => {
     const setup = createSetup();
 
     const result = await setup.subject.execute(
-      fakeGoogleIdentitySession,
+      FAKE_GOOGLE_IDENTITY_SESSION,
       setup.keys.nextPublicIdentity.publicKeyZ32,
     );
 
@@ -32,7 +32,7 @@ describe("DeleteGoogleDriveIdentity", () => {
     const setup = createSetup(new FakePassportFileStore({ status: "missing" }));
 
     const result = await setup.subject.execute(
-      fakeGoogleIdentitySession,
+      FAKE_GOOGLE_IDENTITY_SESSION,
       setup.keys.nextPublicIdentity.publicKeyZ32,
     );
 
@@ -46,7 +46,7 @@ describe("DeleteGoogleDriveIdentity", () => {
   it("does not delete a Drive identity that differs from the selected identity", async () => {
     const setup = createSetup();
 
-    const result = await setup.subject.execute(fakeGoogleIdentitySession, "different-local-identity");
+    const result = await setup.subject.execute(FAKE_GOOGLE_IDENTITY_SESSION, "different-local-identity");
 
     expectResultError(result, { code: "identity_mismatch" });
     expect(setup.fileStore.deleteCalls).toBe(0);
@@ -57,7 +57,7 @@ describe("DeleteGoogleDriveIdentity", () => {
     setup.fileStore.deleteFailure = "stale_file";
 
     const result = await setup.subject.execute(
-      fakeGoogleIdentitySession,
+      FAKE_GOOGLE_IDENTITY_SESSION,
       setup.keys.nextPublicIdentity.publicKeyZ32,
     );
 
@@ -71,7 +71,7 @@ describe("DeleteGoogleDriveIdentity", () => {
     setup.fileStore.deletePassportFile = async () => { throw new Error("Drive deletion threw"); };
 
     const result = await setup.subject.execute(
-      fakeGoogleIdentitySession,
+      FAKE_GOOGLE_IDENTITY_SESSION,
       setup.keys.nextPublicIdentity.publicKeyZ32,
     );
 
@@ -85,7 +85,7 @@ describe("DeleteGoogleDriveIdentity", () => {
     setup.keys.disposeIdentityKey = () => { throw new Error("cleanup failed"); };
 
     const result = await setup.subject.execute(
-      fakeGoogleIdentitySession,
+      FAKE_GOOGLE_IDENTITY_SESSION,
       setup.keys.nextPublicIdentity.publicKeyZ32,
     );
 
@@ -96,8 +96,8 @@ describe("DeleteGoogleDriveIdentity", () => {
 function createSetup(
   fileStore = new FakePassportFileStore({
     status: "found",
-    envelope: fakePassportEnvelope,
-    reference: fakePassportReference,
+    envelope: FAKE_PASSPORT_ENVELOPE,
+    reference: FAKE_PASSPORT_REFERENCE,
   }),
 ) {
   const keys = new FakePubkyIdentityKeys();

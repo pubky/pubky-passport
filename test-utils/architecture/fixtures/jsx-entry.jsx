@@ -1,1 +1,1 @@
-export const fixture = <div />;
+export const FIXTURE = <div />;

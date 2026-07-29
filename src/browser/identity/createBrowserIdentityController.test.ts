@@ -10,7 +10,7 @@ type CredentialCallback = (
   result: GoogleSignInResult<{ googleIdToken: string; subject: string }>,
 ) => void;
 
-const mocks = vi.hoisted(() => ({
+const MOCKS = vi.hoisted(() => ({
   GoogleIdentityActions: vi.fn(),
   disposeIdentityActions: vi.fn(),
   establish: vi.fn(),
@@ -24,20 +24,20 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("./google-backed-identity/composition/googleIdentityActions", () => ({
-  GoogleIdentityActions: mocks.GoogleIdentityActions,
+  GoogleIdentityActions: MOCKS.GoogleIdentityActions,
 }));
 
 vi.mock("./google-sign-in/adapters/googleIdentityServicesSignInButton", () => ({
-  GoogleIdentityServicesSignInButton: mocks.GoogleIdentityServicesSignInButton,
+  GoogleIdentityServicesSignInButton: MOCKS.GoogleIdentityServicesSignInButton,
 }));
 
 vi.mock("./google-drive-access/adapters/googleIdentityServicesDriveAccessRequester", () => ({
-  GoogleIdentityServicesDriveAccessRequester: mocks.GoogleIdentityServicesDriveAccessRequester,
+  GoogleIdentityServicesDriveAccessRequester: MOCKS.GoogleIdentityServicesDriveAccessRequester,
 }));
 
 import { createBrowserIdentityController } from "./createBrowserIdentityController";
 
-const validControllerConfig = {
+const VALID_CONTROLLER_CONFIG = {
   googleClientId: "google-client-id",
   homegateBaseUrl: "https://homegate.example/",
 };
@@ -45,63 +45,63 @@ const validControllerConfig = {
 describe("createBrowserIdentityController", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", new MemoryStorage());
-    mocks.GoogleIdentityActions.mockReset();
-    mocks.disposeIdentityActions.mockReset();
-    mocks.establish.mockReset();
-    mocks.deleteIdentity.mockReset();
-    mocks.GoogleIdentityServicesSignInButton.mockReset();
-    mocks.GoogleIdentityServicesDriveAccessRequester.mockReset();
-    mocks.mountGoogleSignIn.mockReset();
-    mocks.unmountGoogleSignIn.mockReset();
-    mocks.requestGoogleDriveAccess.mockReset();
-    mocks.credentialCallback = null;
+    MOCKS.GoogleIdentityActions.mockReset();
+    MOCKS.disposeIdentityActions.mockReset();
+    MOCKS.establish.mockReset();
+    MOCKS.deleteIdentity.mockReset();
+    MOCKS.GoogleIdentityServicesSignInButton.mockReset();
+    MOCKS.GoogleIdentityServicesDriveAccessRequester.mockReset();
+    MOCKS.mountGoogleSignIn.mockReset();
+    MOCKS.unmountGoogleSignIn.mockReset();
+    MOCKS.requestGoogleDriveAccess.mockReset();
+    MOCKS.credentialCallback = null;
 
-    mocks.GoogleIdentityActions.mockImplementation(function () {
+    MOCKS.GoogleIdentityActions.mockImplementation(function () {
       return {
-        establish: mocks.establish,
-        deleteDriveIdentity: mocks.deleteIdentity,
-        dispose: mocks.disposeIdentityActions,
+        establish: MOCKS.establish,
+        deleteDriveIdentity: MOCKS.deleteIdentity,
+        dispose: MOCKS.disposeIdentityActions,
       };
     });
-    mocks.GoogleIdentityServicesSignInButton.mockImplementation(function () {
+    MOCKS.GoogleIdentityServicesSignInButton.mockImplementation(function () {
       return {
-        mount: mocks.mountGoogleSignIn,
-        unmount: mocks.unmountGoogleSignIn,
+        mount: MOCKS.mountGoogleSignIn,
+        unmount: MOCKS.unmountGoogleSignIn,
       };
     });
-    mocks.GoogleIdentityServicesDriveAccessRequester.mockImplementation(function () {
-      return { request: mocks.requestGoogleDriveAccess };
+    MOCKS.GoogleIdentityServicesDriveAccessRequester.mockImplementation(function () {
+      return { request: MOCKS.requestGoogleDriveAccess };
     });
-    mocks.mountGoogleSignIn.mockImplementation(async (input: {
+    MOCKS.mountGoogleSignIn.mockImplementation(async (input: {
       onCredential: CredentialCallback;
     }) => {
-      mocks.credentialCallback = input.onCredential;
+      MOCKS.credentialCallback = input.onCredential;
       return Result.ok();
     });
-    mocks.requestGoogleDriveAccess.mockResolvedValue(Result.ok("drive-access-token"));
-    mocks.establish.mockResolvedValue(Result.ok({
+    MOCKS.requestGoogleDriveAccess.mockResolvedValue(Result.ok("drive-access-token"));
+    MOCKS.establish.mockResolvedValue(Result.ok({
       source: "restored",
       publicIdentity: { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" },
     }));
-    mocks.deleteIdentity.mockResolvedValue(Result.ok());
+    MOCKS.deleteIdentity.mockResolvedValue(Result.ok());
   });
   afterEach(() => vi.unstubAllGlobals());
 
   it("serves the local identity catalog without constructing the Pubky action graph", () => {
-    const controller = createBrowserIdentityController(validControllerConfig);
+    const controller = createBrowserIdentityController(VALID_CONTROLLER_CONFIG);
 
     const identities = controller.list();
     expect(Result.isError(identities)).toBe(false);
     if (Result.isError(identities)) throw new Error(identities.error.code);
     expect(identities.value).toEqual({ activeIdentityId: null, identities: [] });
-    expect(mocks.GoogleIdentityActions).not.toHaveBeenCalled();
+    expect(MOCKS.GoogleIdentityActions).not.toHaveBeenCalled();
 
     controller.dispose();
-    expect(mocks.GoogleIdentityActions).not.toHaveBeenCalled();
+    expect(MOCKS.GoogleIdentityActions).not.toHaveBeenCalled();
   });
 
   it("constructs one action graph and delegates establish and delete", async () => {
-    const controller = createBrowserIdentityController(validControllerConfig);
+    const controller = createBrowserIdentityController(VALID_CONTROLLER_CONFIG);
     await mountWithGoogleCredential(controller);
 
     await expect(controller.continueGoogle({ kind: "establish" })).resolves.toEqual({
@@ -112,12 +112,12 @@ describe("createBrowserIdentityController", () => {
         publicIdentity: { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" },
       }),
     });
-    expect(mocks.GoogleIdentityActions).toHaveBeenCalledWith({
+    expect(MOCKS.GoogleIdentityActions).toHaveBeenCalledWith({
       keyStore: expect.anything(),
       homegateBaseUrl: "https://homegate.example/",
       passportOrigin: window.location.origin,
     });
-    expect(mocks.establish).toHaveBeenCalledWith({
+    expect(MOCKS.establish).toHaveBeenCalledWith({
       googleIdToken: "google-id-token",
       driveAccessToken: "drive-access-token",
     });
@@ -130,19 +130,19 @@ describe("createBrowserIdentityController", () => {
       status: "action_completed",
       result: Result.ok({ kind: "deleted" }),
     });
-    expect(mocks.GoogleIdentityActions).toHaveBeenCalledOnce();
-    expect(mocks.deleteIdentity).toHaveBeenCalledWith(
+    expect(MOCKS.GoogleIdentityActions).toHaveBeenCalledOnce();
+    expect(MOCKS.deleteIdentity).toHaveBeenCalledWith(
       { googleIdToken: "google-id-token", driveAccessToken: "drive-access-token" },
       "public-key",
     );
 
     controller.dispose();
     controller.dispose();
-    expect(mocks.disposeIdentityActions).toHaveBeenCalledOnce();
+    expect(MOCKS.disposeIdentityActions).toHaveBeenCalledOnce();
   });
 
   it("constructs the action graph when delete is the first action", async () => {
-    const controller = createBrowserIdentityController(validControllerConfig);
+    const controller = createBrowserIdentityController(VALID_CONTROLLER_CONFIG);
     await mountWithGoogleCredential(controller);
 
     await expect(controller.continueGoogle({
@@ -152,21 +152,21 @@ describe("createBrowserIdentityController", () => {
       status: "action_completed",
       result: Result.ok({ kind: "deleted" }),
     });
-    expect(mocks.GoogleIdentityActions).toHaveBeenCalledOnce();
-    expect(mocks.deleteIdentity).toHaveBeenCalledWith(
+    expect(MOCKS.GoogleIdentityActions).toHaveBeenCalledOnce();
+    expect(MOCKS.deleteIdentity).toHaveBeenCalledWith(
       { googleIdToken: "google-id-token", driveAccessToken: "drive-access-token" },
       "public-key",
     );
 
     controller.dispose();
-    expect(mocks.disposeIdentityActions).toHaveBeenCalledOnce();
+    expect(MOCKS.disposeIdentityActions).toHaveBeenCalledOnce();
   });
 
   it("rolls back a partially constructed action graph before retrying", async () => {
-    mocks.GoogleIdentityActions.mockImplementationOnce(function () {
+    MOCKS.GoogleIdentityActions.mockImplementationOnce(function () {
       throw new Error("construction failed");
     });
-    const controller = createBrowserIdentityController(validControllerConfig);
+    const controller = createBrowserIdentityController(VALID_CONTROLLER_CONFIG);
     await mountWithGoogleCredential(controller);
 
     const failed = await controller.continueGoogle({ kind: "establish" });
@@ -175,36 +175,36 @@ describe("createBrowserIdentityController", () => {
     expect(Result.isError(failed.result)).toBe(true);
     if (!Result.isError(failed.result)) throw new Error("Expected construction failure");
     expect(failed.result.error).toEqual({ code: "unexpected_failure" });
-    expect(mocks.GoogleIdentityActions).toHaveBeenCalledOnce();
-    expect(mocks.disposeIdentityActions).not.toHaveBeenCalled();
+    expect(MOCKS.GoogleIdentityActions).toHaveBeenCalledOnce();
+    expect(MOCKS.disposeIdentityActions).not.toHaveBeenCalled();
 
     emitGoogleCredential();
     await expect(controller.continueGoogle({ kind: "establish" })).resolves.toMatchObject({
       status: "action_completed",
       result: { value: { kind: "established" } },
     });
-    expect(mocks.GoogleIdentityActions).toHaveBeenCalledTimes(2);
+    expect(MOCKS.GoogleIdentityActions).toHaveBeenCalledTimes(2);
 
     controller.dispose();
-    expect(mocks.disposeIdentityActions).toHaveBeenCalledOnce();
+    expect(MOCKS.disposeIdentityActions).toHaveBeenCalledOnce();
   });
 
   it("defers action graph disposal until an in-flight action settles", async () => {
     let resolveEstablish!: (result: ReturnType<typeof establishedIdentity>) => void;
-    mocks.establish.mockImplementationOnce(() => new Promise((resolve) => {
+    MOCKS.establish.mockImplementationOnce(() => new Promise((resolve) => {
       resolveEstablish = resolve;
     }));
-    const controller = createBrowserIdentityController(validControllerConfig);
+    const controller = createBrowserIdentityController(VALID_CONTROLLER_CONFIG);
     await mountWithGoogleCredential(controller);
 
     const pending = controller.continueGoogle({ kind: "establish" });
-    await vi.waitFor(() => expect(mocks.establish).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(MOCKS.establish).toHaveBeenCalledOnce());
     controller.dispose();
-    expect(mocks.disposeIdentityActions).not.toHaveBeenCalled();
+    expect(MOCKS.disposeIdentityActions).not.toHaveBeenCalled();
 
     resolveEstablish(establishedIdentity());
     await expect(pending).resolves.toMatchObject({ status: "action_finished_after_unmount" });
-    expect(mocks.disposeIdentityActions).toHaveBeenCalledOnce();
+    expect(MOCKS.disposeIdentityActions).toHaveBeenCalledOnce();
   });
 });
 
@@ -216,7 +216,7 @@ async function mountWithGoogleCredential(
 }
 
 function emitGoogleCredential(): void {
-  mocks.credentialCallback?.(Result.ok({
+  MOCKS.credentialCallback?.(Result.ok({
     googleIdToken: "google-id-token",
     subject: "google-subject",
   }));

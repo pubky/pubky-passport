@@ -2,14 +2,14 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { pubkyAuthRequestLimits } from "../../../core/auth/pubkyAuthRequestLimits";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "../../../core/auth/pubkyAuthRequestLimits";
 import {
   commitAuthorizationEntry,
   readAndScrubAuthorizationEntry,
 } from "./browserAuthorizationEntry";
 
-const relayOrigin = "https://relay.example";
-const secret = "sensitive-authorization-secret";
+const RELAY_ORIGIN = "https://relay.example";
+const SECRET = "sensitive-authorization-secret";
 
 describe("browserAuthorizationEntry", () => {
   afterEach(async () => {
@@ -67,7 +67,7 @@ describe("browserAuthorizationEntry", () => {
 
   it.each([
     () => `d=${validRequest()}`,
-    () => `d=${"%41".repeat(Math.ceil(pubkyAuthRequestLimits.encodedDLength / 3) + 1)}`,
+    () => `d=${"%41".repeat(Math.ceil(PUBKY_AUTH_REQUEST_LIMITS.encodedDLength / 3) + 1)}`,
     () => `d=${encodeURIComponent(validRequest())}&d=${encodeURIComponent(validRequest())}`,
     () => "d=%E0%A4%A",
   ])("rejects invalid raw d input without exposing it", (query) => {
@@ -89,5 +89,5 @@ function setRawAuthorizationQuery(query: string): void {
 }
 
 function validRequest(): string {
-  return `pubkyauth://signin?caps=/pub/example.app/:rw&relay=${encodeURIComponent(`${relayOrigin}/inbox`)}&secret=${secret}`;
+  return `pubkyauth://signin?caps=/pub/example.app/:rw&relay=${encodeURIComponent(`${RELAY_ORIGIN}/inbox`)}&secret=${SECRET}`;
 }

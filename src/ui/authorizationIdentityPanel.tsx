@@ -9,7 +9,7 @@ import type {
   LocalIdentitySummary,
 } from "../browser/identity/browserIdentityController";
 import { createBrowserIdentityController } from "../browser/identity/createBrowserIdentityController";
-import { logger } from "../libs/logger/logger";
+import { LOGGER } from "../libs/logger/logger";
 import { GoogleSignInButton } from "./googleSignInButton";
 
 export function AuthorizationIdentityPanel({
@@ -50,7 +50,7 @@ export function AuthorizationIdentityPanel({
         });
         refreshIdentities();
       } catch {
-        logger.warn("authorize.identity.initialize.failed");
+        LOGGER.warn("authorize.identity.initialize.failed");
         setMessage("Passport could not load identities in this browser.");
         readyCallback.current(false);
       }
@@ -96,7 +96,7 @@ export function AuthorizationIdentityPanel({
     setBusy(false);
     setAddingIdentity(false);
     if (Result.isError(result)) {
-      logger.warn("authorize.identity.google.failed", { code: result.error.code });
+      LOGGER.warn("authorize.identity.google.failed", { code: result.error.code });
       refreshIdentities(messageForGoogleFailure(result.error.code));
       return;
     }

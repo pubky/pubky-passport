@@ -1,11 +1,11 @@
 import { Result, type Err, type Result as ResultType } from "better-result";
 
 import {
-  pubkyAuthRequestParameters,
+  PUBKY_AUTH_REQUEST_PARAMETERS,
   validatePubkyAuthRequestParameters,
   type PubkyAuthRequestParameterErrorCode,
 } from "./pubkyAuthRequestParameters";
-import { pubkyAuthRequestLimits } from "./pubkyAuthRequestLimits";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 
 export type PubkyAuthCallbackAvailability = {
   success: boolean;
@@ -50,7 +50,7 @@ export function validatePubkyAuthUrls(
   }
 
   const relay = validateRelayUrl(
-    authUrl.searchParams.get(pubkyAuthRequestParameters.relay),
+    authUrl.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.relay),
   );
   if (Result.isError(relay)) {
     return Result.err(relay.error);
@@ -83,7 +83,7 @@ export function validateRelayUrl(
     return error("missing_relay", "Pubky auth request is missing relay.");
   }
 
-  if (value.length > pubkyAuthRequestLimits.relayUrlLength) {
+  if (value.length > PUBKY_AUTH_REQUEST_LIMITS.relayUrlLength) {
     return error("invalid_relay", "Pubky auth request relay is not an allowed URL.");
   }
 
@@ -137,17 +137,17 @@ function deriveDisplayDomain(callbacks: ValidatedPubkyAuthCallbacks): string | u
 function validateCallbacks(
   authUrl: URL,
 ): ResultType<ValidatedPubkyAuthCallbacks, PubkyAuthUrlValidationError> {
-  const success = validateOptionalCallback(authUrl.searchParams.get(pubkyAuthRequestParameters.success));
+  const success = validateOptionalCallback(authUrl.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.success));
   if (Result.isError(success)) {
     return Result.err(success.error);
   }
 
-  const errorCallback = validateOptionalCallback(authUrl.searchParams.get(pubkyAuthRequestParameters.error));
+  const errorCallback = validateOptionalCallback(authUrl.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.error));
   if (Result.isError(errorCallback)) {
     return Result.err(errorCallback.error);
   }
 
-  const cancel = validateOptionalCallback(authUrl.searchParams.get(pubkyAuthRequestParameters.cancel));
+  const cancel = validateOptionalCallback(authUrl.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.cancel));
   if (Result.isError(cancel)) {
     return Result.err(cancel.error);
   }
@@ -190,7 +190,7 @@ function validateOptionalCallback(
     return Result.ok(undefined);
   }
 
-  if (value.length > pubkyAuthRequestLimits.callbackUrlLength) {
+  if (value.length > PUBKY_AUTH_REQUEST_LIMITS.callbackUrlLength) {
     return error("invalid_callback", "Pubky auth request callback is not an allowed URL.");
   }
 

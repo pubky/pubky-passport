@@ -11,16 +11,16 @@ export type CreateInMemoryGoogleWrappingKeyRateLimiterInput = {
   windowMilliseconds?: number;
 };
 
-const defaultMaximumRequests = 10;
-const defaultWindowMilliseconds = 60_000;
+const DEFAULT_MAXIMUM_REQUESTS = 10;
+const DEFAULT_WINDOW_MILLISECONDS = 60_000;
 
 /** Process-local MVP limiter; multi-instance deployments need shared storage. */
 export function createInMemoryGoogleWrappingKeyRateLimiter(
   input: CreateInMemoryGoogleWrappingKeyRateLimiterInput,
 ): GoogleWrappingKeyRateLimiter {
   const identityPepper = decodeServerSecret(input.serverSecretBase64);
-  const maximumRequests = input.maximumRequests ?? defaultMaximumRequests;
-  const windowMilliseconds = input.windowMilliseconds ?? defaultWindowMilliseconds;
+  const maximumRequests = input.maximumRequests ?? DEFAULT_MAXIMUM_REQUESTS;
+  const windowMilliseconds = input.windowMilliseconds ?? DEFAULT_WINDOW_MILLISECONDS;
   const requestsByIdentity = new Map<string, number[]>();
   let nextCleanupAt = Number.NEGATIVE_INFINITY;
 

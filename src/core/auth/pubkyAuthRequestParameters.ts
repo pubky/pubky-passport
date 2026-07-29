@@ -4,7 +4,7 @@ import { Result, type Err, type Result as ResultType } from "better-result";
  * The supported v1 request grammar. Parsing and URL validation share these names
  * so a request cannot be reviewed under a different parameter interpretation.
  */
-export const pubkyAuthRequestParameters = {
+export const PUBKY_AUTH_REQUEST_PARAMETERS = {
   relay: "relay",
   secret: "secret",
   capabilities: "caps",
@@ -21,7 +21,7 @@ export type PubkyAuthRequestParameterError = {
   message: string;
 };
 
-const supportedParameters = new Set<string>(Object.values(pubkyAuthRequestParameters));
+const SUPPORTED_PARAMETERS = new Set<string>(Object.values(PUBKY_AUTH_REQUEST_PARAMETERS));
 
 export function validatePubkyAuthRequestParameters(
   searchParams: URLSearchParams,
@@ -29,7 +29,7 @@ export function validatePubkyAuthRequestParameters(
   const seen = new Set<string>();
 
   for (const [name] of searchParams) {
-    if (!supportedParameters.has(name)) {
+    if (!SUPPORTED_PARAMETERS.has(name)) {
       return error("unsupported_parameter", "Pubky auth request contains an unsupported parameter.");
     }
 

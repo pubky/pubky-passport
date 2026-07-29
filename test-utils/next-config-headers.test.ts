@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import nextConfig from "../next.config.mjs";
+import NEXT_CONFIG from "../next.config.mjs";
 
 describe("next config headers", () => {
   it("hides the Next.js development indicator", () => {
-    expect(nextConfig.devIndicators).toBe(false);
+    expect(NEXT_CONFIG.devIndicators).toBe(false);
   });
 
   it("sets baseline security headers for every response", async () => {
-    const headers = await nextConfig.headers?.();
+    const headers = await NEXT_CONFIG.headers?.();
     const globalHeaders = headers?.find((entry) => entry.source === "/:path*")?.headers ?? [];
     expect(globalHeaders).toEqual(
       expect.arrayContaining([
@@ -23,7 +23,7 @@ describe("next config headers", () => {
   });
 
   it("sets no-store and no-referrer headers for /authorize and subpaths", async () => {
-    const headers = await nextConfig.headers?.();
+    const headers = await NEXT_CONFIG.headers?.();
     const authorizeHeaders = [
       { key: "Cache-Control", value: "no-store" },
       { key: "Referrer-Policy", value: "no-referrer" },

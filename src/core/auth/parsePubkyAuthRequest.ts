@@ -12,9 +12,9 @@ import {
   type PubkyAuthUrlValidationError,
 } from "./validatePubkyAuthUrls";
 import {
-  pubkyAuthRequestParameters,
+  PUBKY_AUTH_REQUEST_PARAMETERS,
 } from "./pubkyAuthRequestParameters";
-import { pubkyAuthRequestLimits } from "./pubkyAuthRequestLimits";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 
 export type { PubkyAuthCapability } from "./parsePubkyAuthCapabilities";
 export type { PubkyAuthCallbackAvailability } from "./validatePubkyAuthUrls";
@@ -22,8 +22,8 @@ export type { PubkyAuthCallbackAvailability } from "./validatePubkyAuthUrls";
 export type PubkyAuthRequestKind = "signin";
 
 declare const validatedSensitivePubkyAuthRequestBrand: unique symbol;
-const parserIssuedApprovalRequests = new WeakSet<object>();
-const parserIssuedApprovalCallbacks = new WeakMap<object, Readonly<ValidatedPubkyAuthCallbacksInternal>>();
+const PARSER_ISSUED_APPROVAL_REQUESTS = new WeakSet<object>();
+const PARSER_ISSUED_APPROVAL_CALLBACKS = new WeakMap<object, Readonly<ValidatedPubkyAuthCallbacksInternal>>();
 
 export type PubkyAuthParseErrorCode =
   | "missing_d"
@@ -82,7 +82,7 @@ export function parsePubkyAuthRequest(
     return error("missing_d", "Missing encoded Pubky auth request.");
   }
 
-  if (d.length > pubkyAuthRequestLimits.encodedDLength) {
+  if (d.length > PUBKY_AUTH_REQUEST_LIMITS.encodedDLength) {
     return error("request_too_large", "Encoded Pubky auth request exceeds the allowed size.");
   }
 
@@ -91,7 +91,7 @@ export function parsePubkyAuthRequest(
     return Result.err(decoded.error);
   }
 
-  if (decoded.value.length > pubkyAuthRequestLimits.decodedAuthUrlLength) {
+  if (decoded.value.length > PUBKY_AUTH_REQUEST_LIMITS.decodedAuthUrlLength) {
     return error("request_too_large", "Pubky auth request exceeds the allowed size.");
   }
 
@@ -113,12 +113,12 @@ export function parsePubkyAuthRequest(
     return Result.err(kind.error);
   }
 
-  const secret = authUrl.value.searchParams.get(pubkyAuthRequestParameters.secret);
+  const secret = authUrl.value.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.secret);
   if (!secret) {
     return error("missing_secret", "Pubky auth request is missing a secret.");
   }
 
-  if (secret.length > pubkyAuthRequestLimits.secretLength) {
+  if (secret.length > PUBKY_AUTH_REQUEST_LIMITS.secretLength) {
     return error("invalid_secret", "Pubky auth request secret exceeds the allowed size.");
   }
 
@@ -127,7 +127,7 @@ export function parsePubkyAuthRequest(
     return mapUrlValidationError(urls.error);
   }
 
-  const capabilities = parsePubkyAuthCapabilities(authUrl.value.searchParams.get(pubkyAuthRequestParameters.capabilities));
+  const capabilities = parsePubkyAuthCapabilities(authUrl.value.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.capabilities));
   if (Result.isError(capabilities)) {
     return mapCapabilitiesError(capabilities.error);
   }
@@ -146,8 +146,8 @@ export function parsePubkyAuthRequest(
   const approval: ValidatedSensitivePubkyAuthRequest = Object.freeze({
     sensitivePubkyAuthUrl: authUrl.value.href as ValidatedSensitivePubkyAuthRequest["sensitivePubkyAuthUrl"],
   });
-  parserIssuedApprovalRequests.add(approval);
-  parserIssuedApprovalCallbacks.set(approval, Object.freeze({ ...urls.value.callbacks }));
+  PARSER_ISSUED_APPROVAL_REQUESTS.add(approval);
+  PARSER_ISSUED_APPROVAL_CALLBACKS.set(approval, Object.freeze({ ...urls.value.callbacks }));
 
   return Result.ok({ review, approval, relayOrigin: urls.value.relayOrigin });
 }
@@ -155,13 +155,13 @@ export function parsePubkyAuthRequest(
 export function isParserIssuedPubkyAuthRequest(
   value: unknown,
 ): value is ValidatedSensitivePubkyAuthRequest {
-  return typeof value === "object" && value !== null && parserIssuedApprovalRequests.has(value);
+  return typeof value === "object" && value !== null && PARSER_ISSUED_APPROVAL_REQUESTS.has(value);
 }
 
 export function getParserIssuedPubkyAuthCallbacks(
   approval: ValidatedSensitivePubkyAuthRequest,
 ): ValidatedPubkyAuthCallbacks | undefined {
-  return parserIssuedApprovalCallbacks.get(approval);
+  return PARSER_ISSUED_APPROVAL_CALLBACKS.get(approval);
 }
 
 export function extractRawPubkyAuthRequestQueryValue(

@@ -5,10 +5,10 @@ import { useState, type FormEvent } from "react";
 import type { BrowserManualAuthorizationController } from "../browser/authorization/browserManualAuthorizationController";
 import { createBrowserManualAuthorizationController } from "../browser/authorization/createBrowserManualAuthorizationController";
 
-const defaultAuthorization = createBrowserManualAuthorizationController();
+const DEFAULT_AUTHORIZATION = createBrowserManualAuthorizationController();
 
 export function ManualAuthorizationForm({
-  authorization = defaultAuthorization,
+  authorization = DEFAULT_AUTHORIZATION,
 }: {
   authorization?: BrowserManualAuthorizationController;
 }) {
