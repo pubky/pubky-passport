@@ -225,6 +225,10 @@ function messageForGoogleFailure(code: string, hasCreationCleanupCandidate: bool
   switch (code) {
     case "wrapping_key_failed":
       return "Passport could not obtain the wrapping key.";
+    case "wrapping_key_rate_limited":
+      return "Too many wrapping-key requests were made for this account. Try again later.";
+    case "wrapping_key_unavailable":
+      return "Passport's wrapping-key service is temporarily unavailable. Try again later.";
     case "drive_read_failed":
       return "Passport could not read the Google Drive Passport file.";
     case "decrypt_failed":
@@ -238,7 +242,7 @@ function messageForGoogleFailure(code: string, hasCreationCleanupCandidate: bool
     case "drive_create_conflict":
       return "A Google Drive Passport file was created at the same time. Try again to restore it.";
     case "invalid_google_id_token":
-      return "Your Google account session is no longer valid. Passport did not create a Pubky identity.";
+      return "Your Google account session is no longer valid. Sign in again to continue.";
     case "weekly_limit_exceeded":
       return "This Google account reached its weekly homeserver signup limit. Passport did not create a Pubky identity; retry later.";
     case "annual_limit_exceeded":

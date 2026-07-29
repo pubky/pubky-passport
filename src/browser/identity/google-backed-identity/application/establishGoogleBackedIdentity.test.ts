@@ -94,6 +94,7 @@ describe("EstablishGoogleBackedIdentity", () => {
     const wrappingFailure = createSubject({ wrappingFailure: true });
     expectResultError(await wrappingFailure.establish(TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS), {
       code: "wrapping_key_failed",
+      cause: "network_failed",
     });
 
     const readFailure = createSubject({

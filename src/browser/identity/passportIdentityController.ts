@@ -12,8 +12,17 @@ import type {
   BrowserIdentityCatalogResult,
   BrowserIdentityController,
   BrowserIdentityControllerError,
+  BrowserIdentityControllerErrorCode,
 } from "./browserIdentityController";
-import type { GoogleBackedIdentityCredentials, GoogleBackedIdentityError, GoogleBackedIdentityResult, GoogleBackedIdentity, GoogleDrivePassportFileDeletionResult } from "./google-backed-identity/application/googleBackedIdentity";
+import type { GoogleWrappingKeyErrorCode } from "../wrapping-key/application/googleWrappingKey";
+import type {
+  GoogleBackedIdentity,
+  GoogleBackedIdentityCredentials,
+  GoogleBackedIdentityError,
+  GoogleBackedIdentityResult,
+  GoogleDrivePassportFileDeletionError,
+  GoogleDrivePassportFileDeletionResult,
+} from "./google-backed-identity/application/googleBackedIdentity";
 import type {
   GoogleDriveAccessErrorCode,
   GoogleDriveAccessResult,
@@ -188,7 +197,7 @@ export class PassportIdentityController implements BrowserIdentityController {
       if (action.kind === "delete_google_drive_passport_file") {
         this.emit({ stage: "executing-action", errorCode: null });
         const deleted = await this.#dependencies.deleteGoogleDrivePassportFile(credentials, action.expectedPublicKeyZ32);
-        return Result.isError(deleted) ? actionFailure(deleted.error) : Result.ok({ kind: "google_drive_passport_file_deleted" });
+        return Result.isError(deleted) ? deletionFailure(deleted.error) : Result.ok({ kind: "google_drive_passport_file_deleted" });
       }
       this.emit({ stage: "executing-action", errorCode: null });
       const established = await this.#dependencies.establishGoogleBackedIdentity(credentials);
@@ -262,11 +271,39 @@ function actionFailure(error: BrowserIdentityControllerError): GoogleBackedIdent
 
 function establishmentFailure(error: GoogleBackedIdentityError): GoogleBackedIdentityActionResult {
   return actionFailure({
-    code: error.code === "homeserver_signup_invitation_failed" ? error.cause : error.code,
+    code: error.code === "homeserver_signup_invitation_failed"
+      ? error.cause
+      : error.code === "wrapping_key_failed"
+        ? wrappingKeyFailureCode(error.cause)
+        : error.code,
     ...(error.partialSetupPublicIdentity
       ? { partialSetupPublicIdentity: error.partialSetupPublicIdentity }
       : {}),
   });
+}
+
+function deletionFailure(error: GoogleDrivePassportFileDeletionError): GoogleBackedIdentityActionResult {
+  return actionFailure({
+    code: error.code === "wrapping_key_failed"
+      ? wrappingKeyFailureCode(error.cause)
+      : error.code,
+  });
+}
+
+function wrappingKeyFailureCode(code: GoogleWrappingKeyErrorCode): BrowserIdentityControllerErrorCode {
+  switch (code) {
+    case "invalid_google_id_token":
+      return "invalid_google_id_token";
+    case "rate_limited":
+      return "wrapping_key_rate_limited";
+    case "dependency_unavailable":
+    case "internal_error":
+    case "network_failed":
+      return "wrapping_key_unavailable";
+    case "invalid_request":
+    case "invalid_response":
+      return "wrapping_key_failed";
+  }
 }
 
 function errorForDriveFailure(code: GoogleDriveAccessErrorCode): GoogleBackedIdentityActionState["errorCode"] {

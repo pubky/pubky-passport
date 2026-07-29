@@ -807,7 +807,7 @@ sequenceDiagram
         alt Verification error
             Request-->>Handler: safe authentication error
         else Verified identity
-            Request->>Limiter: checkRateLimit(identity)
+            Request->>Limiter: tryConsumeRequest(identity)
             Limiter-->>Request: allowed or rate-limited
             alt Rate-limited
                 Request-->>Handler: rate_limited

@@ -92,6 +92,57 @@ describe("PassportIdentityController", () => {
     }
   });
 
+  it.each([
+    ["invalid_google_id_token", "invalid_google_id_token"],
+    ["rate_limited", "wrapping_key_rate_limited"],
+    ["dependency_unavailable", "wrapping_key_unavailable"],
+    ["internal_error", "wrapping_key_unavailable"],
+    ["network_failed", "wrapping_key_unavailable"],
+    ["invalid_request", "wrapping_key_failed"],
+    ["invalid_response", "wrapping_key_failed"],
+  ] as const)("translates the wrapping-key %s cause for UI consumers", async (cause, expectedCode) => {
+    const establish = establishmentDouble(async () => Result.err({
+      code: "wrapping_key_failed" as const,
+      cause,
+    }));
+    const { controller, credentialCallback } = await mountedController({
+      establishGoogleBackedIdentity: establish.execute,
+    });
+    credentialCallback.current?.(googleCredential());
+
+    const completed = await controller.continueGoogleBackedIdentityAction({ kind: "establish_google_backed_identity" });
+
+    expect(completed.status).toBe("action_completed");
+    if (completed.status !== "action_completed") throw new Error("Expected completed action");
+    expect(Result.isError(completed.result)).toBe(true);
+    if (Result.isError(completed.result)) {
+      expect(completed.result.error).toEqual({ code: expectedCode });
+    }
+  });
+
+  it("translates wrapping-key causes from Drive Passport file deletion", async () => {
+    const execute = deletionDouble(async () => Result.err({
+      code: "wrapping_key_failed" as const,
+      cause: "rate_limited" as const,
+    }));
+    const { controller, credentialCallback } = await mountedController({
+      deleteGoogleDrivePassportFile: execute.execute,
+    });
+    credentialCallback.current?.(googleCredential());
+
+    const completed = await controller.continueGoogleBackedIdentityAction({
+      kind: "delete_google_drive_passport_file",
+      expectedPublicKeyZ32: "public-key",
+    });
+
+    expect(completed.status).toBe("action_completed");
+    if (completed.status !== "action_completed") throw new Error("Expected completed action");
+    expect(Result.isError(completed.result)).toBe(true);
+    if (Result.isError(completed.result)) {
+      expect(completed.result.error).toEqual({ code: "wrapping_key_rate_limited" });
+    }
+  });
+
   it("account-matches Drive access and exposes only safe Google state", async () => {
     const states: unknown[] = [];
     const requestGoogleDriveAccess = driveAccessDouble(async () => Result.err({ code: "google_drive_authorization_account_mismatch" as const }));

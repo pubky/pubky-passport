@@ -43,10 +43,6 @@ describe("POST /api/wrapping-key/google", () => {
 
   it.each([
     ["invalid_google_id_token", 401],
-    ["expired_google_id_token", 401],
-    ["unsupported_google_issuer", 401],
-    ["unsupported_google_audience", 401],
-    ["missing_google_subject", 401],
     ["rate_limited", 429],
     ["dependency_unavailable", 503],
   ] as const)("maps %s failures to HTTP %i", async (code, status) => {

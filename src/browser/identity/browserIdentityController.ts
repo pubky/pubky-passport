@@ -23,6 +23,8 @@ export type BrowserIdentityCatalogResult<T> = Result<T, { code: BrowserIdentityC
 
 export type BrowserIdentityControllerErrorCode =
   | "wrapping_key_failed"
+  | "wrapping_key_rate_limited"
+  | "wrapping_key_unavailable"
   | "drive_read_failed"
   | "decrypt_failed"
   | "restore_failed"

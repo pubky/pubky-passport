@@ -1,26 +1,12 @@
 import "server-only";
 
 import { OAuth2Client } from "google-auth-library";
-import { Result, type Result as ResultType } from "better-result";
+import { Result } from "better-result";
 
-export const CANONICAL_GOOGLE_ISSUER = "https://accounts.google.com";
-
-export type VerifiedGoogleIdentity = {
-  issuer: typeof CANONICAL_GOOGLE_ISSUER;
-  subject: string;
-};
-
-export type GoogleIdTokenVerificationErrorCode =
-  | "invalid_google_id_token"
-  | "expired_google_id_token"
-  | "unsupported_google_issuer"
-  | "unsupported_google_audience"
-  | "missing_google_subject";
-
-export type GoogleIdTokenVerificationResult = ResultType<
-  VerifiedGoogleIdentity,
-  { code: GoogleIdTokenVerificationErrorCode }
->;
+import {
+  CANONICAL_GOOGLE_ISSUER,
+  type GoogleIdTokenVerificationResult,
+} from "../application/googleIdTokenVerification";
 
 type GoogleIdTokenPayload = {
   iss?: string;
@@ -60,12 +46,12 @@ export class GoogleIdTokenVerifier {
     try {
       ticket = await this.#verifier.verifyIdToken({ idToken, audience: this.#audience });
     } catch {
-      return failure("invalid_google_id_token");
+      return failure();
     }
 
     const payload = ticket.getPayload();
     if (!payload) {
-      return failure("invalid_google_id_token");
+      return failure();
     }
 
     return validatePayload(payload, this.#audience, this.#now());
@@ -78,11 +64,11 @@ function validatePayload(
   now: Date,
 ): GoogleIdTokenVerificationResult {
   if (!payload.iss || !ACCEPTED_GOOGLE_ISSUERS.has(payload.iss)) {
-    return failure("unsupported_google_issuer");
+    return failure();
   }
 
   if (!audienceMatches(payload.aud, payload.azp, expectedAudience)) {
-    return failure("unsupported_google_audience");
+    return failure();
   }
 
   const nowMilliseconds = now.getTime();
@@ -96,11 +82,11 @@ function validatePayload(
     || !Number.isFinite(payload.exp)
     || payload.exp <= nowSeconds
   ) {
-    return failure("expired_google_id_token");
+    return failure();
   }
 
   if (!payload.sub?.trim()) {
-    return failure("missing_google_subject");
+    return failure();
   }
 
   return Result.ok({ issuer: CANONICAL_GOOGLE_ISSUER, subject: payload.sub });
@@ -118,6 +104,6 @@ function audienceMatches(
   return audience === expectedAudience;
 }
 
-function failure(code: GoogleIdTokenVerificationErrorCode): GoogleIdTokenVerificationResult {
-  return Result.err({ code });
+function failure(): GoogleIdTokenVerificationResult {
+  return Result.err({ code: "invalid_google_id_token" });
 }

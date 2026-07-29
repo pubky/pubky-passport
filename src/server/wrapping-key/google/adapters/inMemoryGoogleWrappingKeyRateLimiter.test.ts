@@ -18,9 +18,9 @@ describe("wrapping-key rate limit", () => {
       now: () => now,
     });
 
-    expect(limiter.checkRateLimit(IDENTITY)).toBe(true);
-    expect(limiter.checkRateLimit(IDENTITY)).toBe(true);
-    expect(limiter.checkRateLimit(IDENTITY)).toBe(false);
+    expect(limiter.tryConsumeRequest(IDENTITY)).toBe(true);
+    expect(limiter.tryConsumeRequest(IDENTITY)).toBe(true);
+    expect(limiter.tryConsumeRequest(IDENTITY)).toBe(false);
   });
 
   it("retains an independent copy of the identity pepper", () => {
@@ -31,9 +31,9 @@ describe("wrapping-key rate limit", () => {
       now: () => new Date("2026-01-01T00:00:00.000Z"),
     });
 
-    expect(limiter.checkRateLimit(IDENTITY)).toBe(true);
+    expect(limiter.tryConsumeRequest(IDENTITY)).toBe(true);
     identityPepper.fill(0);
-    expect(limiter.checkRateLimit(IDENTITY)).toBe(false);
+    expect(limiter.tryConsumeRequest(IDENTITY)).toBe(false);
   });
 
   it("limits identities independently and expires old requests", () => {
@@ -45,10 +45,10 @@ describe("wrapping-key rate limit", () => {
       now: () => now,
     });
 
-    expect(limiter.checkRateLimit(IDENTITY)).toBe(true);
-    expect(limiter.checkRateLimit({ ...IDENTITY, subject: "other-google-subject" })).toBe(true);
+    expect(limiter.tryConsumeRequest(IDENTITY)).toBe(true);
+    expect(limiter.tryConsumeRequest({ ...IDENTITY, subject: "other-google-subject" })).toBe(true);
     now = new Date("2026-01-01T00:01:00.000Z");
-    expect(limiter.checkRateLimit(IDENTITY)).toBe(true);
+    expect(limiter.tryConsumeRequest(IDENTITY)).toBe(true);
   });
 
   it("prunes the active identity without waiting for a global sweep", () => {
@@ -61,13 +61,13 @@ describe("wrapping-key rate limit", () => {
     });
 
     const otherIdentity = { ...IDENTITY, subject: "other-google-subject" };
-    expect(limiter.checkRateLimit(otherIdentity)).toBe(true);
+    expect(limiter.tryConsumeRequest(otherIdentity)).toBe(true);
     now = new Date("2026-01-01T00:00:30.000Z");
-    expect(limiter.checkRateLimit(IDENTITY)).toBe(true);
+    expect(limiter.tryConsumeRequest(IDENTITY)).toBe(true);
     now = new Date("2026-01-01T00:01:00.000Z");
-    expect(limiter.checkRateLimit(otherIdentity)).toBe(true);
+    expect(limiter.tryConsumeRequest(otherIdentity)).toBe(true);
     now = new Date("2026-01-01T00:01:30.000Z");
-    expect(limiter.checkRateLimit(IDENTITY)).toBe(true);
+    expect(limiter.tryConsumeRequest(IDENTITY)).toBe(true);
   });
 
   it.each([
@@ -92,6 +92,6 @@ describe("wrapping-key rate limit", () => {
       now: () => new Date(Number.NaN),
     });
 
-    expect(() => limiter.checkRateLimit(IDENTITY)).toThrow("Invalid wrapping key rate limit request.");
+    expect(() => limiter.tryConsumeRequest(IDENTITY)).toThrow("Invalid wrapping key rate limit request.");
   });
 });

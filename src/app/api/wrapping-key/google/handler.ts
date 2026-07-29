@@ -63,10 +63,6 @@ function jsonResponse(
 function statusForError(code: GoogleWrappingKeyRequestErrorCode): number {
   switch (code) {
     case "invalid_google_id_token":
-    case "expired_google_id_token":
-    case "unsupported_google_issuer":
-    case "unsupported_google_audience":
-    case "missing_google_subject":
       return 401;
     case "rate_limited":
       return 429;

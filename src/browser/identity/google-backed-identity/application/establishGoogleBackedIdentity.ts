@@ -63,7 +63,7 @@ export class EstablishGoogleBackedIdentity {
     LOGGER.info("identity.google.wrapping_key.started");
     const wrappingKey = await this.#requestWrappingKey(credentials.googleIdToken);
     if (Result.isError(wrappingKey)) {
-      return failure("wrapping_key_failed");
+      return Result.err({ code: "wrapping_key_failed", cause: wrappingKey.error.code });
     }
     LOGGER.info("identity.google.wrapping_key.completed");
 
@@ -99,6 +99,6 @@ type CreatePassportFile = (
   envelope: PassportFileEnvelopeV1,
 ) => Promise<PassportFileStoreResult<PassportFileReference>>;
 
-function failure<T>(code: "wrapping_key_failed" | "drive_read_failed" | "unexpected_failure"): GoogleBackedIdentityResult<T> {
+function failure<T>(code: "drive_read_failed" | "unexpected_failure"): GoogleBackedIdentityResult<T> {
   return Result.err({ code });
 }

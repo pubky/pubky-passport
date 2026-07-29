@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHmac } from "node:crypto";
 
-import type { VerifiedGoogleIdentity } from "./googleIdTokenVerifier";
+import type { VerifiedGoogleIdentity } from "../application/googleIdTokenVerification";
 
 const DEFAULT_MAXIMUM_REQUESTS = 10;
 const DEFAULT_WINDOW_MILLISECONDS = 60_000;
@@ -37,7 +37,7 @@ export class InMemoryGoogleWrappingKeyRateLimiter {
     }
   }
 
-  checkRateLimit(identity: VerifiedGoogleIdentity): boolean {
+  tryConsumeRequest(identity: VerifiedGoogleIdentity): boolean {
     const now = this.#currentTime().getTime();
     if (!Number.isFinite(now)) {
       throw new Error("Invalid wrapping key rate limit request.");

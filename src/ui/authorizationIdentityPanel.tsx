@@ -170,6 +170,10 @@ function messageForGoogleFailure(code: string): string {
   switch (code) {
     case "invalid_google_id_token":
       return "Your Google session is no longer valid. Sign in again to continue.";
+    case "wrapping_key_rate_limited":
+      return "Too many wrapping-key requests were made for this account. Try again later.";
+    case "wrapping_key_unavailable":
+      return "Passport's wrapping-key service is temporarily unavailable. Try again later.";
     case "weekly_limit_exceeded":
       return "This Google account has reached its weekly homeserver signup limit.";
     case "annual_limit_exceeded":

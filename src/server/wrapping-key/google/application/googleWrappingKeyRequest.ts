@@ -4,15 +4,14 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER } from "../../../../libs/logger/logger";
 import {
-  type GoogleIdTokenVerificationErrorCode,
-  type GoogleIdTokenVerificationResult,
   type GoogleIdTokenVerifier,
 } from "../adapters/googleIdTokenVerifier";
 import type { GoogleWrappingKeyDeriver } from "../adapters/googleWrappingKeyDeriver";
 import type { InMemoryGoogleWrappingKeyRateLimiter } from "../adapters/inMemoryGoogleWrappingKeyRateLimiter";
+import type { GoogleIdTokenVerificationResult } from "./googleIdTokenVerification";
 
 export type GoogleWrappingKeyRequestErrorCode =
-  | GoogleIdTokenVerificationErrorCode
+  | "invalid_google_id_token"
   | "rate_limited"
   | "dependency_unavailable";
 
@@ -20,12 +19,12 @@ export type GoogleWrappingKeyRequestResult = ResultType<string, { code: GoogleWr
 
 export class GoogleWrappingKeyRequest {
   readonly #googleIdTokenVerifier: Pick<GoogleIdTokenVerifier, "verifyGoogleIdToken">;
-  readonly #rateLimiter: Pick<InMemoryGoogleWrappingKeyRateLimiter, "checkRateLimit">;
+  readonly #rateLimiter: Pick<InMemoryGoogleWrappingKeyRateLimiter, "tryConsumeRequest">;
   readonly #deriver: Pick<GoogleWrappingKeyDeriver, "deriveWrappingKey">;
 
   constructor(dependencies: {
     googleIdTokenVerifier: Pick<GoogleIdTokenVerifier, "verifyGoogleIdToken">;
-    rateLimiter: Pick<InMemoryGoogleWrappingKeyRateLimiter, "checkRateLimit">;
+    rateLimiter: Pick<InMemoryGoogleWrappingKeyRateLimiter, "tryConsumeRequest">;
     deriver: Pick<GoogleWrappingKeyDeriver, "deriveWrappingKey">;
   }) {
     this.#googleIdTokenVerifier = dependencies.googleIdTokenVerifier;
@@ -47,7 +46,7 @@ export class GoogleWrappingKeyRequest {
 
     let allowed: boolean;
     try {
-      allowed = this.#rateLimiter.checkRateLimit(identity.value);
+      allowed = this.#rateLimiter.tryConsumeRequest(identity.value);
     } catch {
       return dependencyFailure("rate_limit");
     }

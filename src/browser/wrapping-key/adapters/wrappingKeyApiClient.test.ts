@@ -41,17 +41,17 @@ describe("WrappingKeyApiClient", () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const requester = new WrappingKeyApiClient({
       async fetch() {
-        return Response.json({ error: { code: "unsupported_google_audience" } }, { status: 401 });
+        return Response.json({ error: { code: "invalid_google_id_token" } }, { status: 401 });
       },
     });
 
     const result = await requester.requestGoogleWrappingKey("id-token");
 
     expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) expect(result.error).toEqual({ code: "unsupported_google_audience" });
+    if (Result.isError(result)) expect(result.error).toEqual({ code: "invalid_google_id_token" });
     expect(warn).toHaveBeenCalledWith("identity.google.wrapping_key.failed", {
       layer: "browser",
-      code: "unsupported_google_audience",
+      code: "invalid_google_id_token",
     });
   });
 

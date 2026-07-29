@@ -6,6 +6,7 @@ import type { PubkyPublicIdentity } from "../../../../core/identity/pubkyIdentit
 import type {
   HomegateSignupInvitationErrorCode,
 } from "../../../homegate/application/homegateSignupInvitation";
+import type { GoogleWrappingKeyErrorCode } from "../../../wrapping-key/application/googleWrappingKey";
 
 export type GoogleBackedIdentityCredentials = {
   googleIdToken: string;
@@ -31,8 +32,16 @@ export type GoogleBackedIdentityErrorCode =
 
 export type GoogleBackedIdentityError =
   | {
-      code: Exclude<GoogleBackedIdentityErrorCode, "homeserver_signup_invitation_failed">;
+      code: Exclude<
+        GoogleBackedIdentityErrorCode,
+        "homeserver_signup_invitation_failed" | "wrapping_key_failed"
+      >;
       partialSetupPublicIdentity?: PubkyPublicIdentity;
+    }
+  | {
+      code: "wrapping_key_failed";
+      cause: GoogleWrappingKeyErrorCode;
+      partialSetupPublicIdentity?: never;
     }
   | {
       code: "homeserver_signup_invitation_failed";
@@ -56,4 +65,13 @@ export type GoogleDrivePassportFileDeletionErrorCode =
   | "drive_delete_failed"
   | "unexpected_failure";
 
-export type GoogleDrivePassportFileDeletionResult = Result<void, { code: GoogleDrivePassportFileDeletionErrorCode }>;
+export type GoogleDrivePassportFileDeletionError =
+  | {
+      code: Exclude<GoogleDrivePassportFileDeletionErrorCode, "wrapping_key_failed">;
+    }
+  | {
+      code: "wrapping_key_failed";
+      cause: GoogleWrappingKeyErrorCode;
+    };
+
+export type GoogleDrivePassportFileDeletionResult = Result<void, GoogleDrivePassportFileDeletionError>;

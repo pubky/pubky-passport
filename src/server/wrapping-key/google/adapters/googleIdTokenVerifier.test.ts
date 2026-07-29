@@ -44,17 +44,17 @@ describe("Google ID token verifier", () => {
   });
 
   it.each([
-    [{ ...validPayload(), iss: "https://evil.example" }, "unsupported_google_issuer"],
-    [{ ...validPayload(), aud: "other-client-id" }, "unsupported_google_audience"],
-    [{ ...validPayload(), exp: Math.floor(NOW.getTime() / 1000) }, "expired_google_id_token"],
-    [{ ...validPayload(), exp: Number.NaN }, "expired_google_id_token"],
-    [{ ...validPayload(), exp: Number.POSITIVE_INFINITY }, "expired_google_id_token"],
-    [{ ...validPayload(), sub: undefined }, "missing_google_subject"],
-    [{ ...validPayload(), sub: "   " }, "missing_google_subject"],
-  ] as const)("rejects invalid claims", async (payload, code) => {
+    { ...validPayload(), iss: "https://evil.example" },
+    { ...validPayload(), aud: "other-client-id" },
+    { ...validPayload(), exp: Math.floor(NOW.getTime() / 1000) },
+    { ...validPayload(), exp: Number.NaN },
+    { ...validPayload(), exp: Number.POSITIVE_INFINITY },
+    { ...validPayload(), sub: undefined },
+    { ...validPayload(), sub: "   " },
+  ] as const)("rejects invalid claims", async (payload) => {
     const verifier = createVerifierWithPayload(payload);
 
-    await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code });
+    await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
   });
 
   it("requires the authorized party for multiple audiences", async () => {
@@ -73,7 +73,7 @@ describe("Google ID token verifier", () => {
       issuer: "https://accounts.google.com",
       subject: "google-subject",
     }));
-    await expectAsyncResultError(invalid.verifyGoogleIdToken(TOKEN), { code: "unsupported_google_audience" });
+    await expectAsyncResultError(invalid.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
   });
 
   it.each(["expired", "audience recipient", "invalid"])(

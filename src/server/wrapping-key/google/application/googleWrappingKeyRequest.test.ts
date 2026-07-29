@@ -22,7 +22,7 @@ describe("Google wrapping-key request", () => {
         },
       },
       rateLimiter: {
-        checkRateLimit(limitedIdentity) {
+        tryConsumeRequest(limitedIdentity) {
           calls.push(`rate-limit:${limitedIdentity.subject}`);
           return true;
         },
@@ -53,7 +53,7 @@ describe("Google wrapping-key request", () => {
         },
       },
       rateLimiter: {
-        checkRateLimit() {
+        tryConsumeRequest() {
           rateLimitCalls += 1;
           return true;
         },
@@ -77,7 +77,7 @@ describe("Google wrapping-key request", () => {
   it("rejects rate-limited identities", async () => {
     const rateLimited = new GoogleWrappingKeyRequest({
       googleIdTokenVerifier: { async verifyGoogleIdToken() { return Result.ok(IDENTITY); } },
-      rateLimiter: { checkRateLimit() { return false; } },
+      rateLimiter: { tryConsumeRequest() { return false; } },
       deriver: { deriveWrappingKey() { return "derived-wrapping-key"; } },
     });
 
@@ -100,7 +100,7 @@ describe("Google wrapping-key request", () => {
           },
         },
         rateLimiter: {
-          checkRateLimit() {
+          tryConsumeRequest() {
             if (unavailableDependency === "rate limit") throw new Error("SECRET-GOOGLE-ID-TOKEN");
             return true;
           },

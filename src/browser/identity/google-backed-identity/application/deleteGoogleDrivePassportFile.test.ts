@@ -43,6 +43,19 @@ describe("DeleteGoogleDrivePassportFile", () => {
     expect(setup.crypto.decryptCalls).toBe(0);
   });
 
+  it("preserves safe wrapping-key failure details", async () => {
+    const setup = createSetup(undefined, "rate_limited");
+
+    const result = await setup.subject.deleteGoogleDrivePassportFile(
+      TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
+      setup.pubky.nextPublicIdentity.publicKeyZ32,
+    );
+
+    expectResultError(result, { code: "wrapping_key_failed", cause: "rate_limited" });
+    expect(setup.crypto.decryptCalls).toBe(0);
+    expect(setup.fileStore.deleteCalls).toBe(0);
+  });
+
   it("does not delete a Drive Passport file that differs from the selected identity", async () => {
     const setup = createSetup();
 
@@ -99,10 +112,11 @@ function createSetup(
     envelope: TEST_PASSPORT_ENVELOPE,
     reference: TEST_PASSPORT_REFERENCE,
   }),
+  wrappingFailure?: "rate_limited",
 ) {
   const pubky = new RecordingPubkySdkAdapter();
   const crypto = new RecordingPassportFileCrypto();
-  const wrappingKeyRequest = sanitizedWrappingKeyRequest();
+  const wrappingKeyRequest = sanitizedWrappingKeyRequest(wrappingFailure);
   const subject = new DeleteGoogleDrivePassportFile({
     requestWrappingKey: wrappingKeyRequest.request,
     readPassportFile: fileStore.readPassportFile.bind(fileStore),
@@ -114,14 +128,14 @@ function createSetup(
   return { subject, pubky, crypto, fileStore };
 }
 
-function sanitizedWrappingKeyRequest() {
+function sanitizedWrappingKeyRequest(failure?: "rate_limited") {
   const calls = { count: 0, hasGoogleIdToken: false };
   return {
     calls,
     async request(googleIdToken: string) {
       calls.count += 1;
       calls.hasGoogleIdToken = googleIdToken.trim().length > 0;
-      return Result.ok("w".repeat(43));
+      return failure ? Result.err({ code: failure }) : Result.ok("w".repeat(43));
     },
   };
 }
