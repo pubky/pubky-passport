@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { Result } from "better-result";
 
-import type {
-  GoogleWrappingKeyRequestErrorCode,
-  RequestGoogleWrappingKey,
-} from "../../../../server/wrapping-key/google/application/requestGoogleWrappingKey";
+import { LOGGER } from "../../../../libs/logger/logger";
+import {
+  type GoogleWrappingKeyRequest,
+  type GoogleWrappingKeyRequestErrorCode,
+} from "../../../../server/wrapping-key/google/application/googleWrappingKeyRequest";
 import {
   GOOGLE_WRAPPING_KEY_RESPONSE_HEADERS,
   parseGoogleWrappingKeyRequest,
@@ -12,12 +13,16 @@ import {
 
 type GoogleWrappingKeyRouteBody =
   | { wrappingKey: string }
-  | { error: { code: string } };
+  | {
+    error: {
+      code: GoogleWrappingKeyRequestErrorCode | "invalid_request" | "internal_error";
+    };
+  };
 
 export function createGoogleWrappingKeyPostHandler(
-  createRequest: () => RequestGoogleWrappingKey,
+  createRequest: () => Pick<GoogleWrappingKeyRequest, "requestGoogleWrappingKey">,
 ) {
-  let activeRequest: RequestGoogleWrappingKey | undefined;
+  let activeRequest: ReturnType<typeof createRequest> | undefined;
 
   return async function googleWrappingKeyPost(request: Request): Promise<NextResponse<GoogleWrappingKeyRouteBody>> {
     const body = await parseGoogleWrappingKeyRequest(request);
@@ -26,9 +31,11 @@ export function createGoogleWrappingKeyPostHandler(
       return jsonResponse({ error: { code: "invalid_request" } }, 400);
     }
 
+    let operation: "compose" | "execute" = "compose";
     try {
-      const requestGoogleWrappingKey = activeRequest ??= createRequest();
-      const result = await requestGoogleWrappingKey(body.value);
+      if (!activeRequest) activeRequest = createRequest();
+      operation = "execute";
+      const result = await activeRequest.requestGoogleWrappingKey(body.value);
 
       if (Result.isError(result)) {
         return jsonResponse({ error: { code: result.error.code } }, statusForError(result.error.code));
@@ -36,6 +43,11 @@ export function createGoogleWrappingKeyPostHandler(
 
       return jsonResponse({ wrappingKey: result.value }, 200);
     } catch {
+      LOGGER.error("identity.google.wrapping_key.failed", {
+        layer: "route",
+        operation,
+        code: "internal_error",
+      });
       return jsonResponse({ error: { code: "internal_error" } }, 500);
     }
   };

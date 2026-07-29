@@ -13,17 +13,17 @@ Passport file.
 
 ## Files
 
-- `application/requestGoogleWrappingKey.ts`
-  Owns operation ordering, callback contracts, and safe errors.
+- `application/googleWrappingKeyRequest.ts`
+  Defines the concrete request operation, ordering, and safe errors.
 
 - `adapters/googleIdTokenVerifier.ts`
   Verifies Google signatures and required claims.
 
 - `adapters/inMemoryGoogleWrappingKeyRateLimiter.ts`
-  Rate-limits an HMAC hash of the verified issuer and subject.
+  Defines the concrete process-local limiter for an HMAC hash of the verified issuer and subject.
 
-- `adapters/deriveGoogleWrappingKey.ts`
-  Implements the frozen HKDF derivation contract.
+- `adapters/googleWrappingKeyDeriver.ts`
+  Defines the concrete deriver implementing the frozen HKDF contract.
 
 - `composition/createConfiguredGoogleWrappingKeyRequest.ts`
-  Reads configuration and wires the concrete callbacks.
+  Reads configuration and constructs the concrete request, verifier, limiter, and deriver.

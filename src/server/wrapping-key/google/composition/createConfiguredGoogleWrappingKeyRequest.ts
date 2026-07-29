@@ -3,13 +3,10 @@ import "server-only";
 import { z } from "zod";
 
 import { getGoogleClientId } from "../../../config/googleClientId";
-import { createDeriveGoogleWrappingKey } from "../adapters/deriveGoogleWrappingKey";
+import { GoogleWrappingKeyDeriver } from "../adapters/googleWrappingKeyDeriver";
 import { GoogleIdTokenVerifier } from "../adapters/googleIdTokenVerifier";
-import { createInMemoryGoogleWrappingKeyRateLimiter } from "../adapters/inMemoryGoogleWrappingKeyRateLimiter";
-import {
-  createRequestGoogleWrappingKey,
-  type RequestGoogleWrappingKey,
-} from "../application/requestGoogleWrappingKey";
+import { InMemoryGoogleWrappingKeyRateLimiter } from "../adapters/inMemoryGoogleWrappingKeyRateLimiter";
+import { GoogleWrappingKeyRequest } from "../application/googleWrappingKeyRequest";
 
 type EnvLike = Record<string, string | undefined>;
 
@@ -25,16 +22,16 @@ const SERVER_SECRET_SCHEMA = z.string()
     `PASSPORT_SERVER_SECRET_BASE64 must decode to at least ${MINIMUM_SERVER_SECRET_BYTES} bytes`,
   );
 
-export function createConfiguredGoogleWrappingKeyRequest(): RequestGoogleWrappingKey {
+export function createConfiguredGoogleWrappingKeyRequest(): GoogleWrappingKeyRequest {
   const serverSecret = parseGoogleWrappingKeyServerSecret(process.env);
 
   try {
     const googleIdTokenVerifier = new GoogleIdTokenVerifier({ audience: getGoogleClientId() });
 
-    return createRequestGoogleWrappingKey({
+    return new GoogleWrappingKeyRequest({
       googleIdTokenVerifier,
-      checkRateLimit: createInMemoryGoogleWrappingKeyRateLimiter({ identityPepper: serverSecret }),
-      deriveWrappingKey: createDeriveGoogleWrappingKey({ serverSecret }),
+      rateLimiter: new InMemoryGoogleWrappingKeyRateLimiter({ identityPepper: serverSecret }),
+      deriver: new GoogleWrappingKeyDeriver(serverSecret),
     });
   } finally {
     serverSecret.fill(0);

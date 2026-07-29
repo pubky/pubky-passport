@@ -63,7 +63,6 @@ export class EstablishGoogleBackedIdentity {
     LOGGER.info("identity.google.wrapping_key.started");
     const wrappingKey = await this.#requestWrappingKey(credentials.googleIdToken);
     if (Result.isError(wrappingKey)) {
-      LOGGER.warn("identity.google.wrapping_key.failed", { code: wrappingKey.error.code });
       return failure("wrapping_key_failed");
     }
     LOGGER.info("identity.google.wrapping_key.completed");

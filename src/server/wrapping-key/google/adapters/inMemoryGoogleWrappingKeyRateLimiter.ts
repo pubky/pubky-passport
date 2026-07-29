@@ -2,57 +2,65 @@ import "server-only";
 
 import { createHmac } from "node:crypto";
 
-import type { CheckGoogleWrappingKeyRateLimit } from "../application/requestGoogleWrappingKey";
-
-export type CreateInMemoryGoogleWrappingKeyRateLimiterInput = {
-  identityPepper: Uint8Array;
-  maximumRequests?: number;
-  windowMilliseconds?: number;
-  now?: () => Date;
-};
+import type { VerifiedGoogleIdentity } from "./googleIdTokenVerifier";
 
 const DEFAULT_MAXIMUM_REQUESTS = 10;
 const DEFAULT_WINDOW_MILLISECONDS = 60_000;
 
-/** Process-local MVP limiter; multi-instance deployments need shared storage. */
-export function createInMemoryGoogleWrappingKeyRateLimiter(
-  input: CreateInMemoryGoogleWrappingKeyRateLimiterInput,
-): CheckGoogleWrappingKeyRateLimit {
-  const identityPepper = Buffer.from(input.identityPepper);
-  const maximumRequests = input.maximumRequests ?? DEFAULT_MAXIMUM_REQUESTS;
-  const windowMilliseconds = input.windowMilliseconds ?? DEFAULT_WINDOW_MILLISECONDS;
-  const currentTime = input.now ?? (() => new Date());
-  const requestsByIdentity = new Map<string, number[]>();
-  let nextCleanupAt = Number.NEGATIVE_INFINITY;
+/** Process-local limiter; multi-instance deployments need shared storage. */
+export class InMemoryGoogleWrappingKeyRateLimiter {
+  readonly #identityPepper: Buffer;
+  readonly #maximumRequests: number;
+  readonly #windowMilliseconds: number;
+  readonly #currentTime: () => Date;
+  readonly #requestsByIdentity = new Map<string, number[]>();
+  #nextCleanupAt = Number.NEGATIVE_INFINITY;
 
-  if (maximumRequests < 1 || windowMilliseconds < 1) {
-    throw new Error("Invalid wrapping key rate limit configuration.");
+  constructor(options: {
+    identityPepper: Uint8Array;
+    maximumRequests?: number;
+    windowMilliseconds?: number;
+    now?: () => Date;
+  }) {
+    this.#identityPepper = Buffer.from(options.identityPepper);
+    this.#maximumRequests = options.maximumRequests ?? DEFAULT_MAXIMUM_REQUESTS;
+    this.#windowMilliseconds = options.windowMilliseconds ?? DEFAULT_WINDOW_MILLISECONDS;
+    this.#currentTime = options.now ?? (() => new Date());
+
+    if (
+      !Number.isSafeInteger(this.#maximumRequests)
+      || this.#maximumRequests < 1
+      || !Number.isSafeInteger(this.#windowMilliseconds)
+      || this.#windowMilliseconds < 1
+    ) {
+      throw new Error("Invalid wrapping key rate limit configuration.");
+    }
   }
 
-  return async function checkGoogleWrappingKeyRateLimit(identity) {
-    const now = currentTime().getTime();
+  checkRateLimit(identity: VerifiedGoogleIdentity): boolean {
+    const now = this.#currentTime().getTime();
     if (!Number.isFinite(now)) {
       throw new Error("Invalid wrapping key rate limit request.");
     }
 
-    const cutoff = now - windowMilliseconds;
-    if (now >= nextCleanupAt) {
-      removeExpiredRequests(requestsByIdentity, cutoff);
-      nextCleanupAt = now + windowMilliseconds;
+    const cutoff = now - this.#windowMilliseconds;
+    if (now >= this.#nextCleanupAt) {
+      removeExpiredRequests(this.#requestsByIdentity, cutoff);
+      this.#nextCleanupAt = now + this.#windowMilliseconds;
     }
 
-    const identityHash = createHmac("sha256", identityPepper)
+    const identityHash = createHmac("sha256", this.#identityPepper)
       .update(`${identity.issuer}\n${identity.subject}`, "utf8")
       .digest("base64url");
-    const requests = recentRequests(requestsByIdentity.get(identityHash) ?? [], cutoff);
-    if (requests.length >= maximumRequests) {
+    const requests = recentRequests(this.#requestsByIdentity.get(identityHash) ?? [], cutoff);
+    if (requests.length >= this.#maximumRequests) {
       return false;
     }
 
     requests.push(now);
-    requestsByIdentity.set(identityHash, requests);
+    this.#requestsByIdentity.set(identityHash, requests);
     return true;
-  };
+  }
 }
 
 function removeExpiredRequests(requestsByIdentity: Map<string, number[]>, cutoff: number): void {

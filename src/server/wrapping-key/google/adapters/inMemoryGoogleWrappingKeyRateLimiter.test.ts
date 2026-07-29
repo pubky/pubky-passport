@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createInMemoryGoogleWrappingKeyRateLimiter } from "./inMemoryGoogleWrappingKeyRateLimiter";
+import { InMemoryGoogleWrappingKeyRateLimiter } from "./inMemoryGoogleWrappingKeyRateLimiter";
 
 const IDENTITY_PEPPER = Buffer.alloc(32, 7);
 const IDENTITY = {
@@ -9,51 +9,51 @@ const IDENTITY = {
 };
 
 describe("wrapping-key rate limit", () => {
-  it("limits verified identities within a rolling window", async () => {
+  it("limits verified identities within a rolling window", () => {
     const now = new Date("2026-01-01T00:00:00.000Z");
-    const limiter = createInMemoryGoogleWrappingKeyRateLimiter({
+    const limiter = new InMemoryGoogleWrappingKeyRateLimiter({
       identityPepper: IDENTITY_PEPPER,
       maximumRequests: 2,
       windowMilliseconds: 60_000,
       now: () => now,
     });
 
-    await expect(limiter(IDENTITY)).resolves.toBe(true);
-    await expect(limiter(IDENTITY)).resolves.toBe(true);
-    await expect(limiter(IDENTITY)).resolves.toBe(false);
+    expect(limiter.checkRateLimit(IDENTITY)).toBe(true);
+    expect(limiter.checkRateLimit(IDENTITY)).toBe(true);
+    expect(limiter.checkRateLimit(IDENTITY)).toBe(false);
   });
 
-  it("retains an independent copy of the identity pepper", async () => {
+  it("retains an independent copy of the identity pepper", () => {
     const identityPepper = Buffer.from(IDENTITY_PEPPER);
-    const limiter = createInMemoryGoogleWrappingKeyRateLimiter({
+    const limiter = new InMemoryGoogleWrappingKeyRateLimiter({
       identityPepper,
       maximumRequests: 1,
       now: () => new Date("2026-01-01T00:00:00.000Z"),
     });
 
-    await expect(limiter(IDENTITY)).resolves.toBe(true);
+    expect(limiter.checkRateLimit(IDENTITY)).toBe(true);
     identityPepper.fill(0);
-    await expect(limiter(IDENTITY)).resolves.toBe(false);
+    expect(limiter.checkRateLimit(IDENTITY)).toBe(false);
   });
 
-  it("limits identities independently and expires old requests", async () => {
+  it("limits identities independently and expires old requests", () => {
     let now = new Date("2026-01-01T00:00:00.000Z");
-    const limiter = createInMemoryGoogleWrappingKeyRateLimiter({
+    const limiter = new InMemoryGoogleWrappingKeyRateLimiter({
       identityPepper: IDENTITY_PEPPER,
       maximumRequests: 1,
       windowMilliseconds: 60_000,
       now: () => now,
     });
 
-    await expect(limiter(IDENTITY)).resolves.toBe(true);
-    await expect(limiter({ ...IDENTITY, subject: "other-google-subject" })).resolves.toBe(true);
+    expect(limiter.checkRateLimit(IDENTITY)).toBe(true);
+    expect(limiter.checkRateLimit({ ...IDENTITY, subject: "other-google-subject" })).toBe(true);
     now = new Date("2026-01-01T00:01:00.000Z");
-    await expect(limiter(IDENTITY)).resolves.toBe(true);
+    expect(limiter.checkRateLimit(IDENTITY)).toBe(true);
   });
 
-  it("prunes the active identity without waiting for a global sweep", async () => {
+  it("prunes the active identity without waiting for a global sweep", () => {
     let now = new Date("2026-01-01T00:00:00.000Z");
-    const limiter = createInMemoryGoogleWrappingKeyRateLimiter({
+    const limiter = new InMemoryGoogleWrappingKeyRateLimiter({
       identityPepper: IDENTITY_PEPPER,
       maximumRequests: 1,
       windowMilliseconds: 60_000,
@@ -61,12 +61,37 @@ describe("wrapping-key rate limit", () => {
     });
 
     const otherIdentity = { ...IDENTITY, subject: "other-google-subject" };
-    await expect(limiter(otherIdentity)).resolves.toBe(true);
+    expect(limiter.checkRateLimit(otherIdentity)).toBe(true);
     now = new Date("2026-01-01T00:00:30.000Z");
-    await expect(limiter(IDENTITY)).resolves.toBe(true);
+    expect(limiter.checkRateLimit(IDENTITY)).toBe(true);
     now = new Date("2026-01-01T00:01:00.000Z");
-    await expect(limiter(otherIdentity)).resolves.toBe(true);
+    expect(limiter.checkRateLimit(otherIdentity)).toBe(true);
     now = new Date("2026-01-01T00:01:30.000Z");
-    await expect(limiter(IDENTITY)).resolves.toBe(true);
+    expect(limiter.checkRateLimit(IDENTITY)).toBe(true);
+  });
+
+  it.each([
+    ["maximumRequests", 0],
+    ["maximumRequests", Number.NaN],
+    ["maximumRequests", Number.POSITIVE_INFINITY],
+    ["maximumRequests", 1.5],
+    ["windowMilliseconds", 0],
+    ["windowMilliseconds", Number.NaN],
+    ["windowMilliseconds", Number.POSITIVE_INFINITY],
+    ["windowMilliseconds", 1.5],
+  ] as const)("rejects invalid %s configuration", (property, value) => {
+    expect(() => new InMemoryGoogleWrappingKeyRateLimiter({
+      identityPepper: IDENTITY_PEPPER,
+      [property]: value,
+    })).toThrow("Invalid wrapping key rate limit configuration.");
+  });
+
+  it("rejects an invalid clock value", () => {
+    const limiter = new InMemoryGoogleWrappingKeyRateLimiter({
+      identityPepper: IDENTITY_PEPPER,
+      now: () => new Date(Number.NaN),
+    });
+
+    expect(() => limiter.checkRateLimit(IDENTITY)).toThrow("Invalid wrapping key rate limit request.");
   });
 });

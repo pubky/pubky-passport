@@ -1,13 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 
+import { LOGGER } from "../../../../libs/logger/logger";
 import { createGoogleWrappingKeyPostHandler } from "./handler";
-import type {
-  GoogleWrappingKeyRequestResult,
-  RequestGoogleWrappingKey,
-} from "../../../../server/wrapping-key/google/application/requestGoogleWrappingKey";
+import type { GoogleWrappingKeyRequestResult } from "../../../../server/wrapping-key/google/application/googleWrappingKeyRequest";
 
 describe("POST /api/wrapping-key/google", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it("maps valid wrapping-key results to HTTP success", async () => {
     const post = createGoogleWrappingKeyPostHandler(wrappingKeyRequestFactory(Result.ok("opaque-key")));
 
@@ -19,122 +19,54 @@ describe("POST /api/wrapping-key/google", () => {
     expect(response.headers.get("Referrer-Policy")).toBe("no-referrer");
   });
 
-  it("rejects malformed JSON with a safe 400", async () => {
-    const post = createGoogleWrappingKeyPostHandler(wrappingKeyRequestFactory(Result.ok("opaque-key")));
-
-    const response = await post(
-      new Request("https://passport.pubky.app/api/wrapping-key/google", {
-        method: "POST",
-        body: "not json",
-      }),
-    );
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: { code: "invalid_request" } });
-    expect(response.headers.get("Cache-Control")).toBe("no-store");
-  });
-
   it("does not construct configured dependencies for invalid requests", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     let factoryCalls = 0;
     const post = createGoogleWrappingKeyPostHandler(() => {
       factoryCalls += 1;
-      return fixedWrappingKeyRequest(Result.ok("opaque-key"));
+      return {
+        async requestGoogleWrappingKey() {
+          return Result.ok("opaque-key");
+        },
+      };
     });
 
     const response = await post(jsonRequest({}));
 
     expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: { code: "invalid_request" } });
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(response.headers.get("Referrer-Policy")).toBe("no-referrer");
     expect(factoryCalls).toBe(0);
+    expect(warn).not.toHaveBeenCalled();
   });
 
-  it("requires an application/json content type", async () => {
-    const post = createGoogleWrappingKeyPostHandler(wrappingKeyRequestFactory(Result.ok("opaque-key")));
+  it.each([
+    ["invalid_google_id_token", 401],
+    ["expired_google_id_token", 401],
+    ["unsupported_google_issuer", 401],
+    ["unsupported_google_audience", 401],
+    ["missing_google_subject", 401],
+    ["rate_limited", 429],
+    ["dependency_unavailable", 503],
+  ] as const)("maps %s failures to HTTP %i", async (code, status) => {
+    const post = createGoogleWrappingKeyPostHandler(wrappingKeyRequestFactory(Result.err({ code })));
 
-    const response = await post(new Request("https://passport.pubky.app/api/wrapping-key/google", {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ googleIdToken: "id-token" }),
-    }));
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: { code: "invalid_request" } });
-  });
-
-  it("rejects oversized request bodies before deriving a wrapping key", async () => {
-    let requestCalls = 0;
-    const post = createGoogleWrappingKeyPostHandler(() => async () => {
-      requestCalls += 1;
-      return Result.ok("opaque-key");
+    await expect(post(jsonRequest({ googleIdToken: "id-token" })).then(responseSummary)).resolves.toEqual({
+      status,
+      body: { error: { code } },
     });
-
-    const response = await post(oversizedRequest("https://passport.pubky.app/api/wrapping-key/google"));
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: { code: "invalid_request" } });
-    expect(requestCalls).toBe(0);
-  });
-
-  it("rejects missing, non-string, and empty tokens", async () => {
-    const post = createGoogleWrappingKeyPostHandler(wrappingKeyRequestFactory(Result.ok("opaque-key")));
-
-    await expect(post(jsonRequest({})).then(responseSummary)).resolves.toEqual({
-      status: 400,
-      body: { error: { code: "invalid_request" } },
-    });
-    await expect(post(jsonRequest({ googleIdToken: 123 })).then(responseSummary)).resolves.toEqual({
-      status: 400,
-      body: { error: { code: "invalid_request" } },
-    });
-    await expect(post(jsonRequest({ googleIdToken: "   " })).then(responseSummary)).resolves.toEqual({
-      status: 400,
-      body: { error: { code: "invalid_request" } },
-    });
-  });
-
-  it("rejects unknown fields so Drive and key material cannot be sent", async () => {
-    let requestCalls = 0;
-    const post = createGoogleWrappingKeyPostHandler(() => async () => {
-      requestCalls += 1;
-      return Result.ok("opaque-key");
-    });
-
-    const response = await post(
-      jsonRequest({
-        googleIdToken: "id-token",
-        driveAccessToken: "drive-token",
-      }),
-    );
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: { code: "invalid_request" } });
-    expect(requestCalls).toBe(0);
-  });
-
-  it("maps expected wrapping-key failures to fixed HTTP statuses", async () => {
-    await expect(
-      createGoogleWrappingKeyPostHandler(wrappingKeyRequestFactory(Result.err({ code: "invalid_google_id_token" })))(
-        jsonRequest({ googleIdToken: "id-token" }),
-      ).then(responseSummary),
-    ).resolves.toEqual({ status: 401, body: { error: { code: "invalid_google_id_token" } } });
-
-    await expect(
-      createGoogleWrappingKeyPostHandler(wrappingKeyRequestFactory(Result.err({ code: "rate_limited" })))(
-        jsonRequest({ googleIdToken: "id-token" }),
-      ).then(responseSummary),
-    ).resolves.toEqual({ status: 429, body: { error: { code: "rate_limited" } } });
-
-    await expect(
-      createGoogleWrappingKeyPostHandler(wrappingKeyRequestFactory(Result.err({ code: "dependency_unavailable" })))(
-        jsonRequest({ googleIdToken: "id-token" }),
-      ).then(responseSummary),
-    ).resolves.toEqual({ status: 503, body: { error: { code: "dependency_unavailable" } } });
   });
 
   it("reuses the configured wrapping-key request flow", async () => {
     let factoryCalls = 0;
     const post = createGoogleWrappingKeyPostHandler(() => {
       factoryCalls += 1;
-      return fixedWrappingKeyRequest(Result.ok("opaque-key"));
+      return {
+        async requestGoogleWrappingKey() {
+          return Result.ok("opaque-key");
+        },
+      };
     });
 
     await Promise.all([
@@ -146,40 +78,57 @@ describe("POST /api/wrapping-key/google", () => {
   });
 
   it("retries composition after a factory failure", async () => {
+    const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
     let factoryCalls = 0;
     const post = createGoogleWrappingKeyPostHandler(() => {
       factoryCalls += 1;
       if (factoryCalls === 1) throw new Error("configuration temporarily unavailable");
-      return fixedWrappingKeyRequest(Result.ok("opaque-key"));
+      return {
+        async requestGoogleWrappingKey() {
+          return Result.ok("opaque-key");
+        },
+      };
     });
 
     expect((await post(jsonRequest({ googleIdToken: "first-id-token" }))).status).toBe(500);
     expect((await post(jsonRequest({ googleIdToken: "second-id-token" }))).status).toBe(200);
     expect(factoryCalls).toBe(2);
+    expect(error).toHaveBeenCalledWith("identity.google.wrapping_key.failed", {
+      layer: "route",
+      operation: "compose",
+      code: "internal_error",
+    });
   });
 
   it("maps unexpected wrapping-key failures to safe 500 responses", async () => {
-    const post = createGoogleWrappingKeyPostHandler(() => async () => {
-      throw new Error("token must not leak");
-    });
+    const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
+    const post = createGoogleWrappingKeyPostHandler(() => ({
+      async requestGoogleWrappingKey() {
+        throw new Error("SECRET-GOOGLE-ID-TOKEN");
+      },
+    }));
 
     const response = await post(jsonRequest({ googleIdToken: "id-token" }));
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({ error: { code: "internal_error" } });
     expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(error).toHaveBeenCalledWith("identity.google.wrapping_key.failed", {
+      layer: "route",
+      operation: "execute",
+      code: "internal_error",
+    });
+    expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET-GOOGLE-ID-TOKEN");
   });
 
 });
 
-function fixedWrappingKeyRequest(result: GoogleWrappingKeyRequestResult): RequestGoogleWrappingKey {
-  return async () => result;
-}
-
-function wrappingKeyRequestFactory(
-  result: GoogleWrappingKeyRequestResult,
-): () => RequestGoogleWrappingKey {
-  return () => fixedWrappingKeyRequest(result);
+function wrappingKeyRequestFactory(result: GoogleWrappingKeyRequestResult) {
+  return () => ({
+    async requestGoogleWrappingKey() {
+      return result;
+    },
+  });
 }
 
 function jsonRequest(body: unknown): Request {
@@ -187,14 +136,6 @@ function jsonRequest(body: unknown): Request {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-  });
-}
-
-function oversizedRequest(url: string): Request {
-  return new Request(url, {
-    method: "POST",
-    headers: { "Content-Length": String(16 * 1024 + 1) },
-    body: "{}",
   });
 }
 

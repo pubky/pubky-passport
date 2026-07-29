@@ -6,25 +6,16 @@ import { z } from "zod";
 import { LOGGER } from "../../../libs/logger/logger";
 import { readBoundedText } from "../../../libs/http/boundedBody";
 import { isCanonicalBase64Url } from "../../../libs/encoding/base64Url";
-import type {
-  GoogleWrappingKeyErrorCode,
-  GoogleWrappingKeyResult,
+import {
+  GOOGLE_WRAPPING_KEY_API_ERROR_CODES,
+  type GoogleWrappingKeyErrorCode,
+  type GoogleWrappingKeyResult,
 } from "../application/googleWrappingKey";
 
 const MAXIMUM_RESPONSE_BYTES = 16 * 1024;
 const WRAPPING_KEY_BYTES = 32;
 const WRAPPING_KEY_LENGTH = Math.ceil(WRAPPING_KEY_BYTES * 4 / 3);
-const ROUTE_ERROR_CODE_SCHEMA = z.enum([
-  "invalid_request",
-  "invalid_google_id_token",
-  "expired_google_id_token",
-  "unsupported_google_issuer",
-  "unsupported_google_audience",
-  "missing_google_subject",
-  "rate_limited",
-  "dependency_unavailable",
-  "internal_error",
-]);
+const ROUTE_ERROR_CODE_SCHEMA = z.enum(GOOGLE_WRAPPING_KEY_API_ERROR_CODES);
 const SUCCESS_RESPONSE_SCHEMA = z.object({
   wrappingKey: z.string().length(WRAPPING_KEY_LENGTH).refine(isCanonicalBase64Url),
 }).strict();
@@ -52,10 +43,7 @@ export class WrappingKeyApiClient {
         redirect: "error",
         referrerPolicy: "no-referrer",
       });
-    } catch (error) {
-      LOGGER.warn("identity.google.wrapping_key.network_failed", {
-        errorName: error instanceof Error ? error.name : "unknown",
-      });
+    } catch {
       return failure("network_failed");
     }
 
@@ -80,5 +68,6 @@ export class WrappingKeyApiClient {
 }
 
 function failure(code: GoogleWrappingKeyErrorCode): GoogleWrappingKeyResult {
+  LOGGER.warn("identity.google.wrapping_key.failed", { layer: "browser", code });
   return Result.err({ code });
 }

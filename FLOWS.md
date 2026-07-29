@@ -780,10 +780,10 @@ sequenceDiagram
         participant Policy as APP<br/>routePolicy
     end
     box rgba(213, 94, 0, 0.18) Server
-        participant Request as SERVER<br/>RequestGoogleWrappingKey
-        participant Verifier as SERVER<br/>verifyGoogleIdToken
-        participant Limiter as SERVER<br/>rate limiter
-        participant Deriver as SERVER<br/>HKDF key deriver
+        participant Request as SERVER<br/>GoogleWrappingKeyRequest
+        participant Verifier as SERVER<br/>GoogleIdTokenVerifier
+        participant Limiter as SERVER<br/>InMemoryGoogleWrappingKeyRateLimiter
+        participant Deriver as SERVER<br/>GoogleWrappingKeyDeriver
     end
     box rgba(17, 24, 39, 0.12) External
         participant Google as google-auth-library / Google

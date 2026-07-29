@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
 
+import { expectAsyncResultError } from "../../../../../test-utils/resultAssertions";
 import { parseGoogleWrappingKeyRequest } from "./routePolicy";
 
 describe("Google wrapping-key route policy", () => {
@@ -18,25 +19,44 @@ describe("Google wrapping-key route policy", () => {
   it.each([
     ["text/plain", { googleIdToken: "id-token" }],
     ["application/json", {}],
+    ["application/json", { googleIdToken: 123 }],
     ["application/json", { googleIdToken: "   " }],
     ["application/json", { googleIdToken: "id-token", driveAccessToken: "token" }],
     ["application/json", ["id-token"]],
+    ["application/json", null],
   ])("rejects invalid request shape", async (contentType, body) => {
-    const result = await parseGoogleWrappingKeyRequest(
-      jsonRequest(body, contentType),
+    await expectAsyncResultError(
+      parseGoogleWrappingKeyRequest(jsonRequest(body, contentType)),
+      "invalid_request",
     );
+  });
 
-    expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) {
-      expect(result.error).toBe("invalid_request");
-    }
+  it("rejects malformed JSON", async () => {
+    await expectAsyncResultError(
+      parseGoogleWrappingKeyRequest(requestWithBody("not json")),
+      "invalid_request",
+    );
+  });
+
+  it("rejects oversized bodies before parsing", async () => {
+    await expectAsyncResultError(
+      parseGoogleWrappingKeyRequest(requestWithBody("{}", {
+        "Content-Type": "application/json",
+        "Content-Length": String(16 * 1024 + 1),
+      })),
+      "invalid_request",
+    );
   });
 });
 
 function jsonRequest(body: unknown, contentType: string): Request {
+  return requestWithBody(JSON.stringify(body), { "Content-Type": contentType });
+}
+
+function requestWithBody(body: BodyInit, headers: HeadersInit = { "Content-Type": "application/json" }): Request {
   return new Request("https://passport.pubky.app/api/wrapping-key/google", {
     method: "POST",
-    headers: { "Content-Type": contentType },
-    body: JSON.stringify(body),
+    headers,
+    body,
   });
 }

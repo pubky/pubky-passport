@@ -1,10 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 
 import { encodeBase64Url } from "../../../libs/encoding/base64Url";
+import { LOGGER } from "../../../libs/logger/logger";
 import { WrappingKeyApiClient } from "./wrappingKeyApiClient";
 
 describe("WrappingKeyApiClient", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it("sends only the ID token to the wrapping-key endpoint", async () => {
     let endpoint: RequestInfo | URL | undefined;
     let bodyHasOnlyExpectedIdToken = false;
@@ -35,6 +38,7 @@ describe("WrappingKeyApiClient", () => {
   });
 
   it("returns the route's safe typed error code", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const requester = new WrappingKeyApiClient({
       async fetch() {
         return Response.json({ error: { code: "unsupported_google_audience" } }, { status: 401 });
@@ -45,6 +49,10 @@ describe("WrappingKeyApiClient", () => {
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "unsupported_google_audience" });
+    expect(warn).toHaveBeenCalledWith("identity.google.wrapping_key.failed", {
+      layer: "browser",
+      code: "unsupported_google_audience",
+    });
   });
 
   it("rejects unknown route errors instead of creating dynamic codes", async () => {
@@ -125,9 +133,19 @@ describe("WrappingKeyApiClient", () => {
   });
 
   it("maps fetch failures to network_failed", async () => {
-    const requester = new WrappingKeyApiClient({ async fetch() { throw new TypeError("offline"); } });
-    const result = await requester.requestGoogleWrappingKey("id-token");
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const requester = new WrappingKeyApiClient({
+      async fetch() {
+        throw new TypeError("SECRET-GOOGLE-ID-TOKEN");
+      },
+    });
+    const result = await requester.requestGoogleWrappingKey("SECRET-GOOGLE-ID-TOKEN");
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "network_failed" });
+    expect(warn).toHaveBeenCalledWith("identity.google.wrapping_key.failed", {
+      layer: "browser",
+      code: "network_failed",
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-GOOGLE-ID-TOKEN");
   });
 });

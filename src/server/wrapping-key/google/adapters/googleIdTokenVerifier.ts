@@ -59,8 +59,8 @@ export class GoogleIdTokenVerifier {
     let ticket: GoogleLoginTicket;
     try {
       ticket = await this.#verifier.verifyIdToken({ idToken, audience: this.#audience });
-    } catch (error) {
-      return failure(mapGoogleVerifierError(error));
+    } catch {
+      return failure("invalid_google_id_token");
     }
 
     const payload = ticket.getPayload();
@@ -76,11 +76,20 @@ export class GoogleIdTokenVerifier {
       return failure("unsupported_google_audience");
     }
 
-    if (typeof payload.exp !== "number" || payload.exp <= Math.floor(this.#now().getTime() / 1000)) {
+    const now = this.#now().getTime();
+    if (!Number.isFinite(now)) {
+      throw new Error("Invalid Google ID token verifier clock.");
+    }
+
+    if (
+      typeof payload.exp !== "number"
+      || !Number.isFinite(payload.exp)
+      || payload.exp <= Math.floor(now / 1000)
+    ) {
       return failure("expired_google_id_token");
     }
 
-    if (!payload.sub) {
+    if (!payload.sub?.trim()) {
       return failure("missing_google_subject");
     }
 
@@ -98,20 +107,6 @@ function audienceMatches(
   }
 
   return audience === expectedAudience;
-}
-
-function mapGoogleVerifierError(error: unknown): GoogleIdTokenVerificationErrorCode {
-  const message = error instanceof Error ? error.message.toLowerCase() : "";
-
-  if (message.includes("expired")) {
-    return "expired_google_id_token";
-  }
-
-  if (message.includes("audience") || message.includes("recipient")) {
-    return "unsupported_google_audience";
-  }
-
-  return "invalid_google_id_token";
 }
 
 function failure(code: GoogleIdTokenVerificationErrorCode): GoogleIdTokenVerificationResult {

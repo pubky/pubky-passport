@@ -47,7 +47,10 @@ describe("Google ID token verifier", () => {
     [{ ...validPayload(), iss: "https://evil.example" }, "unsupported_google_issuer"],
     [{ ...validPayload(), aud: "other-client-id" }, "unsupported_google_audience"],
     [{ ...validPayload(), exp: Math.floor(NOW.getTime() / 1000) }, "expired_google_id_token"],
+    [{ ...validPayload(), exp: Number.NaN }, "expired_google_id_token"],
+    [{ ...validPayload(), exp: Number.POSITIVE_INFINITY }, "expired_google_id_token"],
     [{ ...validPayload(), sub: undefined }, "missing_google_subject"],
+    [{ ...validPayload(), sub: "   " }, "missing_google_subject"],
   ] as const)("rejects invalid claims", async (payload, code) => {
     const verifier = createVerifierWithPayload(payload);
 
@@ -73,18 +76,31 @@ describe("Google ID token verifier", () => {
     await expectAsyncResultError(invalid.verifyGoogleIdToken(TOKEN), { code: "unsupported_google_audience" });
   });
 
-  it("maps verifier failures without exposing the token", async () => {
+  it.each(["expired", "audience recipient", "invalid"])(
+    "maps verifier %s failures generically without exposing the token",
+    async (message) => {
+      const verifier = new GoogleIdTokenVerifier({
+        audience: AUDIENCE,
+        now: () => NOW,
+        verifier: {
+          async verifyIdToken() {
+            throw new Error(`${message} token ${TOKEN}`);
+          },
+        },
+      });
+
+      await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
+    },
+  );
+
+  it("rejects an invalid verification clock", async () => {
     const verifier = new GoogleIdTokenVerifier({
       audience: AUDIENCE,
-      now: () => NOW,
-      verifier: {
-        async verifyIdToken() {
-          throw new Error(`invalid token ${TOKEN}`);
-        },
-      },
+      now: () => new Date(Number.NaN),
+      verifier: fakeGoogleVerifier(() => validPayload()),
     });
 
-    await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
+    await expect(verifier.verifyGoogleIdToken(TOKEN)).rejects.toThrow("Invalid Google ID token verifier clock.");
   });
 });
 

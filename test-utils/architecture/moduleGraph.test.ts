@@ -258,7 +258,7 @@ describe("architecture policy", () => {
 
     expect(restricted.test("@/server/wrapping-key/google/adapters/googleIdTokenVerifier")).toBe(true);
     expect(restricted.test("../../../../server/wrapping-key/google/adapters/googleIdTokenVerifier")).toBe(true);
-    expect(restricted.test("@/server/wrapping-key/google/application/requestGoogleWrappingKey")).toBe(false);
+    expect(restricted.test("@/server/wrapping-key/google/application/googleWrappingKeyRequest")).toBe(false);
     expect(restricted.test("../../../../server/wrapping-key/google/composition/createConfiguredGoogleWrappingKeyRequest")).toBe(false);
     expect(restricted.test("@vendor/server/adapters")).toBe(false);
   });
