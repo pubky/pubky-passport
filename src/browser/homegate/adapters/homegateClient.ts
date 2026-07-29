@@ -4,6 +4,7 @@ import { Result } from "better-result";
 import { z } from "zod";
 
 import { readBoundedText } from "../../../libs/http/boundedBody";
+import { logger } from "../../../libs/logger/logger";
 import type {
   HomegateInvitationErrorCode,
   HomeserverSignupInvitation,
@@ -31,10 +32,10 @@ export class HomegateClient {
     this.#googleVerificationEndpoint = new URL(googleVerificationPath, options.homegateBaseUrl);
   }
 
-  async requestGoogleSignupInvitation(input: {
-    googleIdToken: string;
-  }): Promise<Result<HomeserverSignupInvitation, { code: HomegateInvitationErrorCode }>> {
-    if (!isValidGoogleIdToken(input.googleIdToken)) return failure("homegate_invalid_request");
+  async requestGoogleSignupInvitation(
+    googleIdToken: string,
+  ): Promise<Result<HomeserverSignupInvitation, { code: HomegateInvitationErrorCode }>> {
+    if (!isValidGoogleIdToken(googleIdToken)) return failure("homegate_invalid_request");
 
     let signal: AbortSignal;
     let response: Response;
@@ -43,14 +44,17 @@ export class HomegateClient {
       response = await this.#fetch(this.#googleVerificationEndpoint, {
         method: "POST",
         headers: { Accept: "application/json, text/plain", "Content-Type": "application/json" },
-        body: JSON.stringify({ googleIdToken: input.googleIdToken }),
+        body: JSON.stringify(googleIdToken),
         cache: "no-store",
         credentials: "omit",
         redirect: "error",
         referrerPolicy: "no-referrer",
         signal,
       });
-    } catch {
+    } catch (error) {
+      logger.warn("identity.google.homegate_invite.network_failed", {
+        errorName: error instanceof Error ? error.name : "unknown",
+      });
       return failure("network_failed");
     }
 

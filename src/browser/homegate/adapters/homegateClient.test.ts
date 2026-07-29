@@ -1,6 +1,7 @@
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { logger } from "../../../libs/logger/logger";
 import type { HomegateInvitationErrorCode } from "../application/homegateInvitation";
 import { HomegateClient } from "./homegateClient";
 
@@ -38,7 +39,7 @@ describe("HomegateClient", () => {
     }));
     const client = new HomegateClient({ fetch, homegateBaseUrl });
 
-    const result = await client.requestGoogleSignupInvitation({ googleIdToken: "id-token" });
+    const result = await client.requestGoogleSignupInvitation("id-token");
 
     expect(result).toEqual(Result.ok({
       signupCode: "signup-code",
@@ -60,7 +61,7 @@ describe("HomegateClient", () => {
     });
     expect(timeout).toHaveBeenCalledWith(10_000);
     expect(init?.signal).toBe(requestSignal);
-    expect(JSON.parse(String(init?.body))).toEqual({ googleIdToken: "id-token" });
+    expect(JSON.parse(String(init?.body))).toEqual("id-token");
   });
 
   it("appends the endpoint to the normalized Homegate base path", async () => {
@@ -73,7 +74,7 @@ describe("HomegateClient", () => {
       homegateBaseUrl: "https://homegate.example/api/",
     });
 
-    await client.requestGoogleSignupInvitation({ googleIdToken: "id-token" });
+    await client.requestGoogleSignupInvitation("id-token");
 
     expect(String(fetch.mock.calls[0]?.[0])).toBe("https://homegate.example/api/google_verification");
   });
@@ -84,7 +85,7 @@ describe("HomegateClient", () => {
       const fetch = vi.fn<typeof globalThis.fetch>();
       const client = new HomegateClient({ fetch, homegateBaseUrl });
 
-      const result = await client.requestGoogleSignupInvitation({ googleIdToken });
+      const result = await client.requestGoogleSignupInvitation(googleIdToken);
 
       expect(fetch).not.toHaveBeenCalled();
       expect(Result.isError(result)).toBe(true);
@@ -99,7 +100,7 @@ describe("HomegateClient", () => {
       homegateBaseUrl,
     });
 
-    const result = await client.requestGoogleSignupInvitation({ googleIdToken: "id-token" });
+    const result = await client.requestGoogleSignupInvitation("id-token");
 
     expect(Result.isError(result)).toBe(true);
     if (!Result.isError(result)) throw new Error("Expected malformed Homegate response failure.");
@@ -119,7 +120,7 @@ describe("HomegateClient", () => {
       homegateBaseUrl,
     });
 
-    const result = await client.requestGoogleSignupInvitation({ googleIdToken: "id-token" });
+    const result = await client.requestGoogleSignupInvitation("id-token");
 
     expect(requestController.signal.aborted).toBe(false);
     expect(Result.isError(result)).toBe(true);
@@ -133,7 +134,7 @@ describe("HomegateClient", () => {
       homegateBaseUrl,
     });
 
-    const result = await client.requestGoogleSignupInvitation({ googleIdToken: "id-token" });
+    const result = await client.requestGoogleSignupInvitation("id-token");
 
     expect(Result.isError(result)).toBe(true);
     if (!Result.isError(result)) throw new Error("Expected mapped Homegate failure.");
@@ -150,7 +151,7 @@ describe("HomegateClient", () => {
         homegateBaseUrl,
       });
 
-      const result = await client.requestGoogleSignupInvitation({ googleIdToken: "id-token" });
+      const result = await client.requestGoogleSignupInvitation("id-token");
 
       expect(Result.isError(result)).toBe(true);
       if (!Result.isError(result)) throw new Error("Expected unavailable Homegate failure.");
@@ -159,16 +160,21 @@ describe("HomegateClient", () => {
   });
 
   it("maps network failures without leaking the Google ID token", async () => {
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => undefined);
     const client = new HomegateClient({
       fetch: vi.fn<typeof globalThis.fetch>().mockRejectedValue(new Error("SECRET-GOOGLE-ID-TOKEN")),
       homegateBaseUrl,
     });
 
-    const result = await client.requestGoogleSignupInvitation({ googleIdToken: "SECRET-GOOGLE-ID-TOKEN" });
+    const result = await client.requestGoogleSignupInvitation("SECRET-GOOGLE-ID-TOKEN");
 
     expect(Result.isError(result)).toBe(true);
     if (!Result.isError(result)) throw new Error("Expected Homegate network failure.");
     expect(result.error).toEqual({ code: "network_failed" });
+    expect(warn).toHaveBeenCalledWith("identity.google.homegate_invite.network_failed", {
+      errorName: "Error",
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-GOOGLE-ID-TOKEN");
   });
 
   it("maps timeout setup failures to a network failure", async () => {
@@ -178,7 +184,7 @@ describe("HomegateClient", () => {
     const fetch = vi.fn<typeof globalThis.fetch>();
     const client = new HomegateClient({ fetch, homegateBaseUrl });
 
-    const result = await client.requestGoogleSignupInvitation({ googleIdToken: "id-token" });
+    const result = await client.requestGoogleSignupInvitation("id-token");
 
     expect(fetch).not.toHaveBeenCalled();
     expect(Result.isError(result)).toBe(true);
@@ -198,7 +204,7 @@ describe("HomegateClient", () => {
     );
     const client = new HomegateClient({ fetch, homegateBaseUrl });
 
-    const resultPromise = client.requestGoogleSignupInvitation({ googleIdToken: "id-token" });
+    const resultPromise = client.requestGoogleSignupInvitation("id-token");
     requestController.abort();
 
     const result = await resultPromise;

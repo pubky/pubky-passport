@@ -77,9 +77,7 @@ export class EstablishGoogleBackedIdentity implements GoogleIdentityEstablisher 
 
     logger.info("identity.google.drive_read.completed", { status: "missing" });
     logger.info("identity.google.homegate_invite.started");
-    const invitation = await this.#homegate.requestGoogleSignupInvitation({
-      googleIdToken: google.googleIdToken,
-    });
+    const invitation = await this.#homegate.requestGoogleSignupInvitation(google.googleIdToken);
     if (Result.isError(invitation)) {
       logger.warn("identity.google.homegate_invite.failed", { code: invitation.error.code });
       return Result.err({ code: "homegate_invite_failed", cause: invitation.error.code });

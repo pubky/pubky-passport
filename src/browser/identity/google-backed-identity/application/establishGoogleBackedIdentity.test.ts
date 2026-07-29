@@ -167,7 +167,7 @@ function homegateDouble(
     homegateBaseUrl: "https://homegate.example/",
     fetch: vi.fn<typeof fetch>(),
   });
-  client.requestGoogleSignupInvitation = async ({ googleIdToken }) => {
+  client.requestGoogleSignupInvitation = async (googleIdToken: string) => {
     calls.count += 1;
     calls.hasGoogleIdToken = googleIdToken.trim().length > 0;
     return implementation();
