@@ -32,6 +32,41 @@ export class ModuleGraph {
     return this.sourceFiles(rootPath).filter((filePath) => !isTestSourcePath(filePath));
   }
 
+  localImportCycles(rootPath: string): string[][] {
+    const sourceFiles = new Set(this.productionSourceFiles(rootPath));
+    const visiting = new Set<string>();
+    const visited = new Set<string>();
+    const stack: string[] = [];
+    const cycles: string[][] = [];
+
+    const visit = (filePath: string): void => {
+      visiting.add(filePath);
+      stack.push(filePath);
+
+      for (const specifier of this.importSpecifiers(filePath)) {
+        const targetPath = this.resolveLocalImportTarget(filePath, specifier);
+        if (!targetPath || !sourceFiles.has(targetPath)) continue;
+
+        if (visiting.has(targetPath)) {
+          const cycleStart = stack.indexOf(targetPath);
+          cycles.push([...stack.slice(cycleStart), targetPath]);
+        } else if (!visited.has(targetPath)) {
+          visit(targetPath);
+        }
+      }
+
+      stack.pop();
+      visiting.delete(filePath);
+      visited.add(filePath);
+    };
+
+    for (const filePath of [...sourceFiles].sort()) {
+      if (!visited.has(filePath)) visit(filePath);
+    }
+
+    return cycles;
+  }
+
   importSpecifiers(filePath: string): string[] {
     return moduleLoadsFromSourceFile(this.sourceFile(filePath)).specifiers;
   }

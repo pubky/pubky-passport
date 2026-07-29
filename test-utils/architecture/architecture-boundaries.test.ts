@@ -21,12 +21,11 @@ const APP_ROOT = join(SRC_ROOT, "app");
 const UI_ROOT = join(SRC_ROOT, "ui");
 const LIBS_ROOT = join(SRC_ROOT, "libs");
 const PUBLIC_ENV_ROOT = join(LIBS_ROOT, "env");
+const SERVER_CONFIG_ROOT = join(SERVER_ROOT, "config");
 const IDENTITY_ROOT = join(BROWSER_ROOT, "identity");
 const LOCAL_IDENTITY_REPOSITORY = join(IDENTITY_ROOT, "local-identity", "adapters", "localStorageIdentityRepository.ts");
 const PUBKY_SDK_ADAPTERS_ROOT = join(BROWSER_ROOT, "pubky", "adapters");
 const GOOGLE_WRAPPING_KEY_ROOT = join(SERVER_ROOT, "wrapping-key", "google");
-const GOOGLE_WRAPPING_KEY_CONFIG = join(GOOGLE_WRAPPING_KEY_ROOT, "composition", "googleWrappingKeyConfig.ts");
-const GOOGLE_WRAPPING_KEY_SERVER_SECRET = join(GOOGLE_WRAPPING_KEY_ROOT, "adapters", "serverSecret.ts");
 const GRAPH = new ModuleGraph(REPO_ROOT);
 const BROWSER_PRODUCTION_MODULES = GRAPH.productionSourceFiles(BROWSER_ROOT);
 const BROWSER_MODULES_BY_ROLE = Map.groupBy(
@@ -107,6 +106,14 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
+  it("keeps the production module graph free of import cycles", () => {
+    const cycles = GRAPH.localImportCycles(SRC_ROOT).map((cycle) =>
+      cycle.map((filePath) => relative(REPO_ROOT, filePath)).join(" -> ")
+    );
+
+    expect(cycles).toEqual([]);
+  });
+
   it("limits browser persistence to the local identity repository", () => {
     const browserCapableFiles = [
       ...GRAPH.productionSourceFiles(BROWSER_ROOT),
@@ -179,14 +186,12 @@ describe("architecture boundaries", () => {
     expect(GRAPH.productionSourceFiles(UI_ROOT).flatMap(inspectUiBrowserImports)).toEqual([]);
   });
 
-  it("keeps wrapping-key configuration inside its owning server feature", () => {
-    const forbiddenTargets = [
-      { targetPath: GOOGLE_WRAPPING_KEY_CONFIG, label: "Google wrapping-key config" },
-      { targetPath: GOOGLE_WRAPPING_KEY_SERVER_SECRET, label: "Google wrapping-key server secret" },
-    ];
-    const violations = GRAPH.productionSourceFiles(SRC_ROOT)
-      .filter((filePath) => !isSameOrInside(filePath, GOOGLE_WRAPPING_KEY_ROOT))
-      .flatMap((filePath) => GRAPH.inspectForbiddenImports(filePath, { forbiddenTargets }));
+  it("keeps server environment access in server config and composition", () => {
+    const violations = SERVER_PRODUCTION_MODULES
+      .filter((filePath) => GRAPH.referencesProperty(filePath, "process", "env"))
+      .filter((filePath) => !isSameOrInside(filePath, SERVER_CONFIG_ROOT))
+      .filter((filePath) => serverModuleRole(relative(SERVER_ROOT, filePath)) !== "composition")
+      .map((filePath) => `${relative(REPO_ROOT, filePath)} accesses process.env outside server config or composition`);
 
     expect(violations).toEqual([]);
   });

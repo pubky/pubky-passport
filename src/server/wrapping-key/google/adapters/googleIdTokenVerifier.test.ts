@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
 
 import { expectAsyncResultError } from "../../../../../test-utils/resultAssertions";
-import {
-  createGoogleIdTokenVerifier,
-  type GoogleTokenVerifierDependency,
-} from "./googleIdTokenVerifier";
+import { GoogleIdTokenVerifier } from "./googleIdTokenVerifier";
 
 const AUDIENCE = "google-client-id";
 const TOKEN = "header.payload.signature";
@@ -32,7 +29,7 @@ describe("Google ID token verifier", () => {
 
   it("passes Passport's client ID to the Google verifier", async () => {
     const calls: Array<{ idToken: string; audience: string }> = [];
-    const verifier = createGoogleIdTokenVerifier({
+    const verifier = new GoogleIdTokenVerifier({
       audience: AUDIENCE,
       now: () => NOW,
       verifier: fakeGoogleVerifier(({ idToken, audience: verifierAudience }) => {
@@ -47,10 +44,10 @@ describe("Google ID token verifier", () => {
   });
 
   it.each([
-    [{ ...validPayload(), iss: "https://evil.example" }, "unsupported_issuer"],
-    [{ ...validPayload(), aud: "other-client-id" }, "unsupported_audience"],
-    [{ ...validPayload(), exp: Math.floor(NOW.getTime() / 1000) }, "expired"],
-    [{ ...validPayload(), sub: undefined }, "missing_subject"],
+    [{ ...validPayload(), iss: "https://evil.example" }, "unsupported_google_issuer"],
+    [{ ...validPayload(), aud: "other-client-id" }, "unsupported_google_audience"],
+    [{ ...validPayload(), exp: Math.floor(NOW.getTime() / 1000) }, "expired_google_id_token"],
+    [{ ...validPayload(), sub: undefined }, "missing_google_subject"],
   ] as const)("rejects invalid claims", async (payload, code) => {
     const verifier = createVerifierWithPayload(payload);
 
@@ -73,11 +70,11 @@ describe("Google ID token verifier", () => {
       issuer: "https://accounts.google.com",
       subject: "google-subject",
     }));
-    await expectAsyncResultError(invalid.verifyGoogleIdToken(TOKEN), { code: "unsupported_audience" });
+    await expectAsyncResultError(invalid.verifyGoogleIdToken(TOKEN), { code: "unsupported_google_audience" });
   });
 
   it("maps verifier failures without exposing the token", async () => {
-    const verifier = createGoogleIdTokenVerifier({
+    const verifier = new GoogleIdTokenVerifier({
       audience: AUDIENCE,
       now: () => NOW,
       verifier: {
@@ -87,12 +84,12 @@ describe("Google ID token verifier", () => {
       },
     });
 
-    await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid" });
+    await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
   });
 });
 
 function createVerifierWithPayload(payload: TestGoogleIdTokenPayload) {
-  return createGoogleIdTokenVerifier({
+  return new GoogleIdTokenVerifier({
     audience: AUDIENCE,
     now: () => NOW,
     verifier: fakeGoogleVerifier(() => payload),
@@ -110,9 +107,9 @@ function validPayload(): TestGoogleIdTokenPayload {
 
 function fakeGoogleVerifier(
   payload: (input: { idToken: string; audience: string }) => TestGoogleIdTokenPayload,
-): GoogleTokenVerifierDependency {
+) {
   return {
-    async verifyIdToken(input) {
+    async verifyIdToken(input: { idToken: string; audience: string }) {
       return { getPayload: () => payload(input) };
     },
   };

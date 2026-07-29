@@ -777,11 +777,11 @@ sequenceDiagram
     end
     box rgba(240, 228, 66, 0.18) Next transport
         participant Handler as APP<br/>wrapping-key handler
-        participant Policy as APP<br/>googleCredentialRoutePolicy
+        participant Policy as APP<br/>routePolicy
     end
     box rgba(213, 94, 0, 0.18) Server
-        participant Request as SERVER<br/>GoogleWrappingKeyRequest
-        participant Verifier as SERVER<br/>GoogleIdTokenVerifier
+        participant Request as SERVER<br/>RequestGoogleWrappingKey
+        participant Verifier as SERVER<br/>verifyGoogleIdToken
         participant Limiter as SERVER<br/>rate limiter
         participant Deriver as SERVER<br/>HKDF key deriver
     end
@@ -791,12 +791,12 @@ sequenceDiagram
     end
 
     Browser->>Handler: POST { googleIdToken }
-    Handler->>Policy: parseGoogleIdTokenRequest(request)
+    Handler->>Policy: parseGoogleWrappingKeyRequest(request)
     Policy-->>Handler: Google ID token or invalid_request
     alt Invalid request
         Handler-->>Browser: fixed 400 invalid_request
     else Valid Google ID token
-        Handler->>Request: requestWrappingKey(token)
+        Handler->>Request: requestGoogleWrappingKey(token)
         Request->>Verifier: verifyGoogleIdToken(token)
         Verifier->>Google: verifyIdToken(token, audience)
         Google-->>Verifier: LoginTicket
@@ -807,7 +807,7 @@ sequenceDiagram
         alt Verification error
             Request-->>Handler: safe authentication error
         else Verified identity
-            Request->>Limiter: checkRequest(identity)
+            Request->>Limiter: checkRateLimit(identity)
             Limiter-->>Request: allowed or rate-limited
             alt Rate-limited
                 Request-->>Handler: rate_limited

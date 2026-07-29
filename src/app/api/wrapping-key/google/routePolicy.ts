@@ -2,16 +2,16 @@ import "server-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { readBoundedText } from "../../libs/http/boundedBody";
+import { readBoundedText } from "../../../../libs/http/boundedBody";
 
 const MAXIMUM_CREDENTIAL_REQUEST_BYTES = 16 * 1024;
 
-export const GOOGLE_CREDENTIAL_RESPONSE_HEADERS = {
+export const GOOGLE_WRAPPING_KEY_RESPONSE_HEADERS = {
   "Cache-Control": "no-store",
   "Referrer-Policy": "no-referrer",
 } as const;
 
-export async function parseGoogleIdTokenRequest(
+export async function parseGoogleWrappingKeyRequest(
   request: Request,
 ): Promise<ResultType<string, "invalid_request">> {
   if (!isJsonContentType(request.headers.get("Content-Type"))) {

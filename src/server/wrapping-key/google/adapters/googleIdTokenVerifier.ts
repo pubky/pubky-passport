@@ -1,14 +1,26 @@
 import "server-only";
 
 import { OAuth2Client } from "google-auth-library";
-import { Result } from "better-result";
+import { Result, type Result as ResultType } from "better-result";
 
-import {
-  CANONICAL_GOOGLE_ISSUER,
-  type GoogleIdTokenVerificationErrorCode,
-  type GoogleIdTokenVerificationResult,
-  type GoogleIdTokenVerifier,
-} from "../application/googleWrappingKey";
+export const CANONICAL_GOOGLE_ISSUER = "https://accounts.google.com";
+
+export type VerifiedGoogleIdentity = {
+  issuer: typeof CANONICAL_GOOGLE_ISSUER;
+  subject: string;
+};
+
+export type GoogleIdTokenVerificationErrorCode =
+  | "invalid_google_id_token"
+  | "expired_google_id_token"
+  | "unsupported_google_issuer"
+  | "unsupported_google_audience"
+  | "missing_google_subject";
+
+export type GoogleIdTokenVerificationResult = ResultType<
+  VerifiedGoogleIdentity,
+  { code: GoogleIdTokenVerificationErrorCode }
+>;
 
 type GoogleIdTokenPayload = {
   iss?: string;
@@ -22,55 +34,58 @@ type GoogleLoginTicket = {
   getPayload(): GoogleIdTokenPayload | undefined;
 };
 
-export type GoogleTokenVerifierDependency = {
+type GoogleTokenVerifierDependency = {
   verifyIdToken(input: { idToken: string; audience: string }): Promise<GoogleLoginTicket>;
-};
-
-export type CreateGoogleIdTokenVerifierInput = {
-  audience: string;
-  verifier?: GoogleTokenVerifierDependency;
-  now?: () => Date;
 };
 
 const ACCEPTED_GOOGLE_ISSUERS = new Set(["accounts.google.com", CANONICAL_GOOGLE_ISSUER]);
 
-export function createGoogleIdTokenVerifier(input: CreateGoogleIdTokenVerifierInput): GoogleIdTokenVerifier {
-  const verifier = input.verifier ?? new OAuth2Client();
-  const now = input.now ?? (() => new Date());
+export class GoogleIdTokenVerifier {
+  readonly #audience: string;
+  readonly #verifier: GoogleTokenVerifierDependency;
+  readonly #now: () => Date;
 
-  return {
-    async verifyGoogleIdToken(idToken) {
-      let ticket: GoogleLoginTicket;
-      try {
-        ticket = await verifier.verifyIdToken({ idToken, audience: input.audience });
-      } catch (error) {
-        return failure(mapGoogleVerifierError(error));
-      }
+  constructor(options: {
+    audience: string;
+    verifier?: GoogleTokenVerifierDependency;
+    now?: () => Date;
+  }) {
+    this.#audience = options.audience;
+    this.#verifier = options.verifier ?? new OAuth2Client();
+    this.#now = options.now ?? (() => new Date());
+  }
 
-      const payload = ticket.getPayload();
-      if (!payload) {
-        return failure("invalid");
-      }
+  async verifyGoogleIdToken(idToken: string): Promise<GoogleIdTokenVerificationResult> {
+    let ticket: GoogleLoginTicket;
+    try {
+      ticket = await this.#verifier.verifyIdToken({ idToken, audience: this.#audience });
+    } catch (error) {
+      return failure(mapGoogleVerifierError(error));
+    }
 
-      if (!payload.iss || !ACCEPTED_GOOGLE_ISSUERS.has(payload.iss)) {
-        return failure("unsupported_issuer");
-      }
+    const payload = ticket.getPayload();
+    if (!payload) {
+      return failure("invalid_google_id_token");
+    }
 
-      if (!audienceMatches(payload.aud, payload.azp, input.audience)) {
-        return failure("unsupported_audience");
-      }
+    if (!payload.iss || !ACCEPTED_GOOGLE_ISSUERS.has(payload.iss)) {
+      return failure("unsupported_google_issuer");
+    }
 
-      if (typeof payload.exp !== "number" || payload.exp <= Math.floor(now().getTime() / 1000)) {
-        return failure("expired");
-      }
+    if (!audienceMatches(payload.aud, payload.azp, this.#audience)) {
+      return failure("unsupported_google_audience");
+    }
 
-      if (!payload.sub) {
-        return failure("missing_subject");
-      }
+    if (typeof payload.exp !== "number" || payload.exp <= Math.floor(this.#now().getTime() / 1000)) {
+      return failure("expired_google_id_token");
+    }
 
-      return Result.ok({ issuer: CANONICAL_GOOGLE_ISSUER, subject: payload.sub });
-    },
-  };
+    if (!payload.sub) {
+      return failure("missing_google_subject");
+    }
+
+    return Result.ok({ issuer: CANONICAL_GOOGLE_ISSUER, subject: payload.sub });
+  }
 }
 
 function audienceMatches(
@@ -89,14 +104,14 @@ function mapGoogleVerifierError(error: unknown): GoogleIdTokenVerificationErrorC
   const message = error instanceof Error ? error.message.toLowerCase() : "";
 
   if (message.includes("expired")) {
-    return "expired";
+    return "expired_google_id_token";
   }
 
   if (message.includes("audience") || message.includes("recipient")) {
-    return "unsupported_audience";
+    return "unsupported_google_audience";
   }
 
-  return "invalid";
+  return "invalid_google_id_token";
 }
 
 function failure(code: GoogleIdTokenVerificationErrorCode): GoogleIdTokenVerificationResult {

@@ -102,6 +102,13 @@ describe("ModuleGraph", () => {
     expect(GRAPH.referencesElementProperty(fixture, ["globalThis", "window"], "sessionStorage")).toBe(true);
     expect(GRAPH.referencesElementProperty(fixture, ["document"], "cookie")).toBe(true);
   });
+
+  it("detects local production import cycles", () => {
+    const cycleA = join(FIXTURE_ROOT, "cycle-a.ts");
+    const cycleB = join(FIXTURE_ROOT, "cycle-b.ts");
+
+    expect(GRAPH.localImportCycles(FIXTURE_ROOT)).toContainEqual([cycleA, cycleB, cycleA]);
+  });
 });
 
 describe("architecture policy", () => {
@@ -148,7 +155,7 @@ describe("architecture policy", () => {
     }))).toEqual([
       {
         id: "server-application-inward",
-        forbiddenRoles: ["adapter", "composition"],
+        forbiddenRoles: ["composition"],
         forbiddenRoots: ["src/app", "src/ui", "src/browser", "src/server/config"],
         forbiddenSpecifiers: [],
       },
@@ -227,6 +234,14 @@ describe("architecture policy", () => {
     expect(restricted.test("../../../homegate/adapters/homegateClient")).toBe(false);
   });
 
+  it("allows server application modules to import adapters", () => {
+    const rule = SERVER_ROLE_RULES.find((candidate) => candidate.id === "server-application-inward");
+    expect(rule).toBeDefined();
+    const restricted = new RegExp(restrictedImportRegexForRoleRule(rule), "u");
+
+    expect(restricted.test("../adapters/googleIdTokenVerifier")).toBe(false);
+  });
+
   it("matches forbidden roots exactly instead of matching unrelated config segments", () => {
     const rule = SERVER_ROLE_RULES.find((candidate) => candidate.id === "server-application-inward");
     expect(rule).toBeDefined();
@@ -249,7 +264,7 @@ describe("architecture policy", () => {
   });
 
   it.each([
-    ["server-application-inward", "../adapters/provider"],
+    ["server-application-inward", "../composition/runtime"],
     ["server-adapter-inward", "../composition/runtime"],
     ["server-composition-runtime", "@/browser/identity"],
   ])("generates server direct-import enforcement for %s", (ruleId, forbiddenImport) => {

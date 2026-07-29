@@ -2,66 +2,50 @@ import { NextResponse } from "next/server";
 import { Result } from "better-result";
 
 import type {
-  GoogleWrappingKeyRequest,
   GoogleWrappingKeyRequestErrorCode,
+  RequestGoogleWrappingKey,
 } from "../../../../server/wrapping-key/google/application/requestGoogleWrappingKey";
 import {
-  GOOGLE_CREDENTIAL_RESPONSE_HEADERS,
-  parseGoogleIdTokenRequest,
-} from "../../googleCredentialRoutePolicy";
+  GOOGLE_WRAPPING_KEY_RESPONSE_HEADERS,
+  parseGoogleWrappingKeyRequest,
+} from "./routePolicy";
 
 type GoogleWrappingKeyRouteBody =
   | { wrappingKey: string }
   | { error: { code: string } };
 
 export function createGoogleWrappingKeyPostHandler(
-  wrappingKeyRequest?: GoogleWrappingKeyRequest,
-  createDefaultRequestFactory: () => Promise<GoogleWrappingKeyRequest> = createDefaultRequest,
+  createRequest: () => RequestGoogleWrappingKey,
 ) {
-  let defaultRequest: Promise<GoogleWrappingKeyRequest> | undefined;
+  let activeRequest: RequestGoogleWrappingKey | undefined;
 
   return async function googleWrappingKeyPost(request: Request): Promise<NextResponse<GoogleWrappingKeyRouteBody>> {
-    const body = await parseGoogleIdTokenRequest(request);
+    const body = await parseGoogleWrappingKeyRequest(request);
 
     if (Result.isError(body)) {
-      return json({ error: { code: "invalid_request" } }, 400);
+      return jsonResponse({ error: { code: "invalid_request" } }, 400);
     }
 
     try {
-      const activeRequest = wrappingKeyRequest ?? await getDefaultRequest();
-      const result = await activeRequest.requestWrappingKey({ googleIdToken: body.value });
+      const requestGoogleWrappingKey = activeRequest ??= createRequest();
+      const result = await requestGoogleWrappingKey(body.value);
 
       if (Result.isError(result)) {
-        return json({ error: { code: result.error.code } }, statusForError(result.error.code));
+        return jsonResponse({ error: { code: result.error.code } }, statusForError(result.error.code));
       }
 
-      return json({ wrappingKey: result.value }, 200);
+      return jsonResponse({ wrappingKey: result.value }, 200);
     } catch {
-      return json({ error: { code: "internal_error" } }, 500);
+      return jsonResponse({ error: { code: "internal_error" } }, 500);
     }
   };
-
-  async function getDefaultRequest(): Promise<GoogleWrappingKeyRequest> {
-    const pending = defaultRequest ??= createDefaultRequestFactory();
-    try {
-      return await pending;
-    } catch (error) {
-      if (defaultRequest === pending) defaultRequest = undefined;
-      throw error;
-    }
-  }
 }
 
-async function createDefaultRequest(): Promise<GoogleWrappingKeyRequest> {
-  const { createConfiguredGoogleWrappingKeyRequest } = await import(
-    "../../../../server/wrapping-key/google/composition/createConfiguredGoogleWrappingKeyRequest"
-  );
-
-  return createConfiguredGoogleWrappingKeyRequest();
-}
-
-function json(body: GoogleWrappingKeyRouteBody, status: number): NextResponse<GoogleWrappingKeyRouteBody> {
-  return NextResponse.json(body, { status, headers: GOOGLE_CREDENTIAL_RESPONSE_HEADERS });
+function jsonResponse(
+  body: GoogleWrappingKeyRouteBody,
+  status: number,
+): NextResponse<GoogleWrappingKeyRouteBody> {
+  return NextResponse.json(body, { status, headers: GOOGLE_WRAPPING_KEY_RESPONSE_HEADERS });
 }
 
 function statusForError(code: GoogleWrappingKeyRequestErrorCode): number {

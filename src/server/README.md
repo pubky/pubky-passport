@@ -1,17 +1,29 @@
-# Server Runtime
+# Google Wrapping Key
 
-Server-only implementation. Production modules use `server-only` for provider token
-verification, server-secret derivation, and rate limiting.
+Creates the deterministic wrapping key used to decrypt a Google-backed
+Passport file.
 
-`config/googleClientId.ts` owns the shared browser/server Google audience, while
-`config/browserBootstrapConfig.ts` validates the Homegate URL that server entry
-points deliberately pass to browser components and CSP.
+## Flow
 
-`wrapping-key/google/` contains the complete Google wrapping-key flow. Its
-`application/` folder owns orchestration and feature-local contracts, `adapters/`
-owns Google verification, HKDF derivation, secret decoding, and rate limiting, and
-`composition/` validates runtime configuration and wires the API dependency graph.
+1. Verify the Google ID token.
+2. Normalize the verified issuer and subject.
+3. Rate-limit the verified provider identity.
+4. Derive the wrapping key with HKDF.
+5. Return only the base64url wrapping key or a safe typed error.
 
-Server flows import `core`, never `browser`, and receive only their required
-inputs. Layered server features point inward from composition and adapters to
-application contracts; small server mechanisms do not require empty role folders.
+## Files
+
+- `application/requestGoogleWrappingKey.ts`
+  Owns operation ordering, callback contracts, and safe errors.
+
+- `adapters/googleIdTokenVerifier.ts`
+  Verifies Google signatures and required claims.
+
+- `adapters/inMemoryGoogleWrappingKeyRateLimiter.ts`
+  Rate-limits an HMAC hash of the verified issuer and subject.
+
+- `adapters/deriveGoogleWrappingKey.ts`
+  Implements the frozen HKDF derivation contract.
+
+- `composition/createConfiguredGoogleWrappingKeyRequest.ts`
+  Reads configuration and wires the concrete callbacks.

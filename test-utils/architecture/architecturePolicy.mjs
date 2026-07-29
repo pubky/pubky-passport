@@ -98,13 +98,13 @@ export const BROWSER_ROLE_RULES = Object.freeze([
 export const SERVER_ROLE_RULES = Object.freeze([
   Object.freeze({
     id: "server-application-inward",
-    description: "keeps server application modules independent from runtime implementation",
+    description: "keeps server application modules independent from composition and outward runtimes",
     sourceRole: "application",
     eslintFiles: ["src/server/**/application/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
-    forbiddenRoles: ["adapter", "composition"],
+    forbiddenRoles: ["composition"],
     forbiddenRoots: ["src/app", "src/ui", "src/browser", "src/server/config"],
     forbiddenSpecifiers: [],
-    message: "Server application modules must not depend on adapters, composition, runtime configuration, app, UI, or browser code.",
+    message: "Server application modules may use concrete adapters but must not depend on composition, runtime configuration, app, UI, or browser code.",
   }),
   Object.freeze({
     id: "server-adapter-inward",

@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
 
-import { parseGoogleIdTokenRequest } from "./googleCredentialRoutePolicy";
+import { parseGoogleWrappingKeyRequest } from "./routePolicy";
 
-describe("Google credential route policy", () => {
+describe("Google wrapping-key route policy", () => {
   it("accepts an exact non-empty field with JSON parameters", async () => {
-    const result = await parseGoogleIdTokenRequest(
+    const result = await parseGoogleWrappingKeyRequest(
       jsonRequest({ googleIdToken: "id-token" }, "application/json; charset=utf-8"),
     );
 
@@ -22,7 +22,7 @@ describe("Google credential route policy", () => {
     ["application/json", { googleIdToken: "id-token", driveAccessToken: "token" }],
     ["application/json", ["id-token"]],
   ])("rejects invalid request shape", async (contentType, body) => {
-    const result = await parseGoogleIdTokenRequest(
+    const result = await parseGoogleWrappingKeyRequest(
       jsonRequest(body, contentType),
     );
 

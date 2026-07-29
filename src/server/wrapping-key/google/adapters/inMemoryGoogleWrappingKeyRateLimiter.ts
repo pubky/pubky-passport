@@ -2,13 +2,13 @@ import "server-only";
 
 import { createHmac } from "node:crypto";
 
-import type { GoogleWrappingKeyRateLimiter } from "../application/googleWrappingKey";
-import { decodeServerSecret } from "./serverSecret";
+import type { CheckGoogleWrappingKeyRateLimit } from "../application/requestGoogleWrappingKey";
 
 export type CreateInMemoryGoogleWrappingKeyRateLimiterInput = {
-  serverSecretBase64: string;
+  identityPepper: Uint8Array;
   maximumRequests?: number;
   windowMilliseconds?: number;
+  now?: () => Date;
 };
 
 const DEFAULT_MAXIMUM_REQUESTS = 10;
@@ -17,10 +17,11 @@ const DEFAULT_WINDOW_MILLISECONDS = 60_000;
 /** Process-local MVP limiter; multi-instance deployments need shared storage. */
 export function createInMemoryGoogleWrappingKeyRateLimiter(
   input: CreateInMemoryGoogleWrappingKeyRateLimiterInput,
-): GoogleWrappingKeyRateLimiter {
-  const identityPepper = decodeServerSecret(input.serverSecretBase64);
+): CheckGoogleWrappingKeyRateLimit {
+  const identityPepper = Buffer.from(input.identityPepper);
   const maximumRequests = input.maximumRequests ?? DEFAULT_MAXIMUM_REQUESTS;
   const windowMilliseconds = input.windowMilliseconds ?? DEFAULT_WINDOW_MILLISECONDS;
+  const currentTime = input.now ?? (() => new Date());
   const requestsByIdentity = new Map<string, number[]>();
   let nextCleanupAt = Number.NEGATIVE_INFINITY;
 
@@ -28,31 +29,29 @@ export function createInMemoryGoogleWrappingKeyRateLimiter(
     throw new Error("Invalid wrapping key rate limit configuration.");
   }
 
-  return {
-    async checkRequest({ identity, at }) {
-      const now = at.getTime();
-      if (!Number.isFinite(now)) {
-        throw new Error("Invalid wrapping key rate limit request.");
-      }
+  return async function checkGoogleWrappingKeyRateLimit(identity) {
+    const now = currentTime().getTime();
+    if (!Number.isFinite(now)) {
+      throw new Error("Invalid wrapping key rate limit request.");
+    }
 
-      const cutoff = now - windowMilliseconds;
-      if (now >= nextCleanupAt) {
-        removeExpiredRequests(requestsByIdentity, cutoff);
-        nextCleanupAt = now + windowMilliseconds;
-      }
+    const cutoff = now - windowMilliseconds;
+    if (now >= nextCleanupAt) {
+      removeExpiredRequests(requestsByIdentity, cutoff);
+      nextCleanupAt = now + windowMilliseconds;
+    }
 
-      const identityHash = createHmac("sha256", identityPepper)
-        .update(`${identity.issuer}\n${identity.subject}`, "utf8")
-        .digest("base64url");
-      const requests = recentRequests(requestsByIdentity.get(identityHash) ?? [], cutoff);
-      if (requests.length >= maximumRequests) {
-        return { allowed: false };
-      }
+    const identityHash = createHmac("sha256", identityPepper)
+      .update(`${identity.issuer}\n${identity.subject}`, "utf8")
+      .digest("base64url");
+    const requests = recentRequests(requestsByIdentity.get(identityHash) ?? [], cutoff);
+    if (requests.length >= maximumRequests) {
+      return false;
+    }
 
-      requests.push(now);
-      requestsByIdentity.set(identityHash, requests);
-      return { allowed: true };
-    },
+    requests.push(now);
+    requestsByIdentity.set(identityHash, requests);
+    return true;
   };
 }
 
