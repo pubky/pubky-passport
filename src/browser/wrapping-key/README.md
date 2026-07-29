@@ -16,6 +16,4 @@ the identity flow to open an encrypted Passport file.
 2. Bound and parse the response.
 3. Accept only a canonical base64url value representing exactly 32 bytes, or return a safe typed error.
 
-Review the application types first, then the adapter and tests. This feature does not
-store tokens, derive keys, access Drive, or decrypt Passport files. The Google token
-and returned wrapping key must remain in memory and must never be logged or persisted.
+

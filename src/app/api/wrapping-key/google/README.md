@@ -17,6 +17,4 @@ Passport file.
 2. Delegate verification, rate limiting, and HKDF derivation to [`src/server/wrapping-key/google/`](../../../../server/wrapping-key/google/).
 3. Return `{ "wrappingKey": "<32-byte-base64url>" }` or `{ "error": { "code": "..." } }`.
 
-Every response is `no-store` and `no-referrer`. The route must never accept, log, or
-return Drive OAuth tokens, Passport file contents, Pubky key material, server secrets,
-or raw dependency errors.
+

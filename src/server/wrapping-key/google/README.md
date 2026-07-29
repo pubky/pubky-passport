@@ -19,6 +19,4 @@ a Google account and derives the wrapping key for that account's Passport file.
 3. Use HKDF to derive a deterministic 32-byte wrapping key from the server secret and identity.
 4. Return the base64url key or a safe typed error.
 
-Review in that order. Confirm raw tokens and subjects are not logged, the server
-secret never leaves the server, and changes do not alter the frozen HKDF inputs. This
-feature must never receive Drive tokens, Passport files, or Pubky key material.
+
