@@ -68,33 +68,42 @@ export class GoogleIdTokenVerifier {
       return failure("invalid_google_id_token");
     }
 
-    if (!payload.iss || !ACCEPTED_GOOGLE_ISSUERS.has(payload.iss)) {
-      return failure("unsupported_google_issuer");
-    }
-
-    if (!audienceMatches(payload.aud, payload.azp, this.#audience)) {
-      return failure("unsupported_google_audience");
-    }
-
-    const now = this.#now().getTime();
-    if (!Number.isFinite(now)) {
-      throw new Error("Invalid Google ID token verifier clock.");
-    }
-
-    if (
-      typeof payload.exp !== "number"
-      || !Number.isFinite(payload.exp)
-      || payload.exp <= Math.floor(now / 1000)
-    ) {
-      return failure("expired_google_id_token");
-    }
-
-    if (!payload.sub?.trim()) {
-      return failure("missing_google_subject");
-    }
-
-    return Result.ok({ issuer: CANONICAL_GOOGLE_ISSUER, subject: payload.sub });
+    return validatePayload(payload, this.#audience, this.#now());
   }
+}
+
+function validatePayload(
+  payload: GoogleIdTokenPayload,
+  expectedAudience: string,
+  now: Date,
+): GoogleIdTokenVerificationResult {
+  if (!payload.iss || !ACCEPTED_GOOGLE_ISSUERS.has(payload.iss)) {
+    return failure("unsupported_google_issuer");
+  }
+
+  if (!audienceMatches(payload.aud, payload.azp, expectedAudience)) {
+    return failure("unsupported_google_audience");
+  }
+
+  const nowMilliseconds = now.getTime();
+  if (!Number.isFinite(nowMilliseconds)) {
+    throw new Error("Invalid Google ID token verifier clock.");
+  }
+
+  const nowSeconds = Math.floor(nowMilliseconds / 1000);
+  if (
+    typeof payload.exp !== "number"
+    || !Number.isFinite(payload.exp)
+    || payload.exp <= nowSeconds
+  ) {
+    return failure("expired_google_id_token");
+  }
+
+  if (!payload.sub?.trim()) {
+    return failure("missing_google_subject");
+  }
+
+  return Result.ok({ issuer: CANONICAL_GOOGLE_ISSUER, subject: payload.sub });
 }
 
 function audienceMatches(
