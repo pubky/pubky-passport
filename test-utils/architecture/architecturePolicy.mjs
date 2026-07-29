@@ -33,13 +33,13 @@ const rolePathSegments = Object.freeze({
 export const browserRoleRules = Object.freeze([
   Object.freeze({
     id: "browser-application-inward",
-    description: "keeps browser application modules independent from controllers and outward layers",
+    description: "keeps browser application modules independent from controllers and composition",
     sourceRole: "application",
     eslintFiles: ["src/browser/**/application/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
-    forbiddenRoles: ["adapter", "composition", "controller", "public"],
+    forbiddenRoles: ["composition", "controller", "public"],
     forbiddenRoots: ["src/libs/env", "src/ui"],
     forbiddenSpecifiers: [],
-    message: "Browser application modules must not depend on controllers, composition, adapters, public env, or UI.",
+    message: "Browser application modules may use adapters but must not depend on controllers, public controller contracts, composition roots, public environment configuration, or UI.",
   }),
   Object.freeze({
     id: "browser-public-contract-inward",

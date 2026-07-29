@@ -175,7 +175,7 @@ describe("architecture policy", () => {
     }))).toEqual([
       {
         id: "browser-application-inward",
-        forbiddenRoles: ["adapter", "composition", "controller", "public"],
+        forbiddenRoles: ["composition", "controller", "public"],
         forbiddenRoots: ["src/libs/env", "src/ui"],
         forbiddenSpecifiers: [],
       },
@@ -207,7 +207,7 @@ describe("architecture policy", () => {
   });
 
   it.each([
-    ["browser-application-inward", "../adapters/provider"],
+    ["browser-application-inward", "../composition/runtime"],
     ["browser-public-contract-inward", "../composition/runtime"],
     ["browser-controller-inward", "../adapters/provider"],
     ["browser-adapter-inward", "server-only"],
@@ -216,6 +216,14 @@ describe("architecture policy", () => {
     const rule = browserRoleRules.find((candidate) => candidate.id === ruleId);
     expect(rule).toBeDefined();
     expect(new RegExp(restrictedImportRegexForRoleRule(rule), "u").test(forbiddenImport)).toBe(true);
+  });
+
+  it("allows browser application modules to import adapters", () => {
+    const rule = browserRoleRules.find((candidate) => candidate.id === "browser-application-inward");
+    expect(rule).toBeDefined();
+    const restricted = new RegExp(restrictedImportRegexForRoleRule(rule), "u");
+
+    expect(restricted.test("../../../homegate/adapters/homegateClient")).toBe(false);
   });
 
   it("matches forbidden roots exactly instead of matching unrelated config segments", () => {
