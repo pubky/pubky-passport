@@ -3,8 +3,8 @@ import "client-only";
 import { Result } from "better-result";
 
 import { logger } from "../../../../libs/logger/logger";
+import { HomegateClient } from "../../../homegate/adapters/homegateClient";
 import type { PassportFileStore } from "../../../passport-file/application/passportFileStore";
-import type { GoogleSignupInvitationRequester } from "../../../homegate/application/homegateInvitation";
 import type {
   GoogleBackedIdentityCreator,
   GoogleBackedIdentityRestorer,
@@ -25,14 +25,14 @@ export type {
 export class EstablishGoogleBackedIdentity implements GoogleIdentityEstablisher {
   readonly #wrappingKeys: GoogleWrappingKeyRequester;
   readonly #passportFileStoreForAccessToken: (driveAccessToken: string) => PassportFileStore;
-  readonly #homegate: GoogleSignupInvitationRequester;
+  readonly #homegate: HomegateClient;
   readonly #restoreExistingIdentity: GoogleBackedIdentityRestorer;
   readonly #createMissingIdentity: GoogleBackedIdentityCreator;
 
   constructor(input: {
     wrappingKeys: GoogleWrappingKeyRequester;
     passportFileStoreForAccessToken: (driveAccessToken: string) => PassportFileStore;
-    homegate: GoogleSignupInvitationRequester;
+    homegate: HomegateClient;
     restoreExistingIdentity: GoogleBackedIdentityRestorer;
     createMissingIdentity: GoogleBackedIdentityCreator;
   }) {

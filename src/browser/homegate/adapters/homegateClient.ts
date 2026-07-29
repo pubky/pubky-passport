@@ -6,7 +6,7 @@ import { z } from "zod";
 import { readBoundedText } from "../../../libs/http/boundedBody";
 import type {
   HomegateInvitationErrorCode,
-  GoogleSignupInvitationRequester,
+  HomeserverSignupInvitation,
 } from "../application/homegateInvitation";
 
 const maxSuccessResponseBytes = 16 * 1024;
@@ -22,7 +22,7 @@ const invitationSchema = z.object({
   homeserverPubky: invitationFieldSchema,
 }).strict();
 
-export class HomegateClient implements GoogleSignupInvitationRequester {
+export class HomegateClient {
   readonly #fetch: typeof fetch;
   readonly #googleVerificationEndpoint: URL;
 
@@ -31,7 +31,9 @@ export class HomegateClient implements GoogleSignupInvitationRequester {
     this.#googleVerificationEndpoint = new URL(googleVerificationPath, options.homegateBaseUrl);
   }
 
-  async requestGoogleSignupInvitation(input: { googleIdToken: string }) {
+  async requestGoogleSignupInvitation(input: {
+    googleIdToken: string;
+  }): Promise<Result<HomeserverSignupInvitation, { code: HomegateInvitationErrorCode }>> {
     if (!isValidGoogleIdToken(input.googleIdToken)) return failure("homegate_invalid_request");
 
     let signal: AbortSignal;

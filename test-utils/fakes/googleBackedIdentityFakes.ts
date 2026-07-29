@@ -1,9 +1,5 @@
 import { Result } from "better-result";
 
-import type {
-  HomegateInvitationErrorCode,
-  GoogleSignupInvitationRequester,
-} from "@/browser/homegate/application/homegateInvitation";
 import type { LocalIdentitySaver } from "@/browser/identity/local-identity/application/saveLocalIdentity";
 import type {
   PassportFileCrypto,
@@ -136,22 +132,5 @@ export class FakeLocalIdentitySaver implements LocalIdentitySaver {
       id: "fake",
       publicIdentity: { publicKeyZ32: "fake", publicKeyDisplay: "pubkyfake" },
     });
-  }
-}
-
-export class FakeGoogleSignupInvitationRequester implements GoogleSignupInvitationRequester {
-  readonly #onRequest: (() => void) | undefined;
-  calls: Array<{ hasGoogleIdToken: boolean }> = [];
-  failure?: HomegateInvitationErrorCode;
-
-  constructor(onRequest?: () => void) {
-    this.#onRequest = onRequest;
-  }
-
-  async requestGoogleSignupInvitation(input: { googleIdToken: string }) {
-    this.#onRequest?.();
-    this.calls.push({ hasGoogleIdToken: input.googleIdToken.trim().length > 0 });
-    if (this.failure) return Result.err({ code: this.failure });
-    return Result.ok(fakeSignupInvitation);
   }
 }

@@ -1,7 +1,5 @@
 import "client-only";
 
-import type { Result } from "better-result";
-
 export type HomeserverSignupInvitation = {
   signupCode: string;
   homeserverPubky: string;
@@ -17,11 +15,3 @@ export type HomegateInvitationErrorCode =
   | "homegate_unavailable"
   | "malformed_homegate_response"
   | "network_failed";
-
-// Add a separate narrow interface for each future provider endpoint so consumers
-// never depend on unrelated Homegate capabilities.
-export interface GoogleSignupInvitationRequester {
-  requestGoogleSignupInvitation(input: {
-    googleIdToken: string;
-  }): Promise<Result<HomeserverSignupInvitation, { code: HomegateInvitationErrorCode }>>;
-}
