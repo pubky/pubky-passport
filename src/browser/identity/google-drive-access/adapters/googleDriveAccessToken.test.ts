@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   GOOGLE_DRIVE_APP_DATA_SCOPE,
   requestGoogleDriveAccessToken as requestGoogleDriveAccessTokenWithLoader,
-} from "./googleIdentityServicesDriveAccessRequester";
+} from "./googleDriveAccessToken";
 import type { GoogleAccounts } from "../../google-identity-services/application/googleIdentityServices";
 
 let loadedGoogleAccounts: GoogleAccounts | undefined;

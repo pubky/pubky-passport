@@ -5,10 +5,8 @@ import { Result, type Result as ResultType } from "better-result";
 import type { ValidatedSensitivePubkyAuthRequest } from "../../../core/auth/parsePubkyAuthRequest";
 import type {
   PubkyIdentityKey,
-  PubkyIdentityKeyHandle,
-  PubkyIdentityKeys,
-} from "../../pubky/application/pubkyIdentityKeys";
-import type { PubkyAuthApproval } from "../../pubky/application/pubkyAuthApproval";
+} from "../../pubky/application/pubkyIdentityKey";
+import { PubkySdkAdapter } from "../../pubky/adapters/pubkySdkAdapter";
 
 export type ActiveAuthorizationErrorCode =
   | "no_active_identity"
@@ -25,9 +23,9 @@ export type ActiveAuthorizationIdentityRestoreResult = ResultType<
 export async function approveActiveAuthorization(input: {
   authRequest: ValidatedSensitivePubkyAuthRequest;
   restoreActiveIdentity: () => Promise<ActiveAuthorizationIdentityRestoreResult>;
-  pubky: PubkyIdentityKeys & PubkyAuthApproval;
+  pubky: PubkySdkAdapter;
 }): Promise<ActiveAuthorizationResult> {
-  let keyHandle: PubkyIdentityKeyHandle | undefined;
+  let keyHandle: PubkyIdentityKey["keyHandle"] | undefined;
 
   try {
     const restored = await input.restoreActiveIdentity();
@@ -36,10 +34,7 @@ export async function approveActiveAuthorization(input: {
     }
 
     keyHandle = restored.value.keyHandle;
-    const approved = await input.pubky.approveAuthRequest({
-      keyHandle,
-      authRequest: input.authRequest,
-    });
+    const approved = await input.pubky.approveAuthRequest(keyHandle, input.authRequest);
 
     return Result.isError(approved) ? Result.err({ code: "approval_failed" }) : Result.ok();
   } catch {
@@ -47,7 +42,7 @@ export async function approveActiveAuthorization(input: {
   } finally {
     if (keyHandle) {
       try {
-        input.pubky.disposeIdentityKey({ keyHandle });
+        input.pubky.disposeIdentityKey(keyHandle);
       } catch {
         // The operation still returns only its safe typed result after cleanup is attempted.
       }

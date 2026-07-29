@@ -9,41 +9,48 @@ import {
   type ValidatedSensitivePubkyAuthRequest,
 } from "../../../core/auth/parsePubkyAuthRequest";
 import {
-  type PubkyAuthApproval,
   type PubkyAuthApprovalErrorCode,
   type PubkyAuthApprovalResult,
-} from "../application/pubkyAuthApproval";
+} from "../application/pubkyAuthApprovalResult";
 import {
-  type PubkyDiscovery,
   type PubkyDiscoveryErrorCode,
   type PubkyDiscoveryResult,
-} from "../application/pubkyDiscovery";
+} from "../application/pubkyDiscoveryResult";
 import {
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,
   type PubkyIdentityKey,
   type PubkyIdentityKeyHandle,
-  type PubkyIdentityKeys,
   type PubkyIdentityKeysErrorCode,
   type PubkyIdentityKeysResult,
   type PubkySecretKeyMaterial,
-} from "../application/pubkyIdentityKeys";
+} from "../application/pubkyIdentityKey";
 import {
   type PubkyIdentitySession,
-  type PubkySessionAccess,
   type PubkySessionAccessErrorCode,
   type PubkySessionAccessResult,
-} from "../application/pubkySessionAccess";
+} from "../application/pubkyIdentitySession";
 import { LOGGER } from "../../../libs/logger/logger";
 
 type Signer = ReturnType<Pubky["signer"]>;
 type HomeserverResult = ResultType<PublicKey, { code: "invalid_homeserver_pubky" }>;
 
+export type PubkySignupInput = {
+  keyHandle: PubkyIdentityKeyHandle;
+  homeserverPubky: string;
+  signupCode?: string | null;
+};
+
+export type PubkyDiscoveryInput = {
+  keyHandle: PubkyIdentityKeyHandle;
+  homeserverPubky?: string | null;
+};
+
 /**
  * Browser-local Pubky adapter. Opaque handles keep SDK keypairs out of application and
  * UI state while this adapter owns all SDK resource cleanup.
  */
-export class PubkySdkAdapter implements PubkyIdentityKeys, PubkySessionAccess, PubkyDiscovery, PubkyAuthApproval {
+export class PubkySdkAdapter {
   readonly #pubky: Pubky;
   readonly #keypairs = new Map<PubkyIdentityKeyHandle, Keypair>();
   #disposed = false;
@@ -64,30 +71,30 @@ export class PubkySdkAdapter implements PubkyIdentityKeys, PubkySessionAccess, P
     }
   }
 
-  async restoreIdentityKey(input: { secretKey: PubkySecretKeyMaterial }): Promise<PubkyIdentityKeysResult<PubkyIdentityKey>> {
+  async restoreIdentityKey(secretKey: PubkySecretKeyMaterial): Promise<PubkyIdentityKeysResult<PubkyIdentityKey>> {
     if (this.#disposed) {
-      input.secretKey.bytes.fill(0);
+      secretKey.bytes.fill(0);
       return keyFailure("key_unavailable");
     }
 
-    if (!(input.secretKey.bytes instanceof Uint8Array) || input.secretKey.bytes.byteLength !== PUBKY_SECRET_KEY_BYTES) {
-      input.secretKey.bytes.fill(0);
+    if (!(secretKey.bytes instanceof Uint8Array) || secretKey.bytes.byteLength !== PUBKY_SECRET_KEY_BYTES) {
+      secretKey.bytes.fill(0);
       return keyFailure("invalid_secret_key");
     }
 
     try {
-      return this.registerKeypair(Keypair.fromSecret(input.secretKey.bytes));
+      return this.registerKeypair(Keypair.fromSecret(secretKey.bytes));
     } catch {
       return keyFailure("restore_failed");
     } finally {
-      input.secretKey.bytes.fill(0);
+      secretKey.bytes.fill(0);
     }
   }
 
-  disposeIdentityKey(input: { keyHandle: PubkyIdentityKeyHandle }): void {
-    const keypair = this.#keypairs.get(input.keyHandle);
+  disposeIdentityKey(keyHandle: PubkyIdentityKeyHandle): void {
+    const keypair = this.#keypairs.get(keyHandle);
     if (!keypair) return;
-    this.#keypairs.delete(input.keyHandle);
+    this.#keypairs.delete(keyHandle);
     try {
       keypair.free();
     } catch {
@@ -95,8 +102,8 @@ export class PubkySdkAdapter implements PubkyIdentityKeys, PubkySessionAccess, P
     }
   }
 
-  async exportSecretKey(input: { keyHandle: PubkyIdentityKeyHandle }): Promise<PubkyIdentityKeysResult<PubkySecretKeyMaterial>> {
-    const keypair = this.keypairFor(input.keyHandle);
+  async exportSecretKey(keyHandle: PubkyIdentityKeyHandle): Promise<PubkyIdentityKeysResult<PubkySecretKeyMaterial>> {
+    const keypair = this.keypairFor(keyHandle);
     if (!keypair) {
       return keyFailure("key_unavailable");
     }
@@ -111,8 +118,8 @@ export class PubkySdkAdapter implements PubkyIdentityKeys, PubkySessionAccess, P
     }
   }
 
-  async getPublicIdentity(input: { keyHandle: PubkyIdentityKeyHandle }): Promise<PubkyIdentityKeysResult<PubkyPublicIdentity>> {
-    const keypair = this.keypairFor(input.keyHandle);
+  async getPublicIdentity(keyHandle: PubkyIdentityKeyHandle): Promise<PubkyIdentityKeysResult<PubkyPublicIdentity>> {
+    const keypair = this.keypairFor(keyHandle);
     if (!keypair) {
       return keyFailure("key_unavailable");
     }
@@ -120,7 +127,7 @@ export class PubkySdkAdapter implements PubkyIdentityKeys, PubkySessionAccess, P
     return publicIdentity(keypair);
   }
 
-  async signup(input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky: string; signupCode?: string | null }): Promise<PubkySessionAccessResult<PubkyIdentitySession>> {
+  async signup(input: PubkySignupInput): Promise<PubkySessionAccessResult<PubkyIdentitySession>> {
     const keypair = this.keypairFor(input.keyHandle);
     if (!keypair) {
       return sessionAccessFailure("key_unavailable");
@@ -142,14 +149,14 @@ export class PubkySdkAdapter implements PubkyIdentityKeys, PubkySessionAccess, P
     }
   }
 
-  async signin(input: { keyHandle: PubkyIdentityKeyHandle; waitForDiscovery?: boolean }): Promise<PubkySessionAccessResult<PubkyIdentitySession>> {
-    const keypair = this.keypairFor(input.keyHandle);
+  async signin(keyHandle: PubkyIdentityKeyHandle, waitForDiscovery?: boolean): Promise<PubkySessionAccessResult<PubkyIdentitySession>> {
+    const keypair = this.keypairFor(keyHandle);
     if (!keypair) {
       return sessionAccessFailure("key_unavailable");
     }
 
     try {
-      const session = await this.withSigner(keypair, (signer) => input.waitForDiscovery ? signer.signinBlocking() : signer.signin());
+      const session = await this.withSigner(keypair, (signer) => waitForDiscovery ? signer.signinBlocking() : signer.signin());
 
       return Result.ok(sessionDetails(session));
     } catch {
@@ -157,25 +164,25 @@ export class PubkySdkAdapter implements PubkyIdentityKeys, PubkySessionAccess, P
     }
   }
 
-  async publishHomeserverIfStale(input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky?: string | null }): Promise<PubkyDiscoveryResult> {
-    return this.publishHomeserver(input);
+  async publishHomeserverIfStale(input: PubkyDiscoveryInput): Promise<PubkyDiscoveryResult> {
+    return this.publishHomeserver(input.keyHandle, input.homeserverPubky);
   }
 
-  async approveAuthRequest(input: { keyHandle: PubkyIdentityKeyHandle; authRequest: ValidatedSensitivePubkyAuthRequest }): Promise<PubkyAuthApprovalResult> {
+  async approveAuthRequest(keyHandle: PubkyIdentityKeyHandle, authRequest: ValidatedSensitivePubkyAuthRequest): Promise<PubkyAuthApprovalResult> {
     if (
-      !isParserIssuedPubkyAuthRequest(input.authRequest) ||
-      !isPubkyAuthRequestUrl(input.authRequest.sensitivePubkyAuthUrl)
+      !isParserIssuedPubkyAuthRequest(authRequest) ||
+      !isPubkyAuthRequestUrl(authRequest.sensitivePubkyAuthUrl)
     ) {
       return authApprovalFailure("request_rejected");
     }
 
-    const keypair = this.keypairFor(input.keyHandle);
+    const keypair = this.keypairFor(keyHandle);
     if (!keypair) {
       return authApprovalFailure("key_unavailable");
     }
 
     try {
-      await this.withSigner(keypair, (signer) => signer.approveAuthRequest(input.authRequest.sensitivePubkyAuthUrl));
+      await this.withSigner(keypair, (signer) => signer.approveAuthRequest(authRequest.sensitivePubkyAuthUrl));
 
       return Result.ok();
     } catch {
@@ -219,14 +226,15 @@ export class PubkySdkAdapter implements PubkyIdentityKeys, PubkySessionAccess, P
   }
 
   private async publishHomeserver(
-    input: { keyHandle: PubkyIdentityKeyHandle; homeserverPubky?: string | null },
+    keyHandle: PubkyIdentityKeyHandle,
+    homeserverPubky?: string | null,
   ): Promise<PubkyDiscoveryResult> {
-    const keypair = this.keypairFor(input.keyHandle);
+    const keypair = this.keypairFor(keyHandle);
     if (!keypair) {
       return discoveryFailure("key_unavailable");
     }
 
-    const homeserver = parseOptionalHomeserver(input.homeserverPubky);
+    const homeserver = parseOptionalHomeserver(homeserverPubky);
     if (Result.isError(homeserver)) {
       return Result.err(homeserver.error);
     }

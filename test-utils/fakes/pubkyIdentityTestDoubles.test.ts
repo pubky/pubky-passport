@@ -2,26 +2,23 @@ import { describe, expect, it } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
 import { parsePubkyAuthRequest } from "../../src/core/auth/parsePubkyAuthRequest";
-import { PUBKY_SECRET_KEY_FORMAT, type PubkyIdentityKey } from "../../src/browser/pubky/application/pubkyIdentityKeys";
-import { SanitizedPubkyAuthApproval } from "./sanitizedPubkyAuthApproval";
-import { RecordingPubkyDiscovery } from "./recordingPubkyDiscovery";
-import { RecordingPubkyIdentityKeys } from "./recordingPubkyIdentityKeys";
-import { RecordingPubkySessionAccess } from "./recordingPubkySessionAccess";
+import { PUBKY_SECRET_KEY_FORMAT } from "../../src/browser/pubky/application/pubkyIdentityKey";
+import { RecordingPubkySdkAdapter } from "./recordingPubkySdkAdapter";
 
 describe("Pubky identity test doubles", () => {
   it("creates, restores, exports, and returns deterministic public identity data", async () => {
-    const keys = new RecordingPubkyIdentityKeys();
+    const keys = new RecordingPubkySdkAdapter();
     const created = expectOk(await keys.createIdentityKey());
-    const publicIdentity = expectOk(await keys.getPublicIdentity({ keyHandle: created.keyHandle }));
-    const secretKey = expectOk(await keys.exportSecretKey({ keyHandle: created.keyHandle }));
-    const restored = expectOk(await keys.restoreIdentityKey({ secretKey }));
+    const publicIdentity = expectOk(await keys.getPublicIdentity(created.keyHandle));
+    const secretKey = expectOk(await keys.exportSecretKey(created.keyHandle));
+    const restored = expectOk(await keys.restoreIdentityKey(secretKey));
 
     expect(created.publicIdentity).toEqual(keys.nextPublicIdentity);
     expect(publicIdentity).toEqual(keys.nextPublicIdentity);
     expect(restored.publicIdentity).toEqual(keys.nextPublicIdentity);
-    expect(secretKey).toEqual(keys.secretKey);
+    expect(secretKey.format).toBe(keys.secretKey.format);
     expect(keys.createCalls).toBe(1);
-    expect(keys.exportCalls).toEqual([{ keyHandle: created.keyHandle }]);
+    expect(keys.exportCalls).toBe(1);
     expect(keys.restoreCalls).toEqual([
       {
         secretKeyByteLength: keys.secretKey.bytes.byteLength,
@@ -31,7 +28,7 @@ describe("Pubky identity test doubles", () => {
   });
 
   it("simulates expected key operation failures", async () => {
-    const keys = new RecordingPubkyIdentityKeys();
+    const keys = new RecordingPubkySdkAdapter();
     const created = expectOk(await keys.createIdentityKey());
 
     keys.createFailure = "create_failed";
@@ -41,50 +38,49 @@ describe("Pubky identity test doubles", () => {
 
     await expectError(keys.createIdentityKey(), "create_failed");
     await expectError(
-      keys.restoreIdentityKey({ secretKey: keys.secretKey }),
+      keys.restoreIdentityKey(keys.secretKey),
       "restore_failed",
     );
     await expectError(
-      keys.exportSecretKey({ keyHandle: created.keyHandle }),
+      keys.exportSecretKey(created.keyHandle),
       "export_failed",
     );
-    await expectError(keys.getPublicIdentity({ keyHandle: created.keyHandle }), "public_identity_failed");
+    await expectError(keys.getPublicIdentity(created.keyHandle), "public_identity_failed");
   });
 
   it("simulates signup and signin without recording raw signup codes", async () => {
-    const key = await createTestKey();
-    const sessionAccess = new RecordingPubkySessionAccess();
+    const sessionAccess = new RecordingPubkySdkAdapter();
+    const key = expectOk(await sessionAccess.createIdentityKey());
     const signupResult = expectOk(
-      await sessionAccess.signup({
-        keyHandle: key.keyHandle,
-        homeserverPubky: "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo",
-        signupCode: "SECRET-SIGNUP-CODE",
-      }),
+       await sessionAccess.signup({
+         keyHandle: key.keyHandle,
+         homeserverPubky: "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo",
+         signupCode: "SECRET-SIGNUP-CODE",
+       }),
     );
-    const signinResult = expectOk(await sessionAccess.signin({ keyHandle: key.keyHandle, waitForDiscovery: true }));
+    const signinResult = expectOk(await sessionAccess.signin(key.keyHandle, true));
 
     expect(signupResult).toEqual(sessionAccess.session);
     expect(signinResult).toEqual(sessionAccess.session);
     expect(sessionAccess.signupCalls).toEqual([
       {
-        keyHandle: key.keyHandle,
         homeserverPubky: "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo",
         hasSignupCode: true,
       },
     ]);
-    expect(sessionAccess.signinCalls).toEqual([{ keyHandle: key.keyHandle, waitForDiscovery: true }]);
+    expect(sessionAccess.signinCalls).toEqual([{ waitForDiscovery: true }]);
     expect(JSON.stringify(sessionAccess.signupCalls)).not.toContain("SECRET-SIGNUP-CODE");
 
     sessionAccess.signupFailure = "signup_failed";
     sessionAccess.signinFailure = "signin_failed";
 
     await expectError(sessionAccess.signup({ keyHandle: key.keyHandle, homeserverPubky: "invalid" }), "signup_failed");
-    await expectError(sessionAccess.signin({ keyHandle: key.keyHandle }), "signin_failed");
+    await expectError(sessionAccess.signin(key.keyHandle), "signin_failed");
   });
 
   it("simulates discovery publication success and failure", async () => {
-    const key = await createTestKey();
-    const discovery = new RecordingPubkyDiscovery();
+    const discovery = new RecordingPubkySdkAdapter();
+    const key = expectOk(await discovery.createIdentityKey());
 
     await expectOk(
       discovery.publishHomeserverIfStale({
@@ -92,43 +88,37 @@ describe("Pubky identity test doubles", () => {
         homeserverPubky: "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo",
       }),
     );
-    expect(discovery.calls).toEqual([
-      {
-        keyHandle: key.keyHandle,
-        homeserverPubky: "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo",
-      },
-    ]);
+    expect(discovery.discoveryCalls).toEqual([{ hasHomeserverPubky: true }]);
 
-    discovery.ifStaleFailure = "publish_failed";
+    discovery.discoveryFailure = "publish_failed";
 
     await expectDiscoveryError(discovery.publishHomeserverIfStale({ keyHandle: key.keyHandle }), "publish_failed");
   });
 
   it("simulates auth approval without recording raw pubkyauth URLs", async () => {
-    const key = await createTestKey();
-    const authApproval = new SanitizedPubkyAuthApproval();
+    const authApproval = new RecordingPubkySdkAdapter();
+    const key = expectOk(await authApproval.createIdentityKey());
     const parsedAuthRequest = parsePubkyAuthRequest(encodeURIComponent(
       "pubkyauth://signin?secret=SECRET-AUTH-REQUEST&relay=https://httprelay.pubky.app/inbox&caps=/pub/pubky.app/:rw",
     ));
     const authRequest = expectOk(parsedAuthRequest).approval;
 
-    await expectOk(authApproval.approveAuthRequest({ keyHandle: key.keyHandle, authRequest }));
+    await expectOk(authApproval.approveAuthRequest(key.keyHandle, authRequest));
 
-    expect(authApproval.calls).toEqual([{ keyHandle: key.keyHandle, authRequestScheme: "pubkyauth:" }]);
-    expect(JSON.stringify(authApproval.calls)).not.toContain("SECRET-AUTH-REQUEST");
+    expect(authApproval.approvalCalls).toEqual([{
+      scheme: "pubkyauth:",
+      queryKeys: ["caps", "relay", "secret"],
+    }]);
+    expect(JSON.stringify(authApproval.approvalCalls)).not.toContain("SECRET-AUTH-REQUEST");
 
     authApproval.approvalFailure = "relay_failed";
 
     await expectAuthApprovalError(
-      authApproval.approveAuthRequest({ keyHandle: key.keyHandle, authRequest }),
+      authApproval.approveAuthRequest(key.keyHandle, authRequest),
       "relay_failed",
     );
   });
 });
-
-async function createTestKey(): Promise<PubkyIdentityKey> {
-  return expectOk(await new RecordingPubkyIdentityKeys().createIdentityKey());
-}
 
 function expectOk<T>(result: Promise<ResultType<T, unknown>>): Promise<T>;
 function expectOk<T>(result: ResultType<T, unknown>): T;

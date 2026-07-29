@@ -2,38 +2,48 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import type { PubkyIdentityKeyHandle, PubkyIdentityKeys } from "../../../pubky/application/pubkyIdentityKeys";
-import type { LocalIdentitySummary } from "./localIdentity";
-import type { LocalIdentityKeyStore, LocalIdentityRepositoryErrorCode } from "./localIdentityRepository";
+import type {
+  PubkyIdentityKeyHandle,
+  PubkySecretKeyMaterial,
+} from "../../../pubky/application/pubkyIdentityKey";
+import { PubkySdkAdapter } from "../../../pubky/adapters/pubkySdkAdapter";
+import type { LocalIdentityErrorCode, LocalIdentityResult, LocalIdentitySummary } from "./localIdentityModels";
 
-export type LocalIdentityOperationErrorCode = LocalIdentityRepositoryErrorCode | "identity_mismatch" | "restore_failed";
+export type LocalIdentityOperationErrorCode = LocalIdentityErrorCode | "identity_mismatch" | "restore_failed";
 export type LocalIdentityOperationResult<T> = Result<T, { code: LocalIdentityOperationErrorCode }>;
+type SaveIdentityRecord = (
+  identity: LocalIdentitySummary,
+  secretKey: PubkySecretKeyMaterial,
+) => LocalIdentityResult<LocalIdentitySummary>;
 
 export class SaveLocalIdentity {
-  readonly #keyStore: LocalIdentityKeyStore;
-  readonly #identityKeys: PubkyIdentityKeys;
+  readonly #saveIdentityRecord: SaveIdentityRecord;
+  readonly #pubky: PubkySdkAdapter;
 
-  constructor(input: { keyStore: LocalIdentityKeyStore; identityKeys: PubkyIdentityKeys }) {
-    this.#keyStore = input.keyStore;
-    this.#identityKeys = input.identityKeys;
+  constructor(input: {
+    saveIdentityRecord: SaveIdentityRecord;
+    pubky: PubkySdkAdapter;
+  }) {
+    this.#saveIdentityRecord = input.saveIdentityRecord;
+    this.#pubky = input.pubky;
   }
 
-  async saveIdentity(input: { keyHandle: PubkyIdentityKeyHandle }): Promise<LocalIdentityOperationResult<LocalIdentitySummary>> {
-    const publicIdentity = await this.#identityKeys.getPublicIdentity(input);
+  async saveIdentity(keyHandle: PubkyIdentityKeyHandle): Promise<LocalIdentityOperationResult<LocalIdentitySummary>> {
+    const publicIdentity = await this.#pubky.getPublicIdentity(keyHandle);
     if (Result.isError(publicIdentity)) {
       return failure("invalid_identity");
     }
 
-    const secretKey = await this.#identityKeys.exportSecretKey(input);
+    const secretKey = await this.#pubky.exportSecretKey(keyHandle);
     if (Result.isError(secretKey)) {
       return failure("invalid_secret_key");
     }
 
     try {
-      return this.#keyStore.save({
-        identity: { id: publicIdentity.value.publicKeyZ32, publicIdentity: publicIdentity.value },
-        secretKey: secretKey.value,
-      });
+      return this.#saveIdentityRecord(
+        { id: publicIdentity.value.publicKeyZ32, publicIdentity: publicIdentity.value },
+        secretKey.value,
+      );
     } finally {
       secretKey.value.bytes.fill(0);
     }

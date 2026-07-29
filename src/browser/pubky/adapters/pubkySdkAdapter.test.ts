@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
 import type { ValidatedSensitivePubkyAuthRequest } from "../../../core/auth/parsePubkyAuthRequest";
-import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkyIdentityKeyHandle } from "../application/pubkyIdentityKeys";
+import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkyIdentityKeyHandle } from "../application/pubkyIdentityKey";
 import { PubkySdkAdapter } from "./pubkySdkAdapter";
 
 describe("PubkySdkAdapter", () => {
@@ -12,7 +12,7 @@ describe("PubkySdkAdapter", () => {
 
     try {
       const created = expectOk(await pubky.createIdentityKey());
-      const identity = expectOk(await pubky.getPublicIdentity({ keyHandle: created.keyHandle }));
+      const identity = expectOk(await pubky.getPublicIdentity(created.keyHandle));
 
       expect(identity).toEqual(created.publicIdentity);
       expect(identity.publicKeyZ32).toMatch(/^[13456789abcdefghijkmnopqrstuwxyz]+$/);
@@ -27,12 +27,12 @@ describe("PubkySdkAdapter", () => {
 
     try {
       const created = expectOk(await pubky.createIdentityKey());
-      const exported = expectOk(await pubky.exportSecretKey({ keyHandle: created.keyHandle }));
+      const exported = expectOk(await pubky.exportSecretKey(created.keyHandle));
 
       expect(exported.format).toBe(PUBKY_SECRET_KEY_FORMAT);
       expect(exported.bytes).toHaveLength(PUBKY_SECRET_KEY_BYTES);
 
-      const restored = expectOk(await pubky.restoreIdentityKey({ secretKey: exported }));
+      const restored = expectOk(await pubky.restoreIdentityKey(exported));
 
       expect(exported.bytes).toEqual(new Uint8Array(PUBKY_SECRET_KEY_BYTES));
       expect(restored.publicIdentity).toEqual(created.publicIdentity);
@@ -47,7 +47,7 @@ describe("PubkySdkAdapter", () => {
 
     try {
       await expectError(
-        pubky.restoreIdentityKey({ secretKey: { bytes, format: PUBKY_SECRET_KEY_FORMAT } }),
+        pubky.restoreIdentityKey({ bytes, format: PUBKY_SECRET_KEY_FORMAT }),
         "invalid_secret_key",
       );
       expect(bytes).toEqual(new Uint8Array(PUBKY_SECRET_KEY_BYTES - 1));
@@ -61,8 +61,8 @@ describe("PubkySdkAdapter", () => {
     const keyHandle = {} as PubkyIdentityKeyHandle;
 
     try {
-      await expectError(pubky.getPublicIdentity({ keyHandle }), "key_unavailable");
-      await expectError(pubky.exportSecretKey({ keyHandle }), "key_unavailable");
+      await expectError(pubky.getPublicIdentity(keyHandle), "key_unavailable");
+      await expectError(pubky.exportSecretKey(keyHandle), "key_unavailable");
       await expectError(pubky.signup({ keyHandle, homeserverPubky: "not used" }), "key_unavailable");
       await expectError(pubky.publishHomeserverIfStale({ keyHandle }), "key_unavailable");
     } finally {
@@ -75,15 +75,8 @@ describe("PubkySdkAdapter", () => {
 
     try {
       const created = expectOk(await pubky.createIdentityKey());
-      const signup = await pubky.signup({
-        keyHandle: created.keyHandle,
-        homeserverPubky: "not a public key",
-        signupCode: "sensitive-signup-code",
-      });
-      const discovery = await pubky.publishHomeserverIfStale({
-        keyHandle: created.keyHandle,
-        homeserverPubky: "not a public key",
-      });
+      const signup = await pubky.signup({ keyHandle: created.keyHandle, homeserverPubky: "not a public key", signupCode: "sensitive-signup-code" });
+      const discovery = await pubky.publishHomeserverIfStale({ keyHandle: created.keyHandle, homeserverPubky: "not a public key" });
 
       expectErrorResult(signup, "invalid_homeserver_pubky");
       expectErrorResult(discovery, "invalid_homeserver_pubky");
@@ -97,13 +90,13 @@ describe("PubkySdkAdapter", () => {
     const pubky = new PubkySdkAdapter();
 
     try {
-      const result = await pubky.approveAuthRequest({
-        keyHandle: {} as PubkyIdentityKeyHandle,
-        authRequest: {
+      const result = await pubky.approveAuthRequest(
+        {} as PubkyIdentityKeyHandle,
+        {
           sensitivePubkyAuthUrl:
             "pubkyauth://signin?secret=should-not-be-returned&relay=https://httprelay.pubky.app/inbox&caps=/pub/pubky.app/:rw" as ValidatedSensitivePubkyAuthRequest["sensitivePubkyAuthUrl"],
         },
-      });
+      );
 
       expectErrorResult(result, "request_rejected");
       expect(JSON.stringify(result)).not.toContain("should-not-be-returned");
@@ -119,7 +112,7 @@ describe("PubkySdkAdapter", () => {
     pubky.dispose();
     pubky.dispose();
 
-    await expectError(pubky.getPublicIdentity({ keyHandle: created.keyHandle }), "key_unavailable");
+    await expectError(pubky.getPublicIdentity(created.keyHandle), "key_unavailable");
     await expectError(pubky.createIdentityKey(), "key_unavailable");
   });
 
@@ -131,14 +124,14 @@ describe("PubkySdkAdapter", () => {
     const free = vi.spyOn(Keypair.prototype, "free");
 
     free.mockImplementationOnce(() => { throw new Error("free failed"); });
-    expect(() => pubky.disposeIdentityKey({ keyHandle: individuallyDisposed.keyHandle })).not.toThrow();
-    await expectError(pubky.getPublicIdentity({ keyHandle: individuallyDisposed.keyHandle }), "key_unavailable");
+    expect(() => pubky.disposeIdentityKey(individuallyDisposed.keyHandle)).not.toThrow();
+    await expectError(pubky.getPublicIdentity(individuallyDisposed.keyHandle), "key_unavailable");
 
     free.mockImplementationOnce(() => { throw new Error("free failed"); });
     expect(() => pubky.dispose()).not.toThrow();
     expect(free).toHaveBeenCalledTimes(3);
-    await expectError(pubky.getPublicIdentity({ keyHandle: firstBulkHandle }), "key_unavailable");
-    await expectError(pubky.getPublicIdentity({ keyHandle: secondBulkHandle }), "key_unavailable");
+    await expectError(pubky.getPublicIdentity(firstBulkHandle), "key_unavailable");
+    await expectError(pubky.getPublicIdentity(secondBulkHandle), "key_unavailable");
   });
 });
 

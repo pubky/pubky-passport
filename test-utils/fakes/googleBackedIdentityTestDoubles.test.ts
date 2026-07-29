@@ -4,17 +4,17 @@ import {
   TEST_PASSPORT_ENVELOPE,
   TEST_PASSPORT_REFERENCE,
   RecordingPassportFileCrypto,
-  SanitizedPassportFileStore,
+  RecordingPassportFileOperations,
 } from "./googleBackedIdentityTestDoubles";
 
 describe("Google-backed identity test doubles", () => {
   it("exposes only safe metadata through serializable call records", async () => {
-    const fileStore = new SanitizedPassportFileStore({ status: "missing" });
+    const fileStore = new RecordingPassportFileOperations({ status: "missing" });
     const crypto = new RecordingPassportFileCrypto();
     const secretKeyBytes = new Uint8Array(32).fill(93);
 
-    await fileStore.createPassportFile({ envelope: TEST_PASSPORT_ENVELOPE });
-    await fileStore.deletePassportFile({ reference: TEST_PASSPORT_REFERENCE });
+    await fileStore.createPassportFile("drive-token", TEST_PASSPORT_ENVELOPE);
+    await fileStore.deletePassportFile("drive-token", TEST_PASSPORT_REFERENCE);
     await crypto.encryptSecretKeyBytes({
       secretKeyBytes,
       wrappingKey: "SYNTHETIC-WRAPPING-MATERIAL",

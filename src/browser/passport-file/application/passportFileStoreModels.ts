@@ -26,9 +26,3 @@ export type PassportFileStoreErrorCode =
   | "delete_failed";
 
 export type PassportFileStoreResult<T> = Result<T, { code: PassportFileStoreErrorCode }>;
-
-export type PassportFileStore = {
-  readPassportFile(): Promise<PassportFileStoreResult<PassportFileReadResult>>;
-  createPassportFile(input: { envelope: PassportFileEnvelopeV1 }): Promise<PassportFileStoreResult<PassportFileReference>>;
-  deletePassportFile(input: { reference: PassportFileReference }): Promise<PassportFileStoreResult<void>>;
-};

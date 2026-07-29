@@ -9,16 +9,14 @@ import {
   TEST_SIGNUP_INVITATION,
   RecordingPassportFileCrypto,
   RecordingSaveLocalIdentity,
-  SanitizedPassportFileStore,
+  RecordingPassportFileOperations,
 } from "../../../../../test-utils/fakes/googleBackedIdentityTestDoubles";
 import { expectResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
 import type { GoogleBackedIdentity, GoogleBackedIdentityResult } from "./googleBackedIdentity";
 import { CreateGoogleBackedIdentity } from "./createGoogleBackedIdentity";
 import { EstablishGoogleBackedIdentity } from "./establishGoogleBackedIdentity";
 import { RestoreGoogleBackedIdentity } from "./restoreGoogleBackedIdentity";
-import { RecordingPubkyDiscovery } from "../../../../../test-utils/fakes/recordingPubkyDiscovery";
-import { RecordingPubkyIdentityKeys } from "../../../../../test-utils/fakes/recordingPubkyIdentityKeys";
-import { RecordingPubkySessionAccess } from "../../../../../test-utils/fakes/recordingPubkySessionAccess";
+import { RecordingPubkySdkAdapter } from "../../../../../test-utils/fakes/recordingPubkySdkAdapter";
 
 const PUBLIC_IDENTITY = {
   publicKeyZ32: "public-identity",
@@ -27,7 +25,7 @@ const PUBLIC_IDENTITY = {
 
 describe("EstablishGoogleBackedIdentity", () => {
   it("routes a found Drive Passport file to restoration without requesting Homegate", async () => {
-    const fileStore = new SanitizedPassportFileStore({
+    const fileStore = new RecordingPassportFileOperations({
       status: "found",
       envelope: TEST_PASSPORT_ENVELOPE,
       reference: TEST_PASSPORT_REFERENCE,
@@ -53,7 +51,7 @@ describe("EstablishGoogleBackedIdentity", () => {
 
   it("requests Homegate before routing a missing Drive Passport file to creation", async () => {
     const events: string[] = [];
-    const fileStore = new SanitizedPassportFileStore({ status: "missing" });
+    const fileStore = new RecordingPassportFileOperations({ status: "missing" });
     const homegate = createSanitizedHomegateClient(async () => {
       events.push("homegate");
       return Result.ok(TEST_SIGNUP_INVITATION);
@@ -78,7 +76,7 @@ describe("EstablishGoogleBackedIdentity", () => {
     const homegate = createSanitizedHomegateClient(async () => Result.err({ code: "homegate_unavailable" as const }));
     const createMissingIdentity = createRecordingCreateGoogleBackedIdentity();
     const subject = createSubject({
-      fileStore: new SanitizedPassportFileStore({ status: "missing" }),
+      fileStore: new RecordingPassportFileOperations({ status: "missing" }),
       createMissingIdentity,
       homegate: homegate.client,
     });
@@ -99,7 +97,7 @@ describe("EstablishGoogleBackedIdentity", () => {
     });
 
     const readFailure = createSubject({
-      fileStore: new SanitizedPassportFileStore({ code: "network_failed" }),
+      fileStore: new RecordingPassportFileOperations({ code: "network_failed" }),
     });
     expectResultError(await readFailure.establish(TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS), {
       code: "drive_read_failed",
@@ -109,7 +107,7 @@ describe("EstablishGoogleBackedIdentity", () => {
   it.each(["restore", "create", "homegate"] as const)(
     "maps an unexpected %s exception without exposing dependency details",
     async (stage) => {
-      const fileStore = new SanitizedPassportFileStore(stage === "restore"
+      const fileStore = new RecordingPassportFileOperations(stage === "restore"
         ? { status: "found", envelope: TEST_PASSPORT_ENVELOPE, reference: TEST_PASSPORT_REFERENCE }
         : { status: "missing" });
       const restoreExistingIdentity = createRecordingRestoreGoogleBackedIdentity(async () => { throw new Error("restore secret"); });
@@ -132,30 +130,37 @@ describe("EstablishGoogleBackedIdentity", () => {
 });
 
 function createSubject(input: {
-  fileStore?: SanitizedPassportFileStore;
+  fileStore?: RecordingPassportFileOperations;
   restoreExistingIdentity?: RecordingRestoreGoogleBackedIdentity;
   createMissingIdentity?: RecordingCreateGoogleBackedIdentity;
   homegate?: HomegateClient;
   wrappingFailure?: boolean;
 } = {}): EstablishGoogleBackedIdentity {
-  const fileStore = input.fileStore ?? new SanitizedPassportFileStore({ status: "missing" });
+  const fileStore = input.fileStore ?? new RecordingPassportFileOperations({ status: "missing" });
+  const wrappingKeyRequest = sanitizedWrappingKeyRequest(input.wrappingFailure === true);
 
   return new EstablishGoogleBackedIdentity({
-    wrappingKeyRequester: {
-      async requestWrappingKey() {
-        return input.wrappingFailure
-          ? Result.err({ code: "network_failed" as const })
-          : Result.ok("w".repeat(43));
-      },
-    },
-    passportFileStoreForAccessToken(accessToken) {
-      expect(accessToken).toBe("drive-token");
-      return fileStore;
-    },
+    requestWrappingKey: wrappingKeyRequest.request,
+    readPassportFile: fileStore.readPassportFile.bind(fileStore),
+    createPassportFile: fileStore.createPassportFile.bind(fileStore),
     homegate: input.homegate ?? createSanitizedHomegateClient().client,
     restoreExistingIdentity: input.restoreExistingIdentity ?? createRecordingRestoreGoogleBackedIdentity(),
     createMissingIdentity: input.createMissingIdentity ?? createRecordingCreateGoogleBackedIdentity(),
   });
+}
+
+function sanitizedWrappingKeyRequest(fails: boolean) {
+  const calls = { count: 0, hasGoogleIdToken: false };
+  return {
+    calls,
+    async request(googleIdToken: string) {
+      calls.count += 1;
+      calls.hasGoogleIdToken = googleIdToken.trim().length > 0;
+      return fails
+        ? Result.err({ code: "network_failed" as const })
+        : Result.ok("w".repeat(43));
+    },
+  };
 }
 
 function createSanitizedHomegateClient(
@@ -198,9 +203,12 @@ class RecordingRestoreGoogleBackedIdentity extends RestoreGoogleBackedIdentity {
     this.#implementation = implementation;
   }
 
-  override async execute(input: Parameters<RestoreGoogleBackedIdentity["execute"]>[0]) {
+  override async execute(
+    envelope: Parameters<RestoreGoogleBackedIdentity["execute"]>[0],
+    wrappingKey: Parameters<RestoreGoogleBackedIdentity["execute"]>[1],
+  ) {
     this.calls += 1;
-    this.receivedExpectedInput = input.envelope === TEST_PASSPORT_ENVELOPE && input.wrappingKey.length === 43;
+    this.receivedExpectedInput = envelope === TEST_PASSPORT_ENVELOPE && wrappingKey.length === 43;
     return this.#implementation();
   }
 }
@@ -215,28 +223,37 @@ class RecordingCreateGoogleBackedIdentity extends CreateGoogleBackedIdentity {
     this.#implementation = implementation;
   }
 
-  override async execute(input: Parameters<CreateGoogleBackedIdentity["execute"]>[0]) {
+  override async execute(
+    invitation: Parameters<CreateGoogleBackedIdentity["execute"]>[0],
+    createPassportFile: Parameters<CreateGoogleBackedIdentity["execute"]>[1],
+    wrappingKey: Parameters<CreateGoogleBackedIdentity["execute"]>[2],
+  ) {
     this.calls += 1;
-    this.receivedExpectedInput = input.invitation === TEST_SIGNUP_INVITATION
-      && input.wrappingKey.length === 43
-      && "createPassportFile" in input.passportFileStore;
+    this.receivedExpectedInput = invitation === TEST_SIGNUP_INVITATION
+      && wrappingKey.length === 43
+      && typeof createPassportFile === "function";
     return this.#implementation();
   }
 }
 
 function restoreDependencies(): ConstructorParameters<typeof RestoreGoogleBackedIdentity>[0] {
+  const pubky = new RecordingPubkySdkAdapter();
+  const crypto = new RecordingPassportFileCrypto();
   return {
-    crypto: new RecordingPassportFileCrypto(),
-    identityKeys: new RecordingPubkyIdentityKeys(),
-    sessionAccess: new RecordingPubkySessionAccess(),
+    decryptSecretKeyBytes: crypto.decryptSecretKeyBytes.bind(crypto),
+    pubky,
     localIdentities: new RecordingSaveLocalIdentity(),
     passportOrigin: "https://passport.pubky.app",
   };
 }
 
 function createDependencies(): ConstructorParameters<typeof CreateGoogleBackedIdentity>[0] {
+  const pubky = new RecordingPubkySdkAdapter();
+  const crypto = new RecordingPassportFileCrypto();
   return {
-    ...restoreDependencies(),
-    discovery: new RecordingPubkyDiscovery(),
+    encryptSecretKeyBytes: crypto.encryptSecretKeyBytes.bind(crypto),
+    pubky,
+    localIdentities: new RecordingSaveLocalIdentity(),
+    passportOrigin: "https://passport.pubky.app",
   };
 }

@@ -11,21 +11,18 @@ import { readBoundedText } from "../../../libs/http/boundedBody";
 import type {
   PassportFileReadResult,
   PassportFileReference,
-  PassportFileStore,
   PassportFileStoreErrorCode,
   PassportFileStoreResult,
-} from "../application/passportFileStore";
+} from "../application/passportFileStoreModels";
 
 export type GoogleDriveAccessTokenProvider = () => Promise<string | null | undefined>;
 
-export type PassportFileCreateLockManager = {
-  request<T>(name: string, callback: () => Promise<T>): Promise<T>;
-};
+type RequestLock = <T>(name: string, callback: () => Promise<T>) => Promise<T>;
 
 export type GoogleDrivePassportFileStoreOptions = {
   accessTokenProvider: GoogleDriveAccessTokenProvider;
   fetch: typeof fetch;
-  lockManager?: PassportFileCreateLockManager | null;
+  requestLock?: RequestLock | null;
 };
 
 type DriveFile = {
@@ -51,15 +48,15 @@ const MAXIMUM_PASSPORT_FILE_BYTES = 16 * 1024;
 const MAXIMUM_DRIVE_RESPONSE_BYTES = 16 * 1024;
 const CREATE_PASSPORT_FILE_LOCK_NAME = "pubky-passport:google-drive:passport-file:create:v1";
 
-export class GoogleDrivePassportFileStore implements PassportFileStore {
+export class GoogleDrivePassportFileStore {
   private readonly accessTokenProvider: GoogleDriveAccessTokenProvider;
   private readonly fetchImpl: typeof fetch;
-  private readonly lockManager: PassportFileCreateLockManager | null;
+  private readonly requestLock: RequestLock | null;
 
   constructor(options: GoogleDrivePassportFileStoreOptions) {
     this.accessTokenProvider = options.accessTokenProvider;
     this.fetchImpl = options.fetch;
-    this.lockManager = options.lockManager === undefined ? browserLockManager() : options.lockManager;
+    this.requestLock = options.requestLock === undefined ? browserRequestLock() : options.requestLock;
   }
 
   async readPassportFile(): Promise<PassportFileStoreResult<PassportFileReadResult>> {
@@ -92,18 +89,18 @@ export class GoogleDrivePassportFileStore implements PassportFileStore {
     return success({ status: "found", envelope: parsed.value, reference: located.value.reference });
   }
 
-  async createPassportFile(input: { envelope: PassportFileEnvelopeV1 }): Promise<PassportFileStoreResult<PassportFileReference>> {
-    const serializedEnvelope = serializeEnvelope(input.envelope);
+  async createPassportFile(envelope: PassportFileEnvelopeV1): Promise<PassportFileStoreResult<PassportFileReference>> {
+    const serializedEnvelope = serializeEnvelope(envelope);
     if (Result.isError(serializedEnvelope)) return failure(serializedEnvelope.error.code);
 
     const token = await this.getAccessToken();
     if (Result.isError(token)) return failure(token.error.code);
 
     const create = () => this.createPassportFileUnlocked(token.value, serializedEnvelope.value);
-    if (this.lockManager === null) return create();
+    if (this.requestLock === null) return create();
 
     try {
-      return await this.lockManager.request(CREATE_PASSPORT_FILE_LOCK_NAME, create);
+      return await this.requestLock(CREATE_PASSPORT_FILE_LOCK_NAME, create);
     } catch {
       return failure("write_failed");
     }
@@ -143,17 +140,17 @@ export class GoogleDrivePassportFileStore implements PassportFileStore {
     return success(created.value);
   }
 
-  async deletePassportFile(input: { reference: PassportFileReference }): Promise<PassportFileStoreResult<void>> {
+  async deletePassportFile(reference: PassportFileReference): Promise<PassportFileStoreResult<void>> {
     const token = await this.getAccessToken();
     if (Result.isError(token)) return failure(token.error.code);
 
-    const current = await this.readExactMetadata(token.value, input.reference.storageId);
+    const current = await this.readExactMetadata(token.value, reference.storageId);
     if (Result.isError(current)) {
       return current.error.code === "exact_file_missing" ? success(undefined) : failure(current.error.code);
     }
-    if (!sameReference(current.value, input.reference)) return failure("stale_file");
+    if (!sameReference(current.value, reference)) return failure("stale_file");
 
-    const response = await this.fetchDrive(deleteUrl(input.reference.storageId), {
+    const response = await this.fetchDrive(deleteUrl(reference.storageId), {
       method: "DELETE",
       headers: authorizationHeaders(token.value),
     });
@@ -217,9 +214,9 @@ export class GoogleDrivePassportFileStore implements PassportFileStore {
   }
 }
 
-function browserLockManager(): PassportFileCreateLockManager | null {
+function browserRequestLock(): RequestLock | null {
   if (typeof navigator === "undefined" || navigator.locks === undefined) return null;
-  return navigator.locks;
+  return <T>(name: string, callback: () => Promise<T>) => navigator.locks.request(name, callback);
 }
 
 function listUrl(): string {

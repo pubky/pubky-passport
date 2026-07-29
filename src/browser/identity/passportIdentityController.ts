@@ -16,17 +16,22 @@ import type {
 import type { GoogleBackedIdentityCredentials, GoogleBackedIdentityError, GoogleBackedIdentityResult, GoogleBackedIdentity, GoogleDrivePassportFileDeletionResult } from "./google-backed-identity/application/googleBackedIdentity";
 import type {
   GoogleDriveAccessErrorCode,
-  GoogleDriveAccessRequester,
   GoogleDriveAccessResult,
 } from "./google-drive-access/application/googleDriveAccess";
-import type { GoogleSignInButton } from "./google-sign-in/application/googleSignIn";
 import type {
-  LocalIdentityCatalog,
-  LocalIdentityRepositoryResult,
-} from "./local-identity/application/localIdentityRepository";
+  GoogleSignInCredential,
+  GoogleSignInResult,
+} from "./google-sign-in/application/googleSignIn";
+import type {
+  LocalIdentityResult,
+  LocalIdentitySummary,
+} from "./local-identity/application/localIdentityModels";
 
 export type BrowserIdentityControllerDependencies = {
-  repository: LocalIdentityCatalog;
+  list(): LocalIdentityResult<{ activeIdentityId: string | null; identities: LocalIdentitySummary[] }>;
+  select(id: string): LocalIdentityResult<void>;
+  clear(): LocalIdentityResult<void>;
+  subscribe(listener: () => void): () => void;
   establishGoogleBackedIdentity(
     credentials: GoogleBackedIdentityCredentials,
   ): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>>;
@@ -35,12 +40,18 @@ export type BrowserIdentityControllerDependencies = {
     expectedPublicKeyZ32: string,
   ): Promise<GoogleDrivePassportFileDeletionResult>;
   disposeGoogleBackedIdentityOperations(): void;
-  googleSignInButton: GoogleSignInButton;
-  googleDriveAccessRequester: GoogleDriveAccessRequester;
+  mountGoogleSignIn(
+    target: HTMLElement,
+    onCredential: (result: GoogleSignInResult<GoogleSignInCredential>) => void,
+  ): Promise<GoogleSignInResult<void>>;
+  unmountGoogleSignIn(): void;
+  requestGoogleDriveAccess(
+    googleSubject: string,
+    signal: AbortSignal,
+  ): Promise<GoogleDriveAccessResult<string>>;
 };
 
 export class PassportIdentityController implements BrowserIdentityController {
-  readonly #clientId: string;
   readonly #dependencies: BrowserIdentityControllerDependencies;
   #target: HTMLElement | null = null;
   #onState: ((state: GoogleBackedIdentityActionState) => void) | null = null;
@@ -52,15 +63,14 @@ export class PassportIdentityController implements BrowserIdentityController {
   #disposed = false;
   #googleBackedIdentityOperationsDisposed = false;
 
-  constructor(input: { clientId: string; dependencies: BrowserIdentityControllerDependencies }) {
-    this.#clientId = input.clientId;
+  constructor(input: { dependencies: BrowserIdentityControllerDependencies }) {
     this.#dependencies = input.dependencies;
   }
 
-  list() { return toCatalogResult(this.#dependencies.repository.list()); }
-  select(id: string) { return toCatalogResult(this.#dependencies.repository.select(id)); }
-  clear() { return toCatalogResult(this.#dependencies.repository.clear()); }
-  subscribe(listener: () => void) { return this.#dependencies.repository.subscribe(listener); }
+  list() { return toCatalogResult(this.#dependencies.list()); }
+  select(id: string) { return toCatalogResult(this.#dependencies.select(id)); }
+  clear() { return toCatalogResult(this.#dependencies.clear()); }
+  subscribe(listener: () => void) { return this.#dependencies.subscribe(listener); }
 
   async mountGoogleSignIn(target: HTMLElement, onState: (state: GoogleBackedIdentityActionState) => void): Promise<void> {
     this.unmountGoogleSignIn();
@@ -68,11 +78,11 @@ export class PassportIdentityController implements BrowserIdentityController {
     this.#target = target;
     this.#onState = onState;
     const activeAttempt = ++this.#attempt;
-    let mounted: Awaited<ReturnType<GoogleSignInButton["mount"]>>;
+    let mounted: Awaited<ReturnType<BrowserIdentityControllerDependencies["mountGoogleSignIn"]>>;
     try {
-      mounted = await this.#dependencies.googleSignInButton.mount({
+      mounted = await this.#dependencies.mountGoogleSignIn(
         target,
-        onCredential: (credential) => {
+        (credential) => {
           if (this.#disposed || activeAttempt !== this.#attempt) return;
           if (Result.isError(credential)) {
             LOGGER.warn("identity.google.button.credential_failed", { code: credential.error.code });
@@ -83,7 +93,7 @@ export class PassportIdentityController implements BrowserIdentityController {
           this.#googleSubject = credential.value.subject;
           this.emit({ stage: "google-drive-authorization", errorCode: null });
         },
-      });
+      );
     } catch {
       if (activeAttempt === this.#attempt) this.showGoogleUnavailable("mount_threw");
       return;
@@ -98,7 +108,7 @@ export class PassportIdentityController implements BrowserIdentityController {
 
   unmountGoogleSignIn(): void {
     this.abortDriveAccess();
-    this.#dependencies.googleSignInButton.unmount();
+    this.#dependencies.unmountGoogleSignIn();
     this.#target = null;
     this.#onState = null;
     this.#googleIdToken = null;
@@ -134,12 +144,10 @@ export class PassportIdentityController implements BrowserIdentityController {
       this.#driveAbortController = abortController;
       let driveAccess: GoogleDriveAccessResult<string>;
       try {
-        driveAccess = await this.#dependencies.googleDriveAccessRequester.request({
-          clientId: this.#clientId,
-          loginHint: googleSubject,
-          expectedSubject: googleSubject,
-          signal: abortController.signal,
-        });
+        driveAccess = await this.#dependencies.requestGoogleDriveAccess(
+          googleSubject,
+          abortController.signal,
+        );
       } catch {
         if (activeAttempt !== this.#attempt || this.#disposed) return { status: "superseded" };
         LOGGER.warn("identity.google.button.drive_authorization_failed", { code: "unexpected" });
@@ -222,7 +230,7 @@ export class PassportIdentityController implements BrowserIdentityController {
 
   private showGoogleUnavailable(code: string): void {
     LOGGER.warn("identity.google.button.unavailable", { code });
-    this.#dependencies.googleSignInButton.unmount();
+    this.#dependencies.unmountGoogleSignIn();
     this.#googleIdToken = null;
     this.#googleSubject = null;
     this.emit({ stage: "google-sign-in", errorCode: "sign_in_unavailable" });
@@ -236,7 +244,7 @@ export class PassportIdentityController implements BrowserIdentityController {
 }
 
 function toCatalogResult<T>(
-  result: LocalIdentityRepositoryResult<T>,
+  result: LocalIdentityResult<T>,
 ): BrowserIdentityCatalogResult<T> {
   return Result.isError(result)
     ? Result.err({ code: result.error.code })

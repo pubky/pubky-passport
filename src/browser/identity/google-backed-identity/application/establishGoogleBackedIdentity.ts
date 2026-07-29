@@ -4,7 +4,12 @@ import { Result } from "better-result";
 
 import { LOGGER } from "../../../../libs/logger/logger";
 import { HomegateClient } from "../../../homegate/adapters/homegateClient";
-import type { PassportFileStore } from "../../../passport-file/application/passportFileStore";
+import type { PassportFileEnvelopeV1 } from "../../../../core/passport-file/passportFile";
+import type {
+  PassportFileReadResult,
+  PassportFileReference,
+  PassportFileStoreResult,
+} from "../../../passport-file/application/passportFileStoreModels";
 import { CreateGoogleBackedIdentity } from "./createGoogleBackedIdentity";
 import type {
   GoogleBackedIdentity,
@@ -12,7 +17,7 @@ import type {
   GoogleBackedIdentityResult,
 } from "./googleBackedIdentity";
 import { RestoreGoogleBackedIdentity } from "./restoreGoogleBackedIdentity";
-import type { GoogleWrappingKeyRequester } from "../wrapping-key/application/googleWrappingKey";
+import type { GoogleWrappingKeyResult } from "../wrapping-key/application/googleWrappingKey";
 
 export type {
   GoogleBackedIdentity,
@@ -22,21 +27,24 @@ export type {
 } from "./googleBackedIdentity";
 
 export class EstablishGoogleBackedIdentity {
-  readonly #wrappingKeyRequester: GoogleWrappingKeyRequester;
-  readonly #passportFileStoreForAccessToken: (driveAccessToken: string) => PassportFileStore;
+  readonly #requestWrappingKey: (googleIdToken: string) => Promise<GoogleWrappingKeyResult>;
+  readonly #readPassportFile: ReadPassportFile;
+  readonly #createPassportFile: CreatePassportFile;
   readonly #homegate: HomegateClient;
   readonly #restoreExistingIdentity: RestoreGoogleBackedIdentity;
   readonly #createMissingIdentity: CreateGoogleBackedIdentity;
 
   constructor(input: {
-    wrappingKeyRequester: GoogleWrappingKeyRequester;
-    passportFileStoreForAccessToken: (driveAccessToken: string) => PassportFileStore;
+    requestWrappingKey: (googleIdToken: string) => Promise<GoogleWrappingKeyResult>;
+    readPassportFile: ReadPassportFile;
+    createPassportFile: CreatePassportFile;
     homegate: HomegateClient;
     restoreExistingIdentity: RestoreGoogleBackedIdentity;
     createMissingIdentity: CreateGoogleBackedIdentity;
   }) {
-    this.#wrappingKeyRequester = input.wrappingKeyRequester;
-    this.#passportFileStoreForAccessToken = input.passportFileStoreForAccessToken;
+    this.#requestWrappingKey = input.requestWrappingKey;
+    this.#readPassportFile = input.readPassportFile;
+    this.#createPassportFile = input.createPassportFile;
     this.#homegate = input.homegate;
     this.#restoreExistingIdentity = input.restoreExistingIdentity;
     this.#createMissingIdentity = input.createMissingIdentity;
@@ -53,25 +61,21 @@ export class EstablishGoogleBackedIdentity {
 
   private async establishIdentity(credentials: GoogleBackedIdentityCredentials): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>> {
     LOGGER.info("identity.google.wrapping_key.started");
-    const wrappingKey = await this.#wrappingKeyRequester.requestWrappingKey({ googleIdToken: credentials.googleIdToken });
+    const wrappingKey = await this.#requestWrappingKey(credentials.googleIdToken);
     if (Result.isError(wrappingKey)) {
       LOGGER.warn("identity.google.wrapping_key.failed", { code: wrappingKey.error.code });
       return failure("wrapping_key_failed");
     }
     LOGGER.info("identity.google.wrapping_key.completed");
 
-    const passportFileStore = this.#passportFileStoreForAccessToken(credentials.driveAccessToken);
     LOGGER.info("identity.google.drive_read.started");
-    const storedFile = await passportFileStore.readPassportFile();
+    const storedFile = await this.#readPassportFile(credentials.driveAccessToken);
     if (Result.isError(storedFile)) {
       LOGGER.warn("identity.google.drive_read.failed", { code: storedFile.error.code });
       return failure("drive_read_failed");
     } else if (storedFile.value.status === "found") {
       LOGGER.info("identity.google.drive_read.completed", { status: "found" });
-      return this.#restoreExistingIdentity.execute({
-        envelope: storedFile.value.envelope,
-        wrappingKey: wrappingKey.value,
-      });
+      return this.#restoreExistingIdentity.execute(storedFile.value.envelope, wrappingKey.value);
     }
 
     LOGGER.info("identity.google.drive_read.completed", { status: "missing" });
@@ -82,13 +86,19 @@ export class EstablishGoogleBackedIdentity {
       return Result.err({ code: "homeserver_signup_invitation_failed", cause: invitation.error.code });
     }
 
-    return this.#createMissingIdentity.execute({
-      invitation: invitation.value,
-      passportFileStore,
-      wrappingKey: wrappingKey.value,
-    });
+    return this.#createMissingIdentity.execute(
+      invitation.value,
+      (envelope) => this.#createPassportFile(credentials.driveAccessToken, envelope),
+      wrappingKey.value,
+    );
   }
 }
+
+type ReadPassportFile = (driveAccessToken: string) => Promise<PassportFileStoreResult<PassportFileReadResult>>;
+type CreatePassportFile = (
+  driveAccessToken: string,
+  envelope: PassportFileEnvelopeV1,
+) => Promise<PassportFileStoreResult<PassportFileReference>>;
 
 function failure<T>(code: "wrapping_key_failed" | "drive_read_failed" | "unexpected_failure"): GoogleBackedIdentityResult<T> {
   return Result.err({ code });

@@ -4,7 +4,8 @@ import { HomegateClient } from "../../../homegate/adapters/homegateClient";
 import { GoogleDrivePassportFileStore } from "../../../passport-file/adapters/googleDrivePassportFileStore";
 import { WebCryptoPassportFileCrypto } from "../../../passport-file/adapters/webCryptoPassportFileCrypto";
 import { PubkySdkAdapter } from "../../../pubky/adapters/pubkySdkAdapter";
-import type { LocalIdentityKeyStore } from "../../local-identity/application/localIdentityRepository";
+import type { PubkySecretKeyMaterial } from "../../../pubky/application/pubkyIdentityKey";
+import type { LocalIdentityResult, LocalIdentitySummary } from "../../local-identity/application/localIdentityModels";
 import { SaveLocalIdentity } from "../../local-identity/application/saveLocalIdentity";
 import { CreateGoogleBackedIdentity } from "../application/createGoogleBackedIdentity";
 import { DeleteGoogleDrivePassportFile } from "../application/deleteGoogleDrivePassportFile";
@@ -22,47 +23,58 @@ export class GoogleBackedIdentityOperations {
   #disposed = false;
 
   constructor(input: {
-    keyStore: LocalIdentityKeyStore;
+    saveIdentityRecord: (
+      identity: LocalIdentitySummary,
+      secretKey: PubkySecretKeyMaterial,
+    ) => LocalIdentityResult<LocalIdentitySummary>;
     homegateBaseUrl: string;
     passportOrigin: string;
   }) {
     const pubky = new PubkySdkAdapter();
     try {
-      const localIdentities = new SaveLocalIdentity({ keyStore: input.keyStore, identityKeys: pubky });
-      const wrappingKeyRequester = new GoogleWrappingKeyApiClient();
+      const localIdentities = new SaveLocalIdentity({
+        saveIdentityRecord: input.saveIdentityRecord,
+        pubky,
+      });
+      const wrappingKeyApiClient = new GoogleWrappingKeyApiClient();
+      const requestWrappingKey = wrappingKeyApiClient.requestWrappingKey.bind(wrappingKeyApiClient);
       const homegate = new HomegateClient({ homegateBaseUrl: input.homegateBaseUrl });
       const crypto = new WebCryptoPassportFileCrypto();
-      const passportFileStoreForAccessToken = (token: string) => new GoogleDrivePassportFileStore({
+      const encryptSecretKeyBytes = crypto.encryptSecretKeyBytes.bind(crypto);
+      const decryptSecretKeyBytes = crypto.decryptSecretKeyBytes.bind(crypto);
+      const storeFor = (token: string) => new GoogleDrivePassportFileStore({
         accessTokenProvider: async () => token,
         fetch: globalThis.fetch.bind(globalThis),
       });
+      const readPassportFile = (token: string) => storeFor(token).readPassportFile();
+      const createPassportFile = (token: string, envelope: Parameters<GoogleDrivePassportFileStore["createPassportFile"]>[0]) => storeFor(token).createPassportFile(envelope);
+      const deletePassportFile = (token: string, reference: Parameters<GoogleDrivePassportFileStore["deletePassportFile"]>[0]) => storeFor(token).deletePassportFile(reference);
       const restoreExistingIdentity = new RestoreGoogleBackedIdentity({
-        crypto,
-        identityKeys: pubky,
-        sessionAccess: pubky,
+        decryptSecretKeyBytes,
+        pubky,
         localIdentities,
         passportOrigin: input.passportOrigin,
       });
       const createMissingIdentity = new CreateGoogleBackedIdentity({
-        crypto,
-        identityKeys: pubky,
-        sessionAccess: pubky,
-        discovery: pubky,
+        encryptSecretKeyBytes,
+        pubky,
         localIdentities,
         passportOrigin: input.passportOrigin,
       });
       this.#establishGoogleBackedIdentity = new EstablishGoogleBackedIdentity({
-        wrappingKeyRequester,
-        passportFileStoreForAccessToken,
+        requestWrappingKey,
+        readPassportFile,
+        createPassportFile,
         homegate,
         restoreExistingIdentity,
         createMissingIdentity,
       });
       this.#passportFileDeleter = new DeleteGoogleDrivePassportFile({
-        wrappingKeyRequester,
-        passportFileStoreForAccessToken,
-        crypto,
-        identityKeys: pubky,
+        requestWrappingKey,
+        readPassportFile,
+        deletePassportFile,
+        decryptSecretKeyBytes,
+        pubky,
         passportOrigin: input.passportOrigin,
       });
       this.#pubky = pubky;

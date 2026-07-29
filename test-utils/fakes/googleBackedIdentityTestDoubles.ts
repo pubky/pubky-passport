@@ -1,19 +1,18 @@
 import { Result } from "better-result";
 
 import { SaveLocalIdentity } from "../../src/browser/identity/local-identity/application/saveLocalIdentity";
-import type { LocalIdentityKeyStore } from "../../src/browser/identity/local-identity/application/localIdentityRepository";
-import type { PubkyIdentityKeys } from "../../src/browser/pubky/application/pubkyIdentityKeys";
+import { RecordingPubkySdkAdapter } from "./recordingPubkySdkAdapter";
 import type {
-  PassportFileCrypto,
+  DecryptPassportSecretInput,
+  EncryptPassportSecretInput,
   PassportFileCryptoResult,
-} from "@/browser/passport-file/application/passportFileCrypto";
+} from "../../src/browser/passport-file/application/passportFileCryptoResults";
 import type {
   PassportFileReadResult,
   PassportFileReference,
-  PassportFileStore,
   PassportFileStoreErrorCode,
-} from "@/browser/passport-file/application/passportFileStore";
-import type { PassportFileEnvelopeV1 } from "@/core/passport-file/passportFile";
+} from "../../src/browser/passport-file/application/passportFileStoreModels";
+import type { PassportFileEnvelopeV1 } from "../../src/core/passport-file/passportFile";
 
 export const TEST_PASSPORT_ENVELOPE: PassportFileEnvelopeV1 = {
   v: 1,
@@ -37,7 +36,7 @@ export const TEST_SIGNUP_INVITATION = {
   homeserverPubky: "homegate-homeserver",
 };
 
-export class SanitizedPassportFileStore implements PassportFileStore {
+export class RecordingPassportFileOperations {
   readonly #readResult: PassportFileReadResult | { code: PassportFileStoreErrorCode };
   readonly #onCreate: (() => void) | undefined;
   createdFiles: Array<{
@@ -50,6 +49,7 @@ export class SanitizedPassportFileStore implements PassportFileStore {
   deletedExpectedReferences: boolean[] = [];
   createFailure?: PassportFileStoreErrorCode;
   deleteFailure?: PassportFileStoreErrorCode;
+  throwOnDelete = false;
 
   constructor(
     readResult: PassportFileReadResult | { code: PassportFileStoreErrorCode },
@@ -59,32 +59,36 @@ export class SanitizedPassportFileStore implements PassportFileStore {
     this.#onCreate = onCreate;
   }
 
-  async readPassportFile() {
+  async readPassportFile(driveAccessToken: string) {
+    void driveAccessToken;
     return "code" in this.#readResult ? Result.err(this.#readResult) : Result.ok(this.#readResult);
   }
 
-  async createPassportFile(input: { envelope: PassportFileEnvelopeV1 }) {
+  async createPassportFile(driveAccessToken: string, envelope: PassportFileEnvelopeV1) {
+    void driveAccessToken;
     this.#onCreate?.();
     this.createdFiles.push({
-      version: input.envelope.v,
-      url: input.envelope.url,
-      ivCharacters: input.envelope.iv.length,
-      ciphertextCharacters: input.envelope.ct.length,
+      version: envelope.v,
+      url: envelope.url,
+      ivCharacters: envelope.iv.length,
+      ciphertextCharacters: envelope.ct.length,
     });
     return this.createFailure ? Result.err({ code: this.createFailure }) : Result.ok(TEST_PASSPORT_REFERENCE);
   }
 
-  async deletePassportFile(input: { reference: PassportFileReference }) {
+  async deletePassportFile(driveAccessToken: string, reference: PassportFileReference) {
+    void driveAccessToken;
+    if (this.throwOnDelete) throw new Error("Drive deletion threw");
     this.deleteCalls += 1;
     this.deletedExpectedReferences.push(
-      input.reference.storageId === TEST_PASSPORT_REFERENCE.storageId
-      && input.reference.revision === TEST_PASSPORT_REFERENCE.revision,
+      reference.storageId === TEST_PASSPORT_REFERENCE.storageId
+        && reference.revision === TEST_PASSPORT_REFERENCE.revision,
     );
     return this.deleteFailure ? Result.err({ code: this.deleteFailure }) : Result.ok();
   }
 }
 
-export class RecordingPassportFileCrypto implements PassportFileCrypto {
+export class RecordingPassportFileCrypto {
   readonly #decryptedBytes: Uint8Array<ArrayBuffer> = new Uint8Array(32).fill(7);
   #encryptedBytes: Uint8Array<ArrayBufferLike> | null = null;
   decryptCalls = 0;
@@ -92,16 +96,15 @@ export class RecordingPassportFileCrypto implements PassportFileCrypto {
   encryptFailure = false;
   throwOnEncrypt = false;
 
-  async decryptSecretKeyBytes(): Promise<PassportFileCryptoResult<Uint8Array>> {
+  async decryptSecretKeyBytes(input: DecryptPassportSecretInput): Promise<PassportFileCryptoResult<Uint8Array>> {
+    void input;
     this.decryptCalls += 1;
     return this.decryptFailure
       ? Result.err({ code: "decrypt_failed" })
       : Result.ok(this.#decryptedBytes);
   }
 
-  async encryptSecretKeyBytes(
-    input: Parameters<PassportFileCrypto["encryptSecretKeyBytes"]>[0],
-  ): Promise<PassportFileCryptoResult<PassportFileEnvelopeV1>> {
+  async encryptSecretKeyBytes(input: EncryptPassportSecretInput): Promise<PassportFileCryptoResult<PassportFileEnvelopeV1>> {
     this.#encryptedBytes = input.secretKeyBytes;
     if (this.throwOnEncrypt) throw new Error("encryption threw");
     if (this.encryptFailure) return Result.err({ code: "encrypt_failed" });
@@ -124,7 +127,11 @@ export class RecordingSaveLocalIdentity extends SaveLocalIdentity {
   throwOnSave = false;
 
   constructor(onSave?: () => void) {
-    super({ keyStore: new NoopLocalIdentityKeyStore(), identityKeys: new NoopPubkyIdentityKeys() });
+    const pubky = new RecordingPubkySdkAdapter();
+    super({
+      saveIdentityRecord: () => Result.err({ code: "storage_unavailable" }),
+      pubky,
+    });
     this.#onSave = onSave;
   }
 
@@ -137,35 +144,5 @@ export class RecordingSaveLocalIdentity extends SaveLocalIdentity {
       id: "fake",
       publicIdentity: { publicKeyZ32: "fake", publicKeyDisplay: "pubkyfake" },
     });
-  }
-}
-
-class NoopLocalIdentityKeyStore implements LocalIdentityKeyStore {
-  save(): ReturnType<LocalIdentityKeyStore["save"]> {
-    return Result.err({ code: "storage_unavailable" });
-  }
-
-  readActive(): ReturnType<LocalIdentityKeyStore["readActive"]> {
-    return Result.err({ code: "storage_unavailable" });
-  }
-}
-
-class NoopPubkyIdentityKeys implements PubkyIdentityKeys {
-  async createIdentityKey(): ReturnType<PubkyIdentityKeys["createIdentityKey"]> {
-    return Result.err({ code: "key_unavailable" });
-  }
-
-  async restoreIdentityKey(): ReturnType<PubkyIdentityKeys["restoreIdentityKey"]> {
-    return Result.err({ code: "key_unavailable" });
-  }
-
-  disposeIdentityKey(): void {}
-
-  async exportSecretKey(): ReturnType<PubkyIdentityKeys["exportSecretKey"]> {
-    return Result.err({ code: "key_unavailable" });
-  }
-
-  async getPublicIdentity(): ReturnType<PubkyIdentityKeys["getPublicIdentity"]> {
-    return Result.err({ code: "key_unavailable" });
   }
 }

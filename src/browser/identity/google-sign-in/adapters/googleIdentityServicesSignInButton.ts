@@ -7,7 +7,6 @@ import { decodeBase64Url } from "../../../../libs/encoding/base64Url";
 import { LOGGER } from "../../../../libs/logger/logger";
 import type {
   GoogleSignInCredential,
-  GoogleSignInButton,
   GoogleSignInResult,
 } from "../application/googleSignIn";
 import type {
@@ -17,11 +16,11 @@ import type {
 } from "../../google-identity-services/application/googleIdentityServices";
 
 type GoogleIdentityServicesSignInButtonDependencies = {
-  bindGoogleCredentialCallback(input: {
-    accounts: GoogleAccounts;
-    clientId: string;
-    callback: (response: GoogleCredentialResponse) => void;
-  }): GoogleSignInResult<void>;
+  bindGoogleCredentialCallback(
+    accounts: GoogleAccounts,
+    clientId: string,
+    callback: (response: GoogleCredentialResponse) => void,
+  ): GoogleSignInResult<void>;
   releaseGoogleCredentialCallback(callback: (response: GoogleCredentialResponse) => void): void;
   readUnverifiedGoogleIdTokenSubject(token: string): string | undefined;
 };
@@ -38,7 +37,7 @@ const DEFAULT_DEPENDENCIES: GoogleIdentityServicesSignInButtonDependencies = {
   readUnverifiedGoogleIdTokenSubject,
 };
 
-export class GoogleIdentityServicesSignInButton implements GoogleSignInButton {
+export class GoogleIdentityServicesSignInButton {
   readonly #clientId: string;
   readonly #googleIdentityServices: GoogleIdentityServicesLoader;
   readonly #dependencies: GoogleIdentityServicesSignInButtonDependencies;
@@ -55,10 +54,10 @@ export class GoogleIdentityServicesSignInButton implements GoogleSignInButton {
     this.#dependencies = input.dependencies ?? DEFAULT_DEPENDENCIES;
   }
 
-  async mount(input: {
-    target: HTMLElement;
-    onCredential: (result: GoogleSignInResult<GoogleSignInCredential>) => void;
-  }): Promise<GoogleSignInResult<void>> {
+  async mount(
+    target: HTMLElement,
+    onCredential: (result: GoogleSignInResult<GoogleSignInCredential>) => void,
+  ): Promise<GoogleSignInResult<void>> {
     this.unmount();
     const activeAttempt = ++this.#attempt;
     let accounts: Awaited<ReturnType<GoogleIdentityServicesLoader["loadGoogleAccounts"]>>;
@@ -79,37 +78,33 @@ export class GoogleIdentityServicesSignInButton implements GoogleSignInButton {
           || response.credential.length > MAXIMUM_GOOGLE_ID_TOKEN_CHARACTERS
         ) {
           LOGGER.warn("identity.google.button.credential_failed");
-          input.onCredential(Result.err({ code: "sign_in_failed" }));
+          onCredential(Result.err({ code: "sign_in_failed" }));
           return;
         }
         const subject = this.#dependencies.readUnverifiedGoogleIdTokenSubject(response.credential);
         if (!subject) {
-          input.onCredential(Result.err({ code: "sign_in_failed" }));
+          onCredential(Result.err({ code: "sign_in_failed" }));
           return;
         }
-        input.onCredential(Result.ok({ googleIdToken: response.credential, subject }));
+        onCredential(Result.ok({ googleIdToken: response.credential, subject }));
       } catch {
         LOGGER.warn("identity.google.button.credential_failed", { code: "unexpected" });
-        input.onCredential(Result.err({ code: "sign_in_failed" }));
+        onCredential(Result.err({ code: "sign_in_failed" }));
       }
     };
 
     this.#credentialCallback = callback;
     let bound: GoogleSignInResult<void>;
     try {
-      bound = this.#dependencies.bindGoogleCredentialCallback({
-        accounts: accounts.value,
-        clientId: this.#clientId,
-        callback,
-      });
+      bound = this.#dependencies.bindGoogleCredentialCallback(accounts.value, this.#clientId, callback);
     } catch {
       return this.unavailable("bind_threw");
     }
     if (Result.isError(bound)) return this.unavailable(bound.error.code);
 
     try {
-      input.target.replaceChildren();
-      accounts.value.id.renderButton(input.target, {
+      target.replaceChildren();
+      accounts.value.id.renderButton(target, {
         theme: "outline",
         size: "large",
         text: "continue_with",
@@ -142,33 +137,33 @@ let initializedIdentityAccounts: GoogleAccounts | undefined;
 let initializedIdentityClientId: string | undefined;
 let activeCredentialCallback: ((response: GoogleCredentialResponse) => void) | undefined;
 
-export function bindGoogleCredentialCallback(input: {
-  accounts: GoogleAccounts;
-  clientId: string;
-  callback: (response: GoogleCredentialResponse) => void;
-}): GoogleSignInResult<void> {
-  if (activeCredentialCallback && activeCredentialCallback !== input.callback) {
+export function bindGoogleCredentialCallback(
+  accounts: GoogleAccounts,
+  clientId: string,
+  callback: (response: GoogleCredentialResponse) => void,
+): GoogleSignInResult<void> {
+  if (activeCredentialCallback && activeCredentialCallback !== callback) {
     return Result.err({ code: "sign_in_failed" });
   }
-  if (initializedIdentityAccounts === input.accounts) {
-    if (initializedIdentityClientId !== input.clientId) return Result.err({ code: "sign_in_failed" });
-    activeCredentialCallback = input.callback;
+  if (initializedIdentityAccounts === accounts) {
+    if (initializedIdentityClientId !== clientId) return Result.err({ code: "sign_in_failed" });
+    activeCredentialCallback = callback;
     return Result.ok();
   }
   if (activeCredentialCallback) return Result.err({ code: "sign_in_failed" });
 
-  activeCredentialCallback = input.callback;
+  activeCredentialCallback = callback;
   try {
-    input.accounts.id.initialize({
-      client_id: input.clientId,
+    accounts.id.initialize({
+      client_id: clientId,
       auto_select: false,
       callback(response) { activeCredentialCallback?.(response); },
     });
-    initializedIdentityAccounts = input.accounts;
-    initializedIdentityClientId = input.clientId;
+    initializedIdentityAccounts = accounts;
+    initializedIdentityClientId = clientId;
     return Result.ok();
   } catch {
-    if (activeCredentialCallback === input.callback) activeCredentialCallback = undefined;
+    if (activeCredentialCallback === callback) activeCredentialCallback = undefined;
     return Result.err({ code: "sign_in_failed" });
   }
 }

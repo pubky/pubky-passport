@@ -5,12 +5,13 @@ import { Result } from "better-result";
 import type { PassportFileEnvelopeV1 } from "../../../core/passport-file/passportFile";
 import { decodeBase64Url, encodeBase64Url } from "../../../libs/encoding/base64Url";
 import type {
-  PassportFileCrypto,
+  DecryptPassportSecretInput,
+  EncryptPassportSecretInput,
   PassportFileCryptoErrorCode,
   PassportFileCryptoResult,
-} from "../application/passportFileCrypto";
+} from "../application/passportFileCryptoResults";
 import { normalizePassportFileOrigin, parsePassportFileEnvelope } from "../../../core/passport-file/parsePassportFile";
-import { PUBKY_SECRET_KEY_BYTES } from "../../pubky/application/pubkyIdentityKeys";
+import { PUBKY_SECRET_KEY_BYTES } from "../../pubky/application/pubkyIdentityKey";
 
 export type WebCryptoPassportFileCryptoOptions = {
   subtle?: SubtleCrypto | null;
@@ -33,7 +34,7 @@ const TEXT_ENCODER = new TextEncoder();
 const AES_GCM_DERIVATION_SALT = TEXT_ENCODER.encode("pubky-passport/passport-file/aes-gcm/salt/v1");
 const AES_GCM_DERIVATION_INFO = TEXT_ENCODER.encode("passport-file:aes-gcm:v1");
 
-export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
+export class WebCryptoPassportFileCrypto {
   readonly #subtle: SubtleCrypto | null | undefined;
   readonly #getRandomValues: RandomValuesProvider | null | undefined;
 
@@ -47,11 +48,7 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
         : options.getRandomValues;
   }
 
-  async encryptSecretKeyBytes(input: {
-    secretKeyBytes: Uint8Array;
-    wrappingKey: string;
-    passportOrigin: string;
-  }): Promise<PassportFileCryptoResult<PassportFileEnvelopeV1>> {
+  async encryptSecretKeyBytes(input: EncryptPassportSecretInput): Promise<PassportFileCryptoResult<PassportFileEnvelopeV1>> {
     const webCrypto = this.#getRequiredWebCrypto();
     if (Result.isError(webCrypto)) {
       return failure(webCrypto.error.code);
@@ -99,11 +96,7 @@ export class WebCryptoPassportFileCrypto implements PassportFileCrypto {
     }
   }
 
-  async decryptSecretKeyBytes(input: {
-    envelope: PassportFileEnvelopeV1;
-    wrappingKey: string;
-    passportOrigin: string;
-  }): Promise<PassportFileCryptoResult<Uint8Array>> {
+  async decryptSecretKeyBytes(input: DecryptPassportSecretInput): Promise<PassportFileCryptoResult<Uint8Array>> {
     const webCrypto = this.#getRequiredWebCrypto();
     if (Result.isError(webCrypto)) {
       return failure(webCrypto.error.code);
@@ -230,7 +223,7 @@ function base64UrlLength(byteLength: number): number {
   return Math.ceil((byteLength * 4) / 3) - (byteLength % 3 === 0 ? 0 : 1);
 }
 
-function aadForEnvelope(envelope: Pick<PassportFileEnvelopeV1, "v" | "url">): ArrayBuffer {
+function aadForEnvelope(envelope: { v: PassportFileEnvelopeV1["v"]; url: PassportFileEnvelopeV1["url"] }): ArrayBuffer {
   return toArrayBuffer(TEXT_ENCODER.encode(`pubky-passport/passport-file/v${envelope.v}\n${envelope.url}`));
 }
 

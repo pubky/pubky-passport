@@ -4,13 +4,12 @@ import { Result } from "better-result";
 
 import type { PubkyPublicIdentity } from "../../../../core/identity/pubkyIdentity";
 import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "../../../../libs/encoding/base64Url";
-import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../../../pubky/application/pubkyIdentityKeys";
-import type { LocalIdentitySummary } from "../application/localIdentity";
+import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../../../pubky/application/pubkyIdentityKey";
 import type {
-  LocalIdentityRepository,
-  LocalIdentityRepositoryErrorCode,
-  LocalIdentityRepositoryResult,
-} from "../application/localIdentityRepository";
+  LocalIdentityErrorCode,
+  LocalIdentityResult,
+  LocalIdentitySummary,
+} from "../application/localIdentityModels";
 
 const STORAGE_KEY = "pubky-passport/local-identities/v1";
 const LOCAL_IDENTITY_STORE_VERSION = 1;
@@ -25,14 +24,14 @@ type LocalIdentityStoreV1 = {
   identities: StoredLocalIdentity[];
 };
 
-export class LocalStorageIdentityRepository implements LocalIdentityRepository {
+export class LocalStorageIdentityRepository {
   readonly #storage: Storage | null;
 
   constructor(options: { storage?: Storage | null } = {}) {
     this.#storage = options.storage === undefined ? getLocalStorage() : options.storage;
   }
 
-  list(): LocalIdentityRepositoryResult<{ activeIdentityId: string | null; identities: LocalIdentitySummary[] }> {
+  list(): LocalIdentityResult<{ activeIdentityId: string | null; identities: LocalIdentitySummary[] }> {
     const store = this.readStore();
     if (Result.isError(store)) {
       return Result.err(store.error);
@@ -44,11 +43,11 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
     });
   }
 
-  save(input: { identity: LocalIdentitySummary; secretKey: PubkySecretKeyMaterial }): LocalIdentityRepositoryResult<LocalIdentitySummary> {
-    if (input.identity.id !== input.identity.publicIdentity.publicKeyZ32) {
+  save(identity: LocalIdentitySummary, secretKey: PubkySecretKeyMaterial): LocalIdentityResult<LocalIdentitySummary> {
+    if (identity.id !== identity.publicIdentity.publicKeyZ32) {
       return failure("invalid_identity");
     }
-    if (input.secretKey.format !== PUBKY_SECRET_KEY_FORMAT || input.secretKey.bytes.byteLength !== PUBKY_SECRET_KEY_BYTES) {
+    if (secretKey.format !== PUBKY_SECRET_KEY_FORMAT || secretKey.bytes.byteLength !== PUBKY_SECRET_KEY_BYTES) {
       return failure("invalid_secret_key");
     }
 
@@ -57,21 +56,21 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
       return Result.err(store.error);
     }
 
-    const identity: StoredLocalIdentity = {
-      ...input.identity,
-      secretKey: encodeBase64Url(input.secretKey.bytes),
+    const storedIdentity: StoredLocalIdentity = {
+      ...identity,
+      secretKey: encodeBase64Url(secretKey.bytes),
     };
-    const existingIndex = store.value.identities.findIndex((candidate) => candidate.id === identity.id);
+    const existingIndex = store.value.identities.findIndex((candidate) => candidate.id === storedIdentity.id);
     const identities = [...store.value.identities];
     if (existingIndex === -1) {
-      identities.push(identity);
+      identities.push(storedIdentity);
     } else {
-      identities[existingIndex] = identity;
+      identities[existingIndex] = storedIdentity;
     }
 
     const nextStore: LocalIdentityStoreV1 = {
       v: LOCAL_IDENTITY_STORE_VERSION,
-      activeIdentityId: identity.id,
+      activeIdentityId: storedIdentity.id,
       identities,
     };
     const written = this.writeStore(nextStore);
@@ -79,10 +78,10 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
       return Result.err(written.error);
     }
 
-    return Result.ok(toSummary(identity));
+    return Result.ok(toSummary(storedIdentity));
   }
 
-  select(id: string): LocalIdentityRepositoryResult<void> {
+  select(id: string): LocalIdentityResult<void> {
     const store = this.readStore();
     if (Result.isError(store)) {
       return Result.err(store.error);
@@ -95,7 +94,7 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
     return this.writeStore({ ...store.value, activeIdentityId: id });
   }
 
-  clear(): LocalIdentityRepositoryResult<void> {
+  clear(): LocalIdentityResult<void> {
     if (!this.#storage) {
       return failure("storage_unavailable");
     }
@@ -122,7 +121,7 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
     return () => target.removeEventListener("storage", onStorage);
   }
 
-  readActive(): LocalIdentityRepositoryResult<{ identity: LocalIdentitySummary; secretKey: PubkySecretKeyMaterial }> {
+  readActive(): LocalIdentityResult<{ identity: LocalIdentitySummary; secretKey: PubkySecretKeyMaterial }> {
     const store = this.readStore();
     if (Result.isError(store)) {
       return Result.err(store.error);
@@ -148,7 +147,7 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
     });
   }
 
-  private readStore(): LocalIdentityRepositoryResult<LocalIdentityStoreV1> {
+  private readStore(): LocalIdentityResult<LocalIdentityStoreV1> {
     if (!this.#storage) {
       return failure("storage_unavailable");
     }
@@ -172,7 +171,7 @@ export class LocalStorageIdentityRepository implements LocalIdentityRepository {
     }
   }
 
-  private writeStore(store: LocalIdentityStoreV1): LocalIdentityRepositoryResult<void> {
+  private writeStore(store: LocalIdentityStoreV1): LocalIdentityResult<void> {
     if (!this.#storage) {
       return failure("storage_unavailable");
     }
@@ -252,6 +251,6 @@ function decodeStoredSecretKey(value: string): Uint8Array | undefined {
   return decoded?.byteLength === PUBKY_SECRET_KEY_BYTES ? decoded : undefined;
 }
 
-function failure<T>(code: LocalIdentityRepositoryErrorCode): LocalIdentityRepositoryResult<T> {
+function failure<T>(code: LocalIdentityErrorCode): LocalIdentityResult<T> {
   return Result.err({ code });
 }

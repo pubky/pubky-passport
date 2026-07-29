@@ -3,29 +3,36 @@ import "client-only";
 import { Result } from "better-result";
 
 import type { PubkyPublicIdentity } from "../../../../core/identity/pubkyIdentity";
-import type { PubkyIdentityKey, PubkyIdentityKeys } from "../../../pubky/application/pubkyIdentityKeys";
-import type { LocalIdentityKeyStore } from "./localIdentityRepository";
+import type {
+  PubkyIdentityKey,
+  PubkySecretKeyMaterial,
+} from "../../../pubky/application/pubkyIdentityKey";
+import { PubkySdkAdapter } from "../../../pubky/adapters/pubkySdkAdapter";
+import type { LocalIdentityResult, LocalIdentitySummary } from "./localIdentityModels";
 import type { LocalIdentityOperationResult } from "./saveLocalIdentity";
 
 export class RestoreActiveLocalIdentityKey {
-  readonly #keyStore: LocalIdentityKeyStore;
-  readonly #identityKeys: PubkyIdentityKeys;
+  readonly #readActive: ReadActiveIdentity;
+  readonly #pubky: PubkySdkAdapter;
 
-  constructor(input: { keyStore: LocalIdentityKeyStore; identityKeys: PubkyIdentityKeys }) {
-    this.#keyStore = input.keyStore;
-    this.#identityKeys = input.identityKeys;
+  constructor(input: {
+    readActive: ReadActiveIdentity;
+    pubky: PubkySdkAdapter;
+  }) {
+    this.#readActive = input.readActive;
+    this.#pubky = input.pubky;
   }
 
   async restore(): Promise<LocalIdentityOperationResult<PubkyIdentityKey>> {
-    const stored = this.#keyStore.readActive();
+    const stored = this.#readActive();
     if (Result.isError(stored)) return Result.err(stored.error);
 
     try {
-      const restored = await this.#identityKeys.restoreIdentityKey({ secretKey: stored.value.secretKey });
+      const restored = await this.#pubky.restoreIdentityKey(stored.value.secretKey);
       if (Result.isError(restored)) return Result.err({ code: "restore_failed" });
 
       if (!isSamePublicIdentity(restored.value.publicIdentity, stored.value.identity.publicIdentity)) {
-        this.#identityKeys.disposeIdentityKey({ keyHandle: restored.value.keyHandle });
+        this.#pubky.disposeIdentityKey(restored.value.keyHandle);
         return Result.err({ code: "identity_mismatch" });
       }
 
@@ -35,6 +42,11 @@ export class RestoreActiveLocalIdentityKey {
     }
   }
 }
+
+type ReadActiveIdentity = () => LocalIdentityResult<{
+    identity: LocalIdentitySummary;
+    secretKey: PubkySecretKeyMaterial;
+  }>;
 
 function isSamePublicIdentity(left: PubkyPublicIdentity, right: PubkyPublicIdentity): boolean {
   return left.publicKeyZ32 === right.publicKeyZ32 && left.publicKeyDisplay === right.publicKeyDisplay;

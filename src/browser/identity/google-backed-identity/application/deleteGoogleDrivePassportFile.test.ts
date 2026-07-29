@@ -1,13 +1,13 @@
 import { Result } from "better-result";
 import { describe, expect, it } from "vitest";
 
-import { RecordingPubkyIdentityKeys } from "../../../../../test-utils/fakes/recordingPubkyIdentityKeys";
+import { RecordingPubkySdkAdapter } from "../../../../../test-utils/fakes/recordingPubkySdkAdapter";
 import {
   TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
   TEST_PASSPORT_ENVELOPE,
   TEST_PASSPORT_REFERENCE,
   RecordingPassportFileCrypto,
-  SanitizedPassportFileStore,
+  RecordingPassportFileOperations,
 } from "../../../../../test-utils/fakes/googleBackedIdentityTestDoubles";
 import { expectResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
 import { DeleteGoogleDrivePassportFile } from "./deleteGoogleDrivePassportFile";
@@ -18,28 +18,28 @@ describe("DeleteGoogleDrivePassportFile", () => {
 
     const result = await setup.subject.deleteGoogleDrivePassportFile(
       TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
-      setup.keys.nextPublicIdentity.publicKeyZ32,
+       setup.pubky.nextPublicIdentity.publicKeyZ32,
     );
 
     expectResultOk(result);
     expect(setup.fileStore.deleteCalls).toBe(1);
     expect(setup.fileStore.deletedExpectedReferences).toEqual([true]);
-    expect(setup.keys.disposedKeys).toHaveLength(1);
+    expect(setup.pubky.disposedKeys).toHaveLength(1);
     expect(setup.crypto.decryptedOutputIsZeroed()).toBe(true);
   });
 
   it("treats an already missing Drive Passport file as idempotent deletion", async () => {
-    const setup = createSetup(new SanitizedPassportFileStore({ status: "missing" }));
+    const setup = createSetup(new RecordingPassportFileOperations({ status: "missing" }));
 
     const result = await setup.subject.deleteGoogleDrivePassportFile(
       TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
-      setup.keys.nextPublicIdentity.publicKeyZ32,
+      setup.pubky.nextPublicIdentity.publicKeyZ32,
     );
 
     expectResultOk(result);
     expect(setup.fileStore.deleteCalls).toBe(0);
-    expect(setup.keys.restoreCalls).toEqual([]);
-    expect(setup.keys.disposedKeys).toEqual([]);
+    expect(setup.pubky.restoreCalls).toEqual([]);
+    expect(setup.pubky.disposedKeys).toEqual([]);
     expect(setup.crypto.decryptCalls).toBe(0);
   });
 
@@ -58,35 +58,35 @@ describe("DeleteGoogleDrivePassportFile", () => {
 
     const result = await setup.subject.deleteGoogleDrivePassportFile(
       TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
-      setup.keys.nextPublicIdentity.publicKeyZ32,
+      setup.pubky.nextPublicIdentity.publicKeyZ32,
     );
 
     expectResultError(result, { code: "drive_stale_file" });
-    expect(setup.keys.disposedKeys).toHaveLength(1);
+    expect(setup.pubky.disposedKeys).toHaveLength(1);
     expect(setup.crypto.decryptedOutputIsZeroed()).toBe(true);
   });
 
   it("maps unexpected Drive deletion exceptions and still cleans restored key material", async () => {
     const setup = createSetup();
-    setup.fileStore.deletePassportFile = async () => { throw new Error("Drive deletion threw"); };
+    setup.fileStore.throwOnDelete = true;
 
     const result = await setup.subject.deleteGoogleDrivePassportFile(
       TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
-      setup.keys.nextPublicIdentity.publicKeyZ32,
+      setup.pubky.nextPublicIdentity.publicKeyZ32,
     );
 
     expectResultError(result, { code: "unexpected_failure" });
-    expect(setup.keys.disposedKeys).toHaveLength(1);
+    expect(setup.pubky.disposedKeys).toHaveLength(1);
     expect(setup.crypto.decryptedOutputIsZeroed()).toBe(true);
   });
 
   it("preserves a successful outcome when key cleanup throws", async () => {
     const setup = createSetup();
-    setup.keys.disposeIdentityKey = () => { throw new Error("cleanup failed"); };
+    setup.pubky.throwOnDisposeIdentity = true;
 
     const result = await setup.subject.deleteGoogleDrivePassportFile(
       TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
-      setup.keys.nextPublicIdentity.publicKeyZ32,
+      setup.pubky.nextPublicIdentity.publicKeyZ32,
     );
 
     expectResultOk(result);
@@ -94,23 +94,34 @@ describe("DeleteGoogleDrivePassportFile", () => {
 });
 
 function createSetup(
-  fileStore = new SanitizedPassportFileStore({
+  fileStore = new RecordingPassportFileOperations({
     status: "found",
     envelope: TEST_PASSPORT_ENVELOPE,
     reference: TEST_PASSPORT_REFERENCE,
   }),
 ) {
-  const keys = new RecordingPubkyIdentityKeys();
+  const pubky = new RecordingPubkySdkAdapter();
   const crypto = new RecordingPassportFileCrypto();
+  const wrappingKeyRequest = sanitizedWrappingKeyRequest();
   const subject = new DeleteGoogleDrivePassportFile({
-    wrappingKeyRequester: { async requestWrappingKey() { return Result.ok("w".repeat(43)); } },
-    passportFileStoreForAccessToken(accessToken) {
-      expect(accessToken).toBe("drive-token");
-      return fileStore;
-    },
-    crypto,
-    identityKeys: keys,
+    requestWrappingKey: wrappingKeyRequest.request,
+    readPassportFile: fileStore.readPassportFile.bind(fileStore),
+    deletePassportFile: fileStore.deletePassportFile.bind(fileStore),
+    decryptSecretKeyBytes: crypto.decryptSecretKeyBytes.bind(crypto),
+    pubky,
     passportOrigin: "https://passport.pubky.app",
   });
-  return { subject, keys, crypto, fileStore };
+  return { subject, pubky, crypto, fileStore };
+}
+
+function sanitizedWrappingKeyRequest() {
+  const calls = { count: 0, hasGoogleIdToken: false };
+  return {
+    calls,
+    async request(googleIdToken: string) {
+      calls.count += 1;
+      calls.hasGoogleIdToken = googleIdToken.trim().length > 0;
+      return Result.ok("w".repeat(43));
+    },
+  };
 }

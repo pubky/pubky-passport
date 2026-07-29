@@ -103,11 +103,11 @@ const ESLINT_CONFIG = defineConfig([
           patterns: [
             {
               regex: `^(?:\\.\\./)+browser/(?![^/]+/${STABLE_BROWSER_ENTRY}$)`,
-              message: "UI may import browser runtime only through stable controller APIs and their concrete factories."
+              message: "UI may import browser runtime only through stable browser APIs and controller factories."
             },
             {
               regex: `^@/browser/(?![^/]+/${STABLE_BROWSER_ENTRY}$)`,
-              message: "UI may import browser runtime only through stable controller APIs and their concrete factories."
+              message: "UI may import browser runtime only through stable browser APIs and controller factories."
             }
           ]
         }
@@ -115,7 +115,10 @@ const ESLINT_CONFIG = defineConfig([
     }
   },
   {
-    files: ["src/browser/*/browser*Controller.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    files: [
+      "src/browser/*/browser*Controller.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+      "src/browser/authorization/browserManualAuthorization.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+    ],
     ignores: ["src/browser/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     rules: {
       "no-restricted-imports": [

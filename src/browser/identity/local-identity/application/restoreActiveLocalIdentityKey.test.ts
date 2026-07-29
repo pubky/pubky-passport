@@ -1,59 +1,61 @@
 import { Result } from "better-result";
 import { describe, expect, it, vi } from "vitest";
 
-import { RecordingPubkyIdentityKeys } from "../../../../../test-utils/fakes/recordingPubkyIdentityKeys";
+import { RecordingPubkySdkAdapter } from "../../../../../test-utils/fakes/recordingPubkySdkAdapter";
 import { expectAsyncResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
-import { PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../../../pubky/application/pubkyIdentityKeys";
-import type { LocalIdentitySummary } from "./localIdentity";
-import type { LocalIdentityKeyStore, LocalIdentityRepositoryResult } from "./localIdentityRepository";
+import { PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../../../pubky/application/pubkyIdentityKey";
+import type { LocalIdentityResult, LocalIdentitySummary } from "./localIdentityModels";
 import { RestoreActiveLocalIdentityKey } from "./restoreActiveLocalIdentityKey";
 
 describe("RestoreActiveLocalIdentityKey", () => {
   it("restores the active key, verifies public metadata, and zeros read bytes", async () => {
-    const keys = new RecordingPubkyIdentityKeys();
-    const { keyStore, state } = createMockLocalIdentityKeyStore();
-    state.activeIdentity = { id: keys.nextPublicIdentity.publicKeyZ32, publicIdentity: keys.nextPublicIdentity };
-    const restore = new RestoreActiveLocalIdentityKey({ keyStore, identityKeys: keys });
+    const pubky = new RecordingPubkySdkAdapter();
+    const { readActive, state } = createReadActive();
+    state.activeIdentity = { id: pubky.nextPublicIdentity.publicKeyZ32, publicIdentity: pubky.nextPublicIdentity };
+    const restore = new RestoreActiveLocalIdentityKey({
+      readActive,
+      pubky,
+    });
 
     expectResultOk(await restore.restore());
 
     expect(state.activeSecret.bytes.every((byte) => byte === 0)).toBe(true);
-    expect(keys.disposedKeys).toEqual([]);
+    expect(pubky.disposedKeys).toEqual([]);
   });
 
   it("disposes a restored key whose public identity does not match storage", async () => {
-    const keys = new RecordingPubkyIdentityKeys();
-    const { keyStore, state } = createMockLocalIdentityKeyStore();
+    const pubky = new RecordingPubkySdkAdapter();
+    const { readActive, state } = createReadActive();
     state.activeIdentity = {
-      id: keys.nextPublicIdentity.publicKeyZ32,
-      publicIdentity: { ...keys.nextPublicIdentity, publicKeyDisplay: "pubkywrong" },
+      id: pubky.nextPublicIdentity.publicKeyZ32,
+      publicIdentity: { ...pubky.nextPublicIdentity, publicKeyDisplay: "pubkywrong" },
     };
-    const restore = new RestoreActiveLocalIdentityKey({ keyStore, identityKeys: keys });
+    const restore = new RestoreActiveLocalIdentityKey({
+      readActive,
+      pubky,
+    });
 
     await expectAsyncResultError(restore.restore(), { code: "identity_mismatch" });
 
-    expect(keys.disposedKeys).toHaveLength(1);
+    expect(pubky.disposedKeys).toHaveLength(1);
     expect(state.activeSecret.bytes.every((byte) => byte === 0)).toBe(true);
   });
 });
 
-function createMockLocalIdentityKeyStore(): {
-  keyStore: LocalIdentityKeyStore;
+function createReadActive(): {
+  readActive: () => LocalIdentityResult<{ identity: LocalIdentitySummary; secretKey: PubkySecretKeyMaterial }>;
   state: { activeIdentity: LocalIdentitySummary | null; activeSecret: PubkySecretKeyMaterial };
 } {
   const state = {
     activeIdentity: null as LocalIdentitySummary | null,
     activeSecret: { bytes: new Uint8Array(32).fill(7), format: PUBKY_SECRET_KEY_FORMAT } as PubkySecretKeyMaterial,
   };
-  const keyStore: LocalIdentityKeyStore = {
-    save: vi.fn((input) => Result.ok(input.identity)),
-    readActive: vi.fn((): LocalIdentityRepositoryResult<{
+  const readActive = vi.fn((): LocalIdentityResult<{
       identity: LocalIdentitySummary;
       secretKey: PubkySecretKeyMaterial;
     }> => state.activeIdentity
-      ? Result.ok({ identity: state.activeIdentity, secretKey: state.activeSecret })
-      : Result.err({ code: "no_active_identity" })),
-  };
+    ? Result.ok({ identity: state.activeIdentity, secretKey: state.activeSecret })
+    : Result.err({ code: "no_active_identity" }));
 
-  return { keyStore, state };
+  return { readActive, state };
 }

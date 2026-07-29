@@ -2,54 +2,51 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import type { PubkyIdentityKey, PubkyIdentityKeys } from "../../../pubky/application/pubkyIdentityKeys";
+import type { PubkyIdentityKey } from "../../../pubky/application/pubkyIdentityKey";
+import { PubkySdkAdapter } from "../../../pubky/adapters/pubkySdkAdapter";
 import { LOGGER } from "../../../../libs/logger/logger";
-import type { PassportFileCrypto } from "../../../passport-file/application/passportFileCrypto";
-import type { PubkyDiscovery } from "../../../pubky/application/pubkyDiscovery";
-import type { PubkySessionAccess } from "../../../pubky/application/pubkySessionAccess";
+import type { PassportFileEnvelopeV1 } from "../../../../core/passport-file/passportFile";
+import type { EncryptPassportSecret } from "../../../passport-file/application/passportFileCryptoResults";
+import type { PassportFileReference, PassportFileStoreResult } from "../../../passport-file/application/passportFileStoreModels";
+import type { HomeserverSignupInvitation } from "../../../homegate/application/homegateSignupInvitation";
 import type {
   GoogleBackedIdentity,
   GoogleBackedIdentityResult,
-  CreateGoogleBackedIdentityInput,
 } from "./googleBackedIdentity";
 import { SaveLocalIdentity } from "../../local-identity/application/saveLocalIdentity";
 
 export class CreateGoogleBackedIdentity {
-  readonly #crypto: PassportFileCrypto;
-  readonly #identityKeys: PubkyIdentityKeys;
-  readonly #sessionAccess: PubkySessionAccess;
-  readonly #discovery: PubkyDiscovery;
+  readonly #encryptSecretKeyBytes: EncryptPassportSecret;
+  readonly #pubky: PubkySdkAdapter;
   readonly #localIdentities: SaveLocalIdentity;
   readonly #passportOrigin: string;
 
   constructor(input: {
-    crypto: PassportFileCrypto;
-    identityKeys: PubkyIdentityKeys;
-    sessionAccess: PubkySessionAccess;
-    discovery: PubkyDiscovery;
+    encryptSecretKeyBytes: EncryptPassportSecret;
+    pubky: PubkySdkAdapter;
     localIdentities: SaveLocalIdentity;
     passportOrigin: string;
   }) {
-    this.#crypto = input.crypto;
-    this.#identityKeys = input.identityKeys;
-    this.#sessionAccess = input.sessionAccess;
-    this.#discovery = input.discovery;
+    this.#encryptSecretKeyBytes = input.encryptSecretKeyBytes;
+    this.#pubky = input.pubky;
     this.#localIdentities = input.localIdentities;
     this.#passportOrigin = input.passportOrigin;
   }
 
   async execute(
-    input: CreateGoogleBackedIdentityInput,
+    invitation: HomeserverSignupInvitation,
+    createPassportFile: CreatePassportFile,
+    wrappingKey: string,
   ): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>> {
     LOGGER.info("identity.google.create.started");
-    const created = await this.#identityKeys.createIdentityKey();
+    const created = await this.#pubky.createIdentityKey();
     if (Result.isError(created)) {
       LOGGER.warn("identity.google.create.failed", { code: created.error.code });
       return failure("create_failed");
     }
 
     try {
-      const secretKey = await this.#identityKeys.exportSecretKey({ keyHandle: created.value.keyHandle });
+      const secretKey = await this.#pubky.exportSecretKey(created.value.keyHandle);
       if (Result.isError(secretKey)) {
         LOGGER.warn("identity.google.create.failed", { code: secretKey.error.code });
         return failure("create_failed");
@@ -57,9 +54,9 @@ export class CreateGoogleBackedIdentity {
 
       try {
         LOGGER.info("identity.google.encrypt.started");
-        const envelope = await this.#crypto.encryptSecretKeyBytes({
+        const envelope = await this.#encryptSecretKeyBytes({
           secretKeyBytes: secretKey.value.bytes,
-          wrappingKey: input.wrappingKey,
+          wrappingKey,
           passportOrigin: this.#passportOrigin,
         });
         if (Result.isError(envelope)) {
@@ -68,7 +65,7 @@ export class CreateGoogleBackedIdentity {
         }
 
         LOGGER.info("identity.google.drive_write.started");
-        const written = await input.passportFileStore.createPassportFile({ envelope: envelope.value });
+        const written = await createPassportFile(envelope.value);
         if (Result.isError(written)) {
           LOGGER.warn("identity.google.drive_write.failed", { code: written.error.code });
           return failure(written.error.code === "create_conflict" ? "drive_create_conflict" : "drive_write_failed");
@@ -79,10 +76,10 @@ export class CreateGoogleBackedIdentity {
       }
 
       LOGGER.info("identity.google.signup.started");
-      const signedUp = await this.#sessionAccess.signup({
+      const signedUp = await this.#pubky.signup({
         keyHandle: created.value.keyHandle,
-        homeserverPubky: input.invitation.homeserverPubky,
-        signupCode: input.invitation.signupCode,
+        homeserverPubky: invitation.homeserverPubky,
+        signupCode: invitation.signupCode,
       });
       if (Result.isError(signedUp)) {
         LOGGER.warn("identity.google.signup.failed", { code: signedUp.error.code });
@@ -94,9 +91,9 @@ export class CreateGoogleBackedIdentity {
       }
 
       LOGGER.info("identity.google.discovery.started");
-      const published = await this.#discovery.publishHomeserverIfStale({
+      const published = await this.#pubky.publishHomeserverIfStale({
         keyHandle: created.value.keyHandle,
-        homeserverPubky: input.invitation.homeserverPubky,
+        homeserverPubky: invitation.homeserverPubky,
       });
       if (Result.isError(published)) {
         LOGGER.warn("identity.google.discovery.failed", { code: published.error.code });
@@ -104,7 +101,7 @@ export class CreateGoogleBackedIdentity {
       }
 
       LOGGER.info("identity.local_save.started", { establishmentMode: "created" });
-      const saved = await this.#localIdentities.saveIdentity({ keyHandle: created.value.keyHandle });
+      const saved = await this.#localIdentities.saveIdentity(created.value.keyHandle);
       if (Result.isError(saved)) {
         LOGGER.warn("identity.local_save.failed", { code: saved.error.code });
         return failure("local_save_failed", created.value.publicIdentity);
@@ -117,13 +114,17 @@ export class CreateGoogleBackedIdentity {
       });
     } finally {
       try {
-        this.#identityKeys.disposeIdentityKey({ keyHandle: created.value.keyHandle });
+        this.#pubky.disposeIdentityKey(created.value.keyHandle);
       } catch {
         LOGGER.warn("identity.google.cleanup.failed", { operation: "created_key_dispose" });
       }
     }
   }
 }
+
+type CreatePassportFile = (
+  envelope: PassportFileEnvelopeV1,
+) => Promise<PassportFileStoreResult<PassportFileReference>>;
 
 function failure<T>(
   code: Parameters<typeof createError>[0],

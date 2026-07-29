@@ -3,12 +3,9 @@ import "client-only";
 import type { Result } from "better-result";
 
 import type { PubkyPublicIdentity } from "../../../../core/identity/pubkyIdentity";
-import type { PassportFileEnvelopeV1 } from "../../../../core/passport-file/passportFile";
 import type {
   HomegateSignupInvitationErrorCode,
-  HomeserverSignupInvitation,
 } from "../../../homegate/application/homegateSignupInvitation";
-import type { PassportFileStore } from "../../../passport-file/application/passportFileStore";
 
 export type GoogleBackedIdentityCredentials = {
   googleIdToken: string;
@@ -48,17 +45,6 @@ export type GoogleBackedIdentity = {
   publicIdentity: PubkyPublicIdentity;
 };
 export type GoogleBackedIdentityResult<T> = Result<T, GoogleBackedIdentityError>;
-
-export type CreateGoogleBackedIdentityInput = {
-  invitation: HomeserverSignupInvitation;
-  passportFileStore: Pick<PassportFileStore, "createPassportFile">;
-  wrappingKey: string;
-};
-
-export type RestoreGoogleBackedIdentityInput = {
-  envelope: PassportFileEnvelopeV1;
-  wrappingKey: string;
-};
 
 export type GoogleDrivePassportFileDeletionErrorCode =
   | "wrapping_key_failed"

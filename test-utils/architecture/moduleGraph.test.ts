@@ -111,6 +111,7 @@ describe("architecture policy", () => {
     ["identity/composition/runtime.ts", "composition"],
     ["identity/browserIdentityController.ts", "public"],
     ["identity/browserIdentityController.jsx", "public"],
+    ["authorization/browserManualAuthorization.ts", "public"],
     ["identity/createBrowserIdentityController.ts", "composition"],
     ["identity/passportIdentityController.ts", "controller"],
     ["identity/application/adapters/mixed.ts", "unclassified"],

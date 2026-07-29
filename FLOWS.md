@@ -171,7 +171,10 @@ sequenceDiagram
     accDescr: The form validates and clears a pasted request before either showing a safe error or starting a full authorization document navigation.
     actor User
     box rgba(0, 114, 178, 0.18) src/ui
-        participant Form as manualAuthorizationForm.tsx<br/>ManualAuthorizationForm()<br/>submit() / replaceDocument()
+        participant Form as manualAuthorizationForm.tsx<br/>ManualAuthorizationForm()<br/>submit()
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/authorization
+        participant Browser as browserManualAuthorization.ts<br/>enterAuthorization()
     end
     box rgba(204, 121, 167, 0.18) src/core/auth
         participant Parser as parsePubkyAuthRequest.ts<br/>parsePubkyAuthRequest()
@@ -182,13 +185,15 @@ sequenceDiagram
     end
 
     User->>Form: Submit pasted pubkyauth URL
-    Form->>Parser: parsePubkyAuthRequest(encodeURIComponent(input))
-    Parser-->>Form: validated request or typed error
+    Form->>Browser: enterAuthorization(input)
+    Browser->>Parser: parsePubkyAuthRequest(encodeURIComponent(input))
+    Parser-->>Browser: validated request or typed error
     Note over Form: Clear textarea state
     alt Invalid
+        Browser-->>Form: invalid
         Form-->>User: safe local error
     else Valid
-        Form->>Window: location.replace(/authorize?d=...)
+        Browser->>Window: location.replace(/authorize?d=...)
         Window->>Next: full document request
     end
 ```
@@ -321,7 +326,7 @@ sequenceDiagram
         participant SignIn as googleIdentityServicesSignInButton.ts<br/>GoogleIdentityServicesSignInButton
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-drive-access/adapters
-        participant DriveAccess as googleIdentityServicesDriveAccessRequester.ts<br/>GoogleIdentityServicesDriveAccessRequester
+        participant DriveAccess as googleDriveAccessToken.ts<br/>requestGoogleDriveAccessToken()
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-identity-services/adapters
         participant GISLoader as googleIdentityServicesLoader.ts<br/>loadGoogleAccounts()
@@ -359,7 +364,7 @@ sequenceDiagram
     Controller-->>ActionPanel: GoogleBackedIdentityActionState<br/>stage = google-drive-authorization
     User->>ActionPanel: Authorize Google Drive
     ActionPanel->>Controller: continueGoogleBackedIdentityAction<br/>({ kind: establish_google_backed_identity })
-    Controller->>DriveAccess: request(...)
+    Controller->>DriveAccess: bound requestGoogleDriveAccess(...)
     DriveAccess->>GISLoader: loadGoogleAccounts()
     GISLoader-->>DriveAccess: google.accounts
     DriveAccess->>OAuth: request openid + drive.appdata
@@ -517,7 +522,7 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Missing identity encryption and Drive storage call flow
-    accDescr: CreateGoogleBackedIdentity asks PubkySdkAdapter and the Pubky SDK for a new key and exported secret, encrypts the secret through PassportFileCrypto, creates the Google Drive Passport file through PassportFileStore, and then zeros the exported bytes.
+    accDescr: CreateGoogleBackedIdentity asks PubkySdkAdapter and the Pubky SDK for a new key and exported secret, encrypts the secret through a focused callback bound from WebCryptoPassportFileCrypto, creates the Google Drive Passport file through a focused callback bound from GoogleDrivePassportFileStore, and then zeros the exported bytes.
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
         participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
     end
@@ -768,7 +773,7 @@ sequenceDiagram
     accTitle: Google wrapping-key API call flow
     accDescr: The route validates its request, verifies provider-account claims, applies a keyed identity rate limit, and derives a wrapping key with HKDF.
     box rgba(0, 158, 115, 0.18) Browser runtime
-        participant Browser as BROWSER<br/>WrappingKeyRequester
+        participant Browser as BROWSER<br/>GoogleWrappingKeyApiClient
     end
     box rgba(240, 228, 66, 0.18) Next transport
         participant Handler as APP<br/>wrapping-key handler

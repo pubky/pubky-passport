@@ -6,13 +6,13 @@ import { LOGGER } from "../../../../../libs/logger/logger";
 import { readBoundedText } from "../../../../../libs/http/boundedBody";
 import { isCanonicalBase64Url } from "../../../../../libs/encoding/base64Url";
 import type {
-  GoogleWrappingKeyRequester,
-  GoogleWrappingKeyRequesterErrorCode,
+  GoogleWrappingKeyErrorCode,
+  GoogleWrappingKeyResult,
 } from "../application/googleWrappingKey";
 
 const MAXIMUM_RESPONSE_BYTES = 16 * 1024;
 const WRAPPING_KEY_BYTES = 32;
-const KNOWN_ROUTE_ERROR_CODES = new Set<GoogleWrappingKeyRequesterErrorCode>([
+const KNOWN_ROUTE_ERROR_CODES = new Set<GoogleWrappingKeyErrorCode>([
   "invalid_request",
   "invalid_google_id_token",
   "expired_google_id_token",
@@ -24,21 +24,21 @@ const KNOWN_ROUTE_ERROR_CODES = new Set<GoogleWrappingKeyRequesterErrorCode>([
   "internal_error",
 ]);
 
-export class GoogleWrappingKeyApiClient implements GoogleWrappingKeyRequester {
+export class GoogleWrappingKeyApiClient {
   readonly #fetch: typeof fetch;
 
   constructor(options: { fetch?: typeof fetch } = {}) {
     this.#fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
   }
 
-  async requestWrappingKey(input: { googleIdToken: string }) {
+  async requestWrappingKey(googleIdToken: string): Promise<GoogleWrappingKeyResult> {
     let response: Response;
     try {
       response = await this.#fetch("/api/wrapping-key/google", {
         method: "POST",
         headers: { Accept: "application/json", "Content-Type": "application/json" },
         // This endpoint intentionally receives only the Google ID token.
-        body: JSON.stringify({ googleIdToken: input.googleIdToken }),
+        body: JSON.stringify({ googleIdToken }),
         cache: "no-store",
         credentials: "same-origin",
         redirect: "error",
@@ -77,11 +77,11 @@ function parseWrappingKey(value: unknown): string | null {
     : null;
 }
 
-function parseErrorCode(value: unknown): GoogleWrappingKeyRequesterErrorCode | null {
+function parseErrorCode(value: unknown): GoogleWrappingKeyErrorCode | null {
   if (!isExactRecord(value, ["error"]) || !isExactRecord(value.error, ["code"])) return null;
   if (typeof value.error.code !== "string") return null;
-  return KNOWN_ROUTE_ERROR_CODES.has(value.error.code as GoogleWrappingKeyRequesterErrorCode)
-    ? value.error.code as GoogleWrappingKeyRequesterErrorCode
+  return KNOWN_ROUTE_ERROR_CODES.has(value.error.code as GoogleWrappingKeyErrorCode)
+    ? value.error.code as GoogleWrappingKeyErrorCode
     : null;
 }
 
@@ -91,6 +91,6 @@ function isExactRecord(value: unknown, keys: string[]): value is Record<string, 
   return actualKeys.length === keys.length && keys.every((key) => Object.hasOwn(value, key));
 }
 
-function failure(code: GoogleWrappingKeyRequesterErrorCode) {
+function failure(code: GoogleWrappingKeyErrorCode): GoogleWrappingKeyResult {
   return Result.err({ code });
 }

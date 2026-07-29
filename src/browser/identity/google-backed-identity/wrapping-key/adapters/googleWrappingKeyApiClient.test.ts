@@ -24,7 +24,7 @@ describe("GoogleWrappingKeyApiClient", () => {
       },
     });
 
-    const result = await requester.requestWrappingKey({ googleIdToken: "id-token" });
+    const result = await requester.requestWrappingKey("id-token");
 
     expect(Result.isError(result)).toBe(false);
     expect(endpoint).toBe("/api/wrapping-key/google");
@@ -41,7 +41,7 @@ describe("GoogleWrappingKeyApiClient", () => {
       },
     });
 
-    const result = await requester.requestWrappingKey({ googleIdToken: "id-token" });
+    const result = await requester.requestWrappingKey("id-token");
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "unsupported_google_audience" });
@@ -53,14 +53,14 @@ describe("GoogleWrappingKeyApiClient", () => {
         return Response.json({ error: { code: "future_error" } }, { status: 401 });
       },
     });
-    const result = await requester.requestWrappingKey({ googleIdToken: "id-token" });
+    const result = await requester.requestWrappingKey("id-token");
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "invalid_response" });
   });
 
   it("returns invalid_response when the route has no valid error body", async () => {
     const requester = new GoogleWrappingKeyApiClient({ async fetch() { return new Response("unavailable", { status: 503 }); } });
-    const result = await requester.requestWrappingKey({ googleIdToken: "id-token" });
+    const result = await requester.requestWrappingKey("id-token");
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "invalid_response" });
   });
@@ -74,7 +74,7 @@ describe("GoogleWrappingKeyApiClient", () => {
     { wrappingKey: `${"A".repeat(42)}*` },
   ])("rejects invalid or non-canonical wrapping-key responses", async (body) => {
     const requester = new GoogleWrappingKeyApiClient({ async fetch() { return Response.json(body); } });
-    const result = await requester.requestWrappingKey({ googleIdToken: "id-token" });
+    const result = await requester.requestWrappingKey("id-token");
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "invalid_response" });
   });
@@ -90,7 +90,7 @@ describe("GoogleWrappingKeyApiClient", () => {
         async fetch() { return Response.json({ wrappingKey }); },
       });
 
-      expect(Result.isOk(await requester.requestWrappingKey({ googleIdToken: "id-token" }))).toBe(true);
+      expect(Result.isOk(await requester.requestWrappingKey("id-token"))).toBe(true);
     }
 
     expect(terminalCharacters).toEqual(["A", "E", "I", "M", "Q", "U", "Y", "c", "g", "k", "o", "s", "w", "0", "4", "8"]);
@@ -107,7 +107,7 @@ describe("GoogleWrappingKeyApiClient", () => {
       const requester = new GoogleWrappingKeyApiClient({
         async fetch() { return Response.json({ wrappingKey }); },
       });
-      const result = await requester.requestWrappingKey({ googleIdToken: "id-token" });
+      const result = await requester.requestWrappingKey("id-token");
       expect(Result.isError(result)).toBe(false);
       if (!Result.isError(result)) expect(result.value).toBe(wrappingKey);
     }
@@ -119,14 +119,14 @@ describe("GoogleWrappingKeyApiClient", () => {
         return Response.json({ padding: "x".repeat(16 * 1024) });
       },
     });
-    const result = await requester.requestWrappingKey({ googleIdToken: "id-token" });
+    const result = await requester.requestWrappingKey("id-token");
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "invalid_response" });
   });
 
   it("maps fetch failures to network_failed", async () => {
     const requester = new GoogleWrappingKeyApiClient({ async fetch() { throw new TypeError("offline"); } });
-    const result = await requester.requestWrappingKey({ googleIdToken: "id-token" });
+    const result = await requester.requestWrappingKey("id-token");
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "network_failed" });
   });

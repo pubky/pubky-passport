@@ -7,6 +7,9 @@ import { MemoryStorage } from "../../../test-utils/fakes/memoryStorage";
 const MOCKS = vi.hoisted(() => ({
   PubkySdkAdapter: vi.fn(),
   dispose: vi.fn(),
+  restoreIdentityKey: vi.fn(),
+  disposeIdentityKey: vi.fn(),
+  approveAuthRequest: vi.fn(),
 }));
 
 vi.mock("../pubky/adapters/pubkySdkAdapter", () => ({
@@ -23,7 +26,12 @@ describe("createBrowserAuthorizationController", () => {
     MOCKS.PubkySdkAdapter.mockReset();
     MOCKS.dispose.mockReset();
     MOCKS.PubkySdkAdapter.mockImplementation(function () {
-      return { dispose: MOCKS.dispose };
+      return {
+        dispose: MOCKS.dispose,
+        restoreIdentityKey: MOCKS.restoreIdentityKey,
+        disposeIdentityKey: MOCKS.disposeIdentityKey,
+        approveAuthRequest: MOCKS.approveAuthRequest,
+      };
     });
     window.history.replaceState({}, "", "/");
   });

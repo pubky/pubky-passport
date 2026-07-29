@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { MemoryStorage } from "../../../../../test-utils/fakes/memoryStorage";
 import { expectResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
-import { PUBKY_SECRET_KEY_FORMAT } from "../../../pubky/application/pubkyIdentityKeys";
+import { PUBKY_SECRET_KEY_FORMAT } from "../../../pubky/application/pubkyIdentityKey";
 import { LocalStorageIdentityRepository } from "./localStorageIdentityRepository";
 
 const FIRST_IDENTITY = { publicKeyZ32: "firstidentity111111111111111111111111111111111111111111", publicKeyDisplay: "pubkyfirstidentity111111111111111111111111111111111111111111" };
@@ -96,8 +96,8 @@ describe("LocalStorageIdentityRepository", () => {
 });
 
 function save(repository: LocalStorageIdentityRepository, publicIdentity: typeof FIRST_IDENTITY, byte: number) {
-  return expectResultOk(repository.save({
-    identity: { id: publicIdentity.publicKeyZ32, publicIdentity },
-    secretKey: { bytes: new Uint8Array(32).fill(byte), format: PUBKY_SECRET_KEY_FORMAT },
-  }));
+  return expectResultOk(repository.save(
+    { id: publicIdentity.publicKeyZ32, publicIdentity },
+    { bytes: new Uint8Array(32).fill(byte), format: PUBKY_SECRET_KEY_FORMAT },
+  ));
 }

@@ -2,7 +2,7 @@ import "client-only";
 
 import type { Result } from "better-result";
 
-export type GoogleWrappingKeyRequesterErrorCode =
+export type GoogleWrappingKeyErrorCode =
   | "invalid_request"
   | "invalid_google_id_token"
   | "expired_google_id_token"
@@ -15,8 +15,4 @@ export type GoogleWrappingKeyRequesterErrorCode =
   | "invalid_response"
   | "network_failed";
 
-export type GoogleWrappingKeyRequester = {
-  requestWrappingKey(input: {
-    googleIdToken: string;
-  }): Promise<Result<string, { code: GoogleWrappingKeyRequesterErrorCode }>>;
-};
+export type GoogleWrappingKeyResult = Result<string, { code: GoogleWrappingKeyErrorCode }>;

@@ -7,7 +7,7 @@ import type {
   GoogleAccounts,
   GoogleIdentityServicesLoader,
 } from "../../google-identity-services/application/googleIdentityServices";
-import type { GoogleDriveAccessRequester, GoogleDriveAccessResult } from "../application/googleDriveAccess";
+import type { GoogleDriveAccessResult } from "../application/googleDriveAccess";
 
 export const GOOGLE_DRIVE_APP_DATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
 const GOOGLE_OPEN_ID_SCOPE = "openid";
@@ -16,32 +16,6 @@ const DRIVE_CONSENT_TIMEOUT_MS = 60_000;
 const MAXIMUM_USER_INFO_RESPONSE_BYTES = 16 * 1024;
 const MAXIMUM_GOOGLE_SUBJECT_CHARACTERS = 255;
 type GoogleSubjectVerification = "match" | "mismatch" | "unavailable" | "aborted";
-
-export class GoogleIdentityServicesDriveAccessRequester implements GoogleDriveAccessRequester {
-  readonly #fetch: typeof fetch;
-  readonly #googleIdentityServices: GoogleIdentityServicesLoader;
-  readonly #timeoutMs: number;
-
-  constructor(options: { googleIdentityServices: GoogleIdentityServicesLoader; fetch?: typeof fetch; timeoutMs?: number }) {
-    this.#googleIdentityServices = options.googleIdentityServices;
-    this.#fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
-    this.#timeoutMs = options.timeoutMs ?? DRIVE_CONSENT_TIMEOUT_MS;
-  }
-
-  async request(input: {
-    clientId: string;
-    loginHint: string;
-    expectedSubject: string;
-    signal: AbortSignal;
-  }): Promise<GoogleDriveAccessResult<string>> {
-    return requestGoogleDriveAccessToken({
-      ...input,
-      googleIdentityServices: this.#googleIdentityServices,
-      fetch: this.#fetch,
-      timeoutMs: this.#timeoutMs,
-    });
-  }
-}
 
 export async function requestGoogleDriveAccessToken(input: {
   googleIdentityServices: GoogleIdentityServicesLoader;

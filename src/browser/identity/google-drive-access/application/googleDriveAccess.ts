@@ -13,12 +13,3 @@ export type GoogleDriveAccessErrorCode =
   | "google_drive_authorization_account_mismatch";
 
 export type GoogleDriveAccessResult<T> = Result<T, { code: GoogleDriveAccessErrorCode }>;
-
-export type GoogleDriveAccessRequester = {
-  request(input: {
-    clientId: string;
-    loginHint: string;
-    expectedSubject: string;
-    signal: AbortSignal;
-  }): Promise<GoogleDriveAccessResult<string>>;
-};

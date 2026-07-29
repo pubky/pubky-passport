@@ -12,14 +12,15 @@ export const SOURCE_EXTENSIONS = Object.freeze([
 export const BROWSER_CONTROLLER_CONTRACT = "browser[A-Z][A-Za-z0-9]*Controller";
 export const BROWSER_CONTROLLER_FACTORY = "createBrowser[A-Z][A-Za-z0-9]*Controller";
 export const BROWSER_CONTROLLER_IMPLEMENTATION = "passport[A-Z][A-Za-z0-9]*Controller";
-export const STABLE_BROWSER_ENTRY = `(?:${BROWSER_CONTROLLER_CONTRACT}|${BROWSER_CONTROLLER_FACTORY})`;
+export const BROWSER_FUNCTION_ENTRY = "browserManualAuthorization";
+export const STABLE_BROWSER_ENTRY = `(?:${BROWSER_CONTROLLER_CONTRACT}|${BROWSER_CONTROLLER_FACTORY}|${BROWSER_FUNCTION_ENTRY})`;
 
 const ROLE_IMPORT_PATTERNS = Object.freeze({
   application: "(?:^|/)application(?:/|$)",
   adapter: "(?:^|/)adapters(?:/|$)",
   composition: `(?:^|/)composition(?:/|$)|(?:^|/)${BROWSER_CONTROLLER_FACTORY}$`,
   controller: `(?:^|/)${BROWSER_CONTROLLER_IMPLEMENTATION}$`,
-  public: `(?:^|/)${BROWSER_CONTROLLER_CONTRACT}$`,
+  public: `(?:^|/)(?:${BROWSER_CONTROLLER_CONTRACT}|${BROWSER_FUNCTION_ENTRY})$`,
 });
 
 const ROLE_PATH_SEGMENTS = Object.freeze({
@@ -27,7 +28,7 @@ const ROLE_PATH_SEGMENTS = Object.freeze({
   adapter: "adapters",
   composition: "composition",
   controller: BROWSER_CONTROLLER_IMPLEMENTATION,
-  public: BROWSER_CONTROLLER_CONTRACT,
+  public: `(?:${BROWSER_CONTROLLER_CONTRACT}|${BROWSER_FUNCTION_ENTRY})`,
 });
 
 export const BROWSER_ROLE_RULES = Object.freeze([
@@ -39,17 +40,22 @@ export const BROWSER_ROLE_RULES = Object.freeze([
     forbiddenRoles: ["composition", "controller", "public"],
     forbiddenRoots: ["src/libs/env", "src/ui"],
     forbiddenSpecifiers: [],
+    allowedTransitiveTargets: [],
     message: "Browser application modules may use adapters but must not depend on controllers, public controller contracts, composition roots, public environment configuration, or UI.",
   }),
   Object.freeze({
     id: "browser-public-contract-inward",
-    description: "keeps public browser contracts independent from concrete controllers and outward layers",
+    description: "keeps stable public browser APIs independent from concrete controllers and outward layers",
     sourceRole: "public",
-    eslintFiles: ["src/browser/*/browser*Controller.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    eslintFiles: [
+      "src/browser/*/browser*Controller.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+      "src/browser/authorization/browserManualAuthorization.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+    ],
     forbiddenRoles: ["adapter", "composition", "controller"],
     forbiddenRoots: ["src/libs/env", "src/ui"],
     forbiddenSpecifiers: [],
-    message: "Public browser controller contracts must not depend on concrete controllers, composition, adapters, public env, or UI.",
+    allowedTransitiveTargets: [],
+    message: "Stable public browser APIs must not depend on concrete controllers, composition, adapters, public env, or UI.",
   }),
   Object.freeze({
     id: "browser-controller-inward",
@@ -59,7 +65,8 @@ export const BROWSER_ROLE_RULES = Object.freeze([
     forbiddenRoles: ["adapter", "composition"],
     forbiddenRoots: ["src/libs/env", "src/ui"],
     forbiddenSpecifiers: [],
-    message: "Browser controllers may depend on public and application contracts, not composition, adapters, public env, or UI.",
+    allowedTransitiveTargets: ["src/browser/pubky/adapters/pubkySdkAdapter.ts"],
+    message: "Browser controllers may depend on public and application contracts. Pubky application flows may carry the concrete stateful SDK adapter to preserve opaque-handle affinity.",
   }),
   Object.freeze({
     id: "browser-adapter-inward",
@@ -69,6 +76,7 @@ export const BROWSER_ROLE_RULES = Object.freeze([
     forbiddenRoles: ["adapter", "composition", "controller", "public"],
     forbiddenRoots: ["src/libs/env", "src/ui", "src/server"],
     forbiddenSpecifiers: ["server-only"],
+    allowedTransitiveTargets: [],
     message: "Browser adapters may depend on application contracts, not controllers, UI, composition roots, or runtime configuration.",
   }),
   Object.freeze({
@@ -82,6 +90,7 @@ export const BROWSER_ROLE_RULES = Object.freeze([
     forbiddenRoles: [],
     forbiddenRoots: ["src/ui", "src/server"],
     forbiddenSpecifiers: ["server-only"],
+    allowedTransitiveTargets: [],
     message: "Browser composition roots may wire browser features but must not depend on UI or server runtime code.",
   }),
 ]);
@@ -132,6 +141,7 @@ export function browserModuleRole(relativePath) {
   if (segments.length === 2) {
     const fileName = segments[1] ?? "";
     if (new RegExp(`^${BROWSER_CONTROLLER_CONTRACT}\\.(?:[cm]?[jt]sx?)$`, "u").test(fileName)) return "public";
+    if (new RegExp(`^${BROWSER_FUNCTION_ENTRY}\\.(?:[cm]?[jt]sx?)$`, "u").test(fileName)) return "public";
     if (new RegExp(`^${BROWSER_CONTROLLER_FACTORY}\\.(?:[cm]?[jt]sx?)$`, "u").test(fileName)) return "composition";
     if (new RegExp(`^${BROWSER_CONTROLLER_IMPLEMENTATION}\\.(?:[cm]?[jt]sx?)$`, "u").test(fileName)) return "controller";
   }

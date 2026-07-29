@@ -1,14 +1,26 @@
 /** @vitest-environment jsdom */
 
+import { Result } from "better-result";
 import { describe, expect, it, vi } from "vitest";
-
-import type { LocalIdentityKeyStore } from "../../local-identity/application/localIdentityRepository";
 
 const MOCKS = vi.hoisted(() => ({
   PubkySdkAdapter: vi.fn(),
-  pubky: { dispose: vi.fn() },
+  pubky: {
+    createIdentityKey: vi.fn(),
+    restoreIdentityKey: vi.fn(),
+    disposeIdentityKey: vi.fn(),
+    exportSecretKey: vi.fn(),
+    getPublicIdentity: vi.fn(),
+    signup: vi.fn(),
+    signin: vi.fn(),
+    publishHomeserverIfStale: vi.fn(),
+    dispose: vi.fn(),
+  },
   WebCryptoPassportFileCrypto: vi.fn(),
-  crypto: {},
+  crypto: {
+    encryptSecretKeyBytes() {},
+    decryptSecretKeyBytes() {},
+  },
   SaveLocalIdentity: vi.fn(),
   localIdentities: {},
   CreateGoogleBackedIdentity: vi.fn(),
@@ -20,7 +32,7 @@ const MOCKS = vi.hoisted(() => ({
   HomegateClient: vi.fn(),
   homegate: {},
   GoogleWrappingKeyApiClient: vi.fn(),
-  wrappingKeyRequester: {},
+  wrappingKeyApiClient: { requestWrappingKey() {} },
 }));
 
 vi.mock("../../../pubky/adapters/pubkySdkAdapter", () => ({
@@ -65,12 +77,12 @@ describe("GoogleBackedIdentityOperations", () => {
   it("wires and delegates Google-backed identity operations", async () => {
     const identityEstablisher = operationDouble();
     const passportFileDeleter = deletionDouble();
-    const keyStore = keyStoreStub();
+    const saveIdentityRecord = sanitizedSaveIdentityRecord();
     prepareConstructors({ identityEstablisher, passportFileDeleter });
     const credentials = { googleIdToken: "google-id-token", driveAccessToken: "drive-access-token" };
 
     const operations = new GoogleBackedIdentityOperations({
-      keyStore,
+      saveIdentityRecord,
       homegateBaseUrl: "https://homegate.example/api/",
       passportOrigin: "https://passport.example",
     });
@@ -79,35 +91,35 @@ describe("GoogleBackedIdentityOperations", () => {
       homegateBaseUrl: "https://homegate.example/api/",
     });
     expect(MOCKS.SaveLocalIdentity).toHaveBeenCalledWith({
-      keyStore,
-      identityKeys: MOCKS.pubky,
+      saveIdentityRecord,
+      pubky: MOCKS.pubky,
     });
     expect(MOCKS.RestoreGoogleBackedIdentity).toHaveBeenCalledWith({
-      crypto: MOCKS.crypto,
-      identityKeys: MOCKS.pubky,
-      sessionAccess: MOCKS.pubky,
+      decryptSecretKeyBytes: expect.any(Function),
+      pubky: MOCKS.pubky,
       localIdentities: MOCKS.localIdentities,
       passportOrigin: "https://passport.example",
     });
     expect(MOCKS.CreateGoogleBackedIdentity).toHaveBeenCalledWith({
-      crypto: MOCKS.crypto,
-      identityKeys: MOCKS.pubky,
-      sessionAccess: MOCKS.pubky,
-      discovery: MOCKS.pubky,
+      encryptSecretKeyBytes: expect.any(Function),
+      pubky: MOCKS.pubky,
       localIdentities: MOCKS.localIdentities,
       passportOrigin: "https://passport.example",
     });
     expect(MOCKS.EstablishGoogleBackedIdentity).toHaveBeenCalledWith({
-      wrappingKeyRequester: MOCKS.wrappingKeyRequester,
-      passportFileStoreForAccessToken: expect.any(Function),
+      requestWrappingKey: expect.any(Function),
+      readPassportFile: expect.any(Function),
+      createPassportFile: expect.any(Function),
       homegate: MOCKS.homegate,
       restoreExistingIdentity: MOCKS.restoreExistingIdentity,
       createMissingIdentity: MOCKS.createMissingIdentity,
     });
     expect(MOCKS.DeleteGoogleDrivePassportFile).toHaveBeenCalledWith(expect.objectContaining({
-      wrappingKeyRequester: MOCKS.wrappingKeyRequester,
-      crypto: MOCKS.crypto,
-      identityKeys: MOCKS.pubky,
+      requestWrappingKey: expect.any(Function),
+      readPassportFile: expect.any(Function),
+      deletePassportFile: expect.any(Function),
+      decryptSecretKeyBytes: expect.any(Function),
+      pubky: MOCKS.pubky,
       passportOrigin: "https://passport.example",
     }));
 
@@ -134,7 +146,7 @@ describe("GoogleBackedIdentityOperations", () => {
     });
 
     expect(() => new GoogleBackedIdentityOperations({
-      keyStore: keyStoreStub(),
+      saveIdentityRecord: sanitizedSaveIdentityRecord(),
       homegateBaseUrl: "https://homegate.example/",
       passportOrigin: "https://passport.example",
     })).toThrow("construction failed");
@@ -157,7 +169,7 @@ function prepareConstructors(input: {
     return MOCKS.localIdentities;
   });
   MOCKS.GoogleWrappingKeyApiClient.mockImplementation(function () {
-    return MOCKS.wrappingKeyRequester;
+    return MOCKS.wrappingKeyApiClient;
   });
   MOCKS.HomegateClient.mockImplementation(function () {
     return MOCKS.homegate;
@@ -200,6 +212,6 @@ function deletionDouble() {
   };
 }
 
-function keyStoreStub(): LocalIdentityKeyStore {
-  return {} as LocalIdentityKeyStore;
+function sanitizedSaveIdentityRecord() {
+  return () => Result.err({ code: "storage_unavailable" as const });
 }

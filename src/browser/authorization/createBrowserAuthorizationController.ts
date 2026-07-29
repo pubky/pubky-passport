@@ -58,9 +58,10 @@ async function approveWithPubkySdk(
 function createRestoreActiveAuthorizationIdentity(
   pubky: PubkySdkAdapter,
 ): () => Promise<ActiveAuthorizationIdentityRestoreResult> {
+  const repository = new LocalStorageIdentityRepository();
   const localIdentities = new RestoreActiveLocalIdentityKey({
-    keyStore: new LocalStorageIdentityRepository(),
-    identityKeys: pubky,
+    readActive: repository.readActive.bind(repository),
+    pubky,
   });
 
   return async () => {

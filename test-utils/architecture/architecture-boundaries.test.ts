@@ -199,6 +199,8 @@ describe("architecture boundaries", () => {
           ...rule.forbiddenRoles.flatMap((role) =>
             (BROWSER_MODULES_BY_ROLE.get(role) ?? [])
               .filter((targetPath) => targetPath !== filePath)
+              .filter((targetPath) => !(rule.allowedTransitiveTargets ?? [])
+                .some((allowedPath) => targetPath === resolve(REPO_ROOT, allowedPath)))
               .map((targetPath) => ({ targetPath, label: `browser ${role} module` }))
           ),
           ...rule.forbiddenRoots.map((root) => ({

@@ -2,22 +2,22 @@
 
 import { useState, type FormEvent } from "react";
 
-import type { BrowserManualAuthorizationController } from "../browser/authorization/browserManualAuthorizationController";
-import { createBrowserManualAuthorizationController } from "../browser/authorization/createBrowserManualAuthorizationController";
-
-const DEFAULT_AUTHORIZATION = createBrowserManualAuthorizationController();
+import {
+  enterAuthorization as enterBrowserAuthorization,
+  type ManualAuthorizationEntryResult,
+} from "../browser/authorization/browserManualAuthorization";
 
 export function ManualAuthorizationForm({
-  authorization = DEFAULT_AUTHORIZATION,
+  enterAuthorization = enterBrowserAuthorization,
 }: {
-  authorization?: BrowserManualAuthorizationController;
+  enterAuthorization?: (rawRequest: string) => ManualAuthorizationEntryResult;
 }) {
   const [request, setRequest] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    const result = authorization.enter(request);
+    const result = enterAuthorization(request);
     setRequest("");
     if (result === "invalid") {
       setError("The invalid request was cleared for security. Correct it in the source app, then paste the complete request again.");
