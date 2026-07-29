@@ -4,9 +4,11 @@ import type { Result } from "better-result";
 
 import type { PubkyPublicIdentity } from "../../../../core/identity/pubkyIdentity";
 import type { PassportFileEnvelopeV1 } from "../../../../core/passport-file/passportFile";
+import type {
+  HomegateInvitationErrorCode,
+  HomeserverSignupInvitation,
+} from "../../../homegate/application/homegateInvitation";
 import type { PassportFileStore } from "../../../passport-file/application/passportFileStore";
-import type { GoogleHomegateInvitationRequesterErrorCode } from "../homegate-invitation/application/homegateInvitation";
-import type { HomeserverSignupInvitation } from "./homeserverSignupInvitation";
 
 export type GoogleIdentitySession = {
   googleIdToken: string;
@@ -37,7 +39,7 @@ export type GoogleBackedIdentityError =
     }
   | {
       code: "homegate_invite_failed";
-      cause: GoogleHomegateInvitationRequesterErrorCode;
+      cause: HomegateInvitationErrorCode;
       recoverablePublicIdentity?: never;
     };
 

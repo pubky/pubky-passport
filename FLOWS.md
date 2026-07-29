@@ -563,15 +563,16 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Missing identity activation and local save call flow
-    accDescr: CreateGoogleBackedIdentity requests and parses a Homegate invitation, then signs up, verifies, publishes discovery, and saves in order; each failure stops later stages and the generated key handle is always disposed.
+    accDescr: EstablishGoogleBackedIdentity requests a Homegate invitation, then CreateGoogleBackedIdentity signs up, verifies, publishes discovery, and saves in order; each failure stops later stages and the generated key handle is always disposed.
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
+        participant Establish as establishGoogleBackedIdentity.ts<br/>EstablishGoogleBackedIdentity
         participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/application
         participant Local as saveLocalIdentity.ts<br/>SaveLocalIdentity
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/homegate-invitation/adapters
-        participant Invite as googleHomegateInvitationRequester.ts<br/>BrowserGoogleHomegateInvitationRequester
+    box rgba(0, 158, 115, 0.18) src/browser/homegate/adapters
+        participant Invite as homegateClient.ts<br/>HomegateClient
     end
     box rgba(0, 158, 115, 0.18) src/browser/pubky/adapters
         participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
@@ -584,14 +585,15 @@ sequenceDiagram
         participant Homegate as Homegate<br/>/google_verification
     end
 
-    Creator->>Invite: requestSignupInvitation(ID token)
+    Establish->>Invite: requestGoogleSignupInvitation(ID token)
     Invite->>Homegate: POST { googleIdToken }
     Homegate-->>Invite: invitation or plaintext error
     alt Homegate error
-        Invite-->>Creator: safe invitation failure
+        Invite-->>Establish: safe invitation failure
     else Invitation response
         Note over Invite: Parse exact bounded response
-        Invite-->>Creator: validated invitation
+        Invite-->>Establish: validated invitation
+        Establish->>Creator: execute(validated invitation)
         Creator->>Pubky: signup(handle, homeserver, signup code)
         Pubky->>SDK: signer.signup(...)
         Note over SDK: Homeserver signup transport is SDK-owned
@@ -805,14 +807,14 @@ sequenceDiagram
     accTitle: Direct browser Homegate invitation call flow
     accDescr: The browser adapter sends only the Google ID token directly to configured Homegate, then bounds and maps the invitation or plaintext error to a safe application result.
     box rgba(0, 158, 115, 0.18) Browser runtime
-        participant UseCase as APPLICATION<br/>CreateGoogleBackedIdentity
-        participant Adapter as BROWSER<br/>BrowserGoogleHomegateInvitationRequester
+        participant UseCase as APPLICATION<br/>EstablishGoogleBackedIdentity
+        participant Adapter as BROWSER<br/>HomegateClient
     end
     box rgba(17, 24, 39, 0.12) External
         participant Homegate as Homegate
     end
 
-    UseCase->>Adapter: requestSignupInvitation(ID token)
+    UseCase->>Adapter: requestGoogleSignupInvitation(ID token)
     alt Empty or oversized token
         Adapter-->>UseCase: homegate_invalid_request
     else Valid bounded token
@@ -838,5 +840,5 @@ sequenceDiagram
 | Pubky SDK adapter | `src/browser/pubky/adapters/pubkySdkAdapter.ts` | `adapters/pubkySdkAdapter.test.ts` |
 | Wrapping-key API | `src/app/api/wrapping-key/google`, `src/server/wrapping-key/google` | Route and server tests |
 | Browser bootstrap config | `src/server/config/browserBootstrapConfig.ts` | `browserBootstrapConfig.test.ts`, proxy tests |
-| Homegate invitation | `src/browser/identity/google-backed-identity/homegate-invitation` | Colocated browser adapter tests |
+| Homegate invitation | `src/browser/homegate` | Colocated browser application and adapter tests |
 | CSP and boundaries | `proxy.ts`, `next.config.mjs`, architecture test | Proxy, header, policy, architecture tests |

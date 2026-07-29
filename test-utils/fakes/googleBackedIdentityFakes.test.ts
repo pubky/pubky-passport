@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   fakePassportEnvelope,
   fakePassportReference,
-  FakeGoogleHomegateInvitationRequester,
+  FakeGoogleSignupInvitationRequester,
   FakePassportCrypto,
   FakePassportFileStore,
 } from "./googleBackedIdentityFakes";
@@ -12,7 +12,7 @@ describe("Google-backed identity fakes", () => {
   it("exposes only safe metadata through serializable call records", async () => {
     const fileStore = new FakePassportFileStore({ status: "missing" });
     const crypto = new FakePassportCrypto();
-    const homegate = new FakeGoogleHomegateInvitationRequester();
+    const homegate = new FakeGoogleSignupInvitationRequester();
     const secretKeyBytes = new Uint8Array(32).fill(93);
 
     await fileStore.createPassportFile({ envelope: fakePassportEnvelope });
@@ -22,7 +22,7 @@ describe("Google-backed identity fakes", () => {
       wrappingKey: "SYNTHETIC-WRAPPING-MATERIAL",
       passportOrigin: "https://passport.pubky.app",
     });
-    await homegate.requestSignupInvitation({ googleIdToken: "SYNTHETIC-GOOGLE-ID-TOKEN" });
+    await homegate.requestGoogleSignupInvitation({ googleIdToken: "SYNTHETIC-GOOGLE-ID-TOKEN" });
 
     const publicRecords = JSON.stringify({ fileStore, crypto, homegate });
     expect(publicRecords).toContain('"hasGoogleIdToken":true');

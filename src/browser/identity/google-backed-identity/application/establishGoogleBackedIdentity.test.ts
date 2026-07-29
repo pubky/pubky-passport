@@ -6,7 +6,7 @@ import {
   fakePassportEnvelope,
   fakePassportReference,
   fakeSignupInvitation,
-  FakeGoogleHomegateInvitationRequester,
+  FakeGoogleSignupInvitationRequester,
   FakePassportFileStore,
 } from "../../../../../test-utils/fakes/googleBackedIdentityFakes";
 import { expectResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
@@ -30,7 +30,7 @@ describe("EstablishGoogleBackedIdentity", () => {
     });
     const restoreExistingIdentity = restorer();
     const createMissingIdentity = creator();
-    const homegate = new FakeGoogleHomegateInvitationRequester();
+    const homegate = new FakeGoogleSignupInvitationRequester();
     const subject = createSubject({ fileStore, restoreExistingIdentity, createMissingIdentity, homegate });
 
     const result = await subject.establish(fakeGoogleIdentitySession);
@@ -47,7 +47,7 @@ describe("EstablishGoogleBackedIdentity", () => {
   it("requests Homegate before routing a missing Drive identity to creation", async () => {
     const events: string[] = [];
     const fileStore = new FakePassportFileStore({ status: "missing" });
-    const homegate = new FakeGoogleHomegateInvitationRequester(() => events.push("homegate"));
+    const homegate = new FakeGoogleSignupInvitationRequester(() => events.push("homegate"));
     const createMissingIdentity = creator(async () => {
       events.push("create");
       return Result.ok({ source: "created", publicIdentity });
@@ -67,7 +67,7 @@ describe("EstablishGoogleBackedIdentity", () => {
   });
 
   it("stops before creation when Homegate fails", async () => {
-    const homegate = new FakeGoogleHomegateInvitationRequester();
+    const homegate = new FakeGoogleSignupInvitationRequester();
     homegate.failure = "homegate_unavailable";
     const createMissingIdentity = creator();
     const subject = createSubject({
@@ -107,9 +107,9 @@ describe("EstablishGoogleBackedIdentity", () => {
         : { status: "missing" });
       const restoreExistingIdentity = restorer(async () => { throw new Error("restore secret"); });
       const createMissingIdentity = creator(async () => { throw new Error("create secret"); });
-      const homegate = new FakeGoogleHomegateInvitationRequester();
+      const homegate = new FakeGoogleSignupInvitationRequester();
       if (stage === "homegate") {
-        homegate.requestSignupInvitation = async () => { throw new Error("Homegate secret"); };
+        homegate.requestGoogleSignupInvitation = async () => { throw new Error("Homegate secret"); };
       }
       const subject = createSubject({ fileStore, restoreExistingIdentity, createMissingIdentity, homegate });
 
@@ -124,7 +124,7 @@ function createSubject(input: {
   fileStore?: FakePassportFileStore;
   restoreExistingIdentity?: GoogleBackedIdentityRestorer;
   createMissingIdentity?: GoogleBackedIdentityCreator;
-  homegate?: FakeGoogleHomegateInvitationRequester;
+  homegate?: FakeGoogleSignupInvitationRequester;
   wrappingFailure?: boolean;
 } = {}): EstablishGoogleBackedIdentity {
   const fileStore = input.fileStore ?? new FakePassportFileStore({ status: "missing" });
@@ -141,7 +141,7 @@ function createSubject(input: {
       expect(accessToken).toBe("drive-token");
       return fileStore;
     },
-    homegateInvitationRequester: input.homegate ?? new FakeGoogleHomegateInvitationRequester(),
+    homegate: input.homegate ?? new FakeGoogleSignupInvitationRequester(),
     restoreExistingIdentity: input.restoreExistingIdentity ?? restorer(),
     createMissingIdentity: input.createMissingIdentity ?? creator(),
   });

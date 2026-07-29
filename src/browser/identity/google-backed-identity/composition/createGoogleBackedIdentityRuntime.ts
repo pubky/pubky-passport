@@ -1,5 +1,6 @@
 import "client-only";
 
+import { HomegateClient } from "../../../homegate/adapters/homegateClient";
 import { GoogleDrivePassportFileStore } from "../../../passport-file/adapters/googleDrivePassportFileStore";
 import { WebCryptoPassportFileCrypto } from "../../../passport-file/adapters/webCryptoPassportFileCrypto";
 import { PubkySdkAdapter } from "../../../pubky/adapters/pubkySdkAdapter";
@@ -13,15 +14,16 @@ import type {
   GoogleIdentityEstablisher,
 } from "../application/googleBackedIdentity";
 import { RestoreGoogleBackedIdentity } from "../application/restoreGoogleBackedIdentity";
-import { BrowserGoogleHomegateInvitationRequester } from "../homegate-invitation/adapters/googleHomegateInvitationRequester";
 import { BrowserGoogleWrappingKeyRequester } from "../wrapping-key/adapters/googleWrappingKeyRequester";
 
+// TODO: could be a class.
 export type GoogleBackedIdentityRuntime = {
   identityEstablisher: GoogleIdentityEstablisher;
   identityDeleter: GoogleDriveIdentityDeleter;
   dispose(): void;
 };
 
+// TODO: rename to service
 export function createGoogleBackedIdentityRuntime(input: {
   keyStore: LocalIdentityKeyStore;
   homegateBaseUrl: string;
@@ -31,7 +33,7 @@ export function createGoogleBackedIdentityRuntime(input: {
   try {
     const localIdentities = new SaveLocalIdentity({ keyStore: input.keyStore, identityKeys: pubky });
     const wrappingKeys = new BrowserGoogleWrappingKeyRequester();
-    const homegateInvitationRequester = new BrowserGoogleHomegateInvitationRequester({
+    const homegate = new HomegateClient({
       homegateBaseUrl: input.homegateBaseUrl,
     });
     const crypto = new WebCryptoPassportFileCrypto();
@@ -57,7 +59,7 @@ export function createGoogleBackedIdentityRuntime(input: {
     const identityEstablisher = new EstablishGoogleBackedIdentity({
       wrappingKeys,
       passportFileStoreForAccessToken,
-      homegateInvitationRequester,
+      homegate,
       restoreExistingIdentity,
       createMissingIdentity,
     });

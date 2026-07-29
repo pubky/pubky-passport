@@ -17,8 +17,8 @@ const mocks = vi.hoisted(() => ({
   EstablishGoogleBackedIdentity: vi.fn(),
   RestoreGoogleBackedIdentity: vi.fn(),
   restoreExistingIdentity: {},
-  BrowserGoogleHomegateInvitationRequester: vi.fn(),
-  homegateInvitationRequester: {},
+  HomegateClient: vi.fn(),
+  homegate: {},
   BrowserGoogleWrappingKeyRequester: vi.fn(),
   wrappingKeys: {},
 }));
@@ -51,8 +51,8 @@ vi.mock("../application/restoreGoogleBackedIdentity", () => ({
   RestoreGoogleBackedIdentity: mocks.RestoreGoogleBackedIdentity,
 }));
 
-vi.mock("../homegate-invitation/adapters/googleHomegateInvitationRequester", () => ({
-  BrowserGoogleHomegateInvitationRequester: mocks.BrowserGoogleHomegateInvitationRequester,
+vi.mock("../../../homegate/adapters/homegateClient", () => ({
+  HomegateClient: mocks.HomegateClient,
 }));
 
 vi.mock("../wrapping-key/adapters/googleWrappingKeyRequester", () => ({
@@ -74,7 +74,7 @@ describe("createGoogleBackedIdentityRuntime", () => {
       passportOrigin: "https://passport.example",
     });
 
-    expect(mocks.BrowserGoogleHomegateInvitationRequester).toHaveBeenCalledWith({
+    expect(mocks.HomegateClient).toHaveBeenCalledWith({
       homegateBaseUrl: "https://homegate.example/api/",
     });
     expect(mocks.SaveLocalIdentity).toHaveBeenCalledWith({
@@ -99,7 +99,7 @@ describe("createGoogleBackedIdentityRuntime", () => {
     expect(mocks.EstablishGoogleBackedIdentity).toHaveBeenCalledWith({
       wrappingKeys: mocks.wrappingKeys,
       passportFileStoreForAccessToken: expect.any(Function),
-      homegateInvitationRequester: mocks.homegateInvitationRequester,
+      homegate: mocks.homegate,
       restoreExistingIdentity: mocks.restoreExistingIdentity,
       createMissingIdentity: mocks.createMissingIdentity,
     });
@@ -151,8 +151,8 @@ function prepareConstructors(input: {
   mocks.BrowserGoogleWrappingKeyRequester.mockImplementation(function () {
     return mocks.wrappingKeys;
   });
-  mocks.BrowserGoogleHomegateInvitationRequester.mockImplementation(function () {
-    return mocks.homegateInvitationRequester;
+  mocks.HomegateClient.mockImplementation(function () {
+    return mocks.homegate;
   });
   mocks.RestoreGoogleBackedIdentity.mockImplementation(function () {
     return mocks.restoreExistingIdentity;

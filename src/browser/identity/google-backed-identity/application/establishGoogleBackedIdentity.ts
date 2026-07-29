@@ -4,6 +4,7 @@ import { Result } from "better-result";
 
 import { logger } from "../../../../libs/logger/logger";
 import type { PassportFileStore } from "../../../passport-file/application/passportFileStore";
+import type { GoogleSignupInvitationRequester } from "../../../homegate/application/homegateInvitation";
 import type {
   GoogleBackedIdentityCreator,
   GoogleBackedIdentityRestorer,
@@ -13,7 +14,6 @@ import type {
   GoogleIdentitySession,
 } from "./googleBackedIdentity";
 import type { GoogleWrappingKeyRequester } from "../wrapping-key/application/googleWrappingKey";
-import type { GoogleHomegateInvitationRequester } from "../homegate-invitation/application/homegateInvitation";
 
 export type {
   GoogleBackedIdentity,
@@ -25,20 +25,20 @@ export type {
 export class EstablishGoogleBackedIdentity implements GoogleIdentityEstablisher {
   readonly #wrappingKeys: GoogleWrappingKeyRequester;
   readonly #passportFileStoreForAccessToken: (driveAccessToken: string) => PassportFileStore;
-  readonly #homegateInvitationRequester: GoogleHomegateInvitationRequester;
+  readonly #homegate: GoogleSignupInvitationRequester;
   readonly #restoreExistingIdentity: GoogleBackedIdentityRestorer;
   readonly #createMissingIdentity: GoogleBackedIdentityCreator;
 
   constructor(input: {
     wrappingKeys: GoogleWrappingKeyRequester;
     passportFileStoreForAccessToken: (driveAccessToken: string) => PassportFileStore;
-    homegateInvitationRequester: GoogleHomegateInvitationRequester;
+    homegate: GoogleSignupInvitationRequester;
     restoreExistingIdentity: GoogleBackedIdentityRestorer;
     createMissingIdentity: GoogleBackedIdentityCreator;
   }) {
     this.#wrappingKeys = input.wrappingKeys;
     this.#passportFileStoreForAccessToken = input.passportFileStoreForAccessToken;
-    this.#homegateInvitationRequester = input.homegateInvitationRequester;
+    this.#homegate = input.homegate;
     this.#restoreExistingIdentity = input.restoreExistingIdentity;
     this.#createMissingIdentity = input.createMissingIdentity;
   }
@@ -77,7 +77,7 @@ export class EstablishGoogleBackedIdentity implements GoogleIdentityEstablisher 
 
     logger.info("identity.google.drive_read.completed", { status: "missing" });
     logger.info("identity.google.homegate_invite.started");
-    const invitation = await this.#homegateInvitationRequester.requestSignupInvitation({
+    const invitation = await this.#homegate.requestGoogleSignupInvitation({
       googleIdToken: google.googleIdToken,
     });
     if (Result.isError(invitation)) {

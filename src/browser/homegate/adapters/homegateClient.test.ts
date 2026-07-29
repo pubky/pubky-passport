@@ -1,8 +1,8 @@
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { GoogleHomegateInvitationRequesterErrorCode } from "../application/homegateInvitation";
-import { BrowserGoogleHomegateInvitationRequester } from "./googleHomegateInvitationRequester";
+import type { HomegateInvitationErrorCode } from "../application/homegateInvitation";
+import { HomegateClient } from "./homegateClient";
 
 const homegateBaseUrl = "https://homegate.example/";
 const homegateErrorCases = [
@@ -14,7 +14,7 @@ const homegateErrorCases = [
   ["google_verifier_unavailable", "google_verifier_unavailable"],
   ["internal_error", "homegate_unavailable"],
   ["unknown error containing SECRET-GOOGLE-ID-TOKEN", "malformed_homegate_response"],
-] satisfies ReadonlyArray<readonly [string, GoogleHomegateInvitationRequesterErrorCode]>;
+] satisfies ReadonlyArray<readonly [string, HomegateInvitationErrorCode]>;
 const malformedSuccessCases = [
   ["an unknown field", () => jsonResponse({ signupCode: "code", homeserverPubky: "home", extra: "unsafe" })],
   ["an empty signup code", () => jsonResponse({ signupCode: "", homeserverPubky: "home" })],
@@ -26,7 +26,7 @@ const malformedSuccessCases = [
   ["an oversized body", () => new Response("x".repeat(16 * 1024 + 1), { status: 200 })],
 ] satisfies ReadonlyArray<readonly [string, () => Response]>;
 
-describe("BrowserGoogleHomegateInvitationRequester", () => {
+describe("HomegateClient", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("posts only the Google ID token directly to Homegate", async () => {
@@ -36,9 +36,9 @@ describe("BrowserGoogleHomegateInvitationRequester", () => {
       signupCode: "signup-code",
       homeserverPubky: "homeserver-pubky",
     }));
-    const requester = new BrowserGoogleHomegateInvitationRequester({ fetch, homegateBaseUrl });
+    const client = new HomegateClient({ fetch, homegateBaseUrl });
 
-    const result = await requester.requestSignupInvitation({ googleIdToken: "id-token" });
+    const result = await client.requestGoogleSignupInvitation({ googleIdToken: "id-token" });
 
     expect(result).toEqual(Result.ok({
       signupCode: "signup-code",
@@ -68,12 +68,12 @@ describe("BrowserGoogleHomegateInvitationRequester", () => {
       signupCode: "signup-code",
       homeserverPubky: "homeserver-pubky",
     }));
-    const requester = new BrowserGoogleHomegateInvitationRequester({
+    const client = new HomegateClient({
       fetch,
       homegateBaseUrl: "https://homegate.example/api/",
     });
 
-    await requester.requestSignupInvitation({ googleIdToken: "id-token" });
+    await client.requestGoogleSignupInvitation({ googleIdToken: "id-token" });
 
     expect(String(fetch.mock.calls[0]?.[0])).toBe("https://homegate.example/api/google_verification");
   });
@@ -82,9 +82,9 @@ describe("BrowserGoogleHomegateInvitationRequester", () => {
     "rejects an invalid Google ID token before contacting Homegate",
     async (googleIdToken) => {
       const fetch = vi.fn<typeof globalThis.fetch>();
-      const requester = new BrowserGoogleHomegateInvitationRequester({ fetch, homegateBaseUrl });
+      const client = new HomegateClient({ fetch, homegateBaseUrl });
 
-      const result = await requester.requestSignupInvitation({ googleIdToken });
+      const result = await client.requestGoogleSignupInvitation({ googleIdToken });
 
       expect(fetch).not.toHaveBeenCalled();
       expect(Result.isError(result)).toBe(true);
@@ -94,12 +94,12 @@ describe("BrowserGoogleHomegateInvitationRequester", () => {
   );
 
   it.each(malformedSuccessCases)("rejects a success response with %s", async (_name, response) => {
-    const requester = new BrowserGoogleHomegateInvitationRequester({
+    const client = new HomegateClient({
       fetch: vi.fn<typeof globalThis.fetch>().mockResolvedValue(response()),
       homegateBaseUrl,
     });
 
-    const result = await requester.requestSignupInvitation({ googleIdToken: "id-token" });
+    const result = await client.requestGoogleSignupInvitation({ googleIdToken: "id-token" });
 
     expect(Result.isError(result)).toBe(true);
     if (!Result.isError(result)) throw new Error("Expected malformed Homegate response failure.");
@@ -114,12 +114,12 @@ describe("BrowserGoogleHomegateInvitationRequester", () => {
         controller.error(new Error("upstream body failed"));
       },
     }), { status: 500 });
-    const requester = new BrowserGoogleHomegateInvitationRequester({
+    const client = new HomegateClient({
       fetch: vi.fn<typeof globalThis.fetch>().mockResolvedValue(response),
       homegateBaseUrl,
     });
 
-    const result = await requester.requestSignupInvitation({ googleIdToken: "id-token" });
+    const result = await client.requestGoogleSignupInvitation({ googleIdToken: "id-token" });
 
     expect(requestController.signal.aborted).toBe(false);
     expect(Result.isError(result)).toBe(true);
@@ -128,12 +128,12 @@ describe("BrowserGoogleHomegateInvitationRequester", () => {
   });
 
   it.each(homegateErrorCases)("maps Homegate plaintext error %s to %s", async (body, expectedCode) => {
-    const requester = new BrowserGoogleHomegateInvitationRequester({
+    const client = new HomegateClient({
       fetch: vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response(body, { status: 500 })),
       homegateBaseUrl,
     });
 
-    const result = await requester.requestSignupInvitation({ googleIdToken: "id-token" });
+    const result = await client.requestGoogleSignupInvitation({ googleIdToken: "id-token" });
 
     expect(Result.isError(result)).toBe(true);
     if (!Result.isError(result)) throw new Error("Expected mapped Homegate failure.");
@@ -145,12 +145,12 @@ describe("BrowserGoogleHomegateInvitationRequester", () => {
       new Response(null, { status: 500 }),
       new Response("x".repeat(257), { status: 500 }),
     ]) {
-      const requester = new BrowserGoogleHomegateInvitationRequester({
+      const client = new HomegateClient({
         fetch: vi.fn<typeof globalThis.fetch>().mockResolvedValue(response),
         homegateBaseUrl,
       });
 
-      const result = await requester.requestSignupInvitation({ googleIdToken: "id-token" });
+      const result = await client.requestGoogleSignupInvitation({ googleIdToken: "id-token" });
 
       expect(Result.isError(result)).toBe(true);
       if (!Result.isError(result)) throw new Error("Expected unavailable Homegate failure.");
@@ -159,12 +159,12 @@ describe("BrowserGoogleHomegateInvitationRequester", () => {
   });
 
   it("maps network failures without leaking the Google ID token", async () => {
-    const requester = new BrowserGoogleHomegateInvitationRequester({
+    const client = new HomegateClient({
       fetch: vi.fn<typeof globalThis.fetch>().mockRejectedValue(new Error("SECRET-GOOGLE-ID-TOKEN")),
       homegateBaseUrl,
     });
 
-    const result = await requester.requestSignupInvitation({ googleIdToken: "SECRET-GOOGLE-ID-TOKEN" });
+    const result = await client.requestGoogleSignupInvitation({ googleIdToken: "SECRET-GOOGLE-ID-TOKEN" });
 
     expect(Result.isError(result)).toBe(true);
     if (!Result.isError(result)) throw new Error("Expected Homegate network failure.");
@@ -176,9 +176,9 @@ describe("BrowserGoogleHomegateInvitationRequester", () => {
       throw new Error("unsupported");
     });
     const fetch = vi.fn<typeof globalThis.fetch>();
-    const requester = new BrowserGoogleHomegateInvitationRequester({ fetch, homegateBaseUrl });
+    const client = new HomegateClient({ fetch, homegateBaseUrl });
 
-    const result = await requester.requestSignupInvitation({ googleIdToken: "id-token" });
+    const result = await client.requestGoogleSignupInvitation({ googleIdToken: "id-token" });
 
     expect(fetch).not.toHaveBeenCalled();
     expect(Result.isError(result)).toBe(true);
@@ -196,9 +196,9 @@ describe("BrowserGoogleHomegateInvitationRequester", () => {
         },
       })))
     );
-    const requester = new BrowserGoogleHomegateInvitationRequester({ fetch, homegateBaseUrl });
+    const client = new HomegateClient({ fetch, homegateBaseUrl });
 
-    const resultPromise = requester.requestSignupInvitation({ googleIdToken: "id-token" });
+    const resultPromise = client.requestGoogleSignupInvitation({ googleIdToken: "id-token" });
     requestController.abort();
 
     const result = await resultPromise;
