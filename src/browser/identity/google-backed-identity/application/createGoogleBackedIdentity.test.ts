@@ -1,15 +1,15 @@
 import { Result } from "better-result";
 import { describe, expect, it } from "vitest";
 
-import { FakePubkyDiscovery } from "../../../../../test-utils/fakes/fakePubkyDiscovery";
-import { FakePubkyIdentityKeys } from "../../../../../test-utils/fakes/fakePubkyIdentityKeys";
-import { FakePubkySessionAccess } from "../../../../../test-utils/fakes/fakePubkySessionAccess";
+import { RecordingPubkyDiscovery } from "../../../../../test-utils/fakes/recordingPubkyDiscovery";
+import { RecordingPubkyIdentityKeys } from "../../../../../test-utils/fakes/recordingPubkyIdentityKeys";
+import { RecordingPubkySessionAccess } from "../../../../../test-utils/fakes/recordingPubkySessionAccess";
 import {
-  FAKE_SIGNUP_INVITATION,
-  FakeLocalIdentitySaver,
-  FakePassportCrypto,
-  FakePassportFileStore,
-} from "../../../../../test-utils/fakes/googleBackedIdentityFakes";
+  TEST_SIGNUP_INVITATION,
+  RecordingSaveLocalIdentity,
+  RecordingPassportFileCrypto,
+  SanitizedPassportFileStore,
+} from "../../../../../test-utils/fakes/googleBackedIdentityTestDoubles";
 import { expectResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
 import { CreateGoogleBackedIdentity } from "./createGoogleBackedIdentity";
 
@@ -17,8 +17,8 @@ describe("CreateGoogleBackedIdentity", () => {
   it("encrypts, stores, activates, and saves a new identity in order", async () => {
     const events: string[] = [];
     const setup = createSetup({
-      fileStore: new FakePassportFileStore({ status: "missing" }, () => events.push("drive-create")),
-      local: new FakeLocalIdentitySaver(() => events.push("save")),
+      fileStore: new SanitizedPassportFileStore({ status: "missing" }, () => events.push("drive-create")),
+      local: new RecordingSaveLocalIdentity(() => events.push("save")),
     });
     const signup = setup.sessionAccess.signup.bind(setup.sessionAccess);
     setup.sessionAccess.signup = async (input) => {
@@ -80,7 +80,7 @@ describe("CreateGoogleBackedIdentity", () => {
       const result = await setup.subject.execute(executionInput(setup.fileStore));
 
       expect(Result.isError(result)).toBe(true);
-      if (Result.isError(result)) expect(result.error.recoverablePublicIdentity).toBeUndefined();
+      if (Result.isError(result)) expect(result.error.partialSetupPublicIdentity).toBeUndefined();
       expect(setup.keys.disposedKeys).toHaveLength(1);
       expect(setup.crypto.encryptedInputIsZeroed()).toBe(true);
     },
@@ -94,7 +94,7 @@ describe("CreateGoogleBackedIdentity", () => {
 
     expectResultError(result, {
       code: "signup_failed",
-      recoverablePublicIdentity: setup.keys.nextPublicIdentity,
+      partialSetupPublicIdentity: setup.keys.nextPublicIdentity,
     });
     expect(setup.discovery.calls).toEqual([]);
     expect(setup.local.saveCalls).toBe(0);
@@ -112,7 +112,7 @@ describe("CreateGoogleBackedIdentity", () => {
 
     expectResultError(result, {
       code: "identity_mismatch",
-      recoverablePublicIdentity: setup.keys.nextPublicIdentity,
+      partialSetupPublicIdentity: setup.keys.nextPublicIdentity,
     });
     expect(setup.discovery.calls).toEqual([]);
     expect(setup.local.saveCalls).toBe(0);
@@ -126,7 +126,7 @@ describe("CreateGoogleBackedIdentity", () => {
 
     expectResultError(result, {
       code: "discovery_failed",
-      recoverablePublicIdentity: setup.keys.nextPublicIdentity,
+      partialSetupPublicIdentity: setup.keys.nextPublicIdentity,
     });
     expect(setup.local.saveCalls).toBe(0);
     expect(setup.keys.disposedKeys).toHaveLength(1);
@@ -166,16 +166,16 @@ describe("CreateGoogleBackedIdentity", () => {
 });
 
 function createSetup(input: {
-  fileStore?: FakePassportFileStore;
-  local?: FakeLocalIdentitySaver;
+  fileStore?: SanitizedPassportFileStore;
+  local?: RecordingSaveLocalIdentity;
 } = {}) {
-  const keys = new FakePubkyIdentityKeys();
-  const sessionAccess = new FakePubkySessionAccess();
+  const keys = new RecordingPubkyIdentityKeys();
+  const sessionAccess = new RecordingPubkySessionAccess();
   sessionAccess.session.publicIdentity = keys.nextPublicIdentity;
-  const discovery = new FakePubkyDiscovery();
-  const local = input.local ?? new FakeLocalIdentitySaver();
-  const crypto = new FakePassportCrypto();
-  const fileStore = input.fileStore ?? new FakePassportFileStore({ status: "missing" });
+  const discovery = new RecordingPubkyDiscovery();
+  const local = input.local ?? new RecordingSaveLocalIdentity();
+  const crypto = new RecordingPassportFileCrypto();
+  const fileStore = input.fileStore ?? new SanitizedPassportFileStore({ status: "missing" });
   const subject = new CreateGoogleBackedIdentity({
     crypto,
     identityKeys: keys,
@@ -187,9 +187,9 @@ function createSetup(input: {
   return { subject, keys, sessionAccess, discovery, local, crypto, fileStore };
 }
 
-function executionInput(fileStore: FakePassportFileStore) {
+function executionInput(fileStore: SanitizedPassportFileStore) {
   return {
-    invitation: FAKE_SIGNUP_INVITATION,
+    invitation: TEST_SIGNUP_INVITATION,
     passportFileStore: fileStore,
     wrappingKey: "w".repeat(43),
   };

@@ -9,22 +9,22 @@ import type { PubkySessionAccess } from "../../../pubky/application/pubkySession
 import type {
   GoogleBackedIdentity,
   GoogleBackedIdentityResult,
-  GoogleBackedIdentityRestorer,
+  RestoreGoogleBackedIdentityInput,
 } from "./googleBackedIdentity";
-import type { LocalIdentitySaver } from "../../local-identity/application/saveLocalIdentity";
+import { SaveLocalIdentity } from "../../local-identity/application/saveLocalIdentity";
 
-export class RestoreGoogleBackedIdentity implements GoogleBackedIdentityRestorer {
+export class RestoreGoogleBackedIdentity {
   readonly #crypto: PassportFileCrypto;
   readonly #identityKeys: PubkyIdentityKeys;
   readonly #sessionAccess: PubkySessionAccess;
-  readonly #localIdentities: LocalIdentitySaver;
+  readonly #localIdentities: SaveLocalIdentity;
   readonly #passportOrigin: string;
 
   constructor(input: {
     crypto: PassportFileCrypto;
     identityKeys: PubkyIdentityKeys;
     sessionAccess: PubkySessionAccess;
-    localIdentities: LocalIdentitySaver;
+    localIdentities: SaveLocalIdentity;
     passportOrigin: string;
   }) {
     this.#crypto = input.crypto;
@@ -35,7 +35,7 @@ export class RestoreGoogleBackedIdentity implements GoogleBackedIdentityRestorer
   }
 
   async execute(
-    input: Parameters<GoogleBackedIdentityRestorer["execute"]>[0],
+    input: RestoreGoogleBackedIdentityInput,
   ): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>> {
     LOGGER.info("identity.google.decrypt.started");
     const secretKey = await this.#crypto.decryptSecretKeyBytes({
@@ -63,23 +63,23 @@ export class RestoreGoogleBackedIdentity implements GoogleBackedIdentityRestorer
       const signedIn = await this.#sessionAccess.signin({ keyHandle: restored.value.keyHandle, waitForDiscovery: true });
       if (Result.isError(signedIn)) {
         LOGGER.warn("identity.google.signin.failed", { code: signedIn.error.code });
-        return failure("signin_failed", restored.value.publicIdentity);
+        return failure("signin_failed");
       }
       if (signedIn.value.publicIdentity.publicKeyZ32 !== restored.value.publicIdentity.publicKeyZ32) {
         LOGGER.warn("identity.google.activation_identity.failed");
-        return failure("identity_mismatch", restored.value.publicIdentity);
+        return failure("identity_mismatch");
       }
 
-      LOGGER.info("identity.local_save.started", { source: "restored" });
+      LOGGER.info("identity.local_save.started", { establishmentMode: "restored" });
       const saved = await this.#localIdentities.saveIdentity({ keyHandle: restored.value.keyHandle });
       if (Result.isError(saved)) {
         LOGGER.warn("identity.local_save.failed", { code: saved.error.code });
-        return failure("local_save_failed", restored.value.publicIdentity);
+        return failure("local_save_failed");
       }
 
-      LOGGER.info("identity.local_save.completed", { source: "restored" });
+      LOGGER.info("identity.local_save.completed", { establishmentMode: "restored" });
       return Result.ok({
-        source: "restored" as const,
+        establishmentMode: "restored" as const,
         publicIdentity: restored.value.publicIdentity,
       });
     } finally {
@@ -96,15 +96,7 @@ export class RestoreGoogleBackedIdentity implements GoogleBackedIdentityRestorer
 }
 
 function failure<T>(
-  code: Parameters<typeof createError>[0],
-  recoverablePublicIdentity?: Parameters<typeof createError>[1],
-): GoogleBackedIdentityResult<T> {
-  return Result.err(createError(code, recoverablePublicIdentity));
-}
-
-function createError(
   code: "decrypt_failed" | "restore_failed" | "signin_failed" | "identity_mismatch" | "local_save_failed",
-  recoverablePublicIdentity?: PubkyIdentityKey["publicIdentity"],
-) {
-  return { code, ...(recoverablePublicIdentity ? { recoverablePublicIdentity } : {}) };
+): GoogleBackedIdentityResult<T> {
+  return Result.err({ code });
 }

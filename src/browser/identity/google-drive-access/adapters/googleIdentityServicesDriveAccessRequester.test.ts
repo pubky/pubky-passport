@@ -60,11 +60,12 @@ describe("requestGoogleDriveAccessToken", () => {
 
     const result = await resultPromise;
     expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) expect(result.error).toEqual({ code: "drive_consent_failed" });
+    if (Result.isError(result)) expect(result.error).toEqual({ code: "google_drive_authorization_failed" });
   });
 
   it("rejects a Drive token issued for a different Google subject", async () => {
     let accessTokenCallback: ((response: { access_token?: unknown; error?: unknown; scope?: unknown }) => void) | undefined;
+    const fetchRecorder = new SanitizedFetchRecorder("different_subject");
     const accounts: GoogleAccounts = {
       id: {
         initialize: vi.fn(),
@@ -82,7 +83,7 @@ describe("requestGoogleDriveAccessToken", () => {
     const resultPromise = requestGoogleDriveAccessToken({
       clientId: "google-client",
       expectedSubject: "google-subject",
-      fetch: (async () => Response.json({ sub: "different-subject" })) as typeof fetch,
+      fetch: fetchRecorder.fetch,
     });
 
     await vi.waitFor(() => expect(accessTokenCallback).toBeDefined());
@@ -90,67 +91,73 @@ describe("requestGoogleDriveAccessToken", () => {
 
     const result = await resultPromise;
     expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) expect(result.error).toEqual({ code: "drive_account_mismatch" });
+    if (Result.isError(result)) expect(result.error).toEqual({ code: "google_drive_authorization_account_mismatch" });
   });
 
   it("hardens the Google user-info request and accepts a matching subject", async () => {
     let callback: ((response: { access_token?: unknown; error?: unknown; scope?: unknown }) => void) | undefined;
-    const fetchImpl = vi.fn(async () => Response.json({ sub: "google-subject", name: "User" })) as unknown as typeof fetch;
+    const accessToken = "synthetic-drive-access-token-canary";
+    const fetchRecorder = new SanitizedFetchRecorder("matching_subject");
     loadedGoogleAccounts = googleAccounts({ captureCallback(value) { callback = value; } });
 
     const resultPromise = requestGoogleDriveAccessToken({
       clientId: "google-client",
       expectedSubject: "google-subject",
-      fetch: fetchImpl,
+      fetch: fetchRecorder.fetch,
     });
     await vi.waitFor(() => expect(callback).toBeDefined());
-    callback?.({ access_token: "drive-token", scope: GOOGLE_DRIVE_APP_DATA_SCOPE });
+    callback?.({ access_token: accessToken, scope: GOOGLE_DRIVE_APP_DATA_SCOPE });
 
     const result = await resultPromise;
     expect(Result.isOk(result)).toBe(true);
-    if (Result.isOk(result)) expect(result.value).toBe("drive-token");
-    expect(fetchImpl).toHaveBeenCalledWith("https://openidconnect.googleapis.com/v1/userinfo", {
-      headers: { Accept: "application/json", Authorization: "Bearer drive-token" },
+    if (Result.isOk(result)) expect(result.value).toBe(accessToken);
+    expect(fetchRecorder.calls).toEqual([{
+      endpoint: "google_user_info",
+      method: "GET",
+      acceptsJson: true,
+      hasBearerToken: true,
       cache: "no-store",
       credentials: "omit",
       redirect: "error",
       referrerPolicy: "no-referrer",
-      signal: expect.any(AbortSignal),
-    });
+      hasSignal: true,
+    }]);
+    expect(JSON.stringify(fetchRecorder)).not.toContain(accessToken);
+    expect(JSON.stringify(fetchRecorder)).not.toContain("Authorization");
   });
 
   it.each([
-    ["network failure", async () => { throw new TypeError("network unavailable"); }],
-    ["non-2xx response", async () => Response.json({}, { status: 503 })],
-    ["malformed body", async () => new Response("not-json")],
-    ["oversized body", async () => new Response("{}", { headers: { "Content-Length": String(16 * 1024 + 1) } })],
-    ["missing subject", async () => Response.json({})],
-    ["invalid subject", async () => Response.json({ sub: 42 })],
-    ["blank subject", async () => Response.json({ sub: " " })],
-    ["oversized subject", async () => Response.json({ sub: "s".repeat(256) })],
-    ["array body", async () => Response.json([{ sub: "google-subject" }])],
-  ])("maps %s during Drive account verification to a safe unavailable error", async (_case, userInfoResponse) => {
+    ["network failure", "network_throw"],
+    ["non-2xx response", "non_2xx"],
+    ["malformed body", "malformed_body"],
+    ["oversized body", "oversized_body"],
+    ["missing subject", "missing_subject"],
+    ["invalid subject", "invalid_subject"],
+    ["blank subject", "blank_subject"],
+    ["oversized subject", "oversized_subject"],
+    ["array body", "array_body"],
+  ] as const)("maps %s during Drive account verification to a safe unavailable error", async (_case, responseMode) => {
     let callback: ((response: { access_token?: unknown; error?: unknown; scope?: unknown }) => void) | undefined;
     loadedGoogleAccounts = googleAccounts({ captureCallback(value) { callback = value; } });
-    const fetchImpl = vi.fn(userInfoResponse) as unknown as typeof fetch;
+    const fetchRecorder = new SanitizedFetchRecorder(responseMode);
 
     const resultPromise = requestGoogleDriveAccessToken({
       clientId: "google-client",
       expectedSubject: "google-subject",
-      fetch: fetchImpl,
+      fetch: fetchRecorder.fetch,
     });
     await vi.waitFor(() => expect(callback).toBeDefined());
     callback?.({ access_token: "drive-token", scope: GOOGLE_DRIVE_APP_DATA_SCOPE });
 
     const result = await resultPromise;
     expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) expect(result.error).toEqual({ code: "drive_account_verification_failed" });
+    if (Result.isError(result)) expect(result.error).toEqual({ code: "google_drive_authorization_account_verification_failed" });
   });
 
   it.each([
-    ["popup_closed", "drive_popup_closed"],
-    ["popup_failed_to_open", "drive_popup_failed_to_open"],
-    ["unexpected", "drive_popup_failed_to_open"],
+    ["popup_closed", "google_drive_authorization_popup_closed"],
+    ["popup_failed_to_open", "google_drive_authorization_popup_failed_to_open"],
+    ["unexpected", "google_drive_authorization_popup_failed_to_open"],
   ])("maps the %s OAuth popup error", async (type, code) => {
     let errorCallback: ((error: { type?: unknown }) => void) | undefined;
     loadedGoogleAccounts = googleAccounts({ captureErrorCallback(callback) { errorCallback = callback; } });
@@ -173,22 +180,19 @@ describe("requestGoogleDriveAccessToken", () => {
 
     const result = await resultPromise;
     expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) expect(result.error).toEqual({ code: "drive_consent_timeout" });
+    if (Result.isError(result)) expect(result.error).toEqual({ code: "google_drive_authorization_timeout" });
   });
 
   it("aborts once, ignores a late GIS callback, and passes the signal to user-info", async () => {
     let callback: ((response: { access_token?: unknown; error?: unknown; scope?: unknown }) => void) | undefined;
-    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
-      expect(init?.signal).toBeInstanceOf(AbortSignal);
-      return Response.json({ sub: "google-subject" });
-    }) as unknown as typeof fetch;
+    const fetchRecorder = new SanitizedFetchRecorder("matching_subject");
     loadedGoogleAccounts = googleAccounts({ captureCallback(value) { callback = value; } });
     const controller = new AbortController();
 
     const resultPromise = requestGoogleDriveAccessToken({
       clientId: "google-client",
       expectedSubject: "google-subject",
-      fetch: fetchImpl,
+      fetch: fetchRecorder.fetch,
       signal: controller.signal,
     });
     await vi.waitFor(() => expect(callback).toBeDefined());
@@ -197,32 +201,30 @@ describe("requestGoogleDriveAccessToken", () => {
 
     const result = await resultPromise;
     expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) expect(result.error).toEqual({ code: "drive_consent_aborted" });
-    expect(fetchImpl).not.toHaveBeenCalled();
+    if (Result.isError(result)) expect(result.error).toEqual({ code: "google_drive_authorization_aborted" });
+    expect(fetchRecorder.calls).toEqual([]);
   });
 
   it("keeps an abort during Drive account verification distinct from verification failure", async () => {
     let callback: ((response: { access_token?: unknown; error?: unknown; scope?: unknown }) => void) | undefined;
-    const fetchImpl = vi.fn((_url: string | URL | Request, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
-      init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
-    })) as unknown as typeof fetch;
+    const fetchRecorder = new SanitizedFetchRecorder("pending_until_abort");
     loadedGoogleAccounts = googleAccounts({ captureCallback(value) { callback = value; } });
     const controller = new AbortController();
 
     const resultPromise = requestGoogleDriveAccessToken({
       clientId: "google-client",
       expectedSubject: "google-subject",
-      fetch: fetchImpl,
+      fetch: fetchRecorder.fetch,
       signal: controller.signal,
     });
     await vi.waitFor(() => expect(callback).toBeDefined());
     callback?.({ access_token: "drive-token", scope: GOOGLE_DRIVE_APP_DATA_SCOPE });
-    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(fetchRecorder.calls).toHaveLength(1));
     controller.abort();
 
     const result = await resultPromise;
     expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) expect(result.error).toEqual({ code: "drive_consent_aborted" });
+    if (Result.isError(result)) expect(result.error).toEqual({ code: "google_drive_authorization_aborted" });
   });
 
   it("maps synchronous GIS failures instead of rejecting", async () => {
@@ -233,7 +235,7 @@ describe("requestGoogleDriveAccessToken", () => {
     const result = await requestGoogleDriveAccessToken({ clientId: "google-client" });
 
     expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) expect(result.error).toEqual({ code: "drive_popup_failed_to_open" });
+    if (Result.isError(result)) expect(result.error).toEqual({ code: "google_drive_authorization_popup_failed_to_open" });
   });
 });
 
@@ -264,4 +266,81 @@ function requestGoogleDriveAccessToken(
         : Result.err({ code: "google_unavailable" }),
     },
   });
+}
+
+type UserInfoResponseMode =
+  | "matching_subject"
+  | "different_subject"
+  | "network_throw"
+  | "non_2xx"
+  | "malformed_body"
+  | "oversized_body"
+  | "missing_subject"
+  | "invalid_subject"
+  | "blank_subject"
+  | "oversized_subject"
+  | "array_body"
+  | "pending_until_abort";
+
+type SanitizedFetchCall = {
+  endpoint: "google_user_info" | "unexpected";
+  method: string;
+  acceptsJson: boolean;
+  hasBearerToken: boolean;
+  cache: RequestCache | undefined;
+  credentials: RequestCredentials | undefined;
+  redirect: RequestRedirect | undefined;
+  referrerPolicy: ReferrerPolicy | undefined;
+  hasSignal: boolean;
+};
+
+class SanitizedFetchRecorder {
+  readonly calls: SanitizedFetchCall[] = [];
+  readonly #responseMode: UserInfoResponseMode;
+
+  constructor(responseMode: UserInfoResponseMode) {
+    this.#responseMode = responseMode;
+  }
+
+  readonly fetch = (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const headers = new Headers(init?.headers);
+    const authorization = headers.get("Authorization");
+    this.calls.push({
+      endpoint: url === "https://openidconnect.googleapis.com/v1/userinfo" ? "google_user_info" : "unexpected",
+      method: init?.method ?? "GET",
+      acceptsJson: headers.get("Accept") === "application/json",
+      hasBearerToken: authorization?.startsWith("Bearer ") === true && authorization.length > "Bearer ".length,
+      cache: init?.cache,
+      credentials: init?.credentials,
+      redirect: init?.redirect,
+      referrerPolicy: init?.referrerPolicy,
+      hasSignal: init?.signal instanceof AbortSignal,
+    });
+
+    switch (this.#responseMode) {
+      case "matching_subject": return Response.json({ sub: "google-subject", name: "User" });
+      case "different_subject": return Response.json({ sub: "different-subject" });
+      case "network_throw": throw new TypeError("network unavailable");
+      case "non_2xx": return Response.json({}, { status: 503 });
+      case "malformed_body": return new Response("not-json");
+      case "oversized_body": return new Response("{}", { headers: { "Content-Length": String(16 * 1024 + 1) } });
+      case "missing_subject": return Response.json({});
+      case "invalid_subject": return Response.json({ sub: 42 });
+      case "blank_subject": return Response.json({ sub: " " });
+      case "oversized_subject": return Response.json({ sub: "s".repeat(256) });
+      case "array_body": return Response.json([{ sub: "google-subject" }]);
+      case "pending_until_abort": return new Promise((_resolve, reject) => {
+        if (init?.signal?.aborted) {
+          reject(new DOMException("Aborted", "AbortError"));
+          return;
+        }
+        init?.signal?.addEventListener(
+          "abort",
+          () => reject(new DOMException("Aborted", "AbortError")),
+          { once: true },
+        );
+      });
+    }
+  }) as typeof fetch;
 }

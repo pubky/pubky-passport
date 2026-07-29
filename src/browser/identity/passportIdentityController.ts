@@ -4,20 +4,16 @@ import { Result } from "better-result";
 
 import { LOGGER } from "../../libs/logger/logger";
 import type {
-  BrowserIdentityAction,
-  BrowserIdentityActionResult,
-  BrowserIdentityActionValue,
+  GoogleBackedIdentityAction,
+  GoogleBackedIdentityActionDispatchResult,
+  GoogleBackedIdentityActionResult,
+  GoogleBackedIdentityActionState,
+  GoogleBackedIdentityActionValue,
   BrowserIdentityCatalogResult,
   BrowserIdentityController,
   BrowserIdentityControllerError,
-  GoogleContinueResult,
-  GoogleSignInState,
 } from "./browserIdentityController";
-import type {
-  GoogleBackedIdentityError,
-  GoogleDriveIdentityDeleter,
-  GoogleIdentityEstablisher,
-} from "./google-backed-identity/application/googleBackedIdentity";
+import type { GoogleBackedIdentityCredentials, GoogleBackedIdentityError, GoogleBackedIdentityResult, GoogleBackedIdentity, GoogleDrivePassportFileDeletionResult } from "./google-backed-identity/application/googleBackedIdentity";
 import type {
   GoogleDriveAccessErrorCode,
   GoogleDriveAccessRequester,
@@ -31,9 +27,14 @@ import type {
 
 export type BrowserIdentityControllerDependencies = {
   repository: LocalIdentityCatalog;
-  identityEstablisher: GoogleIdentityEstablisher;
-  identityDeleter: GoogleDriveIdentityDeleter;
-  disposeIdentityActions(): void;
+  establishGoogleBackedIdentity(
+    credentials: GoogleBackedIdentityCredentials,
+  ): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>>;
+  deleteGoogleDrivePassportFile(
+    credentials: GoogleBackedIdentityCredentials,
+    expectedPublicKeyZ32: string,
+  ): Promise<GoogleDrivePassportFileDeletionResult>;
+  disposeGoogleBackedIdentityOperations(): void;
   googleSignInButton: GoogleSignInButton;
   googleDriveAccessRequester: GoogleDriveAccessRequester;
 };
@@ -42,14 +43,14 @@ export class PassportIdentityController implements BrowserIdentityController {
   readonly #clientId: string;
   readonly #dependencies: BrowserIdentityControllerDependencies;
   #target: HTMLElement | null = null;
-  #onState: ((state: GoogleSignInState) => void) | null = null;
+  #onState: ((state: GoogleBackedIdentityActionState) => void) | null = null;
   #googleIdToken: string | null = null;
   #googleSubject: string | null = null;
   #driveAbortController: AbortController | null = null;
   #attempt = 0;
   #actionPending = false;
   #disposed = false;
-  #identityActionsDisposed = false;
+  #googleBackedIdentityOperationsDisposed = false;
 
   constructor(input: { clientId: string; dependencies: BrowserIdentityControllerDependencies }) {
     this.#clientId = input.clientId;
@@ -61,7 +62,7 @@ export class PassportIdentityController implements BrowserIdentityController {
   clear() { return toCatalogResult(this.#dependencies.repository.clear()); }
   subscribe(listener: () => void) { return this.#dependencies.repository.subscribe(listener); }
 
-  async mountGoogleSignIn(target: HTMLElement, onState: (state: GoogleSignInState) => void): Promise<void> {
+  async mountGoogleSignIn(target: HTMLElement, onState: (state: GoogleBackedIdentityActionState) => void): Promise<void> {
     this.unmountGoogleSignIn();
     if (this.#disposed) return;
     this.#target = target;
@@ -80,7 +81,7 @@ export class PassportIdentityController implements BrowserIdentityController {
           }
           this.#googleIdToken = credential.value.googleIdToken;
           this.#googleSubject = credential.value.subject;
-          this.emit({ stage: "drive", errorCode: null });
+          this.emit({ stage: "google-drive-authorization", errorCode: null });
         },
       });
     } catch {
@@ -92,7 +93,7 @@ export class PassportIdentityController implements BrowserIdentityController {
       this.showGoogleUnavailable(mounted.error.code);
       return;
     }
-    if (!this.#googleIdToken) this.emit({ stage: "sign-in", errorCode: null });
+    if (!this.#googleIdToken) this.emit({ stage: "google-sign-in", errorCode: null });
   }
 
   unmountGoogleSignIn(): void {
@@ -112,7 +113,9 @@ export class PassportIdentityController implements BrowserIdentityController {
     void this.mountGoogleSignIn(target, onState);
   }
 
-  async continueGoogle(action: BrowserIdentityAction): Promise<GoogleContinueResult> {
+  async continueGoogleBackedIdentityAction(
+    action: GoogleBackedIdentityAction,
+  ): Promise<GoogleBackedIdentityActionDispatchResult> {
     if (this.#actionPending) return { status: "busy" };
     const googleIdToken = this.#googleIdToken;
     const googleSubject = this.#googleSubject;
@@ -120,12 +123,12 @@ export class PassportIdentityController implements BrowserIdentityController {
     if (this.#disposed) return { status: "superseded" };
     if (!googleIdToken || !googleSubject) {
       this.resetGoogle("sign_in_failed");
-      return { status: "credential_failed" };
+      return { status: "google_authorization_failed" };
     }
 
     this.#actionPending = true;
     try {
-      this.emit({ stage: "submitting", errorCode: null });
+      this.emit({ stage: "requesting-google-drive-authorization", errorCode: null });
       const abortController = new AbortController();
       this.abortDriveAccess();
       this.#driveAbortController = abortController;
@@ -139,16 +142,16 @@ export class PassportIdentityController implements BrowserIdentityController {
         });
       } catch {
         if (activeAttempt !== this.#attempt || this.#disposed) return { status: "superseded" };
-        LOGGER.warn("identity.google.button.drive_consent_failed", { code: "unexpected" });
-        this.resetGoogle("drive_consent_failed");
-        return { status: "credential_failed" };
+        LOGGER.warn("identity.google.button.drive_authorization_failed", { code: "unexpected" });
+        this.resetGoogle("google_drive_authorization_failed");
+        return { status: "google_authorization_failed" };
       }
       if (this.#driveAbortController === abortController) this.#driveAbortController = null;
       if (activeAttempt !== this.#attempt || this.#disposed) return { status: "superseded" };
       if (Result.isError(driveAccess)) {
-        LOGGER.warn("identity.google.button.drive_consent_failed", { code: driveAccess.error.code });
+        LOGGER.warn("identity.google.button.drive_authorization_failed", { code: driveAccess.error.code });
         this.resetGoogle(errorForDriveFailure(driveAccess.error.code));
-        return { status: "credential_failed" };
+        return { status: "google_authorization_failed" };
       }
 
       this.#googleIdToken = null;
@@ -161,7 +164,7 @@ export class PassportIdentityController implements BrowserIdentityController {
       return { status: "action_completed", result };
     } finally {
       this.#actionPending = false;
-      if (this.#disposed) this.disposeIdentityActionsOnce();
+      if (this.#disposed) this.disposeGoogleBackedIdentityOperationsOnce();
     }
   }
 
@@ -169,20 +172,22 @@ export class PassportIdentityController implements BrowserIdentityController {
     if (this.#disposed) return;
     this.#disposed = true;
     this.unmountGoogleSignIn();
-    if (!this.#actionPending) this.disposeIdentityActionsOnce();
+    if (!this.#actionPending) this.disposeGoogleBackedIdentityOperationsOnce();
   }
 
-  private async executeAction(action: BrowserIdentityAction, google: { googleIdToken: string; driveAccessToken: string }): Promise<BrowserIdentityActionResult> {
+  private async executeAction(action: GoogleBackedIdentityAction, credentials: GoogleBackedIdentityCredentials): Promise<GoogleBackedIdentityActionResult> {
     try {
-      if (action.kind === "delete") {
-        const deleted = await this.#dependencies.identityDeleter.execute(google, action.expectedPublicKeyZ32);
-        return Result.isError(deleted) ? actionFailure(deleted.error) : Result.ok({ kind: "deleted" });
+      if (action.kind === "delete_google_drive_passport_file") {
+        this.emit({ stage: "executing-action", errorCode: null });
+        const deleted = await this.#dependencies.deleteGoogleDrivePassportFile(credentials, action.expectedPublicKeyZ32);
+        return Result.isError(deleted) ? actionFailure(deleted.error) : Result.ok({ kind: "google_drive_passport_file_deleted" });
       }
-      const established = await this.#dependencies.identityEstablisher.establish(google);
+      this.emit({ stage: "executing-action", errorCode: null });
+      const established = await this.#dependencies.establishGoogleBackedIdentity(credentials);
       if (Result.isError(established)) return establishmentFailure(established.error);
-      const value: BrowserIdentityActionValue = {
-        kind: "established",
-        source: established.value.source,
+      const value: GoogleBackedIdentityActionValue = {
+        kind: "google_backed_identity_established",
+        establishmentMode: established.value.establishmentMode,
         publicIdentity: established.value.publicIdentity,
       };
       return Result.ok(value);
@@ -192,21 +197,21 @@ export class PassportIdentityController implements BrowserIdentityController {
     }
   }
 
-  private disposeIdentityActionsOnce(): void {
-    if (this.#identityActionsDisposed) return;
-    this.#identityActionsDisposed = true;
+  private disposeGoogleBackedIdentityOperationsOnce(): void {
+    if (this.#googleBackedIdentityOperationsDisposed) return;
+    this.#googleBackedIdentityOperationsDisposed = true;
     try {
-      this.#dependencies.disposeIdentityActions();
+      this.#dependencies.disposeGoogleBackedIdentityOperations();
     } catch {
       LOGGER.warn("identity.google.cleanup.failed", { operation: "pubky_dispose" });
     }
   }
 
-  private resetGoogle(errorCode: GoogleSignInState["errorCode"] = null): void {
+  private resetGoogle(errorCode: GoogleBackedIdentityActionState["errorCode"] = null): void {
     this.abortDriveAccess();
     this.#googleIdToken = null;
     this.#googleSubject = null;
-    this.emit({ stage: "sign-in", errorCode });
+    this.emit({ stage: "google-sign-in", errorCode });
   }
 
   private abortDriveAccess(): void {
@@ -220,10 +225,10 @@ export class PassportIdentityController implements BrowserIdentityController {
     this.#dependencies.googleSignInButton.unmount();
     this.#googleIdToken = null;
     this.#googleSubject = null;
-    this.emit({ stage: "sign-in", errorCode: "sign_in_unavailable" });
+    this.emit({ stage: "google-sign-in", errorCode: "sign_in_unavailable" });
   }
 
-  private emit(state: GoogleSignInState): void {
+  private emit(state: GoogleBackedIdentityActionState): void {
     if (this.#disposed) return;
     try { this.#onState?.(state); }
     catch { LOGGER.warn("identity.google.state_listener.failed"); }
@@ -238,31 +243,31 @@ function toCatalogResult<T>(
     : Result.ok(result.value);
 }
 
-function actionFailure(error: BrowserIdentityControllerError): BrowserIdentityActionResult {
+function actionFailure(error: BrowserIdentityControllerError): GoogleBackedIdentityActionResult {
   return Result.err({
     code: error.code,
-    ...(error.recoverablePublicIdentity
-      ? { recoverablePublicIdentity: error.recoverablePublicIdentity }
+    ...(error.partialSetupPublicIdentity
+      ? { partialSetupPublicIdentity: error.partialSetupPublicIdentity }
       : {}),
   });
 }
 
-function establishmentFailure(error: GoogleBackedIdentityError): BrowserIdentityActionResult {
+function establishmentFailure(error: GoogleBackedIdentityError): GoogleBackedIdentityActionResult {
   return actionFailure({
-    code: error.code === "homegate_invite_failed" ? error.cause : error.code,
-    ...(error.recoverablePublicIdentity
-      ? { recoverablePublicIdentity: error.recoverablePublicIdentity }
+    code: error.code === "homeserver_signup_invitation_failed" ? error.cause : error.code,
+    ...(error.partialSetupPublicIdentity
+      ? { partialSetupPublicIdentity: error.partialSetupPublicIdentity }
       : {}),
   });
 }
 
-function errorForDriveFailure(code: GoogleDriveAccessErrorCode): GoogleSignInState["errorCode"] {
+function errorForDriveFailure(code: GoogleDriveAccessErrorCode): GoogleBackedIdentityActionState["errorCode"] {
   switch (code) {
-    case "drive_popup_closed": return "drive_popup_closed";
-    case "drive_popup_failed_to_open": return "drive_popup_failed_to_open";
-    case "drive_consent_timeout": return "drive_consent_timeout";
-    case "drive_account_mismatch": return "drive_account_mismatch";
-    case "drive_account_verification_failed": return "drive_account_verification_failed";
-    default: return "drive_consent_failed";
+    case "google_drive_authorization_popup_closed": return "google_drive_authorization_popup_closed";
+    case "google_drive_authorization_popup_failed_to_open": return "google_drive_authorization_popup_failed_to_open";
+    case "google_drive_authorization_timeout": return "google_drive_authorization_timeout";
+    case "google_drive_authorization_account_mismatch": return "google_drive_authorization_account_mismatch";
+    case "google_drive_authorization_account_verification_failed": return "google_drive_authorization_account_verification_failed";
+    default: return "google_drive_authorization_failed";
   }
 }

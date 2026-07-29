@@ -7,9 +7,8 @@ import { LocalStorageIdentityRepository } from "./local-identity/adapters/localS
 import type { BrowserIdentityController } from "./browserIdentityController";
 import { PassportIdentityController } from "./passportIdentityController";
 import {
-  GoogleIdentityActions,
-  type GoogleIdentityLifecycle,
-} from "./google-backed-identity/composition/googleIdentityActions";
+  GoogleBackedIdentityOperations,
+} from "./google-backed-identity/composition/googleBackedIdentityOperations";
 
 export function createBrowserIdentityController(input: {
   googleClientId: string;
@@ -17,33 +16,28 @@ export function createBrowserIdentityController(input: {
 }): BrowserIdentityController {
   const repository = new LocalStorageIdentityRepository();
   const googleIdentityServices = { loadGoogleAccounts };
-  let identityActions: GoogleIdentityLifecycle | undefined;
-  const getIdentityActions = () => {
-    identityActions ??= new GoogleIdentityActions({
+  let googleBackedIdentityOperations: GoogleBackedIdentityOperations | undefined;
+  const getGoogleBackedIdentityOperations = () => {
+    googleBackedIdentityOperations ??= new GoogleBackedIdentityOperations({
       keyStore: repository,
       homegateBaseUrl: input.homegateBaseUrl,
       passportOrigin: globalThis.location.origin,
     });
-    return identityActions;
+    return googleBackedIdentityOperations;
   };
 
   return new PassportIdentityController({
     clientId: input.googleClientId,
     dependencies: {
       repository,
-      identityEstablisher: {
-        establish: (google) => getIdentityActions().establish(google),
-      },
-      identityDeleter: {
-        execute: (google, expectedPublicKeyZ32) => getIdentityActions().deleteDriveIdentity(
-          google,
-          expectedPublicKeyZ32,
-        ),
-      },
-      disposeIdentityActions: () => {
-        const actions = identityActions;
-        identityActions = undefined;
-        actions?.dispose();
+      establishGoogleBackedIdentity: (credentials) => getGoogleBackedIdentityOperations()
+        .establishGoogleBackedIdentity(credentials),
+      deleteGoogleDrivePassportFile: (credentials, expectedPublicKeyZ32) => getGoogleBackedIdentityOperations()
+        .deleteGoogleDrivePassportFile(credentials, expectedPublicKeyZ32),
+      disposeGoogleBackedIdentityOperations: () => {
+        const operations = googleBackedIdentityOperations;
+        googleBackedIdentityOperations = undefined;
+        operations?.dispose();
       },
       googleSignInButton: new GoogleIdentityServicesSignInButton({
         clientId: input.googleClientId,

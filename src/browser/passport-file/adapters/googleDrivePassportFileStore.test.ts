@@ -20,13 +20,28 @@ const LISTED_FILE = { id: "file-1", name: "passport.json", version: "7" };
 const EXACT_FILE = { ...LISTED_FILE, trashed: false };
 
 type FetchCall = {
-  url: string;
-  init: RequestInit;
+  endpoint: string;
+  path: string;
+  query: Record<string, string>;
+  method: string;
+  headerNames: string[];
+  hasBearerToken: boolean;
+  body: {
+    byteLength: number;
+    mediaType: string | null;
+    shape: "none" | "multipart-passport-file" | "other";
+    hasPassportMetadata: boolean;
+    hasEnvelope: boolean;
+    normalizedEnvelopeUrl: string | null;
+    hasForbiddenSecretField: boolean;
+  };
+  hasSignal: boolean;
+  order: number;
 };
 
 type ByteChunk = Uint8Array<ArrayBuffer>;
 
-class FakeLockManager implements PassportFileCreateLockManager {
+class RecordingLockManager implements PassportFileCreateLockManager {
   readonly names: string[] = [];
   maximumActive = 0;
   private active = 0;
@@ -94,7 +109,7 @@ function createStore(
 ) {
   const calls: FetchCall[] = [];
   const fetchMock = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    calls.push({ url: String(input), init: init ?? {} });
+    calls.push(sanitizeFetchCall(input, init, calls.length));
     const response = responses.shift();
     if (!response) {
       throw new Error("Unexpected fetch call.");
@@ -115,13 +130,57 @@ function createStore(
 }
 
 function expectAuthorizationHeader(call: FetchCall): void {
-  expect(call.init.headers).toMatchObject({ Authorization: "Bearer " + ACCESS_TOKEN });
+  expect(call.headerNames).toContain("authorization");
+  expect(call.hasBearerToken).toBe(true);
 }
 
 function expectCall(calls: FetchCall[], index: number): FetchCall {
   const call = calls[index];
   expect(call).toBeDefined();
   return call as FetchCall;
+}
+
+function sanitizeFetchCall(input: RequestInfo | URL, init: RequestInit | undefined, order: number): FetchCall {
+  const url = new URL(typeof input === "string" || input instanceof URL ? input.toString() : input.url);
+  const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+  const authorization = headers.get("authorization");
+  const body = init?.body;
+  const bodyText = typeof body === "string" ? body : null;
+  const mediaType = headers.get("content-type");
+  const isMultipartPassportFile = mediaType?.startsWith("multipart/related") === true
+    && bodyText?.includes(JSON.stringify({ name: "passport.json", parents: ["appDataFolder"] })) === true;
+
+  return {
+    endpoint: url.origin,
+    path: url.pathname.replace(/\/drive\/v3\/files\/[^/]+$/, "/drive/v3/files/:fileId"),
+    query: Object.fromEntries(url.searchParams),
+    method: init?.method ?? (input instanceof Request ? input.method : "GET"),
+    headerNames: [...headers.keys()].map((name) => name.toLowerCase()).sort(),
+    hasBearerToken: authorization?.startsWith("Bearer ") === true,
+    body: {
+      byteLength: bodyText === null ? 0 : new TextEncoder().encode(bodyText).byteLength,
+      mediaType,
+      shape: bodyText === null ? "none" : isMultipartPassportFile ? "multipart-passport-file" : "other",
+      hasPassportMetadata: isMultipartPassportFile,
+      hasEnvelope: bodyText?.includes(JSON.stringify(ENVELOPE)) === true,
+      normalizedEnvelopeUrl: bodyText?.includes('"url":"https://passport.pubky.app"') === true
+        ? "https://passport.pubky.app"
+        : null,
+      hasForbiddenSecretField: bodyText?.includes("secretKeyBytes") === true
+        || bodyText?.includes("wrappingKey") === true,
+    },
+    hasSignal: init?.signal != null,
+    order,
+  };
+}
+
+function expectSanitizedCalls(calls: FetchCall[]): void {
+  const serialized = JSON.stringify(calls);
+  expect(serialized).not.toContain(ACCESS_TOKEN);
+  expect(serialized).not.toContain(ENVELOPE.iv);
+  expect(serialized).not.toContain(ENVELOPE.ct);
+  expect(serialized).not.toContain(REFERENCE.storageId);
+  expect(serialized).not.toContain(REFERENCE.revision);
 }
 
 async function expectSuccess<T>(result: Promise<ResultType<T, unknown>>, value: T): Promise<void> {
@@ -140,13 +199,13 @@ describe("GoogleDrivePassportFileStore", () => {
 
     expect(calls).toHaveLength(1);
     const listCall = expectCall(calls, 0);
-    expect(listCall.url).toContain("https://www.googleapis.com/drive/v3/files?");
-    const listParams = new URL(listCall.url).searchParams;
-    expect(listParams.get("spaces")).toBe("appDataFolder");
-    expect(listParams.get("pageSize")).toBe("2");
-    expect(listParams.get("q")).toBe("name = 'passport.json' and trashed = false");
-    expect(listParams.get("fields")).toBe("nextPageToken,files(id,name,version)");
+    expect(listCall.endpoint + listCall.path).toBe("https://www.googleapis.com/drive/v3/files");
+    expect(listCall.query.spaces).toBe("appDataFolder");
+    expect(listCall.query.pageSize).toBe("2");
+    expect(listCall.query.q).toBe("name = 'passport.json' and trashed = false");
+    expect(listCall.query.fields).toBe("nextPageToken,files(id,name,version)");
     expectAuthorizationHeader(listCall);
+    expectSanitizedCalls(calls);
   });
 
   it("reads and parses an encrypted v1 envelope from Drive media", async () => {
@@ -160,10 +219,12 @@ describe("GoogleDrivePassportFileStore", () => {
 
     expect(calls).toHaveLength(3);
     const mediaCall = expectCall(calls, 1);
-    expect(mediaCall.url).toBe("https://www.googleapis.com/drive/v3/files/file-1?alt=media");
+    expect(mediaCall.endpoint + mediaCall.path).toBe("https://www.googleapis.com/drive/v3/files/:fileId");
+    expect(mediaCall.query.alt).toBe("media");
     expectAuthorizationHeader(mediaCall);
     const metadataCall = expectCall(calls, 2);
-    expect(new URL(metadataCall.url).searchParams.get("fields")).toBe("id,name,version,trashed");
+    expect(metadataCall.query.fields).toBe("id,name,version,trashed");
+    expectSanitizedCalls(calls);
   });
 
   it("maps malformed Drive envelope contents to a safe invalid_file error", async () => {
@@ -310,31 +371,33 @@ describe("GoogleDrivePassportFileStore", () => {
 
     expect(calls).toHaveLength(3);
     const createCall = expectCall(calls, 1);
-    const createUrl = new URL(createCall.url);
-    expect(createUrl.origin + createUrl.pathname).toBe("https://www.googleapis.com/upload/drive/v3/files");
-    expect(createUrl.searchParams.get("uploadType")).toBe("multipart");
-    expect(createUrl.searchParams.get("fields")).toBe("id,name,version");
-    expect(createCall.init.method).toBe("POST");
-    expect(createCall.init.headers).toMatchObject({ "Content-Type": expect.stringContaining("multipart/related") });
+    expect(createCall.endpoint + createCall.path).toBe("https://www.googleapis.com/upload/drive/v3/files");
+    expect(createCall.query.uploadType).toBe("multipart");
+    expect(createCall.query.fields).toBe("id,name,version");
+    expect(createCall.method).toBe("POST");
+    expect(createCall.headerNames).toContain("content-type");
     expectAuthorizationHeader(createCall);
-
-    const body = String(createCall.init.body);
-    expect(body).toContain(JSON.stringify({ name: "passport.json", parents: ["appDataFolder"] }));
-    expect(body).toContain(JSON.stringify(ENVELOPE));
-    expect(body).not.toContain("secretKeyBytes");
-    expect(body).not.toContain("wrappingKey");
+    expect(createCall.body).toMatchObject({
+      shape: "multipart-passport-file",
+      hasPassportMetadata: true,
+      hasEnvelope: true,
+      normalizedEnvelopeUrl: "https://passport.pubky.app",
+      hasForbiddenSecretField: false,
+    });
+    expect(createCall.body.byteLength).toBeGreaterThan(0);
+    expectSanitizedCalls(calls);
   });
 
   it("serializes concurrent creates under one named browser lock", async () => {
-    const lockManager = new FakeLockManager();
+    const lockManager = new RecordingLockManager();
     const created = { id: "created", name: "passport.json", version: "1" };
     const calls: FetchCall[] = [];
     let stored = false;
     let createCount = 0;
     const fetchMock = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      const call = { url: String(input), init: init ?? {} };
+      const call = sanitizeFetchCall(input, init, calls.length);
       calls.push(call);
-      if (call.init.method === "POST") {
+      if (call.method === "POST") {
         createCount += 1;
         stored = true;
         return jsonResponse(created);
@@ -354,7 +417,9 @@ describe("GoogleDrivePassportFileStore", () => {
     expect(expectResultOk(first)).toEqual({ storageId: "created", revision: "1" });
     expect(Result.isError(second) && second.error).toEqual({ code: "create_conflict" });
     expect(createCount).toBe(1);
-    expect(calls.filter((call) => call.init.method === "POST")).toHaveLength(1);
+    expect(calls.filter((call) => call.method === "POST")).toHaveLength(1);
+    expect(calls.map((call) => call.order)).toEqual([0, 1, 2, 3]);
+    expectSanitizedCalls(calls);
     expect(lockManager.names).toHaveLength(2);
     expect(new Set(lockManager.names).size).toBe(1);
     expect(lockManager.maximumActive).toBe(1);
@@ -378,7 +443,7 @@ describe("GoogleDrivePassportFileStore", () => {
     await expectFailure(store.createPassportFile({ envelope: ENVELOPE }), "create_conflict");
 
     expect(calls).toHaveLength(1);
-    expect(calls.some((call) => call.init.method === "PATCH")).toBe(false);
+    expect(calls.some((call) => call.method === "PATCH")).toBe(false);
   });
 
   it("maps duplicate files found before create to create_conflict", async () => {
@@ -399,7 +464,7 @@ describe("GoogleDrivePassportFileStore", () => {
     ]);
 
     await expectFailure(store.createPassportFile({ envelope: ENVELOPE }), "create_conflict");
-    expect(calls.some((call) => call.init.method === "PATCH")).toBe(false);
+    expect(calls.some((call) => call.method === "PATCH")).toBe(false);
   });
 
   it("revalidates and deletes the exact referenced passport file", async () => {
@@ -412,9 +477,10 @@ describe("GoogleDrivePassportFileStore", () => {
 
     expect(calls).toHaveLength(2);
     const deleteCall = expectCall(calls, 1);
-    expect(deleteCall.url).toBe("https://www.googleapis.com/drive/v3/files/file-1");
-    expect(deleteCall.init.method).toBe("DELETE");
+    expect(deleteCall.endpoint + deleteCall.path).toBe("https://www.googleapis.com/drive/v3/files/:fileId");
+    expect(deleteCall.method).toBe("DELETE");
     expectAuthorizationHeader(deleteCall);
+    expectSanitizedCalls(calls);
   });
 
   it("treats an exact referenced file 404 as idempotent deletion", async () => {
@@ -422,7 +488,8 @@ describe("GoogleDrivePassportFileStore", () => {
 
     await expectSuccess(store.deletePassportFile({ reference: REFERENCE }), undefined);
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.url).toContain("/files/file-1?");
+    expect(calls[0]?.path).toBe("/drive/v3/files/:fileId");
+    expectSanitizedCalls(calls);
   });
 
   it("treats a delete 404 after exact metadata validation as idempotent", async () => {
@@ -433,7 +500,7 @@ describe("GoogleDrivePassportFileStore", () => {
 
     await expectSuccess(store.deletePassportFile({ reference: REFERENCE }), undefined);
     expect(calls).toHaveLength(2);
-    expect(calls[1]?.init.method).toBe("DELETE");
+    expect(calls[1]?.method).toBe("DELETE");
   });
 
   it.each([
@@ -445,7 +512,7 @@ describe("GoogleDrivePassportFileStore", () => {
 
     await expectFailure(store.deletePassportFile({ reference: REFERENCE }), "stale_file");
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.init.method).toBeUndefined();
+    expect(calls[0]?.method).toBe("GET");
   });
 
   it("serializes outbound envelopes through parser normalization", async () => {
@@ -459,9 +526,8 @@ describe("GoogleDrivePassportFileStore", () => {
 
     await expectSuccess(store.createPassportFile({ envelope: rootPathEnvelope }), { storageId: "created", revision: "1" });
 
-    expect(String(expectCall(calls, 1).init.body)).toContain(
-      JSON.stringify({ ...rootPathEnvelope, url: "https://passport.pubky.app" }),
-    );
+    expect(expectCall(calls, 1).body.normalizedEnvelopeUrl).toBe("https://passport.pubky.app");
+    expectSanitizedCalls(calls);
   });
 
   it("rejects invalid outbound envelopes without writing", async () => {

@@ -24,7 +24,7 @@ const KNOWN_ROUTE_ERROR_CODES = new Set<GoogleWrappingKeyRequesterErrorCode>([
   "internal_error",
 ]);
 
-export class BrowserGoogleWrappingKeyRequester implements GoogleWrappingKeyRequester {
+export class GoogleWrappingKeyApiClient implements GoogleWrappingKeyRequester {
   readonly #fetch: typeof fetch;
 
   constructor(options: { fetch?: typeof fetch } = {}) {
@@ -69,11 +69,11 @@ export class BrowserGoogleWrappingKeyRequester implements GoogleWrappingKeyReque
 
 function parseWrappingKey(value: unknown): string | null {
   if (!isExactRecord(value, ["wrappingKey"])) return null;
-  if (typeof value.WRAPPING_KEY !== "string") return null;
+  if (typeof value.wrappingKey !== "string") return null;
 
   const expectedLength = Math.ceil(WRAPPING_KEY_BYTES * 4 / 3);
-  return value.WRAPPING_KEY.length === expectedLength && isCanonicalBase64Url(value.WRAPPING_KEY)
-    ? value.WRAPPING_KEY
+  return value.wrappingKey.length === expectedLength && isCanonicalBase64Url(value.wrappingKey)
+    ? value.wrappingKey
     : null;
 }
 

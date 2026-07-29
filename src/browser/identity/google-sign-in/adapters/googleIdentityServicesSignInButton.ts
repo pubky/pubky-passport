@@ -16,7 +16,7 @@ import type {
   GoogleIdentityServicesLoader,
 } from "../../google-identity-services/application/googleIdentityServices";
 
-type GoogleSignInButtonDependencies = {
+type GoogleIdentityServicesSignInButtonDependencies = {
   bindGoogleCredentialCallback(input: {
     accounts: GoogleAccounts;
     clientId: string;
@@ -32,7 +32,7 @@ const MAXIMUM_GOOGLE_ID_TOKEN_PAYLOAD_BYTES = 8 * 1024;
 const MAXIMUM_GOOGLE_SUBJECT_CHARACTERS = 255;
 const BASE64_URL_SEGMENT_PATTERN = /^[A-Za-z0-9_-]+$/;
 
-const DEFAULT_DEPENDENCIES: GoogleSignInButtonDependencies = {
+const DEFAULT_DEPENDENCIES: GoogleIdentityServicesSignInButtonDependencies = {
   bindGoogleCredentialCallback,
   releaseGoogleCredentialCallback,
   readUnverifiedGoogleIdTokenSubject,
@@ -41,14 +41,14 @@ const DEFAULT_DEPENDENCIES: GoogleSignInButtonDependencies = {
 export class GoogleIdentityServicesSignInButton implements GoogleSignInButton {
   readonly #clientId: string;
   readonly #googleIdentityServices: GoogleIdentityServicesLoader;
-  readonly #dependencies: GoogleSignInButtonDependencies;
+  readonly #dependencies: GoogleIdentityServicesSignInButtonDependencies;
   #credentialCallback: ((response: GoogleCredentialResponse) => void) | null = null;
   #attempt = 0;
 
   constructor(input: {
     clientId: string;
     googleIdentityServices: GoogleIdentityServicesLoader;
-    dependencies?: GoogleSignInButtonDependencies;
+    dependencies?: GoogleIdentityServicesSignInButtonDependencies;
   }) {
     this.#clientId = input.clientId;
     this.#googleIdentityServices = input.googleIdentityServices;

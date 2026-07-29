@@ -17,7 +17,8 @@ describe("LocalStorageIdentityRepository", () => {
     const first = save(repository, FIRST_IDENTITY, 1);
     const second = save(repository, SECOND_IDENTITY, 2);
 
-    expect(expectResultOk(repository.list())).toEqual({ activeIdentityId: second.id, identities: [first, second] });
+    const reloadedRepository = new LocalStorageIdentityRepository({ storage });
+    expect(expectResultOk(reloadedRepository.list())).toEqual({ activeIdentityId: second.id, identities: [first, second] });
     expect(JSON.parse(storage.getItem("pubky-passport/local-identities/v1")!)).toEqual({
       v: 1,
       activeIdentityId: second.id,
@@ -26,7 +27,7 @@ describe("LocalStorageIdentityRepository", () => {
         { ...second, secretKey: "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI" },
       ],
     });
-    expect(expectResultOk(repository.readActive())).toEqual({
+    expect(expectResultOk(reloadedRepository.readActive())).toEqual({
       identity: second,
       secretKey: { bytes: new Uint8Array(32).fill(2), format: PUBKY_SECRET_KEY_FORMAT },
     });

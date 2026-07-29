@@ -4,13 +4,13 @@ import { Result } from "better-result";
 import { useEffect, useRef, useState } from "react";
 
 import type {
-  BrowserIdentityActionResult,
   BrowserIdentityController,
+  GoogleBackedIdentityActionResult,
   LocalIdentitySummary,
 } from "../browser/identity/browserIdentityController";
 import { createBrowserIdentityController } from "../browser/identity/createBrowserIdentityController";
 import { LOGGER } from "../libs/logger/logger";
-import { GoogleSignInButton } from "./googleSignInButton";
+import { GoogleBackedIdentityActionPanel } from "./googleBackedIdentityActionPanel";
 
 export function AuthorizationIdentityPanel({
   googleClientId,
@@ -30,9 +30,9 @@ export function AuthorizationIdentityPanel({
   const identityActionPending = useRef(false);
   const [identities, setIdentities] = useState<LocalIdentitySummary[]>([]);
   const [selectedIdentityId, setSelectedIdentityId] = useState("");
-  const [addingIdentity, setAddingIdentity] = useState(false);
+  const [establishingIdentity, setEstablishingIdentity] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("Loading identities...");
+  const [message, setMessage] = useState("Loading Pubky identities...");
 
   useEffect(() => {
     readyCallback.current = onReadyChange;
@@ -51,7 +51,7 @@ export function AuthorizationIdentityPanel({
         refreshIdentities();
       } catch {
         LOGGER.warn("authorize.identity.initialize.failed");
-        setMessage("Passport could not load identities in this browser.");
+        setMessage("Passport could not load Pubky identities in this browser.");
         readyCallback.current(false);
       }
     });
@@ -68,7 +68,7 @@ export function AuthorizationIdentityPanel({
     if (!stored || Result.isError(stored)) {
       setIdentities([]);
       setSelectedIdentityId("");
-      setMessage("Passport could not read local identities.");
+      setMessage("Passport could not read local Pubky identities.");
       readyCallback.current(false);
       return;
     }
@@ -76,79 +76,80 @@ export function AuthorizationIdentityPanel({
     setIdentities(stored.value.identities);
     setSelectedIdentityId(stored.value.activeIdentityId ?? "");
     readyCallback.current(stored.value.activeIdentityId !== null);
-    setMessage(nextMessage ?? (stored.value.activeIdentityId ? "Identity ready." : "Choose or add an identity to continue."));
+    setMessage(nextMessage ?? (stored.value.activeIdentityId ? "Pubky identity ready." : "Choose or add a Pubky identity to continue."));
   }
 
   function selectIdentity(id: string): void {
     const selected = controller.current?.select(id);
     if (!selected || Result.isError(selected)) {
-      setMessage("Passport could not select that identity.");
+      setMessage("Passport could not select that Pubky identity.");
       return;
     }
 
     setSelectedIdentityId(id);
-    setMessage("Identity ready.");
+    setMessage("Pubky identity ready.");
     readyCallback.current(true);
   }
 
-  function completeGoogleAction(result: BrowserIdentityActionResult): void {
+  function completeGoogleAction(result: GoogleBackedIdentityActionResult): void {
     identityActionPending.current = false;
     setBusy(false);
-    setAddingIdentity(false);
+    setEstablishingIdentity(false);
     if (Result.isError(result)) {
       LOGGER.warn("authorize.identity.google.failed", { code: result.error.code });
       refreshIdentities(messageForGoogleFailure(result.error.code));
       return;
     }
 
-    refreshIdentities(result.value.kind === "established" && result.value.source === "created"
-      ? "Identity created and ready."
-      : "Identity restored and ready.");
+    refreshIdentities(result.value.kind === "google_backed_identity_established" && result.value.establishmentMode === "created"
+      ? "Pubky identity created and ready."
+      : "Pubky identity restored and ready.");
   }
 
   function cancelGoogleAction(): void {
     controller.current?.unmountGoogleSignIn();
     identityActionPending.current = false;
     setBusy(false);
-    setAddingIdentity(false);
-    refreshIdentities("Google identity setup cancelled.");
+    setEstablishingIdentity(false);
+    refreshIdentities("Pubky identity setup with Google cancelled.");
   }
 
   function beginGoogleAction(): void {
     identityActionPending.current = true;
     readyCallback.current(false);
-    setAddingIdentity(true);
+    setEstablishingIdentity(true);
   }
 
   return (
     <section className="flex flex-col gap-3 rounded border p-4">
       <h2 className="font-medium">Authorize as</h2>
       <select
-        aria-label="Authorization identity"
+        aria-label="Authorization Pubky identity"
         autoComplete="off"
-        disabled={disabled || busy || addingIdentity || identities.length === 0}
+        className="w-full min-w-0 max-w-full"
+        disabled={disabled || busy || establishingIdentity || identities.length === 0}
         onChange={(event) => selectIdentity(event.target.value)}
         value={selectedIdentityId}
       >
         {selectedIdentityId === "" ? (
-          <option value="">{identities.length === 0 ? "No local identity" : "Choose an identity"}</option>
+          <option value="">{identities.length === 0 ? "No local Pubky identity" : "Choose a Pubky identity"}</option>
         ) : null}
         {identities.map((identity) => (
           <option key={identity.id} value={identity.id}>{identity.publicIdentity.publicKeyDisplay}</option>
         ))}
       </select>
 
-      {addingIdentity && controller.current ? (
+      {establishingIdentity && controller.current ? (
         <div className="flex flex-col items-start gap-3">
           <p className="text-sm">Sign in with Google to create or restore your Pubky identity.</p>
-          <GoogleSignInButton
-            action={{ kind: "establish" }}
+          <GoogleBackedIdentityActionPanel
+            action={{ kind: "establish_google_backed_identity" }}
             controller={controller.current}
             disabled={disabled || busy}
             onActionCompleted={completeGoogleAction}
             onBusyChange={setBusy}
           />
-          <button className="rounded border px-3 py-2" disabled={disabled || busy} onClick={cancelGoogleAction} type="button">Cancel sign-in</button>
+          <button className="rounded border px-3 py-2" disabled={disabled || busy} onClick={cancelGoogleAction} type="button">Cancel identity setup</button>
         </div>
       ) : (
         <button
@@ -186,8 +187,8 @@ function messageForGoogleFailure(code: string): string {
     case "signin_failed":
     case "discovery_failed":
     case "local_save_failed":
-      return "Identity setup did not finish and may require recovery before authorization." + ` (Error code: ${code})`;
+      return "The encrypted Google Drive Passport file was preserved. Choose Add or restore with Google to retry Pubky identity activation.";
     default:
-      return "Passport could not create or restore the Google identity. Try again.";
+      return "Passport could not create or restore the Pubky identity with your Google account. Try again.";
   }
 }

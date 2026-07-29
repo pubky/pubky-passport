@@ -13,14 +13,14 @@ const MOCKS = vi.hoisted(() => ({
   localIdentities: {},
   CreateGoogleBackedIdentity: vi.fn(),
   createMissingIdentity: {},
-  DeleteGoogleDriveIdentity: vi.fn(),
+  DeleteGoogleDrivePassportFile: vi.fn(),
   EstablishGoogleBackedIdentity: vi.fn(),
   RestoreGoogleBackedIdentity: vi.fn(),
   restoreExistingIdentity: {},
   HomegateClient: vi.fn(),
   homegate: {},
-  BrowserGoogleWrappingKeyRequester: vi.fn(),
-  wrappingKeys: {},
+  GoogleWrappingKeyApiClient: vi.fn(),
+  wrappingKeyRequester: {},
 }));
 
 vi.mock("../../../pubky/adapters/pubkySdkAdapter", () => ({
@@ -39,8 +39,8 @@ vi.mock("../application/createGoogleBackedIdentity", () => ({
   CreateGoogleBackedIdentity: MOCKS.CreateGoogleBackedIdentity,
 }));
 
-vi.mock("../application/deleteGoogleDriveIdentity", () => ({
-  DeleteGoogleDriveIdentity: MOCKS.DeleteGoogleDriveIdentity,
+vi.mock("../application/deleteGoogleDrivePassportFile", () => ({
+  DeleteGoogleDrivePassportFile: MOCKS.DeleteGoogleDrivePassportFile,
 }));
 
 vi.mock("../application/establishGoogleBackedIdentity", () => ({
@@ -55,21 +55,21 @@ vi.mock("../../../homegate/adapters/homegateClient", () => ({
   HomegateClient: MOCKS.HomegateClient,
 }));
 
-vi.mock("../wrapping-key/adapters/googleWrappingKeyRequester", () => ({
-  BrowserGoogleWrappingKeyRequester: MOCKS.BrowserGoogleWrappingKeyRequester,
+vi.mock("../wrapping-key/adapters/googleWrappingKeyApiClient", () => ({
+  GoogleWrappingKeyApiClient: MOCKS.GoogleWrappingKeyApiClient,
 }));
 
-import { GoogleIdentityActions } from "./googleIdentityActions";
+import { GoogleBackedIdentityOperations } from "./googleBackedIdentityOperations";
 
-describe("GoogleIdentityActions", () => {
-  it("wires and delegates Google identity actions", async () => {
-    const identityEstablisher = { establish: vi.fn() };
-    const identityDeleter = { execute: vi.fn() };
+describe("GoogleBackedIdentityOperations", () => {
+  it("wires and delegates Google-backed identity operations", async () => {
+    const identityEstablisher = operationDouble();
+    const passportFileDeleter = deletionDouble();
     const keyStore = keyStoreStub();
-    prepareConstructors({ identityEstablisher, identityDeleter });
-    const google = { googleIdToken: "google-id-token", driveAccessToken: "drive-access-token" };
+    prepareConstructors({ identityEstablisher, passportFileDeleter });
+    const credentials = { googleIdToken: "google-id-token", driveAccessToken: "drive-access-token" };
 
-    const actions = new GoogleIdentityActions({
+    const operations = new GoogleBackedIdentityOperations({
       keyStore,
       homegateBaseUrl: "https://homegate.example/api/",
       passportOrigin: "https://passport.example",
@@ -98,33 +98,33 @@ describe("GoogleIdentityActions", () => {
       passportOrigin: "https://passport.example",
     });
     expect(MOCKS.EstablishGoogleBackedIdentity).toHaveBeenCalledWith({
-      wrappingKeys: MOCKS.wrappingKeys,
+      wrappingKeyRequester: MOCKS.wrappingKeyRequester,
       passportFileStoreForAccessToken: expect.any(Function),
       homegate: MOCKS.homegate,
       restoreExistingIdentity: MOCKS.restoreExistingIdentity,
       createMissingIdentity: MOCKS.createMissingIdentity,
     });
-    expect(MOCKS.DeleteGoogleDriveIdentity).toHaveBeenCalledWith(expect.objectContaining({
-      wrappingKeys: MOCKS.wrappingKeys,
+    expect(MOCKS.DeleteGoogleDrivePassportFile).toHaveBeenCalledWith(expect.objectContaining({
+      wrappingKeyRequester: MOCKS.wrappingKeyRequester,
       crypto: MOCKS.crypto,
       identityKeys: MOCKS.pubky,
       passportOrigin: "https://passport.example",
     }));
 
-    await actions.establish(google);
-    await actions.deleteDriveIdentity(google, "public-key");
-    expect(identityEstablisher.establish).toHaveBeenCalledWith(google);
-    expect(identityDeleter.execute).toHaveBeenCalledWith(google, "public-key");
+    await operations.establishGoogleBackedIdentity(credentials);
+    await operations.deleteGoogleDrivePassportFile(credentials, "public-key");
+    expect(identityEstablisher.receivedExpectedCredentials).toBe(true);
+    expect(passportFileDeleter.receivedExpectedInput).toBe(true);
 
-    actions.dispose();
-    actions.dispose();
+    operations.dispose();
+    operations.dispose();
     expect(MOCKS.pubky.dispose).toHaveBeenCalledOnce();
   });
 
   it("disposes Pubky when construction fails", () => {
     prepareConstructors({
-      identityEstablisher: { establish: vi.fn() },
-      identityDeleter: { execute: vi.fn() },
+      identityEstablisher: operationDouble(),
+      passportFileDeleter: deletionDouble(),
     });
     MOCKS.CreateGoogleBackedIdentity.mockImplementationOnce(function () {
       throw new Error("construction failed");
@@ -133,7 +133,7 @@ describe("GoogleIdentityActions", () => {
       throw new Error("dispose failed");
     });
 
-    expect(() => new GoogleIdentityActions({
+    expect(() => new GoogleBackedIdentityOperations({
       keyStore: keyStoreStub(),
       homegateBaseUrl: "https://homegate.example/",
       passportOrigin: "https://passport.example",
@@ -143,8 +143,8 @@ describe("GoogleIdentityActions", () => {
 });
 
 function prepareConstructors(input: {
-  identityEstablisher: { establish: ReturnType<typeof vi.fn> };
-  identityDeleter: { execute: ReturnType<typeof vi.fn> };
+  identityEstablisher: ReturnType<typeof operationDouble>;
+  passportFileDeleter: ReturnType<typeof deletionDouble>;
 }): void {
   vi.clearAllMocks();
   MOCKS.PubkySdkAdapter.mockImplementation(function () {
@@ -156,8 +156,8 @@ function prepareConstructors(input: {
   MOCKS.SaveLocalIdentity.mockImplementation(function () {
     return MOCKS.localIdentities;
   });
-  MOCKS.BrowserGoogleWrappingKeyRequester.mockImplementation(function () {
-    return MOCKS.wrappingKeys;
+  MOCKS.GoogleWrappingKeyApiClient.mockImplementation(function () {
+    return MOCKS.wrappingKeyRequester;
   });
   MOCKS.HomegateClient.mockImplementation(function () {
     return MOCKS.homegate;
@@ -171,9 +171,33 @@ function prepareConstructors(input: {
   MOCKS.EstablishGoogleBackedIdentity.mockImplementation(function () {
     return input.identityEstablisher;
   });
-  MOCKS.DeleteGoogleDriveIdentity.mockImplementation(function () {
-    return input.identityDeleter;
+  MOCKS.DeleteGoogleDrivePassportFile.mockImplementation(function () {
+    return input.passportFileDeleter;
   });
+}
+
+function operationDouble() {
+  return {
+    receivedExpectedCredentials: false,
+    async establish(credentials: { googleIdToken: string; driveAccessToken: string }) {
+      this.receivedExpectedCredentials = credentials.googleIdToken.length > 0
+        && credentials.driveAccessToken.length > 0;
+    },
+  };
+}
+
+function deletionDouble() {
+  return {
+    receivedExpectedInput: false,
+    async deleteGoogleDrivePassportFile(
+      credentials: { googleIdToken: string; driveAccessToken: string },
+      expectedPublicKeyZ32: string,
+    ) {
+      this.receivedExpectedInput = credentials.googleIdToken.length > 0
+        && credentials.driveAccessToken.length > 0
+        && expectedPublicKeyZ32 === "public-key";
+    },
+  };
 }
 
 function keyStoreStub(): LocalIdentityKeyStore {

@@ -3,7 +3,7 @@ import { vi } from "vitest";
 
 import type { BrowserIdentityController } from "@/browser/identity/browserIdentityController";
 
-export function fakeBrowserIdentityController(
+export function mockBrowserIdentityController(
   overrides: Partial<BrowserIdentityController> = {},
 ): BrowserIdentityController {
   return {
@@ -14,7 +14,7 @@ export function fakeBrowserIdentityController(
     mountGoogleSignIn: vi.fn(async () => {}),
     unmountGoogleSignIn: vi.fn(),
     retryGoogleSignIn: vi.fn(),
-    continueGoogle: vi.fn(async () => ({ status: "credential_failed" as const })),
+    continueGoogleBackedIdentityAction: vi.fn(async () => ({ status: "google_authorization_failed" as const })),
     dispose: vi.fn(),
     ...overrides,
   };

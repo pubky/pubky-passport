@@ -7,13 +7,13 @@ import type {
   PubkyDiscoveryResult,
 } from "@/browser/pubky/application/pubkyDiscovery";
 
-export type FakePubkyDiscoveryCall = {
+export type RecordedPubkyDiscoveryCall = {
   keyHandle: PubkyIdentityKeyHandle;
   homeserverPubky?: string | null;
 };
 
-export class FakePubkyDiscovery implements PubkyDiscovery {
-  calls: FakePubkyDiscoveryCall[] = [];
+export class RecordingPubkyDiscovery implements PubkyDiscovery {
+  calls: RecordedPubkyDiscoveryCall[] = [];
 
   ifStaleFailure?: PubkyDiscoveryErrorCode;
 

@@ -5,7 +5,7 @@ export type HomeserverSignupInvitation = {
   homeserverPubky: string;
 };
 
-export type HomegateInvitationErrorCode =
+export type HomegateSignupInvitationErrorCode =
   | "invalid_google_id_token"
   | "weekly_limit_exceeded"
   | "annual_limit_exceeded"

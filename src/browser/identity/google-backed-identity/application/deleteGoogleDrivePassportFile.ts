@@ -7,48 +7,50 @@ import { LOGGER } from "../../../../libs/logger/logger";
 import type { PassportFileCrypto } from "../../../passport-file/application/passportFileCrypto";
 import type { PassportFileStore } from "../../../passport-file/application/passportFileStore";
 import type {
-  GoogleDriveIdentityDeleter,
-  GoogleDriveIdentityDeletionErrorCode,
-  GoogleDriveIdentityDeletionResult,
-  GoogleIdentitySession,
+  GoogleDrivePassportFileDeletionErrorCode,
+  GoogleDrivePassportFileDeletionResult,
+  GoogleBackedIdentityCredentials,
 } from "./googleBackedIdentity";
 import type { GoogleWrappingKeyRequester } from "../wrapping-key/application/googleWrappingKey";
 
-export class DeleteGoogleDriveIdentity implements GoogleDriveIdentityDeleter {
-  readonly #wrappingKeys: GoogleWrappingKeyRequester;
+export class DeleteGoogleDrivePassportFile {
+  readonly #wrappingKeyRequester: GoogleWrappingKeyRequester;
   readonly #passportFileStoreForAccessToken: (driveAccessToken: string) => PassportFileStore;
   readonly #crypto: PassportFileCrypto;
   readonly #identityKeys: PubkyIdentityKeys;
   readonly #passportOrigin: string;
 
   constructor(input: {
-    wrappingKeys: GoogleWrappingKeyRequester;
+    wrappingKeyRequester: GoogleWrappingKeyRequester;
     passportFileStoreForAccessToken: (driveAccessToken: string) => PassportFileStore;
     crypto: PassportFileCrypto;
     identityKeys: PubkyIdentityKeys;
     passportOrigin: string;
   }) {
-    this.#wrappingKeys = input.wrappingKeys;
+    this.#wrappingKeyRequester = input.wrappingKeyRequester;
     this.#passportFileStoreForAccessToken = input.passportFileStoreForAccessToken;
     this.#crypto = input.crypto;
     this.#identityKeys = input.identityKeys;
     this.#passportOrigin = input.passportOrigin;
   }
 
-  async execute(google: GoogleIdentitySession, expectedPublicKeyZ32: string): Promise<GoogleDriveIdentityDeletionResult> {
+  async deleteGoogleDrivePassportFile(
+    credentials: GoogleBackedIdentityCredentials,
+    expectedPublicKeyZ32: string,
+  ): Promise<GoogleDrivePassportFileDeletionResult> {
     try {
-      return await this.deleteIdentity(google, expectedPublicKeyZ32);
+      return await this.deletePassportFile(credentials, expectedPublicKeyZ32);
     } catch {
       LOGGER.warn("identity.google.delete.failed", { code: "unexpected_failure" });
       return failure("unexpected_failure");
     }
   }
 
-  private async deleteIdentity(google: GoogleIdentitySession, expectedPublicKeyZ32: string): Promise<GoogleDriveIdentityDeletionResult> {
-    const wrappingKey = await this.#wrappingKeys.requestWrappingKey({ googleIdToken: google.googleIdToken });
+  private async deletePassportFile(credentials: GoogleBackedIdentityCredentials, expectedPublicKeyZ32: string): Promise<GoogleDrivePassportFileDeletionResult> {
+    const wrappingKey = await this.#wrappingKeyRequester.requestWrappingKey({ googleIdToken: credentials.googleIdToken });
     if (Result.isError(wrappingKey)) return failure("wrapping_key_failed");
 
-    const passportFileStore = this.#passportFileStoreForAccessToken(google.driveAccessToken);
+    const passportFileStore = this.#passportFileStoreForAccessToken(credentials.driveAccessToken);
     const storedFile = await passportFileStore.readPassportFile();
     if (Result.isError(storedFile)) return failure("drive_read_failed");
     if (storedFile.value.status === "missing") return Result.ok();
@@ -88,6 +90,6 @@ export class DeleteGoogleDriveIdentity implements GoogleDriveIdentityDeleter {
   }
 }
 
-function failure(code: GoogleDriveIdentityDeletionErrorCode): GoogleDriveIdentityDeletionResult {
+function failure(code: GoogleDrivePassportFileDeletionErrorCode): GoogleDrivePassportFileDeletionResult {
   return Result.err({ code });
 }

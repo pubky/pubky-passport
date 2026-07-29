@@ -4,25 +4,25 @@ import { Result } from "better-result";
 import { useEffect, useRef, useState } from "react";
 
 import type {
-  BrowserIdentityActionResult,
   BrowserIdentityController,
+  GoogleBackedIdentityActionResult,
   LocalIdentitySummary,
 } from "../browser/identity/browserIdentityController";
 import { createBrowserIdentityController } from "../browser/identity/createBrowserIdentityController";
 import type { PubkyPublicIdentity } from "../core/identity/pubkyIdentity";
 import { LOGGER } from "../libs/logger/logger";
-import { GoogleSignInButton } from "./googleSignInButton";
+import { GoogleBackedIdentityActionPanel } from "./googleBackedIdentityActionPanel";
 
 type GoogleAction = "add" | "delete-selected" | "delete-failed" | null;
 
 export function DevelopmentIdentityPanel({
   googleClientId,
   homegateBaseUrl,
-  allowGoogleDriveReset,
+  allowGoogleDrivePassportFileDeletion,
 }: {
   googleClientId: string;
   homegateBaseUrl: string;
-  allowGoogleDriveReset: boolean;
+  allowGoogleDrivePassportFileDeletion: boolean;
 }) {
   const controller = useRef<BrowserIdentityController | null>(null);
   const googleActionTarget = useRef<string | null>(null);
@@ -32,11 +32,11 @@ export function DevelopmentIdentityPanel({
   const [googleAction, setGoogleAction] = useState<GoogleAction>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("Ready.");
-  const [recoverableDriveIdentity, setRecoverableDriveIdentity] = useState<PubkyPublicIdentity | null>(null);
+  const [passportFileCleanupCandidate, setPassportFileCleanupCandidate] = useState<PubkyPublicIdentity | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    let unsubscribe = () => {};
+    let unsubscribe = () => { };
     queueMicrotask(() => {
       if (cancelled) return;
       try {
@@ -62,7 +62,7 @@ export function DevelopmentIdentityPanel({
     if (!stored || Result.isError(stored)) {
       setIdentities([]);
       setSelectedIdentityId("");
-      setMessage("Could not read local identities.");
+      setMessage("Could not read local Pubky identities.");
       return;
     }
 
@@ -74,25 +74,28 @@ export function DevelopmentIdentityPanel({
   function selectIdentity(id: string): void {
     const selected = controller.current?.select(id);
     if (!selected || Result.isError(selected)) {
-      setMessage("Could not select that identity.");
+      setMessage("Could not select that Pubky identity.");
       return;
     }
 
     setSelectedIdentityId(id);
-    setMessage("Identity selected.");
+    setMessage("Pubky identity selected.");
   }
 
-  function completeGoogleAction(result: BrowserIdentityActionResult): void {
+  function completeGoogleAction(result: GoogleBackedIdentityActionResult): void {
     if (Result.isError(result)) {
       LOGGER.warn("identity.google.action.failed", { code: result.error.code });
-      setRecoverableDriveIdentity(result.error.recoverablePublicIdentity ?? null);
-      setMessage(messageForGoogleFailure(result.error.code));
-    } else if (result.value.kind === "established") {
-      setRecoverableDriveIdentity(null);
-      refreshIdentities(result.value.source === "created" ? "Identity created." : "Identity restored.");
+      const creationCleanupCandidate = googleAction === "add"
+        ? result.error.partialSetupPublicIdentity ?? null
+        : null;
+      setPassportFileCleanupCandidate(creationCleanupCandidate);
+      setMessage(messageForGoogleFailure(result.error.code, creationCleanupCandidate !== null));
+    } else if (result.value.kind === "google_backed_identity_established") {
+      setPassportFileCleanupCandidate(null);
+      refreshIdentities(result.value.establishmentMode === "created" ? "Pubky identity created." : "Pubky identity restored.");
     } else {
-      if (googleAction === "delete-failed") setRecoverableDriveIdentity(null);
-      setMessage("Identity deleted from Google Drive.");
+      if (googleAction === "delete-failed") setPassportFileCleanupCandidate(null);
+      setMessage("Google Drive Passport file deleted.");
     }
     setBusy(false);
     googleActionTarget.current = null;
@@ -102,11 +105,11 @@ export function DevelopmentIdentityPanel({
   function clearLocalIdentities(): void {
     const cleared = controller.current?.clear();
     if (!cleared || Result.isError(cleared)) {
-      setMessage("Could not clear local identities.");
+      setMessage("Could not clear local Pubky identities.");
       return;
     }
 
-    refreshIdentities("Local identities cleared.");
+    refreshIdentities("Local Pubky identities cleared.");
   }
 
   const selectedIdentity = identities.find((identity) => identity.id === selectedIdentityId);
@@ -124,19 +127,20 @@ export function DevelopmentIdentityPanel({
   }
 
   const googleIdentityAction = googleAction === "add"
-    ? { kind: "establish" } as const
+    ? { kind: "establish_google_backed_identity" } as const
     : googleAction === "delete-selected" && googleActionTarget.current
-      ? { kind: "delete", expectedPublicKeyZ32: googleActionTarget.current } as const
+      ? { kind: "delete_google_drive_passport_file", expectedPublicKeyZ32: googleActionTarget.current } as const
       : googleAction === "delete-failed" && googleActionTarget.current
-        ? { kind: "delete", expectedPublicKeyZ32: googleActionTarget.current } as const
+        ? { kind: "delete_google_drive_passport_file", expectedPublicKeyZ32: googleActionTarget.current } as const
         : null;
 
   return (
     <section className="flex flex-col gap-4 rounded border p-4">
-      <h2 className="font-medium">Identities</h2>
+      <h2 className="font-medium">Pubky identities</h2>
       <select
-        aria-label="Selected identity"
+        aria-label="Selected Pubky identity"
         autoComplete="off"
+        className="w-full min-w-0 max-w-full"
         disabled={busy || googleAction !== null || identities.length === 0}
         onChange={(event) => selectIdentity(event.target.value)}
         suppressHydrationWarning
@@ -150,63 +154,65 @@ export function DevelopmentIdentityPanel({
 
       {googleAction === null ? (
         <div className="flex flex-wrap gap-2">
-          <button className="rounded border px-3 py-2" disabled={busy || !controllerReady} onClick={() => beginGoogleAction("add")} type="button">Add identity</button>
-          {allowGoogleDriveReset && selectedIdentity ? (
+          <button className="rounded border px-3 py-2" disabled={busy || !controllerReady} onClick={() => beginGoogleAction("add")} type="button">Add Pubky identity</button>
+          {allowGoogleDrivePassportFileDeletion && selectedIdentity ? (
             <button
               className="rounded border border-red-700 px-3 py-2 text-red-700"
               disabled={busy}
               onClick={() => {
-                if (globalThis.confirm("Authorize Google again, verify the selected identity, and delete its Passport Drive file?")) {
+                if (globalThis.confirm("Authorize Google Drive again, verify the selected Pubky identity, and delete its Passport file?")) {
                   beginGoogleAction("delete-selected", selectedIdentity.publicIdentity.publicKeyZ32);
                 }
               }}
               type="button"
             >
-              Delete identity from Google
+              Delete Google Drive Passport file
             </button>
           ) : null}
-          {allowGoogleDriveReset && recoverableDriveIdentity ? (
+          {allowGoogleDrivePassportFileDeletion && passportFileCleanupCandidate ? (
             <button
               className="rounded border border-red-700 px-3 py-2 text-red-700"
               disabled={busy}
               onClick={() => {
-                if (globalThis.confirm("Authorize Google again, verify the identity that could not be activated, and delete its Passport Drive file?")) {
-                  beginGoogleAction("delete-failed", recoverableDriveIdentity.publicKeyZ32);
+                if (globalThis.confirm("Authorize Google Drive again, verify the Pubky identity that could not be activated, and delete its Passport file?")) {
+                  beginGoogleAction("delete-failed", passportFileCleanupCandidate.publicKeyZ32);
                 }
               }}
               type="button"
             >
-              Delete failed identity from Google
+              Delete partial setup Passport file
             </button>
           ) : null}
-          {allowGoogleDriveReset && identities.length > 0 ? (
+          {allowGoogleDrivePassportFileDeletion && identities.length > 0 ? (
             <button
               className="rounded border border-red-700 px-3 py-2 text-red-700"
               disabled={busy}
               onClick={() => {
-                if (globalThis.confirm("Clear all Passport identities stored in this browser? Google Drive data will not be changed.")) clearLocalIdentities();
+                if (globalThis.confirm("Clear all Pubky identities stored in this browser? Google Drive data will not be changed.")) clearLocalIdentities();
               }}
               type="button"
             >
-              Clear local identities
+              Clear local Pubky identities
             </button>
           ) : null}
         </div>
       ) : googleIdentityAction && controller.current ? (
         <div className="flex flex-col items-start gap-3 rounded border p-3">
           <p>{googleAction === "add"
-            ? "Authorize Google to create or restore an identity."
+            ? "Sign in with your Google account and authorize Google Drive to create or restore a Pubky identity."
             : googleAction === "delete-selected"
-              ? "Authorize Google again to delete the selected identity."
-              : "Authorize Google again to delete the identity that could not be activated."}</p>
-          <GoogleSignInButton
+              ? "Authorize Google Drive again to delete the selected Pubky identity's Passport file."
+              : "Authorize Google Drive again to delete the partial setup Passport file."}</p>
+          <GoogleBackedIdentityActionPanel
             action={googleIdentityAction}
             controller={controller.current}
             disabled={busy}
             onActionCompleted={completeGoogleAction}
             onBusyChange={setBusy}
           />
-          <button className="rounded border px-3 py-2" disabled={busy} onClick={cancelGoogleAction} type="button">Cancel</button>
+          <button className="rounded border px-3 py-2" disabled={busy} onClick={cancelGoogleAction} type="button">
+            {googleAction === "add" ? "Cancel identity setup" : "Cancel file deletion"}
+          </button>
         </div>
       ) : null}
 
@@ -215,44 +221,50 @@ export function DevelopmentIdentityPanel({
   );
 }
 
-function messageForGoogleFailure(code: string): string {
+function messageForGoogleFailure(code: string, hasCreationCleanupCandidate: boolean): string {
   switch (code) {
     case "wrapping_key_failed":
-      return "Passport could not obtain wrapping material.";
+      return "Passport could not obtain the wrapping key.";
     case "drive_read_failed":
-      return "Passport could not read this identity from Google Drive.";
+      return "Passport could not read the Google Drive Passport file.";
     case "decrypt_failed":
-      return "Passport could not decrypt this Google Drive identity.";
+      return "Passport could not decrypt the Google Drive Passport file.";
     case "identity_mismatch":
-      return "The authorized Google account does not contain the selected identity.";
+      return "The Google Drive Passport file belongs to a different Pubky identity than expected.";
     case "drive_delete_failed":
-      return "Passport could not delete the identity from Google Drive.";
+      return "Passport could not delete the Google Drive Passport file.";
     case "drive_stale_file":
-      return "The Google Drive identity changed before it could be deleted. Try again.";
+      return "The Google Drive Passport file changed before it could be deleted. Try again.";
     case "drive_create_conflict":
-      return "A Google Drive identity was created at the same time. Try again to restore it.";
+      return "A Google Drive Passport file was created at the same time. Try again to restore it.";
     case "invalid_google_id_token":
-      return "Your Google session is no longer valid. Passport did not create an identity.";
+      return "Your Google account session is no longer valid. Passport did not create a Pubky identity.";
     case "weekly_limit_exceeded":
-      return "This Google account reached its weekly homeserver signup limit. Passport did not create an identity; retry later.";
+      return "This Google account reached its weekly homeserver signup limit. Passport did not create a Pubky identity; retry later.";
     case "annual_limit_exceeded":
-      return "This Google account reached its annual homeserver signup limit. Passport did not create an identity; retry later.";
+      return "This Google account reached its annual homeserver signup limit. Passport did not create a Pubky identity; retry later.";
     case "homeserver_unavailable":
-      return "The homeserver is unavailable. Passport did not create an identity; retry later.";
+      return "The homeserver is unavailable. Passport did not create a Pubky identity; retry later.";
     case "google_verifier_unavailable":
     case "homegate_unavailable":
     case "network_failed":
-      return "The invitation service is unavailable. Passport did not create an identity; retry later.";
+      return "The invitation service is unavailable. Passport did not create a Pubky identity; retry later.";
     case "homegate_invalid_request":
     case "malformed_homegate_response":
-      return "The invitation response could not be processed. Passport did not create an identity.";
+      return "The invitation response could not be processed. Passport did not create a Pubky identity.";
     case "signup_failed":
-      return "Passport stored the encrypted identity, but homeserver signup did not complete. Delete the failed Drive identity and start again.";
+      return preservedPassportFileMessage(hasCreationCleanupCandidate);
     case "signin_failed":
-      return "Passport restored the identity, but could not activate its homeserver session. Delete the failed Drive identity and start again.";
+      return preservedPassportFileMessage(false);
     case "discovery_failed":
-      return "Passport signed up the identity, but could not publish its homeserver discovery record. Try restoring it again.";
+    case "local_save_failed":
+      return preservedPassportFileMessage(hasCreationCleanupCandidate);
     default:
-      return "The Google identity operation failed.";
+      return "The Pubky identity operation with Google failed.";
   }
+}
+
+function preservedPassportFileMessage(hasCreationCleanupCandidate: boolean): string {
+  return "The encrypted Google Drive Passport file was preserved. Choose Add Pubky identity to retry activation."
+    + (hasCreationCleanupCandidate ? " Development cleanup is available for the Passport file created by this failed setup." : "");
 }

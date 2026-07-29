@@ -6,9 +6,9 @@ import { z } from "zod";
 import { readBoundedText } from "../../../libs/http/boundedBody";
 import { LOGGER } from "../../../libs/logger/logger";
 import type {
-  HomegateInvitationErrorCode,
+  HomegateSignupInvitationErrorCode,
   HomeserverSignupInvitation,
-} from "../application/homegateInvitation";
+} from "../application/homegateSignupInvitation";
 
 const MAX_SUCCESS_RESPONSE_BYTES = 16 * 1024;
 const MAX_ERROR_RESPONSE_BYTES = 256;
@@ -32,9 +32,9 @@ export class HomegateClient {
     this.#googleVerificationEndpoint = new URL(GOOGLE_VERIFICATION_PATH, options.homegateBaseUrl);
   }
 
-  async requestGoogleSignupInvitation(
+  async requestGoogleHomeserverSignupInvitation(
     googleIdToken: string,
-  ): Promise<Result<HomeserverSignupInvitation, { code: HomegateInvitationErrorCode }>> {
+  ): Promise<Result<HomeserverSignupInvitation, { code: HomegateSignupInvitationErrorCode }>> {
     if (!isValidGoogleIdToken(googleIdToken)) return failure("homegate_invalid_request");
 
     let signal: AbortSignal;
@@ -44,7 +44,7 @@ export class HomegateClient {
       response = await this.#fetch(this.#googleVerificationEndpoint, {
         method: "POST",
         headers: { Accept: "application/json, text/plain", "Content-Type": "application/json" },
-        body: JSON.stringify(googleIdToken),
+        body: JSON.stringify({ googleIdToken }),
         cache: "no-store",
         credentials: "omit",
         redirect: "error",
@@ -52,7 +52,7 @@ export class HomegateClient {
         signal,
       });
     } catch (error) {
-      LOGGER.warn("identity.google.homegate_invite.network_failed", {
+      LOGGER.warn("identity.google.homeserver_signup_invitation.network_failed", {
         errorName: error instanceof Error ? error.name : "unknown",
       });
       return failure("network_failed");
@@ -81,7 +81,7 @@ export class HomegateClient {
   }
 }
 
-function mapHomegateError(body: string): HomegateInvitationErrorCode {
+function mapHomegateError(body: string): HomegateSignupInvitationErrorCode {
   switch (body.trim()) {
     case "invalid_request":
       return "homegate_invalid_request";
@@ -107,6 +107,6 @@ function isValidGoogleIdToken(value: string): boolean {
     && value.trim().length > 0;
 }
 
-function failure(code: HomegateInvitationErrorCode) {
+function failure(code: HomegateSignupInvitationErrorCode) {
   return Result.err({ code });
 }

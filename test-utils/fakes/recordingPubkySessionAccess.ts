@@ -10,20 +10,20 @@ import type {
   PubkySessionAccessResult,
 } from "@/browser/pubky/application/pubkySessionAccess";
 
-export type FakePubkySessionSignupCall = {
+export type RecordedPubkySessionSignupCall = {
   keyHandle: PubkyIdentityKeyHandle;
   homeserverPubky: string;
   hasSignupCode: boolean;
 };
 
-export type FakePubkySigninCall = {
+export type RecordedPubkySigninCall = {
   keyHandle: PubkyIdentityKeyHandle;
   waitForDiscovery: boolean;
 };
 
-export class FakePubkySessionAccess implements PubkySessionAccess {
-  signupCalls: FakePubkySessionSignupCall[] = [];
-  signinCalls: FakePubkySigninCall[] = [];
+export class RecordingPubkySessionAccess implements PubkySessionAccess {
+  signupCalls: RecordedPubkySessionSignupCall[] = [];
+  signinCalls: RecordedPubkySigninCall[] = [];
 
   signupFailure?: PubkySessionAccessErrorCode;
   signinFailure?: PubkySessionAccessErrorCode;

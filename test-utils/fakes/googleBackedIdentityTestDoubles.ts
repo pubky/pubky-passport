@@ -1,6 +1,8 @@
 import { Result } from "better-result";
 
-import type { LocalIdentitySaver } from "@/browser/identity/local-identity/application/saveLocalIdentity";
+import { SaveLocalIdentity } from "../../src/browser/identity/local-identity/application/saveLocalIdentity";
+import type { LocalIdentityKeyStore } from "../../src/browser/identity/local-identity/application/localIdentityRepository";
+import type { PubkyIdentityKeys } from "../../src/browser/pubky/application/pubkyIdentityKeys";
 import type {
   PassportFileCrypto,
   PassportFileCryptoResult,
@@ -13,29 +15,29 @@ import type {
 } from "@/browser/passport-file/application/passportFileStore";
 import type { PassportFileEnvelopeV1 } from "@/core/passport-file/passportFile";
 
-export const FAKE_PASSPORT_ENVELOPE: PassportFileEnvelopeV1 = {
+export const TEST_PASSPORT_ENVELOPE: PassportFileEnvelopeV1 = {
   v: 1,
   iv: "a".repeat(16),
   ct: "b".repeat(64),
   url: "https://passport.pubky.app",
 };
 
-export const FAKE_PASSPORT_REFERENCE: PassportFileReference = {
+export const TEST_PASSPORT_REFERENCE: PassportFileReference = {
   storageId: "opaque-file-id",
   revision: "42",
 };
 
-export const FAKE_GOOGLE_IDENTITY_SESSION = {
+export const TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS = {
   googleIdToken: "id-token",
   driveAccessToken: "drive-token",
 };
 
-export const FAKE_SIGNUP_INVITATION = {
+export const TEST_SIGNUP_INVITATION = {
   signupCode: "homegate-signup-code",
   homeserverPubky: "homegate-homeserver",
 };
 
-export class FakePassportFileStore implements PassportFileStore {
+export class SanitizedPassportFileStore implements PassportFileStore {
   readonly #readResult: PassportFileReadResult | { code: PassportFileStoreErrorCode };
   readonly #onCreate: (() => void) | undefined;
   createdFiles: Array<{
@@ -69,20 +71,20 @@ export class FakePassportFileStore implements PassportFileStore {
       ivCharacters: input.envelope.iv.length,
       ciphertextCharacters: input.envelope.ct.length,
     });
-    return this.createFailure ? Result.err({ code: this.createFailure }) : Result.ok(FAKE_PASSPORT_REFERENCE);
+    return this.createFailure ? Result.err({ code: this.createFailure }) : Result.ok(TEST_PASSPORT_REFERENCE);
   }
 
   async deletePassportFile(input: { reference: PassportFileReference }) {
     this.deleteCalls += 1;
     this.deletedExpectedReferences.push(
-      input.reference.storageId === FAKE_PASSPORT_REFERENCE.storageId
-      && input.reference.revision === FAKE_PASSPORT_REFERENCE.revision,
+      input.reference.storageId === TEST_PASSPORT_REFERENCE.storageId
+      && input.reference.revision === TEST_PASSPORT_REFERENCE.revision,
     );
     return this.deleteFailure ? Result.err({ code: this.deleteFailure }) : Result.ok();
   }
 }
 
-export class FakePassportCrypto implements PassportFileCrypto {
+export class RecordingPassportFileCrypto implements PassportFileCrypto {
   readonly #decryptedBytes: Uint8Array<ArrayBuffer> = new Uint8Array(32).fill(7);
   #encryptedBytes: Uint8Array<ArrayBufferLike> | null = null;
   decryptCalls = 0;
@@ -103,7 +105,7 @@ export class FakePassportCrypto implements PassportFileCrypto {
     this.#encryptedBytes = input.secretKeyBytes;
     if (this.throwOnEncrypt) throw new Error("encryption threw");
     if (this.encryptFailure) return Result.err({ code: "encrypt_failed" });
-    return Result.ok(FAKE_PASSPORT_ENVELOPE);
+    return Result.ok(TEST_PASSPORT_ENVELOPE);
   }
 
   encryptedInputIsZeroed(): boolean {
@@ -115,22 +117,55 @@ export class FakePassportCrypto implements PassportFileCrypto {
   }
 }
 
-export class FakeLocalIdentitySaver implements LocalIdentitySaver {
+export class RecordingSaveLocalIdentity extends SaveLocalIdentity {
   readonly #onSave: (() => void) | undefined;
   saveCalls = 0;
+  saveFailure = false;
   throwOnSave = false;
 
   constructor(onSave?: () => void) {
+    super({ keyStore: new NoopLocalIdentityKeyStore(), identityKeys: new NoopPubkyIdentityKeys() });
     this.#onSave = onSave;
   }
 
-  async saveIdentity() {
+  override async saveIdentity() {
     if (this.throwOnSave) throw new Error("local save threw");
     this.#onSave?.();
     this.saveCalls += 1;
+    if (this.saveFailure) return Result.err({ code: "storage_unavailable" as const });
     return Result.ok({
       id: "fake",
       publicIdentity: { publicKeyZ32: "fake", publicKeyDisplay: "pubkyfake" },
     });
+  }
+}
+
+class NoopLocalIdentityKeyStore implements LocalIdentityKeyStore {
+  save(): ReturnType<LocalIdentityKeyStore["save"]> {
+    return Result.err({ code: "storage_unavailable" });
+  }
+
+  readActive(): ReturnType<LocalIdentityKeyStore["readActive"]> {
+    return Result.err({ code: "storage_unavailable" });
+  }
+}
+
+class NoopPubkyIdentityKeys implements PubkyIdentityKeys {
+  async createIdentityKey(): ReturnType<PubkyIdentityKeys["createIdentityKey"]> {
+    return Result.err({ code: "key_unavailable" });
+  }
+
+  async restoreIdentityKey(): ReturnType<PubkyIdentityKeys["restoreIdentityKey"]> {
+    return Result.err({ code: "key_unavailable" });
+  }
+
+  disposeIdentityKey(): void {}
+
+  async exportSecretKey(): ReturnType<PubkyIdentityKeys["exportSecretKey"]> {
+    return Result.err({ code: "key_unavailable" });
+  }
+
+  async getPublicIdentity(): ReturnType<PubkyIdentityKeys["getPublicIdentity"]> {
+    return Result.err({ code: "key_unavailable" });
   }
 }

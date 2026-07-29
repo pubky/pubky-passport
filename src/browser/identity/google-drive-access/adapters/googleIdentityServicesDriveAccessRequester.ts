@@ -53,7 +53,7 @@ export async function requestGoogleDriveAccessToken(input: {
   signal?: AbortSignal;
   timeoutMs?: number;
 }): Promise<GoogleDriveAccessResult<string>> {
-  if (input.signal?.aborted) return Result.err({ code: "drive_consent_aborted" });
+  if (input.signal?.aborted) return Result.err({ code: "google_drive_authorization_aborted" });
   let accounts: Awaited<ReturnType<GoogleIdentityServicesLoader["loadGoogleAccounts"]>>;
   try {
     accounts = await input.googleIdentityServices.loadGoogleAccounts();
@@ -61,7 +61,7 @@ export async function requestGoogleDriveAccessToken(input: {
     return Result.err({ code: "google_unavailable" });
   }
   if (Result.isError(accounts)) return Result.err(accounts.error);
-  if (input.signal?.aborted) return Result.err({ code: "drive_consent_aborted" });
+  if (input.signal?.aborted) return Result.err({ code: "google_drive_authorization_aborted" });
 
   return requestDriveAccessToken(
     accounts.value,
@@ -97,11 +97,11 @@ function requestDriveAccessToken(
     };
     const abort = (): void => {
       operationController.abort();
-      finish(Result.err({ code: "drive_consent_aborted" }));
+      finish(Result.err({ code: "google_drive_authorization_aborted" }));
     };
     const timer = setTimeout(() => {
       operationController.abort();
-      finish(Result.err({ code: "drive_consent_timeout" }));
+      finish(Result.err({ code: "google_drive_authorization_timeout" }));
     }, Math.max(0, timeoutMs));
     signal?.addEventListener("abort", abort, { once: true });
 
@@ -113,7 +113,7 @@ function requestDriveAccessToken(
         async callback(response) {
           if (settled) return;
           if (typeof response.access_token !== "string" || response.access_token.length === 0 || response.error !== undefined || !hasGoogleScope(response.scope, GOOGLE_DRIVE_APP_DATA_SCOPE)) {
-            finish(Result.err({ code: "drive_consent_failed" }));
+            finish(Result.err({ code: "google_drive_authorization_failed" }));
             return;
           }
 
@@ -121,10 +121,10 @@ function requestDriveAccessToken(
             const verification = await verifyGoogleSubject(response.access_token, expectedSubject, fetchImpl, operationController.signal);
             if (verification !== "match") {
               const code = verification === "mismatch"
-                ? "drive_account_mismatch"
+                ? "google_drive_authorization_account_mismatch"
                 : verification === "aborted"
-                  ? "drive_consent_aborted"
-                  : "drive_account_verification_failed";
+                  ? "google_drive_authorization_aborted"
+                  : "google_drive_authorization_account_verification_failed";
               finish(Result.err({ code }));
               return;
             }
@@ -133,12 +133,16 @@ function requestDriveAccessToken(
           finish(Result.ok(response.access_token));
         },
         error_callback(error) {
-          finish(Result.err({ code: error.type === "popup_closed" ? "drive_popup_closed" : "drive_popup_failed_to_open" }));
+          finish(Result.err({
+            code: error.type === "popup_closed"
+              ? "google_drive_authorization_popup_closed"
+              : "google_drive_authorization_popup_failed_to_open",
+          }));
         },
       });
       tokenClient.requestAccessToken({ prompt: selectAccount ? "select_account" : "" });
     } catch {
-      finish(Result.err({ code: "drive_popup_failed_to_open" }));
+      finish(Result.err({ code: "google_drive_authorization_popup_failed_to_open" }));
     }
   });
 }

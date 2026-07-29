@@ -22,19 +22,15 @@ export type ActiveAuthorizationIdentityRestoreResult = ResultType<
   { code: "no_active_identity" | "identity_restore_failed" }
 >;
 
-export type ActiveAuthorizationIdentityRestorer = {
-  restoreActiveIdentity(): Promise<ActiveAuthorizationIdentityRestoreResult>;
-};
-
 export async function approveActiveAuthorization(input: {
   authRequest: ValidatedSensitivePubkyAuthRequest;
-  localIdentities: ActiveAuthorizationIdentityRestorer;
+  restoreActiveIdentity: () => Promise<ActiveAuthorizationIdentityRestoreResult>;
   pubky: PubkyIdentityKeys & PubkyAuthApproval;
 }): Promise<ActiveAuthorizationResult> {
   let keyHandle: PubkyIdentityKeyHandle | undefined;
 
   try {
-    const restored = await input.localIdentities.restoreActiveIdentity();
+    const restored = await input.restoreActiveIdentity();
     if (Result.isError(restored)) {
       return Result.err(restored.error);
     }

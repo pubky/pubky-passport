@@ -9,11 +9,7 @@ import type { LocalIdentityKeyStore, LocalIdentityRepositoryErrorCode } from "./
 export type LocalIdentityOperationErrorCode = LocalIdentityRepositoryErrorCode | "identity_mismatch" | "restore_failed";
 export type LocalIdentityOperationResult<T> = Result<T, { code: LocalIdentityOperationErrorCode }>;
 
-export type LocalIdentitySaver = {
-  saveIdentity(input: { keyHandle: PubkyIdentityKeyHandle }): Promise<LocalIdentityOperationResult<LocalIdentitySummary>>;
-};
-
-export class SaveLocalIdentity implements LocalIdentitySaver {
+export class SaveLocalIdentity {
   readonly #keyStore: LocalIdentityKeyStore;
   readonly #identityKeys: PubkyIdentityKeys;
 

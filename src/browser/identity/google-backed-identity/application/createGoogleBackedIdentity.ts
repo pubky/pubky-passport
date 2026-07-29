@@ -8,18 +8,18 @@ import type { PassportFileCrypto } from "../../../passport-file/application/pass
 import type { PubkyDiscovery } from "../../../pubky/application/pubkyDiscovery";
 import type { PubkySessionAccess } from "../../../pubky/application/pubkySessionAccess";
 import type {
-  GoogleBackedIdentityCreator,
   GoogleBackedIdentity,
   GoogleBackedIdentityResult,
+  CreateGoogleBackedIdentityInput,
 } from "./googleBackedIdentity";
-import type { LocalIdentitySaver } from "../../local-identity/application/saveLocalIdentity";
+import { SaveLocalIdentity } from "../../local-identity/application/saveLocalIdentity";
 
-export class CreateGoogleBackedIdentity implements GoogleBackedIdentityCreator {
+export class CreateGoogleBackedIdentity {
   readonly #crypto: PassportFileCrypto;
   readonly #identityKeys: PubkyIdentityKeys;
   readonly #sessionAccess: PubkySessionAccess;
   readonly #discovery: PubkyDiscovery;
-  readonly #localIdentities: LocalIdentitySaver;
+  readonly #localIdentities: SaveLocalIdentity;
   readonly #passportOrigin: string;
 
   constructor(input: {
@@ -27,7 +27,7 @@ export class CreateGoogleBackedIdentity implements GoogleBackedIdentityCreator {
     identityKeys: PubkyIdentityKeys;
     sessionAccess: PubkySessionAccess;
     discovery: PubkyDiscovery;
-    localIdentities: LocalIdentitySaver;
+    localIdentities: SaveLocalIdentity;
     passportOrigin: string;
   }) {
     this.#crypto = input.crypto;
@@ -39,7 +39,7 @@ export class CreateGoogleBackedIdentity implements GoogleBackedIdentityCreator {
   }
 
   async execute(
-    input: Parameters<GoogleBackedIdentityCreator["execute"]>[0],
+    input: CreateGoogleBackedIdentityInput,
   ): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>> {
     LOGGER.info("identity.google.create.started");
     const created = await this.#identityKeys.createIdentityKey();
@@ -103,16 +103,16 @@ export class CreateGoogleBackedIdentity implements GoogleBackedIdentityCreator {
         return failure("discovery_failed", created.value.publicIdentity);
       }
 
-      LOGGER.info("identity.local_save.started", { source: "created" });
+      LOGGER.info("identity.local_save.started", { establishmentMode: "created" });
       const saved = await this.#localIdentities.saveIdentity({ keyHandle: created.value.keyHandle });
       if (Result.isError(saved)) {
         LOGGER.warn("identity.local_save.failed", { code: saved.error.code });
         return failure("local_save_failed", created.value.publicIdentity);
       }
 
-      LOGGER.info("identity.local_save.completed", { source: "created" });
+      LOGGER.info("identity.local_save.completed", { establishmentMode: "created" });
       return Result.ok({
-        source: "created" as const,
+        establishmentMode: "created" as const,
         publicIdentity: created.value.publicIdentity,
       });
     } finally {
@@ -127,9 +127,9 @@ export class CreateGoogleBackedIdentity implements GoogleBackedIdentityCreator {
 
 function failure<T>(
   code: Parameters<typeof createError>[0],
-  recoverablePublicIdentity?: Parameters<typeof createError>[1],
+  partialSetupPublicIdentity?: Parameters<typeof createError>[1],
 ): GoogleBackedIdentityResult<T> {
-  return Result.err(createError(code, recoverablePublicIdentity));
+  return Result.err(createError(code, partialSetupPublicIdentity));
 }
 
 function createError(
@@ -142,7 +142,7 @@ function createError(
     | "identity_mismatch"
     | "discovery_failed"
     | "local_save_failed",
-  recoverablePublicIdentity?: PubkyIdentityKey["publicIdentity"],
+  partialSetupPublicIdentity?: PubkyIdentityKey["publicIdentity"],
 ) {
-  return { code, ...(recoverablePublicIdentity ? { recoverablePublicIdentity } : {}) };
+  return { code, ...(partialSetupPublicIdentity ? { partialSetupPublicIdentity } : {}) };
 }

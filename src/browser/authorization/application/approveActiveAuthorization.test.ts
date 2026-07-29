@@ -1,28 +1,26 @@
 import { Result } from "better-result";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { parsePubkyAuthRequest } from "../../../core/auth/parsePubkyAuthRequest";
 import {
   approveActiveAuthorization,
-  type ActiveAuthorizationIdentityRestorer,
-  type ActiveAuthorizationIdentityRestoreResult,
 } from "./approveActiveAuthorization";
-import { FakePubkyAuthApproval } from "../../../../test-utils/fakes/fakePubkyAuthApproval";
-import { FakePubkyIdentityKeys } from "../../../../test-utils/fakes/fakePubkyIdentityKeys";
+import { SanitizedPubkyAuthApproval } from "../../../../test-utils/fakes/sanitizedPubkyAuthApproval";
+import { RecordingPubkyIdentityKeys } from "../../../../test-utils/fakes/recordingPubkyIdentityKeys";
 
 const REQUEST = "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=sensitive";
 
 describe("approveActiveAuthorization", () => {
   it("restores, approves with the same Pubky instance, and disposes the key", async () => {
-    const keys = new FakePubkyIdentityKeys();
-    const approval = new FakePubkyAuthApproval();
+    const keys = new RecordingPubkyIdentityKeys();
+    const approval = new SanitizedPubkyAuthApproval();
     const pubky = Object.assign(keys, { approveAuthRequest: approval.approveAuthRequest.bind(approval) });
     const restored = keys.createKey();
-    const localIdentities = new FakeLocalIdentities(Result.ok(restored));
+    const restoreActiveIdentity = vi.fn(async () => Result.ok(restored));
     const parsed = parsePubkyAuthRequest(encodeURIComponent(REQUEST));
     if (Result.isError(parsed)) throw new Error(parsed.error.code);
 
-    const result = await approveActiveAuthorization({ authRequest: parsed.value.approval, localIdentities, pubky });
+    const result = await approveActiveAuthorization({ authRequest: parsed.value.approval, restoreActiveIdentity, pubky });
 
     expect(Result.isOk(result)).toBe(true);
     expect(approval.calls).toEqual([{ keyHandle: restored.keyHandle, authRequestScheme: "pubkyauth:" }]);
@@ -30,14 +28,14 @@ describe("approveActiveAuthorization", () => {
   });
 
   it("returns a safe missing-identity error without approving", async () => {
-    const keys = new FakePubkyIdentityKeys();
-    const approval = new FakePubkyAuthApproval();
+    const keys = new RecordingPubkyIdentityKeys();
+    const approval = new SanitizedPubkyAuthApproval();
     const pubky = Object.assign(keys, { approveAuthRequest: approval.approveAuthRequest.bind(approval) });
-    const localIdentities = new FakeLocalIdentities(Result.err({ code: "no_active_identity" }));
+    const restoreActiveIdentity = vi.fn(async () => Result.err({ code: "no_active_identity" as const }));
     const parsed = parsePubkyAuthRequest(encodeURIComponent(REQUEST));
     if (Result.isError(parsed)) throw new Error(parsed.error.code);
 
-    const result = await approveActiveAuthorization({ authRequest: parsed.value.approval, localIdentities, pubky });
+    const result = await approveActiveAuthorization({ authRequest: parsed.value.approval, restoreActiveIdentity, pubky });
 
     expect(Result.isError(result) && result.error).toEqual({ code: "no_active_identity" });
     expect(approval.calls).toEqual([]);
@@ -45,26 +43,18 @@ describe("approveActiveAuthorization", () => {
   });
 
   it("disposes the restored key when approval fails", async () => {
-    const keys = new FakePubkyIdentityKeys();
-    const approval = new FakePubkyAuthApproval();
+    const keys = new RecordingPubkyIdentityKeys();
+    const approval = new SanitizedPubkyAuthApproval();
     approval.approvalFailure = "relay_failed";
     const pubky = Object.assign(keys, { approveAuthRequest: approval.approveAuthRequest.bind(approval) });
     const restored = keys.createKey();
-    const localIdentities = new FakeLocalIdentities(Result.ok(restored));
+    const restoreActiveIdentity = vi.fn(async () => Result.ok(restored));
     const parsed = parsePubkyAuthRequest(encodeURIComponent(REQUEST));
     if (Result.isError(parsed)) throw new Error(parsed.error.code);
 
-    const result = await approveActiveAuthorization({ authRequest: parsed.value.approval, localIdentities, pubky });
+    const result = await approveActiveAuthorization({ authRequest: parsed.value.approval, restoreActiveIdentity, pubky });
 
     expect(Result.isError(result) && result.error).toEqual({ code: "approval_failed" });
     expect(keys.disposedKeys).toEqual([restored.keyHandle]);
   });
 });
-
-class FakeLocalIdentities implements ActiveAuthorizationIdentityRestorer {
-  constructor(private readonly restored: ActiveAuthorizationIdentityRestoreResult) {}
-
-  async restoreActiveIdentity() {
-    return this.restored;
-  }
-}

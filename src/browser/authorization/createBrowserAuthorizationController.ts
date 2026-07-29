@@ -7,7 +7,7 @@ import { LocalStorageIdentityRepository } from "../identity/local-identity/adapt
 import { PubkySdkAdapter } from "../pubky/adapters/pubkySdkAdapter";
 import {
   approveActiveAuthorization,
-  type ActiveAuthorizationIdentityRestorer,
+  type ActiveAuthorizationIdentityRestoreResult,
   type ActiveAuthorizationResult,
 } from "./application/approveActiveAuthorization";
 import {
@@ -40,10 +40,10 @@ async function approveWithPubkySdk(
   }
 
   try {
-    const localIdentities = createActiveAuthorizationIdentityRestorer(pubky);
+    const restoreActiveIdentity = createRestoreActiveAuthorizationIdentity(pubky);
     return await approveActiveAuthorization({
       authRequest,
-      localIdentities,
+      restoreActiveIdentity,
       pubky,
     });
   } finally {
@@ -55,25 +55,23 @@ async function approveWithPubkySdk(
   }
 }
 
-function createActiveAuthorizationIdentityRestorer(
+function createRestoreActiveAuthorizationIdentity(
   pubky: PubkySdkAdapter,
-): ActiveAuthorizationIdentityRestorer {
+): () => Promise<ActiveAuthorizationIdentityRestoreResult> {
   const localIdentities = new RestoreActiveLocalIdentityKey({
     keyStore: new LocalStorageIdentityRepository(),
     identityKeys: pubky,
   });
 
-  return {
-    async restoreActiveIdentity() {
-      const restored = await localIdentities.restore();
-      if (Result.isError(restored)) {
-        return Result.err({
-          code: restored.error.code === "no_active_identity"
-            ? "no_active_identity"
-            : "identity_restore_failed",
-        });
-      }
-      return Result.ok(restored.value);
-    },
+  return async () => {
+    const restored = await localIdentities.restore();
+    if (Result.isError(restored)) {
+      return Result.err({
+        code: restored.error.code === "no_active_identity"
+          ? "no_active_identity"
+          : "identity_restore_failed",
+      });
+    }
+    return Result.ok(restored.value);
   };
 }

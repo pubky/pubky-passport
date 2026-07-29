@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { BrowserIdentityController } from "../browser/identity/browserIdentityController";
-import { fakeBrowserIdentityController } from "../../test-utils/fakes/fakeBrowserIdentityController";
+import { mockBrowserIdentityController } from "../../test-utils/fakes/mockBrowserIdentityController";
 import { AuthorizationIdentityPanel } from "./authorizationIdentityPanel";
 
 describe("AuthorizationIdentityPanel", () => {
@@ -28,11 +28,11 @@ describe("AuthorizationIdentityPanel", () => {
     );
 
     await waitFor(() => expect(onReadyChange).toHaveBeenCalledWith(true));
-    await user.selectOptions(screen.getByRole("combobox", { name: "Authorization identity" }), "identity-2");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Authorization Pubky identity" }), "identity-2");
 
     expect(controller.select).toHaveBeenCalledWith("identity-2");
     expect(onReadyChange).toHaveBeenLastCalledWith(true);
-    expect(screen.getByText("Identity ready.")).toBeInTheDocument();
+    expect(screen.getByText("Pubky identity ready.")).toBeInTheDocument();
   });
 
   it("blocks readiness and offers Google establishment when no identity exists", async () => {
@@ -92,7 +92,7 @@ describe("AuthorizationIdentityPanel", () => {
     act(() => refresh());
 
     await waitFor(() => expect(onReadyChange).toHaveBeenLastCalledWith(false));
-    expect(screen.getByRole("option", { name: "No local identity" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "No local Pubky identity" })).toBeInTheDocument();
   });
 });
 
@@ -107,7 +107,7 @@ function fakeIdentityController(input: { empty?: boolean } = {}): BrowserIdentit
       publicIdentity: { publicKeyZ32: "identity-2", publicKeyDisplay: "pubkyidentity-2" },
     },
   ];
-  return fakeBrowserIdentityController({
+  return mockBrowserIdentityController({
     list: vi.fn(() => Result.ok({
       activeIdentityId: input.empty ? null : "identity-1",
       identities,
@@ -115,7 +115,7 @@ function fakeIdentityController(input: { empty?: boolean } = {}): BrowserIdentit
     select: vi.fn(() => Result.ok()),
     clear: vi.fn(() => Result.ok()),
     subscribe: vi.fn(() => () => {}),
-    mountGoogleSignIn: vi.fn(async (_target, onState) => onState({ stage: "sign-in", errorCode: null })),
-    continueGoogle: vi.fn(async () => ({ status: "busy" as const })),
+    mountGoogleSignIn: vi.fn(async (_target, onState) => onState({ stage: "google-sign-in", errorCode: null })),
+    continueGoogleBackedIdentityAction: vi.fn(async () => ({ status: "busy" as const })),
   });
 }

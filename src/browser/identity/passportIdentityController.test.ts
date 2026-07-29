@@ -16,18 +16,22 @@ describe("PassportIdentityController", () => {
   });
 
   it("keeps Google credentials private and returns a safe established identity", async () => {
-    const establish = vi.fn(async () => Result.ok({
-      source: "restored" as const,
+    const states: unknown[] = [];
+    const establish = establishmentDouble(async () => Result.ok({
+      establishmentMode: "restored" as const,
       publicIdentity: { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" },
     }));
-    const requestGoogleDriveAccess = vi.fn(async () => Result.ok("drive-access-token"));
-    const { controller, credentialCallback } = await mountedController({
-      identityEstablisher: { establish },
-      googleDriveAccessRequester: { request: requestGoogleDriveAccess },
+    const requestGoogleDriveAccess = vi.fn(async () => {
+      expect(states.at(-1)).toEqual({ stage: "requesting-google-drive-authorization", errorCode: null });
+      return Result.ok("drive-access-token");
     });
+    const { controller, credentialCallback } = await mountedController({
+      establishGoogleBackedIdentity: establish.execute,
+      googleDriveAccessRequester: { request: requestGoogleDriveAccess },
+    }, states);
 
     credentialCallback.current?.(googleCredential());
-    const completed = await controller.continueGoogle({ kind: "establish" });
+    const completed = await controller.continueGoogleBackedIdentityAction({ kind: "establish_google_backed_identity" });
 
     expect(requestGoogleDriveAccess).toHaveBeenCalledWith({
       clientId: "google-client",
@@ -35,15 +39,20 @@ describe("PassportIdentityController", () => {
       expectedSubject: "google-subject",
       signal: expect.any(AbortSignal),
     });
-    expect(establish).toHaveBeenCalledWith({
-      googleIdToken: "google-id-token",
-      driveAccessToken: "drive-access-token",
-    });
+    expect(establish.calls).toBe(1);
+    expect(states).toEqual([
+      { stage: "google-sign-in", errorCode: null },
+      { stage: "google-drive-authorization", errorCode: null },
+      { stage: "requesting-google-drive-authorization", errorCode: null },
+      { stage: "executing-action", errorCode: null },
+      { stage: "google-sign-in", errorCode: null },
+    ]);
+    expect(establish.receivedExpectedCredentials).toBe(true);
     expect(completed).toEqual({
       status: "action_completed",
       result: Result.ok({
-        kind: "established",
-        source: "restored",
+        kind: "google_backed_identity_established",
+        establishmentMode: "restored",
         publicIdentity: { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" },
       }),
     });
@@ -61,16 +70,16 @@ describe("PassportIdentityController", () => {
     "malformed_homegate_response",
     "network_failed",
   ] as const)("translates the Homegate %s cause for UI consumers", async (cause) => {
-    const establish = vi.fn(async () => Result.err({
-      code: "homegate_invite_failed" as const,
+    const establish = establishmentDouble(async () => Result.err({
+      code: "homeserver_signup_invitation_failed" as const,
       cause,
     }));
     const { controller, credentialCallback } = await mountedController({
-      identityEstablisher: { establish },
+      establishGoogleBackedIdentity: establish.execute,
     });
     credentialCallback.current?.(googleCredential());
 
-    const completed = await controller.continueGoogle({ kind: "establish" });
+    const completed = await controller.continueGoogleBackedIdentityAction({ kind: "establish_google_backed_identity" });
 
     expect(completed.status).toBe("action_completed");
     if (completed.status !== "action_completed") throw new Error("Expected completed action");
@@ -82,19 +91,19 @@ describe("PassportIdentityController", () => {
 
   it("account-matches Drive access and exposes only safe Google state", async () => {
     const states: unknown[] = [];
-    const requestGoogleDriveAccess = vi.fn(async () => Result.err({ code: "drive_account_mismatch" as const }));
+    const requestGoogleDriveAccess = vi.fn(async () => Result.err({ code: "google_drive_authorization_account_mismatch" as const }));
     const { controller, credentialCallback } = await mountedController({
       googleDriveAccessRequester: { request: requestGoogleDriveAccess },
     }, states);
 
     credentialCallback.current?.(googleCredential());
-    const completed = await controller.continueGoogle({ kind: "establish" });
+    const completed = await controller.continueGoogleBackedIdentityAction({ kind: "establish_google_backed_identity" });
 
-    expect(completed).toEqual({ status: "credential_failed" });
-    expect(states).toContainEqual({ stage: "drive", errorCode: null });
+    expect(completed).toEqual({ status: "google_authorization_failed" });
+    expect(states).toContainEqual({ stage: "google-drive-authorization", errorCode: null });
     expect(states).toContainEqual({
-      stage: "sign-in",
-      errorCode: "drive_account_mismatch",
+      stage: "google-sign-in",
+      errorCode: "google_drive_authorization_account_mismatch",
     });
     expect(JSON.stringify(states)).not.toContain("google-id-token");
   });
@@ -102,24 +111,24 @@ describe("PassportIdentityController", () => {
   it("aborts pending Drive acquisition and ignores its result after unmount", async () => {
     let resolveDrive: ((value: ReturnType<typeof Result.ok<string>>) => void) | undefined;
     let driveSignal: AbortSignal | undefined;
-    const establish = vi.fn(async () => Result.err({ code: "unexpected_failure" as const }));
+    const establish = establishmentDouble(async () => Result.err({ code: "unexpected_failure" as const }));
     const requestGoogleDriveAccess = vi.fn((input: { signal: AbortSignal }) => {
       driveSignal = input.signal;
       return new Promise<ReturnType<typeof Result.ok<string>>>((resolve) => { resolveDrive = resolve; });
     });
     const { controller, credentialCallback } = await mountedController({
-      identityEstablisher: { establish },
+      establishGoogleBackedIdentity: establish.execute,
       googleDriveAccessRequester: { request: requestGoogleDriveAccess },
     });
     credentialCallback.current?.(googleCredential());
 
-    const pending = controller.continueGoogle({ kind: "establish" });
+    const pending = controller.continueGoogleBackedIdentityAction({ kind: "establish_google_backed_identity" });
     controller.unmountGoogleSignIn();
     resolveDrive?.(Result.ok("late-drive-token"));
 
     await expect(pending).resolves.toEqual({ status: "superseded" });
     expect(driveSignal?.aborted).toBe(true);
-    expect(establish).not.toHaveBeenCalled();
+    expect(establish.calls).toBe(0);
   });
 
   it.each([
@@ -135,7 +144,7 @@ describe("PassportIdentityController", () => {
     await expect(controller.mountGoogleSignIn(document.createElement("div"), (state) => states.push(state))).resolves.toBeUndefined();
 
     expect(states.at(-1)).toEqual({
-      stage: "sign-in",
+      stage: "google-sign-in",
       errorCode: "sign_in_unavailable",
     });
   });
@@ -157,7 +166,7 @@ describe("PassportIdentityController", () => {
     controller.retryGoogleSignIn();
     await vi.waitFor(() => expect(mount).toHaveBeenCalledTimes(2));
 
-    expect(states.at(-1)).toEqual({ stage: "sign-in", errorCode: null });
+    expect(states.at(-1)).toEqual({ stage: "google-sign-in", errorCode: null });
   });
 
   it("maps thrown Drive acquisition to credential failure without rejecting", async () => {
@@ -167,21 +176,21 @@ describe("PassportIdentityController", () => {
     }, states);
     credentialCallback.current?.(googleCredential());
 
-    await expect(controller.continueGoogle({ kind: "establish" })).resolves.toEqual({ status: "credential_failed" });
+    await expect(controller.continueGoogleBackedIdentityAction({ kind: "establish_google_backed_identity" })).resolves.toEqual({ status: "google_authorization_failed" });
     expect(states.at(-1)).toEqual({
-      stage: "sign-in",
-      errorCode: "drive_consent_failed",
+      stage: "google-sign-in",
+      errorCode: "google_drive_authorization_failed",
     });
   });
 
   it("maps thrown identity actions to an unexpected failure result", async () => {
     const { controller, credentialCallback } = await mountedController({
-      identityDeleter: { execute: vi.fn(async () => { throw new Error("delete failed"); }) },
+      deleteGoogleDrivePassportFile: async () => { throw new Error("delete failed"); },
     });
     credentialCallback.current?.(googleCredential());
 
-    const completed = await controller.continueGoogle({
-      kind: "delete",
+    const completed = await controller.continueGoogleBackedIdentityAction({
+      kind: "delete_google_drive_passport_file",
       expectedPublicKeyZ32: "public-key",
     });
     expect(completed.status).toBe("action_completed");
@@ -196,46 +205,46 @@ describe("PassportIdentityController", () => {
     const requestGoogleDriveAccess = vi.fn(() => new Promise<ReturnType<typeof Result.ok<string>>>((resolve) => {
       resolveDrive = resolve;
     }));
-    const establish = vi.fn(async () => Result.err({ code: "unexpected_failure" as const }));
+    const establish = establishmentDouble(async () => Result.err({ code: "unexpected_failure" as const }));
     const { controller, credentialCallback } = await mountedController({
       googleDriveAccessRequester: { request: requestGoogleDriveAccess },
-      identityEstablisher: { establish },
+      establishGoogleBackedIdentity: establish.execute,
     });
     credentialCallback.current?.(googleCredential());
 
-    const first = controller.continueGoogle({ kind: "establish" });
-    await expect(controller.continueGoogle({ kind: "establish" })).resolves.toEqual({ status: "busy" });
+    const first = controller.continueGoogleBackedIdentityAction({ kind: "establish_google_backed_identity" });
+    await expect(controller.continueGoogleBackedIdentityAction({ kind: "establish_google_backed_identity" })).resolves.toEqual({ status: "busy" });
     resolveDrive?.(Result.ok("drive-access-token"));
     await first;
 
-    await expect(controller.continueGoogle({ kind: "establish" })).resolves.toEqual({ status: "credential_failed" });
+    await expect(controller.continueGoogleBackedIdentityAction({ kind: "establish_google_backed_identity" })).resolves.toEqual({ status: "google_authorization_failed" });
 
     expect(requestGoogleDriveAccess).toHaveBeenCalledOnce();
-    expect(establish).toHaveBeenCalledOnce();
+    expect(establish.calls).toBe(1);
   });
 
   it("defers one-time identity action disposal and suppresses completion after dispose", async () => {
     let resolveEstablish: ((value: ReturnType<typeof Result.ok<{
-      source: "restored";
+      establishmentMode: "restored";
       publicIdentity: { publicKeyZ32: string; publicKeyDisplay: string };
     }>>) => void) | undefined;
-    const disposeIdentityActions = vi.fn();
-    const establish = vi.fn<BrowserIdentityControllerDependencies["identityEstablisher"]["establish"]>(
+    const disposeGoogleBackedIdentityOperations = vi.fn();
+    const establish = establishmentDouble(
       () => new Promise((resolve) => { resolveEstablish = resolve; }),
     );
     const { controller, credentialCallback } = await mountedController({
-      identityEstablisher: { establish },
-      disposeIdentityActions,
+      establishGoogleBackedIdentity: establish.execute,
+      disposeGoogleBackedIdentityOperations,
     });
     credentialCallback.current?.(googleCredential());
 
-    const pending = controller.continueGoogle({ kind: "establish" });
-    await vi.waitFor(() => expect(establish).toHaveBeenCalledOnce());
+    const pending = controller.continueGoogleBackedIdentityAction({ kind: "establish_google_backed_identity" });
+    await vi.waitFor(() => expect(establish.calls).toBe(1));
     controller.dispose();
     controller.dispose();
-    expect(disposeIdentityActions).not.toHaveBeenCalled();
+    expect(disposeGoogleBackedIdentityOperations).not.toHaveBeenCalled();
     resolveEstablish?.(Result.ok({
-      source: "restored",
+      establishmentMode: "restored",
       publicIdentity: { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" },
     }));
 
@@ -243,17 +252,17 @@ describe("PassportIdentityController", () => {
     expect(completed.status).toBe("action_finished_after_unmount");
     if (completed.status !== "action_finished_after_unmount") throw new Error("Expected superseded action result");
     expect(Result.isError(completed.result)).toBe(false);
-    expect(disposeIdentityActions).toHaveBeenCalledOnce();
+    expect(disposeGoogleBackedIdentityOperations).toHaveBeenCalledOnce();
   });
 
   it("preserves a failed establishment result after ordinary unmount", async () => {
-    const establishment = deferred<Awaited<ReturnType<BrowserIdentityControllerDependencies["identityEstablisher"]["establish"]>>>();
-    const establish = vi.fn(() => establishment.promise);
-    const { controller, credentialCallback } = await mountedController({ identityEstablisher: { establish } });
+    const establishment = deferred<Awaited<ReturnType<BrowserIdentityControllerDependencies["establishGoogleBackedIdentity"]>>>();
+    const establish = establishmentDouble(() => establishment.promise);
+    const { controller, credentialCallback } = await mountedController({ establishGoogleBackedIdentity: establish.execute });
     credentialCallback.current?.(googleCredential());
 
-    const pending = controller.continueGoogle({ kind: "establish" });
-    await vi.waitFor(() => expect(establish).toHaveBeenCalledOnce());
+    const pending = controller.continueGoogleBackedIdentityAction({ kind: "establish_google_backed_identity" });
+    await vi.waitFor(() => expect(establish.calls).toBe(1));
     controller.unmountGoogleSignIn();
     establishment.resolve(Result.err({ code: "signup_failed" }));
 
@@ -266,31 +275,31 @@ describe("PassportIdentityController", () => {
   });
 
   it("preserves a successful deletion result after ordinary unmount", async () => {
-    const deletion = deferred<Awaited<ReturnType<BrowserIdentityControllerDependencies["identityDeleter"]["execute"]>>>();
-    const execute = vi.fn(() => deletion.promise);
-    const { controller, credentialCallback } = await mountedController({ identityDeleter: { execute } });
+    const deletion = deferred<Awaited<ReturnType<BrowserIdentityControllerDependencies["deleteGoogleDrivePassportFile"]>>>();
+    const execute = deletionDouble(() => deletion.promise);
+    const { controller, credentialCallback } = await mountedController({ deleteGoogleDrivePassportFile: execute.execute });
     credentialCallback.current?.(googleCredential());
 
-    const pending = controller.continueGoogle({ kind: "delete", expectedPublicKeyZ32: "public-key" });
-    await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce());
+    const pending = controller.continueGoogleBackedIdentityAction({ kind: "delete_google_drive_passport_file", expectedPublicKeyZ32: "public-key" });
+    await vi.waitFor(() => expect(execute.calls).toBe(1));
     controller.unmountGoogleSignIn();
     deletion.resolve(Result.ok());
 
     const completed = await pending;
     expect(completed.status).toBe("action_finished_after_unmount");
     if (completed.status !== "action_finished_after_unmount") throw new Error("Expected unmounted action result");
-    expect(completed.result).toEqual(Result.ok({ kind: "deleted" }));
+    expect(completed.result).toEqual(Result.ok({ kind: "google_drive_passport_file_deleted" }));
     controller.dispose();
   });
 
   it("preserves a failed deletion result after ordinary unmount", async () => {
-    const deletion = deferred<Awaited<ReturnType<BrowserIdentityControllerDependencies["identityDeleter"]["execute"]>>>();
-    const execute = vi.fn(() => deletion.promise);
-    const { controller, credentialCallback } = await mountedController({ identityDeleter: { execute } });
+    const deletion = deferred<Awaited<ReturnType<BrowserIdentityControllerDependencies["deleteGoogleDrivePassportFile"]>>>();
+    const execute = deletionDouble(() => deletion.promise);
+    const { controller, credentialCallback } = await mountedController({ deleteGoogleDrivePassportFile: execute.execute });
     credentialCallback.current?.(googleCredential());
 
-    const pending = controller.continueGoogle({ kind: "delete", expectedPublicKeyZ32: "public-key" });
-    await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce());
+    const pending = controller.continueGoogleBackedIdentityAction({ kind: "delete_google_drive_passport_file", expectedPublicKeyZ32: "public-key" });
+    await vi.waitFor(() => expect(execute.calls).toBe(1));
     controller.unmountGoogleSignIn();
     deletion.resolve(Result.err({ code: "drive_delete_failed" }));
 
@@ -304,10 +313,10 @@ describe("PassportIdentityController", () => {
 
   it("delegates safe local identity operations and owns Pubky disposal", () => {
     const repository = fakeRepository();
-    const disposeIdentityActions = vi.fn();
+    const disposeGoogleBackedIdentityOperations = vi.fn();
     const controller = new PassportIdentityController({
       clientId: "google-client",
-      dependencies: dependencies({ repository, disposeIdentityActions }),
+      dependencies: dependencies({ repository, disposeGoogleBackedIdentityOperations }),
     });
 
     expect(controller.list()).toEqual(Result.ok({ activeIdentityId: null, identities: [] }));
@@ -318,7 +327,7 @@ describe("PassportIdentityController", () => {
 
     expect(repository.select).toHaveBeenCalledWith("identity");
     expect(repository.clear).toHaveBeenCalledOnce();
-    expect(disposeIdentityActions).toHaveBeenCalledOnce();
+    expect(disposeGoogleBackedIdentityOperations).toHaveBeenCalledOnce();
   });
 });
 
@@ -349,9 +358,9 @@ async function mountedController(
 function dependencies(overrides: Partial<BrowserIdentityControllerDependencies> = {}): BrowserIdentityControllerDependencies {
   return {
     repository: fakeRepository(),
-    identityEstablisher: { establish: vi.fn(async () => Result.err({ code: "unexpected_failure" as const })) },
-    identityDeleter: { execute: vi.fn(async () => Result.ok()) },
-    disposeIdentityActions: vi.fn(),
+    establishGoogleBackedIdentity: async () => Result.err({ code: "unexpected_failure" as const }),
+    deleteGoogleDrivePassportFile: async () => Result.ok(),
+    disposeGoogleBackedIdentityOperations: vi.fn(),
     googleSignInButton: { mount: vi.fn(async () => Result.ok()), unmount: vi.fn() },
     googleDriveAccessRequester: { request: vi.fn(async () => Result.ok("drive-access-token")) },
     ...overrides,
@@ -366,6 +375,42 @@ function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((settle) => { resolve = settle; });
   return { promise, resolve };
+}
+
+function establishmentDouble(
+  implementation: () => ReturnType<BrowserIdentityControllerDependencies["establishGoogleBackedIdentity"]>,
+) {
+  const double = {
+    calls: 0,
+    receivedExpectedCredentials: false,
+    async execute(credentials: { googleIdToken: string; driveAccessToken: string }) {
+      double.calls += 1;
+      double.receivedExpectedCredentials = credentials.googleIdToken.length > 0
+        && credentials.driveAccessToken.length > 0;
+      return implementation();
+    },
+  };
+  return double;
+}
+
+function deletionDouble(
+  implementation: () => ReturnType<BrowserIdentityControllerDependencies["deleteGoogleDrivePassportFile"]>,
+) {
+  const double = {
+    calls: 0,
+    receivedExpectedInput: false,
+    async execute(
+      credentials: { googleIdToken: string; driveAccessToken: string },
+      expectedPublicKeyZ32: string,
+    ) {
+      double.calls += 1;
+      double.receivedExpectedInput = credentials.googleIdToken.length > 0
+        && credentials.driveAccessToken.length > 0
+        && expectedPublicKeyZ32 === "public-key";
+      return implementation();
+    },
+  };
+  return double;
 }
 
 function fakeRepository(): BrowserIdentityControllerDependencies["repository"] {

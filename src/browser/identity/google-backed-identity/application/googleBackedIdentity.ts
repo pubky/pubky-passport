@@ -5,12 +5,12 @@ import type { Result } from "better-result";
 import type { PubkyPublicIdentity } from "../../../../core/identity/pubkyIdentity";
 import type { PassportFileEnvelopeV1 } from "../../../../core/passport-file/passportFile";
 import type {
-  HomegateInvitationErrorCode,
+  HomegateSignupInvitationErrorCode,
   HomeserverSignupInvitation,
-} from "../../../homegate/application/homegateInvitation";
+} from "../../../homegate/application/homegateSignupInvitation";
 import type { PassportFileStore } from "../../../passport-file/application/passportFileStore";
 
-export type GoogleIdentitySession = {
+export type GoogleBackedIdentityCredentials = {
   googleIdToken: string;
   driveAccessToken: string;
 };
@@ -25,7 +25,7 @@ export type GoogleBackedIdentityErrorCode =
   | "encrypt_failed"
   | "drive_create_conflict"
   | "drive_write_failed"
-  | "homegate_invite_failed"
+  | "homeserver_signup_invitation_failed"
   | "signup_failed"
   | "signin_failed"
   | "discovery_failed"
@@ -34,41 +34,33 @@ export type GoogleBackedIdentityErrorCode =
 
 export type GoogleBackedIdentityError =
   | {
-      code: Exclude<GoogleBackedIdentityErrorCode, "homegate_invite_failed">;
-      recoverablePublicIdentity?: PubkyPublicIdentity;
+      code: Exclude<GoogleBackedIdentityErrorCode, "homeserver_signup_invitation_failed">;
+      partialSetupPublicIdentity?: PubkyPublicIdentity;
     }
   | {
-      code: "homegate_invite_failed";
-      cause: HomegateInvitationErrorCode;
-      recoverablePublicIdentity?: never;
+      code: "homeserver_signup_invitation_failed";
+      cause: HomegateSignupInvitationErrorCode;
+      partialSetupPublicIdentity?: never;
     };
 
 export type GoogleBackedIdentity = {
-  source: "restored" | "created";
+  establishmentMode: "restored" | "created";
   publicIdentity: PubkyPublicIdentity;
 };
 export type GoogleBackedIdentityResult<T> = Result<T, GoogleBackedIdentityError>;
 
-export type GoogleIdentityEstablisher = {
-  establish(google: GoogleIdentitySession): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>>;
+export type CreateGoogleBackedIdentityInput = {
+  invitation: HomeserverSignupInvitation;
+  passportFileStore: Pick<PassportFileStore, "createPassportFile">;
+  wrappingKey: string;
 };
 
-export type GoogleBackedIdentityRestorer = {
-  execute(input: {
-    envelope: PassportFileEnvelopeV1;
-    wrappingKey: string;
-  }): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>>;
+export type RestoreGoogleBackedIdentityInput = {
+  envelope: PassportFileEnvelopeV1;
+  wrappingKey: string;
 };
 
-export type GoogleBackedIdentityCreator = {
-  execute(input: {
-    invitation: HomeserverSignupInvitation;
-    passportFileStore: Pick<PassportFileStore, "createPassportFile">;
-    wrappingKey: string;
-  }): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>>;
-};
-
-export type GoogleDriveIdentityDeletionErrorCode =
+export type GoogleDrivePassportFileDeletionErrorCode =
   | "wrapping_key_failed"
   | "drive_read_failed"
   | "decrypt_failed"
@@ -78,11 +70,4 @@ export type GoogleDriveIdentityDeletionErrorCode =
   | "drive_delete_failed"
   | "unexpected_failure";
 
-export type GoogleDriveIdentityDeletionResult = Result<void, { code: GoogleDriveIdentityDeletionErrorCode }>;
-
-export type GoogleDriveIdentityDeleter = {
-  execute(
-    google: GoogleIdentitySession,
-    expectedPublicKeyZ32: string,
-  ): Promise<GoogleDriveIdentityDeletionResult>;
-};
+export type GoogleDrivePassportFileDeletionResult = Result<void, { code: GoogleDrivePassportFileDeletionErrorCode }>;

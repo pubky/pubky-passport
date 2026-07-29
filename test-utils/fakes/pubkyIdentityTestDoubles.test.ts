@@ -3,14 +3,14 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { parsePubkyAuthRequest } from "../../src/core/auth/parsePubkyAuthRequest";
 import { PUBKY_SECRET_KEY_FORMAT, type PubkyIdentityKey } from "../../src/browser/pubky/application/pubkyIdentityKeys";
-import { FakePubkyAuthApproval } from "./fakePubkyAuthApproval";
-import { FakePubkyDiscovery } from "./fakePubkyDiscovery";
-import { FakePubkyIdentityKeys } from "./fakePubkyIdentityKeys";
-import { FakePubkySessionAccess } from "./fakePubkySessionAccess";
+import { SanitizedPubkyAuthApproval } from "./sanitizedPubkyAuthApproval";
+import { RecordingPubkyDiscovery } from "./recordingPubkyDiscovery";
+import { RecordingPubkyIdentityKeys } from "./recordingPubkyIdentityKeys";
+import { RecordingPubkySessionAccess } from "./recordingPubkySessionAccess";
 
-describe("Pubky identity fakes", () => {
+describe("Pubky identity test doubles", () => {
   it("creates, restores, exports, and returns deterministic public identity data", async () => {
-    const keys = new FakePubkyIdentityKeys();
+    const keys = new RecordingPubkyIdentityKeys();
     const created = expectOk(await keys.createIdentityKey());
     const publicIdentity = expectOk(await keys.getPublicIdentity({ keyHandle: created.keyHandle }));
     const secretKey = expectOk(await keys.exportSecretKey({ keyHandle: created.keyHandle }));
@@ -31,7 +31,7 @@ describe("Pubky identity fakes", () => {
   });
 
   it("simulates expected key operation failures", async () => {
-    const keys = new FakePubkyIdentityKeys();
+    const keys = new RecordingPubkyIdentityKeys();
     const created = expectOk(await keys.createIdentityKey());
 
     keys.createFailure = "create_failed";
@@ -52,8 +52,8 @@ describe("Pubky identity fakes", () => {
   });
 
   it("simulates signup and signin without recording raw signup codes", async () => {
-    const key = await fakeKey();
-    const sessionAccess = new FakePubkySessionAccess();
+    const key = await createTestKey();
+    const sessionAccess = new RecordingPubkySessionAccess();
     const signupResult = expectOk(
       await sessionAccess.signup({
         keyHandle: key.keyHandle,
@@ -83,8 +83,8 @@ describe("Pubky identity fakes", () => {
   });
 
   it("simulates discovery publication success and failure", async () => {
-    const key = await fakeKey();
-    const discovery = new FakePubkyDiscovery();
+    const key = await createTestKey();
+    const discovery = new RecordingPubkyDiscovery();
 
     await expectOk(
       discovery.publishHomeserverIfStale({
@@ -105,8 +105,8 @@ describe("Pubky identity fakes", () => {
   });
 
   it("simulates auth approval without recording raw pubkyauth URLs", async () => {
-    const key = await fakeKey();
-    const authApproval = new FakePubkyAuthApproval();
+    const key = await createTestKey();
+    const authApproval = new SanitizedPubkyAuthApproval();
     const parsedAuthRequest = parsePubkyAuthRequest(encodeURIComponent(
       "pubkyauth://signin?secret=SECRET-AUTH-REQUEST&relay=https://httprelay.pubky.app/inbox&caps=/pub/pubky.app/:rw",
     ));
@@ -126,8 +126,8 @@ describe("Pubky identity fakes", () => {
   });
 });
 
-async function fakeKey(): Promise<PubkyIdentityKey> {
-  return expectOk(await new FakePubkyIdentityKeys().createIdentityKey());
+async function createTestKey(): Promise<PubkyIdentityKey> {
+  return expectOk(await new RecordingPubkyIdentityKeys().createIdentityKey());
 }
 
 function expectOk<T>(result: Promise<ResultType<T, unknown>>): Promise<T>;

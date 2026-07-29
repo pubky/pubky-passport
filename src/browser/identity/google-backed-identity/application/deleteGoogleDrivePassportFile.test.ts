@@ -1,23 +1,23 @@
 import { Result } from "better-result";
 import { describe, expect, it } from "vitest";
 
-import { FakePubkyIdentityKeys } from "../../../../../test-utils/fakes/fakePubkyIdentityKeys";
+import { RecordingPubkyIdentityKeys } from "../../../../../test-utils/fakes/recordingPubkyIdentityKeys";
 import {
-  FAKE_GOOGLE_IDENTITY_SESSION,
-  FAKE_PASSPORT_ENVELOPE,
-  FAKE_PASSPORT_REFERENCE,
-  FakePassportCrypto,
-  FakePassportFileStore,
-} from "../../../../../test-utils/fakes/googleBackedIdentityFakes";
+  TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
+  TEST_PASSPORT_ENVELOPE,
+  TEST_PASSPORT_REFERENCE,
+  RecordingPassportFileCrypto,
+  SanitizedPassportFileStore,
+} from "../../../../../test-utils/fakes/googleBackedIdentityTestDoubles";
 import { expectResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
-import { DeleteGoogleDriveIdentity } from "./deleteGoogleDriveIdentity";
+import { DeleteGoogleDrivePassportFile } from "./deleteGoogleDrivePassportFile";
 
-describe("DeleteGoogleDriveIdentity", () => {
-  it("deletes the exact Drive identity reference only when it matches the selected identity", async () => {
+describe("DeleteGoogleDrivePassportFile", () => {
+  it("deletes the exact Drive Passport file reference only when it matches the selected identity", async () => {
     const setup = createSetup();
 
-    const result = await setup.subject.execute(
-      FAKE_GOOGLE_IDENTITY_SESSION,
+    const result = await setup.subject.deleteGoogleDrivePassportFile(
+      TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
       setup.keys.nextPublicIdentity.publicKeyZ32,
     );
 
@@ -28,11 +28,11 @@ describe("DeleteGoogleDriveIdentity", () => {
     expect(setup.crypto.decryptedOutputIsZeroed()).toBe(true);
   });
 
-  it("treats an already missing Drive identity as idempotent deletion", async () => {
-    const setup = createSetup(new FakePassportFileStore({ status: "missing" }));
+  it("treats an already missing Drive Passport file as idempotent deletion", async () => {
+    const setup = createSetup(new SanitizedPassportFileStore({ status: "missing" }));
 
-    const result = await setup.subject.execute(
-      FAKE_GOOGLE_IDENTITY_SESSION,
+    const result = await setup.subject.deleteGoogleDrivePassportFile(
+      TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
       setup.keys.nextPublicIdentity.publicKeyZ32,
     );
 
@@ -43,10 +43,10 @@ describe("DeleteGoogleDriveIdentity", () => {
     expect(setup.crypto.decryptCalls).toBe(0);
   });
 
-  it("does not delete a Drive identity that differs from the selected identity", async () => {
+  it("does not delete a Drive Passport file that differs from the selected identity", async () => {
     const setup = createSetup();
 
-    const result = await setup.subject.execute(FAKE_GOOGLE_IDENTITY_SESSION, "different-local-identity");
+    const result = await setup.subject.deleteGoogleDrivePassportFile(TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS, "different-local-identity");
 
     expectResultError(result, { code: "identity_mismatch" });
     expect(setup.fileStore.deleteCalls).toBe(0);
@@ -56,8 +56,8 @@ describe("DeleteGoogleDriveIdentity", () => {
     const setup = createSetup();
     setup.fileStore.deleteFailure = "stale_file";
 
-    const result = await setup.subject.execute(
-      FAKE_GOOGLE_IDENTITY_SESSION,
+    const result = await setup.subject.deleteGoogleDrivePassportFile(
+      TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
       setup.keys.nextPublicIdentity.publicKeyZ32,
     );
 
@@ -70,8 +70,8 @@ describe("DeleteGoogleDriveIdentity", () => {
     const setup = createSetup();
     setup.fileStore.deletePassportFile = async () => { throw new Error("Drive deletion threw"); };
 
-    const result = await setup.subject.execute(
-      FAKE_GOOGLE_IDENTITY_SESSION,
+    const result = await setup.subject.deleteGoogleDrivePassportFile(
+      TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
       setup.keys.nextPublicIdentity.publicKeyZ32,
     );
 
@@ -84,8 +84,8 @@ describe("DeleteGoogleDriveIdentity", () => {
     const setup = createSetup();
     setup.keys.disposeIdentityKey = () => { throw new Error("cleanup failed"); };
 
-    const result = await setup.subject.execute(
-      FAKE_GOOGLE_IDENTITY_SESSION,
+    const result = await setup.subject.deleteGoogleDrivePassportFile(
+      TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
       setup.keys.nextPublicIdentity.publicKeyZ32,
     );
 
@@ -94,16 +94,16 @@ describe("DeleteGoogleDriveIdentity", () => {
 });
 
 function createSetup(
-  fileStore = new FakePassportFileStore({
+  fileStore = new SanitizedPassportFileStore({
     status: "found",
-    envelope: FAKE_PASSPORT_ENVELOPE,
-    reference: FAKE_PASSPORT_REFERENCE,
+    envelope: TEST_PASSPORT_ENVELOPE,
+    reference: TEST_PASSPORT_REFERENCE,
   }),
 ) {
-  const keys = new FakePubkyIdentityKeys();
-  const crypto = new FakePassportCrypto();
-  const subject = new DeleteGoogleDriveIdentity({
-    wrappingKeys: { async requestWrappingKey() { return Result.ok("w".repeat(43)); } },
+  const keys = new RecordingPubkyIdentityKeys();
+  const crypto = new RecordingPassportFileCrypto();
+  const subject = new DeleteGoogleDrivePassportFile({
+    wrappingKeyRequester: { async requestWrappingKey() { return Result.ok("w".repeat(43)); } },
     passportFileStoreForAccessToken(accessToken) {
       expect(accessToken).toBe("drive-token");
       return fileStore;

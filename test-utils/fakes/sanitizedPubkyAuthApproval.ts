@@ -8,13 +8,13 @@ import type {
   PubkyAuthApprovalResult,
 } from "@/browser/pubky/application/pubkyAuthApproval";
 
-export type FakePubkyAuthApprovalCall = {
+export type SanitizedPubkyAuthApprovalCall = {
   keyHandle: PubkyIdentityKeyHandle;
   authRequestScheme?: string;
 };
 
-export class FakePubkyAuthApproval implements PubkyAuthApproval {
-  calls: FakePubkyAuthApprovalCall[] = [];
+export class SanitizedPubkyAuthApproval implements PubkyAuthApproval {
+  calls: SanitizedPubkyAuthApprovalCall[] = [];
 
   approvalFailure?: PubkyAuthApprovalErrorCode;
 

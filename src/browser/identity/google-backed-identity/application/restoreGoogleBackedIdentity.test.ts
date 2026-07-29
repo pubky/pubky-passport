@@ -1,12 +1,13 @@
+import { Result } from "better-result";
 import { describe, expect, it } from "vitest";
 
-import { FakePubkyIdentityKeys } from "../../../../../test-utils/fakes/fakePubkyIdentityKeys";
-import { FakePubkySessionAccess } from "../../../../../test-utils/fakes/fakePubkySessionAccess";
+import { RecordingPubkyIdentityKeys } from "../../../../../test-utils/fakes/recordingPubkyIdentityKeys";
+import { RecordingPubkySessionAccess } from "../../../../../test-utils/fakes/recordingPubkySessionAccess";
 import {
-  FAKE_PASSPORT_ENVELOPE,
-  FakeLocalIdentitySaver,
-  FakePassportCrypto,
-} from "../../../../../test-utils/fakes/googleBackedIdentityFakes";
+  TEST_PASSPORT_ENVELOPE,
+  RecordingSaveLocalIdentity,
+  RecordingPassportFileCrypto,
+} from "../../../../../test-utils/fakes/googleBackedIdentityTestDoubles";
 import { expectResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
 import { RestoreGoogleBackedIdentity } from "./restoreGoogleBackedIdentity";
 
@@ -34,10 +35,8 @@ describe("RestoreGoogleBackedIdentity", () => {
 
     const result = await setup.subject.execute(EXECUTION_INPUT);
 
-    expectResultError(result, {
-      code: "signin_failed",
-      recoverablePublicIdentity: setup.keys.nextPublicIdentity,
-    });
+    expectResultError(result, { code: "signin_failed" });
+    if (Result.isError(result)) expect(result.error.partialSetupPublicIdentity).toBeUndefined();
     expect(setup.local.saveCalls).toBe(0);
     expect(setup.keys.disposedKeys).toHaveLength(1);
   });
@@ -51,10 +50,8 @@ describe("RestoreGoogleBackedIdentity", () => {
 
     const result = await setup.subject.execute(EXECUTION_INPUT);
 
-    expectResultError(result, {
-      code: "identity_mismatch",
-      recoverablePublicIdentity: setup.keys.nextPublicIdentity,
-    });
+    expectResultError(result, { code: "identity_mismatch" });
+    if (Result.isError(result)) expect(result.error.partialSetupPublicIdentity).toBeUndefined();
     expect(setup.local.saveCalls).toBe(0);
   });
 
@@ -66,6 +63,16 @@ describe("RestoreGoogleBackedIdentity", () => {
 
     expectResultError(result, { code: "decrypt_failed" });
     expect(setup.keys.restoreCalls).toEqual([]);
+  });
+
+  it("returns local save failures without partial-setup metadata", async () => {
+    const setup = createSetup();
+    setup.local.saveFailure = true;
+
+    const result = await setup.subject.execute(EXECUTION_INPUT);
+
+    expectResultError(result, { code: "local_save_failed" });
+    if (Result.isError(result)) expect(result.error.partialSetupPublicIdentity).toBeUndefined();
   });
 
   it.each(["signin", "local-save"] as const)(
@@ -96,16 +103,16 @@ describe("RestoreGoogleBackedIdentity", () => {
 });
 
 const EXECUTION_INPUT = {
-  envelope: FAKE_PASSPORT_ENVELOPE,
+  envelope: TEST_PASSPORT_ENVELOPE,
   wrappingKey: "w".repeat(43),
 };
 
 function createSetup() {
-  const keys = new FakePubkyIdentityKeys();
-  const sessionAccess = new FakePubkySessionAccess();
+  const keys = new RecordingPubkyIdentityKeys();
+  const sessionAccess = new RecordingPubkySessionAccess();
   sessionAccess.session.publicIdentity = keys.nextPublicIdentity;
-  const local = new FakeLocalIdentitySaver();
-  const crypto = new FakePassportCrypto();
+  const local = new RecordingSaveLocalIdentity();
+  const crypto = new RecordingPassportFileCrypto();
   const subject = new RestoreGoogleBackedIdentity({
     crypto,
     identityKeys: keys,

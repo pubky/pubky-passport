@@ -10,7 +10,7 @@ import type {
   BrowserAuthorizationViewState,
 } from "../browser/authorization/browserAuthorizationController";
 import type { BrowserIdentityController } from "../browser/identity/browserIdentityController";
-import { fakeBrowserIdentityController } from "../../test-utils/fakes/fakeBrowserIdentityController";
+import { mockBrowserIdentityController } from "../../test-utils/fakes/mockBrowserIdentityController";
 import { AuthorizationReview } from "./authorizationReview";
 
 const REVIEW = {
@@ -36,11 +36,11 @@ describe("AuthorizationReview", () => {
     expect(screen.getByText("/pub/example.app/")).toBeInTheDocument();
     expect(screen.getByText("Read and Write")).toBeInTheDocument();
     expect(screen.getByText("Broad access")).toBeInTheDocument();
-    await waitFor(() => expect((screen.getByRole("combobox", { name: "Authorization identity" }) as HTMLSelectElement).value).toBe("identity-1"));
+    await waitFor(() => expect((screen.getByRole("combobox", { name: "Authorization Pubky identity" }) as HTMLSelectElement).value).toBe("identity-1"));
     await waitFor(() => expect((screen.getByRole("button", { name: "Approve" }) as HTMLButtonElement).disabled).toBe(false));
     await user.click(screen.getByRole("button", { name: "Add or restore with Google" }));
     expect((screen.getByRole("button", { name: "Approve" }) as HTMLButtonElement).disabled).toBe(true);
-    await user.click(screen.getByRole("button", { name: "Cancel sign-in" }));
+    await user.click(screen.getByRole("button", { name: "Cancel identity setup" }));
     await waitFor(() => expect((screen.getByRole("button", { name: "Approve" }) as HTMLButtonElement).disabled).toBe(false));
     await user.click(screen.getByRole("button", { name: "Approve" }));
     await user.click(screen.getByRole("button", { name: "Cancel" }));
@@ -108,7 +108,7 @@ function fakeController(initialState: BrowserAuthorizationViewState): BrowserAut
 }
 
 function fakeIdentityController(): BrowserIdentityController {
-  return fakeBrowserIdentityController({
+  return mockBrowserIdentityController({
     list: vi.fn(() => Result.ok({
       activeIdentityId: "identity-1",
       identities: [{
@@ -120,6 +120,6 @@ function fakeIdentityController(): BrowserIdentityController {
       }],
     })),
     select: vi.fn(() => Result.ok()),
-    continueGoogle: vi.fn(async () => ({ status: "busy" as const })),
+    continueGoogleBackedIdentityAction: vi.fn(async () => ({ status: "busy" as const })),
   });
 }

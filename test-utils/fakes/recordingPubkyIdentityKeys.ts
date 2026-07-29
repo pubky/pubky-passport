@@ -12,19 +12,19 @@ import {
 } from "../../src/browser/pubky/application/pubkyIdentityKeys";
 import type { PubkyPublicIdentity } from "../../src/core/identity/pubkyIdentity";
 
-export type FakePubkyIdentityKeysRestoreCall = {
+export type RecordedPubkyIdentityKeysRestoreCall = {
   secretKeyByteLength: number;
   secretKeyFormat: string;
 };
 
-export type FakePubkyIdentityKeysExportCall = {
+export type RecordedPubkyIdentityKeysExportCall = {
   keyHandle: PubkyIdentityKeyHandle;
 };
 
-export class FakePubkyIdentityKeys implements PubkyIdentityKeys {
+export class RecordingPubkyIdentityKeys implements PubkyIdentityKeys {
   createCalls = 0;
-  restoreCalls: FakePubkyIdentityKeysRestoreCall[] = [];
-  exportCalls: FakePubkyIdentityKeysExportCall[] = [];
+  restoreCalls: RecordedPubkyIdentityKeysRestoreCall[] = [];
+  exportCalls: RecordedPubkyIdentityKeysExportCall[] = [];
   publicIdentityCalls: Array<{ keyHandle: PubkyIdentityKeyHandle }> = [];
   disposedKeys: PubkyIdentityKeyHandle[] = [];
 

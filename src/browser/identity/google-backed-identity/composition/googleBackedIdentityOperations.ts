@@ -7,32 +7,18 @@ import { PubkySdkAdapter } from "../../../pubky/adapters/pubkySdkAdapter";
 import type { LocalIdentityKeyStore } from "../../local-identity/application/localIdentityRepository";
 import { SaveLocalIdentity } from "../../local-identity/application/saveLocalIdentity";
 import { CreateGoogleBackedIdentity } from "../application/createGoogleBackedIdentity";
-import { DeleteGoogleDriveIdentity } from "../application/deleteGoogleDriveIdentity";
+import { DeleteGoogleDrivePassportFile } from "../application/deleteGoogleDrivePassportFile";
 import { EstablishGoogleBackedIdentity } from "../application/establishGoogleBackedIdentity";
 import type {
-  GoogleBackedIdentity,
-  GoogleBackedIdentityResult,
-  GoogleDriveIdentityDeletionResult,
-  GoogleDriveIdentityDeleter,
-  GoogleIdentityEstablisher,
-  GoogleIdentitySession,
+  GoogleBackedIdentityCredentials,
 } from "../application/googleBackedIdentity";
 import { RestoreGoogleBackedIdentity } from "../application/restoreGoogleBackedIdentity";
-import { BrowserGoogleWrappingKeyRequester } from "../wrapping-key/adapters/googleWrappingKeyRequester";
+import { GoogleWrappingKeyApiClient } from "../wrapping-key/adapters/googleWrappingKeyApiClient";
 
-export interface GoogleIdentityLifecycle {
-  establish(google: GoogleIdentitySession): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>>;
-  deleteDriveIdentity(
-    google: GoogleIdentitySession,
-    expectedPublicKeyZ32: string,
-  ): Promise<GoogleDriveIdentityDeletionResult>;
-  dispose(): void;
-}
-
-export class GoogleIdentityActions implements GoogleIdentityLifecycle {
+export class GoogleBackedIdentityOperations {
   readonly #pubky: PubkySdkAdapter;
-  readonly #identityEstablisher: GoogleIdentityEstablisher;
-  readonly #identityDeleter: GoogleDriveIdentityDeleter;
+  readonly #establishGoogleBackedIdentity: EstablishGoogleBackedIdentity;
+  readonly #passportFileDeleter: DeleteGoogleDrivePassportFile;
   #disposed = false;
 
   constructor(input: {
@@ -43,7 +29,7 @@ export class GoogleIdentityActions implements GoogleIdentityLifecycle {
     const pubky = new PubkySdkAdapter();
     try {
       const localIdentities = new SaveLocalIdentity({ keyStore: input.keyStore, identityKeys: pubky });
-      const wrappingKeys = new BrowserGoogleWrappingKeyRequester();
+      const wrappingKeyRequester = new GoogleWrappingKeyApiClient();
       const homegate = new HomegateClient({ homegateBaseUrl: input.homegateBaseUrl });
       const crypto = new WebCryptoPassportFileCrypto();
       const passportFileStoreForAccessToken = (token: string) => new GoogleDrivePassportFileStore({
@@ -65,15 +51,15 @@ export class GoogleIdentityActions implements GoogleIdentityLifecycle {
         localIdentities,
         passportOrigin: input.passportOrigin,
       });
-      this.#identityEstablisher = new EstablishGoogleBackedIdentity({
-        wrappingKeys,
+      this.#establishGoogleBackedIdentity = new EstablishGoogleBackedIdentity({
+        wrappingKeyRequester,
         passportFileStoreForAccessToken,
         homegate,
         restoreExistingIdentity,
         createMissingIdentity,
       });
-      this.#identityDeleter = new DeleteGoogleDriveIdentity({
-        wrappingKeys,
+      this.#passportFileDeleter = new DeleteGoogleDrivePassportFile({
+        wrappingKeyRequester,
         passportFileStoreForAccessToken,
         crypto,
         identityKeys: pubky,
@@ -90,12 +76,12 @@ export class GoogleIdentityActions implements GoogleIdentityLifecycle {
     }
   }
 
-  establish(google: GoogleIdentitySession) {
-    return this.#identityEstablisher.establish(google);
+  establishGoogleBackedIdentity(credentials: GoogleBackedIdentityCredentials) {
+    return this.#establishGoogleBackedIdentity.establish(credentials);
   }
 
-  deleteDriveIdentity(google: GoogleIdentitySession, expectedPublicKeyZ32: string) {
-    return this.#identityDeleter.execute(google, expectedPublicKeyZ32);
+  deleteGoogleDrivePassportFile(credentials: GoogleBackedIdentityCredentials, expectedPublicKeyZ32: string) {
+    return this.#passportFileDeleter.deleteGoogleDrivePassportFile(credentials, expectedPublicKeyZ32);
   }
 
   dispose(): void {

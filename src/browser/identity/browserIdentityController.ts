@@ -50,49 +50,59 @@ export type BrowserIdentityControllerErrorCode =
 
 export type BrowserIdentityControllerError = {
   code: BrowserIdentityControllerErrorCode;
-  recoverablePublicIdentity?: PubkyPublicIdentity;
+  partialSetupPublicIdentity?: PubkyPublicIdentity;
 };
 
-export type BrowserIdentityAction =
-  | { kind: "establish" }
-  | { kind: "delete"; expectedPublicKeyZ32: string };
+export type GoogleBackedIdentityAction =
+  | { kind: "establish_google_backed_identity" }
+  | { kind: "delete_google_drive_passport_file"; expectedPublicKeyZ32: string };
 
-export type BrowserIdentityActionValue =
-  | { kind: "established"; source: "created" | "restored"; publicIdentity: PubkyPublicIdentity }
-  | { kind: "deleted" };
+export type GoogleBackedIdentityActionValue =
+  | {
+      kind: "google_backed_identity_established";
+      establishmentMode: "created" | "restored";
+      publicIdentity: PubkyPublicIdentity;
+    }
+  | { kind: "google_drive_passport_file_deleted" };
 
-export type BrowserIdentityActionResult = Result<BrowserIdentityActionValue, BrowserIdentityControllerError>;
+export type GoogleBackedIdentityActionResult = Result<GoogleBackedIdentityActionValue, BrowserIdentityControllerError>;
 
-export type GoogleSignInErrorCode =
+export type GoogleBackedIdentityActionErrorCode =
   | "sign_in_unavailable"
   | "sign_in_failed"
-  | "drive_consent_failed"
-  | "drive_popup_closed"
-  | "drive_popup_failed_to_open"
-  | "drive_consent_timeout"
-  | "drive_account_mismatch"
-  | "drive_account_verification_failed";
+  | "google_drive_authorization_failed"
+  | "google_drive_authorization_popup_closed"
+  | "google_drive_authorization_popup_failed_to_open"
+  | "google_drive_authorization_timeout"
+  | "google_drive_authorization_account_mismatch"
+  | "google_drive_authorization_account_verification_failed";
 
-export type GoogleSignInState = {
-  stage: "sign-in" | "drive" | "submitting";
-  errorCode: GoogleSignInErrorCode | null;
+export type GoogleBackedIdentityActionState = {
+  stage:
+    | "google-sign-in"
+    | "google-drive-authorization"
+    | "requesting-google-drive-authorization"
+    | "executing-action";
+  errorCode: GoogleBackedIdentityActionErrorCode | null;
 };
 
-export type GoogleContinueResult =
-  | { status: "credential_failed" }
+export type GoogleBackedIdentityActionDispatchResult =
+  | { status: "google_authorization_failed" }
   | { status: "busy" }
   | { status: "superseded" }
-  | { status: "action_finished_after_unmount"; result: BrowserIdentityActionResult }
-  | { status: "action_completed"; result: BrowserIdentityActionResult };
+  | { status: "action_finished_after_unmount"; result: GoogleBackedIdentityActionResult }
+  | { status: "action_completed"; result: GoogleBackedIdentityActionResult };
 
 export type BrowserIdentityController = {
   list(): BrowserIdentityCatalogResult<BrowserIdentityList>;
   select(id: string): BrowserIdentityCatalogResult<void>;
   clear(): BrowserIdentityCatalogResult<void>;
   subscribe(listener: () => void): () => void;
-  mountGoogleSignIn(target: HTMLElement, onState: (state: GoogleSignInState) => void): Promise<void>;
+  mountGoogleSignIn(target: HTMLElement, onState: (state: GoogleBackedIdentityActionState) => void): Promise<void>;
   unmountGoogleSignIn(): void;
   retryGoogleSignIn(): void;
-  continueGoogle(action: BrowserIdentityAction): Promise<GoogleContinueResult>;
+  continueGoogleBackedIdentityAction(
+    action: GoogleBackedIdentityAction,
+  ): Promise<GoogleBackedIdentityActionDispatchResult>;
   dispose(): void;
 };

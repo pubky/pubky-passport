@@ -216,11 +216,11 @@ function isStoreV1(value: unknown): value is LocalIdentityStoreV1 {
 }
 
 function isStoredIdentity(value: unknown): value is StoredLocalIdentity {
-  if (!isRecord(value) || !isNonEmptyString(value.id) || !isPublicIdentity(value.PUBLIC_IDENTITY)) {
+  if (!isRecord(value) || !isNonEmptyString(value.id) || !isPublicIdentity(value.publicIdentity)) {
     return false;
   }
 
-  return value.id === value.PUBLIC_IDENTITY.publicKeyZ32 && isEncodedSecretKey(value.secretKey);
+  return value.id === value.publicIdentity.publicKeyZ32 && isEncodedSecretKey(value.secretKey);
 }
 
 function isPublicIdentity(value: unknown): value is PubkyPublicIdentity {

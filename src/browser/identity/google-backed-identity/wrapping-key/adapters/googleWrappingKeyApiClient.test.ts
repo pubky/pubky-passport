@@ -2,16 +2,24 @@ import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
 
 import { encodeBase64Url } from "../../../../../libs/encoding/base64Url";
-import { BrowserGoogleWrappingKeyRequester } from "./googleWrappingKeyRequester";
+import { GoogleWrappingKeyApiClient } from "./googleWrappingKeyApiClient";
 
-describe("BrowserGoogleWrappingKeyRequester", () => {
+describe("GoogleWrappingKeyApiClient", () => {
   it("sends only the ID token to the wrapping-key endpoint", async () => {
-    let request: Request | undefined;
     let endpoint: RequestInfo | URL | undefined;
-    const requester = new BrowserGoogleWrappingKeyRequester({
+    let bodyHasOnlyExpectedIdToken = false;
+    let safeRequestOptions: Pick<Request, "cache" | "redirect" | "referrerPolicy"> | undefined;
+    const requester = new GoogleWrappingKeyApiClient({
       async fetch(input, init) {
         endpoint = input;
-        request = new Request("https://passport.pubky.app/api/wrapping-key/google", init);
+        const request = new Request("https://passport.pubky.app/api/wrapping-key/google", init);
+        const body: unknown = await request.json();
+        bodyHasOnlyExpectedIdToken = JSON.stringify(body) === JSON.stringify({ googleIdToken: "id-token" });
+        safeRequestOptions = {
+          cache: request.cache,
+          redirect: request.redirect,
+          referrerPolicy: request.referrerPolicy,
+        };
         return Response.json({ wrappingKey: encodeBase64Url(new Uint8Array(32).fill(7)) });
       },
     });
@@ -20,14 +28,14 @@ describe("BrowserGoogleWrappingKeyRequester", () => {
 
     expect(Result.isError(result)).toBe(false);
     expect(endpoint).toBe("/api/wrapping-key/google");
-    await expect(request?.json()).resolves.toEqual({ googleIdToken: "id-token" });
-    expect(request?.cache).toBe("no-store");
-    expect(request?.redirect).toBe("error");
-    expect(request?.referrerPolicy).toBe("no-referrer");
+    expect(bodyHasOnlyExpectedIdToken).toBe(true);
+    expect(safeRequestOptions?.cache).toBe("no-store");
+    expect(safeRequestOptions?.redirect).toBe("error");
+    expect(safeRequestOptions?.referrerPolicy).toBe("no-referrer");
   });
 
   it("returns the route's safe typed error code", async () => {
-    const requester = new BrowserGoogleWrappingKeyRequester({
+    const requester = new GoogleWrappingKeyApiClient({
       async fetch() {
         return Response.json({ error: { code: "unsupported_google_audience" } }, { status: 401 });
       },
@@ -40,7 +48,7 @@ describe("BrowserGoogleWrappingKeyRequester", () => {
   });
 
   it("rejects unknown route errors instead of creating dynamic codes", async () => {
-    const requester = new BrowserGoogleWrappingKeyRequester({
+    const requester = new GoogleWrappingKeyApiClient({
       async fetch() {
         return Response.json({ error: { code: "future_error" } }, { status: 401 });
       },
@@ -51,7 +59,7 @@ describe("BrowserGoogleWrappingKeyRequester", () => {
   });
 
   it("returns invalid_response when the route has no valid error body", async () => {
-    const requester = new BrowserGoogleWrappingKeyRequester({ async fetch() { return new Response("unavailable", { status: 503 }); } });
+    const requester = new GoogleWrappingKeyApiClient({ async fetch() { return new Response("unavailable", { status: 503 }); } });
     const result = await requester.requestWrappingKey({ googleIdToken: "id-token" });
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "invalid_response" });
@@ -65,7 +73,7 @@ describe("BrowserGoogleWrappingKeyRequester", () => {
     { wrappingKey: "A".repeat(44) },
     { wrappingKey: `${"A".repeat(42)}*` },
   ])("rejects invalid or non-canonical wrapping-key responses", async (body) => {
-    const requester = new BrowserGoogleWrappingKeyRequester({ async fetch() { return Response.json(body); } });
+    const requester = new GoogleWrappingKeyApiClient({ async fetch() { return Response.json(body); } });
     const result = await requester.requestWrappingKey({ googleIdToken: "id-token" });
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "invalid_response" });
@@ -78,7 +86,7 @@ describe("BrowserGoogleWrappingKeyRequester", () => {
       bytes[31] = value;
       const wrappingKey = encodeBase64Url(bytes);
       terminalCharacters.push(wrappingKey.at(-1) ?? "");
-      const requester = new BrowserGoogleWrappingKeyRequester({
+      const requester = new GoogleWrappingKeyApiClient({
         async fetch() { return Response.json({ wrappingKey }); },
       });
 
@@ -96,7 +104,7 @@ describe("BrowserGoogleWrappingKeyRequester", () => {
       Uint8Array.from({ length: 32 }, (_, index) => index),
     ]) {
       const wrappingKey = encodeBase64Url(bytes);
-      const requester = new BrowserGoogleWrappingKeyRequester({
+      const requester = new GoogleWrappingKeyApiClient({
         async fetch() { return Response.json({ wrappingKey }); },
       });
       const result = await requester.requestWrappingKey({ googleIdToken: "id-token" });
@@ -106,7 +114,7 @@ describe("BrowserGoogleWrappingKeyRequester", () => {
   });
 
   it("bounds response bodies before parsing", async () => {
-    const requester = new BrowserGoogleWrappingKeyRequester({
+    const requester = new GoogleWrappingKeyApiClient({
       async fetch() {
         return Response.json({ padding: "x".repeat(16 * 1024) });
       },
@@ -117,7 +125,7 @@ describe("BrowserGoogleWrappingKeyRequester", () => {
   });
 
   it("maps fetch failures to network_failed", async () => {
-    const requester = new BrowserGoogleWrappingKeyRequester({ async fetch() { throw new TypeError("offline"); } });
+    const requester = new GoogleWrappingKeyApiClient({ async fetch() { throw new TypeError("offline"); } });
     const result = await requester.requestWrappingKey({ googleIdToken: "id-token" });
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "network_failed" });

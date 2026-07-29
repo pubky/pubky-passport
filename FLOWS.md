@@ -1,8 +1,9 @@
 # Runtime Flows
 
 Current implementation. The home route is a development identity surface;
-`/authorize` includes capability review, local identity selection, Google-backed
-create or restore, approval, cancellation, callbacks, and local terminal states.
+`/authorize` includes capability review, local Pubky identity selection, the
+Google-backed custody/recovery strategy, approval, cancellation, callbacks, and
+local terminal states.
 
 ```mermaid
 flowchart TB
@@ -86,7 +87,7 @@ contracts, while composition modules own adapter and controller wiring.
 | `/` | `src/app/page.tsx::Home` | Development identity panel and manual auth entry. |
 | `/authorize` | `src/app/authorize/page.tsx::AuthorizePage` | Review, approve, cancel, callbacks. |
 | `GET /api/health` | `src/app/api/health/route.ts::GET` | Health response. |
-| `POST /api/wrapping-key/google` | `src/app/api/wrapping-key/google/route.ts::POST` | Verify Google identity and derive wrapping material. |
+| `POST /api/wrapping-key/google` | `src/app/api/wrapping-key/google/route.ts::POST` | Verify provider-account claims and derive a wrapping key. |
 
 ## Call Flows
 
@@ -299,18 +300,18 @@ sequenceDiagram
     end
 ```
 
-### Google Sign-In And Drive Consent
+### Google ID-Token Acquisition And Drive OAuth
 
 ```mermaid
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
-    accTitle: Google sign-in and Drive consent call flow
-    accDescr: The UI delegates sign-in and Drive consent to the browser controller and Google adapters while credentials remain outside React state.
+    accTitle: Google ID-token and Drive OAuth call flow
+    accDescr: The UI delegates ID-token acquisition and Drive OAuth authorization to the browser controller and Google adapters while credentials remain outside React state.
     actor User
     box rgba(0, 114, 178, 0.18) src/ui
         participant DevPanel as developmentIdentityPanel.tsx<br/>DevelopmentIdentityPanel()
         participant AuthPanel as authorizationIdentityPanel.tsx<br/>AuthorizationIdentityPanel()
-        participant Button as googleSignInButton.tsx<br/>GoogleSignInButton()
+        participant ActionPanel as googleBackedIdentityActionPanel.tsx<br/>GoogleBackedIdentityActionPanel()
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity
         participant Factory as createBrowserIdentityController.ts<br/>createBrowserIdentityController()
@@ -325,8 +326,8 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-identity-services/adapters
         participant GISLoader as googleIdentityServicesLoader.ts<br/>loadGoogleAccounts()
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
-        participant Establish as establishGoogleBackedIdentity.ts<br/>EstablishGoogleBackedIdentity
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/composition
+        participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
     box rgba(17, 24, 39, 0.12) External
         participant GIS as Google Identity Services JS API<br/>google.accounts.id
@@ -338,14 +339,14 @@ sequenceDiagram
         DevPanel->>Factory: createBrowserIdentityController(...)
         Factory->>Controller: new PassportIdentityController(...)
         Factory-->>DevPanel: controller
-        DevPanel->>Button: render with controller
+        DevPanel->>ActionPanel: render explicit action with controller
     else Authorization identity panel
         AuthPanel->>Factory: createBrowserIdentityController(...)
         Factory->>Controller: new PassportIdentityController(...)
         Factory-->>AuthPanel: controller
-        AuthPanel->>Button: render with controller
+        AuthPanel->>ActionPanel: render establish action with controller
     end
-    Button->>Controller: mountGoogleSignIn(target, onState)
+    ActionPanel->>Controller: mountGoogleSignIn(target, onState)
     Controller->>SignIn: mount(...)
     SignIn->>GISLoader: loadGoogleAccounts()
     GISLoader-->>SignIn: google.accounts
@@ -355,19 +356,19 @@ sequenceDiagram
     GIS-->>SignIn: Google credential callback
     SignIn->>SignIn: readUnverifiedGoogleIdTokenSubject(token)
     SignIn-->>Controller: ID token + subject hint
-    Controller-->>Button: stage = drive
-    User->>Button: Allow Drive access
-    Button->>Controller: continueGoogle(establish)
+    Controller-->>ActionPanel: GoogleBackedIdentityActionState<br/>stage = google-drive-authorization
+    User->>ActionPanel: Authorize Google Drive
+    ActionPanel->>Controller: continueGoogleBackedIdentityAction<br/>({ kind: establish_google_backed_identity })
     Controller->>DriveAccess: request(...)
     DriveAccess->>GISLoader: loadGoogleAccounts()
     GISLoader-->>DriveAccess: google.accounts
     DriveAccess->>OAuth: request openid + drive.appdata
-    OAuth-->>DriveAccess: Drive access token
-    DriveAccess->>UserInfo: GET /userinfo with Drive token
-    UserInfo-->>DriveAccess: Drive account subject
+    OAuth-->>DriveAccess: Drive OAuth access token
+    DriveAccess->>UserInfo: GET /userinfo with Drive OAuth access token
+    UserInfo-->>DriveAccess: Drive OAuth provider-account subject
     Note over DriveAccess: Require subjects to match
-    DriveAccess-->>Controller: verified Drive token
-    Controller->>Establish: establish(ID token, Drive token)
+    DriveAccess-->>Controller: verified Drive OAuth access token
+    Controller->>Operations: establishGoogleBackedIdentity<br/>(GoogleBackedIdentityCredentials)
 ```
 
 
@@ -377,13 +378,13 @@ sequenceDiagram
 ```mermaid
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
-    accTitle: Google-backed identity establishment call flow
-    accDescr: The coordinator requests a wrapping key, reads the encrypted Drive file, and dispatches to restore or create without passing wrapping material to Drive storage.
+    accTitle: Google-backed custody/recovery establishment call flow
+    accDescr: GoogleBackedIdentityOperations requests a wrapping key, reads the Google Drive Passport file, and dispatches a found file to restore or requests a Homegate invitation before creating a missing identity, without passing the wrapping key to Drive storage.
     box rgba(0, 158, 115, 0.18) src/browser/identity
         participant Controller as passportIdentityController.ts<br/>PassportIdentityController
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/composition
-        participant Actions as googleIdentityActions.ts<br/>GoogleIdentityActions
+        participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
         participant Establish as establishGoogleBackedIdentity.ts<br/>EstablishGoogleBackedIdentity
@@ -391,10 +392,13 @@ sequenceDiagram
         participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/wrapping-key/adapters
-        participant Wrapping as googleWrappingKeyRequester.ts<br/>BrowserGoogleWrappingKeyRequester
+        participant Wrapping as googleWrappingKeyApiClient.ts<br/>GoogleWrappingKeyApiClient
     end
     box rgba(0, 158, 115, 0.18) src/browser/passport-file/adapters
         participant DriveStore as googleDrivePassportFileStore.ts<br/>GoogleDrivePassportFileStore
+    end
+    box rgba(0, 158, 115, 0.18) src/browser/homegate/adapters
+        participant Invite as homegateClient.ts<br/>HomegateClient
     end
     box rgba(240, 228, 66, 0.18) src/app/api/wrapping-key/google
         participant API as handler.ts<br/>googleWrappingKeyPost()<br/>exported as route.ts::POST
@@ -403,7 +407,8 @@ sequenceDiagram
         participant Drive as Google Drive API v3<br/>appDataFolder/passport.json
     end
 
-    Controller->>Establish: establish(ID token, Drive token)
+    Controller->>Operations: establishGoogleBackedIdentity<br/>(GoogleBackedIdentityCredentials)
+    Operations->>Establish: establish(credentials)
     Establish->>Wrapping: requestWrappingKey(ID token)
     Wrapping->>API: POST { googleIdToken }
     API-->>Wrapping: wrapping-key result
@@ -411,9 +416,9 @@ sequenceDiagram
     alt Wrapping-key error
         Establish-->>Controller: safe failure
     else Wrapping key
-        Establish->>Actions: passportFileStoreForAccessToken(Drive token)
-        Actions->>DriveStore: new GoogleDrivePassportFileStore(...)
-        Actions-->>Establish: store
+        Establish->>Operations: passportFileStoreForAccessToken(Drive OAuth token)
+        Operations->>DriveStore: new GoogleDrivePassportFileStore(...)
+        Operations-->>Establish: store
         Establish->>DriveStore: readPassportFile()
         DriveStore->>Drive: list passport.json
         Drive-->>DriveStore: list response
@@ -428,7 +433,11 @@ sequenceDiagram
         alt Found
             Establish->>Restore: execute(envelope, wrapping key)
         else Missing
-            Establish->>Creator: execute(ID token, Drive store, wrapping key)
+            Establish->>Invite: requestGoogleHomeserverSignupInvitation(ID token)
+            Invite-->>Establish: validated invitation or safe failure
+            opt Invitation returned
+                Establish->>Creator: execute(invitation, Drive store, wrapping key)
+            end
         else Storage error
             Establish-->>Controller: safe failure
         end
@@ -443,7 +452,7 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Existing identity restore call flow
-    accDescr: Browser crypto decrypts the Drive envelope, PubkySdkAdapter signs in with the restored key, and only a matching activated identity is saved locally; failures stop before later stages and cleanup runs after decryption succeeds.
+    accDescr: Browser crypto decrypts the Passport file envelope, PubkySdkAdapter signs in with the restored key, and only a matching activated Pubky identity is saved locally; failures stop before later stages and cleanup runs after decryption succeeds.
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
         participant Restore as restoreGoogleBackedIdentity.ts<br/>RestoreGoogleBackedIdentity
     end
@@ -508,7 +517,7 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Missing identity encryption and Drive storage call flow
-    accDescr: CreateGoogleBackedIdentity asks PubkySdkAdapter and the Pubky SDK for a new key and exported secret, encrypts the secret through PassportFileCrypto, creates the encrypted Drive file through PassportFileStore, and then zeros the exported bytes.
+    accDescr: CreateGoogleBackedIdentity asks PubkySdkAdapter and the Pubky SDK for a new key and exported secret, encrypts the secret through PassportFileCrypto, creates the Google Drive Passport file through PassportFileStore, and then zeros the exported bytes.
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
         participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
     end
@@ -563,7 +572,7 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Missing identity activation and local save call flow
-    accDescr: EstablishGoogleBackedIdentity requests a Homegate invitation, then CreateGoogleBackedIdentity signs up, verifies, publishes discovery, and saves in order; each failure stops later stages and the generated key handle is always disposed.
+    accDescr: EstablishGoogleBackedIdentity requests a homeserver signup invitation, then CreateGoogleBackedIdentity signs up, verifies, publishes discovery, and saves in order; each failure stops later stages and the generated key handle is always disposed.
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
         participant Establish as establishGoogleBackedIdentity.ts<br/>EstablishGoogleBackedIdentity
         participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
@@ -585,7 +594,7 @@ sequenceDiagram
         participant Homegate as Homegate<br/>/google_verification
     end
 
-    Establish->>Invite: requestGoogleSignupInvitation(ID token)
+    Establish->>Invite: requestGoogleHomeserverSignupInvitation(ID token)
     Invite->>Homegate: POST { googleIdToken }
     Homegate-->>Invite: invitation or plaintext error
     alt Homegate error
@@ -629,34 +638,42 @@ sequenceDiagram
     Note over Creator,Pubky: finally dispose the generated key handle on every outcome
 ```
 
-Local ready state is saved last. Failure after Drive creation leaves the encrypted
-Drive file but no local ready identity. When a recoverable public identity is
-available, the development panel can offer the verified deletion flow below.
+Local ready state is saved last. Setup cannot be atomic across Drive, Homegate,
+homeserver signup, and discovery. A definite homeserver signup invitation failure
+occurs before Passport file creation. After signup or discovery has been attempted,
+Passport preserves the encrypted Passport file so the key is not lost, disposes the
+key handle, and saves no ready local Pubky identity; it must not automatically delete the
+file. `partialSetupPublicIdentity` may be returned only after
+`CreateGoogleBackedIdentity` successfully creates the Passport file. Restore failures never carry
+partial-setup metadata and never offer Passport file cleanup. The development UI may
+expose creation metadata as `passportFileCleanupCandidate`; the preferred production
+follow-up is a resumable partial-setup flow, which this terminology migration does not
+implement.
 
-### Development-Only Drive Reset
+### Development-Only Google Drive Passport File Deletion
 
 Credential acquisition follows the Google flow above with a delete action. This
 diagram starts after the Google ID token and subject-matched Drive access token
 return to the controller; the wrapping-key API verifies the ID token below.
 
-This diagram documents the current development-only Drive reset implementation.
+This diagram documents the current development-only Google Drive Passport file deletion implementation.
 
 ```mermaid
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
-    accTitle: Development Drive reset call flow
-    accDescr: After the shared Google flow returns verified tokens, the identity controller invokes DeleteGoogleDriveIdentity, which requests wrapping material, reads and decrypts the exact Drive revision, restores and compares the public identity, disposes the key, and deletes only the verified file reference.
+    accTitle: Development Google Drive Passport file deletion call flow
+    accDescr: After provider-account ID-token acquisition and Drive OAuth return verified credentials, the identity controller dispatches the explicit delete action to DeleteGoogleDrivePassportFile, which requests a wrapping key, reads and decrypts the exact Passport file revision, restores and compares the public identity, disposes the key, and deletes only the verified file reference.
     box rgba(0, 158, 115, 0.18) src/browser/identity
         participant Controller as passportIdentityController.ts<br/>PassportIdentityController
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/composition
-        participant Actions as googleIdentityActions.ts<br/>GoogleIdentityActions
+        participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
-        participant Delete as deleteGoogleDriveIdentity.ts<br/>DeleteGoogleDriveIdentity
+        participant Delete as deleteGoogleDrivePassportFile.ts<br/>DeleteGoogleDrivePassportFile
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/wrapping-key/adapters
-        participant Wrapping as googleWrappingKeyRequester.ts<br/>BrowserGoogleWrappingKeyRequester
+        participant Wrapping as googleWrappingKeyApiClient.ts<br/>GoogleWrappingKeyApiClient
     end
     box rgba(0, 158, 115, 0.18) src/browser/passport-file/adapters
         participant DriveStore as googleDrivePassportFileStore.ts<br/>GoogleDrivePassportFileStore
@@ -672,7 +689,8 @@ sequenceDiagram
         participant Drive as Google Drive API v3<br/>appDataFolder/passport.json
     end
 
-    Controller->>Delete: execute(credentials, expected public key)
+    Controller->>Operations: deleteGoogleDrivePassportFile<br/>(credentials, expected public key)
+    Operations->>Delete: deleteGoogleDrivePassportFile(...)
     Delete->>Wrapping: requestWrappingKey(ID token)
     Wrapping->>WrappingAPI: POST { googleIdToken }
     WrappingAPI-->>Wrapping: wrapping-key result
@@ -680,9 +698,9 @@ sequenceDiagram
     alt Wrapping-key error
         Delete-->>Controller: safe failure
     else Wrapping key
-        Delete->>Actions: passportFileStoreForAccessToken(Drive token)
-        Actions->>DriveStore: new GoogleDrivePassportFileStore(...)
-        Actions-->>Delete: store
+        Delete->>Operations: passportFileStoreForAccessToken(Drive OAuth token)
+        Operations->>DriveStore: new GoogleDrivePassportFileStore(...)
+        Operations-->>Delete: store
         Delete->>DriveStore: readPassportFile()
         DriveStore->>Drive: list passport.json
         Drive-->>DriveStore: list response
@@ -748,7 +766,7 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Google wrapping-key API call flow
-    accDescr: The route validates its request, verifies Google identity claims, applies a keyed identity rate limit, and derives wrapping material with HKDF.
+    accDescr: The route validates its request, verifies provider-account claims, applies a keyed identity rate limit, and derives a wrapping key with HKDF.
     box rgba(0, 158, 115, 0.18) Browser runtime
         participant Browser as BROWSER<br/>WrappingKeyRequester
     end
@@ -799,12 +817,12 @@ sequenceDiagram
     Note over Handler,Browser: Every response includes no-store and no-referrer
 ```
 
-### Homegate Invitation
+### Homegate Signup Invitation
 
 ```mermaid
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
-    accTitle: Direct browser Homegate invitation call flow
+    accTitle: Direct browser Homegate signup invitation call flow
     accDescr: The browser adapter sends only the Google ID token directly to configured Homegate, then bounds and maps the invitation or plaintext error to a safe application result.
     box rgba(0, 158, 115, 0.18) Browser runtime
         participant UseCase as APPLICATION<br/>EstablishGoogleBackedIdentity
@@ -814,7 +832,7 @@ sequenceDiagram
         participant Homegate as Homegate
     end
 
-    UseCase->>Adapter: requestGoogleSignupInvitation(ID token)
+    UseCase->>Adapter: requestGoogleHomeserverSignupInvitation(ID token)
     alt Empty or oversized token
         Adapter-->>UseCase: homegate_invalid_request
     else Valid bounded token
@@ -835,10 +853,10 @@ sequenceDiagram
 | Authorization browser entry | `src/browser/authorization/adapters/browserAuthorizationEntry.ts` | `adapters/browserAuthorizationEntry.test.ts` |
 | Authorization UI | `src/ui/authorizationReview.tsx` | `src/ui/authorizationReview.test.tsx` |
 | Google controller and adapters | `src/browser/identity` | `passportIdentityController.test.ts`, capability adapter tests |
-| Google-backed identity lifecycle | `src/browser/identity/google-backed-identity` | Colocated application, adapter, and composition tests |
+| Google-backed custody/recovery lifecycle | `src/browser/identity/google-backed-identity` | Colocated application, adapter, and composition tests |
 | Drive store and WebCrypto | `src/browser/passport-file/application`, `src/browser/passport-file/adapters` | Colocated adapter tests |
 | Pubky SDK adapter | `src/browser/pubky/adapters/pubkySdkAdapter.ts` | `adapters/pubkySdkAdapter.test.ts` |
 | Wrapping-key API | `src/app/api/wrapping-key/google`, `src/server/wrapping-key/google` | Route and server tests |
 | Browser bootstrap config | `src/server/config/browserBootstrapConfig.ts` | `browserBootstrapConfig.test.ts`, proxy tests |
-| Homegate invitation | `src/browser/homegate` | Colocated browser application and adapter tests |
+| Homegate signup invitation | `src/browser/homegate` | Colocated browser application and adapter tests |
 | CSP and boundaries | `proxy.ts`, `next.config.mjs`, architecture test | Proxy, header, policy, architecture tests |

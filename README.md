@@ -1,20 +1,20 @@
 # Pubky Passport
 
 Pubky Passport is a browser-based Pubky identity and authorization app. The current
-implementation covers the core Google-backed identity and Pubky authorization
+implementation covers the core Google-backed custody/recovery strategy and Pubky authorization
 flows. The root page is still a development surface; settings, backup, and detach
 flows are not implemented yet.
 
 ## Features
 
-- Google sign-in and Google Drive `appDataFolder` key storage.
+- Google ID-token acquisition and Google Drive `appDataFolder/passport.json` encrypted Passport file storage.
 - Pubky identity creation, homeserver signup, discovery publication, and restore.
 - Manual and `/authorize?d=...` Pubky Auth entry points.
 - Capability review, SDK-owned relay handoff, and validated callback navigation.
 - Browser/server boundaries that keep Drive data and Pubky secret material off the
   Passport server.
 
-The local identity store intentionally persists the 32-byte Pubky secret unencrypted
+The local Pubky identity store intentionally persists the 32-byte Pubky secret unencrypted
 in browser localStorage. This accepted custody model lets Passport restore active
 identities without repeating the Google Drive flow. Same-origin XSS, malicious
 extensions, or shared browser profiles can extract those identities, so no other
@@ -50,7 +50,7 @@ pnpm run dev --experimental-https
 
 Open <https://localhost:3000>. On first run, Next.js uses `mkcert` to create trusted,
 ignored certificates under `certificates/` and may ask for permission to trust its
-local certificate authority. HTTPS is required by the Google flow and Passport-file
+local certificate authority. HTTPS is required by the Google flow and Passport file
 origin binding.
 
 When upgrading an existing deployment, rename the old `NEXT_PUBLIC_*` variables and
