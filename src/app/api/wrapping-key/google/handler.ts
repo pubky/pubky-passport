@@ -20,7 +20,7 @@ type GoogleWrappingKeyRouteBody =
   };
 
 export function createGoogleWrappingKeyPostHandler(
-  createRequest: () => Pick<GoogleWrappingKeyRequest, "requestGoogleWrappingKey">,
+  createRequest: () => GoogleWrappingKeyRequest,
 ) {
   let activeRequest: ReturnType<typeof createRequest> | undefined;
 

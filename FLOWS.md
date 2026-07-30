@@ -216,10 +216,10 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/authorization/application
         participant UseCase as approveActiveAuthorization.ts<br/>approveActiveAuthorization()
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/application
+    box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity
         participant Local as restoreActiveLocalIdentityKey.ts<br/>RestoreActiveLocalIdentityKey
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/adapters
+    box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity
         participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
     end
     box rgba(0, 158, 115, 0.18) src/browser/pubky
@@ -322,16 +322,16 @@ sequenceDiagram
         participant Factory as createBrowserIdentityController.ts<br/>createBrowserIdentityController()
         participant Controller as passportIdentityController.ts<br/>PassportIdentityController
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/google-sign-in/adapters
+    box rgba(0, 158, 115, 0.18) src/browser/google-sign-in
         participant SignIn as googleIdentityServicesSignInButton.ts<br/>GoogleIdentityServicesSignInButton
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/google-drive-access/adapters
-        participant DriveAccess as googleDriveAccessToken.ts<br/>requestGoogleDriveAccessToken()
+    box rgba(0, 158, 115, 0.18) src/browser/google-drive-access
+        participant DriveAccess as googleDriveAccess.ts<br/>GoogleDriveAccess.requestAccessToken()
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/google-identity-services/adapters
-        participant GISLoader as googleIdentityServicesLoader.ts<br/>loadGoogleAccounts()
+    box rgba(0, 158, 115, 0.18) src/browser/google-identity-services
+        participant GISLoader as googleIdentityServices.ts<br/>loadGoogleAccounts()
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/composition
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity
         participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
     box rgba(17, 24, 39, 0.12) External
@@ -388,10 +388,10 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/identity
         participant Controller as passportIdentityController.ts<br/>PassportIdentityController
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/composition
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity
         participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity
         participant Establish as establishGoogleBackedIdentity.ts<br/>EstablishGoogleBackedIdentity
         participant Restore as restoreGoogleBackedIdentity.ts<br/>RestoreGoogleBackedIdentity
         participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
@@ -458,10 +458,10 @@ sequenceDiagram
 sequenceDiagram
     accTitle: Existing identity restore call flow
     accDescr: Browser crypto decrypts the Passport file envelope, PubkySdkAdapter signs in with the restored key, and only a matching activated Pubky identity is saved locally; failures stop before later stages and cleanup runs after decryption succeeds.
-    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity
         participant Restore as restoreGoogleBackedIdentity.ts<br/>RestoreGoogleBackedIdentity
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/application
+    box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity
         participant Local as saveLocalIdentity.ts<br/>SaveLocalIdentity
     end
     box rgba(0, 158, 115, 0.18) src/browser/passport-file
@@ -470,7 +470,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/pubky
         participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/adapters
+    box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity
         participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
     end
     box rgba(17, 24, 39, 0.12) External
@@ -523,7 +523,7 @@ sequenceDiagram
 sequenceDiagram
     accTitle: Missing identity encryption and Drive storage call flow
     accDescr: CreateGoogleBackedIdentity asks PubkySdkAdapter and the Pubky SDK for a new key and exported secret, encrypts the secret through a focused callback bound from WebCryptoPassportFileCrypto, creates the Google Drive Passport file through a focused callback bound from GoogleDrivePassportFileStore, and then zeros the exported bytes.
-    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity
         participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
     end
     box rgba(0, 158, 115, 0.18) src/browser/pubky
@@ -578,11 +578,11 @@ sequenceDiagram
 sequenceDiagram
     accTitle: Missing identity activation and local save call flow
     accDescr: EstablishGoogleBackedIdentity requests a homeserver signup invitation, then CreateGoogleBackedIdentity signs up, verifies, publishes discovery, and saves in order; each failure stops later stages and the generated key handle is always disposed.
-    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity
         participant Establish as establishGoogleBackedIdentity.ts<br/>EstablishGoogleBackedIdentity
         participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/application
+    box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity
         participant Local as saveLocalIdentity.ts<br/>SaveLocalIdentity
     end
     box rgba(0, 158, 115, 0.18) src/browser/homegate
@@ -591,7 +591,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/pubky
         participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/adapters
+    box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity
         participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
     end
     box rgba(17, 24, 39, 0.12) External
@@ -671,10 +671,10 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/identity
         participant Controller as passportIdentityController.ts<br/>PassportIdentityController
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/composition
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity
         participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
+    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity
         participant Delete as deleteGoogleDrivePassportFile.ts<br/>DeleteGoogleDrivePassportFile
     end
     box rgba(0, 158, 115, 0.18) src/browser/wrapping-key
@@ -857,8 +857,9 @@ sequenceDiagram
 | Authorization controller | `src/browser/authorization` | Root controller/factory tests and colocated application tests |
 | Authorization browser entry | `src/browser/authorization/adapters/browserAuthorizationEntry.ts` | `adapters/browserAuthorizationEntry.test.ts` |
 | Authorization UI | `src/ui/authorizationReview.tsx` | `src/ui/authorizationReview.test.tsx` |
-| Google controller and adapters | `src/browser/identity` | `passportIdentityController.test.ts`, capability adapter tests |
-| Google-backed custody/recovery lifecycle | `src/browser/identity/google-backed-identity` | Colocated application, adapter, and composition tests |
+| Identity controller | `src/browser/identity` | Controller and factory tests |
+| Google credential capabilities | `src/browser/google-identity-services`, `src/browser/google-sign-in`, `src/browser/google-drive-access` | Colocated capability tests |
+| Google-backed custody/recovery lifecycle | `src/browser/identity/google-backed-identity` | Colocated operation tests |
 | Drive store and WebCrypto | `src/browser/passport-file` | Colocated store and crypto tests |
 | Pubky SDK adapter | `src/browser/pubky/pubkySdkAdapter.ts` | `pubkySdkAdapter.test.ts` |
 | Wrapping-key API | `src/app/api/wrapping-key/google`, `src/server/wrapping-key/google` | Route and server tests |

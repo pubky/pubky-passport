@@ -1,24 +1,29 @@
 import "client-only";
 
-import { requestGoogleDriveAccessToken } from "./google-drive-access/adapters/googleDriveAccessToken";
-import { loadGoogleAccounts } from "./google-identity-services/adapters/googleIdentityServicesLoader";
-import { GoogleIdentityServicesSignInButton } from "./google-sign-in/adapters/googleIdentityServicesSignInButton";
-import { LocalStorageIdentityRepository } from "./local-identity/adapters/localStorageIdentityRepository";
+import { GoogleDriveAccess } from "../google-drive-access/googleDriveAccess";
+import { GoogleIdentityServices } from "../google-identity-services/googleIdentityServices";
+import { GoogleIdentityServicesSignInButton } from "../google-sign-in/googleIdentityServicesSignInButton";
+import { LocalStorageIdentityRepository } from "./local-identity/localStorageIdentityRepository";
 import type { BrowserIdentityController } from "./browserIdentityController";
 import { PassportIdentityController } from "./passportIdentityController";
 import {
   GoogleBackedIdentityOperations,
-} from "./google-backed-identity/composition/googleBackedIdentityOperations";
+} from "./google-backed-identity/googleBackedIdentityOperations";
 
 export function createBrowserIdentityController(options: {
   googleClientId: string;
   homegateBaseUrl: string;
 }): BrowserIdentityController {
   const repository = new LocalStorageIdentityRepository();
-  const googleIdentityServices = { loadGoogleAccounts };
+  const googleIdentityServices = new GoogleIdentityServices();
   const googleSignInButton = new GoogleIdentityServicesSignInButton({
     clientId: options.googleClientId,
     googleIdentityServices,
+  });
+  const googleDriveAccess = new GoogleDriveAccess({
+    googleIdentityServices,
+    clientId: options.googleClientId,
+    fetch: globalThis.fetch.bind(globalThis),
   });
   let googleBackedIdentityOperations: GoogleBackedIdentityOperations | undefined;
   const getGoogleBackedIdentityOperations = () => {
@@ -47,12 +52,8 @@ export function createBrowserIdentityController(options: {
       },
       mountGoogleSignIn: googleSignInButton.mount.bind(googleSignInButton),
       unmountGoogleSignIn: googleSignInButton.unmount.bind(googleSignInButton),
-      requestGoogleDriveAccess: (googleSubject, signal) => requestGoogleDriveAccessToken({
-        googleIdentityServices,
-        clientId: options.googleClientId,
-        loginHint: googleSubject,
+      requestGoogleDriveAccess: (googleSubject, signal) => googleDriveAccess.requestAccessToken({
         expectedSubject: googleSubject,
-        fetch: globalThis.fetch.bind(globalThis),
         signal,
       }),
     },

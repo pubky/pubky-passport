@@ -18,14 +18,14 @@ export type GoogleWrappingKeyRequestErrorCode =
 export type GoogleWrappingKeyRequestResult = ResultType<string, { code: GoogleWrappingKeyRequestErrorCode }>;
 
 export class GoogleWrappingKeyRequest {
-  readonly #googleIdTokenVerifier: Pick<GoogleIdTokenVerifier, "verifyGoogleIdToken">;
-  readonly #rateLimiter: Pick<InMemoryGoogleWrappingKeyRateLimiter, "tryConsumeRequest">;
-  readonly #deriver: Pick<GoogleWrappingKeyDeriver, "deriveWrappingKey">;
+  readonly #googleIdTokenVerifier: GoogleIdTokenVerifier;
+  readonly #rateLimiter: InMemoryGoogleWrappingKeyRateLimiter;
+  readonly #deriver: GoogleWrappingKeyDeriver;
 
   constructor(dependencies: {
-    googleIdTokenVerifier: Pick<GoogleIdTokenVerifier, "verifyGoogleIdToken">;
-    rateLimiter: Pick<InMemoryGoogleWrappingKeyRateLimiter, "tryConsumeRequest">;
-    deriver: Pick<GoogleWrappingKeyDeriver, "deriveWrappingKey">;
+    googleIdTokenVerifier: GoogleIdTokenVerifier;
+    rateLimiter: InMemoryGoogleWrappingKeyRateLimiter;
+    deriver: GoogleWrappingKeyDeriver;
   }) {
     this.#googleIdTokenVerifier = dependencies.googleIdTokenVerifier;
     this.#rateLimiter = dependencies.rateLimiter;

@@ -8,7 +8,7 @@ import {
   PassportIdentityController,
   type BrowserIdentityControllerDependencies,
 } from "./passportIdentityController";
-import type { GoogleSignInResult } from "./google-sign-in/application/googleSignIn";
+import type { GoogleSignInResult } from "../google-sign-in/googleIdentityServicesSignInButton";
 
 const GOOGLE_SUBJECT_CANARY = "google-subject";
 

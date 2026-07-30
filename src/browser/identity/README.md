@@ -1,28 +1,24 @@
 # Browser Identity
 
-Owns the safe identity controller, local Pubky identity custody, provider-account
-credential acquisition, and the Google-backed custody/recovery strategy.
+Owns the safe identity controller, local Pubky identity custody, and the Google-backed
+custody/recovery strategy.
 
 ## Features
 
 - `local-identity/` stores the identity catalog, active identity ID, and each
   identity's 32-byte Pubky secret.
-- `google-identity-services/` loads the shared Google browser SDK and defines its
-  browser-facing types. It does not establish a Pubky identity.
-- `google-sign-in/` acquires a Google ID token for the provider account.
-- `google-drive-access/` acquires a Drive OAuth storage credential and verifies provider-account ownership.
 - `google-backed-identity/` consumes the Google ID token and Drive OAuth storage credential to restore
   or create and activate a Pubky identity.
 
-The capabilities stay separate because acquiring provider-account credentials is not
-the same responsibility as establishing a Pubky identity. ID-token acquisition and Drive OAuth authorization can
-support multiple identity actions, while `google-backed-identity` owns the lifecycle
-ordering for one action.
+Provider credential acquisition belongs to sibling `browser/google-sign-in`,
+`browser/google-drive-access`, and `browser/google-identity-services` features.
+`google-backed-identity` owns only the identity lifecycle ordering that consumes those
+credentials.
 
 ## Google-Backed Flow
 
 `GoogleBackedIdentityOperations` in
-`google-backed-identity/composition/googleBackedIdentityOperations.ts` implements the
+`google-backed-identity/googleBackedIdentityOperations.ts` implements the
 Google-backed custody/recovery operations. It accepts
 `GoogleBackedIdentityCredentials` and wires application use cases to Passport file
 storage and crypto, Pubky operations, local persistence, Homegate homeserver signup
@@ -36,9 +32,8 @@ Creation continues through encrypted Passport file storage, a homeserver signup
 invitation, homeserver signup, discovery publication, and local save. Restoration decrypts the Passport file,
 performs blocking sign-in, verifies the identity, and saves it locally.
 
-Inside this lifecycle feature, `application/` owns orchestration and capability contracts,
-`browser/homegate` and `browser/wrapping-key` own focused provider capabilities, and
-`composition/` is the only location that constructs their concrete dependencies.
+Inside this lifecycle feature, flat modules own focused orchestration steps while
+`GoogleBackedIdentityOperations` constructs their concrete dependencies.
 
 ## Security Boundary
 

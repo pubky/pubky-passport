@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
+import { OAuth2Client, type LoginTicket } from "google-auth-library";
 
 import { expectAsyncResultError } from "../../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../../libs/logger/logger";
@@ -33,19 +34,20 @@ describe("Google ID token verifier", () => {
   });
 
   it("passes Passport's client ID to the Google verifier", async () => {
-    const calls: Array<{ idToken: string; audience: string }> = [];
+    const calls: Array<{ tokenPresent: boolean; audience: string }> = [];
     const verifier = new GoogleIdTokenVerifier({
       audience: AUDIENCE,
       now: () => NOW,
       verifier: fakeGoogleVerifier(({ idToken, audience: verifierAudience }) => {
-        calls.push({ idToken, audience: verifierAudience });
+        calls.push({ tokenPresent: idToken.length > 0, audience: verifierAudience });
         return validPayload();
       }),
     });
 
     await verifier.verifyGoogleIdToken(TOKEN);
 
-    expect(calls).toEqual([{ idToken: TOKEN, audience: AUDIENCE }]);
+    expect(calls).toEqual([{ tokenPresent: true, audience: AUDIENCE }]);
+    expect(JSON.stringify(calls)).not.toContain(TOKEN);
   });
 
   it.each([
@@ -88,11 +90,9 @@ describe("Google ID token verifier", () => {
       const verifier = new GoogleIdTokenVerifier({
         audience: AUDIENCE,
         now: () => NOW,
-        verifier: {
-          async verifyIdToken() {
+        verifier: googleVerifier(async () => {
             throw new Error(`${message} token ${TOKEN}`);
-          },
-        },
+        }),
       });
 
       await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
@@ -108,11 +108,7 @@ describe("Google ID token verifier", () => {
     const verifier = new GoogleIdTokenVerifier({
       audience: AUDIENCE,
       now: () => NOW,
-      verifier: {
-        async verifyIdToken() {
-          return { getPayload: () => undefined };
-        },
-      },
+      verifier: googleVerifier(async () => googleLoginTicketFixture(() => undefined)),
     });
 
     await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
@@ -127,15 +123,9 @@ describe("Google ID token verifier", () => {
     const verifier = new GoogleIdTokenVerifier({
       audience: AUDIENCE,
       now: () => NOW,
-      verifier: {
-        async verifyIdToken() {
-          return {
-            getPayload() {
-              throw new Error(`payload failed for ${TOKEN}`);
-            },
-          };
-        },
-      },
+      verifier: googleVerifier(async () => googleLoginTicketFixture(() => {
+        throw new Error(`payload failed for ${TOKEN}`);
+      })),
     });
 
     await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
@@ -175,10 +165,21 @@ function validPayload(): TestGoogleIdTokenPayload {
 
 function fakeGoogleVerifier(
   payload: (input: { idToken: string; audience: string }) => TestGoogleIdTokenPayload,
-) {
-  return {
-    async verifyIdToken(input: { idToken: string; audience: string }) {
-      return { getPayload: () => payload(input) };
-    },
-  };
+): OAuth2Client {
+  return googleVerifier(async (input) => googleLoginTicketFixture(() => payload({
+    idToken: input.idToken,
+    audience: typeof input.audience === "string" ? input.audience : "",
+  })));
+}
+
+function googleVerifier(
+  verifyIdToken: OAuth2Client["verifyIdToken"],
+): OAuth2Client {
+  const verifier = new OAuth2Client();
+  verifier.verifyIdToken = verifyIdToken;
+  return verifier;
+}
+
+function googleLoginTicketFixture(getPayload: () => TestGoogleIdTokenPayload | undefined): LoginTicket {
+  return { getPayload } as LoginTicket;
 }

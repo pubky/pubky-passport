@@ -1,6 +1,6 @@
 import "server-only";
 
-import { OAuth2Client } from "google-auth-library";
+import { OAuth2Client, type LoginTicket } from "google-auth-library";
 import { Result } from "better-result";
 
 import { LOGGER } from "../../../../libs/logger/logger";
@@ -17,24 +17,16 @@ type GoogleIdTokenPayload = {
   sub?: string | undefined;
 };
 
-type GoogleLoginTicket = {
-  getPayload(): GoogleIdTokenPayload | undefined;
-};
-
-type GoogleTokenVerifierDependency = {
-  verifyIdToken(input: { idToken: string; audience: string }): Promise<GoogleLoginTicket>;
-};
-
 const ACCEPTED_GOOGLE_ISSUERS = new Set(["accounts.google.com", CANONICAL_GOOGLE_ISSUER]);
 
 export class GoogleIdTokenVerifier {
   readonly #audience: string;
-  readonly #verifier: GoogleTokenVerifierDependency;
+  readonly #verifier: OAuth2Client;
   readonly #now: () => Date;
 
   constructor(options: {
     audience: string;
-    verifier?: GoogleTokenVerifierDependency;
+    verifier?: OAuth2Client;
     now?: () => Date;
   }) {
     this.#audience = options.audience;
@@ -43,7 +35,7 @@ export class GoogleIdTokenVerifier {
   }
 
   async verifyGoogleIdToken(idToken: string): Promise<GoogleIdTokenVerificationResult> {
-    let ticket: GoogleLoginTicket;
+    let ticket: LoginTicket;
     try {
       ticket = await this.#verifier.verifyIdToken({ idToken, audience: this.#audience });
     } catch {

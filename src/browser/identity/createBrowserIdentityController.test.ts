@@ -4,7 +4,7 @@ import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MemoryStorage } from "../../../test-utils/fakes/memoryStorage";
-import type { GoogleSignInResult } from "./google-sign-in/application/googleSignIn";
+import type { GoogleSignInResult } from "../google-sign-in/googleIdentityServicesSignInButton";
 
 type CredentialCallback = (
   result: GoogleSignInResult<{ googleIdToken: string; subject: string }>,
@@ -19,6 +19,8 @@ const MOCKS = vi.hoisted(() => ({
   deleteCalls: 0,
   deleteReceivedExpectedInput: false,
   GoogleIdentityServicesSignInButton: vi.fn(),
+  GoogleDriveAccess: vi.fn(),
+  signInGoogleIdentityServices: null as unknown,
   driveAccessCalls: 0,
   driveAccessReceivedExpectedInput: false,
   mountGoogleSignIn: vi.fn(),
@@ -26,30 +28,16 @@ const MOCKS = vi.hoisted(() => ({
   credentialCallback: null as CredentialCallback | null,
 }));
 
-vi.mock("./google-backed-identity/composition/googleBackedIdentityOperations", () => ({
+vi.mock("./google-backed-identity/googleBackedIdentityOperations", () => ({
   GoogleBackedIdentityOperations: MOCKS.GoogleBackedIdentityOperations,
 }));
 
-vi.mock("./google-sign-in/adapters/googleIdentityServicesSignInButton", () => ({
+vi.mock("../google-sign-in/googleIdentityServicesSignInButton", () => ({
   GoogleIdentityServicesSignInButton: MOCKS.GoogleIdentityServicesSignInButton,
 }));
 
-vi.mock("./google-drive-access/adapters/googleDriveAccessToken", () => ({
-  async requestGoogleDriveAccessToken(input: {
-    clientId: string;
-    loginHint: string;
-    expectedSubject: string;
-    fetch: typeof fetch;
-    signal: AbortSignal;
-  }) {
-    MOCKS.driveAccessCalls += 1;
-    MOCKS.driveAccessReceivedExpectedInput = input.clientId === "google-client-id"
-      && input.loginHint === "google-subject"
-      && input.expectedSubject === "google-subject"
-      && typeof input.fetch === "function"
-      && input.signal instanceof AbortSignal;
-    return Result.ok("drive-access-token");
-  },
+vi.mock("../google-drive-access/googleDriveAccess", () => ({
+  GoogleDriveAccess: MOCKS.GoogleDriveAccess,
 }));
 
 import { createBrowserIdentityController } from "./createBrowserIdentityController";
@@ -73,6 +61,8 @@ describe("createBrowserIdentityController", () => {
     MOCKS.deleteCalls = 0;
     MOCKS.deleteReceivedExpectedInput = false;
     MOCKS.GoogleIdentityServicesSignInButton.mockReset();
+    MOCKS.GoogleDriveAccess.mockReset();
+    MOCKS.signInGoogleIdentityServices = null;
     MOCKS.driveAccessCalls = 0;
     MOCKS.driveAccessReceivedExpectedInput = false;
     MOCKS.mountGoogleSignIn.mockReset();
@@ -100,10 +90,33 @@ describe("createBrowserIdentityController", () => {
         dispose: MOCKS.disposeGoogleBackedIdentityOperations,
       };
     });
-    MOCKS.GoogleIdentityServicesSignInButton.mockImplementation(function () {
+    MOCKS.GoogleIdentityServicesSignInButton.mockImplementation(function (options: {
+      googleIdentityServices: unknown;
+    }) {
+      MOCKS.signInGoogleIdentityServices = options.googleIdentityServices;
       return {
         mount: MOCKS.mountGoogleSignIn,
         unmount: MOCKS.unmountGoogleSignIn,
+      };
+    });
+    MOCKS.GoogleDriveAccess.mockImplementation(function (options: {
+      clientId: string;
+      fetch: typeof fetch;
+      googleIdentityServices: unknown;
+    }) {
+      return {
+        async requestAccessToken(input: {
+          expectedSubject: string;
+          signal: AbortSignal;
+        }) {
+          MOCKS.driveAccessCalls += 1;
+          MOCKS.driveAccessReceivedExpectedInput = options.clientId === "google-client-id"
+            && typeof options.fetch === "function"
+            && options.googleIdentityServices === MOCKS.signInGoogleIdentityServices
+            && input.expectedSubject === "google-subject"
+            && input.signal instanceof AbortSignal;
+          return Result.ok("drive-access-token");
+        },
       };
     });
     MOCKS.mountGoogleSignIn.mockImplementation(async (

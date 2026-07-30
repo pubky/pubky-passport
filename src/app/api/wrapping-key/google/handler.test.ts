@@ -3,7 +3,13 @@ import { Result } from "better-result";
 
 import { LOGGER } from "../../../../libs/logger/logger";
 import { createGoogleWrappingKeyPostHandler } from "./handler";
-import type { GoogleWrappingKeyRequestResult } from "../../../../server/wrapping-key/google/application/googleWrappingKeyRequest";
+import { GoogleIdTokenVerifier } from "../../../../server/wrapping-key/google/adapters/googleIdTokenVerifier";
+import { GoogleWrappingKeyDeriver } from "../../../../server/wrapping-key/google/adapters/googleWrappingKeyDeriver";
+import { InMemoryGoogleWrappingKeyRateLimiter } from "../../../../server/wrapping-key/google/adapters/inMemoryGoogleWrappingKeyRateLimiter";
+import {
+  GoogleWrappingKeyRequest,
+  type GoogleWrappingKeyRequestResult,
+} from "../../../../server/wrapping-key/google/application/googleWrappingKeyRequest";
 
 describe("POST /api/wrapping-key/google", () => {
   afterEach(() => vi.restoreAllMocks());
@@ -24,11 +30,9 @@ describe("POST /api/wrapping-key/google", () => {
     let factoryCalls = 0;
     const post = createGoogleWrappingKeyPostHandler(() => {
       factoryCalls += 1;
-      return {
-        async requestGoogleWrappingKey() {
+      return concreteWrappingKeyRequest(async () => {
           return Result.ok("opaque-key");
-        },
-      };
+      });
     });
 
     const response = await post(jsonRequest({}));
@@ -58,11 +62,9 @@ describe("POST /api/wrapping-key/google", () => {
     let factoryCalls = 0;
     const post = createGoogleWrappingKeyPostHandler(() => {
       factoryCalls += 1;
-      return {
-        async requestGoogleWrappingKey() {
+      return concreteWrappingKeyRequest(async () => {
           return Result.ok("opaque-key");
-        },
-      };
+      });
     });
 
     await Promise.all([
@@ -79,11 +81,9 @@ describe("POST /api/wrapping-key/google", () => {
     const post = createGoogleWrappingKeyPostHandler(() => {
       factoryCalls += 1;
       if (factoryCalls === 1) throw new Error("configuration temporarily unavailable");
-      return {
-        async requestGoogleWrappingKey() {
+      return concreteWrappingKeyRequest(async () => {
           return Result.ok("opaque-key");
-        },
-      };
+      });
     });
 
     expect((await post(jsonRequest({ googleIdToken: "first-id-token" }))).status).toBe(500);
@@ -98,10 +98,8 @@ describe("POST /api/wrapping-key/google", () => {
 
   it("maps unexpected wrapping-key failures to safe 500 responses", async () => {
     const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
-    const post = createGoogleWrappingKeyPostHandler(() => ({
-      async requestGoogleWrappingKey() {
+    const post = createGoogleWrappingKeyPostHandler(() => concreteWrappingKeyRequest(async () => {
         throw new Error("SECRET-GOOGLE-ID-TOKEN");
-      },
     }));
 
     const response = await post(jsonRequest({ googleIdToken: "id-token" }));
@@ -120,11 +118,30 @@ describe("POST /api/wrapping-key/google", () => {
 });
 
 function wrappingKeyRequestFactory(result: GoogleWrappingKeyRequestResult) {
-  return () => ({
-    async requestGoogleWrappingKey() {
-      return result;
-    },
-  });
+  return () => concreteWrappingKeyRequest(async () => result);
+}
+
+function concreteWrappingKeyRequest(
+  requestGoogleWrappingKey: GoogleWrappingKeyRequest["requestGoogleWrappingKey"],
+): GoogleWrappingKeyRequest {
+  return new TestGoogleWrappingKeyRequest(requestGoogleWrappingKey);
+}
+
+class TestGoogleWrappingKeyRequest extends GoogleWrappingKeyRequest {
+  readonly #request: GoogleWrappingKeyRequest["requestGoogleWrappingKey"];
+
+  constructor(request: GoogleWrappingKeyRequest["requestGoogleWrappingKey"]) {
+    super({
+      googleIdTokenVerifier: new GoogleIdTokenVerifier({ audience: "test-client" }),
+      rateLimiter: new InMemoryGoogleWrappingKeyRateLimiter({ identityPepper: new Uint8Array(32) }),
+      deriver: new GoogleWrappingKeyDeriver(new Uint8Array(32)),
+    });
+    this.#request = request;
+  }
+
+  override requestGoogleWrappingKey(googleIdToken: string): Promise<GoogleWrappingKeyRequestResult> {
+    return this.#request(googleIdToken);
+  }
 }
 
 function jsonRequest(body: unknown): Request {

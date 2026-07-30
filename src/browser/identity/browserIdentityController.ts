@@ -3,9 +3,9 @@ import "client-only";
 import type { Result } from "better-result";
 
 import type { PubkyPublicIdentity } from "../../core/identity/pubkyIdentity";
-import type { LocalIdentitySummary } from "./local-identity/application/localIdentityModels";
+import type { LocalIdentitySummary } from "./local-identity/localIdentity";
 
-export type { LocalIdentitySummary } from "./local-identity/application/localIdentityModels";
+export type { LocalIdentitySummary } from "./local-identity/localIdentity";
 
 export type BrowserIdentityList = {
   activeIdentityId: string | null;

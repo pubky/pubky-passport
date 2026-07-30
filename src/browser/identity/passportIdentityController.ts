@@ -21,19 +21,19 @@ import type {
   GoogleBackedIdentityResult,
   GoogleDrivePassportFileDeletionError,
   GoogleDrivePassportFileDeletionResult,
-} from "./google-backed-identity/application/googleBackedIdentity";
+} from "./google-backed-identity/googleBackedIdentity";
 import type {
   GoogleDriveAccessErrorCode,
   GoogleDriveAccessResult,
-} from "./google-drive-access/application/googleDriveAccess";
+} from "../google-drive-access/googleDriveAccess";
 import type {
   GoogleSignInCredential,
   GoogleSignInResult,
-} from "./google-sign-in/application/googleSignIn";
+} from "../google-sign-in/googleIdentityServicesSignInButton";
 import type {
   LocalIdentityResult,
   LocalIdentitySummary,
-} from "./local-identity/application/localIdentityModels";
+} from "./local-identity/localIdentity";
 
 export type BrowserIdentityControllerDependencies = {
   list(): LocalIdentityResult<{ activeIdentityId: string | null; identities: LocalIdentitySummary[] }>;

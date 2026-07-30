@@ -1,6 +1,6 @@
 import { Result } from "better-result";
 
-import { SaveLocalIdentity } from "../../src/browser/identity/local-identity/application/saveLocalIdentity";
+import { SaveLocalIdentity } from "../../src/browser/identity/local-identity/saveLocalIdentity";
 import { RecordingPubkySdkAdapter } from "./recordingPubkySdkAdapter";
 import type {
   DecryptPassportSecretInput,
