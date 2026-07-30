@@ -9,7 +9,7 @@ import type {
   PassportFileReadResult,
   PassportFileReference,
   PassportFileStoreResult,
-} from "../../../passport-file/passportFileStoreModels";
+} from "../../../passport-file/googleDrivePassportFileStore";
 import { CreateGoogleBackedIdentity } from "./createGoogleBackedIdentity";
 import type {
   GoogleBackedIdentity,

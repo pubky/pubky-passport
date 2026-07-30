@@ -9,7 +9,7 @@ import {
 import { PubkySdkAdapter } from "../../../pubky/pubkySdkAdapter";
 import { LOGGER } from "../../../../libs/logger/logger";
 import type { PassportFileEnvelopeV1 } from "../../../../core/passport-file/passportFile";
-import type { DecryptPassportSecret } from "../../../passport-file/passportFileCryptoResults";
+import type { DecryptPassportSecret } from "../../../passport-file/webCryptoPassportFileCrypto";
 import type {
   GoogleBackedIdentity,
   GoogleBackedIdentityResult,

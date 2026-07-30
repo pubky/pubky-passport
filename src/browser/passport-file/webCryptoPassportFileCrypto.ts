@@ -1,17 +1,41 @@
 import "client-only";
 
-import { Result } from "better-result";
+import { Result, type Result as ResultType } from "better-result";
 
 import type { PassportFileEnvelopeV1 } from "../../core/passport-file/passportFile";
 import { decodeBase64Url, encodeBase64Url } from "../../libs/encoding/base64Url";
-import type {
-  DecryptPassportSecretInput,
-  EncryptPassportSecretInput,
-  PassportFileCryptoErrorCode,
-  PassportFileCryptoResult,
-} from "./passportFileCryptoResults";
 import { normalizePassportFileOrigin, parsePassportFileEnvelope } from "../../core/passport-file/parsePassportFile";
 import { PUBKY_SECRET_KEY_BYTES } from "../pubky/pubkyIdentityKey";
+
+export type PassportFileCryptoErrorCode =
+  | "unsupported_browser_crypto"
+  | "invalid_wrapping_key"
+  | "invalid_plaintext"
+  | "invalid_envelope"
+  | "encrypt_failed"
+  | "decrypt_failed";
+
+export type PassportFileCryptoResult<T> = ResultType<T, { code: PassportFileCryptoErrorCode }>;
+
+export type EncryptPassportSecretInput = {
+  secretKeyBytes: Uint8Array;
+  wrappingKey: string;
+  passportOrigin: string;
+};
+
+export type DecryptPassportSecretInput = {
+  envelope: PassportFileEnvelopeV1;
+  wrappingKey: string;
+  passportOrigin: string;
+};
+
+export type EncryptPassportSecret = (
+  input: EncryptPassportSecretInput,
+) => Promise<PassportFileCryptoResult<PassportFileEnvelopeV1>>;
+
+export type DecryptPassportSecret = (
+  input: DecryptPassportSecretInput,
+) => Promise<PassportFileCryptoResult<Uint8Array>>;
 
 export type WebCryptoPassportFileCryptoOptions = {
   subtle?: SubtleCrypto | null;

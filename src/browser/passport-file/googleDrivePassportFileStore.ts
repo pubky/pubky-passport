@@ -8,12 +8,29 @@ import {
   parsePassportFileEnvelope,
 } from "../../core/passport-file/parsePassportFile";
 import { readBoundedText } from "../../libs/http/boundedBody";
-import type {
-  PassportFileReadResult,
-  PassportFileReference,
-  PassportFileStoreErrorCode,
-  PassportFileStoreResult,
-} from "./passportFileStoreModels";
+
+export type PassportFileReference = Readonly<{
+  storageId: string;
+  revision: string;
+}>;
+
+export type PassportFileReadResult =
+  | { status: "found"; envelope: PassportFileEnvelopeV1; reference: PassportFileReference }
+  | { status: "missing" };
+
+export type PassportFileStoreErrorCode =
+  | "unauthorized"
+  | "forbidden"
+  | "network_failed"
+  | "invalid_response"
+  | "invalid_file"
+  | "duplicate_files"
+  | "create_conflict"
+  | "stale_file"
+  | "write_failed"
+  | "delete_failed";
+
+export type PassportFileStoreResult<T> = ResultType<T, { code: PassportFileStoreErrorCode }>;
 
 export type GoogleDriveAccessTokenProvider = () => Promise<string | null | undefined>;
 

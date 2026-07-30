@@ -8,12 +8,12 @@ import {
 } from "../../../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../../../pubky/pubkySdkAdapter";
 import { LOGGER } from "../../../../libs/logger/logger";
-import type { DecryptPassportSecret } from "../../../passport-file/passportFileCryptoResults";
+import type { DecryptPassportSecret } from "../../../passport-file/webCryptoPassportFileCrypto";
 import type {
   PassportFileReadResult,
   PassportFileReference,
   PassportFileStoreResult,
-} from "../../../passport-file/passportFileStoreModels";
+} from "../../../passport-file/googleDrivePassportFileStore";
 import type {
   GoogleDrivePassportFileDeletionErrorCode,
   GoogleDrivePassportFileDeletionResult,
