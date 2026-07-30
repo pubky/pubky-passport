@@ -3,9 +3,7 @@ import "client-only";
 import type { Result } from "better-result";
 
 import type { PubkyPublicIdentity } from "../../../../core/identity/pubkyIdentity";
-import type {
-  HomegateSignupInvitationErrorCode,
-} from "../../../homegate/application/homegateSignupInvitation";
+import type { HomegateSignupInvitationErrorCode } from "../../../homegate/homegateClient";
 import type { GoogleWrappingKeyErrorCode } from "../../../wrapping-key/wrappingKeyApiClient";
 
 export type GoogleBackedIdentityCredentials = {

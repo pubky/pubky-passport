@@ -1,7 +1,7 @@
 import { Result } from "better-result";
 import { describe, expect, it } from "vitest";
 
-import { HomegateClient } from "../../../homegate/adapters/homegateClient";
+import { HomegateClient } from "../../../homegate/homegateClient";
 import {
   TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
   TEST_PASSPORT_ENVELOPE,

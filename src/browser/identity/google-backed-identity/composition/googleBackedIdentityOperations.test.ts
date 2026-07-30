@@ -65,7 +65,7 @@ vi.mock("../application/restoreGoogleBackedIdentity", () => ({
   RestoreGoogleBackedIdentity: MOCKS.RestoreGoogleBackedIdentity,
 }));
 
-vi.mock("../../../homegate/adapters/homegateClient", () => ({
+vi.mock("../../../homegate/homegateClient", () => ({
   HomegateClient: MOCKS.HomegateClient,
 }));
 

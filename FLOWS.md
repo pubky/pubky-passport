@@ -402,7 +402,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/passport-file/adapters
         participant DriveStore as googleDrivePassportFileStore.ts<br/>GoogleDrivePassportFileStore
     end
-    box rgba(0, 158, 115, 0.18) src/browser/homegate/adapters
+    box rgba(0, 158, 115, 0.18) src/browser/homegate
         participant Invite as homegateClient.ts<br/>HomegateClient
     end
     box rgba(240, 228, 66, 0.18) src/app/api/wrapping-key/google
@@ -585,7 +585,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/application
         participant Local as saveLocalIdentity.ts<br/>SaveLocalIdentity
     end
-    box rgba(0, 158, 115, 0.18) src/browser/homegate/adapters
+    box rgba(0, 158, 115, 0.18) src/browser/homegate
         participant Invite as homegateClient.ts<br/>HomegateClient
     end
     box rgba(0, 158, 115, 0.18) src/browser/pubky/adapters
@@ -863,5 +863,5 @@ sequenceDiagram
 | Pubky SDK adapter | `src/browser/pubky/adapters/pubkySdkAdapter.ts` | `adapters/pubkySdkAdapter.test.ts` |
 | Wrapping-key API | `src/app/api/wrapping-key/google`, `src/server/wrapping-key/google` | Route and server tests |
 | Browser bootstrap config | `src/server/config/browserBootstrapConfig.ts` | `browserBootstrapConfig.test.ts`, proxy tests |
-| Homegate signup invitation | `src/browser/homegate` | Colocated browser application and adapter tests |
+| Homegate signup invitation | `src/browser/homegate/homegateClient.ts` | `homegateClient.test.ts` |
 | CSP and boundaries | `proxy.ts`, `next.config.mjs`, architecture test | Proxy, header, and targeted boundary tests |

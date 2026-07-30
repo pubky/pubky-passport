@@ -1,7 +1,7 @@
 import "client-only";
 
 import { LOGGER } from "../../../../libs/logger/logger";
-import { HomegateClient } from "../../../homegate/adapters/homegateClient";
+import { HomegateClient } from "../../../homegate/homegateClient";
 import { GoogleDrivePassportFileStore } from "../../../passport-file/adapters/googleDrivePassportFileStore";
 import { WebCryptoPassportFileCrypto } from "../../../passport-file/adapters/webCryptoPassportFileCrypto";
 import { PubkySdkAdapter } from "../../../pubky/adapters/pubkySdkAdapter";

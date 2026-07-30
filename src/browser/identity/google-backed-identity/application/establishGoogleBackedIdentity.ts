@@ -3,7 +3,7 @@ import "client-only";
 import { Result } from "better-result";
 
 import { LOGGER } from "../../../../libs/logger/logger";
-import { HomegateClient } from "../../../homegate/adapters/homegateClient";
+import { HomegateClient } from "../../../homegate/homegateClient";
 import type { PassportFileEnvelopeV1 } from "../../../../core/passport-file/passportFile";
 import type {
   PassportFileReadResult,

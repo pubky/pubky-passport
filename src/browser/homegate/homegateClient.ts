@@ -3,12 +3,24 @@ import "client-only";
 import { Result } from "better-result";
 import { z } from "zod";
 
-import { readBoundedText } from "../../../libs/http/boundedBody";
-import { LOGGER } from "../../../libs/logger/logger";
-import type {
-  HomegateSignupInvitationErrorCode,
-  HomeserverSignupInvitation,
-} from "../application/homegateSignupInvitation";
+import { readBoundedText } from "../../libs/http/boundedBody";
+import { LOGGER } from "../../libs/logger/logger";
+
+export type HomeserverSignupInvitation = {
+  signupCode: string;
+  homeserverPubky: string;
+};
+
+export type HomegateSignupInvitationErrorCode =
+  | "invalid_google_id_token"
+  | "weekly_limit_exceeded"
+  | "annual_limit_exceeded"
+  | "homegate_invalid_request"
+  | "homeserver_unavailable"
+  | "google_verifier_unavailable"
+  | "homegate_unavailable"
+  | "malformed_homegate_response"
+  | "network_failed";
 
 const MAX_SUCCESS_RESPONSE_BYTES = 16 * 1024;
 const MAX_ERROR_RESPONSE_BYTES = 256;
