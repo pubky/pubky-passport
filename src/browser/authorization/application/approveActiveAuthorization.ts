@@ -3,6 +3,7 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import type { ValidatedSensitivePubkyAuthRequest } from "../../../core/auth/parsePubkyAuthRequest";
+import { LOGGER } from "../../../libs/logger/logger";
 import type {
   PubkyIdentityKey,
 } from "../../pubky/application/pubkyIdentityKey";
@@ -36,15 +37,26 @@ export async function approveActiveAuthorization(input: {
     keyHandle = restored.value.keyHandle;
     const approved = await input.pubky.approveAuthRequest(keyHandle, input.authRequest);
 
-    return Result.isError(approved) ? Result.err({ code: "approval_failed" }) : Result.ok();
+    if (Result.isError(approved)) {
+      LOGGER.warn("authorize.approval.failed", {
+        stage: "sdk_approve",
+        code: approved.error.code,
+      });
+      return Result.err({ code: "approval_failed" });
+    }
+    return Result.ok();
   } catch {
+    LOGGER.warn("authorize.approval.failed", {
+      stage: keyHandle ? "sdk_approve" : "identity_restore",
+      code: "unexpected_failure",
+    });
     return Result.err({ code: keyHandle ? "approval_failed" : "identity_restore_failed" });
   } finally {
     if (keyHandle) {
       try {
         input.pubky.disposeIdentityKey(keyHandle);
       } catch {
-        // The operation still returns only its safe typed result after cleanup is attempted.
+        LOGGER.warn("authorize.cleanup.failed", { operation: "identity_key_dispose" });
       }
     }
   }

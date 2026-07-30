@@ -89,6 +89,17 @@ describe("createLogger", () => {
     ]);
     expect(records.info[0]).not.toContain("\n");
   });
+
+  it("does not let sink failures alter application control flow", () => {
+    const logger = createLogger({
+      debug() { throw new Error("sink failed"); },
+      info() { throw new Error("sink failed"); },
+      warn() { throw new Error("sink failed"); },
+      error() { throw new Error("sink failed"); },
+    });
+
+    expect(() => logger.warn("authorize.approval.failed")).not.toThrow();
+  });
 });
 
 function createLogRecords(): Record<LogLevel, string[]> & { sink: LogSink } {

@@ -1,7 +1,8 @@
 import { Result } from "better-result";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { parsePubkyAuthRequest } from "../../../core/auth/parsePubkyAuthRequest";
+import { LOGGER } from "../../../libs/logger/logger";
 import {
   approveActiveAuthorization,
 } from "./approveActiveAuthorization";
@@ -10,6 +11,10 @@ import { RecordingPubkySdkAdapter } from "../../../../test-utils/fakes/recording
 const REQUEST = "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=sensitive";
 
 describe("approveActiveAuthorization", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("restores, approves with the same Pubky instance, and disposes the key", async () => {
     const pubky = new RecordingPubkySdkAdapter();
     const restoredResult = await pubky.createIdentityKey();
@@ -48,6 +53,7 @@ describe("approveActiveAuthorization", () => {
   });
 
   it("disposes the restored key when approval fails", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const pubky = new RecordingPubkySdkAdapter();
     pubky.approvalFailure = "relay_failed";
     const restoredResult = await pubky.createIdentityKey();
@@ -65,5 +71,32 @@ describe("approveActiveAuthorization", () => {
 
     expect(Result.isError(result) && result.error).toEqual({ code: "approval_failed" });
     expect(pubky.disposedKeys).toEqual([restored.keyHandle]);
+    expect(warning).toHaveBeenCalledOnce();
+    expect(warning).toHaveBeenCalledWith("authorize.approval.failed", {
+      stage: "sdk_approve",
+      code: "relay_failed",
+    });
+  });
+
+  it("logs cleanup failures without changing the approval result", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const pubky = new RecordingPubkySdkAdapter();
+    const restoredResult = await pubky.createIdentityKey();
+    if (Result.isError(restoredResult)) throw new Error(restoredResult.error.code);
+    pubky.throwOnDisposeIdentity = true;
+    const parsed = parsePubkyAuthRequest(encodeURIComponent(REQUEST));
+    if (Result.isError(parsed)) throw new Error(parsed.error.code);
+
+    const result = await approveActiveAuthorization({
+      authRequest: parsed.value.approval,
+      restoreActiveIdentity: async () => Result.ok(restoredResult.value),
+      pubky,
+    });
+
+    expect(Result.isOk(result)).toBe(true);
+    expect(warning).toHaveBeenCalledOnce();
+    expect(warning).toHaveBeenCalledWith("authorize.cleanup.failed", {
+      operation: "identity_key_dispose",
+    });
   });
 });

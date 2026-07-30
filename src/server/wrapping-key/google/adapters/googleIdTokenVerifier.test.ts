@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 
 import { expectAsyncResultError } from "../../../../../test-utils/resultAssertions";
+import { LOGGER } from "../../../../libs/logger/logger";
 import { GoogleIdTokenVerifier } from "./googleIdTokenVerifier";
 
 const AUDIENCE = "google-client-id";
@@ -18,6 +19,10 @@ type TestGoogleIdTokenPayload = {
 };
 
 describe("Google ID token verifier", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("normalizes accepted Google issuers to the canonical issuer", async () => {
     const verifier = createVerifierWithPayload({ ...validPayload(), iss: "accounts.google.com" });
 
@@ -79,6 +84,7 @@ describe("Google ID token verifier", () => {
   it.each(["expired", "audience recipient", "invalid"])(
     "maps verifier %s failures generically without exposing the token",
     async (message) => {
+      const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
       const verifier = new GoogleIdTokenVerifier({
         audience: AUDIENCE,
         now: () => NOW,
@@ -90,8 +96,54 @@ describe("Google ID token verifier", () => {
       });
 
       await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
+      expect(warning).toHaveBeenCalledOnce();
+      expect(warning).toHaveBeenCalledWith("identity.google.id_token_verification.failed", {
+        code: "google_verifier_rejected",
+      });
     },
   );
+
+  it("logs a safe failure when Google returns a ticket without a payload", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const verifier = new GoogleIdTokenVerifier({
+      audience: AUDIENCE,
+      now: () => NOW,
+      verifier: {
+        async verifyIdToken() {
+          return { getPayload: () => undefined };
+        },
+      },
+    });
+
+    await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
+    expect(warning).toHaveBeenCalledOnce();
+    expect(warning).toHaveBeenCalledWith("identity.google.id_token_verification.failed", {
+      code: "missing_payload",
+    });
+  });
+
+  it("maps payload access exceptions without logging their details", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const verifier = new GoogleIdTokenVerifier({
+      audience: AUDIENCE,
+      now: () => NOW,
+      verifier: {
+        async verifyIdToken() {
+          return {
+            getPayload() {
+              throw new Error(`payload failed for ${TOKEN}`);
+            },
+          };
+        },
+      },
+    });
+
+    await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
+    expect(warning).toHaveBeenCalledOnce();
+    expect(warning).toHaveBeenCalledWith("identity.google.id_token_verification.failed", {
+      code: "payload_access_failed",
+    });
+  });
 
   it("rejects an invalid verification clock", async () => {
     const verifier = new GoogleIdTokenVerifier({

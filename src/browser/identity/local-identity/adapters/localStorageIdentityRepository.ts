@@ -4,6 +4,7 @@ import { Result } from "better-result";
 
 import type { PubkyPublicIdentity } from "../../../../core/identity/pubkyIdentity";
 import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "../../../../libs/encoding/base64Url";
+import { LOGGER } from "../../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../../../pubky/application/pubkyIdentityKey";
 import type {
   LocalIdentityErrorCode,
@@ -96,14 +97,14 @@ export class LocalStorageIdentityRepository {
 
   clear(): LocalIdentityResult<void> {
     if (!this.#storage) {
-      return failure("storage_unavailable");
+      return localStoreFailure("clear", "storage_unavailable");
     }
 
     try {
       this.#storage.removeItem(STORAGE_KEY);
       return Result.ok();
     } catch {
-      return failure("storage_unavailable");
+      return localStoreFailure("clear", "storage_unavailable");
     }
   }
 
@@ -138,7 +139,7 @@ export class LocalStorageIdentityRepository {
 
     const secretKey = decodeStoredSecretKey(storedIdentity.secretKey);
     if (!secretKey) {
-      return failure("invalid_store");
+      return localStoreFailure("read", "invalid_store");
     }
 
     return Result.ok({
@@ -149,14 +150,14 @@ export class LocalStorageIdentityRepository {
 
   private readStore(): LocalIdentityResult<LocalIdentityStoreV1> {
     if (!this.#storage) {
-      return failure("storage_unavailable");
+      return localStoreFailure("read", "storage_unavailable");
     }
 
     let stored: string | null;
     try {
       stored = this.#storage.getItem(STORAGE_KEY);
     } catch {
-      return failure("storage_unavailable");
+      return localStoreFailure("read", "storage_unavailable");
     }
 
     if (stored === null) {
@@ -165,22 +166,22 @@ export class LocalStorageIdentityRepository {
 
     try {
       const parsed: unknown = JSON.parse(stored);
-      return isStoreV1(parsed) ? Result.ok(parsed) : failure("invalid_store");
+      return isStoreV1(parsed) ? Result.ok(parsed) : localStoreFailure("read", "invalid_store");
     } catch {
-      return failure("invalid_store");
+      return localStoreFailure("read", "invalid_store");
     }
   }
 
   private writeStore(store: LocalIdentityStoreV1): LocalIdentityResult<void> {
     if (!this.#storage) {
-      return failure("storage_unavailable");
+      return localStoreFailure("write", "storage_unavailable");
     }
 
     try {
       this.#storage.setItem(STORAGE_KEY, JSON.stringify(store));
       return Result.ok();
     } catch {
-      return failure("storage_unavailable");
+      return localStoreFailure("write", "storage_unavailable");
     }
   }
 }
@@ -253,4 +254,12 @@ function decodeStoredSecretKey(value: string): Uint8Array | undefined {
 
 function failure<T>(code: LocalIdentityErrorCode): LocalIdentityResult<T> {
   return Result.err({ code });
+}
+
+function localStoreFailure<T>(
+  operation: "read" | "write" | "clear",
+  code: "storage_unavailable" | "invalid_store",
+): LocalIdentityResult<T> {
+  LOGGER.warn("identity.local_store.failed", { operation, code });
+  return failure(code);
 }

@@ -1,5 +1,6 @@
 import "client-only";
 
+import { LOGGER } from "../../../../libs/logger/logger";
 import { HomegateClient } from "../../../homegate/adapters/homegateClient";
 import { GoogleDrivePassportFileStore } from "../../../passport-file/adapters/googleDrivePassportFileStore";
 import { WebCryptoPassportFileCrypto } from "../../../passport-file/adapters/webCryptoPassportFileCrypto";
@@ -82,7 +83,9 @@ export class GoogleBackedIdentityOperations {
       try {
         pubky.dispose();
       } catch {
-        // Preserve the construction failure after best-effort rollback.
+        LOGGER.warn("identity.google.cleanup.failed", {
+          operation: "construction_pubky_dispose",
+        });
       }
       throw error;
     }

@@ -45,7 +45,11 @@ export function createLogger(sink: LogSink = CONSOLE_SINK): Logger {
 export const LOGGER = createLogger();
 
 function writeLog(sink: LogSink, level: LogLevel, event: string, fields: LogFields | undefined): void {
-  sink[level](redactForLog(formatLogLine(level, event, fields)));
+  try {
+    sink[level](redactForLog(formatLogLine(level, event, fields)));
+  } catch {
+    // Logging must never alter the application flow it is observing.
+  }
 }
 
 function formatLogLine(level: LogLevel, event: string, fields: LogFields | undefined): string {

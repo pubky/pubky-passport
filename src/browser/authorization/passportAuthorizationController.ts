@@ -6,6 +6,7 @@ import {
   getParserIssuedPubkyAuthCallbacks,
   type ValidatedSensitivePubkyAuthRequest,
 } from "../../core/auth/parsePubkyAuthRequest";
+import { LOGGER } from "../../libs/logger/logger";
 import type { ParsedAuthorizationEntry } from "./application/authorizationEntry";
 import type {
   ActiveAuthorizationErrorCode,
@@ -65,20 +66,24 @@ export class PassportAuthorizationController implements BrowserAuthorizationCont
     try {
       result = await this.#dependencies.approveAuthorization(this.#entry.approval);
     } catch {
+      LOGGER.warn("authorize.approval.failed", {
+        stage: "controller",
+        code: "unexpected_failure",
+      });
       result = Result.err({ code: "approval_failed" });
     }
 
     try {
       if (Result.isOk(result)) {
         const success = getParserIssuedPubkyAuthCallbacks(this.#entry.approval)?.success;
-        if (success && this.tryNavigate(success)) {
+        if (success && this.tryNavigate(success, "success")) {
           return this.update({ status: "redirecting", review: this.#entry.review });
         }
         return this.update({ status: "approved" });
       }
 
       const errorCallback = getParserIssuedPubkyAuthCallbacks(this.#entry.approval)?.error;
-      if (errorCallback && this.tryNavigate(errorCallback)) {
+      if (errorCallback && this.tryNavigate(errorCallback, "error")) {
         return this.update({ status: "redirecting", review: this.#entry.review });
       }
       return this.update({
@@ -86,6 +91,10 @@ export class PassportAuthorizationController implements BrowserAuthorizationCont
         failureCode: browserAuthorizationFailureCode(result.error.code),
       });
     } catch {
+      LOGGER.warn("authorize.callback.failed", {
+        outcome: Result.isOk(result) ? "success" : "error",
+        operation: "callback_lookup",
+      });
       return this.update({ status: "failed", failureCode: "approval_failed" });
     }
   }
@@ -97,20 +106,27 @@ export class PassportAuthorizationController implements BrowserAuthorizationCont
 
     try {
       const cancelCallback = getParserIssuedPubkyAuthCallbacks(this.#entry.approval)?.cancel;
-      if (cancelCallback && this.tryNavigate(cancelCallback)) {
+      if (cancelCallback && this.tryNavigate(cancelCallback, "cancel")) {
         return this.update({ status: "redirecting", review: this.#entry.review });
       }
     } catch {
-      // Callback retrieval and navigation failures always terminate locally.
+      LOGGER.warn("authorize.callback.failed", {
+        outcome: "cancel",
+        operation: "callback_lookup",
+      });
     }
     return this.update({ status: "cancelled" });
   }
 
-  private tryNavigate(url: string): boolean {
+  private tryNavigate(url: string, outcome: "success" | "error" | "cancel"): boolean {
     try {
       this.#dependencies.navigate(url);
       return true;
     } catch {
+      LOGGER.warn("authorize.callback.failed", {
+        outcome,
+        operation: "navigate",
+      });
       return false;
     }
   }
@@ -121,7 +137,7 @@ export class PassportAuthorizationController implements BrowserAuthorizationCont
       try {
         listener(state);
       } catch {
-        // Rendering consumers cannot make controller intents reject or throw.
+        LOGGER.warn("authorize.state_listener.failed", { state: state.status });
       }
     }
     return state;

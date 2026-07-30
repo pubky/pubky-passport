@@ -1,7 +1,8 @@
 import { Result } from "better-result";
-import { describe, expect, expectTypeOf, it, vi } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { parsePubkyAuthRequest } from "../../core/auth/parsePubkyAuthRequest";
+import { LOGGER } from "../../libs/logger/logger";
 import type { ParsedAuthorizationEntry } from "./application/authorizationEntry";
 import type { ActiveAuthorizationResult } from "./application/approveActiveAuthorization";
 import type { BrowserAuthorizationController, BrowserAuthorizationViewState } from "./browserAuthorizationController";
@@ -17,6 +18,10 @@ const CANCEL_CALLBACK = "https://app.example/cancel?code=private";
 const SECRET = "sensitive-authorization-secret";
 
 describe("PassportAuthorizationController", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("exposes only finite safe view states and intent methods", () => {
     expectTypeOf<BrowserAuthorizationViewState["status"]>().not.toEqualTypeOf<string>();
 
@@ -79,6 +84,7 @@ describe("PassportAuthorizationController", () => {
     ["error", async () => Result.err({ code: "approval_failed" as const }), "failed", "approve"],
     ["cancel", async () => Result.ok(), "cancelled", "cancel"],
   ] as const)("falls back to a local %s outcome when callback navigation throws", async (_name, approveAuthorization, status, intent) => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const controller = createController({
       approveAuthorization,
       navigate: () => { throw new Error("navigation unavailable"); },
@@ -87,6 +93,11 @@ describe("PassportAuthorizationController", () => {
     const state = intent === "approve" ? await controller.approve() : controller.cancel();
 
     expect(state.status).toBe(status);
+    expect(warning).toHaveBeenCalledOnce();
+    expect(warning).toHaveBeenCalledWith("authorize.callback.failed", {
+      outcome: _name,
+      operation: "navigate",
+    });
   });
 
   it.each(["no_active_identity", "identity_restore_failed", "approval_failed"] as const)(
@@ -102,6 +113,7 @@ describe("PassportAuthorizationController", () => {
   );
 
   it("makes approval, cancellation, and state listeners exception-total", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const controller = createController(
       { approveAuthorization: async () => { throw new Error("approval exploded"); } },
       validEntry({ callbacks: false }),
@@ -110,6 +122,12 @@ describe("PassportAuthorizationController", () => {
 
     await expect(controller.approve()).resolves.toEqual({ status: "failed", failureCode: "approval_failed" });
     expect(() => controller.cancel()).not.toThrow();
+    expect(warning).toHaveBeenCalledTimes(3);
+    expect(warning).toHaveBeenCalledWith("authorize.approval.failed", {
+      stage: "controller",
+      code: "unexpected_failure",
+    });
+    expect(warning).toHaveBeenCalledWith("authorize.state_listener.failed", { state: "approving" });
   });
 
   it("never approves or navigates an invalid request", async () => {

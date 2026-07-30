@@ -1,9 +1,10 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MemoryStorage } from "../../../../../test-utils/fakes/memoryStorage";
 import { expectResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
+import { LOGGER } from "../../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_FORMAT } from "../../../pubky/application/pubkyIdentityKey";
 import { LocalStorageIdentityRepository } from "./localStorageIdentityRepository";
 
@@ -11,6 +12,10 @@ const FIRST_IDENTITY = { publicKeyZ32: "firstidentity111111111111111111111111111
 const SECOND_IDENTITY = { publicKeyZ32: "secondidentity11111111111111111111111111111111111111111", publicKeyDisplay: "pubkysecondidentity11111111111111111111111111111111111111111" };
 
 describe("LocalStorageIdentityRepository", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("persists identities and selects the latest one", () => {
     const storage = new MemoryStorage();
     const repository = new LocalStorageIdentityRepository({ storage });
@@ -34,9 +39,32 @@ describe("LocalStorageIdentityRepository", () => {
   });
 
   it("rejects malformed persisted values", () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const storage = new MemoryStorage();
     storage.setItem("pubky-passport/local-identities/v1", '{"v":1,"identities":"secret"}');
     expectResultError(new LocalStorageIdentityRepository({ storage }).list(), { code: "invalid_store" });
+    expect(warning).toHaveBeenCalledOnce();
+    expect(warning).toHaveBeenCalledWith("identity.local_store.failed", {
+      operation: "read",
+      code: "invalid_store",
+    });
+  });
+
+  it("logs storage exceptions without exposing persisted contents", () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const storage = new MemoryStorage();
+    vi.spyOn(storage, "getItem").mockImplementation(() => {
+      throw new Error("sensitive persisted contents");
+    });
+
+    expectResultError(new LocalStorageIdentityRepository({ storage }).list(), {
+      code: "storage_unavailable",
+    });
+    expect(warning).toHaveBeenCalledOnce();
+    expect(warning).toHaveBeenCalledWith("identity.local_store.failed", {
+      operation: "read",
+      code: "storage_unavailable",
+    });
   });
 
   it("reads the existing v1 localStorage format", () => {

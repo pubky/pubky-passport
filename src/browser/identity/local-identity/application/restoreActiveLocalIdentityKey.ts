@@ -3,6 +3,7 @@ import "client-only";
 import { Result } from "better-result";
 
 import type { PubkyPublicIdentity } from "../../../../core/identity/pubkyIdentity";
+import { LOGGER } from "../../../../libs/logger/logger";
 import type {
   PubkyIdentityKey,
   PubkySecretKeyMaterial,
@@ -29,10 +30,14 @@ export class RestoreActiveLocalIdentityKey {
 
     try {
       const restored = await this.#pubky.restoreIdentityKey(stored.value.secretKey);
-      if (Result.isError(restored)) return Result.err({ code: "restore_failed" });
+      if (Result.isError(restored)) {
+        LOGGER.warn("identity.local_restore.failed", { code: restored.error.code });
+        return Result.err({ code: "restore_failed" });
+      }
 
       if (!isSamePublicIdentity(restored.value.publicIdentity, stored.value.identity.publicIdentity)) {
         this.#pubky.disposeIdentityKey(restored.value.keyHandle);
+        LOGGER.warn("identity.local_restore.failed", { code: "identity_mismatch" });
         return Result.err({ code: "identity_mismatch" });
       }
 

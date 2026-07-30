@@ -1,7 +1,9 @@
 /** @vitest-environment jsdom */
 
 import { Result } from "better-result";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { LOGGER } from "../../../../libs/logger/logger";
 
 const MOCKS = vi.hoisted(() => ({
   PubkySdkAdapter: vi.fn(),
@@ -74,6 +76,10 @@ vi.mock("../../../wrapping-key/wrappingKeyApiClient", () => ({
 import { GoogleBackedIdentityOperations } from "./googleBackedIdentityOperations";
 
 describe("GoogleBackedIdentityOperations", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("wires and delegates Google-backed identity operations", async () => {
     const identityEstablisher = operationDouble();
     const passportFileDeleter = deletionDouble();
@@ -134,6 +140,7 @@ describe("GoogleBackedIdentityOperations", () => {
   });
 
   it("disposes Pubky when construction fails", () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     prepareConstructors({
       identityEstablisher: operationDouble(),
       passportFileDeleter: deletionDouble(),
@@ -151,6 +158,10 @@ describe("GoogleBackedIdentityOperations", () => {
       passportOrigin: "https://passport.example",
     })).toThrow("construction failed");
     expect(MOCKS.pubky.dispose).toHaveBeenCalledOnce();
+    expect(warning).toHaveBeenCalledOnce();
+    expect(warning).toHaveBeenCalledWith("identity.google.cleanup.failed", {
+      operation: "construction_pubky_dispose",
+    });
   });
 });
 

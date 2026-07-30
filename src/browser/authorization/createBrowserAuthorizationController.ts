@@ -2,6 +2,7 @@ import "client-only";
 
 import { Result } from "better-result";
 
+import { LOGGER } from "../../libs/logger/logger";
 import { RestoreActiveLocalIdentityKey } from "../identity/local-identity/application/restoreActiveLocalIdentityKey";
 import { LocalStorageIdentityRepository } from "../identity/local-identity/adapters/localStorageIdentityRepository";
 import { PubkySdkAdapter } from "../pubky/adapters/pubkySdkAdapter";
@@ -36,6 +37,10 @@ async function approveWithPubkySdk(
   try {
     pubky = new PubkySdkAdapter();
   } catch {
+    LOGGER.warn("authorize.approval.failed", {
+      stage: "sdk_initialize",
+      code: "unexpected_failure",
+    });
     return Result.err({ code: "approval_failed" });
   }
 
@@ -50,7 +55,7 @@ async function approveWithPubkySdk(
     try {
       pubky.dispose();
     } catch {
-      // Per-key cleanup was already attempted by the authorization use case.
+      LOGGER.warn("authorize.cleanup.failed", { operation: "pubky_dispose" });
     }
   }
 }

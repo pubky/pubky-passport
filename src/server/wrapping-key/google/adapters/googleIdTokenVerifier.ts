@@ -3,6 +3,7 @@ import "server-only";
 import { OAuth2Client } from "google-auth-library";
 import { Result } from "better-result";
 
+import { LOGGER } from "../../../../libs/logger/logger";
 import {
   CANONICAL_GOOGLE_ISSUER,
   type GoogleIdTokenVerificationResult,
@@ -46,11 +47,26 @@ export class GoogleIdTokenVerifier {
     try {
       ticket = await this.#verifier.verifyIdToken({ idToken, audience: this.#audience });
     } catch {
+      LOGGER.warn("identity.google.id_token_verification.failed", {
+        code: "google_verifier_rejected",
+      });
       return failure();
     }
 
-    const payload = ticket.getPayload();
+    let payload: GoogleIdTokenPayload | undefined;
+    try {
+      payload = ticket.getPayload();
+    } catch {
+      LOGGER.warn("identity.google.id_token_verification.failed", {
+        code: "payload_access_failed",
+      });
+      return failure();
+    }
+
     if (!payload) {
+      LOGGER.warn("identity.google.id_token_verification.failed", {
+        code: "missing_payload",
+      });
       return failure();
     }
 
