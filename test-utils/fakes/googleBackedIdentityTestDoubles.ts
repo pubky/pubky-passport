@@ -6,12 +6,12 @@ import type {
   DecryptPassportSecretInput,
   EncryptPassportSecretInput,
   PassportFileCryptoResult,
-} from "../../src/browser/passport-file/application/passportFileCryptoResults";
+} from "../../src/browser/passport-file/passportFileCryptoResults";
 import type {
   PassportFileReadResult,
   PassportFileReference,
   PassportFileStoreErrorCode,
-} from "../../src/browser/passport-file/application/passportFileStoreModels";
+} from "../../src/browser/passport-file/passportFileStoreModels";
 import type { PassportFileEnvelopeV1 } from "../../src/core/passport-file/passportFile";
 
 export const TEST_PASSPORT_ENVELOPE: PassportFileEnvelopeV1 = {

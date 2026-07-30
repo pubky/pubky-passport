@@ -399,7 +399,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/wrapping-key
         participant Wrapping as wrappingKeyApiClient.ts<br/>WrappingKeyApiClient
     end
-    box rgba(0, 158, 115, 0.18) src/browser/passport-file/adapters
+    box rgba(0, 158, 115, 0.18) src/browser/passport-file
         participant DriveStore as googleDrivePassportFileStore.ts<br/>GoogleDrivePassportFileStore
     end
     box rgba(0, 158, 115, 0.18) src/browser/homegate
@@ -464,7 +464,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/application
         participant Local as saveLocalIdentity.ts<br/>SaveLocalIdentity
     end
-    box rgba(0, 158, 115, 0.18) src/browser/passport-file/adapters
+    box rgba(0, 158, 115, 0.18) src/browser/passport-file
         participant Crypto as webCryptoPassportFileCrypto.ts<br/>WebCryptoPassportFileCrypto
     end
     box rgba(0, 158, 115, 0.18) src/browser/pubky
@@ -529,7 +529,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/pubky
         participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
-    box rgba(0, 158, 115, 0.18) src/browser/passport-file/adapters
+    box rgba(0, 158, 115, 0.18) src/browser/passport-file
         participant Crypto as webCryptoPassportFileCrypto.ts<br/>WebCryptoPassportFileCrypto
         participant DriveStore as googleDrivePassportFileStore.ts<br/>GoogleDrivePassportFileStore
     end
@@ -680,7 +680,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/wrapping-key
         participant Wrapping as wrappingKeyApiClient.ts<br/>WrappingKeyApiClient
     end
-    box rgba(0, 158, 115, 0.18) src/browser/passport-file/adapters
+    box rgba(0, 158, 115, 0.18) src/browser/passport-file
         participant DriveStore as googleDrivePassportFileStore.ts<br/>GoogleDrivePassportFileStore
         participant Crypto as webCryptoPassportFileCrypto.ts<br/>WebCryptoPassportFileCrypto
     end
@@ -859,7 +859,7 @@ sequenceDiagram
 | Authorization UI | `src/ui/authorizationReview.tsx` | `src/ui/authorizationReview.test.tsx` |
 | Google controller and adapters | `src/browser/identity` | `passportIdentityController.test.ts`, capability adapter tests |
 | Google-backed custody/recovery lifecycle | `src/browser/identity/google-backed-identity` | Colocated application, adapter, and composition tests |
-| Drive store and WebCrypto | `src/browser/passport-file/application`, `src/browser/passport-file/adapters` | Colocated adapter tests |
+| Drive store and WebCrypto | `src/browser/passport-file` | Colocated store and crypto tests |
 | Pubky SDK adapter | `src/browser/pubky/pubkySdkAdapter.ts` | `pubkySdkAdapter.test.ts` |
 | Wrapping-key API | `src/app/api/wrapping-key/google`, `src/server/wrapping-key/google` | Route and server tests |
 | Browser bootstrap config | `src/server/config/browserBootstrapConfig.ts` | `browserBootstrapConfig.test.ts`, proxy tests |

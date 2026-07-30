@@ -6,8 +6,8 @@ import type { PubkyIdentityKey } from "../../../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../../../pubky/pubkySdkAdapter";
 import { LOGGER } from "../../../../libs/logger/logger";
 import type { PassportFileEnvelopeV1 } from "../../../../core/passport-file/passportFile";
-import type { EncryptPassportSecret } from "../../../passport-file/application/passportFileCryptoResults";
-import type { PassportFileReference, PassportFileStoreResult } from "../../../passport-file/application/passportFileStoreModels";
+import type { EncryptPassportSecret } from "../../../passport-file/passportFileCryptoResults";
+import type { PassportFileReference, PassportFileStoreResult } from "../../../passport-file/passportFileStoreModels";
 import type { HomeserverSignupInvitation } from "../../../homegate/homegateClient";
 import type {
   GoogleBackedIdentity,

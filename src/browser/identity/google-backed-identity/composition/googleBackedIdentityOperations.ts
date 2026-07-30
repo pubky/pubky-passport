@@ -2,8 +2,8 @@ import "client-only";
 
 import { LOGGER } from "../../../../libs/logger/logger";
 import { HomegateClient } from "../../../homegate/homegateClient";
-import { GoogleDrivePassportFileStore } from "../../../passport-file/adapters/googleDrivePassportFileStore";
-import { WebCryptoPassportFileCrypto } from "../../../passport-file/adapters/webCryptoPassportFileCrypto";
+import { GoogleDrivePassportFileStore } from "../../../passport-file/googleDrivePassportFileStore";
+import { WebCryptoPassportFileCrypto } from "../../../passport-file/webCryptoPassportFileCrypto";
 import type { PubkySecretKeyMaterial } from "../../../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../../../pubky/pubkySdkAdapter";
 import { WrappingKeyApiClient } from "../../../wrapping-key/wrappingKeyApiClient";

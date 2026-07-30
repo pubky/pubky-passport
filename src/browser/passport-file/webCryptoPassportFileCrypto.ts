@@ -2,16 +2,16 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import type { PassportFileEnvelopeV1 } from "../../../core/passport-file/passportFile";
-import { decodeBase64Url, encodeBase64Url } from "../../../libs/encoding/base64Url";
+import type { PassportFileEnvelopeV1 } from "../../core/passport-file/passportFile";
+import { decodeBase64Url, encodeBase64Url } from "../../libs/encoding/base64Url";
 import type {
   DecryptPassportSecretInput,
   EncryptPassportSecretInput,
   PassportFileCryptoErrorCode,
   PassportFileCryptoResult,
-} from "../application/passportFileCryptoResults";
-import { normalizePassportFileOrigin, parsePassportFileEnvelope } from "../../../core/passport-file/parsePassportFile";
-import { PUBKY_SECRET_KEY_BYTES } from "../../pubky/pubkyIdentityKey";
+} from "./passportFileCryptoResults";
+import { normalizePassportFileOrigin, parsePassportFileEnvelope } from "../../core/passport-file/parsePassportFile";
+import { PUBKY_SECRET_KEY_BYTES } from "../pubky/pubkyIdentityKey";
 
 export type WebCryptoPassportFileCryptoOptions = {
   subtle?: SubtleCrypto | null;

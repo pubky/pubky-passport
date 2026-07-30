@@ -2,7 +2,7 @@ import "client-only";
 
 import type { Result } from "better-result";
 
-import type { PassportFileEnvelopeV1 } from "../../../core/passport-file/passportFile";
+import type { PassportFileEnvelopeV1 } from "../../core/passport-file/passportFile";
 
 export type PassportFileReference = Readonly<{
   storageId: string;

@@ -41,7 +41,7 @@ vi.mock("../../../pubky/pubkySdkAdapter", () => ({
   PubkySdkAdapter: MOCKS.PubkySdkAdapter,
 }));
 
-vi.mock("../../../passport-file/adapters/webCryptoPassportFileCrypto", () => ({
+vi.mock("../../../passport-file/webCryptoPassportFileCrypto", () => ({
   WebCryptoPassportFileCrypto: MOCKS.WebCryptoPassportFileCrypto,
 }));
 
