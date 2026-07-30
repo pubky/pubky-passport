@@ -50,34 +50,25 @@ export class WebCryptoPassportFileCrypto {
 
   async encryptSecretKeyBytes(input: EncryptPassportSecretInput): Promise<PassportFileCryptoResult<PassportFileEnvelopeV1>> {
     const webCrypto = this.#getRequiredWebCrypto();
-    if (Result.isError(webCrypto)) {
-      return failure(webCrypto.error.code);
-    }
+    if (Result.isError(webCrypto)) return failure(webCrypto.error.code);
 
-    if (!isValidSecretKeyBytes(input.secretKeyBytes)) {
-      return failure("invalid_plaintext");
-    }
+    if (!isValidSecretKeyBytes(input.secretKeyBytes)) return failure("invalid_plaintext");
 
     const origin = normalizePassportFileOrigin(input.passportOrigin);
-    if (Result.isError(origin)) {
-      return failure("invalid_envelope");
-    }
+    if (Result.isError(origin)) return failure("invalid_envelope");
 
     const wrappingBytes = decodeWrappingKey(input.wrappingKey);
-    if (Result.isError(wrappingBytes)) {
-      return failure(wrappingBytes.error.code);
-    }
+    if (Result.isError(wrappingBytes)) return failure(wrappingBytes.error.code);
 
+    const { subtle, getRandomValues } = webCrypto.value;
     const wrappingMaterial = wrappingBytes.value;
     try {
       const envelopeMetadata = { v: 1 as const, url: origin.value };
-      const key = await this.#deriveAesGcmKey(webCrypto.value.subtle, wrappingMaterial);
-      if (Result.isError(key)) {
-        return failure(key.error.code);
-      }
+      const key = await this.#deriveAesGcmKey(subtle, wrappingMaterial);
+      if (Result.isError(key)) return failure(key.error.code);
 
-      const iv = webCrypto.value.getRandomValues(new Uint8Array(AES_GCM_IV_BYTES));
-      const ciphertext = await webCrypto.value.subtle.encrypt(
+      const iv = getRandomValues(new Uint8Array(AES_GCM_IV_BYTES));
+      const ciphertext = await subtle.encrypt(
         { name: "AES-GCM", iv, additionalData: aadForEnvelope(envelopeMetadata) },
         key.value,
         toArrayBuffer(input.secretKeyBytes),
@@ -98,44 +89,32 @@ export class WebCryptoPassportFileCrypto {
 
   async decryptSecretKeyBytes(input: DecryptPassportSecretInput): Promise<PassportFileCryptoResult<Uint8Array>> {
     const webCrypto = this.#getRequiredWebCrypto();
-    if (Result.isError(webCrypto)) {
-      return failure(webCrypto.error.code);
-    }
+    if (Result.isError(webCrypto)) return failure(webCrypto.error.code);
 
     const envelope = parsePassportFileEnvelope(input.envelope);
-    if (Result.isError(envelope)) {
-      return failure("invalid_envelope");
-    }
+    if (Result.isError(envelope)) return failure("invalid_envelope");
+    const parsedEnvelope = envelope.value;
 
     const expectedOrigin = normalizePassportFileOrigin(input.passportOrigin);
-    if (Result.isError(expectedOrigin) || expectedOrigin.value !== envelope.value.url) {
-      return failure("invalid_envelope");
-    }
+    if (Result.isError(expectedOrigin) || expectedOrigin.value !== parsedEnvelope.url) return failure("invalid_envelope");
 
-    const iv = decodeFixedLengthBase64Url(envelope.value.iv, AES_GCM_IV_BYTES);
-    if (Result.isError(iv)) {
-      return failure("invalid_envelope");
-    }
+    const iv = decodeFixedLengthBase64Url(parsedEnvelope.iv, AES_GCM_IV_BYTES);
+    if (Result.isError(iv)) return failure("invalid_envelope");
 
-    const ciphertext = decodeFixedLengthBase64Url(envelope.value.ct, AES_GCM_CIPHERTEXT_BYTES);
-    if (Result.isError(ciphertext)) {
-      return failure("invalid_envelope");
-    }
+    const ciphertext = decodeFixedLengthBase64Url(parsedEnvelope.ct, AES_GCM_CIPHERTEXT_BYTES);
+    if (Result.isError(ciphertext)) return failure("invalid_envelope");
 
     const wrappingBytes = decodeWrappingKey(input.wrappingKey);
-    if (Result.isError(wrappingBytes)) {
-      return failure(wrappingBytes.error.code);
-    }
+    if (Result.isError(wrappingBytes)) return failure(wrappingBytes.error.code);
 
+    const { subtle } = webCrypto.value;
     const wrappingMaterial = wrappingBytes.value;
     try {
-      const key = await this.#deriveAesGcmKey(webCrypto.value.subtle, wrappingMaterial);
-      if (Result.isError(key)) {
-        return failure(key.error.code);
-      }
+      const key = await this.#deriveAesGcmKey(subtle, wrappingMaterial);
+      if (Result.isError(key)) return failure(key.error.code);
 
-      const plaintext = await webCrypto.value.subtle.decrypt(
-        { name: "AES-GCM", iv: toArrayBuffer(iv.value), additionalData: aadForEnvelope(envelope.value) },
+      const plaintext = await subtle.decrypt(
+        { name: "AES-GCM", iv: toArrayBuffer(iv.value), additionalData: aadForEnvelope(parsedEnvelope) },
         key.value,
         toArrayBuffer(ciphertext.value),
       );
@@ -173,7 +152,7 @@ export class WebCryptoPassportFileCrypto {
     try {
       const hkdfKey = await subtle.importKey("raw", toArrayBuffer(wrappingBytes), "HKDF", false, ["deriveKey"]);
 
-      const key = await subtle.deriveKey(
+      return Result.ok(await subtle.deriveKey(
         {
           name: "HKDF",
           hash: "SHA-256",
@@ -184,9 +163,7 @@ export class WebCryptoPassportFileCrypto {
         { name: "AES-GCM", length: 256 },
         false,
         ["encrypt", "decrypt"],
-      );
-
-      return Result.ok(key);
+      ));
     } catch {
       return failure("unsupported_browser_crypto");
     }
@@ -228,10 +205,7 @@ function aadForEnvelope(envelope: { v: PassportFileEnvelopeV1["v"]; url: Passpor
 }
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  const copy = new Uint8Array(bytes.byteLength);
-  copy.set(bytes);
-
-  return copy.buffer;
+  return Uint8Array.from(bytes).buffer;
 }
 
 function failure<T>(code: PassportFileCryptoErrorCode): PassportFileCryptoResult<T> {

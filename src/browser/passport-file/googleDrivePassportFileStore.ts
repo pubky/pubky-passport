@@ -201,8 +201,7 @@ export class GoogleDrivePassportFileStore {
     if (response.status === 404) return Result.err({ code: "exact_file_missing" });
     if (!response.ok) return Result.err({ code: mapDriveStatus(response.status, "invalid_response") });
 
-    const file = await parseDriveFileResponse(response, true);
-    return Result.isError(file) ? Result.err(file.error) : file;
+    return parseDriveFileResponse(response, true);
   }
 
   private async fetchDrive(input: string, init: RequestInit): Promise<Response> {
