@@ -6,7 +6,7 @@ import type { PubkyPublicIdentity } from "../../../../core/identity/pubkyIdentit
 import type {
   HomegateSignupInvitationErrorCode,
 } from "../../../homegate/application/homegateSignupInvitation";
-import type { GoogleWrappingKeyErrorCode } from "../../../wrapping-key/application/googleWrappingKey";
+import type { GoogleWrappingKeyErrorCode } from "../../../wrapping-key/wrappingKeyApiClient";
 
 export type GoogleBackedIdentityCredentials = {
   googleIdToken: string;

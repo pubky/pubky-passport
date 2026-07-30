@@ -67,7 +67,7 @@ vi.mock("../../../homegate/adapters/homegateClient", () => ({
   HomegateClient: MOCKS.HomegateClient,
 }));
 
-vi.mock("../../../wrapping-key/adapters/wrappingKeyApiClient", () => ({
+vi.mock("../../../wrapping-key/wrappingKeyApiClient", () => ({
   WrappingKeyApiClient: MOCKS.WrappingKeyApiClient,
 }));
 

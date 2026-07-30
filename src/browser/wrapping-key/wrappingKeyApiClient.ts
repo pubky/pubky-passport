@@ -3,14 +3,24 @@ import "client-only";
 import { Result } from "better-result";
 import { z } from "zod";
 
-import { LOGGER } from "../../../libs/logger/logger";
-import { readBoundedText } from "../../../libs/http/boundedBody";
-import { isCanonicalBase64Url } from "../../../libs/encoding/base64Url";
-import {
-  GOOGLE_WRAPPING_KEY_API_ERROR_CODES,
-  type GoogleWrappingKeyErrorCode,
-  type GoogleWrappingKeyResult,
-} from "../application/googleWrappingKey";
+import { LOGGER } from "../../libs/logger/logger";
+import { readBoundedText } from "../../libs/http/boundedBody";
+import { isCanonicalBase64Url } from "../../libs/encoding/base64Url";
+
+export const GOOGLE_WRAPPING_KEY_API_ERROR_CODES = [
+  "invalid_request",
+  "invalid_google_id_token",
+  "rate_limited",
+  "dependency_unavailable",
+  "internal_error",
+] as const;
+
+export type GoogleWrappingKeyErrorCode =
+  | (typeof GOOGLE_WRAPPING_KEY_API_ERROR_CODES)[number]
+  | "invalid_response"
+  | "network_failed";
+
+export type GoogleWrappingKeyResult = Result<string, { code: GoogleWrappingKeyErrorCode }>;
 
 const MAXIMUM_RESPONSE_BYTES = 16 * 1024;
 const WRAPPING_KEY_BYTES = 32;

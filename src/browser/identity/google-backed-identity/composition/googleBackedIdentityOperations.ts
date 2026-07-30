@@ -5,7 +5,7 @@ import { GoogleDrivePassportFileStore } from "../../../passport-file/adapters/go
 import { WebCryptoPassportFileCrypto } from "../../../passport-file/adapters/webCryptoPassportFileCrypto";
 import { PubkySdkAdapter } from "../../../pubky/adapters/pubkySdkAdapter";
 import type { PubkySecretKeyMaterial } from "../../../pubky/application/pubkyIdentityKey";
-import { WrappingKeyApiClient } from "../../../wrapping-key/adapters/wrappingKeyApiClient";
+import { WrappingKeyApiClient } from "../../../wrapping-key/wrappingKeyApiClient";
 import type { LocalIdentityResult, LocalIdentitySummary } from "../../local-identity/application/localIdentityModels";
 import { SaveLocalIdentity } from "../../local-identity/application/saveLocalIdentity";
 import { CreateGoogleBackedIdentity } from "../application/createGoogleBackedIdentity";

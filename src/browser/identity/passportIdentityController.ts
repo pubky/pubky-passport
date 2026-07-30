@@ -14,7 +14,6 @@ import type {
   BrowserIdentityControllerError,
   BrowserIdentityControllerErrorCode,
 } from "./browserIdentityController";
-import type { GoogleWrappingKeyErrorCode } from "../wrapping-key/application/googleWrappingKey";
 import type {
   GoogleBackedIdentity,
   GoogleBackedIdentityCredentials,
@@ -290,7 +289,9 @@ function deletionFailure(error: GoogleDrivePassportFileDeletionError): GoogleBac
   });
 }
 
-function wrappingKeyFailureCode(code: GoogleWrappingKeyErrorCode): BrowserIdentityControllerErrorCode {
+function wrappingKeyFailureCode(
+  code: Extract<GoogleBackedIdentityError, { code: "wrapping_key_failed" }>["cause"],
+): BrowserIdentityControllerErrorCode {
   switch (code) {
     case "invalid_google_id_token":
       return "invalid_google_id_token";

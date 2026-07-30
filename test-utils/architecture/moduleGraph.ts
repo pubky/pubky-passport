@@ -3,15 +3,25 @@ import { dirname, extname, relative, resolve, sep } from "node:path";
 
 import ts from "typescript";
 
-import {
-  isTestSourcePath,
-  SOURCE_EXTENSIONS,
-} from "./architecturePolicy.mjs";
+const SOURCE_EXTENSIONS = Object.freeze([
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+  ".ts",
+  ".mts",
+  ".cts",
+  ".tsx",
+]);
 
 export type ForbiddenTarget = {
   targetPath: string;
   label: string;
 };
+
+function isTestSourcePath(filePath: string): boolean {
+  return /\.(?:test|spec)\.(?:[cm]?[jt]sx?)$/u.test(filePath);
+}
 
 export class ModuleGraph {
   readonly #compilerOptions: ts.CompilerOptions;

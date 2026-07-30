@@ -17,7 +17,7 @@ import type {
   GoogleBackedIdentityResult,
 } from "./googleBackedIdentity";
 import { RestoreGoogleBackedIdentity } from "./restoreGoogleBackedIdentity";
-import type { GoogleWrappingKeyResult } from "../../../wrapping-key/application/googleWrappingKey";
+import type { GoogleWrappingKeyResult } from "../../../wrapping-key/wrappingKeyApiClient";
 
 export type {
   GoogleBackedIdentity,

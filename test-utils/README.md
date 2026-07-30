@@ -14,7 +14,7 @@ split solely because a file crosses an arbitrary line count.
 | Use-case ordering, typed failures, and cleanup | Application tests with narrow fakes |
 | Provider request shape and error mapping | Adapter contract tests |
 | Safe view state and explicit approval gating | Controller and component tests |
-| Runtime, role, SDK, and persistence confinement | ESLint plus architecture graph tests |
+| Runtime, SDK, UI-entry, and persistence confinement | ESLint plus architecture graph tests |
 | Query scrubbing, response headers, CSP, and browser secrecy | Playwright |
 | Real signup, discovery, signin, and approval | Staging integration validation |
 
@@ -31,16 +31,16 @@ persistence do not expose synthetic secret canaries.
 - Passing Vitest tests suppress application logs; failed tests retain them.
 - Coverage is diagnostic and does not replace explicit security invariants.
 
-## Architecture Policy
+## Architecture Boundaries
 
-`architecture/architecturePolicy.mjs` is the executable source of truth for browser
-role conventions and dependency direction. ESLint consumes it for direct-import
-feedback. `architecture/architecture-boundaries.test.ts` applies it transitively
-through the TypeScript-resolved graph in `architecture/moduleGraph.ts`.
+`architecture/architecture-boundaries.test.ts` enforces targeted runtime and
+security boundaries through the TypeScript-resolved graph in
+`architecture/moduleGraph.ts`. It does not enforce generic application, adapter, or
+composition layers.
 
 `architecture/moduleGraph.test.ts` independently verifies aliases, re-exports,
 dynamic imports, CommonJS imports, supported extensions, runtime marker placement,
-and adversarial persistence access. Change policy rules only for intentional,
+and adversarial persistence access. Change boundary checks only for intentional,
 reviewed architecture changes.
 
 ## Validation Commands

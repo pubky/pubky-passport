@@ -74,11 +74,11 @@ flowchart LR
     linkStyle default stroke:#64748B,stroke-width:2.5px;
 ```
 
-Enforced by ESLint, `test-utils/architecture/architecture-boundaries.test.ts`, and
-the `client-only` / `server-only` markers. Browser application modules do not depend
-on controllers or outward layers. Adapters implement application contracts without
-depending on controllers. Concrete controllers may use public and application
-contracts, while composition modules own adapter and controller wiring.
+ESLint, `test-utils/architecture/architecture-boundaries.test.ts`, and the
+`client-only` / `server-only` markers enforce targeted runtime and security
+boundaries. These include browser/server isolation, stable UI browser entries,
+approved environment access, SDK and persistence confinement, and sensitive parser
+contract confinement. Feature-internal folder roles are not enforced.
 
 ## Routes
 
@@ -396,7 +396,7 @@ sequenceDiagram
         participant Restore as restoreGoogleBackedIdentity.ts<br/>RestoreGoogleBackedIdentity
         participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
     end
-    box rgba(0, 158, 115, 0.18) src/browser/wrapping-key/adapters
+    box rgba(0, 158, 115, 0.18) src/browser/wrapping-key
         participant Wrapping as wrappingKeyApiClient.ts<br/>WrappingKeyApiClient
     end
     box rgba(0, 158, 115, 0.18) src/browser/passport-file/adapters
@@ -677,7 +677,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
         participant Delete as deleteGoogleDrivePassportFile.ts<br/>DeleteGoogleDrivePassportFile
     end
-    box rgba(0, 158, 115, 0.18) src/browser/wrapping-key/adapters
+    box rgba(0, 158, 115, 0.18) src/browser/wrapping-key
         participant Wrapping as wrappingKeyApiClient.ts<br/>WrappingKeyApiClient
     end
     box rgba(0, 158, 115, 0.18) src/browser/passport-file/adapters
@@ -864,4 +864,4 @@ sequenceDiagram
 | Wrapping-key API | `src/app/api/wrapping-key/google`, `src/server/wrapping-key/google` | Route and server tests |
 | Browser bootstrap config | `src/server/config/browserBootstrapConfig.ts` | `browserBootstrapConfig.test.ts`, proxy tests |
 | Homegate signup invitation | `src/browser/homegate` | Colocated browser application and adapter tests |
-| CSP and boundaries | `proxy.ts`, `next.config.mjs`, architecture test | Proxy, header, policy, architecture tests |
+| CSP and boundaries | `proxy.ts`, `next.config.mjs`, architecture test | Proxy, header, and targeted boundary tests |

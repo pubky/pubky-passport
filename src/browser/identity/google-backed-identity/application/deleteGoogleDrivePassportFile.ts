@@ -19,7 +19,7 @@ import type {
   GoogleDrivePassportFileDeletionResult,
   GoogleBackedIdentityCredentials,
 } from "./googleBackedIdentity";
-import type { GoogleWrappingKeyResult } from "../../../wrapping-key/application/googleWrappingKey";
+import type { GoogleWrappingKeyResult } from "../../../wrapping-key/wrappingKeyApiClient";
 
 export class DeleteGoogleDrivePassportFile {
   readonly #requestWrappingKey: (googleIdToken: string) => Promise<GoogleWrappingKeyResult>;

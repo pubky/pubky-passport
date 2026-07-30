@@ -3,13 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  APP_SERVER_ENTRY_RULE,
-  browserModuleRole,
-  BROWSER_ROLE_RULES,
-  serverModuleRole,
-  SERVER_ROLE_RULES,
-} from "./architecturePolicy.mjs";
+import { STABLE_BROWSER_UI_ENTRIES } from "./architectureEntries.mjs";
 import { isSameOrInside, ModuleGraph, type ForbiddenTarget } from "./moduleGraph";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -25,18 +19,30 @@ const SERVER_CONFIG_ROOT = join(SERVER_ROOT, "config");
 const IDENTITY_ROOT = join(BROWSER_ROOT, "identity");
 const LOCAL_IDENTITY_REPOSITORY = join(IDENTITY_ROOT, "local-identity", "adapters", "localStorageIdentityRepository.ts");
 const PUBKY_SDK_ADAPTERS_ROOT = join(BROWSER_ROOT, "pubky", "adapters");
-const GOOGLE_WRAPPING_KEY_ROOT = join(SERVER_ROOT, "wrapping-key", "google");
+const CONFIGURED_GOOGLE_WRAPPING_KEY_REQUEST = join(
+  SERVER_ROOT,
+  "wrapping-key",
+  "google",
+  "composition",
+  "createConfiguredGoogleWrappingKeyRequest.ts",
+);
+const GOOGLE_WRAPPING_KEY_SERVER_SECRET = join(
+  SERVER_ROOT,
+  "wrapping-key",
+  "google",
+  "composition",
+  "googleWrappingKeyServerSecret.ts",
+);
+const GOOGLE_CLIENT_ID_CONFIG = join(SERVER_CONFIG_ROOT, "googleClientId.ts");
+const BROWSER_BOOTSTRAP_CONFIG = join(SERVER_CONFIG_ROOT, "browserBootstrapConfig.ts");
+const GOOGLE_WRAPPING_KEY_ROUTE = join(APP_ROOT, "api", "wrapping-key", "google", "route.ts");
+const APP_HOME_PAGE = join(APP_ROOT, "page.tsx");
+const APP_AUTHORIZE_PAGE = join(APP_ROOT, "authorize", "page.tsx");
+const PROXY = join(SRC_ROOT, "proxy.ts");
+const STABLE_UI_BROWSER_MODULES = new Set(
+  STABLE_BROWSER_UI_ENTRIES.map((entry) => join(BROWSER_ROOT, `${entry}.ts`)),
+);
 const GRAPH = new ModuleGraph(REPO_ROOT);
-const BROWSER_PRODUCTION_MODULES = GRAPH.productionSourceFiles(BROWSER_ROOT);
-const BROWSER_MODULES_BY_ROLE = Map.groupBy(
-  BROWSER_PRODUCTION_MODULES,
-  (filePath) => browserModuleRole(relative(BROWSER_ROOT, filePath)),
-);
-const SERVER_PRODUCTION_MODULES = GRAPH.productionSourceFiles(SERVER_ROOT);
-const SERVER_MODULES_BY_ROLE = Map.groupBy(
-  SERVER_PRODUCTION_MODULES,
-  (filePath) => serverModuleRole(relative(SERVER_ROOT, filePath)),
-);
 
 const FORBIDDEN_CORE_IMPORTS = [
   "@synonymdev/pubky",
@@ -166,107 +172,46 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
-  it(`${APP_SERVER_ENTRY_RULE.id}: ${APP_SERVER_ENTRY_RULE.description}`, () => {
-    const violations = GRAPH.productionSourceFiles(APP_ROOT).flatMap((filePath) =>
-      GRAPH.importSpecifiers(filePath).flatMap((specifier) => {
-        const targetPath = GRAPH.resolveLocalImportTarget(filePath, specifier);
-        if (!targetPath || !isSameOrInside(targetPath, SERVER_ROOT)) return [];
+  it("limits production UI browser imports to stable controller APIs and factories", () => {
+    expect(GRAPH.productionSourceFiles(UI_ROOT).flatMap(inspectUiBrowserImports)).toEqual([]);
+  });
 
-        const role = serverModuleRole(relative(SERVER_ROOT, targetPath));
-        return APP_SERVER_ENTRY_RULE.forbiddenRoles.some((forbiddenRole) => forbiddenRole === role)
-          ? [`${relative(REPO_ROOT, filePath)} imports server ${role} directly via "${specifier}"`]
-          : [];
-      })
+  it("keeps server environment access in approved bootstrap modules", () => {
+    const violations = GRAPH.productionSourceFiles(SERVER_ROOT)
+      .filter((filePath) => GRAPH.referencesProperty(filePath, "process", "env"))
+      .filter((filePath) => !isSameOrInside(filePath, SERVER_CONFIG_ROOT))
+      .filter((filePath) => filePath !== CONFIGURED_GOOGLE_WRAPPING_KEY_REQUEST)
+      .map((filePath) => `${relative(REPO_ROOT, filePath)} accesses process.env outside an approved bootstrap module`);
+
+    expect(violations).toEqual([]);
+  });
+
+  it("confines environment-backed configuration and wrapping-secret imports", () => {
+    const productionModules = [...GRAPH.productionSourceFiles(SRC_ROOT), PROXY];
+    const approvedConsumers = new Map<string, Set<string>>([
+      [GOOGLE_WRAPPING_KEY_SERVER_SECRET, new Set([CONFIGURED_GOOGLE_WRAPPING_KEY_REQUEST])],
+      [GOOGLE_CLIENT_ID_CONFIG, new Set([
+        BROWSER_BOOTSTRAP_CONFIG,
+        CONFIGURED_GOOGLE_WRAPPING_KEY_REQUEST,
+      ])],
+      [CONFIGURED_GOOGLE_WRAPPING_KEY_REQUEST, new Set([GOOGLE_WRAPPING_KEY_ROUTE])],
+      [BROWSER_BOOTSTRAP_CONFIG, new Set([APP_HOME_PAGE, APP_AUTHORIZE_PAGE, PROXY])],
+    ]);
+    const violations = [...approvedConsumers].flatMap(([target, approved]) =>
+      productionModules
+        .filter((filePath) => GRAPH.importsTarget(filePath, target) && !approved.has(filePath))
+        .map((filePath) => `${relative(REPO_ROOT, filePath)} imports protected module ${relative(REPO_ROOT, target)}`)
     );
 
     expect(violations).toEqual([]);
   });
 
-  it("limits production UI browser imports to stable controller APIs and factories", () => {
-    expect(GRAPH.productionSourceFiles(UI_ROOT).flatMap(inspectUiBrowserImports)).toEqual([]);
-  });
-
-  it("keeps server environment access in server config and composition", () => {
-    const violations = SERVER_PRODUCTION_MODULES
-      .filter((filePath) => GRAPH.referencesProperty(filePath, "process", "env"))
-      .filter((filePath) => !isSameOrInside(filePath, SERVER_CONFIG_ROOT))
-      .filter((filePath) => serverModuleRole(relative(SERVER_ROOT, filePath)) !== "composition")
-      .map((filePath) => `${relative(REPO_ROOT, filePath)} accesses process.env outside server config or composition`);
-
-    expect(violations).toEqual([]);
-  });
-
-  for (const rule of BROWSER_ROLE_RULES) {
-    it(`${rule.id}: ${rule.description}`, () => {
-      const sourceModules = BROWSER_MODULES_BY_ROLE.get(rule.sourceRole) ?? [];
-      const violations = sourceModules.flatMap((filePath) => {
-        const forbiddenTargets: ForbiddenTarget[] = [
-          ...rule.forbiddenRoles.flatMap((role) =>
-            (BROWSER_MODULES_BY_ROLE.get(role) ?? [])
-              .filter((targetPath) => targetPath !== filePath)
-              .filter((targetPath) => !(rule.allowedTransitiveTargets ?? [])
-                .some((allowedPath) => targetPath === resolve(REPO_ROOT, allowedPath)))
-              .map((targetPath) => ({ targetPath, label: `browser ${role} module` }))
-          ),
-          ...rule.forbiddenRoots.map((root) => ({
-            targetPath: resolve(REPO_ROOT, root),
-            label: root,
-          })),
-        ];
-        return GRAPH.inspectForbiddenImports(filePath, {
-          forbiddenModuleSpecifiers: [...rule.forbiddenSpecifiers],
-          forbiddenTargets,
-          traverseLocalImports: true,
-        });
-      });
-
-      expect(violations).toEqual([]);
-    });
-  }
-
-  for (const rule of SERVER_ROLE_RULES) {
-    it(`${rule.id}: ${rule.description}`, () => {
-      const sourceModules = SERVER_MODULES_BY_ROLE.get(rule.sourceRole) ?? [];
-      const violations = sourceModules.flatMap((filePath) => {
-        const forbiddenTargets: ForbiddenTarget[] = [
-          ...rule.forbiddenRoles.flatMap((role) =>
-            (SERVER_MODULES_BY_ROLE.get(role) ?? [])
-              .filter((targetPath) => targetPath !== filePath)
-              .map((targetPath) => ({ targetPath, label: `server ${role} module` }))
-          ),
-          ...rule.forbiddenRoots.map((root) => ({
-            targetPath: resolve(REPO_ROOT, root),
-            label: root,
-          })),
-        ];
-        return GRAPH.inspectForbiddenImports(filePath, {
-          forbiddenModuleSpecifiers: [...rule.forbiddenSpecifiers],
-          forbiddenTargets,
-          traverseLocalImports: true,
-        });
-      });
-
-      expect(violations).toEqual([]);
-    });
-  }
-
   it("keeps sensitive parser approval types out of public browser contracts", () => {
-    const violations = (BROWSER_MODULES_BY_ROLE.get("public") ?? [])
+    const violations = [...STABLE_UI_BROWSER_MODULES]
       .filter((filePath) => GRAPH.referencesIdentifier(filePath, "ValidatedSensitivePubkyAuthRequest"))
       .map((filePath) => `${relative(REPO_ROOT, filePath)} references the sensitive parser approval type`);
 
     expect(violations).toEqual([]);
-  });
-
-  it("classifies every browser module by an explicit architectural role", () => {
-    expect(BROWSER_MODULES_BY_ROLE.get("unclassified") ?? []).toEqual([]);
-  });
-
-  it("classifies every Google wrapping-key module by an explicit server role", () => {
-    const unclassified = GRAPH.productionSourceFiles(GOOGLE_WRAPPING_KEY_ROOT)
-      .filter((filePath) => serverModuleRole(relative(SERVER_ROOT, filePath)) === "unclassified");
-
-    expect(unclassified).toEqual([]);
   });
 
 });
@@ -328,9 +273,7 @@ function inspectUiBrowserImports(filePath: string): string[] {
 }
 
 function isStableUiBrowserModule(filePath: string): boolean {
-  const role = browserModuleRole(relative(BROWSER_ROOT, filePath));
-  return (role === "public" || role === "composition")
-    && relative(BROWSER_ROOT, filePath).split(/[\\/]/u).length === 2;
+  return STABLE_UI_BROWSER_MODULES.has(filePath);
 }
 
 function runtimeIsolationViolations(

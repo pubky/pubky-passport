@@ -2,14 +2,9 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
-import {
-  APP_SERVER_ENTRY_RULE,
-  BROWSER_ROLE_RULES,
-  restrictedImportRegexForRoleRule,
-  restrictedServerImportRegexForAppRule,
-  SERVER_ROLE_RULES,
-  STABLE_BROWSER_ENTRY,
-} from "./test-utils/architecture/architecturePolicy.mjs";
+import { STABLE_BROWSER_UI_ENTRIES } from "./test-utils/architecture/architectureEntries.mjs";
+
+const STABLE_BROWSER_UI_ENTRY = `(?:${STABLE_BROWSER_UI_ENTRIES.join("|")})`;
 
 const ESLINT_CONFIG = defineConfig([
   ...nextVitals,
@@ -102,11 +97,11 @@ const ESLINT_CONFIG = defineConfig([
           ],
           patterns: [
             {
-              regex: `^(?:\\.\\./)+browser/(?![^/]+/${STABLE_BROWSER_ENTRY}$)`,
+              regex: `^(?:\\.\\./)+browser/(?!${STABLE_BROWSER_UI_ENTRY}$)`,
               message: "UI may import browser runtime only through stable browser APIs and controller factories."
             },
             {
-              regex: `^@/browser/(?![^/]+/${STABLE_BROWSER_ENTRY}$)`,
+              regex: `^@/browser/(?!${STABLE_BROWSER_UI_ENTRY}$)`,
               message: "UI may import browser runtime only through stable browser APIs and controller factories."
             }
           ]
@@ -116,8 +111,11 @@ const ESLINT_CONFIG = defineConfig([
   },
   {
     files: [
-      "src/browser/*/browser*Controller.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+      "src/browser/authorization/browserAuthorizationController.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+      "src/browser/authorization/createBrowserAuthorizationController.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
       "src/browser/authorization/browserManualAuthorization.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+      "src/browser/identity/browserIdentityController.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+      "src/browser/identity/createBrowserIdentityController.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
     ],
     ignores: ["src/browser/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     rules: {
@@ -140,46 +138,86 @@ const ESLINT_CONFIG = defineConfig([
       ]
     }
   },
-  ...BROWSER_ROLE_RULES.map((rule) => ({
-    files: [...rule.eslintFiles],
+  {
+    files: ["src/browser/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     ignores: ["src/browser/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
           patterns: [{
-            regex: restrictedImportRegexForRoleRule(rule),
-            message: `[${rule.id}] ${rule.message}`
+            regex: "^(?:server-only$|@/server(?:/|$)|(?:\\.\\./)+server(?:/|$))",
+            message: "Browser modules must not import server runtime code."
           }]
         }
       ]
     }
-  })),
-  ...SERVER_ROLE_RULES.map((rule) => ({
-    files: [...rule.eslintFiles],
+  },
+  {
+    files: ["src/server/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     ignores: ["src/server/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
           patterns: [{
-            regex: restrictedImportRegexForRoleRule(rule),
-            message: `[${rule.id}] ${rule.message}`
+            regex: "^(?:client-only$|@/(?:browser|libs/env)(?:/|$)|(?:\\.\\./)+(?:browser|libs/env)(?:/|$))",
+            message: "Server modules must not import browser runtime or public environment code."
           }]
         }
       ]
     }
-  })),
+  },
   {
-    files: [...APP_SERVER_ENTRY_RULE.eslintFiles],
-    ignores: ["src/app/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    files: ["src/server/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    ignores: [
+      "src/server/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+      "src/server/wrapping-key/google/composition/createConfiguredGoogleWrappingKeyRequest.ts"
+    ],
     rules: {
       "no-restricted-imports": [
         "error",
         {
           patterns: [{
-            regex: restrictedServerImportRegexForAppRule(APP_SERVER_ENTRY_RULE),
-            message: `[${APP_SERVER_ENTRY_RULE.id}] ${APP_SERVER_ENTRY_RULE.message}`
+            regex: "^(?:@/server/config(?:/|$)|(?:\\.\\./)+config(?:/|$)|.*googleWrappingKeyServerSecret$)",
+            message: "Environment-backed configuration and wrapping-key secret parsing are confined to approved bootstrap modules."
+          }]
+        }
+      ]
+    }
+  },
+  {
+    files: ["src/app/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    ignores: [
+      "src/app/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+      "src/app/page.tsx",
+      "src/app/authorize/page.tsx"
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [{
+            regex: "^(?:@/server/config(?:/|$)|(?:\\.\\./)+server/config(?:/|$))",
+            message: "Environment-backed browser bootstrap configuration is confined to approved app entries."
+          }]
+        }
+      ]
+    }
+  },
+  {
+    files: ["src/app/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    ignores: [
+      "src/app/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+      "src/app/api/wrapping-key/google/route.ts"
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [{
+            regex: "(?:^|/)createConfiguredGoogleWrappingKeyRequest$",
+            message: "The wrapping-key secret bootstrap is confined to its API route."
           }]
         }
       ]
