@@ -5,8 +5,8 @@ import { Result } from "better-result";
 import type {
   PubkyIdentityKeyHandle,
   PubkySecretKeyMaterial,
-} from "../../../pubky/application/pubkyIdentityKey";
-import { PubkySdkAdapter } from "../../../pubky/adapters/pubkySdkAdapter";
+} from "../../../pubky/pubkyIdentityKey";
+import { PubkySdkAdapter } from "../../../pubky/pubkySdkAdapter";
 import type { LocalIdentityErrorCode, LocalIdentityResult, LocalIdentitySummary } from "./localIdentityModels";
 
 export type LocalIdentityOperationErrorCode = LocalIdentityErrorCode | "identity_mismatch" | "restore_failed";

@@ -5,7 +5,7 @@ import { Result } from "better-result";
 import type { PubkyPublicIdentity } from "../../../../core/identity/pubkyIdentity";
 import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "../../../../libs/encoding/base64Url";
 import { LOGGER } from "../../../../libs/logger/logger";
-import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../../../pubky/application/pubkyIdentityKey";
+import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../../../pubky/pubkyIdentityKey";
 import type {
   LocalIdentityErrorCode,
   LocalIdentityResult,

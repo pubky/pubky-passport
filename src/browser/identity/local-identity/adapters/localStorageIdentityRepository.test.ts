@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryStorage } from "../../../../../test-utils/fakes/memoryStorage";
 import { expectResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../../libs/logger/logger";
-import { PUBKY_SECRET_KEY_FORMAT } from "../../../pubky/application/pubkyIdentityKey";
+import { PUBKY_SECRET_KEY_FORMAT } from "../../../pubky/pubkyIdentityKey";
 import { LocalStorageIdentityRepository } from "./localStorageIdentityRepository";
 
 const FIRST_IDENTITY = { publicKeyZ32: "firstidentity111111111111111111111111111111111111111111", publicKeyDisplay: "pubkyfirstidentity111111111111111111111111111111111111111111" };

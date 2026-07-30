@@ -6,8 +6,8 @@ import type { ValidatedSensitivePubkyAuthRequest } from "../../../core/auth/pars
 import { LOGGER } from "../../../libs/logger/logger";
 import type {
   PubkyIdentityKey,
-} from "../../pubky/application/pubkyIdentityKey";
-import { PubkySdkAdapter } from "../../pubky/adapters/pubkySdkAdapter";
+} from "../../pubky/pubkyIdentityKey";
+import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
 
 export type ActiveAuthorizationErrorCode =
   | "no_active_identity"

@@ -3,19 +3,11 @@ import "client-only";
 import { Keypair, Pubky, PublicKey, type Session } from "@synonymdev/pubky";
 import { Result, type Result as ResultType } from "better-result";
 
-import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
+import type { PubkyPublicIdentity } from "../../core/identity/pubkyIdentity";
 import {
   isParserIssuedPubkyAuthRequest,
   type ValidatedSensitivePubkyAuthRequest,
-} from "../../../core/auth/parsePubkyAuthRequest";
-import {
-  type PubkyAuthApprovalErrorCode,
-  type PubkyAuthApprovalResult,
-} from "../application/pubkyAuthApprovalResult";
-import {
-  type PubkyDiscoveryErrorCode,
-  type PubkyDiscoveryResult,
-} from "../application/pubkyDiscoveryResult";
+} from "../../core/auth/parsePubkyAuthRequest";
 import {
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,
@@ -24,13 +16,19 @@ import {
   type PubkyIdentityKeysErrorCode,
   type PubkyIdentityKeysResult,
   type PubkySecretKeyMaterial,
-} from "../application/pubkyIdentityKey";
-import {
-  type PubkyIdentitySession,
-  type PubkySessionAccessErrorCode,
-  type PubkySessionAccessResult,
-} from "../application/pubkyIdentitySession";
-import { LOGGER } from "../../../libs/logger/logger";
+} from "./pubkyIdentityKey";
+import { LOGGER } from "../../libs/logger/logger";
+
+export type PubkyIdentitySession = {
+  publicIdentity: PubkyPublicIdentity;
+};
+
+export type PubkySessionAccessErrorCode = "invalid_homeserver_pubky" | "key_unavailable" | "signin_failed" | "signup_failed";
+export type PubkySessionAccessResult<T> = ResultType<T, { code: PubkySessionAccessErrorCode }>;
+export type PubkyDiscoveryErrorCode = "invalid_homeserver_pubky" | "key_unavailable" | "publish_failed";
+export type PubkyDiscoveryResult = ResultType<void, { code: PubkyDiscoveryErrorCode }>;
+export type PubkyAuthApprovalErrorCode = "approval_failed" | "key_unavailable" | "relay_failed" | "request_rejected";
+export type PubkyAuthApprovalResult = ResultType<void, { code: PubkyAuthApprovalErrorCode }>;
 
 type Signer = ReturnType<Pubky["signer"]>;
 type HomeserverResult = ResultType<PublicKey, { code: "invalid_homeserver_pubky" }>;

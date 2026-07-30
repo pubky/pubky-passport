@@ -37,7 +37,7 @@ const MOCKS = vi.hoisted(() => ({
   wrappingKeyApiClient: { requestGoogleWrappingKey() {} },
 }));
 
-vi.mock("../../../pubky/adapters/pubkySdkAdapter", () => ({
+vi.mock("../../../pubky/pubkySdkAdapter", () => ({
   PubkySdkAdapter: MOCKS.PubkySdkAdapter,
 }));
 

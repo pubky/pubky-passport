@@ -51,7 +51,7 @@ flowchart LR
         ui --> browserLibs["src/libs"]:::libs
         browser --> browserCore
         browser --> browserLibs
-        browser --> sdk["@synonymdev/pubky<br/>only via browser/pubky/adapters"]:::external
+        browser --> sdk["@synonymdev/pubky<br/>only via browser/pubky/pubkySdkAdapter.ts"]:::external
     end
 
     subgraph serverLane[Server import lane]
@@ -222,7 +222,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/adapters
         participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
     end
-    box rgba(0, 158, 115, 0.18) src/browser/pubky/adapters
+    box rgba(0, 158, 115, 0.18) src/browser/pubky
         participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
     box rgba(204, 121, 167, 0.18) src/core/auth
@@ -467,7 +467,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/passport-file/adapters
         participant Crypto as webCryptoPassportFileCrypto.ts<br/>WebCryptoPassportFileCrypto
     end
-    box rgba(0, 158, 115, 0.18) src/browser/pubky/adapters
+    box rgba(0, 158, 115, 0.18) src/browser/pubky
         participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/adapters
@@ -526,7 +526,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity/application
         participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
     end
-    box rgba(0, 158, 115, 0.18) src/browser/pubky/adapters
+    box rgba(0, 158, 115, 0.18) src/browser/pubky
         participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
     box rgba(0, 158, 115, 0.18) src/browser/passport-file/adapters
@@ -588,7 +588,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/homegate
         participant Invite as homegateClient.ts<br/>HomegateClient
     end
-    box rgba(0, 158, 115, 0.18) src/browser/pubky/adapters
+    box rgba(0, 158, 115, 0.18) src/browser/pubky
         participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/local-identity/adapters
@@ -684,7 +684,7 @@ sequenceDiagram
         participant DriveStore as googleDrivePassportFileStore.ts<br/>GoogleDrivePassportFileStore
         participant Crypto as webCryptoPassportFileCrypto.ts<br/>WebCryptoPassportFileCrypto
     end
-    box rgba(0, 158, 115, 0.18) src/browser/pubky/adapters
+    box rgba(0, 158, 115, 0.18) src/browser/pubky
         participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
     box rgba(240, 228, 66, 0.18) src/app/api/wrapping-key/google
@@ -860,7 +860,7 @@ sequenceDiagram
 | Google controller and adapters | `src/browser/identity` | `passportIdentityController.test.ts`, capability adapter tests |
 | Google-backed custody/recovery lifecycle | `src/browser/identity/google-backed-identity` | Colocated application, adapter, and composition tests |
 | Drive store and WebCrypto | `src/browser/passport-file/application`, `src/browser/passport-file/adapters` | Colocated adapter tests |
-| Pubky SDK adapter | `src/browser/pubky/adapters/pubkySdkAdapter.ts` | `adapters/pubkySdkAdapter.test.ts` |
+| Pubky SDK adapter | `src/browser/pubky/pubkySdkAdapter.ts` | `pubkySdkAdapter.test.ts` |
 | Wrapping-key API | `src/app/api/wrapping-key/google`, `src/server/wrapping-key/google` | Route and server tests |
 | Browser bootstrap config | `src/server/config/browserBootstrapConfig.ts` | `browserBootstrapConfig.test.ts`, proxy tests |
 | Homegate signup invitation | `src/browser/homegate/homegateClient.ts` | `homegateClient.test.ts` |

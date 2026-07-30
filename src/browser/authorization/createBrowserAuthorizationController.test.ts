@@ -13,7 +13,7 @@ const MOCKS = vi.hoisted(() => ({
   approveAuthRequest: vi.fn(),
 }));
 
-vi.mock("../pubky/adapters/pubkySdkAdapter", () => ({
+vi.mock("../pubky/pubkySdkAdapter", () => ({
   PubkySdkAdapter: MOCKS.PubkySdkAdapter,
 }));
 

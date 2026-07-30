@@ -2,13 +2,18 @@ import { Result } from "better-result";
 
 import {
   PubkySdkAdapter,
+  type PubkyAuthApprovalErrorCode,
+  type PubkyAuthApprovalResult,
+  type PubkyDiscoveryErrorCode,
   type PubkyDiscoveryInput,
+  type PubkyDiscoveryResult,
+  type PubkyIdentitySession,
+  type PubkySessionAccessErrorCode,
+  type PubkySessionAccessResult,
   type PubkySignupInput,
-} from "../../src/browser/pubky/adapters/pubkySdkAdapter";
+} from "../../src/browser/pubky/pubkySdkAdapter";
 import type { ValidatedSensitivePubkyAuthRequest } from "../../src/core/auth/parsePubkyAuthRequest";
 import type { PubkyPublicIdentity } from "../../src/core/identity/pubkyIdentity";
-import type { PubkyAuthApprovalErrorCode, PubkyAuthApprovalResult } from "../../src/browser/pubky/application/pubkyAuthApprovalResult";
-import type { PubkyDiscoveryErrorCode, PubkyDiscoveryResult } from "../../src/browser/pubky/application/pubkyDiscoveryResult";
 import {
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,
@@ -17,8 +22,7 @@ import {
   type PubkyIdentityKeysErrorCode,
   type PubkyIdentityKeysResult,
   type PubkySecretKeyMaterial,
-} from "../../src/browser/pubky/application/pubkyIdentityKey";
-import type { PubkyIdentitySession, PubkySessionAccessErrorCode, PubkySessionAccessResult } from "../../src/browser/pubky/application/pubkyIdentitySession";
+} from "../../src/browser/pubky/pubkyIdentityKey";
 
 export class RecordingPubkySdkAdapter extends PubkySdkAdapter {
   createCalls = 0;

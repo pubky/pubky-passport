@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { expectAsyncResultError, expectResultError } from "../../../../test-utils/resultAssertions";
 import { parsePassportFileEnvelope } from "../../../core/passport-file/parsePassportFile";
 import { encodeBase64Url } from "../../../libs/encoding/base64Url";
-import { PUBKY_SECRET_KEY_BYTES } from "../../pubky/application/pubkyIdentityKey";
+import { PUBKY_SECRET_KEY_BYTES } from "../../pubky/pubkyIdentityKey";
 import { WebCryptoPassportFileCrypto } from "./webCryptoPassportFileCrypto";
 
 const SECRET_KEY_BYTES = new Uint8Array(Array.from({ length: PUBKY_SECRET_KEY_BYTES }, (_, index) => index + 11));

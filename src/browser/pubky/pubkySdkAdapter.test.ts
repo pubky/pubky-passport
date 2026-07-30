@@ -2,8 +2,8 @@ import { Keypair } from "@synonymdev/pubky";
 import { describe, expect, it, vi } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
-import type { ValidatedSensitivePubkyAuthRequest } from "../../../core/auth/parsePubkyAuthRequest";
-import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkyIdentityKeyHandle } from "../application/pubkyIdentityKey";
+import type { ValidatedSensitivePubkyAuthRequest } from "../../core/auth/parsePubkyAuthRequest";
+import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkyIdentityKeyHandle } from "./pubkyIdentityKey";
 import { PubkySdkAdapter } from "./pubkySdkAdapter";
 
 describe("PubkySdkAdapter", () => {

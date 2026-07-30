@@ -2,8 +2,8 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import type { PubkyIdentityKey } from "../../../pubky/application/pubkyIdentityKey";
-import { PubkySdkAdapter } from "../../../pubky/adapters/pubkySdkAdapter";
+import type { PubkyIdentityKey } from "../../../pubky/pubkyIdentityKey";
+import { PubkySdkAdapter } from "../../../pubky/pubkySdkAdapter";
 import { LOGGER } from "../../../../libs/logger/logger";
 import type { PassportFileEnvelopeV1 } from "../../../../core/passport-file/passportFile";
 import type { EncryptPassportSecret } from "../../../passport-file/application/passportFileCryptoResults";

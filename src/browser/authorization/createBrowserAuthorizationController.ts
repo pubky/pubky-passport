@@ -5,7 +5,7 @@ import { Result } from "better-result";
 import { LOGGER } from "../../libs/logger/logger";
 import { RestoreActiveLocalIdentityKey } from "../identity/local-identity/application/restoreActiveLocalIdentityKey";
 import { LocalStorageIdentityRepository } from "../identity/local-identity/adapters/localStorageIdentityRepository";
-import { PubkySdkAdapter } from "../pubky/adapters/pubkySdkAdapter";
+import { PubkySdkAdapter } from "../pubky/pubkySdkAdapter";
 import {
   approveActiveAuthorization,
   type ActiveAuthorizationIdentityRestoreResult,

@@ -5,8 +5,8 @@ import { Result } from "better-result";
 import {
   PUBKY_SECRET_KEY_FORMAT,
   type PubkyIdentityKey,
-} from "../../../pubky/application/pubkyIdentityKey";
-import { PubkySdkAdapter } from "../../../pubky/adapters/pubkySdkAdapter";
+} from "../../../pubky/pubkyIdentityKey";
+import { PubkySdkAdapter } from "../../../pubky/pubkySdkAdapter";
 import { LOGGER } from "../../../../libs/logger/logger";
 import type { DecryptPassportSecret } from "../../../passport-file/application/passportFileCryptoResults";
 import type {

@@ -2,7 +2,7 @@ import "client-only";
 
 import type { Result } from "better-result";
 
-import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
+import type { PubkyPublicIdentity } from "../../core/identity/pubkyIdentity";
 
 declare const pubkyIdentityKeyHandleBrand: unique symbol;
 

@@ -7,8 +7,8 @@ import { LOGGER } from "../../../../libs/logger/logger";
 import type {
   PubkyIdentityKey,
   PubkySecretKeyMaterial,
-} from "../../../pubky/application/pubkyIdentityKey";
-import { PubkySdkAdapter } from "../../../pubky/adapters/pubkySdkAdapter";
+} from "../../../pubky/pubkyIdentityKey";
+import { PubkySdkAdapter } from "../../../pubky/pubkySdkAdapter";
 import type { LocalIdentityResult, LocalIdentitySummary } from "./localIdentityModels";
 import type { LocalIdentityOperationResult } from "./saveLocalIdentity";
 

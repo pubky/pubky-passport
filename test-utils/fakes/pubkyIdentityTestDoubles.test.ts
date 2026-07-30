@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
 import { parsePubkyAuthRequest } from "../../src/core/auth/parsePubkyAuthRequest";
-import { PUBKY_SECRET_KEY_FORMAT } from "../../src/browser/pubky/application/pubkyIdentityKey";
+import { PUBKY_SECRET_KEY_FORMAT } from "../../src/browser/pubky/pubkyIdentityKey";
 import { RecordingPubkySdkAdapter } from "./recordingPubkySdkAdapter";
 
 describe("Pubky identity test doubles", () => {

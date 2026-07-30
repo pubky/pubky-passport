@@ -11,7 +11,7 @@ import type {
   PassportFileCryptoResult,
 } from "../application/passportFileCryptoResults";
 import { normalizePassportFileOrigin, parsePassportFileEnvelope } from "../../../core/passport-file/parsePassportFile";
-import { PUBKY_SECRET_KEY_BYTES } from "../../pubky/application/pubkyIdentityKey";
+import { PUBKY_SECRET_KEY_BYTES } from "../../pubky/pubkyIdentityKey";
 
 export type WebCryptoPassportFileCryptoOptions = {
   subtle?: SubtleCrypto | null;
