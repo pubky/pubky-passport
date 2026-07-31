@@ -76,26 +76,24 @@ function createController(
   };
 
   return new PassportIdentityControllerImplementation({
-    dependencies: {
-      list: repository.list.bind(repository),
-      select: repository.select.bind(repository),
-      clear: repository.clear.bind(repository),
-      subscribe: repository.subscribe.bind(repository),
-      establishGoogleBackedIdentity: (credentials) => getGoogleBackedIdentityOperations()
-        .establishGoogleBackedIdentity(credentials),
-      deleteGoogleDrivePassportFile: (credentials, expectedPublicKeyZ32) => getGoogleBackedIdentityOperations()
-        .deleteGoogleDrivePassportFile(credentials, expectedPublicKeyZ32),
-      disposeGoogleBackedIdentityOperations: () => {
-        const operations = googleBackedIdentityOperations;
-        googleBackedIdentityOperations = undefined;
-        operations?.dispose();
-      },
-      mountGoogleSignIn: googleSignInButton.mount.bind(googleSignInButton),
-      unmountGoogleSignIn: googleSignInButton.unmount.bind(googleSignInButton),
-      requestGoogleDriveAccess: (googleSubject, signal) => googleDriveAccess.requestAccessToken({
-        expectedSubject: googleSubject,
-        signal,
-      }),
+    list: repository.list.bind(repository),
+    select: repository.select.bind(repository),
+    clear: repository.clear.bind(repository),
+    subscribe: repository.subscribe.bind(repository),
+    establishGoogleBackedIdentity: (credentials) => getGoogleBackedIdentityOperations()
+      .establishGoogleBackedIdentity(credentials),
+    deleteGoogleDrivePassportFile: (credentials, expectedPublicKeyZ32) => getGoogleBackedIdentityOperations()
+      .deleteGoogleDrivePassportFile(credentials, expectedPublicKeyZ32),
+    disposeGoogleBackedIdentityOperations: () => {
+      const operations = googleBackedIdentityOperations;
+      googleBackedIdentityOperations = undefined;
+      operations?.dispose();
     },
+    mountGoogleSignIn: googleSignInButton.mount.bind(googleSignInButton),
+    unmountGoogleSignIn: googleSignInButton.unmount.bind(googleSignInButton),
+    requestGoogleDriveAccess: (googleSubject, signal) => googleDriveAccess.requestAccessToken({
+      expectedSubject: googleSubject,
+      signal,
+    }),
   });
 }

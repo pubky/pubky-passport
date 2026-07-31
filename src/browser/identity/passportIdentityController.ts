@@ -149,8 +149,8 @@ export class PassportIdentityController {
   #disposed = false;
   #googleBackedIdentityOperationsDisposed = false;
 
-  constructor(input: { dependencies: PassportIdentityControllerDependencies }) {
-    this.#dependencies = input.dependencies;
+  constructor(dependencies: PassportIdentityControllerDependencies) {
+    this.#dependencies = dependencies;
   }
 
   list(): PassportIdentityCatalogResult<PassportIdentityList> {

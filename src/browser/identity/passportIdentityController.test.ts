@@ -22,11 +22,9 @@ describe("PassportIdentityController", () => {
 
   it.each(["list", "select", "clear"] as const)("logs unexpected %s catalog exceptions without identity details", (operation) => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const controller = new PassportIdentityController({
-      dependencies: dependencies({
-        [operation]: () => { throw new Error("SECRET-IDENTITY-ID"); },
-      }),
-    });
+    const controller = new PassportIdentityController(dependencies({
+      [operation]: () => { throw new Error("SECRET-IDENTITY-ID"); },
+    }));
 
     const result = operation === "list"
       ? controller.list()
@@ -46,12 +44,10 @@ describe("PassportIdentityController", () => {
   it("contains sign-in cleanup exceptions and continues identity operation disposal", () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const disposeGoogleBackedIdentityOperations = vi.fn();
-    const controller = new PassportIdentityController({
-      dependencies: dependencies({
-        unmountGoogleSignIn: () => { throw new Error("SECRET-GOOGLE-TOKEN"); },
-        disposeGoogleBackedIdentityOperations,
-      }),
-    });
+    const controller = new PassportIdentityController(dependencies({
+      unmountGoogleSignIn: () => { throw new Error("SECRET-GOOGLE-TOKEN"); },
+      disposeGoogleBackedIdentityOperations,
+    }));
 
     expect(() => controller.dispose()).not.toThrow();
 
@@ -66,13 +62,11 @@ describe("PassportIdentityController", () => {
 
   it.each(["subscribe", "unsubscribe"] as const)("logs and surfaces sanitized %s failures", (operation) => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const controller = new PassportIdentityController({
-      dependencies: dependencies({
-        subscribe: operation === "subscribe"
-          ? () => { throw new Error("SECRET-SUBSCRIPTION-CANARY"); }
-          : () => () => { throw new Error("SECRET-SUBSCRIPTION-CANARY"); },
-      }),
-    });
+    const controller = new PassportIdentityController(dependencies({
+      subscribe: operation === "subscribe"
+        ? () => { throw new Error("SECRET-SUBSCRIPTION-CANARY"); }
+        : () => () => { throw new Error("SECRET-SUBSCRIPTION-CANARY"); },
+    }));
 
     if (operation === "subscribe") {
       expect(() => controller.subscribe(vi.fn())).toThrow("Identity subscription unavailable.");
@@ -262,9 +256,9 @@ describe("PassportIdentityController", () => {
     ["error", vi.fn(async () => Result.err({ code: "google_unavailable" as const }))],
   ])("maps a Google widget mount %s to safe state", async (_operation, mount) => {
     const states: unknown[] = [];
-    const controller = new PassportIdentityController({
-      dependencies: dependencies({ mountGoogleSignIn: mount, unmountGoogleSignIn: vi.fn() }),
-    });
+    const controller = new PassportIdentityController(
+      dependencies({ mountGoogleSignIn: mount, unmountGoogleSignIn: vi.fn() }),
+    );
 
     await expect(controller.mountGoogleSignIn(document.createElement("div"), (state) => states.push(state))).resolves.toBeUndefined();
 
@@ -280,9 +274,9 @@ describe("PassportIdentityController", () => {
       .mockResolvedValueOnce(Result.ok());
     const unmount = vi.fn();
     const states: unknown[] = [];
-    const controller = new PassportIdentityController({
-      dependencies: dependencies({ mountGoogleSignIn: mount, unmountGoogleSignIn: unmount }),
-    });
+    const controller = new PassportIdentityController(
+      dependencies({ mountGoogleSignIn: mount, unmountGoogleSignIn: unmount }),
+    );
 
     await controller.mountGoogleSignIn(document.createElement("div"), (state) => states.push(state));
     expect(unmount).toHaveBeenCalled();
@@ -441,9 +435,9 @@ describe("PassportIdentityController", () => {
     const clear = vi.fn(() => Result.ok());
     const subscribe = vi.fn(() => () => {});
     const disposeGoogleBackedIdentityOperations = vi.fn();
-    const controller = new PassportIdentityController({
-      dependencies: dependencies({ list, select, clear, subscribe, disposeGoogleBackedIdentityOperations }),
-    });
+    const controller = new PassportIdentityController(
+      dependencies({ list, select, clear, subscribe, disposeGoogleBackedIdentityOperations }),
+    );
 
     expect(controller.list()).toEqual(Result.ok({ activeIdentityId: null, identities: [] }));
     controller.select("identity");
@@ -464,16 +458,14 @@ async function mountedController(
   const credentialCallback: {
     current: ((result: GoogleSignInResult<{ googleIdToken: string; subject: string }>) => void) | null;
   } = { current: null };
-  const controller = new PassportIdentityController({
-    dependencies: dependencies({
-      mountGoogleSignIn: vi.fn(async (_target, onCredential) => {
-          credentialCallback.current = onCredential;
-          return Result.ok();
-        }),
-      unmountGoogleSignIn: vi.fn(),
-      ...overrides,
-    }),
-  });
+  const controller = new PassportIdentityController(dependencies({
+    mountGoogleSignIn: vi.fn(async (_target, onCredential) => {
+        credentialCallback.current = onCredential;
+        return Result.ok();
+      }),
+    unmountGoogleSignIn: vi.fn(),
+    ...overrides,
+  }));
   await controller.mountGoogleSignIn(document.createElement("div"), (state) => states.push(state));
   return { controller, credentialCallback };
 }

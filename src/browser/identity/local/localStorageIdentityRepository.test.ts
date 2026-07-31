@@ -18,11 +18,11 @@ describe("LocalStorageIdentityRepository", () => {
 
   it("persists identities and selects the latest one", () => {
     const storage = new MemoryStorage();
-    const repository = new LocalStorageIdentityRepository({ storage });
+    const repository = new LocalStorageIdentityRepository(storage);
     const first = save(repository, FIRST_IDENTITY, 1);
     const second = save(repository, SECOND_IDENTITY, 2);
 
-    const reloadedRepository = new LocalStorageIdentityRepository({ storage });
+    const reloadedRepository = new LocalStorageIdentityRepository(storage);
     expect(expectResultOk(reloadedRepository.list())).toEqual({ activeIdentityId: second.id, identities: [first, second] });
     expect(JSON.parse(storage.getItem("pubky-passport/local-identities/v1")!)).toEqual({
       v: 1,
@@ -42,7 +42,7 @@ describe("LocalStorageIdentityRepository", () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const storage = new MemoryStorage();
     storage.setItem("pubky-passport/local-identities/v1", '{"v":1,"identities":"secret"}');
-    expectResultError(new LocalStorageIdentityRepository({ storage }).list(), { code: "invalid_store" });
+    expectResultError(new LocalStorageIdentityRepository(storage).list(), { code: "invalid_store" });
     expect(warning).toHaveBeenCalledOnce();
     expect(warning).toHaveBeenCalledWith("identity.local_store.failed", {
       operation: "read",
@@ -57,7 +57,7 @@ describe("LocalStorageIdentityRepository", () => {
       throw new Error("sensitive persisted contents");
     });
 
-    expectResultError(new LocalStorageIdentityRepository({ storage }).list(), {
+    expectResultError(new LocalStorageIdentityRepository(storage).list(), {
       code: "storage_unavailable",
     });
     expect(warning).toHaveBeenCalledOnce();
@@ -75,7 +75,7 @@ describe("LocalStorageIdentityRepository", () => {
       activeIdentityId: identity.id,
       identities: [{ ...identity, secretKey: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE" }],
     }));
-    const repository = new LocalStorageIdentityRepository({ storage });
+    const repository = new LocalStorageIdentityRepository(storage);
 
     expect(expectResultOk(repository.list())).toEqual({ activeIdentityId: identity.id, identities: [identity] });
     expect(expectResultOk(repository.readActive())).toEqual({
@@ -86,7 +86,7 @@ describe("LocalStorageIdentityRepository", () => {
 
   it("clears only Passport local identities", () => {
     const storage = new MemoryStorage();
-    const repository = new LocalStorageIdentityRepository({ storage });
+    const repository = new LocalStorageIdentityRepository(storage);
     storage.setItem("unrelated", "keep");
     save(repository, FIRST_IDENTITY, 1);
 
@@ -100,7 +100,7 @@ describe("LocalStorageIdentityRepository", () => {
     const storage = new MemoryStorage();
     const getItem = vi.spyOn(storage, "getItem");
     const setItem = vi.spyOn(storage, "setItem");
-    const repository = new LocalStorageIdentityRepository({ storage });
+    const repository = new LocalStorageIdentityRepository(storage);
 
     save(repository, FIRST_IDENTITY, 1);
 
@@ -109,7 +109,7 @@ describe("LocalStorageIdentityRepository", () => {
   });
 
   it("notifies subscribers when another document changes the identity store", () => {
-    const repository = new LocalStorageIdentityRepository({ storage: new MemoryStorage() });
+    const repository = new LocalStorageIdentityRepository(new MemoryStorage());
     const listener = vi.fn();
     const unsubscribe = repository.subscribe(listener);
 

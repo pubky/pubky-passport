@@ -37,8 +37,8 @@ type LocalIdentityStoreV1 = {
 export class LocalStorageIdentityRepository {
   readonly #storage: Storage | null;
 
-  constructor(options: { storage?: Storage | null } = {}) {
-    this.#storage = options.storage === undefined ? getLocalStorage() : options.storage;
+  constructor(storage?: Storage | null) {
+    this.#storage = storage === undefined ? getLocalStorage() : storage;
   }
 
   list(): LocalIdentityResult<{ activeIdentityId: string | null; identities: LocalIdentitySummary[] }> {

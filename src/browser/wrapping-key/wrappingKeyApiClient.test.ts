@@ -12,19 +12,17 @@ describe("WrappingKeyApiClient", () => {
     let endpoint: RequestInfo | URL | undefined;
     let bodyHasOnlyExpectedIdToken = false;
     let safeRequestOptions: Pick<Request, "cache" | "redirect" | "referrerPolicy"> | undefined;
-    const requester = new WrappingKeyApiClient({
-      async fetch(input, init) {
-        endpoint = input;
-        const request = new Request("https://passport.pubky.app/api/wrapping-key/google", init);
-        const body: unknown = await request.json();
-        bodyHasOnlyExpectedIdToken = JSON.stringify(body) === JSON.stringify({ googleIdToken: "id-token" });
-        safeRequestOptions = {
-          cache: request.cache,
-          redirect: request.redirect,
-          referrerPolicy: request.referrerPolicy,
-        };
-        return Response.json({ wrappingKey: encodeBase64Url(new Uint8Array(32).fill(7)) });
-      },
+    const requester = new WrappingKeyApiClient(async (input, init) => {
+      endpoint = input;
+      const request = new Request("https://passport.pubky.app/api/wrapping-key/google", init);
+      const body: unknown = await request.json();
+      bodyHasOnlyExpectedIdToken = JSON.stringify(body) === JSON.stringify({ googleIdToken: "id-token" });
+      safeRequestOptions = {
+        cache: request.cache,
+        redirect: request.redirect,
+        referrerPolicy: request.referrerPolicy,
+      };
+      return Response.json({ wrappingKey: encodeBase64Url(new Uint8Array(32).fill(7)) });
     });
 
     const result = await requester.requestGoogleWrappingKey("id-token");
@@ -39,11 +37,9 @@ describe("WrappingKeyApiClient", () => {
 
   it("returns the route's safe typed error code", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const requester = new WrappingKeyApiClient({
-      async fetch() {
-        return Response.json({ error: { code: "invalid_google_id_token" } }, { status: 401 });
-      },
-    });
+    const requester = new WrappingKeyApiClient(async () => (
+      Response.json({ error: { code: "invalid_google_id_token" } }, { status: 401 })
+    ));
 
     const result = await requester.requestGoogleWrappingKey("id-token");
 
@@ -57,18 +53,16 @@ describe("WrappingKeyApiClient", () => {
   });
 
   it("rejects unknown route errors instead of creating dynamic codes", async () => {
-    const requester = new WrappingKeyApiClient({
-      async fetch() {
-        return Response.json({ error: { code: "future_error" } }, { status: 401 });
-      },
-    });
+    const requester = new WrappingKeyApiClient(async () => (
+      Response.json({ error: { code: "future_error" } }, { status: 401 })
+    ));
     const result = await requester.requestGoogleWrappingKey("id-token");
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "invalid_response" });
   });
 
   it("returns invalid_response when the route has no valid error body", async () => {
-    const requester = new WrappingKeyApiClient({ async fetch() { return new Response("unavailable", { status: 503 }); } });
+    const requester = new WrappingKeyApiClient(async () => new Response("unavailable", { status: 503 }));
     const result = await requester.requestGoogleWrappingKey("id-token");
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "invalid_response" });
@@ -82,7 +76,7 @@ describe("WrappingKeyApiClient", () => {
     { wrappingKey: "A".repeat(44) },
     { wrappingKey: `${"A".repeat(42)}*` },
   ])("rejects invalid or non-canonical wrapping-key responses", async (body) => {
-    const requester = new WrappingKeyApiClient({ async fetch() { return Response.json(body); } });
+    const requester = new WrappingKeyApiClient(async () => Response.json(body));
     const result = await requester.requestGoogleWrappingKey("id-token");
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "invalid_response" });
@@ -95,9 +89,7 @@ describe("WrappingKeyApiClient", () => {
       bytes[31] = value;
       const wrappingKey = encodeBase64Url(bytes);
       terminalCharacters.push(wrappingKey.at(-1) ?? "");
-      const requester = new WrappingKeyApiClient({
-        async fetch() { return Response.json({ wrappingKey }); },
-      });
+      const requester = new WrappingKeyApiClient(async () => Response.json({ wrappingKey }));
 
       expect(Result.isOk(await requester.requestGoogleWrappingKey("id-token"))).toBe(true);
     }
@@ -113,9 +105,7 @@ describe("WrappingKeyApiClient", () => {
       Uint8Array.from({ length: 32 }, (_, index) => index),
     ]) {
       const wrappingKey = encodeBase64Url(bytes);
-      const requester = new WrappingKeyApiClient({
-        async fetch() { return Response.json({ wrappingKey }); },
-      });
+      const requester = new WrappingKeyApiClient(async () => Response.json({ wrappingKey }));
       const result = await requester.requestGoogleWrappingKey("id-token");
       expect(Result.isError(result)).toBe(false);
       if (!Result.isError(result)) expect(result.value).toBe(wrappingKey);
@@ -123,11 +113,9 @@ describe("WrappingKeyApiClient", () => {
   });
 
   it("bounds response bodies before parsing", async () => {
-    const requester = new WrappingKeyApiClient({
-      async fetch() {
-        return Response.json({ padding: "x".repeat(16 * 1024) });
-      },
-    });
+    const requester = new WrappingKeyApiClient(async () => (
+      Response.json({ padding: "x".repeat(16 * 1024) })
+    ));
     const result = await requester.requestGoogleWrappingKey("id-token");
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "invalid_response" });
@@ -135,10 +123,8 @@ describe("WrappingKeyApiClient", () => {
 
   it("maps fetch failures to network_failed", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const requester = new WrappingKeyApiClient({
-      async fetch() {
-        throw new TypeError("SECRET-GOOGLE-ID-TOKEN");
-      },
+    const requester = new WrappingKeyApiClient(async () => {
+      throw new TypeError("SECRET-GOOGLE-ID-TOKEN");
     });
     const result = await requester.requestGoogleWrappingKey("SECRET-GOOGLE-ID-TOKEN");
     expect(Result.isError(result)).toBe(true);
