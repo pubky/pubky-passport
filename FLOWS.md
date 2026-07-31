@@ -373,12 +373,12 @@ sequenceDiagram
     UserInfo-->>DriveAccess: Drive OAuth provider-account subject
     Note over DriveAccess: Require subjects to match
     DriveAccess-->>Controller: verified Drive OAuth access token
-    Controller->>Operations: establishGoogleBackedIdentity<br/>(GoogleBackedIdentityCredentials)
+    Controller->>Operations: restoreOrCreateGoogleBackedIdentity<br/>(GoogleBackedIdentityCredentials)
 ```
 
 
 
-### Establish Google-Backed Identity
+### Restore Or Create Google-Backed Identity
 
 ```mermaid
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
@@ -390,9 +390,6 @@ sequenceDiagram
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed
         participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
-    end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed
-        participant Establish as establishGoogleBackedIdentity.ts<br/>EstablishGoogleBackedIdentity
         participant Restore as restoreGoogleBackedIdentity.ts<br/>RestoreGoogleBackedIdentity
         participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
     end
@@ -412,19 +409,16 @@ sequenceDiagram
         participant Drive as Google Drive API v3<br/>appDataFolder/passport.json
     end
 
-    Controller->>Operations: establishGoogleBackedIdentity<br/>(GoogleBackedIdentityCredentials)
-    Operations->>Establish: establish(credentials)
-    Establish->>Wrapping: requestGoogleWrappingKey(ID token)
+    Controller->>Operations: restoreOrCreateGoogleBackedIdentity<br/>(GoogleBackedIdentityCredentials)
+    Operations->>Wrapping: requestGoogleWrappingKey(ID token)
     Wrapping->>API: POST { googleIdToken }
     API-->>Wrapping: wrapping-key result
-    Wrapping-->>Establish: wrapping-key result
+    Wrapping-->>Operations: wrapping-key result
     alt Wrapping-key error
-        Establish-->>Controller: safe failure
+        Operations-->>Controller: safe failure
     else Wrapping key
-        Establish->>Operations: passportFileStoreForAccessToken(Drive OAuth token)
         Operations->>DriveStore: new GoogleDrivePassportFileStore(...)
-        Operations-->>Establish: store
-        Establish->>DriveStore: readPassportFile()
+        Operations->>DriveStore: readPassportFile()
         DriveStore->>Drive: list passport.json
         Drive-->>DriveStore: list response
         opt One file found
@@ -434,17 +428,17 @@ sequenceDiagram
             DriveStore->>Drive: GET metadata for exact file ID
             Drive-->>DriveStore: ID + name + version + trashed state
         end
-        DriveStore-->>Establish: found, missing, or safe error
+        DriveStore-->>Operations: found, missing, or safe error
         alt Found
-            Establish->>Restore: execute(envelope, wrapping key)
+            Operations->>Restore: execute(envelope, wrapping key)
         else Missing
-            Establish->>Invite: requestGoogleHomeserverSignupInvitation(ID token)
-            Invite-->>Establish: validated invitation or safe failure
+            Operations->>Invite: requestGoogleHomeserverSignupInvitation(ID token)
+            Invite-->>Operations: validated invitation or safe failure
             opt Invitation returned
-                Establish->>Creator: execute(invitation, Drive store, wrapping key)
+                Operations->>Creator: execute(invitation, Drive store, wrapping key)
             end
         else Storage error
-            Establish-->>Controller: safe failure
+            Operations-->>Controller: safe failure
         end
     end
 ```
@@ -577,9 +571,9 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Missing identity activation and local save call flow
-    accDescr: EstablishGoogleBackedIdentity requests a homeserver signup invitation, then CreateGoogleBackedIdentity signs up, verifies, publishes discovery, and saves in order; each failure stops later stages and the generated key handle is always disposed.
+    accDescr: GoogleBackedIdentityOperations requests a homeserver signup invitation, then CreateGoogleBackedIdentity signs up, verifies, publishes discovery, and saves in order; each failure stops later stages and the generated key handle is always disposed.
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed
-        participant Establish as establishGoogleBackedIdentity.ts<br/>EstablishGoogleBackedIdentity
+        participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
         participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/local
@@ -599,15 +593,15 @@ sequenceDiagram
         participant Homegate as Homegate<br/>/google_verification
     end
 
-    Establish->>Invite: requestGoogleHomeserverSignupInvitation(ID token)
+    Operations->>Invite: requestGoogleHomeserverSignupInvitation(ID token)
     Invite->>Homegate: POST { googleIdToken }
     Homegate-->>Invite: invitation or plaintext error
     alt Homegate error
-        Invite-->>Establish: safe invitation failure
+        Invite-->>Operations: safe invitation failure
     else Invitation response
         Note over Invite: Parse exact bounded response
-        Invite-->>Establish: validated invitation
-        Establish->>Creator: execute(validated invitation)
+        Invite-->>Operations: validated invitation
+        Operations->>Creator: execute(validated invitation)
         Creator->>Pubky: signup(handle, homeserver, signup code)
         Pubky->>SDK: signer.signup(...)
         Note over SDK: Homeserver signup transport is SDK-owned
@@ -830,7 +824,7 @@ sequenceDiagram
     accTitle: Direct browser Homegate signup invitation call flow
     accDescr: The browser adapter sends only the Google ID token directly to configured Homegate, then bounds and maps the invitation or plaintext error to a safe application result.
     box rgba(0, 158, 115, 0.18) Browser runtime
-        participant UseCase as APPLICATION<br/>EstablishGoogleBackedIdentity
+        participant UseCase as APPLICATION<br/>GoogleBackedIdentityOperations
         participant Adapter as BROWSER<br/>HomegateClient
     end
     box rgba(17, 24, 39, 0.12) External

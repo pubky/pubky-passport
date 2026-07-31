@@ -80,8 +80,8 @@ function createController(
     select: repository.select.bind(repository),
     clear: repository.clear.bind(repository),
     subscribe: repository.subscribe.bind(repository),
-    establishGoogleBackedIdentity: (credentials) => getGoogleBackedIdentityOperations()
-      .establishGoogleBackedIdentity(credentials),
+    restoreOrCreateGoogleBackedIdentity: (credentials) => getGoogleBackedIdentityOperations()
+      .restoreOrCreateGoogleBackedIdentity(credentials),
     deleteGoogleDrivePassportFile: (credentials, expectedPublicKeyZ32) => getGoogleBackedIdentityOperations()
       .deleteGoogleDrivePassportFile(credentials, expectedPublicKeyZ32),
     disposeGoogleBackedIdentityOperations: () => {

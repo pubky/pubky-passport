@@ -9,7 +9,7 @@ import type {
   GoogleBackedIdentityCredentials,
   GoogleBackedIdentityError,
   GoogleBackedIdentityResult,
-} from "./google-backed/establishGoogleBackedIdentity";
+} from "./google-backed/googleBackedIdentityOperations";
 import type {
   GoogleDrivePassportFileDeletionError,
   GoogleDrivePassportFileDeletionResult,
@@ -116,7 +116,7 @@ export type PassportIdentityControllerDependencies = {
   select(id: string): LocalIdentityResult<void>;
   clear(): LocalIdentityResult<void>;
   subscribe(listener: () => void): () => void;
-  establishGoogleBackedIdentity(
+  restoreOrCreateGoogleBackedIdentity(
     credentials: GoogleBackedIdentityCredentials,
   ): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>>;
   deleteGoogleDrivePassportFile(
@@ -320,12 +320,12 @@ export class PassportIdentityController {
         const deleted = await this.#dependencies.deleteGoogleDrivePassportFile(credentials, action.expectedPublicKeyZ32);
         return Result.isError(deleted) ? deletionFailure(deleted.error) : Result.ok({ kind: "google_drive_passport_file_deleted" });
       }
-      const established = await this.#dependencies.establishGoogleBackedIdentity(credentials);
-      if (Result.isError(established)) return establishmentFailure(established.error);
+      const restoredOrCreated = await this.#dependencies.restoreOrCreateGoogleBackedIdentity(credentials);
+      if (Result.isError(restoredOrCreated)) return establishmentFailure(restoredOrCreated.error);
       return Result.ok({
         kind: "google_backed_identity_established",
-        establishmentMode: established.value.establishmentMode,
-        publicIdentity: established.value.publicIdentity,
+        establishmentMode: restoredOrCreated.value.establishmentMode,
+        publicIdentity: restoredOrCreated.value.publicIdentity,
       });
     } catch {
       LOGGER.warn("identity.google.action.failed", { code: "unexpected_failure" });

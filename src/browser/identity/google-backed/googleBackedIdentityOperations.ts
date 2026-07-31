@@ -1,30 +1,65 @@
 import "client-only";
 
+import { Result, type Result as ResultType } from "better-result";
+
 import { LOGGER } from "../../../libs/logger/logger";
-import { HomegateClient } from "../../homegate/homegateClient";
-import { GoogleDrivePassportFileStore } from "../../passport-file/googleDrivePassportFileStore";
+import {
+  HomegateClient,
+  type HomegateSignupInvitationErrorCode,
+} from "../../homegate/homegateClient";
+import {
+  GoogleDrivePassportFileStore,
+  type PassportFileReadResult,
+  type PassportFileReference,
+  type PassportFileStoreResult,
+} from "../../passport-file/googleDrivePassportFileStore";
 import type { PassportFileEnvelopeV1 } from "../../passport-file/passportFileEnvelope";
-import type { PassportFileReference } from "../../passport-file/googleDrivePassportFileStore";
 import { PassportFileWebCrypto } from "../../passport-file/passportFileWebCrypto";
 import type { PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
-import { WrappingKeyApiClient } from "../../wrapping-key/wrappingKeyApiClient";
+import {
+  WrappingKeyApiClient,
+  type GoogleWrappingKeyErrorCode,
+} from "../../wrapping-key/wrappingKeyApiClient";
 import type {
   LocalIdentityResult,
   LocalIdentitySummary,
 } from "../local/localStorageIdentityRepository";
 import { SaveLocalIdentity } from "../local/saveLocalIdentity";
-import { CreateGoogleBackedIdentity } from "./createGoogleBackedIdentity";
-import { DeleteGoogleDrivePassportFile } from "./deleteGoogleDrivePassportFile";
 import {
-  EstablishGoogleBackedIdentity,
-  type GoogleBackedIdentityCredentials,
-} from "./establishGoogleBackedIdentity";
-import { RestoreGoogleBackedIdentity } from "./restoreGoogleBackedIdentity";
+  CreateGoogleBackedIdentity,
+  type CreateGoogleBackedIdentityError,
+  type CreatedGoogleBackedIdentity,
+} from "./createGoogleBackedIdentity";
+import { DeleteGoogleDrivePassportFile } from "./deleteGoogleDrivePassportFile";
+import type { GoogleBackedIdentityCredentials } from "./googleBackedIdentityCredentials";
+import {
+  RestoreGoogleBackedIdentity,
+  type RestoreGoogleBackedIdentityError,
+  type RestoredGoogleBackedIdentity,
+} from "./restoreGoogleBackedIdentity";
+
+export type { GoogleBackedIdentityCredentials } from "./googleBackedIdentityCredentials";
+
+export type GoogleBackedIdentity = CreatedGoogleBackedIdentity | RestoredGoogleBackedIdentity;
+
+export type GoogleBackedIdentityError =
+  | CreateGoogleBackedIdentityError
+  | RestoreGoogleBackedIdentityError
+  | { code: "drive_read_failed" | "unexpected_failure"; partialSetupPublicIdentity?: never }
+  | { code: "wrapping_key_failed"; cause: GoogleWrappingKeyErrorCode; partialSetupPublicIdentity?: never }
+  | { code: "homeserver_signup_invitation_failed"; cause: HomegateSignupInvitationErrorCode; partialSetupPublicIdentity?: never };
+
+export type GoogleBackedIdentityResult<T = GoogleBackedIdentity> = ResultType<T, GoogleBackedIdentityError>;
 
 export class GoogleBackedIdentityOperations {
   readonly #pubky: PubkySdkAdapter;
-  readonly #establishGoogleBackedIdentity: EstablishGoogleBackedIdentity;
+  readonly #requestWrappingKey: WrappingKeyApiClient["requestGoogleWrappingKey"];
+  readonly #readPassportFile: ReadPassportFile;
+  readonly #createPassportFile: CreatePassportFile;
+  readonly #homegate: HomegateClient;
+  readonly #restoreExistingIdentity: RestoreGoogleBackedIdentity;
+  readonly #createMissingIdentity: CreateGoogleBackedIdentity;
   readonly #passportFileDeleter: DeleteGoogleDrivePassportFile;
   #disposed = false;
 
@@ -64,14 +99,12 @@ export class GoogleBackedIdentityOperations {
         saveLocalIdentity,
         passportOrigin: input.passportOrigin,
       });
-      this.#establishGoogleBackedIdentity = new EstablishGoogleBackedIdentity({
-        requestWrappingKey,
-        readPassportFile,
-        createPassportFile,
-        homegate: homegateClient,
-        restoreExistingIdentity,
-        createMissingIdentity,
-      });
+      this.#requestWrappingKey = requestWrappingKey;
+      this.#readPassportFile = readPassportFile;
+      this.#createPassportFile = createPassportFile;
+      this.#homegate = homegateClient;
+      this.#restoreExistingIdentity = restoreExistingIdentity;
+      this.#createMissingIdentity = createMissingIdentity;
       this.#passportFileDeleter = new DeleteGoogleDrivePassportFile({
         requestWrappingKey,
         readPassportFile,
@@ -93,8 +126,15 @@ export class GoogleBackedIdentityOperations {
     }
   }
 
-  establishGoogleBackedIdentity(credentials: GoogleBackedIdentityCredentials) {
-    return this.#establishGoogleBackedIdentity.establish(credentials);
+  async restoreOrCreateGoogleBackedIdentity(
+    credentials: GoogleBackedIdentityCredentials,
+  ): Promise<GoogleBackedIdentityResult> {
+    try {
+      return await this.restoreOrCreateIdentity(credentials);
+    } catch {
+      LOGGER.warn("identity.google.restore_or_create.failed", { code: "unexpected_failure" });
+      return operationFailure("unexpected_failure");
+    }
   }
 
   deleteGoogleDrivePassportFile(credentials: GoogleBackedIdentityCredentials, expectedPublicKeyZ32: string) {
@@ -106,4 +146,48 @@ export class GoogleBackedIdentityOperations {
     this.#disposed = true;
     this.#pubky.dispose();
   }
+
+  private async restoreOrCreateIdentity(
+    credentials: GoogleBackedIdentityCredentials,
+  ): Promise<GoogleBackedIdentityResult> {
+    LOGGER.info("identity.google.wrapping_key.started");
+    const wrappingKey = await this.#requestWrappingKey(credentials.googleIdToken);
+    if (Result.isError(wrappingKey)) {
+      return Result.err({ code: "wrapping_key_failed", cause: wrappingKey.error.code });
+    }
+    LOGGER.info("identity.google.wrapping_key.completed");
+
+    LOGGER.info("identity.google.drive_read.started");
+    const storedFile = await this.#readPassportFile(credentials.driveAccessToken);
+    if (Result.isError(storedFile)) return operationFailure("drive_read_failed");
+    if (storedFile.value.status === "found") {
+      LOGGER.info("identity.google.drive_read.completed", { status: "found" });
+      return this.#restoreExistingIdentity.execute(storedFile.value.envelope, wrappingKey.value);
+    }
+
+    LOGGER.info("identity.google.drive_read.completed", { status: "missing" });
+    LOGGER.info("identity.google.homeserver_signup_invitation.started");
+    const invitation = await this.#homegate.requestGoogleHomeserverSignupInvitation(credentials.googleIdToken);
+    if (Result.isError(invitation)) {
+      return Result.err({ code: "homeserver_signup_invitation_failed", cause: invitation.error.code });
+    }
+
+    return this.#createMissingIdentity.execute(
+      invitation.value,
+      (envelope) => this.#createPassportFile(credentials.driveAccessToken, envelope),
+      wrappingKey.value,
+    );
+  }
+}
+
+type ReadPassportFile = (driveAccessToken: string) => Promise<PassportFileStoreResult<PassportFileReadResult>>;
+type CreatePassportFile = (
+  driveAccessToken: string,
+  envelope: PassportFileEnvelopeV1,
+) => Promise<PassportFileStoreResult<PassportFileReference>>;
+
+function operationFailure<T>(
+  code: "drive_read_failed" | "unexpected_failure",
+): GoogleBackedIdentityResult<T> {
+  return Result.err({ code });
 }

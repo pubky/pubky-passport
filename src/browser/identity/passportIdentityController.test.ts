@@ -93,7 +93,7 @@ describe("PassportIdentityController", () => {
       return Result.ok("drive-access-token");
     });
     const { controller, credentialCallback } = await mountedController({
-      establishGoogleBackedIdentity: establish.execute,
+      restoreOrCreateGoogleBackedIdentity: establish.execute,
       requestGoogleDriveAccess: requestGoogleDriveAccess.execute,
     }, states);
 
@@ -143,7 +143,7 @@ describe("PassportIdentityController", () => {
       cause,
     }));
     const { controller, credentialCallback } = await mountedController({
-      establishGoogleBackedIdentity: establish.execute,
+      restoreOrCreateGoogleBackedIdentity: establish.execute,
     });
     credentialCallback.current?.(googleCredential());
 
@@ -171,7 +171,7 @@ describe("PassportIdentityController", () => {
       cause,
     }));
     const { controller, credentialCallback } = await mountedController({
-      establishGoogleBackedIdentity: establish.execute,
+      restoreOrCreateGoogleBackedIdentity: establish.execute,
     });
     credentialCallback.current?.(googleCredential());
 
@@ -237,7 +237,7 @@ describe("PassportIdentityController", () => {
       return new Promise<ReturnType<typeof Result.ok<string>>>((resolve) => { resolveDrive = resolve; });
     };
     const { controller, credentialCallback } = await mountedController({
-      establishGoogleBackedIdentity: establish.execute,
+      restoreOrCreateGoogleBackedIdentity: establish.execute,
       requestGoogleDriveAccess,
     });
     credentialCallback.current?.(googleCredential());
@@ -326,7 +326,7 @@ describe("PassportIdentityController", () => {
     const establish = establishmentDouble(async () => Result.err({ code: "unexpected_failure" as const }));
     const { controller, credentialCallback } = await mountedController({
       requestGoogleDriveAccess: requestGoogleDriveAccess.execute,
-      establishGoogleBackedIdentity: establish.execute,
+      restoreOrCreateGoogleBackedIdentity: establish.execute,
     });
     credentialCallback.current?.(googleCredential());
 
@@ -351,7 +351,7 @@ describe("PassportIdentityController", () => {
       () => new Promise((resolve) => { resolveEstablish = resolve; }),
     );
     const { controller, credentialCallback } = await mountedController({
-      establishGoogleBackedIdentity: establish.execute,
+      restoreOrCreateGoogleBackedIdentity: establish.execute,
       disposeGoogleBackedIdentityOperations,
     });
     credentialCallback.current?.(googleCredential());
@@ -374,9 +374,9 @@ describe("PassportIdentityController", () => {
   });
 
   it("preserves a failed establishment result after ordinary unmount", async () => {
-    const establishment = deferred<Awaited<ReturnType<PassportIdentityControllerDependencies["establishGoogleBackedIdentity"]>>>();
+    const establishment = deferred<Awaited<ReturnType<PassportIdentityControllerDependencies["restoreOrCreateGoogleBackedIdentity"]>>>();
     const establish = establishmentDouble(() => establishment.promise);
-    const { controller, credentialCallback } = await mountedController({ establishGoogleBackedIdentity: establish.execute });
+    const { controller, credentialCallback } = await mountedController({ restoreOrCreateGoogleBackedIdentity: establish.execute });
     credentialCallback.current?.(googleCredential());
 
     const pending = controller.continueGoogleBackedIdentityAction({ kind: "establish_google_backed_identity" });
@@ -476,7 +476,7 @@ function dependencies(overrides: Partial<PassportIdentityControllerDependencies>
     select: vi.fn(() => Result.ok()),
     clear: vi.fn(() => Result.ok()),
     subscribe: vi.fn(() => () => {}),
-    establishGoogleBackedIdentity: async () => Result.err({ code: "unexpected_failure" as const }),
+    restoreOrCreateGoogleBackedIdentity: async () => Result.err({ code: "unexpected_failure" as const }),
     deleteGoogleDrivePassportFile: async () => Result.ok(),
     disposeGoogleBackedIdentityOperations: vi.fn(),
     mountGoogleSignIn: vi.fn(async () => Result.ok()),
@@ -516,7 +516,7 @@ function deferred<T>() {
 }
 
 function establishmentDouble(
-  implementation: () => ReturnType<PassportIdentityControllerDependencies["establishGoogleBackedIdentity"]>,
+  implementation: () => ReturnType<PassportIdentityControllerDependencies["restoreOrCreateGoogleBackedIdentity"]>,
 ) {
   const double = {
     calls: 0,

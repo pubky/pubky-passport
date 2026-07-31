@@ -70,7 +70,7 @@ describe("createPassportIdentityController", () => {
 
     MOCKS.GoogleBackedIdentityOperations.mockImplementation(function () {
       return {
-        async establishGoogleBackedIdentity(credentials: { googleIdToken: string; driveAccessToken: string }) {
+        async restoreOrCreateGoogleBackedIdentity(credentials: { googleIdToken: string; driveAccessToken: string }) {
           MOCKS.establishCalls += 1;
           MOCKS.establishReceivedExpectedCredentials = credentials.googleIdToken.length > 0
             && credentials.driveAccessToken.length > 0;

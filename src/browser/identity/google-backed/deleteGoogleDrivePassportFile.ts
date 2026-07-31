@@ -14,11 +14,11 @@ import type {
   PassportFileReference,
   PassportFileStoreResult,
 } from "../../passport-file/googleDrivePassportFileStore";
-import type { GoogleBackedIdentityCredentials } from "./establishGoogleBackedIdentity";
 import type {
   GoogleWrappingKeyErrorCode,
   GoogleWrappingKeyResult,
 } from "../../wrapping-key/wrappingKeyApiClient";
+import type { GoogleBackedIdentityCredentials } from "./googleBackedIdentityCredentials";
 
 export type GoogleDrivePassportFileDeletionErrorCode =
   | "wrapping_key_failed"
@@ -80,7 +80,10 @@ export class DeleteGoogleDrivePassportFile {
     }
   }
 
-  private async deleteVerifiedPassportFile(credentials: GoogleBackedIdentityCredentials, expectedPublicKeyZ32: string): Promise<GoogleDrivePassportFileDeletionResult> {
+  private async deleteVerifiedPassportFile(
+    credentials: GoogleBackedIdentityCredentials,
+    expectedPublicKeyZ32: string,
+  ): Promise<GoogleDrivePassportFileDeletionResult> {
     const wrappingKey = await this.#requestWrappingKey(credentials.googleIdToken);
     if (Result.isError(wrappingKey)) {
       return Result.err({ code: "wrapping_key_failed", cause: wrappingKey.error.code });
