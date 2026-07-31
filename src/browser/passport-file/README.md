@@ -20,8 +20,7 @@ focused, bound operations into the identity use cases.
 ## Crypto Contract
 
 `PassportFileWebCrypto` accepts the wrapping key returned by Passport's wrapping-key
-API and derives a non-extractable AES-256-GCM key with HKDF-SHA256. It never uses the
-raw wrapping bytes directly as an encryption key.
+API and derives a non-extractable AES-256-GCM key with HKDF-SHA256.
 
 Encryption:
 
@@ -60,16 +59,3 @@ Web Locks reduce same-browser races but are not a Drive-side transaction. Concur
 creates from other profiles, devices, or browsers without Web Locks are reported as
 `create_conflict`; the store does not automatically delete either file.
 
-## Security Boundaries
-
-- The encrypted Drive envelope and API-provided wrapping key meet only in browser
-  identity orchestration.
-- Google Drive receives encrypted envelope data, never a wrapping key or plaintext
-  Pubky secret.
-- The Passport server receives the Google ID token used for wrapping-key issuance,
-  never a Drive OAuth access token, Drive file, or decrypted Pubky secret.
-- This feature does not use `localStorage`, `sessionStorage`, IndexedDB, cookies, or
-  server requests for Drive tokens, envelopes, wrapping keys, or decrypted payloads.
-- Plaintext local identity persistence belongs exclusively to
-  [`browser/identity/local`](../identity/local/).
-- Logs contain stable operation names and typed error codes only.
