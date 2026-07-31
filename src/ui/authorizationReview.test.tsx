@@ -6,16 +6,16 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type {
-  BrowserAuthorizationController,
-  BrowserAuthorizationViewState,
-} from "../browser/authorization/browserAuthorizationController";
+  PassportAuthorizationController,
+  PassportAuthorizationViewState,
+} from "../browser/authorization/passportAuthorization";
 import type { PassportIdentityController } from "../browser/identity/passportIdentity";
 import { mockPassportIdentityController } from "../../test-utils/fakes/mockPassportIdentityController";
 import { AuthorizationReview } from "./authorizationReview";
 
 const REVIEW = {
   kind: "signin" as const,
-  requestingAppDisplayName: "app.example",
+  requestingAppDisplayHost: "app.example",
   callbackAvailability: { success: true, error: true, cancel: true },
   relayHost: "relay.client.example",
   capabilities: [{ path: "/pub/example.app/", read: true, write: true, scope: "broad" as const }],
@@ -49,7 +49,7 @@ describe("AuthorizationReview", () => {
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(controller.approve).toHaveBeenCalledOnce();
     expect(controller.cancel).toHaveBeenCalledOnce();
-    expect(controller.mounted).toHaveBeenCalledOnce();
+    expect(controller.commitInitialEntry).toHaveBeenCalledOnce();
   });
 
   it("renders controller state transitions without receiving sensitive values", () => {
@@ -97,7 +97,7 @@ describe("AuthorizationReview", () => {
   });
 });
 
-function renderReview(controller: BrowserAuthorizationController) {
+function renderReview(controller: PassportAuthorizationController) {
   return render(
     <AuthorizationReview
       controllerFactory={() => controller}
@@ -108,18 +108,18 @@ function renderReview(controller: BrowserAuthorizationController) {
   );
 }
 
-function fakeController(initialState: BrowserAuthorizationViewState): BrowserAuthorizationController & {
-  emit(state: BrowserAuthorizationViewState): void;
+function fakeController(initialState: PassportAuthorizationViewState): PassportAuthorizationController & {
+  emit(state: PassportAuthorizationViewState): void;
 } {
   let state = initialState;
-  const listeners = new Set<(nextState: BrowserAuthorizationViewState) => void>();
+  const listeners = new Set<(nextState: PassportAuthorizationViewState) => void>();
   return {
     getState: () => state,
     subscribe: (listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    mounted: vi.fn(),
+    commitInitialEntry: vi.fn(),
     approve: vi.fn(async () => state),
     cancel: vi.fn(() => state),
     emit: (nextState) => {

@@ -12,7 +12,7 @@ import {
   type PubkySessionAccessResult,
   type PubkySignupInput,
 } from "../../src/browser/pubky/pubkySdkAdapter";
-import type { ValidatedSensitivePubkyAuthRequest } from "../../src/core/auth/parsePubkyAuthRequest";
+import type { PubkyAuthApprovalCapability } from "../../src/browser/authorization/browserAuthorizationRequest";
 import type { PubkyPublicIdentity } from "../../src/core/identity/pubkyIdentity";
 import {
   PUBKY_SECRET_KEY_BYTES,
@@ -120,7 +120,7 @@ export class RecordingPubkySdkAdapter extends PubkySdkAdapter {
 
   override async approveAuthRequest(
     _keyHandle: PubkyIdentityKeyHandle,
-    authRequest: ValidatedSensitivePubkyAuthRequest,
+    authRequest: PubkyAuthApprovalCapability,
   ): Promise<PubkyAuthApprovalResult> {
     let scheme: string | undefined;
     let queryKeys: string[] = [];

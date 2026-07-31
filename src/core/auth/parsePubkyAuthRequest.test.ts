@@ -1,12 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { Result } from "better-result";
 
-import {
-  getParserIssuedPubkyAuthCallbacks,
-  isParserIssuedPubkyAuthRequest,
-  parsePubkyAuthRequest,
-  type PubkyAuthParseErrorCode,
-} from "./parsePubkyAuthRequest";
+import { parsePubkyAuthRequest, type PubkyAuthParseErrorCode } from "./parsePubkyAuthRequest";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 import type { PubkyAuthUrlValidationErrorCode } from "./validatePubkyAuthUrls";
 
@@ -37,45 +32,24 @@ describe("parsePubkyAuthRequest", () => {
       throw new Error(result.error.code);
     }
 
-    expect(result.value.review).toEqual({
+    expect(result.value).toEqual({
       kind: "signin",
       capabilities: [
         {
           path: "/pub/pubky.app/",
           read: true,
           write: true,
-          scope: "specific",
         },
       ],
-      callbackAvailability: {
-        success: true,
-        error: true,
-        cancel: true,
+      callbacks: {
+        success: "https://pubky.app/passport-success",
+        error: "https://pubky.app/passport-error",
+        cancel: "https://pubky.app/passport-cancel",
       },
       relayHost: "httprelay.pubky.app",
-      requestingAppDisplayName: "pubky.app",
+      relayOrigin: "https://httprelay.pubky.app",
+      sensitivePubkyAuthUrl: VALID_REQUEST,
     });
-    expect(JSON.stringify(result.value.review)).not.toContain("test-secret");
-    expect(JSON.stringify(result.value.review)).not.toContain("passport-success");
-    expect(JSON.stringify(result.value.review)).not.toContain("/inbox");
-    expect(result.value.approval.sensitivePubkyAuthUrl).toContain("secret=test-secret");
-    expect(isParserIssuedPubkyAuthRequest(result.value.approval)).toBe(true);
-    expect(getParserIssuedPubkyAuthCallbacks(result.value.approval)).toEqual({
-      success: "https://pubky.app/passport-success",
-      error: "https://pubky.app/passport-error",
-      cancel: "https://pubky.app/passport-cancel",
-    });
-    expect(result.value.relayOrigin).toBe("https://httprelay.pubky.app");
-  });
-
-  it("returns callbacks only for the exact parser-issued approval object", () => {
-    const result = parsePubkyAuthRequest(encodeRequest(VALID_REQUEST));
-    if (Result.isError(result)) throw new Error(result.error.code);
-
-    const clone = { ...result.value.approval };
-
-    expect(getParserIssuedPubkyAuthCallbacks(clone)).toBeUndefined();
-    expect(getParserIssuedPubkyAuthCallbacks({ sensitivePubkyAuthUrl: result.value.approval.sensitivePubkyAuthUrl })).toBeUndefined();
   });
 
   it("accepts a client-provided HTTPS relay", () => {
@@ -86,23 +60,6 @@ describe("parsePubkyAuthRequest", () => {
     expect(Result.isOk(result)).toBe(true);
     if (Result.isError(result)) throw new Error(result.error.code);
     expect(result.value.relayOrigin).toBe("https://relay.client.example");
-  });
-
-  it("freezes parser-issued approvals before registering their provenance", () => {
-    const result = parsePubkyAuthRequest(encodeRequest(VALID_REQUEST));
-    if (Result.isError(result)) throw new Error(result.error.code);
-    const originalRequest = result.value.approval.sensitivePubkyAuthUrl;
-
-    const mutated = Reflect.set(
-      result.value.approval,
-      "sensitivePubkyAuthUrl",
-      "pubkyauth://signin?secret=attacker-controlled",
-    );
-
-    expect(mutated).toBe(false);
-    expect(Object.isFrozen(result.value.approval)).toBe(true);
-    expect(result.value.approval.sensitivePubkyAuthUrl).toBe(originalRequest);
-    expect(isParserIssuedPubkyAuthRequest(result.value.approval)).toBe(true);
   });
 
   it("parses the documented pubkyauth:/// form", () => {
@@ -116,7 +73,7 @@ describe("parsePubkyAuthRequest", () => {
       throw new Error(result.error.code);
     }
 
-    expect(result.value.review.kind).toBe("signin");
+    expect(result.value.kind).toBe("signin");
   });
 
   it("parses comma-separated capabilities", () => {
@@ -130,27 +87,10 @@ describe("parsePubkyAuthRequest", () => {
       throw new Error(result.error.code);
     }
 
-    expect(result.value.review.capabilities).toEqual([
-      { path: "/pub/pubky.app/", read: true, write: true, scope: "specific" },
-      { path: "/pub/eventky/", read: true, write: false, scope: "specific" },
-      { path: "/pub/mapky/", read: false, write: true, scope: "specific" },
-    ]);
-  });
-
-  it("marks broad capabilities", () => {
-    const request =
-      "pubkyauth://signin?caps=/:rw,/pub/:rw&relay=https://httprelay.pubky.app/inbox&secret=test-secret&x-success=https://pubky.app/passport-success&x-error=https://pubky.app/passport-error&x-cancel=https://pubky.app/passport-cancel";
-
-    const result = parsePubkyAuthRequest(encodeRequest(request));
-
-    expect(Result.isOk(result)).toBe(true);
-    if (Result.isError(result)) {
-      throw new Error(result.error.code);
-    }
-
-    expect(result.value.review.capabilities).toEqual([
-      { path: "/", read: true, write: true, scope: "broad" },
-      { path: "/pub/", read: true, write: true, scope: "broad" },
+    expect(result.value.capabilities).toEqual([
+      { path: "/pub/pubky.app/", read: true, write: true },
+      { path: "/pub/eventky/", read: true, write: false },
+      { path: "/pub/mapky/", read: false, write: true },
     ]);
   });
 
@@ -165,9 +105,9 @@ describe("parsePubkyAuthRequest", () => {
       throw new Error(result.error.code);
     }
 
-    expect(result.value.review.capabilities).toEqual([
-      { path: "/pub/file.txt", read: true, write: false, scope: "specific" },
-      { path: "/pub/repeated/", read: true, write: true, scope: "specific" },
+    expect(result.value.capabilities).toEqual([
+      { path: "/pub/file.txt", read: true, write: false },
+      { path: "/pub/repeated/", read: true, write: true },
     ]);
   });
 
@@ -181,7 +121,7 @@ describe("parsePubkyAuthRequest", () => {
       throw new Error(result.error.code);
     }
 
-    expect(JSON.stringify(result.value.review)).not.toContain("Pubky App");
+    expect(JSON.stringify(result.value)).not.toContain("Pubky App");
   });
 
   it.each([
@@ -328,8 +268,7 @@ describe("parsePubkyAuthRequest", () => {
       throw new Error(result.error.code);
     }
 
-    expect(result.value.review.callbackAvailability).toEqual({ success: false, error: false, cancel: false });
-    expect(result.value.review.requestingAppDisplayName).toBeUndefined();
+    expect(result.value.callbacks).toEqual({});
   });
 
   it("rejects mixed callback origins", () => {
@@ -339,22 +278,6 @@ describe("parsePubkyAuthRequest", () => {
     );
 
     expectError(encodeRequest(request), "invalid_callback");
-  });
-
-  it("derives display domain without exposing callback query parameters", () => {
-    const result = parsePubkyAuthRequest(
-      encodeRequest(
-        "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=test-secret&x-success=https://pubky.app/passport-success?token=private",
-      ),
-    );
-
-    expect(Result.isOk(result)).toBe(true);
-    if (Result.isError(result)) {
-      throw new Error(result.error.code);
-    }
-
-    expect(result.value.review.requestingAppDisplayName).toBe("pubky.app");
-    expect(JSON.stringify(result.value.review)).not.toContain("token=private");
   });
 
   it("rejects unsafe callback schemes", () => {

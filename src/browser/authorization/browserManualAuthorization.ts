@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { parsePubkyAuthRequest } from "../../core/auth/parsePubkyAuthRequest";
+import { validatePubkyAuthRequest } from "../../core/auth/parsePubkyAuthRequest";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "../../core/auth/pubkyAuthRequestLimits";
 import { LOGGER } from "../../libs/logger/logger";
 
@@ -26,9 +26,9 @@ export function enterAuthorization(
     return "invalid";
   }
 
-  const parsed = parsePubkyAuthRequest(encodedRequest);
-  if (Result.isError(parsed)) {
-    logFailure(parsed.error.code);
+  const validated = validatePubkyAuthRequest(encodedRequest);
+  if (Result.isError(validated)) {
+    logFailure(validated.error.code);
     return "invalid";
   }
 

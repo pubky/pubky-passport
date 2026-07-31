@@ -1,15 +1,17 @@
 import { Result } from "better-result";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
-import { parsePubkyAuthRequest } from "../../core/auth/parsePubkyAuthRequest";
 import { LOGGER } from "../../libs/logger/logger";
-import type { ParsedAuthorizationEntry } from "./application/authorizationEntry";
-import type { ActiveAuthorizationResult } from "./application/approveActiveAuthorization";
-import type { BrowserAuthorizationController, BrowserAuthorizationViewState } from "./browserAuthorizationController";
-import {
-  PassportAuthorizationController,
-  type PassportAuthorizationControllerDependencies,
-} from "./passportAuthorizationController";
+import type { ApproveAuthorizationResult } from "./approveAuthorizationWithActiveIdentity";
+import type { AuthorizationEntry } from "./browserAuthorizationEntry";
+import { parseBrowserAuthorizationRequest } from "./browserAuthorizationRequest";
+import type {
+  PassportAuthorizationController as PassportAuthorizationControllerContract,
+  PassportAuthorizationViewState,
+} from "./passportAuthorization";
+import { PassportAuthorizationController } from "./passportAuthorizationController";
+
+type ControllerDependencies = ConstructorParameters<typeof PassportAuthorizationController>[0]["dependencies"];
 
 const RELAY_ORIGIN = "https://relay.example";
 const SUCCESS_CALLBACK = "https://app.example/success?code=private";
@@ -23,14 +25,14 @@ describe("PassportAuthorizationController", () => {
   });
 
   it("exposes only finite safe view states and intent methods", () => {
-    expectTypeOf<BrowserAuthorizationViewState["status"]>().not.toEqualTypeOf<string>();
+    expectTypeOf<PassportAuthorizationViewState["status"]>().not.toEqualTypeOf<string>();
 
     const controller = createController();
     const serialized = JSON.stringify(controller.getState());
 
     expect(controller.getState()).toMatchObject({
       status: "review",
-      review: { requestingAppDisplayName: "app.example" },
+      review: { requestingAppDisplayHost: "app.example" },
     });
     expect(serialized).not.toContain(SECRET);
     expect(serialized).not.toContain(SUCCESS_CALLBACK);
@@ -39,18 +41,18 @@ describe("PassportAuthorizationController", () => {
     expect(Object.keys(controller).sort()).toEqual([]);
   });
 
-  it("commits the authorization entry when mounted", () => {
-    const commitAuthorizationEntry = vi.fn();
-    const controller = createController({ commitAuthorizationEntry });
+  it("clears the pending authorization entry after the initial render commits", () => {
+    const clearPendingEntry = vi.fn();
+    const controller = createController({ clearPendingEntry });
 
-    controller.mounted();
+    controller.commitInitialEntry();
 
-    expect(commitAuthorizationEntry).toHaveBeenCalledOnce();
+    expect(clearPendingEntry).toHaveBeenCalledOnce();
   });
 
   it("approves once and navigates to the exact success callback", async () => {
-    let complete: ((result: ActiveAuthorizationResult) => void) | undefined;
-    const approveAuthorization = vi.fn(() => new Promise<ActiveAuthorizationResult>((resolve) => { complete = resolve; }));
+    let complete: ((result: ApproveAuthorizationResult) => void) | undefined;
+    const approveAuthorization = vi.fn(() => new Promise<ApproveAuthorizationResult>((resolve) => { complete = resolve; }));
     const navigate = vi.fn();
     const controller = createController({ approveAuthorization, navigate });
 
@@ -65,7 +67,7 @@ describe("PassportAuthorizationController", () => {
     expect(navigate).toHaveBeenCalledWith(SUCCESS_CALLBACK);
   });
 
-  it("routes approval errors and cancellation through exact parser-owned callbacks", async () => {
+  it("routes approval errors and cancellation through exact browser-owned callbacks", async () => {
     const navigate = vi.fn();
     const failed = createController({
       approveAuthorization: async () => Result.err({ code: "approval_failed" }),
@@ -143,22 +145,22 @@ describe("PassportAuthorizationController", () => {
 });
 
 function createController(
-  overrides: Partial<PassportAuthorizationControllerDependencies> = {},
-  entry: ParsedAuthorizationEntry = validEntry(),
-): BrowserAuthorizationController {
+  overrides: Partial<ControllerDependencies> = {},
+  entry: AuthorizationEntry = validEntry(),
+): PassportAuthorizationControllerContract {
   return new PassportAuthorizationController({
     entry,
     dependencies: {
       approveAuthorization: async () => Result.ok(),
-      commitAuthorizationEntry: vi.fn(),
+      clearPendingEntry: vi.fn(),
       navigate: vi.fn(),
       ...overrides,
     },
   });
 }
 
-function validEntry(options: { callbacks?: boolean } = {}): ParsedAuthorizationEntry {
-  const parsed = parsePubkyAuthRequest(encodeURIComponent(validRequest(options)));
+function validEntry(options: { callbacks?: boolean } = {}): AuthorizationEntry {
+  const parsed = parseBrowserAuthorizationRequest(encodeURIComponent(validRequest(options)));
   if (Result.isError(parsed)) throw new Error("Test authorization request must parse");
   return { status: "valid", review: parsed.value.review, approval: parsed.value.approval };
 }

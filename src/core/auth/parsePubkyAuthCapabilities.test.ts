@@ -30,33 +30,33 @@ function expectError(input: string | null | undefined, code: PubkyAuthCapabiliti
 describe("parsePubkyAuthCapabilities", () => {
   it("parses read-only capabilities", () => {
     expect(expectCapabilities("/pub/pubky.app/:r")).toEqual([
-      { path: "/pub/pubky.app/", read: true, write: false, scope: "specific" },
+      { path: "/pub/pubky.app/", read: true, write: false },
     ]);
   });
 
   it("parses write-only capabilities", () => {
     expect(expectCapabilities("/pub/pubky.app/:w")).toEqual([
-      { path: "/pub/pubky.app/", read: false, write: true, scope: "specific" },
+      { path: "/pub/pubky.app/", read: false, write: true },
     ]);
   });
 
   it("parses read-write capabilities", () => {
     expect(expectCapabilities("/pub/pubky.app/:rw")).toEqual([
-      { path: "/pub/pubky.app/", read: true, write: true, scope: "specific" },
+      { path: "/pub/pubky.app/", read: true, write: true },
     ]);
   });
 
   it("accepts repeated actions allowed by the Pubky auth ABNF", () => {
     expect(expectCapabilities("/pub/pubky.app/:rrw")).toEqual([
-      { path: "/pub/pubky.app/", read: true, write: true, scope: "specific" },
+      { path: "/pub/pubky.app/", read: true, write: true },
     ]);
   });
 
   it("parses comma-separated capabilities", () => {
     expect(expectCapabilities("/pub/pubky.app/:rw,/pub/eventky/:r,/pub/mapky/:w")).toEqual([
-      { path: "/pub/pubky.app/", read: true, write: true, scope: "specific" },
-      { path: "/pub/eventky/", read: true, write: false, scope: "specific" },
-      { path: "/pub/mapky/", read: false, write: true, scope: "specific" },
+      { path: "/pub/pubky.app/", read: true, write: true },
+      { path: "/pub/eventky/", read: true, write: false },
+      { path: "/pub/mapky/", read: false, write: true },
     ]);
   });
 
@@ -90,28 +90,19 @@ describe("parsePubkyAuthCapabilities", () => {
 
   it("preserves file-scope paths exactly", () => {
     expect(expectCapabilities("/pub/file.txt:r")).toEqual([
-      { path: "/pub/file.txt", read: true, write: false, scope: "specific" },
+      { path: "/pub/file.txt", read: true, write: false },
     ]);
   });
 
   it("preserves colon-containing paths by splitting on the last colon", () => {
     expect(expectCapabilities("/pub/example.com/time:series:r")).toEqual([
-      { path: "/pub/example.com/time:series", read: true, write: false, scope: "specific" },
+      { path: "/pub/example.com/time:series", read: true, write: false },
     ]);
   });
 
   it("accepts RFC-style path characters and percent-encoding", () => {
     expect(expectCapabilities("/pub/app-._~!$&'()*+;=:@/%7Efile:r")).toEqual([
-      { path: "/pub/app-._~!$&'()*+;=:@/%7Efile", read: true, write: false, scope: "specific" },
-    ]);
-  });
-
-  it("classifies broad scopes per capability", () => {
-    expect(expectCapabilities("/:rw,/pub:rw,/pub/:rw,/pub/pubky.app/:rw")).toEqual([
-      { path: "/", read: true, write: true, scope: "broad" },
-      { path: "/pub", read: true, write: true, scope: "broad" },
-      { path: "/pub/", read: true, write: true, scope: "broad" },
-      { path: "/pub/pubky.app/", read: true, write: true, scope: "specific" },
+      { path: "/pub/app-._~!$&'()*+;=:@/%7Efile", read: true, write: false },
     ]);
   });
 

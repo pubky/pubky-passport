@@ -2,13 +2,10 @@ import { Result, type Err, type Result as ResultType } from "better-result";
 
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 
-export type PubkyAuthCapabilityScope = "specific" | "broad";
-
 export type PubkyAuthCapability = {
   path: string;
   read: boolean;
   write: boolean;
-  scope: PubkyAuthCapabilityScope;
 };
 
 export type PubkyAuthCapabilitiesParseErrorCode =
@@ -83,7 +80,6 @@ function parseCapability(input: string): CapabilityParseResult {
       path,
       read: actions.includes("r"),
       write: actions.includes("w"),
-      scope: getCapabilityScope(path),
   });
 }
 
@@ -120,10 +116,6 @@ function isHexDigit(char: string | undefined): boolean {
 
 function isValidCapabilityActions(actions: string): boolean {
   return /^[rw]+$/.test(actions);
-}
-
-function getCapabilityScope(path: string): PubkyAuthCapabilityScope {
-  return path === "/" || path === "/pub" || path === "/pub/" ? "broad" : "specific";
 }
 
 function error(

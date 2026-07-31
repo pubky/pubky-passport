@@ -5,9 +5,9 @@ import { Result, type Result as ResultType } from "better-result";
 
 import type { PubkyPublicIdentity } from "../../core/identity/pubkyIdentity";
 import {
-  isParserIssuedPubkyAuthRequest,
-  type ValidatedSensitivePubkyAuthRequest,
-} from "../../core/auth/parsePubkyAuthRequest";
+  isPubkyAuthApprovalCapability,
+  type PubkyAuthApprovalCapability,
+} from "../authorization/browserAuthorizationRequest";
 import {
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,
@@ -165,9 +165,9 @@ export class PubkySdkAdapter {
     return this.publishHomeserver(input.keyHandle, input.homeserverPubky);
   }
 
-  async approveAuthRequest(keyHandle: PubkyIdentityKeyHandle, authRequest: ValidatedSensitivePubkyAuthRequest): Promise<PubkyAuthApprovalResult> {
+  async approveAuthRequest(keyHandle: PubkyIdentityKeyHandle, authRequest: PubkyAuthApprovalCapability): Promise<PubkyAuthApprovalResult> {
     if (
-      !isParserIssuedPubkyAuthRequest(authRequest) ||
+      !isPubkyAuthApprovalCapability(authRequest) ||
       !isPubkyAuthRequestUrl(authRequest.sensitivePubkyAuthUrl)
     ) {
       return authApprovalFailure("approve_auth_request", "request_validation", "request_rejected");

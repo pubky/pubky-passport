@@ -92,10 +92,10 @@ describe("validatePubkyAuthUrls", () => {
       throw new Error(result.error.code);
     }
 
-    expect(result.value.callbackAvailability).toEqual({
-      success: true,
-      error: true,
-      cancel: true,
+    expect(result.value.callbacks).toEqual({
+      success: "https://third.example/success",
+      error: "https://third.example/error",
+      cancel: "https://third.example/cancel",
     });
   });
 
@@ -136,8 +136,7 @@ describe("validatePubkyAuthUrls", () => {
       throw new Error(result.error.code);
     }
 
-    expect(result.value.callbackAvailability).toEqual({ success: false, error: false, cancel: false });
-    expect(result.value.requestingAppDisplayName).toBeUndefined();
+    expect(result.value.callbacks).toEqual({});
   });
 
   it("returns the normalized client-provided relay origin", () => {
@@ -149,17 +148,6 @@ describe("validatePubkyAuthUrls", () => {
     if (Result.isError(result)) throw new Error(result.error.code);
     expect(result.value.relayHost).toBe("custom-relay.example");
     expect(result.value.relayOrigin).toBe("https://custom-relay.example");
-  });
-
-  it("rejects duplicate and unsupported request parameters", () => {
-    expectUrlError(
-      authUrl("relay=https://httprelay.pubky.app/inbox&relay=https://other.example/inbox&secret=secret-value"),
-      "duplicate_parameter",
-    );
-    expectUrlError(
-      authUrl("relay=https://httprelay.pubky.app/inbox&secret=secret-value&x-unreviewed=true"),
-      "unsupported_parameter",
-    );
   });
 
   it("rejects unsafe callback schemes", () => {
@@ -183,62 +171,6 @@ describe("validatePubkyAuthUrls", () => {
         "invalid_callback",
       );
     }
-  });
-
-  it("derives display domain from x-success without query parameters", () => {
-    const result = validatePubkyAuthUrls(
-      authUrl(
-        "relay=https://httprelay.pubky.app/inbox&secret=secret-value&x-success=https://third.example/callback?token=private",
-      ),
-    );
-
-    expect(Result.isOk(result)).toBe(true);
-    if (Result.isError(result)) {
-      throw new Error(result.error.code);
-    }
-
-    expect(result.value.requestingAppDisplayName).toBe("third.example");
-  });
-
-  it("derives display domain from other callbacks when x-success is absent", () => {
-    const errorResult = validatePubkyAuthUrls(
-      authUrl("relay=https://httprelay.pubky.app/inbox&secret=secret-value&x-error=https://errors.example/error"),
-    );
-
-    expect(Result.isOk(errorResult)).toBe(true);
-    if (Result.isError(errorResult)) {
-      throw new Error(errorResult.error.code);
-    }
-
-    expect(errorResult.value.requestingAppDisplayName).toBe("errors.example");
-
-    const cancelResult = validatePubkyAuthUrls(
-      authUrl("relay=https://httprelay.pubky.app/inbox&secret=secret-value&x-cancel=https://cancel.example/cancel"),
-    );
-
-    expect(Result.isOk(cancelResult)).toBe(true);
-    if (Result.isError(cancelResult)) {
-      throw new Error(cancelResult.error.code);
-    }
-
-    expect(cancelResult.value.requestingAppDisplayName).toBe("cancel.example");
-  });
-
-  it("displays internationalized callback domains as punycode ASCII to resist homograph spoofing", () => {
-    // "аpple.example" uses a Cyrillic "а"; it must not be shown as the Latin look-alike.
-    const result = validatePubkyAuthUrls(
-      authUrl(
-        "relay=https://httprelay.pubky.app/inbox&secret=secret-value&x-success=https://\u0430pple.example/success",
-      ),
-    );
-
-    expect(Result.isOk(result)).toBe(true);
-    if (Result.isError(result)) {
-      throw new Error(result.error.code);
-    }
-
-    expect(result.value.requestingAppDisplayName).toBe("xn--pple-43d.example");
-    expect(result.value.requestingAppDisplayName).not.toContain("\u0430");
   });
 
   it("does not expose callback query parameters in validation errors", () => {

@@ -2,10 +2,10 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PUBKY_AUTH_REQUEST_LIMITS } from "../../../core/auth/pubkyAuthRequestLimits";
-import { LOGGER } from "../../../libs/logger/logger";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "../../core/auth/pubkyAuthRequestLimits";
+import { LOGGER } from "../../libs/logger/logger";
 import {
-  commitAuthorizationEntry,
+  clearPendingAuthorizationEntry,
   readAndScrubAuthorizationEntry,
 } from "./browserAuthorizationEntry";
 
@@ -19,7 +19,7 @@ describe("browserAuthorizationEntry", () => {
     window.history.replaceState({}, "", "/");
   });
 
-  it("scrubs synchronously and preserves a parser-issued request across a StrictMode double initializer", () => {
+  it("scrubs synchronously and preserves a browser-issued request across a StrictMode double initializer", () => {
     setAuthorizationUrl(validRequest());
 
     const first = readAndScrubAuthorizationEntry(window);
@@ -62,7 +62,7 @@ describe("browserAuthorizationEntry", () => {
   it("clears the pre-commit cache explicitly", () => {
     setAuthorizationUrl(validRequest());
     readAndScrubAuthorizationEntry(window);
-    commitAuthorizationEntry(window);
+    clearPendingAuthorizationEntry(window);
 
     expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "invalid" });
   });

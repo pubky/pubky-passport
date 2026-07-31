@@ -207,10 +207,10 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
-  it("keeps sensitive parser approval types out of public browser contracts", () => {
+  it("keeps sensitive approval types out of public browser contracts", () => {
     const violations = [...STABLE_UI_BROWSER_MODULES]
-      .filter((filePath) => GRAPH.referencesIdentifier(filePath, "ValidatedSensitivePubkyAuthRequest"))
-      .map((filePath) => `${relative(REPO_ROOT, filePath)} references the sensitive parser approval type`);
+      .filter((filePath) => GRAPH.referencesIdentifier(filePath, "PubkyAuthApprovalCapability"))
+      .map((filePath) => `${relative(REPO_ROOT, filePath)} references the sensitive browser approval type`);
 
     expect(violations).toEqual([]);
   });
@@ -247,8 +247,8 @@ function inspectCoreFile(filePath: string): string[] {
 
 function inspectUiBrowserImports(filePath: string): string[] {
   const relativeFilePath = relative(REPO_ROOT, filePath);
-  const violations = GRAPH.referencesIdentifier(filePath, "ValidatedSensitivePubkyAuthRequest")
-    ? [`${relativeFilePath} references the sensitive parser approval type`]
+  const violations = GRAPH.referencesIdentifier(filePath, "PubkyAuthApprovalCapability")
+    ? [`${relativeFilePath} references the sensitive browser approval type`]
     : [];
   const visited = new Set<string>();
 

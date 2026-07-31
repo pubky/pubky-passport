@@ -120,18 +120,17 @@ sequenceDiagram
         participant CSP as policy.ts<br/>createContentSecurityPolicy()
     end
     box rgba(204, 121, 167, 0.18) src/core/auth
-        participant Parser as parsePubkyAuthRequest.ts<br/>extractRawPubkyAuthRequestQueryValue()<br/>parsePubkyAuthRequest()
+        participant Parser as parsePubkyAuthRequest.ts<br/>extractRawPubkyAuthRequestQueryValue()<br/>parsePubkyAuthRelayOrigin()
     end
     box rgba(0, 114, 178, 0.18) src/ui
         participant Loader as authorizationReviewLoader.tsx<br/>AuthorizationReviewLoader
         participant Review as authorizationReview.tsx<br/>AuthorizationReview()
     end
     box rgba(0, 158, 115, 0.18) src/browser/authorization
-        participant Factory as createBrowserAuthorizationController.ts<br/>createBrowserAuthorizationController()
+        participant Factory as passportAuthorization.ts<br/>createPassportAuthorizationController()
         participant Controller as passportAuthorizationController.ts<br/>PassportAuthorizationController
-    end
-    box rgba(0, 158, 115, 0.18) src/browser/authorization/adapters
-        participant Entry as browserAuthorizationEntry.ts<br/>readAndScrubAuthorizationEntry()<br/>commitAuthorizationEntry()
+        participant Entry as browserAuthorizationEntry.ts<br/>readAndScrubAuthorizationEntry()<br/>clearPendingAuthorizationEntry()
+        participant Request as browserAuthorizationRequest.ts<br/>parseBrowserAuthorizationRequest()
     end
 
     App->>Client: Navigate to Passport /authorize?d=...
@@ -139,8 +138,7 @@ sequenceDiagram
     Next->>Proxy: proxy(request)
     Proxy->>CSP: createContentSecurityPolicy(search, nonce)
     CSP->>Parser: extract d and parse request
-    Parser-->>CSP: review + sensitive approval + relayOrigin, or error
-    Note over CSP: Policy uses only relayOrigin
+    Parser-->>CSP: relayOrigin or typed error
     CSP-->>Proxy: document CSP
     Proxy-->>Next: NextResponse.next + CSP headers
     Next->>Page: AuthorizePage()
@@ -148,16 +146,18 @@ sequenceDiagram
     Next-->>Client: document + CSP + no-store + no-referrer
     Client->>Loader: hydrate
     Loader->>Review: dynamic import, SSR disabled
-    Review->>Factory: createBrowserAuthorizationController()
+    Review->>Factory: createPassportAuthorizationController()
     Factory->>Entry: readAndScrubAuthorizationEntry(window)
     Entry->>Client: History.prototype.replaceState(current pathname + hash, query removed)
-    Entry->>Parser: parse captured d
-    Parser-->>Entry: safe review + private approval
+    Entry->>Request: parse captured d
+    Request->>Parser: parse and validate request
+    Parser-->>Request: normalized request or typed error
+    Request-->>Entry: immutable safe review + private approval
     Entry-->>Factory: valid entry or invalid
     Factory->>Controller: new PassportAuthorizationController(...)
     Factory-->>Review: controller with safe view state
-    Review->>Controller: mounted()
-    Controller->>Entry: commitAuthorizationEntry(window)
+    Review->>Controller: commitInitialEntry()
+    Controller->>Entry: clearPendingAuthorizationEntry(window)
 ```
 
 
@@ -177,7 +177,7 @@ sequenceDiagram
         participant Browser as browserManualAuthorization.ts<br/>enterAuthorization()
     end
     box rgba(204, 121, 167, 0.18) src/core/auth
-        participant Parser as parsePubkyAuthRequest.ts<br/>parsePubkyAuthRequest()
+        participant Parser as parsePubkyAuthRequest.ts<br/>validatePubkyAuthRequest()
     end
     box rgba(107, 114, 128, 0.18) Runtime platforms
         participant Window as PLATFORM<br/>Passport tab window
@@ -186,7 +186,7 @@ sequenceDiagram
 
     User->>Form: Submit pasted pubkyauth URL
     Form->>Browser: enterAuthorization(input)
-    Browser->>Parser: parsePubkyAuthRequest(encodeURIComponent(input))
+    Browser->>Parser: validatePubkyAuthRequest(encodeURIComponent(input))
     Parser-->>Browser: validated request or typed error
     Note over Form: Clear textarea state
     alt Invalid
@@ -211,10 +211,9 @@ sequenceDiagram
     end
     box rgba(0, 158, 115, 0.18) src/browser/authorization
         participant Controller as passportAuthorizationController.ts<br/>PassportAuthorizationController
-        participant Composition as createBrowserAuthorizationController.ts<br/>approveWithPubkySdk()<br/>createActiveAuthorizationIdentityRestorer()
-    end
-    box rgba(0, 158, 115, 0.18) src/browser/authorization/application
-        participant UseCase as approveActiveAuthorization.ts<br/>approveActiveAuthorization()
+        participant Composition as passportAuthorization.ts<br/>approveUsingActiveLocalIdentity()
+        participant UseCase as approveAuthorizationWithActiveIdentity.ts<br/>approveAuthorizationWithActiveIdentity()
+        participant AuthRequest as browserAuthorizationRequest.ts<br/>isPubkyAuthApprovalCapability()<br/>getValidatedAuthorizationCallbacks()
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/local
         participant Local as restoreActiveLocalIdentityKey.ts<br/>RestoreActiveLocalIdentityKey
@@ -224,9 +223,6 @@ sequenceDiagram
     end
     box rgba(0, 158, 115, 0.18) src/browser/pubky
         participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
-    end
-    box rgba(204, 121, 167, 0.18) src/core/auth
-        participant AuthParser as parsePubkyAuthRequest.ts<br/>isParserIssuedPubkyAuthRequest()<br/>getParserIssuedPubkyAuthCallbacks()
     end
     box rgba(17, 24, 39, 0.12) External
         participant SDK as @synonymdev/pubky@0.9.3<br/>Keypair / Signer
@@ -240,10 +236,9 @@ sequenceDiagram
     Review->>Controller: approve()
     Controller->>Composition: approveAuthorization(approval)
     Composition->>Pubky: new PubkySdkAdapter()
-    Composition->>Composition: createActiveAuthorizationIdentityRestorer(pubky)
-    Composition->>UseCase: approveActiveAuthorization(...)
-    UseCase->>Composition: returned restoreActiveIdentity()
-    Composition->>Local: restore()
+    Composition->>Local: new RestoreActiveLocalIdentityKey(repository.readActive, pubky)
+    Composition->>UseCase: approveAuthorizationWithActiveIdentity(...)
+    UseCase->>Local: restore()
     Local->>Repo: readActive()
     Repo-->>Local: public metadata + 32-byte secret
     Local->>Pubky: restoreIdentityKey(secret)
@@ -251,11 +246,10 @@ sequenceDiagram
     SDK-->>Pubky: concrete Keypair
     Pubky-->>Local: opaque handle + public identity
     Note over Local: Compare persisted public metadata
-    Local-->>Composition: verified active identity
-    Composition-->>UseCase: verified active identity
+    Local-->>UseCase: verified active identity
     UseCase->>Pubky: approveAuthRequest(handle, approval)
-    Pubky->>AuthParser: isParserIssuedPubkyAuthRequest(approval)
-    AuthParser-->>Pubky: parser provenance
+    Pubky->>AuthRequest: isPubkyAuthApprovalCapability(approval)
+    AuthRequest-->>Pubky: browser approval provenance
     Pubky->>SDK: signer.approveAuthRequest(sensitive URL)
     Note over SDK,Relay: AuthToken signing, encryption, and Relay delivery are SDK-owned internals
     SDK-->>Pubky: completion or failure
@@ -264,8 +258,8 @@ sequenceDiagram
     UseCase-->>Composition: safe result
     Composition->>Pubky: dispose()
     Composition-->>Controller: safe result
-    Controller->>AuthParser: getParserIssuedPubkyAuthCallbacks(approval)
-    AuthParser-->>Controller: success or error callback
+    Controller->>AuthRequest: getValidatedAuthorizationCallbacks(approval)
+    AuthRequest-->>Controller: success or error callback
     alt Callback exists
         Controller->>Window: location.replace(callback)
     else No callback or navigation fails
@@ -279,7 +273,7 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Authorization cancellation call flow
-    accDescr: Cancellation retrieves only the parser-owned cancel callback and redirects or renders a local cancelled state without restoring a key.
+    accDescr: Cancellation retrieves only the browser-owned validated cancel callback and redirects or renders a local cancelled state without restoring a key.
     actor User
     box rgba(0, 114, 178, 0.18) src/ui
         participant Review as authorizationReview.tsx<br/>AuthorizationReview()
@@ -287,8 +281,8 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/authorization
         participant Controller as passportAuthorizationController.ts<br/>PassportAuthorizationController
     end
-    box rgba(204, 121, 167, 0.18) src/core/auth
-        participant Callbacks as parsePubkyAuthRequest.ts<br/>getParserIssuedPubkyAuthCallbacks()
+    box rgba(0, 158, 115, 0.18) src/browser/authorization
+        participant Callbacks as browserAuthorizationRequest.ts<br/>getValidatedAuthorizationCallbacks()
     end
     box rgba(107, 114, 128, 0.18) Browser platform
         participant Window as PLATFORM<br/>Passport tab window
@@ -296,7 +290,7 @@ sequenceDiagram
 
     User->>Review: Cancel before approval
     Review->>Controller: cancel()
-    Controller->>Callbacks: getParserIssuedPubkyAuthCallbacks(approval)
+    Controller->>Callbacks: getValidatedAuthorizationCallbacks(approval)
     Callbacks-->>Controller: cancel callback or none
     alt Callback exists
         Controller->>Window: location.replace(callback)
@@ -848,8 +842,8 @@ sequenceDiagram
 | Flow | Code | Main tests |
 | --- | --- | --- |
 | Authorization parser | `src/core/auth` | `src/core/auth/*.test.ts` |
-| Authorization controller | `src/browser/authorization` | Root controller/factory tests and colocated application tests |
-| Authorization browser entry | `src/browser/authorization/adapters/browserAuthorizationEntry.ts` | `adapters/browserAuthorizationEntry.test.ts` |
+| Authorization controller and approval | `src/browser/authorization` | Colocated request, controller, composition, and approval tests |
+| Authorization browser entry | `src/browser/authorization/browserAuthorizationEntry.ts` | `browserAuthorizationEntry.test.ts` |
 | Authorization UI | `src/ui/authorizationReview.tsx` | `src/ui/authorizationReview.test.tsx` |
 | Identity controller | `src/browser/identity` | Controller and factory tests |
 | Google credential capabilities | `src/browser/google-identity-services`, `src/browser/google-sign-in`, `src/browser/google-drive-access` | Colocated capability tests |

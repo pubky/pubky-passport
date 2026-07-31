@@ -4,7 +4,7 @@ import { Result } from "better-result";
 
 import {
   extractRawPubkyAuthRequestQueryValue,
-  parsePubkyAuthRequest,
+  parsePubkyAuthRelayOrigin,
 } from "../../core/auth/parsePubkyAuthRequest";
 
 export function createContentSecurityPolicy(input: {
@@ -55,8 +55,8 @@ function parseAuthorizationRelayOrigin(search: string): string | undefined {
   const rawD = extractRawPubkyAuthRequestQueryValue(search);
   if (!rawD.valid) return undefined;
 
-  const parsed = parsePubkyAuthRequest(rawD.value);
+  const parsed = parsePubkyAuthRelayOrigin(rawD.value);
   if (Result.isError(parsed)) return undefined;
 
-  return parsed.value.relayOrigin;
+  return parsed.value;
 }

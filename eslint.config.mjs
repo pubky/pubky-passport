@@ -85,14 +85,14 @@ const ESLINT_CONFIG = defineConfig([
         {
           paths: [
             {
-              name: "../core/auth/parsePubkyAuthRequest",
-              importNames: ["ValidatedSensitivePubkyAuthRequest"],
-              message: "UI must consume safe authorization controller state, not sensitive parser approval types."
+              name: "../browser/authorization/browserAuthorizationRequest",
+              importNames: ["PubkyAuthApprovalCapability"],
+              message: "UI must consume safe authorization controller state, not sensitive approval types."
             },
             {
-              name: "@/core/auth/parsePubkyAuthRequest",
-              importNames: ["ValidatedSensitivePubkyAuthRequest"],
-              message: "UI must consume safe authorization controller state, not sensitive parser approval types."
+              name: "@/browser/authorization/browserAuthorizationRequest",
+              importNames: ["PubkyAuthApprovalCapability"],
+              message: "UI must consume safe authorization controller state, not sensitive approval types."
             }
           ],
           patterns: [
@@ -111,8 +111,7 @@ const ESLINT_CONFIG = defineConfig([
   },
   {
     files: [
-      "src/browser/authorization/browserAuthorizationController.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
-      "src/browser/authorization/createBrowserAuthorizationController.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+      "src/browser/authorization/passportAuthorization.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
       "src/browser/authorization/browserManualAuthorization.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
       "src/browser/identity/passportIdentity.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
     ],
@@ -123,15 +122,15 @@ const ESLINT_CONFIG = defineConfig([
         {
           paths: [
             {
-              name: "@/core/auth/parsePubkyAuthRequest",
-              importNames: ["ValidatedSensitivePubkyAuthRequest"],
-              message: "Public browser contracts must expose safe review state, not sensitive parser approval types."
+              name: "@/browser/authorization/browserAuthorizationRequest",
+              importNames: ["PubkyAuthApprovalCapability"],
+              message: "Public browser contracts must expose safe review state, not sensitive approval types."
             }
           ],
           patterns: [{
-            regex: "^(?:\\.\\./)+core/auth/parsePubkyAuthRequest$",
-            importNames: ["ValidatedSensitivePubkyAuthRequest"],
-            message: "Public browser contracts must expose safe review state, not sensitive parser approval types."
+            regex: "^(?:\\.\\./)+authorization/browserAuthorizationRequest$",
+            importNames: ["PubkyAuthApprovalCapability"],
+            message: "Public browser contracts must expose safe review state, not sensitive approval types."
           }]
         }
       ]

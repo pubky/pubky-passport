@@ -17,11 +17,11 @@ vi.mock("../pubky/pubkySdkAdapter", () => ({
   PubkySdkAdapter: MOCKS.PubkySdkAdapter,
 }));
 
-import { createBrowserAuthorizationController } from "./createBrowserAuthorizationController";
+import { createPassportAuthorizationController } from "./passportAuthorization";
 
 const RELAY_ORIGIN = "https://relay.example";
 
-describe("createBrowserAuthorizationController", () => {
+describe("createPassportAuthorizationController", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", new MemoryStorage());
     MOCKS.PubkySdkAdapter.mockReset();
@@ -44,7 +44,7 @@ describe("createBrowserAuthorizationController", () => {
   it("constructs Pubky lazily for approval and owns adapter cleanup", async () => {
     window.history.replaceState({}, "", `/authorize?d=${encodeURIComponent(validRequest())}`);
 
-    const controller = createBrowserAuthorizationController();
+    const controller = createPassportAuthorizationController();
 
     expect(controller.getState().status).toBe("review");
     expect(MOCKS.PubkySdkAdapter).not.toHaveBeenCalled();
@@ -60,7 +60,7 @@ describe("createBrowserAuthorizationController", () => {
   it("maps identity repository failures at the authorization composition boundary", async () => {
     window.localStorage.setItem("pubky-passport/local-identities/v1", "invalid-store");
     window.history.replaceState({}, "", `/authorize?d=${encodeURIComponent(validRequest())}`);
-    const controller = createBrowserAuthorizationController();
+    const controller = createPassportAuthorizationController();
 
     await expect(controller.approve()).resolves.toEqual({
       status: "failed",
@@ -75,7 +75,7 @@ describe("createBrowserAuthorizationController", () => {
       throw new Error("sensitive authorization request");
     });
     window.history.replaceState({}, "", `/authorize?d=${encodeURIComponent(validRequest())}`);
-    const controller = createBrowserAuthorizationController();
+    const controller = createPassportAuthorizationController();
 
     await expect(controller.approve()).resolves.toEqual({
       status: "failed",
@@ -95,7 +95,7 @@ describe("createBrowserAuthorizationController", () => {
       throw new Error("cleanup failed");
     });
     window.history.replaceState({}, "", `/authorize?d=${encodeURIComponent(validRequest())}`);
-    const controller = createBrowserAuthorizationController();
+    const controller = createPassportAuthorizationController();
 
     await expect(controller.approve()).resolves.toEqual({
       status: "failed",

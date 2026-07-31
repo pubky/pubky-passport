@@ -4,27 +4,27 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import type {
-  BrowserAuthorizationController,
-  BrowserAuthorizationViewState,
-} from "../browser/authorization/browserAuthorizationController";
-import { createBrowserAuthorizationController } from "../browser/authorization/createBrowserAuthorizationController";
+  PassportAuthorizationController,
+  PassportAuthorizationViewState,
+} from "../browser/authorization/passportAuthorization";
+import { createPassportAuthorizationController } from "../browser/authorization/passportAuthorization";
 import type { createPassportIdentityController } from "../browser/identity/passportIdentity";
 import { AuthorizationIdentityPanel } from "./authorizationIdentityPanel";
 
 type AuthorizationReviewProps = {
   googleClientId: string;
   homegateBaseUrl: string;
-  controllerFactory?: () => BrowserAuthorizationController;
+  controllerFactory?: () => PassportAuthorizationController;
   identityControllerFactory?: typeof createPassportIdentityController;
 };
 
 export function AuthorizationReview({
   googleClientId,
   homegateBaseUrl,
-  controllerFactory = createBrowserAuthorizationController,
+  controllerFactory = createPassportAuthorizationController,
   identityControllerFactory,
 }: AuthorizationReviewProps) {
-  // The factory owns synchronous query scrubbing and StrictMode parser provenance.
+  // The factory owns synchronous query scrubbing and StrictMode approval provenance.
   const [initial] = useState(() => {
     try {
       const controller = controllerFactory();
@@ -34,7 +34,7 @@ export function AuthorizationReview({
     }
   });
   const controller = initial?.controller ?? null;
-  const [state, setState] = useState<BrowserAuthorizationViewState | null>(initial?.state ?? null);
+  const [state, setState] = useState<PassportAuthorizationViewState | null>(initial?.state ?? null);
   const [identityReady, setIdentityReady] = useState(false);
   const [boundaryFailed, setBoundaryFailed] = useState(initial === null);
 
@@ -44,7 +44,7 @@ export function AuthorizationReview({
     let unsubscribe = () => {};
     try {
       unsubscribe = controller.subscribe(setState);
-      controller.mounted();
+      controller.commitInitialEntry();
     } catch {
       queueMicrotask(() => setBoundaryFailed(true));
     }
@@ -120,7 +120,7 @@ export function AuthorizationReview({
     >
       <header>
         <p className="text-sm text-neutral-600">Requesting app (unverified)</p>
-        <h1 className="text-2xl font-semibold">{state.review.requestingAppDisplayName ?? "An app"}</h1>
+        <h1 className="text-2xl font-semibold">{state.review.requestingAppDisplayHost ?? "An app"}</h1>
         <p className="mt-2 text-sm text-neutral-600">
           Encrypted handoff relay: <code>{state.review.relayHost}</code>
         </p>

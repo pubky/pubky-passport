@@ -7,23 +7,23 @@ import {
 } from "./parsePubkyAuthCapabilities";
 import {
   validatePubkyAuthUrls,
-  type PubkyAuthCallbackAvailability,
-  type ValidatedPubkyAuthCallbacks as ValidatedPubkyAuthCallbacksInternal,
+  type ValidatedPubkyAuthCallbacks,
   type PubkyAuthUrlValidationError,
 } from "./validatePubkyAuthUrls";
-import {
-  PUBKY_AUTH_REQUEST_PARAMETERS,
-} from "./pubkyAuthRequestParameters";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
-
-export type { PubkyAuthCapability } from "./parsePubkyAuthCapabilities";
-export type { PubkyAuthCallbackAvailability } from "./validatePubkyAuthUrls";
 
 export type PubkyAuthRequestKind = "signin";
 
-declare const validatedSensitivePubkyAuthRequestBrand: unique symbol;
-const PARSER_ISSUED_APPROVAL_REQUESTS = new WeakSet<object>();
-const PARSER_ISSUED_APPROVAL_CALLBACKS = new WeakMap<object, Readonly<ValidatedPubkyAuthCallbacksInternal>>();
+const PUBKY_AUTH_REQUEST_PARAMETERS = {
+  relay: "relay",
+  secret: "secret",
+  capabilities: "caps",
+  source: "x-source",
+  success: "x-success",
+  error: "x-error",
+  cancel: "x-cancel",
+} as const;
+const SUPPORTED_PARAMETERS = new Set<string>(Object.values(PUBKY_AUTH_REQUEST_PARAMETERS));
 
 export type PubkyAuthParseErrorCode =
   | "missing_d"
@@ -36,6 +36,8 @@ export type PubkyAuthParseErrorCode =
   | "invalid_secret"
   | "missing_capabilities"
   | "invalid_capability"
+  | "duplicate_parameter"
+  | "unsupported_parameter"
   | PubkyAuthUrlValidationError["code"];
 
 export type PubkyAuthParseError = {
@@ -43,33 +45,18 @@ export type PubkyAuthParseError = {
   message: string;
 };
 
-export type PubkyAuthRequestReview = {
+export type ParsedPubkyAuthRequest = {
   kind: PubkyAuthRequestKind;
   capabilities: PubkyAuthCapability[];
-  callbackAvailability: PubkyAuthCallbackAvailability;
+  callbacks: Readonly<ValidatedPubkyAuthCallbacks>;
   relayHost: string;
-  requestingAppDisplayName?: string;
-};
-
-export type ValidatedSensitivePubkyAuthRequest = {
-  readonly sensitivePubkyAuthUrl: string & {
-    readonly [validatedSensitivePubkyAuthRequestBrand]: "ValidatedSensitivePubkyAuthRequest";
-  };
-};
-
-export type ValidatedPubkyAuthCallbacks = Readonly<{
-  success?: string;
-  error?: string;
-  cancel?: string;
-}>;
-
-export type ValidatedPubkyAuthRequest = {
-  review: PubkyAuthRequestReview;
-  approval: ValidatedSensitivePubkyAuthRequest;
   relayOrigin: string;
+  sensitivePubkyAuthUrl: string;
 };
 
-export type PubkyAuthParseResult = ResultType<ValidatedPubkyAuthRequest, PubkyAuthParseError>;
+export type PubkyAuthParseResult = ResultType<ParsedPubkyAuthRequest, PubkyAuthParseError>;
+export type PubkyAuthValidationResult = ResultType<void, PubkyAuthParseError>;
+export type PubkyAuthRelayOriginResult = ResultType<string, PubkyAuthParseError>;
 
 type ParseValueResult<T> = ResultType<T, PubkyAuthParseError>;
 
@@ -122,6 +109,11 @@ export function parsePubkyAuthRequest(
     return error("invalid_secret", "Pubky auth request secret exceeds the allowed size.");
   }
 
+  const parameters = validatePubkyAuthRequestParameters(authUrl.value.searchParams);
+  if (Result.isError(parameters)) {
+    return Result.err(parameters.error);
+  }
+
   const urls = validatePubkyAuthUrls(authUrl.value);
   if (Result.isError(urls)) {
     return mapUrlValidationError(urls.error);
@@ -132,36 +124,24 @@ export function parsePubkyAuthRequest(
     return mapCapabilitiesError(capabilities.error);
   }
 
-  const review: PubkyAuthRequestReview = {
+  return Result.ok({
     kind: kind.value,
     capabilities: capabilities.value,
-    callbackAvailability: urls.value.callbackAvailability,
+    callbacks: Object.freeze({ ...urls.value.callbacks }),
     relayHost: urls.value.relayHost,
-  };
-
-  if (urls.value.requestingAppDisplayName) {
-    review.requestingAppDisplayName = urls.value.requestingAppDisplayName;
-  }
-
-  const approval: ValidatedSensitivePubkyAuthRequest = Object.freeze({
-    sensitivePubkyAuthUrl: authUrl.value.href as ValidatedSensitivePubkyAuthRequest["sensitivePubkyAuthUrl"],
+    relayOrigin: urls.value.relayOrigin,
+    sensitivePubkyAuthUrl: authUrl.value.href,
   });
-  PARSER_ISSUED_APPROVAL_REQUESTS.add(approval);
-  PARSER_ISSUED_APPROVAL_CALLBACKS.set(approval, Object.freeze({ ...urls.value.callbacks }));
-
-  return Result.ok({ review, approval, relayOrigin: urls.value.relayOrigin });
 }
 
-export function isParserIssuedPubkyAuthRequest(
-  value: unknown,
-): value is ValidatedSensitivePubkyAuthRequest {
-  return typeof value === "object" && value !== null && PARSER_ISSUED_APPROVAL_REQUESTS.has(value);
+export function validatePubkyAuthRequest(d: unknown): PubkyAuthValidationResult {
+  const parsed = parsePubkyAuthRequest(d);
+  return Result.isError(parsed) ? Result.err(parsed.error) : Result.ok();
 }
 
-export function getParserIssuedPubkyAuthCallbacks(
-  approval: ValidatedSensitivePubkyAuthRequest,
-): ValidatedPubkyAuthCallbacks | undefined {
-  return PARSER_ISSUED_APPROVAL_CALLBACKS.get(approval);
+export function parsePubkyAuthRelayOrigin(d: unknown): PubkyAuthRelayOriginResult {
+  const parsed = parsePubkyAuthRequest(d);
+  return Result.isError(parsed) ? Result.err(parsed.error) : Result.ok(parsed.value.relayOrigin);
 }
 
 export function extractRawPubkyAuthRequestQueryValue(
@@ -208,6 +188,24 @@ function parseAuthRequestKind(url: URL): ParseValueResult<PubkyAuthRequestKind> 
   return error("invalid_auth_request_path", "Pubky auth request path is not supported.");
 }
 
+function validatePubkyAuthRequestParameters(searchParams: URLSearchParams): ParseValueResult<void> {
+  const seen = new Set<string>();
+
+  for (const [name] of searchParams) {
+    if (!SUPPORTED_PARAMETERS.has(name)) {
+      return error("unsupported_parameter", "Pubky auth request contains an unsupported parameter.");
+    }
+
+    if (seen.has(name)) {
+      return error("duplicate_parameter", "Pubky auth request contains a duplicate parameter.");
+    }
+
+    seen.add(name);
+  }
+
+  return Result.ok();
+}
+
 function mapCapabilitiesError(capabilitiesError: PubkyAuthCapabilitiesParseError): PubkyAuthParseResult {
   if (capabilitiesError.code === "missing_capabilities") {
     return error("missing_capabilities", capabilitiesError.message);
@@ -219,8 +217,6 @@ function mapCapabilitiesError(capabilitiesError: PubkyAuthCapabilitiesParseError
 function mapUrlValidationError(urlError: PubkyAuthUrlValidationError): PubkyAuthParseResult {
   return error(urlError.code, urlError.message);
 }
-
-
 function error(
   code: PubkyAuthParseErrorCode,
   message: string,

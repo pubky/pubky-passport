@@ -2,23 +2,28 @@ import "client-only";
 
 import { Result } from "better-result";
 
+import { extractRawPubkyAuthRequestQueryValue } from "../../core/auth/parsePubkyAuthRequest";
+import { LOGGER } from "../../libs/logger/logger";
 import {
-  extractRawPubkyAuthRequestQueryValue,
-  parsePubkyAuthRequest,
-} from "../../../core/auth/parsePubkyAuthRequest";
-import { LOGGER } from "../../../libs/logger/logger";
-import type { ParsedAuthorizationEntry } from "../application/authorizationEntry";
+  parseBrowserAuthorizationRequest,
+  type AuthorizationRequestReview,
+  type PubkyAuthApprovalCapability,
+} from "./browserAuthorizationRequest";
+
+export type AuthorizationEntry =
+  | { status: "valid"; review: AuthorizationRequestReview; approval: PubkyAuthApprovalCapability }
+  | { status: "invalid" };
 
 type PendingStrictModeEntry = {
   scrubbedHref: string;
-  entry: ParsedAuthorizationEntry;
+  entry: AuthorizationEntry;
 };
 
 const PENDING_STRICT_MODE_ENTRIES = new WeakMap<Window, PendingStrictModeEntry>();
 
 export function readAndScrubAuthorizationEntry(
   browserWindow: Window,
-): ParsedAuthorizationEntry {
+): AuthorizationEntry {
   const rawSearch = browserWindow.location.search;
   const scrubbedHref = `${browserWindow.location.origin}${browserWindow.location.pathname}${browserWindow.location.hash}`;
   // Avoid framework-patched history methods during render while scrubbing before commit.
@@ -47,14 +52,14 @@ export function readAndScrubAuthorizationEntry(
   }
 
   const rawD = extractRawPubkyAuthRequestQueryValue(rawSearch);
-  const parsed = parsePubkyAuthRequest(rawD.valid ? rawD.value : undefined);
+  const parsed = parseBrowserAuthorizationRequest(rawD.valid ? rawD.value : undefined);
   if (Result.isError(parsed)) {
     LOGGER.info("authorize.parse.failed", {
       source: "query",
       code: rawD.valid ? parsed.error.code : "invalid_query_shape",
     });
   }
-  const entry: ParsedAuthorizationEntry = Result.isError(parsed)
+  const entry: AuthorizationEntry = Result.isError(parsed)
     ? { status: "invalid" }
     : { status: "valid", review: parsed.value.review, approval: parsed.value.approval };
   const pending = { scrubbedHref, entry };
@@ -67,6 +72,6 @@ export function readAndScrubAuthorizationEntry(
   return entry;
 }
 
-export function commitAuthorizationEntry(browserWindow: Window): void {
+export function clearPendingAuthorizationEntry(browserWindow: Window): void {
   PENDING_STRICT_MODE_ENTRIES.delete(browserWindow);
 }

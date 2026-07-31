@@ -2,7 +2,7 @@ import { Keypair } from "@synonymdev/pubky";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
-import type { ValidatedSensitivePubkyAuthRequest } from "../../core/auth/parsePubkyAuthRequest";
+import type { PubkyAuthApprovalCapability } from "../authorization/browserAuthorizationRequest";
 import { LOGGER } from "../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkyIdentityKeyHandle } from "./pubkyIdentityKey";
 import { PubkySdkAdapter } from "./pubkySdkAdapter";
@@ -131,7 +131,7 @@ describe("PubkySdkAdapter", () => {
         {} as PubkyIdentityKeyHandle,
         {
           sensitivePubkyAuthUrl:
-            "pubkyauth://signin?secret=should-not-be-returned&relay=https://httprelay.pubky.app/inbox&caps=/pub/pubky.app/:rw" as ValidatedSensitivePubkyAuthRequest["sensitivePubkyAuthUrl"],
+            "pubkyauth://signin?secret=should-not-be-returned&relay=https://httprelay.pubky.app/inbox&caps=/pub/pubky.app/:rw" as PubkyAuthApprovalCapability["sensitivePubkyAuthUrl"],
         },
       );
 

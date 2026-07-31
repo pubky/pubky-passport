@@ -1,23 +1,11 @@
 import { Result, type Err, type Result as ResultType } from "better-result";
 
-import {
-  PUBKY_AUTH_REQUEST_PARAMETERS,
-  validatePubkyAuthRequestParameters,
-  type PubkyAuthRequestParameterErrorCode,
-} from "./pubkyAuthRequestParameters";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
-
-export type PubkyAuthCallbackAvailability = {
-  success: boolean;
-  error: boolean;
-  cancel: boolean;
-};
 
 export type PubkyAuthUrlValidationErrorCode =
   | "missing_relay"
   | "invalid_relay"
-  | "invalid_callback"
-  | PubkyAuthRequestParameterErrorCode;
+  | "invalid_callback";
 
 export type PubkyAuthUrlValidationError = {
   code: PubkyAuthUrlValidationErrorCode;
@@ -25,11 +13,9 @@ export type PubkyAuthUrlValidationError = {
 };
 
 export type PubkyAuthUrlValidationResult = ResultType<{
-  callbackAvailability: PubkyAuthCallbackAvailability;
   callbacks: ValidatedPubkyAuthCallbacks;
   relayHost: string;
   relayOrigin: string;
-  requestingAppDisplayName?: string;
 }, PubkyAuthUrlValidationError>;
 
 const UNSAFE_CALLBACK_PROTOCOLS = new Set([
@@ -44,13 +30,8 @@ type UrlParseResult = ResultType<URL, "invalid_url">;
 export function validatePubkyAuthUrls(
   authUrl: URL,
 ): PubkyAuthUrlValidationResult {
-  const parameters = validatePubkyAuthRequestParameters(authUrl.searchParams);
-  if (Result.isError(parameters)) {
-    return Result.err(parameters.error);
-  }
-
   const relay = validateRelayUrl(
-    authUrl.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.relay),
+    authUrl.searchParams.get("relay"),
   );
   if (Result.isError(relay)) {
     return Result.err(relay.error);
@@ -61,18 +42,10 @@ export function validatePubkyAuthUrls(
     return Result.err(callbacks.error);
   }
 
-  const requestingAppDisplayName = deriveDisplayDomain(callbacks.value);
-
   return Result.ok({
     callbacks: callbacks.value,
     relayHost: relay.value.host,
     relayOrigin: relay.value.origin,
-    callbackAvailability: {
-      success: callbacks.value.success !== undefined,
-      error: callbacks.value.error !== undefined,
-      cancel: callbacks.value.cancel !== undefined,
-    },
-    ...(requestingAppDisplayName ? { requestingAppDisplayName } : {}),
   });
 }
 
@@ -113,41 +86,20 @@ function isExactRelayHostname(hostname: string): boolean {
   );
 }
 
-function deriveDisplayDomain(callbacks: ValidatedPubkyAuthCallbacks): string | undefined {
-  const displayCallback = callbacks.success ?? callbacks.error ?? callbacks.cancel;
-  if (!displayCallback) {
-    return undefined;
-  }
-
-  // Invariant: callback values are canonical URL.href strings produced by
-  // validateCallbacks, so re-parsing succeeds under the normal flow. We parse
-  // defensively anyway so a future change to the callback source can never turn
-  // display-name derivation into an unhandled throw in this signing path.
-  const parsedCallback = parseAbsoluteUrl(displayCallback);
-  if (Result.isError(parsedCallback)) {
-    return undefined;
-  }
-
-  // URL.hostname returns punycode ASCII (e.g. "xn--...") for internationalized
-  // domains. We intentionally display that ASCII form so a Unicode homograph
-  // cannot spoof the requesting domain shown to the user before signing.
-  return parsedCallback.value.hostname || undefined;
-}
-
 function validateCallbacks(
   authUrl: URL,
 ): ResultType<ValidatedPubkyAuthCallbacks, PubkyAuthUrlValidationError> {
-  const success = validateOptionalCallback(authUrl.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.success));
+  const success = validateOptionalCallback(authUrl.searchParams.get("x-success"));
   if (Result.isError(success)) {
     return Result.err(success.error);
   }
 
-  const errorCallback = validateOptionalCallback(authUrl.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.error));
+  const errorCallback = validateOptionalCallback(authUrl.searchParams.get("x-error"));
   if (Result.isError(errorCallback)) {
     return Result.err(errorCallback.error);
   }
 
-  const cancel = validateOptionalCallback(authUrl.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.cancel));
+  const cancel = validateOptionalCallback(authUrl.searchParams.get("x-cancel"));
   if (Result.isError(cancel)) {
     return Result.err(cancel.error);
   }
