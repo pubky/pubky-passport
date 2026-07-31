@@ -4,13 +4,13 @@ import { GoogleDriveAccess } from "../google-drive-access/googleDriveAccess";
 import { GoogleIdentityServices } from "../google-identity-services/googleIdentityServices";
 import { GoogleIdentityServicesSignInButton } from "../google-sign-in/googleIdentityServicesSignInButton";
 import { LOGGER } from "../../libs/logger/logger";
-import { LocalStorageIdentityRepository } from "./local-identity/localStorageIdentityRepository";
+import { LocalStorageIdentityRepository } from "./local/localStorageIdentityRepository";
 import {
   PassportIdentityController as PassportIdentityControllerImplementation,
 } from "./passportIdentityController";
 import {
   GoogleBackedIdentityOperations,
-} from "./google-backed-identity/googleBackedIdentityOperations";
+} from "./google-backed/googleBackedIdentityOperations";
 
 export type PassportIdentityController = Pick<
   PassportIdentityControllerImplementation,
@@ -35,12 +35,12 @@ export type {
   PassportIdentityList,
 } from "./passportIdentityController";
 
-export function createPassportIdentityController(options: {
-  googleClientId: string;
-  homegateBaseUrl: string;
-}): PassportIdentityController {
+export function createPassportIdentityController(
+  googleClientId: string,
+  homegateBaseUrl: string,
+): PassportIdentityController {
   try {
-    return createController(options);
+    return createController(googleClientId, homegateBaseUrl);
   } catch (error) {
     LOGGER.error("identity.controller.failed", {
       operation: "initialize",
@@ -50,26 +50,26 @@ export function createPassportIdentityController(options: {
   }
 }
 
-function createController(options: {
-  googleClientId: string;
-  homegateBaseUrl: string;
-}): PassportIdentityController {
+function createController(
+  googleClientId: string,
+  homegateBaseUrl: string,
+): PassportIdentityController {
   const repository = new LocalStorageIdentityRepository();
   const googleIdentityServices = new GoogleIdentityServices();
   const googleSignInButton = new GoogleIdentityServicesSignInButton({
-    clientId: options.googleClientId,
+    clientId: googleClientId,
     googleIdentityServices,
   });
   const googleDriveAccess = new GoogleDriveAccess({
     googleIdentityServices,
-    clientId: options.googleClientId,
+    clientId: googleClientId,
     fetch: globalThis.fetch.bind(globalThis),
   });
   let googleBackedIdentityOperations: GoogleBackedIdentityOperations | undefined;
   const getGoogleBackedIdentityOperations = () => {
     googleBackedIdentityOperations ??= new GoogleBackedIdentityOperations({
       saveIdentityRecord: repository.save.bind(repository),
-      homegateBaseUrl: options.homegateBaseUrl,
+      homegateBaseUrl,
       passportOrigin: globalThis.location.origin,
     });
     return googleBackedIdentityOperations;

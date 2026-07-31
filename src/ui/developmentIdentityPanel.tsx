@@ -39,7 +39,7 @@ export function DevelopmentIdentityPanel({
     queueMicrotask(() => {
       if (cancelled) return;
       try {
-        controller.current = createPassportIdentityController({ googleClientId, homegateBaseUrl });
+        controller.current = createPassportIdentityController(googleClientId, homegateBaseUrl);
         setControllerReady(true);
         unsubscribe = controller.current.subscribe(() => refreshIdentities());
         refreshIdentities();

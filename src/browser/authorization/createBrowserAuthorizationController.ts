@@ -3,8 +3,8 @@ import "client-only";
 import { Result } from "better-result";
 
 import { LOGGER } from "../../libs/logger/logger";
-import { LocalStorageIdentityRepository } from "../identity/local-identity/localStorageIdentityRepository";
-import { RestoreActiveLocalIdentityKey } from "../identity/local-identity/restoreActiveLocalIdentityKey";
+import { LocalStorageIdentityRepository } from "../identity/local/localStorageIdentityRepository";
+import { RestoreActiveLocalIdentityKey } from "../identity/local/restoreActiveLocalIdentityKey";
 import { PubkySdkAdapter } from "../pubky/pubkySdkAdapter";
 import {
   approveActiveAuthorization,

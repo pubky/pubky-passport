@@ -43,7 +43,7 @@ export function AuthorizationIdentityPanel({
     queueMicrotask(() => {
       if (cancelled) return;
       try {
-        controller.current = controllerFactory({ googleClientId, homegateBaseUrl });
+        controller.current = controllerFactory(googleClientId, homegateBaseUrl);
         unsubscribe = controller.current.subscribe(() => {
           if (!identityActionPending.current) refreshIdentities();
         });

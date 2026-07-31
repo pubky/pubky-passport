@@ -10,8 +10,8 @@ import { WrappingKeyApiClient } from "../../wrapping-key/wrappingKeyApiClient";
 import type {
   LocalIdentityResult,
   LocalIdentitySummary,
-} from "../local-identity/localStorageIdentityRepository";
-import { SaveLocalIdentity } from "../local-identity/saveLocalIdentity";
+} from "../local/localStorageIdentityRepository";
+import { SaveLocalIdentity } from "../local/saveLocalIdentity";
 import { CreateGoogleBackedIdentity } from "./createGoogleBackedIdentity";
 import { DeleteGoogleDrivePassportFile } from "./deleteGoogleDrivePassportFile";
 import {

@@ -10,7 +10,7 @@ import type { PassportFileEnvelopeV1 } from "../../../core/passport-file/passpor
 import type { PassportFileReference, PassportFileStoreResult } from "../../passport-file/googleDrivePassportFileStore";
 import type { EncryptPassportSecret } from "../../passport-file/passportFileWebCrypto";
 import type { HomeserverSignupInvitation } from "../../homegate/homegateClient";
-import { SaveLocalIdentity } from "../local-identity/saveLocalIdentity";
+import { SaveLocalIdentity } from "../local/saveLocalIdentity";
 
 export type CreateGoogleBackedIdentityErrorCode =
   | "create_failed"

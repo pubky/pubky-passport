@@ -9,11 +9,11 @@ import type {
   GoogleBackedIdentityCredentials,
   GoogleBackedIdentityError,
   GoogleBackedIdentityResult,
-} from "./google-backed-identity/establishGoogleBackedIdentity";
+} from "./google-backed/establishGoogleBackedIdentity";
 import type {
   GoogleDrivePassportFileDeletionError,
   GoogleDrivePassportFileDeletionResult,
-} from "./google-backed-identity/deleteGoogleDrivePassportFile";
+} from "./google-backed/deleteGoogleDrivePassportFile";
 import type {
   GoogleDriveAccessErrorCode,
   GoogleDriveAccessResult,
@@ -26,9 +26,9 @@ import type {
   LocalIdentityErrorCode,
   LocalIdentityResult,
   LocalIdentitySummary,
-} from "./local-identity/localStorageIdentityRepository";
+} from "./local/localStorageIdentityRepository";
 
-export type { LocalIdentitySummary } from "./local-identity/localStorageIdentityRepository";
+export type { LocalIdentitySummary } from "./local/localStorageIdentityRepository";
 
 export type PassportIdentityList = {
   activeIdentityId: string | null;

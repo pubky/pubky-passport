@@ -1,44 +1,48 @@
 # Browser Identity
 
-Owns the safe identity controller, local Pubky identity custody, and the Google-backed
-custody/recovery strategy.
+This feature owns the browser's Pubky identity catalog, Google-backed identity
+establishment, and the safe controller consumed by UI components.
 
-## Features
+## Why Two Root Files?
 
-- `local-identity/` stores the identity catalog, active identity ID, and each
-  identity's 32-byte Pubky secret.
-- `google-backed-identity/` consumes the Google ID token and Drive OAuth storage credential to restore
-  or create and activate a Pubky identity.
+The public feature entry and the stateful implementation are deliberately separate.
 
-Provider credential acquisition belongs to sibling `browser/google-sign-in`,
+### `passportIdentity.ts`
+
+This is the only identity module UI code should import. It:
+
+- Exposes `createPassportIdentityController()`.
+- Exposes the safe, instance-only `PassportIdentityController` type and UI state types.
+- Constructs the local identity repository, Google sign-in, and Google Drive access.
+- Lazily constructs Google-backed custody operations only when an action needs them.
+- Keeps the implementation constructor and its credential-bearing dependencies out
+  of the public UI entry.
+
+`createPassportIdentityController()` is a function because it is a composition
+factory. It wires dependencies and returns the stateful controller; introducing a
+second class would create another lifecycle object without adding behavior.
+
+### `passportIdentityController.ts`
+
+This is the internal state machine. It:
+
+- Holds Google ID tokens and Google subjects only in private, short-lived fields.
+- Coordinates Google sign-in, Drive authorization, and identity actions.
+- Maps internal failures to safe UI results and progress states.
+- Owns cancellation, single-flight execution, subscriptions, and cleanup.
+- Receives focused callbacks from `passportIdentity.ts` instead of constructing
+  repositories or provider adapters itself.
+
+Keeping composition and behavior separate gives the UI one stable, safe entry while
+allowing the controller state machine to be tested independently.
+
+## Subfeatures
+
+- `local/` owns localStorage persistence, active identity selection, and
+  focused save/restore operations for 32-byte Pubky secrets.
+- `google-backed/` restores or creates and activates a Pubky identity using
+  short-lived Google and Drive credentials.
+
+Provider credential acquisition remains in sibling `browser/google-sign-in`,
 `browser/google-drive-access`, and `browser/google-identity-services` features.
-`google-backed-identity` owns only the identity lifecycle ordering that consumes those
-credentials.
 
-## Google-Backed Flow
-
-`GoogleBackedIdentityOperations` in
-`google-backed-identity/googleBackedIdentityOperations.ts` implements the
-Google-backed custody/recovery operations. It accepts
-`GoogleBackedIdentityCredentials` and wires application use cases to Passport file
-storage and crypto, Pubky operations, local persistence, Homegate homeserver signup
-invitation retrieval, and `WrappingKeyApiClient.requestGoogleWrappingKey`.
-
-```txt
-request wrapping key -> read Google Drive Passport file -> restore or create Pubky identity
-```
-
-Creation continues through encrypted Passport file storage, a homeserver signup
-invitation, homeserver signup, discovery publication, and local save. Restoration decrypts the Passport file,
-performs blocking sign-in, verifies the identity, and saves it locally.
-
-Inside this lifecycle feature, flat modules own focused orchestration steps while
-`GoogleBackedIdentityOperations` constructs their concrete dependencies.
-
-## Security Boundary
-
-Google ID tokens are sent only to Homegate signup-invitation verification and Passport's
-wrapping-key endpoint. Drive OAuth access tokens are supplied only to the Drive store.
-Wrapping keys, wrapping key material, and decrypted key bytes stay in browser flow variables. Browser
-identity modules never import server configuration directly; validated bootstrap
-values are injected through the browser identity factory.

@@ -11,7 +11,7 @@ import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
 import { LOGGER } from "../../../libs/logger/logger";
 import type { PassportFileEnvelopeV1 } from "../../../core/passport-file/passportFile";
 import type { DecryptPassportSecret } from "../../passport-file/passportFileWebCrypto";
-import { SaveLocalIdentity } from "../local-identity/saveLocalIdentity";
+import { SaveLocalIdentity } from "../local/saveLocalIdentity";
 
 export type RestoredGoogleBackedIdentity = {
   establishmentMode: "restored";

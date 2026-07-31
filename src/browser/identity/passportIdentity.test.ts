@@ -29,7 +29,7 @@ const MOCKS = vi.hoisted(() => ({
   credentialCallback: null as CredentialCallback | null,
 }));
 
-vi.mock("./google-backed-identity/googleBackedIdentityOperations", () => ({
+vi.mock("./google-backed/googleBackedIdentityOperations", () => ({
   GoogleBackedIdentityOperations: MOCKS.GoogleBackedIdentityOperations,
 }));
 
@@ -43,13 +43,11 @@ vi.mock("../google-drive-access/googleDriveAccess", () => ({
 
 import { createPassportIdentityController } from "./passportIdentity";
 
-const VALID_CONTROLLER_CONFIG = {
-  googleClientId: "google-client-id",
-  homegateBaseUrl: "https://homegate.example/",
-};
+const GOOGLE_CLIENT_ID = "google-client-id";
+const HOMEGATE_BASE_URL = "https://homegate.example/";
 
 function createController() {
-  return createPassportIdentityController(VALID_CONTROLLER_CONFIG);
+  return createPassportIdentityController(GOOGLE_CLIENT_ID, HOMEGATE_BASE_URL);
 }
 
 describe("createPassportIdentityController", () => {
@@ -150,7 +148,7 @@ describe("createPassportIdentityController", () => {
     });
     expect(error).toHaveBeenCalledOnce();
     expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET-CONFIGURATION-VALUE");
-    expect(JSON.stringify(error.mock.calls)).not.toContain(VALID_CONTROLLER_CONFIG.homegateBaseUrl);
+    expect(JSON.stringify(error.mock.calls)).not.toContain(HOMEGATE_BASE_URL);
   });
 
   it("serves the local identity catalog without constructing the Pubky action graph", () => {

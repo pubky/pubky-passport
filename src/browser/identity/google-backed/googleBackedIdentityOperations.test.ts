@@ -45,7 +45,7 @@ vi.mock("../../passport-file/passportFileWebCrypto", () => ({
   PassportFileWebCrypto: MOCKS.PassportFileWebCrypto,
 }));
 
-vi.mock("../local-identity/saveLocalIdentity", () => ({
+vi.mock("../local/saveLocalIdentity", () => ({
   SaveLocalIdentity: MOCKS.SaveLocalIdentity,
 }));
 
