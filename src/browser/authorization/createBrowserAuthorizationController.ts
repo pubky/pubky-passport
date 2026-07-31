@@ -64,13 +64,13 @@ function createRestoreActiveAuthorizationIdentity(
   pubky: PubkySdkAdapter,
 ): () => Promise<ActiveAuthorizationIdentityRestoreResult> {
   const repository = new LocalStorageIdentityRepository();
-  const localIdentities = new RestoreActiveLocalIdentityKey({
-    readActive: repository.readActive.bind(repository),
+  const restoreActiveIdentity = new RestoreActiveLocalIdentityKey(
+    repository.readActive.bind(repository),
     pubky,
-  });
+  );
 
   return async () => {
-    const restored = await localIdentities.restore();
+    const restored = await restoreActiveIdentity.restore();
     if (Result.isError(restored)) {
       return Result.err({
         code: restored.error.code === "no_active_identity"

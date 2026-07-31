@@ -24,15 +24,15 @@ const MOCKS = vi.hoisted(() => ({
     decryptSecretKeyBytes() {},
   },
   SaveLocalIdentity: vi.fn(),
-  localIdentities: {},
+  saveLocalIdentity: {},
   CreateGoogleBackedIdentity: vi.fn(),
-  createMissingIdentity: {},
+  createMissingIdentity: { execute() {} },
   DeleteGoogleDrivePassportFile: vi.fn(),
   EstablishGoogleBackedIdentity: vi.fn(),
   RestoreGoogleBackedIdentity: vi.fn(),
-  restoreExistingIdentity: {},
+  restoreExistingIdentity: { execute() {} },
   HomegateClient: vi.fn(),
-  homegate: {},
+  homegate: { requestGoogleHomeserverSignupInvitation() {} },
   WrappingKeyApiClient: vi.fn(),
   wrappingKeyApiClient: { requestGoogleWrappingKey() {} },
 }));
@@ -96,20 +96,17 @@ describe("GoogleBackedIdentityOperations", () => {
     expect(MOCKS.HomegateClient).toHaveBeenCalledWith({
       homegateBaseUrl: "https://homegate.example/api/",
     });
-    expect(MOCKS.SaveLocalIdentity).toHaveBeenCalledWith({
-      saveIdentityRecord,
-      pubky: MOCKS.pubky,
-    });
+    expect(MOCKS.SaveLocalIdentity).toHaveBeenCalledWith(saveIdentityRecord, MOCKS.pubky);
     expect(MOCKS.RestoreGoogleBackedIdentity).toHaveBeenCalledWith({
       decryptSecretKeyBytes: expect.any(Function),
       pubky: MOCKS.pubky,
-      localIdentities: MOCKS.localIdentities,
+      saveLocalIdentity: MOCKS.saveLocalIdentity,
       passportOrigin: "https://passport.example",
     });
     expect(MOCKS.CreateGoogleBackedIdentity).toHaveBeenCalledWith({
       encryptSecretKeyBytes: expect.any(Function),
       pubky: MOCKS.pubky,
-      localIdentities: MOCKS.localIdentities,
+      saveLocalIdentity: MOCKS.saveLocalIdentity,
       passportOrigin: "https://passport.example",
     });
     expect(MOCKS.EstablishGoogleBackedIdentity).toHaveBeenCalledWith({
@@ -123,7 +120,7 @@ describe("GoogleBackedIdentityOperations", () => {
     expect(MOCKS.DeleteGoogleDrivePassportFile).toHaveBeenCalledWith(expect.objectContaining({
       requestWrappingKey: expect.any(Function),
       readPassportFile: expect.any(Function),
-      deletePassportFile: expect.any(Function),
+      deletePassportFileByReference: expect.any(Function),
       decryptSecretKeyBytes: expect.any(Function),
       pubky: MOCKS.pubky,
       passportOrigin: "https://passport.example",
@@ -177,7 +174,7 @@ function prepareConstructors(input: {
     return MOCKS.crypto;
   });
   MOCKS.SaveLocalIdentity.mockImplementation(function () {
-    return MOCKS.localIdentities;
+    return MOCKS.saveLocalIdentity;
   });
   MOCKS.WrappingKeyApiClient.mockImplementation(function () {
     return MOCKS.wrappingKeyApiClient;

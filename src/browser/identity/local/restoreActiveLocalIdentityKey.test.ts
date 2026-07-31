@@ -20,10 +20,7 @@ describe("RestoreActiveLocalIdentityKey", () => {
     const pubky = new RecordingPubkySdkAdapter();
     const { readActive, state } = createReadActive();
     state.activeIdentity = { id: pubky.nextPublicIdentity.publicKeyZ32, publicIdentity: pubky.nextPublicIdentity };
-    const restore = new RestoreActiveLocalIdentityKey({
-      readActive,
-      pubky,
-    });
+    const restore = new RestoreActiveLocalIdentityKey(readActive, pubky);
 
     expectResultOk(await restore.restore());
 
@@ -39,10 +36,7 @@ describe("RestoreActiveLocalIdentityKey", () => {
       id: pubky.nextPublicIdentity.publicKeyZ32,
       publicIdentity: { ...pubky.nextPublicIdentity, publicKeyDisplay: "pubkywrong" },
     };
-    const restore = new RestoreActiveLocalIdentityKey({
-      readActive,
-      pubky,
-    });
+    const restore = new RestoreActiveLocalIdentityKey(readActive, pubky);
 
     await expectAsyncResultError(restore.restore(), { code: "identity_mismatch" });
 
@@ -59,7 +53,7 @@ describe("RestoreActiveLocalIdentityKey", () => {
     pubky.restoreFailure = "restore_failed";
     const { readActive, state } = createReadActive();
     state.activeIdentity = { id: pubky.nextPublicIdentity.publicKeyZ32, publicIdentity: pubky.nextPublicIdentity };
-    const restore = new RestoreActiveLocalIdentityKey({ readActive, pubky });
+    const restore = new RestoreActiveLocalIdentityKey(readActive, pubky);
 
     await expectAsyncResultError(restore.restore(), { code: "restore_failed" });
     expect(state.activeSecret.bytes.every((byte) => byte === 0)).toBe(true);

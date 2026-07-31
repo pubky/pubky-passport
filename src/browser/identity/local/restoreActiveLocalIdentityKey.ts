@@ -19,15 +19,12 @@ export class RestoreActiveLocalIdentityKey {
   readonly #readActive: ReadActiveIdentity;
   readonly #pubky: PubkySdkAdapter;
 
-  constructor(input: {
-    readActive: ReadActiveIdentity;
-    pubky: PubkySdkAdapter;
-  }) {
-    this.#readActive = input.readActive;
-    this.#pubky = input.pubky;
+  constructor(readActive: ReadActiveIdentity, pubky: PubkySdkAdapter) {
+    this.#readActive = readActive;
+    this.#pubky = pubky;
   }
 
-  async restore(): Promise<RestoreActiveLocalIdentityResult<PubkyIdentityKey>> {
+  async restore(): Promise<RestoreActiveLocalIdentityResult> {
     const stored = this.#readActive();
     if (Result.isError(stored)) return Result.err(stored.error);
 
@@ -52,8 +49,8 @@ type ReadActiveIdentity = () => LocalIdentityResult<{
     identity: LocalIdentitySummary;
     secretKey: PubkySecretKeyMaterial;
   }>;
-type RestoreActiveLocalIdentityResult<T> = ResultType<
-  T,
+type RestoreActiveLocalIdentityResult = ResultType<
+  PubkyIdentityKey,
   { code: LocalIdentityErrorCode | "identity_mismatch" | "restore_failed" }
 >;
 

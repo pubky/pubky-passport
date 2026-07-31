@@ -120,7 +120,7 @@ function createSetup(
   const subject = new DeleteGoogleDrivePassportFile({
     requestWrappingKey: wrappingKeyRequest.request,
     readPassportFile: fileStore.readPassportFile.bind(fileStore),
-    deletePassportFile: fileStore.deletePassportFile.bind(fileStore),
+    deletePassportFileByReference: fileStore.deletePassportFile.bind(fileStore),
     decryptSecretKeyBytes: crypto.decryptSecretKeyBytes.bind(crypto),
     pubky,
     passportOrigin: "https://passport.pubky.app",

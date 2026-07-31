@@ -3,7 +3,6 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
-import type { PubkyIdentityKey } from "../../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
 import { LOGGER } from "../../../libs/logger/logger";
 import type { PassportFileEnvelopeV1 } from "../../../core/passport-file/passportFile";
@@ -12,7 +11,7 @@ import type { EncryptPassportSecret } from "../../passport-file/passportFileWebC
 import type { HomeserverSignupInvitation } from "../../homegate/homegateClient";
 import { SaveLocalIdentity } from "../local/saveLocalIdentity";
 
-export type CreateGoogleBackedIdentityErrorCode =
+type CreateGoogleBackedIdentityErrorCode =
   | "create_failed"
   | "encrypt_failed"
   | "drive_create_conflict"
@@ -40,18 +39,18 @@ export type CreateGoogleBackedIdentityResult<T = CreatedGoogleBackedIdentity> = 
 export class CreateGoogleBackedIdentity {
   readonly #encryptSecretKeyBytes: EncryptPassportSecret;
   readonly #pubky: PubkySdkAdapter;
-  readonly #localIdentities: SaveLocalIdentity;
+  readonly #saveLocalIdentity: SaveLocalIdentity;
   readonly #passportOrigin: string;
 
   constructor(input: {
     encryptSecretKeyBytes: EncryptPassportSecret;
     pubky: PubkySdkAdapter;
-    localIdentities: SaveLocalIdentity;
+    saveLocalIdentity: SaveLocalIdentity;
     passportOrigin: string;
   }) {
     this.#encryptSecretKeyBytes = input.encryptSecretKeyBytes;
     this.#pubky = input.pubky;
-    this.#localIdentities = input.localIdentities;
+    this.#saveLocalIdentity = input.saveLocalIdentity;
     this.#passportOrigin = input.passportOrigin;
   }
 
@@ -105,7 +104,7 @@ export class CreateGoogleBackedIdentity {
       if (Result.isError(published)) return failure("discovery_failed", created.value.publicIdentity);
 
       LOGGER.info("identity.local_save.started", { establishmentMode: "created" });
-      const saved = await this.#localIdentities.saveIdentity(created.value.keyHandle);
+      const saved = await this.#saveLocalIdentity.saveIdentity(created.value.keyHandle);
       if (Result.isError(saved)) return failure("local_save_failed", created.value.publicIdentity);
 
       LOGGER.info("identity.local_save.completed", { establishmentMode: "created" });
@@ -128,15 +127,8 @@ type CreatePassportFile = (
 ) => Promise<PassportFileStoreResult<PassportFileReference>>;
 
 function failure<T>(
-  code: Parameters<typeof createError>[0],
-  partialSetupPublicIdentity?: Parameters<typeof createError>[1],
-): CreateGoogleBackedIdentityResult<T> {
-  return Result.err(createError(code, partialSetupPublicIdentity));
-}
-
-function createError(
   code: CreateGoogleBackedIdentityErrorCode,
-  partialSetupPublicIdentity?: PubkyIdentityKey["publicIdentity"],
-) {
-  return { code, ...(partialSetupPublicIdentity ? { partialSetupPublicIdentity } : {}) };
+  partialSetupPublicIdentity?: PubkyPublicIdentity,
+): CreateGoogleBackedIdentityResult<T> {
+  return Result.err({ code, ...(partialSetupPublicIdentity ? { partialSetupPublicIdentity } : {}) });
 }

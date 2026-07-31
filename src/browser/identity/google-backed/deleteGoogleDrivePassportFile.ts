@@ -47,7 +47,7 @@ export type GoogleDrivePassportFileDeletionResult = ResultType<
 export class DeleteGoogleDrivePassportFile {
   readonly #requestWrappingKey: (googleIdToken: string) => Promise<GoogleWrappingKeyResult>;
   readonly #readPassportFile: ReadPassportFile;
-  readonly #deletePassportFile: DeletePassportFile;
+  readonly #deletePassportFileByReference: DeletePassportFileByReference;
   readonly #decryptSecretKeyBytes: DecryptPassportSecret;
   readonly #pubky: PubkySdkAdapter;
   readonly #passportOrigin: string;
@@ -55,14 +55,14 @@ export class DeleteGoogleDrivePassportFile {
   constructor(input: {
     requestWrappingKey: (googleIdToken: string) => Promise<GoogleWrappingKeyResult>;
     readPassportFile: ReadPassportFile;
-    deletePassportFile: DeletePassportFile;
+    deletePassportFileByReference: DeletePassportFileByReference;
     decryptSecretKeyBytes: DecryptPassportSecret;
     pubky: PubkySdkAdapter;
     passportOrigin: string;
   }) {
     this.#requestWrappingKey = input.requestWrappingKey;
     this.#readPassportFile = input.readPassportFile;
-    this.#deletePassportFile = input.deletePassportFile;
+    this.#deletePassportFileByReference = input.deletePassportFileByReference;
     this.#decryptSecretKeyBytes = input.decryptSecretKeyBytes;
     this.#pubky = input.pubky;
     this.#passportOrigin = input.passportOrigin;
@@ -73,14 +73,14 @@ export class DeleteGoogleDrivePassportFile {
     expectedPublicKeyZ32: string,
   ): Promise<GoogleDrivePassportFileDeletionResult> {
     try {
-      return await this.deletePassportFile(credentials, expectedPublicKeyZ32);
+      return await this.deleteVerifiedPassportFile(credentials, expectedPublicKeyZ32);
     } catch {
       LOGGER.warn("identity.google.delete.failed", { code: "unexpected_failure" });
       return failure("unexpected_failure");
     }
   }
 
-  private async deletePassportFile(credentials: GoogleBackedIdentityCredentials, expectedPublicKeyZ32: string): Promise<GoogleDrivePassportFileDeletionResult> {
+  private async deleteVerifiedPassportFile(credentials: GoogleBackedIdentityCredentials, expectedPublicKeyZ32: string): Promise<GoogleDrivePassportFileDeletionResult> {
     const wrappingKey = await this.#requestWrappingKey(credentials.googleIdToken);
     if (Result.isError(wrappingKey)) {
       return Result.err({ code: "wrapping_key_failed", cause: wrappingKey.error.code });
@@ -121,7 +121,7 @@ export class DeleteGoogleDrivePassportFile {
       }
     }
 
-    const deleted = await this.#deletePassportFile(credentials.driveAccessToken, storedFile.value.reference);
+    const deleted = await this.#deletePassportFileByReference(credentials.driveAccessToken, storedFile.value.reference);
     if (Result.isError(deleted)) {
       return failure(deleted.error.code === "stale_file" ? "drive_stale_file" : "drive_delete_failed");
     }
@@ -130,7 +130,7 @@ export class DeleteGoogleDrivePassportFile {
 }
 
 type ReadPassportFile = (driveAccessToken: string) => Promise<PassportFileStoreResult<PassportFileReadResult>>;
-type DeletePassportFile = (
+type DeletePassportFileByReference = (
   driveAccessToken: string,
   reference: PassportFileReference,
 ) => Promise<PassportFileStoreResult<void>>;

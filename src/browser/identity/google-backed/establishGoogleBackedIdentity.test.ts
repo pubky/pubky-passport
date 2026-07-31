@@ -59,7 +59,11 @@ describe("EstablishGoogleBackedIdentity", () => {
       events.push("create");
       return Result.ok({ establishmentMode: "created", publicIdentity: PUBLIC_IDENTITY });
     });
-    const subject = createSubject({ fileStore, createMissingIdentity, homegate: homegate.client });
+    const subject = createSubject({
+      fileStore,
+      createMissingIdentity,
+      homegate: homegate.client,
+    });
 
     const result = await subject.establish(TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS);
 
@@ -131,8 +135,8 @@ describe("EstablishGoogleBackedIdentity", () => {
 
 function createSubject(input: {
   fileStore?: RecordingPassportFileOperations;
-  restoreExistingIdentity?: RecordingRestoreGoogleBackedIdentity;
-  createMissingIdentity?: RecordingCreateGoogleBackedIdentity;
+  restoreExistingIdentity?: ReturnType<typeof createRecordingRestoreGoogleBackedIdentity>;
+  createMissingIdentity?: ReturnType<typeof createRecordingCreateGoogleBackedIdentity>;
   homegate?: HomegateClient;
   wrappingFailure?: boolean;
 } = {}): EstablishGoogleBackedIdentity {
@@ -243,7 +247,7 @@ function restoreDependencies(): ConstructorParameters<typeof RestoreGoogleBacked
   return {
     decryptSecretKeyBytes: crypto.decryptSecretKeyBytes.bind(crypto),
     pubky,
-    localIdentities: new RecordingSaveLocalIdentity(),
+    saveLocalIdentity: new RecordingSaveLocalIdentity(),
     passportOrigin: "https://passport.pubky.app",
   };
 }
@@ -254,7 +258,7 @@ function createDependencies(): ConstructorParameters<typeof CreateGoogleBackedId
   return {
     encryptSecretKeyBytes: crypto.encryptSecretKeyBytes.bind(crypto),
     pubky,
-    localIdentities: new RecordingSaveLocalIdentity(),
+    saveLocalIdentity: new RecordingSaveLocalIdentity(),
     passportOrigin: "https://passport.pubky.app",
   };
 }

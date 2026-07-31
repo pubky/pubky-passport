@@ -128,10 +128,7 @@ export class RecordingSaveLocalIdentity extends SaveLocalIdentity {
 
   constructor(onSave?: () => void) {
     const pubky = new RecordingPubkySdkAdapter();
-    super({
-      saveIdentityRecord: () => Result.err({ code: "storage_unavailable" }),
-      pubky,
-    });
+    super(() => Result.err({ code: "storage_unavailable" }), pubky);
     this.#onSave = onSave;
   }
 

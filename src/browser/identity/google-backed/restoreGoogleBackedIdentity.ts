@@ -31,18 +31,18 @@ export type RestoreGoogleBackedIdentityResult<T = RestoredGoogleBackedIdentity> 
 export class RestoreGoogleBackedIdentity {
   readonly #decryptSecretKeyBytes: DecryptPassportSecret;
   readonly #pubky: PubkySdkAdapter;
-  readonly #localIdentities: SaveLocalIdentity;
+  readonly #saveLocalIdentity: SaveLocalIdentity;
   readonly #passportOrigin: string;
 
   constructor(input: {
     decryptSecretKeyBytes: DecryptPassportSecret;
     pubky: PubkySdkAdapter;
-    localIdentities: SaveLocalIdentity;
+    saveLocalIdentity: SaveLocalIdentity;
     passportOrigin: string;
   }) {
     this.#decryptSecretKeyBytes = input.decryptSecretKeyBytes;
     this.#pubky = input.pubky;
-    this.#localIdentities = input.localIdentities;
+    this.#saveLocalIdentity = input.saveLocalIdentity;
     this.#passportOrigin = input.passportOrigin;
   }
 
@@ -73,7 +73,7 @@ export class RestoreGoogleBackedIdentity {
       }
 
       LOGGER.info("identity.local_save.started", { establishmentMode: "restored" });
-      const saved = await this.#localIdentities.saveIdentity(restored.value.keyHandle);
+      const saved = await this.#saveLocalIdentity.saveIdentity(restored.value.keyHandle);
       if (Result.isError(saved)) return failure("local_save_failed");
 
       LOGGER.info("identity.local_save.completed", { establishmentMode: "restored" });
@@ -95,7 +95,7 @@ export class RestoreGoogleBackedIdentity {
 }
 
 function failure<T>(
-  code: "decrypt_failed" | "restore_failed" | "signin_failed" | "identity_mismatch" | "local_save_failed",
+  code: RestoreGoogleBackedIdentityError["code"],
 ): RestoreGoogleBackedIdentityResult<T> {
   return Result.err({ code });
 }

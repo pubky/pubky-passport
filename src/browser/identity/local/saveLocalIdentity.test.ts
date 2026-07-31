@@ -12,14 +12,14 @@ describe("SaveLocalIdentity", () => {
     const key = expectResultOk(await pubky.createIdentityKey());
     let savedIdentity: LocalIdentitySummary | undefined;
     let savedSecret: Uint8Array | undefined;
-    const saveLocalIdentity = new SaveLocalIdentity({
-      saveIdentityRecord: (identity, secretKey) => {
+    const saveLocalIdentity = new SaveLocalIdentity(
+      (identity, secretKey) => {
         savedIdentity = identity;
         savedSecret = secretKey.bytes;
         return Result.ok(identity);
       },
       pubky,
-    });
+    );
 
     expectResultOk(await saveLocalIdentity.saveIdentity(key.keyHandle));
 

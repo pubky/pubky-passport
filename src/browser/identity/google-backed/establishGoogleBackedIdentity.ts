@@ -42,7 +42,6 @@ export type GoogleBackedIdentityError =
   | { code: "wrapping_key_failed"; cause: GoogleWrappingKeyErrorCode; partialSetupPublicIdentity?: never }
   | { code: "homeserver_signup_invitation_failed"; cause: HomegateSignupInvitationErrorCode; partialSetupPublicIdentity?: never };
 
-export type GoogleBackedIdentityErrorCode = GoogleBackedIdentityError["code"];
 export type GoogleBackedIdentityResult<T = GoogleBackedIdentity> = ResultType<T, GoogleBackedIdentityError>;
 
 export class EstablishGoogleBackedIdentity {
@@ -114,7 +113,6 @@ type CreatePassportFile = (
   driveAccessToken: string,
   envelope: PassportFileEnvelopeV1,
 ) => Promise<PassportFileStoreResult<PassportFileReference>>;
-
 function failure<T>(code: "drive_read_failed" | "unexpected_failure"): GoogleBackedIdentityResult<T> {
   return Result.err({ code });
 }

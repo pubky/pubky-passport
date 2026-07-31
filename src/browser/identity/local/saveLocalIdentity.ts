@@ -18,12 +18,9 @@ export class SaveLocalIdentity {
   readonly #saveIdentityRecord: SaveIdentityRecord;
   readonly #pubky: PubkySdkAdapter;
 
-  constructor(input: {
-    saveIdentityRecord: SaveIdentityRecord;
-    pubky: PubkySdkAdapter;
-  }) {
-    this.#saveIdentityRecord = input.saveIdentityRecord;
-    this.#pubky = input.pubky;
+  constructor(saveIdentityRecord: SaveIdentityRecord, pubky: PubkySdkAdapter) {
+    this.#saveIdentityRecord = saveIdentityRecord;
+    this.#pubky = pubky;
   }
 
   async saveIdentity(keyHandle: PubkyIdentityKeyHandle): Promise<LocalIdentityResult<LocalIdentitySummary>> {

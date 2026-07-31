@@ -35,9 +35,7 @@ export type PassportIdentityList = {
   identities: LocalIdentitySummary[];
 };
 
-export type PassportIdentityCatalogErrorCode = LocalIdentityErrorCode;
-
-export type PassportIdentityCatalogResult<T> = Result<T, { code: PassportIdentityCatalogErrorCode }>;
+export type PassportIdentityCatalogResult<T> = Result<T, { code: LocalIdentityErrorCode }>;
 
 export type PassportIdentityControllerErrorCode =
   | "wrapping_key_failed"
@@ -77,15 +75,15 @@ export type GoogleBackedIdentityAction =
   | { kind: "establish_google_backed_identity" }
   | { kind: "delete_google_drive_passport_file"; expectedPublicKeyZ32: string };
 
-export type GoogleBackedIdentityActionValue =
+export type GoogleBackedIdentityActionResult = Result<
   | {
       kind: "google_backed_identity_established";
       establishmentMode: "created" | "restored";
       publicIdentity: PubkyPublicIdentity;
     }
-  | { kind: "google_drive_passport_file_deleted" };
-
-export type GoogleBackedIdentityActionResult = Result<GoogleBackedIdentityActionValue, PassportIdentityControllerError>;
+  | { kind: "google_drive_passport_file_deleted" },
+  PassportIdentityControllerError
+>;
 
 export type GoogleBackedIdentityActionErrorCode =
   | "sign_in_unavailable"
@@ -144,7 +142,7 @@ export class PassportIdentityController {
   #googleIdToken: string | null = null;
   #googleSubject: string | null = null;
   #driveAbortController: AbortController | null = null;
-  #attempt = 0;
+  #mountGeneration = 0;
   #actionPending = false;
   #disposed = false;
   #googleBackedIdentityOperationsDisposed = false;
@@ -194,13 +192,13 @@ export class PassportIdentityController {
     if (this.#disposed) return;
     this.#target = target;
     this.#onState = onState;
-    const activeAttempt = ++this.#attempt;
-    let mounted: Awaited<ReturnType<PassportIdentityControllerDependencies["mountGoogleSignIn"]>>;
+    const activeGeneration = ++this.#mountGeneration;
+    let mounted: GoogleSignInResult<void>;
     try {
       mounted = await this.#dependencies.mountGoogleSignIn(
         target,
         (credential) => {
-          if (this.#disposed || activeAttempt !== this.#attempt) return;
+          if (this.#disposed || activeGeneration !== this.#mountGeneration) return;
           if (Result.isError(credential)) {
             this.resetGoogle("sign_in_failed");
             return;
@@ -211,7 +209,7 @@ export class PassportIdentityController {
         },
       );
     } catch {
-      if (activeAttempt === this.#attempt) {
+      if (activeGeneration === this.#mountGeneration) {
         LOGGER.warn("identity.google.button.failed", {
           operation: "mount_google_sign_in",
           stage: "controller_dependency",
@@ -221,7 +219,7 @@ export class PassportIdentityController {
       }
       return;
     }
-    if (this.#disposed || activeAttempt !== this.#attempt) return;
+    if (this.#disposed || activeGeneration !== this.#mountGeneration) return;
     if (Result.isError(mounted)) {
       this.showGoogleUnavailable();
       return;
@@ -238,7 +236,7 @@ export class PassportIdentityController {
       this.#onState = null;
       this.#googleIdToken = null;
       this.#googleSubject = null;
-      this.#attempt += 1;
+      this.#mountGeneration += 1;
     }
   }
 
@@ -255,7 +253,7 @@ export class PassportIdentityController {
     if (this.#actionPending) return { status: "busy" };
     const googleIdToken = this.#googleIdToken;
     const googleSubject = this.#googleSubject;
-    const activeAttempt = this.#attempt;
+    const activeGeneration = this.#mountGeneration;
     if (this.#disposed) return { status: "superseded" };
     if (!googleIdToken || !googleSubject) {
       LOGGER.warn("identity.google.authorization.failed", {
@@ -279,13 +277,13 @@ export class PassportIdentityController {
           abortController.signal,
         );
       } catch {
-        if (activeAttempt !== this.#attempt || this.#disposed) return { status: "superseded" };
+        if (activeGeneration !== this.#mountGeneration || this.#disposed) return { status: "superseded" };
         LOGGER.warn("identity.google.button.drive_authorization_failed", { code: "unexpected" });
         this.resetGoogle("google_drive_authorization_failed");
         return { status: "google_authorization_failed" };
       }
       if (this.#driveAbortController === abortController) this.#driveAbortController = null;
-      if (activeAttempt !== this.#attempt || this.#disposed) return { status: "superseded" };
+      if (activeGeneration !== this.#mountGeneration || this.#disposed) return { status: "superseded" };
       if (Result.isError(driveAccess)) {
         this.resetGoogle(errorForDriveFailure(driveAccess.error.code));
         return { status: "google_authorization_failed" };
@@ -294,7 +292,7 @@ export class PassportIdentityController {
       this.#googleIdToken = null;
       this.#googleSubject = null;
       const result = await this.executeAction(action, { googleIdToken, driveAccessToken: driveAccess.value });
-      if (this.#disposed || activeAttempt !== this.#attempt) {
+      if (this.#disposed || activeGeneration !== this.#mountGeneration) {
         return { status: "action_finished_after_unmount", result };
       }
       this.resetGoogle();
@@ -317,20 +315,18 @@ export class PassportIdentityController {
 
   private async executeAction(action: GoogleBackedIdentityAction, credentials: GoogleBackedIdentityCredentials): Promise<GoogleBackedIdentityActionResult> {
     try {
+      this.emit({ stage: "executing-action", errorCode: null });
       if (action.kind === "delete_google_drive_passport_file") {
-        this.emit({ stage: "executing-action", errorCode: null });
         const deleted = await this.#dependencies.deleteGoogleDrivePassportFile(credentials, action.expectedPublicKeyZ32);
         return Result.isError(deleted) ? deletionFailure(deleted.error) : Result.ok({ kind: "google_drive_passport_file_deleted" });
       }
-      this.emit({ stage: "executing-action", errorCode: null });
       const established = await this.#dependencies.establishGoogleBackedIdentity(credentials);
       if (Result.isError(established)) return establishmentFailure(established.error);
-      const value: GoogleBackedIdentityActionValue = {
+      return Result.ok({
         kind: "google_backed_identity_established",
         establishmentMode: established.value.establishmentMode,
         publicIdentity: established.value.publicIdentity,
-      };
-      return Result.ok(value);
+      });
     } catch {
       LOGGER.warn("identity.google.action.failed", { code: "unexpected_failure" });
       return Result.err({ code: "unexpected_failure" });
