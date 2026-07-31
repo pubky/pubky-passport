@@ -4,10 +4,10 @@ import { Result } from "better-result";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { LOGGER } from "../../libs/logger/logger";
-import type { BrowserIdentityControllerError } from "./browserIdentityController";
 import {
+  type PassportIdentityControllerError,
   PassportIdentityController,
-  type BrowserIdentityControllerDependencies,
+  type PassportIdentityControllerDependencies,
 } from "./passportIdentityController";
 import type { GoogleSignInResult } from "../google-sign-in/googleIdentityServicesSignInButton";
 
@@ -17,7 +17,7 @@ describe("PassportIdentityController", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("exposes a finite action error code contract", () => {
-    expectTypeOf<BrowserIdentityControllerError["code"]>().not.toEqualTypeOf<string>();
+    expectTypeOf<PassportIdentityControllerError["code"]>().not.toEqualTypeOf<string>();
   });
 
   it.each(["list", "select", "clear"] as const)("logs unexpected %s catalog exceptions without identity details", (operation) => {
@@ -380,7 +380,7 @@ describe("PassportIdentityController", () => {
   });
 
   it("preserves a failed establishment result after ordinary unmount", async () => {
-    const establishment = deferred<Awaited<ReturnType<BrowserIdentityControllerDependencies["establishGoogleBackedIdentity"]>>>();
+    const establishment = deferred<Awaited<ReturnType<PassportIdentityControllerDependencies["establishGoogleBackedIdentity"]>>>();
     const establish = establishmentDouble(() => establishment.promise);
     const { controller, credentialCallback } = await mountedController({ establishGoogleBackedIdentity: establish.execute });
     credentialCallback.current?.(googleCredential());
@@ -399,7 +399,7 @@ describe("PassportIdentityController", () => {
   });
 
   it("preserves a successful deletion result after ordinary unmount", async () => {
-    const deletion = deferred<Awaited<ReturnType<BrowserIdentityControllerDependencies["deleteGoogleDrivePassportFile"]>>>();
+    const deletion = deferred<Awaited<ReturnType<PassportIdentityControllerDependencies["deleteGoogleDrivePassportFile"]>>>();
     const execute = deletionDouble(() => deletion.promise);
     const { controller, credentialCallback } = await mountedController({ deleteGoogleDrivePassportFile: execute.execute });
     credentialCallback.current?.(googleCredential());
@@ -417,7 +417,7 @@ describe("PassportIdentityController", () => {
   });
 
   it("preserves a failed deletion result after ordinary unmount", async () => {
-    const deletion = deferred<Awaited<ReturnType<BrowserIdentityControllerDependencies["deleteGoogleDrivePassportFile"]>>>();
+    const deletion = deferred<Awaited<ReturnType<PassportIdentityControllerDependencies["deleteGoogleDrivePassportFile"]>>>();
     const execute = deletionDouble(() => deletion.promise);
     const { controller, credentialCallback } = await mountedController({ deleteGoogleDrivePassportFile: execute.execute });
     credentialCallback.current?.(googleCredential());
@@ -458,7 +458,7 @@ describe("PassportIdentityController", () => {
 });
 
 async function mountedController(
-  overrides: Partial<BrowserIdentityControllerDependencies> = {},
+  overrides: Partial<PassportIdentityControllerDependencies> = {},
   states: unknown[] = [],
 ) {
   const credentialCallback: {
@@ -478,7 +478,7 @@ async function mountedController(
   return { controller, credentialCallback };
 }
 
-function dependencies(overrides: Partial<BrowserIdentityControllerDependencies> = {}): BrowserIdentityControllerDependencies {
+function dependencies(overrides: Partial<PassportIdentityControllerDependencies> = {}): PassportIdentityControllerDependencies {
   return {
     list: vi.fn(() => Result.ok({ activeIdentityId: null, identities: [] })),
     select: vi.fn(() => Result.ok()),
@@ -499,7 +499,7 @@ function googleCredential() {
 }
 
 function driveAccessDouble(
-  implementation: () => ReturnType<BrowserIdentityControllerDependencies["requestGoogleDriveAccess"]>,
+  implementation: () => ReturnType<PassportIdentityControllerDependencies["requestGoogleDriveAccess"]>,
 ) {
   const double = {
     record: { calls: 0, subjectPresent: false, matchesExpectedSubject: false, hasSignal: false },
@@ -524,7 +524,7 @@ function deferred<T>() {
 }
 
 function establishmentDouble(
-  implementation: () => ReturnType<BrowserIdentityControllerDependencies["establishGoogleBackedIdentity"]>,
+  implementation: () => ReturnType<PassportIdentityControllerDependencies["establishGoogleBackedIdentity"]>,
 ) {
   const double = {
     calls: 0,
@@ -540,7 +540,7 @@ function establishmentDouble(
 }
 
 function deletionDouble(
-  implementation: () => ReturnType<BrowserIdentityControllerDependencies["deleteGoogleDrivePassportFile"]>,
+  implementation: () => ReturnType<PassportIdentityControllerDependencies["deleteGoogleDrivePassportFile"]>,
 ) {
   const double = {
     calls: 0,

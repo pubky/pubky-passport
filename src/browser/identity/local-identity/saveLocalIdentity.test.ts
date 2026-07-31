@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { RecordingPubkySdkAdapter } from "../../../../test-utils/fakes/recordingPubkySdkAdapter";
 import { expectResultOk } from "../../../../test-utils/resultAssertions";
-import type { LocalIdentitySummary } from "./localIdentity";
+import type { LocalIdentitySummary } from "./localStorageIdentityRepository";
 import { SaveLocalIdentity } from "./saveLocalIdentity";
 
 describe("SaveLocalIdentity", () => {

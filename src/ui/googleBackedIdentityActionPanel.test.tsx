@@ -5,8 +5,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 
-import type { BrowserIdentityController, GoogleBackedIdentityActionState } from "../browser/identity/browserIdentityController";
-import { mockBrowserIdentityController } from "../../test-utils/fakes/mockBrowserIdentityController";
+import type { GoogleBackedIdentityActionState, PassportIdentityController } from "../browser/identity/passportIdentity";
+import { mockPassportIdentityController } from "../../test-utils/fakes/mockPassportIdentityController";
 import { GoogleBackedIdentityActionPanel } from "./googleBackedIdentityActionPanel";
 
 describe("GoogleBackedIdentityActionPanel", () => {
@@ -133,8 +133,10 @@ describe("GoogleBackedIdentityActionPanel", () => {
 
     await waitFor(() => expect(emitState).toBeDefined());
     emitState?.({ stage: "requesting-google-drive-authorization", errorCode: null });
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Waiting for Google Drive authorization to create or restore your Pubky identity."));
-    expect(onBusyChange).toHaveBeenLastCalledWith(true);
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent("Waiting for Google Drive authorization to create or restore your Pubky identity.");
+      expect(onBusyChange).toHaveBeenLastCalledWith(true);
+    });
 
     emitState?.({ stage: "executing-action", errorCode: null });
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Creating or restoring your Pubky identity."));
@@ -184,6 +186,6 @@ describe("GoogleBackedIdentityActionPanel", () => {
   });
 });
 
-function fakeController(overrides: Partial<BrowserIdentityController>): BrowserIdentityController {
-  return mockBrowserIdentityController(overrides);
+function fakeController(overrides: Partial<PassportIdentityController>): PassportIdentityController {
+  return mockPassportIdentityController(overrides);
 }

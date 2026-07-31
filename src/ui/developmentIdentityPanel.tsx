@@ -4,11 +4,11 @@ import { Result } from "better-result";
 import { useEffect, useRef, useState } from "react";
 
 import type {
-  BrowserIdentityController,
   GoogleBackedIdentityActionResult,
   LocalIdentitySummary,
-} from "../browser/identity/browserIdentityController";
-import { createBrowserIdentityController } from "../browser/identity/createBrowserIdentityController";
+  PassportIdentityController,
+} from "../browser/identity/passportIdentity";
+import { createPassportIdentityController } from "../browser/identity/passportIdentity";
 import type { PubkyPublicIdentity } from "../core/identity/pubkyIdentity";
 import { GoogleBackedIdentityActionPanel } from "./googleBackedIdentityActionPanel";
 
@@ -23,7 +23,7 @@ export function DevelopmentIdentityPanel({
   homegateBaseUrl: string;
   allowGoogleDrivePassportFileDeletion: boolean;
 }) {
-  const controller = useRef<BrowserIdentityController | null>(null);
+  const controller = useRef<PassportIdentityController | null>(null);
   const googleActionTarget = useRef<string | null>(null);
   const [controllerReady, setControllerReady] = useState(false);
   const [identities, setIdentities] = useState<LocalIdentitySummary[]>([]);
@@ -39,7 +39,7 @@ export function DevelopmentIdentityPanel({
     queueMicrotask(() => {
       if (cancelled) return;
       try {
-        controller.current = createBrowserIdentityController({ googleClientId, homegateBaseUrl });
+        controller.current = createPassportIdentityController({ googleClientId, homegateBaseUrl });
         setControllerReady(true);
         unsubscribe = controller.current.subscribe(() => refreshIdentities());
         refreshIdentities();
@@ -60,7 +60,7 @@ export function DevelopmentIdentityPanel({
   }, [googleClientId, homegateBaseUrl]);
 
   function refreshIdentities(nextMessage?: string): void {
-    let stored: ReturnType<BrowserIdentityController["list"]> | undefined;
+    let stored: ReturnType<PassportIdentityController["list"]> | undefined;
     try {
       stored = controller.current?.list();
     } catch { /* The browser controller owns operation logging. */ }
@@ -77,7 +77,7 @@ export function DevelopmentIdentityPanel({
   }
 
   function selectIdentity(id: string): void {
-    let selected: ReturnType<BrowserIdentityController["select"]> | undefined;
+    let selected: ReturnType<PassportIdentityController["select"]> | undefined;
     try {
       selected = controller.current?.select(id);
     } catch { /* The browser controller owns operation logging. */ }
@@ -110,7 +110,7 @@ export function DevelopmentIdentityPanel({
   }
 
   function clearLocalIdentities(): void {
-    let cleared: ReturnType<BrowserIdentityController["clear"]> | undefined;
+    let cleared: ReturnType<PassportIdentityController["clear"]> | undefined;
     try {
       cleared = controller.current?.clear();
     } catch { /* The browser controller owns operation logging. */ }

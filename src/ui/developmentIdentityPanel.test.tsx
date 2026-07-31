@@ -5,23 +5,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 
 import type {
-  BrowserIdentityController,
-  BrowserIdentityList,
+  PassportIdentityList,
   GoogleBackedIdentityActionResult,
-} from "../browser/identity/browserIdentityController";
-import { mockBrowserIdentityController } from "../../test-utils/fakes/mockBrowserIdentityController";
+  PassportIdentityController,
+} from "../browser/identity/passportIdentity";
+import { mockPassportIdentityController } from "../../test-utils/fakes/mockPassportIdentityController";
 import { DevelopmentIdentityPanel } from "./developmentIdentityPanel";
 
 const FLOW_STATE = vi.hoisted(() => ({
   establish: async (): Promise<GoogleBackedIdentityActionResult> => { throw new Error("establish result not configured"); },
   deleteExpectedPublicKey: null as string | null,
   refresh: null as (() => void) | null,
-  setCatalog: null as ((catalog: BrowserIdentityList) => void) | null,
+  setCatalog: null as ((catalog: PassportIdentityList) => void) | null,
   controller: null as unknown,
 }));
 
-vi.mock("../browser/identity/createBrowserIdentityController", () => ({
-  createBrowserIdentityController: () => FLOW_STATE.controller,
+vi.mock("../browser/identity/passportIdentity", () => ({
+  createPassportIdentityController: () => FLOW_STATE.controller,
 }));
 
 vi.mock("./googleBackedIdentityActionPanel", () => ({
@@ -34,7 +34,7 @@ vi.mock("./googleBackedIdentityActionPanel", () => ({
   })} type="button">Authorize test Google</button>,
 }));
 
-const SELECTED_CATALOG: BrowserIdentityList = {
+const SELECTED_CATALOG: PassportIdentityList = {
   activeIdentityId: "selected-identity",
   identities: [{
     id: "selected-identity",
@@ -148,12 +148,12 @@ describe("DevelopmentIdentityPanel", () => {
 const HOMEGATE_BASE_URL = "https://homegate.example/";
 
 function controllerWithCatalog(
-  initialCatalog: BrowserIdentityList = { activeIdentityId: null, identities: [] },
-): BrowserIdentityController {
+  initialCatalog: PassportIdentityList = { activeIdentityId: null, identities: [] },
+): PassportIdentityController {
   let catalog = initialCatalog;
   FLOW_STATE.setCatalog = (nextCatalog) => { catalog = nextCatalog; };
 
-  return mockBrowserIdentityController({
+  return mockPassportIdentityController({
     list: () => Result.ok(catalog),
     select: (id: string) => {
       catalog = {

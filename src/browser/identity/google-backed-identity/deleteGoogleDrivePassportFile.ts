@@ -1,6 +1,6 @@
 import "client-only";
 
-import { Result } from "better-result";
+import { Result, type Result as ResultType } from "better-result";
 
 import {
   PUBKY_SECRET_KEY_FORMAT,
@@ -14,12 +14,35 @@ import type {
   PassportFileReference,
   PassportFileStoreResult,
 } from "../../passport-file/googleDrivePassportFileStore";
+import type { GoogleBackedIdentityCredentials } from "./establishGoogleBackedIdentity";
 import type {
-  GoogleDrivePassportFileDeletionErrorCode,
-  GoogleDrivePassportFileDeletionResult,
-  GoogleBackedIdentityCredentials,
-} from "./googleBackedIdentity";
-import type { GoogleWrappingKeyResult } from "../../wrapping-key/wrappingKeyApiClient";
+  GoogleWrappingKeyErrorCode,
+  GoogleWrappingKeyResult,
+} from "../../wrapping-key/wrappingKeyApiClient";
+
+export type GoogleDrivePassportFileDeletionErrorCode =
+  | "wrapping_key_failed"
+  | "drive_read_failed"
+  | "decrypt_failed"
+  | "restore_failed"
+  | "identity_mismatch"
+  | "drive_stale_file"
+  | "drive_delete_failed"
+  | "unexpected_failure";
+
+export type GoogleDrivePassportFileDeletionError =
+  | {
+      code: Exclude<GoogleDrivePassportFileDeletionErrorCode, "wrapping_key_failed">;
+    }
+  | {
+      code: "wrapping_key_failed";
+      cause: GoogleWrappingKeyErrorCode;
+    };
+
+export type GoogleDrivePassportFileDeletionResult = ResultType<
+  void,
+  GoogleDrivePassportFileDeletionError
+>;
 
 export class DeleteGoogleDrivePassportFile {
   readonly #requestWrappingKey: (googleIdToken: string) => Promise<GoogleWrappingKeyResult>;

@@ -5,8 +5,8 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { BrowserIdentityController } from "../browser/identity/browserIdentityController";
-import { mockBrowserIdentityController } from "../../test-utils/fakes/mockBrowserIdentityController";
+import type { PassportIdentityController } from "../browser/identity/passportIdentity";
+import { mockPassportIdentityController } from "../../test-utils/fakes/mockPassportIdentityController";
 import { AuthorizationIdentityPanel } from "./authorizationIdentityPanel";
 
 describe("AuthorizationIdentityPanel", () => {
@@ -61,9 +61,7 @@ describe("AuthorizationIdentityPanel", () => {
     let activeIdentityId: string | null = "identity-1";
     let refresh = () => {};
     const onReadyChange = vi.fn();
-    const baseController = fakeIdentityController();
-    const controller: BrowserIdentityController = {
-      ...baseController,
+    const controller = mockPassportIdentityController({
       list: vi.fn(() => Result.ok({
         activeIdentityId,
         identities: activeIdentityId === null ? [] : [{
@@ -75,7 +73,7 @@ describe("AuthorizationIdentityPanel", () => {
         refresh = listener;
         return () => {};
       }),
-    };
+    });
 
     render(
       <AuthorizationIdentityPanel
@@ -96,7 +94,7 @@ describe("AuthorizationIdentityPanel", () => {
   });
 });
 
-function fakeIdentityController(input: { empty?: boolean } = {}): BrowserIdentityController {
+function fakeIdentityController(input: { empty?: boolean } = {}): PassportIdentityController {
   const identities = input.empty ? [] : [
     {
       id: "identity-1",
@@ -107,7 +105,7 @@ function fakeIdentityController(input: { empty?: boolean } = {}): BrowserIdentit
       publicIdentity: { publicKeyZ32: "identity-2", publicKeyDisplay: "pubkyidentity-2" },
     },
   ];
-  return mockBrowserIdentityController({
+  return mockPassportIdentityController({
     list: vi.fn(() => Result.ok({
       activeIdentityId: input.empty ? null : "identity-1",
       identities,

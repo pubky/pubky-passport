@@ -5,7 +5,10 @@ import { RecordingPubkySdkAdapter } from "../../../../test-utils/fakes/recording
 import { expectAsyncResultError, expectResultOk } from "../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";
-import type { LocalIdentityResult, LocalIdentitySummary } from "./localIdentity";
+import type {
+  LocalIdentityResult,
+  LocalIdentitySummary,
+} from "./localStorageIdentityRepository";
 import { RestoreActiveLocalIdentityKey } from "./restoreActiveLocalIdentityKey";
 
 describe("RestoreActiveLocalIdentityKey", () => {

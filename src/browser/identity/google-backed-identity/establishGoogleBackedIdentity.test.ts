@@ -12,7 +12,6 @@ import {
   RecordingPassportFileOperations,
 } from "../../../../test-utils/fakes/googleBackedIdentityTestDoubles";
 import { expectResultError, expectResultOk } from "../../../../test-utils/resultAssertions";
-import type { GoogleBackedIdentity, GoogleBackedIdentityResult } from "./googleBackedIdentity";
 import { CreateGoogleBackedIdentity } from "./createGoogleBackedIdentity";
 import { EstablishGoogleBackedIdentity } from "./establishGoogleBackedIdentity";
 import { RestoreGoogleBackedIdentity } from "./restoreGoogleBackedIdentity";
@@ -192,14 +191,15 @@ function createRecordingCreateGoogleBackedIdentity(
   return new RecordingCreateGoogleBackedIdentity(implementation);
 }
 
-type IdentityImplementation = () => Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>>;
+type RestoreIdentityImplementation = () => ReturnType<RestoreGoogleBackedIdentity["execute"]>;
+type CreateIdentityImplementation = () => ReturnType<CreateGoogleBackedIdentity["execute"]>;
 
 class RecordingRestoreGoogleBackedIdentity extends RestoreGoogleBackedIdentity {
   calls = 0;
   receivedExpectedInput = false;
-  readonly #implementation: IdentityImplementation;
+  readonly #implementation: RestoreIdentityImplementation;
 
-  constructor(implementation: IdentityImplementation) {
+  constructor(implementation: RestoreIdentityImplementation) {
     super(restoreDependencies());
     this.#implementation = implementation;
   }
@@ -217,9 +217,9 @@ class RecordingRestoreGoogleBackedIdentity extends RestoreGoogleBackedIdentity {
 class RecordingCreateGoogleBackedIdentity extends CreateGoogleBackedIdentity {
   calls = 0;
   receivedExpectedInput = false;
-  readonly #implementation: IdentityImplementation;
+  readonly #implementation: CreateIdentityImplementation;
 
-  constructor(implementation: IdentityImplementation) {
+  constructor(implementation: CreateIdentityImplementation) {
     super(createDependencies());
     this.#implementation = implementation;
   }

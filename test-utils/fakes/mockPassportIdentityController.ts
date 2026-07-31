@@ -1,11 +1,11 @@
 import { Result } from "better-result";
 import { vi } from "vitest";
 
-import type { BrowserIdentityController } from "@/browser/identity/browserIdentityController";
+import type { PassportIdentityController } from "../../src/browser/identity/passportIdentity";
 
-export function mockBrowserIdentityController(
-  overrides: Partial<BrowserIdentityController> = {},
-): BrowserIdentityController {
+export function mockPassportIdentityController(
+  overrides: Partial<PassportIdentityController> = {},
+): PassportIdentityController {
   return {
     list: vi.fn(() => Result.ok({ activeIdentityId: null, identities: [] })),
     select: vi.fn(() => Result.ok()),

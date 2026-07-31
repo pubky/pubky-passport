@@ -1,7 +1,8 @@
 import "client-only";
 
-import { Result } from "better-result";
+import { Result, type Result as ResultType } from "better-result";
 
+import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
 import {
   PUBKY_SECRET_KEY_FORMAT,
   type PubkyIdentityKey,
@@ -10,11 +11,22 @@ import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
 import { LOGGER } from "../../../libs/logger/logger";
 import type { PassportFileEnvelopeV1 } from "../../../core/passport-file/passportFile";
 import type { DecryptPassportSecret } from "../../passport-file/passportFileWebCrypto";
-import type {
-  GoogleBackedIdentity,
-  GoogleBackedIdentityResult,
-} from "./googleBackedIdentity";
 import { SaveLocalIdentity } from "../local-identity/saveLocalIdentity";
+
+export type RestoredGoogleBackedIdentity = {
+  establishmentMode: "restored";
+  publicIdentity: PubkyPublicIdentity;
+};
+
+export type RestoreGoogleBackedIdentityError = {
+  code: "decrypt_failed" | "restore_failed" | "signin_failed" | "identity_mismatch" | "local_save_failed";
+  partialSetupPublicIdentity?: never;
+};
+
+export type RestoreGoogleBackedIdentityResult<T = RestoredGoogleBackedIdentity> = ResultType<
+  T,
+  RestoreGoogleBackedIdentityError
+>;
 
 export class RestoreGoogleBackedIdentity {
   readonly #decryptSecretKeyBytes: DecryptPassportSecret;
@@ -37,7 +49,7 @@ export class RestoreGoogleBackedIdentity {
   async execute(
     envelope: PassportFileEnvelopeV1,
     wrappingKey: string,
-  ): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>> {
+  ): Promise<RestoreGoogleBackedIdentityResult> {
     LOGGER.info("identity.google.decrypt.started");
     const secretKey = await this.#decryptSecretKeyBytes({
       envelope,
@@ -84,6 +96,6 @@ export class RestoreGoogleBackedIdentity {
 
 function failure<T>(
   code: "decrypt_failed" | "restore_failed" | "signin_failed" | "identity_mismatch" | "local_save_failed",
-): GoogleBackedIdentityResult<T> {
+): RestoreGoogleBackedIdentityResult<T> {
   return Result.err({ code });
 }

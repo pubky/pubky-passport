@@ -1,6 +1,6 @@
 import "client-only";
 
-import { Result } from "better-result";
+import { Result, type Result as ResultType } from "better-result";
 
 import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
 import { LOGGER } from "../../../libs/logger/logger";
@@ -9,8 +9,11 @@ import type {
   PubkySecretKeyMaterial,
 } from "../../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
-import type { LocalIdentityResult, LocalIdentitySummary } from "./localIdentity";
-import type { LocalIdentityOperationResult } from "./saveLocalIdentity";
+import type {
+  LocalIdentityErrorCode,
+  LocalIdentityResult,
+  LocalIdentitySummary,
+} from "./localStorageIdentityRepository";
 
 export class RestoreActiveLocalIdentityKey {
   readonly #readActive: ReadActiveIdentity;
@@ -24,7 +27,7 @@ export class RestoreActiveLocalIdentityKey {
     this.#pubky = input.pubky;
   }
 
-  async restore(): Promise<LocalIdentityOperationResult<PubkyIdentityKey>> {
+  async restore(): Promise<RestoreActiveLocalIdentityResult<PubkyIdentityKey>> {
     const stored = this.#readActive();
     if (Result.isError(stored)) return Result.err(stored.error);
 
@@ -49,6 +52,10 @@ type ReadActiveIdentity = () => LocalIdentityResult<{
     identity: LocalIdentitySummary;
     secretKey: PubkySecretKeyMaterial;
   }>;
+type RestoreActiveLocalIdentityResult<T> = ResultType<
+  T,
+  { code: LocalIdentityErrorCode | "identity_mismatch" | "restore_failed" }
+>;
 
 function isSamePublicIdentity(left: PubkyPublicIdentity, right: PubkyPublicIdentity): boolean {
   return left.publicKeyZ32 === right.publicKeyZ32 && left.publicKeyDisplay === right.publicKeyDisplay;

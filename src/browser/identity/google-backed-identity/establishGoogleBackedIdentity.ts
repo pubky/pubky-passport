@@ -1,30 +1,49 @@
 import "client-only";
 
-import { Result } from "better-result";
+import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER } from "../../../libs/logger/logger";
-import { HomegateClient } from "../../homegate/homegateClient";
+import {
+  HomegateClient,
+  type HomegateSignupInvitationErrorCode,
+} from "../../homegate/homegateClient";
 import type { PassportFileEnvelopeV1 } from "../../../core/passport-file/passportFile";
 import type {
   PassportFileReadResult,
   PassportFileReference,
   PassportFileStoreResult,
 } from "../../passport-file/googleDrivePassportFileStore";
-import { CreateGoogleBackedIdentity } from "./createGoogleBackedIdentity";
+import {
+  CreateGoogleBackedIdentity,
+  type CreateGoogleBackedIdentityError,
+  type CreatedGoogleBackedIdentity,
+} from "./createGoogleBackedIdentity";
+import {
+  RestoreGoogleBackedIdentity,
+  type RestoreGoogleBackedIdentityError,
+  type RestoredGoogleBackedIdentity,
+} from "./restoreGoogleBackedIdentity";
 import type {
-  GoogleBackedIdentity,
-  GoogleBackedIdentityCredentials,
-  GoogleBackedIdentityResult,
-} from "./googleBackedIdentity";
-import { RestoreGoogleBackedIdentity } from "./restoreGoogleBackedIdentity";
-import type { GoogleWrappingKeyResult } from "../../wrapping-key/wrappingKeyApiClient";
+  GoogleWrappingKeyErrorCode,
+  GoogleWrappingKeyResult,
+} from "../../wrapping-key/wrappingKeyApiClient";
 
-export type {
-  GoogleBackedIdentity,
-  GoogleBackedIdentityError,
-  GoogleBackedIdentityErrorCode,
-  GoogleBackedIdentityResult,
-} from "./googleBackedIdentity";
+export type GoogleBackedIdentityCredentials = {
+  googleIdToken: string;
+  driveAccessToken: string;
+};
+
+export type GoogleBackedIdentity = CreatedGoogleBackedIdentity | RestoredGoogleBackedIdentity;
+
+export type GoogleBackedIdentityError =
+  | CreateGoogleBackedIdentityError
+  | RestoreGoogleBackedIdentityError
+  | { code: "drive_read_failed" | "unexpected_failure"; partialSetupPublicIdentity?: never }
+  | { code: "wrapping_key_failed"; cause: GoogleWrappingKeyErrorCode; partialSetupPublicIdentity?: never }
+  | { code: "homeserver_signup_invitation_failed"; cause: HomegateSignupInvitationErrorCode; partialSetupPublicIdentity?: never };
+
+export type GoogleBackedIdentityErrorCode = GoogleBackedIdentityError["code"];
+export type GoogleBackedIdentityResult<T = GoogleBackedIdentity> = ResultType<T, GoogleBackedIdentityError>;
 
 export class EstablishGoogleBackedIdentity {
   readonly #requestWrappingKey: (googleIdToken: string) => Promise<GoogleWrappingKeyResult>;
@@ -50,7 +69,7 @@ export class EstablishGoogleBackedIdentity {
     this.#createMissingIdentity = input.createMissingIdentity;
   }
 
-  async establish(credentials: GoogleBackedIdentityCredentials): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>> {
+  async establish(credentials: GoogleBackedIdentityCredentials): Promise<GoogleBackedIdentityResult> {
     try {
       return await this.establishIdentity(credentials);
     } catch {

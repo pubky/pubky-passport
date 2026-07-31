@@ -1,16 +1,25 @@
 import "client-only";
 
-import { Result } from "better-result";
+import { Result, type Result as ResultType } from "better-result";
 
 import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
 import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "../../../libs/encoding/base64Url";
 import { LOGGER } from "../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";
-import type {
-  LocalIdentityErrorCode,
-  LocalIdentityResult,
-  LocalIdentitySummary,
-} from "./localIdentity";
+
+export type LocalIdentitySummary = {
+  id: string;
+  publicIdentity: PubkyPublicIdentity;
+};
+
+export type LocalIdentityErrorCode =
+  | "invalid_identity"
+  | "invalid_secret_key"
+  | "invalid_store"
+  | "no_active_identity"
+  | "storage_unavailable";
+
+export type LocalIdentityResult<T> = ResultType<T, { code: LocalIdentityErrorCode }>;
 
 const STORAGE_KEY = "pubky-passport/local-identities/v1";
 const LOCAL_IDENTITY_STORE_VERSION = 1;

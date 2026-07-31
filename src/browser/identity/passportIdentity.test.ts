@@ -41,7 +41,7 @@ vi.mock("../google-drive-access/googleDriveAccess", () => ({
   GoogleDriveAccess: MOCKS.GoogleDriveAccess,
 }));
 
-import { createBrowserIdentityController } from "./createBrowserIdentityController";
+import { createPassportIdentityController } from "./passportIdentity";
 
 const VALID_CONTROLLER_CONFIG = {
   googleClientId: "google-client-id",
@@ -49,10 +49,10 @@ const VALID_CONTROLLER_CONFIG = {
 };
 
 function createController() {
-  return createBrowserIdentityController(VALID_CONTROLLER_CONFIG);
+  return createPassportIdentityController(VALID_CONTROLLER_CONFIG);
 }
 
-describe("createBrowserIdentityController", () => {
+describe("createPassportIdentityController", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", new MemoryStorage());
     MOCKS.GoogleBackedIdentityOperations.mockReset();
@@ -271,7 +271,7 @@ describe("createBrowserIdentityController", () => {
 });
 
 async function mountWithGoogleCredential(
-  controller: ReturnType<typeof createBrowserIdentityController>,
+  controller: ReturnType<typeof createPassportIdentityController>,
 ): Promise<void> {
   await controller.mountGoogleSignIn(document.createElement("div"), vi.fn());
   emitGoogleCredential();

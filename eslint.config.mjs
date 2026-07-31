@@ -114,8 +114,7 @@ const ESLINT_CONFIG = defineConfig([
       "src/browser/authorization/browserAuthorizationController.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
       "src/browser/authorization/createBrowserAuthorizationController.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
       "src/browser/authorization/browserManualAuthorization.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
-      "src/browser/identity/browserIdentityController.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
-      "src/browser/identity/createBrowserIdentityController.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+      "src/browser/identity/passportIdentity.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
     ],
     ignores: ["src/browser/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     rules: {

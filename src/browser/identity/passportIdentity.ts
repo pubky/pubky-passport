@@ -5,16 +5,40 @@ import { GoogleIdentityServices } from "../google-identity-services/googleIdenti
 import { GoogleIdentityServicesSignInButton } from "../google-sign-in/googleIdentityServicesSignInButton";
 import { LOGGER } from "../../libs/logger/logger";
 import { LocalStorageIdentityRepository } from "./local-identity/localStorageIdentityRepository";
-import type { BrowserIdentityController } from "./browserIdentityController";
-import { PassportIdentityController } from "./passportIdentityController";
+import {
+  PassportIdentityController as PassportIdentityControllerImplementation,
+} from "./passportIdentityController";
 import {
   GoogleBackedIdentityOperations,
 } from "./google-backed-identity/googleBackedIdentityOperations";
 
-export function createBrowserIdentityController(options: {
+export type PassportIdentityController = Pick<
+  PassportIdentityControllerImplementation,
+  | "list"
+  | "select"
+  | "clear"
+  | "subscribe"
+  | "mountGoogleSignIn"
+  | "unmountGoogleSignIn"
+  | "retryGoogleSignIn"
+  | "continueGoogleBackedIdentityAction"
+  | "dispose"
+>;
+
+export type {
+  GoogleBackedIdentityAction,
+  GoogleBackedIdentityActionDispatchResult,
+  GoogleBackedIdentityActionErrorCode,
+  GoogleBackedIdentityActionResult,
+  GoogleBackedIdentityActionState,
+  LocalIdentitySummary,
+  PassportIdentityList,
+} from "./passportIdentityController";
+
+export function createPassportIdentityController(options: {
   googleClientId: string;
   homegateBaseUrl: string;
-}): BrowserIdentityController {
+}): PassportIdentityController {
   try {
     return createController(options);
   } catch (error) {
@@ -29,7 +53,7 @@ export function createBrowserIdentityController(options: {
 function createController(options: {
   googleClientId: string;
   homegateBaseUrl: string;
-}): BrowserIdentityController {
+}): PassportIdentityController {
   const repository = new LocalStorageIdentityRepository();
   const googleIdentityServices = new GoogleIdentityServices();
   const googleSignInButton = new GoogleIdentityServicesSignInButton({
@@ -51,7 +75,7 @@ function createController(options: {
     return googleBackedIdentityOperations;
   };
 
-  return new PassportIdentityController({
+  return new PassportIdentityControllerImplementation({
     dependencies: {
       list: repository.list.bind(repository),
       select: repository.select.bind(repository),

@@ -9,8 +9,8 @@ import type {
   BrowserAuthorizationController,
   BrowserAuthorizationViewState,
 } from "../browser/authorization/browserAuthorizationController";
-import type { BrowserIdentityController } from "../browser/identity/browserIdentityController";
-import { mockBrowserIdentityController } from "../../test-utils/fakes/mockBrowserIdentityController";
+import type { PassportIdentityController } from "../browser/identity/passportIdentity";
+import { mockPassportIdentityController } from "../../test-utils/fakes/mockPassportIdentityController";
 import { AuthorizationReview } from "./authorizationReview";
 
 const REVIEW = {
@@ -129,8 +129,8 @@ function fakeController(initialState: BrowserAuthorizationViewState): BrowserAut
   };
 }
 
-function fakeIdentityController(): BrowserIdentityController {
-  return mockBrowserIdentityController({
+function fakeIdentityController(): PassportIdentityController {
+  return mockPassportIdentityController({
     list: vi.fn(() => Result.ok({
       activeIdentityId: "identity-1",
       identities: [{

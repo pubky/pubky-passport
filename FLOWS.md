@@ -319,7 +319,7 @@ sequenceDiagram
         participant ActionPanel as googleBackedIdentityActionPanel.tsx<br/>GoogleBackedIdentityActionPanel()
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity
-        participant Factory as createBrowserIdentityController.ts<br/>createBrowserIdentityController()
+        participant Factory as passportIdentity.ts<br/>createPassportIdentityController()
         participant Controller as passportIdentityController.ts<br/>PassportIdentityController
     end
     box rgba(0, 158, 115, 0.18) src/browser/google-sign-in
@@ -341,12 +341,12 @@ sequenceDiagram
     end
 
     alt Home identity panel
-        DevPanel->>Factory: createBrowserIdentityController(...)
+        DevPanel->>Factory: createPassportIdentityController(...)
         Factory->>Controller: new PassportIdentityController(...)
         Factory-->>DevPanel: controller
         DevPanel->>ActionPanel: render explicit action with controller
     else Authorization identity panel
-        AuthPanel->>Factory: createBrowserIdentityController(...)
+        AuthPanel->>Factory: createPassportIdentityController(...)
         Factory->>Controller: new PassportIdentityController(...)
         Factory-->>AuthPanel: controller
         AuthPanel->>ActionPanel: render establish action with controller

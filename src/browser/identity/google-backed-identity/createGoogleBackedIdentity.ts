@@ -1,7 +1,8 @@
 import "client-only";
 
-import { Result } from "better-result";
+import { Result, type Result as ResultType } from "better-result";
 
+import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
 import type { PubkyIdentityKey } from "../../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
 import { LOGGER } from "../../../libs/logger/logger";
@@ -9,11 +10,32 @@ import type { PassportFileEnvelopeV1 } from "../../../core/passport-file/passpor
 import type { PassportFileReference, PassportFileStoreResult } from "../../passport-file/googleDrivePassportFileStore";
 import type { EncryptPassportSecret } from "../../passport-file/passportFileWebCrypto";
 import type { HomeserverSignupInvitation } from "../../homegate/homegateClient";
-import type {
-  GoogleBackedIdentity,
-  GoogleBackedIdentityResult,
-} from "./googleBackedIdentity";
 import { SaveLocalIdentity } from "../local-identity/saveLocalIdentity";
+
+export type CreateGoogleBackedIdentityErrorCode =
+  | "create_failed"
+  | "encrypt_failed"
+  | "drive_create_conflict"
+  | "drive_write_failed"
+  | "signup_failed"
+  | "identity_mismatch"
+  | "discovery_failed"
+  | "local_save_failed";
+
+export type CreateGoogleBackedIdentityError = {
+  code: CreateGoogleBackedIdentityErrorCode;
+  partialSetupPublicIdentity?: PubkyPublicIdentity;
+};
+
+export type CreatedGoogleBackedIdentity = {
+  establishmentMode: "created";
+  publicIdentity: PubkyPublicIdentity;
+};
+
+export type CreateGoogleBackedIdentityResult<T = CreatedGoogleBackedIdentity> = ResultType<
+  T,
+  CreateGoogleBackedIdentityError
+>;
 
 export class CreateGoogleBackedIdentity {
   readonly #encryptSecretKeyBytes: EncryptPassportSecret;
@@ -37,7 +59,7 @@ export class CreateGoogleBackedIdentity {
     invitation: HomeserverSignupInvitation,
     createPassportFile: CreatePassportFile,
     wrappingKey: string,
-  ): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>> {
+  ): Promise<CreateGoogleBackedIdentityResult> {
     LOGGER.info("identity.google.create.started");
     const created = await this.#pubky.createIdentityKey();
     if (Result.isError(created)) return failure("create_failed");
@@ -108,20 +130,12 @@ type CreatePassportFile = (
 function failure<T>(
   code: Parameters<typeof createError>[0],
   partialSetupPublicIdentity?: Parameters<typeof createError>[1],
-): GoogleBackedIdentityResult<T> {
+): CreateGoogleBackedIdentityResult<T> {
   return Result.err(createError(code, partialSetupPublicIdentity));
 }
 
 function createError(
-  code:
-    | "create_failed"
-    | "encrypt_failed"
-    | "drive_create_conflict"
-    | "drive_write_failed"
-    | "signup_failed"
-    | "identity_mismatch"
-    | "discovery_failed"
-    | "local_save_failed",
+  code: CreateGoogleBackedIdentityErrorCode,
   partialSetupPublicIdentity?: PubkyIdentityKey["publicIdentity"],
 ) {
   return { code, ...(partialSetupPublicIdentity ? { partialSetupPublicIdentity } : {}) };

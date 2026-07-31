@@ -2,27 +2,18 @@ import "client-only";
 
 import { Result } from "better-result";
 
+import type { PubkyPublicIdentity } from "../../core/identity/pubkyIdentity";
 import { LOGGER } from "../../libs/logger/logger";
-import type {
-  GoogleBackedIdentityAction,
-  GoogleBackedIdentityActionDispatchResult,
-  GoogleBackedIdentityActionResult,
-  GoogleBackedIdentityActionState,
-  GoogleBackedIdentityActionValue,
-  BrowserIdentityCatalogResult,
-  BrowserIdentityController,
-  BrowserIdentityControllerError,
-  BrowserIdentityControllerErrorCode,
-  BrowserIdentityList,
-} from "./browserIdentityController";
 import type {
   GoogleBackedIdentity,
   GoogleBackedIdentityCredentials,
   GoogleBackedIdentityError,
   GoogleBackedIdentityResult,
+} from "./google-backed-identity/establishGoogleBackedIdentity";
+import type {
   GoogleDrivePassportFileDeletionError,
   GoogleDrivePassportFileDeletionResult,
-} from "./google-backed-identity/googleBackedIdentity";
+} from "./google-backed-identity/deleteGoogleDrivePassportFile";
 import type {
   GoogleDriveAccessErrorCode,
   GoogleDriveAccessResult,
@@ -32,11 +23,97 @@ import type {
   GoogleSignInResult,
 } from "../google-sign-in/googleIdentityServicesSignInButton";
 import type {
+  LocalIdentityErrorCode,
   LocalIdentityResult,
   LocalIdentitySummary,
-} from "./local-identity/localIdentity";
+} from "./local-identity/localStorageIdentityRepository";
 
-export type BrowserIdentityControllerDependencies = {
+export type { LocalIdentitySummary } from "./local-identity/localStorageIdentityRepository";
+
+export type PassportIdentityList = {
+  activeIdentityId: string | null;
+  identities: LocalIdentitySummary[];
+};
+
+export type PassportIdentityCatalogErrorCode = LocalIdentityErrorCode;
+
+export type PassportIdentityCatalogResult<T> = Result<T, { code: PassportIdentityCatalogErrorCode }>;
+
+export type PassportIdentityControllerErrorCode =
+  | "wrapping_key_failed"
+  | "wrapping_key_rate_limited"
+  | "wrapping_key_unavailable"
+  | "drive_read_failed"
+  | "decrypt_failed"
+  | "restore_failed"
+  | "identity_mismatch"
+  | "create_failed"
+  | "encrypt_failed"
+  | "drive_create_conflict"
+  | "drive_write_failed"
+  | "invalid_google_id_token"
+  | "weekly_limit_exceeded"
+  | "annual_limit_exceeded"
+  | "homegate_invalid_request"
+  | "homeserver_unavailable"
+  | "google_verifier_unavailable"
+  | "homegate_unavailable"
+  | "malformed_homegate_response"
+  | "network_failed"
+  | "signup_failed"
+  | "signin_failed"
+  | "discovery_failed"
+  | "local_save_failed"
+  | "drive_stale_file"
+  | "drive_delete_failed"
+  | "unexpected_failure";
+
+export type PassportIdentityControllerError = {
+  code: PassportIdentityControllerErrorCode;
+  partialSetupPublicIdentity?: PubkyPublicIdentity;
+};
+
+export type GoogleBackedIdentityAction =
+  | { kind: "establish_google_backed_identity" }
+  | { kind: "delete_google_drive_passport_file"; expectedPublicKeyZ32: string };
+
+export type GoogleBackedIdentityActionValue =
+  | {
+      kind: "google_backed_identity_established";
+      establishmentMode: "created" | "restored";
+      publicIdentity: PubkyPublicIdentity;
+    }
+  | { kind: "google_drive_passport_file_deleted" };
+
+export type GoogleBackedIdentityActionResult = Result<GoogleBackedIdentityActionValue, PassportIdentityControllerError>;
+
+export type GoogleBackedIdentityActionErrorCode =
+  | "sign_in_unavailable"
+  | "sign_in_failed"
+  | "google_drive_authorization_failed"
+  | "google_drive_authorization_popup_closed"
+  | "google_drive_authorization_popup_failed_to_open"
+  | "google_drive_authorization_timeout"
+  | "google_drive_authorization_account_mismatch"
+  | "google_drive_authorization_account_verification_failed";
+
+export type GoogleBackedIdentityActionState = {
+  stage:
+    | "google-sign-in"
+    | "google-drive-authorization"
+    | "requesting-google-drive-authorization"
+    | "executing-action";
+  errorCode: GoogleBackedIdentityActionErrorCode | null;
+};
+
+export type GoogleBackedIdentityActionDispatchResult =
+  | { status: "google_authorization_failed" }
+  | { status: "busy" }
+  | { status: "superseded" }
+  | { status: "action_finished_after_unmount"; result: GoogleBackedIdentityActionResult }
+  | { status: "action_completed"; result: GoogleBackedIdentityActionResult };
+
+export type PassportIdentityControllerDependencies = {
   list(): LocalIdentityResult<{ activeIdentityId: string | null; identities: LocalIdentitySummary[] }>;
   select(id: string): LocalIdentityResult<void>;
   clear(): LocalIdentityResult<void>;
@@ -60,8 +137,8 @@ export type BrowserIdentityControllerDependencies = {
   ): Promise<GoogleDriveAccessResult<string>>;
 };
 
-export class PassportIdentityController implements BrowserIdentityController {
-  readonly #dependencies: BrowserIdentityControllerDependencies;
+export class PassportIdentityController {
+  readonly #dependencies: PassportIdentityControllerDependencies;
   #target: HTMLElement | null = null;
   #onState: ((state: GoogleBackedIdentityActionState) => void) | null = null;
   #googleIdToken: string | null = null;
@@ -72,19 +149,19 @@ export class PassportIdentityController implements BrowserIdentityController {
   #disposed = false;
   #googleBackedIdentityOperationsDisposed = false;
 
-  constructor(input: { dependencies: BrowserIdentityControllerDependencies }) {
+  constructor(input: { dependencies: PassportIdentityControllerDependencies }) {
     this.#dependencies = input.dependencies;
   }
 
-  list(): BrowserIdentityCatalogResult<BrowserIdentityList> {
+  list(): PassportIdentityCatalogResult<PassportIdentityList> {
     return this.runCatalogOperation("list", () => this.#dependencies.list());
   }
 
-  select(id: string): BrowserIdentityCatalogResult<void> {
+  select(id: string): PassportIdentityCatalogResult<void> {
     return this.runCatalogOperation("select", () => this.#dependencies.select(id));
   }
 
-  clear(): BrowserIdentityCatalogResult<void> {
+  clear(): PassportIdentityCatalogResult<void> {
     return this.runCatalogOperation("clear", () => this.#dependencies.clear());
   }
 
@@ -118,7 +195,7 @@ export class PassportIdentityController implements BrowserIdentityController {
     this.#target = target;
     this.#onState = onState;
     const activeAttempt = ++this.#attempt;
-    let mounted: Awaited<ReturnType<BrowserIdentityControllerDependencies["mountGoogleSignIn"]>>;
+    let mounted: Awaited<ReturnType<PassportIdentityControllerDependencies["mountGoogleSignIn"]>>;
     try {
       mounted = await this.#dependencies.mountGoogleSignIn(
         target,
@@ -304,7 +381,7 @@ export class PassportIdentityController implements BrowserIdentityController {
   private runCatalogOperation<T>(
     operation: "list" | "select" | "clear",
     execute: () => LocalIdentityResult<T>,
-  ): BrowserIdentityCatalogResult<T> {
+  ): PassportIdentityCatalogResult<T> {
     try {
       return toCatalogResult(execute());
     } catch {
@@ -325,13 +402,13 @@ export class PassportIdentityController implements BrowserIdentityController {
 
 function toCatalogResult<T>(
   result: LocalIdentityResult<T>,
-): BrowserIdentityCatalogResult<T> {
+): PassportIdentityCatalogResult<T> {
   return Result.isError(result)
     ? Result.err({ code: result.error.code })
     : Result.ok(result.value);
 }
 
-function actionFailure(error: BrowserIdentityControllerError): GoogleBackedIdentityActionResult {
+function actionFailure(error: PassportIdentityControllerError): GoogleBackedIdentityActionResult {
   return Result.err({
     code: error.code,
     ...(error.partialSetupPublicIdentity
@@ -363,7 +440,7 @@ function deletionFailure(error: GoogleDrivePassportFileDeletionError): GoogleBac
 
 function wrappingKeyFailureCode(
   code: Extract<GoogleBackedIdentityError, { code: "wrapping_key_failed" }>["cause"],
-): BrowserIdentityControllerErrorCode {
+): PassportIdentityControllerErrorCode {
   switch (code) {
     case "invalid_google_id_token":
       return "invalid_google_id_token";

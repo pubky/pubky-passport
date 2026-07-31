@@ -7,14 +7,17 @@ import { PassportFileWebCrypto } from "../../passport-file/passportFileWebCrypto
 import type { PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
 import { WrappingKeyApiClient } from "../../wrapping-key/wrappingKeyApiClient";
-import type { LocalIdentityResult, LocalIdentitySummary } from "../local-identity/localIdentity";
+import type {
+  LocalIdentityResult,
+  LocalIdentitySummary,
+} from "../local-identity/localStorageIdentityRepository";
 import { SaveLocalIdentity } from "../local-identity/saveLocalIdentity";
 import { CreateGoogleBackedIdentity } from "./createGoogleBackedIdentity";
 import { DeleteGoogleDrivePassportFile } from "./deleteGoogleDrivePassportFile";
-import { EstablishGoogleBackedIdentity } from "./establishGoogleBackedIdentity";
-import type {
-  GoogleBackedIdentityCredentials,
-} from "./googleBackedIdentity";
+import {
+  EstablishGoogleBackedIdentity,
+  type GoogleBackedIdentityCredentials,
+} from "./establishGoogleBackedIdentity";
 import { RestoreGoogleBackedIdentity } from "./restoreGoogleBackedIdentity";
 
 export class GoogleBackedIdentityOperations {

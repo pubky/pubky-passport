@@ -7,10 +7,8 @@ import type {
   PubkySecretKeyMaterial,
 } from "../../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
-import type { LocalIdentityErrorCode, LocalIdentityResult, LocalIdentitySummary } from "./localIdentity";
+import type { LocalIdentityErrorCode, LocalIdentityResult, LocalIdentitySummary } from "./localStorageIdentityRepository";
 
-export type LocalIdentityOperationErrorCode = LocalIdentityErrorCode | "identity_mismatch" | "restore_failed";
-export type LocalIdentityOperationResult<T> = Result<T, { code: LocalIdentityOperationErrorCode }>;
 type SaveIdentityRecord = (
   identity: LocalIdentitySummary,
   secretKey: PubkySecretKeyMaterial,
@@ -28,7 +26,7 @@ export class SaveLocalIdentity {
     this.#pubky = input.pubky;
   }
 
-  async saveIdentity(keyHandle: PubkyIdentityKeyHandle): Promise<LocalIdentityOperationResult<LocalIdentitySummary>> {
+  async saveIdentity(keyHandle: PubkyIdentityKeyHandle): Promise<LocalIdentityResult<LocalIdentitySummary>> {
     const publicIdentity = await this.#pubky.getPublicIdentity(keyHandle);
     if (Result.isError(publicIdentity)) {
       return failure("invalid_identity");
@@ -51,6 +49,6 @@ export class SaveLocalIdentity {
 
 }
 
-function failure<T>(code: LocalIdentityOperationErrorCode): LocalIdentityOperationResult<T> {
+function failure<T>(code: LocalIdentityErrorCode): LocalIdentityResult<T> {
   return Result.err({ code });
 }

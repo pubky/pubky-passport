@@ -8,14 +8,14 @@ import type {
   BrowserAuthorizationViewState,
 } from "../browser/authorization/browserAuthorizationController";
 import { createBrowserAuthorizationController } from "../browser/authorization/createBrowserAuthorizationController";
-import type { createBrowserIdentityController } from "../browser/identity/createBrowserIdentityController";
+import type { createPassportIdentityController } from "../browser/identity/passportIdentity";
 import { AuthorizationIdentityPanel } from "./authorizationIdentityPanel";
 
 type AuthorizationReviewProps = {
   googleClientId: string;
   homegateBaseUrl: string;
   controllerFactory?: () => BrowserAuthorizationController;
-  identityControllerFactory?: typeof createBrowserIdentityController;
+  identityControllerFactory?: typeof createPassportIdentityController;
 };
 
 export function AuthorizationReview({

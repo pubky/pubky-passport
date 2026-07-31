@@ -7,8 +7,8 @@ import type {
   GoogleBackedIdentityActionErrorCode,
   GoogleBackedIdentityActionResult,
   GoogleBackedIdentityActionState,
-  BrowserIdentityController,
-} from "../browser/identity/browserIdentityController";
+  PassportIdentityController,
+} from "../browser/identity/passportIdentity";
 
 const GOOGLE_AUTHORIZATION_ERROR_MESSAGES: Record<GoogleBackedIdentityActionErrorCode, string> = {
   sign_in_unavailable: "Google sign-in is unavailable. Try again.",
@@ -28,7 +28,7 @@ export function GoogleBackedIdentityActionPanel({
   onActionCompleted,
   onBusyChange,
 }: {
-  controller: BrowserIdentityController;
+  controller: PassportIdentityController;
   action: GoogleBackedIdentityAction;
   disabled: boolean;
   onActionCompleted: (result: GoogleBackedIdentityActionResult) => void;

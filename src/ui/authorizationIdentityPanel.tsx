@@ -4,11 +4,11 @@ import { Result } from "better-result";
 import { useEffect, useRef, useState } from "react";
 
 import type {
-  BrowserIdentityController,
   GoogleBackedIdentityActionResult,
   LocalIdentitySummary,
-} from "../browser/identity/browserIdentityController";
-import { createBrowserIdentityController } from "../browser/identity/createBrowserIdentityController";
+  PassportIdentityController,
+} from "../browser/identity/passportIdentity";
+import { createPassportIdentityController } from "../browser/identity/passportIdentity";
 import { GoogleBackedIdentityActionPanel } from "./googleBackedIdentityActionPanel";
 
 export function AuthorizationIdentityPanel({
@@ -16,15 +16,15 @@ export function AuthorizationIdentityPanel({
   homegateBaseUrl,
   disabled,
   onReadyChange,
-  controllerFactory = createBrowserIdentityController,
+  controllerFactory = createPassportIdentityController,
 }: {
   googleClientId: string;
   homegateBaseUrl: string;
   disabled: boolean;
   onReadyChange: (ready: boolean) => void;
-  controllerFactory?: typeof createBrowserIdentityController;
+  controllerFactory?: typeof createPassportIdentityController;
 }) {
-  const controller = useRef<BrowserIdentityController | null>(null);
+  const controller = useRef<PassportIdentityController | null>(null);
   const readyCallback = useRef(onReadyChange);
   const identityActionPending = useRef(false);
   const [identities, setIdentities] = useState<LocalIdentitySummary[]>([]);
@@ -66,7 +66,7 @@ export function AuthorizationIdentityPanel({
   }, [controllerFactory, googleClientId, homegateBaseUrl]);
 
   function refreshIdentities(nextMessage?: string): void {
-    let stored: ReturnType<BrowserIdentityController["list"]> | undefined;
+    let stored: ReturnType<PassportIdentityController["list"]> | undefined;
     try {
       stored = controller.current?.list();
     } catch { /* The browser controller owns operation logging. */ }
@@ -85,7 +85,7 @@ export function AuthorizationIdentityPanel({
   }
 
   function selectIdentity(id: string): void {
-    let selected: ReturnType<BrowserIdentityController["select"]> | undefined;
+    let selected: ReturnType<PassportIdentityController["select"]> | undefined;
     try {
       selected = controller.current?.select(id);
     } catch { /* The browser controller owns operation logging. */ }
