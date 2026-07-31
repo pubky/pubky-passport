@@ -9,7 +9,6 @@ import type {
   LocalIdentitySummary,
 } from "../browser/identity/browserIdentityController";
 import { createBrowserIdentityController } from "../browser/identity/createBrowserIdentityController";
-import { LOGGER } from "../libs/logger/logger";
 import { GoogleBackedIdentityActionPanel } from "./googleBackedIdentityActionPanel";
 
 export function AuthorizationIdentityPanel({
@@ -50,21 +49,27 @@ export function AuthorizationIdentityPanel({
         });
         refreshIdentities();
       } catch {
-        LOGGER.warn("authorize.identity.initialize.failed");
         setMessage("Passport could not load Pubky identities in this browser.");
         readyCallback.current(false);
       }
     });
     return () => {
       cancelled = true;
-      unsubscribe();
-      controller.current?.dispose();
+      try {
+        unsubscribe();
+      } catch { /* Continue remaining cleanup. */ }
+      try {
+        controller.current?.dispose();
+      } catch { /* The browser controller owns disposal logging. */ }
       controller.current = null;
     };
   }, [controllerFactory, googleClientId, homegateBaseUrl]);
 
   function refreshIdentities(nextMessage?: string): void {
-    const stored = controller.current?.list();
+    let stored: ReturnType<BrowserIdentityController["list"]> | undefined;
+    try {
+      stored = controller.current?.list();
+    } catch { /* The browser controller owns operation logging. */ }
     if (!stored || Result.isError(stored)) {
       setIdentities([]);
       setSelectedIdentityId("");
@@ -80,7 +85,10 @@ export function AuthorizationIdentityPanel({
   }
 
   function selectIdentity(id: string): void {
-    const selected = controller.current?.select(id);
+    let selected: ReturnType<BrowserIdentityController["select"]> | undefined;
+    try {
+      selected = controller.current?.select(id);
+    } catch { /* The browser controller owns operation logging. */ }
     if (!selected || Result.isError(selected)) {
       setMessage("Passport could not select that Pubky identity.");
       return;
@@ -96,7 +104,6 @@ export function AuthorizationIdentityPanel({
     setBusy(false);
     setEstablishingIdentity(false);
     if (Result.isError(result)) {
-      LOGGER.warn("authorize.identity.google.failed", { code: result.error.code });
       refreshIdentities(messageForGoogleFailure(result.error.code));
       return;
     }
@@ -107,7 +114,9 @@ export function AuthorizationIdentityPanel({
   }
 
   function cancelGoogleAction(): void {
-    controller.current?.unmountGoogleSignIn();
+    try {
+      controller.current?.unmountGoogleSignIn();
+    } catch { /* The browser controller owns cleanup logging. */ }
     identityActionPending.current = false;
     setBusy(false);
     setEstablishingIdentity(false);

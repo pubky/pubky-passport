@@ -62,7 +62,14 @@ export class GoogleIdTokenVerifier {
       return failure();
     }
 
-    return validatePayload(payload, this.#audience, this.#now());
+    const result = validatePayload(payload, this.#audience, this.#now());
+    if (Result.isError(result)) {
+      LOGGER.warn("identity.google.id_token_verification.failed", {
+        operation: "validate_claims",
+        code: "invalid_claims",
+      });
+    }
+    return result;
   }
 }
 

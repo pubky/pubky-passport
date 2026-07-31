@@ -53,17 +53,22 @@ export class GoogleIdentityServices {
 
     try {
       await this.loadScript();
-    } catch (error) {
+    } catch {
       LOGGER.warn("identity.google.services.unavailable", {
+        operation: "load_google_accounts",
+        stage: "script_load",
         code: "script_load_failed",
-        errorName: error instanceof Error ? error.name : "unknown",
       });
       return Result.err({ code: "google_unavailable" });
     }
 
     const accounts = globalThis.window.google?.accounts;
     if (accounts) return Result.ok(accounts);
-    LOGGER.warn("identity.google.services.unavailable", { code: "accounts_missing" });
+    LOGGER.warn("identity.google.services.unavailable", {
+      operation: "load_google_accounts",
+      stage: "accounts_read",
+      code: "accounts_missing",
+    });
     return Result.err({ code: "google_unavailable" });
   }
 

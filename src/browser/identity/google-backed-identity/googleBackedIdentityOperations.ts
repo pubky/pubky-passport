@@ -3,7 +3,7 @@ import "client-only";
 import { LOGGER } from "../../../libs/logger/logger";
 import { HomegateClient } from "../../homegate/homegateClient";
 import { GoogleDrivePassportFileStore } from "../../passport-file/googleDrivePassportFileStore";
-import { WebCryptoPassportFileCrypto } from "../../passport-file/webCryptoPassportFileCrypto";
+import { PassportFileWebCrypto } from "../../passport-file/passportFileWebCrypto";
 import type { PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
 import { WrappingKeyApiClient } from "../../wrapping-key/wrappingKeyApiClient";
@@ -40,7 +40,7 @@ export class GoogleBackedIdentityOperations {
       const wrappingKeyApiClient = new WrappingKeyApiClient();
       const requestWrappingKey = wrappingKeyApiClient.requestGoogleWrappingKey.bind(wrappingKeyApiClient);
       const homegate = new HomegateClient({ homegateBaseUrl: input.homegateBaseUrl });
-      const crypto = new WebCryptoPassportFileCrypto();
+      const crypto = new PassportFileWebCrypto();
       const encryptSecretKeyBytes = crypto.encryptSecretKeyBytes.bind(crypto);
       const decryptSecretKeyBytes = crypto.decryptSecretKeyBytes.bind(crypto);
       const storeFor = (token: string) => new GoogleDrivePassportFileStore({

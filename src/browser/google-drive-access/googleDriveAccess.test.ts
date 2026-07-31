@@ -3,6 +3,7 @@
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { LOGGER } from "../../libs/logger/logger";
 import {
   GoogleDriveAccess,
   GOOGLE_DRIVE_APP_DATA_SCOPE,
@@ -20,21 +21,30 @@ describe("GoogleDriveAccess", () => {
   afterEach(() => {
     loadedGoogleAccounts = undefined;
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it("maps a throwing GIS loader to google_unavailable", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const result = await requestDriveTokenWithLoader({
       clientId: "google-client",
       googleIdentityServices: createGoogleIdentityServices(async () => {
-        throw new Error("GIS unavailable");
+        throw new Error("SECRET-GOOGLE-SUBJECT");
       }),
     });
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "google_unavailable" });
+    expect(warn).toHaveBeenCalledWith("identity.google.drive_authorization.failed", {
+      operation: "request_access_token",
+      stage: "services_load",
+      code: "google_unavailable",
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-GOOGLE-SUBJECT");
   });
 
   it("rejects an OAuth response that lacks the Drive app data scope", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     let accessTokenCallback: ((response: { access_token?: unknown; error?: unknown; scope?: unknown }) => void) | undefined;
     let tokenClientConfig: { client_id: string; scope: string; login_hint?: string } | undefined;
     const requestAccessToken = vi.fn();
@@ -66,6 +76,12 @@ describe("GoogleDriveAccess", () => {
     const result = await resultPromise;
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "google_drive_authorization_failed" });
+    expect(warn).toHaveBeenCalledWith("identity.google.drive_authorization.failed", {
+      operation: "request_access_token",
+      stage: "oauth_response",
+      code: "google_drive_authorization_failed",
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("drive-token");
   });
 
   it("rejects a Drive token issued for a different Google subject", async () => {

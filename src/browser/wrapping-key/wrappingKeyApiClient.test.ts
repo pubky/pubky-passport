@@ -50,7 +50,8 @@ describe("WrappingKeyApiClient", () => {
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "invalid_google_id_token" });
     expect(warn).toHaveBeenCalledWith("identity.google.wrapping_key.failed", {
-      layer: "browser",
+      operation: "request_google_wrapping_key",
+      stage: "error_response",
       code: "invalid_google_id_token",
     });
   });
@@ -143,7 +144,8 @@ describe("WrappingKeyApiClient", () => {
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "network_failed" });
     expect(warn).toHaveBeenCalledWith("identity.google.wrapping_key.failed", {
-      layer: "browser",
+      operation: "request_google_wrapping_key",
+      stage: "request",
       code: "network_failed",
     });
     expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-GOOGLE-ID-TOKEN");

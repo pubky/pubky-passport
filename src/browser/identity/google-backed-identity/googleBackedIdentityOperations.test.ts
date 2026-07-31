@@ -18,7 +18,7 @@ const MOCKS = vi.hoisted(() => ({
     publishHomeserverIfStale: vi.fn(),
     dispose: vi.fn(),
   },
-  WebCryptoPassportFileCrypto: vi.fn(),
+  PassportFileWebCrypto: vi.fn(),
   crypto: {
     encryptSecretKeyBytes() {},
     decryptSecretKeyBytes() {},
@@ -41,8 +41,8 @@ vi.mock("../../pubky/pubkySdkAdapter", () => ({
   PubkySdkAdapter: MOCKS.PubkySdkAdapter,
 }));
 
-vi.mock("../../passport-file/webCryptoPassportFileCrypto", () => ({
-  WebCryptoPassportFileCrypto: MOCKS.WebCryptoPassportFileCrypto,
+vi.mock("../../passport-file/passportFileWebCrypto", () => ({
+  PassportFileWebCrypto: MOCKS.PassportFileWebCrypto,
 }));
 
 vi.mock("../local-identity/saveLocalIdentity", () => ({
@@ -173,7 +173,7 @@ function prepareConstructors(input: {
   MOCKS.PubkySdkAdapter.mockImplementation(function () {
     return MOCKS.pubky;
   });
-  MOCKS.WebCryptoPassportFileCrypto.mockImplementation(function () {
+  MOCKS.PassportFileWebCrypto.mockImplementation(function () {
     return MOCKS.crypto;
   });
   MOCKS.SaveLocalIdentity.mockImplementation(function () {

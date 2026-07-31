@@ -26,7 +26,7 @@ describe("POST /api/wrapping-key/google", () => {
   });
 
   it("does not construct configured dependencies for invalid requests", async () => {
-    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
     let factoryCalls = 0;
     const post = createGoogleWrappingKeyPostHandler(() => {
       factoryCalls += 1;
@@ -42,7 +42,12 @@ describe("POST /api/wrapping-key/google", () => {
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(response.headers.get("Referrer-Policy")).toBe("no-referrer");
     expect(factoryCalls).toBe(0);
-    expect(warn).not.toHaveBeenCalled();
+    expect(info).toHaveBeenCalledWith("identity.google.wrapping_key.failed", {
+      route: "api.wrapping_key.google",
+      layer: "route",
+      operation: "parse",
+      code: "invalid_request",
+    });
   });
 
   it.each([
@@ -90,6 +95,7 @@ describe("POST /api/wrapping-key/google", () => {
     expect((await post(jsonRequest({ googleIdToken: "second-id-token" }))).status).toBe(200);
     expect(factoryCalls).toBe(2);
     expect(error).toHaveBeenCalledWith("identity.google.wrapping_key.failed", {
+      route: "api.wrapping_key.google",
       layer: "route",
       operation: "compose",
       code: "internal_error",
@@ -108,6 +114,7 @@ describe("POST /api/wrapping-key/google", () => {
     await expect(response.json()).resolves.toEqual({ error: { code: "internal_error" } });
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(error).toHaveBeenCalledWith("identity.google.wrapping_key.failed", {
+      route: "api.wrapping_key.google",
       layer: "route",
       operation: "execute",
       code: "internal_error",

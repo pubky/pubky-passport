@@ -1,8 +1,9 @@
 import { Result, type Result as ResultType } from "better-result";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAsyncResultError, expectResultOk } from "../../../test-utils/resultAssertions";
 import type { PassportFileEnvelopeV1 } from "../../core/passport-file/passportFile";
+import { LOGGER } from "../../libs/logger/logger";
 import {
   GoogleDrivePassportFileStore,
 } from "./googleDrivePassportFileStore";
@@ -17,6 +18,8 @@ const ENVELOPE: PassportFileEnvelopeV1 = {
 const REFERENCE = { storageId: "file-1", revision: "7" };
 const LISTED_FILE = { id: "file-1", name: "passport.json", version: "7" };
 const EXACT_FILE = { ...LISTED_FILE, trashed: false };
+
+afterEach(() => vi.restoreAllMocks());
 
 type FetchCall = {
   endpoint: string;
@@ -286,8 +289,19 @@ describe("GoogleDrivePassportFileStore", () => {
   });
 
   it("maps token provider and network failures safely", async () => {
-    const unauthorizedStore = new GoogleDrivePassportFileStore({
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const emptyTokenStore = new GoogleDrivePassportFileStore({
       accessTokenProvider: async () => "",
+      fetch: (async () => jsonResponse({ files: [] })) as typeof fetch,
+    });
+    await expectFailure(emptyTokenStore.readPassportFile(), "unauthorized");
+    expect(warning).toHaveBeenCalledWith("identity.google.drive_store.failed", {
+      operation: "access_token",
+      code: "unauthorized",
+    });
+
+    const unauthorizedStore = new GoogleDrivePassportFileStore({
+      accessTokenProvider: async () => { throw new Error("SECRET-TOKEN-PROVIDER-FAILURE"); },
       fetch: (async () => jsonResponse({ files: [] })) as typeof fetch,
     });
     await expectFailure(unauthorizedStore.readPassportFile(), "unauthorized");
@@ -300,6 +314,33 @@ describe("GoogleDrivePassportFileStore", () => {
       expect(result.error).toEqual({ code: "network_failed" });
     }
     expect(JSON.stringify(result)).not.toContain("secret details");
+    expect(warning).toHaveBeenNthCalledWith(2, "identity.google.drive_store.failed", {
+      operation: "access_token",
+      code: "unauthorized",
+    });
+    expect(warning).toHaveBeenNthCalledWith(3, "identity.google.drive_store.failed", {
+      operation: "list",
+      code: "network_failed",
+    });
+    expect(warning).toHaveBeenCalledTimes(3);
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-TOKEN-PROVIDER-FAILURE");
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("secret details");
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(ACCESS_TOKEN);
+  });
+
+  it("logs malformed Drive JSON without retaining response contents", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const { store } = createStore([textResponse("SECRET-MALFORMED-DRIVE-RESPONSE")]);
+
+    await expectFailure(store.readPassportFile(), "invalid_response");
+
+    expect(warning).toHaveBeenCalledWith("identity.google.drive_store.failed", {
+      operation: "parse_list_response",
+      code: "invalid_response",
+    });
+    expect(warning).toHaveBeenCalledOnce();
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-MALFORMED-DRIVE-RESPONSE");
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(ACCESS_TOKEN);
   });
 
   it("rejects duplicate or paginated Drive matches", async () => {
@@ -434,6 +475,28 @@ describe("GoogleDrivePassportFileStore", () => {
 
     await expectSuccess(store.createPassportFile(ENVELOPE), { storageId: "created", revision: "1" });
     expect(calls).toHaveLength(3);
+  });
+
+  it("logs browser lock failures without retaining exception details", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const store = new GoogleDrivePassportFileStore({
+      accessTokenProvider: async () => ACCESS_TOKEN,
+      fetch: (async () => jsonResponse({ files: [] })) as typeof fetch,
+      requestLock: async () => { throw new Error("SECRET-LOCK-FAILURE"); },
+    });
+
+    await expectFailure(store.createPassportFile(ENVELOPE), "write_failed");
+
+    expect(warning).toHaveBeenCalledWith("identity.google.drive_store.failed", {
+      operation: "create_lock",
+      code: "write_failed",
+    });
+    expect(warning).toHaveBeenCalledOnce();
+    const logged = JSON.stringify(warning.mock.calls);
+    expect(logged).not.toContain("SECRET-LOCK-FAILURE");
+    expect(logged).not.toContain(ACCESS_TOKEN);
+    expect(logged).not.toContain(ENVELOPE.iv);
+    expect(logged).not.toContain(ENVELOPE.ct);
   });
 
   it("rejects create when passport.json already exists without PATCHing it", async () => {

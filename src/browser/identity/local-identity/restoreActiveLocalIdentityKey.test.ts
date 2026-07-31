@@ -51,8 +51,7 @@ describe("RestoreActiveLocalIdentityKey", () => {
     });
   });
 
-  it("logs typed SDK restoration failures without retaining secret bytes", async () => {
-    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+  it("maps typed SDK restoration failures and clears secret bytes", async () => {
     const pubky = new RecordingPubkySdkAdapter();
     pubky.restoreFailure = "restore_failed";
     const { readActive, state } = createReadActive();
@@ -61,10 +60,6 @@ describe("RestoreActiveLocalIdentityKey", () => {
 
     await expectAsyncResultError(restore.restore(), { code: "restore_failed" });
     expect(state.activeSecret.bytes.every((byte) => byte === 0)).toBe(true);
-    expect(warning).toHaveBeenCalledOnce();
-    expect(warning).toHaveBeenCalledWith("identity.local_restore.failed", {
-      code: "restore_failed",
-    });
   });
 });
 

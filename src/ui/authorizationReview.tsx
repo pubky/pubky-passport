@@ -25,15 +25,64 @@ export function AuthorizationReview({
   identityControllerFactory,
 }: AuthorizationReviewProps) {
   // The factory owns synchronous query scrubbing and StrictMode parser provenance.
-  const [controller] = useState(controllerFactory);
-  const [state, setState] = useState<BrowserAuthorizationViewState>(() => controller.getState());
+  const [initial] = useState(() => {
+    try {
+      const controller = controllerFactory();
+      return { controller, state: controller.getState() };
+    } catch {
+      return null;
+    }
+  });
+  const controller = initial?.controller ?? null;
+  const [state, setState] = useState<BrowserAuthorizationViewState | null>(initial?.state ?? null);
   const [identityReady, setIdentityReady] = useState(false);
+  const [boundaryFailed, setBoundaryFailed] = useState(initial === null);
 
   useEffect(() => {
-    const unsubscribe = controller.subscribe(setState);
-    controller.mounted();
-    return unsubscribe;
+    if (!controller) return;
+
+    let unsubscribe = () => {};
+    try {
+      unsubscribe = controller.subscribe(setState);
+      controller.mounted();
+    } catch {
+      queueMicrotask(() => setBoundaryFailed(true));
+    }
+
+    return () => {
+      try {
+        unsubscribe();
+      } catch { /* The browser controller owns cleanup logging. */ }
+    };
   }, [controller]);
+
+  async function approve(): Promise<void> {
+    if (!controller) return;
+    try {
+      await controller.approve();
+    } catch {
+      setBoundaryFailed(true);
+    }
+  }
+
+  function cancel(): void {
+    if (!controller) return;
+    try {
+      controller.cancel();
+    } catch {
+      setBoundaryFailed(true);
+    }
+  }
+
+  if (boundaryFailed || !state) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 p-4 sm:p-8">
+        <h1 className="text-2xl font-semibold">Authorization unavailable</h1>
+        <p>Passport could not load the authorization review. Return to Passport and try again.</p>
+        <Link className="w-fit underline" href="/">Back to Passport</Link>
+      </main>
+    );
+  }
 
   if (state.status === "invalid") {
     return (
@@ -94,10 +143,10 @@ export function AuthorizationReview({
         {...(identityControllerFactory ? { controllerFactory: identityControllerFactory } : {})}
       />
       <div aria-live="polite" className="flex gap-2">
-        <button className="rounded border px-3 py-2" disabled={pending || !identityReady} onClick={() => void controller.approve()} type="button">
+        <button className="rounded border px-3 py-2" disabled={pending || !identityReady} onClick={() => void approve()} type="button">
           {state.status === "approving" ? "Approving..." : "Approve"}
         </button>
-        <button className="rounded border px-3 py-2" disabled={pending} onClick={() => controller.cancel()} type="button">Cancel</button>
+        <button className="rounded border px-3 py-2" disabled={pending} onClick={cancel} type="button">Cancel</button>
       </div>
     </main>
   );

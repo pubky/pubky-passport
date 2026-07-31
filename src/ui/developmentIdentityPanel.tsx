@@ -10,7 +10,6 @@ import type {
 } from "../browser/identity/browserIdentityController";
 import { createBrowserIdentityController } from "../browser/identity/createBrowserIdentityController";
 import type { PubkyPublicIdentity } from "../core/identity/pubkyIdentity";
-import { LOGGER } from "../libs/logger/logger";
 import { GoogleBackedIdentityActionPanel } from "./googleBackedIdentityActionPanel";
 
 type GoogleAction = "add" | "delete-selected" | "delete-failed" | null;
@@ -45,20 +44,26 @@ export function DevelopmentIdentityPanel({
         unsubscribe = controller.current.subscribe(() => refreshIdentities());
         refreshIdentities();
       } catch {
-        LOGGER.warn("identity.pubky.initialize.failed");
         setMessage("Could not initialize Pubky in this browser.");
       }
     });
     return () => {
       cancelled = true;
-      unsubscribe();
-      controller.current?.dispose();
+      try {
+        unsubscribe();
+      } catch { /* Continue remaining cleanup. */ }
+      try {
+        controller.current?.dispose();
+      } catch { /* The browser controller owns disposal logging. */ }
       controller.current = null;
     };
   }, [googleClientId, homegateBaseUrl]);
 
   function refreshIdentities(nextMessage?: string): void {
-    const stored = controller.current?.list();
+    let stored: ReturnType<BrowserIdentityController["list"]> | undefined;
+    try {
+      stored = controller.current?.list();
+    } catch { /* The browser controller owns operation logging. */ }
     if (!stored || Result.isError(stored)) {
       setIdentities([]);
       setSelectedIdentityId("");
@@ -72,7 +77,10 @@ export function DevelopmentIdentityPanel({
   }
 
   function selectIdentity(id: string): void {
-    const selected = controller.current?.select(id);
+    let selected: ReturnType<BrowserIdentityController["select"]> | undefined;
+    try {
+      selected = controller.current?.select(id);
+    } catch { /* The browser controller owns operation logging. */ }
     if (!selected || Result.isError(selected)) {
       setMessage("Could not select that Pubky identity.");
       return;
@@ -84,7 +92,6 @@ export function DevelopmentIdentityPanel({
 
   function completeGoogleAction(result: GoogleBackedIdentityActionResult): void {
     if (Result.isError(result)) {
-      LOGGER.warn("identity.google.action.failed", { code: result.error.code });
       const creationCleanupCandidate = googleAction === "add"
         ? result.error.partialSetupPublicIdentity ?? null
         : null;
@@ -103,7 +110,10 @@ export function DevelopmentIdentityPanel({
   }
 
   function clearLocalIdentities(): void {
-    const cleared = controller.current?.clear();
+    let cleared: ReturnType<BrowserIdentityController["clear"]> | undefined;
+    try {
+      cleared = controller.current?.clear();
+    } catch { /* The browser controller owns operation logging. */ }
     if (!cleared || Result.isError(cleared)) {
       setMessage("Could not clear local Pubky identities.");
       return;
@@ -120,7 +130,9 @@ export function DevelopmentIdentityPanel({
   }
 
   function cancelGoogleAction(): void {
-    controller.current?.unmountGoogleSignIn();
+    try {
+      controller.current?.unmountGoogleSignIn();
+    } catch { /* The browser controller owns cleanup logging. */ }
     setBusy(false);
     googleActionTarget.current = null;
     setGoogleAction(null);

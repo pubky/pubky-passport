@@ -37,13 +37,7 @@ export async function approveActiveAuthorization(input: {
     keyHandle = restored.value.keyHandle;
     const approved = await input.pubky.approveAuthRequest(keyHandle, input.authRequest);
 
-    if (Result.isError(approved)) {
-      LOGGER.warn("authorize.approval.failed", {
-        stage: "sdk_approve",
-        code: approved.error.code,
-      });
-      return Result.err({ code: "approval_failed" });
-    }
+    if (Result.isError(approved)) return Result.err({ code: "approval_failed" });
     return Result.ok();
   } catch {
     LOGGER.warn("authorize.approval.failed", {

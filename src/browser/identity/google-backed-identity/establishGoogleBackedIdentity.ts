@@ -69,10 +69,8 @@ export class EstablishGoogleBackedIdentity {
 
     LOGGER.info("identity.google.drive_read.started");
     const storedFile = await this.#readPassportFile(credentials.driveAccessToken);
-    if (Result.isError(storedFile)) {
-      LOGGER.warn("identity.google.drive_read.failed", { code: storedFile.error.code });
-      return failure("drive_read_failed");
-    } else if (storedFile.value.status === "found") {
+    if (Result.isError(storedFile)) return failure("drive_read_failed");
+    if (storedFile.value.status === "found") {
       LOGGER.info("identity.google.drive_read.completed", { status: "found" });
       return this.#restoreExistingIdentity.execute(storedFile.value.envelope, wrappingKey.value);
     }
@@ -81,7 +79,6 @@ export class EstablishGoogleBackedIdentity {
     LOGGER.info("identity.google.homeserver_signup_invitation.started");
     const invitation = await this.#homegate.requestGoogleHomeserverSignupInvitation(credentials.googleIdToken);
     if (Result.isError(invitation)) {
-      LOGGER.warn("identity.google.homeserver_signup_invitation.failed", { code: invitation.error.code });
       return Result.err({ code: "homeserver_signup_invitation_failed", cause: invitation.error.code });
     }
 

@@ -1,9 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PUBKY_AUTH_REQUEST_LIMITS } from "../../core/auth/pubkyAuthRequestLimits";
+import { LOGGER } from "../../libs/logger/logger";
 import { enterAuthorization } from "./browserManualAuthorization";
 
 describe("enterAuthorization", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it("rejects an invalid request without navigating", () => {
     const navigate = sanitizedNavigationRecorder();
 
@@ -33,6 +36,20 @@ describe("enterAuthorization", () => {
     expect(enterAuthorization(`  ${request}  `, navigate.navigate)).toBe("navigating");
     expect(navigate.record).toEqual({ pathname: "/authorize", queryKeys: ["d"], hasEncodedRequest: true });
     expect(JSON.stringify(navigate)).not.toContain("secret");
+  });
+
+  it("logs navigation failures without exposing the authorization request", () => {
+    const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+    const request = "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.client.example/inbox&secret=secret-canary";
+
+    expect(enterAuthorization(request, () => { throw new Error("secret-canary"); })).toBe("navigation_failed");
+
+    expect(info).toHaveBeenCalledWith("authorize.manual_entry.failed", {
+      operation: "enter_authorization",
+      code: "navigation_failed",
+    });
+    expect(info).toHaveBeenCalledOnce();
+    expect(JSON.stringify(info.mock.calls)).not.toContain("secret-canary");
   });
 });
 

@@ -1,8 +1,9 @@
 /** @vitest-environment jsdom */
 
 import { Result } from "better-result";
-import { describe, expect, expectTypeOf, it, vi } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
+import { LOGGER } from "../../libs/logger/logger";
 import type { BrowserIdentityControllerError } from "./browserIdentityController";
 import {
   PassportIdentityController,
@@ -13,8 +14,78 @@ import type { GoogleSignInResult } from "../google-sign-in/googleIdentityService
 const GOOGLE_SUBJECT_CANARY = "google-subject";
 
 describe("PassportIdentityController", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it("exposes a finite action error code contract", () => {
     expectTypeOf<BrowserIdentityControllerError["code"]>().not.toEqualTypeOf<string>();
+  });
+
+  it.each(["list", "select", "clear"] as const)("logs unexpected %s catalog exceptions without identity details", (operation) => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const controller = new PassportIdentityController({
+      dependencies: dependencies({
+        [operation]: () => { throw new Error("SECRET-IDENTITY-ID"); },
+      }),
+    });
+
+    const result = operation === "list"
+      ? controller.list()
+      : operation === "select"
+        ? controller.select("SECRET-IDENTITY-ID")
+        : controller.clear();
+
+    expect((result as { error?: { code: string } }).error).toEqual({ code: "storage_unavailable" });
+    expect(warning).toHaveBeenCalledWith("identity.local_catalog.failed", {
+      operation,
+      code: "runtime_exception",
+    });
+    expect(warning).toHaveBeenCalledOnce();
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-IDENTITY-ID");
+  });
+
+  it("contains sign-in cleanup exceptions and continues identity operation disposal", () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const disposeGoogleBackedIdentityOperations = vi.fn();
+    const controller = new PassportIdentityController({
+      dependencies: dependencies({
+        unmountGoogleSignIn: () => { throw new Error("SECRET-GOOGLE-TOKEN"); },
+        disposeGoogleBackedIdentityOperations,
+      }),
+    });
+
+    expect(() => controller.dispose()).not.toThrow();
+
+    expect(disposeGoogleBackedIdentityOperations).toHaveBeenCalledOnce();
+    expect(warning).toHaveBeenCalledWith("identity.google.cleanup.failed", {
+      operation: "google_sign_in_unmount",
+      code: "cleanup_failed",
+    });
+    expect(warning).toHaveBeenCalledOnce();
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-GOOGLE-TOKEN");
+  });
+
+  it.each(["subscribe", "unsubscribe"] as const)("logs and surfaces sanitized %s failures", (operation) => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const controller = new PassportIdentityController({
+      dependencies: dependencies({
+        subscribe: operation === "subscribe"
+          ? () => { throw new Error("SECRET-SUBSCRIPTION-CANARY"); }
+          : () => () => { throw new Error("SECRET-SUBSCRIPTION-CANARY"); },
+      }),
+    });
+
+    if (operation === "subscribe") {
+      expect(() => controller.subscribe(vi.fn())).toThrow("Identity subscription unavailable.");
+    } else {
+      const unsubscribe = controller.subscribe(vi.fn());
+      expect(() => unsubscribe()).toThrow("Identity subscription cleanup failed.");
+    }
+    expect(warning).toHaveBeenCalledWith("identity.local_catalog.failed", {
+      operation,
+      code: "runtime_exception",
+    });
+    expect(warning).toHaveBeenCalledOnce();
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-SUBSCRIPTION-CANARY");
   });
 
   it("keeps Google credentials private and returns a safe established identity", async () => {

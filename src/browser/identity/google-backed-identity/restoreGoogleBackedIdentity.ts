@@ -9,7 +9,7 @@ import {
 import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
 import { LOGGER } from "../../../libs/logger/logger";
 import type { PassportFileEnvelopeV1 } from "../../../core/passport-file/passportFile";
-import type { DecryptPassportSecret } from "../../passport-file/webCryptoPassportFileCrypto";
+import type { DecryptPassportSecret } from "../../passport-file/passportFileWebCrypto";
 import type {
   GoogleBackedIdentity,
   GoogleBackedIdentityResult,
@@ -44,26 +44,17 @@ export class RestoreGoogleBackedIdentity {
       wrappingKey,
       passportOrigin: this.#passportOrigin,
     });
-    if (Result.isError(secretKey)) {
-      LOGGER.warn("identity.google.decrypt.failed", { code: secretKey.error.code });
-      return failure("decrypt_failed");
-    }
+    if (Result.isError(secretKey)) return failure("decrypt_failed");
 
     let restoredIdentity: PubkyIdentityKey | null = null;
     try {
       const restored = await this.#pubky.restoreIdentityKey({ bytes: secretKey.value, format: PUBKY_SECRET_KEY_FORMAT });
-      if (Result.isError(restored)) {
-        LOGGER.warn("identity.google.restore.failed", { code: restored.error.code });
-        return failure("restore_failed");
-      }
+      if (Result.isError(restored)) return failure("restore_failed");
       restoredIdentity = restored.value;
       LOGGER.info("identity.google.restore.completed");
 
       const signedIn = await this.#pubky.signin(restored.value.keyHandle, true);
-      if (Result.isError(signedIn)) {
-        LOGGER.warn("identity.google.signin.failed", { code: signedIn.error.code });
-        return failure("signin_failed");
-      }
+      if (Result.isError(signedIn)) return failure("signin_failed");
       if (signedIn.value.publicIdentity.publicKeyZ32 !== restored.value.publicIdentity.publicKeyZ32) {
         LOGGER.warn("identity.google.activation_identity.failed");
         return failure("identity_mismatch");
@@ -71,10 +62,7 @@ export class RestoreGoogleBackedIdentity {
 
       LOGGER.info("identity.local_save.started", { establishmentMode: "restored" });
       const saved = await this.#localIdentities.saveIdentity(restored.value.keyHandle);
-      if (Result.isError(saved)) {
-        LOGGER.warn("identity.local_save.failed", { code: saved.error.code });
-        return failure("local_save_failed");
-      }
+      if (Result.isError(saved)) return failure("local_save_failed");
 
       LOGGER.info("identity.local_save.completed", { establishmentMode: "restored" });
       return Result.ok({

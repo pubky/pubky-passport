@@ -1,9 +1,10 @@
 /** @vitest-environment jsdom */
 
 import { Result } from "better-result";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { encodeBase64Url } from "../../libs/encoding/base64Url";
+import { LOGGER } from "../../libs/logger/logger";
 import {
   GoogleIdentityServices,
   type GoogleAccounts,
@@ -18,6 +19,8 @@ import {
 
 const MAXIMUM_GOOGLE_ID_TOKEN_CHARACTERS = 16 * 1024 - '{"googleIdToken":""}'.length;
 const GOOGLE_SUBJECT_CANARY = "google-subject";
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("Google credential callback ownership", () => {
   it("keeps one live owner and never dispatches to a rejected binding", () => {
@@ -123,6 +126,7 @@ describe("GoogleIdentityServicesSignInButton", () => {
   });
 
   it("maps malformed credentials without exposing provider values", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     let providerCallback: ((response: GoogleCredentialResponse) => void) | undefined;
     const onCredential = credentialResultRecorder();
     const accounts = googleAccounts();
@@ -136,7 +140,31 @@ describe("GoogleIdentityServicesSignInButton", () => {
     providerCallback?.({ credential: "invalid-token" });
 
     expect(onCredential.record).toEqual({ calls: 1, ok: false, code: "sign_in_failed" });
+    expect(warn).toHaveBeenCalledWith("identity.google.button.failed", {
+      operation: "mount_sign_in_button",
+      stage: "subject_parse",
+      code: "sign_in_failed",
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("invalid-token");
     expect(JSON.stringify(onCredential.record)).not.toContain("invalid-token");
+    widget.unmount();
+  });
+
+  it("does not catch a consumer callback exception or invoke the callback twice", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    let providerCallback: ((response: GoogleCredentialResponse) => void) | undefined;
+    const accounts = googleAccounts();
+    accounts.id.initialize = vi.fn((config) => { providerCallback = config.callback; });
+    const widget = new GoogleIdentityServicesSignInButton({
+      clientId: "google-client",
+      googleIdentityServices: googleIdentityServicesFor(accounts),
+    });
+    const callback = vi.fn(() => { throw new Error("CALLBACK-EXCEPTION-CANARY"); });
+    await widget.mount(document.createElement("div"), callback);
+
+    expect(() => providerCallback?.({ credential: googleIdToken(GOOGLE_SUBJECT_CANARY) })).toThrow("CALLBACK-EXCEPTION-CANARY");
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("CALLBACK-EXCEPTION-CANARY");
     widget.unmount();
   });
 

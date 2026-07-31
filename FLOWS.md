@@ -465,7 +465,7 @@ sequenceDiagram
         participant Local as saveLocalIdentity.ts<br/>SaveLocalIdentity
     end
     box rgba(0, 158, 115, 0.18) src/browser/passport-file
-        participant Crypto as webCryptoPassportFileCrypto.ts<br/>WebCryptoPassportFileCrypto
+        participant Crypto as passportFileWebCrypto.ts<br/>PassportFileWebCrypto
     end
     box rgba(0, 158, 115, 0.18) src/browser/pubky
         participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
@@ -522,7 +522,7 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Missing identity encryption and Drive storage call flow
-    accDescr: CreateGoogleBackedIdentity asks PubkySdkAdapter and the Pubky SDK for a new key and exported secret, encrypts the secret through a focused callback bound from WebCryptoPassportFileCrypto, creates the Google Drive Passport file through a focused callback bound from GoogleDrivePassportFileStore, and then zeros the exported bytes.
+    accDescr: CreateGoogleBackedIdentity asks PubkySdkAdapter and the Pubky SDK for a new key and exported secret, encrypts the secret through a focused callback bound from PassportFileWebCrypto, creates the Google Drive Passport file through a focused callback bound from GoogleDrivePassportFileStore, and then zeros the exported bytes.
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed-identity
         participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
     end
@@ -530,7 +530,7 @@ sequenceDiagram
         participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
     box rgba(0, 158, 115, 0.18) src/browser/passport-file
-        participant Crypto as webCryptoPassportFileCrypto.ts<br/>WebCryptoPassportFileCrypto
+        participant Crypto as passportFileWebCrypto.ts<br/>PassportFileWebCrypto
         participant DriveStore as googleDrivePassportFileStore.ts<br/>GoogleDrivePassportFileStore
     end
     box rgba(17, 24, 39, 0.12) External
@@ -682,7 +682,7 @@ sequenceDiagram
     end
     box rgba(0, 158, 115, 0.18) src/browser/passport-file
         participant DriveStore as googleDrivePassportFileStore.ts<br/>GoogleDrivePassportFileStore
-        participant Crypto as webCryptoPassportFileCrypto.ts<br/>WebCryptoPassportFileCrypto
+        participant Crypto as passportFileWebCrypto.ts<br/>PassportFileWebCrypto
     end
     box rgba(0, 158, 115, 0.18) src/browser/pubky
         participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter

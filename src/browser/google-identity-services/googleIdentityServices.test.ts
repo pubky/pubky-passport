@@ -50,8 +50,9 @@ describe("GoogleIdentityServices", () => {
     await vi.advanceTimersByTimeAsync(20);
     expect(Result.isError(await failedPromise)).toBe(true);
     expect(warn).toHaveBeenCalledWith("identity.google.services.unavailable", {
+      operation: "load_google_accounts",
+      stage: "script_load",
       code: "script_load_failed",
-      errorName: "Error",
     });
     expect(document.querySelector('script[src="https://accounts.google.com/gsi/client"]')).toBeNull();
 
@@ -68,7 +69,11 @@ describe("GoogleIdentityServices", () => {
     document.querySelector('script[src="https://accounts.google.com/gsi/client"]')?.dispatchEvent(new Event("load"));
 
     expect(Result.isError(await resultPromise)).toBe(true);
-    expect(warn).toHaveBeenCalledWith("identity.google.services.unavailable", { code: "accounts_missing" });
+    expect(warn).toHaveBeenCalledWith("identity.google.services.unavailable", {
+      operation: "load_google_accounts",
+      stage: "accounts_read",
+      code: "accounts_missing",
+    });
   });
 });
 

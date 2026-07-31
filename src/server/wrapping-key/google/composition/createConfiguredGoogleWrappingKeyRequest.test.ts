@@ -4,7 +4,10 @@ import { GoogleWrappingKeyRequest } from "../application/googleWrappingKeyReques
 import { createConfiguredGoogleWrappingKeyRequest } from "./createConfiguredGoogleWrappingKeyRequest";
 
 describe("configured Google wrapping-key request", () => {
-  afterEach(() => vi.unstubAllEnvs());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
 
   it("constructs the configured server flow", () => {
     vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");

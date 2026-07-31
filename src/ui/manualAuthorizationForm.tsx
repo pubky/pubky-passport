@@ -17,10 +17,20 @@ export function ManualAuthorizationForm({
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    const result = enterAuthorization(request);
     setRequest("");
+    let result: ManualAuthorizationEntryResult;
+    try {
+      result = enterAuthorization(request);
+    } catch {
+      setError("Passport could not process the authorization request. Try again.");
+      return;
+    }
     if (result === "invalid") {
       setError("The invalid request was cleared for security. Correct it in the source app, then paste the complete request again.");
+      return;
+    }
+    if (result === "navigation_failed") {
+      setError("Passport could not open the authorization review. Try again.");
       return;
     }
 

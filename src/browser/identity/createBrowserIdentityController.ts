@@ -3,6 +3,7 @@ import "client-only";
 import { GoogleDriveAccess } from "../google-drive-access/googleDriveAccess";
 import { GoogleIdentityServices } from "../google-identity-services/googleIdentityServices";
 import { GoogleIdentityServicesSignInButton } from "../google-sign-in/googleIdentityServicesSignInButton";
+import { LOGGER } from "../../libs/logger/logger";
 import { LocalStorageIdentityRepository } from "./local-identity/localStorageIdentityRepository";
 import type { BrowserIdentityController } from "./browserIdentityController";
 import { PassportIdentityController } from "./passportIdentityController";
@@ -11,6 +12,21 @@ import {
 } from "./google-backed-identity/googleBackedIdentityOperations";
 
 export function createBrowserIdentityController(options: {
+  googleClientId: string;
+  homegateBaseUrl: string;
+}): BrowserIdentityController {
+  try {
+    return createController(options);
+  } catch (error) {
+    LOGGER.error("identity.controller.failed", {
+      operation: "initialize",
+      code: "runtime_exception",
+    });
+    throw error;
+  }
+}
+
+function createController(options: {
   googleClientId: string;
   homegateBaseUrl: string;
 }): BrowserIdentityController {

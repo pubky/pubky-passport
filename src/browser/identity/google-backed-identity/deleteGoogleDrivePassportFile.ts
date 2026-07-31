@@ -8,7 +8,7 @@ import {
 } from "../../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
 import { LOGGER } from "../../../libs/logger/logger";
-import type { DecryptPassportSecret } from "../../passport-file/webCryptoPassportFileCrypto";
+import type { DecryptPassportSecret } from "../../passport-file/passportFileWebCrypto";
 import type {
   PassportFileReadResult,
   PassportFileReference,
@@ -80,7 +80,13 @@ export class DeleteGoogleDrivePassportFile {
       if (Result.isError(restored)) return failure("restore_failed");
       restoredIdentity = restored.value;
 
-      if (restored.value.publicIdentity.publicKeyZ32 !== expectedPublicKeyZ32) return failure("identity_mismatch");
+      if (restored.value.publicIdentity.publicKeyZ32 !== expectedPublicKeyZ32) {
+        LOGGER.warn("identity.google.delete.failed", {
+          stage: "identity_validation",
+          code: "identity_mismatch",
+        });
+        return failure("identity_mismatch");
+      }
     } finally {
       secretKey.value.fill(0);
       if (restoredIdentity) {

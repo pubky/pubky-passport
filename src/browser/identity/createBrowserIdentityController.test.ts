@@ -4,6 +4,7 @@ import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MemoryStorage } from "../../../test-utils/fakes/memoryStorage";
+import { LOGGER } from "../../libs/logger/logger";
 import type { GoogleSignInResult } from "../google-sign-in/googleIdentityServicesSignInButton";
 
 type CredentialCallback = (
@@ -131,7 +132,26 @@ describe("createBrowserIdentityController", () => {
       publicIdentity: { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" },
     });
   });
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("logs construction failures without configuration or exception details", () => {
+    const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
+    MOCKS.GoogleIdentityServicesSignInButton.mockImplementationOnce(() => {
+      throw new Error("SECRET-CONFIGURATION-VALUE");
+    });
+
+    expect(() => createController()).toThrow("SECRET-CONFIGURATION-VALUE");
+    expect(error).toHaveBeenCalledWith("identity.controller.failed", {
+      operation: "initialize",
+      code: "runtime_exception",
+    });
+    expect(error).toHaveBeenCalledOnce();
+    expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET-CONFIGURATION-VALUE");
+    expect(JSON.stringify(error.mock.calls)).not.toContain(VALID_CONTROLLER_CONFIG.homegateBaseUrl);
+  });
 
   it("serves the local identity catalog without constructing the Pubky action graph", () => {
     const controller = createController();

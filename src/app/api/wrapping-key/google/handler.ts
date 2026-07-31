@@ -25,14 +25,21 @@ export function createGoogleWrappingKeyPostHandler(
   let activeRequest: ReturnType<typeof createRequest> | undefined;
 
   return async function googleWrappingKeyPost(request: Request): Promise<NextResponse<GoogleWrappingKeyRouteBody>> {
-    const body = await parseGoogleWrappingKeyRequest(request);
-
-    if (Result.isError(body)) {
-      return jsonResponse({ error: { code: "invalid_request" } }, 400);
-    }
-
-    let operation: "compose" | "execute" = "compose";
+    let operation: "parse" | "compose" | "execute" = "parse";
     try {
+      const body = await parseGoogleWrappingKeyRequest(request);
+
+      if (Result.isError(body)) {
+        LOGGER.info("identity.google.wrapping_key.failed", {
+          route: "api.wrapping_key.google",
+          layer: "route",
+          operation,
+          code: "invalid_request",
+        });
+        return jsonResponse({ error: { code: "invalid_request" } }, 400);
+      }
+
+      operation = "compose";
       if (!activeRequest) activeRequest = createRequest();
       operation = "execute";
       const result = await activeRequest.requestGoogleWrappingKey(body.value);
@@ -44,6 +51,7 @@ export function createGoogleWrappingKeyPostHandler(
       return jsonResponse({ wrappingKey: result.value }, 200);
     } catch {
       LOGGER.error("identity.google.wrapping_key.failed", {
+        route: "api.wrapping_key.google",
         layer: "route",
         operation,
         code: "internal_error",

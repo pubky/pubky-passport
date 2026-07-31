@@ -6,7 +6,7 @@ import type {
   DecryptPassportSecretInput,
   EncryptPassportSecretInput,
   PassportFileCryptoResult,
-} from "../../src/browser/passport-file/webCryptoPassportFileCrypto";
+} from "../../src/browser/passport-file/passportFileWebCrypto";
 import type {
   PassportFileReadResult,
   PassportFileReference,

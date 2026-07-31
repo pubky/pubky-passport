@@ -67,6 +67,7 @@ describe("Google wrapping-key request", () => {
   });
 
   it("rejects rate-limited identities", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const rateLimited = new GoogleWrappingKeyRequest(testDependencies({
       async verifyGoogleIdToken() { return Result.ok(IDENTITY); },
       tryConsumeRequest() { return false; },
@@ -74,6 +75,12 @@ describe("Google wrapping-key request", () => {
     }));
 
     await expectAsyncResultError(rateLimited.requestGoogleWrappingKey("id-token"), { code: "rate_limited" });
+    expect(warning).toHaveBeenCalledWith("identity.google.wrapping_key.failed", {
+      layer: "server",
+      operation: "rate_limit",
+      code: "rate_limited",
+    });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(IDENTITY.subject);
   });
 
   it.each([

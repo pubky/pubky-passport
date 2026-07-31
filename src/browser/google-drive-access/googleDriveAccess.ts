@@ -3,6 +3,7 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import { readBoundedText } from "../../libs/http/boundedBody";
+import { LOGGER } from "../../libs/logger/logger";
 import type { GoogleIdentityServices } from "../google-identity-services/googleIdentityServices";
 
 export type GoogleDriveAccessErrorCode =
@@ -52,15 +53,15 @@ export class GoogleDriveAccess {
   }
 
   async requestAccessToken(input: GoogleDriveAccessRequest): Promise<GoogleDriveAccessResult<string>> {
-    if (input.signal?.aborted) return Result.err({ code: "google_drive_authorization_aborted" });
+    if (input.signal?.aborted) return failure("request_start", "google_drive_authorization_aborted");
     let accounts: Awaited<ReturnType<GoogleIdentityServices["loadGoogleAccounts"]>>;
     try {
       accounts = await this.#googleIdentityServices.loadGoogleAccounts();
     } catch {
-      return Result.err({ code: "google_unavailable" });
+      return failure("services_load", "google_unavailable");
     }
     if (Result.isError(accounts)) return Result.err(accounts.error);
-    if (input.signal?.aborted) return Result.err({ code: "google_drive_authorization_aborted" });
+    if (input.signal?.aborted) return failure("services_loaded", "google_drive_authorization_aborted");
 
     return new Promise((resolve) => {
       let settled = false;
@@ -74,11 +75,11 @@ export class GoogleDriveAccess {
       };
       const abort = (): void => {
         operationController.abort();
-        finish(Result.err({ code: "google_drive_authorization_aborted" }));
+        finish(failure("authorization", "google_drive_authorization_aborted"));
       };
       const timer = setTimeout(() => {
         operationController.abort();
-        finish(Result.err({ code: "google_drive_authorization_timeout" }));
+        finish(failure("authorization", "google_drive_authorization_timeout"));
       }, Math.max(0, this.#timeoutMs));
       input.signal?.addEventListener("abort", abort, { once: true });
 
@@ -90,7 +91,7 @@ export class GoogleDriveAccess {
           callback: async (response) => {
             if (settled) return;
             if (typeof response.access_token !== "string" || response.access_token.length === 0 || response.error !== undefined || !hasGoogleScope(response.scope, GOOGLE_DRIVE_APP_DATA_SCOPE)) {
-              finish(Result.err({ code: "google_drive_authorization_failed" }));
+              finish(failure("oauth_response", "google_drive_authorization_failed"));
               return;
             }
 
@@ -106,26 +107,42 @@ export class GoogleDriveAccess {
                 : verification === "aborted"
                   ? "google_drive_authorization_aborted"
                   : "google_drive_authorization_account_verification_failed";
-              finish(Result.err({ code }));
+              finish(failure("account_verification", code));
               return;
             }
 
             finish(Result.ok(response.access_token));
           },
           error_callback(error) {
-            finish(Result.err({
-              code: error.type === "popup_closed"
+            finish(failure(
+              "oauth_popup",
+              error.type === "popup_closed"
                 ? "google_drive_authorization_popup_closed"
                 : "google_drive_authorization_popup_failed_to_open",
-            }));
+            ));
           },
         });
         tokenClient.requestAccessToken({ prompt: input.selectAccount ? "select_account" : "" });
       } catch {
-        finish(Result.err({ code: "google_drive_authorization_popup_failed_to_open" }));
+        finish(failure("oauth_client", "google_drive_authorization_popup_failed_to_open"));
       }
     });
   }
+}
+
+function failure(
+  stage: "request_start" | "services_load" | "services_loaded" | "authorization" | "oauth_response" | "account_verification" | "oauth_popup" | "oauth_client",
+  code: GoogleDriveAccessErrorCode,
+): GoogleDriveAccessResult<never> {
+  const expectedOutcome = code === "google_drive_authorization_aborted"
+    || code === "google_drive_authorization_popup_closed"
+    || code === "google_drive_authorization_account_mismatch";
+  LOGGER[expectedOutcome ? "info" : "warn"]("identity.google.drive_authorization.failed", {
+    operation: "request_access_token",
+    stage,
+    code,
+  });
+  return Result.err({ code });
 }
 
 async function verifyGoogleSubject(

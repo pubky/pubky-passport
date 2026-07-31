@@ -53,7 +53,6 @@ describe("approveActiveAuthorization", () => {
   });
 
   it("disposes the restored key when approval fails", async () => {
-    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const pubky = new RecordingPubkySdkAdapter();
     pubky.approvalFailure = "relay_failed";
     const restoredResult = await pubky.createIdentityKey();
@@ -71,11 +70,6 @@ describe("approveActiveAuthorization", () => {
 
     expect(Result.isError(result) && result.error).toEqual({ code: "approval_failed" });
     expect(pubky.disposedKeys).toEqual([restored.keyHandle]);
-    expect(warning).toHaveBeenCalledOnce();
-    expect(warning).toHaveBeenCalledWith("authorize.approval.failed", {
-      stage: "sdk_approve",
-      code: "relay_failed",
-    });
   });
 
   it("logs cleanup failures without changing the approval result", async () => {

@@ -40,6 +40,7 @@ export function GoogleBackedIdentityActionPanel({
   const retryPending = useRef(false);
   const callbacks = useRef({ onActionCompleted, onBusyChange });
   const [state, setState] = useState<GoogleBackedIdentityActionState>({ stage: "google-sign-in", errorCode: null });
+  const [boundaryFailed, setBoundaryFailed] = useState(false);
 
   useEffect(() => {
     callbacks.current = { onActionCompleted, onBusyChange };
@@ -47,14 +48,24 @@ export function GoogleBackedIdentityActionPanel({
 
   useEffect(() => {
     if (!container.current) return;
-    void controller.mountGoogleSignIn(container.current, setState);
-    return () => controller.unmountGoogleSignIn();
+    void controller.mountGoogleSignIn(container.current, setState).catch(() => {
+      queueMicrotask(() => setBoundaryFailed(true));
+    });
+    return () => {
+      try {
+        controller.unmountGoogleSignIn();
+      } catch { /* The browser controller owns cleanup logging. */ }
+    };
   }, [controller]);
 
   useEffect(() => {
-    callbacks.current.onBusyChange(
-      state.stage === "requesting-google-drive-authorization" || state.stage === "executing-action",
-    );
+    try {
+      callbacks.current.onBusyChange(
+        state.stage === "requesting-google-drive-authorization" || state.stage === "executing-action",
+      );
+    } catch {
+      queueMicrotask(() => setBoundaryFailed(true));
+    }
   }, [state.stage]);
 
   useEffect(() => {
@@ -70,8 +81,22 @@ export function GoogleBackedIdentityActionPanel({
   }, [state]);
 
   async function continueWithGoogle(): Promise<void> {
-    const completed = await controller.continueGoogleBackedIdentityAction(action);
-    if (completed.status === "action_completed") callbacks.current.onActionCompleted(completed.result);
+    try {
+      const completed = await controller.continueGoogleBackedIdentityAction(action);
+      if (completed.status === "action_completed") callbacks.current.onActionCompleted(completed.result);
+    } catch {
+      setBoundaryFailed(true);
+    }
+  }
+
+  function retryGoogleSignIn(): void {
+    retryPending.current = true;
+    try {
+      controller.retryGoogleSignIn();
+    } catch {
+      retryPending.current = false;
+      setBoundaryFailed(true);
+    }
   }
 
   const deletingPassportFile = action.kind === "delete_google_drive_passport_file";
@@ -101,15 +126,13 @@ export function GoogleBackedIdentityActionPanel({
         tabIndex={-1}
       />
       <p aria-live="polite" className="text-sm text-neutral-600" role="status">{status}</p>
+      {boundaryFailed ? <p className="text-sm text-red-700" role="alert">Passport could not continue the Google identity action. Try again.</p> : null}
       {!disabled && state.stage === "google-drive-authorization" ? (
         <button className="rounded border px-3 py-2" onClick={() => void continueWithGoogle()} ref={driveAuthorizationButton} type="button">Authorize Google Drive</button>
       ) : null}
       {!disabled && state.stage === "google-sign-in" && state.errorCode ? <p className="text-sm text-red-700" role="alert">{GOOGLE_AUTHORIZATION_ERROR_MESSAGES[state.errorCode]}</p> : null}
       {!disabled && state.stage === "google-sign-in" && state.errorCode ? (
-        <button className="rounded border px-3 py-2" onClick={() => {
-          retryPending.current = true;
-          controller.retryGoogleSignIn();
-        }} ref={retryButton} type="button">Try again</button>
+        <button className="rounded border px-3 py-2" onClick={retryGoogleSignIn} ref={retryButton} type="button">Try again</button>
       ) : null}
     </div>
   );

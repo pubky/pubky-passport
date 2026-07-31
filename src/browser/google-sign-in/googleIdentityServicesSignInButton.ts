@@ -18,6 +18,14 @@ export type GoogleSignInCredential = {
 
 export type GoogleSignInErrorCode = "google_unavailable" | "sign_in_failed";
 export type GoogleSignInResult<T> = ResultType<T, { code: GoogleSignInErrorCode }>;
+type SignInButtonFailureStage =
+  | "attempt_superseded"
+  | "bind_failed"
+  | "credential_validation"
+  | "render_failed"
+  | "services_load_failed"
+  | "services_unavailable"
+  | "subject_parse";
 
 const GOOGLE_ID_TOKEN_REQUEST_ENVELOPE_CHARACTERS = '{"googleIdToken":""}'.length;
 const MAXIMUM_GOOGLE_ID_TOKEN_CHARACTERS = 16 * 1024 - GOOGLE_ID_TOKEN_REQUEST_ENVELOPE_CHARACTERS;
@@ -49,33 +57,25 @@ export class GoogleIdentityServicesSignInButton {
     try {
       accounts = await this.#googleIdentityServices.loadGoogleAccounts();
     } catch {
-      return this.unavailable("load_threw");
+      return this.unavailable("services_load_failed");
     }
-    if (activeAttempt !== this.#attempt) return Result.err({ code: "sign_in_failed" });
-    if (Result.isError(accounts)) return this.unavailable(accounts.error.code);
+    if (activeAttempt !== this.#attempt) return this.failed("attempt_superseded", "sign_in_failed");
+    if (Result.isError(accounts)) return this.propagateUnavailable(accounts.error);
 
     const callback = (response: GoogleCredentialResponse): void => {
       if (activeAttempt !== this.#attempt) return;
-      try {
-        if (
-          typeof response.credential !== "string"
-          || response.credential.length === 0
-          || response.credential.length > MAXIMUM_GOOGLE_ID_TOKEN_CHARACTERS
-        ) {
-          LOGGER.warn("identity.google.button.credential_failed");
-          onCredential(Result.err({ code: "sign_in_failed" }));
-          return;
-        }
-        const subject = readUnverifiedGoogleIdTokenSubject(response.credential);
-        if (!subject) {
-          onCredential(Result.err({ code: "sign_in_failed" }));
-          return;
-        }
-        onCredential(Result.ok({ googleIdToken: response.credential, subject }));
-      } catch {
-        LOGGER.warn("identity.google.button.credential_failed", { code: "unexpected" });
-        onCredential(Result.err({ code: "sign_in_failed" }));
+      if (
+        typeof response.credential !== "string"
+        || response.credential.length === 0
+        || response.credential.length > MAXIMUM_GOOGLE_ID_TOKEN_CHARACTERS
+      ) {
+        onCredential(this.credentialFailure("credential_validation"));
+        return;
       }
+      const subject = readUnverifiedGoogleIdTokenSubject(response.credential);
+      onCredential(subject
+        ? Result.ok({ googleIdToken: response.credential, subject })
+        : this.credentialFailure("subject_parse"));
     };
 
     this.#credentialCallback = callback;
@@ -83,9 +83,9 @@ export class GoogleIdentityServicesSignInButton {
     try {
       bound = bindGoogleCredentialCallback(accounts.value, this.#clientId, callback);
     } catch {
-      return this.unavailable("bind_threw");
+      return this.unavailable("bind_failed");
     }
-    if (Result.isError(bound)) return this.unavailable(bound.error.code);
+    if (Result.isError(bound)) return this.propagateUnavailable({ code: "google_unavailable" });
 
     try {
       target.replaceChildren();
@@ -106,15 +106,37 @@ export class GoogleIdentityServicesSignInButton {
     try {
       releaseGoogleCredentialCallback(this.#credentialCallback);
     } catch {
-      LOGGER.warn("identity.google.cleanup.failed", { operation: "credential_release" });
+      LOGGER.warn("identity.google.cleanup.failed", {
+        operation: "unmount_sign_in_button",
+        stage: "credential_release",
+        code: "cleanup_failed",
+      });
     }
     this.#credentialCallback = null;
   }
 
-  private unavailable(code: string): GoogleSignInResult<never> {
-    LOGGER.warn("identity.google.button.unavailable", { code });
+  private unavailable(stage: "bind_failed" | "render_failed" | "services_load_failed" | "services_unavailable"): GoogleSignInResult<never> {
+    const result = this.failed(stage, "google_unavailable");
     this.unmount();
-    return Result.err({ code: "google_unavailable" });
+    return result;
+  }
+
+  private credentialFailure(stage: "credential_validation" | "subject_parse"): GoogleSignInResult<never> {
+    return this.failed(stage, "sign_in_failed");
+  }
+
+  private propagateUnavailable(error: { code: "google_unavailable" }): GoogleSignInResult<never> {
+    this.unmount();
+    return Result.err(error);
+  }
+
+  private failed(stage: SignInButtonFailureStage, code: GoogleSignInErrorCode): GoogleSignInResult<never> {
+    LOGGER[stage === "attempt_superseded" ? "info" : "warn"]("identity.google.button.failed", {
+      operation: "mount_sign_in_button",
+      stage,
+      code,
+    });
+    return Result.err({ code });
   }
 }
 
@@ -128,14 +150,14 @@ export function bindGoogleCredentialCallback(
   callback: (response: GoogleCredentialResponse) => void,
 ): GoogleSignInResult<void> {
   if (activeCredentialCallback && activeCredentialCallback !== callback) {
-    return Result.err({ code: "sign_in_failed" });
+    return bindingFailure("callback_owned");
   }
   if (initializedIdentityAccounts === accounts) {
-    if (initializedIdentityClientId !== clientId) return Result.err({ code: "sign_in_failed" });
+    if (initializedIdentityClientId !== clientId) return bindingFailure("client_mismatch");
     activeCredentialCallback = callback;
     return Result.ok();
   }
-  if (activeCredentialCallback) return Result.err({ code: "sign_in_failed" });
+  if (activeCredentialCallback) return bindingFailure("callback_owned");
 
   activeCredentialCallback = callback;
   try {
@@ -149,7 +171,7 @@ export function bindGoogleCredentialCallback(
     return Result.ok();
   } catch {
     if (activeCredentialCallback === callback) activeCredentialCallback = undefined;
-    return Result.err({ code: "sign_in_failed" });
+    return bindingFailure("initialize_failed");
   }
 }
 
@@ -185,4 +207,13 @@ export function readUnverifiedGoogleIdTokenSubject(token: string): string | unde
   } catch {
     return undefined;
   }
+}
+
+function bindingFailure(stage: "callback_owned" | "client_mismatch" | "initialize_failed"): GoogleSignInResult<never> {
+  LOGGER.warn("identity.google.sign_in.failed", {
+    operation: "bind_credential_callback",
+    stage,
+    code: "sign_in_failed",
+  });
+  return Result.err({ code: "sign_in_failed" });
 }

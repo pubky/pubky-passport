@@ -22,7 +22,10 @@ const REVIEW = {
 };
 
 describe("AuthorizationReview", () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
 
   it("renders safe review state and delegates approval and cancellation intents", async () => {
     const user = userEvent.setup();
@@ -72,6 +75,25 @@ describe("AuthorizationReview", () => {
 
     expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument();
     expect(screen.getByText(message)).toBeInTheDocument();
+  });
+
+  it("renders an unavailable state when approval rejects", async () => {
+    const controller = fakeController({ status: "review", review: REVIEW });
+    vi.mocked(controller.approve).mockRejectedValue(new Error("SECRET-AUTHORIZATION-URL"));
+    renderReview(controller);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled());
+    await userEvent.setup().click(screen.getByRole("button", { name: "Approve" }));
+
+    expect(await screen.findByRole("heading", { name: "Authorization unavailable" })).toBeInTheDocument();
+  });
+
+  it("contains review cleanup failures during unmount", () => {
+    const controller = fakeController({ status: "invalid" });
+    controller.subscribe = vi.fn(() => () => { throw new Error("SECRET-CALLBACK-URL"); });
+    const rendered = renderReview(controller);
+
+    expect(() => rendered.unmount()).not.toThrow();
   });
 });
 

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { LOGGER } from "../src/libs/logger/logger";
 import { proxy } from "../src/proxy";
 
 describe("request CSP proxy", () => {
@@ -9,7 +10,10 @@ describe("request CSP proxy", () => {
     vi.stubEnv("HOMEGATE_URL", "https://homegate.example/config/path");
   });
 
-  afterEach(() => vi.unstubAllEnvs());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
 
   it("allows only the validated relay origin on an authorization document", () => {
     const request = authorizationRequest("https://relay.client.example/inbox?region=eu");
@@ -39,10 +43,17 @@ describe("request CSP proxy", () => {
   });
 
   it("rejects unsafe configured Homegate origins before emitting CSP", () => {
+    const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
     vi.stubEnv("HOMEGATE_URL", "https://*.example.com");
 
     expect(() => proxy(new NextRequest("https://passport.example/")))
       .toThrow("HOMEGATE_URL must be a CSP-safe HTTPS base URL");
+    expect(error).toHaveBeenCalledWith("proxy.bootstrap.failed", {
+      layer: "proxy",
+      operation: "build_response_policy",
+      code: "runtime_exception",
+    });
+    expect(JSON.stringify(error.mock.calls)).not.toContain("https://*.example.com");
   });
 });
 

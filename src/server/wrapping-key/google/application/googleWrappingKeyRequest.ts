@@ -51,7 +51,7 @@ export class GoogleWrappingKeyRequest {
       return dependencyFailure("rate_limit");
     }
 
-    if (!allowed) return failure("rate_limited");
+    if (!allowed) return expectedFailure("rate_limited", "rate_limit");
 
     try {
       return Result.ok(this.#deriver.deriveWrappingKey(identity.value));
@@ -63,6 +63,18 @@ export class GoogleWrappingKeyRequest {
 
 function failure(code: GoogleWrappingKeyRequestErrorCode): GoogleWrappingKeyRequestResult {
   return Result.err({ code });
+}
+
+function expectedFailure(
+  code: "invalid_google_id_token" | "rate_limited",
+  operation: "verify" | "rate_limit",
+): GoogleWrappingKeyRequestResult {
+  LOGGER.warn("identity.google.wrapping_key.failed", {
+    layer: "server",
+    operation,
+    code,
+  });
+  return failure(code);
 }
 
 function dependencyFailure(operation: "verify" | "rate_limit" | "derive"): GoogleWrappingKeyRequestResult {

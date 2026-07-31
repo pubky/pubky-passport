@@ -138,6 +138,24 @@ describe("HomegateClient", () => {
     expect(result.error).toEqual({ code: expectedCode });
   });
 
+  it("logs an unknown Homegate body only as closed response metadata", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const client = new HomegateClient({
+      fetch: new SanitizedFetchRecorder(new Response("HOMEGATE-BODY-CANARY", { status: 500 })).fetch,
+      homegateBaseUrl: HOMEGATE_BASE_URL,
+    });
+
+    const result = await client.requestGoogleHomeserverSignupInvitation("id-token");
+
+    expect(Result.isError(result)).toBe(true);
+    expect(warn).toHaveBeenCalledWith("identity.google.homeserver_signup_invitation.failed", {
+      operation: "request_google_invitation",
+      stage: "error_response",
+      code: "malformed_homegate_response",
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("HOMEGATE-BODY-CANARY");
+  });
+
   it("maps absent and oversized Homegate error bodies to unavailable", async () => {
     for (const response of [
       new Response(null, { status: 500 }),
@@ -169,8 +187,10 @@ describe("HomegateClient", () => {
     expect(Result.isError(result)).toBe(true);
     if (!Result.isError(result)) throw new Error("Expected Homegate network failure.");
     expect(result.error).toEqual({ code: "network_failed" });
-    expect(warn).toHaveBeenCalledWith("identity.google.homeserver_signup_invitation.network_failed", {
-      errorName: "Error",
+    expect(warn).toHaveBeenCalledWith("identity.google.homeserver_signup_invitation.failed", {
+      operation: "request_google_invitation",
+      stage: "request",
+      code: "network_failed",
     });
     expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-GOOGLE-ID-TOKEN");
     expect(JSON.stringify(fetch)).not.toContain("SECRET-GOOGLE-ID-TOKEN");

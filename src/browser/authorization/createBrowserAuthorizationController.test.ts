@@ -90,6 +90,7 @@ describe("createBrowserAuthorizationController", () => {
 
   it("logs adapter cleanup failures without changing the authorization result", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
     MOCKS.dispose.mockImplementationOnce(() => {
       throw new Error("cleanup failed");
     });
@@ -99,6 +100,10 @@ describe("createBrowserAuthorizationController", () => {
     await expect(controller.approve()).resolves.toEqual({
       status: "failed",
       failureCode: "no_active_identity",
+    });
+    expect(info).toHaveBeenCalledWith("identity.local_store.failed", {
+      operation: "read_active",
+      code: "no_active_identity",
     });
     expect(warning).toHaveBeenCalledOnce();
     expect(warning).toHaveBeenCalledWith("authorize.cleanup.failed", {

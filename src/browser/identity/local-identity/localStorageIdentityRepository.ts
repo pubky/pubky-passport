@@ -46,10 +46,10 @@ export class LocalStorageIdentityRepository {
 
   save(identity: LocalIdentitySummary, secretKey: PubkySecretKeyMaterial): LocalIdentityResult<LocalIdentitySummary> {
     if (identity.id !== identity.publicIdentity.publicKeyZ32) {
-      return failure("invalid_identity");
+      return failure("save", "invalid_identity");
     }
     if (secretKey.format !== PUBKY_SECRET_KEY_FORMAT || secretKey.bytes.byteLength !== PUBKY_SECRET_KEY_BYTES) {
-      return failure("invalid_secret_key");
+      return failure("save", "invalid_secret_key");
     }
 
     const store = this.readStore();
@@ -89,7 +89,7 @@ export class LocalStorageIdentityRepository {
     }
 
     if (!store.value.identities.some((identity) => identity.id === id)) {
-      return failure("invalid_identity");
+      return failure("select", "invalid_identity");
     }
 
     return this.writeStore({ ...store.value, activeIdentityId: id });
@@ -115,11 +115,26 @@ export class LocalStorageIdentityRepository {
     const onStorage = (event: StorageEvent) => {
       if ((event.key === STORAGE_KEY || event.key === null)
         && (!event.storageArea || event.storageArea === this.#storage)) {
-        listener();
+        try {
+          listener();
+        } catch {
+          LOGGER.warn("identity.local_store.failed", { operation: "notify", code: "listener_failed" });
+        }
       }
     };
-    target.addEventListener("storage", onStorage);
-    return () => target.removeEventListener("storage", onStorage);
+    try {
+      target.addEventListener("storage", onStorage);
+    } catch {
+      LOGGER.warn("identity.local_store.failed", { operation: "subscribe", code: "listener_failed" });
+      return () => {};
+    }
+    return () => {
+      try {
+        target.removeEventListener("storage", onStorage);
+      } catch {
+        LOGGER.warn("identity.local_store.failed", { operation: "unsubscribe", code: "listener_failed" });
+      }
+    };
   }
 
   readActive(): LocalIdentityResult<{ identity: LocalIdentitySummary; secretKey: PubkySecretKeyMaterial }> {
@@ -129,12 +144,12 @@ export class LocalStorageIdentityRepository {
     }
 
     if (!store.value.activeIdentityId) {
-      return failure("no_active_identity");
+      return failure("read_active", "no_active_identity");
     }
 
     const storedIdentity = store.value.identities.find((candidate) => candidate.id === store.value.activeIdentityId);
     if (!storedIdentity) {
-      return failure("no_active_identity");
+      return failure("read_active", "no_active_identity");
     }
 
     const secretKey = decodeStoredSecretKey(storedIdentity.secretKey);
@@ -252,7 +267,13 @@ function decodeStoredSecretKey(value: string): Uint8Array | undefined {
   return decoded?.byteLength === PUBKY_SECRET_KEY_BYTES ? decoded : undefined;
 }
 
-function failure<T>(code: LocalIdentityErrorCode): LocalIdentityResult<T> {
+function failure<T>(
+  operation: "save" | "select" | "read_active",
+  code: LocalIdentityErrorCode,
+): LocalIdentityResult<T> {
+  const expectedOutcome = code === "no_active_identity"
+    || (operation === "select" && code === "invalid_identity");
+  LOGGER[expectedOutcome ? "info" : "warn"]("identity.local_store.failed", { operation, code });
   return Result.err({ code });
 }
 
@@ -261,5 +282,5 @@ function localStoreFailure<T>(
   code: "storage_unavailable" | "invalid_store",
 ): LocalIdentityResult<T> {
   LOGGER.warn("identity.local_store.failed", { operation, code });
-  return failure(code);
+  return Result.err({ code });
 }

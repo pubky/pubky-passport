@@ -54,30 +54,37 @@ export class WrappingKeyApiClient {
         referrerPolicy: "no-referrer",
       });
     } catch {
-      return failure("network_failed");
+      return failure("request", "network_failed");
     }
 
     const contents = await readBoundedText(response, MAXIMUM_RESPONSE_BYTES);
-    if (contents === null || contents === "too_large") return failure("invalid_response");
+    if (contents === null || contents === "too_large") return failure("response_read", "invalid_response");
 
     let body: unknown;
     try {
       body = JSON.parse(contents);
     } catch {
-      return failure("invalid_response");
+      return failure("response_parse", "invalid_response");
     }
 
     if (!response.ok) {
       const parsed = ERROR_RESPONSE_SCHEMA.safeParse(body);
-      return failure(parsed.success ? parsed.data.error.code : "invalid_response");
+      return failure("error_response", parsed.success ? parsed.data.error.code : "invalid_response");
     }
 
     const parsed = SUCCESS_RESPONSE_SCHEMA.safeParse(body);
-    return parsed.success ? Result.ok(parsed.data.wrappingKey) : failure("invalid_response");
+    return parsed.success ? Result.ok(parsed.data.wrappingKey) : failure("response_validation", "invalid_response");
   }
 }
 
-function failure(code: GoogleWrappingKeyErrorCode): GoogleWrappingKeyResult {
-  LOGGER.warn("identity.google.wrapping_key.failed", { layer: "browser", code });
+function failure(
+  stage: "request" | "response_read" | "response_parse" | "error_response" | "response_validation",
+  code: GoogleWrappingKeyErrorCode,
+): GoogleWrappingKeyResult {
+  LOGGER.warn("identity.google.wrapping_key.failed", {
+    operation: "request_google_wrapping_key",
+    stage,
+    code,
+  });
   return Result.err({ code });
 }

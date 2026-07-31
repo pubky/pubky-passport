@@ -1,10 +1,13 @@
 import { Keypair } from "@synonymdev/pubky";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
 import type { ValidatedSensitivePubkyAuthRequest } from "../../core/auth/parsePubkyAuthRequest";
+import { LOGGER } from "../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkyIdentityKeyHandle } from "./pubkyIdentityKey";
 import { PubkySdkAdapter } from "./pubkySdkAdapter";
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("PubkySdkAdapter", () => {
   it("creates an opaque key handle and derives public identity", async () => {
@@ -56,6 +59,27 @@ describe("PubkySdkAdapter", () => {
     }
   });
 
+  it("preserves an invalid-key result when clearing detached key material fails", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const pubky = new PubkySdkAdapter();
+    const bytes = new Uint8Array(PUBKY_SECRET_KEY_BYTES).fill(7);
+    structuredClone(bytes.buffer, { transfer: [bytes.buffer] });
+
+    try {
+      await expectError(
+        pubky.restoreIdentityKey({ bytes, format: PUBKY_SECRET_KEY_FORMAT }),
+        "invalid_secret_key",
+      );
+      expect(warn).toHaveBeenCalledWith("identity.pubky.cleanup.failed", {
+        operation: "restore_identity_key",
+        stage: "secret_key_clear",
+        code: "cleanup_failed",
+      });
+    } finally {
+      pubky.dispose();
+    }
+  });
+
   it("returns safe unavailable errors for unknown key handles", async () => {
     const pubky = new PubkySdkAdapter();
     const keyHandle = {} as PubkyIdentityKeyHandle;
@@ -71,6 +95,7 @@ describe("PubkySdkAdapter", () => {
   });
 
   it("maps invalid homeserver values without exposing signup codes", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const pubky = new PubkySdkAdapter();
 
     try {
@@ -81,12 +106,24 @@ describe("PubkySdkAdapter", () => {
       expectErrorResult(signup, "invalid_homeserver_pubky");
       expectErrorResult(discovery, "invalid_homeserver_pubky");
       expect(JSON.stringify(signup)).not.toContain("sensitive-signup-code");
+      expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
+        operation: "signup",
+        stage: "homeserver_parse",
+        code: "invalid_homeserver_pubky",
+      });
+      expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
+        operation: "publish_homeserver",
+        stage: "homeserver_parse",
+        code: "invalid_homeserver_pubky",
+      });
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive-signup-code");
     } finally {
       pubky.dispose();
     }
   });
 
   it("rejects auth requests not issued by the parser before SDK approval", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const pubky = new PubkySdkAdapter();
 
     try {
@@ -100,6 +137,12 @@ describe("PubkySdkAdapter", () => {
 
       expectErrorResult(result, "request_rejected");
       expect(JSON.stringify(result)).not.toContain("should-not-be-returned");
+      expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
+        operation: "approve_auth_request",
+        stage: "request_validation",
+        code: "request_rejected",
+      });
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("should-not-be-returned");
     } finally {
       pubky.dispose();
     }
@@ -117,19 +160,31 @@ describe("PubkySdkAdapter", () => {
   });
 
   it("invalidates handles before freeing and continues after cleanup failures", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const pubky = new PubkySdkAdapter();
     const individuallyDisposed = expectOk(await pubky.createIdentityKey());
     const firstBulkHandle = expectOk(await pubky.createIdentityKey()).keyHandle;
     const secondBulkHandle = expectOk(await pubky.createIdentityKey()).keyHandle;
     const free = vi.spyOn(Keypair.prototype, "free");
 
-    free.mockImplementationOnce(() => { throw new Error("free failed"); });
+    free.mockImplementationOnce(() => { throw new Error("SECRET-KEY-CANARY"); });
     expect(() => pubky.disposeIdentityKey(individuallyDisposed.keyHandle)).not.toThrow();
     await expectError(pubky.getPublicIdentity(individuallyDisposed.keyHandle), "key_unavailable");
 
     free.mockImplementationOnce(() => { throw new Error("free failed"); });
     expect(() => pubky.dispose()).not.toThrow();
     expect(free).toHaveBeenCalledTimes(3);
+    expect(warn).toHaveBeenCalledWith("identity.pubky.cleanup.failed", {
+      operation: "dispose_identity_key",
+      stage: "keypair_free",
+      code: "cleanup_failed",
+    });
+    expect(warn).toHaveBeenCalledWith("identity.pubky.cleanup.failed", {
+      operation: "dispose_adapter",
+      stage: "keypair_free",
+      code: "cleanup_failed",
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-KEY-CANARY");
     await expectError(pubky.getPublicIdentity(firstBulkHandle), "key_unavailable");
     await expectError(pubky.getPublicIdentity(secondBulkHandle), "key_unavailable");
   });

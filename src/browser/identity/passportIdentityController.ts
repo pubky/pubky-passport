@@ -13,6 +13,7 @@ import type {
   BrowserIdentityController,
   BrowserIdentityControllerError,
   BrowserIdentityControllerErrorCode,
+  BrowserIdentityList,
 } from "./browserIdentityController";
 import type {
   GoogleBackedIdentity,
@@ -75,10 +76,41 @@ export class PassportIdentityController implements BrowserIdentityController {
     this.#dependencies = input.dependencies;
   }
 
-  list() { return toCatalogResult(this.#dependencies.list()); }
-  select(id: string) { return toCatalogResult(this.#dependencies.select(id)); }
-  clear() { return toCatalogResult(this.#dependencies.clear()); }
-  subscribe(listener: () => void) { return this.#dependencies.subscribe(listener); }
+  list(): BrowserIdentityCatalogResult<BrowserIdentityList> {
+    return this.runCatalogOperation("list", () => this.#dependencies.list());
+  }
+
+  select(id: string): BrowserIdentityCatalogResult<void> {
+    return this.runCatalogOperation("select", () => this.#dependencies.select(id));
+  }
+
+  clear(): BrowserIdentityCatalogResult<void> {
+    return this.runCatalogOperation("clear", () => this.#dependencies.clear());
+  }
+
+  subscribe(listener: () => void): () => void {
+    let unsubscribe: () => void;
+    try {
+      unsubscribe = this.#dependencies.subscribe(listener);
+    } catch {
+      LOGGER.warn("identity.local_catalog.failed", {
+        operation: "subscribe",
+        code: "runtime_exception",
+      });
+      throw new Error("Identity subscription unavailable.");
+    }
+    return () => {
+      try {
+        unsubscribe();
+      } catch {
+        LOGGER.warn("identity.local_catalog.failed", {
+          operation: "unsubscribe",
+          code: "runtime_exception",
+        });
+        throw new Error("Identity subscription cleanup failed.");
+      }
+    };
+  }
 
   async mountGoogleSignIn(target: HTMLElement, onState: (state: GoogleBackedIdentityActionState) => void): Promise<void> {
     this.unmountGoogleSignIn();
@@ -93,7 +125,6 @@ export class PassportIdentityController implements BrowserIdentityController {
         (credential) => {
           if (this.#disposed || activeAttempt !== this.#attempt) return;
           if (Result.isError(credential)) {
-            LOGGER.warn("identity.google.button.credential_failed", { code: credential.error.code });
             this.resetGoogle("sign_in_failed");
             return;
           }
@@ -103,12 +134,19 @@ export class PassportIdentityController implements BrowserIdentityController {
         },
       );
     } catch {
-      if (activeAttempt === this.#attempt) this.showGoogleUnavailable("mount_threw");
+      if (activeAttempt === this.#attempt) {
+        LOGGER.warn("identity.google.button.failed", {
+          operation: "mount_google_sign_in",
+          stage: "controller_dependency",
+          code: "runtime_exception",
+        });
+        this.showGoogleUnavailable();
+      }
       return;
     }
     if (this.#disposed || activeAttempt !== this.#attempt) return;
     if (Result.isError(mounted)) {
-      this.showGoogleUnavailable(mounted.error.code);
+      this.showGoogleUnavailable();
       return;
     }
     if (!this.#googleIdToken) this.emit({ stage: "google-sign-in", errorCode: null });
@@ -116,12 +154,15 @@ export class PassportIdentityController implements BrowserIdentityController {
 
   unmountGoogleSignIn(): void {
     this.abortDriveAccess();
-    this.#dependencies.unmountGoogleSignIn();
-    this.#target = null;
-    this.#onState = null;
-    this.#googleIdToken = null;
-    this.#googleSubject = null;
-    this.#attempt += 1;
+    try {
+      this.releaseGoogleSignIn();
+    } finally {
+      this.#target = null;
+      this.#onState = null;
+      this.#googleIdToken = null;
+      this.#googleSubject = null;
+      this.#attempt += 1;
+    }
   }
 
   retryGoogleSignIn(): void {
@@ -140,6 +181,10 @@ export class PassportIdentityController implements BrowserIdentityController {
     const activeAttempt = this.#attempt;
     if (this.#disposed) return { status: "superseded" };
     if (!googleIdToken || !googleSubject) {
+      LOGGER.warn("identity.google.authorization.failed", {
+        stage: "credential_validation",
+        code: "missing_credentials",
+      });
       this.resetGoogle("sign_in_failed");
       return { status: "google_authorization_failed" };
     }
@@ -165,7 +210,6 @@ export class PassportIdentityController implements BrowserIdentityController {
       if (this.#driveAbortController === abortController) this.#driveAbortController = null;
       if (activeAttempt !== this.#attempt || this.#disposed) return { status: "superseded" };
       if (Result.isError(driveAccess)) {
-        LOGGER.warn("identity.google.button.drive_authorization_failed", { code: driveAccess.error.code });
         this.resetGoogle(errorForDriveFailure(driveAccess.error.code));
         return { status: "google_authorization_failed" };
       }
@@ -187,8 +231,11 @@ export class PassportIdentityController implements BrowserIdentityController {
   dispose(): void {
     if (this.#disposed) return;
     this.#disposed = true;
-    this.unmountGoogleSignIn();
-    if (!this.#actionPending) this.disposeGoogleBackedIdentityOperationsOnce();
+    try {
+      this.unmountGoogleSignIn();
+    } finally {
+      if (!this.#actionPending) this.disposeGoogleBackedIdentityOperationsOnce();
+    }
   }
 
   private async executeAction(action: GoogleBackedIdentityAction, credentials: GoogleBackedIdentityCredentials): Promise<GoogleBackedIdentityActionResult> {
@@ -236,12 +283,37 @@ export class PassportIdentityController implements BrowserIdentityController {
     this.#driveAbortController = null;
   }
 
-  private showGoogleUnavailable(code: string): void {
-    LOGGER.warn("identity.google.button.unavailable", { code });
-    this.#dependencies.unmountGoogleSignIn();
+  private showGoogleUnavailable(): void {
+    this.releaseGoogleSignIn();
     this.#googleIdToken = null;
     this.#googleSubject = null;
     this.emit({ stage: "google-sign-in", errorCode: "sign_in_unavailable" });
+  }
+
+  private releaseGoogleSignIn(): void {
+    try {
+      this.#dependencies.unmountGoogleSignIn();
+    } catch {
+      LOGGER.warn("identity.google.cleanup.failed", {
+        operation: "google_sign_in_unmount",
+        code: "cleanup_failed",
+      });
+    }
+  }
+
+  private runCatalogOperation<T>(
+    operation: "list" | "select" | "clear",
+    execute: () => LocalIdentityResult<T>,
+  ): BrowserIdentityCatalogResult<T> {
+    try {
+      return toCatalogResult(execute());
+    } catch {
+      LOGGER.warn("identity.local_catalog.failed", {
+        operation,
+        code: "runtime_exception",
+      });
+      return Result.err({ code: "storage_unavailable" });
+    }
   }
 
   private emit(state: GoogleBackedIdentityActionState): void {

@@ -2,7 +2,7 @@
 
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ManualAuthorizationEntryResult } from "../browser/authorization/browserManualAuthorization";
 import { ManualAuthorizationForm } from "./manualAuthorizationForm";
@@ -13,6 +13,7 @@ describe("ManualAuthorizationForm", () => {
   afterEach(() => {
     cleanup();
     ENTER_AUTHORIZATION.reset();
+    vi.restoreAllMocks();
   });
 
   it("removes an invalid sensitive request from the UI", async () => {
@@ -53,6 +54,19 @@ describe("ManualAuthorizationForm", () => {
     });
     expect(JSON.stringify(ENTER_AUTHORIZATION.record)).not.toContain("secret-value-canary");
     expect((screen.getByRole("textbox", { name: "Pubky authorization request" }) as HTMLTextAreaElement).value).toBe("");
+  });
+
+  it("clears and safely reports entry exceptions", async () => {
+    const enterAuthorization = vi.fn((): ManualAuthorizationEntryResult => {
+      throw new Error("secret-value-canary");
+    });
+    render(<ManualAuthorizationForm enterAuthorization={enterAuthorization} />);
+
+    await userEvent.setup().type(screen.getByRole("textbox"), "pubkyauth://signin?secret=secret-value-canary");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Passport could not process the authorization request. Try again.");
+    expect(document.body.textContent).not.toContain("secret-value-canary");
   });
 
 });

@@ -59,9 +59,16 @@ describe("Google ID token verifier", () => {
     { ...validPayload(), sub: undefined },
     { ...validPayload(), sub: "   " },
   ] as const)("rejects invalid claims", async (payload) => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const verifier = createVerifierWithPayload(payload);
 
     await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
+    expect(warning).toHaveBeenCalledWith("identity.google.id_token_verification.failed", {
+      operation: "validate_claims",
+      code: "invalid_claims",
+    });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(TOKEN);
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("google-subject");
   });
 
   it("requires the authorized party for multiple audiences", async () => {

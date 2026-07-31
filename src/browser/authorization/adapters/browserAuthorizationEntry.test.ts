@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PUBKY_AUTH_REQUEST_LIMITS } from "../../../core/auth/pubkyAuthRequestLimits";
+import { LOGGER } from "../../../libs/logger/logger";
 import {
   commitAuthorizationEntry,
   readAndScrubAuthorizationEntry,
@@ -13,6 +14,7 @@ const SECRET = "sensitive-authorization-secret";
 
 describe("browserAuthorizationEntry", () => {
   afterEach(async () => {
+    vi.restoreAllMocks();
     await Promise.resolve();
     window.history.replaceState({}, "", "/");
   });
@@ -71,12 +73,19 @@ describe("browserAuthorizationEntry", () => {
     () => `d=${encodeURIComponent(validRequest())}&d=${encodeURIComponent(validRequest())}`,
     () => "d=%E0%A4%A",
   ])("rejects invalid raw d input without exposing it", (query) => {
+    const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
     setRawAuthorizationQuery(query());
 
     const entry = readAndScrubAuthorizationEntry(window);
 
     expect(window.location.search).toBe("");
     expect(entry).toEqual({ status: "invalid" });
+    expect(info).toHaveBeenCalledOnce();
+    expect(info).toHaveBeenCalledWith("authorize.parse.failed", {
+      source: "query",
+      code: expect.any(String),
+    });
+    expect(JSON.stringify(info.mock.calls)).not.toContain(SECRET);
   });
 });
 

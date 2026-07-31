@@ -10,7 +10,10 @@ import { mockBrowserIdentityController } from "../../test-utils/fakes/mockBrowse
 import { GoogleBackedIdentityActionPanel } from "./googleBackedIdentityActionPanel";
 
 describe("GoogleBackedIdentityActionPanel", () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
 
   it("renders controller state and continues without receiving credentials", async () => {
     let emitState: ((state: GoogleBackedIdentityActionState) => void) | undefined;
@@ -136,6 +139,48 @@ describe("GoogleBackedIdentityActionPanel", () => {
     emitState?.({ stage: "executing-action", errorCode: null });
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Creating or restoring your Pubky identity."));
     expect(screen.getByRole("status").closest("[aria-busy]")).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("renders a safe failure when an action rejects", async () => {
+    let emitState: ((state: GoogleBackedIdentityActionState) => void) | undefined;
+    const controller = fakeController({
+      mountGoogleSignIn: vi.fn(async (_target, onState) => { emitState = onState; }),
+      continueGoogleBackedIdentityAction: vi.fn(async () => {
+        throw new Error("SECRET-ACTION-CREDENTIAL");
+      }),
+    });
+    render(
+      <GoogleBackedIdentityActionPanel
+        action={{ kind: "establish_google_backed_identity" }}
+        controller={controller}
+        disabled={false}
+        onActionCompleted={vi.fn()}
+        onBusyChange={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(emitState).toBeDefined());
+    emitState?.({ stage: "google-drive-authorization", errorCode: null });
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Authorize Google Drive" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Passport could not continue the Google identity action. Try again.");
+  });
+
+  it("contains sign-in cleanup failures", () => {
+    const controller = fakeController({
+      unmountGoogleSignIn: vi.fn(() => { throw new Error("SECRET-CLEANUP-DETAIL"); }),
+    });
+    const rendered = render(
+      <GoogleBackedIdentityActionPanel
+        action={{ kind: "establish_google_backed_identity" }}
+        controller={controller}
+        disabled={false}
+        onActionCompleted={vi.fn()}
+        onBusyChange={vi.fn()}
+      />,
+    );
+
+    expect(() => rendered.unmount()).not.toThrow();
   });
 });
 
