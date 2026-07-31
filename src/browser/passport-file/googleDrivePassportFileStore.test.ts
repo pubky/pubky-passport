@@ -2,11 +2,11 @@ import { Result, type Result as ResultType } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAsyncResultError, expectResultOk } from "../../../test-utils/resultAssertions";
-import type { PassportFileEnvelopeV1 } from "../../core/passport-file/passportFile";
 import { LOGGER } from "../../libs/logger/logger";
 import {
   GoogleDrivePassportFileStore,
 } from "./googleDrivePassportFileStore";
+import type { PassportFileEnvelopeV1 } from "./passportFileEnvelope";
 
 const ACCESS_TOKEN = "test-drive-access-token";
 const ENVELOPE: PassportFileEnvelopeV1 = {

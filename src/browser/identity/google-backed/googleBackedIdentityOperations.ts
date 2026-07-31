@@ -3,7 +3,7 @@ import "client-only";
 import { LOGGER } from "../../../libs/logger/logger";
 import { HomegateClient } from "../../homegate/homegateClient";
 import { GoogleDrivePassportFileStore } from "../../passport-file/googleDrivePassportFileStore";
-import type { PassportFileEnvelopeV1 } from "../../../core/passport-file/passportFile";
+import type { PassportFileEnvelopeV1 } from "../../passport-file/passportFileEnvelope";
 import type { PassportFileReference } from "../../passport-file/googleDrivePassportFileStore";
 import { PassportFileWebCrypto } from "../../passport-file/passportFileWebCrypto";
 import type { PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";

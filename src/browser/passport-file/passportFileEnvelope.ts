@@ -1,7 +1,14 @@
+import "client-only";
+
 import { Result, type Err, type Result as ResultType } from "better-result";
 import { z } from "zod";
 
-import type { PassportFileEnvelopeV1 } from "./passportFile";
+export type PassportFileEnvelopeV1 = {
+  v: 1;
+  iv: string;
+  ct: string;
+  url: string;
+};
 
 export type PassportFileField = keyof PassportFileEnvelopeV1;
 

@@ -12,7 +12,7 @@ import type {
   PassportFileReference,
   PassportFileStoreErrorCode,
 } from "../../src/browser/passport-file/googleDrivePassportFileStore";
-import type { PassportFileEnvelopeV1 } from "../../src/core/passport-file/passportFile";
+import type { PassportFileEnvelopeV1 } from "../../src/browser/passport-file/passportFileEnvelope";
 
 export const TEST_PASSPORT_ENVELOPE: PassportFileEnvelopeV1 = {
   v: 1,

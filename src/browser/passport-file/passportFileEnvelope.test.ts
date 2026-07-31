@@ -5,10 +5,10 @@ import {
   normalizePassportFileOrigin,
   parsePassportFileContents,
   parsePassportFileEnvelope,
+  type PassportFileEnvelopeV1,
   type PassportFileField,
   type PassportFileParseErrorCode,
-} from "./parsePassportFile";
-import type { PassportFileEnvelopeV1 } from "./passportFile";
+} from "./passportFileEnvelope";
 
 const VALID_ENVELOPE = {
   v: 1,

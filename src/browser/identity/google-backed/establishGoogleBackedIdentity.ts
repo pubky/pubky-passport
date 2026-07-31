@@ -7,7 +7,7 @@ import {
   HomegateClient,
   type HomegateSignupInvitationErrorCode,
 } from "../../homegate/homegateClient";
-import type { PassportFileEnvelopeV1 } from "../../../core/passport-file/passportFile";
+import type { PassportFileEnvelopeV1 } from "../../passport-file/passportFileEnvelope";
 import type {
   PassportFileReadResult,
   PassportFileReference,

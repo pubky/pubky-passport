@@ -2,11 +2,14 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import type { PassportFileEnvelopeV1 } from "../../core/passport-file/passportFile";
 import { decodeBase64Url, encodeBase64Url } from "../../libs/encoding/base64Url";
-import { normalizePassportFileOrigin, parsePassportFileEnvelope } from "../../core/passport-file/parsePassportFile";
 import { LOGGER } from "../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_BYTES } from "../pubky/pubkyIdentityKey";
+import {
+  normalizePassportFileOrigin,
+  parsePassportFileEnvelope,
+  type PassportFileEnvelopeV1,
+} from "./passportFileEnvelope";
 
 export type PassportFileCryptoErrorCode =
   | "unsupported_browser_crypto"
