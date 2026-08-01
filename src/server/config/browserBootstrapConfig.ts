@@ -18,7 +18,7 @@ const MAXIMUM_HOSTNAME_LABEL_CHARACTERS = 63;
 const HOSTNAME_LABEL_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/iu;
 const IPV4_ADDRESS_PATTERN = /^\d+(?:\.\d+){3}$/u;
 
-export function parseBrowserBootstrapConfig(input: EnvLike): BrowserBootstrapConfig {
+function parseBrowserBootstrapConfig(input: EnvLike): BrowserBootstrapConfig {
   const googleClientId = parseGoogleClientId(input);
   const homegate = z
     .object({

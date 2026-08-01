@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { parseBrowserBootstrapConfig } from "./browserBootstrapConfig";
+import { getBrowserBootstrapConfig } from "./browserBootstrapConfig";
 
 const VALID_CONFIG = {
   GOOGLE_CLIENT_ID: "google-client-id",
@@ -8,8 +8,15 @@ const VALID_CONFIG = {
 };
 
 describe("browser bootstrap config", () => {
+  beforeEach(() => {
+    vi.stubEnv("GOOGLE_CLIENT_ID", VALID_CONFIG.GOOGLE_CLIENT_ID);
+    vi.stubEnv("HOMEGATE_URL", VALID_CONFIG.HOMEGATE_URL);
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
   it("normalizes public browser values", () => {
-    expect(parseBrowserBootstrapConfig(VALID_CONFIG)).toEqual({
+    expect(getBrowserBootstrapConfig()).toEqual({
       googleClientId: "google-client-id",
       homegateBaseUrl: "https://homegate.example/api/",
       homegateOrigin: "https://homegate.example",
@@ -17,7 +24,9 @@ describe("browser bootstrap config", () => {
   });
 
   it("requires the Google client ID", () => {
-    expect(() => parseBrowserBootstrapConfig({ ...VALID_CONFIG, GOOGLE_CLIENT_ID: undefined })).toThrow();
+    vi.stubEnv("GOOGLE_CLIENT_ID", undefined);
+
+    expect(() => getBrowserBootstrapConfig()).toThrow();
   });
 
   it.each([
@@ -35,6 +44,8 @@ describe("browser bootstrap config", () => {
     `https://${"a".repeat(64)}.example`,
     `https://${"a".repeat(2048)}.example`,
   ])("rejects an unsafe Homegate URL: %s", (homegateUrl) => {
-    expect(() => parseBrowserBootstrapConfig({ ...VALID_CONFIG, HOMEGATE_URL: homegateUrl })).toThrow();
+    vi.stubEnv("HOMEGATE_URL", homegateUrl);
+
+    expect(() => getBrowserBootstrapConfig()).toThrow();
   });
 });
