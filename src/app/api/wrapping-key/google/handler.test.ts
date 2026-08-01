@@ -3,13 +3,13 @@ import { Result } from "better-result";
 
 import { LOGGER } from "../../../../libs/logger/logger";
 import { createGoogleWrappingKeyPostHandler } from "./handler";
-import { GoogleIdTokenVerifier } from "../../../../server/wrapping-key/google/adapters/googleIdTokenVerifier";
-import { GoogleWrappingKeyDeriver } from "../../../../server/wrapping-key/google/adapters/googleWrappingKeyDeriver";
-import { InMemoryGoogleWrappingKeyRateLimiter } from "../../../../server/wrapping-key/google/adapters/inMemoryGoogleWrappingKeyRateLimiter";
+import { GoogleIdTokenVerifier } from "../../../../server/wrapping-key/google/googleIdTokenVerifier";
+import { GoogleWrappingKeyDeriver } from "../../../../server/wrapping-key/google/googleWrappingKeyDeriver";
+import { InMemoryGoogleWrappingKeyRateLimiter } from "../../../../server/wrapping-key/google/inMemoryGoogleWrappingKeyRateLimiter";
 import {
   GoogleWrappingKeyRequest,
   type GoogleWrappingKeyRequestResult,
-} from "../../../../server/wrapping-key/google/application/googleWrappingKeyRequest";
+} from "../../../../server/wrapping-key/google/googleWrappingKeyRequest";
 
 describe("POST /api/wrapping-key/google", () => {
   afterEach(() => vi.restoreAllMocks());

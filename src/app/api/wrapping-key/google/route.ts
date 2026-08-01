@@ -1,4 +1,4 @@
-import { createConfiguredGoogleWrappingKeyRequest } from "../../../../server/wrapping-key/google/composition/createConfiguredGoogleWrappingKeyRequest";
+import { createConfiguredGoogleWrappingKeyRequest } from "../../../../server/wrapping-key/google/googleWrappingKeyRequest";
 
 import { createGoogleWrappingKeyPostHandler } from "./handler";
 

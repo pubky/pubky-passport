@@ -1,14 +1,26 @@
 import "server-only";
 
 import { Result, type Result as ResultType } from "better-result";
+import { z } from "zod";
 
-import { LOGGER } from "../../../../libs/logger/logger";
-import {
-  type GoogleIdTokenVerifier,
-} from "../adapters/googleIdTokenVerifier";
-import type { GoogleWrappingKeyDeriver } from "../adapters/googleWrappingKeyDeriver";
-import type { InMemoryGoogleWrappingKeyRateLimiter } from "../adapters/inMemoryGoogleWrappingKeyRateLimiter";
+import { LOGGER } from "../../../libs/logger/logger";
+import { getGoogleClientId } from "../../config/googleClientId";
+import { GoogleIdTokenVerifier } from "./googleIdTokenVerifier";
+import { GoogleWrappingKeyDeriver } from "./googleWrappingKeyDeriver";
+import { InMemoryGoogleWrappingKeyRateLimiter } from "./inMemoryGoogleWrappingKeyRateLimiter";
 import type { GoogleIdTokenVerificationResult } from "./googleIdTokenVerification";
+
+const MINIMUM_SERVER_SECRET_BYTES = 32;
+const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+const SERVER_SECRET_SCHEMA = z.string()
+  .trim()
+  .min(1, "PASSPORT_SERVER_SECRET_BASE64 is required")
+  .regex(BASE64_PATTERN, "PASSPORT_SERVER_SECRET_BASE64 must be valid base64")
+  .transform((value) => Buffer.from(value, "base64"))
+  .refine(
+    (value) => value.byteLength >= MINIMUM_SERVER_SECRET_BYTES,
+    `PASSPORT_SERVER_SECRET_BASE64 must decode to at least ${MINIMUM_SERVER_SECRET_BYTES} bytes`,
+  );
 
 export type GoogleWrappingKeyRequestErrorCode =
   | "invalid_google_id_token"
@@ -51,7 +63,14 @@ export class GoogleWrappingKeyRequest {
       return dependencyFailure("rate_limit");
     }
 
-    if (!allowed) return expectedFailure("rate_limited", "rate_limit");
+    if (!allowed) {
+      LOGGER.warn("identity.google.wrapping_key.failed", {
+        layer: "server",
+        operation: "rate_limit",
+        code: "rate_limited",
+      });
+      return failure("rate_limited");
+    }
 
     try {
       return Result.ok(this.#deriver.deriveWrappingKey(identity.value));
@@ -61,20 +80,22 @@ export class GoogleWrappingKeyRequest {
   }
 }
 
-function failure(code: GoogleWrappingKeyRequestErrorCode): GoogleWrappingKeyRequestResult {
-  return Result.err({ code });
+export function createConfiguredGoogleWrappingKeyRequest(): GoogleWrappingKeyRequest {
+  const serverSecret = SERVER_SECRET_SCHEMA.parse(process.env.PASSPORT_SERVER_SECRET_BASE64);
+
+  try {
+    return new GoogleWrappingKeyRequest({
+      googleIdTokenVerifier: new GoogleIdTokenVerifier({ audience: getGoogleClientId() }),
+      rateLimiter: new InMemoryGoogleWrappingKeyRateLimiter({ identityPepper: serverSecret }),
+      deriver: new GoogleWrappingKeyDeriver(serverSecret),
+    });
+  } finally {
+    serverSecret.fill(0);
+  }
 }
 
-function expectedFailure(
-  code: "invalid_google_id_token" | "rate_limited",
-  operation: "verify" | "rate_limit",
-): GoogleWrappingKeyRequestResult {
-  LOGGER.warn("identity.google.wrapping_key.failed", {
-    layer: "server",
-    operation,
-    code,
-  });
-  return failure(code);
+function failure(code: GoogleWrappingKeyRequestErrorCode): GoogleWrappingKeyRequestResult {
+  return Result.err({ code });
 }
 
 function dependencyFailure(operation: "verify" | "rate_limit" | "derive"): GoogleWrappingKeyRequestResult {

@@ -5,7 +5,7 @@ import { LOGGER } from "../../../../libs/logger/logger";
 import {
   type GoogleWrappingKeyRequest,
   type GoogleWrappingKeyRequestErrorCode,
-} from "../../../../server/wrapping-key/google/application/googleWrappingKeyRequest";
+} from "../../../../server/wrapping-key/google/googleWrappingKeyRequest";
 import {
   GOOGLE_WRAPPING_KEY_RESPONSE_HEADERS,
   parseGoogleWrappingKeyRequest,

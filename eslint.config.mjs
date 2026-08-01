@@ -170,15 +170,15 @@ const ESLINT_CONFIG = defineConfig([
     files: ["src/server/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     ignores: [
       "src/server/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
-      "src/server/wrapping-key/google/composition/createConfiguredGoogleWrappingKeyRequest.ts"
+      "src/server/wrapping-key/google/googleWrappingKeyRequest.ts"
     ],
     rules: {
       "no-restricted-imports": [
         "error",
         {
           patterns: [{
-            regex: "^(?:@/server/config(?:/|$)|(?:\\.\\./)+config(?:/|$)|.*googleWrappingKeyServerSecret$)",
-            message: "Environment-backed configuration and wrapping-key secret parsing are confined to approved bootstrap modules."
+            regex: "^(?:@/server/config(?:/|$)|(?:\\.\\./)+config(?:/|$))",
+            message: "Environment-backed configuration is confined to approved bootstrap modules."
           }]
         }
       ]
@@ -214,7 +214,8 @@ const ESLINT_CONFIG = defineConfig([
         "error",
         {
           patterns: [{
-            regex: "(?:^|/)createConfiguredGoogleWrappingKeyRequest$",
+            regex: "(?:^|/)googleWrappingKeyRequest$",
+            importNames: ["createConfiguredGoogleWrappingKeyRequest"],
             message: "The wrapping-key secret bootstrap is confined to its API route."
           }]
         }

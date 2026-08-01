@@ -20,19 +20,11 @@ const IDENTITY_ROOT = join(BROWSER_ROOT, "identity");
 const LOCAL_IDENTITY_REPOSITORY = join(IDENTITY_ROOT, "local", "localStorageIdentityRepository.ts");
 const PUBKY_SDK_ADAPTER = join(BROWSER_ROOT, "pubky", "pubkySdkAdapter.ts");
 const PUBKY_SDK_ADAPTER_TEST = join(BROWSER_ROOT, "pubky", "pubkySdkAdapter.test.ts");
-const CONFIGURED_GOOGLE_WRAPPING_KEY_REQUEST = join(
+const GOOGLE_WRAPPING_KEY_REQUEST = join(
   SERVER_ROOT,
   "wrapping-key",
   "google",
-  "composition",
-  "createConfiguredGoogleWrappingKeyRequest.ts",
-);
-const GOOGLE_WRAPPING_KEY_SERVER_SECRET = join(
-  SERVER_ROOT,
-  "wrapping-key",
-  "google",
-  "composition",
-  "googleWrappingKeyServerSecret.ts",
+  "googleWrappingKeyRequest.ts",
 );
 const GOOGLE_CLIENT_ID_CONFIG = join(SERVER_CONFIG_ROOT, "googleClientId.ts");
 const BROWSER_BOOTSTRAP_CONFIG = join(SERVER_CONFIG_ROOT, "browserBootstrapConfig.ts");
@@ -181,21 +173,19 @@ describe("architecture boundaries", () => {
     const violations = GRAPH.productionSourceFiles(SERVER_ROOT)
       .filter((filePath) => GRAPH.referencesProperty(filePath, "process", "env"))
       .filter((filePath) => !isSameOrInside(filePath, SERVER_CONFIG_ROOT))
-      .filter((filePath) => filePath !== CONFIGURED_GOOGLE_WRAPPING_KEY_REQUEST)
+      .filter((filePath) => filePath !== GOOGLE_WRAPPING_KEY_REQUEST)
       .map((filePath) => `${relative(REPO_ROOT, filePath)} accesses process.env outside an approved bootstrap module`);
 
     expect(violations).toEqual([]);
   });
 
-  it("confines environment-backed configuration and wrapping-secret imports", () => {
+  it("confines environment-backed configuration imports", () => {
     const productionModules = [...GRAPH.productionSourceFiles(SRC_ROOT), PROXY];
     const approvedConsumers = new Map<string, Set<string>>([
-      [GOOGLE_WRAPPING_KEY_SERVER_SECRET, new Set([CONFIGURED_GOOGLE_WRAPPING_KEY_REQUEST])],
       [GOOGLE_CLIENT_ID_CONFIG, new Set([
         BROWSER_BOOTSTRAP_CONFIG,
-        CONFIGURED_GOOGLE_WRAPPING_KEY_REQUEST,
+        GOOGLE_WRAPPING_KEY_REQUEST,
       ])],
-      [CONFIGURED_GOOGLE_WRAPPING_KEY_REQUEST, new Set([GOOGLE_WRAPPING_KEY_ROUTE])],
       [BROWSER_BOOTSTRAP_CONFIG, new Set([APP_HOME_PAGE, APP_AUTHORIZE_PAGE, PROXY])],
     ]);
     const violations = [...approvedConsumers].flatMap(([target, approved]) =>
@@ -203,6 +193,12 @@ describe("architecture boundaries", () => {
         .filter((filePath) => GRAPH.importsTarget(filePath, target) && !approved.has(filePath))
         .map((filePath) => `${relative(REPO_ROOT, filePath)} imports protected module ${relative(REPO_ROOT, target)}`)
     );
+
+    violations.push(...productionModules
+      .filter((filePath) => filePath !== GOOGLE_WRAPPING_KEY_REQUEST)
+      .filter((filePath) => GRAPH.referencesIdentifier(filePath, "createConfiguredGoogleWrappingKeyRequest"))
+      .filter((filePath) => filePath !== GOOGLE_WRAPPING_KEY_ROUTE)
+      .map((filePath) => `${relative(REPO_ROOT, filePath)} references the protected wrapping-key bootstrap`));
 
     expect(violations).toEqual([]);
   });

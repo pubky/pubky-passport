@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHmac } from "node:crypto";
 
-import type { VerifiedGoogleIdentity } from "../application/googleIdTokenVerification";
+import type { VerifiedGoogleIdentity } from "./googleIdTokenVerification";
 
 const DEFAULT_MAXIMUM_REQUESTS = 10;
 const DEFAULT_WINDOW_MILLISECONDS = 60_000;

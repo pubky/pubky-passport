@@ -1,20 +1,26 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 
-import { LOGGER } from "../../../../libs/logger/logger";
-import { expectAsyncResultError } from "../../../../../test-utils/resultAssertions";
-import { GoogleIdTokenVerifier } from "../adapters/googleIdTokenVerifier";
-import { GoogleWrappingKeyDeriver } from "../adapters/googleWrappingKeyDeriver";
-import { InMemoryGoogleWrappingKeyRateLimiter } from "../adapters/inMemoryGoogleWrappingKeyRateLimiter";
+import { LOGGER } from "../../../libs/logger/logger";
+import { expectAsyncResultError } from "../../../../test-utils/resultAssertions";
+import { GoogleIdTokenVerifier } from "./googleIdTokenVerifier";
+import { GoogleWrappingKeyDeriver } from "./googleWrappingKeyDeriver";
+import { InMemoryGoogleWrappingKeyRateLimiter } from "./inMemoryGoogleWrappingKeyRateLimiter";
 import type { VerifiedGoogleIdentity } from "./googleIdTokenVerification";
-import { GoogleWrappingKeyRequest } from "./googleWrappingKeyRequest";
+import {
+  createConfiguredGoogleWrappingKeyRequest,
+  GoogleWrappingKeyRequest,
+} from "./googleWrappingKeyRequest";
 
 const IDENTITY = {
   issuer: "https://accounts.google.com" as const,
   subject: "google-subject",
 };
 describe("Google wrapping-key request", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
 
   it("verifies Google, rate limits, then derives wrapping material", async () => {
     const calls: string[] = [];
@@ -118,6 +124,34 @@ describe("Google wrapping-key request", () => {
       expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET-GOOGLE-ID-TOKEN");
     },
   );
+
+  it("constructs the configured server flow", () => {
+    vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
+    vi.stubEnv("PASSPORT_SERVER_SECRET_BASE64", Buffer.alloc(32, 1).toString("base64"));
+
+    expect(createConfiguredGoogleWrappingKeyRequest()).toBeInstanceOf(GoogleWrappingKeyRequest);
+  });
+
+  it.each(["not-base64!", "base64url_value"])("rejects invalid base64 server secret %s", (value) => {
+    vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
+    vi.stubEnv("PASSPORT_SERVER_SECRET_BASE64", value);
+
+    expect(() => createConfiguredGoogleWrappingKeyRequest()).toThrow();
+  });
+
+  it("rejects a server secret shorter than 32 decoded bytes", () => {
+    vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
+    vi.stubEnv("PASSPORT_SERVER_SECRET_BASE64", Buffer.alloc(31, 1).toString("base64"));
+
+    expect(() => createConfiguredGoogleWrappingKeyRequest()).toThrow();
+  });
+
+  it("requires server secret configuration", () => {
+    vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
+    vi.stubEnv("PASSPORT_SERVER_SECRET_BASE64", undefined);
+
+    expect(() => createConfiguredGoogleWrappingKeyRequest()).toThrow();
+  });
 });
 
 function testDependencies(input: {

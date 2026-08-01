@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 import { OAuth2Client, type LoginTicket } from "google-auth-library";
 
-import { expectAsyncResultError } from "../../../../../test-utils/resultAssertions";
-import { LOGGER } from "../../../../libs/logger/logger";
+import { expectAsyncResultError } from "../../../../test-utils/resultAssertions";
+import { LOGGER } from "../../../libs/logger/logger";
 import { GoogleIdTokenVerifier } from "./googleIdTokenVerifier";
 
 const AUDIENCE = "google-client-id";

@@ -3,11 +3,11 @@ import "server-only";
 import { OAuth2Client, type LoginTicket } from "google-auth-library";
 import { Result } from "better-result";
 
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER } from "../../../libs/logger/logger";
 import {
   CANONICAL_GOOGLE_ISSUER,
   type GoogleIdTokenVerificationResult,
-} from "../application/googleIdTokenVerification";
+} from "./googleIdTokenVerification";
 
 type GoogleIdTokenPayload = {
   iss?: string;
