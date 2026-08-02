@@ -477,9 +477,8 @@ sequenceDiagram
         alt Restore error
             Restore-->>Restore: restore_failed
         else Restored identity
-            Restore->>Pubky: signin(handle, waitForDiscovery=true)
-            Pubky->>SDK: signer.signinBlocking()
-            Note over SDK: Homeserver and discovery work inside signinBlocking is SDK-owned
+            Restore->>Pubky: signin(handle)
+            Pubky->>SDK: signer.signin()
             SDK-->>Pubky: Session or failure
             Pubky-->>Restore: session public identity or signin error
             alt Sign-in error
@@ -487,7 +486,12 @@ sequenceDiagram
             else Session identity mismatch
                 Restore-->>Restore: identity_mismatch
             else Matching session identity
-                Restore->>Local: saveIdentity(handle)
+                Restore->>Pubky: publishHomeserverIfStale(), retry once after failure
+                Note over Pubky: Fresh resolution contains the SDK stale-CAS race without another session
+                alt Publication still fails
+                    Restore-->>Restore: discovery_failed
+                else Discovery confirmed
+                    Restore->>Local: saveIdentity(handle)
                 Local->>Pubky: getPublicIdentity + exportSecretKey
                 Pubky-->>Local: public metadata + secret
                 Local->>Repo: save metadata + base64url secret
@@ -501,6 +505,7 @@ sequenceDiagram
             end
         end
         Note over Restore,Pubky: finally zero secret bytes and dispose the restored handle if created
+    end
     end
 ```
 
@@ -636,12 +641,11 @@ homeserver signup, and discovery. A definite homeserver signup invitation failur
 occurs before Passport file creation. After signup or discovery has been attempted,
 Passport preserves the encrypted Passport file so the key is not lost, disposes the
 key handle, and saves no ready local Pubky identity; it must not automatically delete the
-file. `partialSetupPublicIdentity` may be returned only after
-`CreateGoogleBackedIdentity` successfully creates the Passport file. Restore failures never carry
-partial-setup metadata and never offer Passport file cleanup. The development UI may
-expose creation metadata as `passportFileCleanupCandidate`; the preferred production
-follow-up is a resumable partial-setup flow, which this terminology migration does not
-implement.
+file. `preservedPassportFileIdentity` may carry only public identity metadata after
+creation stores the encrypted file or restore successfully decrypts it. This does not
+prove setup was partial. Development cleanup candidates remain keyed by public identity;
+deletion requires fresh Google authorization, decryption, identity matching, and exact
+Drive revision validation. Production should provide resumable activation instead.
 
 ### Development-Only Google Drive Passport File Deletion
 

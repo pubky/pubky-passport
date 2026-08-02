@@ -20,8 +20,8 @@ export type RestoredGoogleBackedIdentity = {
 };
 
 export type RestoreGoogleBackedIdentityError = {
-  code: "decrypt_failed" | "restore_failed" | "signin_failed" | "identity_mismatch" | "local_save_failed";
-  partialSetupPublicIdentity?: never;
+  code: "decrypt_failed" | "restore_failed" | "signin_failed" | "identity_mismatch" | "discovery_failed" | "local_save_failed";
+  preservedPassportFileIdentity?: PubkyPublicIdentity;
 };
 
 export type RestoreGoogleBackedIdentityResult<T = RestoredGoogleBackedIdentity> = ResultType<
@@ -67,18 +67,29 @@ export class RestoreGoogleBackedIdentity {
       if (Result.isError(restored)) return failure("restore_failed");
       restoredIdentity = restored.value;
       LOGGER.info("identity.google.restore.completed");
+      const restoredPublicIdentity = restored.value.publicIdentity;
 
       reportProgress("activating_restored_identity");
-      const signedIn = await this.#pubky.signin(restored.value.keyHandle, true);
-      if (Result.isError(signedIn)) return failure("signin_failed");
-      if (signedIn.value.publicIdentity.publicKeyZ32 !== restored.value.publicIdentity.publicKeyZ32) {
+      const signedIn = await this.#pubky.signin(restored.value.keyHandle);
+      if (Result.isError(signedIn)) return failure("signin_failed", restoredPublicIdentity);
+      if (signedIn.value.publicIdentity.publicKeyZ32 !== restoredPublicIdentity.publicKeyZ32) {
         LOGGER.warn("identity.google.activation_identity.failed");
-        return failure("identity_mismatch");
+        return failure("identity_mismatch", restoredPublicIdentity);
       }
+
+      let published = await this.#pubky.publishHomeserverIfStale({
+        keyHandle: restored.value.keyHandle,
+      });
+      if (Result.isError(published)) {
+        published = await this.#pubky.publishHomeserverIfStale({
+          keyHandle: restored.value.keyHandle,
+        });
+      }
+      if (Result.isError(published)) return failure("discovery_failed", restoredPublicIdentity);
 
       LOGGER.info("identity.local_save.started", { establishmentMode: "restored" });
       const saved = await this.#saveLocalIdentity.saveIdentity(restored.value.keyHandle);
-      if (Result.isError(saved)) return failure("local_save_failed");
+      if (Result.isError(saved)) return failure("local_save_failed", restoredPublicIdentity);
 
       LOGGER.info("identity.local_save.completed", { establishmentMode: "restored" });
       return Result.ok({
@@ -100,6 +111,10 @@ export class RestoreGoogleBackedIdentity {
 
 function failure<T>(
   code: RestoreGoogleBackedIdentityError["code"],
+  preservedPassportFileIdentity?: PubkyPublicIdentity,
 ): RestoreGoogleBackedIdentityResult<T> {
-  return Result.err({ code });
+  return Result.err({
+    code,
+    ...(preservedPassportFileIdentity ? { preservedPassportFileIdentity } : {}),
+  });
 }

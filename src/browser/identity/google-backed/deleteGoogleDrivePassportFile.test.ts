@@ -21,14 +21,14 @@ describe("DeleteGoogleDrivePassportFile", () => {
        setup.pubky.nextPublicIdentity.publicKeyZ32,
     );
 
-    expectResultOk(result);
+    expect(expectResultOk(result)).toEqual({ status: "deleted" });
     expect(setup.fileStore.deleteCalls).toBe(1);
     expect(setup.fileStore.deletedExpectedReferences).toEqual([true]);
     expect(setup.pubky.disposedKeys).toHaveLength(1);
     expect(setup.crypto.decryptedOutputIsZeroed()).toBe(true);
   });
 
-  it("treats an already missing Drive Passport file as idempotent deletion", async () => {
+  it("reports a missing Drive Passport file without claiming deletion", async () => {
     const setup = createSetup(new RecordingPassportFileOperations({ status: "missing" }));
 
     const result = await setup.subject.deleteGoogleDrivePassportFile(
@@ -36,7 +36,7 @@ describe("DeleteGoogleDrivePassportFile", () => {
       setup.pubky.nextPublicIdentity.publicKeyZ32,
     );
 
-    expectResultOk(result);
+    expect(expectResultOk(result)).toEqual({ status: "missing" });
     expect(setup.fileStore.deleteCalls).toBe(0);
     expect(setup.pubky.restoreCalls).toEqual([]);
     expect(setup.pubky.disposedKeys).toEqual([]);

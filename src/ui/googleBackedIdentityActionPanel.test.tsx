@@ -19,7 +19,7 @@ describe("GoogleBackedIdentityActionPanel", () => {
     let emitState: ((state: GoogleBackedIdentityActionState) => void) | undefined;
     const continueGoogleBackedIdentityAction = vi.fn(async () => ({
       status: "action_completed" as const,
-      result: Result.ok({ kind: "google_drive_passport_file_deleted" as const }),
+      result: Result.ok({ kind: "google_drive_passport_file_deleted" as const, deletionStatus: "deleted" as const }),
     }));
     const onActionCompleted = vi.fn();
     const controller = fakeController({
@@ -48,7 +48,10 @@ describe("GoogleBackedIdentityActionPanel", () => {
       kind: "delete_google_drive_passport_file",
       expectedPublicKeyZ32: "public-key",
     });
-    expect(onActionCompleted).toHaveBeenCalledWith(Result.ok({ kind: "google_drive_passport_file_deleted" }));
+    expect(onActionCompleted).toHaveBeenCalledWith(Result.ok({
+      kind: "google_drive_passport_file_deleted",
+      deletionStatus: "deleted",
+    }));
 
     emitState?.({ stage: "requesting-google-drive-authorization" });
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Waiting for Google Drive authorization to delete the Passport file."));

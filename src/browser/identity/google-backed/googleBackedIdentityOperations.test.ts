@@ -72,7 +72,7 @@ const MOCKS = vi.hoisted(() => {
         return Result.ok(TEST_PASSPORT_REFERENCE);
       },
       async deletePassportFile() {
-        return Result.ok();
+        return Result.ok({ status: "deleted" as const });
       },
     },
     SaveLocalIdentity: vi.fn(),

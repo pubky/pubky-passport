@@ -146,14 +146,14 @@ export class PubkySdkAdapter {
     }
   }
 
-  async signin(keyHandle: PubkyIdentityKeyHandle, waitForDiscovery?: boolean): Promise<PubkySessionAccessResult<PubkyIdentitySession>> {
+  async signin(keyHandle: PubkyIdentityKeyHandle): Promise<PubkySessionAccessResult<PubkyIdentitySession>> {
     const keypair = this.keypairFor(keyHandle);
     if (!keypair) {
       return sessionAccessFailure("signin", "key_lookup", "key_unavailable");
     }
 
     try {
-      const session = await this.withSigner("signin", keypair, (signer) => waitForDiscovery ? signer.signinBlocking() : signer.signin());
+      const session = await this.withSigner("signin", keypair, (signer) => signer.signin());
 
       return Result.ok(sessionDetails("signin", session));
     } catch {

@@ -70,7 +70,8 @@ pnpm test:staging:pubky
 
 `PUBKY_STAGING_RELAY_URL` may select a specific HTTPS staging relay; otherwise the
 SDK default relay is used. The test obtains a real invitation, signs up a fresh
-synthetic identity, publishes and resolves its homeserver, performs blocking signin,
+synthetic identity, publishes and resolves its homeserver, signs in once, confirms
+discovery with one fresh-resolution retry,
 approves an SDK-generated auth request through Passport's concrete adapter, and
 requires the third-party `awaitApproval()` call to return the same identity and
 requested capability.

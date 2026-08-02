@@ -11,7 +11,7 @@ import { expectResultError, expectResultOk } from "../../../../test-utils/result
 import { RestoreGoogleBackedIdentity } from "./restoreGoogleBackedIdentity";
 
 describe("RestoreGoogleBackedIdentity", () => {
-  it("decrypts, signs in with discovery blocking, and saves the restored identity", async () => {
+  it("decrypts, signs in, confirms discovery, and saves the restored identity", async () => {
     const setup = createSetup();
     const progress: string[] = [];
 
@@ -21,10 +21,8 @@ describe("RestoreGoogleBackedIdentity", () => {
     expect(setup.pubky.createCalls).toBe(0);
     expect(setup.pubky.restoreCalls).toHaveLength(1);
     expect(setup.local.saveCalls).toBe(1);
-    expect(setup.pubky.signinCalls).toHaveLength(1);
-    expect(setup.pubky.signinCalls[0]).toMatchObject({
-      waitForDiscovery: true,
-    });
+    expect(setup.pubky.signinCalls).toBe(1);
+    expect(setup.pubky.discoveryCalls).toEqual([{ hasHomeserverPubky: false }]);
     expect(setup.crypto.decryptedOutputIsZeroed()).toBe(true);
     expect(setup.pubky.disposedKeys).toHaveLength(1);
     expect(progress).toEqual(["restoring_identity", "activating_restored_identity"]);
@@ -36,10 +34,13 @@ describe("RestoreGoogleBackedIdentity", () => {
 
     const result = await setup.subject.execute(...EXECUTION_INPUT);
 
-    expectResultError(result, { code: "signin_failed" });
-    if (Result.isError(result)) expect(result.error.partialSetupPublicIdentity).toBeUndefined();
+    expectResultError(result, {
+      code: "signin_failed",
+      preservedPassportFileIdentity: setup.pubky.nextPublicIdentity,
+    });
     expect(setup.local.saveCalls).toBe(0);
     expect(setup.pubky.disposedKeys).toHaveLength(1);
+    expect(setup.pubky.discoveryCalls).toEqual([]);
   });
 
   it("rejects a signin session for a different identity before local save", async () => {
@@ -51,8 +52,42 @@ describe("RestoreGoogleBackedIdentity", () => {
 
     const result = await setup.subject.execute(...EXECUTION_INPUT);
 
-    expectResultError(result, { code: "identity_mismatch" });
-    if (Result.isError(result)) expect(result.error.partialSetupPublicIdentity).toBeUndefined();
+    expectResultError(result, {
+      code: "identity_mismatch",
+      preservedPassportFileIdentity: setup.pubky.nextPublicIdentity,
+    });
+    expect(setup.local.saveCalls).toBe(0);
+    expect(setup.pubky.discoveryCalls).toEqual([]);
+  });
+
+  it("re-resolves discovery once after a publication race", async () => {
+    const setup = createSetup();
+    const publish = setup.pubky.publishHomeserverIfStale.bind(setup.pubky);
+    let attempts = 0;
+    setup.pubky.publishHomeserverIfStale = async (input) => {
+      attempts += 1;
+      return attempts === 1 ? Result.err({ code: "publish_failed" }) : publish(input);
+    };
+
+    expectResultOk(await setup.subject.execute(...EXECUTION_INPUT));
+
+    expect(setup.pubky.signinCalls).toBe(1);
+    expect(attempts).toBe(2);
+    expect(setup.local.saveCalls).toBe(1);
+  });
+
+  it("does not save when discovery still fails after a fresh-resolution retry", async () => {
+    const setup = createSetup();
+    setup.pubky.discoveryFailure = "publish_failed";
+
+    const result = await setup.subject.execute(...EXECUTION_INPUT);
+
+    expectResultError(result, {
+      code: "discovery_failed",
+      preservedPassportFileIdentity: setup.pubky.nextPublicIdentity,
+    });
+    expect(setup.pubky.signinCalls).toBe(1);
+    expect(setup.pubky.discoveryCalls).toHaveLength(2);
     expect(setup.local.saveCalls).toBe(0);
   });
 
@@ -66,22 +101,26 @@ describe("RestoreGoogleBackedIdentity", () => {
     expect(setup.pubky.restoreCalls).toEqual([]);
   });
 
-  it("returns local save failures without partial-setup metadata", async () => {
+  it("returns a cleanup candidate when local save fails", async () => {
     const setup = createSetup();
     setup.local.saveFailure = true;
 
     const result = await setup.subject.execute(...EXECUTION_INPUT);
 
-    expectResultError(result, { code: "local_save_failed" });
-    if (Result.isError(result)) expect(result.error.partialSetupPublicIdentity).toBeUndefined();
+    expectResultError(result, {
+      code: "local_save_failed",
+      preservedPassportFileIdentity: setup.pubky.nextPublicIdentity,
+    });
   });
 
-  it.each(["signin", "local-save"] as const)(
+  it.each(["signin", "discovery", "local-save"] as const)(
     "disposes the restored key once and zeroes decrypted bytes when %s throws",
     async (stage) => {
       const setup = createSetup();
       if (stage === "signin") {
         setup.pubky.throwOnSignin = true;
+      } else if (stage === "discovery") {
+        setup.pubky.throwOnDiscovery = true;
       } else {
         setup.local.throwOnSave = true;
       }

@@ -42,10 +42,19 @@ test("completes the concrete Pubky signup, discovery, signin, and authorization 
     );
 
     const signin = expectOk(
-      await passport.signin(identity.keyHandle, true),
-      "Passport could not complete blocking signin",
+      await passport.signin(identity.keyHandle),
+      "Passport could not sign in the restored identity",
     );
     expect(signin.publicIdentity).toEqual(identity.publicIdentity);
+    let restoredDiscovery = await passport.publishHomeserverIfStale({
+      keyHandle: identity.keyHandle,
+    });
+    if (Result.isError(restoredDiscovery)) {
+      restoredDiscovery = await passport.publishHomeserverIfStale({
+        keyHandle: identity.keyHandle,
+      });
+    }
+    expectOk(restoredDiscovery, "Passport could not confirm restored discovery");
 
     const flow = relyingParty.startAuthFlow(
       CAPABILITIES,

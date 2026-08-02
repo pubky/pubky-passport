@@ -14,6 +14,9 @@ import { GoogleBackedIdentityActionPanel } from "./googleBackedIdentityActionPan
 
 type GoogleAction = "add" | "delete-selected" | "delete-failed" | null;
 
+// Prevent Firefox from restoring a stale dynamic disabled state before hydration.
+const FIREFOX_FORM_STATE = { autoComplete: "off" } as const;
+
 export function DevelopmentIdentityPanel({
   googleClientId,
   homegateBaseUrl,
@@ -31,7 +34,7 @@ export function DevelopmentIdentityPanel({
   const [googleAction, setGoogleAction] = useState<GoogleAction>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("Ready.");
-  const [passportFileCleanupCandidate, setPassportFileCleanupCandidate] = useState<PubkyPublicIdentity | null>(null);
+  const [passportFileCleanupCandidates, setPassportFileCleanupCandidates] = useState<PubkyPublicIdentity[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,17 +95,30 @@ export function DevelopmentIdentityPanel({
 
   function completeGoogleAction(result: GoogleBackedIdentityActionResult): void {
     if (Result.isError(result)) {
-      const creationCleanupCandidate = googleAction === "add"
-        ? result.error.partialSetupPublicIdentity ?? null
-        : null;
-      setPassportFileCleanupCandidate(creationCleanupCandidate);
-      setMessage(messageForGoogleFailure(result.error.code, creationCleanupCandidate !== null));
+      const cleanupCandidates = googleAction === "add" && result.error.preservedPassportFileIdentity
+        ? upsertPublicIdentity(passportFileCleanupCandidates, result.error.preservedPassportFileIdentity)
+        : passportFileCleanupCandidates;
+      setPassportFileCleanupCandidates(cleanupCandidates);
+      setMessage(messageForGoogleFailure(
+        result.error.code,
+        cleanupCandidates.length > 0,
+        googleAction === "add",
+      ));
     } else if (result.value.kind === "google_backed_identity_established") {
-      setPassportFileCleanupCandidate(null);
+      const establishedPublicKey = result.value.publicIdentity.publicKeyZ32;
+      setPassportFileCleanupCandidates((candidates) => removePublicIdentity(
+        candidates,
+        establishedPublicKey,
+      ));
       refreshIdentities(result.value.establishmentMode === "created" ? "Pubky identity created." : "Pubky identity restored.");
     } else {
-      if (googleAction === "delete-failed") setPassportFileCleanupCandidate(null);
-      setMessage("Google Drive Passport file deleted.");
+      const deletionTarget = googleActionTarget.current;
+      if (result.value.deletionStatus === "deleted" && deletionTarget) {
+        setPassportFileCleanupCandidates((candidates) => removePublicIdentity(candidates, deletionTarget));
+        setMessage("Google Drive Passport file deleted.");
+      } else {
+        setMessage("No Passport file was found for that Google account. Nothing was deleted.");
+      }
     }
     setBusy(false);
     googleActionTarget.current = null;
@@ -166,7 +182,7 @@ export function DevelopmentIdentityPanel({
 
       {googleAction === null ? (
         <div className="flex flex-wrap gap-2">
-          <button className="rounded border px-3 py-2" disabled={busy || !controllerReady} onClick={() => beginGoogleAction("add")} type="button">Add Pubky identity</button>
+          <button {...FIREFOX_FORM_STATE} className="rounded border px-3 py-2" disabled={busy || !controllerReady} onClick={() => beginGoogleAction("add")} type="button">Add Pubky identity</button>
           {allowGoogleDrivePassportFileDeletion && selectedIdentity ? (
             <button
               className="rounded border border-red-700 px-3 py-2 text-red-700"
@@ -181,20 +197,21 @@ export function DevelopmentIdentityPanel({
               Delete Google Drive Passport file
             </button>
           ) : null}
-          {allowGoogleDrivePassportFileDeletion && passportFileCleanupCandidate ? (
+          {allowGoogleDrivePassportFileDeletion ? passportFileCleanupCandidates.map((candidate) => (
             <button
               className="rounded border border-red-700 px-3 py-2 text-red-700"
               disabled={busy}
+              key={candidate.publicKeyZ32}
               onClick={() => {
-                if (globalThis.confirm("Authorize Google Drive again, verify the Pubky identity that could not be activated, and delete its Passport file?")) {
-                  beginGoogleAction("delete-failed", passportFileCleanupCandidate.publicKeyZ32);
+                if (globalThis.confirm("Retry activation first. Deleting is irreversible and may remove the only recovery copy. Passport will reauthorize Google Drive and verify the identity before deletion.")) {
+                  beginGoogleAction("delete-failed", candidate.publicKeyZ32);
                 }
               }}
               type="button"
             >
-              Delete partial setup Passport file
+              Delete preserved Passport file {candidate.publicKeyDisplay}
             </button>
-          ) : null}
+          )) : null}
           {allowGoogleDrivePassportFileDeletion && identities.length > 0 ? (
             <button
               className="rounded border border-red-700 px-3 py-2 text-red-700"
@@ -214,7 +231,7 @@ export function DevelopmentIdentityPanel({
             ? "Sign in with your Google account and authorize Google Drive to create or restore a Pubky identity."
             : googleAction === "delete-selected"
               ? "Authorize Google Drive again to delete the selected Pubky identity's Passport file."
-              : "Authorize Google Drive again to delete the partial setup Passport file."}</p>
+              : "Authorize Google Drive again to verify and delete the preserved Passport recovery file."}</p>
           <GoogleBackedIdentityActionPanel
             action={googleIdentityAction}
             controller={controller.current}
@@ -233,7 +250,11 @@ export function DevelopmentIdentityPanel({
   );
 }
 
-function messageForGoogleFailure(code: string, hasCreationCleanupCandidate: boolean): string {
+function messageForGoogleFailure(
+  code: string,
+  hasPassportFileCleanupCandidate: boolean,
+  establishingIdentity: boolean,
+): string {
   switch (code) {
     case "wrapping_key_failed":
       return "Passport could not obtain the wrapping key.";
@@ -246,7 +267,9 @@ function messageForGoogleFailure(code: string, hasCreationCleanupCandidate: bool
     case "decrypt_failed":
       return "Passport could not decrypt the Google Drive Passport file.";
     case "identity_mismatch":
-      return "The Google Drive Passport file belongs to a different Pubky identity than expected.";
+      return establishingIdentity
+        ? "The homeserver session did not match the Passport identity."
+        : "The Google Drive Passport file did not match the selected Pubky identity.";
     case "drive_delete_failed":
       return "Passport could not delete the Google Drive Passport file.";
     case "drive_stale_file":
@@ -269,18 +292,35 @@ function messageForGoogleFailure(code: string, hasCreationCleanupCandidate: bool
     case "malformed_homegate_response":
       return "The invitation response could not be processed. Passport did not create a Pubky identity.";
     case "signup_failed":
-      return preservedPassportFileMessage(hasCreationCleanupCandidate);
+      return preservedPassportFileMessage(hasPassportFileCleanupCandidate);
     case "signin_failed":
-      return preservedPassportFileMessage(false);
+      return preservedPassportFileMessage(hasPassportFileCleanupCandidate);
     case "discovery_failed":
     case "local_save_failed":
-      return preservedPassportFileMessage(hasCreationCleanupCandidate);
+      return preservedPassportFileMessage(hasPassportFileCleanupCandidate);
     default:
       return "The Pubky identity operation with Google failed.";
   }
 }
 
-function preservedPassportFileMessage(hasCreationCleanupCandidate: boolean): string {
+function preservedPassportFileMessage(hasPassportFileCleanupCandidate: boolean): string {
   return "The encrypted Google Drive Passport file was preserved. Choose Add Pubky identity to retry activation."
-    + (hasCreationCleanupCandidate ? " Development cleanup is available for the Passport file created by this failed setup." : "");
+    + (hasPassportFileCleanupCandidate ? " Development cleanup is available if activation cannot be recovered." : "");
+}
+
+function upsertPublicIdentity(
+  identities: PubkyPublicIdentity[],
+  identity: PubkyPublicIdentity,
+): PubkyPublicIdentity[] {
+  return [
+    ...identities.filter((candidate) => candidate.publicKeyZ32 !== identity.publicKeyZ32),
+    identity,
+  ];
+}
+
+function removePublicIdentity(
+  identities: PubkyPublicIdentity[],
+  publicKeyZ32: string,
+): PubkyPublicIdentity[] {
+  return identities.filter((identity) => identity.publicKeyZ32 !== publicKeyZ32);
 }

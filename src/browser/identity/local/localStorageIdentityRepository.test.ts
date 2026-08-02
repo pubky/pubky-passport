@@ -121,6 +121,27 @@ describe("LocalStorageIdentityRepository", () => {
 
     expect(listener).toHaveBeenCalledTimes(2);
   });
+
+  it("notifies same-document repository instances once after successful writes", () => {
+    const storage = new MemoryStorage();
+    const firstRepository = new LocalStorageIdentityRepository(storage);
+    const secondRepository = new LocalStorageIdentityRepository(storage);
+    const firstListener = vi.fn();
+    const secondListener = vi.fn();
+    const unsubscribeFirst = firstRepository.subscribe(firstListener);
+    const unsubscribeSecond = secondRepository.subscribe(secondListener);
+
+    const first = save(secondRepository, FIRST_IDENTITY, 1);
+    save(firstRepository, SECOND_IDENTITY, 2);
+    expectResultOk(secondRepository.select(first.id));
+    expectResultOk(firstRepository.clear());
+    unsubscribeFirst();
+    unsubscribeSecond();
+    save(secondRepository, FIRST_IDENTITY, 1);
+
+    expect(firstListener).toHaveBeenCalledTimes(4);
+    expect(secondListener).toHaveBeenCalledTimes(4);
+  });
 });
 
 function save(repository: LocalStorageIdentityRepository, publicIdentity: typeof FIRST_IDENTITY, byte: number) {

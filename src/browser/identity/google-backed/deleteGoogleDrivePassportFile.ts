@@ -40,7 +40,7 @@ export type GoogleDrivePassportFileDeletionError =
     };
 
 export type GoogleDrivePassportFileDeletionResult = ResultType<
-  void,
+  { status: "deleted" | "missing" },
   GoogleDrivePassportFileDeletionError
 >;
 
@@ -91,7 +91,7 @@ export class DeleteGoogleDrivePassportFile {
 
     const storedFile = await this.#readPassportFile(credentials.driveAccessToken);
     if (Result.isError(storedFile)) return failure("drive_read_failed");
-    if (storedFile.value.status === "missing") return Result.ok();
+    if (storedFile.value.status === "missing") return Result.ok({ status: "missing" });
 
     const secretKey = await this.#decryptSecretKeyBytes({
       envelope: storedFile.value.envelope,
@@ -128,7 +128,7 @@ export class DeleteGoogleDrivePassportFile {
     if (Result.isError(deleted)) {
       return failure(deleted.error.code === "stale_file" ? "drive_stale_file" : "drive_delete_failed");
     }
-    return Result.ok();
+    return Result.ok({ status: "deleted" });
   }
 }
 

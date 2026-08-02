@@ -86,7 +86,7 @@ describe("CreateGoogleBackedIdentity", () => {
       const result = await setup.subject.execute(...executionInput(setup.fileStore));
 
       expect(Result.isError(result)).toBe(true);
-      if (Result.isError(result)) expect(result.error.partialSetupPublicIdentity).toBeUndefined();
+      if (Result.isError(result)) expect(result.error.preservedPassportFileIdentity).toBeUndefined();
       expect(setup.pubky.disposedKeys).toHaveLength(1);
       expect(setup.crypto.encryptedInputIsZeroed()).toBe(true);
     },
@@ -100,7 +100,7 @@ describe("CreateGoogleBackedIdentity", () => {
 
     expectResultError(result, {
       code: "signup_failed",
-      partialSetupPublicIdentity: setup.pubky.nextPublicIdentity,
+      preservedPassportFileIdentity: setup.pubky.nextPublicIdentity,
     });
     expect(setup.pubky.discoveryCalls).toEqual([]);
     expect(setup.local.saveCalls).toBe(0);
@@ -118,7 +118,7 @@ describe("CreateGoogleBackedIdentity", () => {
 
     expectResultError(result, {
       code: "identity_mismatch",
-      partialSetupPublicIdentity: setup.pubky.nextPublicIdentity,
+      preservedPassportFileIdentity: setup.pubky.nextPublicIdentity,
     });
     expect(setup.pubky.discoveryCalls).toEqual([]);
     expect(setup.local.saveCalls).toBe(0);
@@ -132,7 +132,7 @@ describe("CreateGoogleBackedIdentity", () => {
 
     expectResultError(result, {
       code: "discovery_failed",
-      partialSetupPublicIdentity: setup.pubky.nextPublicIdentity,
+      preservedPassportFileIdentity: setup.pubky.nextPublicIdentity,
     });
     expect(setup.local.saveCalls).toBe(0);
     expect(setup.pubky.disposedKeys).toHaveLength(1);

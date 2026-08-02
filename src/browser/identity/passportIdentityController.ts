@@ -72,7 +72,7 @@ export type PassportIdentityControllerErrorCode =
 
 export type PassportIdentityControllerError = {
   code: PassportIdentityControllerErrorCode;
-  partialSetupPublicIdentity?: PubkyPublicIdentity;
+  preservedPassportFileIdentity?: PubkyPublicIdentity;
 };
 
 export type GoogleBackedIdentityAction =
@@ -85,7 +85,7 @@ export type GoogleBackedIdentityActionResult = Result<
       establishmentMode: "created" | "restored";
       publicIdentity: PubkyPublicIdentity;
     }
-  | { kind: "google_drive_passport_file_deleted" },
+  | { kind: "google_drive_passport_file_deleted"; deletionStatus: "deleted" | "missing" },
   PassportIdentityControllerError
 >;
 
@@ -328,7 +328,9 @@ export class PassportIdentityController {
       if (action.kind === "delete_google_drive_passport_file") {
         this.emit({ stage: "deleting-google-drive-passport-file" });
         const deleted = await this.#dependencies.deleteGoogleDrivePassportFile(credentials, action.expectedPublicKeyZ32);
-        return Result.isError(deleted) ? deletionFailure(deleted.error) : Result.ok({ kind: "google_drive_passport_file_deleted" });
+        return Result.isError(deleted)
+          ? deletionFailure(deleted.error)
+          : Result.ok({ kind: "google_drive_passport_file_deleted", deletionStatus: deleted.value.status });
       }
       let progressActive = true;
       const reportProgress: ReportGoogleBackedIdentityProgress = (progress) => {
@@ -430,8 +432,8 @@ function toCatalogResult<T>(
 function actionFailure(error: PassportIdentityControllerError): GoogleBackedIdentityActionResult {
   return Result.err({
     code: error.code,
-    ...(error.partialSetupPublicIdentity
-      ? { partialSetupPublicIdentity: error.partialSetupPublicIdentity }
+    ...(error.preservedPassportFileIdentity
+      ? { preservedPassportFileIdentity: error.preservedPassportFileIdentity }
       : {}),
   });
 }
@@ -443,8 +445,8 @@ function establishmentFailure(error: GoogleBackedIdentityError): GoogleBackedIde
       : error.code === "wrapping_key_failed"
         ? wrappingKeyFailureCode(error.cause)
         : error.code,
-    ...(error.partialSetupPublicIdentity
-      ? { partialSetupPublicIdentity: error.partialSetupPublicIdentity }
+    ...(error.preservedPassportFileIdentity
+      ? { preservedPassportFileIdentity: error.preservedPassportFileIdentity }
       : {}),
   });
 }

@@ -24,7 +24,7 @@ type CreateGoogleBackedIdentityErrorCode =
 
 export type CreateGoogleBackedIdentityError = {
   code: CreateGoogleBackedIdentityErrorCode;
-  partialSetupPublicIdentity?: PubkyPublicIdentity;
+  preservedPassportFileIdentity?: PubkyPublicIdentity;
 };
 
 export type CreatedGoogleBackedIdentity = {
@@ -134,7 +134,7 @@ type CreatePassportFile = (
 
 function failure<T>(
   code: CreateGoogleBackedIdentityErrorCode,
-  partialSetupPublicIdentity?: PubkyPublicIdentity,
+  preservedPassportFileIdentity?: PubkyPublicIdentity,
 ): CreateGoogleBackedIdentityResult<T> {
-  return Result.err({ code, ...(partialSetupPublicIdentity ? { partialSetupPublicIdentity } : {}) });
+  return Result.err({ code, ...(preservedPassportFileIdentity ? { preservedPassportFileIdentity } : {}) });
 }

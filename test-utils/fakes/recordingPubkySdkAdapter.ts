@@ -31,7 +31,7 @@ export class RecordingPubkySdkAdapter extends PubkySdkAdapter {
   publicIdentityCalls = 0;
   disposedKeys: PubkyIdentityKeyHandle[] = [];
   signupCalls: Array<{ homeserverPubky: string; hasSignupCode: boolean }> = [];
-  signinCalls: Array<{ waitForDiscovery: boolean }> = [];
+  signinCalls = 0;
   discoveryCalls: Array<{ hasHomeserverPubky: boolean }> = [];
   approvalCalls: Array<{ scheme?: string; queryKeys: string[] }> = [];
 
@@ -106,9 +106,10 @@ export class RecordingPubkySdkAdapter extends PubkySdkAdapter {
     return this.signupFailure ? sessionFailure(this.signupFailure) : Result.ok(this.session);
   }
 
-  override async signin(_keyHandle: PubkyIdentityKeyHandle, waitForDiscovery?: boolean): Promise<PubkySessionAccessResult<PubkyIdentitySession>> {
+  override async signin(keyHandle: PubkyIdentityKeyHandle): Promise<PubkySessionAccessResult<PubkyIdentitySession>> {
+    void keyHandle;
     if (this.throwOnSignin) throw new Error("signin threw");
-    this.signinCalls.push({ waitForDiscovery: waitForDiscovery === true });
+    this.signinCalls += 1;
     return this.signinFailure ? sessionFailure(this.signinFailure) : Result.ok(this.session);
   }
 

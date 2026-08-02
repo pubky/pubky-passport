@@ -49,9 +49,9 @@ export type GoogleBackedIdentity = CreatedGoogleBackedIdentity | RestoredGoogleB
 export type GoogleBackedIdentityError =
   | CreateGoogleBackedIdentityError
   | RestoreGoogleBackedIdentityError
-  | { code: "drive_read_failed" | "unexpected_failure"; partialSetupPublicIdentity?: never }
-  | { code: "wrapping_key_failed"; cause: GoogleWrappingKeyErrorCode; partialSetupPublicIdentity?: never }
-  | { code: "homeserver_signup_invitation_failed"; cause: HomegateSignupInvitationErrorCode; partialSetupPublicIdentity?: never };
+  | { code: "drive_read_failed" | "unexpected_failure"; preservedPassportFileIdentity?: never }
+  | { code: "wrapping_key_failed"; cause: GoogleWrappingKeyErrorCode; preservedPassportFileIdentity?: never }
+  | { code: "homeserver_signup_invitation_failed"; cause: HomegateSignupInvitationErrorCode; preservedPassportFileIdentity?: never };
 
 export type GoogleBackedIdentityResult<T = GoogleBackedIdentity> = ResultType<T, GoogleBackedIdentityError>;
 

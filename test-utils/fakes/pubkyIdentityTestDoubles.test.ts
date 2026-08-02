@@ -58,7 +58,7 @@ describe("Pubky identity test doubles", () => {
          signupCode: "SECRET-SIGNUP-CODE",
        }),
     );
-    const signinResult = expectOk(await sessionAccess.signin(key.keyHandle, true));
+    const signinResult = expectOk(await sessionAccess.signin(key.keyHandle));
 
     expect(signupResult).toEqual(sessionAccess.session);
     expect(signinResult).toEqual(sessionAccess.session);
@@ -68,7 +68,7 @@ describe("Pubky identity test doubles", () => {
         hasSignupCode: true,
       },
     ]);
-    expect(sessionAccess.signinCalls).toEqual([{ waitForDiscovery: true }]);
+    expect(sessionAccess.signinCalls).toBe(1);
     expect(JSON.stringify(sessionAccess.signupCalls)).not.toContain("SECRET-SIGNUP-CODE");
 
     sessionAccess.signupFailure = "signup_failed";

@@ -463,12 +463,15 @@ describe("PassportIdentityController", () => {
     const pending = controller.continueGoogleBackedIdentityAction({ kind: "delete_google_drive_passport_file", expectedPublicKeyZ32: "public-key" });
     await vi.waitFor(() => expect(execute.calls).toBe(1));
     controller.unmountGoogleSignIn();
-    deletion.resolve(Result.ok());
+    deletion.resolve(Result.ok({ status: "deleted" }));
 
     const completed = await pending;
     expect(completed.status).toBe("action_finished_after_unmount");
     if (completed.status !== "action_finished_after_unmount") throw new Error("Expected unmounted action result");
-    expect(completed.result).toEqual(Result.ok({ kind: "google_drive_passport_file_deleted" }));
+    expect(completed.result).toEqual(Result.ok({
+      kind: "google_drive_passport_file_deleted",
+      deletionStatus: "deleted",
+    }));
     controller.dispose();
   });
 
@@ -539,7 +542,7 @@ function dependencies(overrides: Partial<PassportIdentityControllerDependencies>
     clear: vi.fn(() => Result.ok()),
     subscribe: vi.fn(() => () => {}),
     restoreOrCreateGoogleBackedIdentity: async () => Result.err({ code: "unexpected_failure" as const }),
-    deleteGoogleDrivePassportFile: async () => Result.ok(),
+    deleteGoogleDrivePassportFile: async () => Result.ok({ status: "deleted" as const }),
     disposeGoogleBackedIdentityOperations: vi.fn(),
     mountGoogleSignIn: vi.fn(async () => Result.ok()),
     unmountGoogleSignIn: vi.fn(),

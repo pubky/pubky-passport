@@ -92,7 +92,7 @@ describe("createPassportIdentityController", () => {
           MOCKS.deleteReceivedExpectedInput = credentials.googleIdToken.length > 0
             && credentials.driveAccessToken.length > 0
             && expectedPublicKeyZ32 === "public-key";
-          return Result.ok();
+          return Result.ok({ status: "deleted" as const });
         },
         dispose: MOCKS.disposeGoogleBackedIdentityOperations,
       };
@@ -201,7 +201,7 @@ describe("createPassportIdentityController", () => {
       expectedPublicKeyZ32: "public-key",
     })).resolves.toEqual({
       status: "action_completed",
-      result: Result.ok({ kind: "google_drive_passport_file_deleted" }),
+      result: Result.ok({ kind: "google_drive_passport_file_deleted", deletionStatus: "deleted" }),
     });
     expect(MOCKS.GoogleBackedIdentityOperations).toHaveBeenCalledOnce();
     expect(MOCKS.deleteCalls).toBe(1);
@@ -221,7 +221,7 @@ describe("createPassportIdentityController", () => {
       expectedPublicKeyZ32: "public-key",
     })).resolves.toEqual({
       status: "action_completed",
-      result: Result.ok({ kind: "google_drive_passport_file_deleted" }),
+      result: Result.ok({ kind: "google_drive_passport_file_deleted", deletionStatus: "deleted" }),
     });
     expect(MOCKS.GoogleBackedIdentityOperations).toHaveBeenCalledOnce();
     expect(MOCKS.deleteCalls).toBe(1);

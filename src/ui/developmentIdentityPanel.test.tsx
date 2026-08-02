@@ -14,6 +14,7 @@ import { DevelopmentIdentityPanel } from "./developmentIdentityPanel";
 
 const FLOW_STATE = vi.hoisted(() => ({
   establish: async (): Promise<GoogleBackedIdentityActionResult> => { throw new Error("establish result not configured"); },
+  deleteStatus: "deleted" as "deleted" | "missing",
   deleteExpectedPublicKey: null as string | null,
   refresh: null as (() => void) | null,
   setCatalog: null as ((catalog: PassportIdentityList) => void) | null,
@@ -45,6 +46,7 @@ const SELECTED_CATALOG: PassportIdentityList = {
 describe("DevelopmentIdentityPanel", () => {
   beforeEach(() => {
     FLOW_STATE.establish = async () => { throw new Error("establish result not configured"); };
+    FLOW_STATE.deleteStatus = "deleted";
     FLOW_STATE.deleteExpectedPublicKey = null;
     FLOW_STATE.refresh = null;
     FLOW_STATE.setCatalog = null;
@@ -62,7 +64,7 @@ describe("DevelopmentIdentityPanel", () => {
 
     expect(screen.getByRole("combobox", { name: "Selected Pubky identity" }).getAttribute("autocomplete")).toBe("off");
     expect(await screen.findByRole("option", { name: "pubkyselected-identity" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add Pubky identity" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add Pubky identity" })).toHaveAttribute("autocomplete", "off");
     expect(screen.queryByRole("button", { name: "Delete Google Drive Passport file" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Clear local Pubky identities" })).not.toBeInTheDocument();
   });
@@ -75,11 +77,42 @@ describe("DevelopmentIdentityPanel", () => {
     expect(screen.getByRole("button", { name: "Clear local Pubky identities" })).toBeInTheDocument();
   });
 
+  it("shows and selects a second identity after successful restore", async () => {
+    FLOW_STATE.controller = controllerWithCatalog(SELECTED_CATALOG);
+    const secondIdentity = {
+      id: "second-identity",
+      publicIdentity: {
+        publicKeyZ32: "second-identity",
+        publicKeyDisplay: "pubkysecond-identity",
+      },
+    };
+    FLOW_STATE.establish = async () => {
+      FLOW_STATE.setCatalog?.({
+        activeIdentityId: secondIdentity.id,
+        identities: [...SELECTED_CATALOG.identities, secondIdentity],
+      });
+      return Result.ok({
+        kind: "google_backed_identity_established",
+        establishmentMode: "restored",
+        publicIdentity: secondIdentity.publicIdentity,
+      });
+    };
+    render(<DevelopmentIdentityPanel allowGoogleDrivePassportFileDeletion googleClientId="google-client" homegateBaseUrl={HOMEGATE_BASE_URL} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add Pubky identity" }));
+    fireEvent.click(screen.getByRole("button", { name: "Authorize test Google" }));
+
+    const selector = await screen.findByRole("combobox", { name: "Selected Pubky identity" });
+    await waitFor(() => expect(selector).toHaveValue(secondIdentity.id));
+    expect(screen.getByRole("option", { name: "pubkyselected-identity" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "pubkysecond-identity" })).toBeInTheDocument();
+  });
+
   it("keeps failed and selected Drive deletion as separate exact targets", async () => {
     FLOW_STATE.controller = controllerWithCatalog(SELECTED_CATALOG);
     FLOW_STATE.establish = async () => Result.err({
       code: "signup_failed",
-      partialSetupPublicIdentity: {
+      preservedPassportFileIdentity: {
         publicKeyZ32: "failed-drive-identity",
         publicKeyDisplay: "pubkyfailed-drive-identity",
       },
@@ -91,10 +124,10 @@ describe("DevelopmentIdentityPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add Pubky identity" }));
     fireEvent.click(screen.getByRole("button", { name: "Authorize test Google" }));
 
-    expect(await screen.findByRole("button", { name: "Delete partial setup Passport file" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Delete preserved Passport file/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Delete Google Drive Passport file" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Delete partial setup Passport file" }));
+    fireEvent.click(screen.getByRole("button", { name: /Delete preserved Passport file/ }));
     fireEvent.click(screen.getByRole("button", { name: "Authorize test Google" }));
 
     await waitFor(() => expect(FLOW_STATE.deleteExpectedPublicKey).toBe("failed-drive-identity"));
@@ -129,11 +162,17 @@ describe("DevelopmentIdentityPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Authorize test Google" }));
 
     expect(await screen.findByText(/Passport did not create a Pubky identity/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Delete partial setup Passport file" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Delete preserved Passport file/ })).not.toBeInTheDocument();
   });
 
-  it("preserves a restored Passport file without offering partial-setup deletion", async () => {
-    FLOW_STATE.establish = async () => Result.err({ code: "signin_failed" });
+  it("offers verified cleanup metadata after restored activation fails", async () => {
+    FLOW_STATE.establish = async () => Result.err({
+      code: "signin_failed",
+      preservedPassportFileIdentity: {
+        publicKeyZ32: "failed-restored-identity",
+        publicKeyDisplay: "pubkyfailed-restored-identity",
+      },
+    });
     render(<DevelopmentIdentityPanel allowGoogleDrivePassportFileDeletion googleClientId="google-client" homegateBaseUrl={HOMEGATE_BASE_URL} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Add Pubky identity" }));
@@ -141,7 +180,77 @@ describe("DevelopmentIdentityPanel", () => {
 
     expect(await screen.findByText(/encrypted Google Drive Passport file was preserved/)).toBeInTheDocument();
     expect(screen.getByText(/Choose Add Pubky identity to retry activation/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Delete partial setup Passport file" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Delete preserved Passport file/ })).toBeInTheDocument();
+  });
+
+  it("retains cleanup metadata when a retry returns no candidate", async () => {
+    let attempts = 0;
+    FLOW_STATE.establish = async () => {
+      attempts += 1;
+      return attempts === 1
+        ? Result.err({
+            code: "signup_failed",
+            preservedPassportFileIdentity: {
+              publicKeyZ32: "failed-identity",
+              publicKeyDisplay: "pubkyfailed-identity",
+            },
+          })
+        : Result.err({ code: "unexpected_failure" });
+    };
+    render(<DevelopmentIdentityPanel allowGoogleDrivePassportFileDeletion googleClientId="google-client" homegateBaseUrl={HOMEGATE_BASE_URL} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add Pubky identity" }));
+    fireEvent.click(screen.getByRole("button", { name: "Authorize test Google" }));
+    await screen.findByRole("button", { name: /Delete preserved Passport file/ });
+    fireEvent.click(screen.getByRole("button", { name: "Add Pubky identity" }));
+    fireEvent.click(screen.getByRole("button", { name: "Authorize test Google" }));
+
+    expect(await screen.findByRole("button", { name: /Delete preserved Passport file/ })).toBeInTheDocument();
+  });
+
+  it("retains the exact candidate when the chosen Google account has no file", async () => {
+    FLOW_STATE.establish = async () => Result.err({
+      code: "signin_failed",
+      preservedPassportFileIdentity: {
+        publicKeyZ32: "failed-identity",
+        publicKeyDisplay: "pubkyfailed-identity",
+      },
+    });
+    FLOW_STATE.deleteStatus = "missing";
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    render(<DevelopmentIdentityPanel allowGoogleDrivePassportFileDeletion googleClientId="google-client" homegateBaseUrl={HOMEGATE_BASE_URL} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add Pubky identity" }));
+    fireEvent.click(screen.getByRole("button", { name: "Authorize test Google" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Delete preserved Passport file/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Authorize test Google" }));
+
+    expect(await screen.findByText(/Nothing was deleted/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Delete preserved Passport file pubkyfailed-identity/ })).toBeInTheDocument();
+  });
+
+  it("keeps cleanup candidates separated by public identity", async () => {
+    let attempts = 0;
+    FLOW_STATE.establish = async () => {
+      attempts += 1;
+      return Result.err({
+        code: "signin_failed",
+        preservedPassportFileIdentity: {
+          publicKeyZ32: `failed-identity-${attempts}`,
+          publicKeyDisplay: `pubkyfailed-identity-${attempts}`,
+        },
+      });
+    };
+    render(<DevelopmentIdentityPanel allowGoogleDrivePassportFileDeletion googleClientId="google-client" homegateBaseUrl={HOMEGATE_BASE_URL} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add Pubky identity" }));
+    fireEvent.click(screen.getByRole("button", { name: "Authorize test Google" }));
+    await screen.findByRole("button", { name: /pubkyfailed-identity-1/ });
+    fireEvent.click(screen.getByRole("button", { name: "Add Pubky identity" }));
+    fireEvent.click(screen.getByRole("button", { name: "Authorize test Google" }));
+
+    expect(await screen.findByRole("button", { name: /pubkyfailed-identity-1/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /pubkyfailed-identity-2/ })).toBeInTheDocument();
   });
 });
 
@@ -175,7 +284,10 @@ function controllerWithCatalog(
         return { status: "action_completed", result: await FLOW_STATE.establish() };
       }
       FLOW_STATE.deleteExpectedPublicKey = action.expectedPublicKeyZ32;
-      return { status: "action_completed", result: Result.ok({ kind: "google_drive_passport_file_deleted" }) };
+      return {
+        status: "action_completed",
+        result: Result.ok({ kind: "google_drive_passport_file_deleted", deletionStatus: FLOW_STATE.deleteStatus }),
+      };
     },
   });
 }
