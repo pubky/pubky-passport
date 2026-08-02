@@ -35,7 +35,7 @@ export function proxy(request: NextRequest) {
   }
 }
 
-export const CONFIG = {
+export const config = {
   matcher: [{
     source: "/((?!api|_next/static|_next/image|favicon.ico).*)",
     missing: [

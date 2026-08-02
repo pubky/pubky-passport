@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
+import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LOGGER } from "../src/libs/logger/logger";
-import { proxy } from "../src/proxy";
+import { config, proxy } from "../src/proxy";
 
 describe("request CSP proxy", () => {
   beforeEach(() => {
@@ -14,6 +15,12 @@ describe("request CSP proxy", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
+  });
+
+  it("uses the configured matcher to exclude API and framework asset requests", () => {
+    expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/authorize" })).toBe(true);
+    expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/api/wrapping-key/google" })).toBe(false);
+    expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/_next/static/app.js" })).toBe(false);
   });
 
   it("allows only the validated relay origin on an authorization document", () => {
