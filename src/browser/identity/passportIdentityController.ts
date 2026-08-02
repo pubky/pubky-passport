@@ -73,6 +73,7 @@ export type PassportIdentityControllerErrorCode =
 export type PassportIdentityControllerError = {
   code: PassportIdentityControllerErrorCode;
   preservedPassportFileIdentity?: PubkyPublicIdentity;
+  warning?: "visible_recovery_copy_unconfirmed";
 };
 
 export type GoogleBackedIdentityAction =
@@ -82,7 +83,13 @@ export type GoogleBackedIdentityAction =
 export type GoogleBackedIdentityActionResult = Result<
   | {
       kind: "google_backed_identity_established";
-      establishmentMode: "created" | "restored";
+      establishmentMode: "created";
+      publicIdentity: PubkyPublicIdentity;
+      visibleRecoveryCopyStatus: "created" | "unconfirmed";
+    }
+  | {
+      kind: "google_backed_identity_established";
+      establishmentMode: "restored";
       publicIdentity: PubkyPublicIdentity;
     }
   | { kind: "google_drive_passport_file_deleted"; deletionStatus: "deleted" | "missing" },
@@ -347,11 +354,18 @@ export class PassportIdentityController {
         progressActive = false;
       }
       if (Result.isError(restoredOrCreated)) return establishmentFailure(restoredOrCreated.error);
-      return Result.ok({
-        kind: "google_backed_identity_established",
-        establishmentMode: restoredOrCreated.value.establishmentMode,
-        publicIdentity: restoredOrCreated.value.publicIdentity,
-      });
+      return restoredOrCreated.value.establishmentMode === "created"
+        ? Result.ok({
+            kind: "google_backed_identity_established",
+            establishmentMode: "created",
+            publicIdentity: restoredOrCreated.value.publicIdentity,
+            visibleRecoveryCopyStatus: restoredOrCreated.value.visibleRecoveryCopyStatus,
+          })
+        : Result.ok({
+            kind: "google_backed_identity_established",
+            establishmentMode: "restored",
+            publicIdentity: restoredOrCreated.value.publicIdentity,
+          });
     } catch {
       LOGGER.warn("identity.google.action.failed", { code: "unexpected_failure" });
       return Result.err({ code: "unexpected_failure" });
@@ -430,12 +444,7 @@ function toCatalogResult<T>(
 }
 
 function actionFailure(error: PassportIdentityControllerError): GoogleBackedIdentityActionResult {
-  return Result.err({
-    code: error.code,
-    ...(error.preservedPassportFileIdentity
-      ? { preservedPassportFileIdentity: error.preservedPassportFileIdentity }
-      : {}),
-  });
+  return Result.err(error);
 }
 
 function establishmentFailure(error: GoogleBackedIdentityError): GoogleBackedIdentityActionResult {
@@ -448,6 +457,7 @@ function establishmentFailure(error: GoogleBackedIdentityError): GoogleBackedIde
     ...(error.preservedPassportFileIdentity
       ? { preservedPassportFileIdentity: error.preservedPassportFileIdentity }
       : {}),
+    ...("warning" in error && error.warning ? { warning: error.warning } : {}),
   });
 }
 

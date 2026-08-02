@@ -361,8 +361,9 @@ sequenceDiagram
     Controller->>DriveAccess: bound requestGoogleDriveAccess(...)
     DriveAccess->>GISLoader: loadGoogleAccounts()
     GISLoader-->>DriveAccess: google.accounts
-    DriveAccess->>OAuth: request openid + drive.appdata
+    DriveAccess->>OAuth: request openid + drive.appdata + drive.file
     OAuth-->>DriveAccess: Drive OAuth access token
+    Note over DriveAccess: Require drive.appdata; drive.file is optional for the best-effort visible copy
     DriveAccess->>UserInfo: GET /userinfo with Drive OAuth access token
     UserInfo-->>DriveAccess: Drive OAuth provider-account subject
     Note over DriveAccess: Require subjects to match
@@ -392,6 +393,7 @@ sequenceDiagram
     end
     box rgba(0, 158, 115, 0.18) src/browser/passport-file
         participant DriveStore as googleDrivePassportFileStore.ts<br/>GoogleDrivePassportFileStore
+        participant VisibleWriter as googleDriveVisibleRecoveryCopyWriter.ts<br/>GoogleDriveVisibleRecoveryCopyWriter
     end
     box rgba(0, 158, 115, 0.18) src/browser/homegate
         participant Invite as homegateClient.ts<br/>HomegateClient
@@ -400,7 +402,7 @@ sequenceDiagram
         participant API as handler.ts<br/>googleWrappingKeyPost()<br/>exported as route.ts::POST
     end
     box rgba(17, 24, 39, 0.12) External
-        participant Drive as Google Drive API v3<br/>appDataFolder/passport.json
+        participant Drive as Google Drive API v3<br/>appDataFolder + My Drive
     end
 
     Controller->>Operations: restoreOrCreateGoogleBackedIdentity<br/>(GoogleBackedIdentityCredentials)
@@ -429,7 +431,7 @@ sequenceDiagram
             Operations->>Invite: requestGoogleHomeserverSignupInvitation(ID token)
             Invite-->>Operations: validated invitation or safe failure
             opt Invitation returned
-                Operations->>Creator: execute(invitation, Drive store, wrapping key)
+                Operations->>Creator: execute(invitation, focused app-data create, focused visible-copy write, wrapping key)
             end
         else Storage error
             Operations-->>Controller: safe failure
@@ -515,7 +517,7 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Missing identity encryption and Drive storage call flow
-    accDescr: CreateGoogleBackedIdentity asks PubkySdkAdapter and the Pubky SDK for a new key and exported secret, encrypts the secret through a focused callback bound from PassportFileWebCrypto, creates the Google Drive Passport file through a focused callback bound from GoogleDrivePassportFileStore, and then zeros the exported bytes.
+    accDescr: CreateGoogleBackedIdentity encrypts a new Pubky secret, creates the operational app-data file through GoogleDrivePassportFileStore, then best-effort writes a visible recovery copy through GoogleDriveVisibleRecoveryCopyWriter before activation and zeros the exported bytes.
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed
         participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
     end
@@ -525,6 +527,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/passport-file
         participant Crypto as passportFileWebCrypto.ts<br/>PassportFileWebCrypto
         participant DriveStore as googleDrivePassportFileStore.ts<br/>GoogleDrivePassportFileStore
+        participant VisibleWriter as googleDriveVisibleRecoveryCopyWriter.ts<br/>GoogleDriveVisibleRecoveryCopyWriter
     end
     box rgba(17, 24, 39, 0.12) External
         participant SDK as @synonymdev/pubky@0.9.3<br/>Keypair
@@ -555,10 +558,21 @@ sequenceDiagram
     end
     DriveStore->>Drive: post-list passport.json
     Drive-->>DriveStore: post-list response
-    DriveStore-->>Creator: stored reference or safe error
+    DriveStore-->>Creator: operational write completed or safe error
+    Creator->>VisibleWriter: createVisibleRecoveryCopy(envelope, public Pubky)
+    VisibleWriter->>Drive: find or create My Drive/Pubky Passport
+    Drive-->>VisibleWriter: visible folder response
+    VisibleWriter->>Drive: create-only {pubky}.json copy
+    Drive-->>VisibleWriter: visible copy response
+    VisibleWriter->>Drive: verify exact created file ID and revision
+    Drive-->>VisibleWriter: exact metadata, parent, and trashed state
+    Note over DriveStore,VisibleWriter: Operational reads and deletion remain appDataFolder-only
+    VisibleWriter-->>Creator: confirmed creation or safe unconfirmed outcome
     Note over Creator: Zero exported secret bytes
-    alt Storage error
+    alt Operational storage error
         Creator->>Pubky: disposeIdentityKey(handle)
+    else Visible copy warning
+        Note over Creator: Continue activation; do not strand an unsigned-up appData identity
     else Stored
         Note over Creator: Key handle continues into activation
     end

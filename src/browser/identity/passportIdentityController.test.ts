@@ -138,6 +138,29 @@ describe("PassportIdentityController", () => {
     expect(JSON.stringify(states)).not.toContain("drive-access-token");
   });
 
+  it.each(["created", "unconfirmed"] as const)("propagates the created visible-copy %s status", async (status) => {
+    const establish = establishmentDouble(async () => Result.ok({
+      establishmentMode: "created" as const,
+      publicIdentity: { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" },
+      visibleRecoveryCopyStatus: status,
+    }));
+    const { controller, credentialCallback } = await mountedController({
+      restoreOrCreateGoogleBackedIdentity: establish.execute,
+    });
+    credentialCallback.current?.(googleCredential());
+
+    const completed = await controller.continueGoogleBackedIdentityAction({ kind: "establish_google_backed_identity" });
+
+    expect(completed.status).toBe("action_completed");
+    if (completed.status !== "action_completed") throw new Error("Expected completed action");
+    expect(completed.result).toEqual(Result.ok({
+      kind: "google_backed_identity_established",
+      establishmentMode: "created",
+      publicIdentity: { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" },
+      visibleRecoveryCopyStatus: status,
+    }));
+  });
+
   it.each([
     "invalid_google_id_token",
     "weekly_limit_exceeded",
@@ -393,13 +416,19 @@ describe("PassportIdentityController", () => {
     const pending = controller.continueGoogleBackedIdentityAction({ kind: "establish_google_backed_identity" });
     await vi.waitFor(() => expect(establish.calls).toBe(1));
     controller.unmountGoogleSignIn();
-    establishment.resolve(Result.err({ code: "signup_failed" }));
+    establishment.resolve(Result.err({
+      code: "signup_failed",
+      warning: "visible_recovery_copy_unconfirmed",
+    }));
 
     const completed = await pending;
     expect(completed.status).toBe("action_finished_after_unmount");
     if (completed.status !== "action_finished_after_unmount") throw new Error("Expected unmounted action result");
     expect(Result.isError(completed.result)).toBe(true);
-    if (Result.isError(completed.result)) expect(completed.result.error).toEqual({ code: "signup_failed" });
+    if (Result.isError(completed.result)) expect(completed.result.error).toEqual({
+      code: "signup_failed",
+      warning: "visible_recovery_copy_unconfirmed",
+    });
     controller.dispose();
   });
 

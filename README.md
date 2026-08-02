@@ -2,8 +2,8 @@
 
 Pubky Passport is a browser-based Pubky identity and authorization app. The current
 implementation covers the core Google-backed custody/recovery strategy and Pubky authorization
-flows. The root page is still a development surface; settings, backup, and detach
-flows are not implemented yet.
+flows. The root page is still a development surface; settings, visible-file restore,
+and detach flows are not implemented yet.
 
 ## Features
 
@@ -13,6 +13,17 @@ flows are not implemented yet.
 - Capability review, SDK-owned relay handoff, and validated callback navigation.
 - Browser/server boundaries that keep Drive data and Pubky secret material off the
   Passport server.
+
+`appDataFolder/passport.json` remains the only operational Passport file. New
+identities also write the encrypted envelope to the user-visible
+`Google Drive/Pubky Passport/{pubky}.json` path as a recovery
+artifact, without using that copy in normal Passport operations. Repeated backups
+create additional same-name Drive files and never overwrite an existing file. If
+Passport cannot confirm the visible copy,
+the operational identity is not stranded: setup continues and surfaces a warning.
+Restore from the visible copy is deferred. Operational app-data access requires `drive.appdata`;
+Passport also requests optional `drive.file` access for the best-effort visible copy.
+The two locations are handled by separate concrete browser adapters.
 
 The local Pubky identity store intentionally persists the 32-byte Pubky secret unencrypted
 in browser localStorage. This accepted custody model lets Passport restore active

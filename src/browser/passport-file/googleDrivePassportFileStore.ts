@@ -112,7 +112,7 @@ export class GoogleDrivePassportFileStore {
     return success({ status: "found", envelope: parsed.value, reference: located.value.reference });
   }
 
-  async createPassportFile(envelope: PassportFileEnvelopeV1): Promise<PassportFileStoreResult<PassportFileReference>> {
+  async createPassportFile(envelope: PassportFileEnvelopeV1): Promise<PassportFileStoreResult<void>> {
     const serializedEnvelope = serializeEnvelope(envelope);
     if (Result.isError(serializedEnvelope)) return propagateFailure(serializedEnvelope.error);
 
@@ -132,7 +132,7 @@ export class GoogleDrivePassportFileStore {
   private async createPassportFileUnlocked(
     token: string,
     serializedEnvelope: string,
-  ): Promise<PassportFileStoreResult<PassportFileReference>> {
+  ): Promise<PassportFileStoreResult<void>> {
     const located = await this.locatePassportFile(token);
     if (Result.isError(located)) {
       return located.error.code === "duplicate_files"
@@ -147,13 +147,16 @@ export class GoogleDrivePassportFileStore {
         ...authorizationHeaders(token),
         "Content-Type": `multipart/related; boundary=${MULTIPART_BOUNDARY}`,
       },
-      body: createMultipartBody(serializedEnvelope),
+      body: createMultipartBody(serializedEnvelope, {
+        name: PASSPORT_FILE_NAME,
+        parents: ["appDataFolder"],
+      }),
     });
     if (!response.ok) return response.status === 599
       ? propagateFailure({ code: "network_failed" })
       : failure(mapDriveStatus(response.status, "write_failed"), "create");
 
-    const created = await parseDriveFileResponse(response);
+    const created = await parseDriveFileResponse(response, PASSPORT_FILE_NAME);
     if (Result.isError(created)) return propagateFailure(created.error);
 
     const checked = await this.locatePassportFile(token);
@@ -166,7 +169,7 @@ export class GoogleDrivePassportFileStore {
       return failure("create_conflict", "create");
     }
 
-    return success(created.value);
+    return success(undefined);
   }
 
   async deletePassportFile(reference: PassportFileReference): Promise<PassportFileStoreResult<void>> {
@@ -241,7 +244,7 @@ export class GoogleDrivePassportFileStore {
       ? propagateFailure({ code: "network_failed" })
       : failure(mapDriveStatus(response.status, "invalid_response"), "read_metadata");
 
-    return parseDriveFileResponse(response, true);
+    return parseDriveFileResponse(response, PASSPORT_FILE_NAME, true);
   }
 
   private async fetchDrive(operation: DriveRequestOperation, input: string, init: RequestInit): Promise<Response> {
@@ -291,8 +294,8 @@ function authorizationHeaders(token: string): { Authorization: string } {
   return { Authorization: `Bearer ${token}` };
 }
 
-function createMultipartBody(envelopeJson: string): string {
-  const metadata = JSON.stringify({ name: PASSPORT_FILE_NAME, parents: ["appDataFolder"] });
+function createMultipartBody(envelopeJson: string, metadataValue: { name: string; parents: string[] }): string {
+  const metadata = JSON.stringify(metadataValue);
   return [
     `--${MULTIPART_BOUNDARY}`,
     "Content-Type: application/json; charset=UTF-8",
@@ -317,10 +320,11 @@ function serializeEnvelope(
 
 async function parseDriveFileResponse(
   response: Response,
+  expectedName: string,
   requireTrashed = false,
+  operation: DriveStoreOperation = requireTrashed ? "parse_metadata_response" : "parse_create_response",
 ): Promise<ResultType<PassportFileReference, { code: PassportFileStoreErrorCode }>> {
   const contents = await readBoundedText(response, MAXIMUM_DRIVE_RESPONSE_BYTES);
-  const operation = requireTrashed ? "parse_metadata_response" : "parse_create_response";
   if (contents === null || contents === "too_large") return failure("invalid_response", operation);
 
   const file = parseJsonContents(contents, operation);
@@ -330,7 +334,7 @@ async function parseDriveFileResponse(
     return failure("invalid_response", operation);
   }
   if (requireTrashed && typeof file.trashed !== "boolean") return failure("invalid_response", operation);
-  if (file.name !== PASSPORT_FILE_NAME || file.trashed === true) {
+  if (file.name !== expectedName || file.trashed === true) {
     return failure(requireTrashed ? "stale_file" : "invalid_response", operation);
   }
   return Result.ok({ storageId: file.id, revision: file.version });
@@ -392,7 +396,12 @@ function logDriveStoreFailure(
   LOGGER.warn("identity.google.drive_store.failed", { operation, code });
 }
 
-type DriveRequestOperation = "list" | "read_media" | "read_metadata" | "create" | "delete";
+type DriveRequestOperation =
+  | "list"
+  | "read_media"
+  | "read_metadata"
+  | "create"
+  | "delete";
 type DriveStoreOperation =
   | DriveRequestOperation
   | "create_lock"

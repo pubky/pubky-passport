@@ -19,6 +19,7 @@ export type GoogleDriveAccessErrorCode =
 export type GoogleDriveAccessResult<T> = ResultType<T, { code: GoogleDriveAccessErrorCode }>;
 
 export const GOOGLE_DRIVE_APP_DATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
+export const GOOGLE_DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const GOOGLE_OPEN_ID_SCOPE = "openid";
 const GOOGLE_USER_INFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 const DRIVE_CONSENT_TIMEOUT_MS = 60_000;
@@ -54,6 +55,7 @@ export class GoogleDriveAccess {
 
   async requestAccessToken(input: GoogleDriveAccessRequest): Promise<GoogleDriveAccessResult<string>> {
     if (input.signal?.aborted) return failure("request_start", "google_drive_authorization_aborted");
+    LOGGER.info("identity.google.drive_authorization.started", { operation: "request_access_token" });
     let accounts: Awaited<ReturnType<GoogleIdentityServices["loadGoogleAccounts"]>>;
     try {
       accounts = await this.#googleIdentityServices.loadGoogleAccounts();
@@ -86,11 +88,14 @@ export class GoogleDriveAccess {
       try {
         const tokenClient = accounts.value.oauth2.initTokenClient({
           client_id: this.#clientId,
-          scope: `${GOOGLE_OPEN_ID_SCOPE} ${GOOGLE_DRIVE_APP_DATA_SCOPE}`,
+          scope: `${GOOGLE_OPEN_ID_SCOPE} ${GOOGLE_DRIVE_APP_DATA_SCOPE} ${GOOGLE_DRIVE_FILE_SCOPE}`,
           login_hint: input.expectedSubject,
           callback: async (response) => {
             if (settled) return;
-            if (typeof response.access_token !== "string" || response.access_token.length === 0 || response.error !== undefined || !hasGoogleScope(response.scope, GOOGLE_DRIVE_APP_DATA_SCOPE)) {
+            if (typeof response.access_token !== "string"
+              || response.access_token.length === 0
+              || response.error !== undefined
+              || !hasGoogleScope(response.scope, GOOGLE_DRIVE_APP_DATA_SCOPE)) {
               finish(failure("oauth_response", "google_drive_authorization_failed"));
               return;
             }
@@ -111,6 +116,7 @@ export class GoogleDriveAccess {
               return;
             }
 
+            LOGGER.info("identity.google.drive_authorization.completed", { operation: "request_access_token" });
             finish(Result.ok(response.access_token));
           },
           error_callback(error) {

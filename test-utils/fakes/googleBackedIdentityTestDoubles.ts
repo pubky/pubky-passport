@@ -39,6 +39,7 @@ export const TEST_SIGNUP_INVITATION = {
 export class RecordingPassportFileOperations {
   readonly #readResult: PassportFileReadResult | { code: PassportFileStoreErrorCode };
   readonly #onCreate: (() => void) | undefined;
+  readonly #onVisibleCreate: (() => void) | undefined;
   createdFiles: Array<{
     version: number;
     url: string;
@@ -48,15 +49,19 @@ export class RecordingPassportFileOperations {
   deleteCalls = 0;
   deletedExpectedReferences: boolean[] = [];
   createFailure?: PassportFileStoreErrorCode;
+  visibleRecoveryCopyFailure?: PassportFileStoreErrorCode;
+  visibleRecoveryCopyPublicKeys: string[] = [];
   deleteFailure?: PassportFileStoreErrorCode;
   throwOnDelete = false;
 
   constructor(
     readResult: PassportFileReadResult | { code: PassportFileStoreErrorCode },
     onCreate?: () => void,
+    onVisibleCreate?: () => void,
   ) {
     this.#readResult = readResult;
     this.#onCreate = onCreate;
+    this.#onVisibleCreate = onVisibleCreate;
   }
 
   async readPassportFile(driveAccessToken: string) {
@@ -73,7 +78,25 @@ export class RecordingPassportFileOperations {
       ivCharacters: envelope.iv.length,
       ciphertextCharacters: envelope.ct.length,
     });
-    return this.createFailure ? Result.err({ code: this.createFailure }) : Result.ok(TEST_PASSPORT_REFERENCE);
+    return this.createFailure
+      ? Result.err({ code: this.createFailure })
+      : Result.ok();
+  }
+
+  async createVisibleRecoveryCopy(
+    driveAccessToken: string,
+    envelope: PassportFileEnvelopeV1,
+    publicKeyDisplay: string,
+    signal?: AbortSignal,
+  ) {
+    void driveAccessToken;
+    void envelope;
+    void signal;
+    this.visibleRecoveryCopyPublicKeys.push(publicKeyDisplay);
+    this.#onVisibleCreate?.();
+    return this.visibleRecoveryCopyFailure
+      ? Result.err({ code: this.visibleRecoveryCopyFailure })
+      : Result.ok();
   }
 
   async deletePassportFile(driveAccessToken: string, reference: PassportFileReference) {

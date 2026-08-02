@@ -38,8 +38,14 @@ const MOCKS = vi.hoisted(() => {
     homegateReceivedToken: false,
     deleteReceivedExpectedInput: false,
     events: [] as string[],
-    driveAccessTokenProvider: null as (() => Promise<string>) | null,
+    operationalDriveAccessTokenProvider: null as (() => Promise<string>) | null,
+    visibleDriveAccessTokenProvider: null as (() => Promise<string>) | null,
+    operationalDriveFetch: null as typeof fetch | null,
+    visibleDriveUsesOperationalFetch: false,
     createdExpectedEnvelope: false,
+    visibleWriterReceivedExpectedEnvelope: false,
+    visibleWriterReceivedAbortSignal: false,
+    visibleWriterReceivedPublicKey: false,
   };
 
   return {
@@ -69,10 +75,19 @@ const MOCKS = vi.hoisted(() => {
       },
       async createPassportFile(envelope: unknown) {
         state.createdExpectedEnvelope = envelope === TEST_PASSPORT_ENVELOPE;
-        return Result.ok(TEST_PASSPORT_REFERENCE);
+        return Result.ok();
       },
       async deletePassportFile() {
         return Result.ok({ status: "deleted" as const });
+      },
+    },
+    GoogleDriveVisibleRecoveryCopyWriter: vi.fn(),
+    visibleRecoveryCopyWriter: {
+      async createVisibleRecoveryCopy(envelope: unknown, publicKeyDisplay: unknown, signal: unknown) {
+        state.visibleWriterReceivedExpectedEnvelope = envelope === TEST_PASSPORT_ENVELOPE;
+        state.visibleWriterReceivedPublicKey = publicKeyDisplay === PUBLIC_IDENTITY.publicKeyDisplay;
+        state.visibleWriterReceivedAbortSignal = signal instanceof AbortSignal;
+        return Result.ok();
       },
     },
     SaveLocalIdentity: vi.fn(),
@@ -82,6 +97,7 @@ const MOCKS = vi.hoisted(() => {
       async execute(
         invitation: unknown,
         createPassportFile: unknown,
+        createVisibleRecoveryCopy: unknown,
         wrappingKey: string,
         reportProgress: ReportGoogleBackedIdentityProgress,
       ) {
@@ -89,11 +105,17 @@ const MOCKS = vi.hoisted(() => {
         state.createCalls += 1;
         state.createReceivedExpectedInput = invitation === TEST_SIGNUP_INVITATION
           && typeof createPassportFile === "function"
+          && typeof createVisibleRecoveryCopy === "function"
           && wrappingKey.length === 43;
         if (state.throwStage === "create") throw new Error("create secret");
-        if (typeof createPassportFile === "function") {
+        if (typeof createPassportFile === "function" && typeof createVisibleRecoveryCopy === "function") {
           reportProgress("storing_encrypted_identity");
           await createPassportFile(TEST_PASSPORT_ENVELOPE);
+          await createVisibleRecoveryCopy(
+            TEST_PASSPORT_ENVELOPE,
+            PUBLIC_IDENTITY.publicKeyDisplay,
+            new AbortController().signal,
+          );
         }
         reportProgress("signing_up_to_homeserver");
         reportProgress("publishing_discovery");
@@ -160,6 +182,10 @@ vi.mock("../../passport-file/passportFileWebCrypto", () => ({
 
 vi.mock("../../passport-file/googleDrivePassportFileStore", () => ({
   GoogleDrivePassportFileStore: MOCKS.GoogleDrivePassportFileStore,
+}));
+
+vi.mock("../../passport-file/googleDriveVisibleRecoveryCopyWriter", () => ({
+  GoogleDriveVisibleRecoveryCopyWriter: MOCKS.GoogleDriveVisibleRecoveryCopyWriter,
 }));
 
 vi.mock("../local/saveLocalIdentity", () => ({
@@ -254,6 +280,9 @@ describe("GoogleBackedIdentityOperations", () => {
     expect(MOCKS.state.createCalls).toBe(1);
     expect(MOCKS.state.createReceivedExpectedInput).toBe(true);
     expect(MOCKS.state.createdExpectedEnvelope).toBe(true);
+    expect(MOCKS.state.visibleWriterReceivedExpectedEnvelope).toBe(true);
+    expect(MOCKS.state.visibleWriterReceivedAbortSignal).toBe(true);
+    expect(MOCKS.state.visibleWriterReceivedPublicKey).toBe(true);
     expect(MOCKS.state.restoreCalls).toBe(0);
     expect(MOCKS.state.events).toEqual(["homegate", "create"]);
     expect(progress).toEqual([
@@ -266,9 +295,13 @@ describe("GoogleBackedIdentityOperations", () => {
       "publishing_discovery",
       "activating_created_identity",
     ]);
-    await expect(MOCKS.state.driveAccessTokenProvider?.()).resolves.toBe(
+    await expect(MOCKS.state.operationalDriveAccessTokenProvider?.()).resolves.toBe(
       TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS.driveAccessToken,
     );
+    await expect(MOCKS.state.visibleDriveAccessTokenProvider?.()).resolves.toBe(
+      TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS.driveAccessToken,
+    );
+    expect(MOCKS.state.visibleDriveUsesOperationalFetch).toBe(true);
   });
 
   it("stops before creation when Homegate fails", async () => {
@@ -390,7 +423,11 @@ function prepareConstructors(input: {
       ? Result.err({ code: "homegate_unavailable" as const })
       : Result.ok(TEST_SIGNUP_INVITATION),
     restoreResult: Result.ok({ establishmentMode: "restored" as const, publicIdentity: PUBLIC_IDENTITY }),
-    createResult: Result.ok({ establishmentMode: "created" as const, publicIdentity: PUBLIC_IDENTITY }),
+    createResult: Result.ok({
+      establishmentMode: "created" as const,
+      publicIdentity: PUBLIC_IDENTITY,
+      visibleRecoveryCopyStatus: "created" as const,
+    }),
     throwStage: input.throwStage ?? null,
     wrappingCalls: 0,
     wrappingReceivedToken: false,
@@ -403,8 +440,14 @@ function prepareConstructors(input: {
     homegateReceivedToken: false,
     deleteReceivedExpectedInput: false,
     events: [],
-    driveAccessTokenProvider: null,
+    operationalDriveAccessTokenProvider: null,
+    visibleDriveAccessTokenProvider: null,
+    operationalDriveFetch: null,
+    visibleDriveUsesOperationalFetch: false,
     createdExpectedEnvelope: false,
+    visibleWriterReceivedExpectedEnvelope: false,
+    visibleWriterReceivedAbortSignal: false,
+    visibleWriterReceivedPublicKey: false,
   });
   MOCKS.PubkySdkAdapter.mockImplementation(function () {
     return MOCKS.pubky;
@@ -414,9 +457,19 @@ function prepareConstructors(input: {
   });
   MOCKS.GoogleDrivePassportFileStore.mockImplementation(function (input: {
     accessTokenProvider: () => Promise<string>;
+    fetch: typeof fetch;
   }) {
-    MOCKS.state.driveAccessTokenProvider = input.accessTokenProvider;
+    MOCKS.state.operationalDriveAccessTokenProvider = input.accessTokenProvider;
+    MOCKS.state.operationalDriveFetch = input.fetch;
     return MOCKS.passportFileStore;
+  });
+  MOCKS.GoogleDriveVisibleRecoveryCopyWriter.mockImplementation(function (input: {
+    accessTokenProvider: () => Promise<string>;
+    fetch: typeof fetch;
+  }) {
+    MOCKS.state.visibleDriveAccessTokenProvider = input.accessTokenProvider;
+    MOCKS.state.visibleDriveUsesOperationalFetch = input.fetch === MOCKS.state.operationalDriveFetch;
+    return MOCKS.visibleRecoveryCopyWriter;
   });
   MOCKS.SaveLocalIdentity.mockImplementation(function () {
     return MOCKS.saveLocalIdentity;

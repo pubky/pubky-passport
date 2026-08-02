@@ -7,6 +7,7 @@ import { LOGGER } from "../../libs/logger/logger";
 import {
   GoogleDriveAccess,
   GOOGLE_DRIVE_APP_DATA_SCOPE,
+  GOOGLE_DRIVE_FILE_SCOPE,
   type GoogleDriveAccessOptions,
   type GoogleDriveAccessRequest,
 } from "./googleDriveAccess";
@@ -43,8 +44,8 @@ describe("GoogleDriveAccess", () => {
     expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-GOOGLE-SUBJECT");
   });
 
-  it("rejects an OAuth response that lacks the Drive app data scope", async () => {
-    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+  it("requests openid and both Drive scopes but accepts optional drive.file being absent", async () => {
+    const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
     let accessTokenCallback: ((response: { access_token?: unknown; error?: unknown; scope?: unknown }) => void) | undefined;
     let tokenClientConfig: { client_id: string; scope: string; login_hint?: string } | undefined;
     const requestAccessToken = vi.fn();
@@ -62,26 +63,30 @@ describe("GoogleDriveAccess", () => {
       },
     };
     loadedGoogleAccounts = accounts;
-    const resultPromise = requestDriveToken({ clientId: "google-client", selectAccount: true });
+    const resultPromise = requestDriveToken({
+      clientId: "google-client",
+      selectAccount: true,
+      fetch: new SanitizedFetchRecorder("matching_subject").fetch,
+    });
 
     await vi.waitFor(() => expect(accessTokenCallback).toBeDefined());
     expect(tokenClientConfig).toMatchObject({
       login_hint: "google-subject",
-      scope: `openid ${GOOGLE_DRIVE_APP_DATA_SCOPE}`,
+      scope: `openid ${GOOGLE_DRIVE_APP_DATA_SCOPE} ${GOOGLE_DRIVE_FILE_SCOPE}`,
     });
     expect(requestAccessToken).toHaveBeenCalledWith({ prompt: "select_account" });
 
-    accessTokenCallback?.({ access_token: "drive-token", scope: "openid" });
+    accessTokenCallback?.({ access_token: "drive-token", scope: `openid ${GOOGLE_DRIVE_APP_DATA_SCOPE}` });
 
     const result = await resultPromise;
-    expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) expect(result.error).toEqual({ code: "google_drive_authorization_failed" });
-    expect(warn).toHaveBeenCalledWith("identity.google.drive_authorization.failed", {
-      operation: "request_access_token",
-      stage: "oauth_response",
-      code: "google_drive_authorization_failed",
-    });
-    expect(JSON.stringify(warn.mock.calls)).not.toContain("drive-token");
+    expect(Result.isOk(result)).toBe(true);
+    expect(info.mock.calls).toEqual([
+      ["identity.google.drive_authorization.started", { operation: "request_access_token" }],
+      ["identity.google.drive_authorization.completed", { operation: "request_access_token" }],
+    ]);
+    expect(JSON.stringify(info.mock.calls)).not.toContain("drive-token");
+    expect(JSON.stringify(info.mock.calls)).not.toContain("google-subject");
+    expect(JSON.stringify(info.mock.calls)).not.toContain(GOOGLE_DRIVE_APP_DATA_SCOPE);
   });
 
   it("rejects a Drive token issued for a different Google subject", async () => {
@@ -108,7 +113,7 @@ describe("GoogleDriveAccess", () => {
     });
 
     await vi.waitFor(() => expect(accessTokenCallback).toBeDefined());
-    accessTokenCallback?.({ access_token: "drive-token", scope: GOOGLE_DRIVE_APP_DATA_SCOPE });
+    accessTokenCallback?.({ access_token: "drive-token", scope: driveScopes() });
 
     const result = await resultPromise;
     expect(Result.isError(result)).toBe(true);
@@ -118,7 +123,7 @@ describe("GoogleDriveAccess", () => {
   it("hardens the Google user-info request and accepts a matching subject", async () => {
     let callback: ((response: { access_token?: unknown; error?: unknown; scope?: unknown }) => void) | undefined;
     const accessToken = "synthetic-drive-access-token-canary";
-    const fetchRecorder = new SanitizedFetchRecorder("matching_subject");
+    const fetchRecorder = new SanitizedFetchRecorder("matching_subject", accessToken);
     loadedGoogleAccounts = googleAccounts({ captureCallback(value) { callback = value; } });
 
     const resultPromise = requestDriveToken({
@@ -127,7 +132,7 @@ describe("GoogleDriveAccess", () => {
       fetch: fetchRecorder.fetch,
     });
     await vi.waitFor(() => expect(callback).toBeDefined());
-    callback?.({ access_token: accessToken, scope: GOOGLE_DRIVE_APP_DATA_SCOPE });
+    callback?.({ access_token: accessToken, scope: driveScopes() });
 
     const result = await resultPromise;
     expect(Result.isOk(result)).toBe(true);
@@ -137,6 +142,7 @@ describe("GoogleDriveAccess", () => {
       method: "GET",
       acceptsJson: true,
       hasBearerToken: true,
+      hasExpectedAccessToken: true,
       cache: "no-store",
       credentials: "omit",
       redirect: "error",
@@ -168,7 +174,7 @@ describe("GoogleDriveAccess", () => {
       fetch: fetchRecorder.fetch,
     });
     await vi.waitFor(() => expect(callback).toBeDefined());
-    callback?.({ access_token: "drive-token", scope: GOOGLE_DRIVE_APP_DATA_SCOPE });
+    callback?.({ access_token: "drive-token", scope: driveScopes() });
 
     const result = await resultPromise;
     expect(Result.isError(result)).toBe(true);
@@ -218,7 +224,7 @@ describe("GoogleDriveAccess", () => {
     });
     await vi.waitFor(() => expect(callback).toBeDefined());
     controller.abort();
-    callback?.({ access_token: "late-token", scope: GOOGLE_DRIVE_APP_DATA_SCOPE });
+    callback?.({ access_token: "late-token", scope: driveScopes() });
 
     const result = await resultPromise;
     expect(Result.isError(result)).toBe(true);
@@ -239,7 +245,7 @@ describe("GoogleDriveAccess", () => {
       signal: controller.signal,
     });
     await vi.waitFor(() => expect(callback).toBeDefined());
-    callback?.({ access_token: "drive-token", scope: GOOGLE_DRIVE_APP_DATA_SCOPE });
+    callback?.({ access_token: "drive-token", scope: driveScopes() });
     await vi.waitFor(() => expect(fetchRecorder.calls).toHaveLength(1));
     controller.abort();
 
@@ -312,6 +318,10 @@ type GoogleDriveAccessTestRequest = Omit<GoogleDriveAccessRequest, "expectedSubj
   expectedSubject?: string;
 };
 
+function driveScopes(): string {
+  return `${GOOGLE_DRIVE_APP_DATA_SCOPE} ${GOOGLE_DRIVE_FILE_SCOPE}`;
+}
+
 function createGoogleIdentityServices(
   loadGoogleAccounts: GoogleIdentityServices["loadGoogleAccounts"],
 ): GoogleIdentityServices {
@@ -339,6 +349,7 @@ type SanitizedFetchCall = {
   method: string;
   acceptsJson: boolean;
   hasBearerToken: boolean;
+  hasExpectedAccessToken: boolean;
   cache: RequestCache | undefined;
   credentials: RequestCredentials | undefined;
   redirect: RequestRedirect | undefined;
@@ -349,9 +360,11 @@ type SanitizedFetchCall = {
 class SanitizedFetchRecorder {
   readonly calls: SanitizedFetchCall[] = [];
   readonly #responseMode: UserInfoResponseMode;
+  readonly #expectedAccessToken: string;
 
-  constructor(responseMode: UserInfoResponseMode) {
+  constructor(responseMode: UserInfoResponseMode, expectedAccessToken = "drive-token") {
     this.#responseMode = responseMode;
+    this.#expectedAccessToken = expectedAccessToken;
   }
 
   readonly fetch = (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
@@ -363,6 +376,7 @@ class SanitizedFetchRecorder {
       method: init?.method ?? "GET",
       acceptsJson: headers.get("Accept") === "application/json",
       hasBearerToken: authorization?.startsWith("Bearer ") === true && authorization.length > "Bearer ".length,
+      hasExpectedAccessToken: authorization === `Bearer ${this.#expectedAccessToken}`,
       cache: init?.cache,
       credentials: init?.credentials,
       redirect: init?.redirect,

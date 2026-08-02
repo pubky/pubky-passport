@@ -104,12 +104,17 @@ export function AuthorizationIdentityPanel({
     setBusy(false);
     setEstablishingIdentity(false);
     if (Result.isError(result)) {
-      refreshIdentities(messageForGoogleFailure(result.error.code));
+      const failureMessage = messageForGoogleFailure(result.error.code);
+      refreshIdentities(result.error.warning === "visible_recovery_copy_unconfirmed"
+        ? `${failureMessage} Its visible recovery copy could not be confirmed.`
+        : failureMessage);
       return;
     }
 
     refreshIdentities(result.value.kind === "google_backed_identity_established" && result.value.establishmentMode === "created"
-      ? "Pubky identity created and ready."
+      ? result.value.visibleRecoveryCopyStatus === "unconfirmed"
+        ? "Pubky identity created and ready, but its visible recovery copy could not be confirmed."
+        : "Pubky identity created and ready."
       : "Pubky identity restored and ready.");
   }
 

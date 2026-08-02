@@ -108,6 +108,22 @@ describe("DevelopmentIdentityPanel", () => {
     expect(screen.getByRole("option", { name: "pubkysecond-identity" })).toBeInTheDocument();
   });
 
+  it("warns without failing when identity creation could not store the visible recovery copy", async () => {
+    FLOW_STATE.controller = controllerWithCatalog(SELECTED_CATALOG);
+    FLOW_STATE.establish = async () => Result.ok({
+      kind: "google_backed_identity_established",
+      establishmentMode: "created",
+      publicIdentity: SELECTED_CATALOG.identities[0]!.publicIdentity,
+      visibleRecoveryCopyStatus: "unconfirmed",
+    });
+    render(<DevelopmentIdentityPanel allowGoogleDrivePassportFileDeletion googleClientId="google-client" homegateBaseUrl={HOMEGATE_BASE_URL} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add Pubky identity" }));
+    fireEvent.click(screen.getByRole("button", { name: "Authorize test Google" }));
+
+    expect(await screen.findByText("Pubky identity created, but its visible recovery copy could not be confirmed.")).toBeInTheDocument();
+  });
+
   it("keeps failed and selected Drive deletion as separate exact targets", async () => {
     FLOW_STATE.controller = controllerWithCatalog(SELECTED_CATALOG);
     FLOW_STATE.establish = async () => Result.err({

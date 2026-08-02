@@ -15,10 +15,9 @@ const ENVELOPE: PassportFileEnvelopeV1 = {
   ct: "ct_value",
   url: "https://passport.pubky.app",
 };
-const REFERENCE = { storageId: "file-1", revision: "7" };
-const LISTED_FILE = { id: "file-1", name: "passport.json", version: "7" };
+const REFERENCE = { storageId: "file-1", revision: "opaque-revision-7" };
+const LISTED_FILE = { id: "file-1", name: "passport.json", version: "opaque-revision-7" };
 const EXACT_FILE = { ...LISTED_FILE, trashed: false };
-
 afterEach(() => vi.restoreAllMocks());
 
 type FetchCall = {
@@ -176,6 +175,16 @@ function sanitizeFetchCall(input: RequestInfo | URL, init: RequestInit | undefin
   };
 }
 
+function successfulCreateResponses(created: DriveTestFile): Response[] {
+  return [
+    jsonResponse({ files: [] }),
+    jsonResponse(created),
+    jsonResponse({ files: [created] }),
+  ];
+}
+
+type DriveTestFile = { id: string; name: string; version: string };
+
 function expectSanitizedCalls(calls: FetchCall[]): void {
   const serialized = JSON.stringify(calls);
   expect(serialized).not.toContain(ACCESS_TOKEN);
@@ -226,6 +235,7 @@ describe("GoogleDrivePassportFileStore", () => {
     expectAuthorizationHeader(mediaCall);
     const metadataCall = expectCall(calls, 2);
     expect(metadataCall.query.fields).toBe("id,name,version,trashed");
+    expect(calls.some((call) => call.query.spaces === "drive")).toBe(false);
     expectSanitizedCalls(calls);
   });
 
@@ -343,6 +353,20 @@ describe("GoogleDrivePassportFileStore", () => {
     expect(JSON.stringify(warning.mock.calls)).not.toContain(ACCESS_TOKEN);
   });
 
+  it("logs valid JSON with a malformed Drive response shape exactly once", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const { store } = createStore([jsonResponse({ files: "SECRET-NOT-AN-ARRAY" })]);
+
+    await expectFailure(store.readPassportFile(), "invalid_response");
+
+    expect(warning).toHaveBeenCalledWith("identity.google.drive_store.failed", {
+      operation: "parse_list_response",
+      code: "invalid_response",
+    });
+    expect(warning).toHaveBeenCalledOnce();
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-NOT-AN-ARRAY");
+  });
+
   it("rejects duplicate or paginated Drive matches", async () => {
     await expectFailure(createStore([
       jsonResponse({
@@ -401,13 +425,9 @@ describe("GoogleDrivePassportFileStore", () => {
 
   it("creates passport.json in appDataFolder when no file exists", async () => {
     const created = { id: "created", name: "passport.json", version: "1" };
-    const { store, calls } = createStore([
-      jsonResponse({ files: [] }),
-      jsonResponse(created),
-      jsonResponse({ files: [created] }),
-    ]);
+    const { store, calls } = createStore(successfulCreateResponses(created));
 
-    await expectSuccess(store.createPassportFile(ENVELOPE), { storageId: "created", revision: "1" });
+    await expectSuccess(store.createPassportFile(ENVELOPE), undefined);
 
     expect(calls).toHaveLength(3);
     const createCall = expectCall(calls, 1);
@@ -425,6 +445,8 @@ describe("GoogleDrivePassportFileStore", () => {
       hasForbiddenSecretField: false,
     });
     expect(createCall.body.byteLength).toBeGreaterThan(0);
+    expect(calls.some((call) => call.query.spaces === "drive")).toBe(false);
+    expect(calls.filter((call) => call.method === "PATCH")).toEqual([]);
     expectSanitizedCalls(calls);
   });
 
@@ -437,7 +459,7 @@ describe("GoogleDrivePassportFileStore", () => {
     const fetchMock = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const call = sanitizeFetchCall(input, init, calls.length);
       calls.push(call);
-      if (call.method === "POST") {
+      if (call.method === "POST" && call.body.hasPassportMetadata) {
         createCount += 1;
         stored = true;
         return jsonResponse(created);
@@ -454,7 +476,7 @@ describe("GoogleDrivePassportFileStore", () => {
     const secondCreate = createLockedStore().createPassportFile(ENVELOPE);
     const [first, second] = await Promise.all([firstCreate, secondCreate]);
 
-    expect(expectResultOk(first)).toEqual({ storageId: "created", revision: "1" });
+    expect(expectResultOk(first)).toBeUndefined();
     expect(Result.isError(second) && second.error).toEqual({ code: "create_conflict" });
     expect(createCount).toBe(1);
     expect(calls.filter((call) => call.method === "POST")).toHaveLength(1);
@@ -467,13 +489,9 @@ describe("GoogleDrivePassportFileStore", () => {
 
   it("creates without locking when Web Locks are unavailable", async () => {
     const created = { id: "created", name: "passport.json", version: "1" };
-    const { store, calls } = createStore([
-      jsonResponse({ files: [] }),
-      jsonResponse(created),
-      jsonResponse({ files: [created] }),
-    ], { requestLock: null });
+    const { store, calls } = createStore(successfulCreateResponses(created), { requestLock: null });
 
-    await expectSuccess(store.createPassportFile(ENVELOPE), { storageId: "created", revision: "1" });
+    await expectSuccess(store.createPassportFile(ENVELOPE), undefined);
     expect(calls).toHaveLength(3);
   });
 
@@ -542,6 +560,7 @@ describe("GoogleDrivePassportFileStore", () => {
     expect(deleteCall.endpoint + deleteCall.path).toBe("https://www.googleapis.com/drive/v3/files/:fileId");
     expect(deleteCall.method).toBe("DELETE");
     expectAuthorizationHeader(deleteCall);
+    expect(calls.some((call) => call.query.spaces === "drive")).toBe(false);
     expectSanitizedCalls(calls);
   });
 
@@ -580,13 +599,9 @@ describe("GoogleDrivePassportFileStore", () => {
   it("serializes outbound envelopes through parser normalization", async () => {
     const rootPathEnvelope = { ...ENVELOPE, url: "https://passport.pubky.app/" };
     const created = { id: "created", name: "passport.json", version: "1" };
-    const { store, calls } = createStore([
-      jsonResponse({ files: [] }),
-      jsonResponse(created),
-      jsonResponse({ files: [created] }),
-    ]);
+    const { store, calls } = createStore(successfulCreateResponses(created));
 
-    await expectSuccess(store.createPassportFile(rootPathEnvelope), { storageId: "created", revision: "1" });
+    await expectSuccess(store.createPassportFile(rootPathEnvelope), undefined);
 
     expect(expectCall(calls, 1).body.normalizedEnvelopeUrl).toBe("https://passport.pubky.app");
     expectSanitizedCalls(calls);

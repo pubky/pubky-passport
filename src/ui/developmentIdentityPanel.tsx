@@ -99,18 +99,25 @@ export function DevelopmentIdentityPanel({
         ? upsertPublicIdentity(passportFileCleanupCandidates, result.error.preservedPassportFileIdentity)
         : passportFileCleanupCandidates;
       setPassportFileCleanupCandidates(cleanupCandidates);
-      setMessage(messageForGoogleFailure(
+      const failureMessage = messageForGoogleFailure(
         result.error.code,
         cleanupCandidates.length > 0,
         googleAction === "add",
-      ));
+      );
+      setMessage(result.error.warning === "visible_recovery_copy_unconfirmed"
+        ? `${failureMessage} Its visible recovery copy could not be confirmed.`
+        : failureMessage);
     } else if (result.value.kind === "google_backed_identity_established") {
       const establishedPublicKey = result.value.publicIdentity.publicKeyZ32;
       setPassportFileCleanupCandidates((candidates) => removePublicIdentity(
         candidates,
         establishedPublicKey,
       ));
-      refreshIdentities(result.value.establishmentMode === "created" ? "Pubky identity created." : "Pubky identity restored.");
+      refreshIdentities(result.value.establishmentMode === "created"
+        ? result.value.visibleRecoveryCopyStatus === "unconfirmed"
+          ? "Pubky identity created, but its visible recovery copy could not be confirmed."
+          : "Pubky identity created."
+        : "Pubky identity restored.");
     } else {
       const deletionTarget = googleActionTarget.current;
       if (result.value.deletionStatus === "deleted" && deletionTarget) {

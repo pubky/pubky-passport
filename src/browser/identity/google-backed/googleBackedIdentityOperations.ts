@@ -13,6 +13,7 @@ import {
   type PassportFileReference,
   type PassportFileStoreResult,
 } from "../../passport-file/googleDrivePassportFileStore";
+import { GoogleDriveVisibleRecoveryCopyWriter } from "../../passport-file/googleDriveVisibleRecoveryCopyWriter";
 import type { PassportFileEnvelopeV1 } from "../../passport-file/passportFileEnvelope";
 import { PassportFileWebCrypto } from "../../passport-file/passportFileWebCrypto";
 import type { PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";
@@ -60,6 +61,7 @@ export class GoogleBackedIdentityOperations {
   readonly #requestWrappingKey: WrappingKeyApiClient["requestGoogleWrappingKey"];
   readonly #readPassportFile: ReadPassportFile;
   readonly #createPassportFile: CreatePassportFile;
+  readonly #createVisibleRecoveryCopy: CreateVisibleRecoveryCopy;
   readonly #homegate: HomegateClient;
   readonly #restoreExistingIdentity: RestoreGoogleBackedIdentity;
   readonly #createMissingIdentity: CreateGoogleBackedIdentity;
@@ -83,12 +85,27 @@ export class GoogleBackedIdentityOperations {
       const passportFileCrypto = new PassportFileWebCrypto();
       const encryptSecretKeyBytes = passportFileCrypto.encryptSecretKeyBytes.bind(passportFileCrypto);
       const decryptSecretKeyBytes = passportFileCrypto.decryptSecretKeyBytes.bind(passportFileCrypto);
+      const driveFetch = globalThis.fetch.bind(globalThis);
       const createPassportFileStore = (driveAccessToken: string) => new GoogleDrivePassportFileStore({
         accessTokenProvider: async () => driveAccessToken,
-        fetch: globalThis.fetch.bind(globalThis),
+        fetch: driveFetch,
+      });
+      const createVisibleRecoveryCopyWriter = (driveAccessToken: string) => new GoogleDriveVisibleRecoveryCopyWriter({
+        accessTokenProvider: async () => driveAccessToken,
+        fetch: driveFetch,
       });
       const readPassportFile = (driveAccessToken: string) => createPassportFileStore(driveAccessToken).readPassportFile();
       const createPassportFile = (driveAccessToken: string, envelope: PassportFileEnvelopeV1) => createPassportFileStore(driveAccessToken).createPassportFile(envelope);
+      const createVisibleRecoveryCopy = (
+        driveAccessToken: string,
+        envelope: PassportFileEnvelopeV1,
+        publicKeyDisplay: string,
+        signal: AbortSignal,
+      ) => createVisibleRecoveryCopyWriter(driveAccessToken).createVisibleRecoveryCopy(
+        envelope,
+        publicKeyDisplay,
+        signal,
+      );
       const deletePassportFileByReference = (driveAccessToken: string, reference: PassportFileReference) => createPassportFileStore(driveAccessToken).deletePassportFile(reference);
       const restoreExistingIdentity = new RestoreGoogleBackedIdentity({
         decryptSecretKeyBytes,
@@ -105,6 +122,7 @@ export class GoogleBackedIdentityOperations {
       this.#requestWrappingKey = requestWrappingKey;
       this.#readPassportFile = readPassportFile;
       this.#createPassportFile = createPassportFile;
+      this.#createVisibleRecoveryCopy = createVisibleRecoveryCopy;
       this.#homegate = homegateClient;
       this.#restoreExistingIdentity = restoreExistingIdentity;
       this.#createMissingIdentity = createMissingIdentity;
@@ -184,11 +202,18 @@ export class GoogleBackedIdentityOperations {
     if (Result.isError(invitation)) {
       return Result.err({ code: "homeserver_signup_invitation_failed", cause: invitation.error.code });
     }
+    LOGGER.info("identity.google.homeserver_signup_invitation.completed");
 
     reportProgress("creating_identity");
     return this.#createMissingIdentity.execute(
       invitation.value,
       (envelope) => this.#createPassportFile(credentials.driveAccessToken, envelope),
+      (envelope, publicKeyDisplay, signal) => this.#createVisibleRecoveryCopy(
+        credentials.driveAccessToken,
+        envelope,
+        publicKeyDisplay,
+        signal,
+      ),
       wrappingKey.value,
       reportProgress,
     );
@@ -199,7 +224,13 @@ type ReadPassportFile = (driveAccessToken: string) => Promise<PassportFileStoreR
 type CreatePassportFile = (
   driveAccessToken: string,
   envelope: PassportFileEnvelopeV1,
-) => Promise<PassportFileStoreResult<PassportFileReference>>;
+) => Promise<PassportFileStoreResult<void>>;
+type CreateVisibleRecoveryCopy = (
+  driveAccessToken: string,
+  envelope: PassportFileEnvelopeV1,
+  publicKeyDisplay: string,
+  signal: AbortSignal,
+) => Promise<ResultType<void, unknown>>;
 
 function operationFailure<T>(
   code: "drive_read_failed" | "unexpected_failure",
