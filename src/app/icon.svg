@@ -1,0 +1,5 @@
+<!-- TODO: Replace this icon with pubky logo when it is available -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#17120f"/>
+  <path d="M18 14h18c10 0 17 6 17 16S46 46 36 46h-8v8H18V14zm10 9v14h8c5 0 7-2 7-7s-2-7-7-7h-8z" fill="#b7f000"/>
+</svg>
