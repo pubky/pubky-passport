@@ -29,7 +29,9 @@ describe("CreateGoogleBackedIdentity", () => {
       return publish(input);
     };
 
-    const result = await setup.subject.execute(...executionInput(setup.fileStore));
+    const result = await setup.subject.execute(
+      ...executionInput(setup.fileStore, (progress) => events.push(progress)),
+    );
 
     expectResultOk(result);
     expect(setup.pubky.createCalls).toBe(1);
@@ -46,7 +48,16 @@ describe("CreateGoogleBackedIdentity", () => {
       hasSignupCode: true,
     });
     expect(setup.pubky.discoveryCalls).toEqual([{ hasHomeserverPubky: true }]);
-    expect(events).toEqual(["drive-create", "signup", "discovery", "save"]);
+    expect(events).toEqual([
+      "storing_encrypted_identity",
+      "drive-create",
+      "signing_up_to_homeserver",
+      "signup",
+      "publishing_discovery",
+      "discovery",
+      "activating_created_identity",
+      "save",
+    ]);
     expect(setup.crypto.encryptedInputIsZeroed()).toBe(true);
     expect(setup.pubky.disposedKeys).toHaveLength(1);
   });
@@ -178,10 +189,14 @@ function createSetup(input: {
   return { subject, pubky, local, crypto, fileStore };
 }
 
-function executionInput(fileStore: RecordingPassportFileOperations) {
+function executionInput(
+  fileStore: RecordingPassportFileOperations,
+  reportProgress: Parameters<CreateGoogleBackedIdentity["execute"]>[3] = () => {},
+) {
   return [
     TEST_SIGNUP_INVITATION,
     (envelope: Parameters<RecordingPassportFileOperations["createPassportFile"]>[1]) => fileStore.createPassportFile("drive-token", envelope),
     "w".repeat(43),
+    reportProgress,
   ] as const;
 }

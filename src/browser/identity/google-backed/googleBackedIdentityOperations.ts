@@ -33,6 +33,9 @@ import {
 } from "./createGoogleBackedIdentity";
 import { DeleteGoogleDrivePassportFile } from "./deleteGoogleDrivePassportFile";
 import type { GoogleBackedIdentityCredentials } from "./googleBackedIdentityCredentials";
+import type {
+  ReportGoogleBackedIdentityProgress,
+} from "./googleBackedIdentityProgress";
 import {
   RestoreGoogleBackedIdentity,
   type RestoreGoogleBackedIdentityError,
@@ -128,9 +131,11 @@ export class GoogleBackedIdentityOperations {
 
   async restoreOrCreateGoogleBackedIdentity(
     credentials: GoogleBackedIdentityCredentials,
+    reportProgress: ReportGoogleBackedIdentityProgress,
   ): Promise<GoogleBackedIdentityResult> {
+    const report = safeProgressReporter(reportProgress);
     try {
-      return await this.restoreOrCreateIdentity(credentials);
+      return await this.restoreOrCreateIdentity(credentials, report);
     } catch {
       LOGGER.warn("identity.google.restore_or_create.failed", { code: "unexpected_failure" });
       return operationFailure("unexpected_failure");
@@ -149,7 +154,9 @@ export class GoogleBackedIdentityOperations {
 
   private async restoreOrCreateIdentity(
     credentials: GoogleBackedIdentityCredentials,
+    reportProgress: ReportGoogleBackedIdentityProgress,
   ): Promise<GoogleBackedIdentityResult> {
+    reportProgress("preparing_secure_identity");
     LOGGER.info("identity.google.wrapping_key.started");
     const wrappingKey = await this.#requestWrappingKey(credentials.googleIdToken);
     if (Result.isError(wrappingKey)) {
@@ -157,25 +164,33 @@ export class GoogleBackedIdentityOperations {
     }
     LOGGER.info("identity.google.wrapping_key.completed");
 
+    reportProgress("checking_passport_file");
     LOGGER.info("identity.google.drive_read.started");
     const storedFile = await this.#readPassportFile(credentials.driveAccessToken);
     if (Result.isError(storedFile)) return operationFailure("drive_read_failed");
     if (storedFile.value.status === "found") {
       LOGGER.info("identity.google.drive_read.completed", { status: "found" });
-      return this.#restoreExistingIdentity.execute(storedFile.value.envelope, wrappingKey.value);
+      return this.#restoreExistingIdentity.execute(
+        storedFile.value.envelope,
+        wrappingKey.value,
+        reportProgress,
+      );
     }
 
     LOGGER.info("identity.google.drive_read.completed", { status: "missing" });
+    reportProgress("preparing_new_identity");
     LOGGER.info("identity.google.homeserver_signup_invitation.started");
     const invitation = await this.#homegate.requestGoogleHomeserverSignupInvitation(credentials.googleIdToken);
     if (Result.isError(invitation)) {
       return Result.err({ code: "homeserver_signup_invitation_failed", cause: invitation.error.code });
     }
 
+    reportProgress("creating_identity");
     return this.#createMissingIdentity.execute(
       invitation.value,
       (envelope) => this.#createPassportFile(credentials.driveAccessToken, envelope),
       wrappingKey.value,
+      reportProgress,
     );
   }
 }
@@ -190,4 +205,16 @@ function operationFailure<T>(
   code: "drive_read_failed" | "unexpected_failure",
 ): GoogleBackedIdentityResult<T> {
   return Result.err({ code });
+}
+
+function safeProgressReporter(
+  reportProgress: ReportGoogleBackedIdentityProgress,
+): ReportGoogleBackedIdentityProgress {
+  return (progress) => {
+    try {
+      reportProgress(progress);
+    } catch {
+      LOGGER.warn("identity.google.progress_listener.failed");
+    }
+  };
 }

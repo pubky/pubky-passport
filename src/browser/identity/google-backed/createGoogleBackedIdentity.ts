@@ -10,6 +10,7 @@ import type { PassportFileEnvelopeV1 } from "../../passport-file/passportFileEnv
 import type { EncryptPassportSecret } from "../../passport-file/passportFileWebCrypto";
 import type { HomeserverSignupInvitation } from "../../homegate/homegateClient";
 import { SaveLocalIdentity } from "../local/saveLocalIdentity";
+import type { ReportGoogleBackedIdentityProgress } from "./googleBackedIdentityProgress";
 
 type CreateGoogleBackedIdentityErrorCode =
   | "create_failed"
@@ -58,6 +59,7 @@ export class CreateGoogleBackedIdentity {
     invitation: HomeserverSignupInvitation,
     createPassportFile: CreatePassportFile,
     wrappingKey: string,
+    reportProgress: ReportGoogleBackedIdentityProgress,
   ): Promise<CreateGoogleBackedIdentityResult> {
     LOGGER.info("identity.google.create.started");
     const created = await this.#pubky.createIdentityKey();
@@ -68,6 +70,7 @@ export class CreateGoogleBackedIdentity {
       if (Result.isError(secretKey)) return failure("create_failed");
 
       try {
+        reportProgress("storing_encrypted_identity");
         LOGGER.info("identity.google.encrypt.started");
         const envelope = await this.#encryptSecretKeyBytes({
           secretKeyBytes: secretKey.value.bytes,
@@ -84,6 +87,7 @@ export class CreateGoogleBackedIdentity {
         secretKey.value.bytes.fill(0);
       }
 
+      reportProgress("signing_up_to_homeserver");
       LOGGER.info("identity.google.signup.started");
       const signedUp = await this.#pubky.signup({
         keyHandle: created.value.keyHandle,
@@ -96,6 +100,7 @@ export class CreateGoogleBackedIdentity {
         return failure("identity_mismatch", created.value.publicIdentity);
       }
 
+      reportProgress("publishing_discovery");
       LOGGER.info("identity.google.discovery.started");
       const published = await this.#pubky.publishHomeserverIfStale({
         keyHandle: created.value.keyHandle,
@@ -103,6 +108,7 @@ export class CreateGoogleBackedIdentity {
       });
       if (Result.isError(published)) return failure("discovery_failed", created.value.publicIdentity);
 
+      reportProgress("activating_created_identity");
       LOGGER.info("identity.local_save.started", { establishmentMode: "created" });
       const saved = await this.#saveLocalIdentity.saveIdentity(created.value.keyHandle);
       if (Result.isError(saved)) return failure("local_save_failed", created.value.publicIdentity);

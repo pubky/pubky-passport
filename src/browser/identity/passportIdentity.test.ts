@@ -16,6 +16,7 @@ const MOCKS = vi.hoisted(() => ({
   disposeGoogleBackedIdentityOperations: vi.fn(),
   establishCalls: 0,
   establishReceivedExpectedCredentials: false,
+  establishProgress: [] as string[],
   establishImplementation: null as null | (() => Promise<unknown>),
   deleteCalls: 0,
   deleteReceivedExpectedInput: false,
@@ -57,6 +58,7 @@ describe("createPassportIdentityController", () => {
     MOCKS.disposeGoogleBackedIdentityOperations.mockReset();
     MOCKS.establishCalls = 0;
     MOCKS.establishReceivedExpectedCredentials = false;
+    MOCKS.establishProgress = [];
     MOCKS.deleteCalls = 0;
     MOCKS.deleteReceivedExpectedInput = false;
     MOCKS.GoogleIdentityServicesSignInButton.mockReset();
@@ -70,10 +72,16 @@ describe("createPassportIdentityController", () => {
 
     MOCKS.GoogleBackedIdentityOperations.mockImplementation(function () {
       return {
-        async restoreOrCreateGoogleBackedIdentity(credentials: { googleIdToken: string; driveAccessToken: string }) {
+        async restoreOrCreateGoogleBackedIdentity(
+          credentials: { googleIdToken: string; driveAccessToken: string },
+          reportProgress: (progress: "checking_passport_file" | "restoring_identity") => void,
+        ) {
           MOCKS.establishCalls += 1;
           MOCKS.establishReceivedExpectedCredentials = credentials.googleIdToken.length > 0
             && credentials.driveAccessToken.length > 0;
+          reportProgress("checking_passport_file");
+          reportProgress("restoring_identity");
+          MOCKS.establishProgress.push("checking_passport_file", "restoring_identity");
           return MOCKS.establishImplementation?.();
         },
         async deleteGoogleDrivePassportFile(
@@ -183,6 +191,7 @@ describe("createPassportIdentityController", () => {
     });
     expect(MOCKS.establishCalls).toBe(1);
     expect(MOCKS.establishReceivedExpectedCredentials).toBe(true);
+    expect(MOCKS.establishProgress).toEqual(["checking_passport_file", "restoring_identity"]);
     expect(MOCKS.driveAccessCalls).toBe(1);
     expect(MOCKS.driveAccessReceivedExpectedInput).toBe(true);
 

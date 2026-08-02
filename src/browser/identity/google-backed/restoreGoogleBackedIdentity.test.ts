@@ -13,8 +13,9 @@ import { RestoreGoogleBackedIdentity } from "./restoreGoogleBackedIdentity";
 describe("RestoreGoogleBackedIdentity", () => {
   it("decrypts, signs in with discovery blocking, and saves the restored identity", async () => {
     const setup = createSetup();
+    const progress: string[] = [];
 
-    const result = await setup.subject.execute(...EXECUTION_INPUT);
+    const result = await setup.subject.execute(...executionInput((phase) => progress.push(phase)));
 
     expectResultOk(result);
     expect(setup.pubky.createCalls).toBe(0);
@@ -26,6 +27,7 @@ describe("RestoreGoogleBackedIdentity", () => {
     });
     expect(setup.crypto.decryptedOutputIsZeroed()).toBe(true);
     expect(setup.pubky.disposedKeys).toHaveLength(1);
+    expect(progress).toEqual(["restoring_identity", "activating_restored_identity"]);
   });
 
   it("stops a failed signin without saving locally", async () => {
@@ -101,7 +103,13 @@ describe("RestoreGoogleBackedIdentity", () => {
   });
 });
 
-const EXECUTION_INPUT = [TEST_PASSPORT_ENVELOPE, "w".repeat(43)] as const;
+const EXECUTION_INPUT = executionInput();
+
+function executionInput(
+  reportProgress: Parameters<RestoreGoogleBackedIdentity["execute"]>[2] = () => {},
+) {
+  return [TEST_PASSPORT_ENVELOPE, "w".repeat(43), reportProgress] as const;
+}
 
 function createSetup() {
   const pubky = new RecordingPubkySdkAdapter();

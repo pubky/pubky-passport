@@ -12,6 +12,7 @@ import { LOGGER } from "../../../libs/logger/logger";
 import type { PassportFileEnvelopeV1 } from "../../passport-file/passportFileEnvelope";
 import type { DecryptPassportSecret } from "../../passport-file/passportFileWebCrypto";
 import { SaveLocalIdentity } from "../local/saveLocalIdentity";
+import type { ReportGoogleBackedIdentityProgress } from "./googleBackedIdentityProgress";
 
 export type RestoredGoogleBackedIdentity = {
   establishmentMode: "restored";
@@ -49,7 +50,9 @@ export class RestoreGoogleBackedIdentity {
   async execute(
     envelope: PassportFileEnvelopeV1,
     wrappingKey: string,
+    reportProgress: ReportGoogleBackedIdentityProgress,
   ): Promise<RestoreGoogleBackedIdentityResult> {
+    reportProgress("restoring_identity");
     LOGGER.info("identity.google.decrypt.started");
     const secretKey = await this.#decryptSecretKeyBytes({
       envelope,
@@ -65,6 +68,7 @@ export class RestoreGoogleBackedIdentity {
       restoredIdentity = restored.value;
       LOGGER.info("identity.google.restore.completed");
 
+      reportProgress("activating_restored_identity");
       const signedIn = await this.#pubky.signin(restored.value.keyHandle, true);
       if (Result.isError(signedIn)) return failure("signin_failed");
       if (signedIn.value.publicIdentity.publicKeyZ32 !== restored.value.publicIdentity.publicKeyZ32) {

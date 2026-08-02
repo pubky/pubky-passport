@@ -34,6 +34,7 @@ export type {
   LocalIdentitySummary,
   PassportIdentityList,
 } from "./passportIdentityController";
+export type { GoogleBackedIdentityProgress } from "./google-backed/googleBackedIdentityProgress";
 
 export function createPassportIdentityController(
   googleClientId: string,
@@ -80,8 +81,8 @@ function createController(
     select: repository.select.bind(repository),
     clear: repository.clear.bind(repository),
     subscribe: repository.subscribe.bind(repository),
-    restoreOrCreateGoogleBackedIdentity: (credentials) => getGoogleBackedIdentityOperations()
-      .restoreOrCreateGoogleBackedIdentity(credentials),
+    restoreOrCreateGoogleBackedIdentity: (credentials, reportProgress) => getGoogleBackedIdentityOperations()
+      .restoreOrCreateGoogleBackedIdentity(credentials, reportProgress),
     deleteGoogleDrivePassportFile: (credentials, expectedPublicKeyZ32) => getGoogleBackedIdentityOperations()
       .deleteGoogleDrivePassportFile(credentials, expectedPublicKeyZ32),
     disposeGoogleBackedIdentityOperations: () => {

@@ -15,6 +15,10 @@ import type {
   GoogleDrivePassportFileDeletionResult,
 } from "./google-backed/deleteGoogleDrivePassportFile";
 import type {
+  GoogleBackedIdentityProgress,
+  ReportGoogleBackedIdentityProgress,
+} from "./google-backed/googleBackedIdentityProgress";
+import type {
   GoogleDriveAccessErrorCode,
   GoogleDriveAccessResult,
 } from "../google-drive-access/googleDriveAccess";
@@ -95,14 +99,11 @@ export type GoogleBackedIdentityActionErrorCode =
   | "google_drive_authorization_account_mismatch"
   | "google_drive_authorization_account_verification_failed";
 
-export type GoogleBackedIdentityActionState = {
-  stage:
-    | "google-sign-in"
-    | "google-drive-authorization"
-    | "requesting-google-drive-authorization"
-    | "executing-action";
-  errorCode: GoogleBackedIdentityActionErrorCode | null;
-};
+export type GoogleBackedIdentityActionState =
+  | { stage: "google-sign-in"; errorCode: GoogleBackedIdentityActionErrorCode | null }
+  | { stage: "google-drive-authorization" | "requesting-google-drive-authorization" }
+  | { stage: "establishing-google-backed-identity"; progress: GoogleBackedIdentityProgress }
+  | { stage: "deleting-google-drive-passport-file" };
 
 export type GoogleBackedIdentityActionDispatchResult =
   | { status: "google_authorization_failed" }
@@ -118,6 +119,7 @@ export type PassportIdentityControllerDependencies = {
   subscribe(listener: () => void): () => void;
   restoreOrCreateGoogleBackedIdentity(
     credentials: GoogleBackedIdentityCredentials,
+    reportProgress: ReportGoogleBackedIdentityProgress,
   ): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>>;
   deleteGoogleDrivePassportFile(
     credentials: GoogleBackedIdentityCredentials,
@@ -205,7 +207,7 @@ export class PassportIdentityController {
           }
           this.#googleIdToken = credential.value.googleIdToken;
           this.#googleSubject = credential.value.subject;
-          this.emit({ stage: "google-drive-authorization", errorCode: null });
+          this.emit({ stage: "google-drive-authorization" });
         },
       );
     } catch {
@@ -266,7 +268,7 @@ export class PassportIdentityController {
 
     this.#actionPending = true;
     try {
-      this.emit({ stage: "requesting-google-drive-authorization", errorCode: null });
+      this.emit({ stage: "requesting-google-drive-authorization" });
       const abortController = new AbortController();
       this.abortDriveAccess();
       this.#driveAbortController = abortController;
@@ -291,7 +293,11 @@ export class PassportIdentityController {
 
       this.#googleIdToken = null;
       this.#googleSubject = null;
-      const result = await this.executeAction(action, { googleIdToken, driveAccessToken: driveAccess.value });
+      const result = await this.executeAction(
+        action,
+        { googleIdToken, driveAccessToken: driveAccess.value },
+        activeGeneration,
+      );
       if (this.#disposed || activeGeneration !== this.#mountGeneration) {
         return { status: "action_finished_after_unmount", result };
       }
@@ -313,14 +319,31 @@ export class PassportIdentityController {
     }
   }
 
-  private async executeAction(action: GoogleBackedIdentityAction, credentials: GoogleBackedIdentityCredentials): Promise<GoogleBackedIdentityActionResult> {
+  private async executeAction(
+    action: GoogleBackedIdentityAction,
+    credentials: GoogleBackedIdentityCredentials,
+    activeGeneration: number,
+  ): Promise<GoogleBackedIdentityActionResult> {
     try {
-      this.emit({ stage: "executing-action", errorCode: null });
       if (action.kind === "delete_google_drive_passport_file") {
+        this.emit({ stage: "deleting-google-drive-passport-file" });
         const deleted = await this.#dependencies.deleteGoogleDrivePassportFile(credentials, action.expectedPublicKeyZ32);
         return Result.isError(deleted) ? deletionFailure(deleted.error) : Result.ok({ kind: "google_drive_passport_file_deleted" });
       }
-      const restoredOrCreated = await this.#dependencies.restoreOrCreateGoogleBackedIdentity(credentials);
+      let progressActive = true;
+      const reportProgress: ReportGoogleBackedIdentityProgress = (progress) => {
+        if (!progressActive || this.#disposed || activeGeneration !== this.#mountGeneration) return;
+        this.emit({ stage: "establishing-google-backed-identity", progress });
+      };
+      let restoredOrCreated: GoogleBackedIdentityResult<GoogleBackedIdentity>;
+      try {
+        restoredOrCreated = await this.#dependencies.restoreOrCreateGoogleBackedIdentity(
+          credentials,
+          reportProgress,
+        );
+      } finally {
+        progressActive = false;
+      }
       if (Result.isError(restoredOrCreated)) return establishmentFailure(restoredOrCreated.error);
       return Result.ok({
         kind: "google_backed_identity_established",
@@ -343,7 +366,7 @@ export class PassportIdentityController {
     }
   }
 
-  private resetGoogle(errorCode: GoogleBackedIdentityActionState["errorCode"] = null): void {
+  private resetGoogle(errorCode: GoogleBackedIdentityActionErrorCode | null = null): void {
     this.abortDriveAccess();
     this.#googleIdToken = null;
     this.#googleSubject = null;
@@ -452,7 +475,7 @@ function wrappingKeyFailureCode(
   }
 }
 
-function errorForDriveFailure(code: GoogleDriveAccessErrorCode): GoogleBackedIdentityActionState["errorCode"] {
+function errorForDriveFailure(code: GoogleDriveAccessErrorCode): GoogleBackedIdentityActionErrorCode {
   switch (code) {
     case "google_drive_authorization_popup_closed": return "google_drive_authorization_popup_closed";
     case "google_drive_authorization_popup_failed_to_open": return "google_drive_authorization_popup_failed_to_open";

@@ -11,11 +11,13 @@ import {
 } from "../../../../test-utils/fakes/googleBackedIdentityTestDoubles";
 import { expectResultError, expectResultOk } from "../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../libs/logger/logger";
+import type { ReportGoogleBackedIdentityProgress } from "./googleBackedIdentityProgress";
 
 const PUBLIC_IDENTITY = {
   publicKeyZ32: "public-identity",
   publicKeyDisplay: "pubkypublic-identity",
 };
+const NOOP_PROGRESS: ReportGoogleBackedIdentityProgress = () => {};
 
 const MOCKS = vi.hoisted(() => {
   const state = {
@@ -77,7 +79,12 @@ const MOCKS = vi.hoisted(() => {
     saveLocalIdentity: {},
     CreateGoogleBackedIdentity: vi.fn(),
     createMissingIdentity: {
-      async execute(invitation: unknown, createPassportFile: unknown, wrappingKey: string) {
+      async execute(
+        invitation: unknown,
+        createPassportFile: unknown,
+        wrappingKey: string,
+        reportProgress: ReportGoogleBackedIdentityProgress,
+      ) {
         state.events.push("create");
         state.createCalls += 1;
         state.createReceivedExpectedInput = invitation === TEST_SIGNUP_INVITATION
@@ -85,8 +92,12 @@ const MOCKS = vi.hoisted(() => {
           && wrappingKey.length === 43;
         if (state.throwStage === "create") throw new Error("create secret");
         if (typeof createPassportFile === "function") {
+          reportProgress("storing_encrypted_identity");
           await createPassportFile(TEST_PASSPORT_ENVELOPE);
         }
+        reportProgress("signing_up_to_homeserver");
+        reportProgress("publishing_discovery");
+        reportProgress("activating_created_identity");
         return state.createResult;
       },
     },
@@ -104,11 +115,17 @@ const MOCKS = vi.hoisted(() => {
     },
     RestoreGoogleBackedIdentity: vi.fn(),
     restoreExistingIdentity: {
-      async execute(envelope: unknown, wrappingKey: string) {
+      async execute(
+        envelope: unknown,
+        wrappingKey: string,
+        reportProgress: ReportGoogleBackedIdentityProgress,
+      ) {
         state.restoreCalls += 1;
         state.restoreReceivedExpectedInput = envelope === TEST_PASSPORT_ENVELOPE
           && wrappingKey.length === 43;
         if (state.throwStage === "restore") throw new Error("restore secret");
+        reportProgress("restoring_identity");
+        reportProgress("activating_restored_identity");
         return state.restoreResult;
       },
     },
@@ -180,6 +197,7 @@ describe("GoogleBackedIdentityOperations", () => {
     prepareConstructors();
     const saveIdentityRecord = sanitizedSaveIdentityRecord();
     const operations = createOperations(saveIdentityRecord);
+    const progress: string[] = [];
 
     expect(MOCKS.HomegateClient).toHaveBeenCalledWith({
       homegateBaseUrl: "https://homegate.example/api/",
@@ -200,6 +218,7 @@ describe("GoogleBackedIdentityOperations", () => {
 
     expectResultOk(await operations.restoreOrCreateGoogleBackedIdentity(
       TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
+      (phase) => progress.push(phase),
     ));
     await operations.deleteGoogleDrivePassportFile(TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS, "public-key");
 
@@ -208,6 +227,12 @@ describe("GoogleBackedIdentityOperations", () => {
     expect(MOCKS.state.createCalls).toBe(0);
     expect(MOCKS.state.homegateCalls).toBe(0);
     expect(MOCKS.state.deleteReceivedExpectedInput).toBe(true);
+    expect(progress).toEqual([
+      "preparing_secure_identity",
+      "checking_passport_file",
+      "restoring_identity",
+      "activating_restored_identity",
+    ]);
 
     operations.dispose();
     operations.dispose();
@@ -217,9 +242,11 @@ describe("GoogleBackedIdentityOperations", () => {
   it("requests Homegate before creating an identity when the Drive file is missing", async () => {
     prepareConstructors({ fileStatus: "missing" });
     const operations = createOperations();
+    const progress: string[] = [];
 
     expectResultOk(await operations.restoreOrCreateGoogleBackedIdentity(
       TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
+      (phase) => progress.push(phase),
     ));
 
     expect(MOCKS.state.homegateCalls).toBe(1);
@@ -229,6 +256,16 @@ describe("GoogleBackedIdentityOperations", () => {
     expect(MOCKS.state.createdExpectedEnvelope).toBe(true);
     expect(MOCKS.state.restoreCalls).toBe(0);
     expect(MOCKS.state.events).toEqual(["homegate", "create"]);
+    expect(progress).toEqual([
+      "preparing_secure_identity",
+      "checking_passport_file",
+      "preparing_new_identity",
+      "creating_identity",
+      "storing_encrypted_identity",
+      "signing_up_to_homeserver",
+      "publishing_discovery",
+      "activating_created_identity",
+    ]);
     await expect(MOCKS.state.driveAccessTokenProvider?.()).resolves.toBe(
       TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS.driveAccessToken,
     );
@@ -237,26 +274,58 @@ describe("GoogleBackedIdentityOperations", () => {
   it("stops before creation when Homegate fails", async () => {
     prepareConstructors({ fileStatus: "missing", homegateFailure: true });
     const operations = createOperations();
+    const progress: string[] = [];
 
     expectResultError(
-      await operations.restoreOrCreateGoogleBackedIdentity(TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS),
+      await operations.restoreOrCreateGoogleBackedIdentity(
+        TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
+        (phase) => progress.push(phase),
+      ),
       { code: "homeserver_signup_invitation_failed", cause: "homegate_unavailable" },
     );
     expect(MOCKS.state.createCalls).toBe(0);
+    expect(progress).toEqual([
+      "preparing_secure_identity",
+      "checking_passport_file",
+      "preparing_new_identity",
+    ]);
   });
 
   it("maps wrapping-key and Drive read failures", async () => {
     prepareConstructors({ wrappingFailure: true });
+    const wrappingProgress: string[] = [];
     expectResultError(
-      await createOperations().restoreOrCreateGoogleBackedIdentity(TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS),
+      await createOperations().restoreOrCreateGoogleBackedIdentity(
+        TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
+        (phase) => wrappingProgress.push(phase),
+      ),
       { code: "wrapping_key_failed", cause: "network_failed" },
     );
+    expect(wrappingProgress).toEqual(["preparing_secure_identity"]);
 
     prepareConstructors({ readFailure: true });
+    const readProgress: string[] = [];
     expectResultError(
-      await createOperations().restoreOrCreateGoogleBackedIdentity(TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS),
+      await createOperations().restoreOrCreateGoogleBackedIdentity(
+        TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
+        (phase) => readProgress.push(phase),
+      ),
       { code: "drive_read_failed" },
     );
+    expect(readProgress).toEqual(["preparing_secure_identity", "checking_passport_file"]);
+  });
+
+  it("contains progress listener failures without interrupting establishment", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    prepareConstructors();
+
+    expectResultOk(await createOperations().restoreOrCreateGoogleBackedIdentity(
+      TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
+      () => { throw new Error("SECRET-PROGRESS-LISTENER"); },
+    ));
+
+    expect(warning).toHaveBeenCalledWith("identity.google.progress_listener.failed");
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-PROGRESS-LISTENER");
   });
 
   it.each(["restore", "create", "homegate"] as const)(
@@ -270,6 +339,7 @@ describe("GoogleBackedIdentityOperations", () => {
       expectResultError(
         await createOperations().restoreOrCreateGoogleBackedIdentity(
           TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
+          NOOP_PROGRESS,
         ),
         { code: "unexpected_failure" },
       );

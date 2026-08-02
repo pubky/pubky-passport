@@ -37,7 +37,7 @@ describe("GoogleBackedIdentityActionPanel", () => {
     );
 
     await waitFor(() => expect(emitState).toBeDefined());
-    emitState?.({ stage: "google-drive-authorization", errorCode: null });
+    emitState?.({ stage: "google-drive-authorization" });
     const driveButton = await screen.findByRole("button", { name: "Authorize Google Drive" });
     await waitFor(() => expect(driveButton).toHaveFocus());
     expect(driveButton.closest("[aria-busy]")).toHaveAttribute("aria-busy", "false");
@@ -50,13 +50,13 @@ describe("GoogleBackedIdentityActionPanel", () => {
     });
     expect(onActionCompleted).toHaveBeenCalledWith(Result.ok({ kind: "google_drive_passport_file_deleted" }));
 
-    emitState?.({ stage: "requesting-google-drive-authorization", errorCode: null });
+    emitState?.({ stage: "requesting-google-drive-authorization" });
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Waiting for Google Drive authorization to delete the Passport file."));
-    expect(screen.getByRole("status").closest("[aria-busy]")).toHaveAttribute("aria-busy", "true");
+    expect(busyRegion()).toHaveAttribute("aria-busy", "true");
 
-    emitState?.({ stage: "executing-action", errorCode: null });
+    emitState?.({ stage: "deleting-google-drive-passport-file" });
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Deleting the Google Drive Passport file."));
-    expect(screen.getByRole("status").closest("[aria-busy]")).toHaveAttribute("aria-busy", "true");
+    expect(busyRegion()).toHaveAttribute("aria-busy", "true");
   });
 
   it("shows safe controller errors and focuses a rendered Google control after retry", async () => {
@@ -115,7 +115,7 @@ describe("GoogleBackedIdentityActionPanel", () => {
     await waitFor(() => expect(screen.getByLabelText("Google sign-in")).toHaveFocus());
   });
 
-  it("announces identity execution separately from Drive authorization", async () => {
+  it("renders creation progress from authoritative controller phases", async () => {
     let emitState: ((state: GoogleBackedIdentityActionState) => void) | undefined;
     const onBusyChange = vi.fn();
     const controller = fakeController({
@@ -132,15 +132,98 @@ describe("GoogleBackedIdentityActionPanel", () => {
     );
 
     await waitFor(() => expect(emitState).toBeDefined());
-    emitState?.({ stage: "requesting-google-drive-authorization", errorCode: null });
+    emitState?.({ stage: "requesting-google-drive-authorization" });
     await waitFor(() => {
       expect(screen.getByRole("status")).toHaveTextContent("Waiting for Google Drive authorization to create or restore your Pubky identity.");
       expect(onBusyChange).toHaveBeenLastCalledWith(true);
     });
 
-    emitState?.({ stage: "executing-action", errorCode: null });
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Creating or restoring your Pubky identity."));
-    expect(screen.getByRole("status").closest("[aria-busy]")).toHaveAttribute("aria-busy", "true");
+    emitState?.({ stage: "establishing-google-backed-identity", progress: "checking_passport_file" });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Checking for your encrypted Passport backup."));
+    expect(screen.getByText("Check encrypted Passport backup").closest("li")).toHaveAttribute("data-state", "active");
+
+    emitState?.({ stage: "establishing-google-backed-identity", progress: "preparing_new_identity" });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Preparing new identity setup."));
+    expect(screen.getAllByRole("listitem").map((step) => step.getAttribute("data-state"))).toEqual([
+      "complete",
+      "pending",
+      "pending",
+      "pending",
+      "pending",
+    ]);
+
+    emitState?.({ stage: "establishing-google-backed-identity", progress: "signing_up_to_homeserver" });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Signing up to your homeserver."));
+    const creationSteps = screen.getAllByRole("listitem");
+    expect(creationSteps.map((step) => step.getAttribute("data-state"))).toEqual([
+      "complete",
+      "complete",
+      "active",
+      "pending",
+      "pending",
+    ]);
+    expect(busyRegion()).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("renders restore-specific progress without creation steps", async () => {
+    let emitState: ((state: GoogleBackedIdentityActionState) => void) | undefined;
+    const controller = fakeController({
+      mountGoogleSignIn: vi.fn(async (_target, onState) => { emitState = onState; }),
+    });
+    render(
+      <GoogleBackedIdentityActionPanel
+        action={{ kind: "establish_google_backed_identity" }}
+        controller={controller}
+        disabled={false}
+        onActionCompleted={vi.fn()}
+        onBusyChange={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(emitState).toBeDefined());
+    emitState?.({ stage: "establishing-google-backed-identity", progress: "activating_restored_identity" });
+
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Activating your restored Pubky identity."));
+    expect(screen.getAllByRole("listitem").map((step) => step.getAttribute("data-state"))).toEqual([
+      "complete",
+      "complete",
+      "active",
+    ]);
+    expect(screen.queryByText("Sign up to homeserver")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["preparing_secure_identity", "Preparing secure identity access.", "Prepare secure identity access"],
+    ["checking_passport_file", "Checking for your encrypted Passport backup.", "Check encrypted Passport backup"],
+    ["preparing_new_identity", "Preparing new identity setup.", null],
+    ["creating_identity", "Creating your Pubky identity.", "Create and store encrypted identity"],
+    ["storing_encrypted_identity", "Storing your encrypted Passport backup.", "Create and store encrypted identity"],
+    ["signing_up_to_homeserver", "Signing up to your homeserver.", "Sign up to homeserver"],
+    ["publishing_discovery", "Publishing discovery records.", "Publish discovery records"],
+    ["activating_created_identity", "Activating your Pubky identity.", "Activate identity"],
+    ["restoring_identity", "Restoring your Pubky identity.", "Restore Pubky identity"],
+    ["activating_restored_identity", "Activating your restored Pubky identity.", "Activate identity"],
+  ] as const)("projects %s into truthful status and checklist state", async (progress, status, activeLabel) => {
+    let emitState: ((state: GoogleBackedIdentityActionState) => void) | undefined;
+    render(
+      <GoogleBackedIdentityActionPanel
+        action={{ kind: "establish_google_backed_identity" }}
+        controller={fakeController({
+          mountGoogleSignIn: vi.fn(async (_target, onState) => { emitState = onState; }),
+        })}
+        disabled={false}
+        onActionCompleted={vi.fn()}
+        onBusyChange={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(emitState).toBeDefined());
+
+    emitState?.({ stage: "establishing-google-backed-identity", progress });
+
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(status));
+    const activeStep = screen.getAllByRole("listitem").find((step) => step.getAttribute("data-state") === "active");
+    if (activeLabel) expect(activeStep).toHaveTextContent(activeLabel);
+    else expect(activeStep).toBeUndefined();
   });
 
   it("renders a safe failure when an action rejects", async () => {
@@ -162,7 +245,7 @@ describe("GoogleBackedIdentityActionPanel", () => {
     );
 
     await waitFor(() => expect(emitState).toBeDefined());
-    emitState?.({ stage: "google-drive-authorization", errorCode: null });
+    emitState?.({ stage: "google-drive-authorization" });
     await userEvent.setup().click(await screen.findByRole("button", { name: "Authorize Google Drive" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Passport could not continue the Google identity action. Try again.");
@@ -188,4 +271,8 @@ describe("GoogleBackedIdentityActionPanel", () => {
 
 function fakeController(overrides: Partial<PassportIdentityController>): PassportIdentityController {
   return mockPassportIdentityController(overrides);
+}
+
+function busyRegion(): Element | null {
+  return screen.getByRole("status").parentElement?.querySelector("[aria-busy]") ?? null;
 }
