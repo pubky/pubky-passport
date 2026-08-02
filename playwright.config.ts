@@ -28,6 +28,7 @@ export default defineConfig({
     env: {
       GOOGLE_CLIENT_ID: "e2e-google-client-id",
       HOMEGATE_URL: "https://homegate.example/",
+      PUBKY_HOMESERVER_CONNECT_ORIGINS: "https://homeserver.example",
     },
     url: BASE_URL,
     reuseExistingServer: false,

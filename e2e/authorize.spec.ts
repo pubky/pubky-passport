@@ -21,6 +21,7 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   const policy = headers["content-security-policy"] ?? "";
   const baselineSources = new Set(cspSources(baselineResponse.headers()["content-security-policy"] ?? "", "connect-src"));
   const authorizationSources = cspSources(policy, "connect-src");
+  expect(baselineSources).toContain("https://homeserver.example");
   expect(authorizationSources.filter((source) => !baselineSources.has(source))).toEqual([RELAY_ORIGIN]);
   expect(authorizationSources).not.toContain("https://client.example");
   expect(policy).not.toContain("/private-inbox");

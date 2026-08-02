@@ -8,6 +8,7 @@ describe("request CSP proxy", () => {
   beforeEach(() => {
     vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
     vi.stubEnv("HOMEGATE_URL", "https://homegate.example/config/path");
+    vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example");
   });
 
   afterEach(() => {
@@ -25,6 +26,7 @@ describe("request CSP proxy", () => {
     expect(policy).not.toContain("/inbox");
     expect(policy).not.toContain("sensitive-secret");
     expect(cspSources(policy, "connect-src")).toContain("https://homegate.example");
+    expect(cspSources(policy, "connect-src")).toContain("https://homeserver.example");
     expect(policy).not.toContain("/config/path");
   });
 
@@ -48,6 +50,20 @@ describe("request CSP proxy", () => {
 
     expect(() => proxy(new NextRequest("https://passport.example/")))
       .toThrow("HOMEGATE_URL must be a CSP-safe HTTPS base URL");
+    expect(error).toHaveBeenCalledWith("proxy.bootstrap.failed", {
+      layer: "proxy",
+      operation: "build_response_policy",
+      code: "runtime_exception",
+    });
+    expect(JSON.stringify(error.mock.calls)).not.toContain("https://*.example.com");
+  });
+
+  it("rejects unsafe configured homeserver origins before emitting CSP", () => {
+    const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
+    vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://*.example.com");
+
+    expect(() => proxy(new NextRequest("https://passport.example/")))
+      .toThrow("PUBKY_HOMESERVER_CONNECT_ORIGINS must contain CSP-safe HTTPS origins");
     expect(error).toHaveBeenCalledWith("proxy.bootstrap.failed", {
       layer: "proxy",
       operation: "build_response_policy",

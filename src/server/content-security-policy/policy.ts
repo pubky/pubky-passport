@@ -11,6 +11,7 @@ export function createContentSecurityPolicy(input: {
   nonce: string;
   development: boolean;
   homegateOrigin: string;
+  homeserverConnectOrigins: readonly string[];
   authorizationRequestSearch?: string;
 }): string {
   const scriptSource = [
@@ -35,6 +36,7 @@ export function createContentSecurityPolicy(input: {
       "https://oauth2.googleapis.com",
       "https://www.googleapis.com",
       input.homegateOrigin,
+      ...input.homeserverConnectOrigins,
       "https://pkarr.pubky.app",
       "https://pkarr.pubky.org",
       ...(authorizationRelayOrigin ? [authorizationRelayOrigin] : []),

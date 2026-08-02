@@ -49,6 +49,7 @@ jobs:
     env:
       GOOGLE_CLIENT_ID: "e2e-google-client-id"
       HOMEGATE_URL: "https://homegate.example/"
+      PUBKY_HOMESERVER_CONNECT_ORIGINS: "https://homeserver.example"
 
     steps:
       - name: Checkout

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { LOGGER } from "./libs/logger/logger";
 import { getBrowserBootstrapConfig } from "./server/config/browserBootstrapConfig";
+import { getHomeserverConnectOrigins } from "./server/config/homeserverConnectOrigins";
 import { createContentSecurityPolicy } from "./server/content-security-policy/policy";
 
 export function proxy(request: NextRequest) {
@@ -12,6 +13,7 @@ export function proxy(request: NextRequest) {
       nonce,
       development: process.env.NODE_ENV === "development",
       homegateOrigin: config.homegateOrigin,
+      homeserverConnectOrigins: getHomeserverConnectOrigins(),
       ...(request.nextUrl.pathname === "/authorize" && request.nextUrl.search
         ? { authorizationRequestSearch: request.nextUrl.search }
         : {}),
