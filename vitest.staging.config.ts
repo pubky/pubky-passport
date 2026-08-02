@@ -12,9 +12,11 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: false,
-    include: ["src/**/*.test.ts", "src/**/*.test.tsx", "test-utils/**/*.test.ts"],
-    exclude: [...configDefaults.exclude, "src/**/*.staging.test.ts"],
+    include: ["src/browser/pubky/**/*.staging.test.ts"],
+    exclude: configDefaults.exclude,
     setupFiles: ["./test-utils/vitest-setup.ts"],
     silent: "passed-only",
+    testTimeout: 180_000,
+    hookTimeout: 30_000,
   },
 });

@@ -20,6 +20,7 @@ const IDENTITY_ROOT = join(BROWSER_ROOT, "identity");
 const LOCAL_IDENTITY_REPOSITORY = join(IDENTITY_ROOT, "local", "localStorageIdentityRepository.ts");
 const PUBKY_SDK_ADAPTER = join(BROWSER_ROOT, "pubky", "pubkySdkAdapter.ts");
 const PUBKY_SDK_ADAPTER_TEST = join(BROWSER_ROOT, "pubky", "pubkySdkAdapter.test.ts");
+const PUBKY_SDK_ADAPTER_STAGING_TEST = join(BROWSER_ROOT, "pubky", "pubkySdkAdapter.staging.test.ts");
 const GOOGLE_WRAPPING_KEY_REQUEST = join(
   SERVER_ROOT,
   "wrapping-key",
@@ -66,7 +67,11 @@ describe("architecture boundaries", () => {
       .filter((filePath) => GRAPH.importSpecifiers(filePath).some((specifier) =>
         specifier === "@synonymdev/pubky" || specifier.startsWith("@synonymdev/pubky/")
       ))
-      .filter((filePath) => filePath !== PUBKY_SDK_ADAPTER && filePath !== PUBKY_SDK_ADAPTER_TEST)
+      .filter((filePath) =>
+        filePath !== PUBKY_SDK_ADAPTER
+        && filePath !== PUBKY_SDK_ADAPTER_TEST
+        && filePath !== PUBKY_SDK_ADAPTER_STAGING_TEST
+      )
       .map((filePath) => `${relative(REPO_ROOT, filePath)} imports @synonymdev/pubky outside the browser Pubky adapter`);
 
     expect(violations).toEqual([]);

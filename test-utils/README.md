@@ -60,6 +60,27 @@ pnpm check:critical
 `pnpm test:e2e:run` expects an existing production build and is used by CI so build
 and browser-test failures remain separate.
 
+The concrete Pubky critical path is a separate staging gate:
+
+```bash
+PUBKY_STAGING_HOMEGATE_URL=https://staging-homegate.example/ \
+PUBKY_STAGING_GOOGLE_ID_TOKEN=<fresh-id-token> \
+pnpm test:staging:pubky
+```
+
+`PUBKY_STAGING_RELAY_URL` may select a specific HTTPS staging relay; otherwise the
+SDK default relay is used. The test obtains a real invitation, signs up a fresh
+synthetic identity, publishes and resolves its homeserver, performs blocking signin,
+approves an SDK-generated auth request through Passport's concrete adapter, and
+requires the third-party `awaitApproval()` call to return the same identity and
+requested capability.
+
+The `Staging Pubky Smoke` GitHub workflow runs this command on manual dispatch using
+the matching `staging` environment secrets. Replace `PUBKY_STAGING_GOOGLE_ID_TOKEN`
+with a fresh short-lived token before dispatch. The workflow is intentionally not a
+PR or scheduled gate because each run consumes provider invitation quota and creates
+a new staging identity.
+
 Playwright traces can contain request URLs and payloads. Browser tests must use only
 synthetic credentials and authorization requests. Next.js currently serializes the
 original authorization URL into its initial Flight bootstrap before client-side query
