@@ -1,30 +1,22 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+/** @vitest-environment jsdom */
 
-import { LOGGER } from "../../libs/logger/logger";
+import { render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+
 import AuthorizePage from "./page";
 
-vi.mock("../../ui/authorizationReviewLoader", () => ({ AUTHORIZATION_REVIEW_LOADER: () => null }));
+const commitInitialEntry = vi.fn();
 
-describe("authorization page bootstrap", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllEnvs();
-  });
+vi.mock("../../browser/authorization/passportAuthorization", () => ({
+  createPassportAuthorizationController: () => ({ commitInitialEntry }),
+}));
 
-  it("logs invalid bootstrap configuration without configuration values", () => {
-    const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
-    vi.stubEnv("GOOGLE_CLIENT_ID", "SECRET-GOOGLE-CLIENT-ID");
-    vi.stubEnv("HOMEGATE_URL", "SECRET-HOMEGATE-URL");
+describe("AuthorizePage", () => {
+  it("scrubs the entry and renders the replacement UI placeholder", async () => {
+    render(<AuthorizePage />);
 
-    expect(() => AuthorizePage()).toThrow("Authorization page configuration unavailable.");
-    expect(error).toHaveBeenCalledWith("page.bootstrap.failed", {
-      route: "authorize",
-      layer: "page",
-      operation: "bootstrap",
-      stage: "configuration",
-      code: "invalid_configuration",
-    });
-    expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET-GOOGLE-CLIENT-ID");
-    expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET-HOMEGATE-URL");
+    expect(screen.getByRole("heading", { name: "Authorization" })).toBeInTheDocument();
+    expect(screen.getByText(/under construction/u)).toBeInTheDocument();
+    await waitFor(() => expect(commitInitialEntry).toHaveBeenCalledOnce());
   });
 });
