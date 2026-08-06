@@ -6,12 +6,11 @@ import { useEffect, useRef, useState } from "react";
 import type { PassportIdentityController, PassportIdentityList } from "../../browser/identity/passportIdentity";
 import { createPassportIdentityController } from "../../browser/identity/passportIdentity";
 import { Spinner } from "../shared/primitives/spinner";
-import { GoogleOnboardingFlow, type OnboardingCompletion } from "./onboarding/googleOnboardingFlow";
-import { SetupComplete } from "./onboarding/setupComplete";
-import { ActiveIdentityHome } from "./management/activeIdentityHome";
-import { IdentityManagement } from "./management/identityManagement";
-import { EncryptedBackup } from "./management/encryptedBackup";
-import { IdentitySwitcher } from "./management/identitySwitcher";
+import { IdentityManagement } from "../identity-management/identityManagement";
+import { EncryptedBackup } from "../identity-management/encryptedBackup";
+import { IdentityOverview } from "../identity-overview/identityOverview";
+import { IdentitySwitcher } from "../identity-switcher/identitySwitcher";
+import { SignInFlow } from "../sign-in/signInFlow";
 
 type RootState = "checking" | "signed-out" | "signed-in" | "switching" | "managing" | "downloading-backup" | "unavailable";
 
@@ -20,7 +19,6 @@ function IdentityFlow({ googleClientId, homegateBaseUrl }: { googleClientId: str
   const setupActive = useRef(false);
   const [identityController, setIdentityController] = useState<PassportIdentityController | null>(null);
   const [state, setState] = useState<RootState>("checking");
-  const [completion, setCompletion] = useState<OnboardingCompletion | null>(null);
   const [catalog, setCatalog] = useState<PassportIdentityList>({ activeIdentityId: null, identities: [] });
 
   useEffect(() => {
@@ -56,9 +54,12 @@ function IdentityFlow({ googleClientId, homegateBaseUrl }: { googleClientId: str
     };
   }, [googleClientId, homegateBaseUrl]);
 
-  if (completion) return <SetupComplete {...(completion.googleAccount ? { googleAccount: completion.googleAccount } : {})} identity={completion.identity} mode={completion.mode} onContinue={() => { setupActive.current = false; setCompletion(null); setState("signed-in"); }} />;
   if (state === "signed-out" && identityController) {
-    return <GoogleOnboardingFlow controller={identityController} onComplete={setCompletion} onSetupStarted={() => { setupActive.current = true; }} />;
+    return <SignInFlow
+      controller={identityController}
+      onComplete={() => { setupActive.current = false; setState("signed-in"); }}
+      onSetupStarted={() => { setupActive.current = true; }}
+    />;
   }
   if (state === "switching" && catalog.activeIdentityId) {
     return <IdentitySwitcher
@@ -83,7 +84,7 @@ function IdentityFlow({ googleClientId, homegateBaseUrl }: { googleClientId: str
   if (state === "signed-in") {
     const activeIdentity = catalog.identities.find((identity) => identity.id === catalog.activeIdentityId);
     if (activeIdentity) {
-      return <ActiveIdentityHome identity={activeIdentity} onManage={() => setState("managing")} onSwitch={() => setState("switching")} />;
+      return <IdentityOverview identity={activeIdentity} onManage={() => setState("managing")} onSwitch={() => setState("switching")} />;
     }
     return <main className="grid min-h-[calc(100svh-84px)] place-items-center px-6 text-center text-muted-foreground">The active identity is unavailable.</main>;
   }

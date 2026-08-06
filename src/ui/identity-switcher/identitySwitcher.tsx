@@ -2,11 +2,11 @@
 
 import Image from "next/image";
 
-import type { LocalIdentitySummary } from "../../../browser/identity/passportIdentity";
-import { Button } from "../../shared/primitives/button";
-import { DisplayHeading } from "../../shared/primitives/typography";
+import type { LocalIdentitySummary } from "../../browser/identity/passportIdentity";
+import { Button } from "../shared/primitives/button";
+import { DisplayHeading } from "../shared/primitives/typography";
 import { IdentityRow } from "./identityRow";
-import { BackButton } from "../../shared/navigation/backButton";
+import { BackButton } from "../shared/navigation/backButton";
 
 function IdentitySwitcher({ activeIdentityId, identities, onAddIdentity, onBack, onSelect }: {
   activeIdentityId: string;

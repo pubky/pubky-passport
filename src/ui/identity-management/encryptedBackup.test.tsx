@@ -35,7 +35,8 @@ describe("EncryptedBackup", () => {
 
   it("returns to identity management", async () => {
     const onBack = vi.fn();
-    render(<EncryptedBackup createBackup={vi.fn()} identityId="identity" onBack={onBack} />);
+    const { container } = render(<EncryptedBackup createBackup={vi.fn()} identityId="identity" onBack={onBack} />);
+    expect(container.querySelector('[data-slot="encrypted-backup-illustration"]')).toHaveAttribute("src", expect.stringContaining("passport-encrypted-backup.png"));
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(onBack).toHaveBeenCalledOnce();
   });

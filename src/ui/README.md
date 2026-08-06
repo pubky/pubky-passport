@@ -5,26 +5,28 @@ framework-level building blocks stay in `shared`.
 
 ```txt
 ui/
-  identity/
-    identityFlow.tsx        Routes signed-out, onboarding, active, and management states
-    onboarding/             Google sign-in, identity restore/create, and setup completion
-    management/             Active identity, switching, backup, and local account controls
-  authorization/            Permission review and application authorization
-  application-shell/        UI shared by every application state, such as the header
+  application-shell/          Header and cross-feature identity flow composition
+  sign-in/                    Login entry and provider controls
+  create-or-restore-google/   Google authorization, lookup, creation/restoration, and completion
+  identity-overview/          Active identity home
+  identity-switcher/          Identity selection and rows
+  identity-management/        Identity details, logout, and encrypted backup
+  authorization/              Permission review and application authorization
   shared/
-    primitives/             Figma-verified, business-agnostic controls
-    brand/                  Passport and provider brand marks
-    navigation/             Application-wide navigation controls
-    mergeClassNames.ts      Tailwind class composition helper
+    primitives/               Figma-verified, business-agnostic controls
+    brand/                    Passport and provider brand marks
+    navigation/               Application-wide navigation controls
+    mergeClassNames.ts        Tailwind class composition helper
 ```
 
 ## Ownership rules
 
 - A component used by one capability stays with that capability.
 - Promote a component to `shared` only when unrelated capabilities reuse it.
+- Provider-neutral sign-in UI composes provider features; provider features never import sign-in UI.
 - TypeScript implementation and test filenames use `camelCase`.
 - Files name the behavior they implement: `identityFlow`, `signInPage`, and
-  `activeIdentityHome` instead of generic names such as `app` or `page`.
+  `identityOverview` instead of generic names such as `app` or `page`.
 - Tests remain beside the behavior they verify.
 - Shared primitives contain no identity, authorization, storage, or network logic.
 - Avoid barrel exports so dependencies remain visible at each import site.

@@ -5,23 +5,29 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
   GoogleBackedIdentityActionState,
+  GoogleBackedIdentityProgress,
   PassportIdentityController,
-} from "../../../browser/identity/passportIdentity";
-import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
-import type { GoogleAccountProfile } from "../../../core/identity/googleAccountProfile";
-import { SocialLoginButton } from "./socialLoginButton";
-import { GoogleAccessRequest } from "./googleAccessRequest";
-import { IdentityLookup } from "./identityLookup";
-import { SignInPage } from "./signInPage";
-import { SetupProgress } from "./setupProgress";
+} from "../../browser/identity/passportIdentity";
+import type { GoogleAccountProfile } from "../../core/identity/googleAccountProfile";
+import type { PubkyPublicIdentity } from "../../core/identity/pubkyIdentity";
 
-type OnboardingCompletion = { googleAccount?: GoogleAccountProfile; identity: PubkyPublicIdentity; mode: "created" | "restored" };
+type CreateOrRestoreGoogleIdentityCompletion = {
+  googleAccount?: GoogleAccountProfile;
+  identity: PubkyPublicIdentity;
+  mode: "created" | "restored";
+};
 
-function GoogleOnboardingFlow({ controller, onComplete, onSetupStarted }: {
+type CreateOrRestoreGoogleIdentityState =
+  | { status: "ready"; ready: boolean; start: () => void }
+  | { status: "access-pending" }
+  | { status: "access-denied"; back: () => void; tryAgain: () => void }
+  | { status: "setup"; progress: GoogleBackedIdentityProgress };
+
+function useCreateOrRestoreGoogleIdentity({ controller, onComplete, onSetupStarted }: {
   controller: PassportIdentityController;
-  onComplete: (completion: OnboardingCompletion) => void;
+  onComplete: (completion: CreateOrRestoreGoogleIdentityCompletion) => void;
   onSetupStarted: () => void;
-}) {
+}): CreateOrRestoreGoogleIdentityState {
   const dispatching = useRef(false);
   const callbacks = useRef({ onComplete, onSetupStarted });
   const [state, setState] = useState<GoogleBackedIdentityActionState>({ stage: "google-authorization", errorCode: null });
@@ -30,7 +36,7 @@ function GoogleOnboardingFlow({ controller, onComplete, onSetupStarted }: {
 
   useEffect(() => { callbacks.current = { onComplete, onSetupStarted }; }, [onComplete, onSetupStarted]);
 
-  const continueSetup = useCallback((): void => {
+  const start = useCallback((): void => {
     if (dispatching.current) return;
     dispatching.current = true;
     callbacks.current.onSetupStarted();
@@ -56,41 +62,33 @@ function GoogleOnboardingFlow({ controller, onComplete, onSetupStarted }: {
       .finally(() => { dispatching.current = false; });
   }, [controller]);
 
+  const back = useCallback(() => {
+    dispatching.current = false;
+    setFailed(false);
+    setState({ stage: "google-authorization", errorCode: null });
+  }, []);
+
+  const tryAgain = useCallback(() => {
+    dispatching.current = false;
+    setFailed(false);
+    start();
+  }, [start]);
+
   useEffect(() => {
     void controller.prepareGoogleAuthorization((nextState) => {
       setState(nextState);
       if (nextState.stage === "google-authorization" && nextState.errorCode === null) setAuthorizationReady(true);
     }).catch(() => setFailed(true));
     return () => { try { controller.disposeGoogleAuthorization(); } catch { /* Controller owns cleanup logging. */ } };
-  }, [controller, continueSetup]);
+  }, [controller]);
 
-  const signInFailed = failed || (state.stage === "google-authorization" && state.errorCode !== null);
-  if (signInFailed) {
-    return <GoogleAccessRequest
-      onBack={() => { dispatching.current = false; setFailed(false); setState({ stage: "google-authorization", errorCode: null }); }}
-      onTryAgain={() => { dispatching.current = false; setFailed(false); continueSetup(); }}
-      status="denied"
-    />;
+  if (failed || (state.stage === "google-authorization" && state.errorCode !== null)) {
+    return { status: "access-denied", back, tryAgain };
   }
-
-  if (state.stage === "requesting-google-authorization") {
-    return <GoogleAccessRequest status="pending" />;
-  }
-  if (state.stage === "establishing-google-backed-identity") {
-    if (state.progress === "preparing_secure_identity" || state.progress === "checking_passport_file") {
-      return <IdentityLookup />;
-    }
-    return <SetupProgress progress={state.progress} />;
-  }
-
-  return (
-    <SignInPage googleSignInControl={(
-      <>
-        <SocialLoginButton className="w-full" disabled={!authorizationReady} onClick={continueSetup} provider="google">Continue with Google</SocialLoginButton>
-      </>
-    )} />
-  );
+  if (state.stage === "requesting-google-authorization") return { status: "access-pending" };
+  if (state.stage === "establishing-google-backed-identity") return { status: "setup", progress: state.progress };
+  return { status: "ready", ready: authorizationReady, start };
 }
 
-export { GoogleOnboardingFlow };
-export type { OnboardingCompletion };
+export { useCreateOrRestoreGoogleIdentity };
+export type { CreateOrRestoreGoogleIdentityCompletion, CreateOrRestoreGoogleIdentityState };

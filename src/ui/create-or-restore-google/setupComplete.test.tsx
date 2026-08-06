@@ -10,11 +10,12 @@ const GOOGLE_ACCOUNT = { id: "google-1", email: "satoshi@gmail.com", name: "Sato
 
 describe("SetupComplete", () => {
   it("labels a restored identity as restore complete", () => {
-    render(<SetupComplete googleAccount={GOOGLE_ACCOUNT} identity={IDENTITY} mode="restored" onContinue={vi.fn()} />);
+    const { container } = render(<SetupComplete googleAccount={GOOGLE_ACCOUNT} identity={IDENTITY} mode="restored" onContinue={vi.fn()} />);
     expect(screen.getByRole("heading", { name: "Restore complete." })).toBeInTheDocument();
     expect(screen.getByText("Restored backup from Google Drive.")).toBeInTheDocument();
     expect(screen.getByText("Satoshi Nakamoto")).toBeInTheDocument();
     expect(screen.getByText("satoshi@gmail.com")).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="setup-complete-illustration"]')).toHaveAttribute("src", expect.stringContaining("passport-setup-complete.png"));
   });
 
   it("labels a newly created identity as setup complete", () => {

@@ -3,13 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import type { LocalIdentitySummary } from "../../../browser/identity/passportIdentity";
-import { Avatar } from "../../shared/primitives/avatar";
-import { Button } from "../../shared/primitives/button";
-import { GoogleLogo } from "../../shared/brand/googleLogo";
-import { DisplayHeading } from "../../shared/primitives/typography";
+import type { LocalIdentitySummary } from "../../browser/identity/passportIdentity";
+import { Avatar } from "../shared/primitives/avatar";
+import { Button } from "../shared/primitives/button";
+import { GoogleLogo } from "../shared/brand/googleLogo";
+import { DisplayHeading } from "../shared/primitives/typography";
 
-function ActiveIdentityHome({ identity, onManage, onSwitch }: {
+function IdentityOverview({ identity, onManage, onSwitch }: {
   identity: LocalIdentitySummary;
   onManage: () => void;
   onSwitch: () => void;
@@ -43,4 +43,4 @@ function ActionIcon({ alt, src }: { alt: string; src: string }) {
   return <Image alt={alt} className="brightness-0 invert opacity-80" height={16} src={src} width={16} />;
 }
 
-export { ActiveIdentityHome };
+export { IdentityOverview };

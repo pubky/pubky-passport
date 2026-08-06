@@ -1,13 +1,17 @@
 "use client";
 
-import type { GoogleBackedIdentityProgress } from "../../../browser/identity/passportIdentity";
-import { DisplayHeading } from "../../shared/primitives/typography";
+import type { GoogleBackedIdentityProgress } from "../../browser/identity/passportIdentity";
+import { Spinner } from "../shared/primitives/spinner";
+import { DisplayHeading, LeadText } from "../shared/primitives/typography";
 
 type StepState = "complete" | "active" | "pending";
 type SetupStep = { label: string; state: StepState };
-type DeterminedIdentityProgress = Exclude<GoogleBackedIdentityProgress, "preparing_secure_identity" | "checking_passport_file">;
 
-function SetupProgress({ progress }: { progress: DeterminedIdentityProgress }) {
+function SetupProgress({ progress }: { progress: GoogleBackedIdentityProgress }) {
+  if (progress === "preparing_secure_identity" || progress === "checking_passport_file") {
+    return <IdentityLookup />;
+  }
+
   const steps = progressSteps(progress);
   const restoring = progress === "restoring_identity" || progress === "activating_restored_identity";
 
@@ -23,6 +27,19 @@ function SetupProgress({ progress }: { progress: DeterminedIdentityProgress }) {
   );
 }
 
+function IdentityLookup() {
+  return (
+    <main className="mx-auto flex min-h-[calc(100svh-84px)] w-full max-w-[375px] flex-col gap-6 px-6 pb-6 pt-3">
+      <DisplayHeading accent="existing Pubky." aria-label="Looking for existing Pubky.">Looking for</DisplayHeading>
+      <LeadText>Checking Google Drive for an encrypted Passport backup.</LeadText>
+      <div className="flex items-center gap-3 py-3 text-muted-foreground" role="status">
+        <Spinner />
+        Checking Google Drive…
+      </div>
+    </main>
+  );
+}
+
 function ProgressStep({ step }: { step: SetupStep }) {
   return (
     <li className="flex items-center gap-2" data-state={step.state}>
@@ -33,7 +50,7 @@ function ProgressStep({ step }: { step: SetupStep }) {
   );
 }
 
-function progressSteps(progress: DeterminedIdentityProgress): SetupStep[] {
+function progressSteps(progress: GoogleBackedIdentityProgress): SetupStep[] {
   if (progress === "restoring_identity" || progress === "activating_restored_identity") {
     return states(["Restoring your Pubky", "Activate identity"], progress === "restoring_identity" ? 0 : 1);
   }
@@ -60,4 +77,4 @@ function PendingIcon() {
   return <svg aria-hidden="true" className="size-6 shrink-0 text-muted-foreground" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" stroke="currentColor" /></svg>;
 }
 
-export { SetupProgress, progressSteps };
+export { SetupProgress };

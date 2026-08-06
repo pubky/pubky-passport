@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { LocalIdentitySummary } from "../../../browser/identity/passportIdentity";
+import type { LocalIdentitySummary } from "../../browser/identity/passportIdentity";
 import { IdentityManagement } from "./identityManagement";
 
 const identity = {

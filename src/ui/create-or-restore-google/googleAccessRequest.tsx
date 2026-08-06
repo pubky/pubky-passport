@@ -1,6 +1,6 @@
-import { Button } from "../../shared/primitives/button";
-import { Spinner } from "../../shared/primitives/spinner";
-import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
+import { Button } from "../shared/primitives/button";
+import { Spinner } from "../shared/primitives/spinner";
+import { DisplayHeading, LeadText } from "../shared/primitives/typography";
 
 type GoogleAccessRequestProps =
   | { status: "pending"; onBack?: never; onTryAgain?: never }

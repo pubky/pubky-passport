@@ -4,12 +4,12 @@ import Image from "next/image";
 import { Result } from "better-result";
 import { useEffect, useState } from "react";
 
-import type { LocalIdentitySummary, PubkyHomeserverResolutionResult } from "../../../browser/identity/passportIdentity";
-import { Avatar } from "../../shared/primitives/avatar";
-import { Button } from "../../shared/primitives/button";
-import { IconButton } from "../../shared/primitives/iconButton";
-import { DisplayHeading } from "../../shared/primitives/typography";
-import { BackButton } from "../../shared/navigation/backButton";
+import type { LocalIdentitySummary, PubkyHomeserverResolutionResult } from "../../browser/identity/passportIdentity";
+import { Avatar } from "../shared/primitives/avatar";
+import { Button } from "../shared/primitives/button";
+import { IconButton } from "../shared/primitives/iconButton";
+import { DisplayHeading } from "../shared/primitives/typography";
+import { BackButton } from "../shared/navigation/backButton";
 
 function IdentityManagement({ identity, onBack, onDownloadBackup, onLogOut, resolveHomeserver }: { identity: LocalIdentitySummary; onBack: () => void; onDownloadBackup: () => void; onLogOut: () => void; resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult> }) {
   const account = identity.googleAccount;
