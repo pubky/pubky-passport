@@ -1,41 +1,42 @@
-# Passport UI Foundation
+# UI Architecture
 
-The production UI is organized by Passport feature. Shared visual primitives live in
-`components`; feature components should remain in their owning feature until reuse is
-demonstrated.
+The UI follows screaming architecture: capability names dominate the tree, while
+framework-level building blocks stay in `shared`.
 
 ```txt
 ui/
-  components/       SHADCN-derived, Figma-verified primitives
-  lib/              UI-only helpers
-  layout/           application-wide structural UI
-  passport/         top-level Passport state routing
-  onboarding/       landing, Google access, setup/restore, completion
-  identity/         identity list, selection, Google create/restore, management
-  authorization/    manual entry, identity choice, permission review, result
+  identity/
+    identity-flow.tsx       Routes signed-out, onboarding, active, and management states
+    onboarding/             Google sign-in, identity restore/create, and setup completion
+    management/             Active identity, switching, backup, and local account controls
+  authorization/            Permission review and application authorization
+  application-shell/        UI shared by every application state, such as the header
+  shared/
+    primitives/             Figma-verified, business-agnostic controls
+    brand/                  Passport and provider brand marks
+    navigation/             Application-wide navigation controls
+    merge-class-names.ts    Tailwind class composition helper
 ```
 
-## Sources
+## Ownership rules
 
-- Figma file `01ZvjSPZnKTNmaEWz0yJsq`, node `42046:184413` is the visual source of
-  truth for the initial Button variants and tokens.
+- A component used by one capability stays with that capability.
+- Promote a component to `shared` only when unrelated capabilities reuse it.
+- Files name the behavior they implement: `identity-flow`, `sign-in-page`, and
+  `active-identity-home` instead of generic names such as `app` or `page`.
+- Tests remain beside the behavior they verify.
+- Shared primitives contain no identity, authorization, storage, or network logic.
+- Avoid barrel exports so dependencies remain visible at each import site.
+
+## Visual sources
+
+- Figma file `01ZvjSPZnKTNmaEWz0yJsq` is the visual source of truth.
 - `pubky/pubky-app` commit `2bfe3f5c379a10f75c9811db9d7e47f7bb56f508`
   supplies the compatible SHADCN/Tailwind implementation pattern.
 
-Copy only the variants required by Passport and verify them against Figma. Do not
-copy pubky-app's application state, routes, social components, or full component
-hierarchy.
+Copy only the variants required by Passport. Do not copy application state, routes,
+or feature hierarchies from Pubky App.
 
-## Initial screen states
-
-- Home: no local identity, identity list, active identity, Google action pending,
-  identity setup/restore progress, safe failure.
-- Identity management: select, add with Google, local-only logout, verified Google
-  Drive deletion.
-- Manual authorization: empty, pasted, clipboard denied, invalid, navigating.
-- Authorization: invalid request, identity required, identity selection, permission
-  review, approving, redirecting, approved, cancelled, failed.
-
-UI state contains public identity data, safe hosts, capabilities, progress, and typed
-safe errors only. It never contains tokens, secret key material, wrapping keys,
+UI state may contain public identities, safe hosts, capabilities, progress, and typed
+safe errors. It must never contain tokens, secret key material, wrapping keys,
 ciphertext, raw authorization URLs, request secrets, or full callback URLs.

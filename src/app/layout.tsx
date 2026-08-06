@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import type { ReactNode } from "react";
 import "@fontsource-variable/inter-tight";
 import "./globals.css";
-import { AppHeader } from "../ui/layout/app-header";
+import { AppHeader } from "../ui/application-shell/app-header";
 
 export const METADATA: Metadata = {
   title: "Pubky Passport",
