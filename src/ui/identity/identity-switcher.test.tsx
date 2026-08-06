@@ -16,7 +16,8 @@ describe("IdentitySwitcher", () => {
 
   it("marks the active identity and selects another identity", async () => {
     const onSelect = vi.fn();
-    render(<IdentitySwitcher activeIdentityId="second" identities={IDENTITIES} onAddIdentity={vi.fn()} onSelect={onSelect} />);
+    const onBack = vi.fn();
+    render(<IdentitySwitcher activeIdentityId="second" identities={IDENTITIES} onAddIdentity={vi.fn()} onBack={onBack} onSelect={onSelect} />);
 
     const activeRow = screen.getByRole("button", { name: /Active Account/ });
     expect(activeRow).toHaveAttribute("aria-pressed", "true");
@@ -26,5 +27,7 @@ describe("IdentitySwitcher", () => {
     expect(otherRow.querySelector('[data-slot="provider-badge"]')).not.toBeNull();
     await userEvent.setup().click(otherRow);
     expect(onSelect).toHaveBeenCalledWith("first");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
+    expect(onBack).toHaveBeenCalledOnce();
   });
 });

@@ -17,9 +17,12 @@ describe("IdentityManagement", () => {
 
   it("copies the Pubky and resolved PKDNS homeserver with Figma ghost buttons", async () => {
     const writeText = vi.fn(() => Promise.resolve());
+    const onBack = vi.fn();
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
 
-    render(<IdentityManagement identity={identity} onLogOut={vi.fn()} resolveHomeserver={async () => Result.ok("homeserver-pubky")} />);
+    render(<IdentityManagement identity={identity} onBack={onBack} onLogOut={vi.fn()} resolveHomeserver={async () => Result.ok("homeserver-pubky")} />);
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(onBack).toHaveBeenCalledOnce();
     const copyButton = screen.getByRole("button", { name: "Copy Pubky" });
     fireEvent.click(copyButton);
 

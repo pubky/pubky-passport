@@ -64,6 +64,7 @@ function PassportApp({ googleClientId, homegateBaseUrl }: { googleClientId: stri
       activeIdentityId={catalog.activeIdentityId}
       identities={catalog.identities}
       onAddIdentity={() => setState("signed-out")}
+      onBack={() => setState("signed-in")}
       onSelect={(identityId) => {
         const selected = identityController?.select(identityId);
         if (selected && !Result.isError(selected)) setState("signed-in");
@@ -72,7 +73,7 @@ function PassportApp({ googleClientId, homegateBaseUrl }: { googleClientId: stri
   }
   if (state === "managing") {
     const activeIdentity = catalog.identities.find((identity) => identity.id === catalog.activeIdentityId);
-    if (activeIdentity && identityController) return <IdentityManagement identity={activeIdentity} onLogOut={() => { identityController.remove(activeIdentity.id); }} resolveHomeserver={identityController.resolveHomeserver.bind(identityController)} />;
+    if (activeIdentity && identityController) return <IdentityManagement identity={activeIdentity} onBack={() => setState("signed-in")} onLogOut={() => { identityController.remove(activeIdentity.id); }} resolveHomeserver={identityController.resolveHomeserver.bind(identityController)} />;
   }
   if (state === "signed-in") {
     const activeIdentity = catalog.identities.find((identity) => identity.id === catalog.activeIdentityId);

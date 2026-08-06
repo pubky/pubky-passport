@@ -9,8 +9,9 @@ import { Avatar } from "../components/avatar";
 import { Button } from "../components/button";
 import { IconButton } from "../components/icon-button";
 import { DisplayHeading } from "../components/typography";
+import { BackButton } from "./back-button";
 
-function IdentityManagement({ identity, onLogOut, resolveHomeserver }: { identity: LocalIdentitySummary; onLogOut: () => void; resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult> }) {
+function IdentityManagement({ identity, onBack, onLogOut, resolveHomeserver }: { identity: LocalIdentitySummary; onBack: () => void; onLogOut: () => void; resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult> }) {
   const account = identity.googleAccount;
   const name = account?.name ?? "Your Pubky";
   const [homeserver, setHomeserver] = useState<string | null | undefined>();
@@ -26,6 +27,7 @@ function IdentityManagement({ identity, onLogOut, resolveHomeserver }: { identit
   return (
     <main className="mx-auto flex min-h-[calc(100svh-84px)] w-full max-w-[375px] flex-col gap-6 px-6 pb-6 pt-3">
       <Button className="absolute right-6 top-[22px] z-10" onClick={onLogOut} variant="secondary">Log out</Button>
+      <BackButton onClick={onBack} />
       <header className="flex items-start gap-6">
         <DisplayHeading accent="identity." aria-label="Manage identity.">Manage</DisplayHeading>
         <Avatar className="ml-auto" fallback={name} size="lg" {...(account?.pictureUrl ? { src: account.pictureUrl } : {})} />

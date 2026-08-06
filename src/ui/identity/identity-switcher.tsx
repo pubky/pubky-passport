@@ -6,15 +6,18 @@ import type { LocalIdentitySummary } from "../../browser/identity/passportIdenti
 import { Button } from "../components/button";
 import { DisplayHeading } from "../components/typography";
 import { IdentityRow } from "./identity-row";
+import { BackButton } from "./back-button";
 
-function IdentitySwitcher({ activeIdentityId, identities, onAddIdentity, onSelect }: {
+function IdentitySwitcher({ activeIdentityId, identities, onAddIdentity, onBack, onSelect }: {
   activeIdentityId: string;
   identities: LocalIdentitySummary[];
   onAddIdentity: () => void;
+  onBack: () => void;
   onSelect: (identityId: string) => void;
 }) {
   return (
     <main className="mx-auto flex min-h-[calc(100svh-84px)] w-full max-w-[375px] flex-col gap-8 px-6 pb-6 pt-3">
+      <BackButton onClick={onBack} />
       <DisplayHeading accent="identity." aria-label="Switch identity.">Switch</DisplayHeading>
       <section className="flex flex-col gap-3">
         <p className="text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">Select a Pubky</p>
