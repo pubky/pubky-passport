@@ -55,7 +55,7 @@ function PassportApp({ googleClientId, homegateBaseUrl }: { googleClientId: stri
     };
   }, [googleClientId, homegateBaseUrl]);
 
-  if (completion) return <SetupComplete {...(completion.googleAccount ? { googleAccount: completion.googleAccount } : {})} identity={completion.identity} mode={completion.mode} onContinue={() => { setCompletion(null); setState("signed-in"); }} />;
+  if (completion) return <SetupComplete {...(completion.googleAccount ? { googleAccount: completion.googleAccount } : {})} identity={completion.identity} mode={completion.mode} onContinue={() => { setupActive.current = false; setCompletion(null); setState("signed-in"); }} />;
   if (state === "signed-out" && identityController) {
     return <GoogleOnboardingFlow controller={identityController} onComplete={setCompletion} onSetupStarted={() => { setupActive.current = true; }} />;
   }
