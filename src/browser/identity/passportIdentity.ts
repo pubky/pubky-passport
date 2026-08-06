@@ -1,8 +1,7 @@
 import "client-only";
 
-import { GoogleDriveAccess } from "../google-drive-access/googleDriveAccess";
+import { GoogleAuthorizationCode } from "../google-authorization/googleAuthorizationCode";
 import { GoogleIdentityServices } from "../google-identity-services/googleIdentityServices";
-import { GoogleIdentityServicesSignInButton } from "../google-sign-in/googleIdentityServicesSignInButton";
 import { LOGGER } from "../../libs/logger/logger";
 import { LocalStorageIdentityRepository } from "./local/localStorageIdentityRepository";
 import {
@@ -18,9 +17,9 @@ export type PassportIdentityController = Pick<
   | "select"
   | "clear"
   | "subscribe"
-  | "mountGoogleSignIn"
-  | "unmountGoogleSignIn"
-  | "retryGoogleSignIn"
+  | "prepareGoogleAuthorization"
+  | "disposeGoogleAuthorization"
+  | "retryGoogleAuthorization"
   | "continueGoogleBackedIdentityAction"
   | "dispose"
 >;
@@ -57,15 +56,7 @@ function createController(
 ): PassportIdentityController {
   const repository = new LocalStorageIdentityRepository();
   const googleIdentityServices = new GoogleIdentityServices();
-  const googleSignInButton = new GoogleIdentityServicesSignInButton({
-    clientId: googleClientId,
-    googleIdentityServices,
-  });
-  const googleDriveAccess = new GoogleDriveAccess({
-    googleIdentityServices,
-    clientId: googleClientId,
-    fetch: globalThis.fetch.bind(globalThis),
-  });
+  const googleAuthorization = new GoogleAuthorizationCode({ clientId: googleClientId, googleIdentityServices });
   let googleBackedIdentityOperations: GoogleBackedIdentityOperations | undefined;
   const getGoogleBackedIdentityOperations = () => {
     googleBackedIdentityOperations ??= new GoogleBackedIdentityOperations({
@@ -90,11 +81,8 @@ function createController(
       googleBackedIdentityOperations = undefined;
       operations?.dispose();
     },
-    mountGoogleSignIn: googleSignInButton.mount.bind(googleSignInButton),
-    unmountGoogleSignIn: googleSignInButton.unmount.bind(googleSignInButton),
-    requestGoogleDriveAccess: (googleSubject, signal) => googleDriveAccess.requestAccessToken({
-      expectedSubject: googleSubject,
-      signal,
-    }),
+    prepareGoogleAuthorization: googleAuthorization.prepare.bind(googleAuthorization),
+    requestGoogleAuthorization: googleAuthorization.request.bind(googleAuthorization),
+    disposeGoogleAuthorization: googleAuthorization.dispose.bind(googleAuthorization),
   });
 }

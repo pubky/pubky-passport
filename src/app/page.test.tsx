@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { LOGGER } from "../libs/logger/logger";
 import Home from "./page";
 
-vi.mock("../ui/root/root-page-flow", () => ({ RootPageFlow: () => null }));
+vi.mock("../ui/passport/passport-app", () => ({ PassportApp: () => null }));
 
 describe("home page bootstrap", () => {
   afterEach(() => {

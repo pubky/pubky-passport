@@ -299,28 +299,21 @@ sequenceDiagram
     end
 ```
 
-### Google ID-Token Acquisition And Drive OAuth
+### Single Google Authorization-Code Flow
 
 ```mermaid
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
-    accTitle: Google ID-token and Drive OAuth call flow
-    accDescr: The UI delegates ID-token acquisition and Drive OAuth authorization to the browser controller and Google adapters while credentials remain outside React state.
+    accTitle: Single Google authorization-code call flow
+    accDescr: One user click requests identity and Drive scopes; the server exchanges the one-time code while credentials remain outside React state.
     actor User
-    box rgba(0, 114, 178, 0.18) src/ui
-        participant DevPanel as developmentIdentityPanel.tsx<br/>DevelopmentIdentityPanel()
-        participant AuthPanel as authorizationIdentityPanel.tsx<br/>AuthorizationIdentityPanel()
-        participant ActionPanel as googleBackedIdentityActionPanel.tsx<br/>GoogleBackedIdentityActionPanel()
-    end
+    participant UI as src/ui/root<br/>GoogleIdentitySetupFlow
     box rgba(0, 158, 115, 0.18) src/browser/identity
         participant Factory as passportIdentity.ts<br/>createPassportIdentityController()
         participant Controller as passportIdentityController.ts<br/>PassportIdentityController
     end
-    box rgba(0, 158, 115, 0.18) src/browser/google-sign-in
-        participant SignIn as googleIdentityServicesSignInButton.ts<br/>GoogleIdentityServicesSignInButton
-    end
-    box rgba(0, 158, 115, 0.18) src/browser/google-drive-access
-        participant DriveAccess as googleDriveAccess.ts<br/>GoogleDriveAccess.requestAccessToken()
+    box rgba(0, 158, 115, 0.18) src/browser/google-authorization
+        participant Authorization as googleAuthorizationCode.ts<br/>GoogleAuthorizationCode
     end
     box rgba(0, 158, 115, 0.18) src/browser/google-identity-services
         participant GISLoader as googleIdentityServices.ts<br/>loadGoogleAccounts()
@@ -328,46 +321,29 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed
         participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
+    participant Exchange as src/app/api/google/authorize<br/>server code exchange
     box rgba(17, 24, 39, 0.12) External
-        participant GIS as Google Identity Services JS API<br/>google.accounts.id
-        participant OAuth as Google GIS OAuth token client<br/>google.accounts.oauth2.initTokenClient
-        participant UserInfo as Google OpenID Connect UserInfo<br/>openidconnect.googleapis.com/v1/userinfo
+        participant OAuth as Google GIS code client<br/>google.accounts.oauth2.initCodeClient
+        participant Token as Google OAuth token endpoint
     end
 
-    alt Home identity panel
-        DevPanel->>Factory: createPassportIdentityController(...)
-        Factory->>Controller: new PassportIdentityController(...)
-        Factory-->>DevPanel: controller
-        DevPanel->>ActionPanel: render explicit action with controller
-    else Authorization identity panel
-        AuthPanel->>Factory: createPassportIdentityController(...)
-        Factory->>Controller: new PassportIdentityController(...)
-        Factory-->>AuthPanel: controller
-        AuthPanel->>ActionPanel: render establish action with controller
-    end
-    ActionPanel->>Controller: mountGoogleSignIn(target, onState)
-    Controller->>SignIn: mount(...)
-    SignIn->>GISLoader: loadGoogleAccounts()
-    GISLoader-->>SignIn: google.accounts
-    SignIn->>GIS: initialize credential callback
-    SignIn->>GIS: renderButton(...)
-    User->>GIS: Select account
-    GIS-->>SignIn: Google credential callback
-    SignIn->>SignIn: readUnverifiedGoogleIdTokenSubject(token)
-    SignIn-->>Controller: ID token + subject hint
-    Controller-->>ActionPanel: GoogleBackedIdentityActionState<br/>stage = google-drive-authorization
-    User->>ActionPanel: Authorize Google Drive
-    ActionPanel->>Controller: continueGoogleBackedIdentityAction<br/>({ kind: establish_google_backed_identity })
-    Controller->>DriveAccess: bound requestGoogleDriveAccess(...)
-    DriveAccess->>GISLoader: loadGoogleAccounts()
-    GISLoader-->>DriveAccess: google.accounts
-    DriveAccess->>OAuth: request openid + drive.appdata + drive.file
-    OAuth-->>DriveAccess: Drive OAuth access token
-    Note over DriveAccess: Require drive.appdata; drive.file is optional for the best-effort visible copy
-    DriveAccess->>UserInfo: GET /userinfo with Drive OAuth access token
-    UserInfo-->>DriveAccess: Drive OAuth provider-account subject
-    Note over DriveAccess: Require subjects to match
-    DriveAccess-->>Controller: verified Drive OAuth access token
+    UI->>Factory: createPassportIdentityController(...)
+    Factory->>Controller: new PassportIdentityController(...)
+    UI->>Controller: prepareGoogleAuthorization(onState)
+    Controller->>Authorization: prepare()
+    Authorization->>GISLoader: loadGoogleAccounts()
+    GISLoader-->>Authorization: google.accounts
+    Authorization->>OAuth: initCodeClient(openid + Drive scopes)
+    User->>UI: Continue with Google
+    UI->>Controller: continueGoogleBackedIdentityAction(...)
+    Controller->>Authorization: request()
+    Authorization->>OAuth: requestCode()
+    OAuth-->>Authorization: one-time authorization code
+    Authorization->>Exchange: POST code (same origin)
+    Exchange->>Token: exchange code with server-only client secret
+    Token-->>Exchange: ID token + Drive access token
+    Exchange-->>Authorization: short-lived credentials
+    Authorization-->>Controller: GoogleBackedIdentityCredentials
     Controller->>Operations: restoreOrCreateGoogleBackedIdentity<br/>(GoogleBackedIdentityCredentials)
 ```
 
@@ -663,9 +639,7 @@ Drive revision validation. Production should provide resumable activation instea
 
 ### Development-Only Google Drive Passport File Deletion
 
-Credential acquisition follows the Google flow above with a delete action. This
-diagram starts after the Google ID token and subject-matched Drive access token
-return to the controller; the wrapping-key API verifies the ID token below.
+Credential acquisition follows the single Google code flow above with a delete action.
 
 This diagram documents the current development-only Google Drive Passport file deletion implementation.
 
@@ -673,7 +647,7 @@ This diagram documents the current development-only Google Drive Passport file d
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Development Google Drive Passport file deletion call flow
-    accDescr: After provider-account ID-token acquisition and Drive OAuth return verified credentials, the identity controller dispatches the explicit delete action to DeleteGoogleDrivePassportFile, which requests a wrapping key, reads and decrypts the exact Passport file revision, restores and compares the public identity, disposes the key, and deletes only the verified file reference.
+    accDescr: After the authorization-code exchange returns credentials, the identity controller dispatches the explicit delete action to DeleteGoogleDrivePassportFile.
     box rgba(0, 158, 115, 0.18) src/browser/identity
         participant Controller as passportIdentityController.ts<br/>PassportIdentityController
     end
@@ -864,7 +838,7 @@ sequenceDiagram
 | Authorization browser entry | `src/browser/authorization/browserAuthorizationEntry.ts` | `browserAuthorizationEntry.test.ts` |
 | Authorization UI | `src/ui/authorizationReview.tsx` | `src/ui/authorizationReview.test.tsx` |
 | Identity controller | `src/browser/identity` | Controller and factory tests |
-| Google credential capabilities | `src/browser/google-identity-services`, `src/browser/google-sign-in`, `src/browser/google-drive-access` | Colocated capability tests |
+| Google credential capabilities | `src/browser/google-identity-services`, `src/browser/google-authorization`, `src/server/google-authorization` | Colocated capability tests |
 | Google-backed custody/recovery lifecycle | `src/browser/identity/google-backed` | Colocated operation tests |
 | Drive store and WebCrypto | `src/browser/passport-file` | Colocated store and crypto tests |
 | Pubky SDK adapter | `src/browser/pubky/pubkySdkAdapter.ts` | `pubkySdkAdapter.test.ts` |

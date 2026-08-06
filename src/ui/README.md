@@ -8,6 +8,9 @@ demonstrated.
 ui/
   components/       SHADCN-derived, Figma-verified primitives
   lib/              UI-only helpers
+  layout/           application-wide structural UI
+  passport/         top-level Passport state routing
+  onboarding/       landing, Google access, setup/restore, completion
   identity/         identity list, selection, Google create/restore, management
   authorization/    manual entry, identity choice, permission review, result
 ```

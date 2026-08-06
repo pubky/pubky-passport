@@ -5,12 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MemoryStorage } from "../../../test-utils/fakes/memoryStorage";
 import { LOGGER } from "../../libs/logger/logger";
-import type { GoogleSignInResult } from "../google-sign-in/googleIdentityServicesSignInButton";
-
-type CredentialCallback = (
-  result: GoogleSignInResult<{ googleIdToken: string; subject: string }>,
-) => void;
-
 const MOCKS = vi.hoisted(() => ({
   GoogleBackedIdentityOperations: vi.fn(),
   disposeGoogleBackedIdentityOperations: vi.fn(),
@@ -20,26 +14,18 @@ const MOCKS = vi.hoisted(() => ({
   establishImplementation: null as null | (() => Promise<unknown>),
   deleteCalls: 0,
   deleteReceivedExpectedInput: false,
-  GoogleIdentityServicesSignInButton: vi.fn(),
-  GoogleDriveAccess: vi.fn(),
-  signInGoogleIdentityServices: null as unknown,
-  driveAccessCalls: 0,
-  driveAccessReceivedExpectedInput: false,
-  mountGoogleSignIn: vi.fn(),
-  unmountGoogleSignIn: vi.fn(),
-  credentialCallback: null as CredentialCallback | null,
+  GoogleAuthorizationCode: vi.fn(),
+  prepareGoogleAuthorization: vi.fn(),
+  requestGoogleAuthorization: vi.fn(),
+  disposeGoogleAuthorization: vi.fn(),
 }));
 
 vi.mock("./google-backed/googleBackedIdentityOperations", () => ({
   GoogleBackedIdentityOperations: MOCKS.GoogleBackedIdentityOperations,
 }));
 
-vi.mock("../google-sign-in/googleIdentityServicesSignInButton", () => ({
-  GoogleIdentityServicesSignInButton: MOCKS.GoogleIdentityServicesSignInButton,
-}));
-
-vi.mock("../google-drive-access/googleDriveAccess", () => ({
-  GoogleDriveAccess: MOCKS.GoogleDriveAccess,
+vi.mock("../google-authorization/googleAuthorizationCode", () => ({
+  GoogleAuthorizationCode: MOCKS.GoogleAuthorizationCode,
 }));
 
 import { createPassportIdentityController } from "./passportIdentity";
@@ -61,14 +47,10 @@ describe("createPassportIdentityController", () => {
     MOCKS.establishProgress = [];
     MOCKS.deleteCalls = 0;
     MOCKS.deleteReceivedExpectedInput = false;
-    MOCKS.GoogleIdentityServicesSignInButton.mockReset();
-    MOCKS.GoogleDriveAccess.mockReset();
-    MOCKS.signInGoogleIdentityServices = null;
-    MOCKS.driveAccessCalls = 0;
-    MOCKS.driveAccessReceivedExpectedInput = false;
-    MOCKS.mountGoogleSignIn.mockReset();
-    MOCKS.unmountGoogleSignIn.mockReset();
-    MOCKS.credentialCallback = null;
+    MOCKS.GoogleAuthorizationCode.mockReset();
+    MOCKS.prepareGoogleAuthorization.mockReset();
+    MOCKS.requestGoogleAuthorization.mockReset();
+    MOCKS.disposeGoogleAuthorization.mockReset();
 
     MOCKS.GoogleBackedIdentityOperations.mockImplementation(function () {
       return {
@@ -97,42 +79,15 @@ describe("createPassportIdentityController", () => {
         dispose: MOCKS.disposeGoogleBackedIdentityOperations,
       };
     });
-    MOCKS.GoogleIdentityServicesSignInButton.mockImplementation(function (options: {
-      googleIdentityServices: unknown;
-    }) {
-      MOCKS.signInGoogleIdentityServices = options.googleIdentityServices;
+    MOCKS.GoogleAuthorizationCode.mockImplementation(function () {
       return {
-        mount: MOCKS.mountGoogleSignIn,
-        unmount: MOCKS.unmountGoogleSignIn,
+        prepare: MOCKS.prepareGoogleAuthorization,
+        request: MOCKS.requestGoogleAuthorization,
+        dispose: MOCKS.disposeGoogleAuthorization,
       };
     });
-    MOCKS.GoogleDriveAccess.mockImplementation(function (options: {
-      clientId: string;
-      fetch: typeof fetch;
-      googleIdentityServices: unknown;
-    }) {
-      return {
-        async requestAccessToken(input: {
-          expectedSubject: string;
-          signal: AbortSignal;
-        }) {
-          MOCKS.driveAccessCalls += 1;
-          MOCKS.driveAccessReceivedExpectedInput = options.clientId === "google-client-id"
-            && typeof options.fetch === "function"
-            && options.googleIdentityServices === MOCKS.signInGoogleIdentityServices
-            && input.expectedSubject === "google-subject"
-            && input.signal instanceof AbortSignal;
-          return Result.ok("drive-access-token");
-        },
-      };
-    });
-    MOCKS.mountGoogleSignIn.mockImplementation(async (
-      _target: HTMLElement,
-      onCredential: CredentialCallback,
-    ) => {
-      MOCKS.credentialCallback = onCredential;
-      return Result.ok();
-    });
+    MOCKS.prepareGoogleAuthorization.mockResolvedValue(Result.ok());
+    MOCKS.requestGoogleAuthorization.mockResolvedValue(Result.ok({ googleIdToken: "google-id-token", driveAccessToken: "drive-access-token" }));
     MOCKS.establishImplementation = async () => Result.ok({
       establishmentMode: "restored",
       publicIdentity: { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" },
@@ -145,7 +100,7 @@ describe("createPassportIdentityController", () => {
 
   it("logs construction failures without configuration or exception details", () => {
     const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
-    MOCKS.GoogleIdentityServicesSignInButton.mockImplementationOnce(() => {
+    MOCKS.GoogleAuthorizationCode.mockImplementationOnce(() => {
       throw new Error("SECRET-CONFIGURATION-VALUE");
     });
 
@@ -192,10 +147,6 @@ describe("createPassportIdentityController", () => {
     expect(MOCKS.establishCalls).toBe(1);
     expect(MOCKS.establishReceivedExpectedCredentials).toBe(true);
     expect(MOCKS.establishProgress).toEqual(["checking_passport_file", "restoring_identity"]);
-    expect(MOCKS.driveAccessCalls).toBe(1);
-    expect(MOCKS.driveAccessReceivedExpectedInput).toBe(true);
-
-    emitGoogleCredential();
     await expect(controller.continueGoogleBackedIdentityAction({
       kind: "delete_google_drive_passport_file",
       expectedPublicKeyZ32: "public-key",
@@ -247,7 +198,6 @@ describe("createPassportIdentityController", () => {
     expect(MOCKS.GoogleBackedIdentityOperations).toHaveBeenCalledOnce();
     expect(MOCKS.disposeGoogleBackedIdentityOperations).not.toHaveBeenCalled();
 
-    emitGoogleCredential();
     await expect(controller.continueGoogleBackedIdentityAction({ kind: "establish_google_backed_identity" })).resolves.toMatchObject({
       status: "action_completed",
       result: { value: { kind: "google_backed_identity_established" } },
@@ -280,15 +230,7 @@ describe("createPassportIdentityController", () => {
 async function mountWithGoogleCredential(
   controller: ReturnType<typeof createPassportIdentityController>,
 ): Promise<void> {
-  await controller.mountGoogleSignIn(document.createElement("div"), vi.fn());
-  emitGoogleCredential();
-}
-
-function emitGoogleCredential(): void {
-  MOCKS.credentialCallback?.(Result.ok({
-    googleIdToken: "google-id-token",
-    subject: "google-subject",
-  }));
+  await controller.prepareGoogleAuthorization(vi.fn());
 }
 
 function establishedIdentity() {

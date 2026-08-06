@@ -28,8 +28,10 @@ const GOOGLE_WRAPPING_KEY_REQUEST = join(
   "googleWrappingKeyRequest.ts",
 );
 const GOOGLE_CLIENT_ID_CONFIG = join(SERVER_CONFIG_ROOT, "googleClientId.ts");
+const GOOGLE_OAUTH_CLIENT_CONFIG = join(SERVER_CONFIG_ROOT, "googleOAuthClient.ts");
 const BROWSER_BOOTSTRAP_CONFIG = join(SERVER_CONFIG_ROOT, "browserBootstrapConfig.ts");
 const GOOGLE_WRAPPING_KEY_ROUTE = join(APP_ROOT, "api", "wrapping-key", "google", "route.ts");
+const GOOGLE_AUTHORIZATION_ROUTE = join(APP_ROOT, "api", "google", "authorize", "route.ts");
 const APP_HOME_PAGE = join(APP_ROOT, "page.tsx");
 const APP_AUTHORIZE_PAGE = join(APP_ROOT, "authorize", "page.tsx");
 const PROXY = join(SRC_ROOT, "proxy.ts");
@@ -189,9 +191,11 @@ describe("architecture boundaries", () => {
     const approvedConsumers = new Map<string, Set<string>>([
       [GOOGLE_CLIENT_ID_CONFIG, new Set([
         BROWSER_BOOTSTRAP_CONFIG,
+        GOOGLE_OAUTH_CLIENT_CONFIG,
         GOOGLE_WRAPPING_KEY_REQUEST,
       ])],
       [BROWSER_BOOTSTRAP_CONFIG, new Set([APP_HOME_PAGE, APP_AUTHORIZE_PAGE, PROXY])],
+      [GOOGLE_OAUTH_CLIENT_CONFIG, new Set([GOOGLE_AUTHORIZATION_ROUTE])],
     ]);
     const violations = [...approvedConsumers].flatMap(([target, approved]) =>
       productionModules

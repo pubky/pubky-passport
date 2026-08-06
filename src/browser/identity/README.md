@@ -13,7 +13,7 @@ This is the only identity module UI code should import. It:
 
 - Exposes `createPassportIdentityController()`.
 - Exposes the safe, instance-only `PassportIdentityController` type and UI state types.
-- Constructs the local identity repository, Google sign-in, and Google Drive access.
+- Constructs the local identity repository and the single Google authorization-code client.
 - Lazily constructs Google-backed custody operations only when an action needs them.
 - Keeps the implementation constructor and its credential-bearing dependencies out
   of the public UI entry.
@@ -26,8 +26,7 @@ second class would create another lifecycle object without adding behavior.
 
 This is the internal state machine. It:
 
-- Holds Google ID tokens and Google subjects only in private, short-lived fields.
-- Coordinates Google sign-in, Drive authorization, and identity actions.
+- Coordinates one-shot Google authorization and identity actions.
 - Maps internal failures to safe UI results and progress states.
 - Owns cancellation, single-flight execution, subscriptions, and cleanup.
 - Receives focused callbacks from `passportIdentity.ts` instead of constructing
@@ -43,6 +42,6 @@ allowing the controller state machine to be tested independently.
 - `google-backed/` restores or creates and activates a Pubky identity using
   short-lived Google and Drive credentials.
 
-Provider credential acquisition remains in sibling `browser/google-sign-in`,
-`browser/google-drive-access`, and `browser/google-identity-services` features.
-
+Provider credential acquisition remains in sibling `browser/google-authorization`
+and `browser/google-identity-services` features. The one-time code is exchanged by
+the server-only `server/google-authorization` adapter.

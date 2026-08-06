@@ -1,6 +1,6 @@
 import { LOGGER } from "../libs/logger/logger";
 import { getBrowserBootstrapConfig } from "../server/config/browserBootstrapConfig";
-import { RootPageFlow } from "../ui/root/root-page-flow";
+import { PassportApp } from "../ui/passport/passport-app";
 
 export default function Home() {
   let config: ReturnType<typeof getBrowserBootstrapConfig>;
@@ -11,5 +11,5 @@ export default function Home() {
     throw new Error("Home page configuration unavailable.");
   }
 
-  return <RootPageFlow googleClientId={config.googleClientId} homegateBaseUrl={config.homegateBaseUrl} />;
+  return <PassportApp googleClientId={config.googleClientId} homegateBaseUrl={config.homegateBaseUrl} />;
 }

@@ -79,7 +79,6 @@ describe("GoogleIdentityServices", () => {
 
 function googleAccounts(): GoogleAccounts {
   return {
-    id: { initialize: vi.fn(), renderButton: vi.fn() },
-    oauth2: { initTokenClient: vi.fn() },
+    oauth2: { initCodeClient: vi.fn() },
   };
 }

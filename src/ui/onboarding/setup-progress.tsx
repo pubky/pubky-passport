@@ -1,25 +1,22 @@
-"use client";
-
-import type { ReactNode } from "react";
-
 import type { GoogleBackedIdentityProgress } from "../../browser/identity/passportIdentity";
 import { DisplayHeading } from "../components/typography";
 
 type StepState = "complete" | "active" | "pending";
 type SetupStep = { label: string; state: StepState };
+type DeterminedIdentityProgress = Exclude<GoogleBackedIdentityProgress, "preparing_secure_identity" | "checking_passport_file">;
 
-function SetupProgress({ action, progress }: { action?: ReactNode; progress: GoogleBackedIdentityProgress | null }) {
+function SetupProgress({ progress }: { progress: DeterminedIdentityProgress }) {
   const steps = progressSteps(progress);
+  const restoring = progress === "restoring_identity" || progress === "activating_restored_identity";
 
   return (
     <main className="mx-auto flex min-h-[calc(100svh-84px)] w-full max-w-[375px] flex-col px-6 pb-6 pt-3">
       <div className="flex flex-1 flex-col gap-6">
-        <DisplayHeading accent="your pubky." aria-label="Setting up your pubky.">Setting up</DisplayHeading>
+        <DisplayHeading accent="your pubky." aria-label={`${restoring ? "Restoring" : "Setting up"} your pubky.`}>{restoring ? "Restoring" : "Setting up"}</DisplayHeading>
         <ol aria-label="Pubky identity setup progress" className="flex flex-col gap-6 py-3">
           {steps.map((step) => <ProgressStep key={step.label} step={step} />)}
         </ol>
       </div>
-      {action ? <div className="pt-8">{action}</div> : null}
     </main>
   );
 }
@@ -34,9 +31,9 @@ function ProgressStep({ step }: { step: SetupStep }) {
   );
 }
 
-function progressSteps(progress: GoogleBackedIdentityProgress | null): SetupStep[] {
+function progressSteps(progress: DeterminedIdentityProgress): SetupStep[] {
   if (progress === "restoring_identity" || progress === "activating_restored_identity") {
-    return states(["Restore your Pubky", "Activate identity"], progress === "restoring_identity" ? 0 : 1);
+    return states(["Restoring your Pubky", "Activate identity"], progress === "restoring_identity" ? 0 : 1);
   }
 
   const activeIndex = progress === "signing_up_to_homeserver" ? 1

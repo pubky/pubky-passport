@@ -5,19 +5,18 @@ import { useEffect, useRef, useState } from "react";
 
 import type { PassportIdentityController } from "../../browser/identity/passportIdentity";
 import { createPassportIdentityController } from "../../browser/identity/passportIdentity";
-import type { PubkyPublicIdentity } from "../../core/identity/pubkyIdentity";
 import { Spinner } from "../components/spinner";
-import { GoogleIdentitySetupFlow } from "./google-identity-setup-flow";
-import { SetupComplete } from "./setup-complete";
+import { GoogleOnboardingFlow, type OnboardingCompletion } from "../onboarding/google-onboarding-flow";
+import { SetupComplete } from "../onboarding/setup-complete";
 
 type RootState = "checking" | "signed-out" | "signed-in" | "unavailable";
 
-function RootPageFlow({ googleClientId, homegateBaseUrl }: { googleClientId: string; homegateBaseUrl: string }) {
+function PassportApp({ googleClientId, homegateBaseUrl }: { googleClientId: string; homegateBaseUrl: string }) {
   const controller = useRef<PassportIdentityController | null>(null);
   const setupActive = useRef(false);
   const [identityController, setIdentityController] = useState<PassportIdentityController | null>(null);
   const [state, setState] = useState<RootState>("checking");
-  const [completedIdentity, setCompletedIdentity] = useState<PubkyPublicIdentity | null>(null);
+  const [completion, setCompletion] = useState<OnboardingCompletion | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,9 +48,9 @@ function RootPageFlow({ googleClientId, homegateBaseUrl }: { googleClientId: str
     };
   }, [googleClientId, homegateBaseUrl]);
 
-  if (completedIdentity) return <SetupComplete identity={completedIdentity} onContinue={() => { setCompletedIdentity(null); setState("signed-in"); }} />;
+  if (completion) return <SetupComplete identity={completion.identity} mode={completion.mode} onContinue={() => { setCompletion(null); setState("signed-in"); }} />;
   if (state === "signed-out" && identityController) {
-    return <GoogleIdentitySetupFlow controller={identityController} onComplete={setCompletedIdentity} onSetupStarted={() => { setupActive.current = true; }} />;
+    return <GoogleOnboardingFlow controller={identityController} onComplete={setCompletion} onSetupStarted={() => { setupActive.current = true; }} />;
   }
   if (state === "signed-in") return <main className="min-h-[calc(100svh-84px)]" data-root-state="signed-in"><span className="sr-only">Identity home</span></main>;
   if (state === "unavailable") return <main className="grid min-h-[calc(100svh-84px)] place-items-center px-6 text-center text-muted-foreground">Local identity storage is unavailable.</main>;
@@ -59,4 +58,4 @@ function RootPageFlow({ googleClientId, homegateBaseUrl }: { googleClientId: str
   return <main aria-label="Checking login state" className="grid min-h-[calc(100svh-84px)] place-items-center"><Spinner /></main>;
 }
 
-export { RootPageFlow };
+export { PassportApp };

@@ -5,7 +5,7 @@ import { BrandEndorsement } from "../components/brand-endorsement";
 import { SocialLoginButton } from "../components/social-login-button";
 import { DisplayHeading, LeadText } from "../components/typography";
 
-function RootLandingPage({ googleSignInControl }: { googleSignInControl?: ReactNode }) {
+function PassportLandingPage({ googleSignInControl }: { googleSignInControl?: ReactNode }) {
   return (
     <main className="mx-auto flex min-h-[calc(100svh-84px)] w-full max-w-[375px] flex-col gap-6 px-6 pb-6 pt-3">
       <section className="flex flex-col gap-6">
@@ -25,4 +25,4 @@ function RootLandingPage({ googleSignInControl }: { googleSignInControl?: ReactN
   );
 }
 
-export { RootLandingPage };
+export { PassportLandingPage };

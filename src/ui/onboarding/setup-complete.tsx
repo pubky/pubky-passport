@@ -4,12 +4,13 @@ import type { PubkyPublicIdentity } from "../../core/identity/pubkyIdentity";
 import { Button } from "../components/button";
 import { DisplayHeading, LeadText } from "../components/typography";
 
-function SetupComplete({ identity, onContinue }: { identity: PubkyPublicIdentity; onContinue: () => void }) {
+function SetupComplete({ identity, mode, onContinue }: { identity: PubkyPublicIdentity; mode: "created" | "restored"; onContinue: () => void }) {
+  const restored = mode === "restored";
   return (
     <main className="mx-auto flex min-h-[calc(100svh-84px)] w-full max-w-[375px] flex-col gap-8 px-6 pb-6 pt-3">
       <div className="flex flex-col gap-6">
-        <DisplayHeading accent="complete." aria-label="Setup complete.">Setup</DisplayHeading>
-        <LeadText>Stored backup in Google Drive.</LeadText>
+        <DisplayHeading accent="complete." aria-label={restored ? "Restore complete." : "Setup complete."}>{restored ? "Restore" : "Setup"}</DisplayHeading>
+        <LeadText>{restored ? "Restored backup from Google Drive." : "Stored backup in Google Drive."}</LeadText>
         <div className="rounded-xl border border-brand/30 p-4 shadow-xl">
           <p className="mb-2 text-xs font-medium uppercase tracking-[0.1em] text-brand">Your Pubky</p>
           <p className="break-all font-medium leading-6 text-secondary-foreground">{identity.publicKeyZ32}</p>
