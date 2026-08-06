@@ -114,6 +114,7 @@ export type GoogleBackedIdentityActionDispatchResult =
 export type PassportIdentityControllerDependencies = {
   list(): LocalIdentityResult<{ activeIdentityId: string | null; identities: LocalIdentitySummary[] }>;
   select(id: string): LocalIdentityResult<void>;
+  remove(id: string): LocalIdentityResult<void>;
   clear(): LocalIdentityResult<void>;
   subscribe(listener: () => void): () => void;
   restoreOrCreateGoogleBackedIdentity(
@@ -148,6 +149,10 @@ export class PassportIdentityController {
 
   select(id: string): PassportIdentityCatalogResult<void> {
     return this.runCatalogOperation("select", () => this.#dependencies.select(id));
+  }
+
+  remove(id: string): PassportIdentityCatalogResult<void> {
+    return this.runCatalogOperation("remove", () => this.#dependencies.remove(id));
   }
 
   clear(): PassportIdentityCatalogResult<void> {
@@ -313,7 +318,7 @@ export class PassportIdentityController {
   }
 
   private runCatalogOperation<T>(
-    operation: "list" | "select" | "clear",
+    operation: "list" | "select" | "remove" | "clear",
     execute: () => LocalIdentityResult<T>,
   ): PassportIdentityCatalogResult<T> {
     try {

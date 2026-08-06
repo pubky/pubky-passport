@@ -110,6 +110,17 @@ describe("LocalStorageIdentityRepository", () => {
     expect(storage.getItem("unrelated")).toBe("keep");
   });
 
+  it("removes only one identity and activates a remaining identity", () => {
+    const storage = new MemoryStorage();
+    const repository = new LocalStorageIdentityRepository(storage);
+    const first = save(repository, FIRST_IDENTITY, 1);
+    const second = save(repository, SECOND_IDENTITY, 2);
+
+    expectResultOk(repository.remove(second.id));
+
+    expect(expectResultOk(repository.list())).toEqual({ activeIdentityId: first.id, identities: [first] });
+  });
+
   it("uses one last-write-wins write without read-back retries", () => {
     const storage = new MemoryStorage();
     const getItem = vi.spyOn(storage, "getItem");

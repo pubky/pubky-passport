@@ -15,6 +15,7 @@ export type PassportIdentityController = Pick<
   PassportIdentityControllerImplementation,
   | "list"
   | "select"
+  | "remove"
   | "clear"
   | "subscribe"
   | "prepareGoogleAuthorization"
@@ -70,6 +71,7 @@ function createController(
   return new PassportIdentityControllerImplementation({
     list: repository.list.bind(repository),
     select: repository.select.bind(repository),
+    remove: repository.remove.bind(repository),
     clear: repository.clear.bind(repository),
     subscribe: repository.subscribe.bind(repository),
     restoreOrCreateGoogleBackedIdentity: (credentials, reportProgress) => getGoogleBackedIdentityOperations()

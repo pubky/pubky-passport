@@ -9,9 +9,10 @@ import { Spinner } from "../components/spinner";
 import { GoogleOnboardingFlow, type OnboardingCompletion } from "../onboarding/google-onboarding-flow";
 import { SetupComplete } from "../onboarding/setup-complete";
 import { IdentityHome } from "../identity/identity-home";
+import { IdentityManagement } from "../identity/identity-management";
 import { IdentitySwitcher } from "../identity/identity-switcher";
 
-type RootState = "checking" | "signed-out" | "signed-in" | "switching" | "unavailable";
+type RootState = "checking" | "signed-out" | "signed-in" | "switching" | "managing" | "unavailable";
 
 function PassportApp({ googleClientId, homegateBaseUrl }: { googleClientId: string; homegateBaseUrl: string }) {
   const controller = useRef<PassportIdentityController | null>(null);
@@ -69,10 +70,14 @@ function PassportApp({ googleClientId, homegateBaseUrl }: { googleClientId: stri
       }}
     />;
   }
+  if (state === "managing") {
+    const activeIdentity = catalog.identities.find((identity) => identity.id === catalog.activeIdentityId);
+    if (activeIdentity) return <IdentityManagement identity={activeIdentity} onLogOut={() => { identityController?.remove(activeIdentity.id); }} />;
+  }
   if (state === "signed-in") {
     const activeIdentity = catalog.identities.find((identity) => identity.id === catalog.activeIdentityId);
     if (activeIdentity) {
-      return <IdentityHome identity={activeIdentity} onSwitch={() => setState("switching")} />;
+      return <IdentityHome identity={activeIdentity} onManage={() => setState("managing")} onSwitch={() => setState("switching")} />;
     }
     return <main className="grid min-h-[calc(100svh-84px)] place-items-center px-6 text-center text-muted-foreground">The active identity is unavailable.</main>;
   }

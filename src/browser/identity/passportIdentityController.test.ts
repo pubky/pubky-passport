@@ -66,12 +66,14 @@ describe("PassportIdentityController", () => {
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "storage_unavailable" });
   });
+
 });
 
 function dependencies(overrides: Partial<PassportIdentityControllerDependencies> = {}): PassportIdentityControllerDependencies {
   return {
     list: () => Result.ok({ activeIdentityId: null, identities: [] }),
     select: () => Result.ok(),
+    remove: () => Result.ok(),
     clear: () => Result.ok(),
     subscribe: () => () => {},
     prepareGoogleAuthorization: async () => Result.ok(),

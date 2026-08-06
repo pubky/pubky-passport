@@ -9,6 +9,7 @@ export function mockPassportIdentityController(
   return {
     list: vi.fn(() => Result.ok({ activeIdentityId: null, identities: [] })),
     select: vi.fn(() => Result.ok()),
+    remove: vi.fn(() => Result.ok()),
     clear: vi.fn(() => Result.ok()),
     subscribe: vi.fn(() => () => {}),
     prepareGoogleAuthorization: vi.fn(async () => {}),

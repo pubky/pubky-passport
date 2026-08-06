@@ -14,6 +14,12 @@ const FLOW = vi.hoisted(() => ({ catalog: { activeIdentityId: null, identities: 
 vi.mock("../../browser/identity/passportIdentity", () => ({
   createPassportIdentityController: () => mockPassportIdentityController({
     list: () => Result.ok(FLOW.catalog),
+    remove: (identityId: string) => {
+      const identities = FLOW.catalog.identities.filter((identity) => identity.id !== identityId);
+      FLOW.catalog = { activeIdentityId: identities[0]?.id ?? null, identities };
+      FLOW.refresh?.();
+      return Result.ok();
+    },
     subscribe: (listener: () => void) => { FLOW.refresh = listener; return () => { FLOW.refresh = null; }; },
   }),
 }));
@@ -65,6 +71,33 @@ describe("PassportApp", () => {
     await userEvent.setup().click(await screen.findByRole("button", { name: "Switch" }));
     expect(screen.getByRole("heading", { name: "Switch identity." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Add identity" }));
+
+    expect(await screen.findByRole("heading", { name: "Quick & easy signing." })).toBeInTheDocument();
+  });
+
+  it("logs out only the active identity and activates a remaining identity", async () => {
+    FLOW.catalog = {
+      activeIdentityId: "first",
+      identities: [
+        { id: "first", publicIdentity: { publicKeyZ32: "first", publicKeyDisplay: "pubkyfirst" }, googleAccount: { id: "google-1", email: "first@gmail.com", name: "First", pictureUrl: null } },
+        { id: "second", publicIdentity: { publicKeyZ32: "second", publicKeyDisplay: "pubkysecond" }, googleAccount: { id: "google-2", email: "second@gmail.com", name: "Second", pictureUrl: null } },
+      ],
+    };
+    render(<PassportApp googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
+
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Log out" }));
+
+    expect(await screen.findByText("Second")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
+  });
+
+  it("returns to signed out when the last identity logs out", async () => {
+    FLOW.catalog = { activeIdentityId: "only", identities: [{ id: "only", publicIdentity: { publicKeyZ32: "only", publicKeyDisplay: "pubkyonly" } }] };
+    render(<PassportApp googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
+
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Log out" }));
 
     expect(await screen.findByRole("heading", { name: "Quick & easy signing." })).toBeInTheDocument();
   });

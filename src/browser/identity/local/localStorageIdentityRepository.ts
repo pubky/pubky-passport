@@ -114,6 +114,18 @@ export class LocalStorageIdentityRepository {
     return this.writeStore({ ...store.value, activeIdentityId: id });
   }
 
+  remove(id: string): LocalIdentityResult<void> {
+    const store = this.readStore();
+    if (Result.isError(store)) return Result.err(store.error);
+    if (!store.value.identities.some((identity) => identity.id === id)) return failure("remove", "invalid_identity");
+
+    const identities = store.value.identities.filter((identity) => identity.id !== id);
+    const activeIdentityId = store.value.activeIdentityId === id
+      ? identities[0]?.id ?? null
+      : store.value.activeIdentityId;
+    return this.writeStore({ ...store.value, activeIdentityId, identities });
+  }
+
   clear(): LocalIdentityResult<void> {
     if (!this.#storage) {
       return localStoreFailure("clear", "storage_unavailable");
@@ -334,11 +346,11 @@ function decodeStoredSecretKey(value: string): Uint8Array | undefined {
 }
 
 function failure<T>(
-  operation: "save" | "select" | "read_active",
+  operation: "save" | "select" | "remove" | "read_active",
   code: LocalIdentityErrorCode,
 ): LocalIdentityResult<T> {
   const expectedOutcome = code === "no_active_identity"
-    || (operation === "select" && code === "invalid_identity");
+    || ((operation === "select" || operation === "remove") && code === "invalid_identity");
   LOGGER[expectedOutcome ? "info" : "warn"]("identity.local_store.failed", { operation, code });
   return Result.err({ code });
 }

@@ -11,7 +11,7 @@ import { DisplayHeading } from "../components/typography";
 
 function IdentityHome({ identity, onManage, onSwitch }: {
   identity: LocalIdentitySummary;
-  onManage?: () => void;
+  onManage: () => void;
   onSwitch: () => void;
 }) {
   const account = identity.googleAccount;
