@@ -1,13 +1,23 @@
-import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { LOGGER } from "../libs/logger/logger";
 import Home from "./page";
 
-describe("Home", () => {
-  it("renders the replacement UI placeholder", () => {
-    const markup = renderToStaticMarkup(<Home />);
+vi.mock("../ui/root/root-page-flow", () => ({ RootPageFlow: () => null }));
 
-    expect(markup).toContain("Pubky Passport");
-    expect(markup).toContain("under construction");
+describe("home page bootstrap", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it("rejects invalid browser bootstrap configuration safely", () => {
+    const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
+    vi.stubEnv("GOOGLE_CLIENT_ID", "SECRET-GOOGLE-CLIENT-ID");
+    vi.stubEnv("HOMEGATE_URL", "SECRET-HOMEGATE-URL");
+
+    expect(() => Home()).toThrow("Home page configuration unavailable.");
+    expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET-GOOGLE-CLIENT-ID");
+    expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET-HOMEGATE-URL");
   });
 });
