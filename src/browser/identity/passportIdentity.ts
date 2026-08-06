@@ -10,6 +10,7 @@ import {
 import {
   GoogleBackedIdentityOperations,
 } from "./google-backed/googleBackedIdentityOperations";
+import { resolvePubkyHomeserver } from "../pubky/resolvePubkyHomeserver";
 
 export type PassportIdentityController = Pick<
   PassportIdentityControllerImplementation,
@@ -18,6 +19,7 @@ export type PassportIdentityController = Pick<
   | "remove"
   | "clear"
   | "subscribe"
+  | "resolveHomeserver"
   | "prepareGoogleAuthorization"
   | "disposeGoogleAuthorization"
   | "retryGoogleAuthorization"
@@ -35,6 +37,7 @@ export type {
   PassportIdentityList,
 } from "./passportIdentityController";
 export type { GoogleBackedIdentityProgress } from "./google-backed/googleBackedIdentityProgress";
+export type { PubkyHomeserverResolutionResult } from "../pubky/resolvePubkyHomeserver";
 
 export function createPassportIdentityController(
   googleClientId: string,
@@ -74,6 +77,7 @@ function createController(
     remove: repository.remove.bind(repository),
     clear: repository.clear.bind(repository),
     subscribe: repository.subscribe.bind(repository),
+    resolveHomeserver: resolvePubkyHomeserver,
     restoreOrCreateGoogleBackedIdentity: (credentials, reportProgress) => getGoogleBackedIdentityOperations()
       .restoreOrCreateGoogleBackedIdentity(credentials, reportProgress),
     deleteGoogleDrivePassportFile: (credentials, expectedPublicKeyZ32) => getGoogleBackedIdentityOperations()

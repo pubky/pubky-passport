@@ -19,6 +19,7 @@ import type {
   ReportGoogleBackedIdentityProgress,
 } from "./google-backed/googleBackedIdentityProgress";
 import type { GoogleAuthorizationCodeResult } from "../google-authorization/googleAuthorizationCode";
+import type { PubkyHomeserverResolutionResult } from "../pubky/resolvePubkyHomeserver";
 import type {
   LocalIdentityErrorCode,
   LocalIdentityResult,
@@ -117,6 +118,7 @@ export type PassportIdentityControllerDependencies = {
   remove(id: string): LocalIdentityResult<void>;
   clear(): LocalIdentityResult<void>;
   subscribe(listener: () => void): () => void;
+  resolveHomeserver(publicKeyZ32: string): Promise<PubkyHomeserverResolutionResult>;
   restoreOrCreateGoogleBackedIdentity(
     credentials: GoogleBackedIdentityCredentials,
     reportProgress: ReportGoogleBackedIdentityProgress,
@@ -181,6 +183,10 @@ export class PassportIdentityController {
         throw new Error("Identity subscription cleanup failed.");
       }
     };
+  }
+
+  resolveHomeserver(publicKeyZ32: string): Promise<PubkyHomeserverResolutionResult> {
+    return this.#dependencies.resolveHomeserver(publicKeyZ32);
   }
 
   async prepareGoogleAuthorization(onState: (state: GoogleBackedIdentityActionState) => void): Promise<void> {

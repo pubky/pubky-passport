@@ -12,6 +12,7 @@ export function mockPassportIdentityController(
     remove: vi.fn(() => Result.ok()),
     clear: vi.fn(() => Result.ok()),
     subscribe: vi.fn(() => () => {}),
+    resolveHomeserver: vi.fn(async () => Result.ok(null)),
     prepareGoogleAuthorization: vi.fn(async () => {}),
     disposeGoogleAuthorization: vi.fn(),
     retryGoogleAuthorization: vi.fn(),

@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { LocalIdentitySummary } from "../../browser/identity/passportIdentity";
@@ -14,16 +15,19 @@ const identity = {
 describe("IdentityManagement", () => {
   afterEach(cleanup);
 
-  it("copies the Pubky with the Figma ghost copy button", () => {
+  it("copies the Pubky and resolved PKDNS homeserver with Figma ghost buttons", async () => {
     const writeText = vi.fn(() => Promise.resolve());
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
 
-    render(<IdentityManagement identity={identity} onLogOut={vi.fn()} />);
+    render(<IdentityManagement identity={identity} onLogOut={vi.fn()} resolveHomeserver={async () => Result.ok("homeserver-pubky")} />);
     const copyButton = screen.getByRole("button", { name: "Copy Pubky" });
     fireEvent.click(copyButton);
 
     expect(copyButton).toHaveAttribute("data-variant", "ghost");
     expect(writeText).toHaveBeenCalledWith(identity.publicIdentity.publicKeyZ32);
-    expect(screen.getByRole("button", { name: "Copy Homeserver" })).toBeDisabled();
+    const homeserverButton = screen.getByRole("button", { name: "Copy Homeserver" });
+    await waitFor(() => expect(homeserverButton).toBeEnabled());
+    fireEvent.click(homeserverButton);
+    expect(writeText).toHaveBeenCalledWith("homeserver-pubky");
   });
 });

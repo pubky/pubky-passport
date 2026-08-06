@@ -72,7 +72,7 @@ function PassportApp({ googleClientId, homegateBaseUrl }: { googleClientId: stri
   }
   if (state === "managing") {
     const activeIdentity = catalog.identities.find((identity) => identity.id === catalog.activeIdentityId);
-    if (activeIdentity) return <IdentityManagement identity={activeIdentity} onLogOut={() => { identityController?.remove(activeIdentity.id); }} />;
+    if (activeIdentity && identityController) return <IdentityManagement identity={activeIdentity} onLogOut={() => { identityController.remove(activeIdentity.id); }} resolveHomeserver={identityController.resolveHomeserver.bind(identityController)} />;
   }
   if (state === "signed-in") {
     const activeIdentity = catalog.identities.find((identity) => identity.id === catalog.activeIdentityId);

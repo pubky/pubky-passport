@@ -67,6 +67,14 @@ describe("PassportIdentityController", () => {
     if (Result.isError(result)) expect(result.error).toEqual({ code: "storage_unavailable" });
   });
 
+  it("resolves the identity homeserver through PKDNS", async () => {
+    const resolveHomeserver = vi.fn(async () => Result.ok("homeserver-pubky"));
+    const controller = new PassportIdentityController(dependencies({ resolveHomeserver }));
+
+    await expect(controller.resolveHomeserver("identity-pubky")).resolves.toEqual(Result.ok("homeserver-pubky"));
+    expect(resolveHomeserver).toHaveBeenCalledWith("identity-pubky");
+  });
+
 });
 
 function dependencies(overrides: Partial<PassportIdentityControllerDependencies> = {}): PassportIdentityControllerDependencies {
@@ -76,6 +84,7 @@ function dependencies(overrides: Partial<PassportIdentityControllerDependencies>
     remove: () => Result.ok(),
     clear: () => Result.ok(),
     subscribe: () => () => {},
+    resolveHomeserver: async () => Result.ok(null),
     prepareGoogleAuthorization: async () => Result.ok(),
     requestGoogleAuthorization: async () => Result.ok(CREDENTIALS),
     disposeGoogleAuthorization: () => {},

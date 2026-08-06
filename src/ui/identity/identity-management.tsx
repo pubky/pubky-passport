@@ -1,16 +1,27 @@
 "use client";
 
 import Image from "next/image";
+import { Result } from "better-result";
+import { useEffect, useState } from "react";
 
-import type { LocalIdentitySummary } from "../../browser/identity/passportIdentity";
+import type { LocalIdentitySummary, PubkyHomeserverResolutionResult } from "../../browser/identity/passportIdentity";
 import { Avatar } from "../components/avatar";
 import { Button } from "../components/button";
 import { IconButton } from "../components/icon-button";
 import { DisplayHeading } from "../components/typography";
 
-function IdentityManagement({ identity, onLogOut }: { identity: LocalIdentitySummary; onLogOut: () => void }) {
+function IdentityManagement({ identity, onLogOut, resolveHomeserver }: { identity: LocalIdentitySummary; onLogOut: () => void; resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult> }) {
   const account = identity.googleAccount;
   const name = account?.name ?? "Your Pubky";
+  const [homeserver, setHomeserver] = useState<string | null | undefined>();
+
+  useEffect(() => {
+    let cancelled = false;
+    resolveHomeserver(identity.publicIdentity.publicKeyZ32).then((result) => {
+      if (!cancelled) setHomeserver(Result.isError(result) ? null : result.value);
+    });
+    return () => { cancelled = true; };
+  }, [identity.publicIdentity.publicKeyZ32, resolveHomeserver]);
 
   return (
     <main className="mx-auto flex min-h-[calc(100svh-84px)] w-full max-w-[375px] flex-col gap-6 px-6 pb-6 pt-3">
@@ -24,7 +35,7 @@ function IdentityManagement({ identity, onLogOut }: { identity: LocalIdentitySum
         <IdentityDetail label="User" value={name} />
         <IdentityDetail label="Google account" value={account?.email ?? "Not connected"} />
         <IdentityDetail copy label="Pubky" value={identity.publicIdentity.publicKeyZ32} />
-        <IdentityDetail copy label="Homeserver" value="Unavailable" />
+        <IdentityDetail copy label="Homeserver" value={homeserver === undefined ? "Looking up…" : homeserver ?? "Unavailable"} />
       </section>
 
       <div className="mt-auto flex flex-col gap-4 pt-6">
@@ -37,7 +48,7 @@ function IdentityManagement({ identity, onLogOut }: { identity: LocalIdentitySum
 }
 
 function IdentityDetail({ copy = false, label, value }: { copy?: boolean; label: string; value: string }) {
-  const isCopyable = copy && value !== "Unavailable";
+  const isCopyable = copy && value !== "Unavailable" && value !== "Looking up…";
 
   function copyValue() {
     void navigator.clipboard.writeText(value).catch(() => undefined);
