@@ -5,6 +5,7 @@ import Image from "next/image";
 import type { LocalIdentitySummary } from "../../browser/identity/passportIdentity";
 import { Avatar } from "../components/avatar";
 import { Button } from "../components/button";
+import { IconButton } from "../components/icon-button";
 import { DisplayHeading } from "../components/typography";
 
 function IdentityManagement({ identity, onLogOut }: { identity: LocalIdentitySummary; onLogOut: () => void }) {
@@ -22,8 +23,8 @@ function IdentityManagement({ identity, onLogOut }: { identity: LocalIdentitySum
       <section className="flex flex-col gap-6">
         <IdentityDetail label="User" value={name} />
         <IdentityDetail label="Google account" value={account?.email ?? "Not connected"} />
-        <IdentityDetail label="Pubky" value={identity.publicIdentity.publicKeyZ32} />
-        <IdentityDetail label="Homeserver" value="Unavailable" />
+        <IdentityDetail copy label="Pubky" value={identity.publicIdentity.publicKeyZ32} />
+        <IdentityDetail copy label="Homeserver" value="Unavailable" />
       </section>
 
       <div className="mt-auto flex flex-col gap-4 pt-6">
@@ -35,11 +36,24 @@ function IdentityManagement({ identity, onLogOut }: { identity: LocalIdentitySum
   );
 }
 
-function IdentityDetail({ label, value }: { label: string; value: string }) {
+function IdentityDetail({ copy = false, label, value }: { copy?: boolean; label: string; value: string }) {
+  const isCopyable = copy && value !== "Unavailable";
+
+  function copyValue() {
+    void navigator.clipboard.writeText(value).catch(() => undefined);
+  }
+
   return (
-    <div>
-      <p className="mb-1 text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">{label}</p>
-      <p className="break-all font-medium leading-6">{value}</p>
+    <div className="flex items-end gap-3">
+      <div className="min-w-0 flex-1">
+        <p className="mb-1 text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">{label}</p>
+        <p className="break-all font-medium leading-6">{value}</p>
+      </div>
+      {copy ? (
+        <IconButton aria-label={`Copy ${label}`} className="size-9 p-1" disabled={!isCopyable} onClick={copyValue} variant="ghost">
+          <ActionIcon size={20} src="/icons/figma-copy.svg" />
+        </IconButton>
+      ) : null}
     </div>
   );
 }
@@ -48,8 +62,8 @@ function ManagementButton({ children, icon }: { children: string; icon: string }
   return <Button className="w-full" size="lg" variant="secondary"><ActionIcon src={icon} />{children}</Button>;
 }
 
-function ActionIcon({ src }: { src: string }) {
-  return <Image alt="" className="brightness-0 invert opacity-80" height={16} src={src} width={16} />;
+function ActionIcon({ size = 16, src }: { size?: 16 | 20; src: string }) {
+  return <Image alt="" className="brightness-0 invert opacity-80" height={size} src={src} width={size} />;
 }
 
 export { IdentityManagement };

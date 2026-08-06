@@ -67,6 +67,19 @@ describe("Button", () => {
     );
   });
 
+  it("renders the Figma ghost icon variant without a visible outline", () => {
+    render(<Button aria-label="Copy" size="icon" variant="ghost"><svg aria-hidden="true" /></Button>);
+
+    expect(screen.getByRole("button", { name: "Copy" })).toHaveClass(
+      "border-0",
+      "bg-transparent",
+      "shadow-none",
+      "active:scale-95",
+      "active:bg-accent/80",
+      "focus-visible:border-0",
+    );
+  });
+
   it("forwards its button ref", () => {
     const ref = createRef<HTMLButtonElement>();
     render(<Button ref={ref}>Continue</Button>);
