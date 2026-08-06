@@ -27,7 +27,6 @@ function IdentityManagement({ identity, onBack, onDownloadBackup, onLogOut, reso
   return (
     <main className="mx-auto flex min-h-[calc(100svh-84px)] w-full max-w-[375px] flex-col gap-6 px-6 pb-6 pt-3">
       <Button className="absolute right-6 top-[22px] z-10" onClick={onLogOut} variant="secondary">Log out</Button>
-      <BackButton onClick={onBack} />
       <header className="flex items-start gap-6">
         <DisplayHeading accent="identity." aria-label="Manage identity.">Manage</DisplayHeading>
         <Avatar className="ml-auto" fallback={name} size="lg" {...(account?.pictureUrl ? { src: account.pictureUrl } : {})} />
@@ -44,6 +43,7 @@ function IdentityManagement({ identity, onBack, onDownloadBackup, onLogOut, reso
         <ManagementButton icon="/icons/figma-key-round.svg">Migrate to keychain</ManagementButton>
         <ManagementButton icon="/icons/figma-download.svg" onClick={onDownloadBackup}>Download backup</ManagementButton>
         <ManagementButton icon="/icons/figma-link-off.svg">Detach from Google</ManagementButton>
+        <BackButton onClick={onBack} />
       </div>
     </main>
   );

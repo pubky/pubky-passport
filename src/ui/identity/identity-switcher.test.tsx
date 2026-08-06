@@ -27,7 +27,9 @@ describe("IdentitySwitcher", () => {
     expect(otherRow.querySelector('[data-slot="provider-badge"]')).not.toBeNull();
     await userEvent.setup().click(otherRow);
     expect(onSelect).toHaveBeenCalledWith("first");
-    await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
+    const back = screen.getByRole("button", { name: "Back" });
+    expect(back).toHaveClass("h-[60px]", "w-full");
+    await userEvent.setup().click(back);
     expect(onBack).toHaveBeenCalledOnce();
   });
 });

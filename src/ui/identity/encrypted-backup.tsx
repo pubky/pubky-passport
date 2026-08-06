@@ -14,6 +14,7 @@ import { FieldMessage } from "../components/field-message";
 import { Input } from "../components/input";
 import { Label } from "../components/label";
 import { DisplayHeading, LeadText } from "../components/typography";
+import { BackButton } from "./back-button";
 
 function EncryptedBackup({ createBackup, identityId, onBack }: {
   createBackup: (identityId: string, password: string) => Promise<LocalIdentityBackupResult>;
@@ -66,12 +67,9 @@ function EncryptedBackup({ createBackup, identityId, onBack }: {
         <Image alt="" className="mx-auto size-[200px]" height={200} src="/illustrations/passport-encrypted-backup.png" width={200} />
 
         <div className="mt-auto flex flex-col gap-4 pt-4">
-          <Button onClick={onBack} size="lg" type="button" variant="secondary">
-            <ActionIcon kind="back" />
-            Back
-          </Button>
+          <BackButton onClick={onBack} />
           <Button disabled={!validPassword || pending} size="lg" type="submit">
-            <ActionIcon kind="download" />
+            <DownloadIcon />
             {pending ? "Encrypting…" : "Download backup"}
           </Button>
         </div>
@@ -80,10 +78,8 @@ function EncryptedBackup({ createBackup, identityId, onBack }: {
   );
 }
 
-function ActionIcon({ kind }: { kind: "back" | "download" }) {
-  const size = kind === "back" ? 10.6633 : 13.33;
-  const src = kind === "back" ? "/icons/figma-arrow-left.svg" : "/icons/figma-download-backup.svg";
-  return <span className="flex size-4 items-center justify-center"><Image alt="" height={size} src={src} width={size} /></span>;
+function DownloadIcon() {
+  return <span className="flex size-4 items-center justify-center"><Image alt="" height={13.33} src="/icons/figma-download-backup.svg" width={13.33} /></span>;
 }
 
 function downloadFile(file: LocalIdentityBackupFile): boolean {

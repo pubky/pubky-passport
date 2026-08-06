@@ -21,7 +21,9 @@ describe("IdentityManagement", () => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
 
     render(<IdentityManagement identity={identity} onBack={onBack} onDownloadBackup={vi.fn()} onLogOut={vi.fn()} resolveHomeserver={async () => Result.ok("homeserver-pubky")} />);
-    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    const back = screen.getByRole("button", { name: "Back" });
+    expect(back).toHaveClass("h-[60px]", "w-full");
+    fireEvent.click(back);
     expect(onBack).toHaveBeenCalledOnce();
     const copyButton = screen.getByRole("button", { name: "Copy Pubky" });
     fireEvent.click(copyButton);
