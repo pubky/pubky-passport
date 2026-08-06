@@ -1,6 +1,6 @@
 import type { ComponentPropsWithoutRef } from "react";
 
-import { cn } from "../merge-class-names";
+import { cn } from "../mergeClassNames";
 
 function Spinner({ className, step = 1, ...props }: ComponentPropsWithoutRef<"svg"> & { step?: 1 | 2 | 3 | 4 }) {
   return (

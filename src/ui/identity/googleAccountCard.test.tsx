@@ -3,7 +3,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { GoogleAccountCard } from "./google-account-card";
+import { GoogleAccountCard } from "./googleAccountCard";
 
 describe("GoogleAccountCard", () => {
   afterEach(cleanup);

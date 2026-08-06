@@ -6,12 +6,12 @@ import { useEffect, useRef, useState } from "react";
 import type { PassportIdentityController, PassportIdentityList } from "../../browser/identity/passportIdentity";
 import { createPassportIdentityController } from "../../browser/identity/passportIdentity";
 import { Spinner } from "../shared/primitives/spinner";
-import { GoogleOnboardingFlow, type OnboardingCompletion } from "./onboarding/google-onboarding-flow";
-import { SetupComplete } from "./onboarding/setup-complete";
-import { ActiveIdentityHome } from "./management/active-identity-home";
-import { IdentityManagement } from "./management/identity-management";
-import { EncryptedBackup } from "./management/encrypted-backup";
-import { IdentitySwitcher } from "./management/identity-switcher";
+import { GoogleOnboardingFlow, type OnboardingCompletion } from "./onboarding/googleOnboardingFlow";
+import { SetupComplete } from "./onboarding/setupComplete";
+import { ActiveIdentityHome } from "./management/activeIdentityHome";
+import { IdentityManagement } from "./management/identityManagement";
+import { EncryptedBackup } from "./management/encryptedBackup";
+import { IdentitySwitcher } from "./management/identitySwitcher";
 
 type RootState = "checking" | "signed-out" | "signed-in" | "switching" | "managing" | "downloading-backup" | "unavailable";
 

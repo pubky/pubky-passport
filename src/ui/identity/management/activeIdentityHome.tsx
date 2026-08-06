@@ -6,7 +6,7 @@ import Link from "next/link";
 import type { LocalIdentitySummary } from "../../../browser/identity/passportIdentity";
 import { Avatar } from "../../shared/primitives/avatar";
 import { Button } from "../../shared/primitives/button";
-import { GoogleLogo } from "../../shared/brand/google-logo";
+import { GoogleLogo } from "../../shared/brand/googleLogo";
 import { DisplayHeading } from "../../shared/primitives/typography";
 
 function ActiveIdentityHome({ identity, onManage, onSwitch }: {

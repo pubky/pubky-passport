@@ -1,20 +1,20 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { PermissionList, PermissionRow } from "../../ui/authorization/permission-list";
+import { PermissionList, PermissionRow } from "../../ui/authorization/permissionList";
 import { Avatar } from "../../ui/shared/primitives/avatar";
 import { Button } from "../../ui/shared/primitives/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../../ui/shared/primitives/card";
-import { ConfirmationDialog } from "../../ui/shared/primitives/confirmation-dialog";
-import { FieldMessage } from "../../ui/shared/primitives/field-message";
-import { IconButton } from "../../ui/shared/primitives/icon-button";
+import { ConfirmationDialog } from "../../ui/shared/primitives/confirmationDialog";
+import { FieldMessage } from "../../ui/shared/primitives/fieldMessage";
+import { IconButton } from "../../ui/shared/primitives/iconButton";
 import { Input } from "../../ui/shared/primitives/input";
 import { Label } from "../../ui/shared/primitives/label";
-import { SocialLoginButton } from "../../ui/identity/onboarding/social-login-button";
+import { SocialLoginButton } from "../../ui/identity/onboarding/socialLoginButton";
 import { Spinner } from "../../ui/shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "../../ui/shared/primitives/typography";
-import { IdentityRow } from "../../ui/identity/management/identity-row";
-import { GoogleAccountCard } from "../../ui/identity/google-account-card";
+import { IdentityRow } from "../../ui/identity/management/identityRow";
+import { GoogleAccountCard } from "../../ui/identity/googleAccountCard";
 
 const VARIANTS = ["default", "secondary", "outline", "destructive"] as const;
 const SIZES = ["default", "lg", "icon"] as const;

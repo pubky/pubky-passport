@@ -4,7 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { IdentitySwitcher } from "./identity-switcher";
+import { IdentitySwitcher } from "./identitySwitcher";
 
 const IDENTITIES = [
   { id: "first", publicIdentity: { publicKeyZ32: "firstidentity1234", publicKeyDisplay: "pubkyfirst" }, googleAccount: { id: "google-1", email: "other@gmail.com", name: "Other Account", pictureUrl: null } },

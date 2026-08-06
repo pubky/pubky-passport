@@ -1,8 +1,8 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 
-import { BrandEndorsement } from "../../shared/brand/brand-endorsement";
-import { SocialLoginButton } from "./social-login-button";
+import { BrandEndorsement } from "../../shared/brand/brandEndorsement";
+import { SocialLoginButton } from "./socialLoginButton";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
 
 function SignInPage({ googleSignInControl }: { googleSignInControl?: ReactNode }) {

@@ -1,6 +1,6 @@
 import { forwardRef, type ComponentPropsWithoutRef, type ReactNode } from "react";
 
-import { cn } from "../merge-class-names";
+import { cn } from "../mergeClassNames";
 
 type InputProps = ComponentPropsWithoutRef<"input"> & { action?: ReactNode };
 

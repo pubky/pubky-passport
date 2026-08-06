@@ -1,6 +1,6 @@
 import { LOGGER } from "../libs/logger/logger";
 import { getBrowserBootstrapConfig } from "../server/config/browserBootstrapConfig";
-import { IdentityFlow } from "../ui/identity/identity-flow";
+import { IdentityFlow } from "../ui/identity/identityFlow";
 
 export default function Home() {
   let config: ReturnType<typeof getBrowserBootstrapConfig>;

@@ -4,7 +4,7 @@ import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
 import type { GoogleAccountProfile } from "../../../core/identity/googleAccountProfile";
 import { Button } from "../../shared/primitives/button";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
-import { GoogleAccountCard } from "../google-account-card";
+import { GoogleAccountCard } from "../googleAccountCard";
 
 function SetupComplete({ googleAccount, identity, mode, onContinue }: { googleAccount?: GoogleAccountProfile; identity: PubkyPublicIdentity; mode: "created" | "restored"; onContinue: () => void }) {
   const restored = mode === "restored";
@@ -18,7 +18,7 @@ function SetupComplete({ googleAccount, identity, mode, onContinue }: { googleAc
           <p className="mb-2 text-xs font-medium uppercase tracking-[0.1em] text-brand">Your Pubky</p>
           <p className="break-all font-medium leading-6 text-secondary-foreground">{identity.publicKeyZ32}</p>
         </div>
-        <Image alt="" aria-hidden="true" className="mx-auto size-[200px]" height={200} src="/illustrations/passport-setup-complete.png" width={200} />
+        <Image alt="" aria-hidden="true" className="mx-auto size-[200px]" height={200} src="/illustrations/passport-setupComplete.png" width={200} />
       </div>
       <Button className="mt-auto w-full" onClick={onContinue} size="lg"><ArrowRightIcon />Continue</Button>
     </main>

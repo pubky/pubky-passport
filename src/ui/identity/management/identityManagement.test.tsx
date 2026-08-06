@@ -5,7 +5,7 @@ import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { LocalIdentitySummary } from "../../../browser/identity/passportIdentity";
-import { IdentityManagement } from "./identity-management";
+import { IdentityManagement } from "./identityManagement";
 
 const identity = {
   googleAccount: { email: "satoshi@gmail.com", name: "Satoshi Nakamoto" },

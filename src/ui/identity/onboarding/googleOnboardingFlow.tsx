@@ -9,11 +9,11 @@ import type {
 } from "../../../browser/identity/passportIdentity";
 import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
 import type { GoogleAccountProfile } from "../../../core/identity/googleAccountProfile";
-import { SocialLoginButton } from "./social-login-button";
-import { GoogleAccessRequest } from "./google-access-request";
-import { IdentityLookup } from "./identity-lookup";
-import { SignInPage } from "./sign-in-page";
-import { SetupProgress } from "./setup-progress";
+import { SocialLoginButton } from "./socialLoginButton";
+import { GoogleAccessRequest } from "./googleAccessRequest";
+import { IdentityLookup } from "./identityLookup";
+import { SignInPage } from "./signInPage";
+import { SetupProgress } from "./setupProgress";
 
 type OnboardingCompletion = { googleAccount?: GoogleAccountProfile; identity: PubkyPublicIdentity; mode: "created" | "restored" };
 

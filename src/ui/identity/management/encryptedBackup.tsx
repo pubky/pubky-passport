@@ -10,11 +10,11 @@ import {
   type LocalIdentityBackupResult,
 } from "../../../browser/identity/passportIdentity";
 import { Button } from "../../shared/primitives/button";
-import { FieldMessage } from "../../shared/primitives/field-message";
+import { FieldMessage } from "../../shared/primitives/fieldMessage";
 import { Input } from "../../shared/primitives/input";
 import { Label } from "../../shared/primitives/label";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
-import { BackButton } from "../../shared/navigation/back-button";
+import { BackButton } from "../../shared/navigation/backButton";
 
 function EncryptedBackup({ createBackup, identityId, onBack }: {
   createBackup: (identityId: string, password: string) => Promise<LocalIdentityBackupResult>;
@@ -64,7 +64,7 @@ function EncryptedBackup({ createBackup, identityId, onBack }: {
           {error ? <FieldMessage error>Could not create the encrypted backup. Please try again.</FieldMessage> : null}
         </div>
 
-        <Image alt="" className="mx-auto size-[200px]" height={200} src="/illustrations/passport-encrypted-backup.png" width={200} />
+        <Image alt="" className="mx-auto size-[200px]" height={200} src="/illustrations/passport-encryptedBackup.png" width={200} />
 
         <div className="mt-auto flex flex-col gap-4 pt-4">
           <BackButton onClick={onBack} />

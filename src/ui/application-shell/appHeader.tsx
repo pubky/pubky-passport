@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { PassportLogo } from "../shared/brand/passport-logo";
+import { PassportLogo } from "../shared/brand/passportLogo";
 
 function AppHeader({ action }: { action?: ReactNode }) {
   return (

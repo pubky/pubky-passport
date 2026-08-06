@@ -1,6 +1,6 @@
 import type { ComponentPropsWithoutRef } from "react";
 
-import { cn } from "../merge-class-names";
+import { cn } from "../mergeClassNames";
 
 function Card({ className, ...props }: ComponentPropsWithoutRef<"div">) {
   return <div className={cn("flex flex-col gap-6 overflow-hidden rounded-lg bg-card py-6 text-card-foreground shadow-sm", className)} {...props} />;

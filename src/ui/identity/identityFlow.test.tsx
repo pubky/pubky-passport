@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PassportIdentityList } from "../../browser/identity/passportIdentity";
 import { mockPassportIdentityController } from "../../../test-utils/fakes/mockPassportIdentityController";
-import { IdentityFlow } from "./identity-flow";
+import { IdentityFlow } from "./identityFlow";
 
 const FLOW = vi.hoisted(() => ({ catalog: { activeIdentityId: null, identities: [] } as PassportIdentityList, refresh: null as (() => void) | null }));
 

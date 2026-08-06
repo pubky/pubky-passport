@@ -1,6 +1,6 @@
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
-import { cn } from "../merge-class-names";
+import { cn } from "../mergeClassNames";
 
 function DisplayHeading({ accent, children, className, ...props }: ComponentPropsWithoutRef<"h1"> & { accent: ReactNode }) {
   return <h1 className={cn("text-5xl font-bold leading-none", className)} {...props}><span className="block">{children}</span><span className="block text-brand">{accent}</span></h1>;

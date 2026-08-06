@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { SignInPage } from "./sign-in-page";
+import { SignInPage } from "./signInPage";
 
 describe("SignInPage", () => {
   it("renders the signed-out Passport actions", () => {

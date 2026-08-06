@@ -3,7 +3,7 @@
 import type { ComponentPropsWithoutRef } from "react";
 import Image from "next/image";
 
-import { cn } from "../merge-class-names";
+import { cn } from "../mergeClassNames";
 
 type AvatarProps = ComponentPropsWithoutRef<"span"> & { fallback: string; size?: "sm" | "md" | "lg"; src?: string };
 

@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { GoogleBackedIdentityActionState } from "../../../browser/identity/passportIdentity";
 import { mockPassportIdentityController } from "../../../../test-utils/fakes/mockPassportIdentityController";
-import { GoogleOnboardingFlow } from "./google-onboarding-flow";
+import { GoogleOnboardingFlow } from "./googleOnboardingFlow";
 
 describe("GoogleOnboardingFlow", () => {
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });

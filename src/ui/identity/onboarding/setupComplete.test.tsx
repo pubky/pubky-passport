@@ -3,7 +3,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { SetupComplete } from "./setup-complete";
+import { SetupComplete } from "./setupComplete";
 
 const IDENTITY = { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" };
 const GOOGLE_ACCOUNT = { id: "google-1", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: null };

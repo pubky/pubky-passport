@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { EncryptedBackup } from "./encrypted-backup";
+import { EncryptedBackup } from "./encryptedBackup";
 
 describe("EncryptedBackup", () => {
   afterEach(() => {
