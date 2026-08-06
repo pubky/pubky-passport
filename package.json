@@ -21,15 +21,20 @@
     "check:critical": "pnpm audit --prod && pnpm check && pnpm test:e2e:run"
   },
   "dependencies": {
+    "@fontsource-variable/inter-tight": "^5.3.0",
+    "@radix-ui/react-slot": "1.2.4",
     "@synonymdev/pubky": "0.9.3",
     "@tailwindcss/postcss": "^4.3.3",
     "better-result": "2.10.0",
+    "class-variance-authority": "0.7.1",
     "client-only": "0.0.1",
+    "clsx": "2.1.1",
     "google-auth-library": "^10.9.1",
     "next": "^16.2.12",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "server-only": "^0.0.1",
+    "tailwind-merge": "3.6.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import type { ReactNode } from "react";
+import "@fontsource-variable/inter-tight";
 import "./globals.css";
 
 export const METADATA: Metadata = {
