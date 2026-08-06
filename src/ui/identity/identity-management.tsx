@@ -11,7 +11,7 @@ import { IconButton } from "../components/icon-button";
 import { DisplayHeading } from "../components/typography";
 import { BackButton } from "./back-button";
 
-function IdentityManagement({ identity, onBack, onLogOut, resolveHomeserver }: { identity: LocalIdentitySummary; onBack: () => void; onLogOut: () => void; resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult> }) {
+function IdentityManagement({ identity, onBack, onDownloadBackup, onLogOut, resolveHomeserver }: { identity: LocalIdentitySummary; onBack: () => void; onDownloadBackup: () => void; onLogOut: () => void; resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult> }) {
   const account = identity.googleAccount;
   const name = account?.name ?? "Your Pubky";
   const [homeserver, setHomeserver] = useState<string | null | undefined>();
@@ -42,7 +42,7 @@ function IdentityManagement({ identity, onBack, onLogOut, resolveHomeserver }: {
 
       <div className="mt-auto flex flex-col gap-4 pt-6">
         <ManagementButton icon="/icons/figma-key-round.svg">Migrate to keychain</ManagementButton>
-        <ManagementButton icon="/icons/figma-download.svg">Download backup</ManagementButton>
+        <ManagementButton icon="/icons/figma-download.svg" onClick={onDownloadBackup}>Download backup</ManagementButton>
         <ManagementButton icon="/icons/figma-link-off.svg">Detach from Google</ManagementButton>
       </div>
     </main>
@@ -71,8 +71,8 @@ function IdentityDetail({ copy = false, label, value }: { copy?: boolean; label:
   );
 }
 
-function ManagementButton({ children, icon }: { children: string; icon: string }) {
-  return <Button className="w-full" size="lg" variant="secondary"><ActionIcon src={icon} />{children}</Button>;
+function ManagementButton({ children, icon, onClick }: { children: string; icon: string; onClick?: () => void }) {
+  return <Button className="w-full" onClick={onClick} size="lg" variant="secondary"><ActionIcon src={icon} />{children}</Button>;
 }
 
 function ActionIcon({ size = 16, src }: { size?: 16 | 20; src: string }) {

@@ -75,6 +75,15 @@ describe("PassportIdentityController", () => {
     expect(resolveHomeserver).toHaveBeenCalledWith("identity-pubky");
   });
 
+  it("creates an encrypted local identity backup", async () => {
+    const backup = Result.ok({ bytes: new Uint8Array([1, 2, 3]), fileName: "identity.pkarr" });
+    const createBackup = vi.fn(async () => backup);
+    const controller = new PassportIdentityController(dependencies({ createBackup }));
+
+    await expect(controller.createBackup("identity", "strong password")).resolves.toBe(backup);
+    expect(createBackup).toHaveBeenCalledWith("identity", "strong password");
+  });
+
 });
 
 function dependencies(overrides: Partial<PassportIdentityControllerDependencies> = {}): PassportIdentityControllerDependencies {
@@ -85,6 +94,7 @@ function dependencies(overrides: Partial<PassportIdentityControllerDependencies>
     clear: () => Result.ok(),
     subscribe: () => () => {},
     resolveHomeserver: async () => Result.ok(null),
+    createBackup: async () => Result.err({ code: "backup_failed" as const }),
     prepareGoogleAuthorization: async () => Result.ok(),
     requestGoogleAuthorization: async () => Result.ok(CREDENTIALS),
     disposeGoogleAuthorization: () => {},

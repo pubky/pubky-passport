@@ -11,6 +11,7 @@ import {
   GoogleBackedIdentityOperations,
 } from "./google-backed/googleBackedIdentityOperations";
 import { resolvePubkyHomeserver } from "../pubky/pubkySdkAdapter";
+import { createLocalIdentityBackup } from "./local/createLocalIdentityBackup";
 
 export type PassportIdentityController = Pick<
   PassportIdentityControllerImplementation,
@@ -20,6 +21,7 @@ export type PassportIdentityController = Pick<
   | "clear"
   | "subscribe"
   | "resolveHomeserver"
+  | "createBackup"
   | "prepareGoogleAuthorization"
   | "disposeGoogleAuthorization"
   | "retryGoogleAuthorization"
@@ -38,6 +40,8 @@ export type {
 } from "./passportIdentityController";
 export type { GoogleBackedIdentityProgress } from "./google-backed/googleBackedIdentityProgress";
 export type { PubkyHomeserverResolutionResult } from "../pubky/pubkySdkAdapter";
+export type { LocalIdentityBackupFile, LocalIdentityBackupResult } from "./local/createLocalIdentityBackup";
+export { MIN_BACKUP_PASSWORD_LENGTH } from "./local/createLocalIdentityBackup";
 
 export function createPassportIdentityController(
   googleClientId: string,
@@ -78,6 +82,7 @@ function createController(
     clear: repository.clear.bind(repository),
     subscribe: repository.subscribe.bind(repository),
     resolveHomeserver: resolvePubkyHomeserver,
+    createBackup: (identityId, password) => createLocalIdentityBackup(repository.read.bind(repository), identityId, password),
     restoreOrCreateGoogleBackedIdentity: (credentials, reportProgress) => getGoogleBackedIdentityOperations()
       .restoreOrCreateGoogleBackedIdentity(credentials, reportProgress),
     deleteGoogleDrivePassportFile: (credentials, expectedPublicKeyZ32) => getGoogleBackedIdentityOperations()

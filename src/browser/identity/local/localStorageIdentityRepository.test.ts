@@ -36,6 +36,10 @@ describe("LocalStorageIdentityRepository", () => {
       identity: second,
       secretKey: { bytes: new Uint8Array(32).fill(2), format: PUBKY_SECRET_KEY_FORMAT },
     });
+    expect(expectResultOk(reloadedRepository.read(first.id))).toEqual({
+      identity: first,
+      secretKey: { bytes: new Uint8Array(32).fill(1), format: PUBKY_SECRET_KEY_FORMAT },
+    });
   });
 
   it("rejects malformed persisted values", () => {

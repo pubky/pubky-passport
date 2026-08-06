@@ -28,6 +28,8 @@ export type PubkySessionAccessResult<T> = ResultType<T, { code: PubkySessionAcce
 export type PubkyDiscoveryErrorCode = "invalid_homeserver_pubky" | "key_unavailable" | "publish_failed";
 export type PubkyDiscoveryResult = ResultType<void, { code: PubkyDiscoveryErrorCode }>;
 export type PubkyHomeserverResolutionResult = ResultType<string | null, { code: "invalid_pubky" | "resolution_failed" }>;
+export type PubkyRecoveryFileErrorCode = "invalid_passphrase" | "invalid_secret_key" | "key_unavailable" | "recovery_file_failed";
+export type PubkyRecoveryFileResult = ResultType<Uint8Array, { code: PubkyRecoveryFileErrorCode }>;
 export type PubkyAuthApprovalErrorCode = "approval_failed" | "key_unavailable" | "relay_failed" | "request_rejected";
 export type PubkyAuthApprovalResult = ResultType<void, { code: PubkyAuthApprovalErrorCode }>;
 
@@ -87,6 +89,32 @@ export class PubkySdkAdapter {
       return keyFailure("restore_identity_key", "sdk_restore", "restore_failed");
     } finally {
       clearSecretKey(secretKey);
+    }
+  }
+
+  createRecoveryFile(secretKey: PubkySecretKeyMaterial, passphrase: string): PubkyRecoveryFileResult {
+    if (this.#disposed) {
+      clearSecretKey(secretKey, "create_recovery_file");
+      return recoveryFileFailure("adapter_state", "key_unavailable");
+    }
+    if (!(secretKey.bytes instanceof Uint8Array) || secretKey.bytes.byteLength !== PUBKY_SECRET_KEY_BYTES) {
+      clearSecretKey(secretKey, "create_recovery_file");
+      return recoveryFileFailure("input_validation", "invalid_secret_key");
+    }
+    if (passphrase.length === 0) {
+      clearSecretKey(secretKey, "create_recovery_file");
+      return recoveryFileFailure("input_validation", "invalid_passphrase");
+    }
+
+    let keypair: Keypair | undefined;
+    try {
+      keypair = Keypair.fromSecret(secretKey.bytes);
+      return Result.ok(keypair.createRecoveryFile(passphrase));
+    } catch {
+      return recoveryFileFailure("sdk_recovery_file", "recovery_file_failed");
+    } finally {
+      clearSecretKey(secretKey, "create_recovery_file");
+      cleanup("create_recovery_file", "keypair_free", () => keypair?.free());
     }
   }
 
@@ -343,6 +371,7 @@ function sessionDetails(operation: "signup" | "signin", session: Session): Pubky
 type PubkyOperation =
   | "approve_auth_request"
   | "create_identity_key"
+  | "create_recovery_file"
   | "dispose_adapter"
   | "dispose_identity_key"
   | "export_secret_key"
@@ -363,6 +392,7 @@ type PubkyFailureStage =
   | "sdk_create"
   | "sdk_export"
   | "sdk_public_identity"
+  | "sdk_recovery_file"
   | "sdk_publish"
   | "sdk_restore"
   | "sdk_signin"
@@ -384,10 +414,16 @@ type PubkyErrorCode =
   | PubkyAuthApprovalErrorCode
   | PubkyDiscoveryErrorCode
   | PubkyIdentityKeysErrorCode
+  | PubkyRecoveryFileErrorCode
   | PubkySessionAccessErrorCode;
 
 function keyFailure<T>(operation: PubkyOperation, stage: PubkyFailureStage, code: PubkyIdentityKeysErrorCode): PubkyIdentityKeysResult<T> {
   logFailure(operation, stage, code);
+  return Result.err({ code });
+}
+
+function recoveryFileFailure(stage: PubkyFailureStage, code: PubkyRecoveryFileErrorCode): PubkyRecoveryFileResult {
+  logFailure("create_recovery_file", stage, code);
   return Result.err({ code });
 }
 
@@ -422,6 +458,6 @@ function cleanup(operation: PubkyOperation, stage: PubkyCleanupStage, action: ()
   }
 }
 
-function clearSecretKey(secretKey: PubkySecretKeyMaterial): void {
-  cleanup("restore_identity_key", "secret_key_clear", () => secretKey.bytes.fill(0));
+function clearSecretKey(secretKey: PubkySecretKeyMaterial, operation: "create_recovery_file" | "restore_identity_key" = "restore_identity_key"): void {
+  cleanup(operation, "secret_key_clear", () => secretKey.bytes.fill(0));
 }

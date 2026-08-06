@@ -12,6 +12,7 @@ import { PassportApp } from "./passport-app";
 const FLOW = vi.hoisted(() => ({ catalog: { activeIdentityId: null, identities: [] } as PassportIdentityList, refresh: null as (() => void) | null }));
 
 vi.mock("../../browser/identity/passportIdentity", () => ({
+  MIN_BACKUP_PASSWORD_LENGTH: 12,
   createPassportIdentityController: () => mockPassportIdentityController({
     list: () => Result.ok(FLOW.catalog),
     remove: (identityId: string) => {
@@ -90,6 +91,16 @@ describe("PassportApp", () => {
 
     expect(await screen.findByText("Second")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
+  });
+
+  it("opens encrypted backup from identity management", async () => {
+    FLOW.catalog = { activeIdentityId: "identity", identities: [{ id: "identity", publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" } }] };
+    render(<PassportApp googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
+
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
+
+    expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
   });
 
   it("returns to signed out when the last identity logs out", async () => {

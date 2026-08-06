@@ -10,9 +10,10 @@ import { GoogleOnboardingFlow, type OnboardingCompletion } from "../onboarding/g
 import { SetupComplete } from "../onboarding/setup-complete";
 import { IdentityHome } from "../identity/identity-home";
 import { IdentityManagement } from "../identity/identity-management";
+import { EncryptedBackup } from "../identity/encrypted-backup";
 import { IdentitySwitcher } from "../identity/identity-switcher";
 
-type RootState = "checking" | "signed-out" | "signed-in" | "switching" | "managing" | "unavailable";
+type RootState = "checking" | "signed-out" | "signed-in" | "switching" | "managing" | "downloading-backup" | "unavailable";
 
 function PassportApp({ googleClientId, homegateBaseUrl }: { googleClientId: string; homegateBaseUrl: string }) {
   const controller = useRef<PassportIdentityController | null>(null);
@@ -73,7 +74,11 @@ function PassportApp({ googleClientId, homegateBaseUrl }: { googleClientId: stri
   }
   if (state === "managing") {
     const activeIdentity = catalog.identities.find((identity) => identity.id === catalog.activeIdentityId);
-    if (activeIdentity && identityController) return <IdentityManagement identity={activeIdentity} onBack={() => setState("signed-in")} onLogOut={() => { identityController.remove(activeIdentity.id); }} resolveHomeserver={identityController.resolveHomeserver.bind(identityController)} />;
+    if (activeIdentity && identityController) return <IdentityManagement identity={activeIdentity} onBack={() => setState("signed-in")} onDownloadBackup={() => setState("downloading-backup")} onLogOut={() => { identityController.remove(activeIdentity.id); }} resolveHomeserver={identityController.resolveHomeserver.bind(identityController)} />;
+  }
+  if (state === "downloading-backup") {
+    const activeIdentity = catalog.identities.find((identity) => identity.id === catalog.activeIdentityId);
+    if (activeIdentity && identityController) return <EncryptedBackup createBackup={identityController.createBackup.bind(identityController)} identityId={activeIdentity.id} onBack={() => setState("managing")} />;
   }
   if (state === "signed-in") {
     const activeIdentity = catalog.identities.find((identity) => identity.id === catalog.activeIdentityId);

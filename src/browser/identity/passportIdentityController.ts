@@ -20,6 +20,7 @@ import type {
 } from "./google-backed/googleBackedIdentityProgress";
 import type { GoogleAuthorizationCodeResult } from "../google-authorization/googleAuthorizationCode";
 import type { PubkyHomeserverResolutionResult } from "../pubky/pubkySdkAdapter";
+import type { LocalIdentityBackupResult } from "./local/createLocalIdentityBackup";
 import type {
   LocalIdentityErrorCode,
   LocalIdentityResult,
@@ -119,6 +120,7 @@ export type PassportIdentityControllerDependencies = {
   clear(): LocalIdentityResult<void>;
   subscribe(listener: () => void): () => void;
   resolveHomeserver(publicKeyZ32: string): Promise<PubkyHomeserverResolutionResult>;
+  createBackup(identityId: string, password: string): Promise<LocalIdentityBackupResult>;
   restoreOrCreateGoogleBackedIdentity(
     credentials: GoogleBackedIdentityCredentials,
     reportProgress: ReportGoogleBackedIdentityProgress,
@@ -187,6 +189,10 @@ export class PassportIdentityController {
 
   resolveHomeserver(publicKeyZ32: string): Promise<PubkyHomeserverResolutionResult> {
     return this.#dependencies.resolveHomeserver(publicKeyZ32);
+  }
+
+  createBackup(identityId: string, password: string): Promise<LocalIdentityBackupResult> {
+    return this.#dependencies.createBackup(identityId, password);
   }
 
   async prepareGoogleAuthorization(onState: (state: GoogleBackedIdentityActionState) => void): Promise<void> {

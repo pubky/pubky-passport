@@ -44,6 +44,29 @@ describe("PubkySdkAdapter", () => {
     }
   });
 
+  it("creates an SDK recovery file and clears the plaintext key", async () => {
+    const pubky = new PubkySdkAdapter();
+    let restored: Keypair | undefined;
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      const secretKey = expectOk(await pubky.exportSecretKey(created.keyHandle));
+      const recoveryFile = expectOk(pubky.createRecoveryFile(secretKey, "a strong backup password"));
+      restored = Keypair.fromRecoveryFile(recoveryFile, "a strong backup password");
+      const restoredPublicKey = restored.publicKey;
+      try {
+        expect(restoredPublicKey.z32()).toBe(created.publicIdentity.publicKeyZ32);
+        expect(secretKey.bytes).toEqual(new Uint8Array(PUBKY_SECRET_KEY_BYTES));
+      } finally {
+        restoredPublicKey.free();
+        recoveryFile.fill(0);
+      }
+    } finally {
+      restored?.free();
+      pubky.dispose();
+    }
+  });
+
   it("rejects and clears invalid key material before restoration", async () => {
     const pubky = new PubkySdkAdapter();
     const bytes = new Uint8Array(PUBKY_SECRET_KEY_BYTES - 1).fill(7);

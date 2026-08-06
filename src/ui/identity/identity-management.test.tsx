@@ -20,7 +20,7 @@ describe("IdentityManagement", () => {
     const onBack = vi.fn();
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
 
-    render(<IdentityManagement identity={identity} onBack={onBack} onLogOut={vi.fn()} resolveHomeserver={async () => Result.ok("homeserver-pubky")} />);
+    render(<IdentityManagement identity={identity} onBack={onBack} onDownloadBackup={vi.fn()} onLogOut={vi.fn()} resolveHomeserver={async () => Result.ok("homeserver-pubky")} />);
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(onBack).toHaveBeenCalledOnce();
     const copyButton = screen.getByRole("button", { name: "Copy Pubky" });
