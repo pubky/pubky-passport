@@ -8,13 +8,14 @@ import type {
   PassportIdentityController,
 } from "../../browser/identity/passportIdentity";
 import type { PubkyPublicIdentity } from "../../core/identity/pubkyIdentity";
+import type { GoogleAccountProfile } from "../../core/identity/googleAccountProfile";
 import { SocialLoginButton } from "../components/social-login-button";
 import { GoogleAccessRequest } from "./google-access-request";
 import { IdentityLookup } from "./identity-lookup";
 import { PassportLandingPage } from "./passport-landing-page";
 import { SetupProgress } from "./setup-progress";
 
-type OnboardingCompletion = { identity: PubkyPublicIdentity; mode: "created" | "restored" };
+type OnboardingCompletion = { googleAccount?: GoogleAccountProfile; identity: PubkyPublicIdentity; mode: "created" | "restored" };
 
 function GoogleOnboardingFlow({ controller, onComplete, onSetupStarted }: {
   controller: PassportIdentityController;
@@ -40,7 +41,16 @@ function GoogleOnboardingFlow({ controller, onComplete, onSetupStarted }: {
           setFailed(true);
           return;
         }
-        callbacks.current.onComplete({ identity: completed.result.value.publicIdentity, mode: completed.result.value.establishmentMode });
+        const established = completed.result.value;
+        const catalog = controller.list();
+        const googleAccount = Result.isOk(catalog)
+          ? catalog.value.identities.find((candidate) => candidate.id === established.publicIdentity.publicKeyZ32)?.googleAccount
+          : undefined;
+        callbacks.current.onComplete({
+          identity: established.publicIdentity,
+          mode: established.establishmentMode,
+          ...(googleAccount ? { googleAccount } : {}),
+        });
       })
       .catch(() => setFailed(true))
       .finally(() => { dispatching.current = false; });

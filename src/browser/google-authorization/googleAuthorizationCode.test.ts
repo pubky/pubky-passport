@@ -16,11 +16,12 @@ describe("GoogleAuthorizationCode", () => {
     vi.spyOn(services, "loadGoogleAccounts").mockResolvedValue(Result.ok({
       oauth2: { initCodeClient },
     }));
-    const fetch = vi.fn(async () => Response.json({ googleIdToken: "id-token", driveAccessToken: "drive-token" }));
+    const googleAccount = { id: "google-1", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: null };
+    const fetch = vi.fn(async () => Response.json({ googleIdToken: "id-token", driveAccessToken: "drive-token", googleAccount }));
     const authorization = new GoogleAuthorizationCode({ clientId: "client-id", googleIdentityServices: services, fetch });
 
     await expect(authorization.prepare()).resolves.toEqual(Result.ok());
-    await expect(authorization.request()).resolves.toEqual(Result.ok({ googleIdToken: "id-token", driveAccessToken: "drive-token" }));
+    await expect(authorization.request()).resolves.toEqual(Result.ok({ googleIdToken: "id-token", driveAccessToken: "drive-token", googleAccount }));
     expect(requestCode).toHaveBeenCalledOnce();
     expect(requestedScope).toContain("https://www.googleapis.com/auth/drive.appdata");
     expect(fetch).toHaveBeenCalledWith("/api/google/authorize", expect.objectContaining({ method: "POST", credentials: "same-origin" }));

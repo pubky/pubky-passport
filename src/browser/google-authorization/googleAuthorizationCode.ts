@@ -113,5 +113,15 @@ function failure(stage: string, code: GoogleAuthorizationCodeErrorCode): GoogleA
 function isCredentials(value: unknown): value is GoogleBackedIdentityCredentials {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     && typeof (value as Record<string, unknown>).googleIdToken === "string"
-    && typeof (value as Record<string, unknown>).driveAccessToken === "string";
+    && typeof (value as Record<string, unknown>).driveAccessToken === "string"
+    && isGoogleAccount((value as Record<string, unknown>).googleAccount);
+}
+
+function isGoogleAccount(value: unknown): boolean {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const account = value as Record<string, unknown>;
+  return typeof account.id === "string" && account.id.length > 0
+    && typeof account.email === "string" && account.email.length > 0
+    && typeof account.name === "string" && account.name.length > 0
+    && (account.pictureUrl === null || typeof account.pictureUrl === "string");
 }

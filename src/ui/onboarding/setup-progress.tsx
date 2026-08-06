@@ -1,3 +1,5 @@
+"use client";
+
 import type { GoogleBackedIdentityProgress } from "../../browser/identity/passportIdentity";
 import { DisplayHeading } from "../components/typography";
 

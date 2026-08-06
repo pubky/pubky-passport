@@ -73,7 +73,9 @@ describe("GoogleOnboardingFlow", () => {
 
   it("preserves restored mode in the completion result", async () => {
     const onComplete = vi.fn();
+    const googleAccount = { id: "google-1", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: null };
     const controller = mockPassportIdentityController({
+      list: vi.fn(() => Result.ok({ activeIdentityId: "key", identities: [{ id: "key", publicIdentity: { publicKeyZ32: "key", publicKeyDisplay: "pubkykey" }, googleAccount }] })),
       prepareGoogleAuthorization: vi.fn(async (onState) => onState({ stage: "google-authorization", errorCode: null })),
       continueGoogleBackedIdentityAction: vi.fn(async () => ({
         status: "action_completed" as const,
@@ -84,6 +86,6 @@ describe("GoogleOnboardingFlow", () => {
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Continue with Google" }));
 
-    await waitFor(() => expect(onComplete).toHaveBeenCalledWith({ identity: { publicKeyZ32: "key", publicKeyDisplay: "pubkykey" }, mode: "restored" }));
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith({ googleAccount, identity: { publicKeyZ32: "key", publicKeyDisplay: "pubkykey" }, mode: "restored" }));
   });
 });

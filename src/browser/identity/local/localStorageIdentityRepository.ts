@@ -3,6 +3,7 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
+import type { GoogleAccountProfile } from "../../../core/identity/googleAccountProfile";
 import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "../../../libs/encoding/base64Url";
 import { LOGGER } from "../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";
@@ -10,6 +11,7 @@ import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMat
 export type LocalIdentitySummary = {
   id: string;
   publicIdentity: PubkyPublicIdentity;
+  googleAccount?: GoogleAccountProfile;
 };
 
 export type LocalIdentityErrorCode =
@@ -289,11 +291,17 @@ function isStoredIdentity(value: unknown): value is StoredLocalIdentity {
     return false;
   }
 
-  return value.id === value.publicIdentity.publicKeyZ32 && isEncodedSecretKey(value.secretKey);
+  return value.id === value.publicIdentity.publicKeyZ32 && isEncodedSecretKey(value.secretKey)
+    && (value.googleAccount === undefined || isGoogleAccount(value.googleAccount));
 }
 
 function isPublicIdentity(value: unknown): value is PubkyPublicIdentity {
   return isRecord(value) && isNonEmptyString(value.publicKeyZ32) && isNonEmptyString(value.publicKeyDisplay);
+}
+
+function isGoogleAccount(value: unknown): value is GoogleAccountProfile {
+  return isRecord(value) && isNonEmptyString(value.id) && isNonEmptyString(value.email) && isNonEmptyString(value.name)
+    && (value.pictureUrl === null || typeof value.pictureUrl === "string");
 }
 
 function isActiveIdentityId(value: unknown): value is string | null {
@@ -313,7 +321,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function toSummary(identity: StoredLocalIdentity): LocalIdentitySummary {
-  return { id: identity.id, publicIdentity: identity.publicIdentity };
+  return {
+    id: identity.id,
+    publicIdentity: identity.publicIdentity,
+    ...(identity.googleAccount ? { googleAccount: identity.googleAccount } : {}),
+  };
 }
 
 function decodeStoredSecretKey(value: string): Uint8Array | undefined {

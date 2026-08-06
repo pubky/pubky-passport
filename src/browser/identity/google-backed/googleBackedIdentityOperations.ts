@@ -192,6 +192,7 @@ export class GoogleBackedIdentityOperations {
         storedFile.value.envelope,
         wrappingKey.value,
         reportProgress,
+        credentials.googleAccount,
       );
     }
 
@@ -216,6 +217,7 @@ export class GoogleBackedIdentityOperations {
       ),
       wrappingKey.value,
       reportProgress,
+      credentials.googleAccount,
     );
   }
 }

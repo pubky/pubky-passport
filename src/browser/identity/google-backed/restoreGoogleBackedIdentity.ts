@@ -1,6 +1,7 @@
 import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
+import type { GoogleAccountProfile } from "../../../core/identity/googleAccountProfile";
 
 import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
 import {
@@ -51,6 +52,7 @@ export class RestoreGoogleBackedIdentity {
     envelope: PassportFileEnvelopeV1,
     wrappingKey: string,
     reportProgress: ReportGoogleBackedIdentityProgress,
+    googleAccount?: GoogleAccountProfile,
   ): Promise<RestoreGoogleBackedIdentityResult> {
     reportProgress("restoring_identity");
     LOGGER.info("identity.google.decrypt.started");
@@ -88,7 +90,7 @@ export class RestoreGoogleBackedIdentity {
       if (Result.isError(published)) return failure("discovery_failed", restoredPublicIdentity);
 
       LOGGER.info("identity.local_save.started", { establishmentMode: "restored" });
-      const saved = await this.#saveLocalIdentity.saveIdentity(restored.value.keyHandle);
+      const saved = await this.#saveLocalIdentity.saveIdentity(restored.value.keyHandle, googleAccount);
       if (Result.isError(saved)) return failure("local_save_failed", restoredPublicIdentity);
 
       LOGGER.info("identity.local_save.completed", { establishmentMode: "restored" });

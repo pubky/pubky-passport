@@ -1,6 +1,7 @@
 import "client-only";
 
 import { Result } from "better-result";
+import type { GoogleAccountProfile } from "../../../core/identity/googleAccountProfile";
 
 import type {
   PubkyIdentityKeyHandle,
@@ -23,7 +24,7 @@ export class SaveLocalIdentity {
     this.#pubky = pubky;
   }
 
-  async saveIdentity(keyHandle: PubkyIdentityKeyHandle): Promise<LocalIdentityResult<LocalIdentitySummary>> {
+  async saveIdentity(keyHandle: PubkyIdentityKeyHandle, googleAccount?: GoogleAccountProfile): Promise<LocalIdentityResult<LocalIdentitySummary>> {
     const publicIdentity = await this.#pubky.getPublicIdentity(keyHandle);
     if (Result.isError(publicIdentity)) {
       return failure("invalid_identity");
@@ -36,7 +37,7 @@ export class SaveLocalIdentity {
 
     try {
       return this.#saveIdentityRecord(
-        { id: publicIdentity.value.publicKeyZ32, publicIdentity: publicIdentity.value },
+        { id: publicIdentity.value.publicKeyZ32, publicIdentity: publicIdentity.value, ...(googleAccount ? { googleAccount } : {}) },
         secretKey.value,
       );
     } finally {

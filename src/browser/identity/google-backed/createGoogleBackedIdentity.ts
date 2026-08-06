@@ -1,6 +1,7 @@
 import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
+import type { GoogleAccountProfile } from "../../../core/identity/googleAccountProfile";
 
 import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
 import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
@@ -69,6 +70,7 @@ export class CreateGoogleBackedIdentity {
     createVisibleRecoveryCopy: CreateVisibleRecoveryCopy,
     wrappingKey: string,
     reportProgress: ReportGoogleBackedIdentityProgress,
+    googleAccount?: GoogleAccountProfile,
   ): Promise<CreateGoogleBackedIdentityResult> {
     LOGGER.info("identity.google.create.started");
     LOGGER.info("identity.google.create_key.started");
@@ -143,7 +145,7 @@ export class CreateGoogleBackedIdentity {
 
         reportProgress("activating_created_identity");
         LOGGER.info("identity.local_save.started", { establishmentMode: "created" });
-        const saved = await this.#saveLocalIdentity.saveIdentity(created.value.keyHandle);
+        const saved = await this.#saveLocalIdentity.saveIdentity(created.value.keyHandle, googleAccount);
         if (Result.isError(saved)) return failure("local_save_failed", created.value.publicIdentity, visibleRecoveryCopyStatus);
 
         LOGGER.info("identity.local_save.completed", { establishmentMode: "created" });

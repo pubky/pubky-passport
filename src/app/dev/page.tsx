@@ -14,6 +14,7 @@ import { SocialLoginButton } from "../../ui/components/social-login-button";
 import { Spinner } from "../../ui/components/spinner";
 import { DisplayHeading, LeadText } from "../../ui/components/typography";
 import { IdentityRow } from "../../ui/identity/identity-row";
+import { GoogleAccountCard } from "../../ui/identity/google-account-card";
 
 const VARIANTS = ["default", "secondary", "outline", "destructive"] as const;
 const SIZES = ["default", "lg", "icon"] as const;
@@ -72,6 +73,7 @@ export default function ComponentGalleryPage() {
             <section className="flex flex-col gap-5">
                 <h2 className="text-xl font-bold">Identities</h2>
                 <div className="grid max-w-[327px] gap-3">
+                    <GoogleAccountCard account={{ id: "google-satoshi", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: null }} />
                     <IdentityRow detail="x8jp...4mra" name="Satoshi Nakamoto" provider="google" selected />
                     <IdentityRow detail="n31k...8pqz" name="Hal Finney" provider="google" />
                     <IdentityRow detail="local only" name="Alice" />
