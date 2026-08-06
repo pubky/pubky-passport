@@ -27,6 +27,7 @@ export type PubkySessionAccessErrorCode = "invalid_homeserver_pubky" | "key_unav
 export type PubkySessionAccessResult<T> = ResultType<T, { code: PubkySessionAccessErrorCode }>;
 export type PubkyDiscoveryErrorCode = "invalid_homeserver_pubky" | "key_unavailable" | "publish_failed";
 export type PubkyDiscoveryResult = ResultType<void, { code: PubkyDiscoveryErrorCode }>;
+export type PubkyHomeserverResolutionResult = ResultType<string | null, { code: "invalid_pubky" | "resolution_failed" }>;
 export type PubkyAuthApprovalErrorCode = "approval_failed" | "key_unavailable" | "relay_failed" | "request_rejected";
 export type PubkyAuthApprovalResult = ResultType<void, { code: PubkyAuthApprovalErrorCode }>;
 
@@ -264,6 +265,24 @@ export class PubkySdkAdapter {
   }
 }
 
+export async function resolvePubkyHomeserver(publicKeyZ32: string): Promise<PubkyHomeserverResolutionResult> {
+  const identity = parseHomeserver(publicKeyZ32);
+  if (Result.isError(identity)) return Result.err({ code: "invalid_pubky" });
+
+  const pubky = new Pubky();
+  let homeserver: PublicKey | undefined;
+  try {
+    homeserver = await pubky.getHomeserverOf(identity.value);
+    return Result.ok(homeserver?.z32() ?? null);
+  } catch {
+    return Result.err({ code: "resolution_failed" });
+  } finally {
+    cleanup("resolve_homeserver", "homeserver_free", () => homeserver?.free());
+    cleanup("resolve_homeserver", "public_key_free", () => identity.value.free());
+    cleanup("resolve_homeserver", "pubky_free", () => pubky.free());
+  }
+}
+
 function publicIdentity(operation: PubkyOperation, keypair: Keypair): PubkyIdentityKeysResult<PubkyPublicIdentity> {
   try {
     const publicKey = keypair.publicKey;
@@ -329,6 +348,7 @@ type PubkyOperation =
   | "export_secret_key"
   | "get_public_identity"
   | "publish_homeserver"
+  | "resolve_homeserver"
   | "restore_identity_key"
   | "signin"
   | "signup";

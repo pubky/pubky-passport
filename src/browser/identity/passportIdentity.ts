@@ -10,7 +10,7 @@ import {
 import {
   GoogleBackedIdentityOperations,
 } from "./google-backed/googleBackedIdentityOperations";
-import { resolvePubkyHomeserver } from "../pubky/resolvePubkyHomeserver";
+import { resolvePubkyHomeserver } from "../pubky/pubkySdkAdapter";
 
 export type PassportIdentityController = Pick<
   PassportIdentityControllerImplementation,
@@ -37,7 +37,7 @@ export type {
   PassportIdentityList,
 } from "./passportIdentityController";
 export type { GoogleBackedIdentityProgress } from "./google-backed/googleBackedIdentityProgress";
-export type { PubkyHomeserverResolutionResult } from "../pubky/resolvePubkyHomeserver";
+export type { PubkyHomeserverResolutionResult } from "../pubky/pubkySdkAdapter";
 
 export function createPassportIdentityController(
   googleClientId: string,

@@ -19,7 +19,7 @@ import type {
   ReportGoogleBackedIdentityProgress,
 } from "./google-backed/googleBackedIdentityProgress";
 import type { GoogleAuthorizationCodeResult } from "../google-authorization/googleAuthorizationCode";
-import type { PubkyHomeserverResolutionResult } from "../pubky/resolvePubkyHomeserver";
+import type { PubkyHomeserverResolutionResult } from "../pubky/pubkySdkAdapter";
 import type {
   LocalIdentityErrorCode,
   LocalIdentityResult,
