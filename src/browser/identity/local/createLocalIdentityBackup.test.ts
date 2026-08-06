@@ -24,7 +24,7 @@ describe("createLocalIdentityBackup", () => {
 
   it("rejects weak passwords before reading local identity storage", async () => {
     const readIdentity = vi.fn(() => Result.err({ code: "invalid_identity" as const }));
-    const result = await createLocalIdentityBackup(readIdentity, "identity", "too short");
+    const result = await createLocalIdentityBackup(readIdentity, "identity", "short");
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "invalid_password" });

@@ -12,7 +12,7 @@ import { IdentityFlow } from "./identityFlow";
 const FLOW = vi.hoisted(() => ({ catalog: { activeIdentityId: null, identities: [] } as PassportIdentityList, refresh: null as (() => void) | null }));
 
 vi.mock("../../browser/identity/passportIdentity", () => ({
-  MIN_BACKUP_PASSWORD_LENGTH: 12,
+  MIN_BACKUP_PASSWORD_LENGTH: 6,
   createPassportIdentityController: () => mockPassportIdentityController({
     list: () => Result.ok(FLOW.catalog),
     remove: (identityId: string) => {

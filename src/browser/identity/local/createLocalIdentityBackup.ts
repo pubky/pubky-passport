@@ -6,7 +6,7 @@ import type { PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
 import type { LocalIdentityResult, LocalIdentitySummary } from "./localStorageIdentityRepository";
 
-export const MIN_BACKUP_PASSWORD_LENGTH = 12;
+export const MIN_BACKUP_PASSWORD_LENGTH = 6;
 const MAX_BACKUP_PASSWORD_LENGTH = 1024;
 
 export type LocalIdentityBackupFile = { bytes: Uint8Array; fileName: string };
