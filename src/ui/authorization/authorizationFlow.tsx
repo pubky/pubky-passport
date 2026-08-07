@@ -80,37 +80,40 @@ function AuthorizationWithIdentity({ authorization, controller, googleClientId, 
   const identityCatalog = useIdentityCatalog(googleClientId, homegateBaseUrl);
   const [view, dispatch] = useReducer(transitionAuthorizationView, { view: "review" });
 
-  if (identityCatalog.status === "loading") return <AuthorizationLoading label="Loading identities" />;
-  if (identityCatalog.status === "unavailable") {
-    return <PassportScreen className="gap-6"><DisplayHeading accent="unavailable." aria-label="Identities unavailable.">Identities</DisplayHeading><LeadText>Passport could not read identities stored in this browser.</LeadText><div className="mt-auto"><BackButton onClick={goHome} /></div></PassportScreen>;
-  }
+  switch (identityCatalog.status) {
+    case "loading":
+      return <AuthorizationLoading label="Loading identities" />;
+    case "unavailable":
+      return <PassportScreen className="gap-6"><DisplayHeading accent="unavailable." aria-label="Identities unavailable.">Identities</DisplayHeading><LeadText>Passport could not read identities stored in this browser.</LeadText><div className="mt-auto"><BackButton onClick={goHome} /></div></PassportScreen>;
+    case "ready": {
+      if (view.view === "identity-selection") {
+        return <IdentitySelectionFlow
+          catalog={identityCatalog.catalog}
+          controller={identityCatalog.controller}
+          onBack={() => dispatch({ type: "selection-finished" })}
+          onIdentitySelected={() => dispatch({ type: "selection-finished" })}
+        />;
+      }
 
-  if (view.view === "identity-selection") {
-    return <IdentitySelectionFlow
-      catalog={identityCatalog.catalog}
-      controller={identityCatalog.controller}
-      onBack={() => dispatch({ type: "selection-finished" })}
-      onIdentitySelected={() => dispatch({ type: "selection-finished" })}
-    />;
+      const activeIdentity = identityCatalog.catalog.identities.find(
+        (identity) => identity.id === identityCatalog.catalog.activeIdentityId,
+      );
+      return <AuthorizationReview
+        approving={authorization.status !== "review"}
+        {...(activeIdentity ? { identity: activeIdentity } : {})}
+        onAuthorize={() => {
+          void controller.approve().then((next) => {
+            if (next.status === "approved") goHome();
+          });
+        }}
+        onCancel={() => {
+          if (controller.cancel().status === "cancelled") goHome();
+        }}
+        onSwitch={() => dispatch({ type: "switch-requested" })}
+        review={authorization.review}
+      />;
+    }
   }
-
-  const activeIdentity = identityCatalog.catalog.identities.find(
-    (identity) => identity.id === identityCatalog.catalog.activeIdentityId,
-  );
-  return <AuthorizationReview
-    approving={authorization.status !== "review"}
-    {...(activeIdentity ? { identity: activeIdentity } : {})}
-    onAuthorize={() => {
-      void controller.approve().then((next) => {
-        if (next.status === "approved") goHome();
-      });
-    }}
-    onCancel={() => {
-      if (controller.cancel().status === "cancelled") goHome();
-    }}
-    onSwitch={() => dispatch({ type: "switch-requested" })}
-    review={authorization.review}
-  />;
 }
 
 function AuthorizationLoading({ label }: { label: string }) {

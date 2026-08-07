@@ -321,9 +321,14 @@ function sameReference(left: VisibleFileReference, right: VisibleFileReference):
 }
 
 function mapDriveStatus(status: number, fallback: VisibleRecoveryCopyErrorCode): VisibleRecoveryCopyErrorCode {
-  if (status === 401) return "unauthorized";
-  if (status === 403) return "forbidden";
-  return fallback;
+  switch (status) {
+    case 401:
+      return "unauthorized";
+    case 403:
+      return "forbidden";
+    default:
+      return fallback;
+  }
 }
 
 function failure<T>(code: VisibleRecoveryCopyErrorCode, operation: WriterOperation): VisibleRecoveryCopyResult<T> {

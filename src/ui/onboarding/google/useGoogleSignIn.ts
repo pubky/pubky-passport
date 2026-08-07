@@ -23,32 +23,37 @@ function useGoogleSignIn(controller: PassportIdentityController) {
     dispatch({ type: "request-started" });
     void controller.continueGoogleBackedIdentityAction(action)
       .then((completed) => {
-        if (completed.status === "google_authorization_failed") {
-          dispatch({ type: "authorization-denied" });
-          return;
+        switch (completed.status) {
+          case "google_authorization_failed":
+            dispatch({ type: "authorization-denied" });
+            return;
+          case "busy":
+          case "superseded":
+          case "action_finished_after_unmount":
+            return;
+          case "action_completed": {
+            if (Result.isError(completed.result)) {
+              dispatch({ type: "operation-failed", error: completed.result.error });
+              return;
+            }
+            if (completed.result.value.kind !== "google_backed_identity_established") {
+              dispatch({ type: "operation-failed", error: { code: "unexpected_failure" } });
+              return;
+            }
+            const established = completed.result.value;
+            const catalog = controller.list();
+            const googleAccount = Result.isOk(catalog)
+              ? catalog.value.identities.find((candidate) => candidate.id === established.publicIdentity.publicKeyZ32)?.googleAccount
+              : undefined;
+            dispatch({
+              type: "operation-completed",
+              identity: established.publicIdentity,
+              mode: established.establishmentMode,
+              ...(googleAccount ? { googleAccount } : {}),
+            });
+            return;
+          }
         }
-        if (completed.status === "busy"
-          || completed.status === "superseded"
-          || completed.status === "action_finished_after_unmount") return;
-        if (Result.isError(completed.result)) {
-          dispatch({ type: "operation-failed", error: completed.result.error });
-          return;
-        }
-        if (completed.result.value.kind !== "google_backed_identity_established") {
-          dispatch({ type: "operation-failed", error: { code: "unexpected_failure" } });
-          return;
-        }
-        const established = completed.result.value;
-        const catalog = controller.list();
-        const googleAccount = Result.isOk(catalog)
-          ? catalog.value.identities.find((candidate) => candidate.id === established.publicIdentity.publicKeyZ32)?.googleAccount
-          : undefined;
-        dispatch({
-          type: "operation-completed",
-          identity: established.publicIdentity,
-          mode: established.establishmentMode,
-          ...(googleAccount ? { googleAccount } : {}),
-        });
       })
       .catch(() => dispatch({ type: "operation-failed", error: { code: "unexpected_failure" } }))
       .finally(() => { dispatching.current = false; });
@@ -75,12 +80,18 @@ function useGoogleSignIn(controller: PassportIdentityController) {
 
   useEffect(() => {
     void controller.prepareGoogleAuthorization((nextState) => {
-      if (nextState.stage === "google-authorization") {
-        dispatch({ type: nextState.errorCode === null ? "authorization-ready" : "authorization-denied" });
-      } else if (nextState.stage === "requesting-google-authorization") {
-        dispatch({ type: "request-started" });
-      } else if (nextState.stage === "establishing-google-backed-identity") {
-        dispatch({ type: "progress-reported", progress: nextState.progress });
+      switch (nextState.stage) {
+        case "google-authorization":
+          dispatch({ type: nextState.errorCode === null ? "authorization-ready" : "authorization-denied" });
+          return;
+        case "requesting-google-authorization":
+          dispatch({ type: "request-started" });
+          return;
+        case "establishing-google-backed-identity":
+          dispatch({ type: "progress-reported", progress: nextState.progress });
+          return;
+        case "detaching-google-backed-identity":
+          return;
       }
     }).catch(() => dispatch({ type: "authorization-denied" }));
     return () => { try { controller.disposeGoogleAuthorization(); } catch { /* Controller owns cleanup logging. */ } };

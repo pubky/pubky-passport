@@ -22,8 +22,16 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const result = enterAuthorization(authorization);
-    if (result === "invalid") setError("Enter a valid pubkyauth:// authorization link.");
-    if (result === "navigation_failed") setError("Could not open the authorization request. Try again.");
+    switch (result) {
+      case "invalid":
+        setError("Enter a valid pubkyauth:// authorization link.");
+        return;
+      case "navigation_failed":
+        setError("Could not open the authorization request. Try again.");
+        return;
+      case "navigating":
+        return;
+    }
   };
 
   const paste = async () => {

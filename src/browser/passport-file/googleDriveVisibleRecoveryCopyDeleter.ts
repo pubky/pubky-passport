@@ -197,10 +197,16 @@ function authorizationHeaders(token: string): { Authorization: string } {
 }
 
 function driveFailure<T>(status: number, operation: DeletionOperation): ResultType<T, { code: VisibleRecoveryCopyDeletionErrorCode }> {
-  if (status === 401) return failure("unauthorized", operation);
-  if (status === 403) return failure("forbidden", operation);
-  if (status === 599) return failure("network_failed", operation);
-  return failure(status >= 500 ? "network_failed" : "delete_failed", operation);
+  switch (status) {
+    case 401:
+      return failure("unauthorized", operation);
+    case 403:
+      return failure("forbidden", operation);
+    case 599:
+      return failure("network_failed", operation);
+    default:
+      return failure(status >= 500 ? "network_failed" : "delete_failed", operation);
+  }
 }
 
 function failure<T>(

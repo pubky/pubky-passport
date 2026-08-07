@@ -370,10 +370,16 @@ function sameReference(left: PassportFileReference, right: PassportFileReference
 }
 
 function mapDriveStatus(status: number, fallback: PassportFileStoreErrorCode): PassportFileStoreErrorCode {
-  if (status === 599) return "network_failed";
-  if (status === 401) return "unauthorized";
-  if (status === 403) return "forbidden";
-  return fallback;
+  switch (status) {
+    case 599:
+      return "network_failed";
+    case 401:
+      return "unauthorized";
+    case 403:
+      return "forbidden";
+    default:
+      return fallback;
+  }
 }
 
 function success<T>(value: T): PassportFileStoreResult<T> {

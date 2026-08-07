@@ -300,27 +300,32 @@ export class PassportIdentityController {
     activeGeneration: number,
   ): Promise<GoogleBackedIdentityActionResult> {
     try {
-      if (action.kind === "detach_google_backed_identity") {
-        this.emit({ stage: "detaching-google-backed-identity" });
-        const deleted = await this.#dependencies.deleteGoogleIdentityBackups(
-          credentials,
-          action.publicIdentity,
-          action.expectedGoogleAccountId,
-        );
-        if (Result.isError(deleted)) return deletionFailure(deleted.error);
-        const removed = this.#dependencies.remove(action.publicIdentity.publicKeyZ32);
-        return Result.isError(removed)
-          ? actionFailure({ code: "local_remove_failed" })
-          : Result.ok({ kind: "google_backed_identity_detached", deletionStatus: deleted.value.status });
-      }
-      if (action.kind === "replace_incomplete_google_backed_identity") {
-        this.emit({ stage: "establishing-google-backed-identity", progress: "checking_passport_file" });
-        const deleted = await this.#dependencies.deleteGoogleIdentityBackups(
-          credentials,
-          action.publicIdentity,
-          action.expectedGoogleAccountId,
-        );
-        if (Result.isError(deleted)) return deletionFailure(deleted.error);
+      switch (action.kind) {
+        case "detach_google_backed_identity": {
+          this.emit({ stage: "detaching-google-backed-identity" });
+          const deleted = await this.#dependencies.deleteGoogleIdentityBackups(
+            credentials,
+            action.publicIdentity,
+            action.expectedGoogleAccountId,
+          );
+          if (Result.isError(deleted)) return deletionFailure(deleted.error);
+          const removed = this.#dependencies.remove(action.publicIdentity.publicKeyZ32);
+          return Result.isError(removed)
+            ? actionFailure({ code: "local_remove_failed" })
+            : Result.ok({ kind: "google_backed_identity_detached", deletionStatus: deleted.value.status });
+        }
+        case "replace_incomplete_google_backed_identity": {
+          this.emit({ stage: "establishing-google-backed-identity", progress: "checking_passport_file" });
+          const deleted = await this.#dependencies.deleteGoogleIdentityBackups(
+            credentials,
+            action.publicIdentity,
+            action.expectedGoogleAccountId,
+          );
+          if (Result.isError(deleted)) return deletionFailure(deleted.error);
+          break;
+        }
+        case "establish_google_backed_identity":
+          break;
       }
       let progressActive = true;
       const reportProgress: ReportGoogleBackedIdentityProgress = (progress) => {

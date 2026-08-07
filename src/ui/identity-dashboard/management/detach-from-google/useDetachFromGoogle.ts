@@ -25,17 +25,24 @@ function useDetachFromGoogle(
       expectedGoogleAccountId,
     })
       .then((completed) => {
-        if (completed.status === "google_authorization_failed") {
-          dispatch({ type: "authorization-failed" });
-          return;
+        switch (completed.status) {
+          case "google_authorization_failed":
+            dispatch({ type: "authorization-failed" });
+            return;
+          case "busy":
+          case "superseded":
+          case "action_finished_after_unmount":
+            dispatch({ type: "operation-failed" });
+            return;
+          case "action_completed":
+            if (Result.isError(completed.result)
+              || completed.result.value.kind !== "google_backed_identity_detached") {
+              dispatch({ type: "operation-failed" });
+              return;
+            }
+            dispatch({ type: "operation-completed" });
+            return;
         }
-        if (completed.status !== "action_completed"
-          || Result.isError(completed.result)
-          || completed.result.value.kind !== "google_backed_identity_detached") {
-          dispatch({ type: "operation-failed" });
-          return;
-        }
-        dispatch({ type: "operation-completed" });
       })
       .catch(() => dispatch({ type: "operation-failed" }))
       .finally(() => { dispatching.current = false; });
@@ -48,12 +55,18 @@ function useDetachFromGoogle(
 
   useEffect(() => {
     void controller.prepareGoogleAuthorization((nextState) => {
-      if (nextState.stage === "google-authorization") {
-        dispatch({ type: nextState.errorCode === null ? "authorization-ready" : "authorization-failed" });
-      } else if (nextState.stage === "requesting-google-authorization") {
-        dispatch({ type: "request-started" });
-      } else if (nextState.stage === "detaching-google-backed-identity") {
-        dispatch({ type: "deletion-started" });
+      switch (nextState.stage) {
+        case "google-authorization":
+          dispatch({ type: nextState.errorCode === null ? "authorization-ready" : "authorization-failed" });
+          return;
+        case "requesting-google-authorization":
+          dispatch({ type: "request-started" });
+          return;
+        case "detaching-google-backed-identity":
+          dispatch({ type: "deletion-started" });
+          return;
+        case "establishing-google-backed-identity":
+          return;
       }
     }).catch(() => dispatch({ type: "authorization-failed" }));
     return () => { try { controller.disposeGoogleAuthorization(); } catch { /* Controller owns cleanup logging. */ } };

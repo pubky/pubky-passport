@@ -25,13 +25,14 @@ function IdentityDashboard({ googleClientId, homegateBaseUrl }: {
 }) {
   const session = useIdentityCatalog(googleClientId, homegateBaseUrl);
 
-  if (session.status === "loading") {
-    return <main aria-label="Checking login state" className="grid min-h-[calc(100svh-84px)] place-items-center"><Spinner /></main>;
+  switch (session.status) {
+    case "loading":
+      return <main aria-label="Checking login state" className="grid min-h-[calc(100svh-84px)] place-items-center"><Spinner /></main>;
+    case "unavailable":
+      return <main className="grid min-h-[calc(100svh-84px)] place-items-center px-6 text-center text-muted-foreground">Local identity storage is unavailable.</main>;
+    case "ready":
+      return <ReadyIdentityDashboard catalog={session.catalog} controller={session.controller} />;
   }
-  if (session.status === "unavailable") {
-    return <main className="grid min-h-[calc(100svh-84px)] place-items-center px-6 text-center text-muted-foreground">Local identity storage is unavailable.</main>;
-  }
-  return <ReadyIdentityDashboard catalog={session.catalog} controller={session.controller} />;
 }
 
 function ReadyIdentityDashboard({ catalog, controller }: {
