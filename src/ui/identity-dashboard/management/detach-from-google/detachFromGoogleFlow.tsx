@@ -27,51 +27,52 @@ function DetachFromGoogleFlow({ controller, identity, onBack, onDone }: {
   );
 
   if (operation.state.name === "complete") return <GoogleDetachmentComplete onDone={onDone} />;
-  if (state.view === "encrypted-backup") {
-    return <EncryptedBackup
-      createBackup={controller.createBackup.bind(controller)}
-      identityId={identity.id}
-      onBack={() => dispatch({ type: "back-to-backup" })}
-    />;
-  }
-  if (state.view === "pubky-ring") {
-    return <MigrateToPubkyRing
-      migrationUrl={state.migrationUrl}
-      onBack={() => dispatch({ type: "back-to-backup" })}
-    />;
-  }
-  if (state.view === "review") {
-    const pending = operation.state.name === "requesting-authorization"
-      || operation.state.name === "deleting-backup";
-    return (
-      <>
-        <ReviewGoogleDetachment onBack={() => dispatch({ type: "back-to-backup" })} onRemove={() => dispatch({ type: "confirmation-requested" })} />
-        <ConfirmGoogleDetachment
-          canConfirm={operation.state.name === "ready" || operation.state.name === "operation-failed"}
-          canRetryAuthorization={operation.state.name === "authorization-failed"}
-          error={operation.state.name === "authorization-failed" || operation.state.name === "operation-failed"}
-          onCancel={() => dispatch({ type: "confirmation-closed" })}
-          onConfirm={operation.detach}
-          onRetryAuthorization={operation.retryAuthorization}
-          open={state.confirmation === "open"}
-          pending={pending}
-        />
-      </>
-    );
-  }
 
-  return <BackupBeforeDetaching
-    onBack={onBack}
-    onBackupConfirmed={() => dispatch({ type: "backup-confirmed" })}
-    onDownloadBackup={() => dispatch({ type: "backup-requested" })}
-    onMigrateToKeychain={() => {
-      const migration = controller.createActivePubkyRingMigrationUrl();
-      dispatch({
-        type: "migration-requested",
-        migrationUrl: Result.isOk(migration) ? migration.value : null,
-      });
-    }}
-  />;
+  switch (state.view) {
+    case "encrypted-backup":
+      return <EncryptedBackup
+        createBackup={controller.createBackup.bind(controller)}
+        identityId={identity.id}
+        onBack={() => dispatch({ type: "back-to-backup" })}
+      />;
+    case "pubky-ring":
+      return <MigrateToPubkyRing
+        migrationUrl={state.migrationUrl}
+        onBack={() => dispatch({ type: "back-to-backup" })}
+      />;
+    case "review": {
+      const pending = operation.state.name === "requesting-authorization"
+        || operation.state.name === "deleting-backup";
+      return (
+        <>
+          <ReviewGoogleDetachment onBack={() => dispatch({ type: "back-to-backup" })} onRemove={() => dispatch({ type: "confirmation-requested" })} />
+          <ConfirmGoogleDetachment
+            canConfirm={operation.state.name === "ready" || operation.state.name === "operation-failed"}
+            canRetryAuthorization={operation.state.name === "authorization-failed"}
+            error={operation.state.name === "authorization-failed" || operation.state.name === "operation-failed"}
+            onCancel={() => dispatch({ type: "confirmation-closed" })}
+            onConfirm={operation.detach}
+            onRetryAuthorization={operation.retryAuthorization}
+            open={state.confirmation === "open"}
+            pending={pending}
+          />
+        </>
+      );
+    }
+    case "backup":
+      return <BackupBeforeDetaching
+        onBack={onBack}
+        onBackupConfirmed={() => dispatch({ type: "backup-confirmed" })}
+        onDownloadBackup={() => dispatch({ type: "backup-requested" })}
+        onMigrateToKeychain={() => {
+          const migration = controller.createActivePubkyRingMigrationUrl();
+          dispatch({
+            type: "migration-requested",
+            migrationUrl: Result.isOk(migration) ? migration.value : null,
+          });
+        }}
+      />;
+  }
 }
 
 export { DetachFromGoogleFlow };

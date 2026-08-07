@@ -34,12 +34,12 @@ export type GoogleIdentityBackupDeletionErrorCode =
 
 export type GoogleIdentityBackupDeletionError =
   | {
-      code: Exclude<GoogleIdentityBackupDeletionErrorCode, "wrapping_key_failed">;
-    }
+    code: Exclude<GoogleIdentityBackupDeletionErrorCode, "wrapping_key_failed">;
+  }
   | {
-      code: "wrapping_key_failed";
-      cause: GoogleWrappingKeyErrorCode;
-    };
+    code: "wrapping_key_failed";
+    cause: GoogleWrappingKeyErrorCode;
+  };
 
 export type GoogleIdentityBackupDeletionResult = ResultType<
   { status: "deleted" | "missing" },

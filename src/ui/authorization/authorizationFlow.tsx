@@ -42,21 +42,33 @@ function AuthorizationFlow({ googleClientId, homegateBaseUrl }: {
   }, []);
 
   if (!controller || !authorization) return <AuthorizationLoading label="Loading authorization" />;
-  if (authorization.status === "manual-entry") return <ManualAuthorization onBack={goHome} />;
-  if (authorization.status === "invalid") return <InvalidAuthorization onBack={goHome} />;
-  if (authorization.status === "failed") {
-    return <PassportScreen className="gap-6"><DisplayHeading accent="failed." aria-label="Authorization failed.">Authorization</DisplayHeading><LeadText>Passport could not authorize this request with the selected identity.</LeadText><div className="mt-auto"><BackButton onClick={goHome} /></div></PassportScreen>;
-  }
-  if (authorization.status === "approved" || authorization.status === "cancelled") {
-    return <AuthorizationLoading label="Completing authorization" />;
-  }
 
-  return <AuthorizationWithIdentity
-    authorization={authorization}
-    controller={controller}
-    googleClientId={googleClientId}
-    homegateBaseUrl={homegateBaseUrl}
-  />;
+  switch (authorization.status) {
+    case "manual-entry":
+      return <ManualAuthorization onBack={goHome} />;
+    case "invalid":
+      return <InvalidAuthorization onBack={goHome} />;
+    case "failed":
+      return (
+        <PassportScreen className="gap-6">
+          <DisplayHeading accent="failed." aria-label="Authorization failed.">Authorization</DisplayHeading>
+          <LeadText>Passport could not authorize this request with the selected identity.</LeadText>
+          <div className="mt-auto"><BackButton onClick={goHome} /></div>
+        </PassportScreen>
+      );
+    case "approved":
+    case "cancelled":
+      return <AuthorizationLoading label="Completing authorization" />;
+    case "review":
+    case "approving":
+    case "redirecting":
+      return <AuthorizationWithIdentity
+        authorization={authorization}
+        controller={controller}
+        googleClientId={googleClientId}
+        homegateBaseUrl={homegateBaseUrl}
+      />;
+  }
 }
 
 function AuthorizationWithIdentity({ authorization, controller, googleClientId, homegateBaseUrl }: {

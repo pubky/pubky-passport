@@ -19,41 +19,41 @@ function SignInFlow({ controller, onBack, onComplete }: {
   const google = useGoogleSignIn(controller);
   const view = google.state.view;
 
-  if (view.name === "complete") {
-    return <GoogleIdentityComplete
-      {...(view.googleAccount ? { googleAccount: view.googleAccount } : {})}
-      identity={view.identity}
-      mode={view.mode}
-      onContinue={onComplete}
-    />;
+  switch (view.name) {
+    case "complete":
+      return <GoogleIdentityComplete
+        {...(view.googleAccount ? { googleAccount: view.googleAccount } : {})}
+        identity={view.identity}
+        mode={view.mode}
+        onContinue={onComplete}
+      />;
+    case "requesting-access":
+      return <GoogleAccessScreen status="pending" />;
+    case "denied":
+      return <GoogleAccessScreen onBack={google.back} onTryAgain={google.retry} status="denied" />;
+    case "failed":
+      return <GoogleIdentityError
+        error={view.error}
+        onBack={google.back}
+        onReplace={view.error.recovery ? () => google.replaceIncompleteBackup(view.error) : null}
+        onTryAgain={google.retry}
+      />;
+    case "working":
+      return <GoogleIdentityProgress progress={view.progress} />;
+    case "idle":
+      return (
+        <SignInPage>
+          <ProviderSignInButton
+            className="w-full"
+            disabled={!google.state.authorizationReady}
+            onClick={google.start}
+            provider="google"
+          >Continue with Google</ProviderSignInButton>
+          <ProviderSignInButton disabled provider="apple">Continue with Apple</ProviderSignInButton>
+          {onBack ? <BackButton onClick={onBack} /> : null}
+        </SignInPage>
+      );
   }
-
-  if (view.name === "requesting-access") return <GoogleAccessScreen status="pending" />;
-  if (view.name === "denied") {
-    return <GoogleAccessScreen onBack={google.back} onTryAgain={google.retry} status="denied" />;
-  }
-  if (view.name === "failed") {
-    return <GoogleIdentityError
-      error={view.error}
-      onBack={google.back}
-      onReplace={view.error.recovery ? () => google.replaceIncompleteBackup(view.error) : null}
-      onTryAgain={google.retry}
-    />;
-  }
-  if (view.name === "working") return <GoogleIdentityProgress progress={view.progress} />;
-
-  return (
-    <SignInPage>
-      <ProviderSignInButton
-        className="w-full"
-        disabled={!google.state.authorizationReady}
-        onClick={google.start}
-        provider="google"
-      >Continue with Google</ProviderSignInButton>
-      <ProviderSignInButton disabled provider="apple">Continue with Apple</ProviderSignInButton>
-      {onBack ? <BackButton onClick={onBack} /> : null}
-    </SignInPage>
-  );
 }
 
 export { SignInFlow };
