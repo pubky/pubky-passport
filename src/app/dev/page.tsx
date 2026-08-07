@@ -10,11 +10,11 @@ import { FieldMessage } from "../../ui/shared/primitives/fieldMessage";
 import { IconButton } from "../../ui/shared/primitives/iconButton";
 import { Input } from "../../ui/shared/primitives/input";
 import { Label } from "../../ui/shared/primitives/label";
-import { SocialLoginButton } from "../../ui/identity/onboarding/socialLoginButton";
+import { ProviderSignInButton } from "../../ui/sign-in/providerSignInButton";
 import { Spinner } from "../../ui/shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "../../ui/shared/primitives/typography";
-import { IdentityRow } from "../../ui/identity/management/identityRow";
-import { GoogleAccountCard } from "../../ui/identity/googleAccountCard";
+import { IdentityRow } from "../../ui/identity-switcher/identityRow";
+import { GoogleAccountCard } from "../../ui/google-sign-in/googleAccountCard";
 
 const VARIANTS = ["default", "secondary", "outline", "destructive"] as const;
 const SIZES = ["default", "lg", "icon"] as const;
@@ -87,7 +87,7 @@ export default function ComponentGalleryPage() {
 
             <section className="flex flex-col gap-5">
                 <h2 className="text-xl font-bold">Provider buttons</h2>
-                <div className="grid max-w-[327px] gap-3"><SocialLoginButton provider="google">Continue with Google</SocialLoginButton><SocialLoginButton provider="apple">Continue with Apple</SocialLoginButton><SocialLoginButton provider="ring">Continue with Pubky Ring</SocialLoginButton></div>
+                <div className="grid max-w-[327px] gap-3"><ProviderSignInButton provider="google">Continue with Google</ProviderSignInButton><ProviderSignInButton provider="apple">Continue with Apple</ProviderSignInButton><ProviderSignInButton provider="ring">Continue with Pubky Ring</ProviderSignInButton></div>
             </section>
 
             <section className="flex flex-col gap-5">

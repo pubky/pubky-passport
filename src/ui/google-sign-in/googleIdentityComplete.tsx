@@ -6,7 +6,7 @@ import { Button } from "../shared/primitives/button";
 import { DisplayHeading, LeadText } from "../shared/primitives/typography";
 import { GoogleAccountCard } from "./googleAccountCard";
 
-function SetupComplete({ googleAccount, identity, mode, onContinue }: { googleAccount?: GoogleAccountProfile; identity: PubkyPublicIdentity; mode: "created" | "restored"; onContinue: () => void }) {
+function GoogleIdentityComplete({ googleAccount, identity, mode, onContinue }: { googleAccount?: GoogleAccountProfile; identity: PubkyPublicIdentity; mode: "created" | "restored"; onContinue: () => void }) {
   const restored = mode === "restored";
   return (
     <main className="mx-auto flex min-h-[calc(100svh-84px)] w-full max-w-[375px] flex-col gap-8 px-6 pb-6 pt-3">
@@ -29,4 +29,4 @@ function ArrowRightIcon() {
   return <svg aria-hidden="true" fill="none" viewBox="0 0 16 16"><path d="M3.33 8h9.34M8.67 4l4 4-4 4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.3" /></svg>;
 }
 
-export { SetupComplete };
+export { GoogleIdentityComplete };

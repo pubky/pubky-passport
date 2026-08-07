@@ -7,7 +7,7 @@ framework-level building blocks stay in `shared`.
 ui/
   application-shell/          Header and cross-feature identity flow composition
   sign-in/                    Login entry and provider controls
-  create-or-restore-google/   Google authorization, lookup, creation/restoration, and completion
+  google-sign-in/             Google authorization and identity establishment screens
   identity-overview/          Active identity home
   identity-switcher/          Identity selection and rows
   identity-management/        Identity details, logout, and encrypted backup

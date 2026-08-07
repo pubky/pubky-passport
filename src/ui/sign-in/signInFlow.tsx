@@ -1,14 +1,10 @@
 "use client";
 
-import { useState } from "react";
-
 import type { PassportIdentityController } from "../../browser/identity/passportIdentity";
-import { CreateOrRestoreGoogleIdentity } from "../create-or-restore-google/createOrRestoreGoogleIdentity";
-import { SetupComplete } from "../create-or-restore-google/setupComplete";
-import {
-  useCreateOrRestoreGoogleIdentity,
-  type CreateOrRestoreGoogleIdentityCompletion,
-} from "../create-or-restore-google/useCreateOrRestoreGoogleIdentity";
+import { GoogleAccessScreen } from "../google-sign-in/googleAccessScreen";
+import { GoogleIdentityComplete } from "../google-sign-in/googleIdentityComplete";
+import { GoogleIdentityProgress } from "../google-sign-in/googleIdentityProgress";
+import { useGoogleSignIn } from "../google-sign-in/useGoogleSignIn";
 import { ProviderSignInButton } from "./providerSignInButton";
 import { SignInPage } from "./signInPage";
 
@@ -17,44 +13,34 @@ function SignInFlow({ controller, onComplete, onSetupStarted }: {
   onComplete: () => void;
   onSetupStarted: () => void;
 }) {
-  const [activeProvider, setActiveProvider] = useState<"google" | null>(null);
-  const [completion, setCompletion] = useState<CreateOrRestoreGoogleIdentityCompletion | null>(null);
-  const google = useCreateOrRestoreGoogleIdentity({ controller, onComplete: setCompletion, onSetupStarted });
+  const google = useGoogleSignIn({ controller, onSetupStarted });
 
-  if (completion) {
-    return <SetupComplete
-      {...(completion.googleAccount ? { googleAccount: completion.googleAccount } : {})}
-      identity={completion.identity}
-      mode={completion.mode}
+  if (google.status === "complete") {
+    return <GoogleIdentityComplete
+      {...(google.googleAccount ? { googleAccount: google.googleAccount } : {})}
+      identity={google.identity}
+      mode={google.mode}
       onContinue={onComplete}
     />;
   }
 
-  if (activeProvider === null && google.status !== "access-denied") {
-    return (
-      <SignInPage>
-        <ProviderSignInButton
-          className="w-full"
-          disabled={google.status !== "ready" || !google.ready}
-          onClick={() => {
-            if (google.status !== "ready") return;
-            google.start();
-            setActiveProvider("google");
-          }}
-          provider="google"
-        >Continue with Google</ProviderSignInButton>
-        <ProviderSignInButton disabled provider="apple">Continue with Apple</ProviderSignInButton>
-      </SignInPage>
-    );
+  if (google.status === "requesting-access") return <GoogleAccessScreen status="pending" />;
+  if (google.status === "denied") {
+    return <GoogleAccessScreen onBack={google.back} onTryAgain={google.tryAgain} status="denied" />;
   }
+  if (google.status === "working") return <GoogleIdentityProgress progress={google.progress} />;
 
-  return <CreateOrRestoreGoogleIdentity
-    onBack={() => {
-      if (google.status === "access-denied") google.back();
-      setActiveProvider(null);
-    }}
-    state={google}
-  />;
+  return (
+    <SignInPage>
+      <ProviderSignInButton
+        className="w-full"
+        disabled={!google.ready}
+        onClick={google.start}
+        provider="google"
+      >Continue with Google</ProviderSignInButton>
+      <ProviderSignInButton disabled provider="apple">Continue with Apple</ProviderSignInButton>
+    </SignInPage>
+  );
 }
 
 export { SignInFlow };

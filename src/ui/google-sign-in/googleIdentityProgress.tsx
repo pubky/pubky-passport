@@ -7,7 +7,7 @@ import { DisplayHeading, LeadText } from "../shared/primitives/typography";
 type StepState = "complete" | "active" | "pending";
 type SetupStep = { label: string; state: StepState };
 
-function SetupProgress({ progress }: { progress: GoogleBackedIdentityProgress }) {
+function GoogleIdentityProgress({ progress }: { progress: GoogleBackedIdentityProgress }) {
   if (progress === "preparing_secure_identity" || progress === "checking_passport_file") {
     return <IdentityLookup />;
   }
@@ -77,4 +77,4 @@ function PendingIcon() {
   return <svg aria-hidden="true" className="size-6 shrink-0 text-muted-foreground" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" stroke="currentColor" /></svg>;
 }
 
-export { SetupProgress };
+export { GoogleIdentityProgress };

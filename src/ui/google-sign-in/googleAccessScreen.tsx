@@ -2,11 +2,11 @@ import { Button } from "../shared/primitives/button";
 import { Spinner } from "../shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "../shared/primitives/typography";
 
-type GoogleAccessRequestProps =
+type GoogleAccessScreenProps =
   | { status: "pending"; onBack?: never; onTryAgain?: never }
   | { status: "denied"; onBack: () => void; onTryAgain: () => void };
 
-function GoogleAccessRequest(props: GoogleAccessRequestProps) {
+function GoogleAccessScreen(props: GoogleAccessScreenProps) {
   const denied = props.status === "denied";
   return (
     <main className="mx-auto flex min-h-[calc(100svh-84px)] w-full max-w-[375px] flex-col gap-6 px-6 pb-6 pt-3">
@@ -25,4 +25,4 @@ function GoogleAccessRequest(props: GoogleAccessRequestProps) {
   );
 }
 
-export { GoogleAccessRequest };
+export { GoogleAccessScreen };
