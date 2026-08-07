@@ -5,7 +5,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
   GoogleBackedIdentityActionState,
+  GoogleBackedIdentityAction,
   GoogleBackedIdentityProgress,
+  PassportIdentityControllerError,
   PassportIdentityController,
 } from "../../browser/identity/passportIdentity";
 import type { GoogleAccountProfile } from "../../core/identity/googleAccountProfile";
@@ -21,6 +23,13 @@ type GoogleSignInState =
   | { status: "idle"; ready: boolean; start: () => void }
   | { status: "requesting-access" }
   | { status: "denied"; back: () => void; tryAgain: () => void }
+  | {
+      status: "failed";
+      back: () => void;
+      error: PassportIdentityControllerError;
+      replace: (() => void) | null;
+      tryAgain: () => void;
+    }
   | { status: "working"; progress: GoogleBackedIdentityProgress }
   | ({ status: "complete" } & GoogleSignInCompletion);
 
@@ -28,6 +37,7 @@ type GoogleSignInView =
   | { status: "idle"; ready: boolean }
   | { status: "requesting-access" }
   | { status: "denied" }
+  | { status: "failed"; error: PassportIdentityControllerError }
   | { status: "working"; progress: GoogleBackedIdentityProgress }
   | ({ status: "complete" } & GoogleSignInCompletion);
 
@@ -42,16 +52,23 @@ function useGoogleSignIn({ controller, onSetupStarted }: {
 
   useEffect(() => { setupStarted.current = onSetupStarted; }, [onSetupStarted]);
 
-  const start = useCallback((): void => {
+  const run = useCallback((action: GoogleBackedIdentityAction): void => {
     if (dispatching.current) return;
     dispatching.current = true;
     setView({ status: "requesting-access" });
     setupStarted.current();
-    void controller.continueGoogleBackedIdentityAction({ kind: "establish_google_backed_identity" })
+    void controller.continueGoogleBackedIdentityAction(action)
       .then((completed) => {
-        if (completed.status !== "action_completed") return;
-        if (Result.isError(completed.result) || completed.result.value.kind !== "google_backed_identity_established") {
-          setView({ status: "denied" });
+        if (completed.status !== "action_completed") {
+          if (completed.status === "google_authorization_failed") setView({ status: "denied" });
+          return;
+        }
+        if (Result.isError(completed.result)) {
+          setView({ status: "failed", error: completed.result.error });
+          return;
+        }
+        if (completed.result.value.kind !== "google_backed_identity_established") {
+          setView({ status: "failed", error: { code: "unexpected_failure" } });
           return;
         }
         const established = completed.result.value;
@@ -66,9 +83,13 @@ function useGoogleSignIn({ controller, onSetupStarted }: {
           ...(googleAccount ? { googleAccount } : {}),
         });
       })
-      .catch(() => setView({ status: "denied" }))
+      .catch(() => setView({ status: "failed", error: { code: "unexpected_failure" } }))
       .finally(() => { dispatching.current = false; });
   }, [controller]);
+
+  const start = useCallback(() => {
+    run({ kind: "establish_google_backed_identity" });
+  }, [run]);
 
   const back = useCallback(() => {
     dispatching.current = false;
@@ -79,6 +100,16 @@ function useGoogleSignIn({ controller, onSetupStarted }: {
     dispatching.current = false;
     start();
   }, [start]);
+
+  const replace = useCallback((error: PassportIdentityControllerError) => {
+    if (!error.recovery) return;
+    dispatching.current = false;
+    run({
+      kind: "replace_incomplete_google_backed_identity",
+      publicIdentity: error.recovery.publicIdentity,
+      expectedGoogleAccountId: error.recovery.googleAccount.id,
+    });
+  }, [run]);
 
   useEffect(() => {
     void controller.prepareGoogleAuthorization((nextState) => {
@@ -91,6 +122,14 @@ function useGoogleSignIn({ controller, onSetupStarted }: {
   }, [controller]);
 
   if (view.status === "denied") return { ...view, back, tryAgain };
+  if (view.status === "failed") {
+    return {
+      ...view,
+      back,
+      replace: view.error.recovery ? () => replace(view.error) : null,
+      tryAgain,
+    };
+  }
   if (view.status === "idle") return { ...view, start };
   return view;
 }

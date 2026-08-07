@@ -1,4 +1,6 @@
 import { Button } from "../shared/primitives/button";
+import { BackButton } from "../shared/navigation/backButton";
+import { RotateCcwIcon } from "../shared/icons/rotateCcwIcon";
 import { Spinner } from "../shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "../shared/primitives/typography";
 
@@ -17,8 +19,8 @@ function GoogleAccessScreen(props: GoogleAccessScreenProps) {
       </div>
       {denied ? (
         <div className="mt-auto flex flex-col gap-3">
-          <Button className="w-full" onClick={props.onTryAgain} size="lg">Try again</Button>
-          <Button className="w-full" onClick={props.onBack} size="lg" variant="secondary">Return home</Button>
+          <Button className="w-full" onClick={props.onTryAgain} size="lg" type="button"><RotateCcwIcon />Try again</Button>
+          <BackButton onClick={props.onBack} />
         </div>
       ) : null}
     </main>

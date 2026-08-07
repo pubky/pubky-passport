@@ -3,6 +3,7 @@
 import type { PassportIdentityController } from "../../browser/identity/passportIdentity";
 import { GoogleAccessScreen } from "../google-sign-in/googleAccessScreen";
 import { GoogleIdentityComplete } from "../google-sign-in/googleIdentityComplete";
+import { GoogleIdentityError } from "../google-sign-in/googleIdentityError";
 import { GoogleIdentityProgress } from "../google-sign-in/googleIdentityProgress";
 import { useGoogleSignIn } from "../google-sign-in/useGoogleSignIn";
 import { ProviderSignInButton } from "./providerSignInButton";
@@ -27,6 +28,14 @@ function SignInFlow({ controller, onComplete, onSetupStarted }: {
   if (google.status === "requesting-access") return <GoogleAccessScreen status="pending" />;
   if (google.status === "denied") {
     return <GoogleAccessScreen onBack={google.back} onTryAgain={google.tryAgain} status="denied" />;
+  }
+  if (google.status === "failed") {
+    return <GoogleIdentityError
+      error={google.error}
+      onBack={google.back}
+      onReplace={google.replace}
+      onTryAgain={google.tryAgain}
+    />;
   }
   if (google.status === "working") return <GoogleIdentityProgress progress={google.progress} />;
 

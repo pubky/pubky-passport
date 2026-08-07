@@ -137,6 +137,71 @@ describe("PassportIdentityController", () => {
     if (Result.isError(completed.result)) expect(completed.result.error).toEqual({ code: "local_remove_failed" });
   });
 
+  it("deletes an incomplete backup before creating a replacement with the same authorization", async () => {
+    const calls: string[] = [];
+    const deleteGoogleIdentityBackups = vi.fn(async () => {
+      calls.push("delete");
+      return Result.ok({ status: "deleted" as const });
+    });
+    const restoreOrCreateGoogleBackedIdentity = vi.fn(async () => {
+      calls.push("create");
+      return Result.ok({
+        establishmentMode: "created" as const,
+        publicIdentity: IDENTITY,
+        visibleRecoveryCopyStatus: "created" as const,
+      });
+    });
+    const remove = vi.fn(() => Result.ok());
+    const controller = new PassportIdentityController(dependencies({
+      deleteGoogleIdentityBackups,
+      remove,
+      restoreOrCreateGoogleBackedIdentity,
+    }));
+    await controller.prepareGoogleAuthorization(vi.fn());
+
+    const completed = await controller.continueGoogleBackedIdentityAction({
+      kind: "replace_incomplete_google_backed_identity",
+      publicIdentity: IDENTITY,
+      expectedGoogleAccountId: GOOGLE_ACCOUNT.id,
+    });
+
+    expect(completed).toEqual({
+      status: "action_completed",
+      result: Result.ok({
+        kind: "google_backed_identity_established",
+        establishmentMode: "created",
+        publicIdentity: IDENTITY,
+        visibleRecoveryCopyStatus: "created",
+      }),
+    });
+    expect(calls).toEqual(["delete", "create"]);
+    expect(deleteGoogleIdentityBackups).toHaveBeenCalledWith(CREDENTIALS, IDENTITY, GOOGLE_ACCOUNT.id);
+    expect(restoreOrCreateGoogleBackedIdentity).toHaveBeenCalledWith(CREDENTIALS, expect.any(Function));
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it("returns safe recovery context for an incomplete encrypted identity", async () => {
+    const controller = new PassportIdentityController(dependencies({
+      restoreOrCreateGoogleBackedIdentity: async () => Result.err({
+        code: "signin_failed" as const,
+        preservedPassportFileIdentity: IDENTITY,
+      }),
+    }));
+    await controller.prepareGoogleAuthorization(vi.fn());
+
+    const completed = await controller.continueGoogleBackedIdentityAction({ kind: "establish_google_backed_identity" });
+
+    expect(completed.status).toBe("action_completed");
+    if (completed.status !== "action_completed") return;
+    expect(Result.isError(completed.result)).toBe(true);
+    if (!Result.isError(completed.result)) return;
+    expect(completed.result.error).toEqual({
+      code: "signin_failed",
+      preservedPassportFileIdentity: IDENTITY,
+      recovery: { googleAccount: GOOGLE_ACCOUNT, publicIdentity: IDENTITY },
+    });
+  });
+
   it("does not delete anything when a different Google account is selected", async () => {
     const deleteGoogleIdentityBackups = vi.fn(async () => Result.ok({ status: "deleted" as const }));
     const remove = vi.fn(() => Result.ok());

@@ -36,6 +36,7 @@ export type {
   GoogleBackedIdentityActionResult,
   GoogleBackedIdentityActionState,
   LocalIdentitySummary,
+  PassportIdentityControllerError,
   PassportIdentityList,
 } from "./passportIdentityController";
 export type { GoogleBackedIdentityProgress } from "./google-backed/googleBackedIdentityProgress";

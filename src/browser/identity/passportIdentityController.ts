@@ -3,6 +3,7 @@ import "client-only";
 import { Result } from "better-result";
 
 import type { PubkyPublicIdentity } from "../../core/identity/pubkyIdentity";
+import type { GoogleAccountProfile } from "../../core/identity/googleAccountProfile";
 import { LOGGER } from "../../libs/logger/logger";
 import type {
   GoogleBackedIdentity,
@@ -69,6 +70,10 @@ export type PassportIdentityControllerErrorCode =
 export type PassportIdentityControllerError = {
   code: PassportIdentityControllerErrorCode;
   preservedPassportFileIdentity?: PubkyPublicIdentity;
+  recovery?: {
+    googleAccount: GoogleAccountProfile;
+    publicIdentity: PubkyPublicIdentity;
+  };
   warning?: "visible_recovery_copy_unconfirmed";
 };
 
@@ -76,6 +81,11 @@ export type GoogleBackedIdentityAction =
   | { kind: "establish_google_backed_identity" }
   | {
       kind: "detach_google_backed_identity";
+      publicIdentity: PubkyPublicIdentity;
+      expectedGoogleAccountId: string;
+    }
+  | {
+      kind: "replace_incomplete_google_backed_identity";
       publicIdentity: PubkyPublicIdentity;
       expectedGoogleAccountId: string;
     };
@@ -248,7 +258,7 @@ export class PassportIdentityController {
         this.resetGoogleAuthorization(errorForAuthorizationCodeFailure(credentials.error.code));
         return { status: "google_authorization_failed" };
       }
-      if (action.kind === "detach_google_backed_identity"
+      if (action.kind !== "establish_google_backed_identity"
         && credentials.value.googleAccount.id !== action.expectedGoogleAccountId) {
         this.resetGoogleAuthorization("google_drive_authorization_account_mismatch");
         return { status: "google_authorization_failed" };
@@ -295,6 +305,15 @@ export class PassportIdentityController {
           ? actionFailure({ code: "local_remove_failed" })
           : Result.ok({ kind: "google_backed_identity_detached", deletionStatus: deleted.value.status });
       }
+      if (action.kind === "replace_incomplete_google_backed_identity") {
+        this.emit({ stage: "establishing-google-backed-identity", progress: "checking_passport_file" });
+        const deleted = await this.#dependencies.deleteGoogleIdentityBackups(
+          credentials,
+          action.publicIdentity,
+          action.expectedGoogleAccountId,
+        );
+        if (Result.isError(deleted)) return deletionFailure(deleted.error);
+      }
       let progressActive = true;
       const reportProgress: ReportGoogleBackedIdentityProgress = (progress) => {
         if (!progressActive || this.#disposed || activeGeneration !== this.#mountGeneration) return;
@@ -309,7 +328,9 @@ export class PassportIdentityController {
       } finally {
         progressActive = false;
       }
-      if (Result.isError(restoredOrCreated)) return establishmentFailure(restoredOrCreated.error);
+      if (Result.isError(restoredOrCreated)) {
+        return establishmentFailure(restoredOrCreated.error, credentials.googleAccount);
+      }
       return restoredOrCreated.value.establishmentMode === "created"
         ? Result.ok({
             kind: "google_backed_identity_established",
@@ -380,7 +401,10 @@ function actionFailure(error: PassportIdentityControllerError): GoogleBackedIden
   return Result.err(error);
 }
 
-function establishmentFailure(error: GoogleBackedIdentityError): GoogleBackedIdentityActionResult {
+function establishmentFailure(
+  error: GoogleBackedIdentityError,
+  googleAccount: GoogleAccountProfile,
+): GoogleBackedIdentityActionResult {
   return actionFailure({
     code: error.code === "homeserver_signup_invitation_failed"
       ? error.cause
@@ -388,7 +412,10 @@ function establishmentFailure(error: GoogleBackedIdentityError): GoogleBackedIde
         ? wrappingKeyFailureCode(error.cause)
         : error.code,
     ...(error.preservedPassportFileIdentity
-      ? { preservedPassportFileIdentity: error.preservedPassportFileIdentity }
+      ? {
+          preservedPassportFileIdentity: error.preservedPassportFileIdentity,
+          recovery: { googleAccount, publicIdentity: error.preservedPassportFileIdentity },
+        }
       : {}),
     ...("warning" in error && error.warning ? { warning: error.warning } : {}),
   });

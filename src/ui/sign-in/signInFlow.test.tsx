@@ -87,7 +87,11 @@ describe("SignInFlow", () => {
 
     act(() => emitState?.({ stage: "google-authorization", errorCode: "google_drive_authorization_popup_closed" }));
     expect(await screen.findByRole("heading", { name: "Google access denied." })).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
+    const tryAgain = screen.getByRole("button", { name: "Try again" });
+    expect(tryAgain.querySelector("[data-slot='rotate-ccw-icon']")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Return home" })).not.toBeInTheDocument();
+    await userEvent.setup().click(tryAgain);
     expect(continueAction).toHaveBeenCalledTimes(2);
   });
 
@@ -110,5 +114,39 @@ describe("SignInFlow", () => {
     expect(screen.getByText("Satoshi Nakamoto")).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
     expect(onComplete).toHaveBeenCalledOnce();
+  });
+
+  it("shows the real setup error and confirms replacement of an incomplete backup", async () => {
+    const googleAccount = { id: "google-1", email: "user@gmail.com", name: "User", pictureUrl: null };
+    const publicIdentity = { publicKeyZ32: "key", publicKeyDisplay: "pubkykey" };
+    const continueAction = vi.fn()
+      .mockResolvedValueOnce({
+        status: "action_completed" as const,
+        result: Result.err({
+          code: "signin_failed" as const,
+          preservedPassportFileIdentity: publicIdentity,
+          recovery: { googleAccount, publicIdentity },
+        }),
+      })
+      .mockResolvedValueOnce({ status: "busy" as const });
+    const controller = mockPassportIdentityController({
+      prepareGoogleAuthorization: vi.fn(async (onState) => onState({ stage: "google-authorization", errorCode: null })),
+      continueGoogleBackedIdentityAction: continueAction,
+    });
+    render(<SignInFlow controller={controller} onComplete={vi.fn()} onSetupStarted={vi.fn()} />);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
+
+    expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
+    expect(screen.getByText("signin_failed")).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Delete backup & create new Pubky" }));
+    expect(screen.getByRole("heading", { name: "Delete backup and start over?" })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Delete & create new" }));
+
+    expect(continueAction).toHaveBeenNthCalledWith(2, {
+      kind: "replace_incomplete_google_backed_identity",
+      publicIdentity,
+      expectedGoogleAccountId: googleAccount.id,
+    });
   });
 });
