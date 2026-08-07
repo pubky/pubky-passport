@@ -1,10 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import { Result } from "better-result";
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
 import type { LocalIdentitySummary, PubkyHomeserverResolutionResult } from "../../browser/identity/passportIdentity";
+import { CopyIcon, DownloadIcon, KeyRoundIcon, LinkOffIcon } from "../shared/icons/actionIcons";
 import { Avatar } from "../shared/primitives/avatar";
 import { Button } from "../shared/primitives/button";
 import { IconButton } from "../shared/primitives/iconButton";
@@ -40,9 +41,9 @@ function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadBa
       </section>
 
       <div className="mt-auto flex flex-col gap-4 pt-6">
-        <ManagementButton icon="/icons/figma-key-round.svg" onClick={onMigrateToKeychain}>Migrate to keychain</ManagementButton>
-        <ManagementButton icon="/icons/figma-download.svg" onClick={onDownloadBackup}>Download backup</ManagementButton>
-        <ManagementButton icon="/icons/figma-link-off.svg" onClick={onDetachFromGoogle}>Detach from Google</ManagementButton>
+        <ManagementButton icon={<KeyRoundIcon />} onClick={onMigrateToKeychain}>Migrate to keychain</ManagementButton>
+        <ManagementButton icon={<DownloadIcon />} onClick={onDownloadBackup}>Download backup</ManagementButton>
+        <ManagementButton icon={<LinkOffIcon />} onClick={onDetachFromGoogle}>Detach from Google</ManagementButton>
         <BackButton onClick={onBack} />
       </div>
     </main>
@@ -64,19 +65,15 @@ function IdentityDetail({ copy = false, label, value }: { copy?: boolean; label:
       </div>
       {copy ? (
         <IconButton aria-label={`Copy ${label}`} className="size-9 p-1" disabled={!isCopyable} onClick={copyValue} variant="ghost">
-          <ActionIcon size={20} src="/icons/figma-copy.svg" />
+          <CopyIcon size={20} />
         </IconButton>
       ) : null}
     </div>
   );
 }
 
-function ManagementButton({ children, icon, onClick }: { children: string; icon: string; onClick?: () => void }) {
-  return <Button className="w-full" onClick={onClick} size="lg" variant="secondary"><ActionIcon src={icon} />{children}</Button>;
-}
-
-function ActionIcon({ size = 16, src }: { size?: 16 | 20; src: string }) {
-  return <Image alt="" className="brightness-0 invert opacity-80" height={size} src={src} width={size} />;
+function ManagementButton({ children, icon, onClick }: { children: string; icon: ReactNode; onClick?: () => void }) {
+  return <Button className="w-full" onClick={onClick} size="lg" variant="secondary">{icon}{children}</Button>;
 }
 
 export { IdentityManagement };

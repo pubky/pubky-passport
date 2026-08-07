@@ -9,6 +9,7 @@ import {
   type LocalIdentityBackupFile,
   type LocalIdentityBackupResult,
 } from "../../browser/identity/passportIdentity";
+import { DownloadBackupIcon } from "../shared/icons/actionIcons";
 import { Button } from "../shared/primitives/button";
 import { FieldMessage } from "../shared/primitives/fieldMessage";
 import { Input } from "../shared/primitives/input";
@@ -69,17 +70,13 @@ function EncryptedBackup({ createBackup, identityId, onBack }: {
         <div className="mt-auto flex flex-col gap-4 pt-4">
           <BackButton onClick={onBack} />
           <Button disabled={!validPassword || pending} size="lg" type="submit">
-            <DownloadIcon />
+            <DownloadBackupIcon />
             {pending ? "Encrypting…" : "Download backup"}
           </Button>
         </div>
       </form>
     </main>
   );
-}
-
-function DownloadIcon() {
-  return <span className="flex size-4 items-center justify-center"><Image alt="" height={13.33} src="/icons/figma-download-backup.svg" width={13.33} /></span>;
 }
 
 function downloadFile(file: LocalIdentityBackupFile): boolean {

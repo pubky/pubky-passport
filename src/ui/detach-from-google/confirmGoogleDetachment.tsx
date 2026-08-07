@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { FormEvent, useEffect, useRef, useState } from "react";
 
+import { XIcon } from "../shared/icons/actionIcons";
 import { Button } from "../shared/primitives/button";
 import { FieldMessage } from "../shared/primitives/fieldMessage";
 import { Input } from "../shared/primitives/input";
@@ -58,7 +58,7 @@ function ConfirmGoogleDetachment({ canConfirm, canRetryAuthorization, error, onC
       <form className="flex flex-col gap-6" onSubmit={submit}>
         <h2 className="pr-10 text-xl font-bold leading-7" id="detach-google-title">Remove Google Access</h2>
         <button aria-label="Close" className="absolute right-[15px] top-[15px] flex size-8 items-center justify-center rounded-full bg-secondary" disabled={pending} onClick={cancel} type="button">
-          <Image alt="" className="opacity-70" height={9.33} src="/icons/figma-x.svg" width={9.33} />
+          <XIcon className="opacity-70" />
         </button>
 
         <div className="flex flex-col gap-2">

@@ -4,8 +4,10 @@ import { Result } from "better-result";
 import { useState } from "react";
 
 import type { PassportIdentityController } from "../../browser/identity/passportIdentity";
+import { PubkyBrandIcon } from "../shared/brand/pubkyBrandIcon";
 import { PubkyRingLogo } from "../shared/brand/pubkyRingLogo";
 import { PubkyRingStoreBadges } from "../shared/brand/pubkyRingStoreBadges";
+import { ScanIcon } from "../shared/icons/actionIcons";
 import { BackButton } from "../shared/navigation/backButton";
 import { Button } from "../shared/primitives/button";
 import { DisplayHeading, LeadText } from "../shared/primitives/typography";
@@ -51,14 +53,6 @@ function MigrateToPubkyRing({ createMigrationUrl, onBack }: {
       {migrationUrl ? <PubkyRingQrDialog onClose={() => setShowQr(false)} open={showQr} value={migrationUrl} /> : null}
     </main>
   );
-}
-
-function ScanIcon() {
-  return <span aria-hidden="true" className="size-4 bg-secondary-foreground [mask-image:url('/icons/figma-scan.svg')] [mask-position:center] [mask-repeat:no-repeat] [mask-size:13.33px_13.33px]" />;
-}
-
-function PubkyBrandIcon() {
-  return <span aria-hidden="true" className="size-4 bg-brand [mask-image:url('/brand/pubky-crown.svg')] [mask-position:center] [mask-repeat:no-repeat] [mask-size:10.5px_16px]" />;
 }
 
 export { MigrateToPubkyRing };

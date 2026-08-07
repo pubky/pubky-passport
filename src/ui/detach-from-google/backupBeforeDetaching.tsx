@@ -1,5 +1,6 @@
-import Image from "next/image";
+import type { ReactNode } from "react";
 
+import { CheckIcon, DownloadIcon, KeyRoundIcon } from "../shared/icons/actionIcons";
 import { BackButton } from "../shared/navigation/backButton";
 import { Button } from "../shared/primitives/button";
 import { LeadText } from "../shared/primitives/typography";
@@ -21,15 +22,15 @@ function BackupBeforeDetaching({ onBack, onBackupConfirmed, onDownloadBackup, on
 
         <section className="flex flex-col gap-3 rounded-2xl bg-card p-6">
           <p className="text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">Choose backup method</p>
-          <BackupMethodButton icon="/icons/figma-key-round.svg" onClick={onMigrateToKeychain}>Migrate to keychain</BackupMethodButton>
-          <BackupMethodButton icon="/icons/figma-download.svg" onClick={onDownloadBackup}>Download encrypted backup</BackupMethodButton>
+          <BackupMethodButton icon={<KeyRoundIcon />} onClick={onMigrateToKeychain}>Migrate to keychain</BackupMethodButton>
+          <BackupMethodButton icon={<DownloadIcon />} onClick={onDownloadBackup}>Download encrypted backup</BackupMethodButton>
         </section>
       </div>
 
       <div className="mt-auto flex flex-col gap-4">
         <BackButton onClick={onBack} />
         <Button onClick={onBackupConfirmed} size="lg" type="button">
-          <Image alt="" height={8.67} src="/icons/figma-check.svg" width={12} />
+          <CheckIcon />
           I backed up my pubky
         </Button>
       </div>
@@ -39,12 +40,12 @@ function BackupBeforeDetaching({ onBack, onBackupConfirmed, onDownloadBackup, on
 
 function BackupMethodButton({ children, icon, onClick }: {
   children: string;
-  icon: string;
+  icon: ReactNode;
   onClick?: () => void;
 }) {
   return (
     <Button className="w-full" onClick={onClick} type="button" variant="secondary">
-      <Image alt="" className="brightness-0 invert opacity-80" height={16} src={icon} width={16} />
+      {icon}
       {children}
     </Button>
   );

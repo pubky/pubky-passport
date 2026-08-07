@@ -15,6 +15,7 @@ import { Spinner } from "../../ui/shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "../../ui/shared/primitives/typography";
 import { IdentityRow } from "../../ui/identity-switcher/identityRow";
 import { GoogleAccountCard } from "../../ui/google-sign-in/googleAccountCard";
+import { ArrowRightIcon, CheckIcon, ScanIcon, TrashIcon, XIcon } from "../../ui/shared/icons/actionIcons";
 
 const VARIANTS = ["default", "secondary", "outline", "destructive"] as const;
 const SIZES = ["default", "lg", "icon"] as const;
@@ -202,47 +203,5 @@ function PreviewCell({ children, label }: { children: ReactNode; label: string }
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
             {children}
         </div>
-    );
-}
-
-function ArrowRightIcon() {
-    return (
-        <span aria-hidden="true" className="flex size-4 items-center justify-center">
-            <span
-                className="block bg-contain bg-center bg-no-repeat"
-                style={{
-                    backgroundImage: "url('/icons/figma-arrow-right.svg')",
-                    height: "10.6633px",
-                    width: "10.6633px",
-                }}
-            />
-        </span>
-    );
-}
-
-function ScanIcon() {
-    return <FigmaIcon asset="figma-scan.svg" height="13.33px" width="13.33px" />;
-}
-
-function CheckIcon() {
-    return <FigmaIcon asset="figma-check.svg" height="8.66333px" width="11.9967px" />;
-}
-
-function TrashIcon() {
-    return <FigmaIcon asset="figma-trash.svg" height="14.6633px" width="13.33px" />;
-}
-
-function XIcon() {
-    return <FigmaIcon asset="figma-x.svg" height="9.33px" width="9.33px" />;
-}
-
-function FigmaIcon({ asset, height, width }: { asset: string; height: string; width: string }) {
-    return (
-        <span aria-hidden="true" className="flex size-4 items-center justify-center">
-            <span
-                className="block bg-contain bg-center bg-no-repeat"
-                style={{ backgroundImage: `url('/icons/${asset}')`, height, width }}
-            />
-        </span>
     );
 }

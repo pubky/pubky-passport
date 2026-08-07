@@ -1,5 +1,6 @@
 import Image from "next/image";
 
+import { CheckIcon } from "../shared/icons/actionIcons";
 import { Button } from "../shared/primitives/button";
 import { DisplayHeading, LeadText } from "../shared/primitives/typography";
 
@@ -15,7 +16,7 @@ function GoogleDetachmentComplete({ onDone }: { onDone: () => void }) {
       </div>
 
       <Button className="mt-auto w-full" onClick={onDone} size="lg" type="button">
-        <Image alt="" height={8.67} src="/icons/figma-check.svg" width={12} />
+        <CheckIcon />
         Done
       </Button>
     </main>

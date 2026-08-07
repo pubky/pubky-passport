@@ -1,5 +1,4 @@
-import Image from "next/image";
-
+import { TrashIcon } from "../shared/icons/actionIcons";
 import { BackButton } from "../shared/navigation/backButton";
 import { Button } from "../shared/primitives/button";
 import { DisplayHeading, LeadText } from "../shared/primitives/typography";
@@ -20,9 +19,7 @@ function ReviewGoogleDetachment({ onBack, onRemove }: { onBack: () => void; onRe
       <div className="mt-auto flex flex-col gap-4">
         <BackButton onClick={onBack} />
         <Button className="w-full" onClick={onRemove} size="lg" type="button" variant="destructive">
-          <span className="flex size-4 items-center justify-center">
-            <Image alt="" height={14.6633} src="/icons/figma-trash.svg" width={13.33} />
-          </span>
+          <TrashIcon />
           Remove Google Access
         </Button>
       </div>

@@ -1,9 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 
 import type { LocalIdentitySummary } from "../../browser/identity/passportIdentity";
+import { KeyRoundIcon, SettingsIcon, SquareUserRoundIcon } from "../shared/icons/actionIcons";
 import { Avatar } from "../shared/primitives/avatar";
 import { Button } from "../shared/primitives/button";
 import { GoogleLogo } from "../shared/brand/googleLogo";
@@ -28,19 +28,15 @@ function IdentityOverview({ identity, onManage, onSwitch }: {
           {account ? <p className="flex items-center justify-center gap-2 text-sm font-bold leading-5"><GoogleLogo />{account.email}</p> : null}
         </div>
         <Button asChild className="w-full" size="lg" variant="secondary">
-          <Link href="/authorize"><ActionIcon alt="" src="/icons/figma-key-round.svg" />Authorize</Link>
+          <Link href="/authorize"><KeyRoundIcon />Authorize</Link>
         </Button>
         <div className="flex w-full gap-3">
-          <Button className="min-w-0 flex-1" onClick={onManage} variant="secondary"><ActionIcon alt="" src="/icons/figma-settings.svg" />Manage</Button>
-          <Button className="min-w-0 flex-1" onClick={onSwitch} variant="secondary"><ActionIcon alt="" src="/icons/figma-square-user-round.svg" />Switch</Button>
+          <Button className="min-w-0 flex-1" onClick={onManage} variant="secondary"><SettingsIcon />Manage</Button>
+          <Button className="min-w-0 flex-1" onClick={onSwitch} variant="secondary"><SquareUserRoundIcon />Switch</Button>
         </div>
       </section>
     </main>
   );
-}
-
-function ActionIcon({ alt, src }: { alt: string; src: string }) {
-  return <Image alt={alt} className="brightness-0 invert opacity-80" height={16} src={src} width={16} />;
 }
 
 export { IdentityOverview };

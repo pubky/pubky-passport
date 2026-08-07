@@ -1,8 +1,7 @@
 "use client";
 
-import Image from "next/image";
-
 import type { LocalIdentitySummary } from "../../browser/identity/passportIdentity";
+import { UserRoundPlusIcon } from "../shared/icons/actionIcons";
 import { Button } from "../shared/primitives/button";
 import { DisplayHeading } from "../shared/primitives/typography";
 import { IdentityRow } from "./identityRow";
@@ -35,7 +34,7 @@ function IdentitySwitcher({ activeIdentityId, identities, onAddIdentity, onBack,
           );
         })}
         <Button className="mt-0 w-full" onClick={onAddIdentity} size="lg" variant="secondary">
-          <Image alt="" className="brightness-0 invert opacity-80" height={16} src="/icons/figma-user-round-plus.svg" width={16} />
+          <UserRoundPlusIcon />
           Add identity
         </Button>
       </section>
