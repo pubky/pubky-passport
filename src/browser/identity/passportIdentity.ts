@@ -12,6 +12,7 @@ import {
 } from "./google-backed/googleBackedIdentityOperations";
 import { resolvePubkyHomeserver } from "../pubky/pubkySdkAdapter";
 import { createLocalIdentityBackup } from "./local/createLocalIdentityBackup";
+import { createActivePubkyRingMigrationUrl } from "./pubky-ring-migration/createActivePubkyRingMigrationUrl";
 
 export type PassportIdentityController = Pick<
   PassportIdentityControllerImplementation,
@@ -21,6 +22,7 @@ export type PassportIdentityController = Pick<
   | "subscribe"
   | "resolveHomeserver"
   | "createBackup"
+  | "createActivePubkyRingMigrationUrl"
   | "prepareGoogleAuthorization"
   | "disposeGoogleAuthorization"
   | "retryGoogleAuthorization"
@@ -83,6 +85,7 @@ function createController(
     subscribe: repository.subscribe.bind(repository),
     resolveHomeserver: resolvePubkyHomeserver,
     createBackup: (identityId, password) => createLocalIdentityBackup(repository.read.bind(repository), identityId, password),
+    createActivePubkyRingMigrationUrl: () => createActivePubkyRingMigrationUrl(repository.readActive.bind(repository)),
     restoreOrCreateGoogleBackedIdentity: (credentials, reportProgress) => getGoogleBackedIdentityOperations()
       .restoreOrCreateGoogleBackedIdentity(credentials, reportProgress),
     deleteGoogleIdentityBackups: (credentials, publicIdentity, expectedGoogleAccountId) => getGoogleBackedIdentityOperations()

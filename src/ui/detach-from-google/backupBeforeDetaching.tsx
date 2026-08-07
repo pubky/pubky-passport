@@ -4,10 +4,11 @@ import { BackButton } from "../shared/navigation/backButton";
 import { Button } from "../shared/primitives/button";
 import { LeadText } from "../shared/primitives/typography";
 
-function BackupBeforeDetaching({ onBack, onBackupConfirmed, onDownloadBackup }: {
+function BackupBeforeDetaching({ onBack, onBackupConfirmed, onDownloadBackup, onMigrateToKeychain }: {
   onBack: () => void;
   onBackupConfirmed: () => void;
   onDownloadBackup: () => void;
+  onMigrateToKeychain: () => void;
 }) {
   return (
     <main className="mx-auto flex min-h-[calc(100svh-84px)] w-full max-w-[375px] flex-col gap-8 px-6 pb-6 pt-3">
@@ -20,7 +21,7 @@ function BackupBeforeDetaching({ onBack, onBackupConfirmed, onDownloadBackup }: 
 
         <section className="flex flex-col gap-3 rounded-2xl bg-card p-6">
           <p className="text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">Choose backup method</p>
-          <BackupMethodButton icon="/icons/figma-key-round.svg">Migrate to keychain</BackupMethodButton>
+          <BackupMethodButton icon="/icons/figma-key-round.svg" onClick={onMigrateToKeychain}>Migrate to keychain</BackupMethodButton>
           <BackupMethodButton icon="/icons/figma-download.svg" onClick={onDownloadBackup}>Download encrypted backup</BackupMethodButton>
         </section>
       </div>

@@ -4,12 +4,13 @@ import { useState } from "react";
 
 import type { LocalIdentitySummary, PassportIdentityController } from "../../browser/identity/passportIdentity";
 import { EncryptedBackup } from "../identity-management/encryptedBackup";
+import { MigrateToPubkyRing } from "../migrate-to-pubky-ring/migrateToPubkyRing";
 import { BackupBeforeDetaching } from "./backupBeforeDetaching";
 import { ConfirmGoogleDetachment } from "./confirmGoogleDetachment";
 import { GoogleDetachmentComplete } from "./googleDetachmentComplete";
 import { useDetachFromGoogle } from "./useDetachFromGoogle";
 
-type DetachScreen = "backup" | "encrypted-backup";
+type DetachScreen = "backup" | "encrypted-backup" | "pubky-ring";
 
 function DetachFromGoogleFlow({ controller, identity, onBack, onDone }: {
   controller: PassportIdentityController;
@@ -33,6 +34,12 @@ function DetachFromGoogleFlow({ controller, identity, onBack, onDone }: {
       onBack={() => setScreen("backup")}
     />;
   }
+  if (screen === "pubky-ring") {
+    return <MigrateToPubkyRing
+      createMigrationUrl={controller.createActivePubkyRingMigrationUrl.bind(controller)}
+      onBack={() => setScreen("backup")}
+    />;
+  }
 
   return (
     <>
@@ -40,6 +47,7 @@ function DetachFromGoogleFlow({ controller, identity, onBack, onDone }: {
         onBack={onBack}
         onBackupConfirmed={() => setConfirmationOpen(true)}
         onDownloadBackup={() => setScreen("encrypted-backup")}
+        onMigrateToKeychain={() => setScreen("pubky-ring")}
       />
       <ConfirmGoogleDetachment
         canConfirm={detachment.canDetach}

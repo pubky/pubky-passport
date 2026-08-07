@@ -10,10 +10,11 @@ import { IdentityManagement } from "../identity-management/identityManagement";
 import { EncryptedBackup } from "../identity-management/encryptedBackup";
 import { IdentityOverview } from "../identity-overview/identityOverview";
 import { IdentitySwitcher } from "../identity-switcher/identitySwitcher";
+import { MigrateToPubkyRing } from "../migrate-to-pubky-ring/migrateToPubkyRing";
 import { Spinner } from "../shared/primitives/spinner";
 import { SignInFlow } from "../sign-in/signInFlow";
 
-type RootState = "checking" | "signed-out" | "signed-in" | "switching" | "managing" | "downloading-backup" | "detaching-google" | "unavailable";
+type RootState = "checking" | "signed-out" | "signed-in" | "switching" | "managing" | "downloading-backup" | "migrating-to-keychain" | "detaching-google" | "unavailable";
 
 function IdentityFlow({ googleClientId, homegateBaseUrl }: { googleClientId: string; homegateBaseUrl: string }) {
   const detachmentActive = useRef(false);
@@ -78,11 +79,14 @@ function IdentityFlow({ googleClientId, homegateBaseUrl }: { googleClientId: str
   }
   if (state === "managing") {
     const activeIdentity = catalog.identities.find((identity) => identity.id === catalog.activeIdentityId);
-    if (activeIdentity && identityController) return <IdentityManagement identity={activeIdentity} onBack={() => setState("signed-in")} onDetachFromGoogle={() => { detachmentActive.current = true; setDetachingIdentity(activeIdentity); setState("detaching-google"); }} onDownloadBackup={() => setState("downloading-backup")} onLogOut={() => { identityController.remove(activeIdentity.id); }} resolveHomeserver={identityController.resolveHomeserver.bind(identityController)} />;
+    if (activeIdentity && identityController) return <IdentityManagement identity={activeIdentity} onBack={() => setState("signed-in")} onDetachFromGoogle={() => { detachmentActive.current = true; setDetachingIdentity(activeIdentity); setState("detaching-google"); }} onDownloadBackup={() => setState("downloading-backup")} onLogOut={() => { identityController.remove(activeIdentity.id); }} onMigrateToKeychain={() => setState("migrating-to-keychain")} resolveHomeserver={identityController.resolveHomeserver.bind(identityController)} />;
   }
   if (state === "downloading-backup") {
     const activeIdentity = catalog.identities.find((identity) => identity.id === catalog.activeIdentityId);
     if (activeIdentity && identityController) return <EncryptedBackup createBackup={identityController.createBackup.bind(identityController)} identityId={activeIdentity.id} onBack={() => setState("managing")} />;
+  }
+  if (state === "migrating-to-keychain" && identityController) {
+    return <MigrateToPubkyRing createMigrationUrl={identityController.createActivePubkyRingMigrationUrl.bind(identityController)} onBack={() => setState("managing")} />;
   }
   if (state === "detaching-google" && detachingIdentity && identityController) {
     return <DetachFromGoogleFlow

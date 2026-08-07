@@ -11,7 +11,7 @@ import { IconButton } from "../shared/primitives/iconButton";
 import { DisplayHeading } from "../shared/primitives/typography";
 import { BackButton } from "../shared/navigation/backButton";
 
-function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadBackup, onLogOut, resolveHomeserver }: { identity: LocalIdentitySummary; onBack: () => void; onDetachFromGoogle: () => void; onDownloadBackup: () => void; onLogOut: () => void; resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult> }) {
+function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadBackup, onLogOut, onMigrateToKeychain, resolveHomeserver }: { identity: LocalIdentitySummary; onBack: () => void; onDetachFromGoogle: () => void; onDownloadBackup: () => void; onLogOut: () => void; onMigrateToKeychain: () => void; resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult> }) {
   const account = identity.googleAccount;
   const name = account?.name ?? "Your Pubky";
   const [homeserver, setHomeserver] = useState<string | null | undefined>();
@@ -40,7 +40,7 @@ function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadBa
       </section>
 
       <div className="mt-auto flex flex-col gap-4 pt-6">
-        <ManagementButton icon="/icons/figma-key-round.svg">Migrate to keychain</ManagementButton>
+        <ManagementButton icon="/icons/figma-key-round.svg" onClick={onMigrateToKeychain}>Migrate to keychain</ManagementButton>
         <ManagementButton icon="/icons/figma-download.svg" onClick={onDownloadBackup}>Download backup</ManagementButton>
         <ManagementButton icon="/icons/figma-link-off.svg" onClick={onDetachFromGoogle}>Detach from Google</ManagementButton>
         <BackButton onClick={onBack} />

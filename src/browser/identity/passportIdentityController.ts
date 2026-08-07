@@ -136,6 +136,7 @@ export type PassportIdentityControllerDependencies = {
   subscribe(listener: () => void): () => void;
   resolveHomeserver(publicKeyZ32: string): Promise<PubkyHomeserverResolutionResult>;
   createBackup(identityId: string, password: string): Promise<LocalIdentityBackupResult>;
+  createActivePubkyRingMigrationUrl(): LocalIdentityResult<string>;
   restoreOrCreateGoogleBackedIdentity(
     credentials: GoogleBackedIdentityCredentials,
     reportProgress: ReportGoogleBackedIdentityProgress,
@@ -209,6 +210,13 @@ export class PassportIdentityController {
 
   createBackup(identityId: string, password: string): Promise<LocalIdentityBackupResult> {
     return this.#dependencies.createBackup(identityId, password);
+  }
+
+  createActivePubkyRingMigrationUrl(): PassportIdentityCatalogResult<string> {
+    return this.runCatalogOperation(
+      "create_pubky_ring_migration",
+      () => this.#dependencies.createActivePubkyRingMigrationUrl(),
+    );
   }
 
   async prepareGoogleAuthorization(onState: (state: GoogleBackedIdentityActionState) => void): Promise<void> {
@@ -368,7 +376,7 @@ export class PassportIdentityController {
   }
 
   private runCatalogOperation<T>(
-    operation: "list" | "select" | "remove" | "clear",
+    operation: "list" | "select" | "remove" | "clear" | "create_pubky_ring_migration",
     execute: () => LocalIdentityResult<T>,
   ): PassportIdentityCatalogResult<T> {
     try {

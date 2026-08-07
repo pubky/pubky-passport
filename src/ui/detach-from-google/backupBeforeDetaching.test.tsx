@@ -10,7 +10,7 @@ describe("BackupBeforeDetaching", () => {
   afterEach(cleanup);
 
   it("shows the Figma backup gate and its available backup methods", () => {
-    render(<BackupBeforeDetaching onBack={vi.fn()} onBackupConfirmed={vi.fn()} onDownloadBackup={vi.fn()} />);
+    render(<BackupBeforeDetaching onBack={vi.fn()} onBackupConfirmed={vi.fn()} onDownloadBackup={vi.fn()} onMigrateToKeychain={vi.fn()} />);
 
     expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
     expect(screen.getByText("Choose backup method")).toBeInTheDocument();
@@ -23,8 +23,11 @@ describe("BackupBeforeDetaching", () => {
     const onBack = vi.fn();
     const onBackupConfirmed = vi.fn();
     const onDownloadBackup = vi.fn();
-    render(<BackupBeforeDetaching onBack={onBack} onBackupConfirmed={onBackupConfirmed} onDownloadBackup={onDownloadBackup} />);
+    const onMigrateToKeychain = vi.fn();
+    render(<BackupBeforeDetaching onBack={onBack} onBackupConfirmed={onBackupConfirmed} onDownloadBackup={onDownloadBackup} onMigrateToKeychain={onMigrateToKeychain} />);
 
+    await userEvent.setup().click(screen.getByRole("button", { name: "Migrate to keychain" }));
+    expect(onMigrateToKeychain).toHaveBeenCalledOnce();
     await userEvent.setup().click(screen.getByRole("button", { name: "Download encrypted backup" }));
     expect(onDownloadBackup).toHaveBeenCalledOnce();
     await userEvent.setup().click(screen.getByRole("button", { name: "I backed up my pubky" }));

@@ -9,7 +9,12 @@ import type { PassportIdentityList } from "../../browser/identity/passportIdenti
 import { mockPassportIdentityController } from "../../../test-utils/fakes/mockPassportIdentityController";
 import { IdentityFlow } from "./identityFlow";
 
-const FLOW = vi.hoisted(() => ({ catalog: { activeIdentityId: null, identities: [] } as PassportIdentityList, refresh: null as (() => void) | null }));
+const FLOW = vi.hoisted(() => ({
+  catalog: { activeIdentityId: null, identities: [] } as PassportIdentityList,
+  migrationExportCount: 0,
+  migrationUrl: "pubkyring://migrate?index=0&total=1&key=active-secret",
+  refresh: null as (() => void) | null,
+}));
 
 vi.mock("../../browser/identity/passportIdentity", () => ({
   MIN_BACKUP_PASSWORD_LENGTH: 6,
@@ -23,6 +28,10 @@ vi.mock("../../browser/identity/passportIdentity", () => ({
         status: "action_completed" as const,
         result: Result.ok({ kind: "google_backed_identity_detached" as const, deletionStatus: "deleted" as const }),
       };
+    },
+    createActivePubkyRingMigrationUrl: () => {
+      FLOW.migrationExportCount += 1;
+      return Result.ok(FLOW.migrationUrl);
     },
     list: () => Result.ok(FLOW.catalog),
     prepareGoogleAuthorization: async (onState) => { onState({ stage: "google-authorization", errorCode: null }); },
@@ -39,6 +48,7 @@ vi.mock("../../browser/identity/passportIdentity", () => ({
 describe("IdentityFlow", () => {
   beforeEach(() => {
     FLOW.catalog = { activeIdentityId: null, identities: [] };
+    FLOW.migrationExportCount = 0;
     FLOW.refresh = null;
   });
 
@@ -114,6 +124,24 @@ describe("IdentityFlow", () => {
     expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
   });
 
+  it("exports only the active identity to Pubky Ring", async () => {
+    FLOW.catalog = {
+      activeIdentityId: "active",
+      identities: [
+        { id: "inactive", publicIdentity: { publicKeyZ32: "inactive", publicKeyDisplay: "pubkyinactive" } },
+        { id: "active", publicIdentity: { publicKeyZ32: "active", publicKeyDisplay: "pubkyactive" } },
+      ],
+    };
+    render(<IdentityFlow googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
+
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Migrate to keychain" }));
+
+    expect(screen.getByRole("heading", { name: "Migrate to keychain." })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Import pubky" })).toHaveAttribute("href", FLOW.migrationUrl);
+    expect(FLOW.migrationExportCount).toBe(1);
+  });
+
   it("backs up, confirms detachment, clears the local identity, and shows completion", async () => {
     FLOW.catalog = { activeIdentityId: "identity", identities: [{ id: "identity", publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" }, googleAccount: { id: "google", email: "user@gmail.com", name: "User", pictureUrl: null } }] };
     render(<IdentityFlow googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
@@ -121,6 +149,10 @@ describe("IdentityFlow", () => {
     await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Detach from Google" }));
 
+    expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Migrate to keychain" }));
+    expect(screen.getByRole("heading", { name: "Migrate to keychain." })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Download encrypted backup" }));
     expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();

@@ -105,6 +105,15 @@ describe("PassportIdentityController", () => {
     expect(createBackup).toHaveBeenCalledWith("identity", "strong password");
   });
 
+  it("creates a Pubky Ring migration URL for the active identity", () => {
+    const migration = Result.ok("pubkyring://migrate?index=0&total=1&key=secret");
+    const createActivePubkyRingMigrationUrl = vi.fn(() => migration);
+    const controller = new PassportIdentityController(dependencies({ createActivePubkyRingMigrationUrl }));
+
+    expect(controller.createActivePubkyRingMigrationUrl()).toEqual(migration);
+    expect(createActivePubkyRingMigrationUrl).toHaveBeenCalledOnce();
+  });
+
   it("removes the local identity only after deleting its Google backup", async () => {
     const calls: string[] = [];
     const remove = vi.fn(() => { calls.push("local"); return Result.ok(); });
@@ -238,6 +247,7 @@ function dependencies(overrides: Partial<PassportIdentityControllerDependencies>
     subscribe: () => () => {},
     resolveHomeserver: async () => Result.ok(null),
     createBackup: async () => Result.err({ code: "backup_failed" as const }),
+    createActivePubkyRingMigrationUrl: () => Result.err({ code: "no_active_identity" as const }),
     prepareGoogleAuthorization: async () => Result.ok(),
     requestGoogleAuthorization: async () => Result.ok(CREDENTIALS),
     disposeGoogleAuthorization: () => {},
