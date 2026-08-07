@@ -142,6 +142,12 @@ describe("PassportAuthorizationController", () => {
     expect(approveAuthorization).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
   });
+
+  it("exposes an empty entry as manual authorization", () => {
+    const controller = createController({}, { status: "empty" });
+
+    expect(controller.getState()).toEqual({ status: "manual-entry" });
+  });
 });
 
 function createController(

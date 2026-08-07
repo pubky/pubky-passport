@@ -1,20 +1,15 @@
-"use client";
-
-import { useEffect, useState } from "react";
-
-import { createPassportAuthorizationController } from "../../browser/authorization/passportAuthorization";
+import { LOGGER } from "../../libs/logger/logger";
+import { getBrowserBootstrapConfig } from "../../server/config/browserBootstrapConfig";
+import { AuthorizationFlow } from "../../ui/authorization/authorizationFlow";
 
 export default function AuthorizePage() {
-  const [controller] = useState(() => createPassportAuthorizationController());
+  let config: ReturnType<typeof getBrowserBootstrapConfig>;
+  try {
+    config = getBrowserBootstrapConfig();
+  } catch {
+    LOGGER.error("page.bootstrap.failed", { route: "authorize", layer: "page", operation: "bootstrap", stage: "configuration", code: "invalid_configuration" });
+    throw new Error("Authorization page configuration unavailable.");
+  }
 
-  useEffect(() => {
-    controller.commitInitialEntry();
-  }, [controller]);
-
-  return (
-    <main className="mx-auto flex min-h-[calc(100svh-84px)] max-w-2xl flex-col gap-4 px-6 pb-6 pt-3">
-      <h1 className="text-2xl font-semibold">Authorization</h1>
-      <p>The new authorization interface is under construction.</p>
-    </main>
-  );
+  return <AuthorizationFlow googleClientId={config.googleClientId} homegateBaseUrl={config.homegateBaseUrl} />;
 }

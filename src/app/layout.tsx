@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import type { ReactNode } from "react";
 import "@fontsource-variable/inter-tight";
 import "./globals.css";
-import { AppHeader } from "../ui/application-shell/appHeader";
+import { PassportLogo } from "../ui/shared/brand/passportLogo";
 
 export const METADATA: Metadata = {
   title: "Pubky Passport",
@@ -14,7 +14,12 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   await connection();
   return (
     <html lang="en">
-      <body><AppHeader />{children}</body>
+      <body>
+        <header className="flex h-[84px] w-full items-center justify-between bg-[linear-gradient(180deg,rgba(5,5,10,0.96),rgba(5,5,10,0))] px-6">
+          <PassportLogo />
+        </header>
+        {children}
+      </body>
     </html>
   );
 }

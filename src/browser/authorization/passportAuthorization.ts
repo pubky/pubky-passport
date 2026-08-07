@@ -27,6 +27,7 @@ export type {
   PassportAuthorizationFailureCode,
   PassportAuthorizationViewState,
 } from "./passportAuthorizationController";
+export type { AuthorizationRequestReview } from "./browserAuthorizationRequest";
 
 export function createPassportAuthorizationController(): PassportAuthorizationController {
   const entry = readAndScrubAuthorizationEntry(window);

@@ -1,22 +1,27 @@
 /** @vitest-environment jsdom */
 
-import { render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import AuthorizePage from "./page";
 
-const commitInitialEntry = vi.fn();
-
-vi.mock("../../browser/authorization/passportAuthorization", () => ({
-  createPassportAuthorizationController: () => ({ commitInitialEntry }),
+vi.mock("../../ui/authorization/authorizationFlow", () => ({
+  AuthorizationFlow: ({ googleClientId, homegateBaseUrl }: {
+    googleClientId: string;
+    homegateBaseUrl: string;
+  }) => <main>{googleClientId}|{homegateBaseUrl}</main>,
 }));
 
 describe("AuthorizePage", () => {
-  it("scrubs the entry and renders the replacement UI placeholder", async () => {
-    render(<AuthorizePage />);
+  beforeEach(() => {
+    vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
+    vi.stubEnv("HOMEGATE_URL", "https://homegate.example/api");
+  });
 
-    expect(screen.getByRole("heading", { name: "Authorization" })).toBeInTheDocument();
-    expect(screen.getByText(/under construction/u)).toBeInTheDocument();
-    await waitFor(() => expect(commitInitialEntry).toHaveBeenCalledOnce());
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("renders the authorization feature with browser configuration", () => {
+    render(<AuthorizePage />);
+    expect(screen.getByText("google-client-id|https://homegate.example/api/")).toBeInTheDocument();
   });
 });

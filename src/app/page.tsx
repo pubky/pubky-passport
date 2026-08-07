@@ -1,6 +1,6 @@
 import { LOGGER } from "../libs/logger/logger";
 import { getBrowserBootstrapConfig } from "../server/config/browserBootstrapConfig";
-import { IdentityFlow } from "../ui/application-shell/identityFlow";
+import { IdentityDashboard } from "../ui/identity-dashboard/identityDashboard";
 
 export default function Home() {
   let config: ReturnType<typeof getBrowserBootstrapConfig>;
@@ -11,5 +11,5 @@ export default function Home() {
     throw new Error("Home page configuration unavailable.");
   }
 
-  return <IdentityFlow googleClientId={config.googleClientId} homegateBaseUrl={config.homegateBaseUrl} />;
+  return <IdentityDashboard googleClientId={config.googleClientId} homegateBaseUrl={config.homegateBaseUrl} />;
 }

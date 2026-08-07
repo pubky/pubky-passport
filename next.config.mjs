@@ -46,7 +46,6 @@ const AUTHORIZE_TRANSPORT_HEADERS = [
 
 /** @type {import('next').NextConfig} */
 const NEXT_CONFIG = {
-  allowedDevOrigins: ["192.168.1.181"],
   devIndicators: false,
   outputFileTracingRoot: __dirname,
   serverExternalPackages: ["@synonymdev/pubky"],

@@ -17,6 +17,7 @@ import type {
 export type PassportAuthorizationFailureCode = ApproveAuthorizationErrorCode;
 
 export type PassportAuthorizationViewState =
+  | { status: "manual-entry" }
   | { status: "invalid" }
   | { status: "review"; review: AuthorizationRequestReview }
   | { status: "approving"; review: AuthorizationRequestReview }
@@ -46,7 +47,7 @@ export class PassportAuthorizationController {
     this.#dependencies = input.dependencies;
     this.#state = input.entry.status === "valid"
       ? { status: "review", review: input.entry.review }
-      : { status: "invalid" };
+      : { status: input.entry.status === "empty" ? "manual-entry" : "invalid" };
   }
 
   getState(): PassportAuthorizationViewState {

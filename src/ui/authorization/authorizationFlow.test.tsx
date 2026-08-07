@@ -1,0 +1,178 @@
+/** @vitest-environment jsdom */
+
+import { Result } from "better-result";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { PassportAuthorizationViewState } from "../../browser/authorization/passportAuthorization";
+import type { PassportIdentityList } from "../../browser/identity/passportIdentity";
+import { AuthorizationFlow } from "./authorizationFlow";
+
+const MOCKS = vi.hoisted(() => ({
+  approve: vi.fn(),
+  authorizationListener: null as null | (() => void),
+  authorizationState: undefined as PassportAuthorizationViewState | undefined,
+  cancel: vi.fn(),
+  catalogListener: null as null | (() => void),
+  catalog: undefined as PassportIdentityList | undefined,
+  commitInitialEntry: vi.fn(),
+  dispose: vi.fn(),
+  select: vi.fn(),
+}));
+
+vi.mock("../../browser/authorization/passportAuthorization", () => ({
+  createPassportAuthorizationController: () => ({
+    approve: MOCKS.approve,
+    cancel: MOCKS.cancel,
+    commitInitialEntry: MOCKS.commitInitialEntry,
+    getState: () => MOCKS.authorizationState,
+    subscribe: (listener: () => void) => { MOCKS.authorizationListener = listener; return () => { MOCKS.authorizationListener = null; }; },
+  }),
+}));
+
+vi.mock("../../browser/identity/passportIdentity", () => ({
+  createPassportIdentityController: () => ({
+    dispose: MOCKS.dispose,
+    list: () => Result.ok(MOCKS.catalog),
+    select: MOCKS.select,
+    subscribe: (listener: () => void) => { MOCKS.catalogListener = listener; return () => { MOCKS.catalogListener = null; }; },
+  }),
+}));
+
+vi.mock("../onboarding/signInFlow", () => ({
+  SignInFlow: ({ onComplete }: { onComplete: () => void }) => (
+    <main>
+      <h1>Add identity</h1>
+      <button onClick={onComplete} type="button">Complete identity setup</button>
+    </main>
+  ),
+}));
+
+const REVIEW = {
+  kind: "signin",
+  capabilities: [
+    { path: "/pub/requesting.app/", read: true, write: true, scope: "specific" },
+    { path: "/pub/paykit/", read: true, write: false, scope: "specific" },
+  ],
+  callbackAvailability: { success: true, error: true, cancel: true },
+  relayHost: "relay.example",
+  requestingAppDisplayHost: "requesting.app",
+} as const;
+
+const FIRST = {
+  id: "first-public-key",
+  publicIdentity: { publicKeyDisplay: "pubkyfirst", publicKeyZ32: "first-public-key" },
+  googleAccount: { email: "first@example.com", id: "google-first", name: "First User", pictureUrl: null },
+};
+const SECOND = {
+  id: "second-public-key",
+  publicIdentity: { publicKeyDisplay: "pubkysecond", publicKeyZ32: "second-public-key" },
+  googleAccount: { email: "second@example.com", id: "google-second", name: "Second User", pictureUrl: null },
+};
+
+describe("AuthorizationFlow", () => {
+  beforeEach(() => {
+    MOCKS.authorizationState = { status: "review", review: REVIEW };
+    MOCKS.catalog = { activeIdentityId: FIRST.id, identities: [FIRST, SECOND] };
+    MOCKS.approve.mockResolvedValue({ status: "approving", review: REVIEW });
+    MOCKS.cancel.mockReturnValue({ status: "cancelled" });
+    MOCKS.select.mockImplementation((identityId: string) => {
+      if (!MOCKS.catalog) return Result.err({ code: "storage_unavailable" as const });
+      MOCKS.catalog = { ...MOCKS.catalog, activeIdentityId: identityId };
+      MOCKS.catalogListener?.();
+      return Result.ok();
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    MOCKS.authorizationListener = null;
+    MOCKS.catalogListener = null;
+  });
+
+  const renderFlow = () => render(
+    <AuthorizationFlow
+      googleClientId="google-client-id"
+      homegateBaseUrl="https://homegate.example/"
+    />,
+  );
+
+  it("shows the callback domain, requested permissions, and active identity", async () => {
+    renderFlow();
+
+    expect(await screen.findByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
+    expect(screen.getByText("/pub/requesting.app/")).toBeInTheDocument();
+    expect(screen.getByText("Read,Write")).toBeInTheDocument();
+    expect(screen.getByText("First User")).toBeInTheDocument();
+    expect(screen.getByText(/allow requesting\.app to read and update your data/u)).toBeInTheDocument();
+    expect(MOCKS.commitInitialEntry).toHaveBeenCalledOnce();
+  });
+
+  it("shows manual entry only when no authorization request was supplied", async () => {
+    MOCKS.authorizationState = { status: "manual-entry" };
+    renderFlow();
+
+    expect(await screen.findByRole("heading", { name: "Authorize a service." })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Invalid authorization request" })).not.toBeInTheDocument();
+  });
+
+  it("does not silently turn a malformed authorization request into manual entry", async () => {
+    MOCKS.authorizationState = { status: "invalid" };
+    renderFlow();
+
+    expect(await screen.findByRole("heading", { name: "Invalid authorization request" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Authorize a service." })).not.toBeInTheDocument();
+  });
+
+  it("switches the active identity without losing the authorization review", async () => {
+    const user = userEvent.setup();
+    renderFlow();
+    await screen.findByRole("heading", { name: "Sign in to requesting.app" });
+
+    await user.click(screen.getByRole("button", { name: "Switch" }));
+    expect(screen.getByRole("heading", { name: "Switch identity." })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /add identity/iu })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Second User/iu }));
+
+    await waitFor(() => expect(screen.getByText("Second User")).toBeInTheDocument());
+    expect(MOCKS.select).toHaveBeenCalledWith(SECOND.id);
+    expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
+  });
+
+  it("adds an identity through the normal sign-in flow without losing the review", async () => {
+    const user = userEvent.setup();
+    renderFlow();
+    await screen.findByRole("heading", { name: "Sign in to requesting.app" });
+
+    await user.click(screen.getByRole("button", { name: "Switch" }));
+    await user.click(screen.getByRole("button", { name: /add identity/iu }));
+
+    expect(screen.getByRole("heading", { name: "Add identity" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Complete identity setup" }));
+    expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
+  });
+
+  it("offers identity setup when no local identity exists", async () => {
+    MOCKS.catalog = { activeIdentityId: null, identities: [] };
+    const user = userEvent.setup();
+    renderFlow();
+    await screen.findByRole("heading", { name: "Sign in to requesting.app" });
+
+    await user.click(screen.getByRole("button", { name: "Switch" }));
+
+    expect(screen.getByRole("heading", { name: "Switch identity." })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /add identity/iu })).toBeInTheDocument();
+  });
+
+  it("authorizes with the selected identity", async () => {
+    const user = userEvent.setup();
+    renderFlow();
+    await screen.findByRole("heading", { name: "Sign in to requesting.app" });
+
+    await user.click(screen.getByRole("button", { name: "Authorize" }));
+
+    expect(MOCKS.approve).toHaveBeenCalledOnce();
+  });
+});

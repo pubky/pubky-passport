@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { PermissionList, PermissionRow } from "../../ui/authorization/permissionList";
+import { PermissionList, PermissionRow } from "../../ui/authorization/review/permissionList";
 import { Avatar } from "../../ui/shared/primitives/avatar";
 import { Button } from "../../ui/shared/primitives/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../../ui/shared/primitives/card";
@@ -10,11 +10,11 @@ import { FieldMessage } from "../../ui/shared/primitives/fieldMessage";
 import { IconButton } from "../../ui/shared/primitives/iconButton";
 import { Input } from "../../ui/shared/primitives/input";
 import { Label } from "../../ui/shared/primitives/label";
-import { ProviderSignInButton } from "../../ui/sign-in/providerSignInButton";
+import { ProviderSignInButton } from "../../ui/onboarding/providerSignInButton";
 import { Spinner } from "../../ui/shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "../../ui/shared/primitives/typography";
-import { IdentityRow } from "../../ui/identity-switcher/identityRow";
-import { GoogleAccountCard } from "../../ui/google-sign-in/googleAccountCard";
+import { IdentityRow } from "../../ui/identity-catalog/selection/identityRow";
+import { GoogleAccountCard } from "../../ui/onboarding/google/googleAccountCard";
 import { ArrowRightIcon, CheckIcon, ScanIcon, TrashIcon, XIcon } from "../../ui/shared/icons/actionIcons";
 
 const VARIANTS = ["default", "secondary", "outline", "destructive"] as const;

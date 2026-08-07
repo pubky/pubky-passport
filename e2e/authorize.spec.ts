@@ -6,6 +6,15 @@ const RELAY_PATH_CANARY = "private-inbox";
 const CALLBACK_QUERY_CANARY = "session=sensitive";
 const SENSITIVE_CANARIES = [SENSITIVE_SECRET, RELAY_PATH_CANARY, CALLBACK_QUERY_CANARY];
 
+test("shows manual authorization entry when no request was supplied", async ({ page }) => {
+  await page.goto("/authorize");
+
+  await expect(page.getByRole("heading", { name: "Authorize a service." })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Authorization link" })).toHaveValue("");
+  await expect(page.getByRole("textbox", { name: "Authorization link" })).toHaveAttribute("placeholder", "pubkyauth://");
+  await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
+});
+
 test("scrubs a valid request and renders only safe review data", async ({ page, request }) => {
   const url = authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}?region=eu`));
   const leakMonitor = await installAuthorizationLeakMonitor(page);
@@ -29,7 +38,6 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
 
   await expect(page).toHaveURL(/\/authorize$/u);
   await expect(page.getByRole("heading", { name: "client.example" })).toBeVisible();
-  await expect(page.getByText("relay.client.example", { exact: true })).toBeVisible();
   await expect(page.getByText("/pub/example.app/", { exact: true })).toBeVisible();
 
   const renderedReview = await page.locator("main").innerHTML();

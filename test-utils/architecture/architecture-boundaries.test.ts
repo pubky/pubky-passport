@@ -38,6 +38,13 @@ const PROXY = join(SRC_ROOT, "proxy.ts");
 const STABLE_UI_BROWSER_MODULES = new Set(
   STABLE_BROWSER_UI_ENTRIES.map((entry) => join(BROWSER_ROOT, `${entry}.ts`)),
 );
+const UI_CROSS_SLICE_COMPOSERS = new Set([
+  join(UI_ROOT, "authorization", "authorizationFlow.tsx"),
+  join(UI_ROOT, "identity-catalog", "selection", "identitySelectionFlow.tsx"),
+  join(UI_ROOT, "identity-dashboard", "identityDashboard.tsx"),
+  join(UI_ROOT, "identity-dashboard", "management", "detach-from-google", "detachFromGoogleFlow.tsx"),
+  join(UI_ROOT, "onboarding", "signInFlow.tsx"),
+]);
 const GRAPH = new ModuleGraph(REPO_ROOT);
 
 const FORBIDDEN_CORE_IMPORTS = [
@@ -174,6 +181,24 @@ describe("architecture boundaries", () => {
 
   it("limits production UI browser imports to stable controller APIs and factories", () => {
     expect(GRAPH.productionSourceFiles(UI_ROOT).flatMap(inspectUiBrowserImports)).toEqual([]);
+  });
+
+  it("confines cross-slice UI imports to explicit flow composers", () => {
+    const violations = GRAPH.productionSourceFiles(UI_ROOT).flatMap((filePath) => {
+      const sourceSlice = dirname(relative(UI_ROOT, filePath));
+      return GRAPH.importSpecifiers(filePath).flatMap((specifier) => {
+        const target = GRAPH.resolveLocalImportTarget(filePath, specifier);
+        if (!target || !isSameOrInside(target, UI_ROOT)) return [];
+        const targetFeature = relative(UI_ROOT, target).split(/[\\/]/u)[0];
+        const targetSlice = dirname(relative(UI_ROOT, target));
+        if (sourceSlice === targetSlice || targetFeature === "shared") return [];
+        return UI_CROSS_SLICE_COMPOSERS.has(filePath)
+          ? []
+          : [`${relative(REPO_ROOT, filePath)} imports UI slice ${targetSlice} without being a flow composer`];
+      });
+    });
+
+    expect(violations).toEqual([]);
   });
 
   it("keeps server environment access in approved bootstrap modules", () => {

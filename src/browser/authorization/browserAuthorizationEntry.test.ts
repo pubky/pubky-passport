@@ -56,7 +56,7 @@ describe("browserAuthorizationEntry", () => {
     await Promise.resolve();
     window.history.replaceState({}, "", "/authorize");
 
-    expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "invalid" });
+    expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "empty" });
   });
 
   it("clears the pre-commit cache explicitly", () => {
@@ -64,6 +64,14 @@ describe("browserAuthorizationEntry", () => {
     readAndScrubAuthorizationEntry(window);
     clearPendingAuthorizationEntry(window);
 
+    expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "empty" });
+  });
+
+  it("distinguishes an empty manual entry from a malformed request", () => {
+    window.history.replaceState({}, "", "/authorize");
+    expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "empty" });
+
+    setRawAuthorizationQuery("unexpected=value");
     expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "invalid" });
   });
 

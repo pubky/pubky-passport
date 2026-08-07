@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { LOGGER } from "../libs/logger/logger";
 import Home from "./page";
 
-vi.mock("../ui/application-shell/identityFlow", () => ({ IdentityFlow: () => null }));
+vi.mock("../ui/identity-dashboard/identityDashboard", () => ({ IdentityDashboard: () => null }));
 
 describe("home page bootstrap", () => {
   afterEach(() => {

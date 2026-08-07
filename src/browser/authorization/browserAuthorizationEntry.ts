@@ -12,6 +12,7 @@ import {
 
 export type AuthorizationEntry =
   | { status: "valid"; review: AuthorizationRequestReview; approval: PubkyAuthApprovalCapability }
+  | { status: "empty" }
   | { status: "invalid" };
 
 type PendingStrictModeEntry = {
@@ -49,6 +50,7 @@ export function readAndScrubAuthorizationEntry(
       PENDING_STRICT_MODE_ENTRIES.delete(browserWindow);
       return pending.entry;
     }
+    return { status: "empty" };
   }
 
   const rawD = extractRawPubkyAuthRequestQueryValue(rawSearch);
