@@ -10,7 +10,6 @@ export function mockPassportIdentityController(
     list: vi.fn(() => Result.ok({ activeIdentityId: null, identities: [] })),
     select: vi.fn(() => Result.ok()),
     remove: vi.fn(() => Result.ok()),
-    clear: vi.fn(() => Result.ok()),
     subscribe: vi.fn(() => () => {}),
     resolveHomeserver: vi.fn(async () => Result.ok(null)),
     createBackup: vi.fn(async () => Result.err({ code: "backup_failed" as const })),

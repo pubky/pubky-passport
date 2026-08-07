@@ -4,7 +4,7 @@ import { Result } from "better-result";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { PubkyPublicIdentity } from "../../core/identity/pubkyIdentity";
-import type { GoogleBackedIdentityActionState, PassportIdentityController } from "../../browser/identity/passportIdentity";
+import type { PassportIdentityController } from "../../browser/identity/passportIdentity";
 
 type DetachFromGoogleStatus = "preparing" | "ready" | "pending" | "error" | "complete";
 
@@ -46,7 +46,15 @@ function useDetachFromGoogle(
 
   useEffect(() => {
     void controller.prepareGoogleAuthorization((state) => {
-      updateStatusFromController(state, dispatching.current, setAuthorizationReady, setStatus);
+      if (state.stage === "google-authorization") {
+        if (state.errorCode !== null) setStatus("error");
+        else {
+          setAuthorizationReady(true);
+          if (!dispatching.current) setStatus("ready");
+        }
+      } else if (state.stage === "requesting-google-authorization" || state.stage === "detaching-google-backed-identity") {
+        setStatus("pending");
+      }
     }).catch(() => setStatus("error"));
     return () => { try { controller.disposeGoogleAuthorization(); } catch { /* Controller owns cleanup logging. */ } };
   }, [controller]);
@@ -58,25 +66,6 @@ function useDetachFromGoogle(
     retryAuthorization,
     status,
   };
-}
-
-function updateStatusFromController(
-  state: GoogleBackedIdentityActionState,
-  dispatching: boolean,
-  setAuthorizationReady: (ready: boolean) => void,
-  setStatus: (status: DetachFromGoogleStatus) => void,
-): void {
-  if (state.stage === "google-authorization") {
-    if (state.errorCode !== null) setStatus("error");
-    else {
-      setAuthorizationReady(true);
-      if (!dispatching) setStatus("ready");
-    }
-    return;
-  }
-  if (state.stage === "requesting-google-authorization" || state.stage === "detaching-google-backed-identity") {
-    setStatus("pending");
-  }
 }
 
 export { useDetachFromGoogle };

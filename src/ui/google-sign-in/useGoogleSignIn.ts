@@ -4,7 +4,6 @@ import { Result } from "better-result";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
-  GoogleBackedIdentityActionState,
   GoogleBackedIdentityAction,
   GoogleBackedIdentityProgress,
   PassportIdentityControllerError,
@@ -113,10 +112,17 @@ function useGoogleSignIn({ controller, onSetupStarted }: {
 
   useEffect(() => {
     void controller.prepareGoogleAuthorization((nextState) => {
-      if (nextState.stage === "google-authorization" && nextState.errorCode === null) {
-        authorizationReady.current = true;
+      if (nextState.stage === "google-authorization") {
+        if (nextState.errorCode !== null) setView({ status: "denied" });
+        else {
+          authorizationReady.current = true;
+          if (!dispatching.current) setView({ status: "idle", ready: true });
+        }
+      } else if (nextState.stage === "requesting-google-authorization") {
+        setView({ status: "requesting-access" });
+      } else if (nextState.stage === "establishing-google-backed-identity") {
+        setView({ status: "working", progress: nextState.progress });
       }
-      setViewFromController(nextState, dispatching.current, setView);
     }).catch(() => setView({ status: "denied" }));
     return () => { try { controller.disposeGoogleAuthorization(); } catch { /* Controller owns cleanup logging. */ } };
   }, [controller]);
@@ -134,24 +140,4 @@ function useGoogleSignIn({ controller, onSetupStarted }: {
   return view;
 }
 
-function setViewFromController(
-  state: GoogleBackedIdentityActionState,
-  dispatching: boolean,
-  setView: (view: GoogleSignInView) => void,
-): void {
-  if (state.stage === "google-authorization") {
-    if (state.errorCode !== null) setView({ status: "denied" });
-    else if (!dispatching) setView({ status: "idle", ready: true });
-    return;
-  }
-  if (state.stage === "requesting-google-authorization") {
-    setView({ status: "requesting-access" });
-    return;
-  }
-  if (state.stage === "establishing-google-backed-identity") {
-    setView({ status: "working", progress: state.progress });
-  }
-}
-
 export { useGoogleSignIn };
-export type { GoogleSignInCompletion, GoogleSignInState };

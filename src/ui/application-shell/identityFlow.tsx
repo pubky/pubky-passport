@@ -3,7 +3,7 @@
 import { Result } from "better-result";
 import { useEffect, useRef, useState } from "react";
 
-import type { PassportIdentityController, PassportIdentityList } from "../../browser/identity/passportIdentity";
+import type { LocalIdentitySummary, PassportIdentityController, PassportIdentityList } from "../../browser/identity/passportIdentity";
 import { createPassportIdentityController } from "../../browser/identity/passportIdentity";
 import { DetachFromGoogleFlow } from "../detach-from-google/detachFromGoogleFlow";
 import { IdentityManagement } from "../identity-management/identityManagement";
@@ -16,34 +16,34 @@ import { SignInFlow } from "../sign-in/signInFlow";
 type RootState = "checking" | "signed-out" | "signed-in" | "switching" | "managing" | "downloading-backup" | "detaching-google" | "unavailable";
 
 function IdentityFlow({ googleClientId, homegateBaseUrl }: { googleClientId: string; homegateBaseUrl: string }) {
-  const controller = useRef<PassportIdentityController | null>(null);
   const detachmentActive = useRef(false);
   const setupActive = useRef(false);
-  const [detachingIdentity, setDetachingIdentity] = useState<PassportIdentityList["identities"][number] | null>(null);
+  const [detachingIdentity, setDetachingIdentity] = useState<LocalIdentitySummary | null>(null);
   const [identityController, setIdentityController] = useState<PassportIdentityController | null>(null);
   const [state, setState] = useState<RootState>("checking");
   const [catalog, setCatalog] = useState<PassportIdentityList>({ activeIdentityId: null, identities: [] });
 
   useEffect(() => {
     let cancelled = false;
+    let instance: PassportIdentityController | null = null;
     let unsubscribe = () => {};
 
     queueMicrotask(() => {
       if (cancelled) return;
       try {
-        controller.current = createPassportIdentityController(googleClientId, homegateBaseUrl);
-        setIdentityController(controller.current);
+        instance = createPassportIdentityController(googleClientId, homegateBaseUrl);
+        setIdentityController(instance);
         const refresh = () => {
-          const catalog = controller.current?.list();
-          if (!catalog || Result.isError(catalog)) setState("unavailable");
+          const nextCatalog = instance?.list();
+          if (!nextCatalog || Result.isError(nextCatalog)) setState("unavailable");
           else {
-            setCatalog(catalog.value);
-            if (catalog.value.identities.length === 0) {
+            setCatalog(nextCatalog.value);
+            if (nextCatalog.value.identities.length === 0) {
               if (!detachmentActive.current) setState("signed-out");
             } else if (!setupActive.current && !detachmentActive.current) setState("signed-in");
           }
         };
-        unsubscribe = controller.current.subscribe(refresh);
+        unsubscribe = instance.subscribe(refresh);
         refresh();
       } catch {
         setState("unavailable");
@@ -53,8 +53,7 @@ function IdentityFlow({ googleClientId, homegateBaseUrl }: { googleClientId: str
     return () => {
       cancelled = true;
       try { unsubscribe(); } catch { /* Controller owns cleanup logging. */ }
-      try { controller.current?.dispose(); } catch { /* Controller owns cleanup logging. */ }
-      controller.current = null;
+      try { instance?.dispose(); } catch { /* Controller owns cleanup logging. */ }
     };
   }, [googleClientId, homegateBaseUrl]);
 

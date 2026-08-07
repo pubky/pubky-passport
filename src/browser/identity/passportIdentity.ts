@@ -18,7 +18,6 @@ export type PassportIdentityController = Pick<
   | "list"
   | "select"
   | "remove"
-  | "clear"
   | "subscribe"
   | "resolveHomeserver"
   | "createBackup"
