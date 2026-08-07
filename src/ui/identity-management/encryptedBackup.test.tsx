@@ -22,11 +22,13 @@ describe("EncryptedBackup", () => {
     render(<EncryptedBackup createBackup={createBackup} identityId="identity" onBack={vi.fn()} />);
 
     const download = screen.getByRole("button", { name: "Download backup" });
+    const password = screen.getByLabelText("Enter strong password");
+    expect(password).toHaveAttribute("minlength", "6");
     expect(download).toBeDisabled();
-    await userEvent.setup().type(screen.getByLabelText("Enter strong password"), "a strong password");
+    await userEvent.setup().type(password, "123456");
     await userEvent.setup().click(download);
 
-    expect(createBackup).toHaveBeenCalledWith("identity", "a strong password");
+    expect(createBackup).toHaveBeenCalledWith("identity", "123456");
     expect(createObjectURL).toHaveBeenCalledOnce();
     expect(click).toHaveBeenCalledOnce();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:backup");
