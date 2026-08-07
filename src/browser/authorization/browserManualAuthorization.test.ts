@@ -31,7 +31,7 @@ describe("enterAuthorization", () => {
 
   it("normalizes and routes a valid request through the authorize entry point", () => {
     const navigate = sanitizedNavigationRecorder();
-    const request = "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.client.example/inbox&secret=secret&x-success=https://example.app/success";
+    const request = "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.client.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-success=https://example.app/success";
 
     expect(enterAuthorization(`  ${request}  `, navigate.navigate)).toBe("navigating");
     expect(navigate.record).toEqual({ pathname: "/authorize", queryKeys: ["d"], hasEncodedRequest: true });
@@ -40,7 +40,7 @@ describe("enterAuthorization", () => {
 
   it("logs navigation failures without exposing the authorization request", () => {
     const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
-    const request = "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.client.example/inbox&secret=secret-canary";
+    const request = "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.client.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
     expect(enterAuthorization(request, () => { throw new Error("secret-canary"); })).toBe("navigation_failed");
 

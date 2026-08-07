@@ -17,7 +17,7 @@ const RELAY_ORIGIN = "https://relay.example";
 const SUCCESS_CALLBACK = "https://app.example/success?code=private";
 const ERROR_CALLBACK = "https://app.example/error?code=private";
 const CANCEL_CALLBACK = "https://app.example/cancel?code=private";
-const SECRET = "sensitive-authorization-secret";
+const SECRET = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
 describe("PassportAuthorizationController", () => {
   afterEach(() => {

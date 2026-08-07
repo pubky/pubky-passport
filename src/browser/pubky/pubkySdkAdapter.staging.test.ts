@@ -10,7 +10,7 @@ const CAPABILITIES = "/pub/passport-staging.pubky.app/:rw" as const;
 const RESOLUTION_TIMEOUT_MS = 60_000;
 const RESOLUTION_POLL_INTERVAL_MS = 2_000;
 
-test("completes the concrete Pubky signup, discovery, signin, and authorization path", async () => {
+test("completes signup, discovery, signin, and both v0.10 authorization methods", async () => {
   const config = stagingConfig();
   const homegate = new HomegateClient({ homegateBaseUrl: config.homegateBaseUrl });
   const invitation = expectOk(
@@ -20,7 +20,7 @@ test("completes the concrete Pubky signup, discovery, signin, and authorization 
   const passport = new PubkySdkAdapter();
   const relyingParty = new Pubky();
 
-  let approvedSession: Session | undefined;
+  const approvedSessions: Session[] = [];
   try {
     const identity = expectOk(await passport.createIdentityKey(), "Passport could not create an identity");
 
@@ -56,28 +56,39 @@ test("completes the concrete Pubky signup, discovery, signin, and authorization 
     }
     expectOk(restoredDiscovery, "Passport could not confirm restored discovery");
 
-    const flow = relyingParty.startAuthFlow(
+    const cookieFlow = relyingParty.startCookieAuthFlow(
       CAPABILITIES,
       AuthFlowKind.signin(),
       config.relayUrl,
     );
-    try {
-      const request = expectOk(
-        parseBrowserAuthorizationRequest(encodeURIComponent(flow.authorizationUrl)),
-        "Passport rejected the SDK-generated authorization request",
-      );
+    const grantFlow = await relyingParty.startGrantAuthFlow(
+      CAPABILITIES,
+      AuthFlowKind.signin(),
+      {
+        clientId: "passport-staging.pubky.app",
+        ...(config.relayUrl ? { relay: config.relayUrl } : {}),
+      },
+    );
+    for (const flow of [cookieFlow, grantFlow]) {
+      try {
+        const request = expectOk(
+          parseBrowserAuthorizationRequest(encodeURIComponent(flow.authorizationUrl)),
+          "Passport rejected the SDK-generated authorization request",
+        );
 
-      const approval = passport.approveAuthRequest(identity.keyHandle, request.approval);
-      [approvedSession] = await Promise.all([
-        flow.awaitApproval(),
-        expectOkAsync(approval, "Passport could not approve the authorization request"),
-      ]);
-      expectSession(approvedSession, identity.publicIdentity.publicKeyZ32);
-    } finally {
-      flow.free();
+        const approval = passport.approveAuthRequest(identity.keyHandle, request.approval);
+        const [approvedSession] = await Promise.all([
+          flow.awaitApproval(),
+          expectOkAsync(approval, "Passport could not approve the authorization request"),
+        ]);
+        approvedSessions.push(approvedSession);
+        expectSession(approvedSession, identity.publicIdentity.publicKeyZ32);
+      } finally {
+        flow.free();
+      }
     }
   } finally {
-    approvedSession?.free();
+    for (const session of approvedSessions) session.free();
     relyingParty.free();
     passport.dispose();
   }

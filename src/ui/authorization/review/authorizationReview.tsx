@@ -18,7 +18,7 @@ function AuthorizationReview({ approving, identity, onAuthorize, onCancel, onSwi
   onSwitch: () => void;
   review: AuthorizationRequestReview;
 }) {
-  const requestingApp = review.requestingAppDisplayHost ?? "this service";
+  const requestingApp = review.clientId ?? review.requestingAppDisplayHost ?? "this service";
   const account = identity?.googleAccount;
   const identityName = account?.name ?? "Your Pubky";
 
@@ -46,6 +46,7 @@ function AuthorizationReview({ approving, identity, onAuthorize, onCancel, onSwi
         </section>
         <p className="text-sm font-medium leading-5 text-muted-foreground">
           Make sure you trust this service, browser, or device before authorizing with your pubky. <strong className="font-bold text-foreground">Authorizing will allow {requestingApp} to read and update your data.</strong>
+          {review.authenticationMethod === "grant" ? " This approval creates an app-specific, revocable grant." : " This request uses deprecated cookie authentication."}
         </p>
         <div className="mt-auto flex flex-col gap-4 pt-6">
           <Button disabled={approving} onClick={onCancel} size="lg" type="button" variant="outline"><XIcon />Cancel</Button>

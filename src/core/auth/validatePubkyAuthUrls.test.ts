@@ -139,6 +139,30 @@ describe("validatePubkyAuthUrls", () => {
     expect(result.value.callbacks).toEqual({});
   });
 
+  it("uses legacy callback only when x-success is absent", () => {
+    const legacy = validatePubkyAuthUrls(authUrl(
+      `relay=https://httprelay.pubky.app/inbox&callback=${encodeURIComponent("https://third.example/success?nonce=legacy")}`,
+    ));
+    const canonical = validatePubkyAuthUrls(authUrl(
+      `relay=https://httprelay.pubky.app/inbox&x-success=&callback=${encodeURIComponent("https://third.example/legacy")}`,
+    ));
+
+    if (Result.isError(legacy) || Result.isError(canonical)) throw new Error("callbacks must parse");
+    expect(legacy.value.callbacks.success).toBe("https://third.example/success?nonce=legacy");
+    expect(canonical.value.callbacks.success).toBeUndefined();
+  });
+
+  it("decodes callbacks exactly once and preserves literal plus signs", () => {
+    const callback = "https%3A%2F%2Fthird.example%2Fsuccess%3Fnonce%3Da+b%26nested%3D%252Fvalue";
+
+    const result = validatePubkyAuthUrls(authUrl(
+      `relay=https://httprelay.pubky.app/inbox&x-success=${callback}`,
+    ));
+
+    if (Result.isError(result)) throw new Error(result.error.code);
+    expect(result.value.callbacks.success).toBe("https://third.example/success?nonce=a+b&nested=%2Fvalue");
+  });
+
   it("returns the normalized client-provided relay origin", () => {
     const result = validatePubkyAuthUrls(
       authUrl("relay=https://custom-relay.example:443/inbox&secret=secret-value"),

@@ -6,6 +6,11 @@ independent from the concrete SDK. `pubkySdkAdapter.ts` owns session access,
 discovery, auth approval, opaque keypair state, and SDK resource cleanup. It contains
 the only production Pubky SDK imports.
 
+On v0.10, identity activation uses sessionless `signup` and an app-specific grant
+`signin` that is revoked immediately after Passport verifies the returned identity.
+Authorization approval is dual-mode: the same `approveAuthRequest` call handles
+legacy cookie `signin` requests and recommended `signin_grant` requests.
+
 
 ## Why The Key Contract Is Separate
 

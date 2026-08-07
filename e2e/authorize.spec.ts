@@ -1,9 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const SENSITIVE_SECRET = "e2e-sensitive-secret";
+const SENSITIVE_SECRET = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 const RELAY_ORIGIN = "https://relay.client.example";
 const RELAY_PATH_CANARY = "private-inbox";
 const CALLBACK_QUERY_CANARY = "session=sensitive";
+const GRANT_CLIENT_PUBLIC_KEY = "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo";
 const SENSITIVE_CANARIES = [SENSITIVE_SECRET, RELAY_PATH_CANARY, CALLBACK_QUERY_CANARY];
 
 test("shows manual authorization entry when no request was supplied", async ({ page }) => {
@@ -77,11 +78,28 @@ test("rejects an unsafe relay without adding it to CSP", async ({ page }) => {
   await expectNoSensitiveBrowserLeaks(page, leakMonitor, [persistence]);
 });
 
-function authorizationRequest(relay: string): string {
-  const request = new URL("pubkyauth://signin");
+test("reviews and scrubs a v0.10 grant authorization request", async ({ page }) => {
+  const url = authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}`, "grant"));
+
+  const response = await page.goto(url);
+
+  expect(response?.ok()).toBe(true);
+  await expect(page).toHaveURL(/\/authorize$/u);
+  await expect(page.getByRole("heading", { name: "Sign in to grant-client.example" })).toBeVisible();
+  await expect(page.getByText(/app-specific, revocable grant/u)).toBeVisible();
+  expect(await page.locator("main").innerHTML()).not.toContain(GRANT_CLIENT_PUBLIC_KEY);
+  expect(await page.evaluate(() => window.location.search)).toBe("");
+});
+
+function authorizationRequest(relay: string, authenticationMethod: "cookie" | "grant" = "cookie"): string {
+  const request = new URL(`pubkyauth://${authenticationMethod === "grant" ? "signin_grant" : "signin"}`);
   request.searchParams.set("caps", "/pub/example.app/:rw");
   request.searchParams.set("relay", relay);
   request.searchParams.set("secret", SENSITIVE_SECRET);
+  if (authenticationMethod === "grant") {
+    request.searchParams.set("cid", "grant-client.example");
+    request.searchParams.set("cpk", GRANT_CLIENT_PUBLIC_KEY);
+  }
   request.searchParams.set("x-success", `https://client.example/authorization-success?${CALLBACK_QUERY_CANARY}`);
   request.searchParams.set("x-error", `https://client.example/authorization-error?${CALLBACK_QUERY_CANARY}`);
   request.searchParams.set("x-cancel", `https://client.example/authorization-cancel?${CALLBACK_QUERY_CANARY}`);

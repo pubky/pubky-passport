@@ -24,9 +24,11 @@ export type PubkyAuthCapabilitiesParseError = {
 export type PubkyAuthCapabilitiesParseResult = ResultType<PubkyAuthCapability[], PubkyAuthCapabilitiesParseError>;
 
 export function parsePubkyAuthCapabilities(input: string | null | undefined): PubkyAuthCapabilitiesParseResult {
-  if (input === null || input === undefined || input.trim().length === 0) {
+  if (input === null || input === undefined) {
     return error("missing_capabilities", "Pubky auth request is missing capabilities.");
   }
+
+  if (input.length === 0) return Result.ok([]);
 
   const rawCapabilities = input.split(",");
   if (rawCapabilities.length > PUBKY_AUTH_REQUEST_LIMITS.capabilityCount) {
@@ -57,7 +59,7 @@ export function parsePubkyAuthCapabilities(input: string | null | undefined): Pu
 type CapabilityParseResult = ResultType<PubkyAuthCapability, PubkyAuthCapabilitiesParseError>;
 
 function parseCapability(input: string): CapabilityParseResult {
-  const actionsStart = input.lastIndexOf(":");
+  const actionsStart = input.indexOf(":");
   if (actionsStart <= 0) {
     return error("invalid_capability_path", "Pubky auth capability path is invalid.");
   }
@@ -84,34 +86,31 @@ function parseCapability(input: string): CapabilityParseResult {
 }
 
 function isValidCapabilityPath(path: string): boolean {
-  if (!path.startsWith("/")) {
+  if (!path.startsWith("/") || utf8Length(path) > 972 || /[:,]/u.test(path)) {
     return false;
   }
+  if (path === "/") return true;
+  if (/\s$/u.test(path)) return false;
 
-  for (let index = 0; index < path.length; index += 1) {
-    const char = path[index];
-    if (!char || !isAllowedPathCharacter(char)) {
-      return false;
-    }
-
-    if (char === "%") {
-      if (!isHexDigit(path[index + 1]) || !isHexDigit(path[index + 2])) {
-        return false;
-      }
-
-      index += 2;
-    }
-  }
-
-  return true;
+  const segments = path.slice(1).split("/");
+  return segments.every((segment, index) => {
+    if (segment.length === 0) return index === segments.length - 1;
+    if (segment === "." || segment === "..") return false;
+    if (utf8Length(segment) > 255 || segment.includes("\\")) return false;
+    return ![...segment].some((character) => isControlCharacter(character));
+  });
 }
 
-function isAllowedPathCharacter(char: string): boolean {
-  return /^[A-Za-z0-9\-._~!$&'()*+,;=:@/%]$/.test(char);
+function isControlCharacter(character: string): boolean {
+  const codePoint = character.codePointAt(0);
+  return codePoint !== undefined && (
+    codePoint <= 0x1f ||
+    (codePoint >= 0x7f && codePoint <= 0x9f)
+  );
 }
 
-function isHexDigit(char: string | undefined): boolean {
-  return typeof char === "string" && /^[A-Fa-f0-9]$/.test(char);
+function utf8Length(value: string): number {
+  return new TextEncoder().encode(value).byteLength;
 }
 
 function isValidCapabilityActions(actions: string): boolean {

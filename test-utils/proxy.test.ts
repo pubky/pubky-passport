@@ -81,7 +81,7 @@ describe("request CSP proxy", () => {
 });
 
 function authorizationRequest(relay: string): string {
-  return `pubkyauth://signin?caps=/pub/example.app/:rw&relay=${encodeURIComponent(relay)}&secret=sensitive-secret`;
+  return `pubkyauth://signin?caps=/pub/example.app/:rw&relay=${encodeURIComponent(relay)}&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8`;
 }
 
 function cspSources(policy: string | null, name: string): string[] {

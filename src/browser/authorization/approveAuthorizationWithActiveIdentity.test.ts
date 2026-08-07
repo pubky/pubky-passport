@@ -7,7 +7,7 @@ import { RecordingPubkySdkAdapter } from "../../../test-utils/fakes/recordingPub
 import { approveAuthorizationWithActiveIdentity } from "./approveAuthorizationWithActiveIdentity";
 import { parseBrowserAuthorizationRequest } from "./browserAuthorizationRequest";
 
-const REQUEST = "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=sensitive";
+const REQUEST = "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
 describe("approveAuthorizationWithActiveIdentity", () => {
   afterEach(() => {

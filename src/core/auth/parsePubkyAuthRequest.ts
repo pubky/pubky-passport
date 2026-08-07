@@ -13,6 +13,7 @@ import {
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 
 export type PubkyAuthRequestKind = "signin";
+export type PubkyAuthenticationMethod = "cookie" | "grant";
 
 const PUBKY_AUTH_REQUEST_PARAMETERS = {
   relay: "relay",
@@ -22,8 +23,25 @@ const PUBKY_AUTH_REQUEST_PARAMETERS = {
   success: "x-success",
   error: "x-error",
   cancel: "x-cancel",
+  legacySuccess: "callback",
+  clientId: "cid",
+  clientPublicKey: "cpk",
 } as const;
-const SUPPORTED_PARAMETERS = new Set<string>(Object.values(PUBKY_AUTH_REQUEST_PARAMETERS));
+const COMMON_PARAMETERS = new Set<string>([
+  PUBKY_AUTH_REQUEST_PARAMETERS.relay,
+  PUBKY_AUTH_REQUEST_PARAMETERS.secret,
+  PUBKY_AUTH_REQUEST_PARAMETERS.capabilities,
+  PUBKY_AUTH_REQUEST_PARAMETERS.source,
+  PUBKY_AUTH_REQUEST_PARAMETERS.success,
+  PUBKY_AUTH_REQUEST_PARAMETERS.error,
+  PUBKY_AUTH_REQUEST_PARAMETERS.cancel,
+  PUBKY_AUTH_REQUEST_PARAMETERS.legacySuccess,
+]);
+const GRANT_PARAMETERS = new Set<string>([
+  ...COMMON_PARAMETERS,
+  PUBKY_AUTH_REQUEST_PARAMETERS.clientId,
+  PUBKY_AUTH_REQUEST_PARAMETERS.clientPublicKey,
+]);
 
 export type PubkyAuthParseErrorCode =
   | "missing_d"
@@ -34,6 +52,10 @@ export type PubkyAuthParseErrorCode =
   | "invalid_auth_request_path"
   | "missing_secret"
   | "invalid_secret"
+  | "missing_client_id"
+  | "invalid_client_id"
+  | "missing_client_public_key"
+  | "invalid_client_public_key"
   | "missing_capabilities"
   | "invalid_capability"
   | "duplicate_parameter"
@@ -47,7 +69,9 @@ export type PubkyAuthParseError = {
 
 export type ParsedPubkyAuthRequest = {
   kind: PubkyAuthRequestKind;
+  authenticationMethod: PubkyAuthenticationMethod;
   capabilities: PubkyAuthCapability[];
+  clientId?: string;
   callbacks: Readonly<ValidatedPubkyAuthCallbacks>;
   relayHost: string;
   relayOrigin: string;
@@ -95,9 +119,9 @@ export function parsePubkyAuthRequest(
     return error("unsupported_scheme", "Pubky auth request must use pubkyauth scheme.");
   }
 
-  const kind = parseAuthRequestKind(authUrl.value);
-  if (Result.isError(kind)) {
-    return Result.err(kind.error);
+  const intent = parseAuthRequestIntent(authUrl.value);
+  if (Result.isError(intent)) {
+    return Result.err(intent.error);
   }
 
   const secret = authUrl.value.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.secret);
@@ -105,13 +129,24 @@ export function parsePubkyAuthRequest(
     return error("missing_secret", "Pubky auth request is missing a secret.");
   }
 
-  if (secret.length > PUBKY_AUTH_REQUEST_LIMITS.secretLength) {
-    return error("invalid_secret", "Pubky auth request secret exceeds the allowed size.");
+  if (
+    secret.length > PUBKY_AUTH_REQUEST_LIMITS.secretLength ||
+    !isCanonicalAuthSecret(secret)
+  ) {
+    return error("invalid_secret", "Pubky auth request secret is invalid.");
   }
 
-  const parameters = validatePubkyAuthRequestParameters(authUrl.value.searchParams);
+  const parameters = validatePubkyAuthRequestParameters(
+    authUrl.value.searchParams,
+    intent.value.authenticationMethod,
+  );
   if (Result.isError(parameters)) {
     return Result.err(parameters.error);
+  }
+
+  const grant = parseGrantParameters(authUrl.value, intent.value.authenticationMethod);
+  if (Result.isError(grant)) {
+    return Result.err(grant.error);
   }
 
   const urls = validatePubkyAuthUrls(authUrl.value);
@@ -125,12 +160,14 @@ export function parsePubkyAuthRequest(
   }
 
   return Result.ok({
-    kind: kind.value,
+    kind: intent.value.kind,
+    authenticationMethod: intent.value.authenticationMethod,
     capabilities: capabilities.value,
+    ...(grant.value ? { clientId: grant.value.clientId } : {}),
     callbacks: Object.freeze({ ...urls.value.callbacks }),
     relayHost: urls.value.relayHost,
     relayOrigin: urls.value.relayOrigin,
-    sensitivePubkyAuthUrl: authUrl.value.href,
+    sensitivePubkyAuthUrl: decoded.value,
   });
 }
 
@@ -176,23 +213,36 @@ function parseUrl(value: string): ParseValueResult<URL> {
   }
 }
 
-function parseAuthRequestKind(url: URL): ParseValueResult<PubkyAuthRequestKind> {
+function parseAuthRequestIntent(url: URL): ParseValueResult<{
+  kind: PubkyAuthRequestKind;
+  authenticationMethod: PubkyAuthenticationMethod;
+}> {
   if (url.hostname === "signin" && url.pathname === "") {
-    return Result.ok("signin");
+    return Result.ok({ kind: "signin", authenticationMethod: "cookie" });
+  }
+
+  if (url.hostname === "signin_grant" && url.pathname === "") {
+    return Result.ok({ kind: "signin", authenticationMethod: "grant" });
   }
 
   if (url.hostname === "" && url.pathname === "/") {
-    return Result.ok("signin");
+    return Result.ok({ kind: "signin", authenticationMethod: "cookie" });
   }
 
   return error("invalid_auth_request_path", "Pubky auth request path is not supported.");
 }
 
-function validatePubkyAuthRequestParameters(searchParams: URLSearchParams): ParseValueResult<void> {
+function validatePubkyAuthRequestParameters(
+  searchParams: URLSearchParams,
+  authenticationMethod: PubkyAuthenticationMethod,
+): ParseValueResult<void> {
   const seen = new Set<string>();
+  const supportedParameters = authenticationMethod === "grant"
+    ? GRANT_PARAMETERS
+    : COMMON_PARAMETERS;
 
   for (const [name] of searchParams) {
-    if (!SUPPORTED_PARAMETERS.has(name)) {
+    if (!supportedParameters.has(name)) {
       return error("unsupported_parameter", "Pubky auth request contains an unsupported parameter.");
     }
 
@@ -204,6 +254,52 @@ function validatePubkyAuthRequestParameters(searchParams: URLSearchParams): Pars
   }
 
   return Result.ok();
+}
+
+function parseGrantParameters(
+  url: URL,
+  authenticationMethod: PubkyAuthenticationMethod,
+): ParseValueResult<{ clientId: string } | undefined> {
+  if (authenticationMethod === "cookie") return Result.ok(undefined);
+
+  const clientId = url.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.clientId);
+  if (clientId === null || clientId.length === 0) {
+    return error("missing_client_id", "Grant authentication request is missing a client ID.");
+  }
+  if (utf8Length(clientId) > 253) {
+    return error("invalid_client_id", "Grant authentication request client ID is invalid.");
+  }
+
+  const clientPublicKey = url.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.clientPublicKey);
+  if (clientPublicKey === null || clientPublicKey.length === 0) {
+    return error("missing_client_public_key", "Grant authentication request is missing a client public key.");
+  }
+  if (!isCanonicalPublicKey(clientPublicKey)) {
+    return error("invalid_client_public_key", "Grant authentication request client public key is invalid.");
+  }
+
+  return Result.ok({ clientId });
+}
+
+const BASE64_URL_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+const Z_BASE_32_ALPHABET = "ybndrfg8ejkmcpqxot1uwisza345h769";
+
+function isCanonicalAuthSecret(value: string): boolean {
+  if (!/^[A-Za-z0-9_-]{43}$/u.test(value)) return false;
+  const lastCharacter = value.at(-1);
+  return lastCharacter !== undefined && BASE64_URL_ALPHABET.indexOf(lastCharacter) % 4 === 0;
+}
+
+function isCanonicalPublicKey(value: string): boolean {
+  if (value.length !== 52) return false;
+  for (const character of value) {
+    if (!Z_BASE_32_ALPHABET.includes(character)) return false;
+  }
+  return value.endsWith("y") || value.endsWith("o");
+}
+
+function utf8Length(value: string): number {
+  return new TextEncoder().encode(value).byteLength;
 }
 
 function mapCapabilitiesError(capabilitiesError: PubkyAuthCapabilitiesParseError): PubkyAuthParseResult {

@@ -225,7 +225,7 @@ sequenceDiagram
         participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
     box rgba(17, 24, 39, 0.12) External
-        participant SDK as @synonymdev/pubky@0.9.3<br/>Keypair / Signer
+        participant SDK as @synonymdev/pubky@0.10.0<br/>Keypair / Signer
         participant Relay as Request-supplied HTTPS Relay<br/>Signer.approveAuthRequest() delivery
     end
     box rgba(107, 114, 128, 0.18) Browser platform
@@ -251,7 +251,7 @@ sequenceDiagram
     Pubky->>AuthRequest: isPubkyAuthApprovalCapability(approval)
     AuthRequest-->>Pubky: browser approval provenance
     Pubky->>SDK: signer.approveAuthRequest(sensitive URL)
-    Note over SDK,Relay: AuthToken signing, encryption, and Relay delivery are SDK-owned internals
+    Note over SDK,Relay: SDK emits a legacy AuthToken for signin or a PoP-bound signed grant for signin_grant; encryption and Relay delivery remain SDK-owned
     SDK-->>Pubky: completion or failure
     Pubky-->>UseCase: typed result
     UseCase->>Pubky: disposeIdentityKey(handle)
@@ -440,7 +440,7 @@ sequenceDiagram
         participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
     end
     box rgba(17, 24, 39, 0.12) External
-        participant SDK as @synonymdev/pubky@0.9.3<br/>Keypair / Signer
+        participant SDK as @synonymdev/pubky@0.10.0<br/>Keypair / Signer
     end
 
     Restore->>Crypto: decryptSecretKeyBytes(envelope, wrapping key, origin)
@@ -456,14 +456,15 @@ sequenceDiagram
             Restore-->>Restore: restore_failed
         else Restored identity
             Restore->>Pubky: signin(handle)
-            Pubky->>SDK: signer.signin()
-            SDK-->>Pubky: Session or failure
+            Pubky->>SDK: signer.signin("passport.pubky.app")
+            SDK-->>Pubky: grant Session or failure
             Pubky-->>Restore: session public identity or signin error
             alt Sign-in error
                 Restore-->>Restore: signin_failed
             else Session identity mismatch
                 Restore-->>Restore: identity_mismatch
             else Matching session identity
+                Pubky->>SDK: session.signout() to revoke the verification grant
                 Restore->>Pubky: publishHomeserverIfStale(), retry once after failure
                 Note over Pubky: Fresh resolution contains the SDK stale-CAS race without another session
                 alt Publication still fails
@@ -506,7 +507,7 @@ sequenceDiagram
         participant VisibleWriter as googleDriveVisibleRecoveryCopyWriter.ts<br/>GoogleDriveVisibleRecoveryCopyWriter
     end
     box rgba(17, 24, 39, 0.12) External
-        participant SDK as @synonymdev/pubky@0.9.3<br/>Keypair
+        participant SDK as @synonymdev/pubky@0.10.0<br/>Keypair
         participant Drive as Google Drive API v3<br/>appDataFolder/passport.json
     end
 
@@ -578,7 +579,7 @@ sequenceDiagram
         participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
     end
     box rgba(17, 24, 39, 0.12) External
-        participant SDK as @synonymdev/pubky@0.9.3<br/>Signer / PKDNS
+        participant SDK as @synonymdev/pubky@0.10.0<br/>Signer / PKDNS
         participant Homegate as Homegate<br/>/google_verification
     end
 
@@ -594,8 +595,8 @@ sequenceDiagram
         Creator->>Pubky: signup(handle, homeserver, signup code)
         Pubky->>SDK: signer.signup(...)
         Note over SDK: Homeserver signup transport is SDK-owned
-        SDK-->>Pubky: Session or failure
-        Pubky-->>Creator: session public identity or signup error
+        SDK-->>Pubky: completion or failure
+        Pubky-->>Creator: key-derived public identity or signup error
         alt Signup error
             Creator-->>Creator: signup_failed
         else Session identity mismatch

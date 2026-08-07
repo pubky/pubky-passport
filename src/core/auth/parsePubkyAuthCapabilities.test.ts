@@ -81,7 +81,9 @@ describe("parsePubkyAuthCapabilities", () => {
   });
 
   it("accepts the capability path limit and rejects limit plus one", () => {
-    const atLimit = `/${"a".repeat(PUBKY_AUTH_REQUEST_LIMITS.capabilityPathLength - 1)}`;
+    const fullSegment = "a".repeat(255);
+    const prefix = `/${fullSegment}/${fullSegment}/${fullSegment}/`;
+    const atLimit = `${prefix}${"a".repeat(PUBKY_AUTH_REQUEST_LIMITS.capabilityPathLength - prefix.length)}`;
     const overLimit = `${atLimit}a`;
 
     expect(expectCapabilities(`${atLimit}:r`)[0]?.path).toBe(atLimit);
@@ -94,23 +96,17 @@ describe("parsePubkyAuthCapabilities", () => {
     ]);
   });
 
-  it("preserves colon-containing paths by splitting on the last colon", () => {
-    expect(expectCapabilities("/pub/example.com/time:series:r")).toEqual([
-      { path: "/pub/example.com/time:series", read: true, write: false },
-    ]);
-  });
-
-  it("accepts RFC-style path characters and percent-encoding", () => {
-    expect(expectCapabilities("/pub/app-._~!$&'()*+;=:@/%7Efile:r")).toEqual([
-      { path: "/pub/app-._~!$&'()*+;=:@/%7Efile", read: true, write: false },
+  it("accepts canonical decoded Pubky storage paths", () => {
+    expect(expectCapabilities("/pub/My File/über/%7Efile:r")).toEqual([
+      { path: "/pub/My File/über/%7Efile", read: true, write: false },
     ]);
   });
 
   it("rejects missing capability strings", () => {
     expectError(null, "missing_capabilities");
     expectError(undefined, "missing_capabilities");
-    expectError("", "missing_capabilities");
-    expectError("   ", "missing_capabilities");
+    expect(expectCapabilities("")).toEqual([]);
+    expectError("   ", "invalid_capability_path");
   });
 
   it("rejects empty comma-separated entries", () => {
@@ -127,13 +123,12 @@ describe("parsePubkyAuthCapabilities", () => {
 
   it("rejects invalid paths", () => {
     expectError("pub/pubky.app/:rw", "invalid_capability_path");
-    expectError("/pub/app?query:r", "invalid_capability_path");
-    expectError("/pub/app#fragment:r", "invalid_capability_path");
-    expectError("/pub/my app/:rw", "invalid_capability_path");
     expectError("/pub/app\tname/:rw", "invalid_capability_path");
-    expectError("/pub/app[name]/:rw", "invalid_capability_path");
-    expectError("/pub/app/%XX:r", "invalid_capability_path");
-    expectError("/pub/app/%A:r", "invalid_capability_path");
+    expectError("/pub/app\\name/:rw", "invalid_capability_path");
+    expectError("/pub//app/:rw", "invalid_capability_path");
+    expectError("/pub/../app/:rw", "invalid_capability_path");
+    expectError("/pub/app :rw", "invalid_capability_path");
+    expectError("/pub/example.com/time:series:r", "unsupported_capability_actions");
   });
 
   it("rejects missing or unsupported actions", () => {

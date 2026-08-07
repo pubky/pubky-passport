@@ -10,7 +10,8 @@ and detach flows are not implemented yet.
 - Single-request Google authorization and Google Drive `appDataFolder/passport.json` encrypted Passport file storage.
 - Pubky identity creation, homeserver signup, discovery publication, and restore.
 - Manual and `/authorize?d=...` Pubky Auth entry points.
-- Capability review, SDK-owned relay handoff, and validated callback navigation.
+- Capability review for v0.10 grant and legacy cookie authentication, SDK-owned
+  relay handoff, and validated callback navigation.
 - Browser/server boundaries that keep Drive data and Pubky secret material off the
   Passport server.
 

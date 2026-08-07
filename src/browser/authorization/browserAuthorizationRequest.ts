@@ -4,6 +4,7 @@ import { Result, type Result as ResultType } from "better-result";
 
 import {
   parsePubkyAuthRequest,
+  type PubkyAuthenticationMethod,
   type PubkyAuthParseError,
   type PubkyAuthRequestKind,
 } from "../../core/auth/parsePubkyAuthRequest";
@@ -20,7 +21,9 @@ export type AuthorizationCapability = Readonly<PubkyAuthCapability & {
 
 export type AuthorizationRequestReview = Readonly<{
   kind: PubkyAuthRequestKind;
+  authenticationMethod: PubkyAuthenticationMethod;
   capabilities: readonly AuthorizationCapability[];
+  clientId?: string;
   callbackAvailability: Readonly<{
     success: boolean;
     error: boolean;
@@ -65,9 +68,11 @@ export function parseBrowserAuthorizationRequest(d: unknown): BrowserAuthorizati
   const requestingAppDisplayHost = getRequestingAppDisplayHost(parsed.value.callbacks);
   const review: AuthorizationRequestReview = Object.freeze({
     kind: parsed.value.kind,
+    authenticationMethod: parsed.value.authenticationMethod,
     capabilities,
     callbackAvailability,
     relayHost: parsed.value.relayHost,
+    ...(parsed.value.clientId ? { clientId: parsed.value.clientId } : {}),
     ...(requestingAppDisplayHost ? { requestingAppDisplayHost } : {}),
   });
   const approval: PubkyAuthApprovalCapability = Object.freeze({

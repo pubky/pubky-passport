@@ -6,5 +6,5 @@ export const PUBKY_AUTH_REQUEST_LIMITS = {
   callbackUrlLength: 2_048,
   capabilityCount: 64,
   capabilityLength: 1_024,
-  capabilityPathLength: 1_000,
+  capabilityPathLength: 972,
 } as const;

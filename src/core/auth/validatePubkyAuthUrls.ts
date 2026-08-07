@@ -89,17 +89,24 @@ function isExactRelayHostname(hostname: string): boolean {
 function validateCallbacks(
   authUrl: URL,
 ): ResultType<ValidatedPubkyAuthCallbacks, PubkyAuthUrlValidationError> {
-  const success = validateOptionalCallback(authUrl.searchParams.get("x-success"));
+  const rawSuccess = rawQueryValue(authUrl, "x-success");
+  const success = validateOptionalCallback(decodeCallbackValue(
+    rawSuccess ?? rawQueryValue(authUrl, "callback"),
+  ));
   if (Result.isError(success)) {
     return Result.err(success.error);
   }
 
-  const errorCallback = validateOptionalCallback(authUrl.searchParams.get("x-error"));
+  const errorCallback = validateOptionalCallback(decodeCallbackValue(
+    rawQueryValue(authUrl, "x-error"),
+  ));
   if (Result.isError(errorCallback)) {
     return Result.err(errorCallback.error);
   }
 
-  const cancel = validateOptionalCallback(authUrl.searchParams.get("x-cancel"));
+  const cancel = validateOptionalCallback(decodeCallbackValue(
+    rawQueryValue(authUrl, "x-cancel"),
+  ));
   if (Result.isError(cancel)) {
     return Result.err(cancel.error);
   }
@@ -127,6 +134,35 @@ function validateCallbacks(
   }
 
   return Result.ok(callbacks);
+}
+
+function rawQueryValue(url: URL, key: string): string | undefined {
+  const query = url.search.startsWith("?") ? url.search.slice(1) : url.search;
+  for (const pair of query.split("&")) {
+    const separator = pair.indexOf("=");
+    const pairKey = separator === -1 ? pair : pair.slice(0, separator);
+    if (pairKey === key) return separator === -1 ? "" : pair.slice(separator + 1);
+  }
+  return undefined;
+}
+
+function decodeCallbackValue(value: string | undefined): string | null {
+  if (value === undefined) return null;
+  if (!hasValidPercentTriplets(value)) return value;
+  try {
+    // Pubky v0.10 callback values use encodeURIComponent semantics: decode once
+    // without converting a literal plus sign into a space.
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function hasValidPercentTriplets(value: string): boolean {
+  for (let index = value.indexOf("%"); index !== -1; index = value.indexOf("%", index + 3)) {
+    if (!/^[A-Fa-f0-9]{2}$/u.test(value.slice(index + 1, index + 3))) return false;
+  }
+  return true;
 }
 
 export type ValidatedPubkyAuthCallbacks = {

@@ -10,7 +10,7 @@ import {
 } from "./browserAuthorizationEntry";
 
 const RELAY_ORIGIN = "https://relay.example";
-const SECRET = "sensitive-authorization-secret";
+const SECRET = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
 describe("browserAuthorizationEntry", () => {
   afterEach(async () => {

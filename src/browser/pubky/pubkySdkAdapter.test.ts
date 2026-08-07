@@ -1,8 +1,9 @@
-import { Keypair } from "@synonymdev/pubky";
+import { AuthFlowKind, Keypair, Pubky } from "@synonymdev/pubky";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
 import type { PubkyAuthApprovalCapability } from "../authorization/browserAuthorizationRequest";
+import { parseBrowserAuthorizationRequest } from "../authorization/browserAuthorizationRequest";
 import { LOGGER } from "../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkyIdentityKeyHandle } from "./pubkyIdentityKey";
 import { PubkySdkAdapter } from "./pubkySdkAdapter";
@@ -10,6 +11,33 @@ import { PubkySdkAdapter } from "./pubkySdkAdapter";
 afterEach(() => vi.restoreAllMocks());
 
 describe("PubkySdkAdapter", () => {
+  it("accepts SDK-generated v0.10 cookie and grant authorization links", async () => {
+    const relyingParty = new Pubky();
+    const cookieFlow = relyingParty.startCookieAuthFlow(
+      "/pub/passport.test/:rw",
+      AuthFlowKind.signin(),
+      "https://relay.example/inbox",
+    );
+    const grantFlow = await relyingParty.startGrantAuthFlow(
+      "/pub/passport.test/:rw",
+      AuthFlowKind.signin(),
+      { clientId: "passport.test", relay: "https://relay.example/inbox" },
+    );
+
+    try {
+      const cookie = parseBrowserAuthorizationRequest(encodeURIComponent(cookieFlow.authorizationUrl));
+      const grant = parseBrowserAuthorizationRequest(encodeURIComponent(grantFlow.authorizationUrl));
+
+      expect(Result.isOk(cookie) && cookie.value.review.authenticationMethod).toBe("cookie");
+      expect(Result.isOk(grant) && grant.value.review.authenticationMethod).toBe("grant");
+      expect(Result.isOk(grant) && grant.value.review.clientId).toBe("passport.test");
+    } finally {
+      cookieFlow.free();
+      grantFlow.free();
+      relyingParty.free();
+    }
+  });
+
   it("creates an opaque key handle and derives public identity", async () => {
     const pubky = new PubkySdkAdapter();
 

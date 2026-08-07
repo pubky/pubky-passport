@@ -51,6 +51,7 @@ vi.mock("../onboarding/signInFlow", () => ({
 
 const REVIEW = {
   kind: "signin",
+  authenticationMethod: "cookie",
   capabilities: [
     { path: "/pub/requesting.app/", read: true, write: true, scope: "specific" },
     { path: "/pub/paykit/", read: true, write: false, scope: "specific" },
@@ -107,7 +108,20 @@ describe("AuthorizationFlow", () => {
     expect(screen.getByText("Read,Write")).toBeInTheDocument();
     expect(screen.getByText("First User")).toBeInTheDocument();
     expect(screen.getByText(/allow requesting\.app to read and update your data/u)).toBeInTheDocument();
+    expect(screen.getByText(/deprecated cookie authentication/u)).toBeInTheDocument();
     expect(MOCKS.commitInitialEntry).toHaveBeenCalledOnce();
+  });
+
+  it("identifies a grant request by its v0.10 client ID", async () => {
+    MOCKS.authorizationState = {
+      status: "review",
+      review: { ...REVIEW, authenticationMethod: "grant", clientId: "grant-client.example" },
+    };
+
+    renderFlow();
+
+    expect(await screen.findByRole("heading", { name: "Sign in to grant-client.example" })).toBeInTheDocument();
+    expect(screen.getByText(/app-specific, revocable grant/u)).toBeInTheDocument();
   });
 
   it("shows manual entry only when no authorization request was supplied", async () => {

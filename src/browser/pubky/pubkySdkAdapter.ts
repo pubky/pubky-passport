@@ -35,6 +35,7 @@ export type PubkyAuthApprovalResult = ResultType<void, { code: PubkyAuthApproval
 
 type Signer = ReturnType<Pubky["signer"]>;
 type HomeserverResult = ResultType<PublicKey, { code: "invalid_homeserver_pubky" }>;
+const PASSPORT_CLIENT_ID = "passport.pubky.app";
 
 export type PubkySignupInput = {
   keyHandle: PubkyIdentityKeyHandle;
@@ -165,9 +166,13 @@ export class PubkySdkAdapter {
     }
 
     try {
-      const session = await this.withSigner("signup", keypair, (signer) => signer.signup(homeserver.value, input.signupCode ?? null));
+      await this.withSigner("signup", keypair, (signer) => signer.signup(homeserver.value, input.signupCode ?? null));
+      const identity = publicIdentity("signup", keypair);
+      if (Result.isError(identity)) {
+        return sessionAccessFailure("signup", "sdk_public_identity", "signup_failed");
+      }
 
-      return Result.ok(sessionDetails("signup", session));
+      return Result.ok({ publicIdentity: identity.value });
     } catch {
       return sessionAccessFailure("signup", "sdk_signup", "signup_failed");
     } finally {
@@ -181,12 +186,17 @@ export class PubkySdkAdapter {
       return sessionAccessFailure("signin", "key_lookup", "key_unavailable");
     }
 
+    let session: Session | undefined;
     try {
-      const session = await this.withSigner("signin", keypair, (signer) => signer.signin());
+      session = await this.withSigner("signin", keypair, (signer) => signer.signin(PASSPORT_CLIENT_ID));
+      const details = sessionDetails("signin", session);
+      await session.signout();
 
-      return Result.ok(sessionDetails("signin", session));
+      return Result.ok(details);
     } catch {
       return sessionAccessFailure("signin", "sdk_signin", "signin_failed");
+    } finally {
+      cleanup("signin", "session_free", () => session?.free());
     }
   }
 
@@ -364,7 +374,6 @@ function sessionDetails(operation: "signup" | "signin", session: Session): Pubky
   } finally {
     cleanup(operation, "session_public_key_free", () => publicKey.free());
     cleanup(operation, "session_info_free", () => info.free());
-    cleanup(operation, "session_free", () => session.free());
   }
 }
 

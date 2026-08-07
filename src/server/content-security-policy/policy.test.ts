@@ -90,7 +90,7 @@ describe("content security policy", () => {
 });
 
 function authorizationSearch(relay: string): string {
-  const request = `pubkyauth://signin?caps=/pub/example.app/:rw&relay=${encodeURIComponent(relay)}&secret=sensitive-secret`;
+  const request = `pubkyauth://signin?caps=/pub/example.app/:rw&relay=${encodeURIComponent(relay)}&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8`;
   return `?d=${encodeURIComponent(request)}`;
 }
 

@@ -99,7 +99,7 @@ describe("Pubky identity test doubles", () => {
     const authApproval = new RecordingPubkySdkAdapter();
     const key = expectOk(await authApproval.createIdentityKey());
     const parsedAuthRequest = parseBrowserAuthorizationRequest(encodeURIComponent(
-      "pubkyauth://signin?secret=SECRET-AUTH-REQUEST&relay=https://httprelay.pubky.app/inbox&caps=/pub/pubky.app/:rw",
+      "pubkyauth://signin?secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&relay=https://httprelay.pubky.app/inbox&caps=/pub/pubky.app/:rw",
     ));
     const authRequest = expectOk(parsedAuthRequest).approval;
 
