@@ -16,6 +16,10 @@ focused, bound operations into the identity use cases.
   32-byte Pubky secret key material with browser WebCrypto.
 - [`googleDrivePassportFileStore.ts`](./googleDrivePassportFileStore.ts) reads,
   creates, and deletes `appDataFolder/passport.json` through Google Drive API v3.
+- [`googleDriveVisibleRecoveryCopyWriter.ts`](./googleDriveVisibleRecoveryCopyWriter.ts)
+  creates user-visible encrypted recovery copies.
+- [`googleDriveVisibleRecoveryCopyDeleter.ts`](./googleDriveVisibleRecoveryCopyDeleter.ts)
+  deletes every exact recovery copy during Google detachment.
 
 ## Crypto Contract
 
@@ -72,14 +76,15 @@ Google Drive/Pubky Passport/{pubky}.json
 
 This copy exists only so the user retains a recovery artifact if Google removes
 Passport's app-data access. `appDataFolder/passport.json` remains the sole file used
-by identity setup, restore, authorization, synchronization, and deletion. Normal
-Passport consumers must not read, update, or delete the visible copy; restoring a
-user-selected copy requires a separate future flow.
+by identity setup, restore, authorization, and synchronization. Normal Passport
+consumers must not read or update the visible copy; restoring a user-selected copy
+requires a separate future flow.
 
 The browser requests Google's narrow `drive.file` scope in addition to the required
 `drive.appdata` scope. A returned grant without optional `drive.file` is still usable
-for operational restore and deletion; the visible writer then returns an unconfirmed
-outcome without blocking activation. The writer creates the `Pubky Passport` folder when needed and
+for operational restore; the visible writer then returns an unconfirmed outcome
+without blocking activation. Detachment requires `drive.file` so Passport can remove
+the recovery artifacts it created. The writer creates the `Pubky Passport` folder when needed and
 writes only files created by Passport. Visible recovery copies are append-only.
 Repeated writes intentionally create additional same-name Drive files; no existing
 file is updated or overwritten. Each new copy is verified by its exact returned Drive
@@ -93,5 +98,13 @@ Drive requests when that deadline expires. Visible file writes need no filename 
 because repeated same-name files are intentional. Folder creation remains
 non-atomic across tabs, profiles, and devices; ambiguous duplicate folders produce an
 unconfirmed outcome without deleting either recovery artifact.
+
+Detachment first binds the newly authorized Google account to the account stored on
+the local identity. It then verifies `appDataFolder/passport.json` against the selected
+Pubky when that file exists, deletes every exact `{pubky}.json` match in every
+accessible root `Pubky Passport` folder, deletes the verified app-data file, and only
+then clears the local identity. Any Drive cleanup failure keeps the local identity so
+the user can retry. A missing app-data file is allowed because the account binding
+still prevents deleting another Google account's visible recovery copies.
 
 Restore from the visible recovery copy is not implemented yet.

@@ -123,15 +123,15 @@ const MOCKS = vi.hoisted(() => {
         return state.createResult;
       },
     },
-    DeleteGoogleDrivePassportFile: vi.fn(),
-    passportFileDeleter: {
-      async deleteGoogleDrivePassportFile(
+    DeleteGoogleIdentityBackups: vi.fn(),
+    identityBackupDeleter: {
+      async deleteGoogleIdentityBackups(
         credentials: { googleIdToken: string; driveAccessToken: string },
-        expectedPublicKeyZ32: string,
+        publicIdentity: { publicKeyZ32: string },
       ) {
         state.deleteReceivedExpectedInput = credentials.googleIdToken.length > 0
           && credentials.driveAccessToken.length > 0
-          && expectedPublicKeyZ32 === "public-key";
+          && publicIdentity.publicKeyZ32 === "public-key";
         return Result.ok();
       },
     },
@@ -196,8 +196,8 @@ vi.mock("./createGoogleBackedIdentity", () => ({
   CreateGoogleBackedIdentity: MOCKS.CreateGoogleBackedIdentity,
 }));
 
-vi.mock("./deleteGoogleDrivePassportFile", () => ({
-  DeleteGoogleDrivePassportFile: MOCKS.DeleteGoogleDrivePassportFile,
+vi.mock("./deleteGoogleIdentityBackups", () => ({
+  DeleteGoogleIdentityBackups: MOCKS.DeleteGoogleIdentityBackups,
 }));
 
 vi.mock("./restoreGoogleBackedIdentity", () => ({
@@ -246,7 +246,10 @@ describe("GoogleBackedIdentityOperations", () => {
       TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,
       (phase) => progress.push(phase),
     ));
-    await operations.deleteGoogleDrivePassportFile(TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS, "public-key");
+    await operations.deleteGoogleIdentityBackups(TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS, {
+      publicKeyZ32: "public-key",
+      publicKeyDisplay: PUBLIC_IDENTITY.publicKeyDisplay,
+    }, TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS.googleAccount.id);
 
     expect(MOCKS.state.restoreCalls).toBe(1);
     expect(MOCKS.state.restoreReceivedExpectedInput).toBe(true);
@@ -486,8 +489,8 @@ function prepareConstructors(input: {
   MOCKS.CreateGoogleBackedIdentity.mockImplementation(function () {
     return MOCKS.createMissingIdentity;
   });
-  MOCKS.DeleteGoogleDrivePassportFile.mockImplementation(function () {
-    return MOCKS.passportFileDeleter;
+  MOCKS.DeleteGoogleIdentityBackups.mockImplementation(function () {
+    return MOCKS.identityBackupDeleter;
   });
 }
 

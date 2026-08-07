@@ -11,6 +11,7 @@ ui/
   identity-overview/          Active identity home
   identity-switcher/          Identity selection and rows
   identity-management/        Identity details, logout, and encrypted backup
+  detach-from-google/         Backup gate and Google detachment flow
   authorization/              Permission review and application authorization
   shared/
     primitives/               Figma-verified, business-agnostic controls

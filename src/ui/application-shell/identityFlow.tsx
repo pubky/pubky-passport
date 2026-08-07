@@ -5,18 +5,21 @@ import { useEffect, useRef, useState } from "react";
 
 import type { PassportIdentityController, PassportIdentityList } from "../../browser/identity/passportIdentity";
 import { createPassportIdentityController } from "../../browser/identity/passportIdentity";
-import { Spinner } from "../shared/primitives/spinner";
+import { DetachFromGoogleFlow } from "../detach-from-google/detachFromGoogleFlow";
 import { IdentityManagement } from "../identity-management/identityManagement";
 import { EncryptedBackup } from "../identity-management/encryptedBackup";
 import { IdentityOverview } from "../identity-overview/identityOverview";
 import { IdentitySwitcher } from "../identity-switcher/identitySwitcher";
+import { Spinner } from "../shared/primitives/spinner";
 import { SignInFlow } from "../sign-in/signInFlow";
 
-type RootState = "checking" | "signed-out" | "signed-in" | "switching" | "managing" | "downloading-backup" | "unavailable";
+type RootState = "checking" | "signed-out" | "signed-in" | "switching" | "managing" | "downloading-backup" | "detaching-google" | "unavailable";
 
 function IdentityFlow({ googleClientId, homegateBaseUrl }: { googleClientId: string; homegateBaseUrl: string }) {
   const controller = useRef<PassportIdentityController | null>(null);
+  const detachmentActive = useRef(false);
   const setupActive = useRef(false);
+  const [detachingIdentity, setDetachingIdentity] = useState<PassportIdentityList["identities"][number] | null>(null);
   const [identityController, setIdentityController] = useState<PassportIdentityController | null>(null);
   const [state, setState] = useState<RootState>("checking");
   const [catalog, setCatalog] = useState<PassportIdentityList>({ activeIdentityId: null, identities: [] });
@@ -35,8 +38,9 @@ function IdentityFlow({ googleClientId, homegateBaseUrl }: { googleClientId: str
           if (!catalog || Result.isError(catalog)) setState("unavailable");
           else {
             setCatalog(catalog.value);
-            if (catalog.value.identities.length === 0) setState("signed-out");
-            else if (!setupActive.current) setState("signed-in");
+            if (catalog.value.identities.length === 0) {
+              if (!detachmentActive.current) setState("signed-out");
+            } else if (!setupActive.current && !detachmentActive.current) setState("signed-in");
           }
         };
         unsubscribe = controller.current.subscribe(refresh);
@@ -75,11 +79,23 @@ function IdentityFlow({ googleClientId, homegateBaseUrl }: { googleClientId: str
   }
   if (state === "managing") {
     const activeIdentity = catalog.identities.find((identity) => identity.id === catalog.activeIdentityId);
-    if (activeIdentity && identityController) return <IdentityManagement identity={activeIdentity} onBack={() => setState("signed-in")} onDownloadBackup={() => setState("downloading-backup")} onLogOut={() => { identityController.remove(activeIdentity.id); }} resolveHomeserver={identityController.resolveHomeserver.bind(identityController)} />;
+    if (activeIdentity && identityController) return <IdentityManagement identity={activeIdentity} onBack={() => setState("signed-in")} onDetachFromGoogle={() => { detachmentActive.current = true; setDetachingIdentity(activeIdentity); setState("detaching-google"); }} onDownloadBackup={() => setState("downloading-backup")} onLogOut={() => { identityController.remove(activeIdentity.id); }} resolveHomeserver={identityController.resolveHomeserver.bind(identityController)} />;
   }
   if (state === "downloading-backup") {
     const activeIdentity = catalog.identities.find((identity) => identity.id === catalog.activeIdentityId);
     if (activeIdentity && identityController) return <EncryptedBackup createBackup={identityController.createBackup.bind(identityController)} identityId={activeIdentity.id} onBack={() => setState("managing")} />;
+  }
+  if (state === "detaching-google" && detachingIdentity && identityController) {
+    return <DetachFromGoogleFlow
+      controller={identityController}
+      identity={detachingIdentity}
+      onBack={() => { detachmentActive.current = false; setDetachingIdentity(null); setState("managing"); }}
+      onDone={() => {
+        detachmentActive.current = false;
+        setDetachingIdentity(null);
+        setState(catalog.identities.length === 0 ? "signed-out" : "signed-in");
+      }}
+    />;
   }
   if (state === "signed-in") {
     const activeIdentity = catalog.identities.find((identity) => identity.id === catalog.activeIdentityId);

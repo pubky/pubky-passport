@@ -5,5 +5,5 @@ import type { GoogleAccountProfile } from "../../../core/identity/googleAccountP
 export type GoogleBackedIdentityCredentials = {
   googleIdToken: string;
   driveAccessToken: string;
-  googleAccount?: GoogleAccountProfile;
+  googleAccount: GoogleAccountProfile;
 };

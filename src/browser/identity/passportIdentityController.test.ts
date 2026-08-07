@@ -6,8 +6,14 @@ import { describe, expect, it, vi } from "vitest";
 import type { PassportIdentityControllerDependencies } from "./passportIdentityController";
 import { PassportIdentityController } from "./passportIdentityController";
 
-const CREDENTIALS = { googleIdToken: "id-token", driveAccessToken: "drive-token" };
-const IDENTITY = { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" };
+const GOOGLE_ACCOUNT = { id: "google-account-id", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: null };
+const CREDENTIALS = { googleIdToken: "id-token", driveAccessToken: "drive-token", googleAccount: GOOGLE_ACCOUNT };
+const IDENTITY = { publicKeyZ32: "public-key", publicKeyDisplay: "pubky1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy" };
+const DETACH_ACTION = {
+  kind: "detach_google_backed_identity" as const,
+  publicIdentity: IDENTITY,
+  expectedGoogleAccountId: GOOGLE_ACCOUNT.id,
+};
 
 describe("PassportIdentityController", () => {
   it("prepares the single Google authorization flow", async () => {
@@ -48,6 +54,21 @@ describe("PassportIdentityController", () => {
     expect(states.at(-1)).toEqual({ stage: "google-authorization", errorCode: "google_drive_authorization_popup_closed" });
   });
 
+  it("retries Google authorization initialization after it was unavailable", async () => {
+    const states: unknown[] = [];
+    const prepareGoogleAuthorization = vi.fn()
+      .mockResolvedValueOnce(Result.err({ code: "google_authorization_failed" as const }))
+      .mockResolvedValueOnce(Result.ok());
+    const controller = new PassportIdentityController(dependencies({ prepareGoogleAuthorization }));
+    await controller.prepareGoogleAuthorization((state) => states.push(state));
+    expect(states.at(-1)).toEqual({ stage: "google-authorization", errorCode: "google_authorization_unavailable" });
+
+    controller.retryGoogleAuthorization();
+
+    await vi.waitFor(() => expect(states.at(-1)).toEqual({ stage: "google-authorization", errorCode: null }));
+    expect(prepareGoogleAuthorization).toHaveBeenCalledTimes(2);
+  });
+
   it("owns authorization and identity-operation disposal", () => {
     const disposeAuthorization = vi.fn();
     const disposeOperations = vi.fn();
@@ -84,6 +105,63 @@ describe("PassportIdentityController", () => {
     expect(createBackup).toHaveBeenCalledWith("identity", "strong password");
   });
 
+  it("removes the local identity only after deleting its Google backup", async () => {
+    const calls: string[] = [];
+    const remove = vi.fn(() => { calls.push("local"); return Result.ok(); });
+    const deleteGoogleIdentityBackups = vi.fn(async () => {
+      calls.push("google");
+      return Result.ok({ status: "deleted" as const });
+    });
+    const controller = new PassportIdentityController(dependencies({ deleteGoogleIdentityBackups, remove }));
+    await controller.prepareGoogleAuthorization(vi.fn());
+
+    await expect(controller.continueGoogleBackedIdentityAction(DETACH_ACTION)).resolves.toEqual({
+      status: "action_completed",
+      result: Result.ok({ kind: "google_backed_identity_detached", deletionStatus: "deleted" }),
+    });
+    expect(calls).toEqual(["google", "local"]);
+    expect(deleteGoogleIdentityBackups).toHaveBeenCalledWith(CREDENTIALS, IDENTITY, GOOGLE_ACCOUNT.id);
+    expect(remove).toHaveBeenCalledWith("public-key");
+  });
+
+  it("does not report detachment when the local identity cannot be removed", async () => {
+    const controller = new PassportIdentityController(dependencies({
+      remove: () => Result.err({ code: "storage_unavailable" as const }),
+    }));
+    await controller.prepareGoogleAuthorization(vi.fn());
+
+    const completed = await controller.continueGoogleBackedIdentityAction(DETACH_ACTION);
+    expect(completed.status).toBe("action_completed");
+    if (completed.status !== "action_completed") throw new Error(completed.status);
+    expect(Result.isError(completed.result)).toBe(true);
+    if (Result.isError(completed.result)) expect(completed.result.error).toEqual({ code: "local_remove_failed" });
+  });
+
+  it("does not delete anything when a different Google account is selected", async () => {
+    const deleteGoogleIdentityBackups = vi.fn(async () => Result.ok({ status: "deleted" as const }));
+    const remove = vi.fn(() => Result.ok());
+    const states: unknown[] = [];
+    const controller = new PassportIdentityController(dependencies({
+      deleteGoogleIdentityBackups,
+      remove,
+      requestGoogleAuthorization: async () => Result.ok({
+        ...CREDENTIALS,
+        googleAccount: { ...GOOGLE_ACCOUNT, id: "different-account" },
+      }),
+    }));
+    await controller.prepareGoogleAuthorization((state) => states.push(state));
+
+    await expect(controller.continueGoogleBackedIdentityAction(DETACH_ACTION)).resolves.toEqual({
+      status: "google_authorization_failed",
+    });
+    expect(states.at(-1)).toEqual({
+      stage: "google-authorization",
+      errorCode: "google_drive_authorization_account_mismatch",
+    });
+    expect(deleteGoogleIdentityBackups).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
+  });
+
 });
 
 function dependencies(overrides: Partial<PassportIdentityControllerDependencies> = {}): PassportIdentityControllerDependencies {
@@ -99,7 +177,7 @@ function dependencies(overrides: Partial<PassportIdentityControllerDependencies>
     requestGoogleAuthorization: async () => Result.ok(CREDENTIALS),
     disposeGoogleAuthorization: () => {},
     restoreOrCreateGoogleBackedIdentity: async () => Result.err({ code: "unexpected_failure" as const }),
-    deleteGoogleDrivePassportFile: async () => Result.ok({ status: "deleted" as const }),
+    deleteGoogleIdentityBackups: async () => Result.ok({ status: "deleted" as const }),
     disposeGoogleBackedIdentityOperations: () => {},
     ...overrides,
   };

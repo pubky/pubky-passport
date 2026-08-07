@@ -85,8 +85,8 @@ function createController(
     createBackup: (identityId, password) => createLocalIdentityBackup(repository.read.bind(repository), identityId, password),
     restoreOrCreateGoogleBackedIdentity: (credentials, reportProgress) => getGoogleBackedIdentityOperations()
       .restoreOrCreateGoogleBackedIdentity(credentials, reportProgress),
-    deleteGoogleDrivePassportFile: (credentials, expectedPublicKeyZ32) => getGoogleBackedIdentityOperations()
-      .deleteGoogleDrivePassportFile(credentials, expectedPublicKeyZ32),
+    deleteGoogleIdentityBackups: (credentials, publicIdentity, expectedGoogleAccountId) => getGoogleBackedIdentityOperations()
+      .deleteGoogleIdentityBackups(credentials, publicIdentity, expectedGoogleAccountId),
     disposeGoogleBackedIdentityOperations: () => {
       const operations = googleBackedIdentityOperations;
       googleBackedIdentityOperations = undefined;

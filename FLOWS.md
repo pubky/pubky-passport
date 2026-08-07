@@ -637,108 +637,51 @@ prove setup was partial. Development cleanup candidates remain keyed by public i
 deletion requires fresh Google authorization, decryption, identity matching, and exact
 Drive revision validation. Production should provide resumable activation instead.
 
-### Development-Only Google Drive Passport File Deletion
+### Detach from Google
 
-Credential acquisition follows the single Google code flow above with a delete action.
-
-This diagram documents the current development-only Google Drive Passport file deletion implementation.
+Detachment uses the same single Google authorization-code flow as setup. The selected
+Google account must match the account stored on the local identity before any Drive
+request is made.
 
 ```mermaid
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
-    accTitle: Development Google Drive Passport file deletion call flow
-    accDescr: After the authorization-code exchange returns credentials, the identity controller dispatches the explicit delete action to DeleteGoogleDrivePassportFile.
-    box rgba(0, 158, 115, 0.18) src/browser/identity
-        participant Controller as passportIdentityController.ts<br/>PassportIdentityController
-    end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed
-        participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
-    end
-    box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed
-        participant Delete as deleteGoogleDrivePassportFile.ts<br/>DeleteGoogleDrivePassportFile
-    end
-    box rgba(0, 158, 115, 0.18) src/browser/wrapping-key
-        participant Wrapping as wrappingKeyApiClient.ts<br/>WrappingKeyApiClient
-    end
-    box rgba(0, 158, 115, 0.18) src/browser/passport-file
-        participant DriveStore as googleDrivePassportFileStore.ts<br/>GoogleDrivePassportFileStore
-        participant Crypto as passportFileWebCrypto.ts<br/>PassportFileWebCrypto
-    end
-    box rgba(0, 158, 115, 0.18) src/browser/pubky
-        participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
-    end
-    box rgba(240, 228, 66, 0.18) src/app/api/wrapping-key/google
-        participant WrappingAPI as handler.ts<br/>googleWrappingKeyPost()<br/>exported as route.ts::POST
-    end
-    box rgba(17, 24, 39, 0.12) External
-        participant Drive as Google Drive API v3<br/>appDataFolder/passport.json
-    end
+    accTitle: Detach a Pubky identity from Google
+    accDescr: Passport verifies the account and identity, deletes every Google backup, and clears the local identity last.
+    participant UI as detach-from-google
+    participant Controller as PassportIdentityController
+    participant Delete as DeleteGoogleIdentityBackups
+    participant AppData as GoogleDrivePassportFileStore
+    participant Visible as GoogleDriveVisibleRecoveryCopyDeleter
+    participant Drive as Google Drive API v3
+    participant Local as LocalStorageIdentityRepository
 
-    Controller->>Operations: deleteGoogleDrivePassportFile<br/>(credentials, expected public key)
-    Operations->>Delete: deleteGoogleDrivePassportFile(...)
-    Delete->>Wrapping: requestGoogleWrappingKey(ID token)
-    Wrapping->>WrappingAPI: POST { googleIdToken }
-    WrappingAPI-->>Wrapping: wrapping-key result
-    Wrapping-->>Delete: wrapping-key result
-    alt Wrapping-key error
-        Delete-->>Controller: safe failure
-    else Wrapping key
-        Delete->>Operations: passportFileStoreForAccessToken(Drive OAuth token)
-        Operations->>DriveStore: new GoogleDrivePassportFileStore(...)
-        Operations-->>Delete: store
-        Delete->>DriveStore: readPassportFile()
-        DriveStore->>Drive: list passport.json
-        Drive-->>DriveStore: list response
-        opt One file found
-            DriveStore->>Drive: GET media for exact file ID
-            Drive-->>DriveStore: media response body
-            DriveStore->>DriveStore: bounded read + parsePassportFileContents()
-            DriveStore->>Drive: GET metadata for exact file ID
-            Drive-->>DriveStore: ID + name + version + trashed state
+    UI->>Controller: detach(public identity, expected Google account)
+    Controller->>Controller: request Google credentials
+    alt Authorized account differs
+        Controller-->>UI: account_mismatch
+    else Account matches
+        Controller->>Delete: deleteGoogleIdentityBackups(...)
+        Delete->>AppData: readPassportFile()
+        AppData->>Drive: find appDataFolder/passport.json
+        alt App-data file found
+            Drive-->>Delete: encrypted envelope + exact reference
+            Delete->>Delete: wrapping key, decrypt, and verify Pubky
+        else App-data file missing
+            Drive-->>Delete: missing
+            Note over Delete: Account binding still protects visible cleanup
         end
-        DriveStore-->>Delete: found, missing, or safe error
-        alt Read error
-            Delete-->>Controller: safe failure
-        else Missing
-            Delete-->>Controller: idempotent success
-        else Found
-            Delete->>Crypto: decryptSecretKeyBytes(...)
-            Crypto-->>Delete: secret or decrypt error
-            alt Decrypt error
-                Delete-->>Controller: safe failure
-            else Decrypted secret
-                Delete->>Pubky: restoreIdentityKey(secret)
-                Pubky-->>Delete: identity + handle, or restore error
-                alt Restore error
-            Note over Delete: Zero decrypted bytes
-                    Delete-->>Controller: safe failure
-                else Restored identity
-                    Note over Delete: Compare expected public key
-                    alt Identity mismatch
-                        Note over Delete: Zero decrypted bytes
-                        Delete->>Pubky: disposeIdentityKey(handle)
-                        Delete-->>Controller: safe failure
-                    else Identity matches
-                        Note over Delete: Zero decrypted bytes
-                        Delete->>Pubky: disposeIdentityKey(handle)
-                        Delete->>DriveStore: deletePassportFile(exact reference)
-                        DriveStore->>Drive: GET metadata for exact file ID
-                        Drive-->>DriveStore: metadata, missing, or failure
-                        alt Metadata error
-                            DriveStore-->>Delete: authorization, network, or response error
-                        else Exact file missing
-                            DriveStore-->>Delete: idempotent success
-                        else Name, revision, or trashed state changed
-                            DriveStore-->>Delete: stale_file
-                        else Exact revision
-                            DriveStore->>Drive: DELETE exact file ID
-                            Drive-->>DriveStore: deleted, missing, or failure
-                            DriveStore-->>Delete: typed result
-                        end
-                        Delete-->>Controller: safe result
-                    end
-                end
-            end
+        Delete->>Visible: deleteVisibleRecoveryCopies(pubky)
+        Visible->>Drive: list every accessible root Pubky Passport folder
+        Visible->>Drive: delete every exact {pubky}.json match
+        Delete->>AppData: delete exact verified reference when present
+        AppData->>Drive: validate revision and delete passport.json
+        alt Any verification or Drive cleanup fails
+            Delete-->>UI: safe retryable failure
+            Note over Local: Local identity remains available
+        else All Google backups removed
+            Controller->>Local: remove identity
+            Controller-->>UI: detachment complete
         end
     end
 ```

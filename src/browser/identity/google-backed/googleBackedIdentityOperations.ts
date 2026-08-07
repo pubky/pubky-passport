@@ -3,6 +3,7 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER } from "../../../libs/logger/logger";
+import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
 import {
   HomegateClient,
   type HomegateSignupInvitationErrorCode,
@@ -14,6 +15,7 @@ import {
   type PassportFileStoreResult,
 } from "../../passport-file/googleDrivePassportFileStore";
 import { GoogleDriveVisibleRecoveryCopyWriter } from "../../passport-file/googleDriveVisibleRecoveryCopyWriter";
+import { GoogleDriveVisibleRecoveryCopyDeleter } from "../../passport-file/googleDriveVisibleRecoveryCopyDeleter";
 import type { PassportFileEnvelopeV1 } from "../../passport-file/passportFileEnvelope";
 import { PassportFileWebCrypto } from "../../passport-file/passportFileWebCrypto";
 import type { PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";
@@ -32,7 +34,7 @@ import {
   type CreateGoogleBackedIdentityError,
   type CreatedGoogleBackedIdentity,
 } from "./createGoogleBackedIdentity";
-import { DeleteGoogleDrivePassportFile } from "./deleteGoogleDrivePassportFile";
+import { DeleteGoogleIdentityBackups } from "./deleteGoogleIdentityBackups";
 import type { GoogleBackedIdentityCredentials } from "./googleBackedIdentityCredentials";
 import type {
   ReportGoogleBackedIdentityProgress,
@@ -65,7 +67,7 @@ export class GoogleBackedIdentityOperations {
   readonly #homegate: HomegateClient;
   readonly #restoreExistingIdentity: RestoreGoogleBackedIdentity;
   readonly #createMissingIdentity: CreateGoogleBackedIdentity;
-  readonly #passportFileDeleter: DeleteGoogleDrivePassportFile;
+  readonly #identityBackupDeleter: DeleteGoogleIdentityBackups;
   #disposed = false;
 
   constructor(input: {
@@ -94,6 +96,7 @@ export class GoogleBackedIdentityOperations {
         accessTokenProvider: async () => driveAccessToken,
         fetch: driveFetch,
       });
+      const visibleRecoveryCopyDeleter = new GoogleDriveVisibleRecoveryCopyDeleter({ fetch: driveFetch });
       const readPassportFile = (driveAccessToken: string) => createPassportFileStore(driveAccessToken).readPassportFile();
       const createPassportFile = (driveAccessToken: string, envelope: PassportFileEnvelopeV1) => createPassportFileStore(driveAccessToken).createPassportFile(envelope);
       const createVisibleRecoveryCopy = (
@@ -126,10 +129,11 @@ export class GoogleBackedIdentityOperations {
       this.#homegate = homegateClient;
       this.#restoreExistingIdentity = restoreExistingIdentity;
       this.#createMissingIdentity = createMissingIdentity;
-      this.#passportFileDeleter = new DeleteGoogleDrivePassportFile({
+      this.#identityBackupDeleter = new DeleteGoogleIdentityBackups({
         requestWrappingKey,
         readPassportFile,
         deletePassportFileByReference,
+        deleteVisibleRecoveryCopies: visibleRecoveryCopyDeleter.deleteVisibleRecoveryCopies.bind(visibleRecoveryCopyDeleter),
         decryptSecretKeyBytes,
         pubky,
         passportOrigin: input.passportOrigin,
@@ -160,8 +164,16 @@ export class GoogleBackedIdentityOperations {
     }
   }
 
-  deleteGoogleDrivePassportFile(credentials: GoogleBackedIdentityCredentials, expectedPublicKeyZ32: string) {
-    return this.#passportFileDeleter.deleteGoogleDrivePassportFile(credentials, expectedPublicKeyZ32);
+  deleteGoogleIdentityBackups(
+    credentials: GoogleBackedIdentityCredentials,
+    publicIdentity: PubkyPublicIdentity,
+    expectedGoogleAccountId: string,
+  ) {
+    return this.#identityBackupDeleter.deleteGoogleIdentityBackups(
+      credentials,
+      publicIdentity,
+      expectedGoogleAccountId,
+    );
   }
 
   dispose(): void {

@@ -5,6 +5,11 @@ import { Result, type Result as ResultType } from "better-result";
 import { readBoundedText } from "../../libs/http/boundedBody";
 import { LOGGER } from "../../libs/logger/logger";
 import { parsePassportFileEnvelope, type PassportFileEnvelopeV1 } from "./passportFileEnvelope";
+import {
+  DRIVE_FOLDER_MIME_TYPE,
+  VISIBLE_RECOVERY_FOLDER_NAME,
+  visibleRecoveryFileName,
+} from "./googleDriveVisibleRecoveryCopy";
 
 export type GoogleDriveVisibleRecoveryCopyWriterOptions = {
   accessTokenProvider: () => Promise<string | null | undefined>;
@@ -32,10 +37,6 @@ type DriveFile = {
 
 const DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files";
 const DRIVE_UPLOAD_FILES_URL = "https://www.googleapis.com/upload/drive/v3/files";
-const VISIBLE_RECOVERY_FOLDER_NAME = "Pubky Passport";
-const VISIBLE_RECOVERY_FILE_SUFFIX = ".json";
-const PUBKY_PUBLIC_KEY_DISPLAY_PATTERN = /^pubky[ybndrfg8ejkmcpqxot1uwisza345h769]{51}[yo]$/;
-const DRIVE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 const MULTIPART_BOUNDARY = "pubky-passport-drive-boundary-v1";
 const MAXIMUM_DRIVE_RESPONSE_BYTES = 16 * 1024;
 const INVALID_JSON = Symbol("invalid_json");
@@ -317,12 +318,6 @@ function isNonEmptyString(value: unknown): value is string {
 
 function sameReference(left: VisibleFileReference, right: VisibleFileReference): boolean {
   return left.storageId === right.storageId && left.revision === right.revision;
-}
-
-function visibleRecoveryFileName(publicKeyDisplay: string): string | null {
-  return PUBKY_PUBLIC_KEY_DISPLAY_PATTERN.test(publicKeyDisplay)
-    ? `${publicKeyDisplay}${VISIBLE_RECOVERY_FILE_SUFFIX}`
-    : null;
 }
 
 function mapDriveStatus(status: number, fallback: VisibleRecoveryCopyErrorCode): VisibleRecoveryCopyErrorCode {

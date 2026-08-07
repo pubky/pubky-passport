@@ -29,6 +29,12 @@ export const TEST_PASSPORT_REFERENCE: PassportFileReference = {
 export const TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS = {
   googleIdToken: "id-token",
   driveAccessToken: "drive-token",
+  googleAccount: {
+    id: "google-account-id",
+    email: "satoshi@gmail.com",
+    name: "Satoshi Nakamoto",
+    pictureUrl: null,
+  },
 };
 
 export const TEST_SIGNUP_INVITATION = {

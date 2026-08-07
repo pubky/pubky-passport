@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MemoryStorage } from "../../../test-utils/fakes/memoryStorage";
 import { LOGGER } from "../../libs/logger/logger";
+import { PUBKY_SECRET_KEY_FORMAT } from "../pubky/pubkyIdentityKey";
+import { LocalStorageIdentityRepository } from "./local/localStorageIdentityRepository";
 const MOCKS = vi.hoisted(() => ({
   GoogleBackedIdentityOperations: vi.fn(),
   disposeGoogleBackedIdentityOperations: vi.fn(),
@@ -32,6 +34,9 @@ import { createPassportIdentityController } from "./passportIdentity";
 
 const GOOGLE_CLIENT_ID = "google-client-id";
 const HOMEGATE_BASE_URL = "https://homegate.example/";
+const GOOGLE_ACCOUNT = { id: "google-account-id", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: null };
+const PUBLIC_IDENTITY = { publicKeyZ32: "public-key", publicKeyDisplay: "pubky1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy" };
+const DETACH_ACTION = { kind: "detach_google_backed_identity" as const, publicIdentity: PUBLIC_IDENTITY, expectedGoogleAccountId: GOOGLE_ACCOUNT.id };
 
 function createController() {
   return createPassportIdentityController(GOOGLE_CLIENT_ID, HOMEGATE_BASE_URL);
@@ -66,14 +71,14 @@ describe("createPassportIdentityController", () => {
           MOCKS.establishProgress.push("checking_passport_file", "restoring_identity");
           return MOCKS.establishImplementation?.();
         },
-        async deleteGoogleDrivePassportFile(
+        async deleteGoogleIdentityBackups(
           credentials: { googleIdToken: string; driveAccessToken: string },
-          expectedPublicKeyZ32: string,
+          publicIdentity: { publicKeyZ32: string },
         ) {
           MOCKS.deleteCalls += 1;
           MOCKS.deleteReceivedExpectedInput = credentials.googleIdToken.length > 0
             && credentials.driveAccessToken.length > 0
-            && expectedPublicKeyZ32 === "public-key";
+            && publicIdentity.publicKeyZ32 === "public-key";
           return Result.ok({ status: "deleted" as const });
         },
         dispose: MOCKS.disposeGoogleBackedIdentityOperations,
@@ -87,10 +92,10 @@ describe("createPassportIdentityController", () => {
       };
     });
     MOCKS.prepareGoogleAuthorization.mockResolvedValue(Result.ok());
-    MOCKS.requestGoogleAuthorization.mockResolvedValue(Result.ok({ googleIdToken: "google-id-token", driveAccessToken: "drive-access-token" }));
+    MOCKS.requestGoogleAuthorization.mockResolvedValue(Result.ok({ googleIdToken: "google-id-token", driveAccessToken: "drive-access-token", googleAccount: GOOGLE_ACCOUNT }));
     MOCKS.establishImplementation = async () => Result.ok({
       establishmentMode: "restored",
-      publicIdentity: { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" },
+      publicIdentity: PUBLIC_IDENTITY,
     });
   });
   afterEach(() => {
@@ -127,7 +132,7 @@ describe("createPassportIdentityController", () => {
     expect(MOCKS.GoogleBackedIdentityOperations).not.toHaveBeenCalled();
   });
 
-  it("constructs one action graph and delegates establish and delete", async () => {
+  it("constructs one action graph and delegates establish and detach", async () => {
     const controller = createController();
     await mountWithGoogleCredential(controller);
 
@@ -136,7 +141,7 @@ describe("createPassportIdentityController", () => {
       result: Result.ok({
         kind: "google_backed_identity_established",
         establishmentMode: "restored",
-        publicIdentity: { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" },
+        publicIdentity: PUBLIC_IDENTITY,
       }),
     });
     expect(MOCKS.GoogleBackedIdentityOperations).toHaveBeenCalledWith({
@@ -147,36 +152,34 @@ describe("createPassportIdentityController", () => {
     expect(MOCKS.establishCalls).toBe(1);
     expect(MOCKS.establishReceivedExpectedCredentials).toBe(true);
     expect(MOCKS.establishProgress).toEqual(["checking_passport_file", "restoring_identity"]);
-    await expect(controller.continueGoogleBackedIdentityAction({
-      kind: "delete_google_drive_passport_file",
-      expectedPublicKeyZ32: "public-key",
-    })).resolves.toEqual({
+    seedLocalIdentity();
+    await expect(controller.continueGoogleBackedIdentityAction(DETACH_ACTION)).resolves.toEqual({
       status: "action_completed",
-      result: Result.ok({ kind: "google_drive_passport_file_deleted", deletionStatus: "deleted" }),
+      result: Result.ok({ kind: "google_backed_identity_detached", deletionStatus: "deleted" }),
     });
     expect(MOCKS.GoogleBackedIdentityOperations).toHaveBeenCalledOnce();
     expect(MOCKS.deleteCalls).toBe(1);
     expect(MOCKS.deleteReceivedExpectedInput).toBe(true);
+    expect(controller.list()).toEqual(Result.ok({ activeIdentityId: null, identities: [] }));
 
     controller.dispose();
     controller.dispose();
     expect(MOCKS.disposeGoogleBackedIdentityOperations).toHaveBeenCalledOnce();
   });
 
-  it("constructs the action graph when delete is the first action", async () => {
+  it("constructs the action graph when detach is the first action", async () => {
+    seedLocalIdentity();
     const controller = createController();
     await mountWithGoogleCredential(controller);
 
-    await expect(controller.continueGoogleBackedIdentityAction({
-      kind: "delete_google_drive_passport_file",
-      expectedPublicKeyZ32: "public-key",
-    })).resolves.toEqual({
+    await expect(controller.continueGoogleBackedIdentityAction(DETACH_ACTION)).resolves.toEqual({
       status: "action_completed",
-      result: Result.ok({ kind: "google_drive_passport_file_deleted", deletionStatus: "deleted" }),
+      result: Result.ok({ kind: "google_backed_identity_detached", deletionStatus: "deleted" }),
     });
     expect(MOCKS.GoogleBackedIdentityOperations).toHaveBeenCalledOnce();
     expect(MOCKS.deleteCalls).toBe(1);
     expect(MOCKS.deleteReceivedExpectedInput).toBe(true);
+    expect(controller.list()).toEqual(Result.ok({ activeIdentityId: null, identities: [] }));
 
     controller.dispose();
     expect(MOCKS.disposeGoogleBackedIdentityOperations).toHaveBeenCalledOnce();
@@ -227,6 +230,15 @@ describe("createPassportIdentityController", () => {
   });
 });
 
+function seedLocalIdentity(): void {
+  const repository = new LocalStorageIdentityRepository();
+  const saved = repository.save(
+    { id: "public-key", publicIdentity: PUBLIC_IDENTITY, googleAccount: GOOGLE_ACCOUNT },
+    { bytes: new Uint8Array(32).fill(7), format: PUBKY_SECRET_KEY_FORMAT },
+  );
+  if (Result.isError(saved)) throw new Error(saved.error.code);
+}
+
 async function mountWithGoogleCredential(
   controller: ReturnType<typeof createPassportIdentityController>,
 ): Promise<void> {
@@ -236,6 +248,6 @@ async function mountWithGoogleCredential(
 function establishedIdentity() {
   return Result.ok({
     establishmentMode: "restored" as const,
-    publicIdentity: { publicKeyZ32: "public-key", publicKeyDisplay: "pubkypublic-key" },
+    publicIdentity: PUBLIC_IDENTITY,
   });
 }

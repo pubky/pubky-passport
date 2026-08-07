@@ -14,7 +14,18 @@ const FLOW = vi.hoisted(() => ({ catalog: { activeIdentityId: null, identities: 
 vi.mock("../../browser/identity/passportIdentity", () => ({
   MIN_BACKUP_PASSWORD_LENGTH: 6,
   createPassportIdentityController: () => mockPassportIdentityController({
+    continueGoogleBackedIdentityAction: async (action) => {
+      if (action.kind !== "detach_google_backed_identity") return { status: "google_authorization_failed" as const };
+      const identities = FLOW.catalog.identities.filter((identity) => identity.id !== action.publicIdentity.publicKeyZ32);
+      FLOW.catalog = { activeIdentityId: identities[0]?.id ?? null, identities };
+      FLOW.refresh?.();
+      return {
+        status: "action_completed" as const,
+        result: Result.ok({ kind: "google_backed_identity_detached" as const, deletionStatus: "deleted" as const }),
+      };
+    },
     list: () => Result.ok(FLOW.catalog),
+    prepareGoogleAuthorization: async (onState) => { onState({ stage: "google-authorization", errorCode: null }); },
     remove: (identityId: string) => {
       const identities = FLOW.catalog.identities.filter((identity) => identity.id !== identityId);
       FLOW.catalog = { activeIdentityId: identities[0]?.id ?? null, identities };
@@ -101,6 +112,32 @@ describe("IdentityFlow", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
 
     expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
+  });
+
+  it("backs up, confirms detachment, clears the local identity, and shows completion", async () => {
+    FLOW.catalog = { activeIdentityId: "identity", identities: [{ id: "identity", publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" }, googleAccount: { id: "google", email: "user@gmail.com", name: "User", pictureUrl: null } }] };
+    render(<IdentityFlow googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
+
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Detach from Google" }));
+
+    expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Download encrypted backup" }));
+    expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "I backed up my pubky" }));
+    const confirm = screen.getByRole("button", { name: "Confirm deletion" });
+    expect(confirm).toBeDisabled();
+    await userEvent.setup().type(screen.getByLabelText("Type DELETE to confirm"), "DELETE");
+    expect(confirm).toBeEnabled();
+    await userEvent.setup().click(confirm);
+
+    expect(await screen.findByRole("heading", { name: "Detached from Google." })).toBeInTheDocument();
+    expect(FLOW.catalog.identities).toEqual([]);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Done" }));
+    expect(await screen.findByRole("heading", { name: "Quick & easy signing." })).toBeInTheDocument();
   });
 
   it("returns to signed out when the last identity logs out", async () => {

@@ -11,9 +11,9 @@ import type {
   GoogleBackedIdentityResult,
 } from "./google-backed/googleBackedIdentityOperations";
 import type {
-  GoogleDrivePassportFileDeletionError,
-  GoogleDrivePassportFileDeletionResult,
-} from "./google-backed/deleteGoogleDrivePassportFile";
+  GoogleIdentityBackupDeletionError,
+  GoogleIdentityBackupDeletionResult,
+} from "./google-backed/deleteGoogleIdentityBackups";
 import type {
   GoogleBackedIdentityProgress,
   ReportGoogleBackedIdentityProgress,
@@ -61,6 +61,7 @@ export type PassportIdentityControllerErrorCode =
   | "signin_failed"
   | "discovery_failed"
   | "local_save_failed"
+  | "local_remove_failed"
   | "drive_stale_file"
   | "drive_delete_failed"
   | "unexpected_failure";
@@ -73,7 +74,11 @@ export type PassportIdentityControllerError = {
 
 export type GoogleBackedIdentityAction =
   | { kind: "establish_google_backed_identity" }
-  | { kind: "delete_google_drive_passport_file"; expectedPublicKeyZ32: string };
+  | {
+      kind: "detach_google_backed_identity";
+      publicIdentity: PubkyPublicIdentity;
+      expectedGoogleAccountId: string;
+    };
 
 export type GoogleBackedIdentityActionResult = Result<
   | {
@@ -87,7 +92,7 @@ export type GoogleBackedIdentityActionResult = Result<
       establishmentMode: "restored";
       publicIdentity: PubkyPublicIdentity;
     }
-  | { kind: "google_drive_passport_file_deleted"; deletionStatus: "deleted" | "missing" },
+  | { kind: "google_backed_identity_detached"; deletionStatus: "deleted" | "missing" },
   PassportIdentityControllerError
 >;
 
@@ -104,7 +109,7 @@ export type GoogleBackedIdentityActionState =
   | { stage: "google-authorization"; errorCode: GoogleBackedIdentityActionErrorCode | null }
   | { stage: "requesting-google-authorization" }
   | { stage: "establishing-google-backed-identity"; progress: GoogleBackedIdentityProgress }
-  | { stage: "deleting-google-drive-passport-file" };
+  | { stage: "detaching-google-backed-identity" };
 
 export type GoogleBackedIdentityActionDispatchResult =
   | { status: "google_authorization_failed" }
@@ -125,10 +130,11 @@ export type PassportIdentityControllerDependencies = {
     credentials: GoogleBackedIdentityCredentials,
     reportProgress: ReportGoogleBackedIdentityProgress,
   ): Promise<GoogleBackedIdentityResult<GoogleBackedIdentity>>;
-  deleteGoogleDrivePassportFile(
+  deleteGoogleIdentityBackups(
     credentials: GoogleBackedIdentityCredentials,
-    expectedPublicKeyZ32: string,
-  ): Promise<GoogleDrivePassportFileDeletionResult>;
+    publicIdentity: PubkyPublicIdentity,
+    expectedGoogleAccountId: string,
+  ): Promise<GoogleIdentityBackupDeletionResult>;
   disposeGoogleBackedIdentityOperations(): void;
   prepareGoogleAuthorization(): Promise<GoogleAuthorizationCodeResult<void>>;
   requestGoogleAuthorization(): Promise<GoogleAuthorizationCodeResult<GoogleBackedIdentityCredentials>>;
@@ -242,6 +248,11 @@ export class PassportIdentityController {
         this.resetGoogleAuthorization(errorForAuthorizationCodeFailure(credentials.error.code));
         return { status: "google_authorization_failed" };
       }
+      if (action.kind === "detach_google_backed_identity"
+        && credentials.value.googleAccount.id !== action.expectedGoogleAccountId) {
+        this.resetGoogleAuthorization("google_drive_authorization_account_mismatch");
+        return { status: "google_authorization_failed" };
+      }
       const result = await this.executeAction(action, credentials.value, activeGeneration);
       if (this.#disposed || activeGeneration !== this.#mountGeneration) return { status: "action_finished_after_unmount", result };
       this.resetGoogleAuthorization();
@@ -271,12 +282,18 @@ export class PassportIdentityController {
     activeGeneration: number,
   ): Promise<GoogleBackedIdentityActionResult> {
     try {
-      if (action.kind === "delete_google_drive_passport_file") {
-        this.emit({ stage: "deleting-google-drive-passport-file" });
-        const deleted = await this.#dependencies.deleteGoogleDrivePassportFile(credentials, action.expectedPublicKeyZ32);
-        return Result.isError(deleted)
-          ? deletionFailure(deleted.error)
-          : Result.ok({ kind: "google_drive_passport_file_deleted", deletionStatus: deleted.value.status });
+      if (action.kind === "detach_google_backed_identity") {
+        this.emit({ stage: "detaching-google-backed-identity" });
+        const deleted = await this.#dependencies.deleteGoogleIdentityBackups(
+          credentials,
+          action.publicIdentity,
+          action.expectedGoogleAccountId,
+        );
+        if (Result.isError(deleted)) return deletionFailure(deleted.error);
+        const removed = this.#dependencies.remove(action.publicIdentity.publicKeyZ32);
+        return Result.isError(removed)
+          ? actionFailure({ code: "local_remove_failed" })
+          : Result.ok({ kind: "google_backed_identity_detached", deletionStatus: deleted.value.status });
       }
       let progressActive = true;
       const reportProgress: ReportGoogleBackedIdentityProgress = (progress) => {
@@ -377,7 +394,7 @@ function establishmentFailure(error: GoogleBackedIdentityError): GoogleBackedIde
   });
 }
 
-function deletionFailure(error: GoogleDrivePassportFileDeletionError): GoogleBackedIdentityActionResult {
+function deletionFailure(error: GoogleIdentityBackupDeletionError): GoogleBackedIdentityActionResult {
   return actionFailure({
     code: error.code === "wrapping_key_failed"
       ? wrappingKeyFailureCode(error.cause)
