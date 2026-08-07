@@ -8,9 +8,10 @@ import { MigrateToPubkyRing } from "../migrate-to-pubky-ring/migrateToPubkyRing"
 import { BackupBeforeDetaching } from "./backupBeforeDetaching";
 import { ConfirmGoogleDetachment } from "./confirmGoogleDetachment";
 import { GoogleDetachmentComplete } from "./googleDetachmentComplete";
+import { ReviewGoogleDetachment } from "./reviewGoogleDetachment";
 import { useDetachFromGoogle } from "./useDetachFromGoogle";
 
-type DetachScreen = "backup" | "encrypted-backup" | "pubky-ring";
+type DetachScreen = "backup" | "encrypted-backup" | "pubky-ring" | "review";
 
 function DetachFromGoogleFlow({ controller, identity, onBack, onDone }: {
   controller: PassportIdentityController;
@@ -40,27 +41,30 @@ function DetachFromGoogleFlow({ controller, identity, onBack, onDone }: {
       onBack={() => setScreen("backup")}
     />;
   }
+  if (screen === "review") {
+    return (
+      <>
+        <ReviewGoogleDetachment onBack={() => setScreen("backup")} onRemove={() => setConfirmationOpen(true)} />
+        <ConfirmGoogleDetachment
+          canConfirm={detachment.canDetach}
+          canRetryAuthorization={detachment.canRetryAuthorization}
+          error={detachment.status === "error"}
+          onCancel={() => setConfirmationOpen(false)}
+          onConfirm={detachment.detach}
+          onRetryAuthorization={detachment.retryAuthorization}
+          open={confirmationOpen}
+          pending={detachment.status === "pending"}
+        />
+      </>
+    );
+  }
 
-  return (
-    <>
-      <BackupBeforeDetaching
-        onBack={onBack}
-        onBackupConfirmed={() => setConfirmationOpen(true)}
-        onDownloadBackup={() => setScreen("encrypted-backup")}
-        onMigrateToKeychain={() => setScreen("pubky-ring")}
-      />
-      <ConfirmGoogleDetachment
-        canConfirm={detachment.canDetach}
-        canRetryAuthorization={detachment.canRetryAuthorization}
-        error={detachment.status === "error"}
-        onCancel={() => setConfirmationOpen(false)}
-        onConfirm={detachment.detach}
-        onRetryAuthorization={detachment.retryAuthorization}
-        open={confirmationOpen}
-        pending={detachment.status === "pending"}
-      />
-    </>
-  );
+  return <BackupBeforeDetaching
+    onBack={onBack}
+    onBackupConfirmed={() => setScreen("review")}
+    onDownloadBackup={() => setScreen("encrypted-backup")}
+    onMigrateToKeychain={() => setScreen("pubky-ring")}
+  />;
 }
 
 export { DetachFromGoogleFlow };

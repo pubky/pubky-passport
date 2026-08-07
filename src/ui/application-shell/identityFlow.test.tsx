@@ -160,6 +160,9 @@ describe("IdentityFlow", () => {
     expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
 
     await userEvent.setup().click(screen.getByRole("button", { name: "I backed up my pubky" }));
+    expect(screen.getByRole("heading", { name: "Detach from Google." })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Remove Google Access" })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Remove Google Access" }));
     const confirm = screen.getByRole("button", { name: "Confirm deletion" });
     expect(confirm).toBeDisabled();
     await userEvent.setup().type(screen.getByLabelText("Type DELETE to confirm"), "DELETE");
