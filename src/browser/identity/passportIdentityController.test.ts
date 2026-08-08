@@ -243,7 +243,6 @@ function dependencies(overrides: Partial<PassportIdentityControllerDependencies>
     list: () => Result.ok({ activeIdentityId: null, identities: [] }),
     select: () => Result.ok(),
     remove: () => Result.ok(),
-    clear: () => Result.ok(),
     subscribe: () => () => { },
     resolveHomeserver: async () => Result.ok(null),
     createBackup: async () => Result.err({ code: "backup_failed" as const }),

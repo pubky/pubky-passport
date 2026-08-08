@@ -67,7 +67,6 @@ export function createPassportIdentityController(
       list: repository.list.bind(repository),
       select: repository.select.bind(repository),
       remove: repository.remove.bind(repository),
-      clear: repository.clear.bind(repository),
       subscribe: repository.subscribe.bind(repository),
       resolveHomeserver: resolvePubkyHomeserver,
       createBackup: (identityId, password) => createLocalIdentityBackup(repository.read.bind(repository), identityId, password),
