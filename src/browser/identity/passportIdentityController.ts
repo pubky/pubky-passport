@@ -80,28 +80,28 @@ export type PassportIdentityControllerError = {
 export type GoogleBackedIdentityAction =
   | { kind: "establish_google_backed_identity" }
   | {
-      kind: "detach_google_backed_identity";
-      publicIdentity: PubkyPublicIdentity;
-      expectedGoogleAccountId: string;
-    }
+    kind: "detach_google_backed_identity";
+    publicIdentity: PubkyPublicIdentity;
+    expectedGoogleAccountId: string;
+  }
   | {
-      kind: "replace_incomplete_google_backed_identity";
-      publicIdentity: PubkyPublicIdentity;
-      expectedGoogleAccountId: string;
-    };
+    kind: "replace_incomplete_google_backed_identity";
+    publicIdentity: PubkyPublicIdentity;
+    expectedGoogleAccountId: string;
+  };
 
 export type GoogleBackedIdentityActionResult = Result<
   | {
-      kind: "google_backed_identity_established";
-      establishmentMode: "created";
-      publicIdentity: PubkyPublicIdentity;
-      visibleRecoveryCopyStatus: "created" | "unconfirmed";
-    }
+    kind: "google_backed_identity_established";
+    establishmentMode: "created";
+    publicIdentity: PubkyPublicIdentity;
+    visibleRecoveryCopyStatus: "created" | "unconfirmed";
+  }
   | {
-      kind: "google_backed_identity_established";
-      establishmentMode: "restored";
-      publicIdentity: PubkyPublicIdentity;
-    }
+    kind: "google_backed_identity_established";
+    establishmentMode: "restored";
+    publicIdentity: PubkyPublicIdentity;
+  }
   | { kind: "google_backed_identity_detached"; deletionStatus: "deleted" | "missing" },
   PassportIdentityControllerError
 >;
@@ -136,7 +136,7 @@ export type PassportIdentityControllerDependencies = {
   subscribe(listener: () => void): () => void;
   resolveHomeserver(publicKeyZ32: string): Promise<PubkyHomeserverResolutionResult>;
   createBackup(identityId: string, password: string): Promise<LocalIdentityBackupResult>;
-  createActivePubkyRingMigrationUrl(): LocalIdentityResult<string>;
+  createPubkyRingMigrationUrl(): LocalIdentityResult<string>;
   restoreOrCreateGoogleBackedIdentity(
     credentials: GoogleBackedIdentityCredentials,
     reportProgress: ReportGoogleBackedIdentityProgress,
@@ -212,10 +212,10 @@ export class PassportIdentityController {
     return this.#dependencies.createBackup(identityId, password);
   }
 
-  createActivePubkyRingMigrationUrl(): PassportIdentityCatalogResult<string> {
+  createPubkyRingMigrationUrl(): PassportIdentityCatalogResult<string> {
     return this.runCatalogOperation(
       "create_pubky_ring_migration",
-      () => this.#dependencies.createActivePubkyRingMigrationUrl(),
+      () => this.#dependencies.createPubkyRingMigrationUrl(),
     );
   }
 
@@ -346,16 +346,16 @@ export class PassportIdentityController {
       }
       return restoredOrCreated.value.establishmentMode === "created"
         ? Result.ok({
-            kind: "google_backed_identity_established",
-            establishmentMode: "created",
-            publicIdentity: restoredOrCreated.value.publicIdentity,
-            visibleRecoveryCopyStatus: restoredOrCreated.value.visibleRecoveryCopyStatus,
-          })
+          kind: "google_backed_identity_established",
+          establishmentMode: "created",
+          publicIdentity: restoredOrCreated.value.publicIdentity,
+          visibleRecoveryCopyStatus: restoredOrCreated.value.visibleRecoveryCopyStatus,
+        })
         : Result.ok({
-            kind: "google_backed_identity_established",
-            establishmentMode: "restored",
-            publicIdentity: restoredOrCreated.value.publicIdentity,
-          });
+          kind: "google_backed_identity_established",
+          establishmentMode: "restored",
+          publicIdentity: restoredOrCreated.value.publicIdentity,
+        });
     } catch {
       LOGGER.warn("identity.google.action.failed", { code: "unexpected_failure" });
       return Result.err({ code: "unexpected_failure" });
@@ -426,9 +426,9 @@ function establishmentFailure(
         : error.code,
     ...(error.preservedPassportFileIdentity
       ? {
-          preservedPassportFileIdentity: error.preservedPassportFileIdentity,
-          recovery: { googleAccount, publicIdentity: error.preservedPassportFileIdentity },
-        }
+        preservedPassportFileIdentity: error.preservedPassportFileIdentity,
+        recovery: { googleAccount, publicIdentity: error.preservedPassportFileIdentity },
+      }
       : {}),
     ...("warning" in error && error.warning ? { warning: error.warning } : {}),
   });

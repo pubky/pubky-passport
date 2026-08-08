@@ -48,7 +48,7 @@ vi.mock("../../browser/identity/passportIdentity", () => ({
         result: Result.ok({ kind: "google_backed_identity_detached" as const, deletionStatus: "deleted" as const }),
       };
     },
-    createActivePubkyRingMigrationUrl: () => {
+    createPubkyRingMigrationUrl: () => {
       FLOW.migrationExportCount += 1;
       return Result.ok(FLOW.migrationUrl);
     },

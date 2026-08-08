@@ -12,7 +12,7 @@ import {
 } from "./google-backed/googleBackedIdentityOperations";
 import { resolvePubkyHomeserver } from "../pubky/pubkySdkAdapter";
 import { createLocalIdentityBackup } from "./local/createLocalIdentityBackup";
-import { createActivePubkyRingMigrationUrl } from "./pubky-ring-migration/createActivePubkyRingMigrationUrl";
+import { createPubkyRingMigrationUrl } from "./pubky-ring-migration/createPubkyRingMigrationUrl";
 
 export type PassportIdentityController = Pick<
   PassportIdentityControllerImplementation,
@@ -22,7 +22,7 @@ export type PassportIdentityController = Pick<
   | "subscribe"
   | "resolveHomeserver"
   | "createBackup"
-  | "createActivePubkyRingMigrationUrl"
+  | "createPubkyRingMigrationUrl"
   | "prepareGoogleAuthorization"
   | "disposeGoogleAuthorization"
   | "retryGoogleAuthorization"
@@ -50,7 +50,41 @@ export function createPassportIdentityController(
   homegateBaseUrl: string,
 ): PassportIdentityController {
   try {
-    return createController(googleClientId, homegateBaseUrl);
+    const repository = new LocalStorageIdentityRepository();
+    const googleIdentityServices = new GoogleIdentityServices();
+    const googleAuthorization = new GoogleAuthorizationCode({ clientId: googleClientId, googleIdentityServices });
+    let googleBackedIdentityOperations: GoogleBackedIdentityOperations | undefined;
+    const getGoogleBackedIdentityOperations = () => {
+      googleBackedIdentityOperations ??= new GoogleBackedIdentityOperations({
+        saveIdentityRecord: repository.save.bind(repository),
+        homegateBaseUrl,
+        passportOrigin: globalThis.location.origin,
+      });
+      return googleBackedIdentityOperations;
+    };
+
+    return new PassportIdentityControllerImplementation({
+      list: repository.list.bind(repository),
+      select: repository.select.bind(repository),
+      remove: repository.remove.bind(repository),
+      clear: repository.clear.bind(repository),
+      subscribe: repository.subscribe.bind(repository),
+      resolveHomeserver: resolvePubkyHomeserver,
+      createBackup: (identityId, password) => createLocalIdentityBackup(repository.read.bind(repository), identityId, password),
+      createPubkyRingMigrationUrl: () => createPubkyRingMigrationUrl(repository.readActive.bind(repository)),
+      restoreOrCreateGoogleBackedIdentity: (credentials, reportProgress) => getGoogleBackedIdentityOperations()
+        .restoreOrCreateGoogleBackedIdentity(credentials, reportProgress),
+      deleteGoogleIdentityBackups: (credentials, publicIdentity, expectedGoogleAccountId) => getGoogleBackedIdentityOperations()
+        .deleteGoogleIdentityBackups(credentials, publicIdentity, expectedGoogleAccountId),
+      disposeGoogleBackedIdentityOperations: () => {
+        const operations = googleBackedIdentityOperations;
+        googleBackedIdentityOperations = undefined;
+        operations?.dispose();
+      },
+      prepareGoogleAuthorization: googleAuthorization.prepare.bind(googleAuthorization),
+      requestGoogleAuthorization: googleAuthorization.request.bind(googleAuthorization),
+      disposeGoogleAuthorization: googleAuthorization.dispose.bind(googleAuthorization),
+    });
   } catch (error) {
     LOGGER.error("identity.controller.failed", {
       operation: "initialize",
@@ -58,45 +92,4 @@ export function createPassportIdentityController(
     });
     throw error;
   }
-}
-
-function createController(
-  googleClientId: string,
-  homegateBaseUrl: string,
-): PassportIdentityController {
-  const repository = new LocalStorageIdentityRepository();
-  const googleIdentityServices = new GoogleIdentityServices();
-  const googleAuthorization = new GoogleAuthorizationCode({ clientId: googleClientId, googleIdentityServices });
-  let googleBackedIdentityOperations: GoogleBackedIdentityOperations | undefined;
-  const getGoogleBackedIdentityOperations = () => {
-    googleBackedIdentityOperations ??= new GoogleBackedIdentityOperations({
-      saveIdentityRecord: repository.save.bind(repository),
-      homegateBaseUrl,
-      passportOrigin: globalThis.location.origin,
-    });
-    return googleBackedIdentityOperations;
-  };
-
-  return new PassportIdentityControllerImplementation({
-    list: repository.list.bind(repository),
-    select: repository.select.bind(repository),
-    remove: repository.remove.bind(repository),
-    clear: repository.clear.bind(repository),
-    subscribe: repository.subscribe.bind(repository),
-    resolveHomeserver: resolvePubkyHomeserver,
-    createBackup: (identityId, password) => createLocalIdentityBackup(repository.read.bind(repository), identityId, password),
-    createActivePubkyRingMigrationUrl: () => createActivePubkyRingMigrationUrl(repository.readActive.bind(repository)),
-    restoreOrCreateGoogleBackedIdentity: (credentials, reportProgress) => getGoogleBackedIdentityOperations()
-      .restoreOrCreateGoogleBackedIdentity(credentials, reportProgress),
-    deleteGoogleIdentityBackups: (credentials, publicIdentity, expectedGoogleAccountId) => getGoogleBackedIdentityOperations()
-      .deleteGoogleIdentityBackups(credentials, publicIdentity, expectedGoogleAccountId),
-    disposeGoogleBackedIdentityOperations: () => {
-      const operations = googleBackedIdentityOperations;
-      googleBackedIdentityOperations = undefined;
-      operations?.dispose();
-    },
-    prepareGoogleAuthorization: googleAuthorization.prepare.bind(googleAuthorization),
-    requestGoogleAuthorization: googleAuthorization.request.bind(googleAuthorization),
-    disposeGoogleAuthorization: googleAuthorization.dispose.bind(googleAuthorization),
-  });
 }

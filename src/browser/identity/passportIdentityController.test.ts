@@ -107,11 +107,11 @@ describe("PassportIdentityController", () => {
 
   it("creates a Pubky Ring migration URL for the active identity", () => {
     const migration = Result.ok("pubkyring://migrate?index=0&total=1&key=secret");
-    const createActivePubkyRingMigrationUrl = vi.fn(() => migration);
-    const controller = new PassportIdentityController(dependencies({ createActivePubkyRingMigrationUrl }));
+    const createPubkyRingMigrationUrl = vi.fn(() => migration);
+    const controller = new PassportIdentityController(dependencies({ createPubkyRingMigrationUrl }));
 
-    expect(controller.createActivePubkyRingMigrationUrl()).toEqual(migration);
-    expect(createActivePubkyRingMigrationUrl).toHaveBeenCalledOnce();
+    expect(controller.createPubkyRingMigrationUrl()).toEqual(migration);
+    expect(createPubkyRingMigrationUrl).toHaveBeenCalledOnce();
   });
 
   it("removes the local identity only after deleting its Google backup", async () => {
@@ -244,16 +244,16 @@ function dependencies(overrides: Partial<PassportIdentityControllerDependencies>
     select: () => Result.ok(),
     remove: () => Result.ok(),
     clear: () => Result.ok(),
-    subscribe: () => () => {},
+    subscribe: () => () => { },
     resolveHomeserver: async () => Result.ok(null),
     createBackup: async () => Result.err({ code: "backup_failed" as const }),
-    createActivePubkyRingMigrationUrl: () => Result.err({ code: "no_active_identity" as const }),
+    createPubkyRingMigrationUrl: () => Result.err({ code: "no_active_identity" as const }),
     prepareGoogleAuthorization: async () => Result.ok(),
     requestGoogleAuthorization: async () => Result.ok(CREDENTIALS),
-    disposeGoogleAuthorization: () => {},
+    disposeGoogleAuthorization: () => { },
     restoreOrCreateGoogleBackedIdentity: async () => Result.err({ code: "unexpected_failure" as const }),
     deleteGoogleIdentityBackups: async () => Result.ok({ status: "deleted" as const }),
-    disposeGoogleBackedIdentityOperations: () => {},
+    disposeGoogleBackedIdentityOperations: () => { },
     ...overrides,
   };
 }

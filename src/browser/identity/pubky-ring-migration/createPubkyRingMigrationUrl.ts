@@ -10,7 +10,7 @@ type ReadActiveIdentity = () => LocalIdentityResult<{
   secretKey: PubkySecretKeyMaterial;
 }>;
 
-export function createActivePubkyRingMigrationUrl(
+export function createPubkyRingMigrationUrl(
   readActiveIdentity: ReadActiveIdentity,
 ): LocalIdentityResult<string> {
   const stored = readActiveIdentity();

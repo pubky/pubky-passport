@@ -65,7 +65,7 @@ function DetachFromGoogleFlow({ controller, identity, onBack, onDone }: {
         onBackupConfirmed={() => dispatch({ type: "backup-confirmed" })}
         onDownloadBackup={() => dispatch({ type: "backup-requested" })}
         onMigrateToKeychain={() => {
-          const migration = controller.createActivePubkyRingMigrationUrl();
+          const migration = controller.createPubkyRingMigrationUrl();
           dispatch({
             type: "migration-requested",
             migrationUrl: Result.isOk(migration) ? migration.value : null,

@@ -70,7 +70,7 @@ function ReadyIdentityDashboard({ catalog, controller }: {
           if (Result.isOk(removed)) dispatch({ type: "identity-removed" });
         }}
         onMigrateToKeychain={() => {
-          const migration = controller.createActivePubkyRingMigrationUrl();
+          const migration = controller.createPubkyRingMigrationUrl();
           dispatch({
             type: "migration-requested",
             identityId: identity.id,
@@ -101,10 +101,10 @@ function ReadyIdentityDashboard({ catalog, controller }: {
     case "overview":
       return activeIdentity
         ? <IdentityOverview
-            identity={activeIdentity}
-            onManage={() => dispatch({ type: "manage-requested", identityId: activeIdentity.id })}
-            onSwitch={() => dispatch({ type: "switch-requested" })}
-          />
+          identity={activeIdentity}
+          onManage={() => dispatch({ type: "manage-requested", identityId: activeIdentity.id })}
+          onSwitch={() => dispatch({ type: "switch-requested" })}
+        />
         : <main className="grid min-h-[calc(100svh-84px)] place-items-center px-6 text-center text-muted-foreground">The active identity is unavailable.</main>;
   }
 }
