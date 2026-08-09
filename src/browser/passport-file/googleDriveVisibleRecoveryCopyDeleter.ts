@@ -2,8 +2,15 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { readBoundedText } from "../../libs/http/boundedBody";
 import { LOGGER } from "../../libs/logger/logger";
+import {
+  fetchGoogleDrive,
+  GOOGLE_DRIVE_FILES_URL,
+  googleDriveAuthorizationHeaders,
+  parseGoogleDriveFileList,
+  readGoogleDriveJson,
+  type GoogleDriveFile,
+} from "./googleDriveHttp";
 import {
   DRIVE_FOLDER_MIME_TYPE,
   VISIBLE_RECOVERY_FOLDER_NAME,
@@ -23,16 +30,6 @@ export type VisibleRecoveryCopyDeletionResult = ResultType<
   { code: VisibleRecoveryCopyDeletionErrorCode }
 >;
 
-type DriveFile = {
-  id?: unknown;
-  name?: unknown;
-  mimeType?: unknown;
-  parents?: unknown;
-  trashed?: unknown;
-};
-
-const DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files";
-const MAXIMUM_DRIVE_RESPONSE_BYTES = 16 * 1024;
 const PAGE_SIZE = "100";
 const MAXIMUM_LIST_PAGES = 100;
 const DRIVE_FILE_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
@@ -80,19 +77,20 @@ export class GoogleDriveVisibleRecoveryCopyDeleter {
   private async listAll(
     token: string,
     url: (pageToken?: string) => string,
-    validate: (file: DriveFile) => boolean,
+    validate: (file: GoogleDriveFile) => boolean,
     operation: "list_folders" | "list_files",
-  ): Promise<ResultType<DriveFile[], { code: VisibleRecoveryCopyDeletionErrorCode }>> {
-    const files: DriveFile[] = [];
+  ): Promise<ResultType<GoogleDriveFile[], { code: VisibleRecoveryCopyDeletionErrorCode }>> {
+    const files: GoogleDriveFile[] = [];
     const seenPageTokens = new Set<string>();
     let pageToken: string | undefined;
 
     do {
-      const response = await this.fetchDrive(url(pageToken), {
-        headers: authorizationHeaders(token),
+      const response = await this.fetchDrive(operation, url(pageToken), {
+        headers: googleDriveAuthorizationHeaders(token),
       });
-      if (!response.ok) return driveFailure(response.status, operation);
-      const parsed = await parseListResponse(response, operation);
+      if (Result.isError(response)) return Result.err(response.error);
+      if (!response.value.ok) return driveFailure(response.value.status, operation);
+      const parsed = await parseListResponse(response.value, operation);
       if (Result.isError(parsed)) return Result.err(parsed.error);
       if (!parsed.value.files.every(validate)) return failure("invalid_response", operation);
       files.push(...parsed.value.files);
@@ -109,20 +107,26 @@ export class GoogleDriveVisibleRecoveryCopyDeleter {
     token: string,
     fileId: string,
   ): Promise<ResultType<void, { code: VisibleRecoveryCopyDeletionErrorCode }>> {
-    const response = await this.fetchDrive(`${DRIVE_FILES_URL}/${encodeURIComponent(fileId)}`, {
+    const response = await this.fetchDrive("delete_file", `${GOOGLE_DRIVE_FILES_URL}/${encodeURIComponent(fileId)}`, {
       method: "DELETE",
-      headers: authorizationHeaders(token),
+      headers: googleDriveAuthorizationHeaders(token),
     });
-    if (response.status === 404) return Result.ok(undefined);
-    return response.ok ? Result.ok(undefined) : driveFailure(response.status, "delete_file");
+    if (Result.isError(response)) return Result.err(response.error);
+    if (response.value.status === 404) return Result.ok(undefined);
+    return response.value.ok
+      ? Result.ok(undefined)
+      : driveFailure(response.value.status, "delete_file");
   }
 
-  private async fetchDrive(input: string, init: RequestInit): Promise<Response> {
-    try {
-      return await this.#fetch(input, init);
-    } catch {
-      return new Response(null, { status: 599 });
-    }
+  private async fetchDrive(
+    operation: DeletionOperation,
+    input: string,
+    init: RequestInit,
+  ): Promise<ResultType<Response, { code: VisibleRecoveryCopyDeletionErrorCode }>> {
+    const fetched = await fetchGoogleDrive(this.#fetch, input, init);
+    return fetched.status === "received"
+      ? Result.ok(fetched.response)
+      : failure("network_failed", operation);
   }
 }
 
@@ -148,31 +152,20 @@ function listUrl(input: { q: string; fields: string }, pageToken?: string): stri
     pageSize: PAGE_SIZE,
   });
   if (pageToken) params.set("pageToken", pageToken);
-  return `${DRIVE_FILES_URL}?${params.toString()}`;
+  return `${GOOGLE_DRIVE_FILES_URL}?${params.toString()}`;
 }
 
 async function parseListResponse(
   response: Response,
   operation: "list_folders" | "list_files",
-): Promise<ResultType<{ files: DriveFile[]; nextPageToken?: string }, { code: VisibleRecoveryCopyDeletionErrorCode }>> {
-  const contents = await readBoundedText(response, MAXIMUM_DRIVE_RESPONSE_BYTES);
-  if (contents === null || contents === "too_large") return failure("invalid_response", operation);
-  let value: unknown;
-  try { value = JSON.parse(contents); } catch { return failure("invalid_response", operation); }
-  if (!value || typeof value !== "object" || Array.isArray(value)) return failure("invalid_response", operation);
-  const list = value as { files?: unknown; nextPageToken?: unknown };
-  if (!Array.isArray(list.files)
-    || !list.files.every(isDriveFile)
-    || (list.nextPageToken !== undefined && typeof list.nextPageToken !== "string")) {
-    return failure("invalid_response", operation);
-  }
-  return Result.ok({
-    files: list.files,
-    ...(typeof list.nextPageToken === "string" ? { nextPageToken: list.nextPageToken } : {}),
-  });
+): Promise<ResultType<{ files: GoogleDriveFile[]; nextPageToken?: string }, { code: VisibleRecoveryCopyDeletionErrorCode }>> {
+  const parsed = await readGoogleDriveJson(response);
+  if (parsed.status === "invalid_response") return failure("invalid_response", operation);
+  const list = parseGoogleDriveFileList(parsed.value);
+  return list === null ? failure("invalid_response", operation) : Result.ok(list);
 }
 
-function isExpectedFolder(file: DriveFile): boolean {
+function isExpectedFolder(file: GoogleDriveFile): boolean {
   return typeof file.id === "string" && DRIVE_FILE_ID_PATTERN.test(file.id)
     && file.name === VISIBLE_RECOVERY_FOLDER_NAME
     && file.mimeType === DRIVE_FOLDER_MIME_TYPE
@@ -181,19 +174,11 @@ function isExpectedFolder(file: DriveFile): boolean {
     && file.trashed === false;
 }
 
-function isExpectedFile(file: DriveFile, folderId: string, fileName: string): boolean {
+function isExpectedFile(file: GoogleDriveFile, folderId: string, fileName: string): boolean {
   return typeof file.id === "string" && DRIVE_FILE_ID_PATTERN.test(file.id)
     && file.name === fileName
     && Array.isArray(file.parents) && file.parents.length === 1 && file.parents[0] === folderId
     && file.trashed === false;
-}
-
-function isDriveFile(value: unknown): value is DriveFile {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function authorizationHeaders(token: string): { Authorization: string } {
-  return { Authorization: `Bearer ${token}` };
 }
 
 function driveFailure<T>(status: number, operation: DeletionOperation): ResultType<T, { code: VisibleRecoveryCopyDeletionErrorCode }> {
@@ -202,8 +187,6 @@ function driveFailure<T>(status: number, operation: DeletionOperation): ResultTy
       return failure("unauthorized", operation);
     case 403:
       return failure("forbidden", operation);
-    case 599:
-      return failure("network_failed", operation);
     default:
       return failure(status >= 500 ? "network_failed" : "delete_failed", operation);
   }
