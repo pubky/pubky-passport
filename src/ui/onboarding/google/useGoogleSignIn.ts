@@ -5,15 +5,27 @@ import { useCallback, useEffect, useReducer, useRef } from "react";
 
 import type {
   GoogleBackedIdentityAction,
+  GoogleBackedIdentityActionResult,
   PassportIdentityController,
   PassportIdentityControllerError,
 } from "../../../browser/identity/passportIdentity";
+import type { GoogleAccountProfile } from "../../../core/identity/googleAccountProfile";
+import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
 import {
   INITIAL_GOOGLE_SIGN_IN_STATE,
   transitionGoogleSignIn,
 } from "./googleSignInState";
 
-function useGoogleSignIn(controller: PassportIdentityController) {
+type GoogleIdentityEstablished = {
+  googleAccount?: GoogleAccountProfile;
+  identity: PubkyPublicIdentity;
+  mode: "created" | "restored";
+};
+
+function useGoogleSignIn(
+  controller: PassportIdentityController,
+  onEstablished?: (identity: GoogleIdentityEstablished) => void,
+) {
   const dispatching = useRef(false);
   const [state, dispatch] = useReducer(transitionGoogleSignIn, INITIAL_GOOGLE_SIGN_IN_STATE);
 
@@ -40,16 +52,17 @@ function useGoogleSignIn(controller: PassportIdentityController) {
               dispatch({ type: "operation-failed", error: { code: "unexpected_failure" } });
               return;
             }
-            const established = completed.result.value;
-            const catalog = controller.list();
-            const googleAccount = Result.isOk(catalog)
-              ? catalog.value.identities.find((candidate) => candidate.id === established.publicIdentity.publicKeyZ32)?.googleAccount
-              : undefined;
+            const established = establishedIdentity(completed.result, controller);
+            if (!established) {
+              dispatch({ type: "operation-failed", error: { code: "unexpected_failure" } });
+              return;
+            }
+            onEstablished?.(established);
             dispatch({
               type: "operation-completed",
-              identity: established.publicIdentity,
-              mode: established.establishmentMode,
-              ...(googleAccount ? { googleAccount } : {}),
+              identity: established.identity,
+              mode: established.mode,
+              ...(established.googleAccount ? { googleAccount: established.googleAccount } : {}),
             });
             return;
           }
@@ -57,7 +70,7 @@ function useGoogleSignIn(controller: PassportIdentityController) {
       })
       .catch(() => dispatch({ type: "operation-failed", error: { code: "unexpected_failure" } }))
       .finally(() => { dispatching.current = false; });
-  }, [controller]);
+  }, [controller, onEstablished]);
 
   const start = useCallback(() => {
     run({ kind: "establish_google_backed_identity" });
@@ -106,4 +119,21 @@ function useGoogleSignIn(controller: PassportIdentityController) {
   };
 }
 
-export { useGoogleSignIn };
+function establishedIdentity(
+  result: GoogleBackedIdentityActionResult,
+  controller: PassportIdentityController,
+): GoogleIdentityEstablished | null {
+  if (Result.isError(result) || result.value.kind !== "google_backed_identity_established") return null;
+  const established = result.value;
+  const catalog = controller.list();
+  const googleAccount = Result.isOk(catalog)
+    ? catalog.value.identities.find((candidate) => candidate.id === established.publicIdentity.publicKeyZ32)?.googleAccount
+    : undefined;
+  return {
+    identity: established.publicIdentity,
+    mode: established.establishmentMode,
+    ...(googleAccount ? { googleAccount } : {}),
+  };
+}
+
+export { useGoogleSignIn, type GoogleIdentityEstablished };

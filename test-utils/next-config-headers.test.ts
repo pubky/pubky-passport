@@ -7,6 +7,10 @@ describe("next config headers", () => {
     expect(NEXT_CONFIG.devIndicators).toBe(false);
   });
 
+  it("does not print secret-bearing request URLs through Next logging", () => {
+    expect(NEXT_CONFIG.logging).toEqual({ incomingRequests: false });
+  });
+
   it("sets baseline security headers for every response", async () => {
     const headers = await NEXT_CONFIG.headers?.();
     const globalHeaders = headers?.find((entry) => entry.source === "/:path*")?.headers ?? [];

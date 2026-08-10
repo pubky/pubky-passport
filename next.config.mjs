@@ -47,6 +47,9 @@ const AUTHORIZE_TRANSPORT_HEADERS = [
 /** @type {import('next').NextConfig} */
 const NEXT_CONFIG = {
   devIndicators: false,
+  logging: {
+    incomingRequests: false,
+  },
   outputFileTracingRoot: __dirname,
   serverExternalPackages: ["@synonymdev/pubky"],
   async headers() {

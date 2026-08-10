@@ -12,6 +12,7 @@ import { IdentityDashboard } from "./identityDashboard";
 const FLOW = vi.hoisted(() => ({
   catalog: { activeIdentityId: null, identities: [] } as PassportIdentityList,
   establishIdentity: false,
+  establishmentMode: "created" as "created" | "restored",
   migrationExportCount: 0,
   migrationUrl: "pubkyring://migrate?index=0&total=1&key=active-secret",
   refresh: null as (() => void) | null,
@@ -33,7 +34,7 @@ vi.mock("../../browser/identity/passportIdentity", () => ({
           status: "action_completed" as const,
           result: Result.ok({
             kind: "google_backed_identity_established" as const,
-            establishmentMode: "created" as const,
+            establishmentMode: FLOW.establishmentMode,
             publicIdentity: identity.publicIdentity,
             visibleRecoveryCopyStatus: "created" as const,
           }),
@@ -68,6 +69,7 @@ describe("IdentityDashboard", () => {
   beforeEach(() => {
     FLOW.catalog = { activeIdentityId: null, identities: [] };
     FLOW.establishIdentity = false;
+    FLOW.establishmentMode = "created";
     FLOW.migrationExportCount = 0;
     FLOW.refresh = null;
   });
@@ -89,6 +91,19 @@ describe("IdentityDashboard", () => {
     await userEvent.setup().click(await screen.findByRole("button", { name: "Continue with Google" }));
 
     expect(await screen.findByRole("heading", { name: "Setup complete." })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Your pubky." })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
+  });
+
+  it("keeps restored onboarding mounted until restore completion is acknowledged", async () => {
+    FLOW.establishIdentity = true;
+    FLOW.establishmentMode = "restored";
+    render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
+
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Continue with Google" }));
+
+    expect(await screen.findByRole("heading", { name: "Restore complete." })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Your pubky." })).not.toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
     expect(await screen.findByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
@@ -127,6 +142,25 @@ describe("IdentityDashboard", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Add identity" }));
 
     expect(await screen.findByRole("heading", { name: "Quick & easy signing." })).toBeInTheDocument();
+  });
+
+  it("gates a newly added identity behind setup completion", async () => {
+    FLOW.establishIdentity = true;
+    FLOW.catalog = {
+      activeIdentityId: "existing",
+      identities: [{ id: "existing", publicIdentity: { publicKeyZ32: "existing", publicKeyDisplay: "pubkyexisting" } }],
+    };
+    render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
+
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Switch" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Add identity" }));
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Continue with Google" }));
+
+    expect(await screen.findByRole("heading", { name: "Setup complete." })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Your pubky." })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
+    expect(screen.getByText("created")).toBeInTheDocument();
   });
 
   it("logs out only the active identity and activates a remaining identity", async () => {

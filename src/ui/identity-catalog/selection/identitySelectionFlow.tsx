@@ -8,13 +8,15 @@ import type {
   PassportIdentityList,
 } from "../../../browser/identity/passportIdentity";
 import { SignInFlow } from "../../onboarding/signInFlow";
+import type { GoogleIdentityEstablished } from "../../onboarding/google/useGoogleSignIn";
 import { IdentitySwitcher } from "./identitySwitcher";
 import { transitionIdentitySelection } from "./identitySelectionState";
 
-function IdentitySelectionFlow({ catalog, controller, onBack, onIdentitySelected }: {
+function IdentitySelectionFlow({ catalog, controller, onBack, onIdentityEstablished, onIdentitySelected }: {
   catalog: PassportIdentityList;
   controller: PassportIdentityController;
   onBack: () => void;
+  onIdentityEstablished?: (identity: GoogleIdentityEstablished) => void;
   onIdentitySelected: () => void;
 }) {
   const [state, dispatch] = useReducer(transitionIdentitySelection, { view: "selection" });
@@ -24,6 +26,7 @@ function IdentitySelectionFlow({ catalog, controller, onBack, onIdentitySelected
       controller={controller}
       onBack={() => dispatch({ type: "add-cancelled" })}
       onComplete={onIdentitySelected}
+      {...(onIdentityEstablished ? { onEstablished: onIdentityEstablished } : {})}
     />;
   }
 

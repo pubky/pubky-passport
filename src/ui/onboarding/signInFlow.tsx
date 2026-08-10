@@ -6,17 +6,18 @@ import { GoogleAccessScreen } from "./google/googleAccessScreen";
 import { GoogleIdentityComplete } from "./google/googleIdentityComplete";
 import { GoogleIdentityError } from "./google/googleIdentityError";
 import { GoogleIdentityProgress } from "./google/googleIdentityProgress";
-import { useGoogleSignIn } from "./google/useGoogleSignIn";
+import { useGoogleSignIn, type GoogleIdentityEstablished } from "./google/useGoogleSignIn";
 import { BackButton } from "../shared/navigation/backButton";
 import { ProviderSignInButton } from "./providerSignInButton";
 import { SignInPage } from "./signInPage";
 
-function SignInFlow({ controller, onBack, onComplete }: {
+function SignInFlow({ controller, onBack, onComplete, onEstablished }: {
   controller: PassportIdentityController;
   onBack?: () => void;
   onComplete: () => void;
+  onEstablished?: (identity: GoogleIdentityEstablished) => void;
 }) {
-  const google = useGoogleSignIn(controller);
+  const google = useGoogleSignIn(controller, onEstablished);
   const view = google.state.view;
 
   switch (view.name) {

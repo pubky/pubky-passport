@@ -1,12 +1,14 @@
 "use client";
 
 import { Result } from "better-result";
-import { useReducer } from "react";
+import { useReducer, useState } from "react";
 
 import type { PassportIdentityController, PassportIdentityList } from "../../browser/identity/passportIdentity";
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { SignInFlow } from "../onboarding/signInFlow";
+import { GoogleIdentityComplete } from "../onboarding/google/googleIdentityComplete";
+import type { GoogleIdentityEstablished } from "../onboarding/google/useGoogleSignIn";
 import { Spinner } from "../shared/primitives/spinner";
 import { IdentityManagement } from "./management/identityManagement";
 import { DetachFromGoogleFlow } from "./management/detach-from-google/detachFromGoogleFlow";
@@ -24,6 +26,16 @@ function IdentityDashboard({ googleClientId, homegateBaseUrl }: {
   homegateBaseUrl: string;
 }) {
   const session = useIdentityCatalog(googleClientId, homegateBaseUrl);
+  const [completion, setCompletion] = useState<DashboardIdentityCompletion | null>(null);
+
+  if (completion) {
+    return <GoogleIdentityComplete
+      {...(completion.googleAccount ? { googleAccount: completion.googleAccount } : {})}
+      identity={completion.identity}
+      mode={completion.mode}
+      onContinue={() => setCompletion(null)}
+    />;
+  }
 
   switch (session.status) {
     case "loading":
@@ -31,13 +43,20 @@ function IdentityDashboard({ googleClientId, homegateBaseUrl }: {
     case "unavailable":
       return <main className="grid min-h-[calc(100svh-84px)] place-items-center px-6 text-center text-muted-foreground">Local identity storage is unavailable.</main>;
     case "ready":
-      return <ReadyIdentityDashboard catalog={session.catalog} controller={session.controller} />;
+      return <ReadyIdentityDashboard
+        catalog={session.catalog}
+        controller={session.controller}
+        onIdentityEstablished={setCompletion}
+      />;
   }
 }
 
-function ReadyIdentityDashboard({ catalog, controller }: {
+type DashboardIdentityCompletion = GoogleIdentityEstablished;
+
+function ReadyIdentityDashboard({ catalog, controller, onIdentityEstablished }: {
   catalog: PassportIdentityList;
   controller: PassportIdentityController;
+  onIdentityEstablished: (identity: DashboardIdentityCompletion) => void;
 }) {
   const [navigation, dispatch] = useReducer(
     transitionIdentityDashboard,
@@ -49,12 +68,17 @@ function ReadyIdentityDashboard({ catalog, controller }: {
 
   switch (state.view) {
     case "onboarding":
-      return <SignInFlow controller={controller} onComplete={() => dispatch({ type: "onboarding-completed" })} />;
+      return <SignInFlow
+        controller={controller}
+        onComplete={() => dispatch({ type: "onboarding-completed" })}
+        onEstablished={onIdentityEstablished}
+      />;
     case "select-identity":
       return <IdentitySelectionFlow
         catalog={catalog}
         controller={controller}
         onBack={() => dispatch({ type: "back-to-overview" })}
+        onIdentityEstablished={onIdentityEstablished}
         onIdentitySelected={() => dispatch({ type: "identity-selected" })}
       />;
     case "manage-identity": {
