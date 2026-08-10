@@ -2,7 +2,7 @@
 
 import { Result } from "better-result";
 import Image from "next/image";
-import { FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 
 import {
   MIN_BACKUP_PASSWORD_LENGTH,
@@ -28,7 +28,7 @@ function EncryptedBackup({ createBackup, identityId, onBack }: {
   const [error, setError] = useState(false);
   const validPassword = password.length >= MIN_BACKUP_PASSWORD_LENGTH;
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!validPassword || pending) return;
     setPending(true);

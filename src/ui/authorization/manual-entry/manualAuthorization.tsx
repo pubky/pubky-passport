@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useCallback, useState } from "react";
+import { type SubmitEvent, useCallback, useState } from "react";
 
 import { enterAuthorization } from "../../../browser/authorization/browserManualAuthorization";
 import { ArrowRightIcon, ClipboardPasteIcon, ScanIcon } from "../../shared/icons/actionIcons";
@@ -19,7 +19,7 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState<string>();
   const [scannerOpen, setScannerOpen] = useState(false);
 
-  const submit = (event: FormEvent) => {
+  const submit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const result = enterAuthorization(authorization);
     switch (result) {

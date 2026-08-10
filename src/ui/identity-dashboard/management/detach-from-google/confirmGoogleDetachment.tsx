@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 
 import { XIcon } from "../../../shared/icons/actionIcons";
 import { Button } from "../../../shared/primitives/button";
@@ -30,7 +30,7 @@ function ConfirmGoogleDetachment({ canConfirm, canRetryAuthorization, error, onC
     onCancel();
   }
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!confirmed || !canConfirm || pending) return;
     onConfirm();
