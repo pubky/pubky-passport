@@ -2,6 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 
+import { isCspSafeHostname } from "./cspSafeUrl";
 import { parseGoogleClientId } from "./googleClientId";
 
 type EnvLike = Record<string, string | undefined>;
@@ -13,10 +14,6 @@ export type BrowserBootstrapConfig = {
 };
 
 const MAXIMUM_URL_CHARACTERS = 2_048;
-const MAXIMUM_HOSTNAME_CHARACTERS = 253;
-const MAXIMUM_HOSTNAME_LABEL_CHARACTERS = 63;
-const HOSTNAME_LABEL_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/iu;
-const IPV4_ADDRESS_PATTERN = /^\d+(?:\.\d+){3}$/u;
 
 function parseBrowserBootstrapConfig(input: EnvLike): BrowserBootstrapConfig {
   const googleClientId = parseGoogleClientId(input);
@@ -74,18 +71,4 @@ function parseHomegateUrl(value: string): { baseUrl: string; origin: string } | 
   url.pathname = url.pathname.endsWith("/") ? url.pathname : `${url.pathname}/`;
   if (url.href.length > MAXIMUM_URL_CHARACTERS) return null;
   return { baseUrl: url.href, origin: url.origin };
-}
-
-function isCspSafeHostname(hostname: string): boolean {
-  if (
-    hostname.length === 0
-    || hostname.length > MAXIMUM_HOSTNAME_CHARACTERS
-    || IPV4_ADDRESS_PATTERN.test(hostname)
-  ) {
-    return false;
-  }
-
-  return hostname.split(".").every((label) =>
-    label.length <= MAXIMUM_HOSTNAME_LABEL_CHARACTERS && HOSTNAME_LABEL_PATTERN.test(label)
-  );
 }
