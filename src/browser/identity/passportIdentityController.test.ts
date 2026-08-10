@@ -27,18 +27,20 @@ describe("PassportIdentityController", () => {
 
   it("uses credentials returned by one authorization request", async () => {
     const states: unknown[] = [];
+    const requestGoogleAuthorization = vi.fn(async () => Result.ok(CREDENTIALS));
     const restore = vi.fn(async (_credentials, reportProgress) => {
       reportProgress("checking_passport_file");
       reportProgress("restoring_identity");
       return Result.ok({ establishmentMode: "restored" as const, publicIdentity: IDENTITY });
     });
-    const controller = new PassportIdentityController(dependencies({ restoreOrCreateGoogleBackedIdentity: restore }));
+    const controller = new PassportIdentityController(dependencies({ requestGoogleAuthorization, restoreOrCreateGoogleBackedIdentity: restore }));
     await controller.prepareGoogleAuthorization((state) => states.push(state));
 
     const completed = await controller.continueGoogleBackedIdentityAction({ kind: "establish_google_backed_identity" });
 
     expect(completed).toEqual({ status: "action_completed", result: Result.ok({ kind: "google_backed_identity_established", establishmentMode: "restored", publicIdentity: IDENTITY }) });
     expect(restore).toHaveBeenCalledWith(CREDENTIALS, expect.any(Function));
+    expect(requestGoogleAuthorization).toHaveBeenCalledWith(undefined);
     expect(states).toContainEqual({ stage: "requesting-google-authorization" });
     expect(states).toContainEqual({ stage: "establishing-google-backed-identity", progress: "restoring_identity" });
   });
@@ -116,12 +118,13 @@ describe("PassportIdentityController", () => {
 
   it("removes the local identity only after deleting its Google backup", async () => {
     const calls: string[] = [];
+    const requestGoogleAuthorization = vi.fn(async () => Result.ok(CREDENTIALS));
     const remove = vi.fn(() => { calls.push("local"); return Result.ok(); });
     const deleteGoogleIdentityBackups = vi.fn(async () => {
       calls.push("google");
       return Result.ok({ status: "deleted" as const });
     });
-    const controller = new PassportIdentityController(dependencies({ deleteGoogleIdentityBackups, remove }));
+    const controller = new PassportIdentityController(dependencies({ requestGoogleAuthorization, deleteGoogleIdentityBackups, remove }));
     await controller.prepareGoogleAuthorization(vi.fn());
 
     await expect(controller.continueGoogleBackedIdentityAction(DETACH_ACTION)).resolves.toEqual({
@@ -129,6 +132,7 @@ describe("PassportIdentityController", () => {
       result: Result.ok({ kind: "google_backed_identity_detached", deletionStatus: "deleted" }),
     });
     expect(calls).toEqual(["google", "local"]);
+    expect(requestGoogleAuthorization).toHaveBeenCalledWith(GOOGLE_ACCOUNT.id);
     expect(deleteGoogleIdentityBackups).toHaveBeenCalledWith(CREDENTIALS, IDENTITY, GOOGLE_ACCOUNT.id);
     expect(remove).toHaveBeenCalledWith("public-key");
   });
@@ -148,6 +152,7 @@ describe("PassportIdentityController", () => {
 
   it("deletes an incomplete backup before creating a replacement with the same authorization", async () => {
     const calls: string[] = [];
+    const requestGoogleAuthorization = vi.fn(async () => Result.ok(CREDENTIALS));
     const deleteGoogleIdentityBackups = vi.fn(async () => {
       calls.push("delete");
       return Result.ok({ status: "deleted" as const });
@@ -162,6 +167,7 @@ describe("PassportIdentityController", () => {
     });
     const remove = vi.fn(() => Result.ok());
     const controller = new PassportIdentityController(dependencies({
+      requestGoogleAuthorization,
       deleteGoogleIdentityBackups,
       remove,
       restoreOrCreateGoogleBackedIdentity,
@@ -184,6 +190,7 @@ describe("PassportIdentityController", () => {
       }),
     });
     expect(calls).toEqual(["delete", "create"]);
+    expect(requestGoogleAuthorization).toHaveBeenCalledWith(GOOGLE_ACCOUNT.id);
     expect(deleteGoogleIdentityBackups).toHaveBeenCalledWith(CREDENTIALS, IDENTITY, GOOGLE_ACCOUNT.id);
     expect(restoreOrCreateGoogleBackedIdentity).toHaveBeenCalledWith(CREDENTIALS, expect.any(Function));
     expect(remove).not.toHaveBeenCalled();

@@ -14,6 +14,7 @@ export type GoogleAccounts = {
     initCodeClient?(config: {
       client_id: string;
       scope: string;
+      login_hint?: string;
       ux_mode: "popup";
       callback: (response: GoogleCodeResponse) => void;
       error_callback: (error: GoogleOAuthError) => void;

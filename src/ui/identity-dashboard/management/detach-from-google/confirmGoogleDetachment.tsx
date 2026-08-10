@@ -71,7 +71,7 @@ function ConfirmGoogleDetachment({ canConfirm, canRetryAuthorization, error, onC
         <div className="flex flex-col gap-3">
           {canRetryAuthorization ? (
             <Button className="w-full" disabled={pending} onClick={onRetryAuthorization} size="lg" type="button" variant="outline">
-              Try Google again
+              Try again
             </Button>
           ) : null}
           <Button className="w-full" disabled={pending} onClick={cancel} size="lg" type="button" variant="outline">Cancel</Button>

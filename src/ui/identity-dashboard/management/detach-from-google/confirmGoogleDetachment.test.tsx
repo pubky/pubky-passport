@@ -40,7 +40,7 @@ describe("ConfirmGoogleDetachment", () => {
     const onRetryAuthorization = vi.fn();
     render(<ConfirmGoogleDetachment canConfirm={false} canRetryAuthorization error onCancel={vi.fn()} onConfirm={vi.fn()} onRetryAuthorization={onRetryAuthorization} open pending={false} />);
 
-    await userEvent.setup().click(await screen.findByRole("button", { name: "Try Google again" }));
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Try again" }));
 
     expect(onRetryAuthorization).toHaveBeenCalledOnce();
     expect(screen.getByRole("dialog")).toBeInTheDocument();

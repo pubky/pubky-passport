@@ -149,7 +149,7 @@ export type PassportIdentityControllerDependencies = {
   ): Promise<GoogleIdentityBackupDeletionResult>;
   disposeGoogleBackedIdentityOperations(): void;
   prepareGoogleAuthorization(): Promise<GoogleAuthorizationCodeResult<void>>;
-  requestGoogleAuthorization(): Promise<GoogleAuthorizationCodeResult<GoogleBackedIdentityCredentials>>;
+  requestGoogleAuthorization(loginHint?: string): Promise<GoogleAuthorizationCodeResult<GoogleBackedIdentityCredentials>>;
   disposeGoogleAuthorization(): void;
 };
 
@@ -261,7 +261,10 @@ export class PassportIdentityController {
     this.#authorizedActionPending = true;
     try {
       this.emit({ stage: "requesting-google-authorization" });
-      const credentials = await this.#dependencies.requestGoogleAuthorization();
+      const loginHint = action.kind === "establish_google_backed_identity"
+        ? undefined
+        : action.expectedGoogleAccountId;
+      const credentials = await this.#dependencies.requestGoogleAuthorization(loginHint);
       if (!this.isCurrentAuthorizationSession(authorizationSessionGeneration)) {
         return { status: "superseded" };
       }
