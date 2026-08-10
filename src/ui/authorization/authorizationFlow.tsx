@@ -9,6 +9,7 @@ import {
 } from "../../browser/authorization/passportAuthorization";
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
+import { SignInFlow } from "../onboarding/signInFlow";
 import { PassportScreen } from "../shared/layout/passportScreen";
 import { BackButton } from "../shared/navigation/backButton";
 import { Spinner } from "../shared/primitives/spinner";
@@ -86,6 +87,13 @@ function AuthorizationWithIdentity({ authorization, controller, googleClientId, 
     case "unavailable":
       return <PassportScreen className="gap-6"><DisplayHeading accent="unavailable." aria-label="Identities unavailable.">Identities</DisplayHeading><LeadText>Passport could not read identities stored in this browser.</LeadText><div className="mt-auto"><BackButton onClick={goHome} /></div></PassportScreen>;
     case "ready": {
+      if (identityCatalog.catalog.identities.length === 0) {
+        return <SignInFlow
+          controller={identityCatalog.controller}
+          onComplete={() => dispatch({ type: "selection-finished" })}
+        />;
+      }
+
       if (view.view === "identity-selection") {
         return <IdentitySelectionFlow
           catalog={identityCatalog.catalog}

@@ -168,16 +168,13 @@ describe("AuthorizationFlow", () => {
     expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
   });
 
-  it("offers identity setup when no local identity exists", async () => {
+  it("opens Google identity setup immediately when no local identity exists", async () => {
     MOCKS.catalog = { activeIdentityId: null, identities: [] };
-    const user = userEvent.setup();
     renderFlow();
-    await screen.findByRole("heading", { name: "Sign in to requesting.app" });
 
-    await user.click(screen.getByRole("button", { name: "Switch" }));
-
-    expect(screen.getByRole("heading", { name: "Switch identity." })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /add identity/iu })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Add identity" })).toBeInTheDocument();
+    expect(screen.queryByText("No local identity available")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Switch" })).not.toBeInTheDocument();
   });
 
   it("authorizes with the selected identity", async () => {
