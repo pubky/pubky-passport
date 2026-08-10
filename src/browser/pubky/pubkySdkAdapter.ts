@@ -173,8 +173,8 @@ export class PubkySdkAdapter {
       }
 
       return Result.ok({ publicIdentity: identity.value });
-    } catch {
-      return sessionAccessFailure("signup", "sdk_signup", "signup_failed");
+    } catch (error) {
+      return sessionAccessFailure("signup", "sdk_signup", "signup_failed", error);
     } finally {
       cleanup("signup", "homeserver_free", () => homeserver.value.free());
     }
@@ -436,8 +436,13 @@ function recoveryFileFailure(stage: PubkyFailureStage, code: PubkyRecoveryFileEr
   return Result.err({ code });
 }
 
-function sessionAccessFailure<T>(operation: "signin" | "signup", stage: PubkyFailureStage, code: PubkySessionAccessErrorCode): PubkySessionAccessResult<T> {
-  logFailure(operation, stage, code);
+function sessionAccessFailure<T>(
+  operation: "signin" | "signup",
+  stage: PubkyFailureStage,
+  code: PubkySessionAccessErrorCode,
+  cause?: unknown,
+): PubkySessionAccessResult<T> {
+  logFailure(operation, stage, code, cause);
   return Result.err({ code });
 }
 
@@ -451,8 +456,30 @@ function authApprovalFailure(operation: "approve_auth_request", stage: PubkyFail
   return Result.err({ code });
 }
 
-function logFailure(operation: PubkyOperation, stage: PubkyFailureStage, code: PubkyErrorCode): void {
-  LOGGER.warn("identity.pubky.operation.failed", { operation, stage, code });
+function logFailure(operation: PubkyOperation, stage: PubkyFailureStage, code: PubkyErrorCode, cause?: unknown): void {
+  const sdkErrorName = safePubkySdkErrorName(cause);
+  LOGGER.warn("identity.pubky.operation.failed", {
+    operation,
+    stage,
+    code,
+    ...(sdkErrorName ? { sdkErrorName } : {}),
+  });
+}
+
+function safePubkySdkErrorName(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null || !("name" in error)) return undefined;
+  const name = (error as { name?: unknown }).name;
+  switch (name) {
+    case "AuthenticationError":
+    case "ClientStateError":
+    case "InternalError":
+    case "InvalidInput":
+    case "PkarrError":
+    case "RequestError":
+      return name;
+    default:
+      return undefined;
+  }
 }
 
 function cleanup(operation: PubkyOperation, stage: PubkyCleanupStage, action: () => void): void {

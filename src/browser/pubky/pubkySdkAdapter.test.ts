@@ -1,4 +1,4 @@
-import { AuthFlowKind, Keypair, Pubky } from "@synonymdev/pubky";
+import { AuthFlowKind, Keypair, Pubky, Signer } from "@synonymdev/pubky";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
@@ -169,6 +169,40 @@ describe("PubkySdkAdapter", () => {
       });
       expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive-signup-code");
     } finally {
+      pubky.dispose();
+    }
+  });
+
+  it("logs only the safe SDK error category when signup fails", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    vi.spyOn(Signer.prototype, "signup").mockRejectedValue(Object.assign(
+      new Error("signup token and request URL must stay private"),
+      { name: "AuthenticationError" },
+    ));
+    const pubky = new PubkySdkAdapter();
+    const homeserver = Keypair.random();
+    const homeserverPublicKey = homeserver.publicKey;
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      const result = await pubky.signup({
+        keyHandle: created.keyHandle,
+        homeserverPubky: homeserverPublicKey.z32(),
+        signupCode: "sensitive-signup-code",
+      });
+
+      expectErrorResult(result, "signup_failed");
+      expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
+        operation: "signup",
+        stage: "sdk_signup",
+        code: "signup_failed",
+        sdkErrorName: "AuthenticationError",
+      });
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive-signup-code");
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("signup token and request URL");
+    } finally {
+      homeserverPublicKey.free();
+      homeserver.free();
       pubky.dispose();
     }
   });
