@@ -141,12 +141,17 @@ describe("LocalStorageIdentityRepository", () => {
     const repository = new LocalStorageIdentityRepository(new MemoryStorage());
     const listener = vi.fn();
     const unsubscribe = repository.subscribe(listener);
+    const dispatchStorageEvent = (key: string | null) => {
+      const event = new StorageEvent("storage");
+      Object.defineProperty(event, "key", { value: key });
+      window.dispatchEvent(event);
+    };
 
-    window.dispatchEvent(new StorageEvent("storage", { key: "unrelated" }));
-    window.dispatchEvent(new StorageEvent("storage", { key: "pubky-passport/local-identities/v1" }));
-    window.dispatchEvent(new StorageEvent("storage", { key: null }));
+    dispatchStorageEvent("unrelated");
+    dispatchStorageEvent("pubky-passport/local-identities/v1");
+    dispatchStorageEvent(null);
     unsubscribe();
-    window.dispatchEvent(new StorageEvent("storage", { key: "pubky-passport/local-identities/v1" }));
+    dispatchStorageEvent("pubky-passport/local-identities/v1");
 
     expect(listener).toHaveBeenCalledTimes(2);
   });
