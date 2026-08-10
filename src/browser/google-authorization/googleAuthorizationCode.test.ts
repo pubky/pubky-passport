@@ -5,7 +5,10 @@ import { GoogleIdentityServices, type GoogleAccounts } from "../google-identity-
 import { GoogleAuthorizationCode } from "./googleAuthorizationCode";
 
 describe("GoogleAuthorizationCode", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it("obtains identity and Drive credentials from one code request", async () => {
     let callback: ((response: { code?: unknown }) => void) | undefined;
@@ -54,6 +57,27 @@ describe("GoogleAuthorizationCode", () => {
 
     expect(initCodeClient).toHaveBeenCalledTimes(2);
     expect(requestedLoginHints).toEqual(["google-1", undefined]);
+  });
+
+  it("allows the user to complete a long-running Google authorization", async () => {
+    vi.useFakeTimers();
+    let callback: ((response: { code?: unknown }) => void) | undefined;
+    const services = new GoogleIdentityServices();
+    const initCodeClient = vi.fn((config: Parameters<NonNullable<GoogleAccounts["oauth2"]["initCodeClient"]>>[0]) => {
+      callback = config.callback;
+      return { requestCode: vi.fn() };
+    });
+    vi.spyOn(services, "loadGoogleAccounts").mockResolvedValue(Result.ok({ oauth2: { initCodeClient } }));
+    const googleAccount = { id: "google-1", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: null };
+    const fetch = vi.fn(async () => Response.json({ googleIdToken: "id-token", driveAccessToken: "drive-token", googleAccount }));
+    const authorization = new GoogleAuthorizationCode({ clientId: "client-id", googleIdentityServices: services, fetch });
+    await authorization.prepare();
+
+    const request = authorization.request();
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    callback?.({ code: "one-time-code" });
+
+    await expect(request).resolves.toEqual(Result.ok({ googleIdToken: "id-token", driveAccessToken: "drive-token", googleAccount }));
   });
 
   it("ignores a callback from a disposed authorization request", async () => {

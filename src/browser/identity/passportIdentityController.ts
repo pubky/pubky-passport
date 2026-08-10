@@ -113,7 +113,6 @@ export type GoogleBackedIdentityActionErrorCode =
   | "google_drive_authorization_failed"
   | "google_drive_authorization_popup_closed"
   | "google_drive_authorization_popup_failed_to_open"
-  | "google_drive_authorization_timeout"
   | "google_drive_authorization_account_mismatch"
   | "google_drive_authorization_account_verification_failed";
 
@@ -486,8 +485,6 @@ function errorForAuthorizationCodeFailure(
       return "google_drive_authorization_popup_closed";
     case "google_authorization_popup_failed_to_open":
       return "google_drive_authorization_popup_failed_to_open";
-    case "google_authorization_timeout":
-      return "google_drive_authorization_timeout";
     default:
       return "google_drive_authorization_failed";
   }

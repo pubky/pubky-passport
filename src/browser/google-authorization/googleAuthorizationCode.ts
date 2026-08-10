@@ -6,14 +6,13 @@ import { LOGGER } from "../../libs/logger/logger";
 import type { GoogleBackedIdentityCredentials } from "../identity/google-backed/googleBackedIdentityCredentials";
 import type { GoogleAccounts, GoogleIdentityServices } from "../google-identity-services/googleIdentityServices";
 
-export type GoogleAuthorizationCodeErrorCode = "google_authorization_failed" | "google_authorization_popup_closed" | "google_authorization_popup_failed_to_open" | "google_authorization_timeout";
+export type GoogleAuthorizationCodeErrorCode = "google_authorization_failed" | "google_authorization_popup_closed" | "google_authorization_popup_failed_to_open";
 export type GoogleAuthorizationCodeResult<T> = ResultType<T, { code: GoogleAuthorizationCodeErrorCode }>;
 
 type InitCodeClient = NonNullable<GoogleAccounts["oauth2"]["initCodeClient"]>;
 type AuthorizationAttempt = {
   abortController: AbortController;
   resolve: (result: GoogleAuthorizationCodeResult<GoogleBackedIdentityCredentials>) => void;
-  timer: ReturnType<typeof setTimeout> | null;
 };
 
 const GOOGLE_AUTHORIZATION_SCOPE = [
@@ -28,16 +27,14 @@ export class GoogleAuthorizationCode {
   readonly #clientId: string;
   readonly #googleIdentityServices: GoogleIdentityServices;
   readonly #fetch: typeof fetch;
-  readonly #timeoutMs: number;
   #initCodeClient: InitCodeClient | null = null;
   #activeAttempt: AuthorizationAttempt | null = null;
   #preparationGeneration = 0;
 
-  constructor(input: { clientId: string; googleIdentityServices: GoogleIdentityServices; fetch?: typeof fetch; timeoutMs?: number }) {
+  constructor(input: { clientId: string; googleIdentityServices: GoogleIdentityServices; fetch?: typeof fetch }) {
     this.#clientId = input.clientId;
     this.#googleIdentityServices = input.googleIdentityServices;
     this.#fetch = input.fetch ?? globalThis.fetch.bind(globalThis);
-    this.#timeoutMs = input.timeoutMs ?? 60_000;
   }
 
   async prepare(): Promise<GoogleAuthorizationCodeResult<void>> {
@@ -60,7 +57,7 @@ export class GoogleAuthorizationCode {
       return Promise.resolve(failure("request", "google_authorization_failed"));
     }
     return new Promise((resolve) => {
-      const attempt: AuthorizationAttempt = { abortController: new AbortController(), resolve, timer: null };
+      const attempt: AuthorizationAttempt = { abortController: new AbortController(), resolve };
       this.#activeAttempt = attempt;
       let client: { requestCode(): void };
       try {
@@ -76,7 +73,6 @@ export class GoogleAuthorizationCode {
         this.finish(attempt, failure("initialize", "google_authorization_failed"));
         return;
       }
-      attempt.timer = setTimeout(() => this.finish(attempt, failure("timeout", "google_authorization_timeout")), this.#timeoutMs);
       try { client.requestCode(); }
       catch { this.finish(attempt, failure("popup", "google_authorization_popup_failed_to_open")); }
     });
@@ -127,7 +123,6 @@ export class GoogleAuthorizationCode {
 
   private finish(attempt: AuthorizationAttempt, result: GoogleAuthorizationCodeResult<GoogleBackedIdentityCredentials>): void {
     if (this.#activeAttempt !== attempt) return;
-    if (attempt.timer) clearTimeout(attempt.timer);
     attempt.abortController.abort();
     this.#activeAttempt = null;
     attempt.resolve(result);
