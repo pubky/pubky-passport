@@ -6,6 +6,16 @@ const RELAY_PATH_CANARY = "private-inbox";
 const CALLBACK_QUERY_CANARY = "session=sensitive";
 const GRANT_CLIENT_PUBLIC_KEY = "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo";
 const SENSITIVE_CANARIES = [SENSITIVE_SECRET, RELAY_PATH_CANARY, CALLBACK_QUERY_CANARY];
+const LOCAL_IDENTITY_STORAGE_KEY = "pubky-passport/local-identities/v1";
+const LOCAL_IDENTITY_STORAGE_VALUE = JSON.stringify({
+  v: 1,
+  activeIdentityId: "e2e-public-key",
+  identities: [{
+    id: "e2e-public-key",
+    publicIdentity: { publicKeyDisplay: "pubkye2e-public-key", publicKeyZ32: "e2e-public-key" },
+    secretKey: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+  }],
+});
 
 test("shows manual authorization entry when no request was supplied", async ({ page }) => {
   await page.goto("/authorize");
@@ -18,6 +28,7 @@ test("shows manual authorization entry when no request was supplied", async ({ p
 
 test("scrubs a valid request and renders only safe review data", async ({ page, request }) => {
   const url = authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}?region=eu`));
+  await installLocalIdentityFixture(page);
   const leakMonitor = await installAuthorizationLeakMonitor(page);
   const baselineResponse = await request.get("/authorize");
   await page.goto("/");
@@ -38,7 +49,7 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   expect(policy).not.toContain(SENSITIVE_SECRET);
 
   await expect(page).toHaveURL(/\/authorize$/u);
-  await expect(page.getByRole("heading", { name: "client.example" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in to client.example" })).toBeVisible();
   await expect(page.getByText("/pub/example.app/", { exact: true })).toBeVisible();
 
   const renderedReview = await page.locator("main").innerHTML();
@@ -46,7 +57,9 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   expect(renderedReview).not.toContain("authorization-success");
   expect(await page.evaluate(() => window.location.search)).toBe("");
   const authorizationPersistence = await browserPersistenceSnapshot(page);
-  expectAuthorizationPersistenceEmpty(authorizationPersistence);
+  expectAuthorizationPersistenceSafe(authorizationPersistence, {
+    [LOCAL_IDENTITY_STORAGE_KEY]: LOCAL_IDENTITY_STORAGE_VALUE,
+  });
 
   await page.goBack();
   await expect(page).toHaveURL(/\/$/u);
@@ -54,7 +67,9 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   await expect(page).toHaveURL(/\/authorize$/u);
   expect(await page.evaluate(() => window.location.search)).toBe("");
   const restoredPersistence = await browserPersistenceSnapshot(page);
-  expectAuthorizationPersistenceEmpty(restoredPersistence);
+  expectAuthorizationPersistenceSafe(restoredPersistence, {
+    [LOCAL_IDENTITY_STORAGE_KEY]: LOCAL_IDENTITY_STORAGE_VALUE,
+  });
   await expectNoSensitiveBrowserLeaks(page, leakMonitor, [authorizationPersistence, restoredPersistence]);
 });
 
@@ -74,12 +89,13 @@ test("rejects an unsafe relay without adding it to CSP", async ({ page }) => {
   const renderedState = await page.locator("main").innerHTML();
   for (const canary of SENSITIVE_CANARIES) expect(renderedState).not.toContain(canary);
   const persistence = await browserPersistenceSnapshot(page);
-  expectAuthorizationPersistenceEmpty(persistence);
+  expectAuthorizationPersistenceSafe(persistence);
   await expectNoSensitiveBrowserLeaks(page, leakMonitor, [persistence]);
 });
 
 test("reviews and scrubs a v0.10 grant authorization request", async ({ page }) => {
   const url = authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}`, "grant"));
+  await installLocalIdentityFixture(page);
 
   const response = await page.goto(url);
 
@@ -182,14 +198,23 @@ async function expectNoSensitiveBrowserLeaks(
   for (const canary of SENSITIVE_CANARIES) expect(observedBrowserData).not.toContain(canary);
 }
 
-function expectAuthorizationPersistenceEmpty(snapshot: BrowserPersistenceSnapshot): void {
-  expect(snapshot.localStorage).toEqual({});
+function expectAuthorizationPersistenceSafe(
+  snapshot: BrowserPersistenceSnapshot,
+  expectedLocalStorage: Record<string, string> = {},
+): void {
+  expect(snapshot.localStorage).toEqual(expectedLocalStorage);
   expect(snapshot.sessionStorage).toEqual({});
   expect(snapshot.cookies).toBe("");
   expect(snapshot.historyState).toBeNull();
   expect(snapshot.writes).toEqual([]);
   expect(snapshot.indexedDatabases).toEqual([]);
   expect(snapshot.caches).toEqual([]);
+}
+
+async function installLocalIdentityFixture(page: Page): Promise<void> {
+  await page.addInitScript(({ key, value }) => {
+    window.localStorage.setItem(key, value);
+  }, { key: LOCAL_IDENTITY_STORAGE_KEY, value: LOCAL_IDENTITY_STORAGE_VALUE });
 }
 
 async function installPersistenceObserver(page: Page): Promise<void> {
