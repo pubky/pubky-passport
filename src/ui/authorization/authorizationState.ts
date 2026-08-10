@@ -1,4 +1,6 @@
-type AuthorizationViewState = { view: "review" } | { view: "identity-selection" };
+type AuthorizationViewState =
+  | { view: "review" }
+  | { view: "identity-selection" };
 
 type AuthorizationViewEvent =
   | { type: "switch-requested" }
