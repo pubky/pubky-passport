@@ -14,9 +14,11 @@ import {
   clearPendingAuthorizationEntry,
   readAndScrubAuthorizationEntry,
 } from "./browserAuthorizationEntry";
+import { takeBootstrappedAuthorizationEntry } from "./browserAuthorizationBootstrap";
 import {
   PassportAuthorizationController as PassportAuthorizationControllerImplementation,
 } from "./passportAuthorizationController";
+import { completeBrowserAuthorizationOutcome } from "./browserAuthorizationOutcome";
 
 export type PassportAuthorizationController = Pick<
   PassportAuthorizationControllerImplementation,
@@ -30,13 +32,14 @@ export type {
 export type { AuthorizationRequestReview } from "./browserAuthorizationRequest";
 
 export function createPassportAuthorizationController(): PassportAuthorizationController {
-  const entry = readAndScrubAuthorizationEntry(window);
+  const entry = takeBootstrappedAuthorizationEntry() ?? readAndScrubAuthorizationEntry(window);
   return new PassportAuthorizationControllerImplementation({
     entry,
     dependencies: {
       approveAuthorization: approveUsingActiveLocalIdentity,
       clearPendingEntry: () => clearPendingAuthorizationEntry(window),
-      navigate: (url) => window.location.replace(url),
+      completeOutcome: (callback, outcome) =>
+        completeBrowserAuthorizationOutcome(window, callback, outcome),
     },
   });
 }

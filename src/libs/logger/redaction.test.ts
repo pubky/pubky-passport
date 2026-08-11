@@ -15,25 +15,37 @@ describe("redactAuthorizationUrls", () => {
   });
 
   it("redacts HTTPS Passport authorization URLs", () => {
-    const value = "GET https://passport.pubky.app/authorize?d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value";
+    const value = "GET https://passport.pubky.app/authorize#d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value";
 
     expect(redactAuthorizationUrls(value)).toBe("GET [REDACTED_AUTHORIZATION_URL]");
   });
 
   it("redacts relative Passport authorization URLs", () => {
-    const value = "GET /authorize?foo=bar&d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value";
+    const value = "GET /authorize#d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value";
 
     expect(redactAuthorizationUrls(value)).toBe("GET [REDACTED_AUTHORIZATION_URL]");
   });
 
   it("redacts relative Passport authorization URLs in key value log fields", () => {
-    const value = "url=/authorize?d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value";
+    const value = "url=/authorize#d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value";
 
     expect(redactAuthorizationUrls(value)).toBe("url=[REDACTED_AUTHORIZATION_URL]");
   });
 
+  it("redacts rejected relative fragments when d is not the first parameter", () => {
+    const value = "GET /authorize#unexpected=value&d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value";
+
+    expect(redactAuthorizationUrls(value)).toBe("GET [REDACTED_AUTHORIZATION_URL]");
+  });
+
+  it("redacts relative authorization fragments with encoded parameter names", () => {
+    const value = "GET /authorize#%64=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value";
+
+    expect(redactAuthorizationUrls(value)).toBe("GET [REDACTED_AUTHORIZATION_URL]");
+  });
+
   it("redacts authorization URLs containing sensitive requests", () => {
-    const value = "GET https://passport.pubky.app/authorize?d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value";
+    const value = "GET https://passport.pubky.app/authorize#d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value";
 
     expect(redactAuthorizationUrls(value)).toBe("GET [REDACTED_AUTHORIZATION_URL]");
   });

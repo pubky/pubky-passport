@@ -10,7 +10,7 @@ export type ManualAuthorizationEntryResult = "invalid" | "navigation_failed" | "
 
 export function enterAuthorization(
   rawRequest: string,
-  navigate: (url: string) => void = (url) => window.location.replace(url),
+  navigate: (url: string) => void = replaceAndReload,
 ): ManualAuthorizationEntryResult {
   if (rawRequest.length > PUBKY_AUTH_REQUEST_LIMITS.decodedAuthUrlLength) {
     logFailure("request_too_large");
@@ -33,12 +33,17 @@ export function enterAuthorization(
   }
 
   try {
-    navigate(`/authorize?d=${encodedRequest}`);
+    navigate(`/authorize#d=${encodedRequest}`);
   } catch {
     logFailure("navigation_failed");
     return "navigation_failed";
   }
   return "navigating";
+}
+
+function replaceAndReload(url: string): void {
+  History.prototype.replaceState.call(window.history, null, "", url);
+  window.location.reload();
 }
 
 function logFailure(code: string): void {

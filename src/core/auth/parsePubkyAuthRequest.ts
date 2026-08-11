@@ -80,7 +80,6 @@ export type ParsedPubkyAuthRequest = {
 
 export type PubkyAuthParseResult = ResultType<ParsedPubkyAuthRequest, PubkyAuthParseError>;
 export type PubkyAuthValidationResult = ResultType<void, PubkyAuthParseError>;
-export type PubkyAuthRelayOriginResult = ResultType<string, PubkyAuthParseError>;
 
 type ParseValueResult<T> = ResultType<T, PubkyAuthParseError>;
 
@@ -171,25 +170,27 @@ export function parsePubkyAuthRequest(
   });
 }
 
-export function validatePubkyAuthRequest(d: unknown): PubkyAuthValidationResult {
+export function validatePubkyAuthRequest(
+  d: unknown,
+): PubkyAuthValidationResult {
   const parsed = parsePubkyAuthRequest(d);
   return Result.isError(parsed) ? Result.err(parsed.error) : Result.ok();
 }
 
-export function parsePubkyAuthRelayOrigin(d: unknown): PubkyAuthRelayOriginResult {
-  const parsed = parsePubkyAuthRequest(d);
-  return Result.isError(parsed) ? Result.err(parsed.error) : Result.ok(parsed.value.relayOrigin);
-}
-
-export function extractRawPubkyAuthRequestQueryValue(
-  search: string,
+export function extractRawPubkyAuthRequestFragmentValue(
+  hash: string,
 ): { valid: true; value?: string } | { valid: false } {
+  if (hash.length > PUBKY_AUTH_REQUEST_LIMITS.encodedDLength + "#d=".length) {
+    return { valid: false };
+  }
+  const fragment = hash.startsWith("#") ? hash.slice(1) : hash;
+  if (fragment.length === 0) return { valid: true };
   let value: string | undefined;
 
-  for (const parameter of search.slice(1).split("&")) {
+  for (const parameter of fragment.split("&")) {
     const separator = parameter.indexOf("=");
     const name = separator === -1 ? parameter : parameter.slice(0, separator);
-    if (name !== "d") continue;
+    if (name !== "d") return { valid: false };
     if (separator === -1 || value !== undefined) return { valid: false };
     value = parameter.slice(separator + 1);
   }

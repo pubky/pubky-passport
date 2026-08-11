@@ -14,8 +14,8 @@ export function proxy(request: NextRequest) {
       development: process.env.NODE_ENV === "development",
       homegateOrigin: config.homegateOrigin,
       homeserverConnectOrigins: getHomeserverConnectOrigins(),
-      ...(request.nextUrl.pathname === "/authorize" && request.nextUrl.search
-        ? { authorizationRequestSearch: request.nextUrl.search }
+      ...(request.nextUrl.pathname === "/authorize"
+        ? { allowPubkyAuthRelays: true }
         : {}),
     });
     const requestHeaders = new Headers(request.headers);

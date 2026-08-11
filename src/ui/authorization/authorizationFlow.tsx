@@ -58,8 +58,9 @@ function AuthorizationFlow({ googleClientId, homegateBaseUrl }: {
         </PassportScreen>
       );
     case "approved":
+      return <AuthorizationTerminal outcome="approved" />;
     case "cancelled":
-      return <AuthorizationLoading label="Completing authorization" />;
+      return <AuthorizationTerminal outcome="cancelled" />;
     case "review":
     case "approving":
     case "redirecting":
@@ -110,18 +111,34 @@ function AuthorizationWithIdentity({ authorization, controller, googleClientId, 
         approving={authorization.status !== "review"}
         {...(activeIdentity ? { identity: activeIdentity } : {})}
         onAuthorize={() => {
-          void controller.approve().then((next) => {
-            if (next.status === "approved") goHome();
-          });
+          void controller.approve();
         }}
         onCancel={() => {
-          if (controller.cancel().status === "cancelled") goHome();
+          void controller.cancel();
         }}
         onSwitch={() => dispatch({ type: "switch-requested" })}
         review={authorization.review}
       />;
     }
   }
+}
+
+function AuthorizationTerminal({ outcome }: { outcome: "approved" | "cancelled" }) {
+  const approved = outcome === "approved";
+  return (
+    <PassportScreen className="gap-6">
+      <DisplayHeading
+        accent={approved ? "complete." : "cancelled."}
+        aria-label={approved ? "Authorization complete." : "Authorization cancelled."}
+      >
+        Authorization
+      </DisplayHeading>
+      <LeadText>{approved
+        ? "You can return to the requesting app."
+        : "No authorization was granted."}</LeadText>
+      <div className="mt-auto"><BackButton onClick={goHome} /></div>
+    </PassportScreen>
+  );
 }
 
 function AuthorizationLoading({ label }: { label: string }) {

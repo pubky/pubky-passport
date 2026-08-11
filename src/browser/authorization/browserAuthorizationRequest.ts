@@ -52,7 +52,9 @@ type ValidatedAuthorizationCallbacks = Readonly<{
   cancel?: string;
 }>;
 
-export function parseBrowserAuthorizationRequest(d: unknown): BrowserAuthorizationRequestResult {
+export function parseBrowserAuthorizationRequest(
+  d: unknown,
+): BrowserAuthorizationRequestResult {
   const parsed = parsePubkyAuthRequest(d);
   if (Result.isError(parsed)) return Result.err(parsed.error);
 
