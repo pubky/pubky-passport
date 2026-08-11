@@ -9,7 +9,7 @@ and detach flows are not implemented yet.
 
 - Single-request Google authorization and Google Drive `appDataFolder/passport.json` encrypted Passport file storage.
 - Pubky identity creation, homeserver signup, discovery publication, and restore.
-- Manual and `/authorize?d=...` Pubky Auth entry points.
+- Manual and `/authorize#d=...` Pubky Auth entry points.
 - Capability review for v0.10 grant and legacy cookie authentication, SDK-owned
   relay handoff, and validated callback navigation.
 - Browser/server boundaries that keep Drive data and Pubky secret material off the
@@ -33,6 +33,10 @@ extensions, or shared browser profiles can extract those identities, so no other
 plaintext key storage should be added.
 
 See [FLOWS.md](./FLOWS.md) for the runtime call paths and import boundaries.
+
+## Integration
+
+See [INTEGRATION.md](./INTEGRATION.md) for the web app integration flow.
 
 ## Local Development
 
