@@ -19,16 +19,20 @@ const MOCKS = vi.hoisted(() => ({
   commitInitialEntry: vi.fn(),
   dispose: vi.fn(),
   select: vi.fn(),
+  createAuthorizationController: vi.fn(),
 }));
 
 vi.mock("../../browser/authorization/passportAuthorization", () => ({
-  createPassportAuthorizationController: () => ({
-    approve: MOCKS.approve,
-    cancel: MOCKS.cancel,
-    commitInitialEntry: MOCKS.commitInitialEntry,
-    getState: () => MOCKS.authorizationState,
-    subscribe: (listener: () => void) => { MOCKS.authorizationListener = listener; return () => { MOCKS.authorizationListener = null; }; },
-  }),
+  createPassportAuthorizationController: (...args: unknown[]) => {
+    MOCKS.createAuthorizationController(...args);
+    return {
+      approve: MOCKS.approve,
+      cancel: MOCKS.cancel,
+      commitInitialEntry: MOCKS.commitInitialEntry,
+      getState: () => MOCKS.authorizationState,
+      subscribe: (listener: () => void) => { MOCKS.authorizationListener = listener; return () => { MOCKS.authorizationListener = null; }; },
+    };
+  },
 }));
 
 vi.mock("../../browser/identity/passportIdentity", () => ({
@@ -77,7 +81,7 @@ describe("AuthorizationFlow", () => {
     MOCKS.authorizationState = { status: "review", review: REVIEW };
     MOCKS.catalog = { activeIdentityId: FIRST.id, identities: [FIRST, SECOND] };
     MOCKS.approve.mockResolvedValue({ status: "approving", review: REVIEW });
-    MOCKS.cancel.mockReturnValue({ status: "cancelled" });
+    MOCKS.cancel.mockResolvedValue({ status: "cancelled" });
     MOCKS.select.mockImplementation((identityId: string) => {
       if (!MOCKS.catalog) return Result.err({ code: "storage_unavailable" as const });
       MOCKS.catalog = { ...MOCKS.catalog, activeIdentityId: identityId };
@@ -110,6 +114,7 @@ describe("AuthorizationFlow", () => {
     expect(screen.getByText(/allow requesting\.app to read and update your data/u)).toBeInTheDocument();
     expect(screen.getByText(/deprecated cookie authentication/u)).toBeInTheDocument();
     expect(MOCKS.commitInitialEntry).toHaveBeenCalledOnce();
+    expect(MOCKS.createAuthorizationController).toHaveBeenCalledWith();
   });
 
   it("identifies a grant request by its v0.10 client ID", async () => {
@@ -185,5 +190,15 @@ describe("AuthorizationFlow", () => {
     await user.click(screen.getByRole("button", { name: "Authorize" }));
 
     expect(MOCKS.approve).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["approved", "Authorization complete."],
+    ["cancelled", "Authorization cancelled."],
+  ] as const)("renders the safe local %s terminal state", async (status, heading) => {
+    MOCKS.authorizationState = { status };
+    renderFlow();
+
+    expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
   });
 });

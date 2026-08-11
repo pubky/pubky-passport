@@ -13,6 +13,7 @@ import type {
   ApproveAuthorizationErrorCode,
   ApproveAuthorizationResult,
 } from "./approveAuthorizationWithActiveIdentity";
+import type { BrowserAuthorizationOutcome } from "./browserAuthorizationOutcome";
 
 export type PassportAuthorizationFailureCode = ApproveAuthorizationErrorCode;
 
@@ -29,7 +30,7 @@ export type PassportAuthorizationViewState =
 type PassportAuthorizationControllerDependencies = {
   approveAuthorization(approval: PubkyAuthApprovalCapability): Promise<ApproveAuthorizationResult>;
   clearPendingEntry(): void;
-  navigate(url: string): void;
+  completeOutcome(callback: string, outcome: BrowserAuthorizationOutcome): Promise<boolean>;
 };
 
 export class PassportAuthorizationController {
@@ -84,15 +85,17 @@ export class PassportAuthorizationController {
     try {
       if (Result.isOk(result)) {
         const success = getValidatedAuthorizationCallbacks(this.#entry.approval)?.success;
-        if (success && this.tryNavigate(success, "success")) {
-          return this.update({ status: "redirecting", review: this.#entry.review });
+        if (success) {
+          this.update({ status: "redirecting", review: this.#entry.review });
+          if (await this.tryCompleteOutcome(success, "success")) return this.#state;
         }
         return this.update({ status: "approved" });
       }
 
       const errorCallback = getValidatedAuthorizationCallbacks(this.#entry.approval)?.error;
-      if (errorCallback && this.tryNavigate(errorCallback, "error")) {
-        return this.update({ status: "redirecting", review: this.#entry.review });
+      if (errorCallback) {
+        this.update({ status: "redirecting", review: this.#entry.review });
+        if (await this.tryCompleteOutcome(errorCallback, "error")) return this.#state;
       }
       return this.update({
         status: "failed",
@@ -107,15 +110,16 @@ export class PassportAuthorizationController {
     }
   }
 
-  cancel(): PassportAuthorizationViewState {
+  async cancel(): Promise<PassportAuthorizationViewState> {
     if (this.#entry.status !== "valid" || this.#approvalPending || this.#state.status !== "review") {
       return this.#state;
     }
 
     try {
       const cancelCallback = getValidatedAuthorizationCallbacks(this.#entry.approval)?.cancel;
-      if (cancelCallback && this.tryNavigate(cancelCallback, "cancel")) {
-        return this.update({ status: "redirecting", review: this.#entry.review });
+      if (cancelCallback) {
+        this.update({ status: "redirecting", review: this.#entry.review });
+        if (await this.tryCompleteOutcome(cancelCallback, "cancel")) return this.#state;
       }
     } catch {
       LOGGER.warn("authorize.callback.failed", {
@@ -126,17 +130,18 @@ export class PassportAuthorizationController {
     return this.update({ status: "cancelled" });
   }
 
-  private tryNavigate(url: string, outcome: "success" | "error" | "cancel"): boolean {
+  private async tryCompleteOutcome(url: string, outcome: BrowserAuthorizationOutcome): Promise<boolean> {
     try {
-      this.#dependencies.navigate(url);
-      return true;
+      const completed = await this.#dependencies.completeOutcome(url, outcome);
+      if (completed) return true;
     } catch {
-      LOGGER.warn("authorize.callback.failed", {
-        outcome,
-        operation: "navigate",
-      });
-      return false;
+      // The safe local outcome below remains available when completion throws.
     }
+    LOGGER.warn("authorize.callback.failed", {
+      outcome,
+      operation: "complete",
+    });
+    return false;
   }
 
   private update(state: PassportAuthorizationViewState): PassportAuthorizationViewState {

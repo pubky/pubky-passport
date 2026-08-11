@@ -1,0 +1,1 @@
+import "./browser/authorization/browserAuthorizationBootstrap";

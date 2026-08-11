@@ -91,4 +91,5 @@ describe("parseBrowserAuthorizationRequest", () => {
     expect(parsed.value.review.callbackAvailability).toEqual({ success: false, error: false, cancel: false });
     expect(parsed.value.review.requestingAppDisplayHost).toBeUndefined();
   });
+
 });

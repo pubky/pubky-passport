@@ -34,7 +34,7 @@ describe("enterAuthorization", () => {
     const request = "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.client.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-success=https://example.app/success";
 
     expect(enterAuthorization(`  ${request}  `, navigate.navigate)).toBe("navigating");
-    expect(navigate.record).toEqual({ pathname: "/authorize", queryKeys: ["d"], hasEncodedRequest: true });
+    expect(navigate.record).toEqual({ pathname: "/authorize", queryKeys: [], fragmentKeys: ["d"], hasEncodedRequest: true });
     expect(JSON.stringify(navigate)).not.toContain("secret");
   });
 
@@ -51,19 +51,21 @@ describe("enterAuthorization", () => {
     expect(info).toHaveBeenCalledOnce();
     expect(JSON.stringify(info.mock.calls)).not.toContain("secret-canary");
   });
+
 });
 
 function sanitizedNavigationRecorder() {
   const recorder = {
     calls: 0,
-    record: null as null | { pathname: string; queryKeys: string[]; hasEncodedRequest: boolean },
+    record: null as null | { pathname: string; queryKeys: string[]; fragmentKeys: string[]; hasEncodedRequest: boolean },
     navigate(value: string) {
       const parsed = new URL(value, "https://passport.test");
       recorder.calls += 1;
       recorder.record = {
         pathname: parsed.pathname,
         queryKeys: [...parsed.searchParams.keys()].sort(),
-        hasEncodedRequest: Boolean(parsed.searchParams.get("d")),
+        fragmentKeys: [...new URLSearchParams(parsed.hash.slice(1)).keys()].sort(),
+        hasEncodedRequest: Boolean(new URLSearchParams(parsed.hash.slice(1)).get("d")),
       };
     },
   };

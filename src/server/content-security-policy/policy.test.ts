@@ -6,13 +6,13 @@ const HOMEGATE_ORIGIN = "https://homegate.example";
 const HOMESERVER_ORIGINS = ["https://homeserver.example"];
 
 describe("content security policy", () => {
-  it("uses a strict production nonce and allows Homegate plus the request relay", () => {
+  it("uses a strict production nonce and allows SDK-selected HTTPS relays on authorization documents", () => {
     const policy = createContentSecurityPolicy({
       nonce: "request-nonce",
       development: false,
       homegateOrigin: HOMEGATE_ORIGIN,
       homeserverConnectOrigins: HOMESERVER_ORIGINS,
-      authorizationRequestSearch: authorizationSearch("https://relay.client.example/inbox?region=eu"),
+      allowPubkyAuthRelays: true,
     });
     const directives = parseCsp(policy);
 
@@ -32,33 +32,12 @@ describe("content security policy", () => {
       "https://pkarr.pubky.org",
       "https://homegate.example",
       "https://homeserver.example",
-      "https://relay.client.example",
+      "https:",
     ]));
     expect(policy).not.toContain("/inbox");
     expect(policy).not.toContain("sensitive-secret");
     expect(directives.get("frame-ancestors")).toEqual(["'none'"]);
     expect(directives.get("object-src")).toEqual(["'none'"]);
-  });
-
-  it("does not allow a relay for invalid authorization requests", () => {
-    for (const request of [
-      "?d=not-encoded",
-      authorizationSearch("http://relay.client.example/inbox"),
-      authorizationSearch("https://user:password@relay.client.example/inbox"),
-      authorizationSearch("https://*/inbox"),
-      authorizationSearch("https://a;b.example/inbox"),
-      `?d=${encodeURIComponent("pubkyauth://signin?relay=https://relay.client.example/inbox&secret=sensitive-secret")}`,
-    ]) {
-      const directives = parseCsp(createContentSecurityPolicy({
-        nonce: "request-nonce",
-        development: false,
-        homegateOrigin: HOMEGATE_ORIGIN,
-        homeserverConnectOrigins: HOMESERVER_ORIGINS,
-        authorizationRequestSearch: request,
-      }));
-
-      expect(directives.get("connect-src")).not.toContain("https://relay.client.example");
-    }
   });
 
   it("allows only configured homeserver origins without a global relay", () => {
@@ -88,11 +67,6 @@ describe("content security policy", () => {
     expect(directives.get("script-src")).not.toContain("'unsafe-inline'");
   });
 });
-
-function authorizationSearch(relay: string): string {
-  const request = `pubkyauth://signin?caps=/pub/example.app/:rw&relay=${encodeURIComponent(relay)}&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8`;
-  return `?d=${encodeURIComponent(request)}`;
-}
 
 function parseCsp(value: string): Map<string, string[]> {
   return new Map(value.split(";").map((directive) => {

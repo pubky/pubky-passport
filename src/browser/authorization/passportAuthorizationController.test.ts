@@ -50,11 +50,11 @@ describe("PassportAuthorizationController", () => {
     expect(clearPendingEntry).toHaveBeenCalledOnce();
   });
 
-  it("approves once and navigates to the exact success callback", async () => {
+  it("approves once and completes the exact success callback", async () => {
     let complete: ((result: ApproveAuthorizationResult) => void) | undefined;
     const approveAuthorization = vi.fn(() => new Promise<ApproveAuthorizationResult>((resolve) => { complete = resolve; }));
-    const navigate = vi.fn();
-    const controller = createController({ approveAuthorization, navigate });
+    const completeOutcome = vi.fn(async () => true);
+    const controller = createController({ approveAuthorization, completeOutcome });
 
     const first = controller.approve();
     const second = controller.approve();
@@ -64,41 +64,41 @@ describe("PassportAuthorizationController", () => {
 
     await expect(first).resolves.toMatchObject({ status: "redirecting" });
     await expect(second).resolves.toMatchObject({ status: "approving" });
-    expect(navigate).toHaveBeenCalledWith(SUCCESS_CALLBACK);
+    expect(completeOutcome).toHaveBeenCalledWith(SUCCESS_CALLBACK, "success");
   });
 
   it("routes approval errors and cancellation through exact browser-owned callbacks", async () => {
-    const navigate = vi.fn();
+    const completeOutcome = vi.fn(async () => true);
     const failed = createController({
       approveAuthorization: async () => Result.err({ code: "approval_failed" }),
-      navigate,
+      completeOutcome,
     });
     await failed.approve();
-    expect(navigate).toHaveBeenLastCalledWith(ERROR_CALLBACK);
+    expect(completeOutcome).toHaveBeenLastCalledWith(ERROR_CALLBACK, "error");
 
-    const cancelled = createController({ navigate });
-    cancelled.cancel();
-    expect(navigate).toHaveBeenLastCalledWith(CANCEL_CALLBACK);
+    const cancelled = createController({ completeOutcome });
+    await cancelled.cancel();
+    expect(completeOutcome).toHaveBeenLastCalledWith(CANCEL_CALLBACK, "cancel");
   });
 
   it.each([
     ["success", async () => Result.ok(), "approved", "approve"],
     ["error", async () => Result.err({ code: "approval_failed" as const }), "failed", "approve"],
     ["cancel", async () => Result.ok(), "cancelled", "cancel"],
-  ] as const)("falls back to a local %s outcome when callback navigation throws", async (_name, approveAuthorization, status, intent) => {
+  ] as const)("falls back to a local %s outcome when browser completion fails", async (_name, approveAuthorization, status, intent) => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const controller = createController({
       approveAuthorization,
-      navigate: () => { throw new Error("navigation unavailable"); },
+      completeOutcome: async () => false,
     });
 
-    const state = intent === "approve" ? await controller.approve() : controller.cancel();
+    const state = intent === "approve" ? await controller.approve() : await controller.cancel();
 
     expect(state.status).toBe(status);
     expect(warning).toHaveBeenCalledOnce();
     expect(warning).toHaveBeenCalledWith("authorize.callback.failed", {
       outcome: _name,
-      operation: "navigate",
+      operation: "complete",
     });
   });
 
@@ -123,7 +123,7 @@ describe("PassportAuthorizationController", () => {
     controller.subscribe(() => { throw new Error("listener exploded"); });
 
     await expect(controller.approve()).resolves.toEqual({ status: "failed", failureCode: "approval_failed" });
-    expect(() => controller.cancel()).not.toThrow();
+    await expect(controller.cancel()).resolves.toEqual({ status: "failed", failureCode: "approval_failed" });
     expect(warning).toHaveBeenCalledTimes(3);
     expect(warning).toHaveBeenCalledWith("authorize.approval.failed", {
       stage: "controller",
@@ -132,15 +132,15 @@ describe("PassportAuthorizationController", () => {
     expect(warning).toHaveBeenCalledWith("authorize.state_listener.failed", { state: "approving" });
   });
 
-  it("never approves or navigates an invalid request", async () => {
+  it("never approves or completes an invalid request", async () => {
     const approveAuthorization = vi.fn(async () => Result.ok());
-    const navigate = vi.fn();
-    const controller = createController({ approveAuthorization, navigate }, { status: "invalid" });
+    const completeOutcome = vi.fn(async () => true);
+    const controller = createController({ approveAuthorization, completeOutcome }, { status: "invalid" });
 
     await expect(controller.approve()).resolves.toEqual({ status: "invalid" });
-    expect(controller.cancel()).toEqual({ status: "invalid" });
+    await expect(controller.cancel()).resolves.toEqual({ status: "invalid" });
     expect(approveAuthorization).not.toHaveBeenCalled();
-    expect(navigate).not.toHaveBeenCalled();
+    expect(completeOutcome).not.toHaveBeenCalled();
   });
 
   it("exposes an empty entry as manual authorization", () => {
@@ -159,7 +159,7 @@ function createController(
     dependencies: {
       approveAuthorization: async () => Result.ok(),
       clearPendingEntry: vi.fn(),
-      navigate: vi.fn(),
+      completeOutcome: vi.fn(async () => true),
       ...overrides,
     },
   });

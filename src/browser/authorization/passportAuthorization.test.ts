@@ -42,7 +42,7 @@ describe("createPassportAuthorizationController", () => {
   });
 
   it("constructs Pubky lazily for approval and owns adapter cleanup", async () => {
-    window.history.replaceState({}, "", `/authorize?d=${encodeURIComponent(validRequest())}`);
+    window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
 
     const controller = createPassportAuthorizationController();
 
@@ -59,7 +59,7 @@ describe("createPassportAuthorizationController", () => {
 
   it("maps identity repository failures at the authorization composition boundary", async () => {
     window.localStorage.setItem("pubky-passport/local-identities/v1", "invalid-store");
-    window.history.replaceState({}, "", `/authorize?d=${encodeURIComponent(validRequest())}`);
+    window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
     const controller = createPassportAuthorizationController();
 
     await expect(controller.approve()).resolves.toEqual({
@@ -74,7 +74,7 @@ describe("createPassportAuthorizationController", () => {
     MOCKS.PubkySdkAdapter.mockImplementationOnce(function () {
       throw new Error("sensitive authorization request");
     });
-    window.history.replaceState({}, "", `/authorize?d=${encodeURIComponent(validRequest())}`);
+    window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
     const controller = createPassportAuthorizationController();
 
     await expect(controller.approve()).resolves.toEqual({
@@ -94,7 +94,7 @@ describe("createPassportAuthorizationController", () => {
     MOCKS.dispose.mockImplementationOnce(() => {
       throw new Error("cleanup failed");
     });
-    window.history.replaceState({}, "", `/authorize?d=${encodeURIComponent(validRequest())}`);
+    window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
     const controller = createPassportAuthorizationController();
 
     await expect(controller.approve()).resolves.toEqual({

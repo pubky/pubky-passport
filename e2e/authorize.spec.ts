@@ -30,11 +30,14 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   const url = authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}?region=eu`));
   await installLocalIdentityFixture(page);
   const leakMonitor = await installAuthorizationLeakMonitor(page);
-  const baselineResponse = await request.get("/authorize");
+  const baselineResponse = await request.get("/");
   await page.goto("/");
   const response = await page.goto(url);
 
   expect(response?.ok()).toBe(true);
+  const rawInitialBody = await response?.text();
+  expect(rawInitialBody).toBeDefined();
+  for (const canary of SENSITIVE_CANARIES) expect(rawInitialBody).not.toContain(canary);
   const headers = response?.headers() ?? {};
   expect(headers["cache-control"]).toContain("no-store");
   expect(headers["referrer-policy"]).toBe("no-referrer");
@@ -43,7 +46,7 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   const baselineSources = new Set(cspSources(baselineResponse.headers()["content-security-policy"] ?? "", "connect-src"));
   const authorizationSources = cspSources(policy, "connect-src");
   expect(baselineSources).toContain("https://homeserver.example");
-  expect(authorizationSources.filter((source) => !baselineSources.has(source))).toEqual([RELAY_ORIGIN]);
+  expect(authorizationSources.filter((source) => !baselineSources.has(source))).toEqual(["https:"]);
   expect(authorizationSources).not.toContain("https://client.example");
   expect(policy).not.toContain("/private-inbox");
   expect(policy).not.toContain(SENSITIVE_SECRET);
@@ -56,6 +59,8 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   for (const canary of SENSITIVE_CANARIES) expect(renderedReview).not.toContain(canary);
   expect(renderedReview).not.toContain("authorization-success");
   expect(await page.evaluate(() => window.location.search)).toBe("");
+  expect(await page.evaluate(() => window.location.hash)).toBe("");
+  expect(await page.evaluate(() => (window as Window & { __passportHashAtFirstFrame?: string }).__passportHashAtFirstFrame)).toBe("");
   const authorizationPersistence = await browserPersistenceSnapshot(page);
   expectAuthorizationPersistenceSafe(authorizationPersistence, {
     [LOCAL_IDENTITY_STORAGE_KEY]: LOCAL_IDENTITY_STORAGE_VALUE,
@@ -66,6 +71,7 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   await page.goForward();
   await expect(page).toHaveURL(/\/authorize$/u);
   expect(await page.evaluate(() => window.location.search)).toBe("");
+  expect(await page.evaluate(() => window.location.hash)).toBe("");
   const restoredPersistence = await browserPersistenceSnapshot(page);
   expectAuthorizationPersistenceSafe(restoredPersistence, {
     [LOCAL_IDENTITY_STORAGE_KEY]: LOCAL_IDENTITY_STORAGE_VALUE,
@@ -86,6 +92,7 @@ test("rejects an unsafe relay without adding it to CSP", async ({ page }) => {
   await expect(page).toHaveURL(/\/authorize$/u);
   await expect(page.getByRole("heading", { name: "Invalid authorization request" })).toBeVisible();
   expect(await page.evaluate(() => window.location.search)).toBe("");
+  expect(await page.evaluate(() => window.location.hash)).toBe("");
   const renderedState = await page.locator("main").innerHTML();
   for (const canary of SENSITIVE_CANARIES) expect(renderedState).not.toContain(canary);
   const persistence = await browserPersistenceSnapshot(page);
@@ -105,6 +112,97 @@ test("reviews and scrubs a v0.10 grant authorization request", async ({ page }) 
   await expect(page.getByText(/app-specific, revocable grant/u)).toBeVisible();
   expect(await page.locator("main").innerHTML()).not.toContain(GRANT_CLIENT_PUBLIC_KEY);
   expect(await page.evaluate(() => window.location.search)).toBe("");
+  expect(await page.evaluate(() => window.location.hash)).toBe("");
+});
+
+test("manual entry reloads into fragment-backed capability review", async ({ page }) => {
+  await installLocalIdentityFixture(page);
+  await page.goto("/authorize");
+
+  await page.getByRole("textbox", { name: "Authorization link" }).fill(authorizationRequest(`${RELAY_ORIGIN}/inbox`));
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page.getByRole("heading", { name: "Sign in to client.example" })).toBeVisible();
+  await expect(page).toHaveURL(/\/authorize$/u);
+  expect(await page.evaluate(() => window.location.hash)).toBe("");
+});
+
+test("falls back to the cancel callback when the opener does not acknowledge", async ({ page }) => {
+  await page.context().route("https://client.example/**", (route) => route.fulfill({
+    body: "<!doctype html><title>Returned</title><h1>Returned to app</h1>",
+    contentType: "text/html",
+  }));
+  await page.goto("/");
+  await page.evaluate(({ key, value }) => window.localStorage.setItem(key, value), {
+    key: LOCAL_IDENTITY_STORAGE_KEY,
+    value: LOCAL_IDENTITY_STORAGE_VALUE,
+  });
+  const popupPromise = page.waitForEvent("popup");
+  await page.evaluate((url) => { window.open(url, "pubky-passport", "popup,width=480,height=760"); }, authorizationUrl(
+    authorizationRequest(`${RELAY_ORIGIN}/inbox`),
+  ));
+  const popup = await popupPromise;
+
+  await popup.getByRole("button", { name: "Cancel" }).click();
+
+  await expect(popup).toHaveURL(/https:\/\/client\.example\/authorization-cancel/u);
+  await expect(popup.getByRole("heading", { name: "Returned to app" })).toBeVisible();
+});
+
+test("notifies the callback-origin opener and closes after acknowledgement", async ({ page }) => {
+  await page.goto("/");
+  const passportOrigin = new URL(page.url()).origin;
+  await page.evaluate(({ key, value }) => window.localStorage.setItem(key, value), {
+    key: LOCAL_IDENTITY_STORAGE_KEY,
+    value: LOCAL_IDENTITY_STORAGE_VALUE,
+  });
+  await page.context().route("https://client.example/**", (route) => route.fulfill({
+    body: "<!doctype html><title>Client integration</title><h1>Client integration</h1>",
+    contentType: "text/html",
+  }));
+  await page.goto("https://client.example/integration");
+  await page.evaluate((trustedPassportOrigin) => {
+    window.addEventListener("message", (event) => {
+      const message = event.data as Record<string, unknown>;
+      if (
+        event.origin !== trustedPassportOrigin
+        || message.type !== "pubky-passport.authorization-outcome"
+        || message.version !== 1
+        || typeof message.messageId !== "string"
+      ) return;
+      (event.source as Window | null)?.postMessage({
+        type: "pubky-passport.authorization-outcome-ack",
+        version: 1,
+        messageId: message.messageId,
+      }, trustedPassportOrigin);
+      Object.defineProperty(window, "__passportOutcome", { value: message.outcome });
+    });
+  }, passportOrigin);
+  const popupPromise = page.waitForEvent("popup");
+  const popupUrl = new URL(authorizationUrl(
+    authorizationRequest(`${RELAY_ORIGIN}/inbox`),
+  ), passportOrigin).href;
+  await page.evaluate((url) => { window.open(url, "pubky-passport-ack", "popup,width=480,height=760"); }, popupUrl);
+  const popup = await popupPromise;
+
+  await popup.getByRole("button", { name: "Cancel" }).click();
+
+  await expect.poll(() => popup.isClosed()).toBe(true);
+  expect(await page.evaluate(() => (window as Window & { __passportOutcome?: string }).__passportOutcome)).toBe("cancel");
+});
+
+test("uses the cancel callback for direct navigation without an opener", async ({ page }) => {
+  await page.route("https://client.example/**", (route) => route.fulfill({
+    body: "<!doctype html><title>Returned</title><h1>Returned to app</h1>",
+    contentType: "text/html",
+  }));
+  await installLocalIdentityFixture(page);
+  await page.goto(authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`)));
+
+  await page.getByRole("button", { name: "Cancel" }).click();
+
+  await expect(page).toHaveURL(/https:\/\/client\.example\/authorization-cancel/u);
+  await expect(page.getByRole("heading", { name: "Returned to app" })).toBeVisible();
 });
 
 function authorizationRequest(relay: string, authenticationMethod: "cookie" | "grant" = "cookie"): string {
@@ -123,7 +221,7 @@ function authorizationRequest(relay: string, authenticationMethod: "cookie" | "g
 }
 
 function authorizationUrl(request: string): string {
-  return `/authorize?d=${encodeURIComponent(request)}`;
+  return `/authorize#d=${encodeURIComponent(request)}`;
 }
 
 function cspSources(policy: string, directiveName: string): string[] {
@@ -158,30 +256,24 @@ type BrowserPersistenceSnapshot = Awaited<ReturnType<typeof browserPersistenceSn
 
 type AuthorizationLeakMonitor = {
   browserLeaks: string[];
-  sawInitialSensitiveNavigation(): boolean;
 };
 
 async function installAuthorizationLeakMonitor(page: Page): Promise<AuthorizationLeakMonitor> {
   const browserLeaks: string[] = [];
-  let initialSensitiveNavigationSeen = false;
   await installPersistenceObserver(page);
+  await page.addInitScript(() => {
+    requestAnimationFrame(() => {
+      Object.defineProperty(window, "__passportHashAtFirstFrame", {
+        configurable: true,
+        value: window.location.hash,
+      });
+    });
+  });
   page.on("console", (message) => browserLeaks.push(message.text()));
   page.on("request", (outgoing) => {
-    const outgoingUrl = new URL(outgoing.url());
-    const isInitialSensitiveNavigation = !initialSensitiveNavigationSeen
-      && outgoing.resourceType() === "document"
-      && outgoingUrl.pathname === "/authorize"
-      && outgoingUrl.searchParams.has("d");
-    if (isInitialSensitiveNavigation) {
-      initialSensitiveNavigationSeen = true;
-      return;
-    }
     browserLeaks.push(`${outgoing.url()}\n${outgoing.postData() ?? ""}\n${outgoing.headers().referer ?? ""}`);
   });
-  return {
-    browserLeaks,
-    sawInitialSensitiveNavigation: () => initialSensitiveNavigationSeen,
-  };
+  return { browserLeaks };
 }
 
 async function expectNoSensitiveBrowserLeaks(
@@ -189,7 +281,6 @@ async function expectNoSensitiveBrowserLeaks(
   monitor: AuthorizationLeakMonitor,
   persistence: BrowserPersistenceSnapshot[],
 ): Promise<void> {
-  expect(monitor.sawInitialSensitiveNavigation()).toBe(true);
   const observedBrowserData = JSON.stringify({
     browserLeaks: monitor.browserLeaks,
     persistence,
@@ -205,7 +296,9 @@ function expectAuthorizationPersistenceSafe(
   expect(snapshot.localStorage).toEqual(expectedLocalStorage);
   expect(snapshot.sessionStorage).toEqual({});
   expect(snapshot.cookies).toBe("");
-  expect(snapshot.historyState).toBeNull();
+  for (const canary of SENSITIVE_CANARIES) {
+    expect(JSON.stringify(snapshot.historyState)).not.toContain(canary);
+  }
   expect(snapshot.writes).toEqual([]);
   expect(snapshot.indexedDatabases).toEqual([]);
   expect(snapshot.caches).toEqual([]);

@@ -1,18 +1,11 @@
 import "server-only";
 
-import { Result } from "better-result";
-
-import {
-  extractRawPubkyAuthRequestQueryValue,
-  parsePubkyAuthRelayOrigin,
-} from "../../core/auth/parsePubkyAuthRequest";
-
 export function createContentSecurityPolicy(input: {
   nonce: string;
   development: boolean;
   homegateOrigin: string;
   homeserverConnectOrigins: readonly string[];
-  authorizationRequestSearch?: string;
+  allowPubkyAuthRelays?: boolean;
 }): string {
   const scriptSource = [
     "script-src 'self'",
@@ -23,9 +16,6 @@ export function createContentSecurityPolicy(input: {
     "https://accounts.google.com",
     "https://apis.google.com",
   ].join(" ");
-  const authorizationRelayOrigin = input.authorizationRequestSearch
-    ? parseAuthorizationRelayOrigin(input.authorizationRequestSearch)
-    : undefined;
   return [
     "default-src 'self'",
     scriptSource,
@@ -39,7 +29,7 @@ export function createContentSecurityPolicy(input: {
       ...input.homeserverConnectOrigins,
       "https://pkarr.pubky.app",
       "https://pkarr.pubky.org",
-      ...(authorizationRelayOrigin ? [authorizationRelayOrigin] : []),
+      ...(input.allowPubkyAuthRelays ? ["https:"] : []),
     ].join(" "),
     "img-src 'self' data: https://*.googleusercontent.com",
     "style-src 'self' 'unsafe-inline' https://accounts.google.com",
@@ -51,14 +41,4 @@ export function createContentSecurityPolicy(input: {
     "frame-ancestors 'none'",
     "manifest-src 'self'",
   ].join("; ");
-}
-
-function parseAuthorizationRelayOrigin(search: string): string | undefined {
-  const rawD = extractRawPubkyAuthRequestQueryValue(search);
-  if (!rawD.valid) return undefined;
-
-  const parsed = parsePubkyAuthRelayOrigin(rawD.value);
-  if (Result.isError(parsed)) return undefined;
-
-  return parsed.value;
 }

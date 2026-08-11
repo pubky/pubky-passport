@@ -83,7 +83,6 @@ PR or scheduled gate because each run consumes provider invitation quota and cre
 a new staging identity.
 
 Playwright traces can contain request URLs and payloads. Browser tests must use only
-synthetic credentials and authorization requests. Next.js currently serializes the
-original authorization URL into its initial Flight bootstrap before client-side query
-scrubbing; removing that framework-level exposure requires a separate ingress or
-transport decision.
+synthetic credentials and authorization requests. Authorization input uses a URL
+fragment, is absent from HTTP and Next.js Flight transport, and is scrubbed before
+review. Browser tests retain synthetic canaries to guard that boundary.

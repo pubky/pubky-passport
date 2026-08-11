@@ -11,5 +11,8 @@ export default function AuthorizePage() {
     throw new Error("Authorization page configuration unavailable.");
   }
 
-  return <AuthorizationFlow googleClientId={config.googleClientId} homegateBaseUrl={config.homegateBaseUrl} />;
+  return <AuthorizationFlow
+    googleClientId={config.googleClientId}
+    homegateBaseUrl={config.homegateBaseUrl}
+  />;
 }

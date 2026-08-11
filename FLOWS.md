@@ -102,7 +102,7 @@ In the remaining diagrams:
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Authorization document entry call flow
-    accDescr: A request passes through Next proxy and CSP parsing before the client scrubs and parses the authorization query for review.
+    accDescr: Next emits authorization CSP without receiving the fragment, then the client scrubs and parses the SDK request for review.
     box rgba(17, 24, 39, 0.12) External
         participant App as Third-party requesting app
     end
@@ -120,43 +120,42 @@ sequenceDiagram
         participant CSP as policy.ts<br/>createContentSecurityPolicy()
     end
     box rgba(204, 121, 167, 0.18) src/core/auth
-        participant Parser as parsePubkyAuthRequest.ts<br/>extractRawPubkyAuthRequestQueryValue()<br/>parsePubkyAuthRelayOrigin()
+        participant Parser as parsePubkyAuthRequest.ts<br/>parsePubkyAuthRequest()
     end
     box rgba(0, 114, 178, 0.18) src/ui
-        participant Loader as authorizationReviewLoader.tsx<br/>AuthorizationReviewLoader
-        participant Review as authorizationReview.tsx<br/>AuthorizationReview()
+        participant Flow as authorizationFlow.tsx<br/>AuthorizationFlow()
     end
     box rgba(0, 158, 115, 0.18) src/browser/authorization
+        participant Bootstrap as browserAuthorizationBootstrap.ts<br/>pre-hydration entry capture
         participant Factory as passportAuthorization.ts<br/>createPassportAuthorizationController()
         participant Controller as passportAuthorizationController.ts<br/>PassportAuthorizationController
         participant Entry as browserAuthorizationEntry.ts<br/>readAndScrubAuthorizationEntry()<br/>clearPendingAuthorizationEntry()
         participant Request as browserAuthorizationRequest.ts<br/>parseBrowserAuthorizationRequest()
     end
 
-    App->>Client: Navigate to Passport /authorize?d=...
-    Client->>Next: GET /authorize?d=encoded-request
+    App->>Client: Open Passport /authorize#d=...
+    Client->>Next: GET /authorize
     Next->>Proxy: proxy(request)
-    Proxy->>CSP: createContentSecurityPolicy(search, nonce)
-    CSP->>Parser: extract d and parse request
-    Parser-->>CSP: relayOrigin or typed error
+    Proxy->>CSP: createContentSecurityPolicy(allow HTTPS relays, nonce)
     CSP-->>Proxy: document CSP
     Proxy-->>Next: NextResponse.next + CSP headers
     Next->>Page: AuthorizePage()
-    Page->>Loader: render client boundary with validated bootstrap values
+    Page->>Flow: render client boundary with validated bootstrap values
     Next-->>Client: document + CSP + no-store + no-referrer
-    Client->>Loader: hydrate
-    Loader->>Review: dynamic import, SSR disabled
-    Review->>Factory: createPassportAuthorizationController()
-    Factory->>Entry: readAndScrubAuthorizationEntry(window)
-    Entry->>Client: History.prototype.replaceState(current pathname + hash, query removed)
+    Client->>Bootstrap: instrumentation-client module evaluation
+    Bootstrap->>Entry: readAndScrubAuthorizationEntry(window)
+    Entry->>Client: History.prototype.replaceState(current pathname, fragment removed)
     Entry->>Request: parse captured d
     Request->>Parser: parse and validate request
     Parser-->>Request: normalized request or typed error
-    Request-->>Entry: immutable safe review + private approval
-    Entry-->>Factory: valid entry or invalid
+    Request-->>Bootstrap: immutable safe review + private approval
+    Client->>Flow: hydrate
+    Flow->>Factory: createPassportAuthorizationController()
+    Factory->>Bootstrap: takeBootstrappedAuthorizationEntry()
+    Bootstrap-->>Factory: valid entry or invalid
     Factory->>Controller: new PassportAuthorizationController(...)
-    Factory-->>Review: controller with safe view state
-    Review->>Controller: commitInitialEntry()
+    Factory-->>Flow: controller with safe view state
+    Flow->>Controller: commitInitialEntry()
     Controller->>Entry: clearPendingAuthorizationEntry(window)
 ```
 
@@ -193,7 +192,7 @@ sequenceDiagram
         Browser-->>Form: invalid
         Form-->>User: safe local error
     else Valid
-        Browser->>Window: location.replace(/authorize?d=...)
+        Browser->>Window: History.prototype.replaceState(/authorize#d=...) + reload
         Window->>Next: full document request
     end
 ```
@@ -260,9 +259,13 @@ sequenceDiagram
     Composition-->>Controller: safe result
     Controller->>AuthRequest: getValidatedAuthorizationCallbacks(approval)
     AuthRequest-->>Controller: success or error callback
-    alt Callback exists
-        Controller->>Window: location.replace(callback)
-    else No callback or navigation fails
+    alt Callback exists and opener acknowledges
+        Controller->>Window: post finite outcome to callback origin
+        Window-->>Controller: exact-origin acknowledgement
+        Controller->>Window: close popup
+    else Callback exists without popup completion
+        Controller->>Window: location.replace(callback) after timeout
+    else No callback or completion fails
         Controller-->>Review: safe local terminal state
     end
 ```
@@ -273,7 +276,7 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Authorization cancellation call flow
-    accDescr: Cancellation retrieves only the browser-owned validated cancel callback and redirects or renders a local cancelled state without restoring a key.
+    accDescr: Cancellation retrieves only the browser-owned validated cancel callback and closes a popup, redirects, or renders a local cancelled state without restoring a key.
     actor User
     box rgba(0, 114, 178, 0.18) src/ui
         participant Review as authorizationReview.tsx<br/>AuthorizationReview()
@@ -292,9 +295,13 @@ sequenceDiagram
     Review->>Controller: cancel()
     Controller->>Callbacks: getValidatedAuthorizationCallbacks(approval)
     Callbacks-->>Controller: cancel callback or none
-    alt Callback exists
-        Controller->>Window: location.replace(callback)
-    else No callback or navigation fails
+    alt Callback exists and opener acknowledges
+        Controller->>Window: post cancel outcome to callback origin
+        Window-->>Controller: exact-origin acknowledgement
+        Controller->>Window: close popup
+    else Callback exists without popup completion
+        Controller->>Window: location.replace(callback) after timeout
+    else No callback or completion fails
         Controller-->>Review: local cancelled state
     end
 ```

@@ -1,17 +1,16 @@
 # Pubky Auth Request Validation
 
-Owns the pure request grammar shared by browser authorization and server Content
-Security Policy generation. It validates the encoded `d` value, `pubkyauth://`
+Owns the pure request grammar used by browser authorization. It validates the encoded `d` value, `pubkyauth://`
 shape, v0.10 cookie/grant intent, secret, capabilities, grant client parameters,
 relay, callbacks, supported parameters, and documented size limits.
 
 Successful parsing returns normalized request data. Browser approval provenance,
-review projection, callback metadata storage, query scrubbing, signing, navigation,
+review projection, callback metadata storage, fragment scrubbing, signing, navigation,
 and UI state do not belong in core.
 
 The browser consumes the full parsed request to create a browser-local approval
-capability. Manual entry uses validation only. Server CSP uses only the normalized
-relay origin and never imports browser authorization code.
+capability. Manual entry uses validation only. Server CSP permits HTTPS relay
+connections without reading or parsing the authorization request.
 
 Callbacks use v0.10's x-callback decoding rules: values are decoded exactly once,
 literal plus signs are preserved, and legacy `callback` is a fallback only when

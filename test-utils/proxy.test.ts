@@ -23,13 +23,11 @@ describe("request CSP proxy", () => {
     expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/_next/static/app.js" })).toBe(false);
   });
 
-  it("allows only the validated relay origin on an authorization document", () => {
-    const request = authorizationRequest("https://relay.client.example/inbox?region=eu");
-
-    const response = proxy(new NextRequest(`https://passport.example/authorize?d=${encodeURIComponent(request)}`));
+  it("allows SDK-selected HTTPS relays only on authorization documents", () => {
+    const response = proxy(new NextRequest("https://passport.example/authorize"));
     const policy = response.headers.get("Content-Security-Policy") ?? "";
 
-    expect(policy).toContain("https://relay.client.example");
+    expect(cspSources(policy, "connect-src")).toContain("https:");
     expect(policy).not.toContain("/inbox");
     expect(policy).not.toContain("sensitive-secret");
     expect(cspSources(policy, "connect-src")).toContain("https://homegate.example");
@@ -37,18 +35,15 @@ describe("request CSP proxy", () => {
     expect(policy).not.toContain("/config/path");
   });
 
-  it("does not allow request-derived origins on other routes or invalid requests", () => {
-    const validRequest = encodeURIComponent(authorizationRequest("https://relay.client.example/inbox"));
-    const invalidRequest = encodeURIComponent(authorizationRequest("http://relay.client.example/inbox"));
-    const wildcardRequest = encodeURIComponent(authorizationRequest("https://*/inbox"));
+  it("does not project authorization request data into CSP", () => {
+    const request = encodeURIComponent(authorizationRequest("https://attacker.example/inbox"));
+    const otherRoute = proxy(new NextRequest(`https://passport.example/?d=${request}`));
+    const authorization = proxy(new NextRequest(`https://passport.example/authorize?d=${request}`));
 
-    const otherRoute = proxy(new NextRequest(`https://passport.example/?d=${validRequest}`));
-    const invalidAuthorization = proxy(new NextRequest(`https://passport.example/authorize?d=${invalidRequest}`));
-    const wildcardAuthorization = proxy(new NextRequest(`https://passport.example/authorize?d=${wildcardRequest}`));
-
-    expect(otherRoute.headers.get("Content-Security-Policy")).not.toContain("https://relay.client.example");
-    expect(invalidAuthorization.headers.get("Content-Security-Policy")).not.toContain("https://relay.client.example");
-    expect(cspSources(wildcardAuthorization.headers.get("Content-Security-Policy"), "connect-src")).not.toContain("https://*");
+    expect(cspSources(otherRoute.headers.get("Content-Security-Policy"), "connect-src")).not.toContain("https:");
+    expect(cspSources(authorization.headers.get("Content-Security-Policy"), "connect-src")).toContain("https:");
+    expect(authorization.headers.get("Content-Security-Policy")).not.toContain("https://attacker.example");
+    expect(authorization.headers.get("Content-Security-Policy")).not.toContain("sensitive-secret");
   });
 
   it("rejects unsafe configured Homegate origins before emitting CSP", () => {
@@ -78,6 +73,7 @@ describe("request CSP proxy", () => {
     });
     expect(JSON.stringify(error.mock.calls)).not.toContain("https://*.example.com");
   });
+
 });
 
 function authorizationRequest(relay: string): string {
