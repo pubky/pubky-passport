@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import type { ReactNode } from "react";
 import "@fontsource-variable/inter-tight";
 import "./globals.css";
+import { EARLY_AUTHORIZATION_LOCATION_SCRIPT } from "../libs/authorization/earlyAuthorizationLocation";
 import { PassportLogo } from "../ui/shared/brand/passportLogo";
 
 export const METADATA: Metadata = {
@@ -14,6 +15,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   await connection();
   return (
     <html lang="en">
+      <head><script>{EARLY_AUTHORIZATION_LOCATION_SCRIPT}</script></head>
       <body>
         <header className="flex h-[84px] w-full items-center justify-between bg-[linear-gradient(180deg,rgba(5,5,10,0.96),rgba(5,5,10,0))] px-6">
           <PassportLogo />

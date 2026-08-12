@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PUBKY_AUTH_REQUEST_LIMITS } from "../../core/auth/pubkyAuthRequestLimits";
+import { EARLY_AUTHORIZATION_LOCATION_PROPERTY } from "../../libs/authorization/earlyAuthorizationLocation";
 import { LOGGER } from "../../libs/logger/logger";
 import {
   clearPendingAuthorizationEntry,
@@ -18,6 +19,19 @@ describe("browserAuthorizationEntry", () => {
     vi.restoreAllMocks();
     await Promise.resolve();
     window.history.replaceState({}, "", "/");
+    Reflect.deleteProperty(window, EARLY_AUTHORIZATION_LOCATION_PROPERTY);
+  });
+
+  it("consumes a parser-time capture after the URL is already scrubbed", () => {
+    const hash = `#d=${encodeURIComponent(validRequest())}`;
+    window.history.replaceState({}, "", "/authorize");
+    Object.defineProperty(window, EARLY_AUTHORIZATION_LOCATION_PROPERTY, {
+      configurable: true,
+      value: vi.fn(() => ({ status: "captured", hash })),
+    });
+
+    expect(readAndScrubAuthorizationEntry(window).status).toBe("valid");
+    expect(window.location.hash).toBe("");
   });
 
   it("scrubs synchronously and preserves a browser-issued request across a StrictMode double initializer", () => {

@@ -3,6 +3,10 @@ import "client-only";
 import { Result } from "better-result";
 
 import { extractRawPubkyAuthRequestFragmentValue } from "../../core/auth/parsePubkyAuthRequest";
+import {
+  EARLY_AUTHORIZATION_LOCATION_PROPERTY,
+  type EarlyAuthorizationLocation,
+} from "../../libs/authorization/earlyAuthorizationLocation";
 import { LOGGER } from "../../libs/logger/logger";
 import {
   parseBrowserAuthorizationRequest,
@@ -25,10 +29,15 @@ const PENDING_STRICT_MODE_ENTRIES = new WeakMap<Window, PendingStrictModeEntry>(
 export function readAndScrubAuthorizationEntry(
   browserWindow: Window,
 ): AuthorizationEntry {
-  const rawSearch = browserWindow.location.search;
-  const rawHash = browserWindow.location.hash;
+  const earlyLocation = takeEarlyAuthorizationLocation(browserWindow);
+  const rawSearch = earlyLocation?.status === "captured" ? "" : browserWindow.location.search;
+  const rawHash = earlyLocation?.status === "captured" ? earlyLocation.hash : browserWindow.location.hash;
   const scrubbedHref = `${browserWindow.location.origin}${browserWindow.location.pathname}`;
   scrubAuthorizationLocation(browserWindow);
+
+  if (earlyLocation?.status === "too_large" || earlyLocation?.status === "invalid_search") {
+    return retainForStrictMode(browserWindow, scrubbedHref, { status: "invalid" });
+  }
 
   if (rawSearch.length === 0 && rawHash.length === 0) {
     const pending = PENDING_STRICT_MODE_ENTRIES.get(browserWindow);
@@ -52,6 +61,10 @@ export function readAndScrubAuthorizationEntry(
   const entry: AuthorizationEntry = Result.isError(parsed)
     ? { status: "invalid" }
     : { status: "valid", review: parsed.value.review, approval: parsed.value.approval };
+  return retainForStrictMode(browserWindow, scrubbedHref, entry);
+}
+
+function retainForStrictMode(browserWindow: Window, scrubbedHref: string, entry: AuthorizationEntry): AuthorizationEntry {
   const pending = { scrubbedHref, entry };
   PENDING_STRICT_MODE_ENTRIES.set(browserWindow, pending);
   queueMicrotask(() => {
@@ -60,6 +73,22 @@ export function readAndScrubAuthorizationEntry(
     }
   });
   return entry;
+}
+
+function takeEarlyAuthorizationLocation(browserWindow: Window): EarlyAuthorizationLocation | undefined {
+  const take = (browserWindow as Window & Record<string, unknown>)[EARLY_AUTHORIZATION_LOCATION_PROPERTY];
+  if (typeof take !== "function") return undefined;
+  try {
+    const value: unknown = take();
+    if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+    const capture = value as Record<string, unknown>;
+    if (capture.status === "too_large" || capture.status === "invalid_search") return { status: capture.status };
+    return capture.status === "captured" && typeof capture.hash === "string"
+      ? { status: "captured", hash: capture.hash }
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function scrubAuthorizationLocation(

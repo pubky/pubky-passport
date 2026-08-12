@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { createHash } from "node:crypto";
+
+import { EARLY_AUTHORIZATION_LOCATION_SCRIPT } from "../../libs/authorization/earlyAuthorizationLocation";
+
 import { createContentSecurityPolicy } from "./policy";
 
 const HOMEGATE_ORIGIN = "https://homegate.example";
@@ -19,6 +23,7 @@ describe("content security policy", () => {
     expect(directives.get("script-src")).toEqual([
       "'self'",
       "'nonce-request-nonce'",
+      `'sha256-${createHash("sha256").update(EARLY_AUTHORIZATION_LOCATION_SCRIPT).digest("base64")}'`,
       "'strict-dynamic'",
       "'wasm-unsafe-eval'",
       "https://accounts.google.com",
