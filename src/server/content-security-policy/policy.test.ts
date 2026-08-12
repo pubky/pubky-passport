@@ -28,10 +28,10 @@ describe("content security policy", () => {
       `'sha256-${createHash("sha256").update(EARLY_GOOGLE_OAUTH_RESPONSE_SCRIPT).digest("base64")}'`,
       "'strict-dynamic'",
       "'wasm-unsafe-eval'",
-      "https://accounts.google.com",
     ]);
     expect(directives.get("script-src")).not.toContain("'unsafe-inline'");
     expect(directives.get("script-src")).not.toContain("'unsafe-eval'");
+    expect(directives.get("script-src")).not.toContain("https://accounts.google.com");
     expect(directives.get("connect-src")).toEqual(expect.arrayContaining([
       "'self'",
       "https://pkarr.pubky.app",
@@ -40,6 +40,11 @@ describe("content security policy", () => {
       "https://homeserver.example",
       "https:",
     ]));
+    expect(directives.get("connect-src")).toContain("https://lh3.googleusercontent.com");
+    expect(directives.get("connect-src")).not.toContain("https://accounts.google.com");
+    expect(directives.get("style-src")).toEqual(["'self'", "'unsafe-inline'"]);
+    expect(directives.get("frame-src")).toEqual(["'none'"]);
+    expect(directives.get("form-action")).toEqual(["'self'"]);
     expect(policy).not.toContain("/inbox");
     expect(policy).not.toContain("sensitive-secret");
     expect(directives.get("frame-ancestors")).toEqual(["'none'"]);

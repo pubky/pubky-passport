@@ -27,16 +27,15 @@ export function createContentSecurityPolicy(input: {
     "'strict-dynamic'",
     "'wasm-unsafe-eval'",
     ...(input.development ? ["'unsafe-eval'"] : []),
-    "https://accounts.google.com",
   ].join(" ");
   return [
     "default-src 'self'",
     scriptSource,
     [
       "connect-src 'self'",
-      "https://accounts.google.com",
       "https://openidconnect.googleapis.com",
       "https://www.googleapis.com",
+      "https://lh3.googleusercontent.com",
       input.homegateOrigin,
       ...input.homeserverConnectOrigins,
       "https://pkarr.pubky.app",
@@ -44,12 +43,12 @@ export function createContentSecurityPolicy(input: {
       ...(input.allowPubkyAuthRelays ? ["https:"] : []),
     ].join(" "),
     "img-src 'self' data:",
-    "style-src 'self' 'unsafe-inline' https://accounts.google.com",
+    "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
-    "frame-src https://accounts.google.com",
+    "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'self'",
-    "form-action 'self' https://accounts.google.com",
+    "form-action 'self'",
     "frame-ancestors 'none'",
     "manifest-src 'self'",
   ].join("; ");
