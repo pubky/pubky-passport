@@ -42,7 +42,7 @@ describe("next config headers", () => {
       headers: authorizeHeaders,
     });
     expect(headers).toContainEqual({
-      source: "/google-oauth-callback",
+      source: "/",
       headers: authorizeHeaders,
     });
   });

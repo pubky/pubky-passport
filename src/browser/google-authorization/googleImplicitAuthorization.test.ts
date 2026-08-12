@@ -33,10 +33,10 @@ describe("GoogleImplicitAuthorization", () => {
     expect(authorizeUrl.searchParams.get("response_type")).toBe("id_token token");
     expect(authorizeUrl.searchParams.get("scope")).toContain(APP_DATA_SCOPE);
     expect(authorizeUrl.searchParams.get("include_granted_scopes")).toBe("false");
-    expect(authorizeUrl.searchParams.get("redirect_uri")).toBe(`${ORIGIN}/google-oauth-callback`);
+    expect(authorizeUrl.searchParams.get("redirect_uri")).toBe(ORIGIN);
     const nonce = authorizeUrl.searchParams.get("nonce");
     const state = authorizeUrl.searchParams.get("state");
-    popup.returnTo(`${ORIGIN}/google-oauth-callback#${new URLSearchParams({
+    popup.returnTo(`${ORIGIN}/#${new URLSearchParams({
       access_token: ACCESS_TOKEN,
       id_token: jwt({ sub: SUBJECT, nonce }),
       scope: APP_DATA_SCOPE,
@@ -91,7 +91,7 @@ describe("GoogleImplicitAuthorization", () => {
       const authorizeUrl = new URL(String(open.mock.calls[0]?.[0]));
       const nonce = authorizeUrl.searchParams.get("nonce");
       const state = authorizeUrl.searchParams.get("state");
-      popup.returnTo(`${ORIGIN}/google-oauth-callback#${new URLSearchParams({
+      popup.returnTo(`${ORIGIN}/#${new URLSearchParams({
         access_token: ACCESS_TOKEN,
         id_token: jwt({ sub: SUBJECT, nonce: scenario === "nonce" ? "wrong" : nonce }),
         scope: scenario === "scope" ? "openid" : APP_DATA_SCOPE,
@@ -120,7 +120,7 @@ describe("GoogleImplicitAuthorization", () => {
         scope: APP_DATA_SCOPE,
         state: authorizeUrl.searchParams.get("state") ?? "",
       });
-      popup.returnTo(`${ORIGIN}/google-oauth-callback#${fragment}${fragmentSuffix}`);
+      popup.returnTo(`${ORIGIN}/#${fragment}${fragmentSuffix}`);
       const result = await request;
       expect(Result.isError(result)).toBe(true);
     }
@@ -138,7 +138,7 @@ describe("GoogleImplicitAuthorization", () => {
     const authorization = new GoogleImplicitAuthorization({ clientId: "client-id", origin: ORIGIN, open, fetch });
     const request = authorization.request();
     const authorizeUrl = new URL(String(open.mock.calls[0]?.[0]));
-    popup.returnTo(`${ORIGIN}/google-oauth-callback#${new URLSearchParams({
+    popup.returnTo(`${ORIGIN}/#${new URLSearchParams({
       access_token: ACCESS_TOKEN,
       id_token: jwt({ sub: SUBJECT, nonce: authorizeUrl.searchParams.get("nonce") }),
       scope: APP_DATA_SCOPE,
@@ -182,7 +182,7 @@ function createPopup() {
     set closed(value: boolean) { closed = value; },
     returnTo(value: string) {
       const url = new URL(value);
-      href = `${url.origin}/google-oauth-callback`;
+      href = `${url.origin}/`;
       window.dispatchEvent(new MessageEvent("message", {
         data: { type: GOOGLE_OAUTH_RESPONSE_MESSAGE_TYPE, status: "captured", hash: url.hash },
         origin: url.origin,

@@ -11,7 +11,7 @@ describe("early Google OAuth response bootstrap", () => {
   it("scrubs the credential fragment and sends it only to the opener", () => {
     const postMessage = vi.fn();
     const location = {
-      pathname: "/google-oauth-callback",
+      pathname: "/",
       hash: "#access_token=credential-canary&state=state-canary",
       origin: "https://passport.example",
     };

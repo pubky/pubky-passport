@@ -7,21 +7,21 @@ test("scrubs OAuth credentials before callback hydration", async ({ page }) => {
   const consoleLines: string[] = [];
   page.on("console", (message) => consoleLines.push(message.text()));
 
-  await page.goto(`/google-oauth-callback#${new URLSearchParams({
+  await page.goto(`/#${new URLSearchParams({
     access_token: ACCESS_TOKEN,
     id_token: ID_TOKEN,
     scope: "openid",
     state: "state-canary",
   })}`);
 
-  await expect(page).toHaveURL(/\/google-oauth-callback$/u);
+  await expect(page).toHaveURL(/\/$/u);
   expect(await page.evaluate(() => location.hash)).toBe("");
   const html = await page.content();
   expect(html).not.toContain(ACCESS_TOKEN);
   expect(html).not.toContain(ID_TOKEN);
   expect(JSON.stringify(consoleLines)).not.toContain(ACCESS_TOKEN);
   expect(JSON.stringify(consoleLines)).not.toContain(ID_TOKEN);
-  const response = await page.request.get("/google-oauth-callback");
+  const response = await page.request.get("/");
   expect(response.headers()["cache-control"]).toContain("no-store");
   expect(response.headers()["referrer-policy"]).toBe("no-referrer");
 });

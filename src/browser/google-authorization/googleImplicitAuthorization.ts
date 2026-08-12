@@ -7,7 +7,6 @@ import { decodeBase64Url, encodeBase64Url } from "../../libs/encoding/base64Url"
 import { readBoundedBytes, readBoundedText } from "../../libs/http/boundedBody";
 import { LOGGER } from "../../libs/logger/logger";
 import {
-  GOOGLE_OAUTH_CALLBACK_PATH,
   GOOGLE_OAUTH_RESPONSE_MESSAGE_TYPE,
 } from "../../libs/authorization/earlyGoogleOAuthResponse";
 import type { GoogleBackedIdentityCredentials } from "../identity/google-backed/googleBackedIdentityCredentials";
@@ -89,7 +88,7 @@ export class GoogleImplicitAuthorization {
       client_id: this.#clientId,
       response_type: "id_token token",
       scope: GOOGLE_AUTHORIZATION_SCOPE,
-      redirect_uri: `${this.#origin}${GOOGLE_OAUTH_CALLBACK_PATH}`,
+      redirect_uri: this.#origin,
       nonce,
       state,
       prompt: "consent",

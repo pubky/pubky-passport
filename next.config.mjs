@@ -67,7 +67,7 @@ const NEXT_CONFIG = {
         headers: AUTHORIZE_TRANSPORT_HEADERS,
       },
       {
-        source: "/google-oauth-callback",
+        source: "/",
         headers: AUTHORIZE_TRANSPORT_HEADERS,
       },
     ];

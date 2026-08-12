@@ -1,10 +1,12 @@
 export const EARLY_GOOGLE_OAUTH_RESPONSE_MAX_CHARACTERS = 32_768;
-export const GOOGLE_OAUTH_CALLBACK_PATH = "/google-oauth-callback";
+export const GOOGLE_OAUTH_CALLBACK_PATH = "/";
 export const GOOGLE_OAUTH_RESPONSE_MESSAGE_TYPE = "pubky-passport-google-oauth-response";
 
 export const EARLY_GOOGLE_OAUTH_RESPONSE_SCRIPT = `(() => {
   if (location.pathname !== "${GOOGLE_OAUTH_CALLBACK_PATH}") return;
   const hash = location.hash;
+  if (!/(?:^|&)state=/.test(hash.slice(1))
+    || !/(?:^|&)(?:access_token|error)=/.test(hash.slice(1))) return;
   try {
     History.prototype.replaceState.call(history, null, "", location.pathname);
   } catch {

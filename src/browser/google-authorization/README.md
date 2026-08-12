@@ -12,8 +12,8 @@ Google-backed Passport identity from one user action:
 
 The MVP uses Google's deprecated OAuth implicit response in a Passport-owned
 popup with `response_type=id_token token`. This avoids a second popup and lets
-Passport detect cancellation from the actual popup handle. Google returns to
-`/google-oauth-callback`; a CSP-hash-authorized parser-time bootstrap immediately
+Passport detect cancellation from the actual popup handle. Google returns to the
+Passport origin; a CSP-hash-authorized parser-time bootstrap immediately
 scrubs the credential fragment before hydration and sends it only to the exact-origin
 opener. The opener requires both the exact origin and exact popup window.
 
@@ -31,6 +31,6 @@ product adopts a supported single-interaction Google flow.
   Passport server requests and pass directly into the browser identity use case.
 - Passport requests no refresh token.
 
-The OAuth client must register each Passport origin as an authorized JavaScript
-origin and `<origin>/google-oauth-callback` as an authorized redirect URI. Local
-development uses `https://localhost:3000/google-oauth-callback`.
+The OAuth client must register each Passport origin as both an authorized JavaScript
+origin and an authorized redirect URI. Local development uses
+`https://localhost:3000` for both entries.
