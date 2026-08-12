@@ -18,10 +18,7 @@ import type {
   GoogleBackedIdentityProgress,
   ReportGoogleBackedIdentityProgress,
 } from "./google-backed/googleBackedIdentityProgress";
-import type {
-  GoogleImplicitAuthorizationErrorCode,
-  GoogleImplicitAuthorizationResult,
-} from "../google-authorization/googleImplicitAuthorization";
+import type { GoogleImplicitAuthorizationResult } from "../google-authorization/googleImplicitAuthorization";
 import type { PubkyHomeserverResolutionResult } from "../pubky/pubkySdkAdapter";
 import type { LocalIdentityBackupResult } from "./local/createLocalIdentityBackup";
 import type {
@@ -108,13 +105,7 @@ export type GoogleBackedIdentityActionResult = Result<
   PassportIdentityControllerError
 >;
 
-export type GoogleBackedIdentityActionErrorCode =
-  | "google_authorization_unavailable"
-  | "google_drive_authorization_failed"
-  | "google_drive_authorization_popup_closed"
-  | "google_drive_authorization_popup_failed_to_open"
-  | "google_drive_authorization_account_mismatch"
-  | "google_drive_authorization_account_verification_failed";
+export type GoogleBackedIdentityActionErrorCode = "google_authorization_failed";
 
 export type GoogleBackedIdentityActionState =
   | { stage: "google-authorization"; errorCode: GoogleBackedIdentityActionErrorCode | null }
@@ -268,13 +259,13 @@ export class PassportIdentityController {
         return { status: "superseded" };
       }
       if (Result.isError(credentials)) {
-        this.resetGoogleAuthorization(errorForGoogleAuthorizationFailure(credentials.error.code));
+        this.resetGoogleAuthorization("google_authorization_failed");
         return { status: "google_authorization_failed" };
       }
       if (
         action.kind !== "establish_google_backed_identity"
         && credentials.value.googleAccount.id !== action.expectedGoogleAccountId) {
-        this.resetGoogleAuthorization("google_drive_authorization_account_mismatch");
+        this.resetGoogleAuthorization("google_authorization_failed");
         return { status: "google_authorization_failed" };
       }
       const result = await this.executeAuthorizedAction(
@@ -288,7 +279,7 @@ export class PassportIdentityController {
       this.resetGoogleAuthorization();
       return { status: "action_completed", result };
     } catch {
-      this.resetGoogleAuthorization("google_drive_authorization_failed");
+      this.resetGoogleAuthorization("google_authorization_failed");
       return { status: "google_authorization_failed" };
     } finally {
       this.#authorizedActionPending = false;
@@ -394,7 +385,7 @@ export class PassportIdentityController {
   }
 
   private showGoogleUnavailable(): void {
-    this.emit({ stage: "google-authorization", errorCode: "google_authorization_unavailable" });
+    this.emit({ stage: "google-authorization", errorCode: "google_authorization_failed" });
   }
 
   private runCatalogOperation<T>(
@@ -474,18 +465,5 @@ function wrappingKeyFailureCode(
     case "invalid_request":
     case "invalid_response":
       return "wrapping_key_failed";
-  }
-}
-
-function errorForGoogleAuthorizationFailure(
-  code: GoogleImplicitAuthorizationErrorCode,
-): GoogleBackedIdentityActionErrorCode {
-  switch (code) {
-    case "google_authorization_popup_closed":
-      return "google_drive_authorization_popup_closed";
-    case "google_authorization_popup_failed_to_open":
-      return "google_drive_authorization_popup_failed_to_open";
-    default:
-      return "google_drive_authorization_failed";
   }
 }

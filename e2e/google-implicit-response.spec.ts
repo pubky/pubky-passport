@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 const ACCESS_TOKEN = "oauth-access-token-canary";
 const ID_TOKEN = "oauth-id-token-canary";
 
-test("scrubs OAuth credentials before callback hydration", async ({ page }) => {
+test("scrubs implicit OAuth credentials before callback hydration", async ({ page }) => {
   const consoleLines: string[] = [];
   page.on("console", (message) => consoleLines.push(message.text()));
 

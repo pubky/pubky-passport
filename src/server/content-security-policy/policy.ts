@@ -3,13 +3,13 @@ import "server-only";
 import { createHash } from "node:crypto";
 
 import { EARLY_AUTHORIZATION_LOCATION_SCRIPT } from "../../libs/authorization/earlyAuthorizationLocation";
-import { EARLY_GOOGLE_OAUTH_RESPONSE_SCRIPT } from "../../libs/authorization/earlyGoogleOAuthResponse";
+import { EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT } from "../../libs/authorization/earlyGoogleImplicitResponse";
 
 const EARLY_AUTHORIZATION_LOCATION_SCRIPT_SOURCE = `'sha256-${createHash("sha256")
   .update(EARLY_AUTHORIZATION_LOCATION_SCRIPT)
   .digest("base64")}'`;
-const EARLY_GOOGLE_OAUTH_RESPONSE_SCRIPT_SOURCE = `'sha256-${createHash("sha256")
-  .update(EARLY_GOOGLE_OAUTH_RESPONSE_SCRIPT)
+const EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT_SOURCE = `'sha256-${createHash("sha256")
+  .update(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT)
   .digest("base64")}'`;
 
 export function createContentSecurityPolicy(input: {
@@ -23,7 +23,7 @@ export function createContentSecurityPolicy(input: {
     "script-src 'self'",
     `'nonce-${input.nonce}'`,
     EARLY_AUTHORIZATION_LOCATION_SCRIPT_SOURCE,
-    EARLY_GOOGLE_OAUTH_RESPONSE_SCRIPT_SOURCE,
+    EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT_SOURCE,
     "'strict-dynamic'",
     "'wasm-unsafe-eval'",
     ...(input.development ? ["'unsafe-eval'"] : []),

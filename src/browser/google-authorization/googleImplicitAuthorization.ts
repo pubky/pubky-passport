@@ -7,8 +7,8 @@ import { decodeBase64Url, encodeBase64Url } from "../../libs/encoding/base64Url"
 import { readBoundedBytes, readBoundedText } from "../../libs/http/boundedBody";
 import { LOGGER } from "../../libs/logger/logger";
 import {
-  GOOGLE_OAUTH_RESPONSE_MESSAGE_TYPE,
-} from "../../libs/authorization/earlyGoogleOAuthResponse";
+  GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE,
+} from "../../libs/authorization/earlyGoogleImplicitResponse";
 import type { GoogleBackedIdentityCredentials } from "../identity/google-backed/googleBackedIdentityCredentials";
 
 export type GoogleImplicitAuthorizationErrorCode =
@@ -149,7 +149,7 @@ export class GoogleImplicitAuthorization {
     capture: unknown,
   ): Promise<GoogleImplicitAuthorizationResult<GoogleBackedIdentityCredentials>> {
     if (!isRecord(capture)
-      || capture.type !== GOOGLE_OAUTH_RESPONSE_MESSAGE_TYPE
+      || capture.type !== GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE
       || capture.status !== "captured"
       || typeof capture.hash !== "string") {
       return failure("response", "google_authorization_failed");

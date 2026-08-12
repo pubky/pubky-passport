@@ -91,7 +91,7 @@ describe("LocalStorageIdentityRepository", () => {
   it("persists the Google account associated with an identity", () => {
     const storage = new MemoryStorage();
     const repository = new LocalStorageIdentityRepository(storage);
-    const googleAccount = { id: "google-1", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: "https://lh3.googleusercontent.com/avatar" };
+    const googleAccount = { id: "google-1", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: "data:image/png;base64,AQID" };
 
     const identity = expectResultOk(repository.save(
       { id: FIRST_IDENTITY.publicKeyZ32, publicIdentity: FIRST_IDENTITY, googleAccount },

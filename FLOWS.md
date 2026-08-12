@@ -636,7 +636,7 @@ Drive revision validation. Production should provide resumable activation instea
 
 ### Detach from Google
 
-Detachment uses the same single Google authorization-code flow as setup. The selected
+Detachment uses the same single Google implicit popup flow as setup. The selected
 Google account must match the account stored on the local identity before any Drive
 request is made.
 

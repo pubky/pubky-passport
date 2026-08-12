@@ -327,7 +327,13 @@ function isPublicIdentity(value: unknown): value is PubkyPublicIdentity {
 
 function isGoogleAccount(value: unknown): value is GoogleAccountProfile {
   return isRecord(value) && isNonEmptyString(value.id) && isNonEmptyString(value.email) && isNonEmptyString(value.name)
-    && (value.pictureUrl === null || typeof value.pictureUrl === "string");
+    && (value.pictureUrl === null || isLocalGoogleAvatar(value.pictureUrl));
+}
+
+function isLocalGoogleAvatar(value: unknown): value is string {
+  return typeof value === "string"
+    && value.length <= 512 * 1024
+    && /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/u.test(value);
 }
 
 function isActiveIdentityId(value: unknown): value is string | null {

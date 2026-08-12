@@ -4,7 +4,7 @@ import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { encodeBase64Url } from "../../libs/encoding/base64Url";
-import { GOOGLE_OAUTH_RESPONSE_MESSAGE_TYPE } from "../../libs/authorization/earlyGoogleOAuthResponse";
+import { GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE } from "../../libs/authorization/earlyGoogleImplicitResponse";
 import { GoogleImplicitAuthorization } from "./googleImplicitAuthorization";
 
 const ORIGIN = "https://passport.example";
@@ -191,7 +191,7 @@ function createPopup() {
       const url = new URL(value);
       href = `${url.origin}/`;
       window.dispatchEvent(new MessageEvent("message", {
-        data: { type: GOOGLE_OAUTH_RESPONSE_MESSAGE_TYPE, status: "captured", hash: url.hash },
+        data: { type: GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE, status: "captured", hash: url.hash },
         origin: url.origin,
         source: popup,
       }));

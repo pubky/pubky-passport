@@ -99,7 +99,7 @@ describe("SignInFlow", () => {
     expect(await screen.findByRole("heading", { name: "Requesting Google access." })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Setting up your pubky." })).not.toBeInTheDocument();
 
-    act(() => emitState?.({ stage: "google-authorization", errorCode: "google_drive_authorization_popup_closed" }));
+    act(() => emitState?.({ stage: "google-authorization", errorCode: "google_authorization_failed" }));
     expect(await screen.findByRole("heading", { name: "Google access denied." })).toBeInTheDocument();
     const tryAgain = screen.getByRole("button", { name: "Try again" });
     expect(tryAgain.querySelector("[data-slot='rotate-ccw-icon']")).toBeInTheDocument();

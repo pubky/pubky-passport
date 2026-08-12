@@ -53,7 +53,7 @@ describe("PassportIdentityController", () => {
     await controller.prepareGoogleAuthorization((state) => states.push(state));
 
     await expect(controller.continueGoogleBackedIdentityAction({ kind: "establish_google_backed_identity" })).resolves.toEqual({ status: "google_authorization_failed" });
-    expect(states.at(-1)).toEqual({ stage: "google-authorization", errorCode: "google_drive_authorization_popup_closed" });
+    expect(states.at(-1)).toEqual({ stage: "google-authorization", errorCode: "google_authorization_failed" });
   });
 
   it("retries Google authorization initialization after it was unavailable", async () => {
@@ -63,7 +63,7 @@ describe("PassportIdentityController", () => {
       .mockResolvedValueOnce(Result.ok());
     const controller = new PassportIdentityController(dependencies({ prepareGoogleAuthorization }));
     await controller.prepareGoogleAuthorization((state) => states.push(state));
-    expect(states.at(-1)).toEqual({ stage: "google-authorization", errorCode: "google_authorization_unavailable" });
+    expect(states.at(-1)).toEqual({ stage: "google-authorization", errorCode: "google_authorization_failed" });
 
     controller.retryGoogleAuthorization();
 
@@ -237,7 +237,7 @@ describe("PassportIdentityController", () => {
     });
     expect(states.at(-1)).toEqual({
       stage: "google-authorization",
-      errorCode: "google_drive_authorization_account_mismatch",
+      errorCode: "google_authorization_failed",
     });
     expect(deleteGoogleIdentityBackups).not.toHaveBeenCalled();
     expect(remove).not.toHaveBeenCalled();
