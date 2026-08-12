@@ -22,6 +22,8 @@ const GOOGLE_USER_INFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 const GOOGLE_AVATAR_HOST = "lh3.googleusercontent.com";
 const GOOGLE_DRIVE_APP_DATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
 const GOOGLE_DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+const GOOGLE_USER_INFO_EMAIL_SCOPE = "https://www.googleapis.com/auth/userinfo.email";
+const GOOGLE_USER_INFO_PROFILE_SCOPE = "https://www.googleapis.com/auth/userinfo.profile";
 const GOOGLE_AUTHORIZATION_SCOPE = [
   "openid",
   "email",
@@ -39,6 +41,8 @@ const ALLOWED_SCOPES = new Set([
   "openid",
   "email",
   "profile",
+  GOOGLE_USER_INFO_EMAIL_SCOPE,
+  GOOGLE_USER_INFO_PROFILE_SCOPE,
   GOOGLE_DRIVE_APP_DATA_SCOPE,
   GOOGLE_DRIVE_FILE_SCOPE,
 ]);

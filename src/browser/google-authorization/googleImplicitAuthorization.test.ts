@@ -11,6 +11,13 @@ const ORIGIN = "https://passport.example";
 const SUBJECT = "google-subject";
 const ACCESS_TOKEN = "drive-access-token-canary";
 const APP_DATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
+const GOOGLE_RETURNED_SCOPES = [
+  "openid",
+  "https://www.googleapis.com/auth/userinfo.email",
+  "https://www.googleapis.com/auth/userinfo.profile",
+  APP_DATA_SCOPE,
+  "https://www.googleapis.com/auth/drive.file",
+].join(" ");
 
 describe("GoogleImplicitAuthorization", () => {
   afterEach(() => {
@@ -39,7 +46,7 @@ describe("GoogleImplicitAuthorization", () => {
     popup.returnTo(`${ORIGIN}/#${new URLSearchParams({
       access_token: ACCESS_TOKEN,
       id_token: jwt({ sub: SUBJECT, nonce }),
-      scope: APP_DATA_SCOPE,
+      scope: GOOGLE_RETURNED_SCOPES,
       state: state ?? "",
     })}`);
     await vi.advanceTimersByTimeAsync(200);
