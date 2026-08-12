@@ -1,12 +1,12 @@
-export type BoundedTextBody = {
+export type BoundedBody = {
   body: ReadableStream<Uint8Array> | null;
   headers: Headers;
 };
 
-export async function readBoundedText(
-  source: BoundedTextBody,
+export async function readBoundedBytes(
+  source: BoundedBody,
   maximumBytes: number,
-): Promise<string | "too_large" | null> {
+): Promise<Uint8Array | "too_large" | null> {
   if (contentLengthExceeds(source.headers.get("Content-Length"), maximumBytes)) {
     try {
       await source.body?.cancel();
@@ -50,12 +50,20 @@ export async function readBoundedText(
       offset += chunk.byteLength;
     }
 
-    return new TextDecoder().decode(bytes);
+    return bytes;
   } catch {
     return null;
   } finally {
     reader.releaseLock();
   }
+}
+
+export async function readBoundedText(
+  source: BoundedBody,
+  maximumBytes: number,
+): Promise<string | "too_large" | null> {
+  const bytes = await readBoundedBytes(source, maximumBytes);
+  return bytes instanceof Uint8Array ? new TextDecoder().decode(bytes) : bytes;
 }
 
 function contentLengthExceeds(contentLength: string | null, maximumBytes: number): boolean {

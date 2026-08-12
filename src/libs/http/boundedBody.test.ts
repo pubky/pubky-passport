@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { readBoundedText } from "./boundedBody";
+import { readBoundedBytes, readBoundedText } from "./boundedBody";
+
+describe("readBoundedBytes", () => {
+  it("returns bounded response bytes", async () => {
+    await expect(readBoundedBytes({ body: textStream(["pubky"]), headers: new Headers() }, 5))
+      .resolves.toEqual(new TextEncoder().encode("pubky"));
+  });
+});
 
 describe("readBoundedText", () => {
   it("reads a UTF-8 body within the configured limit", async () => {
