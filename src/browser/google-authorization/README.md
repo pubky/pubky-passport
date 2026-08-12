@@ -8,38 +8,29 @@ Google-backed Passport identity from one user action:
 - a Drive access token, used only in the browser to read or write the encrypted
   Passport files.
 
-## Why This Requires A Server Step
+## MVP OAuth Flow
 
-Google Identity Services separates authentication from API authorization. The
-browser Sign in with Google API returns an ID token but cannot also return a
-Drive access token. Its browser token API returns a Drive access token but does
-not return the ID token Passport needs. Combining those APIs therefore requires
-two Google interactions, and attempting to open the second popup automatically
-is blocked by modern browsers.
+The MVP uses Google's deprecated OAuth implicit response in a Passport-owned
+popup with `response_type=id_token token`. This avoids a second popup and lets
+Passport detect cancellation from the actual popup handle. Google returns to
+`/google-oauth-callback`; a CSP-hash-authorized parser-time bootstrap immediately
+scrubs the credential fragment before hydration and sends it only to the exact-origin
+opener. The opener requires both the exact origin and exact popup window.
 
-Passport instead uses Google's OAuth authorization-code model. One click calls
-`google.accounts.oauth2.initCodeClient().requestCode()` with OpenID and Drive
-scopes. Google returns a single-use authorization code containing no usable
-Drive or identity credential by itself.
-
-Exchanging that code requires the OAuth client secret. A browser must never
-receive that secret, so the browser sends the code to the same-origin
-`POST /api/google/authorize` endpoint. The server-only
-`server/google-authorization` adapter exchanges it with Google and returns the
-short-lived ID and access tokens. Passport does not request, return, or persist a
-refresh token.
+The adapter validates cryptographic state, the ID-token nonce, an explicit scope
+allowlist, and UserInfo `sub` binding before returning credentials. It disables
+incremental scope inclusion and bounds the attempt to five minutes. This deprecated
+flow is an explicit MVP compatibility tradeoff and should be replaced when the
+product adopts a supported single-interaction Google flow.
 
 ## Boundaries
 
-- `googleAuthorizationCode.ts` owns GIS loading, popup lifecycle, and the
-  same-origin code exchange request.
-- `app/api/google/authorize` validates request origin, shape, and size.
-- `server/google-authorization` owns the call to Google's token endpoint.
-- `GOOGLE_CLIENT_SECRET` is server-only and must never enter browser bootstrap
-  configuration, logs, or API responses.
-- The authorization code and returned tokens stay out of React state and are
-  passed directly into the browser identity use case.
+- `googleImplicitAuthorization.ts` owns OAuth request construction, popup
+  lifecycle, response validation, UserInfo binding, and avatar localization.
+- The ID and Drive access tokens stay out of React state, persistence, logs, and
+  Passport server requests and pass directly into the browser identity use case.
+- Passport requests no refresh token.
 
-The OAuth client must register each Passport origin as both an authorized
-JavaScript origin and an authorized redirect URI. Local development uses
-`https://localhost:3000`.
+The OAuth client must register each Passport origin as an authorized JavaScript
+origin and `<origin>/google-oauth-callback` as an authorized redirect URI. Local
+development uses `https://localhost:3000/google-oauth-callback`.

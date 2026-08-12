@@ -306,13 +306,13 @@ sequenceDiagram
     end
 ```
 
-### Single Google Authorization-Code Flow
+### Single Google Implicit Popup Flow
 
 ```mermaid
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
-    accTitle: Single Google authorization-code call flow
-    accDescr: One user click requests identity and Drive scopes; the server exchanges the one-time code while credentials remain outside React state.
+    accTitle: Single Google implicit popup call flow
+    accDescr: One user click requests identity and Drive scopes; the callback fragment is scrubbed during HTML parsing and credentials remain browser-only.
     actor User
     participant UI as src/ui/root<br/>GoogleIdentitySetupFlow
     box rgba(0, 158, 115, 0.18) src/browser/identity
@@ -320,36 +320,25 @@ sequenceDiagram
         participant Controller as passportIdentityController.ts<br/>PassportIdentityController
     end
     box rgba(0, 158, 115, 0.18) src/browser/google-authorization
-        participant Authorization as googleAuthorizationCode.ts<br/>GoogleAuthorizationCode
-    end
-    box rgba(0, 158, 115, 0.18) src/browser/google-identity-services
-        participant GISLoader as googleIdentityServices.ts<br/>loadGoogleAccounts()
+        participant Authorization as googleImplicitAuthorization.ts<br/>GoogleImplicitAuthorization
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed
         participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
-    participant Exchange as src/app/api/google/authorize<br/>server code exchange
     box rgba(17, 24, 39, 0.12) External
-        participant OAuth as Google GIS code client<br/>google.accounts.oauth2.initCodeClient
-        participant Token as Google OAuth token endpoint
+        participant OAuth as Google OAuth authorize endpoint
     end
 
     UI->>Factory: createPassportIdentityController(...)
     Factory->>Controller: new PassportIdentityController(...)
     UI->>Controller: prepareGoogleAuthorization(onState)
     Controller->>Authorization: prepare()
-    Authorization->>GISLoader: loadGoogleAccounts()
-    GISLoader-->>Authorization: google.accounts
-    Authorization->>OAuth: initCodeClient(openid + Drive scopes)
     User->>UI: Continue with Google
     UI->>Controller: continueGoogleBackedIdentityAction(...)
     Controller->>Authorization: request()
-    Authorization->>OAuth: requestCode()
-    OAuth-->>Authorization: one-time authorization code
-    Authorization->>Exchange: POST code (same origin)
-    Exchange->>Token: exchange code with server-only client secret
-    Token-->>Exchange: ID token + Drive access token
-    Exchange-->>Authorization: short-lived credentials
+    Authorization->>OAuth: open popup with response_type=id_token token
+    OAuth-->>Authorization: redirect to Passport callback with fragment
+    Note over Authorization: Parser-time bootstrap scrubs fragment<br/>validate state, nonce, scope, and UserInfo sub
     Authorization-->>Controller: GoogleBackedIdentityCredentials
     Controller->>Operations: restoreOrCreateGoogleBackedIdentity<br/>(GoogleBackedIdentityCredentials)
 ```
@@ -789,7 +778,7 @@ sequenceDiagram
 | Authorization browser entry | `src/browser/authorization/browserAuthorizationEntry.ts` | `browserAuthorizationEntry.test.ts` |
 | Authorization UI | `src/ui/authorizationReview.tsx` | `src/ui/authorizationReview.test.tsx` |
 | Identity controller | `src/browser/identity` | Controller and factory tests |
-| Google credential capabilities | `src/browser/google-identity-services`, `src/browser/google-authorization`, `src/server/google-authorization` | Colocated capability tests |
+| Google credential capabilities | `src/browser/google-authorization` | Colocated implicit OAuth and callback-scrubbing tests |
 | Google-backed custody/recovery lifecycle | `src/browser/identity/google-backed` | Colocated operation tests |
 | Drive store and WebCrypto | `src/browser/passport-file` | Colocated store and crypto tests |
 | Pubky SDK adapter | `src/browser/pubky/pubkySdkAdapter.ts` | `pubkySdkAdapter.test.ts` |

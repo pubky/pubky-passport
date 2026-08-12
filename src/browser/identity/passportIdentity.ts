@@ -1,7 +1,6 @@
 import "client-only";
 
-import { GoogleAuthorizationCode } from "../google-authorization/googleAuthorizationCode";
-import { GoogleIdentityServices } from "../google-identity-services/googleIdentityServices";
+import { GoogleImplicitAuthorization } from "../google-authorization/googleImplicitAuthorization";
 import { LOGGER } from "../../libs/logger/logger";
 import { LocalStorageIdentityRepository } from "./local/localStorageIdentityRepository";
 import {
@@ -51,8 +50,7 @@ export function createPassportIdentityController(
 ): PassportIdentityController {
   try {
     const repository = new LocalStorageIdentityRepository();
-    const googleIdentityServices = new GoogleIdentityServices();
-    const googleAuthorization = new GoogleAuthorizationCode({ clientId: googleClientId, googleIdentityServices });
+    const googleAuthorization = new GoogleImplicitAuthorization({ clientId: googleClientId });
     let googleBackedIdentityOperations: GoogleBackedIdentityOperations | undefined;
     const getGoogleBackedIdentityOperations = () => {
       googleBackedIdentityOperations ??= new GoogleBackedIdentityOperations({

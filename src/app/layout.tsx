@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import "@fontsource-variable/inter-tight";
 import "./globals.css";
 import { EARLY_AUTHORIZATION_LOCATION_SCRIPT } from "../libs/authorization/earlyAuthorizationLocation";
+import { EARLY_GOOGLE_OAUTH_RESPONSE_SCRIPT } from "../libs/authorization/earlyGoogleOAuthResponse";
 import { PassportLogo } from "../ui/shared/brand/passportLogo";
 
 export const METADATA: Metadata = {
@@ -15,7 +16,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   await connection();
   return (
     <html lang="en">
-      <head><script>{EARLY_AUTHORIZATION_LOCATION_SCRIPT}</script></head>
+      <head>
+        <script>{EARLY_AUTHORIZATION_LOCATION_SCRIPT}</script>
+        <script>{EARLY_GOOGLE_OAUTH_RESPONSE_SCRIPT}</script>
+      </head>
       <body>
         <header className="flex h-[84px] w-full items-center justify-between bg-[linear-gradient(180deg,rgba(5,5,10,0.96),rgba(5,5,10,0))] px-6">
           <PassportLogo />

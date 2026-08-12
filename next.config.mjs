@@ -66,6 +66,10 @@ const NEXT_CONFIG = {
         source: "/authorize/:path*",
         headers: AUTHORIZE_TRANSPORT_HEADERS,
       },
+      {
+        source: "/google-oauth-callback",
+        headers: AUTHORIZE_TRANSPORT_HEADERS,
+      },
     ];
   },
 };

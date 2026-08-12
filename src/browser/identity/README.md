@@ -13,7 +13,7 @@ This is the only identity module UI code should import. It:
 
 - Exposes `createPassportIdentityController()`.
 - Exposes the safe, instance-only `PassportIdentityController` type and UI state types.
-- Constructs the local identity repository and the single Google authorization-code client.
+- Constructs the local identity repository and the browser-only Google implicit authorization client.
 - Lazily constructs Google-backed custody operations only when an action needs them.
 - Keeps the implementation constructor and its credential-bearing dependencies out
   of the public UI entry.
@@ -42,6 +42,6 @@ allowing the controller state machine to be tested independently.
 - `google-backed/` restores or creates and activates a Pubky identity using
   short-lived Google and Drive credentials.
 
-Provider credential acquisition remains in sibling `browser/google-authorization`
-and `browser/google-identity-services` features. The one-time code is exchanged by
-the server-only `server/google-authorization` adapter.
+Provider credential acquisition remains in sibling `browser/google-authorization`.
+Its MVP implicit popup returns short-lived ID and Drive access tokens directly to
+browser memory after parser-time fragment scrubbing and account binding.

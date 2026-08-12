@@ -54,13 +54,13 @@ Configure `.env.local`:
 | Variable | Purpose |
 | --- | --- |
 | `GOOGLE_CLIENT_ID` | Google OAuth client passed to the browser and used as the server ID-token audience. |
-| `GOOGLE_CLIENT_SECRET` | Server-only OAuth secret used to exchange the one-time Google authorization code. |
 | `HOMEGATE_URL` | CSP-safe HTTPS Homegate base URL passed to the browser. |
 | `PUBKY_HOMESERVER_CONNECT_ORIGINS` | Up to 16 comma-separated exact HTTPS homeserver origins allowed by browser CSP. Include origins used by current and returning identities during migrations. This does not select a homeserver. |
 | `PASSPORT_SERVER_SECRET_BASE64` | Server secret with at least 32 decoded bytes. Generate one with `openssl rand -base64 32`. |
 
-Add `https://localhost:3000` as both an authorized JavaScript origin and an authorized
-redirect URI on the Google OAuth web client, then start Next.js with local HTTPS:
+Add `https://localhost:3000` as an authorized JavaScript origin and
+`https://localhost:3000/google-oauth-callback` as an authorized redirect URI on
+the Google OAuth web client, then start Next.js with local HTTPS:
 
 ```bash
 pnpm run dev --experimental-https

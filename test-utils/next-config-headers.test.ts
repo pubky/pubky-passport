@@ -26,7 +26,7 @@ describe("next config headers", () => {
     expect(headerValue(globalHeaders, "Permissions-Policy")).toContain("geolocation=()");
   });
 
-  it("sets no-store and no-referrer headers for /authorize and subpaths", async () => {
+  it("sets no-store and no-referrer headers for sensitive callback routes", async () => {
     const headers = await NEXT_CONFIG.headers?.();
     const authorizeHeaders = [
       { key: "Cache-Control", value: "no-store" },
@@ -39,6 +39,10 @@ describe("next config headers", () => {
     });
     expect(headers).toContainEqual({
       source: "/authorize/:path*",
+      headers: authorizeHeaders,
+    });
+    expect(headers).toContainEqual({
+      source: "/google-oauth-callback",
       headers: authorizeHeaders,
     });
   });

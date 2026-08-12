@@ -19,9 +19,9 @@ import type {
   ReportGoogleBackedIdentityProgress,
 } from "./google-backed/googleBackedIdentityProgress";
 import type {
-  GoogleAuthorizationCodeErrorCode,
-  GoogleAuthorizationCodeResult,
-} from "../google-authorization/googleAuthorizationCode";
+  GoogleImplicitAuthorizationErrorCode,
+  GoogleImplicitAuthorizationResult,
+} from "../google-authorization/googleImplicitAuthorization";
 import type { PubkyHomeserverResolutionResult } from "../pubky/pubkySdkAdapter";
 import type { LocalIdentityBackupResult } from "./local/createLocalIdentityBackup";
 import type {
@@ -147,8 +147,8 @@ export type PassportIdentityControllerDependencies = {
     expectedGoogleAccountId: string,
   ): Promise<GoogleIdentityBackupDeletionResult>;
   disposeGoogleBackedIdentityOperations(): void;
-  prepareGoogleAuthorization(): Promise<GoogleAuthorizationCodeResult<void>>;
-  requestGoogleAuthorization(loginHint?: string): Promise<GoogleAuthorizationCodeResult<GoogleBackedIdentityCredentials>>;
+  prepareGoogleAuthorization(): Promise<GoogleImplicitAuthorizationResult<void>>;
+  requestGoogleAuthorization(loginHint?: string): Promise<GoogleImplicitAuthorizationResult<GoogleBackedIdentityCredentials>>;
   disposeGoogleAuthorization(): void;
 };
 
@@ -222,7 +222,7 @@ export class PassportIdentityController {
     if (this.#disposed) return;
     this.#actionStateListener = onState;
     const authorizationSessionGeneration = ++this.#authorizationSessionGeneration;
-    let prepared: GoogleAuthorizationCodeResult<void>;
+    let prepared: GoogleImplicitAuthorizationResult<void>;
     try {
       prepared = await this.#dependencies.prepareGoogleAuthorization();
     } catch {
@@ -268,7 +268,7 @@ export class PassportIdentityController {
         return { status: "superseded" };
       }
       if (Result.isError(credentials)) {
-        this.resetGoogleAuthorization(errorForAuthorizationCodeFailure(credentials.error.code));
+        this.resetGoogleAuthorization(errorForGoogleAuthorizationFailure(credentials.error.code));
         return { status: "google_authorization_failed" };
       }
       if (
@@ -477,8 +477,8 @@ function wrappingKeyFailureCode(
   }
 }
 
-function errorForAuthorizationCodeFailure(
-  code: GoogleAuthorizationCodeErrorCode,
+function errorForGoogleAuthorizationFailure(
+  code: GoogleImplicitAuthorizationErrorCode,
 ): GoogleBackedIdentityActionErrorCode {
   switch (code) {
     case "google_authorization_popup_closed":

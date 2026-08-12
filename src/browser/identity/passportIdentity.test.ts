@@ -16,7 +16,7 @@ const MOCKS = vi.hoisted(() => ({
   establishImplementation: null as null | (() => Promise<unknown>),
   deleteCalls: 0,
   deleteReceivedExpectedInput: false,
-  GoogleAuthorizationCode: vi.fn(),
+  GoogleImplicitAuthorization: vi.fn(),
   prepareGoogleAuthorization: vi.fn(),
   requestGoogleAuthorization: vi.fn(),
   disposeGoogleAuthorization: vi.fn(),
@@ -26,8 +26,8 @@ vi.mock("./google-backed/googleBackedIdentityOperations", () => ({
   GoogleBackedIdentityOperations: MOCKS.GoogleBackedIdentityOperations,
 }));
 
-vi.mock("../google-authorization/googleAuthorizationCode", () => ({
-  GoogleAuthorizationCode: MOCKS.GoogleAuthorizationCode,
+vi.mock("../google-authorization/googleImplicitAuthorization", () => ({
+  GoogleImplicitAuthorization: MOCKS.GoogleImplicitAuthorization,
 }));
 
 import { createPassportIdentityController } from "./passportIdentity";
@@ -52,7 +52,7 @@ describe("createPassportIdentityController", () => {
     MOCKS.establishProgress = [];
     MOCKS.deleteCalls = 0;
     MOCKS.deleteReceivedExpectedInput = false;
-    MOCKS.GoogleAuthorizationCode.mockReset();
+    MOCKS.GoogleImplicitAuthorization.mockReset();
     MOCKS.prepareGoogleAuthorization.mockReset();
     MOCKS.requestGoogleAuthorization.mockReset();
     MOCKS.disposeGoogleAuthorization.mockReset();
@@ -84,7 +84,7 @@ describe("createPassportIdentityController", () => {
         dispose: MOCKS.disposeGoogleBackedIdentityOperations,
       };
     });
-    MOCKS.GoogleAuthorizationCode.mockImplementation(function () {
+    MOCKS.GoogleImplicitAuthorization.mockImplementation(function () {
       return {
         prepare: MOCKS.prepareGoogleAuthorization,
         request: MOCKS.requestGoogleAuthorization,
@@ -105,7 +105,7 @@ describe("createPassportIdentityController", () => {
 
   it("logs construction failures without configuration or exception details", () => {
     const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
-    MOCKS.GoogleAuthorizationCode.mockImplementationOnce(() => {
+    MOCKS.GoogleImplicitAuthorization.mockImplementationOnce(() => {
       throw new Error("SECRET-CONFIGURATION-VALUE");
     });
 

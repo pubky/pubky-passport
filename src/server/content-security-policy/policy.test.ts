@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 
 import { EARLY_AUTHORIZATION_LOCATION_SCRIPT } from "../../libs/authorization/earlyAuthorizationLocation";
+import { EARLY_GOOGLE_OAUTH_RESPONSE_SCRIPT } from "../../libs/authorization/earlyGoogleOAuthResponse";
 
 import { createContentSecurityPolicy } from "./policy";
 
@@ -24,10 +25,10 @@ describe("content security policy", () => {
       "'self'",
       "'nonce-request-nonce'",
       `'sha256-${createHash("sha256").update(EARLY_AUTHORIZATION_LOCATION_SCRIPT).digest("base64")}'`,
+      `'sha256-${createHash("sha256").update(EARLY_GOOGLE_OAUTH_RESPONSE_SCRIPT).digest("base64")}'`,
       "'strict-dynamic'",
       "'wasm-unsafe-eval'",
       "https://accounts.google.com",
-      "https://apis.google.com",
     ]);
     expect(directives.get("script-src")).not.toContain("'unsafe-inline'");
     expect(directives.get("script-src")).not.toContain("'unsafe-eval'");
