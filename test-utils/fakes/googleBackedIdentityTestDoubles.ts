@@ -2,20 +2,20 @@ import { Result } from "better-result";
 
 import { MemoryStorage } from "./memoryStorage";
 
-import { SaveLocalIdentity } from "../../src/client/browser/identity/local/saveLocalIdentity";
-import { LocalStorageIdentityRepository } from "../../src/client/browser/identity/local/localStorageIdentityRepository";
+import { SaveLocalIdentity } from "../../src/client/logic/identity/local/saveLocalIdentity";
+import { LocalStorageIdentityRepository } from "../../src/client/logic/identity/local/localStorageIdentityRepository";
 import { RecordingPubkySdkAdapter } from "./recordingPubkySdkAdapter";
 import type {
   DecryptPassportSecretInput,
   EncryptPassportSecretInput,
   PassportFileCryptoResult,
-} from "../../src/client/browser/passport-file/passportFileWebCrypto";
+} from "../../src/client/logic/passport-file/passportFileWebCrypto";
 import type {
   PassportFileReadResult,
   PassportFileReference,
   PassportFileStoreErrorCode,
-} from "../../src/client/browser/passport-file/googleDrivePassportFileStore";
-import type { PassportFileEnvelopeV1 } from "../../src/client/browser/passport-file/passportFileEnvelope";
+} from "../../src/client/logic/passport-file/googleDrivePassportFileStore";
+import type { PassportFileEnvelopeV1 } from "../../src/client/logic/passport-file/passportFileEnvelope";
 
 export const TEST_PASSPORT_ENVELOPE: PassportFileEnvelopeV1 = {
   v: 1,

@@ -5,8 +5,8 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PassportAuthorizationViewState } from "../../browser/authorization/passportAuthorization";
-import type { LocalIdentityCatalog } from "../../browser/identity/passportIdentityController";
+import type { PassportAuthorizationViewState } from "../../logic/authorization/passportAuthorization";
+import type { LocalIdentityCatalog } from "../../logic/identity/passportIdentityController";
 import { AuthorizationFlow } from "./authorizationFlow";
 
 const MOCKS = vi.hoisted(() => ({

@@ -5,7 +5,7 @@ import Image from "next/image";
 import type {
   GoogleAccountProfile,
   PubkyPublicIdentity,
-} from "../../../browser/identity/passportIdentityController";
+} from "../../../logic/identity/passportIdentityController";
 import { PassportScreen } from "../../shared/layout/passportScreen";
 import { Button } from "../../shared/primitives/button";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";

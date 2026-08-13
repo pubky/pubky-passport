@@ -9,7 +9,7 @@ import type {
   GoogleIdentityFlowError,
   PassportIdentityController,
   PubkyPublicIdentity,
-} from "../../../browser/identity/passportIdentityController";
+} from "../../../logic/identity/passportIdentityController";
 import {
   INITIAL_GOOGLE_SIGN_IN_STATE,
   transitionGoogleSignIn,

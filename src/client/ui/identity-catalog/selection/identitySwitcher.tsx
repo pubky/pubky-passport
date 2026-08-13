@@ -1,6 +1,6 @@
 "use client";
 
-import type { LocalIdentityMetadata } from "../../../browser/identity/passportIdentityController";
+import type { LocalIdentityMetadata } from "../../../logic/identity/passportIdentityController";
 import { UserRoundPlusIcon } from "../../shared/icons/actionIcons";
 import { PassportScreen } from "../../shared/layout/passportScreen";
 import { BackButton } from "../../shared/navigation/backButton";

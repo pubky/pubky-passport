@@ -6,8 +6,8 @@ import {
   createPassportAuthorizationController,
   type PassportAuthorizationController,
   type PassportAuthorizationViewState,
-} from "../../browser/authorization/passportAuthorization";
-import type { LocalIdentityCatalog, PassportIdentityController } from "../../browser/identity/passportIdentityController";
+} from "../../logic/authorization/passportAuthorization";
+import type { LocalIdentityCatalog, PassportIdentityController } from "../../logic/identity/passportIdentityController";
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { SignInFlow } from "../onboarding/signInFlow";

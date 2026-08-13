@@ -7,7 +7,7 @@ import type {
   GoogleIdentityFlow,
   PassportIdentityController,
   PubkyPublicIdentity,
-} from "../../../../browser/identity/passportIdentityController";
+} from "../../../../logic/identity/passportIdentityController";
 import { transitionDetachFromGoogleOperation } from "./detachFromGoogleOperationState";
 
 function useDetachFromGoogle(

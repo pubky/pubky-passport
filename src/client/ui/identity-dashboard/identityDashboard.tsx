@@ -3,7 +3,7 @@
 import { Result } from "better-result";
 import { useReducer, useState } from "react";
 
-import type { LocalIdentityCatalog, PassportIdentityController } from "../../browser/identity/passportIdentityController";
+import type { LocalIdentityCatalog, PassportIdentityController } from "../../logic/identity/passportIdentityController";
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { SignInFlow } from "../onboarding/signInFlow";

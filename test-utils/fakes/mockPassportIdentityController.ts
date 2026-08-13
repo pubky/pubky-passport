@@ -4,7 +4,7 @@ import { vi } from "vitest";
 import type {
   GoogleIdentityFlow,
   PassportIdentityController,
-} from "../../src/client/browser/identity/passportIdentityController";
+} from "../../src/client/logic/identity/passportIdentityController";
 
 export function mockGoogleBackedIdentityFlow(
   overrides: Partial<GoogleIdentityFlow> = {},

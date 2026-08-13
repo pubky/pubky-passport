@@ -4,7 +4,7 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { enterAuthorization } from "../../../browser/authorization/browserManualAuthorization";
+import { enterAuthorization } from "../../../logic/authorization/browserManualAuthorization";
 import { ManualAuthorization } from "./manualAuthorization";
 
 const qr = vi.hoisted(() => ({

@@ -2,7 +2,7 @@
 
 import { type SubmitEvent, useCallback, useState } from "react";
 
-import { enterAuthorization } from "../../../browser/authorization/browserManualAuthorization";
+import { enterAuthorization } from "../../../logic/authorization/browserManualAuthorization";
 import { ArrowRightIcon, ClipboardPasteIcon, ScanIcon } from "../../shared/icons/actionIcons";
 import { PassportScreen } from "../../shared/layout/passportScreen";
 import { BackButton } from "../../shared/navigation/backButton";
