@@ -159,8 +159,8 @@ type DeleteVisibleRecoveryCopies = (
   driveAccessToken: string,
   publicKeyDisplay: string,
 ) => Promise<VisibleRecoveryCopyDeletionResult>;
-function failure<T = { status: "deleted" | "missing" }>(
+function failure<Success = { status: "deleted" | "missing" }>(
   code: Exclude<GoogleIdentityBackupDeletionErrorCode, "wrapping_key_failed">,
-): ResultType<T, GoogleIdentityBackupDeletionError> {
+): ResultType<Success, GoogleIdentityBackupDeletionError> {
   return Result.err({ code });
 }

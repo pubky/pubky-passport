@@ -25,8 +25,8 @@ export type RestoreGoogleBackedIdentityError = {
   preservedPassportFileIdentity?: PubkyPublicIdentity;
 };
 
-export type RestoreGoogleBackedIdentityResult<T = RestoredGoogleBackedIdentity> = ResultType<
-  T,
+export type RestoreGoogleBackedIdentityResult<Success = RestoredGoogleBackedIdentity> = ResultType<
+  Success,
   RestoreGoogleBackedIdentityError
 >;
 
@@ -111,10 +111,10 @@ export class RestoreGoogleBackedIdentity {
   }
 }
 
-function failure<T>(
+function failure<Success>(
   code: RestoreGoogleBackedIdentityError["code"],
   preservedPassportFileIdentity?: PubkyPublicIdentity,
-): RestoreGoogleBackedIdentityResult<T> {
+): RestoreGoogleBackedIdentityResult<Success> {
   return Result.err({
     code,
     ...(preservedPassportFileIdentity ? { preservedPassportFileIdentity } : {}),

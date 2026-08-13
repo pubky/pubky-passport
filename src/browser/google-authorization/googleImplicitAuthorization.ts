@@ -15,7 +15,7 @@ export type GoogleImplicitAuthorizationErrorCode =
   | "google_authorization_failed"
   | "google_authorization_popup_closed"
   | "google_authorization_popup_failed_to_open";
-export type GoogleImplicitAuthorizationResult<T> = ResultType<T, { code: GoogleImplicitAuthorizationErrorCode }>;
+export type GoogleImplicitAuthorizationResult<Success> = ResultType<Success, { code: GoogleImplicitAuthorizationErrorCode }>;
 
 const GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_USER_INFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
@@ -302,7 +302,7 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-function failure<T>(stage: string, code: GoogleImplicitAuthorizationErrorCode): GoogleImplicitAuthorizationResult<T> {
+function failure<Success>(stage: string, code: GoogleImplicitAuthorizationErrorCode): GoogleImplicitAuthorizationResult<Success> {
   LOGGER[code === "google_authorization_popup_closed" ? "info" : "warn"](
     "identity.google.implicit_authorization.failed",
     { operation: "authorize", stage, code },

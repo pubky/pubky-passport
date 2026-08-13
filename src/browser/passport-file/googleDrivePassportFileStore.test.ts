@@ -48,7 +48,7 @@ class RecordingLockManager {
   private active = 0;
   private tail = Promise.resolve();
 
-  async request<T>(name: string, callback: () => Promise<T>): Promise<T> {
+  async request<LockResult>(name: string, callback: () => Promise<LockResult>): Promise<LockResult> {
     this.names.push(name);
     const previous = this.tail;
     let release = (): void => undefined;
@@ -106,7 +106,7 @@ function cancellableStream(chunks: ByteChunk[], onCancel?: () => void): Readable
 
 function createStore(
   responses: Array<Response | Error>,
-  options: { requestLock?: (<T>(name: string, callback: () => Promise<T>) => Promise<T>) | null } = {},
+  options: { requestLock?: (<LockResult>(name: string, callback: () => Promise<LockResult>) => Promise<LockResult>) | null } = {},
 ) {
   const calls: FetchCall[] = [];
   const fetchMock = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -194,7 +194,7 @@ function expectSanitizedCalls(calls: FetchCall[]): void {
   expect(serialized).not.toContain(REFERENCE.revision);
 }
 
-async function expectSuccess<T>(result: Promise<ResultType<T, unknown>>, value: T): Promise<void> {
+async function expectSuccess<Success>(result: Promise<ResultType<Success, unknown>>, value: Success): Promise<void> {
   expect(expectResultOk(await result)).toEqual(value);
 }
 

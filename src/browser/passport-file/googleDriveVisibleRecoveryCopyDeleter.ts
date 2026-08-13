@@ -181,7 +181,7 @@ function isExpectedFile(file: GoogleDriveFile, folderId: string, fileName: strin
     && file.trashed === false;
 }
 
-function driveFailure<T>(status: number, operation: DeletionOperation): ResultType<T, { code: VisibleRecoveryCopyDeletionErrorCode }> {
+function driveFailure<Success>(status: number, operation: DeletionOperation): ResultType<Success, { code: VisibleRecoveryCopyDeletionErrorCode }> {
   switch (status) {
     case 401:
       return failure("unauthorized", operation);
@@ -192,10 +192,10 @@ function driveFailure<T>(status: number, operation: DeletionOperation): ResultTy
   }
 }
 
-function failure<T>(
+function failure<Success>(
   code: VisibleRecoveryCopyDeletionErrorCode,
   operation: DeletionOperation,
-): ResultType<T, { code: VisibleRecoveryCopyDeletionErrorCode }> {
+): ResultType<Success, { code: VisibleRecoveryCopyDeletionErrorCode }> {
   LOGGER.warn("identity.google.visible_recovery_copy_deleter.failed", { operation, code });
   return Result.err({ code });
 }

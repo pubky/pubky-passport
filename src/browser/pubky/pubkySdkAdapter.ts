@@ -24,7 +24,7 @@ export type PubkyIdentitySession = {
 };
 
 export type PubkySessionAccessErrorCode = "invalid_homeserver_pubky" | "key_unavailable" | "signin_failed" | "signup_failed";
-export type PubkySessionAccessResult<T> = ResultType<T, { code: PubkySessionAccessErrorCode }>;
+export type PubkySessionAccessResult<Success> = ResultType<Success, { code: PubkySessionAccessErrorCode }>;
 export type PubkyDiscoveryErrorCode = "invalid_homeserver_pubky" | "key_unavailable" | "publish_failed";
 export type PubkyDiscoveryResult = ResultType<void, { code: PubkyDiscoveryErrorCode }>;
 export type PubkyHomeserverResolutionResult = ResultType<string | null, { code: "invalid_pubky" | "resolution_failed" }>;
@@ -293,7 +293,7 @@ export class PubkySdkAdapter {
     return this.#disposed ? undefined : this.#keypairs.get(keyHandle);
   }
 
-  private async withSigner<T>(operationName: PubkyOperation, keypair: Keypair, operation: (signer: Signer) => Promise<T>): Promise<T> {
+  private async withSigner<OperationResult>(operationName: PubkyOperation, keypair: Keypair, operation: (signer: Signer) => Promise<OperationResult>): Promise<OperationResult> {
     const signer = this.#pubky.signer(keypair);
     try {
       return await operation(signer);
@@ -426,7 +426,7 @@ type PubkyErrorCode =
   | PubkyRecoveryFileErrorCode
   | PubkySessionAccessErrorCode;
 
-function keyFailure<T>(operation: PubkyOperation, stage: PubkyFailureStage, code: PubkyIdentityKeysErrorCode): PubkyIdentityKeysResult<T> {
+function keyFailure<Success>(operation: PubkyOperation, stage: PubkyFailureStage, code: PubkyIdentityKeysErrorCode): PubkyIdentityKeysResult<Success> {
   logFailure(operation, stage, code);
   return Result.err({ code });
 }
@@ -436,12 +436,12 @@ function recoveryFileFailure(stage: PubkyFailureStage, code: PubkyRecoveryFileEr
   return Result.err({ code });
 }
 
-function sessionAccessFailure<T>(
+function sessionAccessFailure<Success>(
   operation: "signin" | "signup",
   stage: PubkyFailureStage,
   code: PubkySessionAccessErrorCode,
   cause?: unknown,
-): PubkySessionAccessResult<T> {
+): PubkySessionAccessResult<Success> {
   logFailure(operation, stage, code, cause);
   return Result.err({ code });
 }

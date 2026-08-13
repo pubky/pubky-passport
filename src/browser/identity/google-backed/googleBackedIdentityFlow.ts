@@ -404,15 +404,15 @@ export class GoogleBackedIdentityFlow implements GoogleIdentityFlow {
   }
 }
 
-function authorizationFailure<T>(): ResultType<T, GoogleIdentityFlowError> {
+function authorizationFailure<Success>(): ResultType<Success, GoogleIdentityFlowError> {
   return Result.err({ code: "authorization_failed" });
 }
 
-function cancelled<T>(): ResultType<T, GoogleIdentityFlowError> {
+function cancelled<Success>(): ResultType<Success, GoogleIdentityFlowError> {
   return Result.err({ code: "cancelled" });
 }
 
-function operationFailure<T>(): ResultType<T, GoogleIdentityFlowError> {
+function operationFailure<Success>(): ResultType<Success, GoogleIdentityFlowError> {
   return Result.err({ code: "operation_failed" });
 }
 

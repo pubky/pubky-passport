@@ -120,13 +120,13 @@ describe("Pubky identity test doubles", () => {
   });
 });
 
-function expectOk<T>(result: Promise<ResultType<T, unknown>>): Promise<T>;
-function expectOk<T>(result: ResultType<T, unknown>): T;
-function expectOk<T>(
+function expectOk<Success>(result: Promise<ResultType<Success, unknown>>): Promise<Success>;
+function expectOk<Success>(result: ResultType<Success, unknown>): Success;
+function expectOk<Success>(
   result:
-    | Promise<ResultType<T, unknown>>
-    | ResultType<T, unknown>,
-): T | Promise<T> {
+    | Promise<ResultType<Success, unknown>>
+    | ResultType<Success, unknown>,
+): Success | Promise<Success> {
   if (result instanceof Promise) {
     return result.then((resolved) => {
       expect(Result.isOk(resolved)).toBe(true);

@@ -19,7 +19,7 @@ export type PassportFileCryptoErrorCode =
   | "encrypt_failed"
   | "decrypt_failed";
 
-export type PassportFileCryptoResult<T> = ResultType<T, { code: PassportFileCryptoErrorCode }>;
+export type PassportFileCryptoResult<Success> = ResultType<Success, { code: PassportFileCryptoErrorCode }>;
 
 export type EncryptPassportSecretInput = {
   secretKeyBytes: Uint8Array;
@@ -46,7 +46,7 @@ export type PassportFileWebCryptoOptions = {
   getRandomValues?: RandomValuesProvider | null;
 };
 
-type RandomValuesProvider = <T extends ArrayBufferView | null>(array: T) => T;
+type RandomValuesProvider = <ArrayType extends ArrayBufferView | null>(array: ArrayType) => ArrayType;
 
 type RequiredWebCrypto = {
   subtle: SubtleCrypto;
@@ -236,16 +236,16 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return Uint8Array.from(bytes).buffer;
 }
 
-function failure<T>(code: PassportFileCryptoErrorCode, operation: CryptoOperation): PassportFileCryptoResult<T> {
+function failure<Success>(code: PassportFileCryptoErrorCode, operation: CryptoOperation): PassportFileCryptoResult<Success> {
   logCryptoFailure(operation, code);
   return Result.err({ code });
 }
 
-function cryptoError<T>(code: PassportFileCryptoErrorCode): PassportFileCryptoResult<T> {
+function cryptoError<Success>(code: PassportFileCryptoErrorCode): PassportFileCryptoResult<Success> {
   return Result.err({ code });
 }
 
-function propagateCryptoFailure<T>(error: { code: PassportFileCryptoErrorCode }): PassportFileCryptoResult<T> {
+function propagateCryptoFailure<Success>(error: { code: PassportFileCryptoErrorCode }): PassportFileCryptoResult<Success> {
   return Result.err(error);
 }
 

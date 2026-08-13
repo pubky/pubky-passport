@@ -38,8 +38,8 @@ export type CreatedGoogleBackedIdentity = {
   visibleRecoveryCopyStatus: "created" | "unconfirmed";
 };
 
-export type CreateGoogleBackedIdentityResult<T = CreatedGoogleBackedIdentity> = ResultType<
-  T,
+export type CreateGoogleBackedIdentityResult<Success = CreatedGoogleBackedIdentity> = ResultType<
+  Success,
   CreateGoogleBackedIdentityError
 >;
 
@@ -206,11 +206,11 @@ async function createVisibleRecoveryCopyBeforeDeadline(
   });
 }
 
-function failure<T>(
+function failure<Success>(
   code: CreateGoogleBackedIdentityErrorCode,
   preservedPassportFileIdentity?: PubkyPublicIdentity,
   visibleRecoveryCopyStatus?: "created" | "unconfirmed",
-): CreateGoogleBackedIdentityResult<T> {
+): CreateGoogleBackedIdentityResult<Success> {
   return Result.err({
     code,
     ...(preservedPassportFileIdentity ? { preservedPassportFileIdentity } : {}),

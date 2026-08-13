@@ -44,11 +44,11 @@ export type PassportFileStoreErrorCode =
   | "write_failed"
   | "delete_failed";
 
-export type PassportFileStoreResult<T> = ResultType<T, { code: PassportFileStoreErrorCode }>;
+export type PassportFileStoreResult<Success> = ResultType<Success, { code: PassportFileStoreErrorCode }>;
 
 export type GoogleDriveAccessTokenProvider = () => Promise<string | null | undefined>;
 
-type RequestLock = <T>(name: string, callback: () => Promise<T>) => Promise<T>;
+type RequestLock = <LockResult>(name: string, callback: () => Promise<LockResult>) => Promise<LockResult>;
 
 export type GoogleDrivePassportFileStoreOptions = {
   accessTokenProvider: GoogleDriveAccessTokenProvider;
@@ -257,7 +257,7 @@ export class GoogleDrivePassportFileStore {
 
 function browserRequestLock(): RequestLock | null {
   if (typeof navigator === "undefined" || navigator.locks === undefined) return null;
-  return <T>(name: string, callback: () => Promise<T>) => navigator.locks.request(name, callback);
+  return <LockResult>(name: string, callback: () => Promise<LockResult>) => navigator.locks.request(name, callback);
 }
 
 function listUrl(): string {
@@ -320,16 +320,16 @@ function sameReference(left: PassportFileReference, right: PassportFileReference
   return left.storageId === right.storageId && left.revision === right.revision;
 }
 
-function success<T>(value: T): PassportFileStoreResult<T> {
+function success<Success>(value: Success): PassportFileStoreResult<Success> {
   return Result.ok(value);
 }
 
-function failure<T>(code: PassportFileStoreErrorCode, operation: DriveStoreOperation): PassportFileStoreResult<T> {
+function failure<Success>(code: PassportFileStoreErrorCode, operation: DriveStoreOperation): PassportFileStoreResult<Success> {
   logDriveStoreFailure(operation, code);
   return Result.err({ code });
 }
 
-function propagateFailure<T>(error: { code: PassportFileStoreErrorCode }): PassportFileStoreResult<T> {
+function propagateFailure<Success>(error: { code: PassportFileStoreErrorCode }): PassportFileStoreResult<Success> {
   return Result.err(error);
 }
 

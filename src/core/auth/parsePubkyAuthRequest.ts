@@ -81,7 +81,7 @@ export type ParsedPubkyAuthRequest = {
 export type PubkyAuthParseResult = ResultType<ParsedPubkyAuthRequest, PubkyAuthParseError>;
 export type PubkyAuthValidationResult = ResultType<void, PubkyAuthParseError>;
 
-type ParseValueResult<T> = ResultType<T, PubkyAuthParseError>;
+type ParseValueResult<Value> = ResultType<Value, PubkyAuthParseError>;
 
 const PUBKY_AUTH_PROTOCOL = "pubkyauth:";
 

@@ -52,7 +52,7 @@ export type GoogleBackedIdentityError =
   | { code: "wrapping_key_failed"; cause: GoogleWrappingKeyErrorCode; preservedPassportFileIdentity?: never }
   | { code: "homeserver_signup_invitation_failed"; cause: HomegateSignupInvitationErrorCode; preservedPassportFileIdentity?: never };
 
-export type GoogleBackedIdentityResult<T = GoogleBackedIdentity> = ResultType<T, GoogleBackedIdentityError>;
+export type GoogleBackedIdentityResult<Success = GoogleBackedIdentity> = ResultType<Success, GoogleBackedIdentityError>;
 
 export class GoogleBackedIdentityOperations {
   readonly #pubky: PubkySdkAdapter;
@@ -239,9 +239,9 @@ type CreateVisibleRecoveryCopy = (
   signal: AbortSignal,
 ) => Promise<ResultType<void, unknown>>;
 
-function operationFailure<T>(
+function operationFailure<Success>(
   code: "drive_read_failed" | "unexpected_failure",
-): GoogleBackedIdentityResult<T> {
+): GoogleBackedIdentityResult<Success> {
   return Result.err({ code });
 }
 

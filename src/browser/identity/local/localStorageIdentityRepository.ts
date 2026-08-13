@@ -40,7 +40,7 @@ export type LocalIdentityErrorCode =
   | "no_active_identity"
   | "storage_unavailable";
 
-export type LocalIdentityResult<T> = ResultType<T, { code: LocalIdentityErrorCode }>;
+export type LocalIdentityResult<Success> = ResultType<Success, { code: LocalIdentityErrorCode }>;
 
 const STORAGE_KEY = "pubky-passport/local-identities/v1";
 const LOCAL_IDENTITY_STORE_VERSION = 1;
@@ -374,20 +374,20 @@ function decodeStoredSecretKey(value: string): Uint8Array | undefined {
   return decoded?.byteLength === PUBKY_SECRET_KEY_BYTES ? decoded : undefined;
 }
 
-function failure<T>(
+function failure<Success>(
   operation: "save" | "select" | "remove" | "read_active" | "read_identity",
   code: LocalIdentityErrorCode,
-): LocalIdentityResult<T> {
+): LocalIdentityResult<Success> {
   const expectedOutcome = code === "no_active_identity"
     || ((operation === "select" || operation === "remove" || operation === "read_identity") && code === "invalid_identity");
   LOGGER[expectedOutcome ? "info" : "warn"]("identity.local_store.failed", { operation, code });
   return Result.err({ code });
 }
 
-function localStoreFailure<T>(
+function localStoreFailure<Success>(
   operation: "read" | "write" | "clear",
   code: "storage_unavailable" | "invalid_store",
-): LocalIdentityResult<T> {
+): LocalIdentityResult<Success> {
   LOGGER.warn("identity.local_store.failed", { operation, code });
   return Result.err({ code });
 }

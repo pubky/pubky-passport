@@ -41,6 +41,6 @@ export class SaveLocalIdentity {
 
 }
 
-function failure<T>(code: LocalIdentityErrorCode): LocalIdentityResult<T> {
+function failure<Success>(code: LocalIdentityErrorCode): LocalIdentityResult<Success> {
   return Result.err({ code });
 }

@@ -68,10 +68,10 @@ export function googleDriveAuthorizationHeaders(token: string): { Authorization:
   return { Authorization: `Bearer ${token}` };
 }
 
-export function mapGoogleDriveStatus<T extends string>(
+export function mapGoogleDriveStatus<Fallback extends string>(
   status: number,
-  fallback: T,
-): T | "unauthorized" | "forbidden" {
+  fallback: Fallback,
+): Fallback | "unauthorized" | "forbidden" {
   if (status === 401) return "unauthorized";
   if (status === 403) return "forbidden";
   return fallback;

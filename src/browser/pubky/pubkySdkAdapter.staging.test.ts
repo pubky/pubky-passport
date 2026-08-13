@@ -156,11 +156,11 @@ function requiredEnvironmentVariable(name: string): string {
   return value;
 }
 
-async function expectOkAsync<T, E>(result: Promise<ResultType<T, E>>, message: string): Promise<T> {
+async function expectOkAsync<Success, Failure>(result: Promise<ResultType<Success, Failure>>, message: string): Promise<Success> {
   return expectOk(await result, message);
 }
 
-function expectOk<T, E>(result: ResultType<T, E>, message: string): T {
+function expectOk<Success, Failure>(result: ResultType<Success, Failure>, message: string): Success {
   if (Result.isError(result)) throw new Error(message);
   return result.value;
 }

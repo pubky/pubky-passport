@@ -36,7 +36,7 @@ type VisibleRecoveryCopyErrorCode =
   | "invalid_response"
   | "invalid_file"
   | "write_failed";
-type VisibleRecoveryCopyResult<T> = ResultType<T, { code: VisibleRecoveryCopyErrorCode }>;
+type VisibleRecoveryCopyResult<Success> = ResultType<Success, { code: VisibleRecoveryCopyErrorCode }>;
 type VisibleFileReference = Readonly<{ storageId: string; revision: string }>;
 
 export class GoogleDriveVisibleRecoveryCopyWriter {
@@ -274,7 +274,7 @@ function sameReference(left: VisibleFileReference, right: VisibleFileReference):
   return left.storageId === right.storageId && left.revision === right.revision;
 }
 
-function failure<T>(code: VisibleRecoveryCopyErrorCode, operation: WriterOperation): VisibleRecoveryCopyResult<T> {
+function failure<Success>(code: VisibleRecoveryCopyErrorCode, operation: WriterOperation): VisibleRecoveryCopyResult<Success> {
   logFailure(operation, code);
   return Result.err({ code });
 }

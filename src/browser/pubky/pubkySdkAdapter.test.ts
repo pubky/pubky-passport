@@ -275,7 +275,7 @@ describe("PubkySdkAdapter", () => {
   });
 });
 
-async function expectError<T>(result: Promise<ResultType<T, { code: string }>>, code: string): Promise<void> {
+async function expectError<Success>(result: Promise<ResultType<Success, { code: string }>>, code: string): Promise<void> {
   expectErrorResult(await result, code);
 }
 
@@ -286,7 +286,7 @@ function expectErrorResult(result: ResultType<unknown, { code: string }>, code: 
   }
 }
 
-function expectOk<T>(result: ResultType<T, unknown>): T {
+function expectOk<Success>(result: ResultType<Success, unknown>): Success {
   expect(Result.isOk(result)).toBe(true);
   if (Result.isError(result)) {
     throw result.error;

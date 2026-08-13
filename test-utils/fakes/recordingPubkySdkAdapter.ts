@@ -144,10 +144,10 @@ export class RecordingPubkySdkAdapter extends PubkySdkAdapter {
   }
 }
 
-function keyFailure<T>(code: PubkyIdentityKeysErrorCode): PubkyIdentityKeysResult<T> {
+function keyFailure<Success>(code: PubkyIdentityKeysErrorCode): PubkyIdentityKeysResult<Success> {
   return Result.err({ code });
 }
 
-function sessionFailure<T>(code: PubkySessionAccessErrorCode): PubkySessionAccessResult<T> {
+function sessionFailure<Success>(code: PubkySessionAccessErrorCode): PubkySessionAccessResult<Success> {
   return Result.err({ code });
 }
