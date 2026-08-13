@@ -5,7 +5,7 @@ import "@fontsource-variable/inter-tight";
 import "./globals.css";
 import { EARLY_AUTHORIZATION_LOCATION_SCRIPT } from "../libs/authorization/earlyAuthorizationLocation";
 import { EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT } from "../libs/authorization/earlyGoogleImplicitResponse";
-import { PassportLogo } from "../ui/shared/brand/passportLogo";
+import { PassportLogo } from "../client/ui/shared/brand/passportLogo";
 
 export const METADATA: Metadata = {
   title: "Pubky Passport",

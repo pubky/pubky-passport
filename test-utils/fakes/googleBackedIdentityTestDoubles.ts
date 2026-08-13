@@ -2,20 +2,20 @@ import { Result } from "better-result";
 
 import { MemoryStorage } from "./memoryStorage";
 
-import { SaveLocalIdentity } from "../../src/browser/identity/local/saveLocalIdentity";
-import { LocalStorageIdentityRepository } from "../../src/browser/identity/local/localStorageIdentityRepository";
+import { SaveLocalIdentity } from "../../src/client/browser/identity/local/saveLocalIdentity";
+import { LocalStorageIdentityRepository } from "../../src/client/browser/identity/local/localStorageIdentityRepository";
 import { RecordingPubkySdkAdapter } from "./recordingPubkySdkAdapter";
 import type {
   DecryptPassportSecretInput,
   EncryptPassportSecretInput,
   PassportFileCryptoResult,
-} from "../../src/browser/passport-file/passportFileWebCrypto";
+} from "../../src/client/browser/passport-file/passportFileWebCrypto";
 import type {
   PassportFileReadResult,
   PassportFileReference,
   PassportFileStoreErrorCode,
-} from "../../src/browser/passport-file/googleDrivePassportFileStore";
-import type { PassportFileEnvelopeV1 } from "../../src/browser/passport-file/passportFileEnvelope";
+} from "../../src/client/browser/passport-file/googleDrivePassportFileStore";
+import type { PassportFileEnvelopeV1 } from "../../src/client/browser/passport-file/passportFileEnvelope";
 
 export const TEST_PASSPORT_ENVELOPE: PassportFileEnvelopeV1 = {
   v: 1,
@@ -114,7 +114,7 @@ export class RecordingPassportFileOperations {
     this.deleteCalls += 1;
     this.deletedExpectedReferences.push(
       reference.storageId === TEST_PASSPORT_REFERENCE.storageId
-        && reference.revision === TEST_PASSPORT_REFERENCE.revision,
+      && reference.revision === TEST_PASSPORT_REFERENCE.revision,
     );
     return this.deleteFailure ? Result.err({ code: this.deleteFailure }) : Result.ok();
   }

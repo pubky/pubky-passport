@@ -8,11 +8,11 @@ import { isSameOrInside, ModuleGraph, type ForbiddenTarget } from "./moduleGraph
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const SRC_ROOT = join(REPO_ROOT, "src");
-const CORE_ROOT = join(SRC_ROOT, "core");
-const BROWSER_ROOT = join(SRC_ROOT, "browser");
+const CLIENT_ROOT = join(SRC_ROOT, "client");
+const BROWSER_ROOT = join(CLIENT_ROOT, "browser");
 const SERVER_ROOT = join(SRC_ROOT, "server");
 const APP_ROOT = join(SRC_ROOT, "app");
-const UI_ROOT = join(SRC_ROOT, "ui");
+const UI_ROOT = join(CLIENT_ROOT, "ui");
 const LIBS_ROOT = join(SRC_ROOT, "libs");
 const PUBLIC_ENV_ROOT = join(LIBS_ROOT, "env");
 const SERVER_CONFIG_ROOT = join(SERVER_ROOT, "config");
@@ -45,30 +45,7 @@ const UI_CROSS_SLICE_COMPOSERS = new Set([
 ]);
 const GRAPH = new ModuleGraph(REPO_ROOT);
 
-const FORBIDDEN_CORE_IMPORTS = [
-  "@synonymdev/pubky",
-  "google-auth-library",
-  "google-auth-library/",
-  "googleapis",
-  "googleapis/",
-  "next",
-  "next/",
-  "react",
-  "react/",
-  "server-only",
-  "client-only",
-  "@/app/",
-  "@/ui/",
-  "@/browser/",
-  "@/server/",
-  "@/libs/",
-];
-
 describe("architecture boundaries", () => {
-  it("keeps core independent from frameworks, runtimes, libraries, config, and runtime globals", () => {
-    expect(GRAPH.sourceFiles(CORE_ROOT).flatMap(inspectCoreFile)).toEqual([]);
-  });
-
   it("confines concrete Pubky SDK imports to the browser Pubky adapter", () => {
     const violations = GRAPH.sourceFiles(SRC_ROOT)
       .filter((filePath) => GRAPH.importSpecifiers(filePath).some((specifier) =>
@@ -242,34 +219,6 @@ describe("architecture boundaries", () => {
   });
 
 });
-
-function inspectCoreFile(filePath: string): string[] {
-  const relativeFilePath = relative(REPO_ROOT, filePath);
-  const violations = GRAPH.importSpecifiers(filePath)
-    .filter((specifier) => FORBIDDEN_CORE_IMPORTS.some((forbidden) =>
-      forbidden.endsWith("/") ? specifier.startsWith(forbidden) : specifier === forbidden
-    ))
-    .map((specifier) => `${relativeFilePath} imports forbidden dependency "${specifier}"`);
-  const forbiddenTargets = [APP_ROOT, UI_ROOT, BROWSER_ROOT, SERVER_ROOT, LIBS_ROOT];
-
-  for (const specifier of GRAPH.importSpecifiers(filePath)) {
-    const targetPath = GRAPH.resolveLocalImportTarget(filePath, specifier);
-    if (targetPath && forbiddenTargets.some((target) => isSameOrInside(targetPath, target))) {
-      violations.push(`${relativeFilePath} imports forbidden dependency "${specifier}"`);
-    }
-  }
-
-  const runtimeReferences = [
-    ...(GRAPH.referencesProperty(filePath, "process", "env") ? ["process.env"] : []),
-    ...["window", "document", "localStorage"].filter((identifier) =>
-      GRAPH.referencesIdentifier(filePath, identifier)
-    ),
-  ];
-  violations.push(...runtimeReferences.map((label) =>
-    `${relativeFilePath} references forbidden runtime value "${label}"`
-  ));
-  return violations;
-}
 
 function inspectUiBrowserImports(filePath: string): string[] {
   const relativeFilePath = relative(REPO_ROOT, filePath);

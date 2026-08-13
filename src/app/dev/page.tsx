@@ -1,21 +1,21 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { PermissionList, PermissionRow } from "../../ui/authorization/review/permissionList";
-import { Avatar } from "../../ui/shared/primitives/avatar";
-import { Button } from "../../ui/shared/primitives/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../../ui/shared/primitives/card";
-import { ConfirmationDialog } from "../../ui/shared/primitives/confirmationDialog";
-import { FieldMessage } from "../../ui/shared/primitives/fieldMessage";
-import { IconButton } from "../../ui/shared/primitives/iconButton";
-import { Input } from "../../ui/shared/primitives/input";
-import { Label } from "../../ui/shared/primitives/label";
-import { ProviderSignInButton } from "../../ui/onboarding/providerSignInButton";
-import { Spinner } from "../../ui/shared/primitives/spinner";
-import { DisplayHeading, LeadText } from "../../ui/shared/primitives/typography";
-import { IdentityRow } from "../../ui/identity-catalog/selection/identityRow";
-import { GoogleAccountCard } from "../../ui/onboarding/google/googleAccountCard";
-import { ArrowRightIcon, CheckIcon, ScanIcon, TrashIcon, XIcon } from "../../ui/shared/icons/actionIcons";
+import { PermissionList, PermissionRow } from "../../client/ui/authorization/review/permissionList";
+import { Avatar } from "../../client/ui/shared/primitives/avatar";
+import { Button } from "../../client/ui/shared/primitives/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../../client/ui/shared/primitives/card";
+import { ConfirmationDialog } from "../../client/ui/shared/primitives/confirmationDialog";
+import { FieldMessage } from "../../client/ui/shared/primitives/fieldMessage";
+import { IconButton } from "../../client/ui/shared/primitives/iconButton";
+import { Input } from "../../client/ui/shared/primitives/input";
+import { Label } from "../../client/ui/shared/primitives/label";
+import { ProviderSignInButton } from "../../client/ui/onboarding/providerSignInButton";
+import { Spinner } from "../../client/ui/shared/primitives/spinner";
+import { DisplayHeading, LeadText } from "../../client/ui/shared/primitives/typography";
+import { IdentityRow } from "../../client/ui/identity-catalog/selection/identityRow";
+import { GoogleAccountCard } from "../../client/ui/onboarding/google/googleAccountCard";
+import { ArrowRightIcon, CheckIcon, ScanIcon, TrashIcon, XIcon } from "../../client/ui/shared/icons/actionIcons";
 
 const VARIANTS = ["default", "secondary", "outline", "destructive"] as const;
 const SIZES = ["default", "lg", "icon"] as const;

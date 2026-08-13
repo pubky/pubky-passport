@@ -26,59 +26,7 @@ const ESLINT_CONFIG = defineConfig([
     }
   },
   {
-    files: ["src/core/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              group: [
-                "next",
-                "next/*",
-                "react",
-                "react/*",
-                "@synonymdev/pubky",
-                "google-auth-library",
-                "google-auth-library/*",
-                "googleapis",
-                "googleapis/*",
-                "server-only",
-                "client-only",
-                "@/app/*",
-                "@/ui/*",
-                "@/browser/*",
-                "@/server/*",
-                "@/libs/*"
-              ],
-              message: "Core modules must stay framework-, runtime-, and infrastructure-independent."
-            }
-          ]
-        }
-      ],
-      "no-restricted-globals": [
-        "error",
-        {
-          name: "window",
-            message: "Core modules must not access browser globals. Use a runtime dependency instead."
-        },
-        {
-          name: "document",
-            message: "Core modules must not access browser globals. Use a runtime dependency instead."
-        },
-        {
-          name: "localStorage",
-            message: "Core modules must not access browser storage. Use a runtime dependency instead."
-        },
-        {
-          name: "process",
-            message: "Core modules must not read runtime environment. Pass validated values as inputs."
-        }
-      ]
-    }
-  },
-  {
-    files: ["src/ui/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    files: ["src/client/ui/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -90,7 +38,7 @@ const ESLINT_CONFIG = defineConfig([
               message: "UI must consume safe authorization controller state, not sensitive approval types."
             },
             {
-              name: "@/browser/authorization/browserAuthorizationRequest",
+              name: "@/client/browser/authorization/browserAuthorizationRequest",
               importNames: ["PubkyAuthApprovalCapability"],
               message: "UI must consume safe authorization controller state, not sensitive approval types."
             }
@@ -101,7 +49,7 @@ const ESLINT_CONFIG = defineConfig([
               message: "UI may import browser runtime only through stable browser APIs and controller factories."
             },
             {
-              regex: `^@/browser/(?!${STABLE_BROWSER_UI_ENTRY}$)`,
+              regex: `^@/client/browser/(?!${STABLE_BROWSER_UI_ENTRY}$)`,
               message: "UI may import browser runtime only through stable browser APIs and controller factories."
             }
           ]
@@ -111,18 +59,18 @@ const ESLINT_CONFIG = defineConfig([
   },
   {
     files: [
-      "src/browser/authorization/passportAuthorization.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
-      "src/browser/authorization/browserManualAuthorization.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
-      "src/browser/identity/passportIdentity.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+      "src/client/browser/authorization/passportAuthorization.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+      "src/client/browser/authorization/browserManualAuthorization.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+      "src/client/browser/identity/passportIdentityController.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
     ],
-    ignores: ["src/browser/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    ignores: ["src/client/browser/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
           paths: [
             {
-              name: "@/browser/authorization/browserAuthorizationRequest",
+              name: "@/client/browser/authorization/browserAuthorizationRequest",
               importNames: ["PubkyAuthApprovalCapability"],
               message: "Public browser contracts must expose safe review state, not sensitive approval types."
             }
@@ -137,8 +85,8 @@ const ESLINT_CONFIG = defineConfig([
     }
   },
   {
-    files: ["src/browser/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
-    ignores: ["src/browser/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    files: ["src/client/browser/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    ignores: ["src/client/browser/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -159,7 +107,7 @@ const ESLINT_CONFIG = defineConfig([
         "error",
         {
           patterns: [{
-            regex: "^(?:client-only$|@/(?:browser|libs/env)(?:/|$)|(?:\\.\\./)+(?:browser|libs/env)(?:/|$))",
+            regex: "^(?:client-only$|@/(?:client/browser|libs/env)(?:/|$)|(?:\\.\\./)+(?:client/browser|libs/env)(?:/|$))",
             message: "Server modules must not import browser runtime or public environment code."
           }]
         }

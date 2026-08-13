@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
-import { parseBrowserAuthorizationRequest } from "../../src/browser/authorization/browserAuthorizationRequest";
-import { PUBKY_SECRET_KEY_FORMAT } from "../../src/browser/pubky/pubkyIdentityKey";
+import { parseBrowserAuthorizationRequest } from "../../src/client/browser/authorization/browserAuthorizationRequest";
+import { PUBKY_SECRET_KEY_FORMAT } from "../../src/client/browser/pubky/pubkyIdentityKey";
 import { RecordingPubkySdkAdapter } from "./recordingPubkySdkAdapter";
 
 describe("Pubky identity test doubles", () => {
@@ -52,11 +52,11 @@ describe("Pubky identity test doubles", () => {
     const sessionAccess = new RecordingPubkySdkAdapter();
     const key = expectOk(await sessionAccess.createIdentityKey());
     const signupResult = expectOk(
-       await sessionAccess.signup({
-         keyHandle: key.keyHandle,
-         homeserverPubky: "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo",
-         signupCode: "SECRET-SIGNUP-CODE",
-       }),
+      await sessionAccess.signup({
+        keyHandle: key.keyHandle,
+        homeserverPubky: "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo",
+        signupCode: "SECRET-SIGNUP-CODE",
+      }),
     );
     const signinResult = expectOk(await sessionAccess.signin(key.keyHandle));
 

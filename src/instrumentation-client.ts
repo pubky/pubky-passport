@@ -1,1 +1,1 @@
-import "./browser/authorization/browserAuthorizationBootstrap";
+import "./client/browser/authorization/browserAuthorizationBootstrap";

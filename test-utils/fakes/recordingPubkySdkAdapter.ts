@@ -11,9 +11,9 @@ import {
   type PubkySessionAccessErrorCode,
   type PubkySessionAccessResult,
   type PubkySignupInput,
-} from "../../src/browser/pubky/pubkySdkAdapter";
-import type { PubkyAuthApprovalCapability } from "../../src/browser/authorization/browserAuthorizationRequest";
-import type { PubkyPublicIdentity } from "../../src/core/identity/pubkyIdentity";
+} from "../../src/client/browser/pubky/pubkySdkAdapter";
+import type { PubkyAuthApprovalCapability } from "../../src/client/browser/authorization/browserAuthorizationRequest";
+import type { PubkyPublicIdentity } from "../../src/client/browser/identity/pubkyPublicIdentity";
 import {
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,
@@ -22,7 +22,7 @@ import {
   type PubkyIdentityKeysErrorCode,
   type PubkyIdentityKeysResult,
   type PubkySecretKeyMaterial,
-} from "../../src/browser/pubky/pubkyIdentityKey";
+} from "../../src/client/browser/pubky/pubkyIdentityKey";
 
 export class RecordingPubkySdkAdapter extends PubkySdkAdapter {
   createCalls = 0;
