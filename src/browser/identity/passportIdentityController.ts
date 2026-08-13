@@ -5,29 +5,40 @@ import { Result } from "better-result";
 import type { PubkyPublicIdentity } from "../../core/identity/pubkyIdentity";
 import type { GoogleAccountProfile } from "../../core/identity/googleAccountProfile";
 import { LOGGER } from "../../libs/logger/logger";
-import type {
-  GoogleBackedIdentityCredentials,
-  GoogleBackedIdentityError,
-  GoogleBackedIdentityResult,
+import {
+  GoogleBackedIdentityOperations,
+  type GoogleBackedIdentityCredentials,
+  type GoogleBackedIdentityError,
 } from "./google-backed/googleBackedIdentityOperations";
 import type {
   GoogleIdentityBackupDeletionError,
-  GoogleIdentityBackupDeletionResult,
 } from "./google-backed/deleteGoogleIdentityBackups";
 import type {
   GoogleBackedIdentityProgress,
   ReportGoogleBackedIdentityProgress,
 } from "./google-backed/googleBackedIdentityProgress";
-import type { GoogleImplicitAuthorizationResult } from "../google-authorization/googleImplicitAuthorization";
-import type { PubkyHomeserverResolutionResult } from "../pubky/pubkySdkAdapter";
-import type { LocalIdentityBackupResult } from "./local/createLocalIdentityBackup";
+import {
+  GoogleImplicitAuthorization,
+  type GoogleImplicitAuthorizationResult,
+} from "../google-authorization/googleImplicitAuthorization";
+import { resolvePubkyHomeserver, type PubkyHomeserverResolutionResult } from "../pubky/pubkySdkAdapter";
+import {
+  createLocalIdentityBackup,
+  type LocalIdentityBackupResult,
+} from "./local/createLocalIdentityBackup";
+import { createPubkyRingMigrationUrl as createMigrationUrl } from "./pubky-ring-migration/createPubkyRingMigrationUrl";
 import type {
   LocalIdentityErrorCode,
   LocalIdentityResult,
   LocalIdentitySummary,
 } from "./local/localStorageIdentityRepository";
+import { LocalStorageIdentityRepository } from "./local/localStorageIdentityRepository";
 
 export type { LocalIdentitySummary } from "./local/localStorageIdentityRepository";
+export type { GoogleBackedIdentityProgress } from "./google-backed/googleBackedIdentityProgress";
+export type { PubkyHomeserverResolutionResult } from "../pubky/pubkySdkAdapter";
+export type { LocalIdentityBackupFile, LocalIdentityBackupResult } from "./local/createLocalIdentityBackup";
+export { MIN_BACKUP_PASSWORD_LENGTH } from "./local/createLocalIdentityBackup";
 
 export type PassportIdentityList = {
   activeIdentityId: string | null;
@@ -120,57 +131,47 @@ export type GoogleBackedIdentityActionDispatchResult =
   | { status: "action_finished_after_unmount"; result: GoogleBackedIdentityActionResult }
   | { status: "action_completed"; result: GoogleBackedIdentityActionResult };
 
-export type PassportIdentityControllerDependencies = {
-  list(): LocalIdentityResult<{ activeIdentityId: string | null; identities: LocalIdentitySummary[] }>;
-  select(id: string): LocalIdentityResult<void>;
-  remove(id: string): LocalIdentityResult<void>;
-  subscribe(listener: () => void): () => void;
-  resolveHomeserver(publicKeyZ32: string): Promise<PubkyHomeserverResolutionResult>;
-  createBackup(identityId: string, password: string): Promise<LocalIdentityBackupResult>;
-  createPubkyRingMigrationUrl(): LocalIdentityResult<string>;
-  restoreOrCreateGoogleBackedIdentity(
-    credentials: GoogleBackedIdentityCredentials,
-    reportProgress: ReportGoogleBackedIdentityProgress,
-  ): Promise<GoogleBackedIdentityResult>;
-  deleteGoogleIdentityBackups(
-    credentials: GoogleBackedIdentityCredentials,
-    publicIdentity: PubkyPublicIdentity,
-    expectedGoogleAccountId: string,
-  ): Promise<GoogleIdentityBackupDeletionResult>;
-  disposeGoogleBackedIdentityOperations(): void;
-  prepareGoogleAuthorization(): Promise<GoogleImplicitAuthorizationResult<void>>;
-  requestGoogleAuthorization(loginHint?: string): Promise<GoogleImplicitAuthorizationResult<GoogleBackedIdentityCredentials>>;
-  disposeGoogleAuthorization(): void;
-};
-
 export class PassportIdentityController {
-  readonly #dependencies: PassportIdentityControllerDependencies;
-  #actionStateListener: ((state: GoogleBackedIdentityActionState) => void) | null = null;
-  #authorizationSessionGeneration = 0;
-  #authorizedActionPending = false;
-  #disposed = false;
-  #identityOperationsDisposed = false;
+  private readonly repository: LocalStorageIdentityRepository;
+  private readonly googleAuthorization: GoogleImplicitAuthorization;
+  private readonly homegateBaseUrl: string;
+  private googleBackedIdentityOperations: GoogleBackedIdentityOperations | undefined;
+  private actionStateListener: ((state: GoogleBackedIdentityActionState) => void) | null = null;
+  private authorizationSessionGeneration = 0;
+  private authorizedActionPending = false;
+  private disposed = false;
+  private identityOperationsDisposed = false;
 
-  constructor(dependencies: PassportIdentityControllerDependencies) {
-    this.#dependencies = dependencies;
+  constructor(googleClientId: string, homegateBaseUrl: string) {
+    try {
+      this.repository = new LocalStorageIdentityRepository();
+      this.googleAuthorization = new GoogleImplicitAuthorization({ clientId: googleClientId });
+      this.homegateBaseUrl = homegateBaseUrl;
+    } catch (error) {
+      LOGGER.error("identity.controller.failed", {
+        operation: "initialize",
+        code: "runtime_exception",
+      });
+      throw error;
+    }
   }
 
   list(): PassportIdentityCatalogResult<PassportIdentityList> {
-    return this.runCatalogOperation("list", () => this.#dependencies.list());
+    return this.runCatalogOperation("list", () => this.repository.list());
   }
 
   select(id: string): PassportIdentityCatalogResult<void> {
-    return this.runCatalogOperation("select", () => this.#dependencies.select(id));
+    return this.runCatalogOperation("select", () => this.repository.select(id));
   }
 
   remove(id: string): PassportIdentityCatalogResult<void> {
-    return this.runCatalogOperation("remove", () => this.#dependencies.remove(id));
+    return this.runCatalogOperation("remove", () => this.repository.remove(id));
   }
 
   subscribe(listener: () => void): () => void {
     let unsubscribe: () => void;
     try {
-      unsubscribe = this.#dependencies.subscribe(listener);
+      unsubscribe = this.repository.subscribe(listener);
     } catch {
       LOGGER.warn("identity.local_catalog.failed", {
         operation: "subscribe",
@@ -191,18 +192,18 @@ export class PassportIdentityController {
     };
   }
 
-  resolveHomeserver(publicKeyZ32: string): Promise<PubkyHomeserverResolutionResult> {
-    return this.#dependencies.resolveHomeserver(publicKeyZ32);
-  }
+  readonly resolveHomeserver = (publicKeyZ32: string): Promise<PubkyHomeserverResolutionResult> => {
+    return resolvePubkyHomeserver(publicKeyZ32);
+  };
 
-  createBackup(identityId: string, password: string): Promise<LocalIdentityBackupResult> {
-    return this.#dependencies.createBackup(identityId, password);
-  }
+  readonly createBackup = (identityId: string, password: string): Promise<LocalIdentityBackupResult> => {
+    return createLocalIdentityBackup(this.repository, identityId, password);
+  };
 
   createPubkyRingMigrationUrl(): PassportIdentityCatalogResult<string> {
     return this.runCatalogOperation(
       "create_pubky_ring_migration",
-      () => this.#dependencies.createPubkyRingMigrationUrl(),
+      () => createMigrationUrl(this.repository),
     );
   }
 
@@ -210,14 +211,14 @@ export class PassportIdentityController {
     onState: (state: GoogleBackedIdentityActionState) => void,
   ): Promise<void> {
     this.disposeGoogleAuthorization();
-    if (this.#disposed) return;
-    this.#actionStateListener = onState;
-    const authorizationSessionGeneration = ++this.#authorizationSessionGeneration;
+    if (this.disposed) return;
+    this.actionStateListener = onState;
+    const authorizationSessionGeneration = ++this.authorizationSessionGeneration;
     let prepared: GoogleImplicitAuthorizationResult<void>;
     try {
-      prepared = await this.#dependencies.prepareGoogleAuthorization();
+      prepared = await this.googleAuthorization.prepare();
     } catch {
-      if (authorizationSessionGeneration === this.#authorizationSessionGeneration) {
+      if (authorizationSessionGeneration === this.authorizationSessionGeneration) {
         this.showGoogleUnavailable();
       }
       return;
@@ -229,32 +230,32 @@ export class PassportIdentityController {
 
   disposeGoogleAuthorization(): void {
     try {
-      this.#dependencies.disposeGoogleAuthorization();
+      this.googleAuthorization.dispose();
     } finally {
-      this.#actionStateListener = null;
-      this.#authorizationSessionGeneration += 1;
+      this.actionStateListener = null;
+      this.authorizationSessionGeneration += 1;
     }
   }
 
   retryGoogleAuthorization(): void {
-    const actionStateListener = this.#actionStateListener;
-    if (!actionStateListener || this.#disposed || this.#authorizedActionPending) return;
+    const actionStateListener = this.actionStateListener;
+    if (!actionStateListener || this.disposed || this.authorizedActionPending) return;
     void this.prepareGoogleAuthorization(actionStateListener);
   }
 
   async continueGoogleBackedIdentityAction(
     action: GoogleBackedIdentityAction,
   ): Promise<GoogleBackedIdentityActionDispatchResult> {
-    if (this.#authorizedActionPending) return { status: "busy" };
-    if (this.#disposed) return { status: "superseded" };
-    const authorizationSessionGeneration = this.#authorizationSessionGeneration;
-    this.#authorizedActionPending = true;
+    if (this.authorizedActionPending) return { status: "busy" };
+    if (this.disposed) return { status: "superseded" };
+    const authorizationSessionGeneration = this.authorizationSessionGeneration;
+    this.authorizedActionPending = true;
     try {
       this.emit({ stage: "requesting-google-authorization" });
       const loginHint = action.kind === "establish_google_backed_identity"
         ? undefined
         : action.expectedGoogleAccountId;
-      const credentials = await this.#dependencies.requestGoogleAuthorization(loginHint);
+      const credentials = await this.googleAuthorization.request(loginHint);
       if (!this.isCurrentAuthorizationSession(authorizationSessionGeneration)) {
         return { status: "superseded" };
       }
@@ -282,18 +283,18 @@ export class PassportIdentityController {
       this.resetGoogleAuthorization("google_authorization_failed");
       return { status: "google_authorization_failed" };
     } finally {
-      this.#authorizedActionPending = false;
-      if (this.#disposed) this.disposeGoogleBackedIdentityOperationsOnce();
+      this.authorizedActionPending = false;
+      if (this.disposed) this.disposeGoogleBackedIdentityOperationsOnce();
     }
   }
 
   dispose(): void {
-    if (this.#disposed) return;
-    this.#disposed = true;
+    if (this.disposed) return;
+    this.disposed = true;
     try {
       this.disposeGoogleAuthorization();
     } finally {
-      if (!this.#authorizedActionPending) this.disposeGoogleBackedIdentityOperationsOnce();
+      if (!this.authorizedActionPending) this.disposeGoogleBackedIdentityOperationsOnce();
     }
   }
 
@@ -306,13 +307,13 @@ export class PassportIdentityController {
       switch (action.kind) {
         case "detach_google_backed_identity": {
           this.emit({ stage: "detaching-google-backed-identity" });
-          const deletionResult = await this.#dependencies.deleteGoogleIdentityBackups(
+          const deletionResult = await this.getGoogleBackedIdentityOperations().deleteGoogleIdentityBackups(
             credentials,
             action.publicIdentity,
             action.expectedGoogleAccountId,
           );
           if (Result.isError(deletionResult)) return deletionFailure(deletionResult.error);
-          const removed = this.#dependencies.remove(action.publicIdentity.publicKeyZ32);
+          const removed = this.repository.remove(action.publicIdentity.publicKeyZ32);
           return Result.isError(removed)
             ? Result.err({ code: "local_remove_failed" })
             : Result.ok({
@@ -322,7 +323,7 @@ export class PassportIdentityController {
         }
         case "replace_incomplete_google_backed_identity": {
           this.emit({ stage: "establishing-google-backed-identity", progress: "checking_passport_file" });
-          const deletionResult = await this.#dependencies.deleteGoogleIdentityBackups(
+          const deletionResult = await this.getGoogleBackedIdentityOperations().deleteGoogleIdentityBackups(
             credentials,
             action.publicIdentity,
             action.expectedGoogleAccountId,
@@ -339,7 +340,7 @@ export class PassportIdentityController {
           || !this.isCurrentAuthorizationSession(authorizationSessionGeneration)) return;
         this.emit({ stage: "establishing-google-backed-identity", progress });
       };
-      const establishmentResult = await this.#dependencies.restoreOrCreateGoogleBackedIdentity(
+      const establishmentResult = await this.getGoogleBackedIdentityOperations().restoreOrCreateGoogleBackedIdentity(
         credentials,
         reportProgress,
       ).finally(() => {
@@ -367,17 +368,18 @@ export class PassportIdentityController {
   }
 
   private disposeGoogleBackedIdentityOperationsOnce(): void {
-    if (this.#identityOperationsDisposed) return;
-    this.#identityOperationsDisposed = true;
+    if (this.identityOperationsDisposed) return;
+    this.identityOperationsDisposed = true;
     try {
-      this.#dependencies.disposeGoogleBackedIdentityOperations();
+      this.googleBackedIdentityOperations?.dispose();
+      this.googleBackedIdentityOperations = undefined;
     } catch {
       LOGGER.warn("identity.google.cleanup.failed", { operation: "pubky_dispose" });
     }
   }
 
   private isCurrentAuthorizationSession(generation: number): boolean {
-    return !this.#disposed && generation === this.#authorizationSessionGeneration;
+    return !this.disposed && generation === this.authorizationSessionGeneration;
   }
 
   private resetGoogleAuthorization(errorCode: GoogleBackedIdentityActionErrorCode | null = null): void {
@@ -404,9 +406,18 @@ export class PassportIdentityController {
   }
 
   private emit(state: GoogleBackedIdentityActionState): void {
-    if (this.#disposed) return;
-    try { this.#actionStateListener?.(state); }
+    if (this.disposed) return;
+    try { this.actionStateListener?.(state); }
     catch { LOGGER.warn("identity.google.state_listener.failed"); }
+  }
+
+  private getGoogleBackedIdentityOperations(): GoogleBackedIdentityOperations {
+    this.googleBackedIdentityOperations ??= new GoogleBackedIdentityOperations({
+      repository: this.repository,
+      homegateBaseUrl: this.homegateBaseUrl,
+      passportOrigin: globalThis.location.origin,
+    });
+    return this.googleBackedIdentityOperations;
   }
 }
 

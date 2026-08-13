@@ -8,7 +8,7 @@ import type {
   GoogleBackedIdentityActionResult,
   PassportIdentityController,
   PassportIdentityControllerError,
-} from "../../../browser/identity/passportIdentity";
+} from "../../../browser/identity/passportIdentityController";
 import type { GoogleAccountProfile } from "../../../core/identity/googleAccountProfile";
 import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
 import {

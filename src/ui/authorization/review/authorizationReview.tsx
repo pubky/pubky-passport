@@ -1,6 +1,6 @@
 "use client";
 
-import type { LocalIdentitySummary } from "../../../browser/identity/passportIdentity";
+import type { LocalIdentitySummary } from "../../../browser/identity/passportIdentityController";
 import type { AuthorizationRequestReview } from "../../../browser/authorization/passportAuthorization";
 import { GoogleLogo } from "../../shared/brand/googleLogo";
 import { CheckIcon, SquareUserRoundIcon, XIcon } from "../../shared/icons/actionIcons";

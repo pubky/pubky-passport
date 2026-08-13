@@ -5,7 +5,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PassportIdentityList } from "../../browser/identity/passportIdentity";
+import type { PassportIdentityList } from "../../browser/identity/passportIdentityController";
 import { useIdentityCatalog } from "./useIdentityCatalog";
 
 const MOCKS = vi.hoisted(() => ({
@@ -16,8 +16,8 @@ const MOCKS = vi.hoisted(() => ({
   unavailable: false,
 }));
 
-vi.mock("../../browser/identity/passportIdentity", () => ({
-  createPassportIdentityController: () => {
+vi.mock("../../browser/identity/passportIdentityController", () => ({
+  PassportIdentityController: function PassportIdentityController() {
     MOCKS.create();
     return {
     dispose: MOCKS.dispose,

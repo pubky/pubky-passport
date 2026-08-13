@@ -316,7 +316,6 @@ sequenceDiagram
     actor User
     participant UI as src/ui/root<br/>GoogleIdentitySetupFlow
     box rgba(0, 158, 115, 0.18) src/browser/identity
-        participant Factory as passportIdentity.ts<br/>createPassportIdentityController()
         participant Controller as passportIdentityController.ts<br/>PassportIdentityController
     end
     box rgba(0, 158, 115, 0.18) src/browser/google-authorization
@@ -329,8 +328,7 @@ sequenceDiagram
         participant OAuth as Google OAuth authorize endpoint
     end
 
-    UI->>Factory: createPassportIdentityController(...)
-    Factory->>Controller: new PassportIdentityController(...)
+    UI->>Controller: new PassportIdentityController(...)
     UI->>Controller: prepareGoogleAuthorization(onState)
     Controller->>Authorization: prepare()
     User->>UI: Continue with Google

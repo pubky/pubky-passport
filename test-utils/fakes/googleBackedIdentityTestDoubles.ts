@@ -1,6 +1,9 @@
 import { Result } from "better-result";
 
+import { MemoryStorage } from "./memoryStorage";
+
 import { SaveLocalIdentity } from "../../src/browser/identity/local/saveLocalIdentity";
+import { LocalStorageIdentityRepository } from "../../src/browser/identity/local/localStorageIdentityRepository";
 import { RecordingPubkySdkAdapter } from "./recordingPubkySdkAdapter";
 import type {
   DecryptPassportSecretInput,
@@ -157,7 +160,7 @@ export class RecordingSaveLocalIdentity extends SaveLocalIdentity {
 
   constructor(onSave?: () => void) {
     const pubky = new RecordingPubkySdkAdapter();
-    super(() => Result.err({ code: "storage_unavailable" }), pubky);
+    super(new LocalStorageIdentityRepository(new MemoryStorage()), pubky);
     this.#onSave = onSave;
   }
 

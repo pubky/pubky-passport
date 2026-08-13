@@ -18,16 +18,12 @@ import { GoogleDriveVisibleRecoveryCopyWriter } from "../../passport-file/google
 import { GoogleDriveVisibleRecoveryCopyDeleter } from "../../passport-file/googleDriveVisibleRecoveryCopyDeleter";
 import type { PassportFileEnvelopeV1 } from "../../passport-file/passportFileEnvelope";
 import { PassportFileWebCrypto } from "../../passport-file/passportFileWebCrypto";
-import type { PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
 import {
   WrappingKeyApiClient,
   type GoogleWrappingKeyErrorCode,
 } from "../../wrapping-key/wrappingKeyApiClient";
-import type {
-  LocalIdentityResult,
-  LocalIdentitySummary,
-} from "../local/localStorageIdentityRepository";
+import { LocalStorageIdentityRepository } from "../local/localStorageIdentityRepository";
 import { SaveLocalIdentity } from "../local/saveLocalIdentity";
 import {
   CreateGoogleBackedIdentity,
@@ -71,16 +67,13 @@ export class GoogleBackedIdentityOperations {
   #disposed = false;
 
   constructor(input: {
-    saveIdentityRecord: (
-      identity: LocalIdentitySummary,
-      secretKey: PubkySecretKeyMaterial,
-    ) => LocalIdentityResult<LocalIdentitySummary>;
+    repository: LocalStorageIdentityRepository;
     homegateBaseUrl: string;
     passportOrigin: string;
   }) {
     const pubky = new PubkySdkAdapter();
     try {
-      const saveLocalIdentity = new SaveLocalIdentity(input.saveIdentityRecord, pubky);
+      const saveLocalIdentity = new SaveLocalIdentity(input.repository, pubky);
       const wrappingKeyApiClient = new WrappingKeyApiClient();
       const requestWrappingKey = wrappingKeyApiClient.requestGoogleWrappingKey.bind(wrappingKeyApiClient);
       const homegateClient = new HomegateClient({ homegateBaseUrl: input.homegateBaseUrl });

@@ -5,7 +5,7 @@ import { Result } from "better-result";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { GoogleBackedIdentityActionState } from "../../browser/identity/passportIdentity";
+import type { GoogleBackedIdentityActionState } from "../../browser/identity/passportIdentityController";
 import { mockPassportIdentityController } from "../../../test-utils/fakes/mockPassportIdentityController";
 import { SignInFlow } from "./signInFlow";
 

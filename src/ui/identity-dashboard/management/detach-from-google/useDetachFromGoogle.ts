@@ -3,7 +3,7 @@
 import { Result } from "better-result";
 import { useCallback, useEffect, useReducer, useRef } from "react";
 
-import type { PassportIdentityController } from "../../../../browser/identity/passportIdentity";
+import type { PassportIdentityController } from "../../../../browser/identity/passportIdentityController";
 import type { PubkyPublicIdentity } from "../../../../core/identity/pubkyIdentity";
 import { transitionDetachFromGoogleOperation } from "./detachFromGoogleOperationState";
 

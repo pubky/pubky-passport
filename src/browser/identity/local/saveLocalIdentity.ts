@@ -5,22 +5,16 @@ import type { GoogleAccountProfile } from "../../../core/identity/googleAccountP
 
 import type {
   PubkyIdentityKeyHandle,
-  PubkySecretKeyMaterial,
 } from "../../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
-import type { LocalIdentityErrorCode, LocalIdentityResult, LocalIdentitySummary } from "./localStorageIdentityRepository";
-
-type SaveIdentityRecord = (
-  identity: LocalIdentitySummary,
-  secretKey: PubkySecretKeyMaterial,
-) => LocalIdentityResult<LocalIdentitySummary>;
+import { LocalStorageIdentityRepository, type LocalIdentityErrorCode, type LocalIdentityResult, type LocalIdentitySummary } from "./localStorageIdentityRepository";
 
 export class SaveLocalIdentity {
-  readonly #saveIdentityRecord: SaveIdentityRecord;
+  readonly #repository: LocalStorageIdentityRepository;
   readonly #pubky: PubkySdkAdapter;
 
-  constructor(saveIdentityRecord: SaveIdentityRecord, pubky: PubkySdkAdapter) {
-    this.#saveIdentityRecord = saveIdentityRecord;
+  constructor(repository: LocalStorageIdentityRepository, pubky: PubkySdkAdapter) {
+    this.#repository = repository;
     this.#pubky = pubky;
   }
 
@@ -36,7 +30,7 @@ export class SaveLocalIdentity {
     }
 
     try {
-      return this.#saveIdentityRecord(
+      return this.#repository.save(
         { id: publicIdentity.value.publicKeyZ32, publicIdentity: publicIdentity.value, ...(googleAccount ? { googleAccount } : {}) },
         secretKey.value,
       );

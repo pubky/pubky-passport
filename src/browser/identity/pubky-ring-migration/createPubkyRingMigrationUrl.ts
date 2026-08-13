@@ -2,18 +2,12 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import type { PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";
-import type { LocalIdentityResult, LocalIdentitySummary } from "../local/localStorageIdentityRepository";
-
-type ReadActiveIdentity = () => LocalIdentityResult<{
-  identity: LocalIdentitySummary;
-  secretKey: PubkySecretKeyMaterial;
-}>;
+import { LocalStorageIdentityRepository, type LocalIdentityResult } from "../local/localStorageIdentityRepository";
 
 export function createPubkyRingMigrationUrl(
-  readActiveIdentity: ReadActiveIdentity,
+  repository: LocalStorageIdentityRepository,
 ): LocalIdentityResult<string> {
-  const stored = readActiveIdentity();
+  const stored = repository.readActive();
   if (Result.isError(stored)) return Result.err(stored.error);
 
   try {

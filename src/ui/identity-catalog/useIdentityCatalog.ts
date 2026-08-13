@@ -4,10 +4,9 @@ import { Result } from "better-result";
 import { useEffect, useState } from "react";
 
 import {
-  createPassportIdentityController,
-  type PassportIdentityController,
+  PassportIdentityController,
   type PassportIdentityList,
-} from "../../browser/identity/passportIdentity";
+} from "../../browser/identity/passportIdentityController";
 
 type IdentityCatalogState =
   | { status: "loading" }
@@ -30,7 +29,7 @@ function useIdentityCatalog(googleClientId: string, homegateBaseUrl: string): Id
       if (cancelled) return;
       setSession({ status: "loading" });
       try {
-        const instance = createPassportIdentityController(googleClientId, homegateBaseUrl);
+        const instance = new PassportIdentityController(googleClientId, homegateBaseUrl);
         controller = instance;
         const publish = () => {
           const catalog = instance.list();

@@ -9,9 +9,11 @@ import {
   TEST_PASSPORT_REFERENCE,
   TEST_SIGNUP_INVITATION,
 } from "../../../../test-utils/fakes/googleBackedIdentityTestDoubles";
+import { MemoryStorage } from "../../../../test-utils/fakes/memoryStorage";
 import { expectResultError, expectResultOk } from "../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../libs/logger/logger";
 import type { ReportGoogleBackedIdentityProgress } from "./googleBackedIdentityProgress";
+import { LocalStorageIdentityRepository } from "../local/localStorageIdentityRepository";
 
 const PUBLIC_IDENTITY = {
   publicKeyZ32: "public-identity",
@@ -221,14 +223,14 @@ describe("GoogleBackedIdentityOperations", () => {
 
   it("wires dependencies, restores a found identity, delegates deletion, and disposes once", async () => {
     prepareConstructors();
-    const saveIdentityRecord = sanitizedSaveIdentityRecord();
-    const operations = createOperations(saveIdentityRecord);
+    const repository = new LocalStorageIdentityRepository(new MemoryStorage());
+    const operations = createOperations(repository);
     const progress: string[] = [];
 
     expect(MOCKS.HomegateClient).toHaveBeenCalledWith({
       homegateBaseUrl: "https://homegate.example/api/",
     });
-    expect(MOCKS.SaveLocalIdentity).toHaveBeenCalledWith(saveIdentityRecord, MOCKS.pubky);
+    expect(MOCKS.SaveLocalIdentity).toHaveBeenCalledWith(repository, MOCKS.pubky);
     expect(MOCKS.RestoreGoogleBackedIdentity).toHaveBeenCalledWith({
       decryptSecretKeyBytes: expect.any(Function),
       pubky: MOCKS.pubky,
@@ -495,15 +497,11 @@ function prepareConstructors(input: {
 }
 
 function createOperations(
-  saveIdentityRecord = sanitizedSaveIdentityRecord(),
+  repository = new LocalStorageIdentityRepository(new MemoryStorage()),
 ): GoogleBackedIdentityOperations {
   return new GoogleBackedIdentityOperations({
-    saveIdentityRecord,
+    repository,
     homegateBaseUrl: "https://homegate.example/api/",
     passportOrigin: "https://passport.example",
   });
-}
-
-function sanitizedSaveIdentityRecord() {
-  return () => Result.err({ code: "storage_unavailable" as const });
 }

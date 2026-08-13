@@ -3,37 +3,15 @@
 This feature owns the browser's Pubky identity catalog, Google-backed identity
 establishment, and the safe controller consumed by UI components.
 
-## Why Two Root Files?
+## Controller
 
-The public feature entry and the stateful implementation are deliberately separate.
+`passportIdentityController.ts` is the only identity module UI code should import. It:
 
-### `passportIdentity.ts`
-
-This is the only identity module UI code should import. It:
-
-- Exposes `createPassportIdentityController()`.
-- Exposes the safe, instance-only `PassportIdentityController` type and UI state types.
-- Constructs the local identity repository and the browser-only Google implicit authorization client.
+- Constructs and uses the local identity repository and Google authorization client directly.
 - Lazily constructs Google-backed custody operations only when an action needs them.
-- Keeps the implementation constructor and its credential-bearing dependencies out
-  of the public UI entry.
-
-`createPassportIdentityController()` is a function because it is a composition
-factory. It wires dependencies and returns the stateful controller; introducing a
-second class would create another lifecycle object without adding behavior.
-
-### `passportIdentityController.ts`
-
-This is the internal state machine. It:
-
 - Coordinates one-shot Google authorization and identity actions.
 - Maps internal failures to safe UI results and progress states.
 - Owns cancellation, single-flight execution, subscriptions, and cleanup.
-- Receives focused callbacks from `passportIdentity.ts` instead of constructing
-  repositories or provider adapters itself.
-
-Keeping composition and behavior separate gives the UI one stable, safe entry while
-allowing the controller state machine to be tested independently.
 
 ## Subfeatures
 

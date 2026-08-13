@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PassportAuthorizationViewState } from "../../browser/authorization/passportAuthorization";
-import type { PassportIdentityList } from "../../browser/identity/passportIdentity";
+import type { PassportIdentityList } from "../../browser/identity/passportIdentityController";
 import { AuthorizationFlow } from "./authorizationFlow";
 
 const MOCKS = vi.hoisted(() => ({
@@ -35,13 +35,13 @@ vi.mock("../../browser/authorization/passportAuthorization", () => ({
   },
 }));
 
-vi.mock("../../browser/identity/passportIdentity", () => ({
-  createPassportIdentityController: () => ({
-    dispose: MOCKS.dispose,
-    list: () => Result.ok(MOCKS.catalog),
-    select: MOCKS.select,
-    subscribe: (listener: () => void) => { MOCKS.catalogListener = listener; return () => { MOCKS.catalogListener = null; }; },
-  }),
+vi.mock("../../browser/identity/passportIdentityController", () => ({
+  PassportIdentityController: class {
+    dispose = MOCKS.dispose;
+    list = () => Result.ok(MOCKS.catalog);
+    select = MOCKS.select;
+    subscribe = (listener: () => void) => { MOCKS.catalogListener = listener; return () => { MOCKS.catalogListener = null; }; };
+  },
 }));
 
 vi.mock("../onboarding/signInFlow", () => ({

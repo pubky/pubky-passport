@@ -8,7 +8,7 @@ import {
   MIN_BACKUP_PASSWORD_LENGTH,
   type LocalIdentityBackupFile,
   type LocalIdentityBackupResult,
-} from "../../../../browser/identity/passportIdentity";
+} from "../../../../browser/identity/passportIdentityController";
 import { DownloadBackupIcon } from "../../../shared/icons/actionIcons";
 import { PassportScreen } from "../../../shared/layout/passportScreen";
 import { BackButton } from "../../../shared/navigation/backButton";

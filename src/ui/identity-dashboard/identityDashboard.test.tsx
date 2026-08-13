@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PassportIdentityList } from "../../browser/identity/passportIdentity";
+import type { PassportIdentityList } from "../../browser/identity/passportIdentityController";
 import { mockPassportIdentityController } from "../../../test-utils/fakes/mockPassportIdentityController";
 import { IdentityDashboard } from "./identityDashboard";
 
@@ -18,9 +18,9 @@ const FLOW = vi.hoisted(() => ({
   refresh: null as (() => void) | null,
 }));
 
-vi.mock("../../browser/identity/passportIdentity", () => ({
+vi.mock("../../browser/identity/passportIdentityController", () => ({
   MIN_BACKUP_PASSWORD_LENGTH: 6,
-  createPassportIdentityController: () => mockPassportIdentityController({
+  PassportIdentityController: function PassportIdentityController() { return mockPassportIdentityController({
     continueGoogleBackedIdentityAction: async (action) => {
       if (action.kind === "establish_google_backed_identity" && FLOW.establishIdentity) {
         const identity = {
@@ -62,7 +62,7 @@ vi.mock("../../browser/identity/passportIdentity", () => ({
       return Result.ok();
     },
     subscribe: (listener: () => void) => { FLOW.refresh = listener; return () => { FLOW.refresh = null; }; },
-  }),
+  }); },
 }));
 
 describe("IdentityDashboard", () => {

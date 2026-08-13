@@ -3,7 +3,7 @@
 import { Result } from "better-result";
 import { useReducer } from "react";
 
-import type { LocalIdentitySummary, PassportIdentityController } from "../../../../browser/identity/passportIdentity";
+import type { LocalIdentitySummary, PassportIdentityController } from "../../../../browser/identity/passportIdentityController";
 import { EncryptedBackup } from "../encrypted-backup/encryptedBackup";
 import { MigrateToPubkyRing } from "../migrate-to-pubky-ring/migrateToPubkyRing";
 import { BackupBeforeDetaching } from "./backupBeforeDetaching";
@@ -31,7 +31,7 @@ function DetachFromGoogleFlow({ controller, identity, onBack, onDone }: {
   switch (state.view) {
     case "encrypted-backup":
       return <EncryptedBackup
-        createBackup={controller.createBackup.bind(controller)}
+        createBackup={controller.createBackup}
         identityId={identity.id}
         onBack={() => dispatch({ type: "back-to-backup" })}
       />;

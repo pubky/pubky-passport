@@ -3,7 +3,7 @@
 import { Result } from "better-result";
 import { useReducer, useState } from "react";
 
-import type { PassportIdentityController, PassportIdentityList } from "../../browser/identity/passportIdentity";
+import type { PassportIdentityController, PassportIdentityList } from "../../browser/identity/passportIdentityController";
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { SignInFlow } from "../onboarding/signInFlow";
@@ -101,12 +101,12 @@ function ReadyIdentityDashboard({ catalog, controller, onIdentityEstablished }: 
             migrationUrl: Result.isOk(migration) ? migration.value : null,
           });
         }}
-        resolveHomeserver={controller.resolveHomeserver.bind(controller)}
+        resolveHomeserver={controller.resolveHomeserver}
       />;
     }
     case "encrypted-backup":
       return <EncryptedBackup
-        createBackup={controller.createBackup.bind(controller)}
+        createBackup={controller.createBackup}
         identityId={state.identityId}
         onBack={() => dispatch({ type: "back-to-management", identityId: state.identityId })}
       />;

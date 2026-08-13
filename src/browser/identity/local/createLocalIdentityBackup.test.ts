@@ -16,15 +16,16 @@ describe("createLocalIdentityBackup", () => {
       { bytes: new Uint8Array(32).fill(7), format: PUBKY_SECRET_KEY_FORMAT },
     ));
 
-    const backup = expectResultOk(await createLocalIdentityBackup(repository.read.bind(repository), publicKeyZ32, "a strong backup password"));
+    const backup = expectResultOk(await createLocalIdentityBackup(repository, publicKeyZ32, "a strong backup password"));
     expect(backup.bytes.byteLength).toBeGreaterThan(32);
     expect(backup.fileName).toBe(`pubky-${publicKeyZ32}.pkarr`);
     backup.bytes.fill(0);
   });
 
   it("rejects weak passwords before reading local identity storage", async () => {
-    const readIdentity = vi.fn(() => Result.err({ code: "invalid_identity" as const }));
-    const result = await createLocalIdentityBackup(readIdentity, "identity", "short");
+    const repository = new LocalStorageIdentityRepository(new MemoryStorage());
+    const readIdentity = vi.spyOn(repository, "read");
+    const result = await createLocalIdentityBackup(repository, "identity", "short");
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: "invalid_password" });

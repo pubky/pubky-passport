@@ -1,6 +1,6 @@
 "use client";
 
-import type { PassportIdentityControllerError } from "../../../browser/identity/passportIdentity";
+import type { PassportIdentityControllerError } from "../../../browser/identity/passportIdentityController";
 import { RotateCcwIcon } from "../../shared/icons/actionIcons";
 import { PassportScreen } from "../../shared/layout/passportScreen";
 import { BackButton } from "../../shared/navigation/backButton";

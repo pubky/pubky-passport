@@ -1,9 +1,10 @@
 import { Result } from "better-result";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import { MemoryStorage } from "../../../../test-utils/fakes/memoryStorage";
 import { RecordingPubkySdkAdapter } from "../../../../test-utils/fakes/recordingPubkySdkAdapter";
 import { expectResultOk } from "../../../../test-utils/resultAssertions";
-import type { LocalIdentitySummary } from "./localStorageIdentityRepository";
+import { LocalStorageIdentityRepository, type LocalIdentitySummary } from "./localStorageIdentityRepository";
 import { SaveLocalIdentity } from "./saveLocalIdentity";
 
 describe("SaveLocalIdentity", () => {
@@ -12,12 +13,14 @@ describe("SaveLocalIdentity", () => {
     const key = expectResultOk(await pubky.createIdentityKey());
     let savedIdentity: LocalIdentitySummary | undefined;
     let savedSecret: Uint8Array | undefined;
+    const repository = new LocalStorageIdentityRepository(new MemoryStorage());
+    vi.spyOn(repository, "save").mockImplementation((identity, secretKey) => {
+      savedIdentity = identity;
+      savedSecret = secretKey.bytes;
+      return Result.ok(identity);
+    });
     const saveLocalIdentity = new SaveLocalIdentity(
-      (identity, secretKey) => {
-        savedIdentity = identity;
-        savedSecret = secretKey.bytes;
-        return Result.ok(identity);
-      },
+      repository,
       pubky,
     );
 

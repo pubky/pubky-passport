@@ -1,6 +1,6 @@
 "use client";
 
-import type { LocalIdentitySummary, PassportIdentityList } from "../../browser/identity/passportIdentity";
+import type { LocalIdentitySummary, PassportIdentityList } from "../../browser/identity/passportIdentityController";
 
 type IdentityDashboardState =
   | { view: "onboarding" }

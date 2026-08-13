@@ -2,9 +2,8 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import type { PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
-import type { LocalIdentityResult, LocalIdentitySummary } from "./localStorageIdentityRepository";
+import { LocalStorageIdentityRepository } from "./localStorageIdentityRepository";
 
 export const MIN_BACKUP_PASSWORD_LENGTH = 6;
 const MAX_BACKUP_PASSWORD_LENGTH = 1024;
@@ -13,10 +12,8 @@ export type LocalIdentityBackupFile = { bytes: Uint8Array; fileName: string };
 export type LocalIdentityBackupErrorCode = "backup_failed" | "identity_unavailable" | "invalid_password";
 export type LocalIdentityBackupResult = ResultType<LocalIdentityBackupFile, { code: LocalIdentityBackupErrorCode }>;
 
-type ReadIdentity = (id: string) => LocalIdentityResult<{ identity: LocalIdentitySummary; secretKey: PubkySecretKeyMaterial }>;
-
 export async function createLocalIdentityBackup(
-  readIdentity: ReadIdentity,
+  repository: LocalStorageIdentityRepository,
   identityId: string,
   password: string,
 ): Promise<LocalIdentityBackupResult> {
@@ -24,7 +21,7 @@ export async function createLocalIdentityBackup(
     return Result.err({ code: "invalid_password" });
   }
 
-  const stored = readIdentity(identityId);
+  const stored = repository.read(identityId);
   if (Result.isError(stored)) return Result.err({ code: "identity_unavailable" });
 
   let pubky: PubkySdkAdapter | undefined;

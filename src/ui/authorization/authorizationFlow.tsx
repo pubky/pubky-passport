@@ -7,7 +7,7 @@ import {
   type PassportAuthorizationController,
   type PassportAuthorizationViewState,
 } from "../../browser/authorization/passportAuthorization";
-import type { PassportIdentityList, PassportIdentityController } from "../../browser/identity/passportIdentity";
+import type { PassportIdentityList, PassportIdentityController } from "../../browser/identity/passportIdentityController";
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { SignInFlow } from "../onboarding/signInFlow";

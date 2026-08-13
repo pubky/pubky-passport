@@ -1,7 +1,7 @@
 import { Result } from "better-result";
 import { vi } from "vitest";
 
-import type { PassportIdentityController } from "../../src/browser/identity/passportIdentity";
+import type { PassportIdentityController } from "../../src/browser/identity/passportIdentityController";
 
 export function mockPassportIdentityController(
   overrides: Partial<PassportIdentityController> = {},
@@ -20,5 +20,5 @@ export function mockPassportIdentityController(
     continueGoogleBackedIdentityAction: vi.fn(async () => ({ status: "google_authorization_failed" as const })),
     dispose: vi.fn(),
     ...overrides,
-  };
+  } as unknown as PassportIdentityController;
 }
