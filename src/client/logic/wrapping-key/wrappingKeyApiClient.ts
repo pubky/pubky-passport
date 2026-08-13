@@ -37,7 +37,7 @@ export class WrappingKeyApiClient {
   readonly #fetch: typeof fetch;
 
   constructor(fetchImplementation?: typeof fetch) {
-    this.#fetch = fetchImplementation ?? globalThis.fetch.bind(globalThis);
+    this.#fetch = fetchImplementation ?? ((request, init) => globalThis.fetch(request, init));
   }
 
   async requestGoogleWrappingKey(googleIdToken: string): Promise<GoogleWrappingKeyResult> {

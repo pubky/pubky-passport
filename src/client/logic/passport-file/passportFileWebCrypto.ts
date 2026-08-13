@@ -46,7 +46,7 @@ export type PassportFileWebCryptoOptions = {
   getRandomValues?: RandomValuesProvider | null;
 };
 
-type RandomValuesProvider = <ArrayType extends ArrayBufferView | null>(array: ArrayType) => ArrayType;
+type RandomValuesProvider = (array: Uint8Array<ArrayBuffer>) => Uint8Array<ArrayBuffer>;
 
 type RequiredWebCrypto = {
   subtle: SubtleCrypto;
@@ -72,7 +72,7 @@ export class PassportFileWebCrypto {
     this.#subtle = options.subtle === undefined ? crypto?.subtle : options.subtle;
     this.#getRandomValues =
       options.getRandomValues === undefined && typeof crypto?.getRandomValues === "function"
-        ? crypto.getRandomValues.bind(crypto)
+        ? (array) => crypto.getRandomValues(array)
         : options.getRandomValues;
   }
 

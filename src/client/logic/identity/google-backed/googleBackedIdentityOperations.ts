@@ -75,12 +75,15 @@ export class GoogleBackedIdentityOperations {
     try {
       const saveLocalIdentity = new SaveLocalIdentity(input.repository, pubky);
       const wrappingKeyApiClient = new WrappingKeyApiClient();
-      const requestWrappingKey = wrappingKeyApiClient.requestGoogleWrappingKey.bind(wrappingKeyApiClient);
+      const requestWrappingKey: WrappingKeyApiClient["requestGoogleWrappingKey"] = (googleIdToken) =>
+        wrappingKeyApiClient.requestGoogleWrappingKey(googleIdToken);
       const homegateClient = new HomegateClient({ homegateBaseUrl: input.homegateBaseUrl });
       const passportFileCrypto = new PassportFileWebCrypto();
-      const encryptSecretKeyBytes = passportFileCrypto.encryptSecretKeyBytes.bind(passportFileCrypto);
-      const decryptSecretKeyBytes = passportFileCrypto.decryptSecretKeyBytes.bind(passportFileCrypto);
-      const driveFetch = globalThis.fetch.bind(globalThis);
+      const encryptSecretKeyBytes: PassportFileWebCrypto["encryptSecretKeyBytes"] = (encryptInput) =>
+        passportFileCrypto.encryptSecretKeyBytes(encryptInput);
+      const decryptSecretKeyBytes: PassportFileWebCrypto["decryptSecretKeyBytes"] = (decryptInput) =>
+        passportFileCrypto.decryptSecretKeyBytes(decryptInput);
+      const driveFetch: typeof fetch = (request, init) => globalThis.fetch(request, init);
       const createPassportFileStore = (driveAccessToken: string) => new GoogleDrivePassportFileStore({
         accessTokenProvider: async () => driveAccessToken,
         fetch: driveFetch,
@@ -126,7 +129,8 @@ export class GoogleBackedIdentityOperations {
         requestWrappingKey,
         readPassportFile,
         deletePassportFileByReference,
-        deleteVisibleRecoveryCopies: visibleRecoveryCopyDeleter.deleteVisibleRecoveryCopies.bind(visibleRecoveryCopyDeleter),
+        deleteVisibleRecoveryCopies: (driveAccessToken, publicKeyDisplay) =>
+          visibleRecoveryCopyDeleter.deleteVisibleRecoveryCopies(driveAccessToken, publicKeyDisplay),
         decryptSecretKeyBytes,
         pubky,
         passportOrigin: input.passportOrigin,

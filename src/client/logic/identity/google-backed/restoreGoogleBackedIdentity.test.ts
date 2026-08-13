@@ -1,5 +1,5 @@
 import { Result } from "better-result";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { RecordingPubkySdkAdapter } from "../../../../../test-utils/fakes/recordingPubkySdkAdapter";
 import {
@@ -62,17 +62,13 @@ describe("RestoreGoogleBackedIdentity", () => {
 
   it("re-resolves discovery once after a publication race", async () => {
     const setup = createSetup();
-    const publish = setup.pubky.publishHomeserverIfStale.bind(setup.pubky);
-    let attempts = 0;
-    setup.pubky.publishHomeserverIfStale = async (input) => {
-      attempts += 1;
-      return attempts === 1 ? Result.err({ code: "publish_failed" }) : publish(input);
-    };
+    const publish = vi.spyOn(setup.pubky, "publishHomeserverIfStale")
+      .mockResolvedValueOnce(Result.err({ code: "publish_failed" }));
 
     expectResultOk(await setup.subject.execute(...EXECUTION_INPUT));
 
     expect(setup.pubky.signinCalls).toBe(1);
-    expect(attempts).toBe(2);
+    expect(publish).toHaveBeenCalledTimes(2);
     expect(setup.local.saveCalls).toBe(1);
   });
 
@@ -156,7 +152,7 @@ function createSetup() {
   const local = new RecordingSaveLocalIdentity();
   const crypto = new RecordingPassportFileCrypto();
   const subject = new RestoreGoogleBackedIdentity({
-    decryptSecretKeyBytes: crypto.decryptSecretKeyBytes.bind(crypto),
+    decryptSecretKeyBytes: (decryptInput) => crypto.decryptSecretKeyBytes(decryptInput),
     pubky,
     saveLocalIdentity: local,
     passportOrigin: "https://passport.pubky.app",

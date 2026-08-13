@@ -19,6 +19,22 @@ function createCrypto(): PassportFileWebCrypto {
   return new PassportFileWebCrypto();
 }
 
+function nativeDecrypt(...args: Parameters<SubtleCrypto["decrypt"]>): ReturnType<SubtleCrypto["decrypt"]> {
+  return globalThis.crypto.subtle.decrypt(...args);
+}
+
+function nativeDeriveKey(...args: Parameters<SubtleCrypto["deriveKey"]>): ReturnType<SubtleCrypto["deriveKey"]> {
+  return globalThis.crypto.subtle.deriveKey(...args);
+}
+
+function nativeEncrypt(...args: Parameters<SubtleCrypto["encrypt"]>): ReturnType<SubtleCrypto["encrypt"]> {
+  return globalThis.crypto.subtle.encrypt(...args);
+}
+
+function nativeImportKey(...args: Parameters<SubtleCrypto["importKey"]>): ReturnType<SubtleCrypto["importKey"]> {
+  return globalThis.crypto.subtle.importKey(...args);
+}
+
 function encrypt(
   crypto: PassportFileWebCrypto,
   secretKeyBytes: Uint8Array,
@@ -85,9 +101,9 @@ describe("PassportFileWebCrypto", () => {
   it("maps unsupported HKDF import to unsupported_browser_crypto", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const subtle = {
-      decrypt: globalThis.crypto.subtle.decrypt.bind(globalThis.crypto.subtle),
-      deriveKey: globalThis.crypto.subtle.deriveKey.bind(globalThis.crypto.subtle),
-      encrypt: globalThis.crypto.subtle.encrypt.bind(globalThis.crypto.subtle),
+      decrypt: nativeDecrypt,
+      deriveKey: nativeDeriveKey,
+      encrypt: nativeEncrypt,
       importKey: async (): Promise<CryptoKey> => {
         throw new Error("SECRET-HKDF-FAILURE");
       },
@@ -109,10 +125,10 @@ describe("PassportFileWebCrypto", () => {
   it("logs encryption exceptions without retaining key material or exception details", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const subtle = {
-      decrypt: globalThis.crypto.subtle.decrypt.bind(globalThis.crypto.subtle),
-      deriveKey: globalThis.crypto.subtle.deriveKey.bind(globalThis.crypto.subtle),
+      decrypt: nativeDecrypt,
+      deriveKey: nativeDeriveKey,
       encrypt: async (): Promise<ArrayBuffer> => { throw new Error("SECRET-ENCRYPT-FAILURE"); },
-      importKey: globalThis.crypto.subtle.importKey.bind(globalThis.crypto.subtle),
+      importKey: nativeImportKey,
     } as unknown as SubtleCrypto;
 
     await expectAsyncError(encrypt(
@@ -135,12 +151,12 @@ describe("PassportFileWebCrypto", () => {
 
   it("maps unsupported AES-GCM derivation to unsupported_browser_crypto", async () => {
     const subtle = {
-      decrypt: globalThis.crypto.subtle.decrypt.bind(globalThis.crypto.subtle),
+      decrypt: nativeDecrypt,
       deriveKey: async (): Promise<CryptoKey> => {
         throw new Error("AES-GCM derivation unsupported");
       },
-      encrypt: globalThis.crypto.subtle.encrypt.bind(globalThis.crypto.subtle),
-      importKey: globalThis.crypto.subtle.importKey.bind(globalThis.crypto.subtle),
+      encrypt: nativeEncrypt,
+      importKey: nativeImportKey,
     } as unknown as SubtleCrypto;
     const crypto = new PassportFileWebCrypto({ subtle });
 
@@ -231,9 +247,9 @@ describe("PassportFileWebCrypto", () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const subtle = {
       decrypt: async (): Promise<ArrayBuffer> => { throw new Error("SECRET-DECRYPT-FAILURE"); },
-      deriveKey: globalThis.crypto.subtle.deriveKey.bind(globalThis.crypto.subtle),
-      encrypt: globalThis.crypto.subtle.encrypt.bind(globalThis.crypto.subtle),
-      importKey: globalThis.crypto.subtle.importKey.bind(globalThis.crypto.subtle),
+      deriveKey: nativeDeriveKey,
+      encrypt: nativeEncrypt,
+      importKey: nativeImportKey,
     } as unknown as SubtleCrypto;
 
     await expectAsyncError(decrypt(
@@ -308,9 +324,9 @@ describe("PassportFileWebCrypto", () => {
     const rejectedPlaintext = new Uint8Array(PUBKY_SECRET_KEY_BYTES - 1).fill(7);
     const subtle = {
       decrypt: async (): Promise<ArrayBuffer> => rejectedPlaintext.buffer,
-      deriveKey: globalThis.crypto.subtle.deriveKey.bind(globalThis.crypto.subtle),
-      encrypt: globalThis.crypto.subtle.encrypt.bind(globalThis.crypto.subtle),
-      importKey: globalThis.crypto.subtle.importKey.bind(globalThis.crypto.subtle),
+      deriveKey: nativeDeriveKey,
+      encrypt: nativeEncrypt,
+      importKey: nativeImportKey,
     } as unknown as SubtleCrypto;
     const crypto = new PassportFileWebCrypto({ subtle });
 

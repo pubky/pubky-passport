@@ -72,8 +72,8 @@ export class GoogleImplicitAuthorization {
     origin?: string;
   }) {
     this.#clientId = input.clientId;
-    this.#fetch = input.fetch ?? globalThis.fetch.bind(globalThis);
-    this.#open = input.open ?? globalThis.window.open.bind(globalThis.window);
+    this.#fetch = input.fetch ?? ((request, init) => globalThis.fetch(request, init));
+    this.#open = input.open ?? ((url, target, features) => globalThis.window.open(url, target, features));
     this.#origin = input.origin ?? globalThis.location.origin;
   }
 

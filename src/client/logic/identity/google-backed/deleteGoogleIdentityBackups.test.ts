@@ -167,15 +167,16 @@ function createSetup(
   const visibleCopyDeletes: string[] = [];
   const subject = new DeleteGoogleIdentityBackups({
     requestWrappingKey: wrappingKeyRequest.request,
-    readPassportFile: fileStore.readPassportFile.bind(fileStore),
-    deletePassportFileByReference: fileStore.deletePassportFile.bind(fileStore),
+    readPassportFile: (driveAccessToken) => fileStore.readPassportFile(driveAccessToken),
+    deletePassportFileByReference: (driveAccessToken, reference) =>
+      fileStore.deletePassportFile(driveAccessToken, reference),
     deleteVisibleRecoveryCopies: async (_token, publicKeyDisplay) => {
       visibleCopyDeletes.push(publicKeyDisplay);
       return visibleDeleteFailure
         ? Result.err({ code: "forbidden" as const })
         : Result.ok({ deletedCount: 2 });
     },
-    decryptSecretKeyBytes: crypto.decryptSecretKeyBytes.bind(crypto),
+    decryptSecretKeyBytes: (decryptInput) => crypto.decryptSecretKeyBytes(decryptInput),
     pubky,
     passportOrigin: "https://passport.pubky.app",
   });

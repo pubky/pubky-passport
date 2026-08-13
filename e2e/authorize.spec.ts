@@ -329,7 +329,10 @@ async function installPersistenceObserver(page: Page): Promise<void> {
     };
 
     const databaseFactory = indexedDB as IDBFactory & { open: IDBFactory["open"] };
-    const openDatabase = databaseFactory.open.bind(databaseFactory);
+    const openDatabase = (name: string, version?: number) =>
+      version === undefined
+        ? IDBFactory.prototype.open.call(databaseFactory, name)
+        : IDBFactory.prototype.open.call(databaseFactory, name, version);
     databaseFactory.open = ((name: string, version?: number) => {
       writes.push(`indexedDB:${name}:${version ?? "default"}`);
       return version === undefined ? openDatabase(name) : openDatabase(name, version);
@@ -357,7 +360,7 @@ async function installPersistenceObserver(page: Page): Promise<void> {
 
     if ("caches" in window) {
       const cacheStorage = caches as CacheStorage & { open: CacheStorage["open"] };
-      const openCache = cacheStorage.open.bind(cacheStorage);
+      const openCache = (name: string) => CacheStorage.prototype.open.call(cacheStorage, name);
       cacheStorage.open = (async (name: string) => {
         writes.push(`cache:${name}`);
         return openCache(name);

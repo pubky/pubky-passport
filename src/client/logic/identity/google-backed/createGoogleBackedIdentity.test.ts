@@ -24,16 +24,18 @@ describe("CreateGoogleBackedIdentity", () => {
       ),
       local: new RecordingSaveLocalIdentity(() => events.push("save")),
     });
-    const signup = setup.pubky.signup.bind(setup.pubky);
-    setup.pubky.signup = async (input) => {
+    const signup = vi.spyOn(setup.pubky, "signup");
+    signup.mockImplementationOnce(async (input) => {
       events.push("signup");
-      return signup(input);
-    };
-    const publish = setup.pubky.publishHomeserverIfStale.bind(setup.pubky);
-    setup.pubky.publishHomeserverIfStale = async (input) => {
+      signup.mockRestore();
+      return setup.pubky.signup(input);
+    });
+    const publish = vi.spyOn(setup.pubky, "publishHomeserverIfStale");
+    publish.mockImplementationOnce(async (input) => {
       events.push("discovery");
-      return publish(input);
-    };
+      publish.mockRestore();
+      return setup.pubky.publishHomeserverIfStale(input);
+    });
 
     const result = await setup.subject.execute(
       ...executionInput(setup.fileStore, (progress) => events.push(progress)),
@@ -322,7 +324,7 @@ function createSetup(input: {
   const crypto = new RecordingPassportFileCrypto();
   const fileStore = input.fileStore ?? new RecordingPassportFileOperations({ status: "missing" });
   const subject = new CreateGoogleBackedIdentity({
-    encryptSecretKeyBytes: crypto.encryptSecretKeyBytes.bind(crypto),
+    encryptSecretKeyBytes: (encryptInput) => crypto.encryptSecretKeyBytes(encryptInput),
     pubky,
     saveLocalIdentity: local,
     passportOrigin: "https://passport.pubky.app",

@@ -469,7 +469,7 @@ describe("GoogleDrivePassportFileStore", () => {
     const createLockedStore = () => new GoogleDrivePassportFileStore({
       accessTokenProvider: async () => ACCESS_TOKEN,
       fetch: fetchMock,
-      requestLock: lockManager.request.bind(lockManager),
+      requestLock: (name, callback) => lockManager.request(name, callback),
     });
 
     const firstCreate = createLockedStore().createPassportFile(ENVELOPE);
