@@ -44,5 +44,8 @@ describe("ConfirmGoogleDetachment", () => {
 
     expect(onRetryAuthorization).toHaveBeenCalledOnce();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+    const confirmation = screen.getByLabelText("Type DELETE to confirm");
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not connect to Google");
+    expect(confirmation).not.toHaveAttribute("aria-invalid");
   });
 });

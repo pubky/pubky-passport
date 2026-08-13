@@ -42,4 +42,14 @@ describe("EncryptedBackup", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(onBack).toHaveBeenCalledOnce();
   });
+
+  it("announces backup failures without marking a valid password invalid", async () => {
+    render(<EncryptedBackup createBackup={async () => Result.err({ code: "backup_failed" })} identityId="identity" onBack={vi.fn()} />);
+    const password = screen.getByLabelText("Enter strong password");
+    await userEvent.setup().type(password, "123456");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not create the encrypted backup");
+    expect(password).not.toHaveAttribute("aria-invalid");
+  });
 });

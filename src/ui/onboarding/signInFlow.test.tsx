@@ -154,7 +154,8 @@ describe("SignInFlow", () => {
     expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
     expect(screen.getByText("signin_failed")).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Delete backup & create new Pubky" }));
-    expect(screen.getByRole("heading", { name: "Delete backup and start over?" })).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "Delete backup and start over?" });
+    expect(dialog).toHaveAccessibleDescription("This permanently deletes the encrypted backup for this Pubky from Google Drive. Passport will then create a new Pubky.");
     await userEvent.setup().click(screen.getByRole("button", { name: "Delete & create new" }));
 
     expect(continueAction).toHaveBeenNthCalledWith(2, {
