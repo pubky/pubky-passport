@@ -135,20 +135,6 @@ export class LocalStorageIdentityRepository {
     return this.writeStore({ ...store.value, activeIdentityId, identities });
   }
 
-  clear(): LocalIdentityResult<void> {
-    if (!this.#storage) {
-      return localStoreFailure("clear", "storage_unavailable");
-    }
-
-    try {
-      this.#storage.removeItem(STORAGE_KEY);
-      notifyStorage(this.#storage);
-      return Result.ok();
-    } catch {
-      return localStoreFailure("clear", "storage_unavailable");
-    }
-  }
-
   subscribe(listener: () => void): () => void {
     return subscribeToStorage(this.#storage, listener);
   }
@@ -385,7 +371,7 @@ function failure<Success>(
 }
 
 function localStoreFailure<Success>(
-  operation: "read" | "write" | "clear",
+  operation: "read" | "write",
   code: "storage_unavailable" | "invalid_store",
 ): LocalIdentityResult<Success> {
   LOGGER.warn("identity.local_store.failed", { operation, code });

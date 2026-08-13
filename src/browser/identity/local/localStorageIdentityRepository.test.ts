@@ -102,18 +102,6 @@ describe("LocalStorageIdentityRepository", () => {
     expect(expectResultOk(new LocalStorageIdentityRepository(storage).list()).identities[0]?.googleAccount).toEqual(googleAccount);
   });
 
-  it("clears only Passport local identities", () => {
-    const storage = new MemoryStorage();
-    const repository = new LocalStorageIdentityRepository(storage);
-    storage.setItem("unrelated", "keep");
-    save(repository, FIRST_IDENTITY, 1);
-
-    expectResultOk(repository.clear());
-
-    expect(expectResultOk(repository.list())).toEqual({ activeIdentityId: null, identities: [] });
-    expect(storage.getItem("unrelated")).toBe("keep");
-  });
-
   it("removes only one identity and activates a remaining identity", () => {
     const storage = new MemoryStorage();
     const repository = new LocalStorageIdentityRepository(storage);
@@ -166,9 +154,9 @@ describe("LocalStorageIdentityRepository", () => {
     const unsubscribeSecond = secondRepository.subscribe(secondListener);
 
     const first = save(secondRepository, FIRST_IDENTITY, 1);
-    save(firstRepository, SECOND_IDENTITY, 2);
+    const second = save(firstRepository, SECOND_IDENTITY, 2);
     expectResultOk(secondRepository.select(first.id));
-    expectResultOk(firstRepository.clear());
+    expectResultOk(firstRepository.remove(second.id));
     unsubscribeFirst();
     unsubscribeSecond();
     save(secondRepository, FIRST_IDENTITY, 1);
