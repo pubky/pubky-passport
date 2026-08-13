@@ -8,10 +8,29 @@ import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "../../..
 import { LOGGER } from "../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";
 
-export type LocalIdentitySummary = {
+/** UI-safe local identity metadata. Contains no secret key material. */
+export type LocalIdentityMetadata = {
   id: string;
   publicIdentity: PubkyPublicIdentity;
   googleAccount?: GoogleAccountProfile;
+};
+
+/** UI-safe local identity collection. Contains no secret key material. */
+export type LocalIdentityCatalog = {
+  activeIdentityId: string | null;
+  identities: LocalIdentityMetadata[];
+};
+
+/** localStorage record containing the base64url-encoded 32-byte Pubky secret key. */
+type StoredLocalIdentity = LocalIdentityMetadata & {
+  secretKey: string;
+};
+
+/** Versioned localStorage schema containing encoded Pubky secret keys. */
+type LocalIdentityStoreV1 = {
+  v: typeof LOCAL_IDENTITY_STORE_VERSION;
+  activeIdentityId: string | null;
+  identities: StoredLocalIdentity[];
 };
 
 export type LocalIdentityErrorCode =
@@ -34,16 +53,6 @@ type StorageNotificationHub = {
   listening: boolean;
 };
 
-type StoredLocalIdentity = LocalIdentitySummary & {
-  secretKey: string;
-};
-
-type LocalIdentityStoreV1 = {
-  v: typeof LOCAL_IDENTITY_STORE_VERSION;
-  activeIdentityId: string | null;
-  identities: StoredLocalIdentity[];
-};
-
 export class LocalStorageIdentityRepository {
   readonly #storage: Storage | null;
 
@@ -51,7 +60,7 @@ export class LocalStorageIdentityRepository {
     this.#storage = storage === undefined ? getLocalStorage() : storage;
   }
 
-  list(): LocalIdentityResult<{ activeIdentityId: string | null; identities: LocalIdentitySummary[] }> {
+  list(): LocalIdentityResult<LocalIdentityCatalog> {
     const store = this.readStore();
     if (Result.isError(store)) {
       return Result.err(store.error);
@@ -59,11 +68,11 @@ export class LocalStorageIdentityRepository {
 
     return Result.ok({
       activeIdentityId: store.value.activeIdentityId,
-      identities: store.value.identities.map(toSummary),
+      identities: store.value.identities.map(toMetadata),
     });
   }
 
-  save(identity: LocalIdentitySummary, secretKey: PubkySecretKeyMaterial): LocalIdentityResult<LocalIdentitySummary> {
+  save(identity: LocalIdentityMetadata, secretKey: PubkySecretKeyMaterial): LocalIdentityResult<LocalIdentityMetadata> {
     if (identity.id !== identity.publicIdentity.publicKeyZ32) {
       return failure("save", "invalid_identity");
     }
@@ -98,7 +107,7 @@ export class LocalStorageIdentityRepository {
       return Result.err(written.error);
     }
 
-    return Result.ok(toSummary(storedIdentity));
+    return Result.ok(toMetadata(storedIdentity));
   }
 
   select(id: string): LocalIdentityResult<void> {
@@ -144,7 +153,7 @@ export class LocalStorageIdentityRepository {
     return subscribeToStorage(this.#storage, listener);
   }
 
-  readActive(): LocalIdentityResult<{ identity: LocalIdentitySummary; secretKey: PubkySecretKeyMaterial }> {
+  readActive(): LocalIdentityResult<{ identity: LocalIdentityMetadata; secretKey: PubkySecretKeyMaterial }> {
     const store = this.readStore();
     if (Result.isError(store)) {
       return Result.err(store.error);
@@ -165,12 +174,12 @@ export class LocalStorageIdentityRepository {
     }
 
     return Result.ok({
-      identity: toSummary(storedIdentity),
+      identity: toMetadata(storedIdentity),
       secretKey: { bytes: secretKey, format: PUBKY_SECRET_KEY_FORMAT },
     });
   }
 
-  read(id: string): LocalIdentityResult<{ identity: LocalIdentitySummary; secretKey: PubkySecretKeyMaterial }> {
+  read(id: string): LocalIdentityResult<{ identity: LocalIdentityMetadata; secretKey: PubkySecretKeyMaterial }> {
     const store = this.readStore();
     if (Result.isError(store)) return Result.err(store.error);
     const storedIdentity = store.value.identities.find((candidate) => candidate.id === id);
@@ -179,7 +188,7 @@ export class LocalStorageIdentityRepository {
     const secretKey = decodeStoredSecretKey(storedIdentity.secretKey);
     if (!secretKey) return localStoreFailure("read", "invalid_store");
     return Result.ok({
-      identity: toSummary(storedIdentity),
+      identity: toMetadata(storedIdentity),
       secretKey: { bytes: secretKey, format: PUBKY_SECRET_KEY_FORMAT },
     });
   }
@@ -352,7 +361,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function toSummary(identity: StoredLocalIdentity): LocalIdentitySummary {
+function toMetadata(identity: StoredLocalIdentity): LocalIdentityMetadata {
   return {
     id: identity.id,
     publicIdentity: identity.publicIdentity,

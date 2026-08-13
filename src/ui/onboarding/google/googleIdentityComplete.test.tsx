@@ -19,7 +19,7 @@ describe("GoogleIdentityComplete", () => {
   });
 
   it("labels a newly created identity as setup complete", () => {
-    render(<GoogleIdentityComplete identity={IDENTITY} mode="created" onContinue={vi.fn()} />);
+    render(<GoogleIdentityComplete googleAccount={GOOGLE_ACCOUNT} identity={IDENTITY} mode="created" onContinue={vi.fn()} />);
     expect(screen.getByRole("heading", { name: "Setup complete." })).toBeInTheDocument();
   });
 });

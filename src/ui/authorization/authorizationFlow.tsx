@@ -7,7 +7,7 @@ import {
   type PassportAuthorizationController,
   type PassportAuthorizationViewState,
 } from "../../browser/authorization/passportAuthorization";
-import type { PassportIdentityList, PassportIdentityController } from "../../browser/identity/passportIdentityController";
+import type { LocalIdentityCatalog, PassportIdentityController } from "../../browser/identity/passportIdentityController";
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { SignInFlow } from "../onboarding/signInFlow";
@@ -100,7 +100,7 @@ function AuthorizationWithIdentity({ authorization, controller, googleClientId, 
 function ReadyAuthorizationWithIdentity({ authorization, authorizationController, catalog, identityController }: {
   authorization: Extract<PassportAuthorizationViewState, { status: "review" | "approving" | "redirecting" }>;
   authorizationController: PassportAuthorizationController;
-  catalog: PassportIdentityList;
+  catalog: LocalIdentityCatalog;
   identityController: PassportIdentityController;
 }) {
   const [onboardingRequired, setOnboardingRequired] = useState(catalog.identities.length === 0);

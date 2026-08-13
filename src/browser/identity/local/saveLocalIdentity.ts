@@ -7,7 +7,7 @@ import type {
   PubkyIdentityKeyHandle,
 } from "../../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
-import { LocalStorageIdentityRepository, type LocalIdentityErrorCode, type LocalIdentityResult, type LocalIdentitySummary } from "./localStorageIdentityRepository";
+import { LocalStorageIdentityRepository, type LocalIdentityErrorCode, type LocalIdentityMetadata, type LocalIdentityResult } from "./localStorageIdentityRepository";
 
 export class SaveLocalIdentity {
   readonly #repository: LocalStorageIdentityRepository;
@@ -18,7 +18,7 @@ export class SaveLocalIdentity {
     this.#pubky = pubky;
   }
 
-  async saveIdentity(keyHandle: PubkyIdentityKeyHandle, googleAccount?: GoogleAccountProfile): Promise<LocalIdentityResult<LocalIdentitySummary>> {
+  async saveIdentity(keyHandle: PubkyIdentityKeyHandle, googleAccount?: GoogleAccountProfile): Promise<LocalIdentityResult<LocalIdentityMetadata>> {
     const publicIdentity = await this.#pubky.getPublicIdentity(keyHandle);
     if (Result.isError(publicIdentity)) {
       return failure("invalid_identity");

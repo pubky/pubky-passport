@@ -30,11 +30,11 @@ describe("IdentitySelectionFlow", () => {
 
   it("selects an existing identity and finishes", async () => {
     const onIdentitySelected = vi.fn();
-    const controller = mockPassportIdentityController({ select: vi.fn(() => Result.ok()) });
+    const controller = mockPassportIdentityController({ selectIdentity: vi.fn(() => Result.ok()) });
     render(<IdentitySelectionFlow catalog={CATALOG} controller={controller} onBack={vi.fn()} onIdentitySelected={onIdentitySelected} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: /Your Pubky.*seco/iu }));
-    expect(controller.select).toHaveBeenCalledWith("second");
+    expect(controller.selectIdentity).toHaveBeenCalledWith("second");
     expect(onIdentitySelected).toHaveBeenCalledOnce();
   });
 

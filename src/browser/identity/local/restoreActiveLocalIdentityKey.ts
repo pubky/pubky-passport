@@ -12,7 +12,7 @@ import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
 import type {
   LocalIdentityErrorCode,
   LocalIdentityResult,
-  LocalIdentitySummary,
+  LocalIdentityMetadata,
 } from "./localStorageIdentityRepository";
 
 export class RestoreActiveLocalIdentityKey {
@@ -46,7 +46,7 @@ export class RestoreActiveLocalIdentityKey {
 }
 
 type ReadActiveIdentity = () => LocalIdentityResult<{
-    identity: LocalIdentitySummary;
+    identity: LocalIdentityMetadata;
     secretKey: PubkySecretKeyMaterial;
   }>;
 type RestoreActiveLocalIdentityResult = ResultType<

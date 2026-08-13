@@ -23,7 +23,7 @@ function SignInFlow({ controller, onBack, onComplete, onEstablished }: {
   switch (view.name) {
     case "complete":
       return <GoogleIdentityComplete
-        {...(view.googleAccount ? { googleAccount: view.googleAccount } : {})}
+        googleAccount={view.googleAccount}
         identity={view.identity}
         mode={view.mode}
         onContinue={onComplete}

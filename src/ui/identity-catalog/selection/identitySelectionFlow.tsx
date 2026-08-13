@@ -5,7 +5,7 @@ import { useReducer } from "react";
 
 import type {
   PassportIdentityController,
-  PassportIdentityList,
+  LocalIdentityCatalog,
 } from "../../../browser/identity/passportIdentityController";
 import { SignInFlow } from "../../onboarding/signInFlow";
 import type { GoogleIdentityEstablished } from "../../onboarding/google/useGoogleSignIn";
@@ -13,7 +13,7 @@ import { IdentitySwitcher } from "./identitySwitcher";
 import { transitionIdentitySelection } from "./identitySelectionState";
 
 function IdentitySelectionFlow({ catalog, controller, onBack, onIdentityEstablished, onIdentitySelected }: {
-  catalog: PassportIdentityList;
+  catalog: LocalIdentityCatalog;
   controller: PassportIdentityController;
   onBack: () => void;
   onIdentityEstablished?: (identity: GoogleIdentityEstablished) => void;
@@ -36,7 +36,7 @@ function IdentitySelectionFlow({ catalog, controller, onBack, onIdentityEstablis
     onAddIdentity={() => dispatch({ type: "add-requested" })}
     onBack={onBack}
     onSelect={(identityId) => {
-      const selected = controller.select(identityId);
+      const selected = controller.selectIdentity(identityId);
       if (Result.isOk(selected)) onIdentitySelected();
     }}
   />;

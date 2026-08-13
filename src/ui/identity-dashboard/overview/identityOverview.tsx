@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import type { LocalIdentitySummary } from "../../../browser/identity/passportIdentityController";
+import type { LocalIdentityMetadata } from "../../../browser/identity/passportIdentityController";
 import { GoogleLogo } from "../../shared/brand/googleLogo";
 import { KeyRoundIcon, SettingsIcon, SquareUserRoundIcon } from "../../shared/icons/actionIcons";
 import { PassportScreen } from "../../shared/layout/passportScreen";
@@ -11,7 +11,7 @@ import { Button } from "../../shared/primitives/button";
 import { DisplayHeading } from "../../shared/primitives/typography";
 
 function IdentityOverview({ identity, onManage, onSwitch }: {
-  identity: LocalIdentitySummary;
+  identity: LocalIdentityMetadata;
   onManage: () => void;
   onSwitch: () => void;
 }) {

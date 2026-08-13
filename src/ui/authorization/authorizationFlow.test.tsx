@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PassportAuthorizationViewState } from "../../browser/authorization/passportAuthorization";
-import type { PassportIdentityList } from "../../browser/identity/passportIdentityController";
+import type { LocalIdentityCatalog } from "../../browser/identity/passportIdentityController";
 import { AuthorizationFlow } from "./authorizationFlow";
 
 const MOCKS = vi.hoisted(() => ({
@@ -15,7 +15,7 @@ const MOCKS = vi.hoisted(() => ({
   authorizationState: undefined as PassportAuthorizationViewState | undefined,
   cancel: vi.fn(),
   catalogListener: null as null | (() => void),
-  catalog: undefined as PassportIdentityList | undefined,
+  catalog: undefined as LocalIdentityCatalog | undefined,
   commitInitialEntry: vi.fn(),
   dispose: vi.fn(),
   select: vi.fn(),
@@ -37,10 +37,9 @@ vi.mock("../../browser/authorization/passportAuthorization", () => ({
 
 vi.mock("../../browser/identity/passportIdentityController", () => ({
   PassportIdentityController: class {
-    dispose = MOCKS.dispose;
-    list = () => Result.ok(MOCKS.catalog);
-    select = MOCKS.select;
-    subscribe = (listener: () => void) => { MOCKS.catalogListener = listener; return () => { MOCKS.catalogListener = null; }; };
+    listIdentities = () => Result.ok(MOCKS.catalog);
+    selectIdentity = MOCKS.select;
+    subscribeToIdentityChanges = (listener: () => void) => { MOCKS.catalogListener = listener; return () => { MOCKS.catalogListener = null; }; };
   },
 }));
 

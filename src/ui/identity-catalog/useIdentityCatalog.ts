@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import {
   PassportIdentityController,
-  type PassportIdentityList,
+  type LocalIdentityCatalog,
 } from "../../browser/identity/passportIdentityController";
 
 type IdentityCatalogState =
@@ -13,7 +13,7 @@ type IdentityCatalogState =
   | { status: "unavailable" }
   | {
       status: "ready";
-      catalog: PassportIdentityList;
+      catalog: LocalIdentityCatalog;
       controller: PassportIdentityController;
     };
 
@@ -22,7 +22,6 @@ function useIdentityCatalog(googleClientId: string, homegateBaseUrl: string): Id
 
   useEffect(() => {
     let cancelled = false;
-    let controller: PassportIdentityController | null = null;
     let unsubscribe = () => {};
 
     queueMicrotask(() => {
@@ -30,15 +29,14 @@ function useIdentityCatalog(googleClientId: string, homegateBaseUrl: string): Id
       setSession({ status: "loading" });
       try {
         const instance = new PassportIdentityController(googleClientId, homegateBaseUrl);
-        controller = instance;
         const publish = () => {
-          const catalog = instance.list();
+          const catalog = instance.listIdentities();
           if (cancelled) return;
           setSession(Result.isOk(catalog)
             ? { status: "ready", catalog: catalog.value, controller: instance }
             : { status: "unavailable" });
         };
-        unsubscribe = instance.subscribe(publish);
+        unsubscribe = instance.subscribeToIdentityChanges(publish);
         publish();
       } catch {
         if (!cancelled) setSession({ status: "unavailable" });
@@ -48,7 +46,6 @@ function useIdentityCatalog(googleClientId: string, homegateBaseUrl: string): Id
     return () => {
       cancelled = true;
       try { unsubscribe(); } catch { /* Controller owns cleanup logging. */ }
-      try { controller?.dispose(); } catch { /* Controller owns cleanup logging. */ }
     };
   }, [googleClientId, homegateBaseUrl]);
 

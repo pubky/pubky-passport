@@ -5,13 +5,13 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PassportIdentityList } from "../../browser/identity/passportIdentityController";
+import type { LocalIdentityCatalog } from "../../browser/identity/passportIdentityController";
 import { useIdentityCatalog } from "./useIdentityCatalog";
 
 const MOCKS = vi.hoisted(() => ({
-  catalog: { activeIdentityId: null, identities: [] } as PassportIdentityList,
+  catalog: { activeIdentityId: null, identities: [] } as LocalIdentityCatalog,
   create: vi.fn(),
-  dispose: vi.fn(),
+  unsubscribe: vi.fn(),
   listener: null as (() => void) | null,
   unavailable: false,
 }));
@@ -20,13 +20,12 @@ vi.mock("../../browser/identity/passportIdentityController", () => ({
   PassportIdentityController: function PassportIdentityController() {
     MOCKS.create();
     return {
-    dispose: MOCKS.dispose,
-    list: () => MOCKS.unavailable
+    listIdentities: () => MOCKS.unavailable
       ? Result.err({ code: "storage_unavailable" as const })
       : Result.ok(MOCKS.catalog),
-    subscribe: (listener: () => void) => {
+    subscribeToIdentityChanges: (listener: () => void) => {
       MOCKS.listener = listener;
-      return () => { MOCKS.listener = null; };
+      return () => { MOCKS.listener = null; MOCKS.unsubscribe(); };
     },
     };
   },
@@ -62,21 +61,21 @@ describe("useIdentityCatalog", () => {
     expect(await screen.findByText("ready:1")).toBeInTheDocument();
   });
 
-  it("maps catalog failures and disposes its controller", async () => {
+  it("maps catalog failures and unsubscribes on unmount", async () => {
     MOCKS.unavailable = true;
     const rendered = render(<SessionProbe />);
     expect(await screen.findByText("unavailable")).toBeInTheDocument();
 
     rendered.unmount();
-    await waitFor(() => expect(MOCKS.dispose).toHaveBeenCalledOnce());
+    await waitFor(() => expect(MOCKS.unsubscribe).toHaveBeenCalledOnce());
   });
 
-  it("creates and disposes one live controller under Strict Mode", async () => {
+  it("creates one live controller under Strict Mode", async () => {
     const rendered = render(<StrictMode><SessionProbe /></StrictMode>);
     expect(await screen.findByText("ready:0")).toBeInTheDocument();
     expect(MOCKS.create).toHaveBeenCalledOnce();
 
     rendered.unmount();
-    await waitFor(() => expect(MOCKS.dispose).toHaveBeenCalledOnce());
+    await waitFor(() => expect(MOCKS.unsubscribe).toHaveBeenCalledOnce());
   });
 });

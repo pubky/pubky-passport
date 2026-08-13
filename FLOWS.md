@@ -317,6 +317,7 @@ sequenceDiagram
     participant UI as src/ui/root<br/>GoogleIdentitySetupFlow
     box rgba(0, 158, 115, 0.18) src/browser/identity
         participant Controller as passportIdentityController.ts<br/>PassportIdentityController
+        participant GoogleFlow as googleBackedIdentityFlow.ts<br/>GoogleBackedIdentityFlow
     end
     box rgba(0, 158, 115, 0.18) src/browser/google-authorization
         participant Authorization as googleImplicitAuthorization.ts<br/>GoogleImplicitAuthorization
@@ -329,16 +330,17 @@ sequenceDiagram
     end
 
     UI->>Controller: new PassportIdentityController(...)
-    UI->>Controller: prepareGoogleAuthorization(onState)
-    Controller->>Authorization: prepare()
+    UI->>Controller: startGoogleIdentityFlow(onState)
+    Controller->>GoogleFlow: new GoogleBackedIdentityFlow(...) + start()
+    GoogleFlow->>Authorization: prepare()
     User->>UI: Continue with Google
-    UI->>Controller: continueGoogleBackedIdentityAction(...)
-    Controller->>Authorization: request()
+    UI->>GoogleFlow: establishIdentity()
+    GoogleFlow->>Authorization: request()
     Authorization->>OAuth: open popup with response_type=id_token token
     OAuth-->>Authorization: redirect to Passport callback with fragment
     Note over Authorization: Parser-time bootstrap scrubs fragment<br/>validate state, nonce, scope, and UserInfo sub
-    Authorization-->>Controller: GoogleBackedIdentityCredentials
-    Controller->>Operations: restoreOrCreateGoogleBackedIdentity<br/>(GoogleBackedIdentityCredentials)
+    Authorization-->>GoogleFlow: GoogleBackedIdentityCredentials
+    GoogleFlow->>Operations: restoreOrCreateGoogleBackedIdentity<br/>(GoogleBackedIdentityCredentials)
 ```
 
 
@@ -351,7 +353,7 @@ sequenceDiagram
     accTitle: Google-backed custody/recovery establishment call flow
     accDescr: GoogleBackedIdentityOperations requests a wrapping key, reads the Google Drive Passport file, and dispatches a found file to restore or requests a Homegate invitation before creating a missing identity, without passing the wrapping key to Drive storage.
     box rgba(0, 158, 115, 0.18) src/browser/identity
-        participant Controller as passportIdentityController.ts<br/>PassportIdentityController
+        participant GoogleFlow as googleBackedIdentityFlow.ts<br/>GoogleBackedIdentityFlow
     end
     box rgba(0, 158, 115, 0.18) src/browser/identity/google-backed
         participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
@@ -375,13 +377,13 @@ sequenceDiagram
         participant Drive as Google Drive API v3<br/>appDataFolder + My Drive
     end
 
-    Controller->>Operations: restoreOrCreateGoogleBackedIdentity<br/>(GoogleBackedIdentityCredentials)
+    GoogleFlow->>Operations: restoreOrCreateGoogleBackedIdentity<br/>(GoogleBackedIdentityCredentials)
     Operations->>Wrapping: requestGoogleWrappingKey(ID token)
     Wrapping->>API: POST { googleIdToken }
     API-->>Wrapping: wrapping-key result
     Wrapping-->>Operations: wrapping-key result
     alt Wrapping-key error
-        Operations-->>Controller: safe failure
+        Operations-->>GoogleFlow: safe failure
     else Wrapping key
         Operations->>DriveStore: new GoogleDrivePassportFileStore(...)
         Operations->>DriveStore: readPassportFile()
@@ -404,7 +406,7 @@ sequenceDiagram
                 Operations->>Creator: execute(invitation, focused app-data create, focused visible-copy write, wrapping key)
             end
         else Storage error
-            Operations-->>Controller: safe failure
+            Operations-->>GoogleFlow: safe failure
         end
     end
 ```
@@ -644,19 +646,19 @@ sequenceDiagram
     accTitle: Detach a Pubky identity from Google
     accDescr: Passport verifies the account and identity, deletes every Google backup, and clears the local identity last.
     participant UI as detach-from-google
-    participant Controller as PassportIdentityController
+    participant GoogleFlow as GoogleBackedIdentityFlow
     participant Delete as DeleteGoogleIdentityBackups
     participant AppData as GoogleDrivePassportFileStore
     participant Visible as GoogleDriveVisibleRecoveryCopyDeleter
     participant Drive as Google Drive API v3
     participant Local as LocalStorageIdentityRepository
 
-    UI->>Controller: detach(public identity, expected Google account)
-    Controller->>Controller: request Google credentials
+    UI->>GoogleFlow: detachIdentity(public identity, expected Google account)
+    GoogleFlow->>GoogleFlow: request Google credentials
     alt Authorized account differs
-        Controller-->>UI: account_mismatch
+        GoogleFlow-->>UI: authorization_failed
     else Account matches
-        Controller->>Delete: deleteGoogleIdentityBackups(...)
+        GoogleFlow->>Delete: deleteGoogleIdentityBackups(...)
         Delete->>AppData: readPassportFile()
         AppData->>Drive: find appDataFolder/passport.json
         alt App-data file found
@@ -675,8 +677,8 @@ sequenceDiagram
             Delete-->>UI: safe retryable failure
             Note over Local: Local identity remains available
         else All Google backups removed
-            Controller->>Local: remove identity
-            Controller-->>UI: detachment complete
+            GoogleFlow->>Local: remove identity
+            GoogleFlow-->>UI: detachment complete
         end
     end
 ```

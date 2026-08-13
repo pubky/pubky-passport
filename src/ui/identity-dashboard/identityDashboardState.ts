@@ -1,6 +1,6 @@
 "use client";
 
-import type { LocalIdentitySummary, PassportIdentityList } from "../../browser/identity/passportIdentityController";
+import type { LocalIdentityCatalog, LocalIdentityMetadata } from "../../browser/identity/passportIdentityController";
 
 type IdentityDashboardState =
   | { view: "onboarding" }
@@ -9,7 +9,7 @@ type IdentityDashboardState =
   | { view: "manage-identity"; identityId: string }
   | { view: "encrypted-backup"; identityId: string }
   | { view: "migrate-to-pubky-ring"; identityId: string; migrationUrl: string | null }
-  | { view: "detach-from-google"; identity: LocalIdentitySummary };
+  | { view: "detach-from-google"; identity: LocalIdentityMetadata };
 
 type IdentityDashboardEvent =
   | { type: "onboarding-completed" }
@@ -18,7 +18,7 @@ type IdentityDashboardEvent =
   | { type: "manage-requested"; identityId: string }
   | { type: "backup-requested"; identityId: string }
   | { type: "migration-requested"; identityId: string; migrationUrl: string | null }
-  | { type: "detachment-requested"; identity: LocalIdentitySummary }
+  | { type: "detachment-requested"; identity: LocalIdentityMetadata }
   | { type: "back-to-overview" }
   | { type: "back-to-management"; identityId: string }
   | { type: "identity-removed" };
@@ -63,7 +63,7 @@ function transitionIdentityDashboard(
 
 function resolveIdentityDashboardState(
   state: IdentityDashboardState,
-  catalog: PassportIdentityList,
+  catalog: LocalIdentityCatalog,
 ): IdentityDashboardState {
   if (state.view === "detach-from-google") return state;
   if (state.view === "onboarding") return state;
@@ -75,7 +75,7 @@ function resolveIdentityDashboardState(
   return state;
 }
 
-function initialIdentityDashboardState(catalog: PassportIdentityList): IdentityDashboardState {
+function initialIdentityDashboardState(catalog: LocalIdentityCatalog): IdentityDashboardState {
   return catalog.identities.length === 0 ? { view: "onboarding" } : { view: "overview" };
 }
 

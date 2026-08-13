@@ -4,7 +4,7 @@ import { Result } from "better-result";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
-import type { LocalIdentitySummary, PubkyHomeserverResolutionResult } from "../../../browser/identity/passportIdentityController";
+import type { LocalIdentityMetadata, PubkyHomeserverResolutionResult } from "../../../browser/identity/passportIdentityController";
 import { CopyIcon, DownloadIcon, KeyRoundIcon, LinkOffIcon } from "../../shared/icons/actionIcons";
 import { PassportScreen } from "../../shared/layout/passportScreen";
 import { BackButton } from "../../shared/navigation/backButton";
@@ -13,7 +13,7 @@ import { Button } from "../../shared/primitives/button";
 import { IconButton } from "../../shared/primitives/iconButton";
 import { DisplayHeading } from "../../shared/primitives/typography";
 
-function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadBackup, onLogOut, onMigrateToKeychain, resolveHomeserver }: { identity: LocalIdentitySummary; onBack: () => void; onDetachFromGoogle: () => void; onDownloadBackup: () => void; onLogOut: () => void; onMigrateToKeychain: () => void; resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult> }) {
+function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadBackup, onLogOut, onMigrateToKeychain, resolveHomeserver }: { identity: LocalIdentityMetadata; onBack: () => void; onDetachFromGoogle: () => void; onDownloadBackup: () => void; onLogOut: () => void; onMigrateToKeychain: () => void; resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult> }) {
   const account = identity.googleAccount;
   const name = account?.name ?? "Your Pubky";
   const [homeserver, setHomeserver] = useState<string | null | undefined>();

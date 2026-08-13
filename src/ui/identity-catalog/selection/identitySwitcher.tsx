@@ -1,6 +1,6 @@
 "use client";
 
-import type { LocalIdentitySummary } from "../../../browser/identity/passportIdentityController";
+import type { LocalIdentityMetadata } from "../../../browser/identity/passportIdentityController";
 import { UserRoundPlusIcon } from "../../shared/icons/actionIcons";
 import { PassportScreen } from "../../shared/layout/passportScreen";
 import { BackButton } from "../../shared/navigation/backButton";
@@ -10,7 +10,7 @@ import { IdentityRow } from "./identityRow";
 
 function IdentitySwitcher({ activeIdentityId, identities, onAddIdentity, onBack, onSelect }: {
   activeIdentityId: string | null;
-  identities: LocalIdentitySummary[];
+  identities: LocalIdentityMetadata[];
   onAddIdentity: () => void;
   onBack: () => void;
   onSelect: (identityId: string) => void;

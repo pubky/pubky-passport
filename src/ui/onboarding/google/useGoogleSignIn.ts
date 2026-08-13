@@ -4,10 +4,9 @@ import { Result } from "better-result";
 import { useCallback, useEffect, useReducer, useRef } from "react";
 
 import type {
-  GoogleBackedIdentityAction,
-  GoogleBackedIdentityActionResult,
+  GoogleIdentityFlow,
+  GoogleIdentityFlowError,
   PassportIdentityController,
-  PassportIdentityControllerError,
 } from "../../../browser/identity/passportIdentityController";
 import type { GoogleAccountProfile } from "../../../core/identity/googleAccountProfile";
 import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
@@ -17,7 +16,7 @@ import {
 } from "./googleSignInState";
 
 type GoogleIdentityEstablished = {
-  googleAccount?: GoogleAccountProfile;
+  googleAccount: GoogleAccountProfile;
   identity: PubkyPublicIdentity;
   mode: "created" | "restored";
 };
@@ -27,87 +26,91 @@ function useGoogleSignIn(
   onEstablished?: (identity: GoogleIdentityEstablished) => void,
 ) {
   const dispatching = useRef(false);
+  const flow = useRef<GoogleIdentityFlow | null>(null);
   const [state, dispatch] = useReducer(transitionGoogleSignIn, INITIAL_GOOGLE_SIGN_IN_STATE);
 
-  const run = useCallback((action: GoogleBackedIdentityAction): void => {
+  const run = useCallback((recovery?: NonNullable<GoogleIdentityFlowError["recovery"]>): void => {
     if (dispatching.current) return;
+    const currentFlow = flow.current;
+    if (!currentFlow) {
+      dispatch({ type: "authorization-denied" });
+      return;
+    }
     dispatching.current = true;
     dispatch({ type: "request-started" });
-    void controller.continueGoogleBackedIdentityAction(action)
+    const operation = recovery
+      ? currentFlow.replaceIncompleteIdentity(recovery.publicIdentity, recovery.googleAccount.id)
+      : currentFlow.establishIdentity();
+    void operation
       .then((completed) => {
-        switch (completed.status) {
-          case "google_authorization_failed":
-            dispatch({ type: "authorization-denied" });
-            return;
-          case "busy":
-          case "superseded":
-          case "action_finished_after_unmount":
-            return;
-          case "action_completed": {
-            if (Result.isError(completed.result)) {
-              dispatch({ type: "operation-failed", error: completed.result.error });
-              return;
-            }
-            if (completed.result.value.kind !== "google_backed_identity_established") {
-              dispatch({ type: "operation-failed", error: { code: "unexpected_failure" } });
-              return;
-            }
-            const established = establishedIdentity(completed.result, controller);
-            if (!established) {
-              dispatch({ type: "operation-failed", error: { code: "unexpected_failure" } });
-              return;
-            }
-            onEstablished?.(established);
-            dispatch({
-              type: "operation-completed",
-              identity: established.identity,
-              mode: established.mode,
-              ...(established.googleAccount ? { googleAccount: established.googleAccount } : {}),
-            });
-            return;
-          }
+        if (flow.current !== currentFlow) return;
+        if (Result.isError(completed)) {
+          if (completed.error.code === "cancelled") return;
+          dispatch(completed.error.code === "authorization_failed"
+            ? { type: "authorization-denied" }
+            : { type: "operation-failed", error: completed.error });
+          return;
+        }
+        const established: GoogleIdentityEstablished = {
+          googleAccount: completed.value.googleAccount,
+          identity: completed.value.publicIdentity,
+          mode: completed.value.establishmentMode,
+        };
+        onEstablished?.(established);
+        dispatch({
+          type: "operation-completed",
+          googleAccount: established.googleAccount,
+          identity: established.identity,
+          mode: established.mode,
+        });
+      })
+      .catch(() => {
+        if (flow.current === currentFlow) {
+          dispatch({ type: "operation-failed", error: { code: "operation_failed" } });
         }
       })
-      .catch(() => dispatch({ type: "operation-failed", error: { code: "unexpected_failure" } }))
-      .finally(() => { dispatching.current = false; });
-  }, [controller, onEstablished]);
+      .finally(() => {
+        if (flow.current === currentFlow) dispatching.current = false;
+      });
+  }, [onEstablished]);
 
-  const start = useCallback(() => {
-    run({ kind: "establish_google_backed_identity" });
-  }, [run]);
+  const start = useCallback(() => run(), [run]);
 
   const back = useCallback(() => {
     dispatching.current = false;
     dispatch({ type: "back" });
   }, []);
 
-  const replaceIncompleteBackup = useCallback((error: PassportIdentityControllerError) => {
+  const replaceIncompleteBackup = useCallback((error: GoogleIdentityFlowError) => {
     if (!error.recovery) return;
     dispatching.current = false;
-    run({
-      kind: "replace_incomplete_google_backed_identity",
-      publicIdentity: error.recovery.publicIdentity,
-      expectedGoogleAccountId: error.recovery.googleAccount.id,
-    });
+    run(error.recovery);
   }, [run]);
 
   useEffect(() => {
-    void controller.prepareGoogleAuthorization((nextState) => {
-      switch (nextState.stage) {
-        case "google-authorization":
-          dispatch({ type: nextState.errorCode === null ? "authorization-ready" : "authorization-denied" });
+    const googleFlow = controller.startGoogleIdentityFlow((nextState) => {
+      switch (nextState.status) {
+        case "ready":
+          dispatch({ type: "authorization-ready" });
           return;
-        case "requesting-google-authorization":
+        case "authorization-failed":
+          dispatch({ type: "authorization-denied" });
+          return;
+        case "requesting-authorization":
           dispatch({ type: "request-started" });
           return;
-        case "establishing-google-backed-identity":
+        case "establishing":
           dispatch({ type: "progress-reported", progress: nextState.progress });
           return;
-        case "detaching-google-backed-identity":
+        case "detaching":
           return;
       }
-    }).catch(() => dispatch({ type: "authorization-denied" }));
-    return () => { try { controller.disposeGoogleAuthorization(); } catch { /* Controller owns cleanup logging. */ } };
+    });
+    flow.current = googleFlow;
+    return () => {
+      flow.current = null;
+      googleFlow.dispose();
+    };
   }, [controller]);
 
   return {
@@ -116,23 +119,6 @@ function useGoogleSignIn(
     retry: start,
     start,
     state,
-  };
-}
-
-function establishedIdentity(
-  result: GoogleBackedIdentityActionResult,
-  controller: PassportIdentityController,
-): GoogleIdentityEstablished | null {
-  if (Result.isError(result) || result.value.kind !== "google_backed_identity_established") return null;
-  const established = result.value;
-  const catalog = controller.list();
-  const googleAccount = Result.isOk(catalog)
-    ? catalog.value.identities.find((candidate) => candidate.id === established.publicIdentity.publicKeyZ32)?.googleAccount
-    : undefined;
-  return {
-    identity: established.publicIdentity,
-    mode: established.establishmentMode,
-    ...(googleAccount ? { googleAccount } : {}),
   };
 }
 

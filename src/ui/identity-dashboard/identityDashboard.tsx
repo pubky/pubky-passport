@@ -3,7 +3,7 @@
 import { Result } from "better-result";
 import { useReducer, useState } from "react";
 
-import type { PassportIdentityController, PassportIdentityList } from "../../browser/identity/passportIdentityController";
+import type { LocalIdentityCatalog, PassportIdentityController } from "../../browser/identity/passportIdentityController";
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { SignInFlow } from "../onboarding/signInFlow";
@@ -26,11 +26,11 @@ function IdentityDashboard({ googleClientId, homegateBaseUrl }: {
   homegateBaseUrl: string;
 }) {
   const session = useIdentityCatalog(googleClientId, homegateBaseUrl);
-  const [completion, setCompletion] = useState<DashboardIdentityCompletion | null>(null);
+  const [completion, setCompletion] = useState<GoogleIdentityEstablished | null>(null);
 
   if (completion) {
     return <GoogleIdentityComplete
-      {...(completion.googleAccount ? { googleAccount: completion.googleAccount } : {})}
+      googleAccount={completion.googleAccount}
       identity={completion.identity}
       mode={completion.mode}
       onContinue={() => setCompletion(null)}
@@ -51,12 +51,10 @@ function IdentityDashboard({ googleClientId, homegateBaseUrl }: {
   }
 }
 
-type DashboardIdentityCompletion = GoogleIdentityEstablished;
-
 function ReadyIdentityDashboard({ catalog, controller, onIdentityEstablished }: {
-  catalog: PassportIdentityList;
+  catalog: LocalIdentityCatalog;
   controller: PassportIdentityController;
-  onIdentityEstablished: (identity: DashboardIdentityCompletion) => void;
+  onIdentityEstablished: (identity: GoogleIdentityEstablished) => void;
 }) {
   const [navigation, dispatch] = useReducer(
     transitionIdentityDashboard,
@@ -90,7 +88,7 @@ function ReadyIdentityDashboard({ catalog, controller, onIdentityEstablished }: 
         onDetachFromGoogle={() => dispatch({ type: "detachment-requested", identity })}
         onDownloadBackup={() => dispatch({ type: "backup-requested", identityId: identity.id })}
         onLogOut={() => {
-          const removed = controller.remove(identity.id);
+          const removed = controller.removeIdentity(identity.id);
           if (Result.isOk(removed)) dispatch({ type: "identity-removed" });
         }}
         onMigrateToKeychain={() => {
@@ -106,7 +104,7 @@ function ReadyIdentityDashboard({ catalog, controller, onIdentityEstablished }: 
     }
     case "encrypted-backup":
       return <EncryptedBackup
-        createBackup={controller.createBackup}
+        createBackup={controller.createEncryptedBackup}
         identityId={state.identityId}
         onBack={() => dispatch({ type: "back-to-management", identityId: state.identityId })}
       />;

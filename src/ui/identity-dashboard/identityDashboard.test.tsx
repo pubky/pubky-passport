@@ -5,12 +5,15 @@ import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PassportIdentityList } from "../../browser/identity/passportIdentityController";
-import { mockPassportIdentityController } from "../../../test-utils/fakes/mockPassportIdentityController";
+import type { LocalIdentityCatalog } from "../../browser/identity/passportIdentityController";
+import {
+  mockGoogleBackedIdentityFlow,
+  mockPassportIdentityController,
+} from "../../../test-utils/fakes/mockPassportIdentityController";
 import { IdentityDashboard } from "./identityDashboard";
 
 const FLOW = vi.hoisted(() => ({
-  catalog: { activeIdentityId: null, identities: [] } as PassportIdentityList,
+  catalog: { activeIdentityId: null, identities: [] } as LocalIdentityCatalog,
   establishIdentity: false,
   establishmentMode: "created" as "created" | "restored",
   migrationExportCount: 0,
@@ -21,47 +24,47 @@ const FLOW = vi.hoisted(() => ({
 vi.mock("../../browser/identity/passportIdentityController", () => ({
   MIN_BACKUP_PASSWORD_LENGTH: 6,
   PassportIdentityController: function PassportIdentityController() { return mockPassportIdentityController({
-    continueGoogleBackedIdentityAction: async (action) => {
-      if (action.kind === "establish_google_backed_identity" && FLOW.establishIdentity) {
-        const identity = {
-          id: "created",
-          publicIdentity: { publicKeyZ32: "created", publicKeyDisplay: "pubkycreated" },
-          googleAccount: { id: "google-created", email: "created@gmail.com", name: "Created", pictureUrl: null },
-        };
-        FLOW.catalog = { activeIdentityId: identity.id, identities: [identity] };
-        FLOW.refresh?.();
-        return {
-          status: "action_completed" as const,
-          result: Result.ok({
-            kind: "google_backed_identity_established" as const,
-            establishmentMode: FLOW.establishmentMode,
-            publicIdentity: identity.publicIdentity,
-            visibleRecoveryCopyStatus: "created" as const,
-          }),
-        };
-      }
-      if (action.kind !== "detach_google_backed_identity") return { status: "google_authorization_failed" as const };
-      const identities = FLOW.catalog.identities.filter((identity) => identity.id !== action.publicIdentity.publicKeyZ32);
-      FLOW.catalog = { activeIdentityId: identities[0]?.id ?? null, identities };
-      FLOW.refresh?.();
-      return {
-        status: "action_completed" as const,
-        result: Result.ok({ kind: "google_backed_identity_detached" as const, deletionStatus: "deleted" as const }),
-      };
+    startGoogleIdentityFlow: (onState) => {
+      onState({ status: "ready" });
+      return mockGoogleBackedIdentityFlow({
+        establishIdentity: async () => {
+          if (FLOW.establishIdentity) {
+            const identity = {
+              id: "created",
+              publicIdentity: { publicKeyZ32: "created", publicKeyDisplay: "pubkycreated" },
+              googleAccount: { id: "google-created", email: "created@gmail.com", name: "Created", pictureUrl: null },
+            };
+            FLOW.catalog = { activeIdentityId: identity.id, identities: [identity] };
+            FLOW.refresh?.();
+            return Result.ok({
+              establishmentMode: FLOW.establishmentMode,
+              googleAccount: identity.googleAccount,
+              publicIdentity: identity.publicIdentity,
+              visibleRecoveryCopyStatus: "created" as const,
+            });
+          }
+          return Result.err({ code: "authorization_failed" as const });
+        },
+        detachIdentity: async (publicIdentity) => {
+          const identities = FLOW.catalog.identities.filter((identity) => identity.id !== publicIdentity.publicKeyZ32);
+          FLOW.catalog = { activeIdentityId: identities[0]?.id ?? null, identities };
+          FLOW.refresh?.();
+          return Result.ok({ deletionStatus: "deleted" as const });
+        },
+      });
     },
     createPubkyRingMigrationUrl: () => {
       FLOW.migrationExportCount += 1;
       return Result.ok(FLOW.migrationUrl);
     },
-    list: () => Result.ok(FLOW.catalog),
-    prepareGoogleAuthorization: async (onState) => { onState({ stage: "google-authorization", errorCode: null }); },
-    remove: (identityId: string) => {
+    listIdentities: () => Result.ok(FLOW.catalog),
+    removeIdentity: (identityId: string) => {
       const identities = FLOW.catalog.identities.filter((identity) => identity.id !== identityId);
       FLOW.catalog = { activeIdentityId: identities[0]?.id ?? null, identities };
       FLOW.refresh?.();
       return Result.ok();
     },
-    subscribe: (listener: () => void) => { FLOW.refresh = listener; return () => { FLOW.refresh = null; }; },
+    subscribeToIdentityChanges: (listener: () => void) => { FLOW.refresh = listener; return () => { FLOW.refresh = null; }; },
   }); },
 }));
 

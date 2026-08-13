@@ -1,24 +1,41 @@
 import { Result } from "better-result";
 import { vi } from "vitest";
 
-import type { PassportIdentityController } from "../../src/browser/identity/passportIdentityController";
+import type {
+  GoogleIdentityFlow,
+  PassportIdentityController,
+} from "../../src/browser/identity/passportIdentityController";
+
+export function mockGoogleBackedIdentityFlow(
+  overrides: Partial<GoogleIdentityFlow> = {},
+): GoogleIdentityFlow {
+  return {
+    retryAuthorization: overrides.retryAuthorization ?? vi.fn(),
+    establishIdentity: overrides.establishIdentity
+      ?? vi.fn(async () => Result.err({ code: "authorization_failed" as const })),
+    replaceIncompleteIdentity: overrides.replaceIncompleteIdentity
+      ?? vi.fn(async () => Result.err({ code: "authorization_failed" as const })),
+    detachIdentity: overrides.detachIdentity
+      ?? vi.fn(async () => Result.err({ code: "authorization_failed" as const })),
+    dispose: overrides.dispose ?? vi.fn(),
+  };
+}
 
 export function mockPassportIdentityController(
   overrides: Partial<PassportIdentityController> = {},
 ): PassportIdentityController {
   return {
-    list: vi.fn(() => Result.ok({ activeIdentityId: null, identities: [] })),
-    select: vi.fn(() => Result.ok()),
-    remove: vi.fn(() => Result.ok()),
-    subscribe: vi.fn(() => () => { }),
+    listIdentities: vi.fn(() => Result.ok({ activeIdentityId: null, identities: [] })),
+    selectIdentity: vi.fn(() => Result.ok()),
+    removeIdentity: vi.fn(() => Result.ok()),
+    subscribeToIdentityChanges: vi.fn(() => () => { }),
     resolveHomeserver: vi.fn(async () => Result.ok(null)),
-    createBackup: vi.fn(async () => Result.err({ code: "backup_failed" as const })),
+    createEncryptedBackup: vi.fn(async () => Result.err({ code: "backup_failed" as const })),
     createPubkyRingMigrationUrl: vi.fn(() => Result.err({ code: "no_active_identity" as const })),
-    prepareGoogleAuthorization: vi.fn(async () => { }),
-    disposeGoogleAuthorization: vi.fn(),
-    retryGoogleAuthorization: vi.fn(),
-    continueGoogleBackedIdentityAction: vi.fn(async () => ({ status: "google_authorization_failed" as const })),
-    dispose: vi.fn(),
+    startGoogleIdentityFlow: vi.fn((onState) => {
+      onState({ status: "ready" });
+      return mockGoogleBackedIdentityFlow();
+    }),
     ...overrides,
   } as unknown as PassportIdentityController;
 }

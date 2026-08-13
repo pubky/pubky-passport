@@ -1,6 +1,6 @@
 "use client";
 
-import type { PassportIdentityControllerError } from "../../../browser/identity/passportIdentityController";
+import type { GoogleIdentityFlowError } from "../../../browser/identity/passportIdentityController";
 import { RotateCcwIcon } from "../../shared/icons/actionIcons";
 import { PassportScreen } from "../../shared/layout/passportScreen";
 import { BackButton } from "../../shared/navigation/backButton";
@@ -9,7 +9,7 @@ import { ConfirmationDialog } from "../../shared/primitives/confirmationDialog";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
 
 function GoogleIdentityError({ error, onBack, onReplace, onTryAgain }: {
-  error: PassportIdentityControllerError;
+  error: GoogleIdentityFlowError;
   onBack: () => void;
   onReplace: (() => void) | null;
   onTryAgain: () => void;
@@ -47,7 +47,7 @@ function GoogleIdentityError({ error, onBack, onReplace, onTryAgain }: {
   );
 }
 
-function errorMessage(code: PassportIdentityControllerError["code"]): string {
+function errorMessage(code: GoogleIdentityFlowError["code"]): string {
   switch (code) {
     case "signin_failed": return "Passport found your encrypted identity, but could not sign in to its homeserver.";
     case "signup_failed": return "Passport found your encrypted identity, but could not finish homeserver setup.";

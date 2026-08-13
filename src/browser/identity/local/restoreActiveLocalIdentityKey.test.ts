@@ -7,7 +7,7 @@ import { LOGGER } from "../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";
 import type {
   LocalIdentityResult,
-  LocalIdentitySummary,
+  LocalIdentityMetadata,
 } from "./localStorageIdentityRepository";
 import { RestoreActiveLocalIdentityKey } from "./restoreActiveLocalIdentityKey";
 
@@ -61,15 +61,15 @@ describe("RestoreActiveLocalIdentityKey", () => {
 });
 
 function createReadActive(): {
-  readActive: () => LocalIdentityResult<{ identity: LocalIdentitySummary; secretKey: PubkySecretKeyMaterial }>;
-  state: { activeIdentity: LocalIdentitySummary | null; activeSecret: PubkySecretKeyMaterial };
+  readActive: () => LocalIdentityResult<{ identity: LocalIdentityMetadata; secretKey: PubkySecretKeyMaterial }>;
+  state: { activeIdentity: LocalIdentityMetadata | null; activeSecret: PubkySecretKeyMaterial };
 } {
   const state = {
-    activeIdentity: null as LocalIdentitySummary | null,
+    activeIdentity: null as LocalIdentityMetadata | null,
     activeSecret: { bytes: new Uint8Array(32).fill(7), format: PUBKY_SECRET_KEY_FORMAT } as PubkySecretKeyMaterial,
   };
   const readActive = vi.fn((): LocalIdentityResult<{
-      identity: LocalIdentitySummary;
+      identity: LocalIdentityMetadata;
       secretKey: PubkySecretKeyMaterial;
     }> => state.activeIdentity
     ? Result.ok({ identity: state.activeIdentity, secretKey: state.activeSecret })

@@ -4,13 +4,13 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { LocalIdentitySummary } from "../../../browser/identity/passportIdentityController";
+import type { LocalIdentityMetadata } from "../../../browser/identity/passportIdentityController";
 import { IdentityManagement } from "./identityManagement";
 
 const identity = {
   googleAccount: { email: "satoshi@gmail.com", name: "Satoshi Nakamoto" },
   publicIdentity: { publicKeyZ32: "x8jpihgjy51fdnaingcp8rum1omfzd6p8bhm7usune41grd97dho5cwy4mra" },
-} as LocalIdentitySummary;
+} as LocalIdentityMetadata;
 
 describe("IdentityManagement", () => {
   afterEach(cleanup);

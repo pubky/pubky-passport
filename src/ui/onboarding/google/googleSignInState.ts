@@ -2,7 +2,7 @@
 
 import type {
   GoogleBackedIdentityProgress,
-  PassportIdentityControllerError,
+  GoogleIdentityFlowError,
 } from "../../../browser/identity/passportIdentityController";
 import type { GoogleAccountProfile } from "../../../core/identity/googleAccountProfile";
 import type { PubkyPublicIdentity } from "../../../core/identity/pubkyIdentity";
@@ -11,11 +11,11 @@ type GoogleSignInView =
   | { name: "idle" }
   | { name: "requesting-access" }
   | { name: "denied" }
-  | { name: "failed"; error: PassportIdentityControllerError }
+  | { name: "failed"; error: GoogleIdentityFlowError }
   | { name: "working"; progress: GoogleBackedIdentityProgress }
   | {
       name: "complete";
-      googleAccount?: GoogleAccountProfile;
+      googleAccount: GoogleAccountProfile;
       identity: PubkyPublicIdentity;
       mode: "created" | "restored";
     };
@@ -30,10 +30,10 @@ type GoogleSignInEvent =
   | { type: "authorization-denied" }
   | { type: "request-started" }
   | { type: "progress-reported"; progress: GoogleBackedIdentityProgress }
-  | { type: "operation-failed"; error: PassportIdentityControllerError }
+  | { type: "operation-failed"; error: GoogleIdentityFlowError }
   | {
       type: "operation-completed";
-      googleAccount?: GoogleAccountProfile;
+      googleAccount: GoogleAccountProfile;
       identity: PubkyPublicIdentity;
       mode: "created" | "restored";
     }
@@ -69,9 +69,9 @@ function transitionGoogleSignIn(
         ...state,
         view: {
           name: "complete",
+          googleAccount: event.googleAccount,
           identity: event.identity,
           mode: event.mode,
-          ...(event.googleAccount ? { googleAccount: event.googleAccount } : {}),
         },
       };
     case "back":

@@ -1,6 +1,6 @@
 "use client";
 
-import type { LocalIdentitySummary } from "../../../browser/identity/passportIdentityController";
+import type { LocalIdentityMetadata } from "../../../browser/identity/passportIdentityController";
 import type { AuthorizationRequestReview } from "../../../browser/authorization/passportAuthorization";
 import { GoogleLogo } from "../../shared/brand/googleLogo";
 import { CheckIcon, SquareUserRoundIcon, XIcon } from "../../shared/icons/actionIcons";
@@ -12,7 +12,7 @@ import { PermissionList, PermissionRow } from "./permissionList";
 
 function AuthorizationReview({ approving, identity, onAuthorize, onCancel, onSwitch, review }: {
   approving: boolean;
-  identity?: LocalIdentitySummary;
+  identity?: LocalIdentityMetadata;
   onAuthorize: () => void;
   onCancel: () => void;
   onSwitch: () => void;

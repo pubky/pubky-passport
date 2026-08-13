@@ -4,14 +4,14 @@ import { describe, expect, it, vi } from "vitest";
 import { MemoryStorage } from "../../../../test-utils/fakes/memoryStorage";
 import { RecordingPubkySdkAdapter } from "../../../../test-utils/fakes/recordingPubkySdkAdapter";
 import { expectResultOk } from "../../../../test-utils/resultAssertions";
-import { LocalStorageIdentityRepository, type LocalIdentitySummary } from "./localStorageIdentityRepository";
+import { LocalStorageIdentityRepository, type LocalIdentityMetadata } from "./localStorageIdentityRepository";
 import { SaveLocalIdentity } from "./saveLocalIdentity";
 
 describe("SaveLocalIdentity", () => {
   it("exports, persists, and zeros secret bytes when saving", async () => {
     const pubky = new RecordingPubkySdkAdapter();
     const key = expectResultOk(await pubky.createIdentityKey());
-    let savedIdentity: LocalIdentitySummary | undefined;
+    let savedIdentity: LocalIdentityMetadata | undefined;
     let savedSecret: Uint8Array | undefined;
     const repository = new LocalStorageIdentityRepository(new MemoryStorage());
     vi.spyOn(repository, "save").mockImplementation((identity, secretKey) => {
