@@ -20,7 +20,7 @@ import type {
 import { LocalStorageIdentityRepository } from "./local/localStorageIdentityRepository";
 
 export type { LocalIdentityCatalog, LocalIdentityMetadata } from "./local/localStorageIdentityRepository";
-export type { GoogleAccountProfile } from "./googleAccountProfile";
+export type { GoogleAccountProfile } from "./google-backed/googleAccountProfile";
 export type { PubkyPublicIdentity } from "./pubkyPublicIdentity";
 export type { GoogleBackedIdentityProgress } from "./google-backed/googleBackedIdentityProgress";
 export type {

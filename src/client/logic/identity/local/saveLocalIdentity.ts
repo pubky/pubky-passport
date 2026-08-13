@@ -1,7 +1,7 @@
 import "client-only";
 
 import { Result } from "better-result";
-import type { GoogleAccountProfile } from "../googleAccountProfile";
+import type { GoogleAccountProfile } from "../google-backed/googleAccountProfile";
 
 import type {
   PubkyIdentityKeyHandle,
@@ -38,7 +38,6 @@ export class SaveLocalIdentity {
       secretKey.value.bytes.fill(0);
     }
   }
-
 }
 
 function failure<Success>(code: LocalIdentityErrorCode): LocalIdentityResult<Success> {

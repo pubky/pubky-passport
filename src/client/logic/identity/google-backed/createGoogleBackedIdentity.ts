@@ -1,7 +1,7 @@
 import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
-import type { GoogleAccountProfile } from "../googleAccountProfile";
+import type { GoogleAccountProfile } from "./googleAccountProfile";
 
 import type { PubkyPublicIdentity } from "../pubkyPublicIdentity";
 import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";

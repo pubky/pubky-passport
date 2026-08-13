@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import type { GoogleAccountProfile } from "../identity/googleAccountProfile";
+import type { GoogleAccountProfile } from "../identity/google-backed/googleAccountProfile";
 import { decodeBase64Url, encodeBase64Url } from "../../../libs/encoding/base64Url";
 import { readBoundedBytes, readBoundedText } from "../../../libs/http/boundedBody";
 import { LOGGER } from "../../../libs/logger/logger";
