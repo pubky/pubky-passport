@@ -9,6 +9,9 @@ import type {
 import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
 import { LocalStorageIdentityRepository, type LocalIdentityErrorCode, type LocalIdentityMetadata, type LocalIdentityResult } from "./localStorageIdentityRepository";
 
+/**
+ * Retrieves a public identity and secret key from Pubky, and saves them to the local identity repository.
+ */
 export class SaveLocalIdentity {
   readonly #repository: LocalStorageIdentityRepository;
   readonly #pubky: PubkySdkAdapter;

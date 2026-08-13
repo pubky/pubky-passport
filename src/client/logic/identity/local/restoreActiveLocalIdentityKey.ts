@@ -15,6 +15,12 @@ import type {
   LocalIdentityMetadata,
 } from "./localStorageIdentityRepository";
 
+/**
+ * Restores the active local identity key from the local identity repository.
+ *
+ * This is used to restore the active identity key when the application is reloaded.
+ * The restored key is used to sign requests to the Pubky homeserver.
+ */
 export class RestoreActiveLocalIdentityKey {
   readonly #readActive: ReadActiveIdentity;
   readonly #pubky: PubkySdkAdapter;
