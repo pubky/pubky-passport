@@ -15,6 +15,7 @@ type IdentityCatalogState =
       status: "ready";
       catalog: LocalIdentityCatalog;
       controller: PassportIdentityController;
+      reloadIdentities: () => void;
     };
 
 function useIdentityCatalog(googleClientId: string, homegateBaseUrl: string): IdentityCatalogState {
@@ -22,7 +23,6 @@ function useIdentityCatalog(googleClientId: string, homegateBaseUrl: string): Id
 
   useEffect(() => {
     let cancelled = false;
-    let unsubscribe = () => {};
 
     queueMicrotask(() => {
       if (cancelled) return;
@@ -33,10 +33,14 @@ function useIdentityCatalog(googleClientId: string, homegateBaseUrl: string): Id
           const catalog = instance.listIdentities();
           if (cancelled) return;
           setSession(Result.isOk(catalog)
-            ? { status: "ready", catalog: catalog.value, controller: instance }
+            ? {
+              status: "ready",
+              catalog: catalog.value,
+              controller: instance,
+              reloadIdentities: publish,
+            }
             : { status: "unavailable" });
         };
-        unsubscribe = instance.subscribeToIdentityChanges(publish);
         publish();
       } catch {
         if (!cancelled) setSession({ status: "unavailable" });
@@ -45,7 +49,6 @@ function useIdentityCatalog(googleClientId: string, homegateBaseUrl: string): Id
 
     return () => {
       cancelled = true;
-      try { unsubscribe(); } catch { /* Controller owns cleanup logging. */ }
     };
   }, [googleClientId, homegateBaseUrl]);
 

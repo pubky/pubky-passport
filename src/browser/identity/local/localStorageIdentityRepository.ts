@@ -44,14 +44,6 @@ export type LocalIdentityResult<Success> = ResultType<Success, { code: LocalIden
 
 const STORAGE_KEY = "pubky-passport/local-identities/v1";
 const LOCAL_IDENTITY_STORE_VERSION = 1;
-const STORAGE_NOTIFICATION_HUBS = new WeakMap<Storage, StorageNotificationHub>();
-
-type StorageNotificationHub = {
-  listeners: Set<() => void>;
-  target: Window | null;
-  onStorage: (event: StorageEvent) => void;
-  listening: boolean;
-};
 
 export class LocalStorageIdentityRepository {
   readonly #storage: Storage | null;
@@ -135,10 +127,6 @@ export class LocalStorageIdentityRepository {
     return this.writeStore({ ...store.value, activeIdentityId, identities });
   }
 
-  subscribe(listener: () => void): () => void {
-    return subscribeToStorage(this.#storage, listener);
-  }
-
   readActive(): LocalIdentityResult<{ identity: LocalIdentityMetadata; secretKey: PubkySecretKeyMaterial }> {
     const store = this.readStore();
     if (Result.isError(store)) {
@@ -210,70 +198,9 @@ export class LocalStorageIdentityRepository {
 
     try {
       this.#storage.setItem(STORAGE_KEY, JSON.stringify(store));
-      notifyStorage(this.#storage);
       return Result.ok();
     } catch {
       return localStoreFailure("write", "storage_unavailable");
-    }
-  }
-}
-
-function subscribeToStorage(storage: Storage | null, listener: () => void): () => void {
-  if (!storage) return () => {};
-  let hub = STORAGE_NOTIFICATION_HUBS.get(storage);
-  if (!hub) {
-    const listeners = new Set<() => void>();
-    const target = getStorageEventTarget();
-    hub = {
-      listeners,
-      target,
-      listening: false,
-      onStorage: (event) => {
-        if ((event.key === STORAGE_KEY || event.key === null)
-          && (!event.storageArea || event.storageArea === storage)) {
-          notifyListeners(listeners);
-        }
-      },
-    };
-    if (target) {
-      try {
-        target.addEventListener("storage", hub.onStorage);
-        hub.listening = true;
-      } catch {
-        LOGGER.warn("identity.local_store.failed", { operation: "subscribe", code: "listener_failed" });
-      }
-    }
-    STORAGE_NOTIFICATION_HUBS.set(storage, hub);
-  }
-  hub.listeners.add(listener);
-
-  return () => {
-    const activeHub = STORAGE_NOTIFICATION_HUBS.get(storage);
-    if (!activeHub) return;
-    activeHub.listeners.delete(listener);
-    if (activeHub.listeners.size > 0) return;
-    if (activeHub.target && activeHub.listening) {
-      try {
-        activeHub.target.removeEventListener("storage", activeHub.onStorage);
-      } catch {
-        LOGGER.warn("identity.local_store.failed", { operation: "unsubscribe", code: "listener_failed" });
-      }
-    }
-    STORAGE_NOTIFICATION_HUBS.delete(storage);
-  };
-}
-
-function notifyStorage(storage: Storage): void {
-  const hub = STORAGE_NOTIFICATION_HUBS.get(storage);
-  if (hub) notifyListeners(hub.listeners);
-}
-
-function notifyListeners(listeners: Set<() => void>): void {
-  for (const listener of listeners) {
-    try {
-      listener();
-    } catch {
-      LOGGER.warn("identity.local_store.failed", { operation: "notify", code: "listener_failed" });
     }
   }
 }
@@ -284,10 +211,6 @@ function getLocalStorage(): Storage | null {
   } catch {
     return null;
   }
-}
-
-function getStorageEventTarget(): Window | null {
-  return globalThis.window ?? null;
 }
 
 function isStoreV1(value: unknown): value is LocalIdentityStoreV1 {

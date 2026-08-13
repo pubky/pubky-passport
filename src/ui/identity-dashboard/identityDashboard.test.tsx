@@ -18,7 +18,6 @@ const FLOW = vi.hoisted(() => ({
   establishmentMode: "created" as "created" | "restored",
   migrationExportCount: 0,
   migrationUrl: "pubkyring://migrate?index=0&total=1&key=active-secret",
-  refresh: null as (() => void) | null,
 }));
 
 vi.mock("../../browser/identity/passportIdentityController", () => ({
@@ -35,7 +34,6 @@ vi.mock("../../browser/identity/passportIdentityController", () => ({
               googleAccount: { id: "google-created", email: "created@gmail.com", name: "Created", pictureUrl: null },
             };
             FLOW.catalog = { activeIdentityId: identity.id, identities: [identity] };
-            FLOW.refresh?.();
             return Result.ok({
               establishmentMode: FLOW.establishmentMode,
               googleAccount: identity.googleAccount,
@@ -48,7 +46,6 @@ vi.mock("../../browser/identity/passportIdentityController", () => ({
         detachIdentity: async (publicIdentity) => {
           const identities = FLOW.catalog.identities.filter((identity) => identity.id !== publicIdentity.publicKeyZ32);
           FLOW.catalog = { activeIdentityId: identities[0]?.id ?? null, identities };
-          FLOW.refresh?.();
           return Result.ok({ deletionStatus: "deleted" as const });
         },
       });
@@ -61,10 +58,8 @@ vi.mock("../../browser/identity/passportIdentityController", () => ({
     removeIdentity: (identityId: string) => {
       const identities = FLOW.catalog.identities.filter((identity) => identity.id !== identityId);
       FLOW.catalog = { activeIdentityId: identities[0]?.id ?? null, identities };
-      FLOW.refresh?.();
       return Result.ok();
     },
-    subscribeToIdentityChanges: (listener: () => void) => { FLOW.refresh = listener; return () => { FLOW.refresh = null; }; },
   }); },
 }));
 
@@ -74,7 +69,6 @@ describe("IdentityDashboard", () => {
     FLOW.establishIdentity = false;
     FLOW.establishmentMode = "created";
     FLOW.migrationExportCount = 0;
-    FLOW.refresh = null;
   });
 
   afterEach(() => {

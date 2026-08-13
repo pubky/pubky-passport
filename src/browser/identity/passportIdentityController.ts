@@ -76,32 +76,6 @@ export class PassportIdentityController {
     return this.repository.remove(identityId);
   }
 
-  /** Subscribes to local identity changes in this tab and other browser tabs. */
-  subscribeToIdentityChanges(listener: () => void): () => void {
-    let unsubscribe: () => void;
-    try {
-      unsubscribe = this.repository.subscribe(listener);
-    } catch {
-      LOGGER.warn("identity.local_catalog.failed", {
-        operation: "subscribe",
-        code: "runtime_exception",
-      });
-      throw new Error("Identity subscription unavailable.");
-    }
-
-    return () => {
-      try {
-        unsubscribe();
-      } catch {
-        LOGGER.warn("identity.local_catalog.failed", {
-          operation: "unsubscribe",
-          code: "runtime_exception",
-        });
-        throw new Error("Identity subscription cleanup failed.");
-      }
-    };
-  }
-
   /** Resolves the homeserver currently published for a Pubky identity. */
   readonly resolveHomeserver = (
     publicKeyZ32: string,

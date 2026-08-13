@@ -1,7 +1,8 @@
 /** @vitest-environment jsdom */
 
 import { Result } from "better-result";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,8 +12,6 @@ import { useIdentityCatalog } from "./useIdentityCatalog";
 const MOCKS = vi.hoisted(() => ({
   catalog: { activeIdentityId: null, identities: [] } as LocalIdentityCatalog,
   create: vi.fn(),
-  unsubscribe: vi.fn(),
-  listener: null as (() => void) | null,
   unavailable: false,
 }));
 
@@ -20,20 +19,18 @@ vi.mock("../../browser/identity/passportIdentityController", () => ({
   PassportIdentityController: function PassportIdentityController() {
     MOCKS.create();
     return {
-    listIdentities: () => MOCKS.unavailable
-      ? Result.err({ code: "storage_unavailable" as const })
-      : Result.ok(MOCKS.catalog),
-    subscribeToIdentityChanges: (listener: () => void) => {
-      MOCKS.listener = listener;
-      return () => { MOCKS.listener = null; MOCKS.unsubscribe(); };
-    },
+      listIdentities: () => MOCKS.unavailable
+        ? Result.err({ code: "storage_unavailable" as const })
+        : Result.ok(MOCKS.catalog),
     };
   },
 }));
 
 function SessionProbe() {
   const session = useIdentityCatalog("client", "https://homegate.example/");
-  return <p>{session.status === "ready" ? `${session.status}:${session.catalog.identities.length}` : session.status}</p>;
+  return session.status === "ready"
+    ? <><p>{`${session.status}:${session.catalog.identities.length}`}</p><button onClick={session.reloadIdentities} type="button">Reload</button></>
+    : <p>{session.status}</p>;
 }
 
 describe("useIdentityCatalog", () => {
@@ -45,10 +42,9 @@ describe("useIdentityCatalog", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
-    MOCKS.listener = null;
   });
 
-  it("publishes and refreshes the live identity catalog", async () => {
+  it("reloads the identity catalog explicitly", async () => {
     render(<SessionProbe />);
     expect(await screen.findByText("ready:0")).toBeInTheDocument();
 
@@ -56,18 +52,15 @@ describe("useIdentityCatalog", () => {
       activeIdentityId: "identity",
       identities: [{ id: "identity", publicIdentity: { publicKeyDisplay: "pubkyidentity", publicKeyZ32: "identity" } }],
     };
-    MOCKS.listener?.();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Reload" }));
 
     expect(await screen.findByText("ready:1")).toBeInTheDocument();
   });
 
-  it("maps catalog failures and unsubscribes on unmount", async () => {
+  it("maps catalog failures", async () => {
     MOCKS.unavailable = true;
-    const rendered = render(<SessionProbe />);
+    render(<SessionProbe />);
     expect(await screen.findByText("unavailable")).toBeInTheDocument();
-
-    rendered.unmount();
-    await waitFor(() => expect(MOCKS.unsubscribe).toHaveBeenCalledOnce());
   });
 
   it("creates one live controller under Strict Mode", async () => {
@@ -76,6 +69,5 @@ describe("useIdentityCatalog", () => {
     expect(MOCKS.create).toHaveBeenCalledOnce();
 
     rendered.unmount();
-    await waitFor(() => expect(MOCKS.unsubscribe).toHaveBeenCalledOnce());
   });
 });

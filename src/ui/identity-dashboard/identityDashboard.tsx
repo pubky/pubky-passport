@@ -46,14 +46,19 @@ function IdentityDashboard({ googleClientId, homegateBaseUrl }: {
       return <ReadyIdentityDashboard
         catalog={session.catalog}
         controller={session.controller}
-        onIdentityEstablished={setCompletion}
+        onIdentitiesChanged={session.reloadIdentities}
+        onIdentityEstablished={(identity) => {
+          session.reloadIdentities();
+          setCompletion(identity);
+        }}
       />;
   }
 }
 
-function ReadyIdentityDashboard({ catalog, controller, onIdentityEstablished }: {
+function ReadyIdentityDashboard({ catalog, controller, onIdentitiesChanged, onIdentityEstablished }: {
   catalog: LocalIdentityCatalog;
   controller: PassportIdentityController;
+  onIdentitiesChanged: () => void;
   onIdentityEstablished: (identity: GoogleIdentityEstablished) => void;
 }) {
   const [navigation, dispatch] = useReducer(
@@ -77,7 +82,10 @@ function ReadyIdentityDashboard({ catalog, controller, onIdentityEstablished }: 
         controller={controller}
         onBack={() => dispatch({ type: "back-to-overview" })}
         onIdentityEstablished={onIdentityEstablished}
-        onIdentitySelected={() => dispatch({ type: "identity-selected" })}
+        onIdentitySelected={() => {
+          onIdentitiesChanged();
+          dispatch({ type: "identity-selected" });
+        }}
       />;
     case "manage-identity": {
       const identity = catalog.identities.find((candidate) => candidate.id === state.identityId);
@@ -89,7 +97,10 @@ function ReadyIdentityDashboard({ catalog, controller, onIdentityEstablished }: 
         onDownloadBackup={() => dispatch({ type: "backup-requested", identityId: identity.id })}
         onLogOut={() => {
           const removed = controller.removeIdentity(identity.id);
-          if (Result.isOk(removed)) dispatch({ type: "identity-removed" });
+          if (Result.isOk(removed)) {
+            onIdentitiesChanged();
+            dispatch({ type: "identity-removed" });
+          }
         }}
         onMigrateToKeychain={() => {
           const migration = controller.createPubkyRingMigrationUrl();
@@ -118,7 +129,10 @@ function ReadyIdentityDashboard({ catalog, controller, onIdentityEstablished }: 
         controller={controller}
         identity={state.identity}
         onBack={() => dispatch({ type: "back-to-management", identityId: state.identity.id })}
-        onDone={() => dispatch({ type: "identity-removed" })}
+        onDone={() => {
+          onIdentitiesChanged();
+          dispatch({ type: "identity-removed" });
+        }}
       />;
     case "overview":
       return activeIdentity

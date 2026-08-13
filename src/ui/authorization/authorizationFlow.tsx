@@ -93,15 +93,17 @@ function AuthorizationWithIdentity({ authorization, controller, googleClientId, 
         authorizationController={controller}
         catalog={identityCatalog.catalog}
         identityController={identityCatalog.controller}
+        reloadIdentities={identityCatalog.reloadIdentities}
       />;
   }
 }
 
-function ReadyAuthorizationWithIdentity({ authorization, authorizationController, catalog, identityController }: {
+function ReadyAuthorizationWithIdentity({ authorization, authorizationController, catalog, identityController, reloadIdentities }: {
   authorization: Extract<PassportAuthorizationViewState, { status: "review" | "approving" | "redirecting" }>;
   authorizationController: PassportAuthorizationController;
   catalog: LocalIdentityCatalog;
   identityController: PassportIdentityController;
+  reloadIdentities: () => void;
 }) {
   const [onboardingRequired, setOnboardingRequired] = useState(catalog.identities.length === 0);
   const [view, dispatch] = useReducer(transitionAuthorizationView, { view: "review" });
@@ -110,7 +112,10 @@ function ReadyAuthorizationWithIdentity({ authorization, authorizationController
     return <SignInFlow
       controller={identityController}
       onBack={() => { void authorizationController.cancel(); }}
-      onComplete={() => setOnboardingRequired(false)}
+      onComplete={() => {
+        reloadIdentities();
+        setOnboardingRequired(false);
+      }}
     />;
   }
 
@@ -119,7 +124,10 @@ function ReadyAuthorizationWithIdentity({ authorization, authorizationController
       catalog={catalog}
       controller={identityController}
       onBack={() => dispatch({ type: "selection-finished" })}
-      onIdentitySelected={() => dispatch({ type: "selection-finished" })}
+      onIdentitySelected={() => {
+        reloadIdentities();
+        dispatch({ type: "selection-finished" });
+      }}
     />;
   }
 

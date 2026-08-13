@@ -28,7 +28,6 @@ export function mockPassportIdentityController(
     listIdentities: vi.fn(() => Result.ok({ activeIdentityId: null, identities: [] })),
     selectIdentity: vi.fn(() => Result.ok()),
     removeIdentity: vi.fn(() => Result.ok()),
-    subscribeToIdentityChanges: vi.fn(() => () => { }),
     resolveHomeserver: vi.fn(async () => Result.ok(null)),
     createEncryptedBackup: vi.fn(async () => Result.err({ code: "backup_failed" as const })),
     createPubkyRingMigrationUrl: vi.fn(() => Result.err({ code: "no_active_identity" as const })),

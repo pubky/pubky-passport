@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { Result } from "better-result";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -14,7 +14,6 @@ const MOCKS = vi.hoisted(() => ({
   authorizationListener: null as null | (() => void),
   authorizationState: undefined as PassportAuthorizationViewState | undefined,
   cancel: vi.fn(),
-  catalogListener: null as null | (() => void),
   catalog: undefined as LocalIdentityCatalog | undefined,
   commitInitialEntry: vi.fn(),
   dispose: vi.fn(),
@@ -39,7 +38,6 @@ vi.mock("../../browser/identity/passportIdentityController", () => ({
   PassportIdentityController: class {
     listIdentities = () => Result.ok(MOCKS.catalog);
     selectIdentity = MOCKS.select;
-    subscribeToIdentityChanges = (listener: () => void) => { MOCKS.catalogListener = listener; return () => { MOCKS.catalogListener = null; }; };
   },
 }));
 
@@ -85,7 +83,6 @@ describe("AuthorizationFlow", () => {
     MOCKS.select.mockImplementation((identityId: string) => {
       if (!MOCKS.catalog) return Result.err({ code: "storage_unavailable" as const });
       MOCKS.catalog = { ...MOCKS.catalog, activeIdentityId: identityId };
-      MOCKS.catalogListener?.();
       return Result.ok();
     });
   });
@@ -94,7 +91,6 @@ describe("AuthorizationFlow", () => {
     cleanup();
     vi.clearAllMocks();
     MOCKS.authorizationListener = null;
-    MOCKS.catalogListener = null;
   });
 
   const renderFlow = () => render(
@@ -189,10 +185,7 @@ describe("AuthorizationFlow", () => {
     renderFlow();
     await screen.findByRole("heading", { name: "Add identity" });
 
-    act(() => {
-      MOCKS.catalog = { activeIdentityId: FIRST.id, identities: [FIRST] };
-      MOCKS.catalogListener?.();
-    });
+    MOCKS.catalog = { activeIdentityId: FIRST.id, identities: [FIRST] };
 
     expect(screen.getByRole("heading", { name: "Add identity" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Sign in to requesting.app" })).not.toBeInTheDocument();

@@ -125,45 +125,6 @@ describe("LocalStorageIdentityRepository", () => {
     expect(getItem).toHaveBeenCalledOnce();
   });
 
-  it("notifies subscribers when another document changes the identity store", () => {
-    const repository = new LocalStorageIdentityRepository(new MemoryStorage());
-    const listener = vi.fn();
-    const unsubscribe = repository.subscribe(listener);
-    const dispatchStorageEvent = (key: string | null) => {
-      const event = new StorageEvent("storage");
-      Object.defineProperty(event, "key", { value: key });
-      window.dispatchEvent(event);
-    };
-
-    dispatchStorageEvent("unrelated");
-    dispatchStorageEvent("pubky-passport/local-identities/v1");
-    dispatchStorageEvent(null);
-    unsubscribe();
-    dispatchStorageEvent("pubky-passport/local-identities/v1");
-
-    expect(listener).toHaveBeenCalledTimes(2);
-  });
-
-  it("notifies same-document repository instances once after successful writes", () => {
-    const storage = new MemoryStorage();
-    const firstRepository = new LocalStorageIdentityRepository(storage);
-    const secondRepository = new LocalStorageIdentityRepository(storage);
-    const firstListener = vi.fn();
-    const secondListener = vi.fn();
-    const unsubscribeFirst = firstRepository.subscribe(firstListener);
-    const unsubscribeSecond = secondRepository.subscribe(secondListener);
-
-    const first = save(secondRepository, FIRST_IDENTITY, 1);
-    const second = save(firstRepository, SECOND_IDENTITY, 2);
-    expectResultOk(secondRepository.select(first.id));
-    expectResultOk(firstRepository.remove(second.id));
-    unsubscribeFirst();
-    unsubscribeSecond();
-    save(secondRepository, FIRST_IDENTITY, 1);
-
-    expect(firstListener).toHaveBeenCalledTimes(4);
-    expect(secondListener).toHaveBeenCalledTimes(4);
-  });
 });
 
 function save(repository: LocalStorageIdentityRepository, publicIdentity: typeof FIRST_IDENTITY, byte: number) {
