@@ -10,30 +10,30 @@ import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
 import { LocalStorageIdentityRepository, type LocalIdentityErrorCode, type LocalIdentityMetadata, type LocalIdentityResult } from "./localStorageIdentityRepository";
 
 /**
- * Retrieves a public identity and secret key from Pubky, and saves them to the local identity repository.
+ * Retrieves a public identity and secret key from Pubky SDK, and saves them to the local identity repository.
  */
 export class SaveLocalIdentity {
-  readonly #repository: LocalStorageIdentityRepository;
-  readonly #pubky: PubkySdkAdapter;
+  constructor(
+    private repository: LocalStorageIdentityRepository,
+    private pubky: PubkySdkAdapter,
+  ) {}
 
-  constructor(repository: LocalStorageIdentityRepository, pubky: PubkySdkAdapter) {
-    this.#repository = repository;
-    this.#pubky = pubky;
-  }
-
-  async saveIdentity(keyHandle: PubkyIdentityKeyHandle, googleAccount?: GoogleAccountProfile): Promise<LocalIdentityResult<LocalIdentityMetadata>> {
-    const publicIdentity = await this.#pubky.getPublicIdentity(keyHandle);
+  async saveIdentity(
+    keyHandle: PubkyIdentityKeyHandle,
+    googleAccount?: GoogleAccountProfile
+  ): Promise<LocalIdentityResult<LocalIdentityMetadata>>{
+    const publicIdentity = await this.pubky.getPublicIdentity(keyHandle);
     if (Result.isError(publicIdentity)) {
       return failure("invalid_identity");
     }
 
-    const secretKey = await this.#pubky.exportSecretKey(keyHandle);
+    const secretKey = await this.pubky.exportSecretKey(keyHandle);
     if (Result.isError(secretKey)) {
       return failure("invalid_secret_key");
     }
 
     try {
-      return this.#repository.save(
+      return this.repository.save(
         { id: publicIdentity.value.publicKeyZ32, publicIdentity: publicIdentity.value, ...(googleAccount ? { googleAccount } : {}) },
         secretKey.value,
       );

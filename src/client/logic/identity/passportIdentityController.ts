@@ -10,7 +10,7 @@ import {
   type GoogleIdentityFlowState,
 } from "./google-backed/googleBackedIdentityFlow";
 import {
-  createLocalIdentityBackup,
+  CreateLocalIdentityBackup,
   type LocalIdentityBackupResult,
 } from "./local/createLocalIdentityBackup";
 import type {
@@ -42,12 +42,16 @@ export { MIN_BACKUP_PASSWORD_LENGTH } from "./local/createLocalIdentityBackup";
  */
 export class PassportIdentityController {
   private repository: LocalStorageIdentityRepository;
+  private createLocalIdentityBackup: CreateLocalIdentityBackup;
   private googleClientId: string;
   private homegateBaseUrl: string;
 
   constructor(googleClientId: string, homegateBaseUrl: string) {
     try {
       this.repository = new LocalStorageIdentityRepository();
+      this.createLocalIdentityBackup = new CreateLocalIdentityBackup(
+        (identityId) => this.repository.read(identityId),
+      );
       this.googleClientId = googleClientId;
       this.homegateBaseUrl = homegateBaseUrl;
     } catch (error) {
@@ -88,11 +92,7 @@ export class PassportIdentityController {
   readonly createEncryptedBackup = (
     identityId: string,
     password: string,
-  ): Promise<LocalIdentityBackupResult> => createLocalIdentityBackup(
-    this.repository,
-    identityId,
-    password,
-  );
+  ): Promise<LocalIdentityBackupResult> => this.createLocalIdentityBackup.create(identityId, password);
 
   /** Creates a Pubky Ring migration URL for the currently active identity. */
   createPubkyRingMigrationUrl(): LocalIdentityResult<string> {

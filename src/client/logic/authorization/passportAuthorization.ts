@@ -61,7 +61,7 @@ async function approveUsingActiveLocalIdentity(
   try {
     const repository = new LocalStorageIdentityRepository();
     const restoreActiveIdentity = new RestoreActiveLocalIdentityKey(
-      repository.readActive.bind(repository),
+      () => repository.readActive(),
       pubky,
     );
     return await approveAuthorizationWithActiveIdentity({

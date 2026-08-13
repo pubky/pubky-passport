@@ -6,40 +6,32 @@ import type { PubkyPublicIdentity } from "../pubkyPublicIdentity";
 import { LOGGER } from "../../../../libs/logger/logger";
 import type {
   PubkyIdentityKey,
-  PubkySecretKeyMaterial,
 } from "../../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
 import type {
   LocalIdentityErrorCode,
-  LocalIdentityResult,
-  LocalIdentityMetadata,
+  LocalStorageIdentityRepository,
 } from "./localStorageIdentityRepository";
 
 /**
  * Restores the active local identity key from the local identity repository.
- *
- * This is used to restore the active identity key when the application is reloaded.
- * The restored key is used to sign requests to the Pubky homeserver.
  */
 export class RestoreActiveLocalIdentityKey {
-  readonly #readActive: ReadActiveIdentity;
-  readonly #pubky: PubkySdkAdapter;
-
-  constructor(readActive: ReadActiveIdentity, pubky: PubkySdkAdapter) {
-    this.#readActive = readActive;
-    this.#pubky = pubky;
-  }
+  constructor (
+    private readActive: LocalStorageIdentityRepository["readActive"],
+    private pubky: PubkySdkAdapter
+  ) {}
 
   async restore(): Promise<RestoreActiveLocalIdentityResult> {
-    const stored = this.#readActive();
+    const stored = this.readActive();
     if (Result.isError(stored)) return Result.err(stored.error);
 
     try {
-      const restored = await this.#pubky.restoreIdentityKey(stored.value.secretKey);
+      const restored = await this.pubky.restoreIdentityKey(stored.value.secretKey);
       if (Result.isError(restored)) return Result.err({ code: "restore_failed" });
 
       if (!isSamePublicIdentity(restored.value.publicIdentity, stored.value.identity.publicIdentity)) {
-        this.#pubky.disposeIdentityKey(restored.value.keyHandle);
+        this.pubky.disposeIdentityKey(restored.value.keyHandle);
         LOGGER.warn("identity.local_restore.failed", { code: "identity_mismatch" });
         return Result.err({ code: "identity_mismatch" });
       }
@@ -51,10 +43,6 @@ export class RestoreActiveLocalIdentityKey {
   }
 }
 
-type ReadActiveIdentity = () => LocalIdentityResult<{
-  identity: LocalIdentityMetadata;
-  secretKey: PubkySecretKeyMaterial;
-}>;
 type RestoreActiveLocalIdentityResult = ResultType<
   PubkyIdentityKey,
   { code: LocalIdentityErrorCode | "identity_mismatch" | "restore_failed" }
