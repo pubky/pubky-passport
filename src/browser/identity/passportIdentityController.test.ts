@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MemoryStorage } from "../../../test-utils/fakes/memoryStorage";
 import { LOGGER } from "../../libs/logger/logger";
+import { PUBKY_SECRET_KEY_FORMAT } from "../pubky/pubkyIdentityKey";
 import { LocalStorageIdentityRepository } from "./local/localStorageIdentityRepository";
 
 const MOCKS = vi.hoisted(() => ({
@@ -61,6 +62,34 @@ describe("PassportIdentityController", () => {
       onState,
     });
     expect(MOCKS.start).toHaveBeenCalledOnce();
+  });
+
+  it("creates a Ring migration URL and clears the returned secret bytes", () => {
+    const bytes = Uint8Array.from({ length: 32 }, (_, index) => index);
+    vi.spyOn(LocalStorageIdentityRepository.prototype, "readActive").mockReturnValue(Result.ok({
+      identity: {
+        id: "active",
+        publicIdentity: { publicKeyZ32: "active", publicKeyDisplay: "pubkyactive" },
+      },
+      secretKey: { bytes, format: PUBKY_SECRET_KEY_FORMAT },
+    }));
+    const controller = createController();
+
+    expect(controller.createPubkyRingMigrationUrl()).toEqual(Result.ok(
+      "pubkyring://migrate?index=0&total=1&key=000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    ));
+    expect(bytes).toEqual(new Uint8Array(32));
+  });
+
+  it("preserves a migration read failure", () => {
+    const controller = createController();
+
+    const migration = controller.createPubkyRingMigrationUrl();
+
+    expect(Result.isError(migration)).toBe(true);
+    if (Result.isError(migration)) {
+      expect(migration.error).toEqual({ code: "no_active_identity" });
+    }
   });
 
   it("logs Google flow construction failures without sensitive configuration", () => {
