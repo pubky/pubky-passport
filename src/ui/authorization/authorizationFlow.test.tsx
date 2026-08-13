@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { Result } from "better-result";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -45,10 +45,11 @@ vi.mock("../../browser/identity/passportIdentity", () => ({
 }));
 
 vi.mock("../onboarding/signInFlow", () => ({
-  SignInFlow: ({ onComplete }: { onComplete: () => void }) => (
+  SignInFlow: ({ onBack, onComplete }: { onBack?: () => void; onComplete: () => void }) => (
     <main>
       <h1>Add identity</h1>
       <button onClick={onComplete} type="button">Complete identity setup</button>
+      {onBack ? <button onClick={onBack} type="button">Back</button> : null}
     </main>
   ),
 }));
@@ -180,6 +181,35 @@ describe("AuthorizationFlow", () => {
     expect(await screen.findByRole("heading", { name: "Add identity" })).toBeInTheDocument();
     expect(screen.queryByText("No local identity available")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Switch" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back" })).toBeInTheDocument();
+  });
+
+  it("waits for explicit completion after the first identity enters the catalog", async () => {
+    const user = userEvent.setup();
+    MOCKS.catalog = { activeIdentityId: null, identities: [] };
+    renderFlow();
+    await screen.findByRole("heading", { name: "Add identity" });
+
+    act(() => {
+      MOCKS.catalog = { activeIdentityId: FIRST.id, identities: [FIRST] };
+      MOCKS.catalogListener?.();
+    });
+
+    expect(screen.getByRole("heading", { name: "Add identity" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Sign in to requesting.app" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Complete identity setup" }));
+    expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
+  });
+
+  it("cancels authorization from first-identity setup", async () => {
+    const user = userEvent.setup();
+    MOCKS.catalog = { activeIdentityId: null, identities: [] };
+    renderFlow();
+
+    await user.click(await screen.findByRole("button", { name: "Back" }));
+
+    expect(MOCKS.cancel).toHaveBeenCalledOnce();
   });
 
   it("authorizes with the selected identity", async () => {
