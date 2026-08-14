@@ -3,15 +3,22 @@ import "client-only";
 import { Result, type Err, type Result as ResultType } from "better-result";
 import { z } from "zod";
 
+/** Strict encrypted envelope persisted as Passport file format version 1. */
 export type PassportFileEnvelopeV1 = {
+  /** Numeric storage format version. */
   v: 1;
+  /** Unpadded base64url AES-GCM initialization vector. */
   iv: string;
+  /** Unpadded base64url ciphertext including the AES-GCM authentication tag. */
   ct: string;
+  /** Normalized Passport origin authenticated during encryption. */
   url: string;
 };
 
+/** Field names accepted by the strict v1 envelope schema. */
 export type PassportFileField = keyof PassportFileEnvelopeV1;
 
+/** Safe parser failure codes that never include envelope contents. */
 export type PassportFileParseErrorCode =
   | "invalid_json"
   | "invalid_shape"
@@ -20,14 +27,15 @@ export type PassportFileParseErrorCode =
   | "invalid_field"
   | "unknown_field";
 
+/** Safe envelope parse failure with optional field attribution. */
 export type PassportFileParseError = {
   code: PassportFileParseErrorCode;
   field?: PassportFileField;
 };
 
-export type PassportFileParseResult = ResultType<PassportFileEnvelopeV1, PassportFileParseError>;
+type PassportFileParseResult = ResultType<PassportFileEnvelopeV1, PassportFileParseError>;
 
-export type PassportFileOriginResult = ResultType<string, { code: "invalid_field"; field: "url" }>;
+type PassportFileOriginResult = ResultType<string, { code: "invalid_field"; field: "url" }>;
 
 const BASE64_URL_PATTERN = /^[A-Za-z0-9_-]+$/;
 const PASSPORT_FILE_ENVELOPE_SCHEMA = z
@@ -39,6 +47,13 @@ const PASSPORT_FILE_ENVELOPE_SCHEMA = z
   })
   .strict();
 
+/**
+ * Parses serialized Passport file contents into a validated v1 envelope.
+ *
+ * JSON syntax, object shape, accepted fields, version, and origin are validated.
+ * The IV and ciphertext are not decoded, decrypted, or checked for cryptographic
+ * byte lengths by this parser.
+ */
 export function parsePassportFileContents(input: unknown): PassportFileParseResult {
   if (typeof input !== "string") {
     return error("invalid_json");
@@ -54,6 +69,11 @@ export function parsePassportFileContents(input: unknown): PassportFileParseResu
   return parsePassportFileEnvelope(parsed);
 }
 
+/**
+ * Validates an unknown value as an exact v1 envelope and normalizes its origin.
+ * Unknown fields are rejected to reduce the risk of accidentally accepting
+ * plaintext or unrelated metadata as an encrypted Passport file.
+ */
 export function parsePassportFileEnvelope(input: unknown): PassportFileParseResult {
   if (!isPlainObject(input)) {
     return error("invalid_shape");
@@ -95,6 +115,25 @@ export function parsePassportFileEnvelope(input: unknown): PassportFileParseResu
   });
 }
 
+/**
+ * Serializes only the validated v1 envelope fields in their canonical order.
+ * Returns `null` when the input is not a valid envelope.
+ */
+export function serializePassportFileEnvelope(input: unknown): string | null {
+  const parsed = parsePassportFileEnvelope(input);
+  if (Result.isError(parsed)) return null;
+  return JSON.stringify({
+    v: parsed.value.v,
+    iv: parsed.value.iv,
+    ct: parsed.value.ct,
+    url: parsed.value.url,
+  });
+}
+
+/**
+ * Validates a Passport file origin and returns its normalized origin string.
+ * Credentials, query parameters, fragments, and non-root paths are rejected.
+ */
 export function normalizePassportFileOrigin(value: string): PassportFileOriginResult {
   const url = parseUrl(value);
   if (!url || !isAllowedPassportFileOrigin(url)) {
@@ -102,6 +141,10 @@ export function normalizePassportFileOrigin(value: string): PassportFileOriginRe
   }
 
   return Result.ok(url.origin);
+}
+
+function isAllowedPassportFileOrigin(url: URL): boolean {
+  return url.protocol === "https:" && hasNoCredentialsOrUrlParts(url) && url.pathname === "/";
 }
 
 function parseUrl(value: string): URL | null {
@@ -116,20 +159,16 @@ function parseUrl(value: string): URL | null {
   }
 }
 
+function invalidUrl(): Err<never, { code: "invalid_field"; field: "url" }> {
+  return Result.err<never, { code: "invalid_field"; field: "url" }>({ code: "invalid_field", field: "url" });
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype;
 }
 
-function isAllowedPassportFileOrigin(url: URL): boolean {
-  return url.protocol === "https:" && hasNoCredentialsOrUrlParts(url) && url.pathname === "/";
-}
-
 function hasNoCredentialsOrUrlParts(url: URL): boolean {
   return !url.username && !url.password && !url.search && !url.hash;
-}
-
-function invalidUrl(): Err<never, { code: "invalid_field"; field: "url" }> {
-  return Result.err<never, { code: "invalid_field"; field: "url" }>({ code: "invalid_field", field: "url" });
 }
 
 function error(

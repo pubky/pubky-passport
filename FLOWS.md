@@ -351,9 +351,8 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/client/browser/wrapping-key
         participant Wrapping as wrappingKeyApiClient.ts<br/>WrappingKeyApiClient
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/passport-file
-        participant DriveStore as googleDrivePassportFileStore.ts<br/>GoogleDrivePassportFileStore
-        participant VisibleWriter as googleDriveVisibleRecoveryCopyWriter.ts<br/>GoogleDriveVisibleRecoveryCopyWriter
+    box rgba(0, 158, 115, 0.18) src/client/logic/passport-file
+        participant DriveStore as google/passportFileStore.ts<br/>GoogleDrivePassportFileStore
     end
     box rgba(0, 158, 115, 0.18) src/client/browser/homegate
         participant Invite as homegateClient.ts<br/>HomegateClient
@@ -411,7 +410,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/client/browser/identity/google-backed
         participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/passport-file
+    box rgba(0, 158, 115, 0.18) src/client/logic/passport-file
         participant Crypto as passportFileWebCrypto.ts<br/>PassportFileWebCrypto
     end
     box rgba(0, 158, 115, 0.18) src/client/browser/pubky
@@ -471,17 +470,17 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Missing identity encryption and Drive storage call flow
-    accDescr: GoogleBackedIdentityOperations encrypts a new Pubky secret, creates the operational app-data file through GoogleDrivePassportFileStore, then best-effort writes a visible recovery copy through GoogleDriveVisibleRecoveryCopyWriter before activation and zeros the exported bytes.
+    accDescr: GoogleBackedIdentityOperations encrypts a new Pubky secret, creates the operational app-data file through GoogleDrivePassportFileStore, then best-effort writes a visible recovery copy through GoogleDriveVisibleRecoveryCopies before activation and zeros the exported bytes.
     box rgba(0, 158, 115, 0.18) src/client/browser/identity/google-backed
         participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
     box rgba(0, 158, 115, 0.18) src/client/browser/pubky
         participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/passport-file
+    box rgba(0, 158, 115, 0.18) src/client/logic/passport-file
         participant Crypto as passportFileWebCrypto.ts<br/>PassportFileWebCrypto
-        participant DriveStore as googleDrivePassportFileStore.ts<br/>GoogleDrivePassportFileStore
-        participant VisibleWriter as googleDriveVisibleRecoveryCopyWriter.ts<br/>GoogleDriveVisibleRecoveryCopyWriter
+        participant DriveStore as google/passportFileStore.ts<br/>GoogleDrivePassportFileStore
+        participant VisibleCopies as google/visibleRecoveryCopies.ts<br/>GoogleDriveVisibleRecoveryCopies
     end
     box rgba(17, 24, 39, 0.12) External
         participant SDK as @synonymdev/pubky@0.10.0<br/>Keypair
@@ -513,15 +512,15 @@ sequenceDiagram
     DriveStore->>Drive: post-list passport.json
     Drive-->>DriveStore: post-list response
     DriveStore-->>Operations: operational write completed or safe error
-    Operations->>VisibleWriter: createVisibleRecoveryCopy(envelope, public Pubky)
-    VisibleWriter->>Drive: find or create My Drive/Pubky Passport
-    Drive-->>VisibleWriter: visible folder response
-    VisibleWriter->>Drive: create-only {pubky}.json copy
-    Drive-->>VisibleWriter: visible copy response
-    VisibleWriter->>Drive: verify exact created file ID and revision
-    Drive-->>VisibleWriter: exact metadata, parent, and trashed state
-    Note over DriveStore,VisibleWriter: Operational reads and deletion remain appDataFolder-only
-    VisibleWriter-->>Operations: confirmed creation or safe unconfirmed outcome
+    Operations->>VisibleCopies: createVisibleRecoveryCopy(envelope, public Pubky)
+    VisibleCopies->>Drive: find or create My Drive/Pubky Passport
+    Drive-->>VisibleCopies: visible folder response
+    VisibleCopies->>Drive: create-only {pubky}.json copy
+    Drive-->>VisibleCopies: visible copy response
+    VisibleCopies->>Drive: verify exact created file ID and revision
+    Drive-->>VisibleCopies: exact metadata, parent, and trashed state
+    Note over DriveStore,VisibleCopies: Operational reads and deletion remain appDataFolder-only
+    VisibleCopies-->>Operations: confirmed creation or safe unconfirmed outcome
     Note over Operations: Zero exported secret bytes
     alt Operational storage error
         Operations->>Pubky: disposeIdentityKey(handle)
@@ -629,8 +628,8 @@ sequenceDiagram
     participant UI as detach-from-google
     participant GoogleFlow as GoogleBackedIdentityFlow
     participant Operations as GoogleBackedIdentityOperations
-    participant AppData as GoogleDrivePassportFileStore
-    participant Visible as GoogleDriveVisibleRecoveryCopyDeleter
+    participant DriveStore as GoogleDrivePassportFileStore
+    participant VisibleCopies as GoogleDriveVisibleRecoveryCopies
     participant Drive as Google Drive API v3
     participant Local as LocalStorageIdentityRepository
 
@@ -640,8 +639,8 @@ sequenceDiagram
         GoogleFlow-->>UI: authorization_failed
     else Account matches
         GoogleFlow->>Operations: detachIdentity(...)
-        Operations->>AppData: readPassportFile()
-        AppData->>Drive: find appDataFolder/passport.json
+        Operations->>DriveStore: readPassportFile()
+        DriveStore->>Drive: find appDataFolder/passport.json
         alt App-data file found
             Drive-->>Operations: encrypted envelope + exact reference
             Operations->>Operations: wrapping key, decrypt, and verify Pubky
@@ -649,11 +648,11 @@ sequenceDiagram
             Drive-->>Operations: missing
             Note over Operations: Account binding still protects visible cleanup
         end
-        Operations->>Visible: deleteVisibleRecoveryCopies(pubky)
-        Visible->>Drive: list every accessible root Pubky Passport folder
-        Visible->>Drive: delete every exact {pubky}.json match
-        Operations->>AppData: delete exact verified reference when present
-        AppData->>Drive: validate revision and delete passport.json
+        Operations->>VisibleCopies: deleteVisibleRecoveryCopies(pubky)
+        VisibleCopies->>Drive: list every accessible root Pubky Passport folder
+        VisibleCopies->>Drive: delete every exact {pubky}.json match
+        Operations->>DriveStore: delete exact verified reference when present
+        DriveStore->>Drive: validate revision and delete passport.json
         alt Any verification or Drive cleanup fails
             Operations-->>UI: safe retryable failure
             Note over Local: Local identity remains available
@@ -761,7 +760,7 @@ sequenceDiagram
 | Identity controller | `src/client/browser/identity` | Controller and factory tests |
 | Google credential capabilities | `src/client/browser/google-authorization` | Colocated implicit OAuth and callback-scrubbing tests |
 | Google-backed custody/recovery lifecycle | `src/client/browser/identity/google-backed` | Colocated operation tests |
-| Drive store and WebCrypto | `src/client/browser/passport-file` | Colocated store and crypto tests |
+| Drive store and WebCrypto | `src/client/logic/passport-file` | Colocated store and crypto tests |
 | Pubky SDK adapter | `src/client/browser/pubky/pubkySdkAdapter.ts` | `pubkySdkAdapter.test.ts` |
 | Wrapping-key API | `src/app/api/wrapping-key/google`, `src/server/wrapping-key/google` | Route and server tests |
 | Browser bootstrap config | `src/server/config/browserBootstrapConfig.ts` | `browserBootstrapConfig.test.ts`, proxy tests |

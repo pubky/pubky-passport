@@ -5,8 +5,8 @@ file. This feature handles `PassportFileEnvelopeV1` values; it does not acquire
 Google credentials, request wrapping keys, create Pubky identities, or activate
 homeserver sessions.
 
-The Google-backed identity composition root constructs these adapters and passes
-focused, bound operations into the identity use cases.
+The Google-backed identity operations construct these adapters directly and keep
+their credentials and encrypted file values inside the browser flow.
 
 ## Structure
 
@@ -14,12 +14,12 @@ focused, bound operations into the identity use cases.
   model, strict schema parsing, and Passport-origin normalization.
 - [`passportFileWebCrypto.ts`](./passportFileWebCrypto.ts) encrypts and decrypts
   32-byte Pubky secret key material with browser WebCrypto.
-- [`googleDrivePassportFileStore.ts`](./googleDrivePassportFileStore.ts) reads,
-  creates, and deletes `appDataFolder/passport.json` through Google Drive API v3.
-- [`googleDriveVisibleRecoveryCopyWriter.ts`](./googleDriveVisibleRecoveryCopyWriter.ts)
-  creates user-visible encrypted recovery copies.
-- [`googleDriveVisibleRecoveryCopyDeleter.ts`](./googleDriveVisibleRecoveryCopyDeleter.ts)
-  deletes every exact recovery copy during Google detachment.
+- [`google/passportFileStore.ts`](./google/passportFileStore.ts) owns operational
+  `appDataFolder/passport.json` reads, creation, and deletion.
+- [`google/visibleRecoveryCopies.ts`](./google/visibleRecoveryCopies.ts) owns
+  append-only visible-copy creation and exhaustive detachment cleanup.
+- [`google/driveHttp.ts`](./google/driveHttp.ts) contains only shared bounded Drive
+  HTTP, response parsing, and multipart mechanics.
 
 ## Crypto Contract
 
@@ -42,9 +42,10 @@ or browser exception details.
 
 ## Google Drive Contract
 
-`GoogleDrivePassportFileStore` and `GoogleDriveVisibleRecoveryCopyWriter` each
-receive an injected, short-lived access-token provider. The token stays inside Drive
-requests and is never returned in feature results or persisted by either adapter.
+`GoogleDrivePassportFileStore` and `GoogleDriveVisibleRecoveryCopies` receive a
+short-lived Drive access token and injected `fetch` directly. Instances are
+operation-scoped; the token stays inside Drive requests and is never returned in
+feature results or persisted by either adapter.
 
 The store:
 
@@ -67,8 +68,8 @@ creates from other profiles, devices, or browsers without Web Locks are reported
 ## Visible Recovery Copy
 
 After `GoogleDrivePassportFileStore` creates `appDataFolder/passport.json`,
-`GoogleBackedIdentityOperations` asks `GoogleDriveVisibleRecoveryCopyWriter` to write the
-same encrypted envelope to:
+`GoogleBackedIdentityOperations` asks `GoogleDriveVisibleRecoveryCopies` to write
+the encrypted envelope to:
 
 ```txt
 Google Drive/Pubky Passport/{pubky}.json
@@ -82,10 +83,10 @@ requires a separate future flow.
 
 The browser requests Google's narrow `drive.file` scope in addition to the required
 `drive.appdata` scope. A returned grant without optional `drive.file` is still usable
-for operational restore; the visible writer then returns an unconfirmed outcome
+for operational restore; the visible-copy adapter then returns an unconfirmed outcome
 without blocking activation. Detachment requires `drive.file` so Passport can remove
-the recovery artifacts it created. The writer creates the `Pubky Passport` folder when needed and
-writes only files created by Passport. Visible recovery copies are append-only.
+the recovery artifacts it created. `GoogleDriveVisibleRecoveryCopies` creates the
+`Pubky Passport` folder when needed and writes only files created by Passport. Visible recovery copies are append-only.
 Repeated writes intentionally create additional same-name Drive files; no existing
 file is updated or overwritten. Each new copy is verified by its exact returned Drive
 file ID, revision, parent folder, and trashed state.

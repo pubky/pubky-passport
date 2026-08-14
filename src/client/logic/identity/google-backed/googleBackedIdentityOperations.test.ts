@@ -26,13 +26,12 @@ const MOCKS = vi.hoisted(() => ({
   encryptSecretKeyBytes: vi.fn(),
   decryptSecretKeyBytes: vi.fn(),
   repositorySave: vi.fn(),
-  GoogleDrivePassportFileStore: vi.fn(),
+  driveStoreConstructions: { count: 0 },
+  visibleCopiesConstructions: { count: 0 },
   readPassportFile: vi.fn(),
   createPassportFile: vi.fn(),
   deletePassportFile: vi.fn(),
-  GoogleDriveVisibleRecoveryCopyWriter: vi.fn(),
   createVisibleRecoveryCopy: vi.fn(),
-  GoogleDriveVisibleRecoveryCopyDeleter: vi.fn(),
   deleteVisibleRecoveryCopies: vi.fn(),
 }));
 
@@ -42,14 +41,26 @@ vi.mock("../../pubky/pubkySdkAdapter", () => ({
 vi.mock("../../wrapping-key/wrappingKeyApiClient", () => ({ WrappingKeyApiClient: MOCKS.WrappingKeyApiClient }));
 vi.mock("../../homegate/homegateClient", () => ({ HomegateClient: MOCKS.HomegateClient }));
 vi.mock("../../passport-file/passportFileWebCrypto", () => ({ PassportFileWebCrypto: MOCKS.PassportFileWebCrypto }));
-vi.mock("../../passport-file/googleDrivePassportFileStore", () => ({
-  GoogleDrivePassportFileStore: MOCKS.GoogleDrivePassportFileStore,
+vi.mock("../../passport-file/google/passportFileStore", () => ({
+  GoogleDrivePassportFileStore: class {
+    constructor() {
+      MOCKS.driveStoreConstructions.count += 1;
+    }
+
+    readonly readPassportFile = MOCKS.readPassportFile;
+    readonly createPassportFile = MOCKS.createPassportFile;
+    readonly deletePassportFile = MOCKS.deletePassportFile;
+  },
 }));
-vi.mock("../../passport-file/googleDriveVisibleRecoveryCopyWriter", () => ({
-  GoogleDriveVisibleRecoveryCopyWriter: MOCKS.GoogleDriveVisibleRecoveryCopyWriter,
-}));
-vi.mock("../../passport-file/googleDriveVisibleRecoveryCopyDeleter", () => ({
-  GoogleDriveVisibleRecoveryCopyDeleter: MOCKS.GoogleDriveVisibleRecoveryCopyDeleter,
+vi.mock("../../passport-file/google/visibleRecoveryCopies", () => ({
+  GoogleDriveVisibleRecoveryCopies: class {
+    constructor() {
+      MOCKS.visibleCopiesConstructions.count += 1;
+    }
+
+    readonly createVisibleRecoveryCopy = MOCKS.createVisibleRecoveryCopy;
+    readonly deleteVisibleRecoveryCopies = MOCKS.deleteVisibleRecoveryCopies;
+  },
 }));
 
 import { GoogleBackedIdentityOperations } from "./googleBackedIdentityOperations";
@@ -85,6 +96,8 @@ const INVITATION = {
 describe("GoogleBackedIdentityOperations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    MOCKS.driveStoreConstructions.count = 0;
+    MOCKS.visibleCopiesConstructions.count = 0;
     vi.stubGlobal("localStorage", new MemoryStorage());
     MOCKS.PubkySdkAdapter.mockImplementation(function () {
       return {
@@ -111,20 +124,6 @@ describe("GoogleBackedIdentityOperations", () => {
         decryptSecretKeyBytes: MOCKS.decryptSecretKeyBytes,
       };
     });
-    MOCKS.GoogleDrivePassportFileStore.mockImplementation(function () {
-      return {
-        readPassportFile: MOCKS.readPassportFile,
-        createPassportFile: MOCKS.createPassportFile,
-        deletePassportFile: MOCKS.deletePassportFile,
-      };
-    });
-    MOCKS.GoogleDriveVisibleRecoveryCopyWriter.mockImplementation(function () {
-      return { createVisibleRecoveryCopy: MOCKS.createVisibleRecoveryCopy };
-    });
-    MOCKS.GoogleDriveVisibleRecoveryCopyDeleter.mockImplementation(function () {
-      return { deleteVisibleRecoveryCopies: MOCKS.deleteVisibleRecoveryCopies };
-    });
-
     MOCKS.requestWrappingKey.mockResolvedValue(Result.ok("w".repeat(43)));
     MOCKS.requestInvitation.mockResolvedValue(Result.ok(INVITATION));
     MOCKS.createIdentityKey.mockResolvedValue(Result.ok(IDENTITY));
@@ -196,6 +195,8 @@ describe("GoogleBackedIdentityOperations", () => {
       "publishing_discovery",
       "activating_created_identity",
     ]);
+    expect(MOCKS.driveStoreConstructions.count).toBe(1);
+    expect(MOCKS.visibleCopiesConstructions.count).toBe(1);
     expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
   });
 
@@ -454,6 +455,8 @@ describe("GoogleBackedIdentityOperations", () => {
 
     expect(expectResultOk(result)).toEqual({ deletionStatus: "deleted" });
     expect(events).toEqual(["visible-delete", "app-data-delete", "local-remove"]);
+    expect(MOCKS.driveStoreConstructions.count).toBe(1);
+    expect(MOCKS.visibleCopiesConstructions.count).toBe(1);
     expect(MOCKS.deletePassportFile).toHaveBeenCalledWith(REFERENCE);
     expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
   });

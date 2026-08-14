@@ -1,12 +1,10 @@
 import { Result, type Result as ResultType } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { expectAsyncResultError, expectResultOk } from "../../../../test-utils/resultAssertions";
-import { LOGGER } from "../../../libs/logger/logger";
-import {
-  GoogleDrivePassportFileStore,
-} from "./googleDrivePassportFileStore";
-import type { PassportFileEnvelopeV1 } from "./passportFileEnvelope";
+import { expectAsyncResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
+import { LOGGER } from "../../../../libs/logger/logger";
+import type { PassportFileEnvelopeV1 } from "../passportFileEnvelope";
+import { GoogleDrivePassportFileStore } from "./passportFileStore";
 
 const ACCESS_TOKEN = "test-drive-access-token";
 const ENVELOPE: PassportFileEnvelopeV1 = {
@@ -121,11 +119,7 @@ function createStore(
     return response;
   }) as typeof fetch;
 
-  const store = new GoogleDrivePassportFileStore({
-    accessTokenProvider: async () => ACCESS_TOKEN,
-    fetch: fetchMock,
-    ...options,
-  });
+  const store = new GoogleDrivePassportFileStore(ACCESS_TOKEN, fetchMock, options.requestLock);
 
   return { store, calls };
 }
@@ -298,23 +292,17 @@ describe("GoogleDrivePassportFileStore", () => {
     await expectFailure(createStore([jsonResponse({ error: "scope" }, 403)]).store.readPassportFile(), "forbidden");
   });
 
-  it("maps token provider and network failures safely", async () => {
+  it("maps empty tokens and network failures safely", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const emptyTokenStore = new GoogleDrivePassportFileStore({
-      accessTokenProvider: async () => "",
-      fetch: (async () => jsonResponse({ files: [] })) as typeof fetch,
-    });
+    const emptyTokenStore = new GoogleDrivePassportFileStore(
+      "",
+      (async () => jsonResponse({ files: [] })) as typeof fetch,
+    );
     await expectFailure(emptyTokenStore.readPassportFile(), "unauthorized");
     expect(warning).toHaveBeenCalledWith("identity.google.drive_store.failed", {
       operation: "access_token",
       code: "unauthorized",
     });
-
-    const unauthorizedStore = new GoogleDrivePassportFileStore({
-      accessTokenProvider: async () => { throw new Error("SECRET-TOKEN-PROVIDER-FAILURE"); },
-      fetch: (async () => jsonResponse({ files: [] })) as typeof fetch,
-    });
-    await expectFailure(unauthorizedStore.readPassportFile(), "unauthorized");
 
     const { store } = createStore([new Error("network includes secret details")]);
     const result = await store.readPassportFile();
@@ -325,15 +313,10 @@ describe("GoogleDrivePassportFileStore", () => {
     }
     expect(JSON.stringify(result)).not.toContain("secret details");
     expect(warning).toHaveBeenNthCalledWith(2, "identity.google.drive_store.failed", {
-      operation: "access_token",
-      code: "unauthorized",
-    });
-    expect(warning).toHaveBeenNthCalledWith(3, "identity.google.drive_store.failed", {
       operation: "list",
       code: "network_failed",
     });
-    expect(warning).toHaveBeenCalledTimes(3);
-    expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-TOKEN-PROVIDER-FAILURE");
+    expect(warning).toHaveBeenCalledTimes(2);
     expect(JSON.stringify(warning.mock.calls)).not.toContain("secret details");
     expect(JSON.stringify(warning.mock.calls)).not.toContain(ACCESS_TOKEN);
   });
@@ -466,11 +449,11 @@ describe("GoogleDrivePassportFileStore", () => {
       }
       return jsonResponse({ files: stored ? [created] : [] });
     }) as typeof fetch;
-    const createLockedStore = () => new GoogleDrivePassportFileStore({
-      accessTokenProvider: async () => ACCESS_TOKEN,
-      fetch: fetchMock,
-      requestLock: (name, callback) => lockManager.request(name, callback),
-    });
+    const createLockedStore = () => new GoogleDrivePassportFileStore(
+      ACCESS_TOKEN,
+      fetchMock,
+      (name, callback) => lockManager.request(name, callback),
+    );
 
     const firstCreate = createLockedStore().createPassportFile(ENVELOPE);
     const secondCreate = createLockedStore().createPassportFile(ENVELOPE);
@@ -497,11 +480,11 @@ describe("GoogleDrivePassportFileStore", () => {
 
   it("logs browser lock failures without retaining exception details", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const store = new GoogleDrivePassportFileStore({
-      accessTokenProvider: async () => ACCESS_TOKEN,
-      fetch: (async () => jsonResponse({ files: [] })) as typeof fetch,
-      requestLock: async () => { throw new Error("SECRET-LOCK-FAILURE"); },
-    });
+    const store = new GoogleDrivePassportFileStore(
+      ACCESS_TOKEN,
+      (async () => jsonResponse({ files: [] })) as typeof fetch,
+      async () => { throw new Error("SECRET-LOCK-FAILURE"); },
+    );
 
     await expectFailure(store.createPassportFile(ENVELOPE), "write_failed");
 

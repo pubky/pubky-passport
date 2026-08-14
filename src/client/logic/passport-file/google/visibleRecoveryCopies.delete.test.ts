@@ -1,7 +1,8 @@
 import { Result } from "better-result";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { GoogleDriveVisibleRecoveryCopyDeleter } from "./googleDriveVisibleRecoveryCopyDeleter";
+import { LOGGER } from "../../../../libs/logger/logger";
+import { GoogleDriveVisibleRecoveryCopies } from "./visibleRecoveryCopies";
 
 const TOKEN = "SECRET-DRIVE-TOKEN";
 const PUBLIC_KEY = "pubky1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
@@ -14,10 +15,12 @@ const FOLDER = {
   trashed: false,
 };
 
-describe("GoogleDriveVisibleRecoveryCopyDeleter", () => {
+afterEach(() => vi.restoreAllMocks());
+
+describe("GoogleDriveVisibleRecoveryCopies deletion", () => {
   it("deletes every same-name recovery copy across all Passport folders", async () => {
     const calls: SanitizedCall[] = [];
-    const deleter = createDeleter([
+    const visibleCopies = createVisibleCopies([
       jsonResponse({ files: [FOLDER, { ...FOLDER, id: "folder-2" }] }),
       jsonResponse({ files: [visibleFile("copy-1", "folder-1"), visibleFile("copy-2", "folder-1")] }),
       emptyResponse(),
@@ -26,7 +29,7 @@ describe("GoogleDriveVisibleRecoveryCopyDeleter", () => {
       emptyResponse(),
     ], calls);
 
-    const result = await deleter.deleteVisibleRecoveryCopies(TOKEN, PUBLIC_KEY);
+    const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_KEY);
 
     expect(Result.isOk(result) && result.value).toEqual({ deletedCount: 3 });
     expect(calls.filter((call) => call.method === "DELETE").map((call) => call.fileId)).toEqual([
@@ -41,7 +44,7 @@ describe("GoogleDriveVisibleRecoveryCopyDeleter", () => {
 
   it("follows Drive pagination so old duplicate copies are not left behind", async () => {
     const calls: SanitizedCall[] = [];
-    const deleter = createDeleter([
+    const visibleCopies = createVisibleCopies([
       jsonResponse({ files: [FOLDER] }),
       jsonResponse({ files: [visibleFile("copy-1", "folder-1")], nextPageToken: "next-page" }),
       jsonResponse({ files: [visibleFile("copy-2", "folder-1")] }),
@@ -49,30 +52,74 @@ describe("GoogleDriveVisibleRecoveryCopyDeleter", () => {
       emptyResponse(),
     ], calls);
 
-    const result = await deleter.deleteVisibleRecoveryCopies(TOKEN, PUBLIC_KEY);
+    const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_KEY);
 
     expect(Result.isOk(result) && result.value.deletedCount).toBe(2);
     expect(calls.find((call) => call.pageToken === "next-page")).toBeDefined();
   });
 
   it("stops and reports failure when any visible copy cannot be deleted", async () => {
-    const deleter = createDeleter([
+    const visibleCopies = createVisibleCopies([
       jsonResponse({ files: [FOLDER] }),
       jsonResponse({ files: [visibleFile("copy-1", "folder-1"), visibleFile("copy-2", "folder-1")] }),
       emptyResponse(),
       jsonResponse({}, 403),
     ]);
 
-    const result = await deleter.deleteVisibleRecoveryCopies(TOKEN, PUBLIC_KEY);
+    const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_KEY);
 
     expect(Result.isError(result) && result.error).toEqual({ code: "forbidden" });
   });
 
+  it("rejects an oversized Drive list response before issuing another request", async () => {
+    const calls: SanitizedCall[] = [];
+    const response = new Response("{}", {
+      headers: { "Content-Length": String(16 * 1024 + 1) },
+    });
+    const visibleCopies = createVisibleCopies([response], calls);
+
+    const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_KEY);
+
+    expect(Result.isError(result) && result.error).toEqual({ code: "invalid_response" });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("rejects repeated pagination tokens", async () => {
+    const calls: SanitizedCall[] = [];
+    const visibleCopies = createVisibleCopies([
+      jsonResponse({ files: [FOLDER], nextPageToken: "repeated-page" }),
+      jsonResponse({ files: [], nextPageToken: "repeated-page" }),
+    ], calls);
+
+    const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_KEY);
+
+    expect(Result.isError(result) && result.error).toEqual({ code: "invalid_response" });
+    expect(calls).toHaveLength(2);
+  });
+
+  it("logs deletion failures without retaining tokens or upstream bodies", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const visibleCopies = createVisibleCopies([
+      new Response("SECRET-UPSTREAM-BODY", { status: 403 }),
+    ]);
+
+    const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_KEY);
+
+    expect(Result.isError(result) && result.error).toEqual({ code: "forbidden" });
+    expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {
+      operation: "list_folders",
+      code: "forbidden",
+    });
+    const logged = JSON.stringify(warning.mock.calls);
+    expect(logged).not.toContain(TOKEN);
+    expect(logged).not.toContain("SECRET-UPSTREAM-BODY");
+  });
+
   it("rejects an invalid Pubky before accessing Drive", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>();
-    const deleter = new GoogleDriveVisibleRecoveryCopyDeleter({ fetch });
+    const visibleCopies = new GoogleDriveVisibleRecoveryCopies(TOKEN, fetch);
 
-    const result = await deleter.deleteVisibleRecoveryCopies(TOKEN, "not-a-pubky");
+    const result = await visibleCopies.deleteVisibleRecoveryCopies("not-a-pubky");
 
     expect(Result.isError(result) && result.error).toEqual({ code: "invalid_file" });
     expect(fetch).not.toHaveBeenCalled();
@@ -86,7 +133,7 @@ type SanitizedCall = {
   hasExpectedToken: boolean;
 };
 
-function createDeleter(responses: Response[], calls: SanitizedCall[] = []) {
+function createVisibleCopies(responses: Response[], calls: SanitizedCall[] = []) {
   const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input));
     calls.push({
@@ -99,7 +146,7 @@ function createDeleter(responses: Response[], calls: SanitizedCall[] = []) {
     if (!response) throw new Error("Unexpected Drive request");
     return response;
   }) as typeof globalThis.fetch;
-  return new GoogleDriveVisibleRecoveryCopyDeleter({ fetch });
+  return new GoogleDriveVisibleRecoveryCopies(TOKEN, fetch);
 }
 
 function visibleFile(id: string, folderId: string) {

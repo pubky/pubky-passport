@@ -12,12 +12,8 @@ import {
   type HomegateSignupInvitationErrorCode,
   type HomeserverSignupInvitation,
 } from "../../homegate/homegateClient";
-import {
-  GoogleDrivePassportFileStore,
-  type PassportFileReadResult,
-} from "../../passport-file/googleDrivePassportFileStore";
-import { GoogleDriveVisibleRecoveryCopyDeleter } from "../../passport-file/googleDriveVisibleRecoveryCopyDeleter";
-import { GoogleDriveVisibleRecoveryCopyWriter } from "../../passport-file/googleDriveVisibleRecoveryCopyWriter";
+import { GoogleDrivePassportFileStore } from "../../passport-file/google/passportFileStore";
+import { GoogleDriveVisibleRecoveryCopies } from "../../passport-file/google/visibleRecoveryCopies";
 import type { PassportFileEnvelopeV1 } from "../../passport-file/passportFileEnvelope";
 import { PassportFileWebCrypto } from "../../passport-file/passportFileWebCrypto";
 import {
@@ -111,7 +107,6 @@ export class GoogleBackedIdentityOperations {
   private readonly wrappingKeys: WrappingKeyApiClient;
   private readonly homegate: HomegateClient;
   private readonly crypto: PassportFileWebCrypto;
-  private readonly visibleCopyDeleter: GoogleDriveVisibleRecoveryCopyDeleter;
   private readonly requests = new AbortController();
   private readonly fetch: typeof fetch = (request, init) => {
     const signals = [this.requests.signal, AbortSignal.timeout(NETWORK_REQUEST_TIMEOUT_MS)];
@@ -131,7 +126,6 @@ export class GoogleBackedIdentityOperations {
       this.wrappingKeys = new WrappingKeyApiClient(this.fetch);
       this.homegate = new HomegateClient({ homegateBaseUrl, fetch: this.fetch });
       this.crypto = new PassportFileWebCrypto();
-      this.visibleCopyDeleter = new GoogleDriveVisibleRecoveryCopyDeleter({ fetch: this.fetch });
     } catch (error) {
       try {
         pubky.dispose();
@@ -149,7 +143,7 @@ export class GoogleBackedIdentityOperations {
   ): Promise<GoogleBackedIdentityResult> {
     try {
       report("checking_passport_file");
-      const store = this.passportFileStore(credentials.driveAccessToken);
+      const store = new GoogleDrivePassportFileStore(credentials.driveAccessToken, this.fetch);
       LOGGER.info("identity.google.drive_read.started");
       const storedFile = await store.readPassportFile();
       if (Result.isError(storedFile)) return failure({ code: "drive_read_failed" });
@@ -158,7 +152,7 @@ export class GoogleBackedIdentityOperations {
         LOGGER.info("identity.google.drive_read.completed", { status: "found" });
         const wrappingKey = await this.requestWrappingKey(credentials.googleIdToken);
         if (Result.isError(wrappingKey)) return failure(wrappingKey.error);
-        return this.restoreIdentity(credentials, storedFile.value, wrappingKey.value, report);
+        return this.restoreIdentity(credentials, storedFile.value.envelope, wrappingKey.value, report);
       }
 
       LOGGER.info("identity.google.drive_read.completed", { status: "missing" });
@@ -169,7 +163,18 @@ export class GoogleBackedIdentityOperations {
       if (Result.isError(invitation)) return failure(invitation.error);
 
       report("creating_identity");
-      return this.createIdentity(credentials, invitation.value, wrappingKey.value, report, store);
+      const visibleCopies = new GoogleDriveVisibleRecoveryCopies(
+        credentials.driveAccessToken,
+        this.fetch,
+      );
+      return this.createIdentity(
+        credentials.googleAccount,
+        invitation.value,
+        wrappingKey.value,
+        report,
+        store,
+        visibleCopies,
+      );
     } catch {
       LOGGER.warn("identity.google.restore_or_create.failed", { code: "unexpected_failure" });
       return failure({ code: "unexpected_failure" });
@@ -221,11 +226,12 @@ export class GoogleBackedIdentityOperations {
    * that authoritative file exists it is preserved on every later failure.
    */
   private async createIdentity(
-    credentials: GoogleBackedIdentityCredentials,
+    googleAccount: GoogleAccountProfile,
     invitation: HomeserverSignupInvitation,
     wrappingKey: string,
     report: (progress: GoogleBackedIdentityProgress) => void,
     store: GoogleDrivePassportFileStore,
+    visibleCopies: GoogleDriveVisibleRecoveryCopies,
   ): Promise<GoogleBackedIdentityResult> {
     LOGGER.info("identity.google.create.started");
     LOGGER.info("identity.google.create_key.started");
@@ -240,11 +246,11 @@ export class GoogleBackedIdentityOperations {
       let visibleRecoveryCopyStatus: "created" | "unconfirmed" = "created";
       report("storing_encrypted_identity");
       LOGGER.info("identity.google.encrypt.started");
-      const encrypted = await this.crypto.encryptSecretKeyBytes({
-        secretKeyBytes: secretKey.value.bytes,
+      const encrypted = await this.crypto.encryptSecretKeyBytes(
+        secretKey.value.bytes,
         wrappingKey,
-        passportOrigin: this.passportOrigin,
-      }).finally(() => {
+        this.passportOrigin,
+      ).finally(() => {
         secretKey.value.bytes.fill(0);
       });
       if (Result.isError(encrypted)) return failure({ code: "encrypt_failed" });
@@ -263,9 +269,8 @@ export class GoogleBackedIdentityOperations {
       LOGGER.info("identity.google.operational_drive_write.completed");
 
       LOGGER.info("identity.google.visible_recovery_copy.started");
-      const writer = this.visibleRecoveryCopyWriter(credentials.driveAccessToken);
       const visibleCopyConfirmed = await this.createVisibleRecoveryCopy(
-        writer,
+        visibleCopies,
         envelope,
         created.value.publicIdentity.publicKeyDisplay,
       );
@@ -278,7 +283,7 @@ export class GoogleBackedIdentityOperations {
       const activated = await this.signupAndActivate(
         created.value,
         invitation,
-        credentials.googleAccount,
+        googleAccount,
         report,
       );
       if (Result.isError(activated)) return failure(activated.error);
@@ -300,12 +305,12 @@ export class GoogleBackedIdentityOperations {
    */
   private async restoreIdentity(
     credentials: GoogleBackedIdentityCredentials,
-    storedFile: Extract<PassportFileReadResult, { status: "found" }>,
+    envelope: PassportFileEnvelopeV1,
     wrappingKey: string,
     report: (progress: GoogleBackedIdentityProgress) => void,
   ): Promise<GoogleBackedIdentityResult> {
     report("restoring_identity");
-    const restored = await this.restoreKey(storedFile.envelope, wrappingKey);
+    const restored = await this.restoreKey(envelope, wrappingKey);
     if (Result.isError(restored)) return failure(restored.error);
 
     try {
@@ -353,11 +358,11 @@ export class GoogleBackedIdentityOperations {
     wrappingKey: string,
   ): Promise<OperationResult<PubkyIdentityKey>> {
     LOGGER.info("identity.google.decrypt.started");
-    const secretKey = await this.crypto.decryptSecretKeyBytes({
+    const secretKey = await this.crypto.decryptSecretKeyBytes(
       envelope,
       wrappingKey,
-      passportOrigin: this.passportOrigin,
-    });
+      this.passportOrigin,
+    );
     if (Result.isError(secretKey)) return failure({ code: "decrypt_failed" });
 
     try {
@@ -484,7 +489,7 @@ export class GoogleBackedIdentityOperations {
     credentials: GoogleBackedIdentityCredentials,
     publicIdentity: PubkyPublicIdentity,
   ): Promise<"deleted" | "missing" | null> {
-    const store = this.passportFileStore(credentials.driveAccessToken);
+    const store = new GoogleDrivePassportFileStore(credentials.driveAccessToken, this.fetch);
     const storedFile = await store.readPassportFile();
     if (Result.isError(storedFile)) return null;
 
@@ -506,33 +511,22 @@ export class GoogleBackedIdentityOperations {
       }
     }
 
-    const visibleCopies = await this.visibleCopyDeleter.deleteVisibleRecoveryCopies(
+    const visibleCopies = new GoogleDriveVisibleRecoveryCopies(
       credentials.driveAccessToken,
+      this.fetch,
+    );
+    const deletedVisibleCopies = await visibleCopies.deleteVisibleRecoveryCopies(
       publicIdentity.publicKeyDisplay,
     );
-    if (Result.isError(visibleCopies)) return null;
+    if (Result.isError(deletedVisibleCopies)) return null;
     if (storedFile.value.status === "missing") return "missing";
 
     const deleted = await store.deletePassportFile(storedFile.value.reference);
     return Result.isError(deleted) ? null : "deleted";
   }
 
-  private passportFileStore(driveAccessToken: string): GoogleDrivePassportFileStore {
-    return new GoogleDrivePassportFileStore({
-      accessTokenProvider: async () => driveAccessToken,
-      fetch: this.fetch,
-    });
-  }
-
-  private visibleRecoveryCopyWriter(driveAccessToken: string): GoogleDriveVisibleRecoveryCopyWriter {
-    return new GoogleDriveVisibleRecoveryCopyWriter({
-      accessTokenProvider: async () => driveAccessToken,
-      fetch: this.fetch,
-    });
-  }
-
   private async createVisibleRecoveryCopy(
-    writer: GoogleDriveVisibleRecoveryCopyWriter,
+    visibleCopies: GoogleDriveVisibleRecoveryCopies,
     envelope: PassportFileEnvelopeV1,
     publicKeyDisplay: string,
   ): Promise<boolean> {
@@ -550,7 +544,7 @@ export class GoogleBackedIdentityOperations {
         finish(false);
       }, VISIBLE_RECOVERY_COPY_TIMEOUT_MS);
 
-      void writer.createVisibleRecoveryCopy(
+      void visibleCopies.createVisibleRecoveryCopy(
         envelope,
         publicKeyDisplay,
         controller.signal,

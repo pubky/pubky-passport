@@ -135,7 +135,7 @@ function concreteWrappingKeyRequest(
 }
 
 class TestGoogleWrappingKeyRequest extends GoogleWrappingKeyRequest {
-  readonly #request: GoogleWrappingKeyRequest["requestGoogleWrappingKey"];
+  private request: GoogleWrappingKeyRequest["requestGoogleWrappingKey"];
 
   constructor(request: GoogleWrappingKeyRequest["requestGoogleWrappingKey"]) {
     super({
@@ -143,11 +143,11 @@ class TestGoogleWrappingKeyRequest extends GoogleWrappingKeyRequest {
       rateLimiter: new InMemoryGoogleWrappingKeyRateLimiter({ identityPepper: new Uint8Array(32) }),
       deriver: new GoogleWrappingKeyDeriver(new Uint8Array(32)),
     });
-    this.#request = request;
+    this.request = request;
   }
 
   override requestGoogleWrappingKey(googleIdToken: string): Promise<GoogleWrappingKeyRequestResult> {
-    return this.#request(googleIdToken);
+    return this.request(googleIdToken);
   }
 }
 
