@@ -167,13 +167,13 @@ describe("SignInFlow", () => {
     expect(onEstablished).not.toHaveBeenCalled();
   });
 
-  it("shows the real setup error and confirms replacement of an incomplete backup", async () => {
+  it("shows the real setup error and resumes an incomplete identity", async () => {
     const googleAccount = { id: "google-1", email: "user@gmail.com", name: "User", pictureUrl: null };
     const publicIdentity = { publicKeyZ32: "key", publicKeyDisplay: "pubkykey" };
     const continueAction = vi.fn()
       .mockResolvedValueOnce(Result.err({
         code: "signin_failed" as const,
-        recovery: { googleAccount, publicIdentity },
+        incompleteIdentity: { googleAccount, publicIdentity },
       }))
       .mockResolvedValueOnce(Result.err({ code: "operation_failed" as const }));
     const controller = mockPassportIdentityController({
@@ -181,7 +181,7 @@ describe("SignInFlow", () => {
         onState({ status: "ready" });
         return mockGoogleBackedIdentityFlow({
           establishIdentity: continueAction,
-          replaceIncompleteIdentity: continueAction,
+          resumeIncompleteIdentity: continueAction,
         });
       }),
     });
@@ -191,10 +191,7 @@ describe("SignInFlow", () => {
 
     expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
     expect(screen.getByText("signin_failed")).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole("button", { name: "Delete backup & create new Pubky" }));
-    const dialog = screen.getByRole("dialog", { name: "Delete backup and start over?" });
-    expect(dialog).toHaveAccessibleDescription("This permanently deletes the encrypted backup for this Pubky from Google Drive. Passport will then create a new Pubky.");
-    await userEvent.setup().click(screen.getByRole("button", { name: "Delete & create new" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Resume setup with this Pubky" }));
 
     expect(continueAction).toHaveBeenNthCalledWith(2, publicIdentity, googleAccount.id);
   });

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import AuthorizePage from "./page";
 
-vi.mock("../../ui/authorization/authorizationFlow", () => ({
+vi.mock("../../client/ui/authorization/authorizationFlow", () => ({
   AuthorizationFlow: ({ googleClientId, homegateBaseUrl }: {
     googleClientId: string;
     homegateBaseUrl: string;

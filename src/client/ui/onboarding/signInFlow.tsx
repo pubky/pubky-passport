@@ -36,7 +36,7 @@ function SignInFlow({ controller, onBack, onComplete, onEstablished }: {
       return <GoogleIdentityError
         error={view.error}
         onBack={google.back}
-        onReplace={view.error.recovery ? () => google.replaceIncompleteBackup(view.error) : null}
+        onResume={view.error.incompleteIdentity ? () => google.resumeIncompleteIdentity(view.error) : null}
         onTryAgain={google.retry}
       />;
     case "working":

@@ -9,7 +9,7 @@ import { isSameOrInside, ModuleGraph, type ForbiddenTarget } from "./moduleGraph
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const SRC_ROOT = join(REPO_ROOT, "src");
 const CLIENT_ROOT = join(SRC_ROOT, "client");
-const BROWSER_ROOT = join(CLIENT_ROOT, "browser");
+const BROWSER_ROOT = join(CLIENT_ROOT, "logic");
 const SERVER_ROOT = join(SRC_ROOT, "server");
 const APP_ROOT = join(SRC_ROOT, "app");
 const UI_ROOT = join(CLIENT_ROOT, "ui");

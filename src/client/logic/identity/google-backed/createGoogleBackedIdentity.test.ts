@@ -10,6 +10,7 @@ import {
 } from "../../../../../test-utils/fakes/googleBackedIdentityTestDoubles";
 import { expectResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../../libs/logger/logger";
+import { ActivateGoogleBackedIdentity } from "./activateGoogleBackedIdentity";
 import { CreateGoogleBackedIdentity } from "./createGoogleBackedIdentity";
 
 describe("CreateGoogleBackedIdentity", () => {
@@ -323,10 +324,14 @@ function createSetup(input: {
   const local = input.local ?? new RecordingSaveLocalIdentity();
   const crypto = new RecordingPassportFileCrypto();
   const fileStore = input.fileStore ?? new RecordingPassportFileOperations({ status: "missing" });
+  const activation = new ActivateGoogleBackedIdentity({
+    pubky,
+    saveIdentityLocally: local.saveIdentity,
+  });
   const subject = new CreateGoogleBackedIdentity({
     encryptSecretKeyBytes: (encryptInput) => crypto.encryptSecretKeyBytes(encryptInput),
     pubky,
-    saveIdentityLocally: local.saveIdentity,
+    activateIdentity: (...activationInput) => activation.execute(...activationInput),
     passportOrigin: "https://passport.pubky.app",
     ...(input.visibleRecoveryCopyTimeoutMs === undefined
       ? {}

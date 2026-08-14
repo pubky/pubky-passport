@@ -20,7 +20,7 @@ const FLOW = vi.hoisted(() => ({
   migrationUrl: "pubkyring://migrate?index=0&total=1&key=active-secret",
 }));
 
-vi.mock("../../browser/identity/passportIdentityController", () => ({
+vi.mock("../../logic/identity/passportIdentityController", () => ({
   MIN_BACKUP_PASSWORD_LENGTH: 6,
   PassportIdentityController: function PassportIdentityController() {
     return mockPassportIdentityController({

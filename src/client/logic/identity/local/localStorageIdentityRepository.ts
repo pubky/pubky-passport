@@ -3,7 +3,7 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import type { PubkyPublicIdentity } from "../pubkyPublicIdentity";
-import type { GoogleAccountProfile } from "../google-backed/googleAccountProfile";
+import type { GoogleAccountProfile } from "../google-backed/googleBackedIdentityCredentials";
 import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "../../../../libs/encoding/base64Url";
 import { LOGGER } from "../../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";
@@ -46,11 +46,7 @@ const STORAGE_KEY = "pubky-passport/local-identities/v1";
 const LOCAL_IDENTITY_STORE_VERSION = 1;
 
 export class LocalStorageIdentityRepository {
-  readonly #storage: Storage | null;
-
-  constructor(storage?: Storage | null) {
-    this.#storage = storage === undefined ? getLocalStorage() : storage;
-  }
+  constructor(private storage: Storage | null = getLocalStorage()) {}
 
   list(): LocalIdentityResult<LocalIdentityCatalog> {
     const store = this.readStore();
@@ -168,13 +164,13 @@ export class LocalStorageIdentityRepository {
   }
 
   private readStore(): LocalIdentityResult<LocalIdentityStoreV1> {
-    if (!this.#storage) {
+    if (!this.storage) {
       return localStoreFailure("read", "storage_unavailable");
     }
 
     let stored: string | null;
     try {
-      stored = this.#storage.getItem(STORAGE_KEY);
+      stored = this.storage.getItem(STORAGE_KEY);
     } catch {
       return localStoreFailure("read", "storage_unavailable");
     }
@@ -192,12 +188,12 @@ export class LocalStorageIdentityRepository {
   }
 
   private writeStore(store: LocalIdentityStoreV1): LocalIdentityResult<void> {
-    if (!this.#storage) {
+    if (!this.storage) {
       return localStoreFailure("write", "storage_unavailable");
     }
 
     try {
-      this.#storage.setItem(STORAGE_KEY, JSON.stringify(store));
+      this.storage.setItem(STORAGE_KEY, JSON.stringify(store));
       return Result.ok();
     } catch {
       return localStoreFailure("write", "storage_unavailable");

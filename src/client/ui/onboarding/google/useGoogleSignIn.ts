@@ -29,7 +29,7 @@ function useGoogleSignIn(
   const flow = useRef<GoogleIdentityFlow | null>(null);
   const [state, dispatch] = useReducer(transitionGoogleSignIn, INITIAL_GOOGLE_SIGN_IN_STATE);
 
-  const run = useCallback((recovery?: NonNullable<GoogleIdentityFlowError["recovery"]>): void => {
+  const run = useCallback((incompleteIdentity?: NonNullable<GoogleIdentityFlowError["incompleteIdentity"]>): void => {
     if (dispatching.current) return;
     const currentFlow = flow.current;
     if (!currentFlow) {
@@ -38,8 +38,8 @@ function useGoogleSignIn(
     }
     dispatching.current = true;
     dispatch({ type: "request-started" });
-    const operation = recovery
-      ? currentFlow.replaceIncompleteIdentity(recovery.publicIdentity, recovery.googleAccount.id)
+    const operation = incompleteIdentity
+      ? currentFlow.resumeIncompleteIdentity(incompleteIdentity.publicIdentity, incompleteIdentity.googleAccount.id)
       : currentFlow.establishIdentity();
     void operation
       .then((completed) => {
@@ -81,10 +81,10 @@ function useGoogleSignIn(
     dispatch({ type: "back" });
   }, []);
 
-  const replaceIncompleteBackup = useCallback((error: GoogleIdentityFlowError) => {
-    if (!error.recovery) return;
+  const resumeIncompleteIdentity = useCallback((error: GoogleIdentityFlowError) => {
+    if (!error.incompleteIdentity) return;
     dispatching.current = false;
-    run(error.recovery);
+    run(error.incompleteIdentity);
   }, [run]);
 
   useEffect(() => {
@@ -115,7 +115,7 @@ function useGoogleSignIn(
 
   return {
     back,
-    replaceIncompleteBackup,
+    resumeIncompleteIdentity,
     retry: start,
     start,
     state,

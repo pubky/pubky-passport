@@ -21,7 +21,7 @@ const MOCKS = vi.hoisted(() => ({
   createAuthorizationController: vi.fn(),
 }));
 
-vi.mock("../../browser/authorization/passportAuthorization", () => ({
+vi.mock("../../logic/authorization/passportAuthorization", () => ({
   createPassportAuthorizationController: (...args: unknown[]) => {
     MOCKS.createAuthorizationController(...args);
     return {
@@ -34,7 +34,7 @@ vi.mock("../../browser/authorization/passportAuthorization", () => ({
   },
 }));
 
-vi.mock("../../browser/identity/passportIdentityController", () => ({
+vi.mock("../../logic/identity/passportIdentityController", () => ({
   PassportIdentityController: class {
     listIdentities = () => Result.ok(MOCKS.catalog);
     selectIdentity = MOCKS.select;

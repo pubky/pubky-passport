@@ -14,7 +14,7 @@ const qr = vi.hoisted(() => ({
   start: vi.fn(async () => undefined),
 }));
 
-vi.mock("../../../browser/authorization/browserManualAuthorization", () => ({
+vi.mock("../../../logic/authorization/browserManualAuthorization", () => ({
   enterAuthorization: vi.fn(() => "navigating"),
 }));
 

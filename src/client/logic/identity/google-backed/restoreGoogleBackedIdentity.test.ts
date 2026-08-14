@@ -9,6 +9,7 @@ import {
 } from "../../../../../test-utils/fakes/googleBackedIdentityTestDoubles";
 import { expectResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
 import { RestoreGoogleBackedIdentity } from "./restoreGoogleBackedIdentity";
+import { RestoreGoogleBackedIdentityKey } from "./restoreGoogleBackedIdentityKey";
 
 describe("RestoreGoogleBackedIdentity", () => {
   it("decrypts, signs in, confirms discovery, and saves the restored identity", async () => {
@@ -151,11 +152,15 @@ function createSetup() {
   pubky.session.publicIdentity = pubky.nextPublicIdentity;
   const local = new RecordingSaveLocalIdentity();
   const crypto = new RecordingPassportFileCrypto();
-  const subject = new RestoreGoogleBackedIdentity({
+  const restoreKey = new RestoreGoogleBackedIdentityKey({
     decryptSecretKeyBytes: (decryptInput) => crypto.decryptSecretKeyBytes(decryptInput),
     pubky,
-    saveIdentityLocally: local.saveIdentity,
     passportOrigin: "https://passport.pubky.app",
   });
+  const subject = new RestoreGoogleBackedIdentity(
+    (envelope, wrappingKey) => restoreKey.execute(envelope, wrappingKey),
+    pubky,
+    local.saveIdentity,
+  );
   return { subject, pubky, local, crypto };
 }

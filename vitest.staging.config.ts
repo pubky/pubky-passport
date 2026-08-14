@@ -12,7 +12,7 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: false,
-    include: ["src/client/browser/pubky/**/*.staging.test.ts"],
+    include: ["src/client/logic/pubky/**/*.staging.test.ts"],
     exclude: configDefaults.exclude,
     setupFiles: ["./test-utils/vitest-setup.ts"],
     silent: "passed-only",

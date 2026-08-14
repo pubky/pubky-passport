@@ -13,7 +13,7 @@ export function mockGoogleBackedIdentityFlow(
     retryAuthorization: overrides.retryAuthorization ?? vi.fn(),
     establishIdentity: overrides.establishIdentity
       ?? vi.fn(async () => Result.err({ code: "authorization_failed" as const })),
-    replaceIncompleteIdentity: overrides.replaceIncompleteIdentity
+    resumeIncompleteIdentity: overrides.resumeIncompleteIdentity
       ?? vi.fn(async () => Result.err({ code: "authorization_failed" as const })),
     detachIdentity: overrides.detachIdentity
       ?? vi.fn(async () => Result.err({ code: "authorization_failed" as const })),

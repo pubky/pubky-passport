@@ -4,18 +4,19 @@ import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MemoryStorage } from "../../../../../test-utils/fakes/memoryStorage";
-import { PUBKY_SECRET_KEY_FORMAT } from "../../pubky/pubkyIdentityKey";
+import { expectResultError } from "../../../../../test-utils/resultAssertions";
 import { LocalStorageIdentityRepository } from "../local/localStorageIdentityRepository";
 
 const MOCKS = vi.hoisted(() => ({
   GoogleBackedIdentityOperations: vi.fn(),
   GoogleImplicitAuthorization: vi.fn(),
-  deleteBackups: vi.fn(),
+  detachIdentity: vi.fn(),
   disposeAuthorization: vi.fn(),
   disposeOperations: vi.fn(),
+  establishIdentity: vi.fn(),
   prepareAuthorization: vi.fn(),
+  resumeIncompleteIdentity: vi.fn(),
   requestAuthorization: vi.fn(),
-  restoreOrCreate: vi.fn(),
 }));
 
 vi.mock("./googleBackedIdentityOperations", () => ({
@@ -52,31 +53,29 @@ describe("GoogleBackedIdentityFlow", () => {
     vi.stubGlobal("localStorage", new MemoryStorage());
     for (const mock of Object.values(MOCKS)) mock.mockReset();
 
-    MOCKS.GoogleImplicitAuthorization.mockImplementation(function () {
-      return {
-        prepare: MOCKS.prepareAuthorization,
-        request: MOCKS.requestAuthorization,
-        dispose: MOCKS.disposeAuthorization,
-      };
-    });
-    MOCKS.GoogleBackedIdentityOperations.mockImplementation(function () {
-      return {
-        restoreOrCreateGoogleBackedIdentity: MOCKS.restoreOrCreate,
-        deleteGoogleIdentityBackups: MOCKS.deleteBackups,
-        dispose: MOCKS.disposeOperations,
-      };
-    });
+    MOCKS.GoogleImplicitAuthorization.mockImplementation(function () { return {
+      prepare: MOCKS.prepareAuthorization,
+      request: MOCKS.requestAuthorization,
+      dispose: MOCKS.disposeAuthorization,
+    }; });
+    MOCKS.GoogleBackedIdentityOperations.mockImplementation(function () { return {
+      establishIdentity: MOCKS.establishIdentity,
+      resumeIncompleteIdentity: MOCKS.resumeIncompleteIdentity,
+      detachIdentity: MOCKS.detachIdentity,
+      dispose: MOCKS.disposeOperations,
+    }; });
     MOCKS.prepareAuthorization.mockResolvedValue(Result.ok());
     MOCKS.requestAuthorization.mockResolvedValue(Result.ok(CREDENTIALS));
-    MOCKS.restoreOrCreate.mockImplementation(async (_credentials, reportProgress) => {
+    MOCKS.establishIdentity.mockImplementation(async (_credentials, reportProgress) => {
       reportProgress("checking_passport_file");
       reportProgress("restoring_identity");
-      return Result.ok({
-        establishmentMode: "restored" as const,
-        publicIdentity: PUBLIC_IDENTITY,
-      });
+      return Result.ok({ establishmentMode: "restored" as const, publicIdentity: PUBLIC_IDENTITY });
     });
-    MOCKS.deleteBackups.mockResolvedValue(Result.ok({ status: "deleted" as const }));
+    MOCKS.resumeIncompleteIdentity.mockResolvedValue(Result.ok({
+      establishmentMode: "restored" as const,
+      publicIdentity: PUBLIC_IDENTITY,
+    }));
+    MOCKS.detachIdentity.mockResolvedValue(Result.ok({ deletionStatus: "deleted" as const }));
   });
 
   afterEach(() => {
@@ -84,18 +83,18 @@ describe("GoogleBackedIdentityFlow", () => {
     vi.unstubAllGlobals();
   });
 
-  it("reports readiness, authorization, and restore progress in order", async () => {
+  it("reports readiness, authorization, and establishment progress", async () => {
     const states: GoogleIdentityFlowState[] = [];
     const flow = createFlow((state) => states.push(state));
 
     flow.start();
     await vi.waitFor(() => expect(states).toEqual([{ status: "ready" }]));
-
     await expect(flow.establishIdentity()).resolves.toEqual(Result.ok({
       establishmentMode: "restored",
       googleAccount: GOOGLE_ACCOUNT,
       publicIdentity: PUBLIC_IDENTITY,
     }));
+
     expect(states).toEqual([
       { status: "ready" },
       { status: "requesting-authorization" },
@@ -103,119 +102,69 @@ describe("GoogleBackedIdentityFlow", () => {
       { status: "establishing", progress: "restoring_identity" },
       { status: "ready" },
     ]);
-    expect(MOCKS.requestAuthorization).toHaveBeenCalledWith(undefined);
-    expect(MOCKS.restoreOrCreate).toHaveBeenCalledWith(CREDENTIALS, expect.any(Function));
+    expect(MOCKS.establishIdentity).toHaveBeenCalledWith(CREDENTIALS, expect.any(Function));
   });
 
-  it("returns one direct authorization error when Google access fails", async () => {
-    const states: GoogleIdentityFlowState[] = [];
+  it("returns a direct authorization error without constructing operations", async () => {
     MOCKS.requestAuthorization.mockResolvedValue(Result.err({
       code: "google_authorization_popup_closed" as const,
     }));
-    const flow = createFlow((state) => states.push(state));
-    flow.start();
-    await vi.waitFor(() => expect(states.at(-1)).toEqual({ status: "ready" }));
+    const flow = createFlow();
 
-    const established = await flow.establishIdentity();
-    expect(Result.isError(established)).toBe(true);
-    if (!Result.isError(established)) throw new Error("Expected authorization failure");
-    expect(established.error).toEqual({ code: "authorization_failed" });
-    expect(states.at(-1)).toEqual({ status: "authorization-failed" });
+    expectResultError(await flow.establishIdentity(), { code: "authorization_failed" });
     expect(MOCKS.GoogleBackedIdentityOperations).not.toHaveBeenCalled();
   });
 
-  it("does not delete data when Google returns a different account", async () => {
+  it("rejects a different Google account before delegation", async () => {
     MOCKS.requestAuthorization.mockResolvedValue(Result.ok({
       ...CREDENTIALS,
       googleAccount: { ...GOOGLE_ACCOUNT, id: "different-account" },
     }));
     const flow = createFlow();
 
-    const detached = await flow.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.id);
-    expect(Result.isError(detached)).toBe(true);
-    if (!Result.isError(detached)) throw new Error("Expected authorization failure");
-    expect(detached.error).toEqual({ code: "authorization_failed" });
-    expect(MOCKS.requestAuthorization).toHaveBeenCalledWith(GOOGLE_ACCOUNT.id);
-    expect(MOCKS.deleteBackups).not.toHaveBeenCalled();
+    expectResultError(
+      await flow.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.id),
+      { code: "authorization_failed" },
+    );
+    expect(MOCKS.detachIdentity).not.toHaveBeenCalled();
   });
 
-  it("deletes Google backups before removing the local identity", async () => {
-    const calls: string[] = [];
-    const repository = new LocalStorageIdentityRepository();
-    seedIdentity(repository);
-    MOCKS.deleteBackups.mockImplementation(async () => {
-      calls.push("google");
-      return Result.ok({ status: "deleted" as const });
-    });
-    vi.spyOn(repository, "remove").mockImplementation(() => {
-      calls.push("local");
-      return Result.ok();
-    });
-    const flow = createFlow(vi.fn(), repository);
+  it("delegates incomplete setup resumption and detachment behaviors", async () => {
+    const flow = createFlow();
 
+    await expect(flow.resumeIncompleteIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.id)).resolves.toEqual(Result.ok({
+      establishmentMode: "restored",
+      googleAccount: GOOGLE_ACCOUNT,
+      publicIdentity: PUBLIC_IDENTITY,
+    }));
     await expect(flow.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.id)).resolves.toEqual(
       Result.ok({ deletionStatus: "deleted" }),
     );
-    expect(calls).toEqual(["google", "local"]);
-    expect(MOCKS.deleteBackups).toHaveBeenCalledWith(
+
+    expect(MOCKS.resumeIncompleteIdentity).toHaveBeenCalledWith(
       CREDENTIALS,
       PUBLIC_IDENTITY,
-      GOOGLE_ACCOUNT.id,
+      expect.any(Function),
     );
+    expect(MOCKS.detachIdentity).toHaveBeenCalledWith(CREDENTIALS, PUBLIC_IDENTITY, GOOGLE_ACCOUNT.id);
   });
 
-  it("deletes an incomplete backup before creating its replacement", async () => {
-    const calls: string[] = [];
-    MOCKS.deleteBackups.mockImplementation(async () => {
-      calls.push("delete");
-      return Result.ok({ status: "deleted" as const });
-    });
-    MOCKS.restoreOrCreate.mockImplementation(async () => {
-      calls.push("create");
-      return Result.ok({
-        establishmentMode: "created" as const,
-        publicIdentity: PUBLIC_IDENTITY,
-        visibleRecoveryCopyStatus: "created" as const,
-      });
-    });
-    const flow = createFlow();
-
-    await expect(flow.replaceIncompleteIdentity(
-      PUBLIC_IDENTITY,
-      GOOGLE_ACCOUNT.id,
-    )).resolves.toEqual(Result.ok({
-      establishmentMode: "created",
-      googleAccount: GOOGLE_ACCOUNT,
-      publicIdentity: PUBLIC_IDENTITY,
-      visibleRecoveryCopyStatus: "created",
-    }));
-    expect(calls).toEqual(["delete", "create"]);
-    expect(MOCKS.requestAuthorization).toHaveBeenCalledWith(GOOGLE_ACCOUNT.id);
-  });
-
-  it("returns safe recovery context for an incomplete encrypted identity", async () => {
-    MOCKS.restoreOrCreate.mockResolvedValue(Result.err({
+  it("returns safe resume context for an incomplete identity", async () => {
+    MOCKS.establishIdentity.mockResolvedValue(Result.err({
       code: "signin_failed" as const,
       preservedPassportFileIdentity: PUBLIC_IDENTITY,
     }));
-    const flow = createFlow();
 
-    const established = await flow.establishIdentity();
-    expect(Result.isError(established)).toBe(true);
-    if (!Result.isError(established)) throw new Error("Expected establishment failure");
-    expect(established.error).toEqual({
+    expectResultError(await createFlow().establishIdentity(), {
       code: "signin_failed",
-      recovery: {
-        googleAccount: GOOGLE_ACCOUNT,
-        publicIdentity: PUBLIC_IDENTITY,
-      },
+      incompleteIdentity: { googleAccount: GOOGLE_ACCOUNT, publicIdentity: PUBLIC_IDENTITY },
     });
   });
 
-  it("defers operation cleanup until an in-flight action settles", async () => {
-    let finishRestore!: () => void;
-    MOCKS.restoreOrCreate.mockImplementation(() => new Promise((resolve) => {
-      finishRestore = () => resolve(Result.ok({
+  it("defers operation cleanup until in-flight work settles", async () => {
+    let finish!: () => void;
+    MOCKS.establishIdentity.mockImplementation(() => new Promise((resolve) => {
+      finish = () => resolve(Result.ok({
         establishmentMode: "restored" as const,
         publicIdentity: PUBLIC_IDENTITY,
       }));
@@ -223,22 +172,19 @@ describe("GoogleBackedIdentityFlow", () => {
     const flow = createFlow();
 
     const pending = flow.establishIdentity();
-    await vi.waitFor(() => expect(MOCKS.restoreOrCreate).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(MOCKS.establishIdentity).toHaveBeenCalledOnce());
     flow.dispose();
     expect(MOCKS.disposeOperations).not.toHaveBeenCalled();
+    finish();
 
-    finishRestore();
-    const established = await pending;
-    expect(Result.isError(established)).toBe(true);
-    if (!Result.isError(established)) throw new Error("Expected cancelled result");
-    expect(established.error).toEqual({ code: "cancelled" });
+    expectResultError(await pending, { code: "cancelled" });
     expect(MOCKS.disposeOperations).toHaveBeenCalledOnce();
   });
 
-  it("rejects a second operation without another Google authorization", async () => {
-    let finishRestore!: () => void;
-    MOCKS.restoreOrCreate.mockImplementation(() => new Promise((resolve) => {
-      finishRestore = () => resolve(Result.ok({
+  it("rejects a concurrent operation without another authorization", async () => {
+    let finish!: () => void;
+    MOCKS.establishIdentity.mockImplementation(() => new Promise((resolve) => {
+      finish = () => resolve(Result.ok({
         establishmentMode: "restored" as const,
         publicIdentity: PUBLIC_IDENTITY,
       }));
@@ -246,44 +192,25 @@ describe("GoogleBackedIdentityFlow", () => {
     const flow = createFlow();
 
     const first = flow.establishIdentity();
-    await vi.waitFor(() => expect(MOCKS.restoreOrCreate).toHaveBeenCalledOnce());
-    const second = await flow.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.id);
-
-    expect(Result.isError(second)).toBe(true);
-    if (!Result.isError(second)) throw new Error("Expected concurrent operation failure");
-    expect(second.error).toEqual({ code: "operation_failed" });
+    await vi.waitFor(() => expect(MOCKS.establishIdentity).toHaveBeenCalledOnce());
+    expectResultError(
+      await flow.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.id),
+      { code: "operation_failed" },
+    );
     expect(MOCKS.requestAuthorization).toHaveBeenCalledOnce();
-    expect(MOCKS.deleteBackups).not.toHaveBeenCalled();
-
-    finishRestore();
+    finish();
     await first;
   });
 });
 
 function createFlow(
   onState: (state: GoogleIdentityFlowState) => void = vi.fn(),
-  repository = new LocalStorageIdentityRepository(),
 ): GoogleBackedIdentityFlow {
-  return new GoogleBackedIdentityFlow({
-    repository,
-    googleClientId: "google-client-id",
-    homegateBaseUrl: "https://homegate.example/",
-    passportOrigin: window.location.origin,
+  return new GoogleBackedIdentityFlow(
+    new LocalStorageIdentityRepository(),
+    new MOCKS.GoogleImplicitAuthorization(),
+    "https://homegate.example/",
+    window.location.origin,
     onState,
-  });
-}
-
-function seedIdentity(repository: LocalStorageIdentityRepository): void {
-  const saved = repository.save(
-    {
-      id: PUBLIC_IDENTITY.publicKeyZ32,
-      publicIdentity: PUBLIC_IDENTITY,
-      googleAccount: GOOGLE_ACCOUNT,
-    },
-    {
-      bytes: new Uint8Array(32).fill(7),
-      format: PUBKY_SECRET_KEY_FORMAT,
-    },
   );
-  if (Result.isError(saved)) throw new Error(saved.error.code);
 }

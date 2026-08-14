@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MemoryStorage } from "../../../../test-utils/fakes/memoryStorage";
 import { LOGGER } from "../../../libs/logger/logger";
+import { GoogleImplicitAuthorization } from "../google-authorization/googleImplicitAuthorization";
 import { PUBKY_SECRET_KEY_FORMAT } from "../pubky/pubkyIdentityKey";
 import { LocalStorageIdentityRepository } from "./local/localStorageIdentityRepository";
 
@@ -54,13 +55,13 @@ describe("PassportIdentityController", () => {
     const flow = controller.startGoogleIdentityFlow(onState);
 
     expect(flow).toBe(MOCKS.GoogleBackedIdentityFlow.mock.results[0]?.value);
-    expect(MOCKS.GoogleBackedIdentityFlow).toHaveBeenCalledWith({
-      repository: expect.any(LocalStorageIdentityRepository),
-      googleClientId: GOOGLE_CLIENT_ID,
-      homegateBaseUrl: HOMEGATE_BASE_URL,
-      passportOrigin: window.location.origin,
+    expect(MOCKS.GoogleBackedIdentityFlow).toHaveBeenCalledWith(
+      expect.any(LocalStorageIdentityRepository),
+      expect.any(GoogleImplicitAuthorization),
+      HOMEGATE_BASE_URL,
+      window.location.origin,
       onState,
-    });
+    );
     expect(MOCKS.start).toHaveBeenCalledOnce();
   });
 

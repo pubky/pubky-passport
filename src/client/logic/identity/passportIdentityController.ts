@@ -3,6 +3,7 @@ import "client-only";
 import { Result } from "better-result";
 
 import { LOGGER } from "../../../libs/logger/logger";
+import { GoogleImplicitAuthorization } from "../google-authorization/googleImplicitAuthorization";
 import { resolvePubkyHomeserver, type PubkyHomeserverResolutionResult } from "../pubky/pubkySdkAdapter";
 import {
   GoogleBackedIdentityFlow,
@@ -20,9 +21,9 @@ import type {
 import { LocalStorageIdentityRepository } from "./local/localStorageIdentityRepository";
 
 export type { LocalIdentityCatalog, LocalIdentityMetadata } from "./local/localStorageIdentityRepository";
-export type { GoogleAccountProfile } from "./google-backed/googleAccountProfile";
+export type { GoogleAccountProfile } from "./google-backed/googleBackedIdentityCredentials";
 export type { PubkyPublicIdentity } from "./pubkyPublicIdentity";
-export type { GoogleBackedIdentityProgress } from "./google-backed/googleBackedIdentityProgress";
+export type { GoogleBackedIdentityProgress } from "./google-backed/establishGoogleBackedIdentity";
 export type {
   GoogleIdentityFlow,
   GoogleIdentityFlowError,
@@ -120,13 +121,13 @@ export class PassportIdentityController {
     onState: (state: GoogleIdentityFlowState) => void,
   ): GoogleIdentityFlow {
     try {
-      const flow = new GoogleBackedIdentityFlow({
-        repository: this.repository,
-        googleClientId: this.googleClientId,
-        homegateBaseUrl: this.homegateBaseUrl,
-        passportOrigin: globalThis.location.origin,
+      const flow = new GoogleBackedIdentityFlow(
+        this.repository,
+        new GoogleImplicitAuthorization({ clientId: this.googleClientId }),
+        this.homegateBaseUrl,
+        globalThis.location.origin,
         onState,
-      });
+      );
       flow.start();
       return flow;
     } catch (error) {

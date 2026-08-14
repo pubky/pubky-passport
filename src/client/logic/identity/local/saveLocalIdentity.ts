@@ -1,7 +1,7 @@
 import "client-only";
 
 import { Result } from "better-result";
-import type { GoogleAccountProfile } from "../google-backed/googleAccountProfile";
+import type { GoogleAccountProfile } from "../google-backed/googleBackedIdentityCredentials";
 
 import type {
   PubkyIdentityKeyHandle,

@@ -15,7 +15,7 @@ const MOCKS = vi.hoisted(() => ({
   unavailable: false,
 }));
 
-vi.mock("../../browser/identity/passportIdentityController", () => ({
+vi.mock("../../logic/identity/passportIdentityController", () => ({
   PassportIdentityController: function PassportIdentityController() {
     MOCKS.create();
     return {

@@ -2,14 +2,16 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import type { GoogleAccountProfile } from "../identity/google-backed/googleAccountProfile";
+import type {
+  GoogleAccountProfile,
+  GoogleBackedIdentityCredentials,
+} from "../identity/google-backed/googleBackedIdentityCredentials";
 import { decodeBase64Url, encodeBase64Url } from "../../../libs/encoding/base64Url";
 import { readBoundedBytes, readBoundedText } from "../../../libs/http/boundedBody";
 import { LOGGER } from "../../../libs/logger/logger";
 import {
   GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE,
 } from "../../../libs/authorization/earlyGoogleImplicitResponse";
-import type { GoogleBackedIdentityCredentials } from "../identity/google-backed/googleBackedIdentityCredentials";
 
 export type GoogleImplicitAuthorizationErrorCode =
   | "google_authorization_failed"

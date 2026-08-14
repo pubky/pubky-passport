@@ -5,13 +5,12 @@ import { RotateCcwIcon } from "../../shared/icons/actionIcons";
 import { PassportScreen } from "../../shared/layout/passportScreen";
 import { BackButton } from "../../shared/navigation/backButton";
 import { Button } from "../../shared/primitives/button";
-import { ConfirmationDialog } from "../../shared/primitives/confirmationDialog";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
 
-function GoogleIdentityError({ error, onBack, onReplace, onTryAgain }: {
+function GoogleIdentityError({ error, onBack, onResume, onTryAgain }: {
   error: GoogleIdentityFlowError;
   onBack: () => void;
-  onReplace: (() => void) | null;
+  onResume: (() => void) | null;
   onTryAgain: () => void;
 }) {
   return (
@@ -29,17 +28,10 @@ function GoogleIdentityError({ error, onBack, onReplace, onTryAgain }: {
         <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
           <RotateCcwIcon />Try again
         </Button>
-        {onReplace ? (
-          <ConfirmationDialog
-            actionLabel="Delete & create new"
-            description="This permanently deletes the encrypted backup for this Pubky from Google Drive. Passport will then create a new Pubky."
-            destructive
-            onConfirm={onReplace}
-            title="Delete backup and start over?"
-            triggerClassName="w-full"
-            triggerLabel="Delete backup & create new Pubky"
-            triggerSize="lg"
-          />
+        {onResume ? (
+          <Button className="w-full" onClick={onResume} size="lg" type="button">
+            Resume setup with this Pubky
+          </Button>
         ) : null}
         <BackButton onClick={onBack} />
       </div>

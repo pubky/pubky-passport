@@ -620,9 +620,10 @@ Passport preserves the encrypted Passport file so the key is not lost, disposes 
 key handle, and saves no ready local Pubky identity; it must not automatically delete the
 file. `preservedPassportFileIdentity` may carry only public identity metadata after
 creation stores the encrypted file or restore successfully decrypts it. This does not
-prove setup was partial. Development cleanup candidates remain keyed by public identity;
-deletion requires fresh Google authorization, decryption, identity matching, and exact
-Drive revision validation. Production should provide resumable activation instead.
+prove setup was partial. The explicit resume path obtains fresh Google credentials,
+restores and verifies that same encrypted key, requests a new Homegate invitation, and
+reuses normal signup, discovery, and local activation without deleting the backup or
+creating a replacement key.
 
 ### Detach from Google
 

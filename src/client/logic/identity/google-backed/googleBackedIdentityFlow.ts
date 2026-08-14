@@ -2,22 +2,22 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import type { GoogleAccountProfile } from "./googleAccountProfile";
 import type { PubkyPublicIdentity } from "../pubkyPublicIdentity";
 import { LOGGER } from "../../../../libs/logger/logger";
-import {
-  GoogleImplicitAuthorization,
-} from "../../google-authorization/googleImplicitAuthorization";
+import { GoogleImplicitAuthorization } from "../../google-authorization/googleImplicitAuthorization";
 import type { LocalStorageIdentityRepository } from "../local/localStorageIdentityRepository";
-import {GoogleBackedIdentityOperations
-  ,
-  type GoogleBackedIdentityCredentials,
-  type GoogleBackedIdentityError,
-} from "./googleBackedIdentityOperations";
+import { GoogleBackedIdentityOperations } from "./googleBackedIdentityOperations";
 import type {
+  GoogleBackedIdentity,
+  GoogleBackedIdentityError,
   GoogleBackedIdentityProgress,
   ReportGoogleBackedIdentityProgress,
-} from "./googleBackedIdentityProgress";
+} from "./establishGoogleBackedIdentity";
+import type {
+  GoogleAccountProfile,
+  GoogleBackedIdentityCredentials,
+} from "./googleBackedIdentityCredentials";
+import type { ResumeIncompleteGoogleBackedIdentityError } from "./resumeIncompleteGoogleBackedIdentity";
 
 /** Safe progress emitted while Passport creates or restores a Google-backed identity. */
 export type GoogleIdentityFlowState =
@@ -53,7 +53,7 @@ export type GoogleIdentityFlowError = {
   | "homeserver_unavailable"
   | "network_failed"
   | "operation_failed";
-  recovery?: {
+  incompleteIdentity?: {
     googleAccount: GoogleAccountProfile;
     publicIdentity: PubkyPublicIdentity;
   };
@@ -85,8 +85,8 @@ export interface GoogleIdentityFlow {
   /** Restores an existing Google-backed identity or creates a missing one. */
   establishIdentity(): Promise<EstablishGoogleIdentityResult>;
 
-  /** Deletes a verified incomplete backup, then creates its replacement. */
-  replaceIncompleteIdentity(
+  /** Restores a preserved key and retries its interrupted homeserver setup. */
+  resumeIncompleteIdentity(
     publicIdentity: PubkyPublicIdentity,
     expectedGoogleAccountId: string,
   ): Promise<EstablishGoogleIdentityResult>;
@@ -116,32 +116,19 @@ type AuthorizedGoogleAccount = {
  * updates while allowing already-started cleanup to finish safely.
  */
 export class GoogleBackedIdentityFlow implements GoogleIdentityFlow {
-  private readonly repository: LocalStorageIdentityRepository;
-  private readonly googleAuthorization: GoogleImplicitAuthorization;
-  private readonly homegateBaseUrl: string;
-  private readonly passportOrigin: string;
-  private readonly onState: (state: GoogleIdentityFlowState) => void;
   private operations: GoogleBackedIdentityOperations | undefined;
   private authorizationGeneration = 0;
   private operationPending = false;
   private disposed = false;
   private operationsDisposed = false;
 
-  constructor(input: {
-    repository: LocalStorageIdentityRepository;
-    googleClientId: string;
-    homegateBaseUrl: string;
-    passportOrigin: string;
-    onState: (state: GoogleIdentityFlowState) => void;
-  }) {
-    this.repository = input.repository;
-    this.googleAuthorization = new GoogleImplicitAuthorization({
-      clientId: input.googleClientId,
-    });
-    this.homegateBaseUrl = input.homegateBaseUrl;
-    this.passportOrigin = input.passportOrigin;
-    this.onState = input.onState;
-  }
+  constructor(
+    private repository: LocalStorageIdentityRepository,
+    private googleAuthorization: GoogleImplicitAuthorization,
+    private homegateBaseUrl: string,
+    private passportOrigin: string,
+    private onState: (state: GoogleIdentityFlowState) => void,
+  ) { }
 
   /** Prepares Google authorization and reports whether the flow is ready. */
   start(): void {
@@ -160,7 +147,7 @@ export class GoogleBackedIdentityFlow implements GoogleIdentityFlow {
     if (Result.isError(authorized)) return Result.err(authorized.error);
 
     try {
-      const established = await this.restoreOrCreateIdentity(authorized.value);
+      const established = await this.establishAuthorizedIdentity(authorized.value);
       return this.isCurrent(authorized.value.generation)
         ? established
         : cancelled();
@@ -178,10 +165,10 @@ export class GoogleBackedIdentityFlow implements GoogleIdentityFlow {
   }
 
   /**
-   * Deletes a verified incomplete Drive backup, then creates a replacement using
+   * Restores a preserved Drive key and retries signup with a fresh invitation from
    * the same freshly authorized Google account.
    */
-  async replaceIncompleteIdentity(
+  async resumeIncompleteIdentity(
     publicIdentity: PubkyPublicIdentity,
     expectedGoogleAccountId: string,
   ): Promise<EstablishGoogleIdentityResult> {
@@ -189,20 +176,16 @@ export class GoogleBackedIdentityFlow implements GoogleIdentityFlow {
     if (Result.isError(authorized)) return Result.err(authorized.error);
 
     try {
-      this.emit({ status: "establishing", progress: "checking_passport_file" });
-      const deleted = await this.getOperations().deleteGoogleIdentityBackups(
-        authorized.value.credentials,
+      const established = await this.resumeAuthorizedIdentity(
+        authorized.value,
         publicIdentity,
-        expectedGoogleAccountId,
       );
-      if (Result.isError(deleted)) return operationFailure();
-      const established = await this.restoreOrCreateIdentity(authorized.value);
       return this.isCurrent(authorized.value.generation)
         ? established
         : cancelled();
     } catch {
       LOGGER.warn("identity.google.action.failed", {
-        operation: "replace_incomplete",
+        operation: "resume_incomplete",
         code: "unexpected_failure",
       });
       return this.isCurrent(authorized.value.generation)
@@ -226,19 +209,15 @@ export class GoogleBackedIdentityFlow implements GoogleIdentityFlow {
 
     try {
       this.emit({ status: "detaching" });
-      const deleted = await this.getOperations().deleteGoogleIdentityBackups(
+      const detached = await this.getOperations().detachIdentity(
         authorized.value.credentials,
         publicIdentity,
         expectedGoogleAccountId,
       );
-      if (Result.isError(deleted)) return operationFailure();
-
-      const removed = this.repository.remove(publicIdentity.publicKeyZ32);
-      const result: DetachGoogleIdentityResult = Result.isError(removed)
-        ? operationFailure()
-        : Result.ok({ deletionStatus: deleted.value.status });
       return this.isCurrent(authorized.value.generation)
-        ? result
+        ? Result.isError(detached)
+          ? operationFailure()
+          : Result.ok(detached.value)
         : cancelled();
     } catch {
       LOGGER.warn("identity.google.action.failed", {
@@ -325,41 +304,54 @@ export class GoogleBackedIdentityFlow implements GoogleIdentityFlow {
     }
   }
 
-  private async restoreOrCreateIdentity(
+  private async establishAuthorizedIdentity(
     authorized: AuthorizedGoogleAccount,
   ): Promise<EstablishGoogleIdentityResult> {
-    let progressActive = true;
-    const reportProgress: ReportGoogleBackedIdentityProgress = (progress) => {
-      if (progressActive && this.isCurrent(authorized.generation)) {
-        this.emit({ status: "establishing", progress });
-      }
-    };
-
-    const established = await this.getOperations().restoreOrCreateGoogleBackedIdentity(
+    const progress = this.progressReporter(authorized.generation);
+    const established = await this.getOperations().establishIdentity(
       authorized.credentials,
-      reportProgress,
+      progress.report,
     ).finally(() => {
-      progressActive = false;
+      progress.stop();
+    });
+    return Result.isError(established)
+      ? establishmentFailure(established.error, authorized.credentials.googleAccount)
+      : mapEstablishedIdentity(established.value, authorized.credentials.googleAccount);
+  }
+
+  private async resumeAuthorizedIdentity(
+    authorized: AuthorizedGoogleAccount,
+    publicIdentity: PubkyPublicIdentity,
+  ): Promise<EstablishGoogleIdentityResult> {
+    const progress = this.progressReporter(authorized.generation);
+    const established = await this.getOperations().resumeIncompleteIdentity(
+      authorized.credentials,
+      publicIdentity,
+      progress.report,
+    ).finally(() => {
+      progress.stop();
     });
     if (Result.isError(established)) {
-      return establishmentFailure(
-        established.error,
-        authorized.credentials.googleAccount,
-      );
+      return establishmentFailure(established.error, authorized.credentials.googleAccount);
     }
+    return mapEstablishedIdentity(established.value, authorized.credentials.googleAccount);
+  }
 
-    return established.value.establishmentMode === "created"
-      ? Result.ok({
-        establishmentMode: "created",
-        googleAccount: authorized.credentials.googleAccount,
-        publicIdentity: established.value.publicIdentity,
-        visibleRecoveryCopyStatus: established.value.visibleRecoveryCopyStatus,
-      })
-      : Result.ok({
-        establishmentMode: "restored",
-        googleAccount: authorized.credentials.googleAccount,
-        publicIdentity: established.value.publicIdentity,
-      });
+  private progressReporter(generation: number): {
+    report: ReportGoogleBackedIdentityProgress;
+    stop: () => void;
+  } {
+    let active = true;
+    return {
+      report: (progress) => {
+        if (active && this.isCurrent(generation)) {
+          this.emit({ status: "establishing", progress });
+        }
+      },
+      stop: () => {
+        active = false;
+      },
+    };
   }
 
   private finishOperation(generation: number): void {
@@ -417,14 +409,14 @@ function operationFailure<Success>(): ResultType<Success, GoogleIdentityFlowErro
 }
 
 function establishmentFailure(
-  error: GoogleBackedIdentityError,
+  error: GoogleBackedIdentityError | ResumeIncompleteGoogleBackedIdentityError,
   googleAccount: GoogleAccountProfile,
 ): EstablishGoogleIdentityResult {
   return Result.err({
     code: establishmentFailureCode(error),
     ...(error.preservedPassportFileIdentity
       ? {
-        recovery: {
+        incompleteIdentity: {
           googleAccount,
           publicIdentity: error.preservedPassportFileIdentity,
         },
@@ -433,8 +425,26 @@ function establishmentFailure(
   });
 }
 
+function mapEstablishedIdentity(
+  established: GoogleBackedIdentity,
+  googleAccount: GoogleAccountProfile,
+): EstablishGoogleIdentityResult {
+  return established.establishmentMode === "created"
+    ? Result.ok({
+      establishmentMode: "created",
+      googleAccount,
+      publicIdentity: established.publicIdentity,
+      visibleRecoveryCopyStatus: established.visibleRecoveryCopyStatus,
+    })
+    : Result.ok({
+      establishmentMode: "restored",
+      googleAccount,
+      publicIdentity: established.publicIdentity,
+    });
+}
+
 function establishmentFailureCode(
-  error: GoogleBackedIdentityError,
+  error: GoogleBackedIdentityError | ResumeIncompleteGoogleBackedIdentityError,
 ): Exclude<GoogleIdentityFlowError["code"], "authorization_failed" | "cancelled"> {
   if (error.code === "homeserver_signup_invitation_failed") {
     return error.cause === "homeserver_unavailable" || error.cause === "network_failed"

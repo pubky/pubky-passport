@@ -1,7 +1,7 @@
 import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
-import type { GoogleAccountProfile } from "./googleAccountProfile";
+import type { GoogleAccountProfile } from "./googleBackedIdentityCredentials";
 
 import type { PubkyPublicIdentity } from "../pubkyPublicIdentity";
 import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
@@ -10,8 +10,10 @@ import type { PassportFileStoreResult } from "../../passport-file/googleDrivePas
 import type { PassportFileEnvelopeV1 } from "../../passport-file/passportFileEnvelope";
 import type { EncryptPassportSecret } from "../../passport-file/passportFileWebCrypto";
 import type { HomeserverSignupInvitation } from "../../homegate/homegateClient";
-import type { SaveLocalIdentityOperation } from "../local/saveLocalIdentity";
-import type { ReportGoogleBackedIdentityProgress } from "./googleBackedIdentityProgress";
+import type {
+  ActivateGoogleBackedIdentity,
+  ActivateGoogleBackedIdentityProgress,
+} from "./activateGoogleBackedIdentity";
 
 const VISIBLE_RECOVERY_COPY_TIMEOUT_MS = 10_000;
 
@@ -43,23 +45,31 @@ export type CreateGoogleBackedIdentityResult<Success = CreatedGoogleBackedIdenti
   CreateGoogleBackedIdentityError
 >;
 
+export type CreateGoogleBackedIdentityProgress =
+  | "storing_encrypted_identity"
+  | ActivateGoogleBackedIdentityProgress;
+
+export type ReportCreateGoogleBackedIdentityProgress = (
+  progress: CreateGoogleBackedIdentityProgress,
+) => void;
+
 export class CreateGoogleBackedIdentity {
   readonly #encryptSecretKeyBytes: EncryptPassportSecret;
   readonly #pubky: PubkySdkAdapter;
-  readonly #saveIdentityLocally: SaveLocalIdentityOperation;
+  readonly #activateIdentity: ActivateGoogleBackedIdentity["execute"];
   readonly #passportOrigin: string;
   readonly #visibleRecoveryCopyTimeoutMs: number;
 
   constructor(input: {
     encryptSecretKeyBytes: EncryptPassportSecret;
     pubky: PubkySdkAdapter;
-    saveIdentityLocally: SaveLocalIdentityOperation;
+    activateIdentity: ActivateGoogleBackedIdentity["execute"];
     passportOrigin: string;
     visibleRecoveryCopyTimeoutMs?: number;
   }) {
     this.#encryptSecretKeyBytes = input.encryptSecretKeyBytes;
     this.#pubky = input.pubky;
-    this.#saveIdentityLocally = input.saveIdentityLocally;
+    this.#activateIdentity = input.activateIdentity;
     this.#passportOrigin = input.passportOrigin;
     this.#visibleRecoveryCopyTimeoutMs = input.visibleRecoveryCopyTimeoutMs ?? VISIBLE_RECOVERY_COPY_TIMEOUT_MS;
   }
@@ -69,7 +79,7 @@ export class CreateGoogleBackedIdentity {
     createPassportFile: CreatePassportFile,
     createVisibleRecoveryCopy: CreateVisibleRecoveryCopy,
     wrappingKey: string,
-    reportProgress: ReportGoogleBackedIdentityProgress,
+    reportProgress: ReportCreateGoogleBackedIdentityProgress,
     googleAccount?: GoogleAccountProfile,
   ): Promise<CreateGoogleBackedIdentityResult> {
     LOGGER.info("identity.google.create.started");
@@ -120,35 +130,16 @@ export class CreateGoogleBackedIdentity {
       }
 
       try {
-        reportProgress("signing_up_to_homeserver");
-        LOGGER.info("identity.google.signup.started");
-        const signedUp = await this.#pubky.signup({
-          keyHandle: created.value.keyHandle,
-          homeserverPubky: invitation.homeserverPubky,
-          signupCode: invitation.signupCode,
-        });
-        if (Result.isError(signedUp)) return failure("signup_failed", created.value.publicIdentity, visibleRecoveryCopyStatus);
-        LOGGER.info("identity.google.signup.completed");
-        if (signedUp.value.publicIdentity.publicKeyZ32 !== created.value.publicIdentity.publicKeyZ32) {
-          LOGGER.warn("identity.google.activation_identity.failed");
-          return failure("identity_mismatch", created.value.publicIdentity, visibleRecoveryCopyStatus);
+        const activated = await this.#activateIdentity(
+          created.value,
+          invitation,
+          reportProgress,
+          googleAccount,
+        );
+        if (Result.isError(activated)) {
+          return failure(activated.error.code, created.value.publicIdentity, visibleRecoveryCopyStatus);
         }
 
-        reportProgress("publishing_discovery");
-        LOGGER.info("identity.google.discovery.started");
-        const published = await this.#pubky.publishHomeserverIfStale({
-          keyHandle: created.value.keyHandle,
-          homeserverPubky: invitation.homeserverPubky,
-        });
-        if (Result.isError(published)) return failure("discovery_failed", created.value.publicIdentity, visibleRecoveryCopyStatus);
-        LOGGER.info("identity.google.discovery.completed");
-
-        reportProgress("activating_created_identity");
-        LOGGER.info("identity.local_save.started", { establishmentMode: "created" });
-        const saved = await this.#saveIdentityLocally(created.value.keyHandle, googleAccount);
-        if (Result.isError(saved)) return failure("local_save_failed", created.value.publicIdentity, visibleRecoveryCopyStatus);
-
-        LOGGER.info("identity.local_save.completed", { establishmentMode: "created" });
         LOGGER.info("identity.google.create.completed", { visibleRecoveryCopyStatus });
         return Result.ok({
           establishmentMode: "created" as const,
