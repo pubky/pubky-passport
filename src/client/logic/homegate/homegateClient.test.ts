@@ -256,15 +256,15 @@ type SafeFetchCall = {
 
 class SanitizedFetchRecorder {
   readonly calls: SafeFetchCall[] = [];
-  readonly #outcome: Response | Error | ((signal: AbortSignal | null) => Response);
-  readonly #expectedSignal: AbortSignal | null;
+  private outcome: Response | Error | ((signal: AbortSignal | null) => Response);
+  private expectedSignal: AbortSignal | null;
 
   constructor(
     outcome: Response | Error | ((signal: AbortSignal | null) => Response) = new Error("Unexpected fetch."),
     expectedSignal: AbortSignal | null = null,
   ) {
-    this.#outcome = outcome;
-    this.#expectedSignal = expectedSignal;
+    this.outcome = outcome;
+    this.expectedSignal = expectedSignal;
   }
 
   readonly fetch: typeof globalThis.fetch = async (input, init) => {
@@ -281,11 +281,11 @@ class SanitizedFetchRecorder {
       jsonFieldNames: payload ? Object.keys(payload).sort() : [],
       hasGoogleIdToken: typeof payload?.googleIdToken === "string" && payload.googleIdToken.length > 0,
       hasSignal: signal !== null,
-      usesExpectedSignal: this.#expectedSignal === null ? null : signal === this.#expectedSignal,
+      usesExpectedSignal: this.expectedSignal === null ? null : signal === this.expectedSignal,
     });
 
-    if (this.#outcome instanceof Error) throw this.#outcome;
-    return typeof this.#outcome === "function" ? this.#outcome(signal) : this.#outcome;
+    if (this.outcome instanceof Error) throw this.outcome;
+    return typeof this.outcome === "function" ? this.outcome(signal) : this.outcome;
   };
 }
 

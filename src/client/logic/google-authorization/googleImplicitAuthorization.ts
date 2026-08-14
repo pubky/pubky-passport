@@ -78,11 +78,11 @@ type AuthorizationAttempt = {
 };
 
 export class GoogleImplicitAuthorization {
-  readonly #clientId: string;
-  readonly #fetch: typeof fetch;
-  readonly #open: typeof window.open;
-  readonly #origin: string;
-  #activeAttempt: AuthorizationAttempt | null = null;
+  private clientId: string;
+  private fetch: typeof fetch;
+  private open: typeof window.open;
+  private origin: string;
+  private activeAttempt: AuthorizationAttempt | null = null;
 
   constructor(input: {
     clientId: string;
@@ -90,28 +90,28 @@ export class GoogleImplicitAuthorization {
     open?: typeof window.open;
     origin?: string;
   }) {
-    this.#clientId = input.clientId;
-    this.#fetch = input.fetch ?? ((request, init) => globalThis.fetch(request, init));
-    this.#open = input.open ?? ((url, target, features) => globalThis.window.open(url, target, features));
-    this.#origin = input.origin ?? globalThis.location.origin;
+    this.clientId = input.clientId;
+    this.fetch = input.fetch ?? ((request, init) => globalThis.fetch(request, init));
+    this.open = input.open ?? ((url, target, features) => globalThis.window.open(url, target, features));
+    this.origin = input.origin ?? globalThis.location.origin;
   }
 
   prepare(): Promise<GoogleImplicitAuthorizationResult<void>> {
-    return Promise.resolve(this.#activeAttempt
+    return Promise.resolve(this.activeAttempt
       ? failure("prepare", "google_authorization_failed")
       : Result.ok());
   }
 
   request(loginHint?: string): Promise<GoogleImplicitAuthorizationResult<GoogleBackedIdentityCredentials>> {
-    if (this.#activeAttempt) return Promise.resolve(failure("request", "google_authorization_failed"));
+    if (this.activeAttempt) return Promise.resolve(failure("request", "google_authorization_failed"));
     const state = randomBase64Url(32);
     const nonce = randomBase64Url(32);
     const url = new URL(GOOGLE_AUTHORIZE_URL);
     url.search = new URLSearchParams({
-      client_id: this.#clientId,
+      client_id: this.clientId,
       response_type: "id_token token",
       scope: GOOGLE_AUTHORIZATION_SCOPE,
-      redirect_uri: this.#origin,
+      redirect_uri: this.origin,
       nonce,
       state,
       prompt: "consent",
@@ -119,7 +119,7 @@ export class GoogleImplicitAuthorization {
       ...(loginHint ? { login_hint: loginHint } : {}),
     }).toString();
 
-    const popup = this.#open(url, "pubky-passport-google", "popup,width=520,height=680");
+    const popup = this.open(url, "pubky-passport-google", "popup,width=520,height=680");
     if (!popup) return Promise.resolve(failure("popup", "google_authorization_popup_failed_to_open"));
 
     return new Promise((resolve) => {
@@ -133,9 +133,9 @@ export class GoogleImplicitAuthorization {
         state,
         timeout: 0 as unknown as ReturnType<typeof setTimeout>,
       };
-      this.#activeAttempt = attempt;
+      this.activeAttempt = attempt;
       attempt.messageListener = (event) => {
-        if (event.origin !== this.#origin || event.source !== popup || this.#activeAttempt !== attempt) return;
+        if (event.origin !== this.origin || event.source !== popup || this.activeAttempt !== attempt) return;
         void this.handleResponseMessage(attempt, event.data);
       };
       globalThis.window.addEventListener("message", attempt.messageListener);
@@ -147,12 +147,12 @@ export class GoogleImplicitAuthorization {
   }
 
   dispose(): void {
-    const attempt = this.#activeAttempt;
+    const attempt = this.activeAttempt;
     if (attempt) this.finish(attempt, Result.err({ code: "google_authorization_failed" }));
   }
 
   private inspectPopup(attempt: AuthorizationAttempt): void {
-    if (this.#activeAttempt !== attempt) return;
+    if (this.activeAttempt !== attempt) return;
     if (attempt.popup.closed) {
       this.finish(attempt, Result.err({ code: "google_authorization_popup_closed" }));
     }
@@ -160,7 +160,7 @@ export class GoogleImplicitAuthorization {
 
   private async handleResponseMessage(attempt: AuthorizationAttempt, capture: unknown): Promise<void> {
     const result = await this.parseReturn(attempt, capture);
-    if (this.#activeAttempt === attempt) this.finish(attempt, result);
+    if (this.activeAttempt === attempt) this.finish(attempt, result);
   }
 
   private async parseReturn(
@@ -201,7 +201,7 @@ export class GoogleImplicitAuthorization {
     signal: AbortSignal,
   ): Promise<GoogleImplicitAuthorizationResult<GoogleAccountProfile>> {
     try {
-      const response = await this.#fetch(GOOGLE_USER_INFO_URL, {
+      const response = await this.fetch(GOOGLE_USER_INFO_URL, {
         headers: { Accept: "application/json", Authorization: `Bearer ${accessToken}` },
         cache: "no-store",
         credentials: "omit",
@@ -226,7 +226,7 @@ export class GoogleImplicitAuthorization {
     try {
       const url = new URL(value);
       if (url.protocol !== "https:" || url.hostname !== GOOGLE_AVATAR_HOST || url.username || url.password || url.hash) return null;
-      const response = await this.#fetch(url, {
+      const response = await this.fetch(url, {
         cache: "no-store",
         credentials: "omit",
         redirect: "error",
@@ -248,12 +248,12 @@ export class GoogleImplicitAuthorization {
     attempt: AuthorizationAttempt,
     result: GoogleImplicitAuthorizationResult<GoogleBackedIdentityCredentials>,
   ): void {
-    if (this.#activeAttempt !== attempt) return;
+    if (this.activeAttempt !== attempt) return;
     clearInterval(attempt.poll);
     clearTimeout(attempt.timeout);
     globalThis.window.removeEventListener("message", attempt.messageListener);
     attempt.abortController.abort();
-    this.#activeAttempt = null;
+    this.activeAttempt = null;
     try { attempt.popup.close(); } catch { /* Cross-origin popup cleanup is best effort. */ }
     attempt.resolve(result);
   }

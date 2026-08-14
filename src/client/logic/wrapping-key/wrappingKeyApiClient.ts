@@ -34,16 +34,16 @@ const ERROR_RESPONSE_SCHEMA = z.object({
 }).strict();
 
 export class WrappingKeyApiClient {
-  readonly #fetch: typeof fetch;
+  private fetch: typeof fetch;
 
   constructor(fetchImplementation?: typeof fetch) {
-    this.#fetch = fetchImplementation ?? ((request, init) => globalThis.fetch(request, init));
+    this.fetch = fetchImplementation ?? ((request, init) => globalThis.fetch(request, init));
   }
 
   async requestGoogleWrappingKey(googleIdToken: string): Promise<GoogleWrappingKeyResult> {
     let response: Response;
     try {
-      response = await this.#fetch("/api/wrapping-key/google", {
+      response = await this.fetch("/api/wrapping-key/google", {
         method: "POST",
         headers: { Accept: "application/json", "Content-Type": "application/json" },
         // This endpoint intentionally receives only the Google ID token.

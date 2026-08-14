@@ -24,14 +24,14 @@ function isTestSourcePath(filePath: string): boolean {
 }
 
 export class ModuleGraph {
-  readonly #compilerOptions: ts.CompilerOptions;
-  readonly #sourceFiles = new Map<string, ts.SourceFile>();
+  private compilerOptions: ts.CompilerOptions;
+  private sourceFileCache = new Map<string, ts.SourceFile>();
 
   constructor(
     readonly repoRoot: string,
     tsconfigPath = resolve(repoRoot, "tsconfig.json"),
   ) {
-    this.#compilerOptions = readCompilerOptions(tsconfigPath);
+    this.compilerOptions = readCompilerOptions(tsconfigPath);
   }
 
   sourceFiles(rootPath: string): string[] {
@@ -89,7 +89,7 @@ export class ModuleGraph {
     const resolved = ts.resolveModuleName(
       specifier,
       fromFilePath,
-      this.#compilerOptions,
+      this.compilerOptions,
       ts.sys,
     ).resolvedModule?.resolvedFileName;
     if (!resolved || resolved.includes(`${sep}node_modules${sep}`)) return null;
@@ -190,7 +190,7 @@ export class ModuleGraph {
   }
 
   private sourceFile(filePath: string): ts.SourceFile {
-    const cached = this.#sourceFiles.get(filePath);
+    const cached = this.sourceFileCache.get(filePath);
     if (cached) return cached;
 
     const sourceFile = ts.createSourceFile(
@@ -200,7 +200,7 @@ export class ModuleGraph {
       true,
       scriptKind(filePath),
     );
-    this.#sourceFiles.set(filePath, sourceFile);
+    this.sourceFileCache.set(filePath, sourceFile);
     return sourceFile;
   }
 }

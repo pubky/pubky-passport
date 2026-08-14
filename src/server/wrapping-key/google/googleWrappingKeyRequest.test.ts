@@ -167,40 +167,40 @@ function testDependencies(input: {
 }
 
 class TestGoogleIdTokenVerifier extends GoogleIdTokenVerifier {
-  readonly #verify: GoogleIdTokenVerifier["verifyGoogleIdToken"];
+  private verify: GoogleIdTokenVerifier["verifyGoogleIdToken"];
 
   constructor(verify: GoogleIdTokenVerifier["verifyGoogleIdToken"]) {
     super({ audience: "test-client" });
-    this.#verify = verify;
+    this.verify = verify;
   }
 
   override verifyGoogleIdToken(idToken: string) {
-    return this.#verify(idToken);
+    return this.verify(idToken);
   }
 }
 
 class TestGoogleWrappingKeyRateLimiter extends InMemoryGoogleWrappingKeyRateLimiter {
-  readonly #tryConsume: InMemoryGoogleWrappingKeyRateLimiter["tryConsumeRequest"];
+  private tryConsume: InMemoryGoogleWrappingKeyRateLimiter["tryConsumeRequest"];
 
   constructor(tryConsume: InMemoryGoogleWrappingKeyRateLimiter["tryConsumeRequest"]) {
     super({ identityPepper: new Uint8Array(32) });
-    this.#tryConsume = tryConsume;
+    this.tryConsume = tryConsume;
   }
 
   override tryConsumeRequest(identity: VerifiedGoogleIdentity): boolean {
-    return this.#tryConsume(identity);
+    return this.tryConsume(identity);
   }
 }
 
 class TestGoogleWrappingKeyDeriver extends GoogleWrappingKeyDeriver {
-  readonly #derive: GoogleWrappingKeyDeriver["deriveWrappingKey"];
+  private derive: GoogleWrappingKeyDeriver["deriveWrappingKey"];
 
   constructor(derive: GoogleWrappingKeyDeriver["deriveWrappingKey"]) {
     super(new Uint8Array(32));
-    this.#derive = derive;
+    this.derive = derive;
   }
 
   override deriveWrappingKey(identity: VerifiedGoogleIdentity): string {
-    return this.#derive(identity);
+    return this.derive(identity);
   }
 }

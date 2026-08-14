@@ -34,46 +34,55 @@ type PassportAuthorizationControllerDependencies = {
 };
 
 export class PassportAuthorizationController {
-  readonly #entry: AuthorizationEntry;
-  readonly #dependencies: PassportAuthorizationControllerDependencies;
-  readonly #listeners = new Set<(state: PassportAuthorizationViewState) => void>();
-  #state: PassportAuthorizationViewState;
-  #approvalPending = false;
+  private entry: AuthorizationEntry;
+  private dependencies: PassportAuthorizationControllerDependencies;
+  private listeners = new Set<(state: PassportAuthorizationViewState) => void>();
+  private state: PassportAuthorizationViewState;
+  private approvalPending = false;
 
   constructor(input: {
     entry: AuthorizationEntry;
     dependencies: PassportAuthorizationControllerDependencies;
   }) {
-    this.#entry = input.entry;
-    this.#dependencies = input.dependencies;
-    this.#state = input.entry.status === "valid"
+    this.entry = input.entry;
+    this.dependencies = input.dependencies;
+    this.state = input.entry.status === "valid"
       ? { status: "review", review: input.entry.review }
       : { status: input.entry.status === "empty" ? "manual-entry" : "invalid" };
+
+    // Keep sensitive controller internals out of enumeration and serialization.
+    Object.defineProperties(this, {
+      approvalPending: { enumerable: false },
+      dependencies: { enumerable: false },
+      entry: { enumerable: false },
+      listeners: { enumerable: false },
+      state: { enumerable: false },
+    });
   }
 
   getState(): PassportAuthorizationViewState {
-    return this.#state;
+    return this.state;
   }
 
   subscribe(listener: (state: PassportAuthorizationViewState) => void): () => void {
-    this.#listeners.add(listener);
-    return () => this.#listeners.delete(listener);
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
   }
 
   commitInitialEntry(): void {
-    this.#dependencies.clearPendingEntry();
+    this.dependencies.clearPendingEntry();
   }
 
   async approve(): Promise<PassportAuthorizationViewState> {
-    if (this.#entry.status !== "valid" || this.#approvalPending || this.#state.status !== "review") {
-      return this.#state;
+    if (this.entry.status !== "valid" || this.approvalPending || this.state.status !== "review") {
+      return this.state;
     }
 
-    this.#approvalPending = true;
-    this.update({ status: "approving", review: this.#entry.review });
+    this.approvalPending = true;
+    this.update({ status: "approving", review: this.entry.review });
     let result: ApproveAuthorizationResult;
     try {
-      result = await this.#dependencies.approveAuthorization(this.#entry.approval);
+      result = await this.dependencies.approveAuthorization(this.entry.approval);
     } catch {
       LOGGER.warn("authorize.approval.failed", {
         stage: "controller",
@@ -84,18 +93,18 @@ export class PassportAuthorizationController {
 
     try {
       if (Result.isOk(result)) {
-        const success = getValidatedAuthorizationCallbacks(this.#entry.approval)?.success;
+        const success = getValidatedAuthorizationCallbacks(this.entry.approval)?.success;
         if (success) {
-          this.update({ status: "redirecting", review: this.#entry.review });
-          if (await this.tryCompleteOutcome(success, "success")) return this.#state;
+          this.update({ status: "redirecting", review: this.entry.review });
+          if (await this.tryCompleteOutcome(success, "success")) return this.state;
         }
         return this.update({ status: "approved" });
       }
 
-      const errorCallback = getValidatedAuthorizationCallbacks(this.#entry.approval)?.error;
+      const errorCallback = getValidatedAuthorizationCallbacks(this.entry.approval)?.error;
       if (errorCallback) {
-        this.update({ status: "redirecting", review: this.#entry.review });
-        if (await this.tryCompleteOutcome(errorCallback, "error")) return this.#state;
+        this.update({ status: "redirecting", review: this.entry.review });
+        if (await this.tryCompleteOutcome(errorCallback, "error")) return this.state;
       }
       return this.update({
         status: "failed",
@@ -111,15 +120,15 @@ export class PassportAuthorizationController {
   }
 
   async cancel(): Promise<PassportAuthorizationViewState> {
-    if (this.#entry.status !== "valid" || this.#approvalPending || this.#state.status !== "review") {
-      return this.#state;
+    if (this.entry.status !== "valid" || this.approvalPending || this.state.status !== "review") {
+      return this.state;
     }
 
     try {
-      const cancelCallback = getValidatedAuthorizationCallbacks(this.#entry.approval)?.cancel;
+      const cancelCallback = getValidatedAuthorizationCallbacks(this.entry.approval)?.cancel;
       if (cancelCallback) {
-        this.update({ status: "redirecting", review: this.#entry.review });
-        if (await this.tryCompleteOutcome(cancelCallback, "cancel")) return this.#state;
+        this.update({ status: "redirecting", review: this.entry.review });
+        if (await this.tryCompleteOutcome(cancelCallback, "cancel")) return this.state;
       }
     } catch {
       LOGGER.warn("authorize.callback.failed", {
@@ -132,7 +141,7 @@ export class PassportAuthorizationController {
 
   private async tryCompleteOutcome(url: string, outcome: BrowserAuthorizationOutcome): Promise<boolean> {
     try {
-      const completed = await this.#dependencies.completeOutcome(url, outcome);
+      const completed = await this.dependencies.completeOutcome(url, outcome);
       if (completed) return true;
     } catch {
       // The safe local outcome below remains available when completion throws.
@@ -145,8 +154,8 @@ export class PassportAuthorizationController {
   }
 
   private update(state: PassportAuthorizationViewState): PassportAuthorizationViewState {
-    this.#state = state;
-    for (const listener of this.#listeners) {
+    this.state = state;
+    for (const listener of this.listeners) {
       try {
         listener(state);
       } catch {

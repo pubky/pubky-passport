@@ -30,24 +30,24 @@ export type GoogleWrappingKeyRequestErrorCode =
 export type GoogleWrappingKeyRequestResult = ResultType<string, { code: GoogleWrappingKeyRequestErrorCode }>;
 
 export class GoogleWrappingKeyRequest {
-  readonly #googleIdTokenVerifier: GoogleIdTokenVerifier;
-  readonly #rateLimiter: InMemoryGoogleWrappingKeyRateLimiter;
-  readonly #deriver: GoogleWrappingKeyDeriver;
+  private googleIdTokenVerifier: GoogleIdTokenVerifier;
+  private rateLimiter: InMemoryGoogleWrappingKeyRateLimiter;
+  private deriver: GoogleWrappingKeyDeriver;
 
   constructor(dependencies: {
     googleIdTokenVerifier: GoogleIdTokenVerifier;
     rateLimiter: InMemoryGoogleWrappingKeyRateLimiter;
     deriver: GoogleWrappingKeyDeriver;
   }) {
-    this.#googleIdTokenVerifier = dependencies.googleIdTokenVerifier;
-    this.#rateLimiter = dependencies.rateLimiter;
-    this.#deriver = dependencies.deriver;
+    this.googleIdTokenVerifier = dependencies.googleIdTokenVerifier;
+    this.rateLimiter = dependencies.rateLimiter;
+    this.deriver = dependencies.deriver;
   }
 
   async requestGoogleWrappingKey(googleIdToken: string): Promise<GoogleWrappingKeyRequestResult> {
     let identity: GoogleIdTokenVerificationResult;
     try {
-      identity = await this.#googleIdTokenVerifier.verifyGoogleIdToken(googleIdToken);
+      identity = await this.googleIdTokenVerifier.verifyGoogleIdToken(googleIdToken);
     } catch {
       return dependencyFailure("verify");
     }
@@ -58,7 +58,7 @@ export class GoogleWrappingKeyRequest {
 
     let allowed: boolean;
     try {
-      allowed = this.#rateLimiter.tryConsumeRequest(identity.value);
+      allowed = this.rateLimiter.tryConsumeRequest(identity.value);
     } catch {
       return dependencyFailure("rate_limit");
     }
@@ -73,7 +73,7 @@ export class GoogleWrappingKeyRequest {
     }
 
     try {
-      return Result.ok(this.#deriver.deriveWrappingKey(identity.value));
+      return Result.ok(this.deriver.deriveWrappingKey(identity.value));
     } catch {
       return dependencyFailure("derive");
     }

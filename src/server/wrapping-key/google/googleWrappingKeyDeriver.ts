@@ -12,10 +12,10 @@ const GOOGLE_WRAPPING_KEY_HKDF_SALT = Buffer.from("pubky-passport/wrapping-key/s
 const GOOGLE_WRAPPING_KEY_HKDF_INFO_PREFIX = "google:";
 
 export class GoogleWrappingKeyDeriver {
-  readonly #serverSecret: Buffer;
+  private serverSecret: Buffer;
 
   constructor(serverSecret: Uint8Array) {
-    this.#serverSecret = Buffer.from(serverSecret);
+    this.serverSecret = Buffer.from(serverSecret);
   }
 
   deriveWrappingKey(identity: VerifiedGoogleIdentity): string {
@@ -24,7 +24,7 @@ export class GoogleWrappingKeyDeriver {
     }
 
     const info = Buffer.from(`${GOOGLE_WRAPPING_KEY_HKDF_INFO_PREFIX}${identity.issuer}\n${identity.subject}`, "utf8");
-    const derivedKey = Buffer.from(hkdfSync("sha256", this.#serverSecret, GOOGLE_WRAPPING_KEY_HKDF_SALT, info, WRAPPING_KEY_BYTES));
+    const derivedKey = Buffer.from(hkdfSync("sha256", this.serverSecret, GOOGLE_WRAPPING_KEY_HKDF_SALT, info, WRAPPING_KEY_BYTES));
 
     return derivedKey.toString("base64url");
   }

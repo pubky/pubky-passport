@@ -20,24 +20,24 @@ type GoogleIdTokenPayload = {
 const ACCEPTED_GOOGLE_ISSUERS = new Set(["accounts.google.com", CANONICAL_GOOGLE_ISSUER]);
 
 export class GoogleIdTokenVerifier {
-  readonly #audience: string;
-  readonly #verifier: OAuth2Client;
-  readonly #now: () => Date;
+  private audience: string;
+  private verifier: OAuth2Client;
+  private now: () => Date;
 
   constructor(options: {
     audience: string;
     verifier?: OAuth2Client;
     now?: () => Date;
   }) {
-    this.#audience = options.audience;
-    this.#verifier = options.verifier ?? new OAuth2Client();
-    this.#now = options.now ?? (() => new Date());
+    this.audience = options.audience;
+    this.verifier = options.verifier ?? new OAuth2Client();
+    this.now = options.now ?? (() => new Date());
   }
 
   async verifyGoogleIdToken(idToken: string): Promise<GoogleIdTokenVerificationResult> {
     let ticket: LoginTicket;
     try {
-      ticket = await this.#verifier.verifyIdToken({ idToken, audience: this.#audience });
+      ticket = await this.verifier.verifyIdToken({ idToken, audience: this.audience });
     } catch {
       LOGGER.warn("identity.google.id_token_verification.failed", {
         code: "google_verifier_rejected",
@@ -62,7 +62,7 @@ export class GoogleIdTokenVerifier {
       return failure();
     }
 
-    const result = validatePayload(payload, this.#audience, this.#now());
+    const result = validatePayload(payload, this.audience, this.now());
     if (Result.isError(result)) {
       LOGGER.warn("identity.google.id_token_verification.failed", {
         operation: "validate_claims",
