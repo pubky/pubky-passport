@@ -15,9 +15,9 @@ export class InMemoryGoogleWrappingKeyRateLimiter {
 
   constructor(
     identityPepper: Uint8Array,
+    private currentTime: () => Date = () => new Date(),
     private maximumRequests = DEFAULT_MAXIMUM_REQUESTS,
     private windowMilliseconds = DEFAULT_WINDOW_MILLISECONDS,
-    private currentTime: () => Date = () => new Date(),
   ) {
     this.identityPepper = Buffer.from(identityPepper);
 

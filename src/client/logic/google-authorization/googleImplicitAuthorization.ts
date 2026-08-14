@@ -82,9 +82,9 @@ export class GoogleImplicitAuthorization {
 
   constructor(
     private clientId: string,
-    private fetch: typeof globalThis.fetch = (request, init) => globalThis.fetch(request, init),
-    private open: typeof window.open = (url, target, features) => globalThis.window.open(url, target, features),
     private origin: string = globalThis.location.origin,
+    private open: typeof window.open = (url, target, features) => globalThis.window.open(url, target, features),
+    private fetch: typeof globalThis.fetch = (request, init) => globalThis.fetch(request, init),
   ) {}
 
   prepare(): Promise<GoogleImplicitAuthorizationResult<void>> {

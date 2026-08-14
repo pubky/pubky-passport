@@ -13,9 +13,9 @@ describe("wrapping-key rate limit", () => {
     const now = new Date("2026-01-01T00:00:00.000Z");
     const limiter = new InMemoryGoogleWrappingKeyRateLimiter(
       IDENTITY_PEPPER,
+      () => now,
       2,
       60_000,
-      () => now,
     );
 
     expect(limiter.tryConsumeRequest(IDENTITY)).toBe(true);
@@ -27,9 +27,8 @@ describe("wrapping-key rate limit", () => {
     const identityPepper = Buffer.from(IDENTITY_PEPPER);
     const limiter = new InMemoryGoogleWrappingKeyRateLimiter(
       identityPepper,
-      1,
-      undefined,
       () => new Date("2026-01-01T00:00:00.000Z"),
+      1,
     );
 
     expect(limiter.tryConsumeRequest(IDENTITY)).toBe(true);
@@ -41,9 +40,9 @@ describe("wrapping-key rate limit", () => {
     let now = new Date("2026-01-01T00:00:00.000Z");
     const limiter = new InMemoryGoogleWrappingKeyRateLimiter(
       IDENTITY_PEPPER,
+      () => now,
       1,
       60_000,
-      () => now,
     );
 
     expect(limiter.tryConsumeRequest(IDENTITY)).toBe(true);
@@ -56,9 +55,9 @@ describe("wrapping-key rate limit", () => {
     let now = new Date("2026-01-01T00:00:00.000Z");
     const limiter = new InMemoryGoogleWrappingKeyRateLimiter(
       IDENTITY_PEPPER,
+      () => now,
       1,
       60_000,
-      () => now,
     );
 
     const otherIdentity = { ...IDENTITY, subject: "other-google-subject" };
@@ -83,6 +82,7 @@ describe("wrapping-key rate limit", () => {
   ] as const)("rejects invalid %s configuration", (property, value) => {
     expect(() => new InMemoryGoogleWrappingKeyRateLimiter(
       IDENTITY_PEPPER,
+      undefined,
       property === "maximumRequests" ? value : undefined,
       property === "windowMilliseconds" ? value : undefined,
     )).toThrow("Invalid wrapping key rate limit configuration.");
@@ -91,8 +91,6 @@ describe("wrapping-key rate limit", () => {
   it("rejects an invalid clock value", () => {
     const limiter = new InMemoryGoogleWrappingKeyRateLimiter(
       IDENTITY_PEPPER,
-      undefined,
-      undefined,
       () => new Date(Number.NaN),
     );
 
