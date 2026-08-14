@@ -96,7 +96,6 @@ type DetachGoogleBackedIdentityResult = ResultType<
   DetachGoogleBackedIdentityError
 >;
 
-type ReportProgress = (progress: GoogleBackedIdentityProgress) => void;
 type OperationResult<Success = void> = ResultType<Success, GoogleBackedIdentityEstablishmentError>;
 
 /**
@@ -146,7 +145,7 @@ export class GoogleBackedIdentityOperations {
   /** Restores the Drive identity when present, otherwise creates and activates one. */
   async establishIdentity(
     credentials: GoogleBackedIdentityCredentials,
-    report: ReportProgress,
+    report: (progress: GoogleBackedIdentityProgress) => void,
   ): Promise<GoogleBackedIdentityResult> {
     try {
       report("checking_passport_file");
@@ -225,7 +224,7 @@ export class GoogleBackedIdentityOperations {
     credentials: GoogleBackedIdentityCredentials,
     invitation: HomeserverSignupInvitation,
     wrappingKey: string,
-    report: ReportProgress,
+    report: (progress: GoogleBackedIdentityProgress) => void,
     store: GoogleDrivePassportFileStore,
   ): Promise<GoogleBackedIdentityResult> {
     LOGGER.info("identity.google.create.started");
@@ -241,16 +240,13 @@ export class GoogleBackedIdentityOperations {
       let visibleRecoveryCopyStatus: "created" | "unconfirmed" = "created";
       report("storing_encrypted_identity");
       LOGGER.info("identity.google.encrypt.started");
-      let encrypted: Awaited<ReturnType<PassportFileWebCrypto["encryptSecretKeyBytes"]>>;
-      try {
-        encrypted = await this.crypto.encryptSecretKeyBytes({
-          secretKeyBytes: secretKey.value.bytes,
-          wrappingKey,
-          passportOrigin: this.passportOrigin,
-        });
-      } finally {
+      const encrypted = await this.crypto.encryptSecretKeyBytes({
+        secretKeyBytes: secretKey.value.bytes,
+        wrappingKey,
+        passportOrigin: this.passportOrigin,
+      }).finally(() => {
         secretKey.value.bytes.fill(0);
-      }
+      });
       if (Result.isError(encrypted)) return failure({ code: "encrypt_failed" });
       const envelope = encrypted.value;
       LOGGER.info("identity.google.encrypt.completed");
@@ -306,7 +302,7 @@ export class GoogleBackedIdentityOperations {
     credentials: GoogleBackedIdentityCredentials,
     storedFile: Extract<PassportFileReadResult, { status: "found" }>,
     wrappingKey: string,
-    report: ReportProgress,
+    report: (progress: GoogleBackedIdentityProgress) => void,
   ): Promise<GoogleBackedIdentityResult> {
     report("restoring_identity");
     const restored = await this.restoreKey(storedFile.envelope, wrappingKey);
@@ -386,7 +382,7 @@ export class GoogleBackedIdentityOperations {
     identity: PubkyIdentityKey,
     invitation: HomeserverSignupInvitation,
     googleAccount: GoogleAccountProfile,
-    report: ReportProgress,
+    report: (progress: GoogleBackedIdentityProgress) => void,
     isReconciliation = false,
   ): Promise<OperationResult> {
     report(isReconciliation ? "repairing_restored_identity" : "signing_up_to_homeserver");

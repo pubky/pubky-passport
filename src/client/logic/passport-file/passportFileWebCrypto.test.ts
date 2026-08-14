@@ -112,7 +112,7 @@ describe("PassportFileWebCrypto", () => {
 
     await expectAsyncError(encrypt(crypto, SECRET_KEY_BYTES, WRAPPING_KEY, "https://passport.pubky.app"), "unsupported_browser_crypto");
     expect(warning).toHaveBeenCalledWith("passport_file.crypto.failed", {
-      operation: "derive_key",
+      operation: "encrypt",
       code: "unsupported_browser_crypto",
     });
     expect(warning).toHaveBeenCalledOnce();
