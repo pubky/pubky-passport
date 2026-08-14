@@ -334,10 +334,10 @@ function sanitizedAbortCall(init?: RequestInit): SanitizedCall {
 }
 
 class StatefulVisibleDrive {
-  readonly uploadedNames: string[] = [];
-  private readonly files = new Map<string, { id: string; name: string; version: string; trashed: false; parents: string[] }>();
+  uploadedNames: string[] = [];
+  private files = new Map<string, { id: string; name: string; version: string; trashed: false; parents: string[] }>();
 
-  readonly fetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  fetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = new URL(String(input));
     const method = init?.method ?? "GET";
     const query = url.searchParams.get("q") ?? "";

@@ -10,22 +10,16 @@ const DEFAULT_WINDOW_MILLISECONDS = 60_000;
 /** Process-local limiter; multi-instance deployments need shared storage. */
 export class InMemoryGoogleWrappingKeyRateLimiter {
   private identityPepper: Buffer;
-  private maximumRequests: number;
-  private windowMilliseconds: number;
-  private currentTime: () => Date;
   private requestsByIdentity = new Map<string, number[]>();
   private nextCleanupAt = Number.NEGATIVE_INFINITY;
 
-  constructor(options: {
-    identityPepper: Uint8Array;
-    maximumRequests?: number;
-    windowMilliseconds?: number;
-    now?: () => Date;
-  }) {
-    this.identityPepper = Buffer.from(options.identityPepper);
-    this.maximumRequests = options.maximumRequests ?? DEFAULT_MAXIMUM_REQUESTS;
-    this.windowMilliseconds = options.windowMilliseconds ?? DEFAULT_WINDOW_MILLISECONDS;
-    this.currentTime = options.now ?? (() => new Date());
+  constructor(
+    identityPepper: Uint8Array,
+    private maximumRequests = DEFAULT_MAXIMUM_REQUESTS,
+    private windowMilliseconds = DEFAULT_WINDOW_MILLISECONDS,
+    private currentTime: () => Date = () => new Date(),
+  ) {
+    this.identityPepper = Buffer.from(identityPepper);
 
     if (
       !Number.isSafeInteger(this.maximumRequests)

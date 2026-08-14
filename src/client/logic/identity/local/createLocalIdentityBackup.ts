@@ -17,8 +17,8 @@ type CreatePubkySdkAdapter = () => Pick<PubkySdkAdapter, "createRecoveryFile" | 
 /** Creates a password-encrypted recovery file from one locally stored identity. */
 export class CreateLocalIdentityBackup {
   constructor(
-    private readonly readIdentity: LocalStorageIdentityRepository["read"],
-    private readonly createPubky: CreatePubkySdkAdapter = () => new PubkySdkAdapter(),
+    private readIdentity: LocalStorageIdentityRepository["read"],
+    private createPubky: CreatePubkySdkAdapter = () => new PubkySdkAdapter(),
   ) {}
 
   async create(identityId: string, password: string): Promise<LocalIdentityBackupResult> {

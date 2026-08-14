@@ -36,12 +36,13 @@ const INVITATION_SCHEMA = z.object({
 }).strict();
 
 export class HomegateClient {
-  private fetch: typeof fetch;
   private googleVerificationEndpoint: URL;
 
-  constructor(options: { homegateBaseUrl: string; fetch?: typeof fetch }) {
-    this.fetch = options.fetch ?? ((request, init) => globalThis.fetch(request, init));
-    this.googleVerificationEndpoint = new URL(GOOGLE_VERIFICATION_PATH, options.homegateBaseUrl);
+  constructor(
+    homegateBaseUrl: string,
+    private fetch: typeof globalThis.fetch = (request, init) => globalThis.fetch(request, init),
+  ) {
+    this.googleVerificationEndpoint = new URL(GOOGLE_VERIFICATION_PATH, homegateBaseUrl);
   }
 
   async requestGoogleHomeserverSignupInvitation(

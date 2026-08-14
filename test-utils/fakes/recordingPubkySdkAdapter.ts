@@ -58,7 +58,7 @@ export class RecordingPubkySdkAdapter extends PubkySdkAdapter {
     format: PUBKY_SECRET_KEY_FORMAT,
   };
 
-  private readonly identities = new Map<PubkyIdentityKeyHandle, PubkyPublicIdentity>();
+  private identities = new Map<PubkyIdentityKeyHandle, PubkyPublicIdentity>();
 
   override async createIdentityKey(): Promise<PubkyIdentityKeysResult<PubkyIdentityKey>> {
     this.createCalls += 1;

@@ -35,14 +35,14 @@ describe("Google ID token verifier", () => {
 
   it("passes Passport's client ID to the Google verifier", async () => {
     const calls: Array<{ tokenPresent: boolean; audience: string }> = [];
-    const verifier = new GoogleIdTokenVerifier({
-      audience: AUDIENCE,
-      now: () => NOW,
-      verifier: fakeGoogleVerifier(({ idToken, audience: verifierAudience }) => {
+    const verifier = new GoogleIdTokenVerifier(
+      AUDIENCE,
+      fakeGoogleVerifier(({ idToken, audience: verifierAudience }) => {
         calls.push({ tokenPresent: idToken.length > 0, audience: verifierAudience });
         return validPayload();
       }),
-    });
+      () => NOW,
+    );
 
     await verifier.verifyGoogleIdToken(TOKEN);
 
@@ -94,13 +94,13 @@ describe("Google ID token verifier", () => {
     "maps verifier %s failures generically without exposing the token",
     async (message) => {
       const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-      const verifier = new GoogleIdTokenVerifier({
-        audience: AUDIENCE,
-        now: () => NOW,
-        verifier: googleVerifier(async () => {
+      const verifier = new GoogleIdTokenVerifier(
+        AUDIENCE,
+        googleVerifier(async () => {
             throw new Error(`${message} token ${TOKEN}`);
         }),
-      });
+        () => NOW,
+      );
 
       await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
       expect(warning).toHaveBeenCalledOnce();
@@ -112,11 +112,11 @@ describe("Google ID token verifier", () => {
 
   it("logs a safe failure when Google returns a ticket without a payload", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const verifier = new GoogleIdTokenVerifier({
-      audience: AUDIENCE,
-      now: () => NOW,
-      verifier: googleVerifier(async () => googleLoginTicketFixture(() => undefined)),
-    });
+    const verifier = new GoogleIdTokenVerifier(
+      AUDIENCE,
+      googleVerifier(async () => googleLoginTicketFixture(() => undefined)),
+      () => NOW,
+    );
 
     await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
     expect(warning).toHaveBeenCalledOnce();
@@ -127,13 +127,13 @@ describe("Google ID token verifier", () => {
 
   it("maps payload access exceptions without logging their details", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const verifier = new GoogleIdTokenVerifier({
-      audience: AUDIENCE,
-      now: () => NOW,
-      verifier: googleVerifier(async () => googleLoginTicketFixture(() => {
+    const verifier = new GoogleIdTokenVerifier(
+      AUDIENCE,
+      googleVerifier(async () => googleLoginTicketFixture(() => {
         throw new Error(`payload failed for ${TOKEN}`);
       })),
-    });
+      () => NOW,
+    );
 
     await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
     expect(warning).toHaveBeenCalledOnce();
@@ -143,22 +143,22 @@ describe("Google ID token verifier", () => {
   });
 
   it("rejects an invalid verification clock", async () => {
-    const verifier = new GoogleIdTokenVerifier({
-      audience: AUDIENCE,
-      now: () => new Date(Number.NaN),
-      verifier: fakeGoogleVerifier(() => validPayload()),
-    });
+    const verifier = new GoogleIdTokenVerifier(
+      AUDIENCE,
+      fakeGoogleVerifier(() => validPayload()),
+      () => new Date(Number.NaN),
+    );
 
     await expect(verifier.verifyGoogleIdToken(TOKEN)).rejects.toThrow("Invalid Google ID token verifier clock.");
   });
 });
 
 function createVerifierWithPayload(payload: TestGoogleIdTokenPayload) {
-  return new GoogleIdTokenVerifier({
-    audience: AUDIENCE,
-    now: () => NOW,
-    verifier: fakeGoogleVerifier(() => payload),
-  });
+  return new GoogleIdTokenVerifier(
+    AUDIENCE,
+    fakeGoogleVerifier(() => payload),
+    () => NOW,
+  );
 }
 
 function validPayload(): TestGoogleIdTokenPayload {

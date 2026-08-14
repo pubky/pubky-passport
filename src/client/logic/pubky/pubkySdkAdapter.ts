@@ -59,8 +59,8 @@ export type PubkyDiscoveryInput = {
  * UI state while this adapter owns all SDK resource cleanup.
  */
 export class PubkySdkAdapter {
-  private readonly pubky: Pubky;
-  private readonly keypairs = new Map<PubkyIdentityKeyHandle, Keypair>();
+  private pubky: Pubky;
+  private keypairs = new Map<PubkyIdentityKeyHandle, Keypair>();
   private disposed = false;
 
   constructor() {

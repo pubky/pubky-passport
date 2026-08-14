@@ -41,7 +41,7 @@ type FetchCall = {
 type ByteChunk = Uint8Array<ArrayBuffer>;
 
 class RecordingLockManager {
-  readonly names: string[] = [];
+  names: string[] = [];
   maximumActive = 0;
   private active = 0;
   private tail = Promise.resolve();

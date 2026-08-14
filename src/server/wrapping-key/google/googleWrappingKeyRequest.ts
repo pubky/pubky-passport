@@ -30,19 +30,11 @@ export type GoogleWrappingKeyRequestErrorCode =
 export type GoogleWrappingKeyRequestResult = ResultType<string, { code: GoogleWrappingKeyRequestErrorCode }>;
 
 export class GoogleWrappingKeyRequest {
-  private googleIdTokenVerifier: GoogleIdTokenVerifier;
-  private rateLimiter: InMemoryGoogleWrappingKeyRateLimiter;
-  private deriver: GoogleWrappingKeyDeriver;
-
-  constructor(dependencies: {
-    googleIdTokenVerifier: GoogleIdTokenVerifier;
-    rateLimiter: InMemoryGoogleWrappingKeyRateLimiter;
-    deriver: GoogleWrappingKeyDeriver;
-  }) {
-    this.googleIdTokenVerifier = dependencies.googleIdTokenVerifier;
-    this.rateLimiter = dependencies.rateLimiter;
-    this.deriver = dependencies.deriver;
-  }
+  constructor(
+    private googleIdTokenVerifier: GoogleIdTokenVerifier,
+    private rateLimiter: InMemoryGoogleWrappingKeyRateLimiter,
+    private deriver: GoogleWrappingKeyDeriver,
+  ) {}
 
   async requestGoogleWrappingKey(googleIdToken: string): Promise<GoogleWrappingKeyRequestResult> {
     let identity: GoogleIdTokenVerificationResult;
@@ -84,11 +76,11 @@ export function createConfiguredGoogleWrappingKeyRequest(): GoogleWrappingKeyReq
   const serverSecret = SERVER_SECRET_SCHEMA.parse(process.env.PASSPORT_SERVER_SECRET_BASE64);
 
   try {
-    return new GoogleWrappingKeyRequest({
-      googleIdTokenVerifier: new GoogleIdTokenVerifier({ audience: getGoogleClientId() }),
-      rateLimiter: new InMemoryGoogleWrappingKeyRateLimiter({ identityPepper: serverSecret }),
-      deriver: new GoogleWrappingKeyDeriver(serverSecret),
-    });
+    return new GoogleWrappingKeyRequest(
+      new GoogleIdTokenVerifier(getGoogleClientId()),
+      new InMemoryGoogleWrappingKeyRateLimiter(serverSecret),
+      new GoogleWrappingKeyDeriver(serverSecret),
+    );
   } finally {
     serverSecret.fill(0);
   }

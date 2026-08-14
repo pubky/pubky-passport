@@ -78,23 +78,14 @@ type AuthorizationAttempt = {
 };
 
 export class GoogleImplicitAuthorization {
-  private clientId: string;
-  private fetch: typeof fetch;
-  private open: typeof window.open;
-  private origin: string;
   private activeAttempt: AuthorizationAttempt | null = null;
 
-  constructor(input: {
-    clientId: string;
-    fetch?: typeof fetch;
-    open?: typeof window.open;
-    origin?: string;
-  }) {
-    this.clientId = input.clientId;
-    this.fetch = input.fetch ?? ((request, init) => globalThis.fetch(request, init));
-    this.open = input.open ?? ((url, target, features) => globalThis.window.open(url, target, features));
-    this.origin = input.origin ?? globalThis.location.origin;
-  }
+  constructor(
+    private clientId: string,
+    private fetch: typeof globalThis.fetch = (request, init) => globalThis.fetch(request, init),
+    private open: typeof window.open = (url, target, features) => globalThis.window.open(url, target, features),
+    private origin: string = globalThis.location.origin,
+  ) {}
 
   prepare(): Promise<GoogleImplicitAuthorizationResult<void>> {
     return Promise.resolve(this.activeAttempt

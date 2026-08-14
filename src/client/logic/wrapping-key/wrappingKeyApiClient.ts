@@ -34,11 +34,9 @@ const ERROR_RESPONSE_SCHEMA = z.object({
 }).strict();
 
 export class WrappingKeyApiClient {
-  private fetch: typeof fetch;
-
-  constructor(fetchImplementation?: typeof fetch) {
-    this.fetch = fetchImplementation ?? ((request, init) => globalThis.fetch(request, init));
-  }
+  constructor(
+    private fetch: typeof globalThis.fetch = (request, init) => globalThis.fetch(request, init),
+  ) {}
 
   async requestGoogleWrappingKey(googleIdToken: string): Promise<GoogleWrappingKeyResult> {
     let response: Response;

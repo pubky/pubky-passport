@@ -20,19 +20,11 @@ type GoogleIdTokenPayload = {
 const ACCEPTED_GOOGLE_ISSUERS = new Set(["accounts.google.com", CANONICAL_GOOGLE_ISSUER]);
 
 export class GoogleIdTokenVerifier {
-  private audience: string;
-  private verifier: OAuth2Client;
-  private now: () => Date;
-
-  constructor(options: {
-    audience: string;
-    verifier?: OAuth2Client;
-    now?: () => Date;
-  }) {
-    this.audience = options.audience;
-    this.verifier = options.verifier ?? new OAuth2Client();
-    this.now = options.now ?? (() => new Date());
-  }
+  constructor(
+    private audience: string,
+    private verifier: OAuth2Client = new OAuth2Client(),
+    private now: () => Date = () => new Date(),
+  ) {}
 
   async verifyGoogleIdToken(idToken: string): Promise<GoogleIdTokenVerificationResult> {
     let ticket: LoginTicket;

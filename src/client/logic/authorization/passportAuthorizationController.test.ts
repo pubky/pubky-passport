@@ -11,7 +11,11 @@ import type {
 } from "./passportAuthorization";
 import { PassportAuthorizationController } from "./passportAuthorizationController";
 
-type ControllerDependencies = ConstructorParameters<typeof PassportAuthorizationController>[0]["dependencies"];
+type ControllerDependencies = {
+  approveAuthorization: ConstructorParameters<typeof PassportAuthorizationController>[1];
+  clearPendingEntry: ConstructorParameters<typeof PassportAuthorizationController>[2];
+  completeOutcome: ConstructorParameters<typeof PassportAuthorizationController>[3];
+};
 
 const RELAY_ORIGIN = "https://relay.example";
 const SUCCESS_CALLBACK = "https://app.example/success?code=private";
@@ -154,15 +158,18 @@ function createController(
   overrides: Partial<ControllerDependencies> = {},
   entry: AuthorizationEntry = validEntry(),
 ): PassportAuthorizationControllerContract {
-  return new PassportAuthorizationController({
+  const dependencies: ControllerDependencies = {
+    approveAuthorization: async () => Result.ok(),
+    clearPendingEntry: vi.fn(),
+    completeOutcome: vi.fn(async () => true),
+    ...overrides,
+  };
+  return new PassportAuthorizationController(
     entry,
-    dependencies: {
-      approveAuthorization: async () => Result.ok(),
-      clearPendingEntry: vi.fn(),
-      completeOutcome: vi.fn(async () => true),
-      ...overrides,
-    },
-  });
+    dependencies.approveAuthorization,
+    dependencies.clearPendingEntry,
+    dependencies.completeOutcome,
+  );
 }
 
 function validEntry(options: { callbacks?: boolean } = {}): AuthorizationEntry {

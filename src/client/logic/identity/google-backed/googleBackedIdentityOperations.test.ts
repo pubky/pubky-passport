@@ -47,9 +47,9 @@ vi.mock("../../passport-file/google/passportFileStore", () => ({
       MOCKS.driveStoreConstructions.count += 1;
     }
 
-    readonly readPassportFile = MOCKS.readPassportFile;
-    readonly createPassportFile = MOCKS.createPassportFile;
-    readonly deletePassportFile = MOCKS.deletePassportFile;
+    readPassportFile = MOCKS.readPassportFile;
+    createPassportFile = MOCKS.createPassportFile;
+    deletePassportFile = MOCKS.deletePassportFile;
   },
 }));
 vi.mock("../../passport-file/google/visibleRecoveryCopies", () => ({
@@ -58,8 +58,8 @@ vi.mock("../../passport-file/google/visibleRecoveryCopies", () => ({
       MOCKS.visibleCopiesConstructions.count += 1;
     }
 
-    readonly createVisibleRecoveryCopy = MOCKS.createVisibleRecoveryCopy;
-    readonly deleteVisibleRecoveryCopies = MOCKS.deleteVisibleRecoveryCopies;
+    createVisibleRecoveryCopy = MOCKS.createVisibleRecoveryCopy;
+    deleteVisibleRecoveryCopies = MOCKS.deleteVisibleRecoveryCopies;
   },
 }));
 

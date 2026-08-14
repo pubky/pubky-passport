@@ -36,7 +36,7 @@ describe("HomegateClient", () => {
       signupCode: "signup-code",
       homeserverPubky: "homeserver-pubky",
     }), requestSignal);
-    const client = new HomegateClient({ fetch: fetch.fetch, homegateBaseUrl: HOMEGATE_BASE_URL });
+    const client = new HomegateClient(HOMEGATE_BASE_URL, fetch.fetch);
 
     const result = await client.requestGoogleHomeserverSignupInvitation("SECRET-GOOGLE-ID-TOKEN");
 
@@ -66,10 +66,7 @@ describe("HomegateClient", () => {
       signupCode: "signup-code",
       homeserverPubky: "homeserver-pubky",
     }));
-    const client = new HomegateClient({
-      fetch: fetch.fetch,
-      homegateBaseUrl: "https://homegate.example/api/",
-    });
+    const client = new HomegateClient("https://homegate.example/api/", fetch.fetch);
 
     await client.requestGoogleHomeserverSignupInvitation("id-token");
 
@@ -80,7 +77,7 @@ describe("HomegateClient", () => {
     "rejects an invalid Google ID token before contacting Homegate",
     async (googleIdToken) => {
       const fetch = new SanitizedFetchRecorder();
-      const client = new HomegateClient({ fetch: fetch.fetch, homegateBaseUrl: HOMEGATE_BASE_URL });
+      const client = new HomegateClient(HOMEGATE_BASE_URL, fetch.fetch);
 
       const result = await client.requestGoogleHomeserverSignupInvitation(googleIdToken);
 
@@ -92,10 +89,7 @@ describe("HomegateClient", () => {
   );
 
   it.each(MALFORMED_SUCCESS_CASES)("rejects a success response with %s", async (_name, response) => {
-    const client = new HomegateClient({
-      fetch: new SanitizedFetchRecorder(response()).fetch,
-      homegateBaseUrl: HOMEGATE_BASE_URL,
-    });
+    const client = new HomegateClient(HOMEGATE_BASE_URL, new SanitizedFetchRecorder(response()).fetch);
 
     const result = await client.requestGoogleHomeserverSignupInvitation("id-token");
 
@@ -112,10 +106,7 @@ describe("HomegateClient", () => {
         controller.error(new Error("upstream body failed"));
       },
     }), { status: 500 });
-    const client = new HomegateClient({
-      fetch: new SanitizedFetchRecorder(response).fetch,
-      homegateBaseUrl: HOMEGATE_BASE_URL,
-    });
+    const client = new HomegateClient(HOMEGATE_BASE_URL, new SanitizedFetchRecorder(response).fetch);
 
     const result = await client.requestGoogleHomeserverSignupInvitation("id-token");
 
@@ -126,10 +117,10 @@ describe("HomegateClient", () => {
   });
 
   it.each(HOMEGATE_ERROR_CASES)("maps Homegate plaintext error %s to %s", async (body, expectedCode) => {
-    const client = new HomegateClient({
-      fetch: new SanitizedFetchRecorder(new Response(body, { status: 500 })).fetch,
-      homegateBaseUrl: HOMEGATE_BASE_URL,
-    });
+    const client = new HomegateClient(
+      HOMEGATE_BASE_URL,
+      new SanitizedFetchRecorder(new Response(body, { status: 500 })).fetch,
+    );
 
     const result = await client.requestGoogleHomeserverSignupInvitation("id-token");
 
@@ -140,10 +131,10 @@ describe("HomegateClient", () => {
 
   it("logs an unknown Homegate body only as closed response metadata", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const client = new HomegateClient({
-      fetch: new SanitizedFetchRecorder(new Response("HOMEGATE-BODY-CANARY", { status: 500 })).fetch,
-      homegateBaseUrl: HOMEGATE_BASE_URL,
-    });
+    const client = new HomegateClient(
+      HOMEGATE_BASE_URL,
+      new SanitizedFetchRecorder(new Response("HOMEGATE-BODY-CANARY", { status: 500 })).fetch,
+    );
 
     const result = await client.requestGoogleHomeserverSignupInvitation("id-token");
 
@@ -161,10 +152,7 @@ describe("HomegateClient", () => {
       new Response(null, { status: 500 }),
       new Response("x".repeat(257), { status: 500 }),
     ]) {
-      const client = new HomegateClient({
-        fetch: new SanitizedFetchRecorder(response).fetch,
-        homegateBaseUrl: HOMEGATE_BASE_URL,
-      });
+      const client = new HomegateClient(HOMEGATE_BASE_URL, new SanitizedFetchRecorder(response).fetch);
 
       const result = await client.requestGoogleHomeserverSignupInvitation("id-token");
 
@@ -177,10 +165,7 @@ describe("HomegateClient", () => {
   it("maps network failures without leaking the Google ID token", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const fetch = new SanitizedFetchRecorder(new Error("SECRET-GOOGLE-ID-TOKEN"));
-    const client = new HomegateClient({
-      fetch: fetch.fetch,
-      homegateBaseUrl: HOMEGATE_BASE_URL,
-    });
+    const client = new HomegateClient(HOMEGATE_BASE_URL, fetch.fetch);
 
     const result = await client.requestGoogleHomeserverSignupInvitation("SECRET-GOOGLE-ID-TOKEN");
 
@@ -201,7 +186,7 @@ describe("HomegateClient", () => {
       throw new Error("unsupported");
     });
     const fetch = new SanitizedFetchRecorder();
-    const client = new HomegateClient({ fetch: fetch.fetch, homegateBaseUrl: HOMEGATE_BASE_URL });
+    const client = new HomegateClient(HOMEGATE_BASE_URL, fetch.fetch);
 
     const result = await client.requestGoogleHomeserverSignupInvitation("id-token");
 
@@ -221,7 +206,7 @@ describe("HomegateClient", () => {
         },
       }))
     );
-    const client = new HomegateClient({ fetch: fetch.fetch, homegateBaseUrl: HOMEGATE_BASE_URL });
+    const client = new HomegateClient(HOMEGATE_BASE_URL, fetch.fetch);
 
     const resultPromise = client.requestGoogleHomeserverSignupInvitation("id-token");
     requestController.abort();
@@ -255,19 +240,14 @@ type SafeFetchCall = {
 };
 
 class SanitizedFetchRecorder {
-  readonly calls: SafeFetchCall[] = [];
-  private outcome: Response | Error | ((signal: AbortSignal | null) => Response);
-  private expectedSignal: AbortSignal | null;
+  calls: SafeFetchCall[] = [];
 
   constructor(
-    outcome: Response | Error | ((signal: AbortSignal | null) => Response) = new Error("Unexpected fetch."),
-    expectedSignal: AbortSignal | null = null,
-  ) {
-    this.outcome = outcome;
-    this.expectedSignal = expectedSignal;
-  }
+    private outcome: Response | Error | ((signal: AbortSignal | null) => Response) = new Error("Unexpected fetch."),
+    private expectedSignal: AbortSignal | null = null,
+  ) {}
 
-  readonly fetch: typeof globalThis.fetch = async (input, init) => {
+  fetch: typeof globalThis.fetch = async (input, init) => {
     const payload = parseJsonRecord(init?.body);
     const signal = init?.signal ?? null;
     this.calls.push({

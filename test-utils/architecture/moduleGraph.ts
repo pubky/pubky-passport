@@ -28,7 +28,7 @@ export class ModuleGraph {
   private sourceFileCache = new Map<string, ts.SourceFile>();
 
   constructor(
-    readonly repoRoot: string,
+    public repoRoot: string,
     tsconfigPath = resolve(repoRoot, "tsconfig.json"),
   ) {
     this.compilerOptions = readCompilerOptions(tsconfigPath);

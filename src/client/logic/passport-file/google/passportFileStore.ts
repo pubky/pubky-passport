@@ -60,9 +60,9 @@ const CREATE_PASSPORT_FILE_LOCK_NAME = "pubky-passport:google-drive:passport-fil
  */
 export class GoogleDrivePassportFileStore {
   constructor(
-    private readonly accessToken: string,
-    private readonly fetchImpl: typeof fetch,
-    private readonly requestLock: RequestLock | null = browserRequestLock(),
+    private accessToken: string,
+    private fetchImpl: typeof fetch,
+    private requestLock: RequestLock | null = browserRequestLock(),
   ) {}
 
   /**

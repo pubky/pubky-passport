@@ -103,12 +103,12 @@ type OperationResult<Success = void> = ResultType<Success, GoogleBackedIdentityE
  * key handle created by this instance.
  */
 export class GoogleBackedIdentityOperations {
-  private readonly pubky: PubkySdkAdapter;
-  private readonly wrappingKeys: WrappingKeyApiClient;
-  private readonly homegate: HomegateClient;
-  private readonly crypto: PassportFileWebCrypto;
-  private readonly requests = new AbortController();
-  private readonly fetch: typeof fetch = (request, init) => {
+  private pubky: PubkySdkAdapter;
+  private wrappingKeys: WrappingKeyApiClient;
+  private homegate: HomegateClient;
+  private crypto: PassportFileWebCrypto;
+  private requests = new AbortController();
+  private fetch: typeof fetch = (request, init) => {
     const signals = [this.requests.signal, AbortSignal.timeout(NETWORK_REQUEST_TIMEOUT_MS)];
     if (init?.signal) signals.push(init.signal);
     return globalThis.fetch(request, { ...init, signal: AbortSignal.any(signals) });
@@ -116,15 +116,15 @@ export class GoogleBackedIdentityOperations {
   private disposed = false;
 
   constructor(
-    private readonly repository: LocalStorageIdentityRepository,
+    private repository: LocalStorageIdentityRepository,
     homegateBaseUrl: string,
-    private readonly passportOrigin: string,
+    private passportOrigin: string,
   ) {
     const pubky = new PubkySdkAdapter();
     this.pubky = pubky;
     try {
       this.wrappingKeys = new WrappingKeyApiClient(this.fetch);
-      this.homegate = new HomegateClient({ homegateBaseUrl, fetch: this.fetch });
+      this.homegate = new HomegateClient(homegateBaseUrl, this.fetch);
       this.crypto = new PassportFileWebCrypto();
     } catch (error) {
       try {

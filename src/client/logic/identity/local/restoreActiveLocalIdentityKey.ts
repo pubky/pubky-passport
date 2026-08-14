@@ -17,9 +17,9 @@ import type {
  * Restores the active local identity key from the local identity repository.
  */
 export class RestoreActiveLocalIdentityKey {
-  constructor (
+  constructor(
     private readActive: LocalStorageIdentityRepository["readActive"],
-    private pubky: PubkySdkAdapter
+    private pubky: PubkySdkAdapter,
   ) {}
 
   async restore(): Promise<RestoreActiveLocalIdentityResult> {

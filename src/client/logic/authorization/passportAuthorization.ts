@@ -33,15 +33,12 @@ export type { AuthorizationRequestReview } from "./browserAuthorizationRequest";
 
 export function createPassportAuthorizationController(): PassportAuthorizationController {
   const entry = takeBootstrappedAuthorizationEntry() ?? readAndScrubAuthorizationEntry(window);
-  return new PassportAuthorizationControllerImplementation({
+  return new PassportAuthorizationControllerImplementation(
     entry,
-    dependencies: {
-      approveAuthorization: approveUsingActiveLocalIdentity,
-      clearPendingEntry: () => clearPendingAuthorizationEntry(window),
-      completeOutcome: (callback, outcome) =>
-        completeBrowserAuthorizationOutcome(window, callback, outcome),
-    },
-  });
+    approveUsingActiveLocalIdentity,
+    () => clearPendingAuthorizationEntry(window),
+    (callback, outcome) => completeBrowserAuthorizationOutcome(window, callback, outcome),
+  );
 }
 
 async function approveUsingActiveLocalIdentity(

@@ -40,7 +40,7 @@ const AES_GCM_DERIVATION_INFO = TEXT_ENCODER.encode("passport-file:aes-gcm:v1");
  */
 export class PassportFileWebCrypto {
   constructor(
-    private readonly subtle: SubtleCrypto | null = globalThis.crypto?.subtle ?? null,
+    private subtle: SubtleCrypto | null = globalThis.crypto?.subtle ?? null,
   ) {}
 
   /**

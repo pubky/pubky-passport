@@ -43,17 +43,16 @@ export { MIN_BACKUP_PASSWORD_LENGTH } from "./local/createLocalIdentityBackup";
 export class PassportIdentityController {
   private repository: LocalStorageIdentityRepository;
   private createLocalIdentityBackup: CreateLocalIdentityBackup;
-  private googleClientId: string;
-  private homegateBaseUrl: string;
 
-  constructor(googleClientId: string, homegateBaseUrl: string) {
+  constructor(
+    private googleClientId: string,
+    private homegateBaseUrl: string
+  ) {
     try {
       this.repository = new LocalStorageIdentityRepository();
       this.createLocalIdentityBackup = new CreateLocalIdentityBackup(
         (identityId) => this.repository.read(identityId),
       );
-      this.googleClientId = googleClientId;
-      this.homegateBaseUrl = homegateBaseUrl;
     } catch (error) {
       LOGGER.error("identity.controller.failed", {
         operation: "initialize",
@@ -84,12 +83,12 @@ export class PassportIdentityController {
   }
 
   /** Resolves the homeserver currently published for a Pubky identity. */
-  readonly resolveHomeserver = (
+  resolveHomeserver = (
     publicKeyZ32: string,
   ): Promise<PubkyHomeserverResolutionResult> => resolvePubkyHomeserver(publicKeyZ32);
 
   /** Creates a password-encrypted recovery file for one local identity. */
-  readonly createEncryptedBackup = (
+  createEncryptedBackup = (
     identityId: string,
     password: string,
   ): Promise<LocalIdentityBackupResult> => this.createLocalIdentityBackup.create(identityId, password);
@@ -122,7 +121,7 @@ export class PassportIdentityController {
     try {
       const flow = new GoogleBackedIdentityFlow(
         this.repository,
-        new GoogleImplicitAuthorization({ clientId: this.googleClientId }),
+        new GoogleImplicitAuthorization(this.googleClientId),
         this.homegateBaseUrl,
         globalThis.location.origin,
         onState,

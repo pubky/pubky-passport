@@ -55,8 +55,8 @@ const MAXIMUM_LIST_PAGES = 100;
  */
 export class GoogleDriveVisibleRecoveryCopies {
   constructor(
-    private readonly accessToken: string,
-    private readonly fetchImpl: typeof fetch,
+    private accessToken: string,
+    private fetchImpl: typeof fetch,
   ) {}
 
   /**

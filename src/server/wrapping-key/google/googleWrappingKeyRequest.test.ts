@@ -24,20 +24,20 @@ describe("Google wrapping-key request", () => {
 
   it("verifies Google, rate limits, then derives wrapping material", async () => {
     const calls: string[] = [];
-    const request = new GoogleWrappingKeyRequest(testDependencies({
-        async verifyGoogleIdToken() {
-          calls.push("verify");
-          return Result.ok(IDENTITY);
-        },
-        tryConsumeRequest(limitedIdentity) {
-          calls.push(`rate-limit:${limitedIdentity.subject}`);
-          return true;
-        },
-        deriveWrappingKey(verifiedIdentity) {
-          calls.push(`derive:${verifiedIdentity.issuer}:${verifiedIdentity.subject}`);
-          return "derived-wrapping-key";
-        },
-    }));
+    const request = testRequest(
+      async () => {
+        calls.push("verify");
+        return Result.ok(IDENTITY);
+      },
+      (limitedIdentity) => {
+        calls.push(`rate-limit:${limitedIdentity.subject}`);
+        return true;
+      },
+      (verifiedIdentity) => {
+        calls.push(`derive:${verifiedIdentity.issuer}:${verifiedIdentity.subject}`);
+        return "derived-wrapping-key";
+      },
+    );
 
     await expect(request.requestGoogleWrappingKey("id-token")).resolves.toEqual(Result.ok("derived-wrapping-key"));
     expect(calls).toEqual([
@@ -50,19 +50,17 @@ describe("Google wrapping-key request", () => {
   it("does not rate limit or derive rejected tokens", async () => {
     let rateLimitCalls = 0;
     let deriveCalls = 0;
-    const request = new GoogleWrappingKeyRequest(testDependencies({
-        async verifyGoogleIdToken() {
-          return Result.err({ code: "invalid_google_id_token" as const });
-        },
-        tryConsumeRequest() {
-          rateLimitCalls += 1;
-          return true;
-        },
-        deriveWrappingKey() {
-          deriveCalls += 1;
-          return "derived-wrapping-key";
-        },
-    }));
+    const request = testRequest(
+      async () => Result.err({ code: "invalid_google_id_token" as const }),
+      () => {
+        rateLimitCalls += 1;
+        return true;
+      },
+      () => {
+        deriveCalls += 1;
+        return "derived-wrapping-key";
+      },
+    );
 
     await expectAsyncResultError(
       request.requestGoogleWrappingKey("SECRET-GOOGLE-ID-TOKEN"),
@@ -74,11 +72,11 @@ describe("Google wrapping-key request", () => {
 
   it("rejects rate-limited identities", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const rateLimited = new GoogleWrappingKeyRequest(testDependencies({
-      async verifyGoogleIdToken() { return Result.ok(IDENTITY); },
-      tryConsumeRequest() { return false; },
-      deriveWrappingKey() { return "derived-wrapping-key"; },
-    }));
+    const rateLimited = testRequest(
+      async () => Result.ok(IDENTITY),
+      () => false,
+      () => "derived-wrapping-key",
+    );
 
     await expectAsyncResultError(rateLimited.requestGoogleWrappingKey("id-token"), { code: "rate_limited" });
     expect(warning).toHaveBeenCalledWith("identity.google.wrapping_key.failed", {
@@ -97,20 +95,20 @@ describe("Google wrapping-key request", () => {
     "maps %s exceptions to dependency_unavailable",
     async (unavailableDependency, operation) => {
       const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
-      const request = new GoogleWrappingKeyRequest(testDependencies({
-          async verifyGoogleIdToken() {
-            if (unavailableDependency === "verification") throw new Error("SECRET-GOOGLE-ID-TOKEN");
-            return Result.ok(IDENTITY);
-          },
-          tryConsumeRequest() {
-            if (unavailableDependency === "rate limit") throw new Error("SECRET-GOOGLE-ID-TOKEN");
-            return true;
-          },
-          deriveWrappingKey() {
-            if (unavailableDependency === "derivation") throw new Error("SECRET-GOOGLE-ID-TOKEN");
-            return "derived-wrapping-key";
-          },
-      }));
+      const request = testRequest(
+        async () => {
+          if (unavailableDependency === "verification") throw new Error("SECRET-GOOGLE-ID-TOKEN");
+          return Result.ok(IDENTITY);
+        },
+        () => {
+          if (unavailableDependency === "rate limit") throw new Error("SECRET-GOOGLE-ID-TOKEN");
+          return true;
+        },
+        () => {
+          if (unavailableDependency === "derivation") throw new Error("SECRET-GOOGLE-ID-TOKEN");
+          return "derived-wrapping-key";
+        },
+      );
 
       await expectAsyncResultError(
         request.requestGoogleWrappingKey("id-token"),
@@ -154,24 +152,21 @@ describe("Google wrapping-key request", () => {
   });
 });
 
-function testDependencies(input: {
-  verifyGoogleIdToken: GoogleIdTokenVerifier["verifyGoogleIdToken"];
-  tryConsumeRequest: InMemoryGoogleWrappingKeyRateLimiter["tryConsumeRequest"];
-  deriveWrappingKey: GoogleWrappingKeyDeriver["deriveWrappingKey"];
-}): ConstructorParameters<typeof GoogleWrappingKeyRequest>[0] {
-  return {
-    googleIdTokenVerifier: new TestGoogleIdTokenVerifier(input.verifyGoogleIdToken),
-    rateLimiter: new TestGoogleWrappingKeyRateLimiter(input.tryConsumeRequest),
-    deriver: new TestGoogleWrappingKeyDeriver(input.deriveWrappingKey),
-  };
+function testRequest(
+  verifyGoogleIdToken: GoogleIdTokenVerifier["verifyGoogleIdToken"],
+  tryConsumeRequest: InMemoryGoogleWrappingKeyRateLimiter["tryConsumeRequest"],
+  deriveWrappingKey: GoogleWrappingKeyDeriver["deriveWrappingKey"],
+): GoogleWrappingKeyRequest {
+  return new GoogleWrappingKeyRequest(
+    new TestGoogleIdTokenVerifier(verifyGoogleIdToken),
+    new TestGoogleWrappingKeyRateLimiter(tryConsumeRequest),
+    new TestGoogleWrappingKeyDeriver(deriveWrappingKey),
+  );
 }
 
 class TestGoogleIdTokenVerifier extends GoogleIdTokenVerifier {
-  private verify: GoogleIdTokenVerifier["verifyGoogleIdToken"];
-
-  constructor(verify: GoogleIdTokenVerifier["verifyGoogleIdToken"]) {
-    super({ audience: "test-client" });
-    this.verify = verify;
+  constructor(private verify: GoogleIdTokenVerifier["verifyGoogleIdToken"]) {
+    super("test-client");
   }
 
   override verifyGoogleIdToken(idToken: string) {
@@ -180,11 +175,8 @@ class TestGoogleIdTokenVerifier extends GoogleIdTokenVerifier {
 }
 
 class TestGoogleWrappingKeyRateLimiter extends InMemoryGoogleWrappingKeyRateLimiter {
-  private tryConsume: InMemoryGoogleWrappingKeyRateLimiter["tryConsumeRequest"];
-
-  constructor(tryConsume: InMemoryGoogleWrappingKeyRateLimiter["tryConsumeRequest"]) {
-    super({ identityPepper: new Uint8Array(32) });
-    this.tryConsume = tryConsume;
+  constructor(private tryConsume: InMemoryGoogleWrappingKeyRateLimiter["tryConsumeRequest"]) {
+    super(new Uint8Array(32));
   }
 
   override tryConsumeRequest(identity: VerifiedGoogleIdentity): boolean {
@@ -193,11 +185,8 @@ class TestGoogleWrappingKeyRateLimiter extends InMemoryGoogleWrappingKeyRateLimi
 }
 
 class TestGoogleWrappingKeyDeriver extends GoogleWrappingKeyDeriver {
-  private derive: GoogleWrappingKeyDeriver["deriveWrappingKey"];
-
-  constructor(derive: GoogleWrappingKeyDeriver["deriveWrappingKey"]) {
+  constructor(private derive: GoogleWrappingKeyDeriver["deriveWrappingKey"]) {
     super(new Uint8Array(32));
-    this.derive = derive;
   }
 
   override deriveWrappingKey(identity: VerifiedGoogleIdentity): string {

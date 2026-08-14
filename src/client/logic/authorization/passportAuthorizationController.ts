@@ -27,33 +27,27 @@ export type PassportAuthorizationViewState =
   | { status: "cancelled" }
   | { status: "failed"; failureCode: PassportAuthorizationFailureCode };
 
-type PassportAuthorizationControllerDependencies = {
-  approveAuthorization(approval: PubkyAuthApprovalCapability): Promise<ApproveAuthorizationResult>;
-  clearPendingEntry(): void;
-  completeOutcome(callback: string, outcome: BrowserAuthorizationOutcome): Promise<boolean>;
-};
-
 export class PassportAuthorizationController {
-  private entry: AuthorizationEntry;
-  private dependencies: PassportAuthorizationControllerDependencies;
   private listeners = new Set<(state: PassportAuthorizationViewState) => void>();
   private state: PassportAuthorizationViewState;
   private approvalPending = false;
 
-  constructor(input: {
-    entry: AuthorizationEntry;
-    dependencies: PassportAuthorizationControllerDependencies;
-  }) {
-    this.entry = input.entry;
-    this.dependencies = input.dependencies;
-    this.state = input.entry.status === "valid"
-      ? { status: "review", review: input.entry.review }
-      : { status: input.entry.status === "empty" ? "manual-entry" : "invalid" };
+  constructor(
+    private entry: AuthorizationEntry,
+    private approveAuthorization: (approval: PubkyAuthApprovalCapability) => Promise<ApproveAuthorizationResult>,
+    private clearPendingEntry: () => void,
+    private completeOutcome: (callback: string, outcome: BrowserAuthorizationOutcome) => Promise<boolean>,
+  ) {
+    this.state = entry.status === "valid"
+      ? { status: "review", review: entry.review }
+      : { status: entry.status === "empty" ? "manual-entry" : "invalid" };
 
     // Keep sensitive controller internals out of enumeration and serialization.
     Object.defineProperties(this, {
       approvalPending: { enumerable: false },
-      dependencies: { enumerable: false },
+      approveAuthorization: { enumerable: false },
+      clearPendingEntry: { enumerable: false },
+      completeOutcome: { enumerable: false },
       entry: { enumerable: false },
       listeners: { enumerable: false },
       state: { enumerable: false },
@@ -70,7 +64,7 @@ export class PassportAuthorizationController {
   }
 
   commitInitialEntry(): void {
-    this.dependencies.clearPendingEntry();
+    this.clearPendingEntry();
   }
 
   async approve(): Promise<PassportAuthorizationViewState> {
@@ -82,7 +76,7 @@ export class PassportAuthorizationController {
     this.update({ status: "approving", review: this.entry.review });
     let result: ApproveAuthorizationResult;
     try {
-      result = await this.dependencies.approveAuthorization(this.entry.approval);
+      result = await this.approveAuthorization(this.entry.approval);
     } catch {
       LOGGER.warn("authorize.approval.failed", {
         stage: "controller",
@@ -141,7 +135,7 @@ export class PassportAuthorizationController {
 
   private async tryCompleteOutcome(url: string, outcome: BrowserAuthorizationOutcome): Promise<boolean> {
     try {
-      const completed = await this.dependencies.completeOutcome(url, outcome);
+      const completed = await this.completeOutcome(url, outcome);
       if (completed) return true;
     } catch {
       // The safe local outcome below remains available when completion throws.
