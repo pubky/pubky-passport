@@ -9,8 +9,8 @@ import {
   GoogleImplicitAuthorization,
 } from "../../google-authorization/googleImplicitAuthorization";
 import type { LocalStorageIdentityRepository } from "../local/localStorageIdentityRepository";
-import {
-  GoogleBackedIdentityOperations,
+import {GoogleBackedIdentityOperations
+  ,
   type GoogleBackedIdentityCredentials,
   type GoogleBackedIdentityError,
 } from "./googleBackedIdentityOperations";

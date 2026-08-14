@@ -10,7 +10,7 @@ import type { PassportFileStoreResult } from "../../passport-file/googleDrivePas
 import type { PassportFileEnvelopeV1 } from "../../passport-file/passportFileEnvelope";
 import type { EncryptPassportSecret } from "../../passport-file/passportFileWebCrypto";
 import type { HomeserverSignupInvitation } from "../../homegate/homegateClient";
-import { SaveLocalIdentity } from "../local/saveLocalIdentity";
+import type { SaveLocalIdentityOperation } from "../local/saveLocalIdentity";
 import type { ReportGoogleBackedIdentityProgress } from "./googleBackedIdentityProgress";
 
 const VISIBLE_RECOVERY_COPY_TIMEOUT_MS = 10_000;
@@ -46,20 +46,20 @@ export type CreateGoogleBackedIdentityResult<Success = CreatedGoogleBackedIdenti
 export class CreateGoogleBackedIdentity {
   readonly #encryptSecretKeyBytes: EncryptPassportSecret;
   readonly #pubky: PubkySdkAdapter;
-  readonly #saveLocalIdentity: SaveLocalIdentity;
+  readonly #saveIdentityLocally: SaveLocalIdentityOperation;
   readonly #passportOrigin: string;
   readonly #visibleRecoveryCopyTimeoutMs: number;
 
   constructor(input: {
     encryptSecretKeyBytes: EncryptPassportSecret;
     pubky: PubkySdkAdapter;
-    saveLocalIdentity: SaveLocalIdentity;
+    saveIdentityLocally: SaveLocalIdentityOperation;
     passportOrigin: string;
     visibleRecoveryCopyTimeoutMs?: number;
   }) {
     this.#encryptSecretKeyBytes = input.encryptSecretKeyBytes;
     this.#pubky = input.pubky;
-    this.#saveLocalIdentity = input.saveLocalIdentity;
+    this.#saveIdentityLocally = input.saveIdentityLocally;
     this.#passportOrigin = input.passportOrigin;
     this.#visibleRecoveryCopyTimeoutMs = input.visibleRecoveryCopyTimeoutMs ?? VISIBLE_RECOVERY_COPY_TIMEOUT_MS;
   }
@@ -145,7 +145,7 @@ export class CreateGoogleBackedIdentity {
 
         reportProgress("activating_created_identity");
         LOGGER.info("identity.local_save.started", { establishmentMode: "created" });
-        const saved = await this.#saveLocalIdentity.saveIdentity(created.value.keyHandle, googleAccount);
+        const saved = await this.#saveIdentityLocally(created.value.keyHandle, googleAccount);
         if (Result.isError(saved)) return failure("local_save_failed", created.value.publicIdentity, visibleRecoveryCopyStatus);
 
         LOGGER.info("identity.local_save.completed", { establishmentMode: "created" });

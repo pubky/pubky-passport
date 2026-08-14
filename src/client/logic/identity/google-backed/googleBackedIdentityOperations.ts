@@ -24,7 +24,7 @@ import {
   type GoogleWrappingKeyErrorCode,
 } from "../../wrapping-key/wrappingKeyApiClient";
 import { LocalStorageIdentityRepository } from "../local/localStorageIdentityRepository";
-import { SaveLocalIdentity } from "../local/saveLocalIdentity";
+import { SaveLocalIdentity, type SaveLocalIdentityOperation } from "../local/saveLocalIdentity";
 import {
   CreateGoogleBackedIdentity,
   type CreateGoogleBackedIdentityError,
@@ -73,7 +73,9 @@ export class GoogleBackedIdentityOperations {
   }) {
     const pubky = new PubkySdkAdapter();
     try {
-      const saveLocalIdentity = new SaveLocalIdentity(input.repository, pubky);
+      const localIdentitySaver = new SaveLocalIdentity(input.repository, pubky);
+      const saveIdentityLocally: SaveLocalIdentityOperation = (keyHandle, googleAccount) =>
+        localIdentitySaver.saveIdentity(keyHandle, googleAccount);
       const wrappingKeyApiClient = new WrappingKeyApiClient();
       const requestWrappingKey: WrappingKeyApiClient["requestGoogleWrappingKey"] = (googleIdToken) =>
         wrappingKeyApiClient.requestGoogleWrappingKey(googleIdToken);
@@ -109,13 +111,13 @@ export class GoogleBackedIdentityOperations {
       const restoreExistingIdentity = new RestoreGoogleBackedIdentity({
         decryptSecretKeyBytes,
         pubky,
-        saveLocalIdentity,
+        saveIdentityLocally,
         passportOrigin: input.passportOrigin,
       });
       const createMissingIdentity = new CreateGoogleBackedIdentity({
         encryptSecretKeyBytes,
         pubky,
-        saveLocalIdentity,
+        saveIdentityLocally,
         passportOrigin: input.passportOrigin,
       });
       this.#requestWrappingKey = requestWrappingKey;

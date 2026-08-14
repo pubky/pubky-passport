@@ -326,7 +326,7 @@ function createSetup(input: {
   const subject = new CreateGoogleBackedIdentity({
     encryptSecretKeyBytes: (encryptInput) => crypto.encryptSecretKeyBytes(encryptInput),
     pubky,
-    saveLocalIdentity: local,
+    saveIdentityLocally: local.saveIdentity,
     passportOrigin: "https://passport.pubky.app",
     ...(input.visibleRecoveryCopyTimeoutMs === undefined
       ? {}

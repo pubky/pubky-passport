@@ -154,7 +154,7 @@ function createSetup() {
   const subject = new RestoreGoogleBackedIdentity({
     decryptSecretKeyBytes: (decryptInput) => crypto.decryptSecretKeyBytes(decryptInput),
     pubky,
-    saveLocalIdentity: local,
+    saveIdentityLocally: local.saveIdentity,
     passportOrigin: "https://passport.pubky.app",
   });
   return { subject, pubky, local, crypto };

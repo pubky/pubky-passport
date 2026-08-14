@@ -12,7 +12,7 @@ import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
 import { LOGGER } from "../../../../libs/logger/logger";
 import type { PassportFileEnvelopeV1 } from "../../passport-file/passportFileEnvelope";
 import type { DecryptPassportSecret } from "../../passport-file/passportFileWebCrypto";
-import { SaveLocalIdentity } from "../local/saveLocalIdentity";
+import type { SaveLocalIdentityOperation } from "../local/saveLocalIdentity";
 import type { ReportGoogleBackedIdentityProgress } from "./googleBackedIdentityProgress";
 
 export type RestoredGoogleBackedIdentity = {
@@ -33,18 +33,18 @@ export type RestoreGoogleBackedIdentityResult<Success = RestoredGoogleBackedIden
 export class RestoreGoogleBackedIdentity {
   readonly #decryptSecretKeyBytes: DecryptPassportSecret;
   readonly #pubky: PubkySdkAdapter;
-  readonly #saveLocalIdentity: SaveLocalIdentity;
+  readonly #saveIdentityLocally: SaveLocalIdentityOperation;
   readonly #passportOrigin: string;
 
   constructor(input: {
     decryptSecretKeyBytes: DecryptPassportSecret;
     pubky: PubkySdkAdapter;
-    saveLocalIdentity: SaveLocalIdentity;
+    saveIdentityLocally: SaveLocalIdentityOperation;
     passportOrigin: string;
   }) {
     this.#decryptSecretKeyBytes = input.decryptSecretKeyBytes;
     this.#pubky = input.pubky;
-    this.#saveLocalIdentity = input.saveLocalIdentity;
+    this.#saveIdentityLocally = input.saveIdentityLocally;
     this.#passportOrigin = input.passportOrigin;
   }
 
@@ -90,7 +90,7 @@ export class RestoreGoogleBackedIdentity {
       if (Result.isError(published)) return failure("discovery_failed", restoredPublicIdentity);
 
       LOGGER.info("identity.local_save.started", { establishmentMode: "restored" });
-      const saved = await this.#saveLocalIdentity.saveIdentity(restored.value.keyHandle, googleAccount);
+      const saved = await this.#saveIdentityLocally(restored.value.keyHandle, googleAccount);
       if (Result.isError(saved)) return failure("local_save_failed", restoredPublicIdentity);
 
       LOGGER.info("identity.local_save.completed", { establishmentMode: "restored" });

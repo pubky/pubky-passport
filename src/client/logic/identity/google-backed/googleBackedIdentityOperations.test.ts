@@ -12,6 +12,7 @@ import {
 import { MemoryStorage } from "../../../../../test-utils/fakes/memoryStorage";
 import { expectResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../../libs/logger/logger";
+import type { PubkyIdentityKeyHandle } from "../../pubky/pubkyIdentityKey";
 import type { ReportGoogleBackedIdentityProgress } from "./googleBackedIdentityProgress";
 import { LocalStorageIdentityRepository } from "../local/localStorageIdentityRepository";
 
@@ -93,7 +94,7 @@ const MOCKS = vi.hoisted(() => {
       },
     },
     SaveLocalIdentity: vi.fn(),
-    saveLocalIdentity: {},
+    saveLocalIdentity: { saveIdentity: vi.fn() },
     CreateGoogleBackedIdentity: vi.fn(),
     createMissingIdentity: {
       async execute(
@@ -234,15 +235,25 @@ describe("GoogleBackedIdentityOperations", () => {
     expect(MOCKS.RestoreGoogleBackedIdentity).toHaveBeenCalledWith({
       decryptSecretKeyBytes: expect.any(Function),
       pubky: MOCKS.pubky,
-      saveLocalIdentity: MOCKS.saveLocalIdentity,
+      saveIdentityLocally: expect.any(Function),
       passportOrigin: "https://passport.example",
     });
     expect(MOCKS.CreateGoogleBackedIdentity).toHaveBeenCalledWith({
       encryptSecretKeyBytes: expect.any(Function),
       pubky: MOCKS.pubky,
-      saveLocalIdentity: MOCKS.saveLocalIdentity,
+      saveIdentityLocally: expect.any(Function),
       passportOrigin: "https://passport.example",
     });
+    const restoreDependencies = MOCKS.RestoreGoogleBackedIdentity.mock.calls[0]?.[0] as {
+      saveIdentityLocally: (keyHandle: PubkyIdentityKeyHandle) => Promise<unknown>;
+    };
+    const createDependencies = MOCKS.CreateGoogleBackedIdentity.mock.calls[0]?.[0] as {
+      saveIdentityLocally: (keyHandle: PubkyIdentityKeyHandle) => Promise<unknown>;
+    };
+    const keyHandle = {} as PubkyIdentityKeyHandle;
+    expect(createDependencies.saveIdentityLocally).toBe(restoreDependencies.saveIdentityLocally);
+    await restoreDependencies.saveIdentityLocally(keyHandle);
+    expect(MOCKS.saveLocalIdentity.saveIdentity).toHaveBeenCalledWith(keyHandle, undefined);
 
     expectResultOk(await operations.restoreOrCreateGoogleBackedIdentity(
       TEST_GOOGLE_BACKED_IDENTITY_CREDENTIALS,

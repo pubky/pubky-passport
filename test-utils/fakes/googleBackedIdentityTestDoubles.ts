@@ -1,10 +1,6 @@
 import { Result } from "better-result";
 
-import { MemoryStorage } from "./memoryStorage";
-
-import { SaveLocalIdentity } from "../../src/client/logic/identity/local/saveLocalIdentity";
-import { LocalStorageIdentityRepository } from "../../src/client/logic/identity/local/localStorageIdentityRepository";
-import { RecordingPubkySdkAdapter } from "./recordingPubkySdkAdapter";
+import type { SaveLocalIdentityOperation } from "../../src/client/logic/identity/local/saveLocalIdentity";
 import type {
   DecryptPassportSecretInput,
   EncryptPassportSecretInput,
@@ -152,19 +148,17 @@ export class RecordingPassportFileCrypto {
   }
 }
 
-export class RecordingSaveLocalIdentity extends SaveLocalIdentity {
+export class RecordingSaveLocalIdentity {
   readonly #onSave: (() => void) | undefined;
   saveCalls = 0;
   saveFailure = false;
   throwOnSave = false;
 
   constructor(onSave?: () => void) {
-    const pubky = new RecordingPubkySdkAdapter();
-    super(new LocalStorageIdentityRepository(new MemoryStorage()), pubky);
     this.#onSave = onSave;
   }
 
-  override async saveIdentity() {
+  readonly saveIdentity: SaveLocalIdentityOperation = async () => {
     if (this.throwOnSave) throw new Error("local save threw");
     this.#onSave?.();
     this.saveCalls += 1;
@@ -173,5 +167,5 @@ export class RecordingSaveLocalIdentity extends SaveLocalIdentity {
       id: "fake",
       publicIdentity: { publicKeyZ32: "fake", publicKeyDisplay: "pubkyfake" },
     });
-  }
+  };
 }
