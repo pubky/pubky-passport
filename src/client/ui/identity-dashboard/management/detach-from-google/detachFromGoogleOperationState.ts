@@ -1,3 +1,5 @@
+"use client";
+
 import type { GoogleIdentityFlowError } from "../../../../logic/identity/passportIdentityController";
 
 type DetachFromGoogleOperationState =
