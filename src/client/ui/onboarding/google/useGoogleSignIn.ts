@@ -5,8 +5,7 @@ import { useCallback, useEffect, useReducer, useRef } from "react";
 
 import type {
   GoogleAccountProfile,
-  GoogleIdentityFlow,
-  GoogleIdentityFlowError,
+  GoogleBackedIdentityFlow,
   PassportIdentityController,
   PubkyPublicIdentity,
 } from "../../../logic/identity/passportIdentityController";
@@ -26,10 +25,10 @@ function useGoogleSignIn(
   onEstablished?: (identity: GoogleIdentityEstablished) => void,
 ) {
   const dispatching = useRef(false);
-  const flow = useRef<GoogleIdentityFlow | null>(null);
+  const flow = useRef<GoogleBackedIdentityFlow | null>(null);
   const [state, dispatch] = useReducer(transitionGoogleSignIn, INITIAL_GOOGLE_SIGN_IN_STATE);
 
-  const run = useCallback((incompleteIdentity?: NonNullable<GoogleIdentityFlowError["incompleteIdentity"]>): void => {
+  const run = useCallback((): void => {
     if (dispatching.current) return;
     const currentFlow = flow.current;
     if (!currentFlow) {
@@ -38,10 +37,7 @@ function useGoogleSignIn(
     }
     dispatching.current = true;
     dispatch({ type: "request-started" });
-    const operation = incompleteIdentity
-      ? currentFlow.resumeIncompleteIdentity(incompleteIdentity.publicIdentity, incompleteIdentity.googleAccount.id)
-      : currentFlow.establishIdentity();
-    void operation
+    void currentFlow.establishIdentity()
       .then((completed) => {
         if (flow.current !== currentFlow) return;
         if (Result.isError(completed)) {
@@ -81,12 +77,6 @@ function useGoogleSignIn(
     dispatch({ type: "back" });
   }, []);
 
-  const resumeIncompleteIdentity = useCallback((error: GoogleIdentityFlowError) => {
-    if (!error.incompleteIdentity) return;
-    dispatching.current = false;
-    run(error.incompleteIdentity);
-  }, [run]);
-
   useEffect(() => {
     const googleFlow = controller.startGoogleIdentityFlow((nextState) => {
       switch (nextState.status) {
@@ -115,7 +105,6 @@ function useGoogleSignIn(
 
   return {
     back,
-    resumeIncompleteIdentity,
     retry: start,
     start,
     state,

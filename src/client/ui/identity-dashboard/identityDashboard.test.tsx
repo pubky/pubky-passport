@@ -5,7 +5,10 @@ import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LocalIdentityCatalog } from "../../logic/identity/passportIdentityController";
+import type {
+  LocalIdentityCatalog,
+  PubkyPublicIdentity,
+} from "../../logic/identity/passportIdentityController";
 import {
   mockGoogleBackedIdentityFlow,
   mockPassportIdentityController,
@@ -44,7 +47,7 @@ vi.mock("../../logic/identity/passportIdentityController", () => ({
             }
             return Result.err({ code: "authorization_failed" as const });
           },
-          detachIdentity: async (publicIdentity) => {
+          detachIdentity: async (publicIdentity: PubkyPublicIdentity) => {
             const identities = FLOW.catalog.identities.filter((identity) => identity.id !== publicIdentity.publicKeyZ32);
             FLOW.catalog = { activeIdentityId: identities[0]?.id ?? null, identities };
             return Result.ok({ deletionStatus: "deleted" as const });

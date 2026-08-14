@@ -49,7 +49,11 @@ function DetachFromGoogleFlow({ controller, identity, onBack, onDone }: {
           <ConfirmGoogleDetachment
             canConfirm={operation.state.name === "ready" || operation.state.name === "operation-failed"}
             canRetryAuthorization={operation.state.name === "authorization-failed"}
-            error={operation.state.name === "authorization-failed" || operation.state.name === "operation-failed"}
+            error={operation.state.name === "authorization-failed"
+              ? "authorization_failed"
+              : operation.state.name === "operation-failed"
+                ? operation.state.error.code
+                : null}
             onCancel={() => dispatch({ type: "confirmation-closed" })}
             onConfirm={operation.detach}
             onRetryAuthorization={operation.retryAuthorization}

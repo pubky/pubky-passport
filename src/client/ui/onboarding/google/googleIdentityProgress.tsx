@@ -9,12 +9,14 @@ type StepState = "complete" | "active" | "pending";
 type SetupStep = { label: string; state: StepState };
 
 function GoogleIdentityProgress({ progress }: { progress: GoogleBackedIdentityProgress }) {
-  if (progress === "preparing_secure_identity" || progress === "checking_passport_file") {
+  if (progress === "checking_passport_file") {
     return <IdentityLookup />;
   }
 
   const steps = progressSteps(progress);
-  const restoring = progress === "restoring_identity" || progress === "activating_restored_identity";
+  const restoring = progress === "restoring_identity"
+    || progress === "repairing_restored_identity"
+    || progress === "activating_restored_identity";
 
   return (
     <PassportScreen>
@@ -52,7 +54,9 @@ function ProgressStep({ step }: { step: SetupStep }) {
 }
 
 function progressSteps(progress: GoogleBackedIdentityProgress): SetupStep[] {
-  if (progress === "restoring_identity" || progress === "activating_restored_identity") {
+  if (progress === "restoring_identity"
+    || progress === "repairing_restored_identity"
+    || progress === "activating_restored_identity") {
     return states(["Restoring your Pubky", "Activate identity"], progress === "restoring_identity" ? 0 : 1);
   }
 

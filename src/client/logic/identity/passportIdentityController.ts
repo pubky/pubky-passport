@@ -7,7 +7,6 @@ import { GoogleImplicitAuthorization } from "../google-authorization/googleImpli
 import { resolvePubkyHomeserver, type PubkyHomeserverResolutionResult } from "../pubky/pubkySdkAdapter";
 import {
   GoogleBackedIdentityFlow,
-  type GoogleIdentityFlow,
   type GoogleIdentityFlowState,
 } from "./google-backed/googleBackedIdentityFlow";
 import {
@@ -21,14 +20,14 @@ import type {
 import { LocalStorageIdentityRepository } from "./local/localStorageIdentityRepository";
 
 export type { LocalIdentityCatalog, LocalIdentityMetadata } from "./local/localStorageIdentityRepository";
-export type { GoogleAccountProfile } from "./google-backed/googleBackedIdentityCredentials";
+export type { GoogleAccountProfile } from "../google-authorization/googleImplicitAuthorization";
 export type { PubkyPublicIdentity } from "./pubkyPublicIdentity";
-export type { GoogleBackedIdentityProgress } from "./google-backed/establishGoogleBackedIdentity";
+export type { GoogleBackedIdentityProgress } from "./google-backed/googleBackedIdentityOperations";
 export type {
-  GoogleIdentityFlow,
   GoogleIdentityFlowError,
   GoogleIdentityFlowState,
 } from "./google-backed/googleBackedIdentityFlow";
+export { GoogleBackedIdentityFlow } from "./google-backed/googleBackedIdentityFlow";
 export type { PubkyHomeserverResolutionResult } from "../pubky/pubkySdkAdapter";
 export type { LocalIdentityBackupFile, LocalIdentityBackupResult } from "./local/createLocalIdentityBackup";
 export { MIN_BACKUP_PASSWORD_LENGTH } from "./local/createLocalIdentityBackup";
@@ -38,7 +37,7 @@ export { MIN_BACKUP_PASSWORD_LENGTH } from "./local/createLocalIdentityBackup";
  *
  * This controller owns the local identity repository and exposes user-facing use
  * cases by name. A Google setup or detachment screen starts its own
- * {@link GoogleIdentityFlow}; that flow owns Google credentials, progress,
+ * {@link GoogleBackedIdentityFlow}; that flow owns Google credentials, progress,
  * cancellation, and cleanup for the lifetime of that screen.
  */
 export class PassportIdentityController {
@@ -78,7 +77,7 @@ export class PassportIdentityController {
    * Removes one identity from this browser only.
    *
    * This does not delete Google Drive backups. Google detachment must use
-   * {@link GoogleIdentityFlow.detachIdentity} instead.
+   * {@link GoogleBackedIdentityFlow.detachIdentity} instead.
    */
   removeIdentity(identityId: string): LocalIdentityResult<void> {
     return this.repository.remove(identityId);
@@ -119,7 +118,7 @@ export class PassportIdentityController {
    */
   startGoogleIdentityFlow(
     onState: (state: GoogleIdentityFlowState) => void,
-  ): GoogleIdentityFlow {
+  ): GoogleBackedIdentityFlow {
     try {
       const flow = new GoogleBackedIdentityFlow(
         this.repository,

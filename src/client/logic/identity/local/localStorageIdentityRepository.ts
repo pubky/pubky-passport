@@ -3,7 +3,7 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import type { PubkyPublicIdentity } from "../pubkyPublicIdentity";
-import type { GoogleAccountProfile } from "../google-backed/googleBackedIdentityCredentials";
+import type { GoogleAccountProfile } from "../../google-authorization/googleImplicitAuthorization";
 import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "../../../../libs/encoding/base64Url";
 import { LOGGER } from "../../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";

@@ -2,23 +2,21 @@ import { Result } from "better-result";
 import { vi } from "vitest";
 
 import type {
-  GoogleIdentityFlow,
+  GoogleBackedIdentityFlow,
   PassportIdentityController,
 } from "../../src/client/logic/identity/passportIdentityController";
 
 export function mockGoogleBackedIdentityFlow(
-  overrides: Partial<GoogleIdentityFlow> = {},
-): GoogleIdentityFlow {
+  overrides: Partial<GoogleBackedIdentityFlow> = {},
+): GoogleBackedIdentityFlow {
   return {
-    retryAuthorization: overrides.retryAuthorization ?? vi.fn(),
+    start: overrides.start ?? vi.fn(),
     establishIdentity: overrides.establishIdentity
-      ?? vi.fn(async () => Result.err({ code: "authorization_failed" as const })),
-    resumeIncompleteIdentity: overrides.resumeIncompleteIdentity
       ?? vi.fn(async () => Result.err({ code: "authorization_failed" as const })),
     detachIdentity: overrides.detachIdentity
       ?? vi.fn(async () => Result.err({ code: "authorization_failed" as const })),
     dispose: overrides.dispose ?? vi.fn(),
-  };
+  } as unknown as GoogleBackedIdentityFlow;
 }
 
 export function mockPassportIdentityController(

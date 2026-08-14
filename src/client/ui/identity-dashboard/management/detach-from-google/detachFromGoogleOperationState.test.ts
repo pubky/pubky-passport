@@ -6,8 +6,10 @@ describe("detach from Google operation state", () => {
   it("distinguishes authorization and deletion failures", () => {
     expect(transitionDetachFromGoogleOperation({ name: "preparing" }, { type: "authorization-failed" }))
       .toEqual({ name: "authorization-failed" });
-    expect(transitionDetachFromGoogleOperation({ name: "deleting-backup" }, { type: "operation-failed" }))
-      .toEqual({ name: "operation-failed" });
+    expect(transitionDetachFromGoogleOperation(
+      { name: "deleting-backup" },
+      { type: "operation-failed", error: { code: "backup_deletion_failed" } },
+    )).toEqual({ name: "operation-failed", error: { code: "backup_deletion_failed" } });
   });
 
   it("does not let the controller authorization reset overwrite deletion progress", () => {

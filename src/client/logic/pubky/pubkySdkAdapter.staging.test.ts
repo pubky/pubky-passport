@@ -31,7 +31,7 @@ test("completes signup, discovery, signin, and both v0.10 authorization methods"
     }), "Passport could not sign up with the staging invitation");
     expect(signup.publicIdentity).toEqual(identity.publicIdentity);
 
-    expectOk(await passport.publishHomeserverIfStale({
+    expectOk(await passport.publishHomeserverForce({
       keyHandle: identity.keyHandle,
       homeserverPubky: invitation.homeserverPubky,
     }), "Passport could not publish homeserver discovery");
@@ -46,15 +46,6 @@ test("completes signup, discovery, signin, and both v0.10 authorization methods"
       "Passport could not sign in the restored identity",
     );
     expect(signin.publicIdentity).toEqual(identity.publicIdentity);
-    let restoredDiscovery = await passport.publishHomeserverIfStale({
-      keyHandle: identity.keyHandle,
-    });
-    if (Result.isError(restoredDiscovery)) {
-      restoredDiscovery = await passport.publishHomeserverIfStale({
-        keyHandle: identity.keyHandle,
-      });
-    }
-    expectOk(restoredDiscovery, "Passport could not confirm restored discovery");
 
     const cookieFlow = relyingParty.startCookieAuthFlow(
       CAPABILITIES,

@@ -4,7 +4,7 @@ import { Result } from "better-result";
 import { useCallback, useEffect, useReducer, useRef } from "react";
 
 import type {
-  GoogleIdentityFlow,
+  GoogleBackedIdentityFlow,
   PassportIdentityController,
   PubkyPublicIdentity,
 } from "../../../../logic/identity/passportIdentityController";
@@ -16,14 +16,14 @@ function useDetachFromGoogle(
   expectedGoogleAccountId: string,
 ) {
   const dispatching = useRef(false);
-  const flow = useRef<GoogleIdentityFlow | null>(null);
+  const flow = useRef<GoogleBackedIdentityFlow | null>(null);
   const [state, dispatch] = useReducer(transitionDetachFromGoogleOperation, { name: "preparing" });
 
   const detach = useCallback(() => {
     if ((state.name !== "ready" && state.name !== "operation-failed") || dispatching.current) return;
     const currentFlow = flow.current;
     if (!currentFlow) {
-      dispatch({ type: "operation-failed" });
+      dispatch({ type: "operation-failed", error: { code: "operation_failed" } });
       return;
     }
     dispatching.current = true;
@@ -33,17 +33,19 @@ function useDetachFromGoogle(
         if (flow.current !== currentFlow) return;
         if (Result.isError(completed)) {
           if (completed.error.code === "cancelled") return;
-          dispatch({
-            type: completed.error.code === "authorization_failed"
-              ? "authorization-failed"
-              : "operation-failed",
-          });
+          if (completed.error.code === "authorization_failed") {
+            dispatch({ type: "authorization-failed" });
+          } else {
+            dispatch({ type: "operation-failed", error: completed.error });
+          }
           return;
         }
         dispatch({ type: "operation-completed" });
       })
       .catch(() => {
-        if (flow.current === currentFlow) dispatch({ type: "operation-failed" });
+        if (flow.current === currentFlow) {
+          dispatch({ type: "operation-failed", error: { code: "operation_failed" } });
+        }
       })
       .finally(() => {
         if (flow.current === currentFlow) dispatching.current = false;
@@ -52,7 +54,7 @@ function useDetachFromGoogle(
 
   const retryAuthorization = useCallback(() => {
     dispatch({ type: "retry-requested" });
-    flow.current?.retryAuthorization();
+    flow.current?.start();
   }, []);
 
   useEffect(() => {

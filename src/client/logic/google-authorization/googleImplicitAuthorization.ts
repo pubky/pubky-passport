@@ -2,10 +2,6 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import type {
-  GoogleAccountProfile,
-  GoogleBackedIdentityCredentials,
-} from "../identity/google-backed/googleBackedIdentityCredentials";
 import { decodeBase64Url, encodeBase64Url } from "../../../libs/encoding/base64Url";
 import { readBoundedBytes, readBoundedText } from "../../../libs/http/boundedBody";
 import { LOGGER } from "../../../libs/logger/logger";
@@ -13,11 +9,32 @@ import {
   GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE,
 } from "../../../libs/authorization/earlyGoogleImplicitResponse";
 
-export type GoogleImplicitAuthorizationErrorCode =
+/** Safe Google account metadata retained with a browser-local Pubky identity. */
+export type GoogleAccountProfile = {
+  id: string;
+  email: string;
+  name: string;
+  pictureUrl: string | null;
+};
+
+/** Short-lived credentials produced by one complete Google authorization. */
+export type GoogleBackedIdentityCredentials = {
+  googleIdToken: string;
+  driveAccessToken: string;
+  googleAccount: GoogleAccountProfile;
+};
+
+type GoogleImplicitAuthorizationErrorCode =
   | "google_authorization_failed"
   | "google_authorization_popup_closed"
   | "google_authorization_popup_failed_to_open";
-export type GoogleImplicitAuthorizationResult<Success> = ResultType<Success, { code: GoogleImplicitAuthorizationErrorCode }>;
+export type GoogleImplicitAuthorizationError = {
+  code: GoogleImplicitAuthorizationErrorCode;
+};
+export type GoogleImplicitAuthorizationResult<Success> = ResultType<
+  Success,
+  GoogleImplicitAuthorizationError
+>;
 
 const GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_USER_INFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";

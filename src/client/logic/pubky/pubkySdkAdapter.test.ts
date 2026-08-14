@@ -139,7 +139,16 @@ describe("PubkySdkAdapter", () => {
       await expectError(pubky.getPublicIdentity(keyHandle), "key_unavailable");
       await expectError(pubky.exportSecretKey(keyHandle), "key_unavailable");
       await expectError(pubky.signup({ keyHandle, homeserverPubky: "not used" }), "key_unavailable");
-      await expectError(pubky.publishHomeserverIfStale({ keyHandle }), "key_unavailable");
+      await expectError(pubky.publishHomeserverForce({ keyHandle }), "key_unavailable");
+    } finally {
+      pubky.dispose();
+    }
+  });
+
+  it("rejects an invalid public identity before homeserver resolution", async () => {
+    const pubky = new PubkySdkAdapter();
+    try {
+      await expectError(pubky.resolveHomeserver("not-a-pubky"), "invalid_pubky");
     } finally {
       pubky.dispose();
     }
@@ -152,7 +161,7 @@ describe("PubkySdkAdapter", () => {
     try {
       const created = expectOk(await pubky.createIdentityKey());
       const signup = await pubky.signup({ keyHandle: created.keyHandle, homeserverPubky: "not a public key", signupCode: "sensitive-signup-code" });
-      const discovery = await pubky.publishHomeserverIfStale({ keyHandle: created.keyHandle, homeserverPubky: "not a public key" });
+      const discovery = await pubky.publishHomeserverForce({ keyHandle: created.keyHandle, homeserverPubky: "not a public key" });
 
       expectErrorResult(signup, "invalid_homeserver_pubky");
       expectErrorResult(discovery, "invalid_homeserver_pubky");
@@ -203,6 +212,84 @@ describe("PubkySdkAdapter", () => {
     } finally {
       homeserverPublicKey.free();
       homeserver.free();
+      pubky.dispose();
+    }
+  });
+
+  it.each([
+    [400, "signup_failed"],
+    [401, "signup_failed"],
+    [403, "signup_failed"],
+    [408, "signup_uncertain"],
+    [409, "account_exists"],
+    [422, "signup_failed"],
+    [425, "signup_uncertain"],
+    [429, "signup_uncertain"],
+    [500, "signup_uncertain"],
+    [503, "signup_uncertain"],
+  ] as const)("maps signup status %s to %s", async (statusCode, expectedCode) => {
+    vi.spyOn(Signer.prototype, "signup").mockRejectedValue(Object.assign(
+      new Error("sensitive signup failure"),
+      { name: "RequestError", data: { statusCode } },
+    ));
+    const pubky = new PubkySdkAdapter();
+    const homeserver = Keypair.random();
+    const homeserverPublicKey = homeserver.publicKey;
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      await expectError(pubky.signup({
+        keyHandle: created.keyHandle,
+        homeserverPubky: homeserverPublicKey.z32(),
+        signupCode: "sensitive-signup-code",
+      }), expectedCode);
+    } finally {
+      homeserverPublicKey.free();
+      homeserver.free();
+      pubky.dispose();
+    }
+  });
+
+  it.each([
+    ["InvalidInput", "signup_failed"],
+    ["ClientStateError", "signup_failed"],
+    ["PkarrError", "signup_uncertain"],
+  ] as const)("maps signup SDK error %s to %s", async (name, expectedCode) => {
+    vi.spyOn(Signer.prototype, "signup").mockRejectedValue(Object.assign(
+      new Error("sensitive signup failure"),
+      { name },
+    ));
+    const pubky = new PubkySdkAdapter();
+    const homeserver = Keypair.random();
+    const homeserverPublicKey = homeserver.publicKey;
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      await expectError(pubky.signup({
+        keyHandle: created.keyHandle,
+        homeserverPubky: homeserverPublicKey.z32(),
+        signupCode: "sensitive-signup-code",
+      }), expectedCode);
+    } finally {
+      homeserverPublicKey.free();
+      homeserver.free();
+      pubky.dispose();
+    }
+  });
+
+  it("does not treat an unscoped SDK 404 as proof that the account is missing", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    vi.spyOn(Signer.prototype, "signinBlocking").mockRejectedValue(Object.assign(
+      new Error("sensitive homeserver response"),
+      { name: "RequestError", data: { statusCode: 404 } },
+    ));
+    const pubky = new PubkySdkAdapter();
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      await expectError(pubky.signin(created.keyHandle), "signin_failed");
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive homeserver response");
+    } finally {
       pubky.dispose();
     }
   });

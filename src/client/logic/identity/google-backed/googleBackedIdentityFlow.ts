@@ -4,20 +4,18 @@ import { Result, type Result as ResultType } from "better-result";
 
 import type { PubkyPublicIdentity } from "../pubkyPublicIdentity";
 import { LOGGER } from "../../../../libs/logger/logger";
-import { GoogleImplicitAuthorization } from "../../google-authorization/googleImplicitAuthorization";
+import {
+  GoogleImplicitAuthorization,
+  type GoogleAccountProfile,
+  type GoogleBackedIdentityCredentials,
+  type GoogleImplicitAuthorizationError,
+} from "../../google-authorization/googleImplicitAuthorization";
 import type { LocalStorageIdentityRepository } from "../local/localStorageIdentityRepository";
-import { GoogleBackedIdentityOperations } from "./googleBackedIdentityOperations";
-import type {
-  GoogleBackedIdentity,
-  GoogleBackedIdentityError,
-  GoogleBackedIdentityProgress,
-  ReportGoogleBackedIdentityProgress,
-} from "./establishGoogleBackedIdentity";
-import type {
-  GoogleAccountProfile,
-  GoogleBackedIdentityCredentials,
-} from "./googleBackedIdentityCredentials";
-import type { ResumeIncompleteGoogleBackedIdentityError } from "./resumeIncompleteGoogleBackedIdentity";
+import {
+  GoogleBackedIdentityOperations,
+  type GoogleBackedIdentityOperationError,
+  type GoogleBackedIdentityProgress,
+} from "./googleBackedIdentityOperations";
 
 /** Safe progress emitted while Passport creates or restores a Google-backed identity. */
 export type GoogleIdentityFlowState =
@@ -42,22 +40,15 @@ export type EstablishedGoogleIdentity =
   };
 
 /** Safe errors that a Google identity screen may render. */
-export type GoogleIdentityFlowError = {
-  code:
+type GoogleIdentityFlowFailureCode =
   | "authorization_failed"
   | "cancelled"
-  | "signin_failed"
-  | "signup_failed"
-  | "discovery_failed"
-  | "local_save_failed"
-  | "homeserver_unavailable"
-  | "network_failed"
   | "operation_failed";
-  incompleteIdentity?: {
-    googleAccount: GoogleAccountProfile;
-    publicIdentity: PubkyPublicIdentity;
-  };
-};
+
+export type GoogleIdentityFlowError =
+  | GoogleBackedIdentityOperationError
+  | GoogleImplicitAuthorizationError
+  | { code: GoogleIdentityFlowFailureCode };
 
 /** Result of creating or restoring a Google-backed Pubky identity. */
 export type EstablishGoogleIdentityResult = ResultType<
@@ -72,41 +63,6 @@ export type DetachGoogleIdentityResult = ResultType<
 >;
 
 /**
- * Screen-scoped entry points for Google-backed identity work.
- *
- * The flow keeps Google credentials private. Call {@link dispose} when the owning
- * screen unmounts; an operation already past authorization may finish its secure
- * work, but it returns `cancelled` instead of delivering a stale completion.
- */
-export interface GoogleIdentityFlow {
-  /** Retries preparation after Google authorization could not start. */
-  retryAuthorization(): void;
-
-  /** Restores an existing Google-backed identity or creates a missing one. */
-  establishIdentity(): Promise<EstablishGoogleIdentityResult>;
-
-  /** Restores a preserved key and retries its interrupted homeserver setup. */
-  resumeIncompleteIdentity(
-    publicIdentity: PubkyPublicIdentity,
-    expectedGoogleAccountId: string,
-  ): Promise<EstablishGoogleIdentityResult>;
-
-  /** Deletes verified Google backups before removing the local identity. */
-  detachIdentity(
-    publicIdentity: PubkyPublicIdentity,
-    expectedGoogleAccountId: string,
-  ): Promise<DetachGoogleIdentityResult>;
-
-  /** Stops authorization, suppresses UI state, and releases owned resources. */
-  dispose(): void;
-}
-
-type AuthorizedGoogleAccount = {
-  credentials: GoogleBackedIdentityCredentials;
-  generation: number;
-};
-
-/**
  * Owns one screen's Google authorization and identity operation lifecycle.
  *
  * Each public operation first obtains fresh short-lived Google credentials. The
@@ -115,12 +71,11 @@ type AuthorizedGoogleAccount = {
  * a time. Calling {@link dispose} cancels authorization and suppresses later UI
  * updates while allowing already-started cleanup to finish safely.
  */
-export class GoogleBackedIdentityFlow implements GoogleIdentityFlow {
+export class GoogleBackedIdentityFlow {
   private operations: GoogleBackedIdentityOperations | undefined;
-  private authorizationGeneration = 0;
   private operationPending = false;
+  private googleAccountId: string | undefined;
   private disposed = false;
-  private operationsDisposed = false;
 
   constructor(
     private repository: LocalStorageIdentityRepository,
@@ -130,15 +85,30 @@ export class GoogleBackedIdentityFlow implements GoogleIdentityFlow {
     private onState: (state: GoogleIdentityFlowState) => void,
   ) { }
 
-  /** Prepares Google authorization and reports whether the flow is ready. */
+  /** Prepares or retries Google authorization and reports whether the flow is ready. */
   start(): void {
-    this.prepareAuthorization();
-  }
-
-  /** Retries preparation after Google authorization was unavailable. */
-  retryAuthorization(): void {
     if (this.disposed || this.operationPending) return;
-    this.prepareAuthorization();
+
+    try {
+      this.googleAuthorization.dispose();
+    } catch {
+      LOGGER.warn("identity.google.cleanup.failed", {
+        operation: "authorization_dispose",
+      });
+    }
+
+    void this.googleAuthorization.prepare()
+      .then((prepared) => {
+        if (this.disposed) return;
+        this.setFlowState(Result.isError(prepared)
+          ? { status: "authorization-failed" }
+          : { status: "ready" });
+      })
+      .catch(() => {
+        if (!this.disposed) {
+          this.setFlowState({ status: "authorization-failed" });
+        }
+      });
   }
 
   /** Obtains Google access, then restores or creates and activates an identity. */
@@ -147,52 +117,48 @@ export class GoogleBackedIdentityFlow implements GoogleIdentityFlow {
     if (Result.isError(authorized)) return Result.err(authorized.error);
 
     try {
-      const established = await this.establishAuthorizedIdentity(authorized.value);
-      return this.isCurrent(authorized.value.generation)
-        ? established
-        : cancelled();
+      const progress = this.createProgressReporter();
+      const established = await this.getOperations().establishIdentity(
+        authorized.value,
+        progress.report,
+      ).finally(() => {
+        progress.stop();
+      });
+
+      if (Result.isError(established)) {
+        LOGGER.warn("identity.google.action.failed", {
+          operation: "establish",
+          code: established.error.code,
+        });
+        if (this.disposed) return failure("cancelled");
+        return failure(established.error);
+      }
+
+      if (this.disposed) return failure("cancelled");
+      const googleAccount = authorized.value.googleAccount;
+      switch (established.value.establishmentMode) {
+        case "created":
+          return Result.ok({
+            establishmentMode: "created",
+            googleAccount,
+            publicIdentity: established.value.publicIdentity,
+            visibleRecoveryCopyStatus: established.value.visibleRecoveryCopyStatus,
+          });
+        case "restored":
+          return Result.ok({
+            establishmentMode: "restored",
+            googleAccount,
+            publicIdentity: established.value.publicIdentity,
+          });
+      }
     } catch {
       LOGGER.warn("identity.google.action.failed", {
         operation: "establish",
         code: "unexpected_failure",
       });
-      return this.isCurrent(authorized.value.generation)
-        ? operationFailure()
-        : cancelled();
+      return failure(this.disposed ? "cancelled" : "operation_failed");
     } finally {
-      this.finishOperation(authorized.value.generation);
-    }
-  }
-
-  /**
-   * Restores a preserved Drive key and retries signup with a fresh invitation from
-   * the same freshly authorized Google account.
-   */
-  async resumeIncompleteIdentity(
-    publicIdentity: PubkyPublicIdentity,
-    expectedGoogleAccountId: string,
-  ): Promise<EstablishGoogleIdentityResult> {
-    const authorized = await this.requestGoogleCredentials(expectedGoogleAccountId);
-    if (Result.isError(authorized)) return Result.err(authorized.error);
-
-    try {
-      const established = await this.resumeAuthorizedIdentity(
-        authorized.value,
-        publicIdentity,
-      );
-      return this.isCurrent(authorized.value.generation)
-        ? established
-        : cancelled();
-    } catch {
-      LOGGER.warn("identity.google.action.failed", {
-        operation: "resume_incomplete",
-        code: "unexpected_failure",
-      });
-      return this.isCurrent(authorized.value.generation)
-        ? operationFailure()
-        : cancelled();
-    } finally {
-      this.finishOperation(authorized.value.generation);
+      this.finishOperation();
     }
   }
 
@@ -208,27 +174,22 @@ export class GoogleBackedIdentityFlow implements GoogleIdentityFlow {
     if (Result.isError(authorized)) return Result.err(authorized.error);
 
     try {
-      this.emit({ status: "detaching" });
+      this.setFlowState({ status: "detaching" });
       const detached = await this.getOperations().detachIdentity(
-        authorized.value.credentials,
+        authorized.value,
         publicIdentity,
         expectedGoogleAccountId,
       );
-      return this.isCurrent(authorized.value.generation)
-        ? Result.isError(detached)
-          ? operationFailure()
-          : Result.ok(detached.value)
-        : cancelled();
+      if (this.disposed) return failure("cancelled");
+      return detached;
     } catch {
       LOGGER.warn("identity.google.action.failed", {
         operation: "detach",
         code: "unexpected_failure",
       });
-      return this.isCurrent(authorized.value.generation)
-        ? operationFailure()
-        : cancelled();
+      return failure(this.disposed ? "cancelled" : "operation_failed");
     } finally {
-      this.finishOperation(authorized.value.generation);
+      this.finishOperation();
     }
   }
 
@@ -236,7 +197,7 @@ export class GoogleBackedIdentityFlow implements GoogleIdentityFlow {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    this.authorizationGeneration += 1;
+    this.googleAccountId = undefined;
     try {
       this.googleAuthorization.dispose();
     } catch {
@@ -244,108 +205,56 @@ export class GoogleBackedIdentityFlow implements GoogleIdentityFlow {
         operation: "authorization_dispose",
       });
     } finally {
+      this.operations?.abortRequests();
       if (!this.operationPending) this.disposeOperationsOnce();
     }
   }
 
-  private prepareAuthorization(): void {
-    try {
-      this.googleAuthorization.dispose();
-    } catch {
-      LOGGER.warn("identity.google.cleanup.failed", {
-        operation: "authorization_dispose",
-      });
-    }
-
-    const generation = ++this.authorizationGeneration;
-    void this.googleAuthorization.prepare()
-      .then((prepared) => {
-        if (!this.isCurrent(generation)) return;
-        this.emit(Result.isError(prepared)
-          ? { status: "authorization-failed" }
-          : { status: "ready" });
-      })
-      .catch(() => {
-        if (this.isCurrent(generation)) {
-          this.emit({ status: "authorization-failed" });
-        }
-      });
-  }
-
   private async requestGoogleCredentials(
     expectedGoogleAccountId?: string,
-  ): Promise<ResultType<AuthorizedGoogleAccount, GoogleIdentityFlowError>> {
-    if (this.disposed) return cancelled();
-    if (this.operationPending) return operationFailure();
+  ): Promise<ResultType<GoogleBackedIdentityCredentials, GoogleIdentityFlowError>> {
+    if (this.disposed) return failure("cancelled");
+    if (this.operationPending) return failure("operation_failed");
 
-    const generation = this.authorizationGeneration;
     this.operationPending = true;
-    this.emit({ status: "requesting-authorization" });
+    this.setFlowState({ status: "requesting-authorization" });
 
     try {
-      const credentials = await this.googleAuthorization.request(expectedGoogleAccountId);
-      if (!this.isCurrent(generation)) {
+      const accountId = expectedGoogleAccountId ?? this.googleAccountId;
+      const credentials = await this.googleAuthorization.request(accountId);
+      if (this.disposed) {
         this.operationPending = false;
-        if (this.disposed) this.disposeOperationsOnce();
-        return cancelled();
+        this.disposeOperationsOnce();
+        return failure("cancelled");
       }
-      if (Result.isError(credentials)
-        || (expectedGoogleAccountId !== undefined
-          && credentials.value.googleAccount.id !== expectedGoogleAccountId)) {
+      if (Result.isError(credentials)) {
         this.operationPending = false;
-        this.emit({ status: "authorization-failed" });
-        return authorizationFailure();
+        this.setFlowState({ status: "authorization-failed" });
+        return Result.err(credentials.error);
       }
-      return Result.ok({ credentials: credentials.value, generation });
+      if (accountId !== undefined && credentials.value.googleAccount.id !== accountId) {
+        this.operationPending = false;
+        this.setFlowState({ status: "authorization-failed" });
+        return failure("authorization_failed");
+      }
+      this.googleAccountId ??= credentials.value.googleAccount.id;
+      return Result.ok(credentials.value);
     } catch {
       this.operationPending = false;
-      this.emit({ status: "authorization-failed" });
-      return authorizationFailure();
+      this.setFlowState({ status: "authorization-failed" });
+      return failure("authorization_failed");
     }
   }
 
-  private async establishAuthorizedIdentity(
-    authorized: AuthorizedGoogleAccount,
-  ): Promise<EstablishGoogleIdentityResult> {
-    const progress = this.progressReporter(authorized.generation);
-    const established = await this.getOperations().establishIdentity(
-      authorized.credentials,
-      progress.report,
-    ).finally(() => {
-      progress.stop();
-    });
-    return Result.isError(established)
-      ? establishmentFailure(established.error, authorized.credentials.googleAccount)
-      : mapEstablishedIdentity(established.value, authorized.credentials.googleAccount);
-  }
-
-  private async resumeAuthorizedIdentity(
-    authorized: AuthorizedGoogleAccount,
-    publicIdentity: PubkyPublicIdentity,
-  ): Promise<EstablishGoogleIdentityResult> {
-    const progress = this.progressReporter(authorized.generation);
-    const established = await this.getOperations().resumeIncompleteIdentity(
-      authorized.credentials,
-      publicIdentity,
-      progress.report,
-    ).finally(() => {
-      progress.stop();
-    });
-    if (Result.isError(established)) {
-      return establishmentFailure(established.error, authorized.credentials.googleAccount);
-    }
-    return mapEstablishedIdentity(established.value, authorized.credentials.googleAccount);
-  }
-
-  private progressReporter(generation: number): {
-    report: ReportGoogleBackedIdentityProgress;
+  private createProgressReporter(): {
+    report: (progress: GoogleBackedIdentityProgress) => void;
     stop: () => void;
   } {
     let active = true;
     return {
       report: (progress) => {
-        if (active && this.isCurrent(generation)) {
-          this.emit({ status: "establishing", progress });
+        if (active && !this.disposed) {
+          this.setFlowState({ status: "establishing", progress });
         }
       },
       stop: () => {
@@ -354,27 +263,27 @@ export class GoogleBackedIdentityFlow implements GoogleIdentityFlow {
     };
   }
 
-  private finishOperation(generation: number): void {
+  private finishOperation(): void {
     this.operationPending = false;
-    if (this.isCurrent(generation)) this.emit({ status: "ready" });
+    if (!this.disposed) this.setFlowState({ status: "ready" });
     if (this.disposed) this.disposeOperationsOnce();
   }
 
   private getOperations(): GoogleBackedIdentityOperations {
-    this.operations ??= new GoogleBackedIdentityOperations({
-      repository: this.repository,
-      homegateBaseUrl: this.homegateBaseUrl,
-      passportOrigin: this.passportOrigin,
-    });
+    this.operations ??= new GoogleBackedIdentityOperations(
+      this.repository,
+      this.homegateBaseUrl,
+      this.passportOrigin,
+    );
     return this.operations;
   }
 
   private disposeOperationsOnce(): void {
-    if (this.operationsDisposed) return;
-    this.operationsDisposed = true;
+    const operations = this.operations;
+    if (!operations) return;
+    this.operations = undefined;
     try {
-      this.operations?.dispose();
-      this.operations = undefined;
+      operations.dispose();
     } catch {
       LOGGER.warn("identity.google.cleanup.failed", {
         operation: "pubky_dispose",
@@ -382,11 +291,7 @@ export class GoogleBackedIdentityFlow implements GoogleIdentityFlow {
     }
   }
 
-  private isCurrent(generation: number): boolean {
-    return !this.disposed && generation === this.authorizationGeneration;
-  }
-
-  private emit(state: GoogleIdentityFlowState): void {
+  private setFlowState(state: GoogleIdentityFlowState): void {
     if (this.disposed) return;
     try {
       this.onState(state);
@@ -396,65 +301,8 @@ export class GoogleBackedIdentityFlow implements GoogleIdentityFlow {
   }
 }
 
-function authorizationFailure<Success>(): ResultType<Success, GoogleIdentityFlowError> {
-  return Result.err({ code: "authorization_failed" });
-}
-
-function cancelled<Success>(): ResultType<Success, GoogleIdentityFlowError> {
-  return Result.err({ code: "cancelled" });
-}
-
-function operationFailure<Success>(): ResultType<Success, GoogleIdentityFlowError> {
-  return Result.err({ code: "operation_failed" });
-}
-
-function establishmentFailure(
-  error: GoogleBackedIdentityError | ResumeIncompleteGoogleBackedIdentityError,
-  googleAccount: GoogleAccountProfile,
-): EstablishGoogleIdentityResult {
-  return Result.err({
-    code: establishmentFailureCode(error),
-    ...(error.preservedPassportFileIdentity
-      ? {
-        incompleteIdentity: {
-          googleAccount,
-          publicIdentity: error.preservedPassportFileIdentity,
-        },
-      }
-      : {}),
-  });
-}
-
-function mapEstablishedIdentity(
-  established: GoogleBackedIdentity,
-  googleAccount: GoogleAccountProfile,
-): EstablishGoogleIdentityResult {
-  return established.establishmentMode === "created"
-    ? Result.ok({
-      establishmentMode: "created",
-      googleAccount,
-      publicIdentity: established.publicIdentity,
-      visibleRecoveryCopyStatus: established.visibleRecoveryCopyStatus,
-    })
-    : Result.ok({
-      establishmentMode: "restored",
-      googleAccount,
-      publicIdentity: established.publicIdentity,
-    });
-}
-
-function establishmentFailureCode(
-  error: GoogleBackedIdentityError | ResumeIncompleteGoogleBackedIdentityError,
-): Exclude<GoogleIdentityFlowError["code"], "authorization_failed" | "cancelled"> {
-  if (error.code === "homeserver_signup_invitation_failed") {
-    return error.cause === "homeserver_unavailable" || error.cause === "network_failed"
-      ? error.cause
-      : "operation_failed";
-  }
-  return error.code === "signin_failed"
-    || error.code === "signup_failed"
-    || error.code === "discovery_failed"
-    || error.code === "local_save_failed"
-    ? error.code
-    : "operation_failed";
+function failure<Success = never>(
+  error: GoogleIdentityFlowFailureCode | GoogleIdentityFlowError,
+): ResultType<Success, GoogleIdentityFlowError> {
+  return Result.err(typeof error === "string" ? { code: error } : error);
 }

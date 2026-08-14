@@ -83,16 +83,16 @@ describe("Pubky identity test doubles", () => {
     const key = expectOk(await discovery.createIdentityKey());
 
     await expectOk(
-      discovery.publishHomeserverIfStale({
+      discovery.publishHomeserverForce({
         keyHandle: key.keyHandle,
         homeserverPubky: "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo",
       }),
     );
-    expect(discovery.discoveryCalls).toEqual([{ hasHomeserverPubky: true }]);
+    expect(discovery.forceDiscoveryCalls).toEqual([{ hasHomeserverPubky: true }]);
 
     discovery.discoveryFailure = "publish_failed";
 
-    await expectDiscoveryError(discovery.publishHomeserverIfStale({ keyHandle: key.keyHandle }), "publish_failed");
+    await expectDiscoveryError(discovery.publishHomeserverForce({ keyHandle: key.keyHandle }), "publish_failed");
   });
 
   it("simulates auth approval without recording raw pubkyauth URLs", async () => {

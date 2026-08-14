@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type {
-  GoogleIdentityFlow,
+  GoogleBackedIdentityFlow,
   GoogleIdentityFlowState,
 } from "../../logic/identity/passportIdentityController";
 import {
@@ -65,6 +65,10 @@ describe("SignInFlow", () => {
     expect(await screen.findByText("Restoring your Pubky")).toBeInTheDocument();
     expect(screen.getByText("Restoring your Pubky").closest("li")).toHaveAttribute("data-state", "active");
     expect(screen.getByText("Activate identity").closest("li")).toHaveAttribute("data-state", "pending");
+
+    act(() => emitState?.({ status: "establishing", progress: "repairing_restored_identity" }));
+    expect(await screen.findByRole("heading", { name: "Restoring your pubky." })).toBeInTheDocument();
+    expect(screen.getByText("Activate identity").closest("li")).toHaveAttribute("data-state", "active");
   });
 
   it("does not claim setup or restore before checking Google Drive", async () => {
@@ -143,7 +147,7 @@ describe("SignInFlow", () => {
   it("does not deliver completion after the flow unmounts", async () => {
     let finishEstablishment!: () => void;
     const googleAccount = { id: "google-1", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: null };
-    const establishIdentity = vi.fn(() => new Promise<Awaited<ReturnType<GoogleIdentityFlow["establishIdentity"]>>>((resolve) => {
+    const establishIdentity = vi.fn(() => new Promise<Awaited<ReturnType<GoogleBackedIdentityFlow["establishIdentity"]>>>((resolve) => {
       finishEstablishment = () => resolve(Result.ok({
         establishmentMode: "restored" as const,
         googleAccount,
@@ -167,21 +171,15 @@ describe("SignInFlow", () => {
     expect(onEstablished).not.toHaveBeenCalled();
   });
 
-  it("shows the real setup error and resumes an incomplete identity", async () => {
-    const googleAccount = { id: "google-1", email: "user@gmail.com", name: "User", pictureUrl: null };
-    const publicIdentity = { publicKeyZ32: "key", publicKeyDisplay: "pubkykey" };
+  it("shows the setup error and retries automatic reconciliation", async () => {
     const continueAction = vi.fn()
-      .mockResolvedValueOnce(Result.err({
-        code: "signin_failed" as const,
-        incompleteIdentity: { googleAccount, publicIdentity },
-      }))
+      .mockResolvedValueOnce(Result.err({ code: "signin_failed" as const }))
       .mockResolvedValueOnce(Result.err({ code: "operation_failed" as const }));
     const controller = mockPassportIdentityController({
       startGoogleIdentityFlow: vi.fn((onState) => {
         onState({ status: "ready" });
         return mockGoogleBackedIdentityFlow({
           establishIdentity: continueAction,
-          resumeIncompleteIdentity: continueAction,
         });
       }),
     });
@@ -191,8 +189,30 @@ describe("SignInFlow", () => {
 
     expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
     expect(screen.getByText("signin_failed")).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole("button", { name: "Resume setup with this Pubky" }));
+    expect(screen.queryByRole("button", { name: "Resume setup with this Pubky" })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
 
-    expect(continueAction).toHaveBeenNthCalledWith(2, publicIdentity, googleAccount.id);
+    expect(continueAction).toHaveBeenNthCalledWith(2);
+  });
+
+  it("shows the specific safe operation error and cause", async () => {
+    const controller = mockPassportIdentityController({
+      startGoogleIdentityFlow: vi.fn((onState) => {
+        onState({ status: "ready" });
+        return mockGoogleBackedIdentityFlow({
+          establishIdentity: vi.fn(async () => Result.err({
+            code: "homeserver_signup_invitation_failed" as const,
+            cause: "weekly_limit_exceeded" as const,
+          })),
+        });
+      }),
+    });
+    render(<SignInFlow controller={controller} onComplete={vi.fn()} />);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
+
+    expect(await screen.findByText("Passport could not obtain a homeserver signup invitation.")).toBeInTheDocument();
+    expect(screen.getByText("homeserver_signup_invitation_failed")).toBeInTheDocument();
+    expect(screen.getByText("weekly_limit_exceeded")).toBeInTheDocument();
   });
 });

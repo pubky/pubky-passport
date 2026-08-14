@@ -32,7 +32,7 @@ export class RecordingPubkySdkAdapter extends PubkySdkAdapter {
   disposedKeys: PubkyIdentityKeyHandle[] = [];
   signupCalls: Array<{ homeserverPubky: string; hasSignupCode: boolean }> = [];
   signinCalls = 0;
-  discoveryCalls: Array<{ hasHomeserverPubky: boolean }> = [];
+  forceDiscoveryCalls: Array<{ hasHomeserverPubky: boolean }> = [];
   approvalCalls: Array<{ scheme?: string; queryKeys: string[] }> = [];
 
   createFailure?: PubkyIdentityKeysErrorCode;
@@ -58,7 +58,7 @@ export class RecordingPubkySdkAdapter extends PubkySdkAdapter {
     format: PUBKY_SECRET_KEY_FORMAT,
   };
 
-  readonly #identities = new Map<PubkyIdentityKeyHandle, PubkyPublicIdentity>();
+  private readonly identities = new Map<PubkyIdentityKeyHandle, PubkyPublicIdentity>();
 
   override async createIdentityKey(): Promise<PubkyIdentityKeysResult<PubkyIdentityKey>> {
     this.createCalls += 1;
@@ -79,21 +79,21 @@ export class RecordingPubkySdkAdapter extends PubkySdkAdapter {
   override async exportSecretKey(keyHandle: PubkyIdentityKeyHandle): Promise<PubkyIdentityKeysResult<PubkySecretKeyMaterial>> {
     this.exportCalls += 1;
     if (this.exportFailure) return keyFailure(this.exportFailure);
-    if (!this.#identities.has(keyHandle)) return keyFailure("key_unavailable");
+    if (!this.identities.has(keyHandle)) return keyFailure("key_unavailable");
     return Result.ok({ bytes: new Uint8Array(this.secretKey.bytes), format: this.secretKey.format });
   }
 
   override async getPublicIdentity(keyHandle: PubkyIdentityKeyHandle): Promise<PubkyIdentityKeysResult<PubkyPublicIdentity>> {
     this.publicIdentityCalls += 1;
     if (this.publicIdentityFailure) return keyFailure(this.publicIdentityFailure);
-    const identity = this.#identities.get(keyHandle);
+    const identity = this.identities.get(keyHandle);
     return identity ? Result.ok(identity) : keyFailure("key_unavailable");
   }
 
   override disposeIdentityKey(keyHandle: PubkyIdentityKeyHandle): void {
     if (this.throwOnDisposeIdentity) throw new Error("cleanup failed");
     this.disposedKeys.push(keyHandle);
-    this.#identities.delete(keyHandle);
+    this.identities.delete(keyHandle);
     super.disposeIdentityKey(keyHandle);
   }
 
@@ -113,9 +113,9 @@ export class RecordingPubkySdkAdapter extends PubkySdkAdapter {
     return this.signinFailure ? sessionFailure(this.signinFailure) : Result.ok(this.session);
   }
 
-  override async publishHomeserverIfStale(input: PubkyDiscoveryInput): Promise<PubkyDiscoveryResult> {
+  override async publishHomeserverForce(input: PubkyDiscoveryInput): Promise<PubkyDiscoveryResult> {
     if (this.throwOnDiscovery) throw new Error("discovery threw");
-    this.discoveryCalls.push({ hasHomeserverPubky: Boolean(input.homeserverPubky) });
+    this.forceDiscoveryCalls.push({ hasHomeserverPubky: Boolean(input.homeserverPubky) });
     return this.discoveryFailure ? Result.err({ code: this.discoveryFailure }) : Result.ok();
   }
 
@@ -139,7 +139,7 @@ export class RecordingPubkySdkAdapter extends PubkySdkAdapter {
   private async createRecordedKey(): Promise<PubkyIdentityKeysResult<PubkyIdentityKey>> {
     const created = await super.createIdentityKey();
     if (Result.isError(created)) return created;
-    this.#identities.set(created.value.keyHandle, this.nextPublicIdentity);
+    this.identities.set(created.value.keyHandle, this.nextPublicIdentity);
     return Result.ok({ keyHandle: created.value.keyHandle, publicIdentity: this.nextPublicIdentity });
   }
 }

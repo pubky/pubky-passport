@@ -330,7 +330,7 @@ sequenceDiagram
     OAuth-->>Authorization: redirect to Passport callback with fragment
     Note over Authorization: Parser-time bootstrap scrubs fragment<br/>validate state, nonce, scope, and UserInfo sub
     Authorization-->>GoogleFlow: GoogleBackedIdentityCredentials
-    GoogleFlow->>Operations: restoreOrCreateGoogleBackedIdentity<br/>(GoogleBackedIdentityCredentials)
+    GoogleFlow->>Operations: establishIdentity(GoogleBackedIdentityCredentials)
 ```
 
 
@@ -347,8 +347,6 @@ sequenceDiagram
     end
     box rgba(0, 158, 115, 0.18) src/client/browser/identity/google-backed
         participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
-        participant Restore as restoreGoogleBackedIdentity.ts<br/>RestoreGoogleBackedIdentity
-        participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
     end
     box rgba(0, 158, 115, 0.18) src/client/browser/wrapping-key
         participant Wrapping as wrappingKeyApiClient.ts<br/>WrappingKeyApiClient
@@ -367,7 +365,7 @@ sequenceDiagram
         participant Drive as Google Drive API v3<br/>appDataFolder + My Drive
     end
 
-    GoogleFlow->>Operations: restoreOrCreateGoogleBackedIdentity<br/>(GoogleBackedIdentityCredentials)
+    GoogleFlow->>Operations: establishIdentity(GoogleBackedIdentityCredentials)
     Operations->>Wrapping: requestGoogleWrappingKey(ID token)
     Wrapping->>API: POST { googleIdToken }
     API-->>Wrapping: wrapping-key result
@@ -388,12 +386,12 @@ sequenceDiagram
         end
         DriveStore-->>Operations: found, missing, or safe error
         alt Found
-            Operations->>Restore: execute(envelope, wrapping key)
+            Operations->>Operations: restoreIdentity(envelope, wrapping key)
         else Missing
             Operations->>Invite: requestGoogleHomeserverSignupInvitation(ID token)
             Invite-->>Operations: validated invitation or safe failure
             opt Invitation returned
-                Operations->>Creator: execute(invitation, focused app-data create, focused visible-copy write, wrapping key)
+                Operations->>Operations: createIdentity(invitation, wrapping key)
             end
         else Storage error
             Operations-->>GoogleFlow: safe failure
@@ -409,12 +407,9 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Existing identity restore call flow
-    accDescr: Browser crypto decrypts the Passport file envelope, PubkySdkAdapter signs in with the restored key, and only a matching activated Pubky identity is saved locally; failures stop before later stages and cleanup runs after decryption succeeds.
+    accDescr: GoogleBackedIdentityOperations decrypts the Passport file, uses DHT resolution and blocking sign-in as the returning-user fast path, and automatically reconciles missing discovery or an authoritative missing homeserver account.
     box rgba(0, 158, 115, 0.18) src/client/browser/identity/google-backed
-        participant Restore as restoreGoogleBackedIdentity.ts<br/>RestoreGoogleBackedIdentity
-    end
-    box rgba(0, 158, 115, 0.18) src/client/browser/identity/local
-        participant Local as saveLocalIdentity.ts<br/>SaveLocalIdentity
+        participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
     box rgba(0, 158, 115, 0.18) src/client/browser/passport-file
         participant Crypto as passportFileWebCrypto.ts<br/>PassportFileWebCrypto
@@ -429,47 +424,43 @@ sequenceDiagram
         participant SDK as @synonymdev/pubky@0.10.0<br/>Keypair / Signer
     end
 
-    Restore->>Crypto: decryptSecretKeyBytes(envelope, wrapping key, origin)
-    Crypto-->>Restore: 32-byte Pubky secret or decrypt error
+    Operations->>Crypto: decryptSecretKeyBytes(envelope, wrapping key, origin)
+    Crypto-->>Operations: 32-byte Pubky secret or decrypt error
     alt Decrypt error
-        Restore-->>Restore: decrypt_failed
+        Operations-->>Operations: decrypt_failed
     else Decrypted secret
-        Restore->>Pubky: restoreIdentityKey(secret)
+        Operations->>Pubky: restoreIdentityKey(secret)
         Pubky->>SDK: Keypair.fromSecret(secret)
         SDK-->>Pubky: concrete Keypair or failure
-        Pubky-->>Restore: opaque handle + public identity, or restore error
+        Pubky-->>Operations: opaque handle + public identity, or restore error
         alt Restore error
-            Restore-->>Restore: restore_failed
+            Operations-->>Operations: restore_failed
         else Restored identity
-            Restore->>Pubky: signin(handle)
-            Pubky->>SDK: signer.signin("passport.pubky.app")
-            SDK-->>Pubky: grant Session or failure
-            Pubky-->>Restore: session public identity or signin error
-            alt Sign-in error
-                Restore-->>Restore: signin_failed
-            else Session identity mismatch
-                Restore-->>Restore: identity_mismatch
-            else Matching session identity
-                Pubky->>SDK: session.signout() to revoke the verification grant
-                Restore->>Pubky: publishHomeserverIfStale(), retry once after failure
-                Note over Pubky: Fresh resolution contains the SDK stale-CAS race without another session
-                alt Publication still fails
-                    Restore-->>Restore: discovery_failed
-                else Discovery confirmed
-                    Restore->>Local: saveIdentity(handle)
-                Local->>Pubky: getPublicIdentity + exportSecretKey
-                Pubky-->>Local: public metadata + secret
-                Local->>Repo: save metadata + base64url secret
-                Repo-->>Local: saved active identity or error
-                Local-->>Restore: saved or local-save error
+            Operations->>Pubky: resolve homeserver from DHT
+            alt Homeserver record found
+                Operations->>Pubky: signin(handle)
+                Pubky->>SDK: signer.signinBlocking("passport.pubky.app")
+                SDK-->>Pubky: grant Session or safe failure
+            else Missing record
+                Operations->>Operations: request Homegate invitation<br/>and run shared signupAndActivate()
+            else Operational DHT or sign-in failure
+                Operations-->>Operations: safe retryable failure
+            end
+            alt Session identity mismatch
+                Operations-->>Operations: identity_mismatch
+            else Matching verified identity
+                Operations->>Pubky: exportSecretKey(handle)
+                Pubky-->>Operations: secret bytes
+                Operations->>Repo: save metadata + base64url secret
+                Repo-->>Operations: saved active identity or error
                 alt Local-save error
-                    Restore-->>Restore: local_save_failed
+                    Operations-->>Operations: local_save_failed
                 else Saved
-                    Restore-->>Restore: restored identity
+                    Operations-->>Operations: restored identity
                 end
             end
         end
-        Note over Restore,Pubky: finally zero secret bytes and dispose the restored handle if created
+        Note over Operations,Pubky: finally zero secret bytes and dispose the restored handle if created
     end
     end
 ```
@@ -480,9 +471,9 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Missing identity encryption and Drive storage call flow
-    accDescr: CreateGoogleBackedIdentity encrypts a new Pubky secret, creates the operational app-data file through GoogleDrivePassportFileStore, then best-effort writes a visible recovery copy through GoogleDriveVisibleRecoveryCopyWriter before activation and zeros the exported bytes.
+    accDescr: GoogleBackedIdentityOperations encrypts a new Pubky secret, creates the operational app-data file through GoogleDrivePassportFileStore, then best-effort writes a visible recovery copy through GoogleDriveVisibleRecoveryCopyWriter before activation and zeros the exported bytes.
     box rgba(0, 158, 115, 0.18) src/client/browser/identity/google-backed
-        participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
+        participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
     box rgba(0, 158, 115, 0.18) src/client/browser/pubky
         participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
@@ -497,15 +488,15 @@ sequenceDiagram
         participant Drive as Google Drive API v3<br/>appDataFolder/passport.json
     end
 
-    Creator->>Pubky: createIdentityKey()
+    Operations->>Pubky: createIdentityKey()
     Pubky->>SDK: Keypair.random()
     SDK-->>Pubky: concrete Keypair
-    Pubky-->>Creator: opaque handle + public identity
-    Creator->>Pubky: exportSecretKey(handle)
-    Pubky-->>Creator: 32-byte secret
-    Creator->>Crypto: encryptSecretKeyBytes(secret, wrapping key, origin)
-    Crypto-->>Creator: encrypted envelope
-    Creator->>DriveStore: createPassportFile(envelope)
+    Pubky-->>Operations: opaque handle + public identity
+    Operations->>Pubky: exportSecretKey(handle)
+    Pubky-->>Operations: 32-byte secret
+    Operations->>Crypto: encryptSecretKeyBytes(secret, wrapping key, origin)
+    Crypto-->>Operations: encrypted envelope
+    Operations->>DriveStore: createPassportFile(envelope)
     DriveStore->>Drive: pre-list passport.json
     Drive-->>DriveStore: pre-list response
     break Pre-list error
@@ -521,8 +512,8 @@ sequenceDiagram
     end
     DriveStore->>Drive: post-list passport.json
     Drive-->>DriveStore: post-list response
-    DriveStore-->>Creator: operational write completed or safe error
-    Creator->>VisibleWriter: createVisibleRecoveryCopy(envelope, public Pubky)
+    DriveStore-->>Operations: operational write completed or safe error
+    Operations->>VisibleWriter: createVisibleRecoveryCopy(envelope, public Pubky)
     VisibleWriter->>Drive: find or create My Drive/Pubky Passport
     Drive-->>VisibleWriter: visible folder response
     VisibleWriter->>Drive: create-only {pubky}.json copy
@@ -530,14 +521,14 @@ sequenceDiagram
     VisibleWriter->>Drive: verify exact created file ID and revision
     Drive-->>VisibleWriter: exact metadata, parent, and trashed state
     Note over DriveStore,VisibleWriter: Operational reads and deletion remain appDataFolder-only
-    VisibleWriter-->>Creator: confirmed creation or safe unconfirmed outcome
-    Note over Creator: Zero exported secret bytes
+    VisibleWriter-->>Operations: confirmed creation or safe unconfirmed outcome
+    Note over Operations: Zero exported secret bytes
     alt Operational storage error
-        Creator->>Pubky: disposeIdentityKey(handle)
+        Operations->>Pubky: disposeIdentityKey(handle)
     else Visible copy warning
-        Note over Creator: Continue activation; do not strand an unsigned-up appData identity
+        Note over Operations: Continue activation; do not strand an unsigned-up appData identity
     else Stored
-        Note over Creator: Key handle continues into activation
+        Note over Operations: Key handle continues into activation
     end
 ```
 
@@ -547,13 +538,9 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Missing identity activation and local save call flow
-    accDescr: GoogleBackedIdentityOperations requests a homeserver signup invitation, then CreateGoogleBackedIdentity signs up, verifies, publishes discovery, and saves in order; each failure stops later stages and the generated key handle is always disposed.
+    accDescr: GoogleBackedIdentityOperations requests a homeserver signup invitation, then uses its shared signup-and-activation method for both fresh creation and interrupted setup recovery.
     box rgba(0, 158, 115, 0.18) src/client/browser/identity/google-backed
         participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
-        participant Creator as createGoogleBackedIdentity.ts<br/>CreateGoogleBackedIdentity
-    end
-    box rgba(0, 158, 115, 0.18) src/client/browser/identity/local
-        participant Local as saveLocalIdentity.ts<br/>SaveLocalIdentity
     end
     box rgba(0, 158, 115, 0.18) src/client/browser/homegate
         participant Invite as homegateClient.ts<br/>HomegateClient
@@ -577,53 +564,56 @@ sequenceDiagram
     else Invitation response
         Note over Invite: Parse exact bounded response
         Invite-->>Operations: validated invitation
-        Operations->>Creator: execute(validated invitation)
-        Creator->>Pubky: signup(handle, homeserver, signup code)
+        Operations->>Operations: signupAndActivate(validated invitation)
+        Operations->>Pubky: signup(handle, homeserver, signup code)
         Pubky->>SDK: signer.signup(...)
         Note over SDK: Homeserver signup transport is SDK-owned
         SDK-->>Pubky: completion or failure
-        Pubky-->>Creator: key-derived public identity or signup error
-        alt Signup error
-            Creator-->>Creator: signup_failed
-        else Session identity mismatch
-            Creator-->>Creator: identity_mismatch
-        else Matching session identity
-            Creator->>Pubky: publishHomeserverIfStale(...)
-            Pubky->>SDK: signer.pkdns.publishHomeserverIfStale(...)
+        Pubky-->>Operations: created, account_exists, signup_uncertain, or failure
+        alt Definitive signup rejection
+            Operations-->>Operations: signup_failed
+        else Created, existing, or ambiguous
+            Operations->>Pubky: publishHomeserverForce(...)
+            Pubky->>SDK: signer.pkdns.publishHomeserverForce(...)
             Note over SDK: PKDNS / PKARR publication transport is SDK-owned
             SDK-->>Pubky: completion or failure
-            Pubky-->>Creator: completion or discovery error
+            Pubky-->>Operations: completion or discovery error
             alt Discovery error
-                Creator-->>Creator: discovery_failed
+                Operations-->>Operations: discovery_failed
             else Discovery complete
-                Creator->>Local: saveIdentity(handle)
-                Local->>Pubky: getPublicIdentity + exportSecretKey
-                Pubky-->>Local: public metadata + secret
-                Local->>Repo: save metadata + base64url secret
-                Repo-->>Local: saved active identity or error
-                Local-->>Creator: saved active identity or local-save error
-                alt Local-save error
-                    Creator-->>Creator: local_save_failed
-                else Saved
-                    Creator-->>Creator: created identity
+                Operations->>Pubky: signin(handle)
+                Pubky->>SDK: signer.signinBlocking("passport.pubky.app")
+                SDK-->>Pubky: verified Session or safe failure
+                Pubky-->>Operations: matching public identity or safe failure
+                alt Sign-in failure or identity mismatch
+                    Operations-->>Operations: signin_failed or identity_mismatch
+                else Verified identity
+                    Operations->>Pubky: exportSecretKey(handle)
+                    Pubky-->>Operations: secret bytes
+                    Operations->>Repo: save metadata + base64url secret
+                    Repo-->>Operations: saved active identity or error
+                    alt Local-save error
+                        Operations-->>Operations: local_save_failed
+                    else Saved
+                        Operations-->>Operations: active identity
+                    end
                 end
             end
         end
     end
-    Note over Creator,Pubky: finally dispose the generated key handle on every outcome
+    Note over Operations,Pubky: finally dispose the generated or restored key handle on every outcome
 ```
 
 Local ready state is saved last. Setup cannot be atomic across Drive, Homegate,
 homeserver signup, and discovery. A definite homeserver signup invitation failure
 occurs before Passport file creation. After signup or discovery has been attempted,
 Passport preserves the encrypted Passport file so the key is not lost, disposes the
-key handle, and saves no ready local Pubky identity; it must not automatically delete the
-file. `preservedPassportFileIdentity` may carry only public identity metadata after
-creation stores the encrypted file or restore successfully decrypts it. This does not
-prove setup was partial. The explicit resume path obtains fresh Google credentials,
-restores and verifies that same encrypted key, requests a new Homegate invitation, and
-reuses normal signup, discovery, and local activation without deleting the backup or
-creating a replacement key.
+key handle, and saves no ready local Pubky identity; it must not automatically delete
+the file. A later normal establishment retry restores that same key. Missing discovery
+enters automatic reconciliation: exact signup `409` is accepted as an existing
+account, the Homegate homeserver is force-published, and blocking sign-in must verify
+the account and identity before local activation. A sign-in failure after DHT
+resolution remains retryable and does not reassign discovery.
 
 ### Detach from Google
 
@@ -638,7 +628,7 @@ sequenceDiagram
     accDescr: Passport verifies the account and identity, deletes every Google backup, and clears the local identity last.
     participant UI as detach-from-google
     participant GoogleFlow as GoogleBackedIdentityFlow
-    participant Delete as DeleteGoogleIdentityBackups
+    participant Operations as GoogleBackedIdentityOperations
     participant AppData as GoogleDrivePassportFileStore
     participant Visible as GoogleDriveVisibleRecoveryCopyDeleter
     participant Drive as Google Drive API v3
@@ -649,26 +639,26 @@ sequenceDiagram
     alt Authorized account differs
         GoogleFlow-->>UI: authorization_failed
     else Account matches
-        GoogleFlow->>Delete: deleteGoogleIdentityBackups(...)
-        Delete->>AppData: readPassportFile()
+        GoogleFlow->>Operations: detachIdentity(...)
+        Operations->>AppData: readPassportFile()
         AppData->>Drive: find appDataFolder/passport.json
         alt App-data file found
-            Drive-->>Delete: encrypted envelope + exact reference
-            Delete->>Delete: wrapping key, decrypt, and verify Pubky
+            Drive-->>Operations: encrypted envelope + exact reference
+            Operations->>Operations: wrapping key, decrypt, and verify Pubky
         else App-data file missing
-            Drive-->>Delete: missing
-            Note over Delete: Account binding still protects visible cleanup
+            Drive-->>Operations: missing
+            Note over Operations: Account binding still protects visible cleanup
         end
-        Delete->>Visible: deleteVisibleRecoveryCopies(pubky)
+        Operations->>Visible: deleteVisibleRecoveryCopies(pubky)
         Visible->>Drive: list every accessible root Pubky Passport folder
         Visible->>Drive: delete every exact {pubky}.json match
-        Delete->>AppData: delete exact verified reference when present
+        Operations->>AppData: delete exact verified reference when present
         AppData->>Drive: validate revision and delete passport.json
         alt Any verification or Drive cleanup fails
-            Delete-->>UI: safe retryable failure
+            Operations-->>UI: safe retryable failure
             Note over Local: Local identity remains available
         else All Google backups removed
-            GoogleFlow->>Local: remove identity
+            Operations->>Local: remove identity
             GoogleFlow-->>UI: detachment complete
         end
     end

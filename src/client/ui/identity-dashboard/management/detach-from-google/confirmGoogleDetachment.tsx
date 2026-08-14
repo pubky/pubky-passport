@@ -14,7 +14,7 @@ const CONFIRMATION = "DELETE";
 function ConfirmGoogleDetachment({ canConfirm, canRetryAuthorization, error, onCancel, onConfirm, onRetryAuthorization, open, pending }: {
   canConfirm: boolean;
   canRetryAuthorization: boolean;
-  error: boolean;
+  error: string | null;
   onCancel: () => void;
   onConfirm: () => void;
   onRetryAuthorization: () => void;
@@ -63,7 +63,7 @@ function ConfirmGoogleDetachment({ canConfirm, canRetryAuthorization, error, onC
             <FieldMessage error>
               {canRetryAuthorization
                 ? "Could not connect to Google. Try again."
-                : "Could not remove Google access. Please try again."}
+                : "Could not remove Google access. Please try again."} {error}
             </FieldMessage>
           ) : null}
         </div>
