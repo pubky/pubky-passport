@@ -118,11 +118,10 @@ sequenceDiagram
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/authorization
         participant Bootstrap as authorizationEntryBootstrap.ts<br/>pre-hydration entry capture
-        participant Factory as passportAuthorization.ts<br/>createPassportAuthorizationController()
-        participant Controller as flow/authorizationFlowController.ts<br/>AuthorizationFlowController
-        participant Entry as entry/authorizationEntry.ts<br/>readAndScrubAuthorizationEntry()<br/>clearPendingAuthorizationEntry()
-        participant Request as request/issuedAuthorizationRequest.ts<br/>issueAuthorizationRequest()
-        participant Parser as request/parseEncodedPubkyAuthRequest.ts<br/>parseEncodedPubkyAuthRequest()
+        participant Controller as passportAuthorization.ts<br/>PassportAuthorizationController
+        participant Entry as authorizationEntry.ts<br/>readAndScrubAuthorizationEntry()<br/>clearPendingAuthorizationEntry()
+        participant Request as issuedPubkyAuthRequest.ts<br/>IssuedPubkyAuthRequest.issue()
+        participant Parser as pubkyAuthRequestParser.ts<br/>parseEncodedPubkyAuthRequest()
     end
 
     App->>Client: Open Passport /authorize#d=...
@@ -137,16 +136,15 @@ sequenceDiagram
     Client->>Bootstrap: instrumentation-client module evaluation
     Bootstrap->>Entry: readAndScrubAuthorizationEntry(window)
     Entry->>Client: History.prototype.replaceState(current pathname, fragment removed)
-    Entry->>Request: issue request from captured d
+    Entry->>Request: IssuedPubkyAuthRequest.issue(captured d)
     Request->>Parser: parse and validate request
     Parser-->>Request: normalized request or typed error
-    Request-->>Bootstrap: immutable safe review + private approval
+    Request-->>Bootstrap: exact issued request with safe review
     Client->>Flow: hydrate
-    Flow->>Factory: createPassportAuthorizationController()
-    Factory->>Bootstrap: takeInitialAuthorizationEntry()
-    Bootstrap-->>Factory: valid entry or invalid
-    Factory->>Controller: new AuthorizationFlowController(...)
-    Factory-->>Flow: controller with safe view state
+    Flow->>Controller: new PassportAuthorizationController()
+    Controller->>Bootstrap: takeInitialAuthorizationEntry()
+    Bootstrap-->>Controller: valid entry or invalid
+    Controller-->>Flow: controller with safe view state
     Flow->>Controller: commitInitialEntry()
     Controller->>Entry: clearPendingAuthorizationEntry(window)
 ```
@@ -166,7 +164,7 @@ sequenceDiagram
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/authorization
         participant ManualInput as manualAuthorizationInput.ts<br/>submitManualAuthorizationInput()
-        participant Parser as request/validateEncodedPubkyAuthRequest.ts<br/>validateEncodedPubkyAuthRequest()
+        participant Request as issuedPubkyAuthRequest.ts<br/>IssuedPubkyAuthRequest.validate()
     end
     box rgba(107, 114, 128, 0.18) Runtime platforms
         participant Window as PLATFORM<br/>Passport tab window
@@ -175,8 +173,8 @@ sequenceDiagram
 
     User->>Form: Submit pasted pubkyauth URL
     Form->>ManualInput: submitManualAuthorizationInput(input)
-    ManualInput->>Parser: validateEncodedPubkyAuthRequest(encodeURIComponent(input))
-    Parser-->>ManualInput: validated request or typed error
+    ManualInput->>Request: IssuedPubkyAuthRequest.validate(encoded input)
+    Request-->>ManualInput: validation success or typed error
     Note over Form: Clear the uncontrolled input before validation
     alt Invalid
         ManualInput-->>Form: invalid
@@ -199,10 +197,9 @@ sequenceDiagram
         participant Review as authorizationReview.tsx<br/>AuthorizationReview()
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/authorization
-        participant Controller as flow/authorizationFlowController.ts<br/>AuthorizationFlowController
-        participant Composition as passportAuthorization.ts<br/>approveUsingActiveLocalIdentity()
-        participant UseCase as flow/approveWithActiveIdentity.ts<br/>approveWithActiveIdentity()
-        participant AuthRequest as request/issuedAuthorizationRequest.ts<br/>isPubkyAuthApprovalCapability()<br/>getValidatedOutcomeCallback()
+        participant Controller as passportAuthorization.ts<br/>PassportAuthorizationController
+        participant UseCase as activeIdentityAuthorization.ts<br/>ActiveIdentityAuthorization.approve()
+        participant AuthRequest as issuedPubkyAuthRequest.ts<br/>validatedUrlForApproval()<br/>takeOutcomeCallback()
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/identity/local
         participant Local as restoreActiveLocalIdentityKey.ts<br/>RestoreActiveLocalIdentityKey
@@ -217,16 +214,15 @@ sequenceDiagram
         participant SDK as @synonymdev/pubky@0.10.0<br/>Keypair / Signer
         participant Relay as Request-supplied HTTPS Relay<br/>Signer.approveAuthRequest() delivery
     end
-    box rgba(107, 114, 128, 0.18) Browser platform
+    box rgba(107, 114, 128, 0.18) Runtime platform
         participant Window as PLATFORM<br/>Passport tab window
     end
 
     User->>Review: Approve
     Review->>Controller: approve()
-    Controller->>Composition: approveAuthorization(approval)
-    Composition->>Pubky: new PubkySdkAdapter()
-    Composition->>Local: new RestoreActiveLocalIdentityKey(repository.readActive, pubky)
-    Composition->>UseCase: approveWithActiveIdentity(...)
+    Controller->>UseCase: approve(issued request)
+    UseCase->>Pubky: new PubkySdkAdapter()
+    UseCase->>Local: new RestoreActiveLocalIdentityKey(repository.readActive, pubky)
     UseCase->>Local: restore()
     Local->>Repo: readActive()
     Repo-->>Local: public metadata + 32-byte secret
@@ -236,18 +232,17 @@ sequenceDiagram
     Pubky-->>Local: opaque handle + public identity
     Note over Local: Compare persisted public metadata
     Local-->>UseCase: verified active identity
-    UseCase->>Pubky: approveAuthRequest(handle, approval)
-    Pubky->>AuthRequest: isPubkyAuthApprovalCapability(approval)
-    AuthRequest-->>Pubky: browser approval provenance
+    UseCase->>Pubky: approveAuthRequest(handle, issued request)
+    Pubky->>AuthRequest: isLive() + validatedUrlForApproval()
+    AuthRequest-->>Pubky: exact-request provenance + sensitive URL
     Pubky->>SDK: signer.approveAuthRequest(sensitive URL)
     Note over SDK,Relay: SDK emits a legacy AuthToken for signin or a PoP-bound signed grant for signin_grant; encryption and Relay delivery remain SDK-owned
     SDK-->>Pubky: completion or failure
     Pubky-->>UseCase: typed result
     UseCase->>Pubky: disposeIdentityKey(handle)
-    UseCase-->>Composition: safe result
-    Composition->>Pubky: dispose()
-    Composition-->>Controller: safe result
-    Controller->>AuthRequest: getValidatedOutcomeCallback(approval, outcome)
+    UseCase->>Pubky: dispose()
+    UseCase-->>Controller: safe result
+    Controller->>AuthRequest: takeOutcomeCallback(outcome)
     AuthRequest-->>Controller: success or error callback
     alt Callback exists and opener acknowledges
         Controller->>Window: post finite outcome to callback origin
@@ -266,25 +261,25 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Authorization cancellation call flow
-    accDescr: Cancellation retrieves only the browser-owned validated cancel callback and closes a popup, redirects, or renders a local cancelled state without restoring a key.
+    accDescr: Cancellation takes only the validated cancel callback and closes a popup, redirects, or renders a local cancelled state without restoring a key.
     actor User
     box rgba(0, 114, 178, 0.18) src/client/ui
         participant Review as authorizationReview.tsx<br/>AuthorizationReview()
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/authorization
-        participant Controller as flow/authorizationFlowController.ts<br/>AuthorizationFlowController
+        participant Controller as passportAuthorization.ts<br/>PassportAuthorizationController
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/authorization
-        participant Callbacks as request/issuedAuthorizationRequest.ts<br/>getValidatedOutcomeCallback()
+        participant Request as issuedPubkyAuthRequest.ts<br/>takeOutcomeCallback()
     end
-    box rgba(107, 114, 128, 0.18) Browser platform
+    box rgba(107, 114, 128, 0.18) Runtime platform
         participant Window as PLATFORM<br/>Passport tab window
     end
 
     User->>Review: Cancel before approval
     Review->>Controller: cancel()
-    Controller->>Callbacks: getValidatedOutcomeCallback(approval, cancel)
-    Callbacks-->>Controller: cancel callback or none
+    Controller->>Request: takeOutcomeCallback(cancel)
+    Request-->>Controller: cancel callback or none
     alt Callback exists and opener acknowledges
         Controller->>Window: post cancel outcome to callback origin
         Window-->>Controller: exact-origin acknowledgement
@@ -753,9 +748,9 @@ sequenceDiagram
 
 | Flow | Code | Main tests |
 | --- | --- | --- |
-| Authorization parser | `src/client/logic/authorization/request` | Colocated parser and URL validation tests |
-| Authorization controller and approval | `src/client/logic/authorization/flow` | Colocated controller and approval tests |
-| Authorization entry | `src/client/logic/authorization/entry/authorizationEntry.ts` | `authorizationEntry.test.ts` |
+| Authorization request model | `src/client/logic/authorization/issuedPubkyAuthRequest.ts` | Issuance, parser, capability, and URL tests |
+| Authorization controller and approval | `src/client/logic/authorization/passportAuthorization.ts`, `activeIdentityAuthorization.ts` | Colocated controller and approval tests |
+| Authorization entry | `src/client/logic/authorization/authorizationEntry.ts` | `authorizationEntry.test.ts` |
 | Authorization UI | `src/client/ui/authorization` | Colocated component tests |
 | Identity controller | `src/client/logic/identity` | Controller and factory tests |
 | Google credential capabilities | `src/client/logic/google-authorization` | Colocated implicit OAuth and callback-scrubbing tests |

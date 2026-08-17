@@ -3,83 +3,182 @@ import "client-only";
 import { Result } from "better-result";
 
 import { LOGGER } from "../../../libs/logger/logger";
-import { LocalStorageIdentityRepository } from "../identity/local/localStorageIdentityRepository";
-import { RestoreActiveLocalIdentityKey } from "../identity/local/restoreActiveLocalIdentityKey";
-import { PubkySdkAdapter } from "../pubky/pubkySdkAdapter";
 import {
-  approveWithActiveIdentity,
+  ActiveIdentityAuthorization,
+  type ApproveAuthorizationErrorCode,
   type ApproveAuthorizationResult,
-} from "./flow/approveWithActiveIdentity";
+} from "./activeIdentityAuthorization";
+import {
+  AuthorizationOutcomeHandoff,
+  type AuthorizationOutcome,
+} from "./authorizationOutcomeHandoff";
 import {
   clearPendingAuthorizationEntry,
   readAndScrubAuthorizationEntry,
-} from "./entry/authorizationEntry";
-import { takeInitialAuthorizationEntry } from "./entry/authorizationEntryBootstrap";
+} from "./authorizationEntry";
+import { takeInitialAuthorizationEntry } from "./authorizationEntryBootstrap";
 import {
-  AuthorizationFlowController,
-  type PassportAuthorizationViewState,
-} from "./flow/authorizationFlowController";
-import { completeAuthorizationOutcome } from "./flow/completeAuthorizationOutcome";
+  type AuthorizationRequestReview,
+  IssuedPubkyAuthRequest,
+} from "./issuedPubkyAuthRequest";
 
-/** UI-safe authorization state and user intents exposed to React. */
-export type PassportAuthorizationController = {
-  getState(): PassportAuthorizationViewState;
-  subscribe(listener: (state: PassportAuthorizationViewState) => void): () => void;
-  commitInitialEntry(): void;
-  approve(): Promise<PassportAuthorizationViewState>;
-  cancel(): Promise<PassportAuthorizationViewState>;
-};
+export type PassportAuthorizationFailureCode = ApproveAuthorizationErrorCode;
 
-export type {
-  PassportAuthorizationFailureCode,
-  PassportAuthorizationViewState,
-} from "./flow/authorizationFlowController";
-export type { AuthorizationRequestReview } from "./request/issuedAuthorizationRequest";
+/** Finite, render-safe states emitted by the authorization controller. */
+export type PassportAuthorizationViewState =
+  | { status: "manual-entry" }
+  | { status: "invalid" }
+  | { status: "review"; review: AuthorizationRequestReview }
+  | { status: "approving"; review: AuthorizationRequestReview }
+  | { status: "redirecting"; review: AuthorizationRequestReview }
+  | { status: "approved" }
+  | { status: "cancelled" }
+  | { status: "failed"; failureCode: PassportAuthorizationFailureCode };
 
-/** Creates the authorization flow without exposing sensitive request data. */
-export function createPassportAuthorizationController(): PassportAuthorizationController {
-  const entry = takeInitialAuthorizationEntry() ?? readAndScrubAuthorizationEntry(window);
-  return new AuthorizationFlowController(entry, {
-    approveAuthorization: approveUsingActiveLocalIdentity,
-    clearPendingEntry: () => clearPendingAuthorizationEntry(window),
-    completeOutcome: (callback, outcome) => completeAuthorizationOutcome(
-      window,
-      callback,
-      outcome,
-    ),
-  });
-}
+type CallbackResolution =
+  | { status: "available"; callback: string }
+  | { status: "missing" }
+  | { status: "failed" };
 
-async function approveUsingActiveLocalIdentity(
-  approval: Parameters<typeof approveWithActiveIdentity>[0],
-): Promise<ApproveAuthorizationResult> {
-  let pubky: PubkySdkAdapter;
-  try {
-    pubky = new PubkySdkAdapter();
-  } catch {
-    LOGGER.warn("authorize.approval.failed", {
-      stage: "sdk_initialize",
-      code: "unexpected_failure",
-    });
-    return Result.err({ code: "approval_failed" });
+/**
+ * Public authorization entry used by React.
+ *
+ * The controller owns request review state and user intents. Request secrets and
+ * complete callbacks remain private to the exact `IssuedPubkyAuthRequest` instance.
+ */
+export class PassportAuthorizationController {
+  private listeners = new Set<(state: PassportAuthorizationViewState) => void>();
+  private state: PassportAuthorizationViewState;
+  private request: IssuedPubkyAuthRequest | undefined;
+  private readonly activeIdentityAuthorization: ActiveIdentityAuthorization;
+  private readonly outcomeHandoff: AuthorizationOutcomeHandoff;
+
+  constructor(private appWindow: Window = window) {
+    const entry = takeInitialAuthorizationEntry()
+      ?? readAndScrubAuthorizationEntry(appWindow);
+
+    this.request = entry.status === "valid"
+      ? entry.request
+      : undefined;
+    this.activeIdentityAuthorization = new ActiveIdentityAuthorization();
+    this.outcomeHandoff = new AuthorizationOutcomeHandoff(appWindow);
+    this.state = entry.status === "valid"
+      ? { status: "review", review: entry.request.review }
+      : { status: entry.status === "empty" ? "manual-entry" : "invalid" };
   }
 
-  try {
-    const repository = new LocalStorageIdentityRepository();
-    const restoreActiveIdentity = new RestoreActiveLocalIdentityKey(
-      () => repository.readActive(),
-      pubky,
-    );
-    return await approveWithActiveIdentity(
-      approval,
-      restoreActiveIdentity,
-      pubky,
-    );
-  } finally {
+  getState(): PassportAuthorizationViewState {
+    return this.state;
+  }
+
+  subscribe(listener: (state: PassportAuthorizationViewState) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  commitInitialEntry(): void {
+    clearPendingAuthorizationEntry(this.appWindow);
+  }
+
+  async approve(): Promise<PassportAuthorizationViewState> {
+    const request = this.request;
+    if (!request || this.state.status !== "review") return this.state;
+
+    const review = this.state.review;
+    this.update({ status: "approving", review });
+    const result = await this.approveSafely(request);
+    const outcome = Result.isOk(result) ? "success" : "error";
+    const callback = this.takeOutcomeCallback(request, outcome);
+
+    if (callback.status === "failed") {
+      return this.update({ status: "failed", failureCode: "approval_failed" });
+    }
+    if (callback.status === "available") {
+      this.update({ status: "redirecting", review });
+      if (await this.completeOutcome(callback.callback, outcome)) return this.state;
+    }
+
+    return Result.isOk(result)
+      ? this.update({ status: "approved" })
+      : this.update({ status: "failed", failureCode: result.error.code });
+  }
+
+  async cancel(): Promise<PassportAuthorizationViewState> {
+    const request = this.request;
+    if (!request || this.state.status !== "review") return this.state;
+
+    const review = this.state.review;
+    const callback = this.takeOutcomeCallback(request, "cancel");
+    if (callback.status === "available") {
+      this.update({ status: "redirecting", review });
+      if (await this.completeOutcome(callback.callback, "cancel")) return this.state;
+    }
+
+    return this.update({ status: "cancelled" });
+  }
+
+  private async approveSafely(
+    request: IssuedPubkyAuthRequest,
+  ): Promise<ApproveAuthorizationResult> {
     try {
-      pubky.dispose();
+      return await this.activeIdentityAuthorization.approve(request);
     } catch {
-      LOGGER.warn("authorize.cleanup.failed", { operation: "pubky_dispose" });
+      LOGGER.warn("authorize.approval.failed", {
+        stage: "controller",
+        code: "unexpected_failure",
+      });
+      return Result.err({ code: "approval_failed" });
     }
   }
+
+  private takeOutcomeCallback(
+    request: IssuedPubkyAuthRequest,
+    outcome: AuthorizationOutcome,
+  ): CallbackResolution {
+    try {
+      const callback = IssuedPubkyAuthRequest.takeOutcomeCallback(request, outcome);
+      return callback === undefined
+        ? { status: "missing" }
+        : { status: "available", callback };
+    } catch {
+      LOGGER.warn("authorize.callback.failed", {
+        outcome,
+        operation: "callback_lookup",
+      });
+      return { status: "failed" };
+    } finally {
+      this.request = undefined;
+      IssuedPubkyAuthRequest.release(request);
+    }
+  }
+
+  private async completeOutcome(
+    callback: string,
+    outcome: AuthorizationOutcome,
+  ): Promise<boolean> {
+    try {
+      if (await this.outcomeHandoff.complete(callback, outcome)) return true;
+    } catch {
+      // A safe local terminal state remains available below.
+    }
+    LOGGER.warn("authorize.callback.failed", {
+      outcome,
+      operation: "complete",
+    });
+    return false;
+  }
+
+  private update(state: PassportAuthorizationViewState): PassportAuthorizationViewState {
+    this.state = state;
+    for (const listener of this.listeners) {
+      try {
+        listener(state);
+      } catch {
+        LOGGER.warn("authorize.state_listener.failed", { state: state.status });
+      }
+    }
+    return state;
+  }
 }
+
+export type { AuthorizationRequestReview } from "./issuedPubkyAuthRequest";

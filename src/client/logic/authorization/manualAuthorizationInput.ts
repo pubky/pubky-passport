@@ -2,8 +2,8 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { PUBKY_AUTH_REQUEST_LIMITS } from "./request/pubkyAuthRequestLimits";
-import { validateEncodedPubkyAuthRequest } from "./request/validateEncodedPubkyAuthRequest";
+import { IssuedPubkyAuthRequest } from "./issuedPubkyAuthRequest";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 import { LOGGER } from "../../../libs/logger/logger";
 
 export type ManualAuthorizationInputResult = "invalid" | "navigation_failed" | "navigating";
@@ -27,7 +27,7 @@ export function submitManualAuthorizationInput(
     return "invalid";
   }
 
-  const validated = validateEncodedPubkyAuthRequest(encodedRequest);
+  const validated = IssuedPubkyAuthRequest.validate(encodedRequest);
   if (Result.isError(validated)) {
     logFailure(validated.error.code);
     return "invalid";

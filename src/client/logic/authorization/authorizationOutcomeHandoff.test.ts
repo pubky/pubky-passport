@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { completeAuthorizationOutcome } from "./completeAuthorizationOutcome";
+import { AuthorizationOutcomeHandoff } from "./authorizationOutcomeHandoff";
 
 const CALLBACK = "https://app.example/auth/passport/success?private=value";
 
-describe("completeAuthorizationOutcome", () => {
+describe("AuthorizationOutcomeHandoff", () => {
   it("closes only after an exact opener acknowledgement", async () => {
     const harness = windowHarness({ opener: true, closeSucceeds: true });
 
-    const completion = completeAuthorizationOutcome(harness.window, CALLBACK, "success");
+    const completion = complete(harness, "success");
     expect(harness.postMessage).toHaveBeenCalledWith({
       type: "pubky-passport.authorization-outcome",
       version: 1,
@@ -28,14 +28,14 @@ describe("completeAuthorizationOutcome", () => {
   it.each(["success", "error", "cancel"] as const)("supports the %s outcome", (outcome) => {
     const harness = windowHarness({ opener: true });
 
-    completeAuthorizationOutcome(harness.window, CALLBACK, outcome);
+    void complete(harness, outcome);
 
     expect(harness.postMessage).toHaveBeenCalledWith(expect.objectContaining({ outcome }), "https://app.example");
   });
 
   it("ignores acknowledgements from the wrong source, origin, or message", async () => {
     const harness = windowHarness({ opener: true, closeSucceeds: true });
-    const completion = completeAuthorizationOutcome(harness.window, CALLBACK, "cancel");
+    const completion = complete(harness, "cancel");
 
     harness.dispatchAcknowledgement({ source: {} as Window });
     harness.dispatchAcknowledgement({ origin: "https://attacker.example" });
@@ -50,17 +50,17 @@ describe("completeAuthorizationOutcome", () => {
   it("navigates the current window when no live opener exists", async () => {
     const harness = windowHarness({ opener: false });
 
-    await expect(completeAuthorizationOutcome(harness.window, CALLBACK, "cancel")).resolves.toBe(true);
+    await expect(complete(harness, "cancel")).resolves.toBe(true);
     expect(harness.navigate).toHaveBeenCalledWith(CALLBACK);
   });
 
   it("uses callback navigation when messaging fails or acknowledgement times out", async () => {
     const messageFailure = windowHarness({ opener: true, postMessageFails: true });
-    await expect(completeAuthorizationOutcome(messageFailure.window, CALLBACK, "error")).resolves.toBe(true);
+    await expect(complete(messageFailure, "error")).resolves.toBe(true);
     expect(messageFailure.navigate).toHaveBeenCalledWith(CALLBACK);
 
     const timeout = windowHarness({ opener: true });
-    const completion = completeAuthorizationOutcome(timeout.window, CALLBACK, "success");
+    const completion = complete(timeout, "success");
     timeout.runTimeout();
     await expect(completion).resolves.toBe(true);
     expect(timeout.navigate).toHaveBeenCalledWith(CALLBACK);
@@ -69,14 +69,14 @@ describe("completeAuthorizationOutcome", () => {
   it("uses callback navigation when secure message ID generation fails", async () => {
     const harness = windowHarness({ opener: true, randomUuidFails: true });
 
-    await expect(completeAuthorizationOutcome(harness.window, CALLBACK, "success")).resolves.toBe(true);
+    await expect(complete(harness, "success")).resolves.toBe(true);
     expect(harness.navigate).toHaveBeenCalledWith(CALLBACK);
     expect(harness.postMessage).not.toHaveBeenCalled();
   });
 
   it("uses callback navigation when acknowledged popup closing fails", async () => {
     const harness = windowHarness({ opener: true });
-    const completion = completeAuthorizationOutcome(harness.window, CALLBACK, "success");
+    const completion = complete(harness, "success");
 
     harness.dispatchAcknowledgement();
 
@@ -87,18 +87,18 @@ describe("completeAuthorizationOutcome", () => {
   it("reports unavailable when direct callback navigation fails", async () => {
     const harness = windowHarness({ opener: false, navigationFails: true });
 
-    await expect(completeAuthorizationOutcome(harness.window, CALLBACK, "cancel")).resolves.toBe(false);
+    await expect(complete(harness, "cancel")).resolves.toBe(false);
   });
 
   it("reports unavailable when messaging and callback navigation both fail", async () => {
     const harness = windowHarness({ opener: true, postMessageFails: true, navigationFails: true });
 
-    await expect(completeAuthorizationOutcome(harness.window, CALLBACK, "error")).resolves.toBe(false);
+    await expect(complete(harness, "error")).resolves.toBe(false);
   });
 
   it("reports unavailable when acknowledgement times out and callback navigation fails", async () => {
     const harness = windowHarness({ opener: true, navigationFails: true });
-    const completion = completeAuthorizationOutcome(harness.window, CALLBACK, "cancel");
+    const completion = complete(harness, "cancel");
 
     harness.runTimeout();
 
@@ -107,13 +107,20 @@ describe("completeAuthorizationOutcome", () => {
 
   it("reports unavailable when acknowledged closing and callback navigation fail", async () => {
     const harness = windowHarness({ opener: true, navigationFails: true });
-    const completion = completeAuthorizationOutcome(harness.window, CALLBACK, "success");
+    const completion = complete(harness, "success");
 
     harness.dispatchAcknowledgement();
 
     await expect(completion).resolves.toBe(false);
   });
 });
+
+function complete(
+  harness: ReturnType<typeof windowHarness>,
+  outcome: "success" | "error" | "cancel",
+): Promise<boolean> {
+  return new AuthorizationOutcomeHandoff(harness.window).complete(CALLBACK, outcome);
+}
 
 function windowHarness(input: {
   opener: boolean;

@@ -1,1 +1,1 @@
-import "./client/logic/authorization/entry/authorizationEntryBootstrap";
+import "./client/logic/authorization/authorizationEntryBootstrap";

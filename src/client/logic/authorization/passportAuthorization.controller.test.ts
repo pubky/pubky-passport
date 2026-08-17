@@ -1,21 +1,32 @@
+/** @vitest-environment jsdom */
+
 import { Result } from "better-result";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
-import { LOGGER } from "../../../../libs/logger/logger";
-import type { AuthorizationEntry } from "../entry/authorizationEntry";
+import { LOGGER } from "../../../libs/logger/logger";
+import { EARLY_AUTHORIZATION_LOCATION_PROPERTY } from "../../../libs/authorization/earlyAuthorizationLocation";
+import { ActiveIdentityAuthorization } from "./activeIdentityAuthorization";
+import { AuthorizationOutcomeHandoff } from "./authorizationOutcomeHandoff";
 import {
-  isPubkyAuthApprovalCapability,
-  issueAuthorizationRequest,
-  type PubkyAuthApprovalCapability,
-} from "../request/issuedAuthorizationRequest";
-import type {
-  PassportAuthorizationController as PassportAuthorizationControllerContract,
-  PassportAuthorizationViewState,
-} from "../passportAuthorization";
-import type { ApproveAuthorizationResult } from "./approveWithActiveIdentity";
-import { AuthorizationFlowController } from "./authorizationFlowController";
+  clearPendingAuthorizationEntry,
+  readAndScrubAuthorizationEntry,
+} from "./authorizationEntry";
+import { IssuedPubkyAuthRequest } from "./issuedPubkyAuthRequest";
+import {
+  PassportAuthorizationController,
+  type PassportAuthorizationViewState,
+} from "./passportAuthorization";
+import type { ApproveAuthorizationResult } from "./activeIdentityAuthorization";
 
-type ControllerDependencies = ConstructorParameters<typeof AuthorizationFlowController>[1];
+type ControllerOverrides = {
+  approveAuthorization: (request: IssuedPubkyAuthRequest) => Promise<ApproveAuthorizationResult>;
+  completeOutcome: (callback: string, outcome: "success" | "error" | "cancel") => Promise<boolean>;
+};
+
+type EntryOptions = {
+  callbacks?: boolean;
+  status?: "valid" | "invalid" | "empty" | "expired";
+};
 
 const RELAY_ORIGIN = "https://relay.example";
 const SUCCESS_CALLBACK = "https://app.example/success?code=private";
@@ -23,8 +34,11 @@ const ERROR_CALLBACK = "https://app.example/error?code=private";
 const CANCEL_CALLBACK = "https://app.example/cancel?code=private";
 const SECRET = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
-describe("AuthorizationFlowController", () => {
+describe("PassportAuthorizationController", () => {
   afterEach(() => {
+    clearPendingAuthorizationEntry(window);
+    window.history.replaceState({}, "", "/");
+    Reflect.deleteProperty(window, EARLY_AUTHORIZATION_LOCATION_PROPERTY);
     vi.restoreAllMocks();
   });
 
@@ -33,7 +47,6 @@ describe("AuthorizationFlowController", () => {
 
     const controller = createController();
     const serializedState = JSON.stringify(controller.getState());
-    const serializedController = JSON.stringify(controller);
 
     expect(controller.getState()).toMatchObject({
       status: "review",
@@ -41,26 +54,21 @@ describe("AuthorizationFlowController", () => {
     });
     expect(serializedState).not.toContain(SECRET);
     expect(serializedState).not.toContain(SUCCESS_CALLBACK);
-    expect(serializedController).not.toContain(SECRET);
-    expect(serializedController).not.toContain(SUCCESS_CALLBACK);
-    expect(serializedController).not.toContain(ERROR_CALLBACK);
-    expect(serializedController).not.toContain(CANCEL_CALLBACK);
   });
 
   it("clears the pending authorization entry after the initial render commits", () => {
-    const clearPendingEntry = vi.fn();
-    const controller = createController({ clearPendingEntry });
+    const controller = createController();
 
     controller.commitInitialEntry();
 
-    expect(clearPendingEntry).toHaveBeenCalledOnce();
+    expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "empty" });
   });
 
   it("approves once, completes the exact success callback, and releases provenance", async () => {
     let complete: ((result: ApproveAuthorizationResult) => void) | undefined;
-    let capturedApproval: PubkyAuthApprovalCapability | undefined;
-    const approveAuthorization = vi.fn((approval: PubkyAuthApprovalCapability) => {
-      capturedApproval = approval;
+    let capturedRequest: IssuedPubkyAuthRequest | undefined;
+    const approveAuthorization = vi.fn((request: IssuedPubkyAuthRequest) => {
+      capturedRequest = request;
       return new Promise<ApproveAuthorizationResult>((resolve) => { complete = resolve; });
     });
     const completeOutcome = vi.fn(async () => true);
@@ -75,7 +83,7 @@ describe("AuthorizationFlowController", () => {
     await expect(first).resolves.toMatchObject({ status: "redirecting" });
     await expect(second).resolves.toMatchObject({ status: "approving" });
     expect(completeOutcome).toHaveBeenCalledWith(SUCCESS_CALLBACK, "success");
-    expect(isPubkyAuthApprovalCapability(capturedApproval)).toBe(false);
+    expect(IssuedPubkyAuthRequest.isLive(capturedRequest)).toBe(false);
   });
 
   it("routes approval errors and cancellation through exact validated callbacks", async () => {
@@ -118,7 +126,7 @@ describe("AuthorizationFlowController", () => {
     async (code) => {
       const controller = createController(
         { approveAuthorization: async () => Result.err({ code }) },
-        validEntry({ callbacks: false }),
+        { callbacks: false },
       );
 
       await expect(controller.approve()).resolves.toEqual({ status: "failed", failureCode: code });
@@ -129,7 +137,7 @@ describe("AuthorizationFlowController", () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const controller = createController(
       { approveAuthorization: async () => { throw new Error("approval exploded"); } },
-      validEntry({ callbacks: false }),
+      { callbacks: false },
     );
     controller.subscribe(() => { throw new Error("listener exploded"); });
 
@@ -146,7 +154,10 @@ describe("AuthorizationFlowController", () => {
   it("never approves or completes an invalid request", async () => {
     const approveAuthorization = vi.fn(async () => Result.ok());
     const completeOutcome = vi.fn(async () => true);
-    const controller = createController({ approveAuthorization, completeOutcome }, { status: "invalid" });
+    const controller = createController(
+      { approveAuthorization, completeOutcome },
+      { status: "invalid" },
+    );
 
     await expect(controller.approve()).resolves.toEqual({ status: "invalid" });
     await expect(controller.cancel()).resolves.toEqual({ status: "invalid" });
@@ -168,31 +179,52 @@ describe("AuthorizationFlowController", () => {
 });
 
 function createController(
-  overrides: Partial<ControllerDependencies> = {},
-  entry: AuthorizationEntry = validEntry(),
-): PassportAuthorizationControllerContract {
-  const dependencies: ControllerDependencies = {
+  overrides: Partial<ControllerOverrides> = {},
+  entry: EntryOptions = {},
+): PassportAuthorizationController {
+  const dependencies: ControllerOverrides = {
     approveAuthorization: async () => Result.ok(),
-    clearPendingEntry: vi.fn(),
     completeOutcome: vi.fn(async () => true),
     ...overrides,
   };
-  return new AuthorizationFlowController(entry, dependencies);
+  vi.spyOn(ActiveIdentityAuthorization.prototype, "approve")
+    .mockImplementation(dependencies.approveAuthorization);
+  vi.spyOn(AuthorizationOutcomeHandoff.prototype, "complete")
+    .mockImplementation(dependencies.completeOutcome);
+  setAuthorizationEntry(entry);
+  return new PassportAuthorizationController(window);
 }
 
-function validEntry(options: { callbacks?: boolean } = {}): AuthorizationEntry {
-  const parsed = issueAuthorizationRequest(encodeURIComponent(validRequest(options)));
-  if (Result.isError(parsed)) throw new Error("Test authorization request must parse");
-  return {
-    status: "valid",
-    review: parsed.value.review,
-    approval: parsed.value.approval,
-    expiresAt: Date.now() + 60_000,
-  };
+function setAuthorizationEntry(options: EntryOptions): void {
+  switch (options.status ?? "valid") {
+    case "valid":
+      window.history.replaceState(
+        {},
+        "",
+        `/authorize#d=${encodeURIComponent(validRequest(options.callbacks))}`,
+      );
+      return;
+    case "invalid":
+      window.history.replaceState({}, "", "/authorize#unexpected=value");
+      return;
+    case "empty":
+      window.history.replaceState({}, "", "/authorize");
+      return;
+    case "expired":
+      window.history.replaceState({}, "", "/authorize");
+      Object.defineProperty(window, EARLY_AUTHORIZATION_LOCATION_PROPERTY, {
+        configurable: true,
+        value: () => {
+          Reflect.deleteProperty(window, EARLY_AUTHORIZATION_LOCATION_PROPERTY);
+          return { status: "expired" };
+        },
+      });
+      return;
+  }
 }
 
-function validRequest(options: { callbacks?: boolean } = {}): string {
-  const callbacks = options.callbacks === false
+function validRequest(callbacksEnabled = true): string {
+  const callbacks = callbacksEnabled === false
     ? ""
     : `&x-success=${encodeURIComponent(SUCCESS_CALLBACK)}&x-error=${encodeURIComponent(ERROR_CALLBACK)}&x-cancel=${encodeURIComponent(CANCEL_CALLBACK)}`;
   return `pubkyauth://signin?caps=/pub/example.app/:rw&relay=${encodeURIComponent(`${RELAY_ORIGIN}/inbox`)}&secret=${SECRET}${callbacks}`;

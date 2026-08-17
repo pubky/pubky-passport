@@ -3,7 +3,6 @@ import "client-only";
 import { Result, type Err, type Result as ResultType } from "better-result";
 
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
-import { PUBKY_AUTH_REQUEST_PARAMETERS } from "./pubkyAuthRequestParameters";
 
 export type PubkyAuthUrlValidationErrorCode =
   | "missing_relay"
@@ -19,18 +18,27 @@ export type PubkyAuthUrlValidationResult = ResultType<{
   relayHost: string;
 }, PubkyAuthUrlValidationError>;
 
+export type PubkyAuthUrlParameterNames = Readonly<{
+  relay: string;
+  success: string;
+  error: string;
+  cancel: string;
+  legacySuccess: string;
+}>;
+
 /** Validates the relay and callback URLs before review or signing is possible. */
 export function validatePubkyAuthUrls(
   authUrl: URL,
+  parameterNames: PubkyAuthUrlParameterNames,
 ): PubkyAuthUrlValidationResult {
   const relay = validateRelayUrl(
-    authUrl.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.relay),
+    authUrl.searchParams.get(parameterNames.relay),
   );
   if (Result.isError(relay)) {
     return Result.err(relay.error);
   }
 
-  const callbacks = validateCallbacks(authUrl);
+  const callbacks = validateCallbacks(authUrl, parameterNames);
   if (Result.isError(callbacks)) {
     return Result.err(callbacks.error);
   }
@@ -81,24 +89,25 @@ function isExactRelayHostname(hostname: string): boolean {
 
 function validateCallbacks(
   authUrl: URL,
+  parameterNames: PubkyAuthUrlParameterNames,
 ): ResultType<ValidatedPubkyAuthCallbacks, PubkyAuthUrlValidationError> {
-  const rawSuccess = rawQueryValue(authUrl, PUBKY_AUTH_REQUEST_PARAMETERS.success);
+  const rawSuccess = rawQueryValue(authUrl, parameterNames.success);
   const success = validateEncodedCallback(
-    rawSuccess ?? rawQueryValue(authUrl, PUBKY_AUTH_REQUEST_PARAMETERS.legacySuccess),
+    rawSuccess ?? rawQueryValue(authUrl, parameterNames.legacySuccess),
   );
   if (Result.isError(success)) {
     return Result.err(success.error);
   }
 
   const errorCallback = validateEncodedCallback(
-    rawQueryValue(authUrl, PUBKY_AUTH_REQUEST_PARAMETERS.error),
+    rawQueryValue(authUrl, parameterNames.error),
   );
   if (Result.isError(errorCallback)) {
     return Result.err(errorCallback.error);
   }
 
   const cancel = validateEncodedCallback(
-    rawQueryValue(authUrl, PUBKY_AUTH_REQUEST_PARAMETERS.cancel),
+    rawQueryValue(authUrl, parameterNames.cancel),
   );
   if (Result.isError(cancel)) {
     return Result.err(cancel.error);

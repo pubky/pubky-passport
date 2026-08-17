@@ -3,11 +3,7 @@ import "client-only";
 import { Keypair, Pubky, PublicKey, type PubkyError, type Session } from "@synonymdev/pubky";
 import { Result, type Result as ResultType } from "better-result";
 
-import {
-  getValidatedSensitivePubkyAuthUrl,
-  isPubkyAuthApprovalCapability,
-  type PubkyAuthApprovalCapability,
-} from "../authorization/request/issuedAuthorizationRequest";
+import { IssuedPubkyAuthRequest } from "../authorization/issuedPubkyAuthRequest";
 import {
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,
@@ -237,12 +233,12 @@ export class PubkySdkAdapter {
     return this.publishHomeserver(input.keyHandle, input.homeserverPubky);
   }
 
-  async approveAuthRequest(keyHandle: PubkyIdentityKeyHandle, authRequest: PubkyAuthApprovalCapability): Promise<PubkyAuthApprovalResult> {
-    if (!isPubkyAuthApprovalCapability(authRequest)) {
+  async approveAuthRequest(keyHandle: PubkyIdentityKeyHandle, authRequest: IssuedPubkyAuthRequest): Promise<PubkyAuthApprovalResult> {
+    if (!IssuedPubkyAuthRequest.isLive(authRequest)) {
       return authApprovalFailure("approve_auth_request", "request_validation", "request_rejected");
     }
 
-    const sensitivePubkyAuthUrl = getValidatedSensitivePubkyAuthUrl(authRequest);
+    const sensitivePubkyAuthUrl = IssuedPubkyAuthRequest.validatedUrlForApproval(authRequest);
     if (sensitivePubkyAuthUrl === undefined || !isPubkyAuthRequestUrl(sensitivePubkyAuthUrl)) {
       return authApprovalFailure("approve_auth_request", "request_validation", "request_rejected");
     }

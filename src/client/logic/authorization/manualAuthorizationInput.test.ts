@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PUBKY_AUTH_REQUEST_LIMITS } from "./request/pubkyAuthRequestLimits";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 import { LOGGER } from "../../../libs/logger/logger";
 import { submitManualAuthorizationInput } from "./manualAuthorizationInput";
 

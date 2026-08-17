@@ -1,9 +1,9 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { Result } from "better-result";
 
-import { parseEncodedPubkyAuthRequest, type PubkyAuthParseErrorCode } from "./parseEncodedPubkyAuthRequest";
+import { parseEncodedPubkyAuthRequest, type PubkyAuthParseErrorCode } from "./pubkyAuthRequestParser";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
-import type { PubkyAuthUrlValidationErrorCode } from "./validatePubkyAuthUrls";
+import type { PubkyAuthUrlValidationErrorCode } from "./pubkyAuthUrls";
 
 const VALID_REQUEST =
   "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-success=https://pubky.app/passport-success&x-error=https://pubky.app/passport-error&x-cancel=https://pubky.app/passport-cancel";

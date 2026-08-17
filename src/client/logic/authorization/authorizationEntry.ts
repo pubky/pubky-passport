@@ -6,22 +6,15 @@ import {
   EARLY_AUTHORIZATION_LOCATION_LIFETIME_MS,
   EARLY_AUTHORIZATION_LOCATION_PROPERTY,
   type EarlyAuthorizationLocation,
-} from "../../../../libs/authorization/earlyAuthorizationLocation";
-import { LOGGER } from "../../../../libs/logger/logger";
-import {
-  issueAuthorizationRequest,
-  releaseAuthorizationApproval,
-  type AuthorizationRequestReview,
-  type PubkyAuthApprovalCapability,
-} from "../request/issuedAuthorizationRequest";
-import { extractAuthorizationFragmentValue } from "./extractAuthorizationFragmentValue";
-import { scrubAuthorizationLocation } from "./scrubAuthorizationLocation";
+} from "../../../libs/authorization/earlyAuthorizationLocation";
+import { LOGGER } from "../../../libs/logger/logger";
+import { IssuedPubkyAuthRequest } from "./issuedPubkyAuthRequest";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 
 export type AuthorizationEntry =
   | {
     status: "valid";
-    review: AuthorizationRequestReview;
-    approval: PubkyAuthApprovalCapability;
+    request: IssuedPubkyAuthRequest;
     expiresAt: number;
   }
   | { status: "empty" }
@@ -73,19 +66,18 @@ export function readAndScrubAuthorizationEntry(
   const rawD = rawSearch.length === 0
     ? extractAuthorizationFragmentValue(rawHash)
     : { valid: false as const };
-  const parsed = issueAuthorizationRequest(rawD.valid ? rawD.value : undefined);
-  if (Result.isError(parsed)) {
+  const issued = IssuedPubkyAuthRequest.issue(rawD.valid ? rawD.value : undefined);
+  if (Result.isError(issued)) {
     LOGGER.info("authorize.parse.failed", {
       source: "fragment",
-      code: rawD.valid ? parsed.error.code : "invalid_fragment_shape",
+      code: rawD.valid ? issued.error.code : "invalid_fragment_shape",
     });
   }
-  const entry: AuthorizationEntry = Result.isError(parsed)
+  const entry: AuthorizationEntry = Result.isError(issued)
     ? { status: "invalid" }
     : {
       status: "valid",
-      review: parsed.value.review,
-      approval: parsed.value.approval,
+      request: issued.value,
       expiresAt: earlyLocation?.status === "captured"
         ? earlyLocation.expiresAt
         : Date.now() + EARLY_AUTHORIZATION_LOCATION_LIFETIME_MS,
@@ -142,6 +134,73 @@ function takeEarlyAuthorizationLocation(appWindow: Window): EarlyAuthorizationLo
   }
 }
 
+function extractAuthorizationFragmentValue(
+  hash: string,
+): { valid: true; value?: string } | { valid: false } {
+  if (hash.length > PUBKY_AUTH_REQUEST_LIMITS.encodedDLength + "#d=".length) {
+    return { valid: false };
+  }
+
+  const fragment = hash.startsWith("#") ? hash.slice(1) : hash;
+  if (fragment.length === 0) return { valid: true };
+
+  let value: string | undefined;
+  for (const parameter of fragment.split("&")) {
+    const separator = parameter.indexOf("=");
+    const name = separator === -1 ? parameter : parameter.slice(0, separator);
+    if (name !== "d" || separator === -1 || value !== undefined) {
+      return { valid: false };
+    }
+    value = parameter.slice(separator + 1);
+  }
+
+  return value === undefined ? { valid: true } : { valid: true, value };
+}
+
+/** Removes authorization query and fragment data using the native History API. */
+export function scrubAuthorizationLocation(
+  appWindow: Window,
+  options: { preserveSanitizedHistoryState?: boolean } = {},
+): void {
+  // Avoid framework-patched history methods while scrubbing before React commits.
+  const HistoryConstructor = (appWindow as Window & { History: typeof History }).History;
+  try {
+    HistoryConstructor.prototype.replaceState.call(
+      appWindow.history,
+      options.preserveSanitizedHistoryState ? safeHistoryState(appWindow) : null,
+      "",
+      appWindow.location.pathname,
+    );
+  } catch {
+    LOGGER.warn("authorize.entry.failed", {
+      operation: "scrub_fragment",
+      code: "history_unavailable",
+    });
+    throw new Error("Authorization entry could not be scrubbed.");
+  }
+}
+
+function safeHistoryState(appWindow: Window): unknown {
+  const state = appWindow.history.state as unknown;
+  if (state === null) return null;
+
+  try {
+    const serialized = JSON.stringify(state);
+    if (
+      serialized === undefined
+      || serialized.length > 32_768
+      || (appWindow.location.hash !== "" && serialized.includes(appWindow.location.hash))
+      || (appWindow.location.search !== "" && serialized.includes(appWindow.location.search))
+      || /pubkyauth(?::|%3a)|(?:#|%23|\?|%3f)d(?:=|%3d)/iu.test(serialized)
+    ) {
+      return null;
+    }
+    return state;
+  } catch {
+    return null;
+  }
+}
+
 /** Clears the short-lived StrictMode entry after the first render commits. */
 export function clearPendingAuthorizationEntry(appWindow: Window): void {
   const pending = PENDING_STRICT_MODE_ENTRIES.get(appWindow);
@@ -151,6 +210,6 @@ export function clearPendingAuthorizationEntry(appWindow: Window): void {
 
 /** Invalidates private approval metadata when an unconsumed entry expires. */
 export function expireAuthorizationEntry(entry: AuthorizationEntry): AuthorizationEntry {
-  if (entry.status === "valid") releaseAuthorizationApproval(entry.approval);
+  if (entry.status === "valid") IssuedPubkyAuthRequest.release(entry.request);
   return { status: "expired" };
 }

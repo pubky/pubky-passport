@@ -31,50 +31,16 @@ const ESLINT_CONFIG = defineConfig([
       "no-restricted-imports": [
         "error",
         {
-          paths: [
-            {
-              name: "@/client/logic/authorization/request/issuedAuthorizationRequest",
-              importNames: ["PubkyAuthApprovalCapability"],
-              message: "UI must consume safe authorization controller state, not sensitive approval types."
-            }
-          ],
           patterns: [
             {
               regex: `^(?:\\.\\./)+logic/(?!${STABLE_CLIENT_LOGIC_UI_ENTRY}$)`,
-              message: "UI may import client logic only through stable APIs and controller factories."
+              message: "UI may import client logic only through stable APIs and controllers."
             },
             {
               regex: `^@/client/logic/(?!${STABLE_CLIENT_LOGIC_UI_ENTRY}$)`,
-              message: "UI may import client logic only through stable APIs and controller factories."
+              message: "UI may import client logic only through stable APIs and controllers."
             }
           ]
-        }
-      ]
-    }
-  },
-  {
-    files: [
-      "src/client/logic/authorization/passportAuthorization.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
-      "src/client/logic/authorization/manualAuthorizationInput.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
-      "src/client/logic/identity/passportIdentityController.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
-    ],
-    ignores: ["src/client/logic/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          paths: [
-            {
-              name: "@/client/logic/authorization/request/issuedAuthorizationRequest",
-              importNames: ["PubkyAuthApprovalCapability"],
-              message: "Public client contracts must expose safe review state, not sensitive approval types."
-            }
-          ],
-          patterns: [{
-            regex: "^\\./request/issuedAuthorizationRequest$",
-            importNames: ["PubkyAuthApprovalCapability"],
-            message: "Public client contracts must expose safe review state, not sensitive approval types."
-          }]
         }
       ]
     }

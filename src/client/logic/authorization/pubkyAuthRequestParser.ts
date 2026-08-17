@@ -6,17 +6,29 @@ import {
   parsePubkyAuthCapabilities,
   type PubkyAuthCapability,
   type PubkyAuthCapabilitiesParseError,
-} from "./parsePubkyAuthCapabilities";
+} from "./pubkyAuthCapabilities";
 import {
   validatePubkyAuthUrls,
   type ValidatedPubkyAuthCallbacks,
   type PubkyAuthUrlValidationError,
-} from "./validatePubkyAuthUrls";
+} from "./pubkyAuthUrls";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
-import { PUBKY_AUTH_REQUEST_PARAMETERS } from "./pubkyAuthRequestParameters";
 
 export type PubkyAuthRequestKind = "signin";
 export type PubkyAuthenticationMethod = "cookie" | "grant";
+
+const PUBKY_AUTH_REQUEST_PARAMETERS = {
+  relay: "relay",
+  secret: "secret",
+  capabilities: "caps",
+  source: "x-source",
+  success: "x-success",
+  error: "x-error",
+  cancel: "x-cancel",
+  legacySuccess: "callback",
+  clientId: "cid",
+  clientPublicKey: "cpk",
+} as const;
 
 const COMMON_PARAMETERS = new Set<string>([
   PUBKY_AUTH_REQUEST_PARAMETERS.relay,
@@ -141,7 +153,7 @@ export function parseEncodedPubkyAuthRequest(
     return Result.err(grantParameters.error);
   }
 
-  const urls = validatePubkyAuthUrls(authUrl.value);
+  const urls = validatePubkyAuthUrls(authUrl.value, PUBKY_AUTH_REQUEST_PARAMETERS);
   if (Result.isError(urls)) {
     return Result.err(urls.error);
   }

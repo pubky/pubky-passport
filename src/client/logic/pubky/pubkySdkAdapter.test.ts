@@ -2,10 +2,7 @@ import { AuthFlowKind, Keypair, Pubky, Signer } from "@synonymdev/pubky";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
-import {
-  issueAuthorizationRequest,
-  type PubkyAuthApprovalCapability,
-} from "../authorization/request/issuedAuthorizationRequest";
+import { IssuedPubkyAuthRequest } from "../authorization/issuedPubkyAuthRequest";
 import { LOGGER } from "../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkyIdentityKeyHandle } from "./pubkyIdentityKey";
 import { PubkySdkAdapter } from "./pubkySdkAdapter";
@@ -27,8 +24,8 @@ describe("PubkySdkAdapter", () => {
     );
 
     try {
-      const cookie = issueAuthorizationRequest(encodeURIComponent(cookieFlow.authorizationUrl));
-      const grant = issueAuthorizationRequest(encodeURIComponent(grantFlow.authorizationUrl));
+      const cookie = IssuedPubkyAuthRequest.issue(encodeURIComponent(cookieFlow.authorizationUrl));
+      const grant = IssuedPubkyAuthRequest.issue(encodeURIComponent(grantFlow.authorizationUrl));
 
       expect(Result.isOk(cookie) && cookie.value.review.authenticationMethod).toBe("cookie");
       expect(Result.isOk(grant) && grant.value.review.authenticationMethod).toBe("grant");
@@ -301,12 +298,21 @@ describe("PubkySdkAdapter", () => {
     const pubky = new PubkySdkAdapter();
 
     try {
-      const result = await pubky.approveAuthRequest(
-        {} as PubkyIdentityKeyHandle,
-        {} as PubkyAuthApprovalCapability,
-      );
+      const forgedRequests = [
+        Object.create(IssuedPubkyAuthRequest.prototype) as IssuedPubkyAuthRequest,
+        {
+          isLive: () => true,
+          validatedUrlForApproval: () => "pubkyauth://signin?secret=forged",
+        } as unknown as IssuedPubkyAuthRequest,
+      ];
+      for (const forgedRequest of forgedRequests) {
+        const result = await pubky.approveAuthRequest(
+          {} as PubkyIdentityKeyHandle,
+          forgedRequest,
+        );
+        expectErrorResult(result, "request_rejected");
+      }
 
-      expectErrorResult(result, "request_rejected");
       expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
         operation: "approve_auth_request",
         stage: "request_validation",

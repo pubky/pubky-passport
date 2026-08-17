@@ -4,7 +4,7 @@ import { Result } from "better-result";
 import {
   parsePubkyAuthCapabilities,
   type PubkyAuthCapabilitiesParseErrorCode,
-} from "./parsePubkyAuthCapabilities";
+} from "./pubkyAuthCapabilities";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 
 function expectCapabilities(input: string) {

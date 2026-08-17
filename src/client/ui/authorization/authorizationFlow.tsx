@@ -3,8 +3,7 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 
 import {
-  createPassportAuthorizationController,
-  type PassportAuthorizationController,
+  PassportAuthorizationController,
   type PassportAuthorizationViewState,
 } from "../../logic/authorization/passportAuthorization";
 import type { LocalIdentityCatalog, PassportIdentityController } from "../../logic/identity/passportIdentityController";
@@ -29,7 +28,7 @@ function AuthorizationFlow({ googleClientId, homegateBaseUrl }: {
   const [authorization, setAuthorization] = useState<PassportAuthorizationViewState>();
 
   useEffect(() => {
-    const controller = controllerRef.current ?? createPassportAuthorizationController();
+    const controller = controllerRef.current ?? new PassportAuthorizationController();
     controllerRef.current = controller;
     setController(controller);
     let active = true;

@@ -2,13 +2,26 @@ import { Result } from "better-result";
 import { describe, expect, it } from "vitest";
 
 import {
-  validatePubkyAuthUrls,
+  validatePubkyAuthUrls as validateUrlValues,
   type PubkyAuthUrlValidationErrorCode,
-} from "./validatePubkyAuthUrls";
+  type PubkyAuthUrlParameterNames,
+} from "./pubkyAuthUrls";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
+
+const PARAMETER_NAMES: PubkyAuthUrlParameterNames = {
+  relay: "relay",
+  success: "x-success",
+  error: "x-error",
+  cancel: "x-cancel",
+  legacySuccess: "callback",
+};
 
 function authUrl(query: string): URL {
   return new URL(`pubkyauth://signin?${query}`);
+}
+
+function validatePubkyAuthUrls(url: URL) {
+  return validateUrlValues(url, PARAMETER_NAMES);
 }
 
 function validateRelay(relay: string | null) {

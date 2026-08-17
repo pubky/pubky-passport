@@ -24,32 +24,32 @@ const PUBKY_SDK_ADAPTER_STAGING_TEST = join(CLIENT_LOGIC_ROOT, "pubky", "pubkySd
 const ISSUED_AUTHORIZATION_REQUEST = join(
   CLIENT_LOGIC_ROOT,
   "authorization",
-  "request",
-  "issuedAuthorizationRequest.ts",
+  "issuedPubkyAuthRequest.ts",
 );
-const AUTHORIZATION_FLOW_CONTROLLER = join(
+const PASSPORT_AUTHORIZATION = join(
   CLIENT_LOGIC_ROOT,
   "authorization",
-  "flow",
-  "authorizationFlowController.ts",
+  "passportAuthorization.ts",
+);
+const ACTIVE_IDENTITY_AUTHORIZATION = join(
+  CLIENT_LOGIC_ROOT,
+  "authorization",
+  "activeIdentityAuthorization.ts",
+);
+const MANUAL_AUTHORIZATION_INPUT = join(
+  CLIENT_LOGIC_ROOT,
+  "authorization",
+  "manualAuthorizationInput.ts",
 );
 const AUTHORIZATION_ENTRY = join(
   CLIENT_LOGIC_ROOT,
   "authorization",
-  "entry",
   "authorizationEntry.ts",
 );
 const ENCODED_AUTHORIZATION_REQUEST_PARSER = join(
   CLIENT_LOGIC_ROOT,
   "authorization",
-  "request",
-  "parseEncodedPubkyAuthRequest.ts",
-);
-const ENCODED_AUTHORIZATION_REQUEST_VALIDATOR = join(
-  CLIENT_LOGIC_ROOT,
-  "authorization",
-  "request",
-  "validateEncodedPubkyAuthRequest.ts",
+  "pubkyAuthRequestParser.ts",
 );
 const GOOGLE_WRAPPING_KEY_REQUEST = join(
   SERVER_ROOT,
@@ -184,7 +184,7 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
-  it("limits production UI logic imports to stable controller APIs and factories", () => {
+  it("limits production UI logic imports to stable controllers and operations", () => {
     expect(GRAPH.productionSourceFiles(UI_ROOT).flatMap(inspectUiLogicImports)).toEqual([]);
   });
 
@@ -240,10 +240,26 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
-  it("keeps sensitive approval types out of public client contracts", () => {
-    const violations = [...STABLE_UI_CLIENT_LOGIC_MODULES]
-      .filter((filePath) => GRAPH.referencesIdentifier(filePath, "PubkyAuthApprovalCapability"))
-      .map((filePath) => `${relative(REPO_ROOT, filePath)} references the sensitive approval type`);
+  it("keeps issued authorization requests out of UI modules", () => {
+    const violations = GRAPH.productionSourceFiles(UI_ROOT)
+      .filter((filePath) => GRAPH.referencesIdentifier(filePath, "IssuedPubkyAuthRequest"))
+      .map((filePath) => `${relative(REPO_ROOT, filePath)} references the issued authorization request`);
+
+    expect(violations).toEqual([]);
+  });
+
+  it("confines issued authorization requests to their owning modules", () => {
+    const approvedConsumers = new Set([
+      ACTIVE_IDENTITY_AUTHORIZATION,
+      AUTHORIZATION_ENTRY,
+      MANUAL_AUTHORIZATION_INPUT,
+      PASSPORT_AUTHORIZATION,
+      PUBKY_SDK_ADAPTER,
+    ]);
+    const violations = GRAPH.productionSourceFiles(SRC_ROOT)
+      .filter((filePath) => GRAPH.importsTarget(filePath, ISSUED_AUTHORIZATION_REQUEST))
+      .filter((filePath) => !approvedConsumers.has(filePath))
+      .map((filePath) => `${relative(REPO_ROOT, filePath)} imports the issued authorization request`);
 
     expect(violations).toEqual([]);
   });
@@ -252,15 +268,15 @@ describe("architecture boundaries", () => {
     const violations = GRAPH.productionSourceFiles(SRC_ROOT)
       .filter((filePath) => GRAPH.importsTarget(filePath, ISSUED_AUTHORIZATION_REQUEST))
       .flatMap((filePath) => [
-        ...["getValidatedSensitivePubkyAuthUrl", "isPubkyAuthApprovalCapability"]
+        ...["validatedUrlForApproval", "isLive"]
           .filter((identifier) => filePath !== PUBKY_SDK_ADAPTER && GRAPH.referencesIdentifier(filePath, identifier))
           .map((identifier) => `${relative(REPO_ROOT, filePath)} accesses ${identifier} outside the Pubky adapter`),
-        ...["getValidatedOutcomeCallback"]
-          .filter((identifier) => filePath !== AUTHORIZATION_FLOW_CONTROLLER && GRAPH.referencesIdentifier(filePath, identifier))
-          .map((identifier) => `${relative(REPO_ROOT, filePath)} accesses ${identifier} outside the authorization flow controller`),
-        ...["releaseAuthorizationApproval"]
+        ...["takeOutcomeCallback"]
+          .filter((identifier) => filePath !== PASSPORT_AUTHORIZATION && GRAPH.referencesIdentifier(filePath, identifier))
+          .map((identifier) => `${relative(REPO_ROOT, filePath)} accesses ${identifier} outside the authorization controller`),
+        ...["release"]
           .filter((identifier) =>
-            filePath !== AUTHORIZATION_FLOW_CONTROLLER
+            filePath !== PASSPORT_AUTHORIZATION
             && filePath !== AUTHORIZATION_ENTRY
             && GRAPH.referencesIdentifier(filePath, identifier)
           )
@@ -271,13 +287,9 @@ describe("architecture boundaries", () => {
   });
 
   it("confines the sensitive authorization parser to issuance and safe validation", () => {
-    const approvedConsumers = new Set([
-      ISSUED_AUTHORIZATION_REQUEST,
-      ENCODED_AUTHORIZATION_REQUEST_VALIDATOR,
-    ]);
     const violations = GRAPH.productionSourceFiles(SRC_ROOT)
       .filter((filePath) => GRAPH.importsTarget(filePath, ENCODED_AUTHORIZATION_REQUEST_PARSER))
-      .filter((filePath) => !approvedConsumers.has(filePath))
+      .filter((filePath) => filePath !== ISSUED_AUTHORIZATION_REQUEST)
       .map((filePath) => `${relative(REPO_ROOT, filePath)} imports the sensitive authorization parser`);
 
     expect(violations).toEqual([]);
@@ -287,8 +299,8 @@ describe("architecture boundaries", () => {
 
 function inspectUiLogicImports(filePath: string): string[] {
   const relativeFilePath = relative(REPO_ROOT, filePath);
-  const violations = GRAPH.referencesIdentifier(filePath, "PubkyAuthApprovalCapability")
-    ? [`${relativeFilePath} references the sensitive approval type`]
+  const violations = GRAPH.referencesIdentifier(filePath, "IssuedPubkyAuthRequest")
+    ? [`${relativeFilePath} references the issued authorization request`]
     : [];
   const visited = new Set<string>();
 

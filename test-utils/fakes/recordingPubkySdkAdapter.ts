@@ -12,10 +12,7 @@ import {
   type PubkySessionAccessResult,
   type PubkySignupInput,
 } from "../../src/client/logic/pubky/pubkySdkAdapter";
-import {
-  getValidatedSensitivePubkyAuthUrl,
-  type PubkyAuthApprovalCapability,
-} from "../../src/client/logic/authorization/request/issuedAuthorizationRequest";
+import { IssuedPubkyAuthRequest } from "../../src/client/logic/authorization/issuedPubkyAuthRequest";
 import type { PubkyPublicIdentity } from "../../src/client/logic/pubky/pubkyIdentityKey";
 import {
   PUBKY_SECRET_KEY_BYTES,
@@ -124,11 +121,11 @@ export class RecordingPubkySdkAdapter extends PubkySdkAdapter {
 
   override async approveAuthRequest(
     _keyHandle: PubkyIdentityKeyHandle,
-    authRequest: PubkyAuthApprovalCapability,
+    authRequest: IssuedPubkyAuthRequest,
   ): Promise<PubkyAuthApprovalResult> {
     let scheme: string | undefined;
     let queryKeys: string[] = [];
-    const sensitivePubkyAuthUrl = getValidatedSensitivePubkyAuthUrl(authRequest);
+    const sensitivePubkyAuthUrl = IssuedPubkyAuthRequest.validatedUrlForApproval(authRequest);
     if (sensitivePubkyAuthUrl !== undefined) {
       try {
         const parsed = new URL(sensitivePubkyAuthUrl);

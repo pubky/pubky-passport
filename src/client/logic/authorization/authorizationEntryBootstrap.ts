@@ -4,9 +4,9 @@ import {
   clearPendingAuthorizationEntry,
   expireAuthorizationEntry,
   readAndScrubAuthorizationEntry,
+  scrubAuthorizationLocation,
   type AuthorizationEntry,
 } from "./authorizationEntry";
-import { scrubAuthorizationLocation } from "./scrubAuthorizationLocation";
 
 let bootstrappedEntry = readInitialAuthorizationEntry();
 let expirationTimer = scheduleExpiration(bootstrappedEntry);

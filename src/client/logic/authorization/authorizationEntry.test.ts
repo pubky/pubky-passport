@@ -2,13 +2,14 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { EARLY_AUTHORIZATION_LOCATION_PROPERTY } from "../../../../libs/authorization/earlyAuthorizationLocation";
-import { LOGGER } from "../../../../libs/logger/logger";
-import { PUBKY_AUTH_REQUEST_LIMITS } from "../request/pubkyAuthRequestLimits";
-import { isPubkyAuthApprovalCapability } from "../request/issuedAuthorizationRequest";
+import { EARLY_AUTHORIZATION_LOCATION_PROPERTY } from "../../../libs/authorization/earlyAuthorizationLocation";
+import { LOGGER } from "../../../libs/logger/logger";
+import { IssuedPubkyAuthRequest } from "./issuedPubkyAuthRequest";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 import {
   clearPendingAuthorizationEntry,
   readAndScrubAuthorizationEntry,
+  scrubAuthorizationLocation,
 } from "./authorizationEntry";
 
 const RELAY_ORIGIN = "https://relay.example";
@@ -111,7 +112,7 @@ describe("authorizationEntry", () => {
 
     vi.advanceTimersByTime(60_000);
 
-    expect(isPubkyAuthApprovalCapability(entry.approval)).toBe(false);
+    expect(IssuedPubkyAuthRequest.isLive(entry.request)).toBe(false);
   });
 
   it("clears the pre-commit cache explicitly", () => {
@@ -169,6 +170,30 @@ describe("authorizationEntry", () => {
     setRawAuthorizationFragment(`unexpected=${"a".repeat(PUBKY_AUTH_REQUEST_LIMITS.encodedDLength + 1)}`);
 
     expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "invalid" });
+    expect(window.location.hash).toBe("");
+  });
+
+  it("preserves safe framework history state during a repeated hydration scrub", () => {
+    const frameworkState = { __NA: true, tree: ["", { children: ["authorize"] }] };
+    window.history.replaceState(
+      frameworkState,
+      "",
+      "/authorize#d=encoded-request",
+    );
+
+    scrubAuthorizationLocation(window, { preserveSanitizedHistoryState: true });
+
+    expect(window.history.state).toEqual(frameworkState);
+    expect(window.location.hash).toBe("");
+  });
+
+  it("clears framework history state that contains authorization data", () => {
+    const sensitiveUrl = "/authorize#d=encoded-request";
+    window.history.replaceState({ url: sensitiveUrl }, "", sensitiveUrl);
+
+    scrubAuthorizationLocation(window, { preserveSanitizedHistoryState: true });
+
+    expect(window.history.state).toBeNull();
     expect(window.location.hash).toBe("");
   });
 
