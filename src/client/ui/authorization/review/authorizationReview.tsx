@@ -18,7 +18,8 @@ function AuthorizationReview({ approving, identity, onAuthorize, onCancel, onSwi
   onSwitch: () => void;
   review: AuthorizationRequestReview;
 }) {
-  const requestingApp = review.clientId ?? review.requestingAppDisplayHost ?? "this service";
+  const requestingApp = review.requestingAppDisplayHost;
+  const hasBroadAccess = review.capabilities.some((capability) => capability.scope === "broad");
   const account = identity?.googleAccount;
   const identityName = account?.name ?? "Your Pubky";
 
@@ -31,6 +32,11 @@ function AuthorizationReview({ approving, identity, onAuthorize, onCancel, onSwi
             <PermissionRow access={formatAccess(capability)} key={`${capability.path}:${capability.read}:${capability.write}`} path={capability.path} />
           ))}
         </PermissionList>
+        {hasBroadAccess ? (
+          <p className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm font-medium leading-5 text-foreground" role="alert">
+            This request includes broad access that is not limited to one app namespace.
+          </p>
+        ) : null}
         <section className="relative flex h-[72px] items-center gap-2 rounded-2xl bg-card p-4">
           {identity ? (
             <>

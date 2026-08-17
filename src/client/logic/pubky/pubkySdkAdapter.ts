@@ -5,6 +5,7 @@ import { Result, type Result as ResultType } from "better-result";
 
 import type { PubkyPublicIdentity } from "../identity/pubkyPublicIdentity";
 import {
+  getValidatedSensitivePubkyAuthUrl,
   isPubkyAuthApprovalCapability,
   type PubkyAuthApprovalCapability,
 } from "../authorization/browserAuthorizationRequest";
@@ -237,10 +238,12 @@ export class PubkySdkAdapter {
   }
 
   async approveAuthRequest(keyHandle: PubkyIdentityKeyHandle, authRequest: PubkyAuthApprovalCapability): Promise<PubkyAuthApprovalResult> {
-    if (
-      !isPubkyAuthApprovalCapability(authRequest) ||
-      !isPubkyAuthRequestUrl(authRequest.sensitivePubkyAuthUrl)
-    ) {
+    if (!isPubkyAuthApprovalCapability(authRequest)) {
+      return authApprovalFailure("approve_auth_request", "request_validation", "request_rejected");
+    }
+
+    const sensitivePubkyAuthUrl = getValidatedSensitivePubkyAuthUrl(authRequest);
+    if (sensitivePubkyAuthUrl === undefined || !isPubkyAuthRequestUrl(sensitivePubkyAuthUrl)) {
       return authApprovalFailure("approve_auth_request", "request_validation", "request_rejected");
     }
 
@@ -250,7 +253,7 @@ export class PubkySdkAdapter {
     }
 
     try {
-      await this.withSigner("approve_auth_request", keypair, (signer) => signer.approveAuthRequest(authRequest.sensitivePubkyAuthUrl));
+      await this.withSigner("approve_auth_request", keypair, (signer) => signer.approveAuthRequest(sensitivePubkyAuthUrl));
 
       return Result.ok();
     } catch {

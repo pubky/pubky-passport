@@ -17,6 +17,7 @@ import type { BrowserAuthorizationOutcome } from "./browserAuthorizationOutcome"
 
 export type PassportAuthorizationFailureCode = ApproveAuthorizationErrorCode;
 
+/** Finite, render-safe states emitted by the browser authorization controller. */
 export type PassportAuthorizationViewState =
   | { status: "manual-entry" }
   | { status: "invalid" }
@@ -27,10 +28,13 @@ export type PassportAuthorizationViewState =
   | { status: "cancelled" }
   | { status: "failed"; failureCode: PassportAuthorizationFailureCode };
 
+/**
+ * Owns the finite authorization UI state machine. Its sensitive approval entry
+ * is non-enumerable, while callbacks and the raw URL stay in module metadata.
+ */
 export class PassportAuthorizationController {
   private listeners = new Set<(state: PassportAuthorizationViewState) => void>();
   private state: PassportAuthorizationViewState;
-  private approvalPending = false;
 
   constructor(
     private entry: AuthorizationEntry,
@@ -44,7 +48,6 @@ export class PassportAuthorizationController {
 
     // Keep sensitive controller internals out of enumeration and serialization.
     Object.defineProperties(this, {
-      approvalPending: { enumerable: false },
       approveAuthorization: { enumerable: false },
       clearPendingEntry: { enumerable: false },
       completeOutcome: { enumerable: false },
@@ -68,11 +71,10 @@ export class PassportAuthorizationController {
   }
 
   async approve(): Promise<PassportAuthorizationViewState> {
-    if (this.entry.status !== "valid" || this.approvalPending || this.state.status !== "review") {
+    if (this.entry.status !== "valid" || this.state.status !== "review") {
       return this.state;
     }
 
-    this.approvalPending = true;
     this.update({ status: "approving", review: this.entry.review });
     let result: ApproveAuthorizationResult;
     try {
@@ -114,7 +116,7 @@ export class PassportAuthorizationController {
   }
 
   async cancel(): Promise<PassportAuthorizationViewState> {
-    if (this.entry.status !== "valid" || this.approvalPending || this.state.status !== "review") {
+    if (this.entry.status !== "valid" || this.state.status !== "review") {
       return this.state;
     }
 

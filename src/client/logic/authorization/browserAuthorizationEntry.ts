@@ -22,10 +22,16 @@ export type AuthorizationEntry =
 type PendingStrictModeEntry = {
   scrubbedHref: string;
   entry: AuthorizationEntry;
+  timeoutId: number;
 };
 
 const PENDING_STRICT_MODE_ENTRIES = new WeakMap<Window, PendingStrictModeEntry>();
+const PENDING_ENTRY_TTL_MS = 60_000;
 
+/**
+ * Consumes the early authorization capture, scrubs the browser URL, and returns
+ * only a safe entry state for controller construction.
+ */
 export function readAndScrubAuthorizationEntry(
   browserWindow: Window,
 ): AuthorizationEntry {
@@ -42,7 +48,6 @@ export function readAndScrubAuthorizationEntry(
   if (rawSearch.length === 0 && rawHash.length === 0) {
     const pending = PENDING_STRICT_MODE_ENTRIES.get(browserWindow);
     if (pending?.scrubbedHref === scrubbedHref) {
-      PENDING_STRICT_MODE_ENTRIES.delete(browserWindow);
       return pending.entry;
     }
     return { status: "empty" };
@@ -65,13 +70,14 @@ export function readAndScrubAuthorizationEntry(
 }
 
 function retainForStrictMode(browserWindow: Window, scrubbedHref: string, entry: AuthorizationEntry): AuthorizationEntry {
-  const pending = { scrubbedHref, entry };
+  clearPendingAuthorizationEntry(browserWindow);
+  const pending: PendingStrictModeEntry = { scrubbedHref, entry, timeoutId: 0 };
   PENDING_STRICT_MODE_ENTRIES.set(browserWindow, pending);
-  queueMicrotask(() => {
+  pending.timeoutId = browserWindow.setTimeout(() => {
     if (PENDING_STRICT_MODE_ENTRIES.get(browserWindow) === pending) {
       PENDING_STRICT_MODE_ENTRIES.delete(browserWindow);
     }
-  });
+  }, PENDING_ENTRY_TTL_MS);
   return entry;
 }
 
@@ -91,6 +97,7 @@ function takeEarlyAuthorizationLocation(browserWindow: Window): EarlyAuthorizati
   }
 }
 
+/** Removes authorization query and fragment data using the native History API. */
 export function scrubAuthorizationLocation(
   browserWindow: Window,
   preserveSafeHistoryState = false,
@@ -134,6 +141,9 @@ function safeHistoryState(browserWindow: Window): unknown {
   }
 }
 
+/** Clears the short-lived StrictMode entry after the first render commits. */
 export function clearPendingAuthorizationEntry(browserWindow: Window): void {
+  const pending = PENDING_STRICT_MODE_ENTRIES.get(browserWindow);
+  if (pending) browserWindow.clearTimeout(pending.timeoutId);
   PENDING_STRICT_MODE_ENTRIES.delete(browserWindow);
 }

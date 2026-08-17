@@ -66,17 +66,14 @@ export type PubkyAuthParseErrorCode =
 
 export type PubkyAuthParseError = {
   code: PubkyAuthParseErrorCode;
-  message: string;
 };
 
 export type ParsedPubkyAuthRequest = {
   kind: PubkyAuthRequestKind;
   authenticationMethod: PubkyAuthenticationMethod;
   capabilities: PubkyAuthCapability[];
-  clientId?: string;
   callbacks: Readonly<ValidatedPubkyAuthCallbacks>;
   relayHost: string;
-  relayOrigin: string;
   sensitivePubkyAuthUrl: string;
 };
 
@@ -87,15 +84,19 @@ type ParseValueResult<Value> = ResultType<Value, PubkyAuthParseError>;
 
 const PUBKY_AUTH_PROTOCOL = "pubkyauth:";
 
+/**
+ * Parses and bounds one encoded Pubky Auth URL without issuing browser signing
+ * authority. The returned URL remains sensitive and must not enter UI state.
+ */
 export function parsePubkyAuthRequest(
   d: unknown,
 ): PubkyAuthParseResult {
   if (typeof d !== "string" || d.length === 0) {
-    return error("missing_d", "Missing encoded Pubky auth request.");
+    return error("missing_d");
   }
 
   if (d.length > PUBKY_AUTH_REQUEST_LIMITS.encodedDLength) {
-    return error("request_too_large", "Encoded Pubky auth request exceeds the allowed size.");
+    return error("request_too_large");
   }
 
   const decoded = decodeDParam(d);
@@ -104,11 +105,11 @@ export function parsePubkyAuthRequest(
   }
 
   if (decoded.value.length > PUBKY_AUTH_REQUEST_LIMITS.decodedAuthUrlLength) {
-    return error("request_too_large", "Pubky auth request exceeds the allowed size.");
+    return error("request_too_large");
   }
 
   if (decoded.value === d) {
-    return error("invalid_encoding", "Pubky auth request must be URL-encoded.");
+    return error("invalid_encoding");
   }
 
   const authUrl = parseUrl(decoded.value);
@@ -117,7 +118,7 @@ export function parsePubkyAuthRequest(
   }
 
   if (authUrl.value.protocol !== PUBKY_AUTH_PROTOCOL) {
-    return error("unsupported_scheme", "Pubky auth request must use pubkyauth scheme.");
+    return error("unsupported_scheme");
   }
 
   const intent = parseAuthRequestIntent(authUrl.value);
@@ -127,14 +128,14 @@ export function parsePubkyAuthRequest(
 
   const secret = authUrl.value.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.secret);
   if (!secret) {
-    return error("missing_secret", "Pubky auth request is missing a secret.");
+    return error("missing_secret");
   }
 
   if (
     secret.length > PUBKY_AUTH_REQUEST_LIMITS.secretLength ||
     !isCanonicalAuthSecret(secret)
   ) {
-    return error("invalid_secret", "Pubky auth request secret is invalid.");
+    return error("invalid_secret");
   }
 
   const parameters = validatePubkyAuthRequestParameters(
@@ -145,14 +146,14 @@ export function parsePubkyAuthRequest(
     return Result.err(parameters.error);
   }
 
-  const grant = parseGrantParameters(authUrl.value, intent.value.authenticationMethod);
-  if (Result.isError(grant)) {
-    return Result.err(grant.error);
+  const grantParameters = validateGrantParameters(authUrl.value, intent.value.authenticationMethod);
+  if (Result.isError(grantParameters)) {
+    return Result.err(grantParameters.error);
   }
 
   const urls = validatePubkyAuthUrls(authUrl.value);
   if (Result.isError(urls)) {
-    return mapUrlValidationError(urls.error);
+    return Result.err(urls.error);
   }
 
   const capabilities = parsePubkyAuthCapabilities(authUrl.value.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.capabilities));
@@ -164,14 +165,13 @@ export function parsePubkyAuthRequest(
     kind: intent.value.kind,
     authenticationMethod: intent.value.authenticationMethod,
     capabilities: capabilities.value,
-    ...(grant.value ? { clientId: grant.value.clientId } : {}),
     callbacks: Object.freeze({ ...urls.value.callbacks }),
     relayHost: urls.value.relayHost,
-    relayOrigin: urls.value.relayOrigin,
     sensitivePubkyAuthUrl: decoded.value,
   });
 }
 
+/** Validates an encoded request without returning its sensitive parsed value. */
 export function validatePubkyAuthRequest(
   d: unknown,
 ): PubkyAuthValidationResult {
@@ -179,6 +179,7 @@ export function validatePubkyAuthRequest(
   return Result.isError(parsed) ? Result.err(parsed.error) : Result.ok();
 }
 
+/** Extracts the sole bounded `d` value from an authorization URL fragment. */
 export function extractRawPubkyAuthRequestFragmentValue(
   hash: string,
 ): { valid: true; value?: string } | { valid: false } {
@@ -204,7 +205,7 @@ function decodeDParam(d: string): ParseValueResult<string> {
   try {
     return Result.ok(decodeURIComponent(d));
   } catch {
-    return error("invalid_encoding", "Pubky auth request is not valid URL encoding.");
+    return error("invalid_encoding");
   }
 }
 
@@ -212,7 +213,7 @@ function parseUrl(value: string): ParseValueResult<URL> {
   try {
     return Result.ok(new URL(value));
   } catch {
-    return error("invalid_url", "Pubky auth request is not a valid URL.");
+    return error("invalid_url");
   }
 }
 
@@ -232,7 +233,7 @@ function parseAuthRequestIntent(url: URL): ParseValueResult<{
     return Result.ok({ kind: "signin", authenticationMethod: "cookie" });
   }
 
-  return error("invalid_auth_request_path", "Pubky auth request path is not supported.");
+  return error("invalid_auth_request_path");
 }
 
 function validatePubkyAuthRequestParameters(
@@ -246,11 +247,11 @@ function validatePubkyAuthRequestParameters(
 
   for (const [name] of searchParams) {
     if (!supportedParameters.has(name)) {
-      return error("unsupported_parameter", "Pubky auth request contains an unsupported parameter.");
+      return error("unsupported_parameter");
     }
 
     if (seen.has(name)) {
-      return error("duplicate_parameter", "Pubky auth request contains a duplicate parameter.");
+      return error("duplicate_parameter");
     }
 
     seen.add(name);
@@ -259,29 +260,29 @@ function validatePubkyAuthRequestParameters(
   return Result.ok();
 }
 
-function parseGrantParameters(
+function validateGrantParameters(
   url: URL,
   authenticationMethod: PubkyAuthenticationMethod,
-): ParseValueResult<{ clientId: string } | undefined> {
-  if (authenticationMethod === "cookie") return Result.ok(undefined);
+): ParseValueResult<void> {
+  if (authenticationMethod === "cookie") return Result.ok();
 
   const clientId = url.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.clientId);
   if (clientId === null || clientId.length === 0) {
-    return error("missing_client_id", "Grant authentication request is missing a client ID.");
+    return error("missing_client_id");
   }
   if (utf8Length(clientId) > 253) {
-    return error("invalid_client_id", "Grant authentication request client ID is invalid.");
+    return error("invalid_client_id");
   }
 
   const clientPublicKey = url.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.clientPublicKey);
   if (clientPublicKey === null || clientPublicKey.length === 0) {
-    return error("missing_client_public_key", "Grant authentication request is missing a client public key.");
+    return error("missing_client_public_key");
   }
   if (!isCanonicalPublicKey(clientPublicKey)) {
-    return error("invalid_client_public_key", "Grant authentication request client public key is invalid.");
+    return error("invalid_client_public_key");
   }
 
-  return Result.ok({ clientId });
+  return Result.ok();
 }
 
 const BASE64_URL_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
@@ -307,18 +308,14 @@ function utf8Length(value: string): number {
 
 function mapCapabilitiesError(capabilitiesError: PubkyAuthCapabilitiesParseError): PubkyAuthParseResult {
   if (capabilitiesError.code === "missing_capabilities") {
-    return error("missing_capabilities", capabilitiesError.message);
+    return error("missing_capabilities");
   }
 
-  return error("invalid_capability", "Pubky auth request contains an invalid capability.");
+  return error("invalid_capability");
 }
 
-function mapUrlValidationError(urlError: PubkyAuthUrlValidationError): PubkyAuthParseResult {
-  return error(urlError.code, urlError.message);
-}
 function error(
   code: PubkyAuthParseErrorCode,
-  message: string,
 ): Err<never, PubkyAuthParseError> {
-  return Result.err<never, PubkyAuthParseError>({ code, message });
+  return Result.err<never, PubkyAuthParseError>({ code });
 }

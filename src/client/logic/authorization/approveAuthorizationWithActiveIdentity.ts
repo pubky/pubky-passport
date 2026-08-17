@@ -15,15 +15,19 @@ export type ApproveAuthorizationErrorCode =
 
 export type ApproveAuthorizationResult = ResultType<void, { code: ApproveAuthorizationErrorCode }>;
 
-export async function approveAuthorizationWithActiveIdentity(input: {
-  approval: PubkyAuthApprovalCapability;
-  restoreActiveIdentity: RestoreActiveLocalIdentityKey;
-  pubky: PubkySdkAdapter;
-}): Promise<ApproveAuthorizationResult> {
+/**
+ * Restores the active local key, approves one validated request with the same
+ * Pubky adapter, and always disposes the restored key handle.
+ */
+export async function approveAuthorizationWithActiveIdentity(
+  approval: PubkyAuthApprovalCapability,
+  restoreActiveIdentity: RestoreActiveLocalIdentityKey,
+  pubky: PubkySdkAdapter,
+): Promise<ApproveAuthorizationResult> {
   let keyHandle: PubkyIdentityKey["keyHandle"] | undefined;
 
   try {
-    const restored = await input.restoreActiveIdentity.restore();
+    const restored = await restoreActiveIdentity.restore();
     if (Result.isError(restored)) {
       return Result.err({
         code: restored.error.code === "no_active_identity"
@@ -33,7 +37,7 @@ export async function approveAuthorizationWithActiveIdentity(input: {
     }
 
     keyHandle = restored.value.keyHandle;
-    const approved = await input.pubky.approveAuthRequest(keyHandle, input.approval);
+    const approved = await pubky.approveAuthRequest(keyHandle, approval);
 
     if (Result.isError(approved)) return Result.err({ code: "approval_failed" });
     return Result.ok();
@@ -46,7 +50,7 @@ export async function approveAuthorizationWithActiveIdentity(input: {
   } finally {
     if (keyHandle) {
       try {
-        input.pubky.disposeIdentityKey(keyHandle);
+        pubky.disposeIdentityKey(keyHandle);
       } catch {
         LOGGER.warn("authorize.cleanup.failed", { operation: "identity_key_dispose" });
       }

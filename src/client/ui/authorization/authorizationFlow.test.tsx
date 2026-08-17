@@ -113,16 +113,30 @@ describe("AuthorizationFlow", () => {
     expect(MOCKS.createAuthorizationController).toHaveBeenCalledWith();
   });
 
-  it("identifies a grant request by its v0.10 client ID", async () => {
+  it("identifies a grant request without replacing the validated display host", async () => {
     MOCKS.authorizationState = {
       status: "review",
-      review: { ...REVIEW, authenticationMethod: "grant", clientId: "grant-client.example" },
+      review: { ...REVIEW, authenticationMethod: "grant" },
     };
 
     renderFlow();
 
-    expect(await screen.findByRole("heading", { name: "Sign in to grant-client.example" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
     expect(screen.getByText(/app-specific, revocable grant/u)).toBeInTheDocument();
+  });
+
+  it("warns when a request includes broad access", async () => {
+    MOCKS.authorizationState = {
+      status: "review",
+      review: {
+        ...REVIEW,
+        capabilities: [{ path: "/", read: true, write: true, scope: "broad" }],
+      },
+    };
+
+    renderFlow();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/broad access/u);
   });
 
   it("shows manual entry only when no authorization request was supplied", async () => {

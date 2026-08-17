@@ -16,6 +16,8 @@ const SECRET = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
 describe("browserAuthorizationEntry", () => {
   afterEach(async () => {
+    clearPendingAuthorizationEntry(window);
+    vi.useRealTimers();
     vi.restoreAllMocks();
     await Promise.resolve();
     window.history.replaceState({}, "", "/");
@@ -66,12 +68,16 @@ describe("browserAuthorizationEntry", () => {
     }
   });
 
-  it("does not reuse an abandoned entry after the pre-commit cache expires", async () => {
+  it("retains an entry until commit or the pre-commit cache expires", async () => {
+    vi.useFakeTimers();
     setAuthorizationUrl(validRequest());
-    readAndScrubAuthorizationEntry(window);
+    const first = readAndScrubAuthorizationEntry(window);
 
     await Promise.resolve();
     window.history.replaceState({}, "", "/authorize");
+    expect(readAndScrubAuthorizationEntry(window)).toBe(first);
+
+    vi.advanceTimersByTime(60_000);
 
     expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "empty" });
   });

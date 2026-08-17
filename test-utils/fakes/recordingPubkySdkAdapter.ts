@@ -12,7 +12,10 @@ import {
   type PubkySessionAccessResult,
   type PubkySignupInput,
 } from "../../src/client/logic/pubky/pubkySdkAdapter";
-import type { PubkyAuthApprovalCapability } from "../../src/client/logic/authorization/browserAuthorizationRequest";
+import {
+  getValidatedSensitivePubkyAuthUrl,
+  type PubkyAuthApprovalCapability,
+} from "../../src/client/logic/authorization/browserAuthorizationRequest";
 import type { PubkyPublicIdentity } from "../../src/client/logic/identity/pubkyPublicIdentity";
 import {
   PUBKY_SECRET_KEY_BYTES,
@@ -125,12 +128,15 @@ export class RecordingPubkySdkAdapter extends PubkySdkAdapter {
   ): Promise<PubkyAuthApprovalResult> {
     let scheme: string | undefined;
     let queryKeys: string[] = [];
-    try {
-      const parsed = new URL(authRequest.sensitivePubkyAuthUrl);
-      scheme = parsed.protocol;
-      queryKeys = [...parsed.searchParams.keys()].sort();
-    } catch {
-      // Keep malformed sensitive input out of call history.
+    const sensitivePubkyAuthUrl = getValidatedSensitivePubkyAuthUrl(authRequest);
+    if (sensitivePubkyAuthUrl !== undefined) {
+      try {
+        const parsed = new URL(sensitivePubkyAuthUrl);
+        scheme = parsed.protocol;
+        queryKeys = [...parsed.searchParams.keys()].sort();
+      } catch {
+        // Keep malformed sensitive input out of call history.
+      }
     }
     this.approvalCalls.push({ ...(scheme ? { scheme } : {}), queryKeys });
     return this.approvalFailure ? Result.err({ code: this.approvalFailure }) : Result.ok();

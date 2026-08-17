@@ -8,6 +8,7 @@ import {
 
 let bootstrappedEntry = readInitialAuthorizationEntry();
 
+/** Takes the one-shot authorization entry captured before React hydration. */
 export function takeBootstrappedAuthorizationEntry(): AuthorizationEntry | undefined {
   const entry = bootstrappedEntry;
   bootstrappedEntry = undefined;

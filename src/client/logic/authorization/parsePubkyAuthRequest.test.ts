@@ -7,6 +7,16 @@ import type { PubkyAuthUrlValidationErrorCode } from "./validatePubkyAuthUrls";
 
 const VALID_REQUEST =
   "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-success=https://pubky.app/passport-success&x-error=https://pubky.app/passport-error&x-cancel=https://pubky.app/passport-cancel";
+const PUBKY_SDK_V0_10_COMPATIBILITY_FIXTURES = [
+  {
+    authenticationMethod: "cookie",
+    request: "pubkyauth://signin?caps=/pub/passport.test/:rw&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8",
+  },
+  {
+    authenticationMethod: "grant",
+    request: "pubkyauth://signin_grant?caps=/pub/passport.test/:rw&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&cid=passport.test&cpk=5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo",
+  },
+] as const;
 expectTypeOf<PubkyAuthUrlValidationErrorCode>().toMatchTypeOf<PubkyAuthParseErrorCode>();
 
 function encodeRequest(request: string): string {
@@ -18,12 +28,20 @@ function expectError(input: unknown, code: PubkyAuthParseErrorCode): void {
 
   expect(Result.isError(result)).toBe(true);
   if (Result.isError(result)) {
-    expect(result.error.code).toBe(code);
-    expect(result.error.message).not.toContain("test-secret");
+    expect(result.error).toEqual({ code });
   }
 }
 
 describe("parsePubkyAuthRequest", () => {
+  it.each(PUBKY_SDK_V0_10_COMPATIBILITY_FIXTURES)(
+    "parses the sanitized SDK v0.10 $authenticationMethod fixture",
+    ({ authenticationMethod, request }) => {
+      const result = parsePubkyAuthRequest(encodeRequest(request));
+
+      expect(Result.isOk(result) && result.value.authenticationMethod).toBe(authenticationMethod);
+    },
+  );
+
   it("parses a valid x-callback-url Pubky auth request", () => {
     const result = parsePubkyAuthRequest(encodeRequest(VALID_REQUEST));
 
@@ -48,7 +66,6 @@ describe("parsePubkyAuthRequest", () => {
         cancel: "https://pubky.app/passport-cancel",
       },
       relayHost: "httprelay.pubky.app",
-      relayOrigin: "https://httprelay.pubky.app",
       sensitivePubkyAuthUrl: VALID_REQUEST,
     });
   });
@@ -60,7 +77,7 @@ describe("parsePubkyAuthRequest", () => {
 
     expect(Result.isOk(result)).toBe(true);
     if (Result.isError(result)) throw new Error(result.error.code);
-    expect(result.value.relayOrigin).toBe("https://relay.client.example");
+    expect(result.value.relayHost).toBe("relay.client.example");
   });
 
   it("parses the documented pubkyauth:/// form", () => {
@@ -90,7 +107,7 @@ describe("parsePubkyAuthRequest", () => {
     expect(Result.isOk(result)).toBe(true);
     if (Result.isError(result)) throw new Error(result.error.code);
     expect(result.value.authenticationMethod).toBe("grant");
-    expect(result.value.clientId).toBe("pubky.app");
+    expect(result.value).not.toHaveProperty("clientId");
   });
 
   it("parses comma-separated capabilities", () => {

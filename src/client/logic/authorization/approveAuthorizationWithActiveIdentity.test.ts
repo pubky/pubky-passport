@@ -17,11 +17,11 @@ describe("approveAuthorizationWithActiveIdentity", () => {
   it("restores, approves with the same Pubky instance, and disposes the key", async () => {
     const pubky = new RecordingPubkySdkAdapter();
     const restored = await createIdentity(pubky);
-    const result = await approveAuthorizationWithActiveIdentity({
-      approval: approval(),
-      restoreActiveIdentity: restorer(pubky, Result.ok(restored)),
+    const result = await approveAuthorizationWithActiveIdentity(
+      approval(),
+      restorer(pubky, Result.ok(restored)),
       pubky,
-    });
+    );
 
     expect(Result.isOk(result)).toBe(true);
     expect(pubky.approvalCalls).toEqual([{ scheme: "pubkyauth:", queryKeys: ["caps", "relay", "secret"] }]);
@@ -32,11 +32,11 @@ describe("approveAuthorizationWithActiveIdentity", () => {
     const pubky = new RecordingPubkySdkAdapter();
     const restoreActiveIdentity = restorer(pubky, Result.err({ code: "no_active_identity" }));
 
-    const result = await approveAuthorizationWithActiveIdentity({
-      approval: approval(),
+    const result = await approveAuthorizationWithActiveIdentity(
+      approval(),
       restoreActiveIdentity,
       pubky,
-    });
+    );
 
     expect(Result.isError(result) && result.error).toEqual({ code: "no_active_identity" });
     expect(pubky.approvalCalls).toEqual([]);
@@ -48,11 +48,11 @@ describe("approveAuthorizationWithActiveIdentity", () => {
     pubky.approvalFailure = "relay_failed";
     const restored = await createIdentity(pubky);
 
-    const result = await approveAuthorizationWithActiveIdentity({
-      approval: approval(),
-      restoreActiveIdentity: restorer(pubky, Result.ok(restored)),
+    const result = await approveAuthorizationWithActiveIdentity(
+      approval(),
+      restorer(pubky, Result.ok(restored)),
       pubky,
-    });
+    );
 
     expect(Result.isError(result) && result.error).toEqual({ code: "approval_failed" });
     expect(pubky.disposedKeys).toEqual([restored.keyHandle]);
@@ -64,20 +64,20 @@ describe("approveAuthorizationWithActiveIdentity", () => {
     const failedRestore = restorer(pubky, Result.err({ code: "no_active_identity" }));
     vi.mocked(failedRestore.restore).mockRejectedValueOnce(new Error("sensitive restore details"));
 
-    const restoreFailure = await approveAuthorizationWithActiveIdentity({
-      approval: approval(),
-      restoreActiveIdentity: failedRestore,
+    const restoreFailure = await approveAuthorizationWithActiveIdentity(
+      approval(),
+      failedRestore,
       pubky,
-    });
+    );
     expect(Result.isError(restoreFailure) && restoreFailure.error).toEqual({ code: "identity_restore_failed" });
 
     const restored = await createIdentity(pubky);
     vi.spyOn(pubky, "approveAuthRequest").mockRejectedValueOnce(new Error("sensitive approval details"));
-    const approvalFailure = await approveAuthorizationWithActiveIdentity({
-      approval: approval(),
-      restoreActiveIdentity: restorer(pubky, Result.ok(restored)),
+    const approvalFailure = await approveAuthorizationWithActiveIdentity(
+      approval(),
+      restorer(pubky, Result.ok(restored)),
       pubky,
-    });
+    );
     expect(Result.isError(approvalFailure) && approvalFailure.error).toEqual({ code: "approval_failed" });
 
     expect(warning).toHaveBeenCalledWith("authorize.approval.failed", {
@@ -97,11 +97,11 @@ describe("approveAuthorizationWithActiveIdentity", () => {
     const restored = await createIdentity(pubky);
     pubky.throwOnDisposeIdentity = true;
 
-    const result = await approveAuthorizationWithActiveIdentity({
-      approval: approval(),
-      restoreActiveIdentity: restorer(pubky, Result.ok(restored)),
+    const result = await approveAuthorizationWithActiveIdentity(
+      approval(),
+      restorer(pubky, Result.ok(restored)),
       pubky,
-    });
+    );
 
     expect(Result.isOk(result)).toBe(true);
     expect(warning).toHaveBeenCalledOnce();

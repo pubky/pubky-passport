@@ -8,6 +8,7 @@ import { LOGGER } from "../../../libs/logger/logger";
 
 export type ManualAuthorizationEntryResult = "invalid" | "navigation_failed" | "navigating";
 
+/** Validates a pasted request and navigates without retaining or redisplaying it. */
 export function enterAuthorization(
   rawRequest: string,
   navigate: (url: string) => void = replaceAndReload,

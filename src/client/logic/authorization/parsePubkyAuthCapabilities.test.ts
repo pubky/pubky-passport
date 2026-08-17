@@ -23,7 +23,7 @@ function expectError(input: string | null | undefined, code: PubkyAuthCapabiliti
 
   expect(Result.isError(result)).toBe(true);
   if (Result.isError(result)) {
-    expect(result.error.code).toBe(code);
+    expect(result.error).toEqual({ code });
   }
 }
 
@@ -100,6 +100,19 @@ describe("parsePubkyAuthCapabilities", () => {
     expect(expectCapabilities("/pub/My File/über/%7Efile:r")).toEqual([
       { path: "/pub/My File/über/%7Efile", read: true, write: false },
     ]);
+  });
+
+  it("bounds multibyte path segments by UTF-8 length", () => {
+    expect(expectCapabilities(`/${"ü".repeat(127)}:r`)).toHaveLength(1);
+    expectError(`/${"ü".repeat(128)}:r`, "invalid_capability_path");
+  });
+
+  it("reports multibyte paths over 1,000 UTF-8 bytes as too long", () => {
+    const segment = `${"ü".repeat(124)}a`;
+    const atLimit = `/${segment}/${segment}/${segment}/${segment}`;
+
+    expect(expectCapabilities(`${atLimit}:r`)).toHaveLength(1);
+    expectError(`${atLimit}a:r`, "capability_too_long");
   });
 
   it("rejects missing capability strings", () => {

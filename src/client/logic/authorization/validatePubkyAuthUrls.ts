@@ -11,24 +11,14 @@ export type PubkyAuthUrlValidationErrorCode =
 
 export type PubkyAuthUrlValidationError = {
   code: PubkyAuthUrlValidationErrorCode;
-  message: string;
 };
 
 export type PubkyAuthUrlValidationResult = ResultType<{
   callbacks: ValidatedPubkyAuthCallbacks;
   relayHost: string;
-  relayOrigin: string;
 }, PubkyAuthUrlValidationError>;
 
-const UNSAFE_CALLBACK_PROTOCOLS = new Set([
-  "javascript:",
-  "data:",
-  "file:",
-  "blob:",
-]);
-
-type UrlParseResult = ResultType<URL, "invalid_url">;
-
+/** Validates the relay and callback URLs before review or signing is possible. */
 export function validatePubkyAuthUrls(
   authUrl: URL,
 ): PubkyAuthUrlValidationResult {
@@ -47,34 +37,34 @@ export function validatePubkyAuthUrls(
   return Result.ok({
     callbacks: callbacks.value,
     relayHost: relay.value.host,
-    relayOrigin: relay.value.origin,
   });
 }
 
-export function validateRelayUrl(
+/** Validates one exact CSP-safe HTTPS relay URL. */
+function validateRelayUrl(
   value: string | null,
 ): ResultType<URL, PubkyAuthUrlValidationError> {
   if (!value) {
-    return error("missing_relay", "Pubky auth request is missing relay.");
+    return error("missing_relay");
   }
 
   if (value.length > PUBKY_AUTH_REQUEST_LIMITS.relayUrlLength) {
-    return error("invalid_relay", "Pubky auth request relay is not an allowed URL.");
+    return error("invalid_relay");
   }
 
   const parsed = parseAbsoluteUrl(value);
   if (
-    Result.isError(parsed) ||
-    parsed.value.protocol !== "https:" ||
-    parsed.value.username !== "" ||
-    parsed.value.password !== "" ||
-    parsed.value.hash !== "" ||
-    !isExactRelayHostname(parsed.value.hostname)
+    parsed === null ||
+    parsed.protocol !== "https:" ||
+    parsed.username !== "" ||
+    parsed.password !== "" ||
+    parsed.hash !== "" ||
+    !isExactRelayHostname(parsed.hostname)
   ) {
-    return error("invalid_relay", "Pubky auth request relay is not an allowed URL.");
+    return error("invalid_relay");
   }
 
-  return Result.ok(parsed.value);
+  return Result.ok(parsed);
 }
 
 function isExactRelayHostname(hostname: string): boolean {
@@ -132,7 +122,7 @@ function validateCallbacks(
       .map((callback) => callback.origin),
   );
   if (callbackOrigins.size > 1) {
-    return error("invalid_callback", "Pubky auth request callbacks must share one origin.");
+    return error("invalid_callback");
   }
 
   return Result.ok(callbacks);
@@ -150,7 +140,6 @@ function rawQueryValue(url: URL, key: string): string | undefined {
 
 function decodeCallbackValue(value: string | undefined): string | null {
   if (value === undefined) return null;
-  if (!hasValidPercentTriplets(value)) return value;
   try {
     // Pubky v0.10 callback values use encodeURIComponent semantics: decode once
     // without converting a literal plus sign into a space.
@@ -160,13 +149,7 @@ function decodeCallbackValue(value: string | undefined): string | null {
   }
 }
 
-function hasValidPercentTriplets(value: string): boolean {
-  for (let index = value.indexOf("%"); index !== -1; index = value.indexOf("%", index + 3)) {
-    if (!/^[A-Fa-f0-9]{2}$/u.test(value.slice(index + 1, index + 3))) return false;
-  }
-  return true;
-}
-
+/** Canonical callbacks retained outside renderable authorization state. */
 export type ValidatedPubkyAuthCallbacks = {
   success?: string;
   error?: string;
@@ -181,37 +164,27 @@ function validateOptionalCallback(
   }
 
   if (value.length > PUBKY_AUTH_REQUEST_LIMITS.callbackUrlLength) {
-    return error("invalid_callback", "Pubky auth request callback is not an allowed URL.");
+    return error("invalid_callback");
   }
 
   const parsed = parseAbsoluteUrl(value);
-  if (Result.isError(parsed) || !isAllowedCallbackUrl(parsed.value)) {
-    return error("invalid_callback", "Pubky auth request callback is not an allowed URL.");
+  if (parsed === null || parsed.protocol !== "https:") {
+    return error("invalid_callback");
   }
 
-  return Result.ok(parsed.value);
+  return Result.ok(parsed);
 }
 
-function isAllowedCallbackUrl(url: URL): boolean {
-  if (UNSAFE_CALLBACK_PROTOCOLS.has(url.protocol)) {
-    return false;
-  }
-
-  return url.protocol === "https:";
-}
-
-function parseAbsoluteUrl(value: string): UrlParseResult {
+function parseAbsoluteUrl(value: string): URL | null {
   try {
-    const url = new URL(value);
-    return Result.ok(url);
+    return new URL(value);
   } catch {
-    return Result.err("invalid_url");
+    return null;
   }
 }
 
 function error(
   code: PubkyAuthUrlValidationErrorCode,
-  message: string,
 ): Err<never, PubkyAuthUrlValidationError> {
-  return Result.err<never, PubkyAuthUrlValidationError>({ code, message });
+  return Result.err<never, PubkyAuthUrlValidationError>({ code });
 }

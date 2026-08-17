@@ -30,7 +30,7 @@ describe("PubkySdkAdapter", () => {
 
       expect(Result.isOk(cookie) && cookie.value.review.authenticationMethod).toBe("cookie");
       expect(Result.isOk(grant) && grant.value.review.authenticationMethod).toBe("grant");
-      expect(Result.isOk(grant) && grant.value.review.clientId).toBe("passport.test");
+      expect(Result.isOk(grant) && grant.value.review.requestingAppDisplayHost).toBe("relay.example");
     } finally {
       cookieFlow.free();
       grantFlow.free();
@@ -301,20 +301,15 @@ describe("PubkySdkAdapter", () => {
     try {
       const result = await pubky.approveAuthRequest(
         {} as PubkyIdentityKeyHandle,
-        {
-          sensitivePubkyAuthUrl:
-            "pubkyauth://signin?secret=should-not-be-returned&relay=https://httprelay.pubky.app/inbox&caps=/pub/pubky.app/:rw" as PubkyAuthApprovalCapability["sensitivePubkyAuthUrl"],
-        },
+        {} as PubkyAuthApprovalCapability,
       );
 
       expectErrorResult(result, "request_rejected");
-      expect(JSON.stringify(result)).not.toContain("should-not-be-returned");
       expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
         operation: "approve_auth_request",
         stage: "request_validation",
         code: "request_rejected",
       });
-      expect(JSON.stringify(warn.mock.calls)).not.toContain("should-not-be-returned");
     } finally {
       pubky.dispose();
     }

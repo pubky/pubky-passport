@@ -66,6 +66,14 @@ describe("completeBrowserAuthorizationOutcome", () => {
     expect(timeout.navigate).toHaveBeenCalledWith(CALLBACK);
   });
 
+  it("uses callback navigation when secure message ID generation fails", async () => {
+    const browser = browserWindow({ opener: true, randomUuidFails: true });
+
+    await expect(completeBrowserAuthorizationOutcome(browser.window, CALLBACK, "success")).resolves.toBe(true);
+    expect(browser.navigate).toHaveBeenCalledWith(CALLBACK);
+    expect(browser.postMessage).not.toHaveBeenCalled();
+  });
+
   it("uses callback navigation when acknowledged popup closing fails", async () => {
     const browser = browserWindow({ opener: true });
     const completion = completeBrowserAuthorizationOutcome(browser.window, CALLBACK, "success");
@@ -112,6 +120,7 @@ function browserWindow(input: {
   closeSucceeds?: boolean;
   navigationFails?: boolean;
   postMessageFails?: boolean;
+  randomUuidFails?: boolean;
 }) {
   let listener: ((event: MessageEvent) => void) | undefined;
   let timeout: (() => void) | undefined;
@@ -130,7 +139,12 @@ function browserWindow(input: {
     clearTimeout: vi.fn(() => { timeout = undefined; }),
     close,
     closed: false,
-    crypto: { randomUUID: () => "outcome-message-id" },
+    crypto: {
+      randomUUID: () => {
+        if (input.randomUuidFails) throw new Error("random UUID failed");
+        return "outcome-message-id";
+      },
+    },
     location: { replace: navigate },
     opener,
     removeEventListener: vi.fn(() => { listener = undefined; }),

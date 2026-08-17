@@ -7,6 +7,10 @@ const ACKNOWLEDGEMENT_TYPE = "pubky-passport.authorization-outcome-ack";
 const MESSAGE_VERSION = 1;
 const ACKNOWLEDGEMENT_TIMEOUT_MS = 3_000;
 
+/**
+ * Completes an authorization outcome through an acknowledged opener message,
+ * falling back to navigation through the exact validated callback.
+ */
 export function completeBrowserAuthorizationOutcome(
   browserWindow: Window,
   callback: string,
@@ -30,8 +34,14 @@ export function completeBrowserAuthorizationOutcome(
     return Promise.resolve(navigate(browserWindow, callback));
   }
 
+  let messageId: string;
+  try {
+    messageId = browserWindow.crypto.randomUUID();
+  } catch {
+    return Promise.resolve(navigate(browserWindow, callback));
+  }
+
   return new Promise((resolve) => {
-    const messageId = browserWindow.crypto.randomUUID();
     let timeoutId: number | undefined;
     let settled = false;
     const cleanup = () => {

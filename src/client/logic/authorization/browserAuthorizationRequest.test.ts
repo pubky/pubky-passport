@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   getValidatedAuthorizationCallbacks,
+  getValidatedSensitivePubkyAuthUrl,
   isPubkyAuthApprovalCapability,
   parseBrowserAuthorizationRequest,
 } from "./browserAuthorizationRequest";
@@ -36,9 +37,12 @@ describe("parseBrowserAuthorizationRequest", () => {
     expect(parsed.value.review.capabilities.every(Object.isFrozen)).toBe(true);
     expect(Object.isFrozen(parsed.value.review.callbackAvailability)).toBe(true);
     expect(Object.isFrozen(parsed.value.approval)).toBe(true);
+    expect(Object.getOwnPropertyNames(parsed.value.approval)).toEqual([]);
+    expect(JSON.stringify(parsed.value.approval)).toBe("{}");
+    expect(getValidatedSensitivePubkyAuthUrl(parsed.value.approval)).toBe(REQUEST);
   });
 
-  it("projects the v0.10 grant method and client ID into safe review state", () => {
+  it("projects the v0.10 grant method without exposing proof parameters", () => {
     const grantRequest = REQUEST
       .replace("pubkyauth://signin", "pubkyauth://signin_grant")
       .replace(
@@ -50,7 +54,7 @@ describe("parseBrowserAuthorizationRequest", () => {
 
     if (Result.isError(parsed)) throw new Error(parsed.error.code);
     expect(parsed.value.review.authenticationMethod).toBe("grant");
-    expect(parsed.value.review.clientId).toBe("pubky.app");
+    expect(parsed.value.review).not.toHaveProperty("clientId");
     expect(JSON.stringify(parsed.value.review)).not.toContain("5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo");
   });
 
@@ -64,6 +68,7 @@ describe("parseBrowserAuthorizationRequest", () => {
       cancel: "https://pubky.app/cancel",
     });
     expect(getValidatedAuthorizationCallbacks({ ...parsed.value.approval })).toBeUndefined();
+    expect(getValidatedSensitivePubkyAuthUrl({ ...parsed.value.approval })).toBeUndefined();
     expect(isPubkyAuthApprovalCapability({ ...parsed.value.approval })).toBe(false);
   });
 
@@ -82,14 +87,14 @@ describe("parseBrowserAuthorizationRequest", () => {
     expect(internationalized.value.review.requestingAppDisplayHost).not.toContain("\u0430");
   });
 
-  it("omits browser-only callback display data when callbacks are absent", () => {
+  it("uses the validated relay host when callbacks are absent", () => {
     const parsed = parseBrowserAuthorizationRequest(encodeURIComponent(
       "pubkyauth://signin?caps=/pub/app/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8",
     ));
     if (Result.isError(parsed)) throw new Error(parsed.error.code);
 
     expect(parsed.value.review.callbackAvailability).toEqual({ success: false, error: false, cancel: false });
-    expect(parsed.value.review.requestingAppDisplayHost).toBeUndefined();
+    expect(parsed.value.review.requestingAppDisplayHost).toBe("relay.example");
   });
 
 });

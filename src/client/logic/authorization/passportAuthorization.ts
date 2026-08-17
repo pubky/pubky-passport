@@ -17,13 +17,18 @@ import {
 import { takeBootstrappedAuthorizationEntry } from "./browserAuthorizationBootstrap";
 import {
   PassportAuthorizationController as PassportAuthorizationControllerImplementation,
+  type PassportAuthorizationViewState,
 } from "./passportAuthorizationController";
 import { completeBrowserAuthorizationOutcome } from "./browserAuthorizationOutcome";
 
-export type PassportAuthorizationController = Pick<
-  PassportAuthorizationControllerImplementation,
-  "getState" | "subscribe" | "commitInitialEntry" | "approve" | "cancel"
->;
+/** UI-safe authorization state and user intents exposed to React. */
+export type PassportAuthorizationController = {
+  getState(): PassportAuthorizationViewState;
+  subscribe(listener: (state: PassportAuthorizationViewState) => void): () => void;
+  commitInitialEntry(): void;
+  approve(): Promise<PassportAuthorizationViewState>;
+  cancel(): Promise<PassportAuthorizationViewState>;
+};
 
 export type {
   PassportAuthorizationFailureCode,
@@ -31,6 +36,7 @@ export type {
 } from "./passportAuthorizationController";
 export type { AuthorizationRequestReview } from "./browserAuthorizationRequest";
 
+/** Creates the browser authorization flow without exposing sensitive request data. */
 export function createPassportAuthorizationController(): PassportAuthorizationController {
   const entry = takeBootstrappedAuthorizationEntry() ?? readAndScrubAuthorizationEntry(window);
   return new PassportAuthorizationControllerImplementation(
@@ -42,7 +48,7 @@ export function createPassportAuthorizationController(): PassportAuthorizationCo
 }
 
 async function approveUsingActiveLocalIdentity(
-  approval: Parameters<typeof approveAuthorizationWithActiveIdentity>[0]["approval"],
+  approval: Parameters<typeof approveAuthorizationWithActiveIdentity>[0],
 ): Promise<ApproveAuthorizationResult> {
   let pubky: PubkySdkAdapter;
   try {
@@ -61,11 +67,11 @@ async function approveUsingActiveLocalIdentity(
       () => repository.readActive(),
       pubky,
     );
-    return await approveAuthorizationWithActiveIdentity({
+    return await approveAuthorizationWithActiveIdentity(
       approval,
       restoreActiveIdentity,
       pubky,
-    });
+    );
   } finally {
     try {
       pubky.dispose();
