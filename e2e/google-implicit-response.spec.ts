@@ -25,3 +25,15 @@ test("scrubs implicit OAuth credentials before callback hydration", async ({ pag
   expect(response.headers()["cache-control"]).toContain("no-store");
   expect(response.headers()["referrer-policy"]).toBe("no-referrer");
 });
+
+test("scrubs a malformed ID-token fragment before callback hydration", async ({ page }) => {
+  const consoleLines: string[] = [];
+  page.on("console", (message) => consoleLines.push(message.text()));
+
+  await page.goto(`/#id_token=${ID_TOKEN}`);
+
+  await expect(page).toHaveURL(/\/$/u);
+  expect(await page.evaluate(() => location.hash)).toBe("");
+  expect(await page.content()).not.toContain(ID_TOKEN);
+  expect(JSON.stringify(consoleLines)).not.toContain(ID_TOKEN);
+});

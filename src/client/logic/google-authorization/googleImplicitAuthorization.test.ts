@@ -43,6 +43,7 @@ describe("GoogleImplicitAuthorization", () => {
     expect(authorizeUrl.searchParams.get("redirect_uri")).toBe(ORIGIN);
     const nonce = authorizeUrl.searchParams.get("nonce");
     const state = authorizeUrl.searchParams.get("state");
+    expect(open.mock.calls[0]?.[1]).toBe(`pubky-passport-google-${state}`);
     popup.returnTo(`${ORIGIN}/#${new URLSearchParams({
       access_token: ACCESS_TOKEN,
       id_token: jwt({ sub: SUBJECT, nonce }),
@@ -63,6 +64,85 @@ describe("GoogleImplicitAuthorization", () => {
     expect(popup.close).toHaveBeenCalledOnce();
     expect(JSON.stringify(localStorage)).not.toContain(ACCESS_TOKEN);
     expect(JSON.stringify(sessionStorage)).not.toContain(ACCESS_TOKEN);
+  });
+
+  it("keeps a captured response after closing the popup", async () => {
+    vi.useFakeTimers();
+    const popup = createPopup();
+    let resolveUserInfo!: (response: Response) => void;
+    const fetch = vi.fn<typeof globalThis.fetch>(() => new Promise((resolve) => {
+      resolveUserInfo = resolve;
+    }));
+    const open = vi.fn<typeof window.open>(() => popup.window);
+    const authorization = new GoogleImplicitAuthorization("client-id", ORIGIN, open, fetch);
+    const request = authorization.request();
+    const authorizeUrl = new URL(String(open.mock.calls[0]?.[0]));
+
+    popup.returnTo(`${ORIGIN}/#${new URLSearchParams({
+      access_token: ACCESS_TOKEN,
+      id_token: jwt({ sub: SUBJECT, nonce: authorizeUrl.searchParams.get("nonce") }),
+      scope: APP_DATA_SCOPE,
+      state: authorizeUrl.searchParams.get("state") ?? "",
+    })}`);
+    expect(popup.close).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(200);
+    resolveUserInfo(Response.json({ sub: SUBJECT, email: "person@example.com", name: "Person" }));
+
+    await expect(request).resolves.toEqual(Result.ok({
+      googleIdToken: jwt({ sub: SUBJECT, nonce: authorizeUrl.searchParams.get("nonce") }),
+      driveAccessToken: ACCESS_TOKEN,
+      googleAccount: { id: SUBJECT, email: "person@example.com", name: "Person", pictureUrl: null },
+    }));
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("consumes only one response message", async () => {
+    const popup = createPopup();
+    const fetch = vi.fn(async () => Response.json({ sub: SUBJECT, email: "person@example.com", name: "Person" }));
+    const open = vi.fn<typeof window.open>(() => popup.window);
+    const authorization = new GoogleImplicitAuthorization("client-id", ORIGIN, open, fetch);
+    const request = authorization.request();
+    const authorizeUrl = new URL(String(open.mock.calls[0]?.[0]));
+    const responseUrl = `${ORIGIN}/#${new URLSearchParams({
+      access_token: ACCESS_TOKEN,
+      id_token: jwt({ sub: SUBJECT, nonce: authorizeUrl.searchParams.get("nonce") }),
+      scope: APP_DATA_SCOPE,
+      state: authorizeUrl.searchParams.get("state") ?? "",
+    })}`;
+
+    popup.returnTo(responseUrl);
+    popup.returnTo(responseUrl);
+    await request;
+
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("localizes a supported Google avatar before returning credentials", async () => {
+    const popup = createPopup();
+    const fetch = vi.fn<typeof globalThis.fetch>(async (input) => String(input) === "https://openidconnect.googleapis.com/v1/userinfo"
+      ? Response.json({
+        sub: SUBJECT,
+        email: "person@example.com",
+        name: "Person",
+        picture: "https://lh3.googleusercontent.com/avatar",
+      })
+      : new Response(new Uint8Array([1, 2, 3]), { headers: { "Content-Type": "image/png" } }));
+    const open = vi.fn<typeof window.open>(() => popup.window);
+    const authorization = new GoogleImplicitAuthorization("client-id", ORIGIN, open, fetch);
+    const request = authorization.request();
+    const authorizeUrl = new URL(String(open.mock.calls[0]?.[0]));
+    popup.returnTo(`${ORIGIN}/#${new URLSearchParams({
+      access_token: ACCESS_TOKEN,
+      id_token: jwt({ sub: SUBJECT, nonce: authorizeUrl.searchParams.get("nonce") }),
+      scope: APP_DATA_SCOPE,
+      state: authorizeUrl.searchParams.get("state") ?? "",
+    })}`);
+
+    const result = await request;
+    expect(Result.isError(result)).toBe(false);
+    if (Result.isError(result)) return;
+    expect(result.value.googleAccount.pictureUrl).toBe("data:image/png;base64,AQID");
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it("reports popup closure from the popup handle", async () => {
@@ -129,7 +209,7 @@ describe("GoogleImplicitAuthorization", () => {
     }
   });
 
-  it("times out and aborts in-flight account verification", async () => {
+  it("disposal aborts in-flight account verification", async () => {
     vi.useFakeTimers();
     const popup = createPopup();
     const open = vi.fn<typeof window.open>(() => popup.window);

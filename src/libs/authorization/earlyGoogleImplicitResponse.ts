@@ -5,11 +5,14 @@ export const GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE = "pubky-passport-google-impl
 export const EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT = `(() => {
   if (location.pathname !== "${GOOGLE_OAUTH_CALLBACK_PATH}") return;
   const hash = location.hash;
-  if (!/(?:^|&)state=/.test(hash.slice(1))
-    || !/(?:^|&)(?:access_token|error)=/.test(hash.slice(1))) return;
+  if (!/(?:^|&)(?:access_token|id_token|error)=/.test(hash.slice(1))) return;
   try {
     History.prototype.replaceState.call(history, null, "", location.pathname);
   } catch {
+    try {
+      stop();
+      location.replace(location.pathname);
+    } catch {}
     return;
   }
   if (!opener) return;

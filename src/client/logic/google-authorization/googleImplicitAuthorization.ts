@@ -6,6 +6,7 @@ import { decodeBase64Url, encodeBase64Url } from "../../../libs/encoding/base64U
 import { readBoundedBytes, readBoundedText } from "../../../libs/http/boundedBody";
 import { LOGGER } from "../../../libs/logger/logger";
 import {
+  EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS,
   GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE,
 } from "../../../libs/authorization/earlyGoogleImplicitResponse";
 
@@ -50,7 +51,6 @@ const GOOGLE_AUTHORIZATION_SCOPE = [
   GOOGLE_DRIVE_APP_DATA_SCOPE,
   GOOGLE_DRIVE_FILE_SCOPE,
 ].join(" ");
-const MAXIMUM_FRAGMENT_CHARACTERS = 32 * 1024;
 const MAXIMUM_TOKEN_CHARACTERS = 16 * 1024;
 const MAXIMUM_USER_INFO_BYTES = 16 * 1024;
 const MAXIMUM_AVATAR_BYTES = 256 * 1024;
@@ -72,6 +72,7 @@ type AuthorizationAttempt = {
   messageListener(event: MessageEvent): void;
   popup: Window;
   poll: ReturnType<typeof setInterval>;
+  responseReceived: boolean;
   resolve(result: GoogleImplicitAuthorizationResult<GoogleBackedIdentityCredentials>): void;
   state: string;
   timeout: ReturnType<typeof setTimeout>;
@@ -110,7 +111,7 @@ export class GoogleImplicitAuthorization {
       ...(loginHint ? { login_hint: loginHint } : {}),
     }).toString();
 
-    const popup = this.open(url, "pubky-passport-google", "popup,width=520,height=680");
+    const popup = this.open(url, `pubky-passport-google-${state}`, "popup,width=520,height=680");
     if (!popup) return Promise.resolve(failure("popup", "google_authorization_popup_failed_to_open"));
 
     return new Promise((resolve) => {
@@ -120,13 +121,22 @@ export class GoogleImplicitAuthorization {
         messageListener: () => undefined,
         popup,
         poll: 0 as unknown as ReturnType<typeof setInterval>,
+        responseReceived: false,
         resolve,
         state,
         timeout: 0 as unknown as ReturnType<typeof setTimeout>,
       };
       this.activeAttempt = attempt;
       attempt.messageListener = (event) => {
-        if (event.origin !== this.origin || event.source !== popup || this.activeAttempt !== attempt) return;
+        if (event.origin !== this.origin
+          || event.source !== popup
+          || this.activeAttempt !== attempt
+          || attempt.responseReceived
+          || !isRecord(event.data)
+          || event.data.type !== GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE) return;
+        attempt.responseReceived = true;
+        clearInterval(attempt.poll);
+        closePopup(attempt.popup);
         void this.handleResponseMessage(attempt, event.data);
       };
       globalThis.window.addEventListener("message", attempt.messageListener);
@@ -143,7 +153,7 @@ export class GoogleImplicitAuthorization {
   }
 
   private inspectPopup(attempt: AuthorizationAttempt): void {
-    if (this.activeAttempt !== attempt) return;
+    if (this.activeAttempt !== attempt || attempt.responseReceived) return;
     if (attempt.popup.closed) {
       this.finish(attempt, Result.err({ code: "google_authorization_popup_closed" }));
     }
@@ -165,7 +175,7 @@ export class GoogleImplicitAuthorization {
       return failure("response", "google_authorization_failed");
     }
     const rawFragment = capture.hash;
-    if (rawFragment.length === 0 || rawFragment.length > MAXIMUM_FRAGMENT_CHARACTERS) return failure("response", "google_authorization_failed");
+    if (rawFragment.length === 0 || rawFragment.length > EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS) return failure("response", "google_authorization_failed");
     const params = new URLSearchParams(rawFragment.slice(1));
     if (params.has("error")) return failure("response", "google_authorization_failed");
     const state = oneValue(params, "state");
@@ -245,9 +255,15 @@ export class GoogleImplicitAuthorization {
     globalThis.window.removeEventListener("message", attempt.messageListener);
     attempt.abortController.abort();
     this.activeAttempt = null;
-    try { attempt.popup.close(); } catch { /* Cross-origin popup cleanup is best effort. */ }
+    closePopup(attempt.popup);
     attempt.resolve(result);
   }
+}
+
+function closePopup(popup: Window): void {
+  try {
+    if (!popup.closed) popup.close();
+  } catch { /* Cross-origin popup cleanup is best effort. */ }
 }
 
 function readBoundedIdTokenSubject(token: string, expectedNonce: string): string | null {
