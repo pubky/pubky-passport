@@ -2,12 +2,16 @@ import "client-only";
 
 import type { Result } from "better-result";
 
-import type { PubkyPublicIdentity } from "../identity/pubkyPublicIdentity";
-
 declare const pubkyIdentityKeyHandleBrand: unique symbol;
 
 export const PUBKY_SECRET_KEY_BYTES = 32;
 export const PUBKY_SECRET_KEY_FORMAT = "pubky-secret-key";
+
+/** Public metadata derived from a browser-owned Pubky keypair. */
+export type PubkyPublicIdentity = {
+  publicKeyZ32: string;
+  publicKeyDisplay: string;
+};
 
 export type PubkyIdentityKeyHandle = {
   readonly [pubkyIdentityKeyHandleBrand]: "PubkyIdentityKeyHandle";

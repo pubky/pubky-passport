@@ -26,7 +26,7 @@ import {
   type GoogleWrappingKeyErrorCode,
 } from "../../wrapping-key/wrappingKeyApiClient";
 import { LocalStorageIdentityRepository } from "../local/localStorageIdentityRepository";
-import type { PubkyPublicIdentity } from "../pubkyPublicIdentity";
+import type { PubkyPublicIdentity } from "../../pubky/pubkyIdentityKey";
 
 const VISIBLE_RECOVERY_COPY_TIMEOUT_MS = 10_000;
 const NETWORK_REQUEST_TIMEOUT_MS = 30_000;

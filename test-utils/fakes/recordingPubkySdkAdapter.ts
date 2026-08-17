@@ -16,7 +16,7 @@ import {
   getValidatedSensitivePubkyAuthUrl,
   type PubkyAuthApprovalCapability,
 } from "../../src/client/logic/authorization/browserAuthorizationRequest";
-import type { PubkyPublicIdentity } from "../../src/client/logic/identity/pubkyPublicIdentity";
+import type { PubkyPublicIdentity } from "../../src/client/logic/pubky/pubkyIdentityKey";
 import {
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,

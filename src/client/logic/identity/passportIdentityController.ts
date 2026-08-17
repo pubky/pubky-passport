@@ -21,7 +21,7 @@ import { LocalStorageIdentityRepository } from "./local/localStorageIdentityRepo
 
 export type { LocalIdentityCatalog, LocalIdentityMetadata } from "./local/localStorageIdentityRepository";
 export type { GoogleAccountProfile } from "../google-authorization/googleImplicitAuthorization";
-export type { PubkyPublicIdentity } from "./pubkyPublicIdentity";
+export type { PubkyPublicIdentity } from "../pubky/pubkyIdentityKey";
 export type { GoogleBackedIdentityProgress } from "./google-backed/googleBackedIdentityOperations";
 export type {
   GoogleIdentityFlowError,

@@ -3,7 +3,6 @@ import "client-only";
 import { Keypair, Pubky, PublicKey, type PubkyError, type Session } from "@synonymdev/pubky";
 import { Result, type Result as ResultType } from "better-result";
 
-import type { PubkyPublicIdentity } from "../identity/pubkyPublicIdentity";
 import {
   getValidatedSensitivePubkyAuthUrl,
   isPubkyAuthApprovalCapability,
@@ -16,6 +15,7 @@ import {
   type PubkyIdentityKeyHandle,
   type PubkyIdentityKeysErrorCode,
   type PubkyIdentityKeysResult,
+  type PubkyPublicIdentity,
   type PubkySecretKeyMaterial,
 } from "./pubkyIdentityKey";
 import { LOGGER } from "../../../libs/logger/logger";

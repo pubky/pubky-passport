@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import type { PubkyPublicIdentity } from "../pubkyPublicIdentity";
+import type { PubkyPublicIdentity } from "../../pubky/pubkyIdentityKey";
 import { LOGGER } from "../../../../libs/logger/logger";
 import type {
   PubkyIdentityKey,
