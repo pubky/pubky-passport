@@ -31,12 +31,12 @@ function SignInFlow({ controller, onBack, onComplete, onEstablished }: {
     case "requesting-access":
       return <GoogleAccessScreen status="pending" />;
     case "denied":
-      return <GoogleAccessScreen onBack={google.back} onTryAgain={google.retry} status="denied" />;
+      return <GoogleAccessScreen onBack={google.back} onTryAgain={google.start} status="denied" />;
     case "failed":
       return <GoogleIdentityError
         error={view.error}
         onBack={google.back}
-        onTryAgain={google.retry}
+        onTryAgain={google.start}
       />;
     case "working":
       return <GoogleIdentityProgress progress={view.progress} />;

@@ -24,34 +24,46 @@ function useGoogleSignIn(
   controller: PassportIdentityController,
   onEstablished?: (identity: GoogleIdentityEstablished) => void,
 ) {
-  const dispatching = useRef(false);
-  const flow = useRef<GoogleBackedIdentityFlow | null>(null);
-  const [state, dispatch] = useReducer(transitionGoogleSignIn, INITIAL_GOOGLE_SIGN_IN_STATE);
+  const operationPendingRef = useRef(false);
+  const flowRef = useRef<GoogleBackedIdentityFlow | null>(null);
+  const [state, dispatch] = useReducer(
+    transitionGoogleSignIn,
+    INITIAL_GOOGLE_SIGN_IN_STATE,
+  );
 
-  const run = useCallback((): void => {
-    if (dispatching.current) return;
-    const currentFlow = flow.current;
+  const establishIdentity = useCallback((): void => {
+    if (operationPendingRef.current) return;
+
+    const currentFlow = flowRef.current;
     if (!currentFlow) {
       dispatch({ type: "authorization-denied" });
       return;
     }
-    dispatching.current = true;
+
+    operationPendingRef.current = true;
     dispatch({ type: "request-started" });
+
     void currentFlow.establishIdentity()
-      .then((completed) => {
-        if (flow.current !== currentFlow) return;
-        if (Result.isError(completed)) {
-          if (completed.error.code === "cancelled") return;
-          dispatch(completed.error.code === "authorization_failed"
-            ? { type: "authorization-denied" }
-            : { type: "operation-failed", error: completed.error });
+      .then((result) => {
+        if (flowRef.current !== currentFlow) return;
+
+        if (Result.isError(result)) {
+          if (result.error.code === "cancelled") return;
+
+          dispatch(
+            result.error.code === "authorization_failed"
+              ? { type: "authorization-denied" }
+              : { type: "operation-failed", error: result.error },
+          );
           return;
         }
+
         const established: GoogleIdentityEstablished = {
-          googleAccount: completed.value.googleAccount,
-          identity: completed.value.publicIdentity,
-          mode: completed.value.establishmentMode,
+          googleAccount: result.value.googleAccount,
+          identity: result.value.publicIdentity,
+          mode: result.value.establishmentMode,
         };
+
         onEstablished?.(established);
         dispatch({
           type: "operation-completed",
@@ -61,19 +73,19 @@ function useGoogleSignIn(
         });
       })
       .catch(() => {
-        if (flow.current === currentFlow) {
+        if (flowRef.current === currentFlow) {
           dispatch({ type: "operation-failed", error: { code: "operation_failed" } });
         }
       })
       .finally(() => {
-        if (flow.current === currentFlow) dispatching.current = false;
+        if (flowRef.current === currentFlow) {
+          operationPendingRef.current = false;
+        }
       });
   }, [onEstablished]);
 
-  const start = useCallback(() => run(), [run]);
-
   const back = useCallback(() => {
-    dispatching.current = false;
+    operationPendingRef.current = false;
     dispatch({ type: "back" });
   }, []);
 
@@ -96,17 +108,17 @@ function useGoogleSignIn(
           return;
       }
     });
-    flow.current = googleFlow;
+    flowRef.current = googleFlow;
+
     return () => {
-      flow.current = null;
+      flowRef.current = null;
       googleFlow.dispose();
     };
   }, [controller]);
 
   return {
     back,
-    retry: start,
-    start,
+    start: establishIdentity,
     state,
   };
 }
