@@ -1,6 +1,6 @@
 import "client-only";
 
-/** Browser parser limits applied before detailed authorization processing. */
+/** Parser limits applied before detailed authorization processing. */
 export const PUBKY_AUTH_REQUEST_LIMITS = {
   encodedDLength: 24_576,
   decodedAuthUrlLength: 8_192,

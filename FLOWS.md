@@ -13,7 +13,7 @@ flowchart TB
         direction LR
         transport["Next transport<br/>src/app, proxy.ts"]:::transport
         ui["React UI<br/>src/client/ui"]:::ui
-        browser["Browser runtime<br/>src/client/browser"]:::browser
+        browser["Browser runtime<br/>src/client/logic"]:::browser
         server["Server runtime<br/>src/server"]:::server
     end
 
@@ -43,11 +43,11 @@ flowchart LR
     accDescr: Direct imports from app pages and route handlers into UI, browser, server, libraries, and the Pubky SDK adapter.
     subgraph browserLane[Browser import lane]
         direction TB
-        pages["src/app<br/>pages"]:::transport --> ui["src/client/ui"]:::ui --> browser["src/client/browser"]:::browser
+        pages["src/app<br/>pages"]:::transport --> ui["src/client/ui"]:::ui --> browser["src/client/logic"]:::browser
         pages --> bootstrap["src/server/config<br/>browser bootstrap"]:::server
         ui --> browserLibs["src/libs"]:::libs
         browser --> browserLibs
-        browser --> sdk["@synonymdev/pubky<br/>only via browser/pubky/pubkySdkAdapter.ts"]:::external
+        browser --> sdk["@synonymdev/pubky<br/>only via logic/pubky/pubkySdkAdapter.ts"]:::external
     end
 
     subgraph serverLane[Server import lane]
@@ -116,13 +116,13 @@ sequenceDiagram
     box rgba(0, 114, 178, 0.18) src/client/ui
         participant Flow as authorizationFlow.tsx<br/>AuthorizationFlow()
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/authorization
-        participant Bootstrap as browserAuthorizationBootstrap.ts<br/>pre-hydration entry capture
+    box rgba(0, 158, 115, 0.18) src/client/logic/authorization
+        participant Bootstrap as authorizationEntryBootstrap.ts<br/>pre-hydration entry capture
         participant Factory as passportAuthorization.ts<br/>createPassportAuthorizationController()
-        participant Controller as passportAuthorizationController.ts<br/>PassportAuthorizationController
-        participant Entry as browserAuthorizationEntry.ts<br/>readAndScrubAuthorizationEntry()<br/>clearPendingAuthorizationEntry()
-        participant Request as browserAuthorizationRequest.ts<br/>parseBrowserAuthorizationRequest()
-        participant Parser as parsePubkyAuthRequest.ts<br/>parsePubkyAuthRequest()
+        participant Controller as flow/authorizationFlowController.ts<br/>AuthorizationFlowController
+        participant Entry as entry/authorizationEntry.ts<br/>readAndScrubAuthorizationEntry()<br/>clearPendingAuthorizationEntry()
+        participant Request as request/issuedAuthorizationRequest.ts<br/>issueAuthorizationRequest()
+        participant Parser as request/parseEncodedPubkyAuthRequest.ts<br/>parseEncodedPubkyAuthRequest()
     end
 
     App->>Client: Open Passport /authorize#d=...
@@ -137,15 +137,15 @@ sequenceDiagram
     Client->>Bootstrap: instrumentation-client module evaluation
     Bootstrap->>Entry: readAndScrubAuthorizationEntry(window)
     Entry->>Client: History.prototype.replaceState(current pathname, fragment removed)
-    Entry->>Request: parse captured d
+    Entry->>Request: issue request from captured d
     Request->>Parser: parse and validate request
     Parser-->>Request: normalized request or typed error
     Request-->>Bootstrap: immutable safe review + private approval
     Client->>Flow: hydrate
     Flow->>Factory: createPassportAuthorizationController()
-    Factory->>Bootstrap: takeBootstrappedAuthorizationEntry()
+    Factory->>Bootstrap: takeInitialAuthorizationEntry()
     Bootstrap-->>Factory: valid entry or invalid
-    Factory->>Controller: new PassportAuthorizationController(...)
+    Factory->>Controller: new AuthorizationFlowController(...)
     Factory-->>Flow: controller with safe view state
     Flow->>Controller: commitInitialEntry()
     Controller->>Entry: clearPendingAuthorizationEntry(window)
@@ -162,11 +162,11 @@ sequenceDiagram
     accDescr: The form validates and clears a pasted request before either showing a safe error or starting a full authorization document navigation.
     actor User
     box rgba(0, 114, 178, 0.18) src/client/ui
-        participant Form as manualAuthorizationForm.tsx<br/>ManualAuthorizationForm()<br/>submit()
+        participant Form as manualAuthorization.tsx<br/>ManualAuthorization()<br/>submit()
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/authorization
-        participant Browser as browserManualAuthorization.ts<br/>enterAuthorization()
-        participant Parser as parsePubkyAuthRequest.ts<br/>validatePubkyAuthRequest()
+    box rgba(0, 158, 115, 0.18) src/client/logic/authorization
+        participant ManualInput as manualAuthorizationInput.ts<br/>submitManualAuthorizationInput()
+        participant Parser as request/validateEncodedPubkyAuthRequest.ts<br/>validateEncodedPubkyAuthRequest()
     end
     box rgba(107, 114, 128, 0.18) Runtime platforms
         participant Window as PLATFORM<br/>Passport tab window
@@ -174,15 +174,15 @@ sequenceDiagram
     end
 
     User->>Form: Submit pasted pubkyauth URL
-    Form->>Browser: enterAuthorization(input)
-    Browser->>Parser: validatePubkyAuthRequest(encodeURIComponent(input))
-    Parser-->>Browser: validated request or typed error
-    Note over Form: Clear textarea state
+    Form->>ManualInput: submitManualAuthorizationInput(input)
+    ManualInput->>Parser: validateEncodedPubkyAuthRequest(encodeURIComponent(input))
+    Parser-->>ManualInput: validated request or typed error
+    Note over Form: Clear the uncontrolled input before validation
     alt Invalid
-        Browser-->>Form: invalid
+        ManualInput-->>Form: invalid
         Form-->>User: safe local error
     else Valid
-        Browser->>Window: History.prototype.replaceState(/authorize#d=...) + reload
+        ManualInput->>Window: History.prototype.replaceState(/authorize#d=...) + reload
         Window->>Next: full document request
     end
 ```
@@ -198,19 +198,19 @@ sequenceDiagram
     box rgba(0, 114, 178, 0.18) src/client/ui
         participant Review as authorizationReview.tsx<br/>AuthorizationReview()
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/authorization
-        participant Controller as passportAuthorizationController.ts<br/>PassportAuthorizationController
+    box rgba(0, 158, 115, 0.18) src/client/logic/authorization
+        participant Controller as flow/authorizationFlowController.ts<br/>AuthorizationFlowController
         participant Composition as passportAuthorization.ts<br/>approveUsingActiveLocalIdentity()
-        participant UseCase as approveAuthorizationWithActiveIdentity.ts<br/>approveAuthorizationWithActiveIdentity()
-        participant AuthRequest as browserAuthorizationRequest.ts<br/>isPubkyAuthApprovalCapability()<br/>getValidatedAuthorizationCallbacks()
+        participant UseCase as flow/approveWithActiveIdentity.ts<br/>approveWithActiveIdentity()
+        participant AuthRequest as request/issuedAuthorizationRequest.ts<br/>isPubkyAuthApprovalCapability()<br/>getValidatedOutcomeCallback()
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/identity/local
+    box rgba(0, 158, 115, 0.18) src/client/logic/identity/local
         participant Local as restoreActiveLocalIdentityKey.ts<br/>RestoreActiveLocalIdentityKey
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/identity/local
+    box rgba(0, 158, 115, 0.18) src/client/logic/identity/local
         participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/pubky
+    box rgba(0, 158, 115, 0.18) src/client/logic/pubky
         participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
     box rgba(17, 24, 39, 0.12) External
@@ -226,7 +226,7 @@ sequenceDiagram
     Controller->>Composition: approveAuthorization(approval)
     Composition->>Pubky: new PubkySdkAdapter()
     Composition->>Local: new RestoreActiveLocalIdentityKey(repository.readActive, pubky)
-    Composition->>UseCase: approveAuthorizationWithActiveIdentity(...)
+    Composition->>UseCase: approveWithActiveIdentity(...)
     UseCase->>Local: restore()
     Local->>Repo: readActive()
     Repo-->>Local: public metadata + 32-byte secret
@@ -247,7 +247,7 @@ sequenceDiagram
     UseCase-->>Composition: safe result
     Composition->>Pubky: dispose()
     Composition-->>Controller: safe result
-    Controller->>AuthRequest: getValidatedAuthorizationCallbacks(approval)
+    Controller->>AuthRequest: getValidatedOutcomeCallback(approval, outcome)
     AuthRequest-->>Controller: success or error callback
     alt Callback exists and opener acknowledges
         Controller->>Window: post finite outcome to callback origin
@@ -271,11 +271,11 @@ sequenceDiagram
     box rgba(0, 114, 178, 0.18) src/client/ui
         participant Review as authorizationReview.tsx<br/>AuthorizationReview()
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/authorization
-        participant Controller as passportAuthorizationController.ts<br/>PassportAuthorizationController
+    box rgba(0, 158, 115, 0.18) src/client/logic/authorization
+        participant Controller as flow/authorizationFlowController.ts<br/>AuthorizationFlowController
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/authorization
-        participant Callbacks as browserAuthorizationRequest.ts<br/>getValidatedAuthorizationCallbacks()
+    box rgba(0, 158, 115, 0.18) src/client/logic/authorization
+        participant Callbacks as request/issuedAuthorizationRequest.ts<br/>getValidatedOutcomeCallback()
     end
     box rgba(107, 114, 128, 0.18) Browser platform
         participant Window as PLATFORM<br/>Passport tab window
@@ -283,7 +283,7 @@ sequenceDiagram
 
     User->>Review: Cancel before approval
     Review->>Controller: cancel()
-    Controller->>Callbacks: getValidatedAuthorizationCallbacks(approval)
+    Controller->>Callbacks: getValidatedOutcomeCallback(approval, cancel)
     Callbacks-->>Controller: cancel callback or none
     alt Callback exists and opener acknowledges
         Controller->>Window: post cancel outcome to callback origin
@@ -305,14 +305,14 @@ sequenceDiagram
     accDescr: One user click requests identity and Drive scopes; the callback fragment is scrubbed during HTML parsing and credentials remain browser-only.
     actor User
     participant UI as src/client/ui/root<br/>GoogleIdentitySetupFlow
-    box rgba(0, 158, 115, 0.18) src/client/browser/identity
+    box rgba(0, 158, 115, 0.18) src/client/logic/identity
         participant Controller as passportIdentityController.ts<br/>PassportIdentityController
         participant GoogleFlow as googleBackedIdentityFlow.ts<br/>GoogleBackedIdentityFlow
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/google-authorization
+    box rgba(0, 158, 115, 0.18) src/client/logic/google-authorization
         participant Authorization as googleImplicitAuthorization.ts<br/>GoogleImplicitAuthorization
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/identity/google-backed
+    box rgba(0, 158, 115, 0.18) src/client/logic/identity/google-backed
         participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
     box rgba(17, 24, 39, 0.12) External
@@ -342,19 +342,19 @@ sequenceDiagram
 sequenceDiagram
     accTitle: Google-backed custody/recovery establishment call flow
     accDescr: GoogleBackedIdentityOperations requests a wrapping key, reads the Google Drive Passport file, and dispatches a found file to restore or requests a Homegate invitation before creating a missing identity, without passing the wrapping key to Drive storage.
-    box rgba(0, 158, 115, 0.18) src/client/browser/identity
+    box rgba(0, 158, 115, 0.18) src/client/logic/identity
         participant GoogleFlow as googleBackedIdentityFlow.ts<br/>GoogleBackedIdentityFlow
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/identity/google-backed
+    box rgba(0, 158, 115, 0.18) src/client/logic/identity/google-backed
         participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/wrapping-key
+    box rgba(0, 158, 115, 0.18) src/client/logic/wrapping-key
         participant Wrapping as wrappingKeyApiClient.ts<br/>WrappingKeyApiClient
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/passport-file
         participant DriveStore as google/passportFileStore.ts<br/>GoogleDrivePassportFileStore
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/homegate
+    box rgba(0, 158, 115, 0.18) src/client/logic/homegate
         participant Invite as homegateClient.ts<br/>HomegateClient
     end
     box rgba(240, 228, 66, 0.18) src/app/api/wrapping-key/google
@@ -407,16 +407,16 @@ sequenceDiagram
 sequenceDiagram
     accTitle: Existing identity restore call flow
     accDescr: GoogleBackedIdentityOperations decrypts the Passport file, uses DHT resolution and blocking sign-in as the returning-user fast path, and automatically reconciles missing discovery or an authoritative missing homeserver account.
-    box rgba(0, 158, 115, 0.18) src/client/browser/identity/google-backed
+    box rgba(0, 158, 115, 0.18) src/client/logic/identity/google-backed
         participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/passport-file
         participant Crypto as passportFileWebCrypto.ts<br/>PassportFileWebCrypto
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/pubky
+    box rgba(0, 158, 115, 0.18) src/client/logic/pubky
         participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/identity/local
+    box rgba(0, 158, 115, 0.18) src/client/logic/identity/local
         participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
     end
     box rgba(17, 24, 39, 0.12) External
@@ -471,10 +471,10 @@ sequenceDiagram
 sequenceDiagram
     accTitle: Missing identity encryption and Drive storage call flow
     accDescr: GoogleBackedIdentityOperations encrypts a new Pubky secret, creates the operational app-data file through GoogleDrivePassportFileStore, then best-effort writes a visible recovery copy through GoogleDriveVisibleRecoveryCopies before activation and zeros the exported bytes.
-    box rgba(0, 158, 115, 0.18) src/client/browser/identity/google-backed
+    box rgba(0, 158, 115, 0.18) src/client/logic/identity/google-backed
         participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/pubky
+    box rgba(0, 158, 115, 0.18) src/client/logic/pubky
         participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/passport-file
@@ -538,16 +538,16 @@ sequenceDiagram
 sequenceDiagram
     accTitle: Missing identity activation and local save call flow
     accDescr: GoogleBackedIdentityOperations requests a homeserver signup invitation, then uses its shared signup-and-activation method for both fresh creation and interrupted setup recovery.
-    box rgba(0, 158, 115, 0.18) src/client/browser/identity/google-backed
+    box rgba(0, 158, 115, 0.18) src/client/logic/identity/google-backed
         participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/homegate
+    box rgba(0, 158, 115, 0.18) src/client/logic/homegate
         participant Invite as homegateClient.ts<br/>HomegateClient
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/pubky
+    box rgba(0, 158, 115, 0.18) src/client/logic/pubky
         participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
-    box rgba(0, 158, 115, 0.18) src/client/browser/identity/local
+    box rgba(0, 158, 115, 0.18) src/client/logic/identity/local
         participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
     end
     box rgba(17, 24, 39, 0.12) External
@@ -753,16 +753,16 @@ sequenceDiagram
 
 | Flow | Code | Main tests |
 | --- | --- | --- |
-| Authorization parser | `src/client/browser/authorization` | Colocated parser and URL validation tests |
-| Authorization controller and approval | `src/client/browser/authorization` | Colocated request, controller, composition, and approval tests |
-| Authorization browser entry | `src/client/browser/authorization/browserAuthorizationEntry.ts` | `browserAuthorizationEntry.test.ts` |
+| Authorization parser | `src/client/logic/authorization/request` | Colocated parser and URL validation tests |
+| Authorization controller and approval | `src/client/logic/authorization/flow` | Colocated controller and approval tests |
+| Authorization entry | `src/client/logic/authorization/entry/authorizationEntry.ts` | `authorizationEntry.test.ts` |
 | Authorization UI | `src/client/ui/authorization` | Colocated component tests |
-| Identity controller | `src/client/browser/identity` | Controller and factory tests |
-| Google credential capabilities | `src/client/browser/google-authorization` | Colocated implicit OAuth and callback-scrubbing tests |
-| Google-backed custody/recovery lifecycle | `src/client/browser/identity/google-backed` | Colocated operation tests |
+| Identity controller | `src/client/logic/identity` | Controller and factory tests |
+| Google credential capabilities | `src/client/logic/google-authorization` | Colocated implicit OAuth and callback-scrubbing tests |
+| Google-backed custody/recovery lifecycle | `src/client/logic/identity/google-backed` | Colocated operation tests |
 | Drive store and WebCrypto | `src/client/logic/passport-file` | Colocated store and crypto tests |
-| Pubky SDK adapter | `src/client/browser/pubky/pubkySdkAdapter.ts` | `pubkySdkAdapter.test.ts` |
+| Pubky SDK adapter | `src/client/logic/pubky/pubkySdkAdapter.ts` | `pubkySdkAdapter.test.ts` |
 | Wrapping-key API | `src/app/api/wrapping-key/google`, `src/server/wrapping-key/google` | Route and server tests |
 | Browser bootstrap config | `src/server/config/browserBootstrapConfig.ts` | `browserBootstrapConfig.test.ts`, proxy tests |
-| Homegate signup invitation | `src/client/browser/homegate/homegateClient.ts` | `homegateClient.test.ts` |
+| Homegate signup invitation | `src/client/logic/homegate/homegateClient.ts` | `homegateClient.test.ts` |
 | CSP and boundaries | `proxy.ts`, `next.config.mjs`, architecture test | Proxy, header, and targeted boundary tests |

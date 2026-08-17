@@ -7,19 +7,19 @@ import { LocalStorageIdentityRepository } from "../identity/local/localStorageId
 import { RestoreActiveLocalIdentityKey } from "../identity/local/restoreActiveLocalIdentityKey";
 import { PubkySdkAdapter } from "../pubky/pubkySdkAdapter";
 import {
-  approveAuthorizationWithActiveIdentity,
+  approveWithActiveIdentity,
   type ApproveAuthorizationResult,
-} from "./approveAuthorizationWithActiveIdentity";
+} from "./flow/approveWithActiveIdentity";
 import {
   clearPendingAuthorizationEntry,
   readAndScrubAuthorizationEntry,
-} from "./browserAuthorizationEntry";
-import { takeBootstrappedAuthorizationEntry } from "./browserAuthorizationBootstrap";
+} from "./entry/authorizationEntry";
+import { takeInitialAuthorizationEntry } from "./entry/authorizationEntryBootstrap";
 import {
-  PassportAuthorizationController as PassportAuthorizationControllerImplementation,
+  AuthorizationFlowController,
   type PassportAuthorizationViewState,
-} from "./passportAuthorizationController";
-import { completeBrowserAuthorizationOutcome } from "./browserAuthorizationOutcome";
+} from "./flow/authorizationFlowController";
+import { completeAuthorizationOutcome } from "./flow/completeAuthorizationOutcome";
 
 /** UI-safe authorization state and user intents exposed to React. */
 export type PassportAuthorizationController = {
@@ -33,22 +33,25 @@ export type PassportAuthorizationController = {
 export type {
   PassportAuthorizationFailureCode,
   PassportAuthorizationViewState,
-} from "./passportAuthorizationController";
-export type { AuthorizationRequestReview } from "./browserAuthorizationRequest";
+} from "./flow/authorizationFlowController";
+export type { AuthorizationRequestReview } from "./request/issuedAuthorizationRequest";
 
-/** Creates the browser authorization flow without exposing sensitive request data. */
+/** Creates the authorization flow without exposing sensitive request data. */
 export function createPassportAuthorizationController(): PassportAuthorizationController {
-  const entry = takeBootstrappedAuthorizationEntry() ?? readAndScrubAuthorizationEntry(window);
-  return new PassportAuthorizationControllerImplementation(
-    entry,
-    approveUsingActiveLocalIdentity,
-    () => clearPendingAuthorizationEntry(window),
-    (callback, outcome) => completeBrowserAuthorizationOutcome(window, callback, outcome),
-  );
+  const entry = takeInitialAuthorizationEntry() ?? readAndScrubAuthorizationEntry(window);
+  return new AuthorizationFlowController(entry, {
+    approveAuthorization: approveUsingActiveLocalIdentity,
+    clearPendingEntry: () => clearPendingAuthorizationEntry(window),
+    completeOutcome: (callback, outcome) => completeAuthorizationOutcome(
+      window,
+      callback,
+      outcome,
+    ),
+  });
 }
 
 async function approveUsingActiveLocalIdentity(
-  approval: Parameters<typeof approveAuthorizationWithActiveIdentity>[0],
+  approval: Parameters<typeof approveWithActiveIdentity>[0],
 ): Promise<ApproveAuthorizationResult> {
   let pubky: PubkySdkAdapter;
   try {
@@ -67,7 +70,7 @@ async function approveUsingActiveLocalIdentity(
       () => repository.readActive(),
       pubky,
     );
-    return await approveAuthorizationWithActiveIdentity(
+    return await approveWithActiveIdentity(
       approval,
       restoreActiveIdentity,
       pubky,

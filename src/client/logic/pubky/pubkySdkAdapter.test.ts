@@ -2,8 +2,10 @@ import { AuthFlowKind, Keypair, Pubky, Signer } from "@synonymdev/pubky";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
-import type { PubkyAuthApprovalCapability } from "../authorization/browserAuthorizationRequest";
-import { parseBrowserAuthorizationRequest } from "../authorization/browserAuthorizationRequest";
+import {
+  issueAuthorizationRequest,
+  type PubkyAuthApprovalCapability,
+} from "../authorization/request/issuedAuthorizationRequest";
 import { LOGGER } from "../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkyIdentityKeyHandle } from "./pubkyIdentityKey";
 import { PubkySdkAdapter } from "./pubkySdkAdapter";
@@ -25,8 +27,8 @@ describe("PubkySdkAdapter", () => {
     );
 
     try {
-      const cookie = parseBrowserAuthorizationRequest(encodeURIComponent(cookieFlow.authorizationUrl));
-      const grant = parseBrowserAuthorizationRequest(encodeURIComponent(grantFlow.authorizationUrl));
+      const cookie = issueAuthorizationRequest(encodeURIComponent(cookieFlow.authorizationUrl));
+      const grant = issueAuthorizationRequest(encodeURIComponent(grantFlow.authorizationUrl));
 
       expect(Result.isOk(cookie) && cookie.value.review.authenticationMethod).toBe("cookie");
       expect(Result.isOk(grant) && grant.value.review.authenticationMethod).toBe("grant");

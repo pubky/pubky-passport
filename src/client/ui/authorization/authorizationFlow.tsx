@@ -86,7 +86,17 @@ function AuthorizationWithIdentity({ authorization, controller, googleClientId, 
     case "loading":
       return <AuthorizationLoading label="Loading identities" />;
     case "unavailable":
-      return <PassportScreen className="gap-6"><DisplayHeading accent="unavailable." aria-label="Identities unavailable.">Identities</DisplayHeading><LeadText>Passport could not read identities stored in this browser.</LeadText><div className="mt-auto"><BackButton onClick={goHome} /></div></PassportScreen>;
+      return (
+        <PassportScreen className="gap-6">
+          <DisplayHeading accent="unavailable." aria-label="Identities unavailable.">
+            Identities
+          </DisplayHeading>
+          <LeadText>Passport could not read identities stored on this device.</LeadText>
+          <div className="mt-auto">
+            <BackButton onClick={() => { void controller.cancel(); }} />
+          </div>
+        </PassportScreen>
+      );
     case "ready":
       return <ReadyAuthorizationWithIdentity
         authorization={authorization}

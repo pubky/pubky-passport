@@ -1,6 +1,6 @@
 import "client-only";
 
-export type BrowserAuthorizationOutcome = "success" | "error" | "cancel";
+import type { AuthorizationOutcome } from "../request/issuedAuthorizationRequest";
 
 const MESSAGE_TYPE = "pubky-passport.authorization-outcome";
 const ACKNOWLEDGEMENT_TYPE = "pubky-passport.authorization-outcome-ack";
@@ -11,10 +11,10 @@ const ACKNOWLEDGEMENT_TIMEOUT_MS = 3_000;
  * Completes an authorization outcome through an acknowledged opener message,
  * falling back to navigation through the exact validated callback.
  */
-export function completeBrowserAuthorizationOutcome(
-  browserWindow: Window,
+export function completeAuthorizationOutcome(
+  appWindow: Window,
   callback: string,
-  outcome: BrowserAuthorizationOutcome,
+  outcome: AuthorizationOutcome,
 ): Promise<boolean> {
   let targetOrigin: string;
   try {
@@ -25,28 +25,28 @@ export function completeBrowserAuthorizationOutcome(
 
   let opener: Window | null;
   try {
-    opener = browserWindow.opener;
+    opener = appWindow.opener;
   } catch {
-    return Promise.resolve(navigate(browserWindow, callback));
+    return Promise.resolve(navigate(appWindow, callback));
   }
 
   if (!opener || isClosed(opener)) {
-    return Promise.resolve(navigate(browserWindow, callback));
+    return Promise.resolve(navigate(appWindow, callback));
   }
 
   let messageId: string;
   try {
-    messageId = browserWindow.crypto.randomUUID();
+    messageId = appWindow.crypto.randomUUID();
   } catch {
-    return Promise.resolve(navigate(browserWindow, callback));
+    return Promise.resolve(navigate(appWindow, callback));
   }
 
   return new Promise((resolve) => {
     let timeoutId: number | undefined;
     let settled = false;
     const cleanup = () => {
-      browserWindow.removeEventListener("message", acknowledge);
-      if (timeoutId !== undefined) browserWindow.clearTimeout(timeoutId);
+      appWindow.removeEventListener("message", acknowledge);
+      if (timeoutId !== undefined) appWindow.clearTimeout(timeoutId);
     };
     const finish = (completed: boolean) => {
       if (settled) return;
@@ -54,7 +54,7 @@ export function completeBrowserAuthorizationOutcome(
       cleanup();
       resolve(completed);
     };
-    const fallback = () => finish(navigate(browserWindow, callback));
+    const fallback = () => finish(navigate(appWindow, callback));
     function acknowledge(event: MessageEvent): void {
       if (
         settled
@@ -66,20 +66,20 @@ export function completeBrowserAuthorizationOutcome(
       }
 
       try {
-        browserWindow.close();
-        if (browserWindow.closed) {
+        appWindow.close();
+        if (appWindow.closed) {
           finish(true);
           return;
         }
       } catch {
-        // Callback navigation remains the cross-browser fallback.
+        // Callback navigation remains the compatible fallback.
       }
       fallback();
     }
 
     try {
-      browserWindow.addEventListener("message", acknowledge);
-      timeoutId = browserWindow.setTimeout(fallback, ACKNOWLEDGEMENT_TIMEOUT_MS);
+      appWindow.addEventListener("message", acknowledge);
+      timeoutId = appWindow.setTimeout(fallback, ACKNOWLEDGEMENT_TIMEOUT_MS);
       opener.postMessage(Object.freeze({
         type: MESSAGE_TYPE,
         version: MESSAGE_VERSION,
@@ -101,17 +101,17 @@ function isAcknowledgement(value: unknown, messageId: string): boolean {
     && acknowledgement.messageId === messageId;
 }
 
-function isClosed(browserWindow: Window): boolean {
+function isClosed(appWindow: Window): boolean {
   try {
-    return browserWindow.closed;
+    return appWindow.closed;
   } catch {
     return true;
   }
 }
 
-function navigate(browserWindow: Window, callback: string): boolean {
+function navigate(appWindow: Window, callback: string): boolean {
   try {
-    browserWindow.location.replace(callback);
+    appWindow.location.replace(callback);
     return true;
   } catch {
     return false;

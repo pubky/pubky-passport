@@ -1,9 +1,9 @@
 "use client";
 
-import { type SubmitEvent, useCallback, useState } from "react";
+import { type SubmitEvent, useRef, useState } from "react";
 
-import { enterAuthorization } from "../../../logic/authorization/browserManualAuthorization";
-import { ArrowRightIcon, ClipboardPasteIcon, ScanIcon } from "../../shared/icons/actionIcons";
+import { submitManualAuthorizationInput } from "../../../logic/authorization/manualAuthorizationInput";
+import { ArrowRightIcon, ClipboardPasteIcon } from "../../shared/icons/actionIcons";
 import { PassportScreen } from "../../shared/layout/passportScreen";
 import { BackButton } from "../../shared/navigation/backButton";
 import { Button } from "../../shared/primitives/button";
@@ -12,16 +12,17 @@ import { IconButton } from "../../shared/primitives/iconButton";
 import { Input } from "../../shared/primitives/input";
 import { Label } from "../../shared/primitives/label";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
-import { AuthorizationQrScannerDialog } from "./authorizationQrScannerDialog";
-
 function ManualAuthorization({ onBack }: { onBack: () => void }) {
-  const [authorization, setAuthorization] = useState("");
+  const authorizationInput = useRef<HTMLInputElement>(null);
+  const [hasAuthorization, setHasAuthorization] = useState(false);
   const [error, setError] = useState<string>();
-  const [scannerOpen, setScannerOpen] = useState(false);
 
   const submit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const result = enterAuthorization(authorization);
+    const authorization = authorizationInput.current?.value ?? "";
+    if (authorizationInput.current) authorizationInput.current.value = "";
+    setHasAuthorization(false);
+    const result = submitManualAuthorizationInput(authorization);
     switch (result) {
       case "invalid":
         setError("Enter a valid pubkyauth:// authorization link.");
@@ -37,18 +38,14 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
   const paste = async () => {
     try {
       const value = await navigator.clipboard.readText();
-      setAuthorization(value);
+      if (!authorizationInput.current) return;
+      authorizationInput.current.value = value;
+      setHasAuthorization(value.trim().length > 0);
       setError(undefined);
     } catch {
       setError("Clipboard access was blocked. Paste the link manually.");
     }
   };
-
-  const scan = useCallback((value: string) => {
-    setAuthorization(value);
-    setError(undefined);
-    setScannerOpen(false);
-  }, []);
 
   return (
     <PassportScreen>
@@ -66,21 +63,22 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
               autoComplete="off"
               className="border-dashed bg-transparent"
               id="authorization-link"
-              onChange={(event) => { setAuthorization(event.target.value); setError(undefined); }}
+              onChange={(event) => {
+                setHasAuthorization(event.target.value.trim().length > 0);
+                setError(undefined);
+              }}
               placeholder="pubkyauth://"
+              ref={authorizationInput}
               spellCheck={false}
-              value={authorization}
             />
             {error ? <FieldMessage error id="authorization-link-error" role="alert">{error}</FieldMessage> : null}
           </div>
         </div>
         <div className="mt-auto flex flex-col gap-4 pt-6">
           <BackButton onClick={onBack} />
-          <Button onClick={() => setScannerOpen(true)} size="lg" type="button" variant="secondary"><ScanIcon />Scan QR</Button>
-          <Button disabled={!authorization.trim()} size="lg" type="submit"><ArrowRightIcon />Continue</Button>
+          <Button disabled={!hasAuthorization} size="lg" type="submit"><ArrowRightIcon />Continue</Button>
         </div>
       </form>
-      {scannerOpen ? <AuthorizationQrScannerDialog onClose={() => setScannerOpen(false)} onScan={scan} /> : null}
     </PassportScreen>
   );
 }

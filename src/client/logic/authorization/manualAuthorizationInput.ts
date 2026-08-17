@@ -2,23 +2,23 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { validatePubkyAuthRequest } from "./parsePubkyAuthRequest";
-import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "./request/pubkyAuthRequestLimits";
+import { validateEncodedPubkyAuthRequest } from "./request/validateEncodedPubkyAuthRequest";
 import { LOGGER } from "../../../libs/logger/logger";
 
-export type ManualAuthorizationEntryResult = "invalid" | "navigation_failed" | "navigating";
+export type ManualAuthorizationInputResult = "invalid" | "navigation_failed" | "navigating";
 
 /** Validates a pasted request and navigates without retaining or redisplaying it. */
-export function enterAuthorization(
-  rawRequest: string,
-  navigate: (url: string) => void = replaceAndReload,
-): ManualAuthorizationEntryResult {
-  if (rawRequest.length > PUBKY_AUTH_REQUEST_LIMITS.decodedAuthUrlLength) {
+export function submitManualAuthorizationInput(
+  inputValue: string,
+  replaceLocation: (url: string) => void = replaceAndReload,
+): ManualAuthorizationInputResult {
+  if (inputValue.length > PUBKY_AUTH_REQUEST_LIMITS.decodedAuthUrlLength) {
     logFailure("request_too_large");
     return "invalid";
   }
 
-  const request = rawRequest.trim();
+  const request = inputValue.trim();
   let encodedRequest: string;
   try {
     encodedRequest = encodeURIComponent(request);
@@ -27,14 +27,14 @@ export function enterAuthorization(
     return "invalid";
   }
 
-  const validated = validatePubkyAuthRequest(encodedRequest);
+  const validated = validateEncodedPubkyAuthRequest(encodedRequest);
   if (Result.isError(validated)) {
     logFailure(validated.error.code);
     return "invalid";
   }
 
   try {
-    navigate(`/authorize#d=${encodedRequest}`);
+    replaceLocation(`/authorize#d=${encodedRequest}`);
   } catch {
     logFailure("navigation_failed");
     return "navigation_failed";

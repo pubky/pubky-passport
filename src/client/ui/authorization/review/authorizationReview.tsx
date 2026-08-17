@@ -51,7 +51,7 @@ function AuthorizationReview({ approving, identity, onAuthorize, onCancel, onSwi
           <Button disabled={approving} onClick={onSwitch} size="sm" type="button" variant="secondary"><SquareUserRoundIcon />Switch</Button>
         </section>
         <p className="text-sm font-medium leading-5 text-muted-foreground">
-          Make sure you trust this service, browser, or device before authorizing with your pubky. <strong className="font-bold text-foreground">Authorizing will allow {requestingApp} to read and update your data.</strong>
+          Make sure you trust this service, app, or device before authorizing with your pubky. <strong className="font-bold text-foreground">Authorizing will allow {requestingApp} to read and update your data.</strong>
           {review.authenticationMethod === "grant" ? " This approval creates an app-specific, revocable grant." : " This request uses deprecated cookie authentication."}
         </p>
         <div className="mt-auto flex flex-col gap-4 pt-6">

@@ -2,18 +2,19 @@ import { Result } from "better-result";
 import { describe, expect, it } from "vitest";
 
 import {
-  getValidatedAuthorizationCallbacks,
+  getValidatedOutcomeCallback,
   getValidatedSensitivePubkyAuthUrl,
   isPubkyAuthApprovalCapability,
-  parseBrowserAuthorizationRequest,
-} from "./browserAuthorizationRequest";
+  issueAuthorizationRequest,
+  releaseAuthorizationApproval,
+} from "./issuedAuthorizationRequest";
 
 const REQUEST =
   "pubkyauth://signin?caps=/pub/pubky.app/:rw,/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-success=https://pubky.app/success?token=private&x-error=https://pubky.app/error&x-cancel=https://pubky.app/cancel";
 
-describe("parseBrowserAuthorizationRequest", () => {
+describe("issueAuthorizationRequest", () => {
   it("creates an immutable safe review and parser-validated approval capability", () => {
-    const parsed = parseBrowserAuthorizationRequest(encodeURIComponent(REQUEST));
+    const parsed = issueAuthorizationRequest(encodeURIComponent(REQUEST));
     if (Result.isError(parsed)) throw new Error(parsed.error.code);
 
     expect(parsed.value.review).toEqual({
@@ -50,7 +51,7 @@ describe("parseBrowserAuthorizationRequest", () => {
         "&cid=pubky.app&cpk=5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo&x-success=",
       );
 
-    const parsed = parseBrowserAuthorizationRequest(encodeURIComponent(grantRequest));
+    const parsed = issueAuthorizationRequest(encodeURIComponent(grantRequest));
 
     if (Result.isError(parsed)) throw new Error(parsed.error.code);
     expect(parsed.value.review.authenticationMethod).toBe("grant");
@@ -59,27 +60,38 @@ describe("parseBrowserAuthorizationRequest", () => {
   });
 
   it("returns callbacks only for the exact validated approval object", () => {
-    const parsed = parseBrowserAuthorizationRequest(encodeURIComponent(REQUEST));
+    const parsed = issueAuthorizationRequest(encodeURIComponent(REQUEST));
     if (Result.isError(parsed)) throw new Error(parsed.error.code);
 
-    expect(getValidatedAuthorizationCallbacks(parsed.value.approval)).toEqual({
-      success: "https://pubky.app/success?token=private",
-      error: "https://pubky.app/error",
-      cancel: "https://pubky.app/cancel",
-    });
-    expect(getValidatedAuthorizationCallbacks({ ...parsed.value.approval })).toBeUndefined();
+    expect(getValidatedOutcomeCallback(parsed.value.approval, "success")).toBe(
+      "https://pubky.app/success?token=private",
+    );
+    expect(getValidatedOutcomeCallback(parsed.value.approval, "error")).toBe("https://pubky.app/error");
+    expect(getValidatedOutcomeCallback(parsed.value.approval, "cancel")).toBe("https://pubky.app/cancel");
+    expect(getValidatedOutcomeCallback({ ...parsed.value.approval }, "success")).toBeUndefined();
     expect(getValidatedSensitivePubkyAuthUrl({ ...parsed.value.approval })).toBeUndefined();
     expect(isPubkyAuthApprovalCapability({ ...parsed.value.approval })).toBe(false);
   });
 
+  it("releases private metadata after terminal handling", () => {
+    const parsed = issueAuthorizationRequest(encodeURIComponent(REQUEST));
+    if (Result.isError(parsed)) throw new Error(parsed.error.code);
+
+    releaseAuthorizationApproval(parsed.value.approval);
+
+    expect(isPubkyAuthApprovalCapability(parsed.value.approval)).toBe(false);
+    expect(getValidatedOutcomeCallback(parsed.value.approval, "success")).toBeUndefined();
+    expect(getValidatedSensitivePubkyAuthUrl(parsed.value.approval)).toBeUndefined();
+  });
+
   it("derives display hosts from fallback callbacks and preserves punycode", () => {
-    const errorOnly = parseBrowserAuthorizationRequest(encodeURIComponent(
+    const errorOnly = issueAuthorizationRequest(encodeURIComponent(
       "pubkyauth://signin?caps=/pub/app/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-error=https://errors.example/error",
     ));
     if (Result.isError(errorOnly)) throw new Error(errorOnly.error.code);
     expect(errorOnly.value.review.requestingAppDisplayHost).toBe("errors.example");
 
-    const internationalized = parseBrowserAuthorizationRequest(encodeURIComponent(
+    const internationalized = issueAuthorizationRequest(encodeURIComponent(
       "pubkyauth://signin?caps=/pub/app/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-success=https://\u0430pple.example/success",
     ));
     if (Result.isError(internationalized)) throw new Error(internationalized.error.code);
@@ -88,7 +100,7 @@ describe("parseBrowserAuthorizationRequest", () => {
   });
 
   it("uses the validated relay host when callbacks are absent", () => {
-    const parsed = parseBrowserAuthorizationRequest(encodeURIComponent(
+    const parsed = issueAuthorizationRequest(encodeURIComponent(
       "pubkyauth://signin?caps=/pub/app/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8",
     ));
     if (Result.isError(parsed)) throw new Error(parsed.error.code);

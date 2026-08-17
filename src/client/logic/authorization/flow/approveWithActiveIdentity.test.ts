@@ -1,15 +1,15 @@
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LOGGER } from "../../../libs/logger/logger";
-import { RestoreActiveLocalIdentityKey } from "../identity/local/restoreActiveLocalIdentityKey";
-import { RecordingPubkySdkAdapter } from "../../../../test-utils/fakes/recordingPubkySdkAdapter";
-import { approveAuthorizationWithActiveIdentity } from "./approveAuthorizationWithActiveIdentity";
-import { parseBrowserAuthorizationRequest } from "./browserAuthorizationRequest";
+import { LOGGER } from "../../../../libs/logger/logger";
+import { RestoreActiveLocalIdentityKey } from "../../identity/local/restoreActiveLocalIdentityKey";
+import { RecordingPubkySdkAdapter } from "../../../../../test-utils/fakes/recordingPubkySdkAdapter";
+import { issueAuthorizationRequest } from "../request/issuedAuthorizationRequest";
+import { approveWithActiveIdentity } from "./approveWithActiveIdentity";
 
 const REQUEST = "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
-describe("approveAuthorizationWithActiveIdentity", () => {
+describe("approveWithActiveIdentity", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -17,7 +17,7 @@ describe("approveAuthorizationWithActiveIdentity", () => {
   it("restores, approves with the same Pubky instance, and disposes the key", async () => {
     const pubky = new RecordingPubkySdkAdapter();
     const restored = await createIdentity(pubky);
-    const result = await approveAuthorizationWithActiveIdentity(
+    const result = await approveWithActiveIdentity(
       approval(),
       restorer(pubky, Result.ok(restored)),
       pubky,
@@ -32,7 +32,7 @@ describe("approveAuthorizationWithActiveIdentity", () => {
     const pubky = new RecordingPubkySdkAdapter();
     const restoreActiveIdentity = restorer(pubky, Result.err({ code: "no_active_identity" }));
 
-    const result = await approveAuthorizationWithActiveIdentity(
+    const result = await approveWithActiveIdentity(
       approval(),
       restoreActiveIdentity,
       pubky,
@@ -48,7 +48,7 @@ describe("approveAuthorizationWithActiveIdentity", () => {
     pubky.approvalFailure = "relay_failed";
     const restored = await createIdentity(pubky);
 
-    const result = await approveAuthorizationWithActiveIdentity(
+    const result = await approveWithActiveIdentity(
       approval(),
       restorer(pubky, Result.ok(restored)),
       pubky,
@@ -64,7 +64,7 @@ describe("approveAuthorizationWithActiveIdentity", () => {
     const failedRestore = restorer(pubky, Result.err({ code: "no_active_identity" }));
     vi.mocked(failedRestore.restore).mockRejectedValueOnce(new Error("sensitive restore details"));
 
-    const restoreFailure = await approveAuthorizationWithActiveIdentity(
+    const restoreFailure = await approveWithActiveIdentity(
       approval(),
       failedRestore,
       pubky,
@@ -73,7 +73,7 @@ describe("approveAuthorizationWithActiveIdentity", () => {
 
     const restored = await createIdentity(pubky);
     vi.spyOn(pubky, "approveAuthRequest").mockRejectedValueOnce(new Error("sensitive approval details"));
-    const approvalFailure = await approveAuthorizationWithActiveIdentity(
+    const approvalFailure = await approveWithActiveIdentity(
       approval(),
       restorer(pubky, Result.ok(restored)),
       pubky,
@@ -97,7 +97,7 @@ describe("approveAuthorizationWithActiveIdentity", () => {
     const restored = await createIdentity(pubky);
     pubky.throwOnDisposeIdentity = true;
 
-    const result = await approveAuthorizationWithActiveIdentity(
+    const result = await approveWithActiveIdentity(
       approval(),
       restorer(pubky, Result.ok(restored)),
       pubky,
@@ -112,7 +112,7 @@ describe("approveAuthorizationWithActiveIdentity", () => {
 });
 
 function approval() {
-  const parsed = parseBrowserAuthorizationRequest(encodeURIComponent(REQUEST));
+  const parsed = issueAuthorizationRequest(encodeURIComponent(REQUEST));
   if (Result.isError(parsed)) throw new Error(parsed.error.code);
   return parsed.value.approval;
 }

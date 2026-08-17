@@ -3,14 +3,16 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import {
-  parsePubkyAuthRequest,
+  parseEncodedPubkyAuthRequest,
   type PubkyAuthenticationMethod,
   type PubkyAuthParseError,
   type PubkyAuthRequestKind,
-} from "./parsePubkyAuthRequest";
+} from "./parseEncodedPubkyAuthRequest";
 
 declare const pubkyAuthApprovalCapabilityBrand: unique symbol;
 
+// Sensitive details are available only through the exact approval object and are
+// automatically discarded when that object is no longer reachable.
 const APPROVAL_METADATA = new WeakMap<object, ValidatedAuthorizationMetadata>();
 
 /** One safe capability row rendered during authorization review. */
@@ -35,17 +37,18 @@ export type AuthorizationRequestReview = Readonly<{
   requestingAppDisplayHost: string;
 }>;
 
-/** Exact-object browser capability required to approve a validated request. */
+/** Exact-object capability required to approve a validated request. */
 export type PubkyAuthApprovalCapability = Readonly<{
   readonly [pubkyAuthApprovalCapabilityBrand]: "PubkyAuthApprovalCapability";
 }>;
 
-export type BrowserAuthorizationRequest = Readonly<{
+export type IssuedAuthorizationRequest = Readonly<{
   review: AuthorizationRequestReview;
   approval: PubkyAuthApprovalCapability;
 }>;
 
-export type BrowserAuthorizationRequestResult = ResultType<BrowserAuthorizationRequest, PubkyAuthParseError>;
+export type IssueAuthorizationRequestResult = ResultType<IssuedAuthorizationRequest, PubkyAuthParseError>;
+export type AuthorizationOutcome = "success" | "error" | "cancel";
 
 type ValidatedAuthorizationCallbacks = Readonly<{
   success?: string;
@@ -62,10 +65,10 @@ type ValidatedAuthorizationMetadata = Readonly<{
  * Parses one encoded request into safe review data and an unforgeable approval
  * capability. The sensitive URL and callbacks remain in exact-object metadata.
  */
-export function parseBrowserAuthorizationRequest(
-  d: unknown,
-): BrowserAuthorizationRequestResult {
-  const parsed = parsePubkyAuthRequest(d);
+export function issueAuthorizationRequest(
+  encodedRequest: unknown,
+): IssueAuthorizationRequestResult {
+  const parsed = parseEncodedPubkyAuthRequest(encodedRequest);
   if (Result.isError(parsed)) return Result.err(parsed.error);
 
   const capabilities = Object.freeze(parsed.value.capabilities.map((capability) => Object.freeze({
@@ -103,18 +106,26 @@ export function isPubkyAuthApprovalCapability(value: unknown): value is PubkyAut
   return typeof value === "object" && value !== null && APPROVAL_METADATA.has(value);
 }
 
-/** Returns private callbacks only for an exact browser-issued approval object. */
-export function getValidatedAuthorizationCallbacks(
+/** Returns one exact validated callback without exposing the complete callback set. */
+export function getValidatedOutcomeCallback(
   approval: PubkyAuthApprovalCapability,
-): ValidatedAuthorizationCallbacks | undefined {
-  return APPROVAL_METADATA.get(approval)?.callbacks;
+  outcome: AuthorizationOutcome,
+): string | undefined {
+  return APPROVAL_METADATA.get(approval)?.callbacks[outcome];
 }
 
-/** Returns the sensitive URL only for an exact browser-issued approval object. */
+/** Returns the sensitive URL only for the exact issued approval object. */
 export function getValidatedSensitivePubkyAuthUrl(
   approval: PubkyAuthApprovalCapability,
 ): string | undefined {
   return APPROVAL_METADATA.get(approval)?.sensitivePubkyAuthUrl;
+}
+
+/** Releases all private metadata once approval and callback handling are terminal. */
+export function releaseAuthorizationApproval(
+  approval: PubkyAuthApprovalCapability,
+): void {
+  APPROVAL_METADATA.delete(approval);
 }
 
 function getCapabilityScope(path: string): AuthorizationCapability["scope"] {

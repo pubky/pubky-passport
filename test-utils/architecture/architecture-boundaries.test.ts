@@ -3,24 +3,54 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { STABLE_BROWSER_UI_ENTRIES } from "./architectureEntries.mjs";
+import { STABLE_CLIENT_LOGIC_UI_ENTRIES } from "./architectureEntries.mjs";
 import { isSameOrInside, ModuleGraph, type ForbiddenTarget } from "./moduleGraph";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const SRC_ROOT = join(REPO_ROOT, "src");
 const CLIENT_ROOT = join(SRC_ROOT, "client");
-const BROWSER_ROOT = join(CLIENT_ROOT, "logic");
+const CLIENT_LOGIC_ROOT = join(CLIENT_ROOT, "logic");
 const SERVER_ROOT = join(SRC_ROOT, "server");
 const APP_ROOT = join(SRC_ROOT, "app");
 const UI_ROOT = join(CLIENT_ROOT, "ui");
 const LIBS_ROOT = join(SRC_ROOT, "libs");
 const PUBLIC_ENV_ROOT = join(LIBS_ROOT, "env");
 const SERVER_CONFIG_ROOT = join(SERVER_ROOT, "config");
-const IDENTITY_ROOT = join(BROWSER_ROOT, "identity");
+const IDENTITY_ROOT = join(CLIENT_LOGIC_ROOT, "identity");
 const LOCAL_IDENTITY_REPOSITORY = join(IDENTITY_ROOT, "local", "localStorageIdentityRepository.ts");
-const PUBKY_SDK_ADAPTER = join(BROWSER_ROOT, "pubky", "pubkySdkAdapter.ts");
-const PUBKY_SDK_ADAPTER_TEST = join(BROWSER_ROOT, "pubky", "pubkySdkAdapter.test.ts");
-const PUBKY_SDK_ADAPTER_STAGING_TEST = join(BROWSER_ROOT, "pubky", "pubkySdkAdapter.staging.test.ts");
+const PUBKY_SDK_ADAPTER = join(CLIENT_LOGIC_ROOT, "pubky", "pubkySdkAdapter.ts");
+const PUBKY_SDK_ADAPTER_TEST = join(CLIENT_LOGIC_ROOT, "pubky", "pubkySdkAdapter.test.ts");
+const PUBKY_SDK_ADAPTER_STAGING_TEST = join(CLIENT_LOGIC_ROOT, "pubky", "pubkySdkAdapter.staging.test.ts");
+const ISSUED_AUTHORIZATION_REQUEST = join(
+  CLIENT_LOGIC_ROOT,
+  "authorization",
+  "request",
+  "issuedAuthorizationRequest.ts",
+);
+const AUTHORIZATION_FLOW_CONTROLLER = join(
+  CLIENT_LOGIC_ROOT,
+  "authorization",
+  "flow",
+  "authorizationFlowController.ts",
+);
+const AUTHORIZATION_ENTRY = join(
+  CLIENT_LOGIC_ROOT,
+  "authorization",
+  "entry",
+  "authorizationEntry.ts",
+);
+const ENCODED_AUTHORIZATION_REQUEST_PARSER = join(
+  CLIENT_LOGIC_ROOT,
+  "authorization",
+  "request",
+  "parseEncodedPubkyAuthRequest.ts",
+);
+const ENCODED_AUTHORIZATION_REQUEST_VALIDATOR = join(
+  CLIENT_LOGIC_ROOT,
+  "authorization",
+  "request",
+  "validateEncodedPubkyAuthRequest.ts",
+);
 const GOOGLE_WRAPPING_KEY_REQUEST = join(
   SERVER_ROOT,
   "wrapping-key",
@@ -28,13 +58,13 @@ const GOOGLE_WRAPPING_KEY_REQUEST = join(
   "googleWrappingKeyRequest.ts",
 );
 const GOOGLE_CLIENT_ID_CONFIG = join(SERVER_CONFIG_ROOT, "googleClientId.ts");
-const BROWSER_BOOTSTRAP_CONFIG = join(SERVER_CONFIG_ROOT, "browserBootstrapConfig.ts");
+const CLIENT_BOOTSTRAP_CONFIG = join(SERVER_CONFIG_ROOT, "browserBootstrapConfig.ts");
 const GOOGLE_WRAPPING_KEY_ROUTE = join(APP_ROOT, "api", "wrapping-key", "google", "route.ts");
 const APP_HOME_PAGE = join(APP_ROOT, "page.tsx");
 const APP_AUTHORIZE_PAGE = join(APP_ROOT, "authorize", "page.tsx");
 const PROXY = join(SRC_ROOT, "proxy.ts");
-const STABLE_UI_BROWSER_MODULES = new Set(
-  STABLE_BROWSER_UI_ENTRIES.map((entry) => join(BROWSER_ROOT, `${entry}.ts`)),
+const STABLE_UI_CLIENT_LOGIC_MODULES = new Set(
+  STABLE_CLIENT_LOGIC_UI_ENTRIES.map((entry) => join(CLIENT_LOGIC_ROOT, `${entry}.ts`)),
 );
 const UI_CROSS_SLICE_COMPOSERS = new Set([
   join(UI_ROOT, "authorization", "authorizationFlow.tsx"),
@@ -46,7 +76,7 @@ const UI_CROSS_SLICE_COMPOSERS = new Set([
 const GRAPH = new ModuleGraph(REPO_ROOT);
 
 describe("architecture boundaries", () => {
-  it("confines concrete Pubky SDK imports to the browser Pubky adapter", () => {
+  it("confines concrete Pubky SDK imports to the client Pubky adapter", () => {
     const violations = GRAPH.sourceFiles(SRC_ROOT)
       .filter((filePath) => GRAPH.importSpecifiers(filePath).some((specifier) =>
         specifier === "@synonymdev/pubky" || specifier.startsWith("@synonymdev/pubky/")
@@ -56,18 +86,18 @@ describe("architecture boundaries", () => {
         && filePath !== PUBKY_SDK_ADAPTER_TEST
         && filePath !== PUBKY_SDK_ADAPTER_STAGING_TEST
       )
-      .map((filePath) => `${relative(REPO_ROOT, filePath)} imports @synonymdev/pubky outside the browser Pubky adapter`);
+      .map((filePath) => `${relative(REPO_ROOT, filePath)} imports @synonymdev/pubky outside the client Pubky adapter`);
 
     expect(violations).toEqual([]);
   });
 
-  it("keeps browser and server runtime code isolated", () => {
+  it("keeps client and server runtime code isolated", () => {
     const violations = [
-      ...runtimeIsolationViolations(BROWSER_ROOT, [
+      ...runtimeIsolationViolations(CLIENT_LOGIC_ROOT, [
         { targetPath: SERVER_ROOT, label: "server runtime" },
       ], ["server-only"]),
       ...runtimeIsolationViolations(SERVER_ROOT, [
-        { targetPath: BROWSER_ROOT, label: "browser runtime" },
+        { targetPath: CLIENT_LOGIC_ROOT, label: "client logic runtime" },
         { targetPath: PUBLIC_ENV_ROOT, label: "public environment configuration" },
       ], ["client-only"]),
     ];
@@ -77,7 +107,7 @@ describe("architecture boundaries", () => {
 
   it("starts every runtime module with its runtime marker", () => {
     const violations = [
-      ...missingOpeningRuntimeMarkers(BROWSER_ROOT, "client-only"),
+      ...missingOpeningRuntimeMarkers(CLIENT_LOGIC_ROOT, "client-only"),
       ...missingOpeningRuntimeMarkers(SERVER_ROOT, "server-only"),
     ];
 
@@ -102,41 +132,41 @@ describe("architecture boundaries", () => {
     expect(cycles).toEqual([]);
   });
 
-  it("limits browser persistence to the local identity repository", () => {
-    const browserCapableFiles = [
-      ...GRAPH.productionSourceFiles(BROWSER_ROOT),
+  it("limits client-side persistence to the local identity repository", () => {
+    const clientCapableFiles = [
+      ...GRAPH.productionSourceFiles(CLIENT_LOGIC_ROOT),
       ...GRAPH.productionSourceFiles(UI_ROOT),
       ...GRAPH.productionSourceFiles(APP_ROOT).filter(isClientModule),
     ];
-    const violations = browserCapableFiles.flatMap((filePath) => [
+    const violations = clientCapableFiles.flatMap((filePath) => [
       ...(filePath === LOCAL_IDENTITY_REPOSITORY || !GRAPH.referencesIdentifier(filePath, "localStorage")
         ? []
-        : [`${relative(REPO_ROOT, filePath)} references forbidden browser persistence "localStorage"`]),
+        : [`${relative(REPO_ROOT, filePath)} references forbidden client persistence "localStorage"`]),
       ...["sessionStorage", "indexedDB"]
         .filter((identifier) => GRAPH.referencesIdentifier(filePath, identifier))
-        .map((identifier) => `${relative(REPO_ROOT, filePath)} references forbidden browser persistence "${identifier}"`),
+        .map((identifier) => `${relative(REPO_ROOT, filePath)} references forbidden client persistence "${identifier}"`),
       ...(GRAPH.referencesProperty(filePath, "document", "cookie")
-        ? [`${relative(REPO_ROOT, filePath)} references forbidden browser persistence "document.cookie"`]
+        ? [`${relative(REPO_ROOT, filePath)} references forbidden client persistence "document.cookie"`]
         : []),
       ...["localStorage", "sessionStorage", "indexedDB"]
         .filter((property) => GRAPH.referencesElementProperty(filePath, ["globalThis", "window"], property))
-        .map((property) => `${relative(REPO_ROOT, filePath)} references forbidden computed browser persistence "${property}"`),
+        .map((property) => `${relative(REPO_ROOT, filePath)} references forbidden computed client persistence "${property}"`),
       ...(GRAPH.referencesElementProperty(filePath, ["document"], "cookie")
-        ? [`${relative(REPO_ROOT, filePath)} references forbidden computed browser persistence "document.cookie"`]
+        ? [`${relative(REPO_ROOT, filePath)} references forbidden computed client persistence "document.cookie"`]
         : []),
     ]);
 
     expect(violations).toEqual([]);
   });
 
-  it("requires UI and app modules to opt into client rendering before importing browser runtime", () => {
+  it("requires UI and app modules to opt into client rendering before importing client logic", () => {
     const violations = [
       ...GRAPH.productionSourceFiles(UI_ROOT),
       ...GRAPH.productionSourceFiles(APP_ROOT),
     ]
-      .filter((filePath) => GRAPH.importsTarget(filePath, BROWSER_ROOT))
+      .filter((filePath) => GRAPH.importsTarget(filePath, CLIENT_LOGIC_ROOT))
       .filter((filePath) => !isClientModule(filePath))
-      .map((filePath) => `${relative(REPO_ROOT, filePath)} imports browser runtime without "use client"`);
+      .map((filePath) => `${relative(REPO_ROOT, filePath)} imports client logic without "use client"`);
 
     expect(violations).toEqual([]);
   });
@@ -154,8 +184,8 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
-  it("limits production UI browser imports to stable controller APIs and factories", () => {
-    expect(GRAPH.productionSourceFiles(UI_ROOT).flatMap(inspectUiBrowserImports)).toEqual([]);
+  it("limits production UI logic imports to stable controller APIs and factories", () => {
+    expect(GRAPH.productionSourceFiles(UI_ROOT).flatMap(inspectUiLogicImports)).toEqual([]);
   });
 
   it("confines cross-slice UI imports to explicit flow composers", () => {
@@ -190,10 +220,10 @@ describe("architecture boundaries", () => {
     const productionModules = [...GRAPH.productionSourceFiles(SRC_ROOT), PROXY];
     const approvedConsumers = new Map<string, Set<string>>([
       [GOOGLE_CLIENT_ID_CONFIG, new Set([
-        BROWSER_BOOTSTRAP_CONFIG,
+        CLIENT_BOOTSTRAP_CONFIG,
         GOOGLE_WRAPPING_KEY_REQUEST,
       ])],
-      [BROWSER_BOOTSTRAP_CONFIG, new Set([APP_HOME_PAGE, APP_AUTHORIZE_PAGE, PROXY])],
+      [CLIENT_BOOTSTRAP_CONFIG, new Set([APP_HOME_PAGE, APP_AUTHORIZE_PAGE, PROXY])],
     ]);
     const violations = [...approvedConsumers].flatMap(([target, approved]) =>
       productionModules
@@ -210,20 +240,55 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
-  it("keeps sensitive approval types out of public browser contracts", () => {
-    const violations = [...STABLE_UI_BROWSER_MODULES]
+  it("keeps sensitive approval types out of public client contracts", () => {
+    const violations = [...STABLE_UI_CLIENT_LOGIC_MODULES]
       .filter((filePath) => GRAPH.referencesIdentifier(filePath, "PubkyAuthApprovalCapability"))
-      .map((filePath) => `${relative(REPO_ROOT, filePath)} references the sensitive browser approval type`);
+      .map((filePath) => `${relative(REPO_ROOT, filePath)} references the sensitive approval type`);
+
+    expect(violations).toEqual([]);
+  });
+
+  it("confines sensitive approval metadata access to its runtime owners", () => {
+    const violations = GRAPH.productionSourceFiles(SRC_ROOT)
+      .filter((filePath) => GRAPH.importsTarget(filePath, ISSUED_AUTHORIZATION_REQUEST))
+      .flatMap((filePath) => [
+        ...["getValidatedSensitivePubkyAuthUrl", "isPubkyAuthApprovalCapability"]
+          .filter((identifier) => filePath !== PUBKY_SDK_ADAPTER && GRAPH.referencesIdentifier(filePath, identifier))
+          .map((identifier) => `${relative(REPO_ROOT, filePath)} accesses ${identifier} outside the Pubky adapter`),
+        ...["getValidatedOutcomeCallback"]
+          .filter((identifier) => filePath !== AUTHORIZATION_FLOW_CONTROLLER && GRAPH.referencesIdentifier(filePath, identifier))
+          .map((identifier) => `${relative(REPO_ROOT, filePath)} accesses ${identifier} outside the authorization flow controller`),
+        ...["releaseAuthorizationApproval"]
+          .filter((identifier) =>
+            filePath !== AUTHORIZATION_FLOW_CONTROLLER
+            && filePath !== AUTHORIZATION_ENTRY
+            && GRAPH.referencesIdentifier(filePath, identifier)
+          )
+          .map((identifier) => `${relative(REPO_ROOT, filePath)} accesses ${identifier} outside authorization lifetime owners`),
+      ]);
+
+    expect(violations).toEqual([]);
+  });
+
+  it("confines the sensitive authorization parser to issuance and safe validation", () => {
+    const approvedConsumers = new Set([
+      ISSUED_AUTHORIZATION_REQUEST,
+      ENCODED_AUTHORIZATION_REQUEST_VALIDATOR,
+    ]);
+    const violations = GRAPH.productionSourceFiles(SRC_ROOT)
+      .filter((filePath) => GRAPH.importsTarget(filePath, ENCODED_AUTHORIZATION_REQUEST_PARSER))
+      .filter((filePath) => !approvedConsumers.has(filePath))
+      .map((filePath) => `${relative(REPO_ROOT, filePath)} imports the sensitive authorization parser`);
 
     expect(violations).toEqual([]);
   });
 
 });
 
-function inspectUiBrowserImports(filePath: string): string[] {
+function inspectUiLogicImports(filePath: string): string[] {
   const relativeFilePath = relative(REPO_ROOT, filePath);
   const violations = GRAPH.referencesIdentifier(filePath, "PubkyAuthApprovalCapability")
-    ? [`${relativeFilePath} references the sensitive browser approval type`]
+    ? [`${relativeFilePath} references the sensitive approval type`]
     : [];
   const visited = new Set<string>();
 
@@ -234,9 +299,9 @@ function inspectUiBrowserImports(filePath: string): string[] {
     for (const specifier of GRAPH.importSpecifiers(currentFilePath)) {
       const targetPath = GRAPH.resolveLocalImportTarget(currentFilePath, specifier);
       if (!targetPath) continue;
-      if (isSameOrInside(targetPath, BROWSER_ROOT)) {
-        if (!isStableUiBrowserModule(targetPath)) {
-          violations.push(`${relativeFilePath} reaches non-public browser module via "${specifier}" from ${relative(REPO_ROOT, currentFilePath)}`);
+      if (isSameOrInside(targetPath, CLIENT_LOGIC_ROOT)) {
+        if (!isStableUiLogicModule(targetPath)) {
+          violations.push(`${relativeFilePath} reaches non-public client logic via "${specifier}" from ${relative(REPO_ROOT, currentFilePath)}`);
         }
         continue;
       }
@@ -248,8 +313,8 @@ function inspectUiBrowserImports(filePath: string): string[] {
   return violations;
 }
 
-function isStableUiBrowserModule(filePath: string): boolean {
-  return STABLE_UI_BROWSER_MODULES.has(filePath);
+function isStableUiLogicModule(filePath: string): boolean {
+  return STABLE_UI_CLIENT_LOGIC_MODULES.has(filePath);
 }
 
 function runtimeIsolationViolations(

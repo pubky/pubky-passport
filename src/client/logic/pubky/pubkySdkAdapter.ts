@@ -7,7 +7,7 @@ import {
   getValidatedSensitivePubkyAuthUrl,
   isPubkyAuthApprovalCapability,
   type PubkyAuthApprovalCapability,
-} from "../authorization/browserAuthorizationRequest";
+} from "../authorization/request/issuedAuthorizationRequest";
 import {
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,

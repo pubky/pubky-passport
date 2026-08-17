@@ -2,19 +2,19 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
-import { EARLY_AUTHORIZATION_LOCATION_PROPERTY } from "../../../libs/authorization/earlyAuthorizationLocation";
-import { LOGGER } from "../../../libs/logger/logger";
+import { EARLY_AUTHORIZATION_LOCATION_PROPERTY } from "../../../../libs/authorization/earlyAuthorizationLocation";
+import { LOGGER } from "../../../../libs/logger/logger";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "../request/pubkyAuthRequestLimits";
+import { isPubkyAuthApprovalCapability } from "../request/issuedAuthorizationRequest";
 import {
   clearPendingAuthorizationEntry,
   readAndScrubAuthorizationEntry,
-  scrubAuthorizationLocation,
-} from "./browserAuthorizationEntry";
+} from "./authorizationEntry";
 
 const RELAY_ORIGIN = "https://relay.example";
 const SECRET = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
-describe("browserAuthorizationEntry", () => {
+describe("authorizationEntry", () => {
   afterEach(async () => {
     clearPendingAuthorizationEntry(window);
     vi.useRealTimers();
@@ -29,14 +29,35 @@ describe("browserAuthorizationEntry", () => {
     window.history.replaceState({}, "", "/authorize");
     Object.defineProperty(window, EARLY_AUTHORIZATION_LOCATION_PROPERTY, {
       configurable: true,
-      value: vi.fn(() => ({ status: "captured", hash })),
+      value: vi.fn(() => ({
+        status: "captured",
+        hash,
+        expiresAt: Date.now() + 60_000,
+      })),
     });
 
     expect(readAndScrubAuthorizationEntry(window).status).toBe("valid");
     expect(window.location.hash).toBe("");
   });
 
-  it("scrubs synchronously and preserves a browser-issued request across a StrictMode double initializer", () => {
+  it("preserves an expired capture across a StrictMode double initializer", () => {
+    window.history.replaceState({}, "", "/authorize");
+    Object.defineProperty(window, EARLY_AUTHORIZATION_LOCATION_PROPERTY, {
+      configurable: true,
+      value: vi.fn(() => {
+        Reflect.deleteProperty(window, EARLY_AUTHORIZATION_LOCATION_PROPERTY);
+        return { status: "expired" };
+      }),
+    });
+
+    const first = readAndScrubAuthorizationEntry(window);
+    const second = readAndScrubAuthorizationEntry(window);
+
+    expect(first).toEqual({ status: "expired" });
+    expect(second).toBe(first);
+  });
+
+  it("scrubs synchronously and preserves an issued request across a StrictMode double initializer", () => {
     setAuthorizationUrl(validRequest());
 
     const first = readAndScrubAuthorizationEntry(window);
@@ -80,6 +101,17 @@ describe("browserAuthorizationEntry", () => {
     vi.advanceTimersByTime(60_000);
 
     expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "empty" });
+  });
+
+  it("invalidates approval provenance when an unconsumed entry expires", () => {
+    vi.useFakeTimers();
+    setAuthorizationUrl(validRequest());
+    const entry = readAndScrubAuthorizationEntry(window);
+    if (entry.status !== "valid") throw new Error("Expected a valid authorization entry");
+
+    vi.advanceTimersByTime(60_000);
+
+    expect(isPubkyAuthApprovalCapability(entry.approval)).toBe(false);
   });
 
   it("clears the pre-commit cache explicitly", () => {
@@ -137,30 +169,6 @@ describe("browserAuthorizationEntry", () => {
     setRawAuthorizationFragment(`unexpected=${"a".repeat(PUBKY_AUTH_REQUEST_LIMITS.encodedDLength + 1)}`);
 
     expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "invalid" });
-    expect(window.location.hash).toBe("");
-  });
-
-  it("preserves safe framework history state during a repeated hydration scrub", () => {
-    const frameworkState = { __NA: true, tree: ["", { children: ["authorize"] }] };
-    window.history.replaceState(
-      frameworkState,
-      "",
-      `/authorize#d=${encodeURIComponent(validRequest())}`,
-    );
-
-    scrubAuthorizationLocation(window, true);
-
-    expect(window.history.state).toEqual(frameworkState);
-    expect(window.location.hash).toBe("");
-  });
-
-  it("clears framework history state that contains authorization data", () => {
-    const sensitiveUrl = `/authorize#d=${encodeURIComponent(validRequest())}`;
-    window.history.replaceState({ url: sensitiveUrl }, "", sensitiveUrl);
-
-    scrubAuthorizationLocation(window, true);
-
-    expect(window.history.state).toBeNull();
     expect(window.location.hash).toBe("");
   });
 

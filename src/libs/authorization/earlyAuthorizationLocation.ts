@@ -13,7 +13,11 @@ export const EARLY_AUTHORIZATION_LOCATION_SCRIPT = `(() => {
     if (hash === "") return;
     capture = hash.length > ${EARLY_AUTHORIZATION_LOCATION_MAX_CHARACTERS}
       ? { status: "too_large" }
-      : { status: "captured", hash };
+      : {
+        status: "captured",
+        hash,
+        expiresAt: Date.now() + ${EARLY_AUTHORIZATION_LOCATION_LIFETIME_MS},
+      };
   }
 
   try {
@@ -23,26 +27,31 @@ export const EARLY_AUTHORIZATION_LOCATION_SCRIPT = `(() => {
   }
 
   let pendingCapture = capture;
+  let expired = false;
   let expirationTimer;
-  const clear = () => {
+  const dispose = () => {
     pendingCapture = undefined;
     clearTimeout(expirationTimer);
-    removeEventListener("pagehide", clear);
+    removeEventListener("pagehide", dispose);
     Reflect.deleteProperty(window, "${EARLY_AUTHORIZATION_LOCATION_PROPERTY}");
   };
-  expirationTimer = setTimeout(clear, ${EARLY_AUTHORIZATION_LOCATION_LIFETIME_MS});
-  addEventListener("pagehide", clear, { once: true });
+  expirationTimer = setTimeout(() => {
+    pendingCapture = undefined;
+    expired = true;
+  }, ${EARLY_AUTHORIZATION_LOCATION_LIFETIME_MS});
+  addEventListener("pagehide", dispose, { once: true });
   Object.defineProperty(window, "${EARLY_AUTHORIZATION_LOCATION_PROPERTY}", {
     configurable: true,
     value: () => {
-      const result = pendingCapture;
-      clear();
+      const result = pendingCapture ?? (expired ? { status: "expired" } : undefined);
+      dispose();
       return result;
     },
   });
 })();`;
 
 export type EarlyAuthorizationLocation =
-  | { status: "captured"; hash: string }
+  | { status: "captured"; hash: string; expiresAt: number }
+  | { status: "expired" }
   | { status: "invalid_search" }
   | { status: "too_large" };

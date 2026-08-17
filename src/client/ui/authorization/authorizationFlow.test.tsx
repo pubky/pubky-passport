@@ -36,7 +36,9 @@ vi.mock("../../logic/authorization/passportAuthorization", () => ({
 
 vi.mock("../../logic/identity/passportIdentityController", () => ({
   PassportIdentityController: class {
-    listIdentities = () => Result.ok(MOCKS.catalog);
+    listIdentities = () => MOCKS.catalog
+      ? Result.ok(MOCKS.catalog)
+      : Result.err({ code: "storage_unavailable" as const });
     selectIdentity = MOCKS.select;
   },
 }));
@@ -216,6 +218,17 @@ describe("AuthorizationFlow", () => {
     await user.click(await screen.findByRole("button", { name: "Back" }));
 
     expect(MOCKS.cancel).toHaveBeenCalledOnce();
+  });
+
+  it("cancels authorization when leaving an unavailable identity catalog", async () => {
+    const user = userEvent.setup();
+    MOCKS.catalog = undefined;
+    renderFlow();
+
+    await user.click(await screen.findByRole("button", { name: "Back" }));
+
+    expect(MOCKS.cancel).toHaveBeenCalledOnce();
+    expect(MOCKS.approve).not.toHaveBeenCalled();
   });
 
   it("authorizes with the selected identity", async () => {

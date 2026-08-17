@@ -13,22 +13,11 @@ import {
   type PubkyAuthUrlValidationError,
 } from "./validatePubkyAuthUrls";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
+import { PUBKY_AUTH_REQUEST_PARAMETERS } from "./pubkyAuthRequestParameters";
 
 export type PubkyAuthRequestKind = "signin";
 export type PubkyAuthenticationMethod = "cookie" | "grant";
 
-const PUBKY_AUTH_REQUEST_PARAMETERS = {
-  relay: "relay",
-  secret: "secret",
-  capabilities: "caps",
-  source: "x-source",
-  success: "x-success",
-  error: "x-error",
-  cancel: "x-cancel",
-  legacySuccess: "callback",
-  clientId: "cid",
-  clientPublicKey: "cpk",
-} as const;
 const COMMON_PARAMETERS = new Set<string>([
   PUBKY_AUTH_REQUEST_PARAMETERS.relay,
   PUBKY_AUTH_REQUEST_PARAMETERS.secret,
@@ -78,28 +67,29 @@ export type ParsedPubkyAuthRequest = {
 };
 
 export type PubkyAuthParseResult = ResultType<ParsedPubkyAuthRequest, PubkyAuthParseError>;
-export type PubkyAuthValidationResult = ResultType<void, PubkyAuthParseError>;
 
 type ParseValueResult<Value> = ResultType<Value, PubkyAuthParseError>;
 
 const PUBKY_AUTH_PROTOCOL = "pubkyauth:";
 
 /**
- * Parses and bounds one encoded Pubky Auth URL without issuing browser signing
+ * Parses and bounds one encoded Pubky Auth URL without issuing signing
  * authority. The returned URL remains sensitive and must not enter UI state.
+ * Production imports are confined by architecture tests to issuance and the
+ * validation-only wrapper.
  */
-export function parsePubkyAuthRequest(
-  d: unknown,
+export function parseEncodedPubkyAuthRequest(
+  encodedRequest: unknown,
 ): PubkyAuthParseResult {
-  if (typeof d !== "string" || d.length === 0) {
+  if (typeof encodedRequest !== "string" || encodedRequest.length === 0) {
     return error("missing_d");
   }
 
-  if (d.length > PUBKY_AUTH_REQUEST_LIMITS.encodedDLength) {
+  if (encodedRequest.length > PUBKY_AUTH_REQUEST_LIMITS.encodedDLength) {
     return error("request_too_large");
   }
 
-  const decoded = decodeDParam(d);
+  const decoded = decodeDParam(encodedRequest);
   if (Result.isError(decoded)) {
     return Result.err(decoded.error);
   }
@@ -108,7 +98,7 @@ export function parsePubkyAuthRequest(
     return error("request_too_large");
   }
 
-  if (decoded.value === d) {
+  if (decoded.value === encodedRequest) {
     return error("invalid_encoding");
   }
 
@@ -158,7 +148,7 @@ export function parsePubkyAuthRequest(
 
   const capabilities = parsePubkyAuthCapabilities(authUrl.value.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.capabilities));
   if (Result.isError(capabilities)) {
-    return mapCapabilitiesError(capabilities.error);
+    return error(mapCapabilitiesError(capabilities.error));
   }
 
   return Result.ok({
@@ -169,36 +159,6 @@ export function parsePubkyAuthRequest(
     relayHost: urls.value.relayHost,
     sensitivePubkyAuthUrl: decoded.value,
   });
-}
-
-/** Validates an encoded request without returning its sensitive parsed value. */
-export function validatePubkyAuthRequest(
-  d: unknown,
-): PubkyAuthValidationResult {
-  const parsed = parsePubkyAuthRequest(d);
-  return Result.isError(parsed) ? Result.err(parsed.error) : Result.ok();
-}
-
-/** Extracts the sole bounded `d` value from an authorization URL fragment. */
-export function extractRawPubkyAuthRequestFragmentValue(
-  hash: string,
-): { valid: true; value?: string } | { valid: false } {
-  if (hash.length > PUBKY_AUTH_REQUEST_LIMITS.encodedDLength + "#d=".length) {
-    return { valid: false };
-  }
-  const fragment = hash.startsWith("#") ? hash.slice(1) : hash;
-  if (fragment.length === 0) return { valid: true };
-  let value: string | undefined;
-
-  for (const parameter of fragment.split("&")) {
-    const separator = parameter.indexOf("=");
-    const name = separator === -1 ? parameter : parameter.slice(0, separator);
-    if (name !== "d") return { valid: false };
-    if (separator === -1 || value !== undefined) return { valid: false };
-    value = parameter.slice(separator + 1);
-  }
-
-  return value === undefined ? { valid: true } : { valid: true, value };
 }
 
 function decodeDParam(d: string): ParseValueResult<string> {
@@ -306,12 +266,12 @@ function utf8Length(value: string): number {
   return new TextEncoder().encode(value).byteLength;
 }
 
-function mapCapabilitiesError(capabilitiesError: PubkyAuthCapabilitiesParseError): PubkyAuthParseResult {
-  if (capabilitiesError.code === "missing_capabilities") {
-    return error("missing_capabilities");
-  }
-
-  return error("invalid_capability");
+function mapCapabilitiesError(
+  capabilitiesError: PubkyAuthCapabilitiesParseError,
+): "missing_capabilities" | "invalid_capability" {
+  return capabilitiesError.code === "missing_capabilities"
+    ? "missing_capabilities"
+    : "invalid_capability";
 }
 
 function error(

@@ -19,7 +19,11 @@ describe("early authorization location bootstrap", () => {
     const take = context[EARLY_AUTHORIZATION_LOCATION_PROPERTY];
     expect(typeof take).toBe("function");
     if (typeof take !== "function") throw new Error("Expected early authorization capture");
-    expect(take()).toEqual({ status: "captured", hash: "#d=sensitive" });
+    expect(take()).toEqual({
+      status: "captured",
+      hash: "#d=sensitive",
+      expiresAt: expect.any(Number),
+    });
     expect(context[EARLY_AUTHORIZATION_LOCATION_PROPERTY]).toBeUndefined();
   });
 
@@ -33,13 +37,17 @@ describe("early authorization location bootstrap", () => {
     expect(JSON.stringify(captured)).not.toContain("canary");
   });
 
-  it("discards an unconsumed capture after the deadline", async () => {
+  it("discards an unconsumed capture and returns an expired marker", async () => {
     vi.useFakeTimers();
     const context = createContext("", "#d=sensitive");
     runInNewContext(EARLY_AUTHORIZATION_LOCATION_SCRIPT, context);
 
     await vi.advanceTimersByTimeAsync(EARLY_AUTHORIZATION_LOCATION_LIFETIME_MS);
 
+    const take = context[EARLY_AUTHORIZATION_LOCATION_PROPERTY];
+    expect(typeof take).toBe("function");
+    if (typeof take !== "function") throw new Error("Expected expired authorization marker");
+    expect(take()).toEqual({ status: "expired" });
     expect(context[EARLY_AUTHORIZATION_LOCATION_PROPERTY]).toBeUndefined();
   });
 });

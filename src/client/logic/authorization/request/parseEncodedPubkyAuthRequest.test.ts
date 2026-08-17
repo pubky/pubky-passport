@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { Result } from "better-result";
 
-import { parsePubkyAuthRequest, type PubkyAuthParseErrorCode } from "./parsePubkyAuthRequest";
+import { parseEncodedPubkyAuthRequest, type PubkyAuthParseErrorCode } from "./parseEncodedPubkyAuthRequest";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 import type { PubkyAuthUrlValidationErrorCode } from "./validatePubkyAuthUrls";
 
@@ -24,7 +24,7 @@ function encodeRequest(request: string): string {
 }
 
 function expectError(input: unknown, code: PubkyAuthParseErrorCode): void {
-  const result = parsePubkyAuthRequest(input);
+  const result = parseEncodedPubkyAuthRequest(input);
 
   expect(Result.isError(result)).toBe(true);
   if (Result.isError(result)) {
@@ -32,18 +32,18 @@ function expectError(input: unknown, code: PubkyAuthParseErrorCode): void {
   }
 }
 
-describe("parsePubkyAuthRequest", () => {
+describe("parseEncodedPubkyAuthRequest", () => {
   it.each(PUBKY_SDK_V0_10_COMPATIBILITY_FIXTURES)(
     "parses the sanitized SDK v0.10 $authenticationMethod fixture",
     ({ authenticationMethod, request }) => {
-      const result = parsePubkyAuthRequest(encodeRequest(request));
+      const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
 
       expect(Result.isOk(result) && result.value.authenticationMethod).toBe(authenticationMethod);
     },
   );
 
   it("parses a valid x-callback-url Pubky auth request", () => {
-    const result = parsePubkyAuthRequest(encodeRequest(VALID_REQUEST));
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(VALID_REQUEST));
 
     expect(Result.isOk(result)).toBe(true);
     if (Result.isError(result)) {
@@ -71,7 +71,7 @@ describe("parsePubkyAuthRequest", () => {
   });
 
   it("accepts a client-provided HTTPS relay", () => {
-    const result = parsePubkyAuthRequest(encodeRequest(
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(
       VALID_REQUEST.replace("https://httprelay.pubky.app/inbox", "https://relay.client.example/custom-inbox"),
     ));
 
@@ -84,7 +84,7 @@ describe("parsePubkyAuthRequest", () => {
     const request =
       "pubkyauth:///?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
-    const result = parsePubkyAuthRequest(encodeRequest(request));
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
 
     expect(Result.isOk(result)).toBe(true);
     if (Result.isError(result)) {
@@ -102,7 +102,7 @@ describe("parsePubkyAuthRequest", () => {
         "&cid=pubky.app&cpk=5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo&x-success=",
       );
 
-    const result = parsePubkyAuthRequest(encodeRequest(request));
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
 
     expect(Result.isOk(result)).toBe(true);
     if (Result.isError(result)) throw new Error(result.error.code);
@@ -114,7 +114,7 @@ describe("parsePubkyAuthRequest", () => {
     const request =
       "pubkyauth://signin?caps=/pub/pubky.app/:rw,/pub/eventky/:r,/pub/mapky/:w&relay=https://httprelay.pubky.app/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-success=https://pubky.app/passport-success&x-error=https://pubky.app/passport-error&x-cancel=https://pubky.app/passport-cancel";
 
-    const result = parsePubkyAuthRequest(encodeRequest(request));
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
 
     expect(Result.isOk(result)).toBe(true);
     if (Result.isError(result)) {
@@ -132,7 +132,7 @@ describe("parsePubkyAuthRequest", () => {
     const request =
       "pubkyauth://signin?caps=/pub/file.txt:r,/pub/repeated/:rrw&relay=https://httprelay.pubky.app/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
-    const result = parsePubkyAuthRequest(encodeRequest(request));
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
 
     expect(Result.isOk(result)).toBe(true);
     if (Result.isError(result)) {
@@ -148,7 +148,7 @@ describe("parsePubkyAuthRequest", () => {
   it("accepts x-source without exposing untrusted metadata in review", () => {
     const request = `${VALID_REQUEST}&x-source=Pubky%20App`;
 
-    const result = parsePubkyAuthRequest(encodeRequest(request));
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
 
     expect(Result.isOk(result)).toBe(true);
     if (Result.isError(result)) {
@@ -292,7 +292,7 @@ describe("parsePubkyAuthRequest", () => {
   });
 
   it("allows missing callbacks", () => {
-    const result = parsePubkyAuthRequest(
+    const result = parseEncodedPubkyAuthRequest(
       encodeRequest(
         "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8",
       ),
@@ -309,7 +309,7 @@ describe("parsePubkyAuthRequest", () => {
   it("accepts an explicit empty capability list", () => {
     const request = "pubkyauth://signin?caps=&relay=https://httprelay.pubky.app/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
-    const result = parsePubkyAuthRequest(encodeRequest(request));
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
 
     expect(Result.isOk(result)).toBe(true);
     if (Result.isError(result)) throw new Error(result.error.code);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
-import { parseBrowserAuthorizationRequest } from "../../src/client/logic/authorization/browserAuthorizationRequest";
+import { issueAuthorizationRequest } from "../../src/client/logic/authorization/request/issuedAuthorizationRequest";
 import { PUBKY_SECRET_KEY_FORMAT } from "../../src/client/logic/pubky/pubkyIdentityKey";
 import { RecordingPubkySdkAdapter } from "./recordingPubkySdkAdapter";
 
@@ -98,7 +98,7 @@ describe("Pubky identity test doubles", () => {
   it("simulates auth approval without recording raw pubkyauth URLs", async () => {
     const authApproval = new RecordingPubkySdkAdapter();
     const key = expectOk(await authApproval.createIdentityKey());
-    const parsedAuthRequest = parseBrowserAuthorizationRequest(encodeURIComponent(
+    const parsedAuthRequest = issueAuthorizationRequest(encodeURIComponent(
       "pubkyauth://signin?secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&relay=https://httprelay.pubky.app/inbox&caps=/pub/pubky.app/:rw",
     ));
     const authRequest = expectOk(parsedAuthRequest).approval;

@@ -2,9 +2,9 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
-import { STABLE_BROWSER_UI_ENTRIES } from "./test-utils/architecture/architectureEntries.mjs";
+import { STABLE_CLIENT_LOGIC_UI_ENTRIES } from "./test-utils/architecture/architectureEntries.mjs";
 
-const STABLE_BROWSER_UI_ENTRY = `(?:${STABLE_BROWSER_UI_ENTRIES.join("|")})`;
+const STABLE_CLIENT_LOGIC_UI_ENTRY = `(?:${STABLE_CLIENT_LOGIC_UI_ENTRIES.join("|")})`;
 
 const ESLINT_CONFIG = defineConfig([
   ...nextVitals,
@@ -33,24 +33,19 @@ const ESLINT_CONFIG = defineConfig([
         {
           paths: [
             {
-              name: "../browser/authorization/browserAuthorizationRequest",
-              importNames: ["PubkyAuthApprovalCapability"],
-              message: "UI must consume safe authorization controller state, not sensitive approval types."
-            },
-            {
-              name: "@/client/browser/authorization/browserAuthorizationRequest",
+              name: "@/client/logic/authorization/request/issuedAuthorizationRequest",
               importNames: ["PubkyAuthApprovalCapability"],
               message: "UI must consume safe authorization controller state, not sensitive approval types."
             }
           ],
           patterns: [
             {
-              regex: `^(?:\\.\\./)+browser/(?!${STABLE_BROWSER_UI_ENTRY}$)`,
-              message: "UI may import browser runtime only through stable browser APIs and controller factories."
+              regex: `^(?:\\.\\./)+logic/(?!${STABLE_CLIENT_LOGIC_UI_ENTRY}$)`,
+              message: "UI may import client logic only through stable APIs and controller factories."
             },
             {
-              regex: `^@/client/browser/(?!${STABLE_BROWSER_UI_ENTRY}$)`,
-              message: "UI may import browser runtime only through stable browser APIs and controller factories."
+              regex: `^@/client/logic/(?!${STABLE_CLIENT_LOGIC_UI_ENTRY}$)`,
+              message: "UI may import client logic only through stable APIs and controller factories."
             }
           ]
         }
@@ -59,41 +54,41 @@ const ESLINT_CONFIG = defineConfig([
   },
   {
     files: [
-      "src/client/browser/authorization/passportAuthorization.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
-      "src/client/browser/authorization/browserManualAuthorization.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
-      "src/client/browser/identity/passportIdentityController.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+      "src/client/logic/authorization/passportAuthorization.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+      "src/client/logic/authorization/manualAuthorizationInput.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+      "src/client/logic/identity/passportIdentityController.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
     ],
-    ignores: ["src/client/browser/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    ignores: ["src/client/logic/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
           paths: [
             {
-              name: "@/client/browser/authorization/browserAuthorizationRequest",
+              name: "@/client/logic/authorization/request/issuedAuthorizationRequest",
               importNames: ["PubkyAuthApprovalCapability"],
-              message: "Public browser contracts must expose safe review state, not sensitive approval types."
+              message: "Public client contracts must expose safe review state, not sensitive approval types."
             }
           ],
           patterns: [{
-            regex: "^(?:\\.\\./)+authorization/browserAuthorizationRequest$",
+            regex: "^\\./request/issuedAuthorizationRequest$",
             importNames: ["PubkyAuthApprovalCapability"],
-            message: "Public browser contracts must expose safe review state, not sensitive approval types."
+            message: "Public client contracts must expose safe review state, not sensitive approval types."
           }]
         }
       ]
     }
   },
   {
-    files: ["src/client/browser/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
-    ignores: ["src/client/browser/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    files: ["src/client/logic/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    ignores: ["src/client/logic/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
           patterns: [{
             regex: "^(?:server-only$|@/server(?:/|$)|(?:\\.\\./)+server(?:/|$))",
-            message: "Browser modules must not import server runtime code."
+            message: "Client logic modules must not import server runtime code."
           }]
         }
       ]
@@ -107,8 +102,8 @@ const ESLINT_CONFIG = defineConfig([
         "error",
         {
           patterns: [{
-            regex: "^(?:client-only$|@/(?:client/browser|libs/env)(?:/|$)|(?:\\.\\./)+(?:client/browser|libs/env)(?:/|$))",
-            message: "Server modules must not import browser runtime or public environment code."
+            regex: "^(?:client-only$|@/(?:client/logic|libs/env)(?:/|$)|(?:\\.\\./)+(?:client/logic|libs/env)(?:/|$))",
+            message: "Server modules must not import client logic or public environment code."
           }]
         }
       ]
@@ -145,7 +140,7 @@ const ESLINT_CONFIG = defineConfig([
         {
           patterns: [{
             regex: "^(?:@/server/config(?:/|$)|(?:\\.\\./)+server/config(?:/|$))",
-            message: "Environment-backed browser bootstrap configuration is confined to approved app entries."
+            message: "Environment-backed client bootstrap configuration is confined to approved app entries."
           }]
         }
       ]

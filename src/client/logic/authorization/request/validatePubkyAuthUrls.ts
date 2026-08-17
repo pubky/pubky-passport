@@ -3,6 +3,7 @@ import "client-only";
 import { Result, type Err, type Result as ResultType } from "better-result";
 
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
+import { PUBKY_AUTH_REQUEST_PARAMETERS } from "./pubkyAuthRequestParameters";
 
 export type PubkyAuthUrlValidationErrorCode =
   | "missing_relay"
@@ -23,7 +24,7 @@ export function validatePubkyAuthUrls(
   authUrl: URL,
 ): PubkyAuthUrlValidationResult {
   const relay = validateRelayUrl(
-    authUrl.searchParams.get("relay"),
+    authUrl.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.relay),
   );
   if (Result.isError(relay)) {
     return Result.err(relay.error);
@@ -81,24 +82,24 @@ function isExactRelayHostname(hostname: string): boolean {
 function validateCallbacks(
   authUrl: URL,
 ): ResultType<ValidatedPubkyAuthCallbacks, PubkyAuthUrlValidationError> {
-  const rawSuccess = rawQueryValue(authUrl, "x-success");
-  const success = validateOptionalCallback(decodeCallbackValue(
-    rawSuccess ?? rawQueryValue(authUrl, "callback"),
-  ));
+  const rawSuccess = rawQueryValue(authUrl, PUBKY_AUTH_REQUEST_PARAMETERS.success);
+  const success = validateEncodedCallback(
+    rawSuccess ?? rawQueryValue(authUrl, PUBKY_AUTH_REQUEST_PARAMETERS.legacySuccess),
+  );
   if (Result.isError(success)) {
     return Result.err(success.error);
   }
 
-  const errorCallback = validateOptionalCallback(decodeCallbackValue(
-    rawQueryValue(authUrl, "x-error"),
-  ));
+  const errorCallback = validateEncodedCallback(
+    rawQueryValue(authUrl, PUBKY_AUTH_REQUEST_PARAMETERS.error),
+  );
   if (Result.isError(errorCallback)) {
     return Result.err(errorCallback.error);
   }
 
-  const cancel = validateOptionalCallback(decodeCallbackValue(
-    rawQueryValue(authUrl, "x-cancel"),
-  ));
+  const cancel = validateEncodedCallback(
+    rawQueryValue(authUrl, PUBKY_AUTH_REQUEST_PARAMETERS.cancel),
+  );
   if (Result.isError(cancel)) {
     return Result.err(cancel.error);
   }
@@ -138,14 +139,17 @@ function rawQueryValue(url: URL, key: string): string | undefined {
   return undefined;
 }
 
-function decodeCallbackValue(value: string | undefined): string | null {
-  if (value === undefined) return null;
+function validateEncodedCallback(
+  value: string | undefined,
+): ResultType<URL | undefined, PubkyAuthUrlValidationError> {
+  if (value === undefined) return Result.ok(undefined);
+
   try {
     // Pubky v0.10 callback values use encodeURIComponent semantics: decode once
     // without converting a literal plus sign into a space.
-    return decodeURIComponent(value);
+    return validateOptionalCallback(decodeURIComponent(value));
   } catch {
-    return value;
+    return error("invalid_callback");
   }
 }
 

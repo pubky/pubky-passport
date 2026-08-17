@@ -2,7 +2,7 @@ import { AuthFlowKind, Pubky, PublicKey, type Session } from "@synonymdev/pubky"
 import { Result, type Result as ResultType } from "better-result";
 import { expect, test } from "vitest";
 
-import { parseBrowserAuthorizationRequest } from "../authorization/browserAuthorizationRequest";
+import { issueAuthorizationRequest } from "../authorization/request/issuedAuthorizationRequest";
 import { HomegateClient } from "../homegate/homegateClient";
 import { PubkySdkAdapter } from "./pubkySdkAdapter";
 
@@ -63,7 +63,7 @@ test("completes signup, discovery, signin, and both v0.10 authorization methods"
     for (const flow of [cookieFlow, grantFlow]) {
       try {
         const request = expectOk(
-          parseBrowserAuthorizationRequest(encodeURIComponent(flow.authorizationUrl)),
+          issueAuthorizationRequest(encodeURIComponent(flow.authorizationUrl)),
           "Passport rejected the SDK-generated authorization request",
         );
 

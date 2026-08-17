@@ -1,5 +1,5 @@
-export const STABLE_BROWSER_UI_ENTRIES = Object.freeze([
+export const STABLE_CLIENT_LOGIC_UI_ENTRIES = Object.freeze([
   "authorization/passportAuthorization",
-  "authorization/browserManualAuthorization",
+  "authorization/manualAuthorizationInput",
   "identity/passportIdentityController",
 ]);

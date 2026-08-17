@@ -165,6 +165,15 @@ describe("validatePubkyAuthUrls", () => {
     expect(result.value.callbacks.success).toBe("https://third.example/success?nonce=a+b&nested=%2Fvalue");
   });
 
+  it("rejects malformed callback encoding", () => {
+    for (const callback of ["https%3A%2F%2Fthird.example%2Fsuccess%", "%E0%A4%A"]) {
+      expectUrlError(
+        authUrl(`relay=https://httprelay.pubky.app/inbox&x-success=${callback}`),
+        "invalid_callback",
+      );
+    }
+  });
+
   it("returns the normalized client-provided relay host", () => {
     const result = validatePubkyAuthUrls(
       authUrl("relay=https://custom-relay.example:443/inbox&secret=secret-value"),

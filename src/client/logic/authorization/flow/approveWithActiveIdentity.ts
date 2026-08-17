@@ -2,11 +2,11 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { LOGGER } from "../../../libs/logger/logger";
-import { RestoreActiveLocalIdentityKey } from "../identity/local/restoreActiveLocalIdentityKey";
-import type { PubkyIdentityKey } from "../pubky/pubkyIdentityKey";
-import { PubkySdkAdapter } from "../pubky/pubkySdkAdapter";
-import type { PubkyAuthApprovalCapability } from "./browserAuthorizationRequest";
+import { LOGGER } from "../../../../libs/logger/logger";
+import { RestoreActiveLocalIdentityKey } from "../../identity/local/restoreActiveLocalIdentityKey";
+import type { PubkyIdentityKey } from "../../pubky/pubkyIdentityKey";
+import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
+import type { PubkyAuthApprovalCapability } from "../request/issuedAuthorizationRequest";
 
 export type ApproveAuthorizationErrorCode =
   | "no_active_identity"
@@ -19,7 +19,7 @@ export type ApproveAuthorizationResult = ResultType<void, { code: ApproveAuthori
  * Restores the active local key, approves one validated request with the same
  * Pubky adapter, and always disposes the restored key handle.
  */
-export async function approveAuthorizationWithActiveIdentity(
+export async function approveWithActiveIdentity(
   approval: PubkyAuthApprovalCapability,
   restoreActiveIdentity: RestoreActiveLocalIdentityKey,
   pubky: PubkySdkAdapter,
