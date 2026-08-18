@@ -91,13 +91,13 @@ describe("IssuedPubkyAuthRequest", () => {
     expect(internationalized.value.review.requestingAppDisplayHost).not.toContain("\u0430");
   });
 
-  it("uses the validated relay host when callbacks are absent", () => {
+  it("does not present the relay host as the requesting app when callbacks are absent", () => {
     const issued = IssuedPubkyAuthRequest.issue(encodeURIComponent(
       "pubkyauth://signin?caps=/pub/app/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8",
     ));
     if (Result.isError(issued)) throw new Error(issued.error.code);
 
     expect(issued.value.review.callbackAvailability).toEqual({ success: false, error: false, cancel: false });
-    expect(issued.value.review.requestingAppDisplayHost).toBe("relay.example");
+    expect(issued.value.review.requestingAppDisplayHost).toBeUndefined();
   });
 });

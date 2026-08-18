@@ -29,7 +29,7 @@ describe("PubkySdkAdapter", () => {
 
       expect(Result.isOk(cookie) && cookie.value.review.authenticationMethod).toBe("cookie");
       expect(Result.isOk(grant) && grant.value.review.authenticationMethod).toBe("grant");
-      expect(Result.isOk(grant) && grant.value.review.requestingAppDisplayHost).toBe("relay.example");
+      expect(Result.isOk(grant) && grant.value.review.requestingAppDisplayHost).toBeUndefined();
     } finally {
       cookieFlow.free();
       grantFlow.free();

@@ -29,7 +29,7 @@ export type AuthorizationRequestReview = Readonly<{
     cancel: boolean;
   }>;
   relayHost: string;
-  requestingAppDisplayHost: string;
+  requestingAppDisplayHost?: string;
 }>;
 
 type ValidatedAuthorizationCallbacks = Readonly<{
@@ -128,6 +128,7 @@ function createAuthorizationReview(parsed: {
     error: parsed.callbacks.error !== undefined,
     cancel: parsed.callbacks.cancel !== undefined,
   });
+  const requestingAppDisplayHost = getRequestingAppDisplayHost(parsed.callbacks);
 
   return Object.freeze({
     kind: parsed.kind,
@@ -135,10 +136,7 @@ function createAuthorizationReview(parsed: {
     capabilities,
     callbackAvailability,
     relayHost: parsed.relayHost,
-    requestingAppDisplayHost: getRequestingAppDisplayHost(
-      parsed.callbacks,
-      parsed.relayHost,
-    ),
+    ...(requestingAppDisplayHost ? { requestingAppDisplayHost } : {}),
   });
 }
 
@@ -148,15 +146,14 @@ function getCapabilityScope(path: string): AuthorizationCapability["scope"] {
 
 function getRequestingAppDisplayHost(
   callbacks: ValidatedAuthorizationCallbacks,
-  relayHost: string,
-): string {
+): string | undefined {
   const displayCallback = callbacks.success ?? callbacks.error ?? callbacks.cancel;
-  if (!displayCallback) return relayHost;
+  if (!displayCallback) return undefined;
 
   try {
     // URL.hostname preserves punycode, avoiding Unicode homograph display.
-    return new URL(displayCallback).hostname || relayHost;
+    return new URL(displayCallback).hostname || undefined;
   } catch {
-    return relayHost;
+    return undefined;
   }
 }

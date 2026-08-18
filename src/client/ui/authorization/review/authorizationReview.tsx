@@ -18,7 +18,7 @@ function AuthorizationReview({ approving, identity, onAuthorize, onCancel, onSwi
   onSwitch: () => void;
   review: AuthorizationRequestReview;
 }) {
-  const requestingApp = review.requestingAppDisplayHost;
+  const requestingApp = review.requestingAppDisplayHost ?? "Unknown app";
   const hasBroadAccess = review.capabilities.some((capability) => capability.scope === "broad");
   const account = identity?.googleAccount;
   const identityName = account?.name ?? "Your Pubky";
