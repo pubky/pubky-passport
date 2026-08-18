@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../test-utils/fakes/memoryStorage";
+import { MemoryStorage } from "../../../../test-utils/fakes/MemoryStorage";
 import { LOGGER } from "../../../libs/logger/logger";
 
 const MOCKS = vi.hoisted(() => ({
@@ -13,11 +13,11 @@ const MOCKS = vi.hoisted(() => ({
   approveAuthRequest: vi.fn(),
 }));
 
-vi.mock("../pubky/pubkySdkAdapter", () => ({
+vi.mock("../pubky/PubkySdkAdapter", () => ({
   PubkySdkAdapter: MOCKS.PubkySdkAdapter,
 }));
 
-import { PassportAuthorizationController } from "./passportAuthorization";
+import { PassportAuthorizationController } from "./PassportAuthorizationController";
 
 const RELAY_ORIGIN = "https://relay.example";
 

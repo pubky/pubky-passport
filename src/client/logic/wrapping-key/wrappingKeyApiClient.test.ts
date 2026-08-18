@@ -3,7 +3,7 @@ import { Result } from "better-result";
 
 import { encodeBase64Url } from "../../../libs/encoding/base64Url";
 import { LOGGER } from "../../../libs/logger/logger";
-import { WrappingKeyApiClient } from "./wrappingKeyApiClient";
+import { WrappingKeyApiClient } from "./WrappingKeyApiClient";
 
 describe("WrappingKeyApiClient", () => {
   afterEach(() => vi.restoreAllMocks());

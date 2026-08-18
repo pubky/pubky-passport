@@ -1,13 +1,13 @@
 import { Result } from "better-result";
 import { describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../../test-utils/fakes/memoryStorage";
+import { MemoryStorage } from "../../../../../test-utils/fakes/MemoryStorage";
 import { expectResultOk } from "../../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_FORMAT } from "../../pubky/pubkyIdentityKey";
-import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
-import { CreateLocalIdentityBackup } from "./createLocalIdentityBackup";
-import { LocalStorageIdentityRepository } from "./localStorageIdentityRepository";
+import { PubkySdkAdapter } from "../../pubky/PubkySdkAdapter";
+import { CreateLocalIdentityBackup } from "./CreateLocalIdentityBackup";
+import { LocalStorageIdentityRepository } from "./LocalStorageIdentityRepository";
 
 describe("CreateLocalIdentityBackup", () => {
   it("creates an SDK recovery file for the requested local identity", async () => {

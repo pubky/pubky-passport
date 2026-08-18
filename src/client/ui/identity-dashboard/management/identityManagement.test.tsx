@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { LocalIdentityMetadata } from "../../../logic/identity/passportIdentityController";
+import type { LocalIdentityMetadata } from "../../../logic/identity/PassportIdentityController";
 import { IdentityManagement } from "./identityManagement";
 
 const identity = {

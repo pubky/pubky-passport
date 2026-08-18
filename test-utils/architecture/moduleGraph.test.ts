@@ -7,7 +7,7 @@ import {
   importSpecifiersFromSource,
   ModuleGraph,
   nonLiteralModuleLoadsFromSource,
-} from "./moduleGraph";
+} from "./ModuleGraph";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const FIXTURE_ROOT = join(REPO_ROOT, "test-utils", "architecture", "fixtures");
@@ -42,8 +42,8 @@ describe("ModuleGraph", () => {
   it("resolves aliases, JavaScript specifiers, index re-exports, and mts modules", () => {
     expect(GRAPH.resolveLocalImportTarget(
       join(REPO_ROOT, "src", "client", "ui", "authorizationReview.tsx"),
-      "@/client/logic/authorization/passportAuthorization",
-    )).toBe(join(REPO_ROOT, "src", "client", "logic", "authorization", "passportAuthorization.ts"));
+      "@/client/logic/authorization/PassportAuthorizationController",
+    )).toBe(join(REPO_ROOT, "src", "client", "logic", "authorization", "PassportAuthorizationController.ts"));
     expect(GRAPH.resolveLocalImportTarget(
       join(FIXTURE_ROOT, "transitive-entry.ts"),
       "./shared/index.js",

@@ -3,10 +3,10 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../../test-utils/fakes/memoryStorage";
+import { MemoryStorage } from "../../../../../test-utils/fakes/MemoryStorage";
 import { expectResultError } from "../../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../../libs/logger/logger";
-import { LocalStorageIdentityRepository } from "../local/localStorageIdentityRepository";
+import { LocalStorageIdentityRepository } from "../local/LocalStorageIdentityRepository";
 
 const MOCKS = vi.hoisted(() => ({
   GoogleBackedIdentityOperations: vi.fn(),
@@ -20,18 +20,18 @@ const MOCKS = vi.hoisted(() => ({
   requestAuthorization: vi.fn(),
 }));
 
-vi.mock("./googleBackedIdentityOperations", () => ({
+vi.mock("./GoogleBackedIdentityOperations", () => ({
   GoogleBackedIdentityOperations: MOCKS.GoogleBackedIdentityOperations,
 }));
 
-vi.mock("../../google-authorization/googleImplicitAuthorization", () => ({
+vi.mock("../../google-authorization/GoogleImplicitAuthorization", () => ({
   GoogleImplicitAuthorization: MOCKS.GoogleImplicitAuthorization,
 }));
 
 import {
   GoogleBackedIdentityFlow,
   type GoogleIdentityFlowState,
-} from "./googleBackedIdentityFlow";
+} from "./GoogleBackedIdentityFlow";
 
 const GOOGLE_ACCOUNT = {
   id: "google-account-id",

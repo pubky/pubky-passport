@@ -9,7 +9,7 @@ import { encodeBase64Url } from "../../../libs/encoding/base64Url";
 import { LOGGER } from "../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_BYTES } from "../pubky/pubkyIdentityKey";
 import { parsePassportFileEnvelope } from "./passportFileEnvelope";
-import { PassportFileWebCrypto } from "./passportFileWebCrypto";
+import { PassportFileWebCrypto } from "./PassportFileWebCrypto";
 
 const SECRET_KEY_BYTES = new Uint8Array(Array.from({ length: PUBKY_SECRET_KEY_BYTES }, (_, index) => index + 11));
 

@@ -3,34 +3,34 @@ import "client-only";
 import { Result } from "better-result";
 
 import { LOGGER } from "../../../libs/logger/logger";
-import { GoogleImplicitAuthorization } from "../google-authorization/googleImplicitAuthorization";
-import { resolvePubkyHomeserver, type PubkyHomeserverResolutionResult } from "../pubky/pubkySdkAdapter";
+import { GoogleImplicitAuthorization } from "../google-authorization/GoogleImplicitAuthorization";
+import { resolvePubkyHomeserver, type PubkyHomeserverResolutionResult } from "../pubky/PubkySdkAdapter";
 import {
   GoogleBackedIdentityFlow,
   type GoogleIdentityFlowState,
-} from "./google-backed/googleBackedIdentityFlow";
+} from "./google-backed/GoogleBackedIdentityFlow";
 import {
   CreateLocalIdentityBackup,
   type LocalIdentityBackupResult,
-} from "./local/createLocalIdentityBackup";
+} from "./local/CreateLocalIdentityBackup";
 import type {
   LocalIdentityCatalog,
   LocalIdentityResult,
-} from "./local/localStorageIdentityRepository";
-import { LocalStorageIdentityRepository } from "./local/localStorageIdentityRepository";
+} from "./local/LocalStorageIdentityRepository";
+import { LocalStorageIdentityRepository } from "./local/LocalStorageIdentityRepository";
 
-export type { LocalIdentityCatalog, LocalIdentityMetadata } from "./local/localStorageIdentityRepository";
-export type { GoogleAccountProfile } from "../google-authorization/googleImplicitAuthorization";
+export type { LocalIdentityCatalog, LocalIdentityMetadata } from "./local/LocalStorageIdentityRepository";
+export type { GoogleAccountProfile } from "../google-authorization/GoogleImplicitAuthorization";
 export type { PubkyPublicIdentity } from "../pubky/pubkyIdentityKey";
-export type { GoogleBackedIdentityProgress } from "./google-backed/googleBackedIdentityOperations";
+export type { GoogleBackedIdentityProgress } from "./google-backed/GoogleBackedIdentityOperations";
 export type {
   GoogleIdentityFlowError,
   GoogleIdentityFlowState,
-} from "./google-backed/googleBackedIdentityFlow";
-export { GoogleBackedIdentityFlow } from "./google-backed/googleBackedIdentityFlow";
-export type { PubkyHomeserverResolutionResult } from "../pubky/pubkySdkAdapter";
-export type { LocalIdentityBackupFile, LocalIdentityBackupResult } from "./local/createLocalIdentityBackup";
-export { MIN_BACKUP_PASSWORD_LENGTH } from "./local/createLocalIdentityBackup";
+} from "./google-backed/GoogleBackedIdentityFlow";
+export { GoogleBackedIdentityFlow } from "./google-backed/GoogleBackedIdentityFlow";
+export type { PubkyHomeserverResolutionResult } from "../pubky/PubkySdkAdapter";
+export type { LocalIdentityBackupFile, LocalIdentityBackupResult } from "./local/CreateLocalIdentityBackup";
+export { MIN_BACKUP_PASSWORD_LENGTH } from "./local/CreateLocalIdentityBackup";
 
 /**
  * Browser entry point for local Pubky identity management.

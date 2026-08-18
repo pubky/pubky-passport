@@ -4,7 +4,7 @@ import { OAuth2Client, type LoginTicket } from "google-auth-library";
 
 import { expectAsyncResultError } from "../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../libs/logger/logger";
-import { GoogleIdTokenVerifier } from "./googleIdTokenVerifier";
+import { GoogleIdTokenVerifier } from "./GoogleIdTokenVerifier";
 
 const AUDIENCE = "google-client-id";
 const TOKEN = "header.payload.signature";

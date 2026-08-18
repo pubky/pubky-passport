@@ -5,18 +5,18 @@ import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { LOGGER } from "../../../libs/logger/logger";
 import { EARLY_AUTHORIZATION_LOCATION_PROPERTY } from "../../../libs/authorization/earlyAuthorizationLocation";
-import { ActiveIdentityAuthorization } from "./activeIdentityAuthorization";
-import { AuthorizationOutcomeHandoff } from "./authorizationOutcomeHandoff";
+import { ActiveIdentityAuthorization } from "./ActiveIdentityAuthorization";
+import { AuthorizationOutcomeHandoff } from "./AuthorizationOutcomeHandoff";
 import {
   clearPendingAuthorizationEntry,
   readAndScrubAuthorizationEntry,
 } from "./authorizationEntry";
-import { IssuedPubkyAuthRequest } from "./issuedPubkyAuthRequest";
+import { IssuedPubkyAuthRequest } from "./IssuedPubkyAuthRequest";
 import {
   PassportAuthorizationController,
   type PassportAuthorizationViewState,
-} from "./passportAuthorization";
-import type { ApproveAuthorizationResult } from "./activeIdentityAuthorization";
+} from "./PassportAuthorizationController";
+import type { ApproveAuthorizationResult } from "./ActiveIdentityAuthorization";
 
 type ControllerOverrides = {
   approveAuthorization: (request: IssuedPubkyAuthRequest) => Promise<ApproveAuthorizationResult>;

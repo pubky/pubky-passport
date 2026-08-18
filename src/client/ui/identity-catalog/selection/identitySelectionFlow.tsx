@@ -6,7 +6,7 @@ import { useReducer } from "react";
 import type {
   PassportIdentityController,
   LocalIdentityCatalog,
-} from "../../../logic/identity/passportIdentityController";
+} from "../../../logic/identity/PassportIdentityController";
 import { SignInFlow } from "../../onboarding/signInFlow";
 import type { GoogleIdentityEstablished } from "../../onboarding/google/useGoogleSignIn";
 import { IdentitySwitcher } from "./identitySwitcher";

@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { STABLE_CLIENT_LOGIC_UI_ENTRIES } from "./architectureEntries.mjs";
-import { isSameOrInside, ModuleGraph, type ForbiddenTarget } from "./moduleGraph";
+import { isSameOrInside, ModuleGraph, type ForbiddenTarget } from "./ModuleGraph";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const SRC_ROOT = join(REPO_ROOT, "src");
@@ -17,24 +17,24 @@ const LIBS_ROOT = join(SRC_ROOT, "libs");
 const PUBLIC_ENV_ROOT = join(LIBS_ROOT, "env");
 const SERVER_CONFIG_ROOT = join(SERVER_ROOT, "config");
 const IDENTITY_ROOT = join(CLIENT_LOGIC_ROOT, "identity");
-const LOCAL_IDENTITY_REPOSITORY = join(IDENTITY_ROOT, "local", "localStorageIdentityRepository.ts");
-const PUBKY_SDK_ADAPTER = join(CLIENT_LOGIC_ROOT, "pubky", "pubkySdkAdapter.ts");
+const LOCAL_IDENTITY_REPOSITORY = join(IDENTITY_ROOT, "local", "LocalStorageIdentityRepository.ts");
+const PUBKY_SDK_ADAPTER = join(CLIENT_LOGIC_ROOT, "pubky", "PubkySdkAdapter.ts");
 const PUBKY_SDK_ADAPTER_TEST = join(CLIENT_LOGIC_ROOT, "pubky", "pubkySdkAdapter.test.ts");
 const PUBKY_SDK_ADAPTER_STAGING_TEST = join(CLIENT_LOGIC_ROOT, "pubky", "pubkySdkAdapter.staging.test.ts");
 const ISSUED_AUTHORIZATION_REQUEST = join(
   CLIENT_LOGIC_ROOT,
   "authorization",
-  "issuedPubkyAuthRequest.ts",
+  "IssuedPubkyAuthRequest.ts",
 );
 const PASSPORT_AUTHORIZATION = join(
   CLIENT_LOGIC_ROOT,
   "authorization",
-  "passportAuthorization.ts",
+  "PassportAuthorizationController.ts",
 );
 const ACTIVE_IDENTITY_AUTHORIZATION = join(
   CLIENT_LOGIC_ROOT,
   "authorization",
-  "activeIdentityAuthorization.ts",
+  "ActiveIdentityAuthorization.ts",
 );
 const MANUAL_AUTHORIZATION_INPUT = join(
   CLIENT_LOGIC_ROOT,
@@ -55,7 +55,7 @@ const GOOGLE_WRAPPING_KEY_REQUEST = join(
   SERVER_ROOT,
   "wrapping-key",
   "google",
-  "googleWrappingKeyRequest.ts",
+  "GoogleWrappingKeyRequest.ts",
 );
 const GOOGLE_CLIENT_ID_CONFIG = join(SERVER_CONFIG_ROOT, "googleClientId.ts");
 const CLIENT_BOOTSTRAP_CONFIG = join(SERVER_CONFIG_ROOT, "browserBootstrapConfig.ts");

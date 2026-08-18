@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { encodeBase64Url } from "../../../libs/encoding/base64Url";
 import { GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE } from "../../../libs/authorization/earlyGoogleImplicitResponse";
-import { GoogleImplicitAuthorization } from "./googleImplicitAuthorization";
+import { GoogleImplicitAuthorization } from "./GoogleImplicitAuthorization";
 
 const ORIGIN = "https://passport.example";
 const SUBJECT = "google-subject";

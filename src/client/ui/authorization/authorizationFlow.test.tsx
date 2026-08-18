@@ -5,8 +5,8 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PassportAuthorizationViewState } from "../../logic/authorization/passportAuthorization";
-import type { LocalIdentityCatalog } from "../../logic/identity/passportIdentityController";
+import type { PassportAuthorizationViewState } from "../../logic/authorization/PassportAuthorizationController";
+import type { LocalIdentityCatalog } from "../../logic/identity/PassportIdentityController";
 import { AuthorizationFlow } from "./authorizationFlow";
 
 const MOCKS = vi.hoisted(() => ({
@@ -21,7 +21,7 @@ const MOCKS = vi.hoisted(() => ({
   createAuthorizationController: vi.fn(),
 }));
 
-vi.mock("../../logic/authorization/passportAuthorization", () => ({
+vi.mock("../../logic/authorization/PassportAuthorizationController", () => ({
   PassportAuthorizationController: class {
     constructor(...args: unknown[]) {
       MOCKS.createAuthorizationController(...args);
@@ -38,7 +38,7 @@ vi.mock("../../logic/authorization/passportAuthorization", () => ({
   },
 }));
 
-vi.mock("../../logic/identity/passportIdentityController", () => ({
+vi.mock("../../logic/identity/PassportIdentityController", () => ({
   PassportIdentityController: class {
     listIdentities = () => MOCKS.catalog
       ? Result.ok(MOCKS.catalog)

@@ -7,11 +7,11 @@ import { LOGGER } from "../../../../libs/logger/logger";
 import type {
   PubkyIdentityKey,
 } from "../../pubky/pubkyIdentityKey";
-import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
+import { PubkySdkAdapter } from "../../pubky/PubkySdkAdapter";
 import type {
   LocalIdentityErrorCode,
   LocalStorageIdentityRepository,
-} from "./localStorageIdentityRepository";
+} from "./LocalStorageIdentityRepository";
 
 /**
  * Restores the active local identity key from the local identity repository.

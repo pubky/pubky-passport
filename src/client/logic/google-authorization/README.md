@@ -25,7 +25,7 @@ product adopts a supported single-interaction Google flow.
 
 ## Boundaries
 
-- `googleImplicitAuthorization.ts` owns OAuth request construction, popup
+- `GoogleImplicitAuthorization.ts` owns OAuth request construction, popup
   lifecycle, response validation, UserInfo binding, and avatar localization.
 - The ID and Drive access tokens stay out of React state, persistence, logs, and
   Passport server requests and pass directly into the browser identity use case.

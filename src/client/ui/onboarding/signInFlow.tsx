@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { PassportIdentityController } from "../../logic/identity/passportIdentityController";
+import type { PassportIdentityController } from "../../logic/identity/PassportIdentityController";
 import { GoogleAccessScreen } from "./google/googleAccessScreen";
 import { GoogleIdentityComplete } from "./google/googleIdentityComplete";
 import { GoogleIdentityError } from "./google/googleIdentityError";

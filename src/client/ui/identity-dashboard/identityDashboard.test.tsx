@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   LocalIdentityCatalog,
   PubkyPublicIdentity,
-} from "../../logic/identity/passportIdentityController";
+} from "../../logic/identity/PassportIdentityController";
 import {
   mockGoogleBackedIdentityFlow,
   mockPassportIdentityController,
@@ -23,7 +23,7 @@ const FLOW = vi.hoisted(() => ({
   migrationUrl: "pubkyring://migrate?index=0&total=1&key=active-secret",
 }));
 
-vi.mock("../../logic/identity/passportIdentityController", () => ({
+vi.mock("../../logic/identity/PassportIdentityController", () => ({
   MIN_BACKUP_PASSWORD_LENGTH: 6,
   PassportIdentityController: function PassportIdentityController() {
     return mockPassportIdentityController({

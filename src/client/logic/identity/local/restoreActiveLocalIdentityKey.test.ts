@@ -1,15 +1,15 @@
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { RecordingPubkySdkAdapter } from "../../../../../test-utils/fakes/recordingPubkySdkAdapter";
+import { RecordingPubkySdkAdapter } from "../../../../../test-utils/fakes/RecordingPubkySdkAdapter";
 import { expectAsyncResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";
 import type {
   LocalIdentityResult,
   LocalIdentityMetadata,
-} from "./localStorageIdentityRepository";
-import { RestoreActiveLocalIdentityKey } from "./restoreActiveLocalIdentityKey";
+} from "./LocalStorageIdentityRepository";
+import { RestoreActiveLocalIdentityKey } from "./RestoreActiveLocalIdentityKey";
 
 describe("RestoreActiveLocalIdentityKey", () => {
   afterEach(() => {

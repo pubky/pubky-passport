@@ -2,10 +2,10 @@ import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LOGGER } from "../../../libs/logger/logger";
-import { RestoreActiveLocalIdentityKey } from "../identity/local/restoreActiveLocalIdentityKey";
-import { RecordingPubkySdkAdapter } from "../../../../test-utils/fakes/recordingPubkySdkAdapter";
-import { ActiveIdentityAuthorization } from "./activeIdentityAuthorization";
-import { IssuedPubkyAuthRequest } from "./issuedPubkyAuthRequest";
+import { RestoreActiveLocalIdentityKey } from "../identity/local/RestoreActiveLocalIdentityKey";
+import { RecordingPubkySdkAdapter } from "../../../../test-utils/fakes/RecordingPubkySdkAdapter";
+import { ActiveIdentityAuthorization } from "./ActiveIdentityAuthorization";
+import { IssuedPubkyAuthRequest } from "./IssuedPubkyAuthRequest";
 
 const REQUEST = "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 

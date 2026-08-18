@@ -35,7 +35,7 @@ persistence do not expose synthetic secret canaries.
 
 `architecture/architecture-boundaries.test.ts` enforces targeted runtime and
 security boundaries through the TypeScript-resolved graph in
-`architecture/moduleGraph.ts`. It does not enforce generic application, adapter, or
+`architecture/ModuleGraph.ts`. It does not enforce generic application, adapter, or
 composition layers.
 
 `architecture/moduleGraph.test.ts` independently verifies aliases, re-exports,

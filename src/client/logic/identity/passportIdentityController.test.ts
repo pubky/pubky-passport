@@ -3,22 +3,22 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../test-utils/fakes/memoryStorage";
+import { MemoryStorage } from "../../../../test-utils/fakes/MemoryStorage";
 import { LOGGER } from "../../../libs/logger/logger";
-import { GoogleImplicitAuthorization } from "../google-authorization/googleImplicitAuthorization";
+import { GoogleImplicitAuthorization } from "../google-authorization/GoogleImplicitAuthorization";
 import { PUBKY_SECRET_KEY_FORMAT } from "../pubky/pubkyIdentityKey";
-import { LocalStorageIdentityRepository } from "./local/localStorageIdentityRepository";
+import { LocalStorageIdentityRepository } from "./local/LocalStorageIdentityRepository";
 
 const MOCKS = vi.hoisted(() => ({
   GoogleBackedIdentityFlow: vi.fn(),
   start: vi.fn(),
 }));
 
-vi.mock("./google-backed/googleBackedIdentityFlow", () => ({
+vi.mock("./google-backed/GoogleBackedIdentityFlow", () => ({
   GoogleBackedIdentityFlow: MOCKS.GoogleBackedIdentityFlow,
 }));
 
-import { PassportIdentityController } from "./passportIdentityController";
+import { PassportIdentityController } from "./PassportIdentityController";
 
 const GOOGLE_CLIENT_ID = "google-client-id";
 const HOMEGATE_BASE_URL = "https://homegate.example/";

@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import {
   PassportIdentityController,
   type LocalIdentityCatalog,
-} from "../../logic/identity/passportIdentityController";
+} from "../../logic/identity/PassportIdentityController";
 
 type IdentityCatalogState =
   | { status: "loading" }

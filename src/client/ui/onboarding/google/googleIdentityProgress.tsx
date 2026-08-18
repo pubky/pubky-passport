@@ -1,6 +1,6 @@
 "use client";
 
-import type { GoogleBackedIdentityProgress } from "../../../logic/identity/passportIdentityController";
+import type { GoogleBackedIdentityProgress } from "../../../logic/identity/PassportIdentityController";
 import { PassportScreen } from "../../shared/layout/passportScreen";
 import { Spinner } from "../../shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";

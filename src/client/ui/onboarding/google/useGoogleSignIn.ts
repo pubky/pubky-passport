@@ -8,7 +8,7 @@ import type {
   GoogleBackedIdentityFlow,
   PassportIdentityController,
   PubkyPublicIdentity,
-} from "../../../logic/identity/passportIdentityController";
+} from "../../../logic/identity/PassportIdentityController";
 import {
   INITIAL_GOOGLE_SIGN_IN_STATE,
   transitionGoogleSignIn,

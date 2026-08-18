@@ -4,7 +4,7 @@ import { Result } from "better-result";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
-import type { LocalIdentityMetadata, PubkyHomeserverResolutionResult } from "../../../logic/identity/passportIdentityController";
+import type { LocalIdentityMetadata, PubkyHomeserverResolutionResult } from "../../../logic/identity/PassportIdentityController";
 import { CopyIcon, DownloadIcon, KeyRoundIcon, LinkOffIcon } from "../../shared/icons/actionIcons";
 import { PassportScreen } from "../../shared/layout/passportScreen";
 import { BackButton } from "../../shared/navigation/backButton";

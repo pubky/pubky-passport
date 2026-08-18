@@ -3,8 +3,8 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER } from "../../../../libs/logger/logger";
-import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
-import { LocalStorageIdentityRepository } from "./localStorageIdentityRepository";
+import { PubkySdkAdapter } from "../../pubky/PubkySdkAdapter";
+import { LocalStorageIdentityRepository } from "./LocalStorageIdentityRepository";
 
 export const MIN_BACKUP_PASSWORD_LENGTH = 6;
 const MAX_BACKUP_PASSWORD_LENGTH = 1024;

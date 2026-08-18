@@ -3,7 +3,7 @@
 import { Result } from "better-result";
 import { useReducer } from "react";
 
-import type { LocalIdentityMetadata, PassportIdentityController } from "../../../../logic/identity/passportIdentityController";
+import type { LocalIdentityMetadata, PassportIdentityController } from "../../../../logic/identity/PassportIdentityController";
 import { EncryptedBackup } from "../encrypted-backup/encryptedBackup";
 import { MigrateToPubkyRing } from "../migrate-to-pubky-ring/migrateToPubkyRing";
 import { BackupBeforeDetaching } from "./backupBeforeDetaching";

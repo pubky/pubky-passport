@@ -1,7 +1,7 @@
 import { Result } from "better-result";
 import { describe, expect, it } from "vitest";
 
-import { IssuedPubkyAuthRequest } from "./issuedPubkyAuthRequest";
+import { IssuedPubkyAuthRequest } from "./IssuedPubkyAuthRequest";
 
 const REQUEST =
   "pubkyauth://signin?caps=/pub/pubky.app/:rw,/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-success=https://pubky.app/success?token=private&x-error=https://pubky.app/error&x-cancel=https://pubky.app/cancel";

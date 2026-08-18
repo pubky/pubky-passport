@@ -9,13 +9,13 @@ import {
   type GoogleAccountProfile,
   type GoogleBackedIdentityCredentials,
   type GoogleImplicitAuthorizationError,
-} from "../../google-authorization/googleImplicitAuthorization";
-import type { LocalStorageIdentityRepository } from "../local/localStorageIdentityRepository";
+} from "../../google-authorization/GoogleImplicitAuthorization";
+import type { LocalStorageIdentityRepository } from "../local/LocalStorageIdentityRepository";
 import {
   GoogleBackedIdentityOperations,
   type GoogleBackedIdentityOperationError,
   type GoogleBackedIdentityProgress,
-} from "./googleBackedIdentityOperations";
+} from "./GoogleBackedIdentityOperations";
 
 /** Safe progress emitted while Passport creates or restores a Google-backed identity. */
 export type GoogleIdentityFlowState =

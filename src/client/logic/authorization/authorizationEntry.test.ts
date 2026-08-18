@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { EARLY_AUTHORIZATION_LOCATION_PROPERTY } from "../../../libs/authorization/earlyAuthorizationLocation";
 import { LOGGER } from "../../../libs/logger/logger";
-import { IssuedPubkyAuthRequest } from "./issuedPubkyAuthRequest";
+import { IssuedPubkyAuthRequest } from "./IssuedPubkyAuthRequest";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 import {
   clearPendingAuthorizationEntry,

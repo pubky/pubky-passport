@@ -2,10 +2,10 @@ import { AuthFlowKind, Keypair, Pubky, Signer } from "@synonymdev/pubky";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
-import { IssuedPubkyAuthRequest } from "../authorization/issuedPubkyAuthRequest";
+import { IssuedPubkyAuthRequest } from "../authorization/IssuedPubkyAuthRequest";
 import { LOGGER } from "../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkyIdentityKeyHandle } from "./pubkyIdentityKey";
-import { PubkySdkAdapter } from "./pubkySdkAdapter";
+import { PubkySdkAdapter } from "./PubkySdkAdapter";
 
 afterEach(() => vi.restoreAllMocks());
 

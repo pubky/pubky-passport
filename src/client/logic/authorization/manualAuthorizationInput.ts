@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { IssuedPubkyAuthRequest } from "./issuedPubkyAuthRequest";
+import { IssuedPubkyAuthRequest } from "./IssuedPubkyAuthRequest";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 import { LOGGER } from "../../../libs/logger/logger";
 

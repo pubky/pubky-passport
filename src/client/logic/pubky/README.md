@@ -2,7 +2,7 @@
 
 Owns the concrete Pubky SDK adapter and browser-local opaque key handles.
 `pubkyIdentityKey.ts` keeps shared key handles, key-material types, and constants
-independent from the concrete SDK. `pubkySdkAdapter.ts` owns session access,
+independent from the concrete SDK. `PubkySdkAdapter.ts` owns session access,
 discovery, auth approval, opaque keypair state, and SDK resource cleanup. It contains
 the only production Pubky SDK imports.
 
@@ -22,4 +22,4 @@ handles and key-material metadata without importing `@synonymdev/pubky`.
 - SDK object ownership and `free()` cleanup stay in one stateful runtime.
 
 Types used only
-by the adapter remain in `pubkySdkAdapter.ts`.
+by the adapter remain in `PubkySdkAdapter.ts`.

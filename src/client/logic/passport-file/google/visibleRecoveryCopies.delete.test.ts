@@ -2,7 +2,7 @@ import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LOGGER } from "../../../../libs/logger/logger";
-import { GoogleDriveVisibleRecoveryCopies } from "./visibleRecoveryCopies";
+import { GoogleDriveVisibleRecoveryCopies } from "./VisibleRecoveryCopies";
 
 const TOKEN = "SECRET-DRIVE-TOKEN";
 const PUBLIC_KEY = "pubky1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";

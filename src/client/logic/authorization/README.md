@@ -7,7 +7,7 @@ with the active local identity, and completes the exact validated callback.
 
 UI code imports only:
 
-- `PassportAuthorizationController` from `passportAuthorization.ts`.
+- `PassportAuthorizationController` from `PassportAuthorizationController.ts`.
 - `submitManualAuthorizationInput` from `manualAuthorizationInput.ts`.
 
 React constructs `PassportAuthorizationController` directly, just as identity UI
@@ -57,7 +57,7 @@ loaded before hydration by `instrumentation-client.ts`.
 
 1. `authorizationEntryBootstrap.ts`
 2. `authorizationEntry.ts`
-3. `issuedPubkyAuthRequest.ts`
-4. `passportAuthorization.ts`
-5. `activeIdentityAuthorization.ts`
-6. `authorizationOutcomeHandoff.ts`
+3. `IssuedPubkyAuthRequest.ts`
+4. `PassportAuthorizationController.ts`
+5. `ActiveIdentityAuthorization.ts`
+6. `AuthorizationOutcomeHandoff.ts`

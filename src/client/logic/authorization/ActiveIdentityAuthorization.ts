@@ -3,11 +3,11 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER } from "../../../libs/logger/logger";
-import { RestoreActiveLocalIdentityKey } from "../identity/local/restoreActiveLocalIdentityKey";
-import { LocalStorageIdentityRepository } from "../identity/local/localStorageIdentityRepository";
+import { RestoreActiveLocalIdentityKey } from "../identity/local/RestoreActiveLocalIdentityKey";
+import { LocalStorageIdentityRepository } from "../identity/local/LocalStorageIdentityRepository";
 import type { PubkyIdentityKey } from "../pubky/pubkyIdentityKey";
-import { PubkySdkAdapter } from "../pubky/pubkySdkAdapter";
-import type { IssuedPubkyAuthRequest } from "./issuedPubkyAuthRequest";
+import { PubkySdkAdapter } from "../pubky/PubkySdkAdapter";
+import type { IssuedPubkyAuthRequest } from "./IssuedPubkyAuthRequest";
 
 export type ApproveAuthorizationErrorCode =
   | "no_active_identity"

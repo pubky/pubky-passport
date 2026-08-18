@@ -3,9 +3,9 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../../test-utils/fakes/memoryStorage";
+import { MemoryStorage } from "../../../../../test-utils/fakes/MemoryStorage";
 import { expectResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
-import { LocalStorageIdentityRepository } from "../local/localStorageIdentityRepository";
+import { LocalStorageIdentityRepository } from "../local/LocalStorageIdentityRepository";
 
 const MOCKS = vi.hoisted(() => ({
   PubkySdkAdapter: vi.fn(),
@@ -35,13 +35,13 @@ const MOCKS = vi.hoisted(() => ({
   deleteVisibleRecoveryCopies: vi.fn(),
 }));
 
-vi.mock("../../pubky/pubkySdkAdapter", () => ({
+vi.mock("../../pubky/PubkySdkAdapter", () => ({
   PubkySdkAdapter: MOCKS.PubkySdkAdapter,
 }));
-vi.mock("../../wrapping-key/wrappingKeyApiClient", () => ({ WrappingKeyApiClient: MOCKS.WrappingKeyApiClient }));
-vi.mock("../../homegate/homegateClient", () => ({ HomegateClient: MOCKS.HomegateClient }));
-vi.mock("../../passport-file/passportFileWebCrypto", () => ({ PassportFileWebCrypto: MOCKS.PassportFileWebCrypto }));
-vi.mock("../../passport-file/google/passportFileStore", () => ({
+vi.mock("../../wrapping-key/WrappingKeyApiClient", () => ({ WrappingKeyApiClient: MOCKS.WrappingKeyApiClient }));
+vi.mock("../../homegate/HomegateClient", () => ({ HomegateClient: MOCKS.HomegateClient }));
+vi.mock("../../passport-file/PassportFileWebCrypto", () => ({ PassportFileWebCrypto: MOCKS.PassportFileWebCrypto }));
+vi.mock("../../passport-file/google/PassportFileStore", () => ({
   GoogleDrivePassportFileStore: class {
     constructor() {
       MOCKS.driveStoreConstructions.count += 1;
@@ -52,7 +52,7 @@ vi.mock("../../passport-file/google/passportFileStore", () => ({
     deletePassportFile = MOCKS.deletePassportFile;
   },
 }));
-vi.mock("../../passport-file/google/visibleRecoveryCopies", () => ({
+vi.mock("../../passport-file/google/VisibleRecoveryCopies", () => ({
   GoogleDriveVisibleRecoveryCopies: class {
     constructor() {
       MOCKS.visibleCopiesConstructions.count += 1;
@@ -63,7 +63,7 @@ vi.mock("../../passport-file/google/visibleRecoveryCopies", () => ({
   },
 }));
 
-import { GoogleBackedIdentityOperations } from "./googleBackedIdentityOperations";
+import { GoogleBackedIdentityOperations } from "./GoogleBackedIdentityOperations";
 
 const PUBLIC_IDENTITY = {
   publicKeyZ32: "public-identity",

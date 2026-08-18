@@ -3,14 +3,14 @@ import { Result } from "better-result";
 
 import { LOGGER } from "../../../libs/logger/logger";
 import { expectAsyncResultError } from "../../../../test-utils/resultAssertions";
-import { GoogleIdTokenVerifier } from "./googleIdTokenVerifier";
-import { GoogleWrappingKeyDeriver } from "./googleWrappingKeyDeriver";
-import { InMemoryGoogleWrappingKeyRateLimiter } from "./inMemoryGoogleWrappingKeyRateLimiter";
+import { GoogleIdTokenVerifier } from "./GoogleIdTokenVerifier";
+import { GoogleWrappingKeyDeriver } from "./GoogleWrappingKeyDeriver";
+import { InMemoryGoogleWrappingKeyRateLimiter } from "./InMemoryGoogleWrappingKeyRateLimiter";
 import type { VerifiedGoogleIdentity } from "./googleIdTokenVerification";
 import {
   createConfiguredGoogleWrappingKeyRequest,
   GoogleWrappingKeyRequest,
-} from "./googleWrappingKeyRequest";
+} from "./GoogleWrappingKeyRequest";
 
 const IDENTITY = {
   issuer: "https://accounts.google.com" as const,

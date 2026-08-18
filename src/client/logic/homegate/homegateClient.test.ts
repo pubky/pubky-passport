@@ -2,7 +2,7 @@ import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LOGGER } from "../../../libs/logger/logger";
-import { HomegateClient, type HomegateSignupInvitationErrorCode } from "./homegateClient";
+import { HomegateClient, type HomegateSignupInvitationErrorCode } from "./HomegateClient";
 
 const HOMEGATE_BASE_URL = "https://homegate.example/";
 const HOMEGATE_ERROR_CASES = [

@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectAsyncResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../../libs/logger/logger";
 import type { PassportFileEnvelopeV1 } from "../passportFileEnvelope";
-import { GoogleDrivePassportFileStore } from "./passportFileStore";
+import { GoogleDrivePassportFileStore } from "./PassportFileStore";
 
 const ACCESS_TOKEN = "test-drive-access-token";
 const ENVELOPE: PassportFileEnvelopeV1 = {

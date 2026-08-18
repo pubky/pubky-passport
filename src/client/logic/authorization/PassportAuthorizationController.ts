@@ -7,11 +7,11 @@ import {
   ActiveIdentityAuthorization,
   type ApproveAuthorizationErrorCode,
   type ApproveAuthorizationResult,
-} from "./activeIdentityAuthorization";
+} from "./ActiveIdentityAuthorization";
 import {
   AuthorizationOutcomeHandoff,
   type AuthorizationOutcome,
-} from "./authorizationOutcomeHandoff";
+} from "./AuthorizationOutcomeHandoff";
 import {
   clearPendingAuthorizationEntry,
   readAndScrubAuthorizationEntry,
@@ -20,7 +20,7 @@ import { takeInitialAuthorizationEntry } from "./authorizationEntryBootstrap";
 import {
   type AuthorizationRequestReview,
   IssuedPubkyAuthRequest,
-} from "./issuedPubkyAuthRequest";
+} from "./IssuedPubkyAuthRequest";
 
 export type PassportAuthorizationFailureCode = ApproveAuthorizationErrorCode;
 
@@ -181,4 +181,4 @@ export class PassportAuthorizationController {
   }
 }
 
-export type { AuthorizationRequestReview } from "./issuedPubkyAuthRequest";
+export type { AuthorizationRequestReview } from "./IssuedPubkyAuthRequest";

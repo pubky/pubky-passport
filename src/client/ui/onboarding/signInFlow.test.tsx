@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   GoogleBackedIdentityFlow,
   GoogleIdentityFlowState,
-} from "../../logic/identity/passportIdentityController";
+} from "../../logic/identity/PassportIdentityController";
 import {
   mockGoogleBackedIdentityFlow,
   mockPassportIdentityController,

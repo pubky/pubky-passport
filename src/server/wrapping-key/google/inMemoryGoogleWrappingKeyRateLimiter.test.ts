@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { InMemoryGoogleWrappingKeyRateLimiter } from "./inMemoryGoogleWrappingKeyRateLimiter";
+import { InMemoryGoogleWrappingKeyRateLimiter } from "./InMemoryGoogleWrappingKeyRateLimiter";
 
 const IDENTITY_PEPPER = Buffer.alloc(32, 7);
 const IDENTITY = {

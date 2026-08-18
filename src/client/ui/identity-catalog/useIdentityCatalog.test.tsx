@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LocalIdentityCatalog } from "../../logic/identity/passportIdentityController";
+import type { LocalIdentityCatalog } from "../../logic/identity/PassportIdentityController";
 import { useIdentityCatalog } from "./useIdentityCatalog";
 
 const MOCKS = vi.hoisted(() => ({
@@ -15,7 +15,7 @@ const MOCKS = vi.hoisted(() => ({
   unavailable: false,
 }));
 
-vi.mock("../../logic/identity/passportIdentityController", () => ({
+vi.mock("../../logic/identity/PassportIdentityController", () => ({
   PassportIdentityController: function PassportIdentityController() {
     MOCKS.create();
     return {

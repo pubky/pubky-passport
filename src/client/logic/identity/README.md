@@ -5,14 +5,14 @@ establishment, and the safe controller consumed by UI components.
 
 ## Controller
 
-`passportIdentityController.ts` is the only identity module UI code should import. It:
+`PassportIdentityController.ts` is the only identity module UI code should import. It:
 
 - Exposes explicit local entry points such as `listIdentities`, `selectIdentity`,
   `removeIdentity`, and `createEncryptedBackup`.
 - Starts one screen-scoped Google identity flow for each setup or detachment screen.
 - Keeps local catalog management separate from Google authorization lifecycle state.
 
-`google-backed/googleBackedIdentityFlow.ts` owns the stateful Google workflow. Its
+`google-backed/GoogleBackedIdentityFlow.ts` owns the stateful Google workflow. Its
 public operations map directly to user actions: establish, replace an incomplete
 identity, detach, retry authorization, and dispose. Short-lived Google credentials
 remain inside the flow; only safe progress, errors, account profile data, and public

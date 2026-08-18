@@ -6,26 +6,26 @@ import { LOGGER } from "../../../../libs/logger/logger";
 import type {
   GoogleAccountProfile,
   GoogleBackedIdentityCredentials,
-} from "../../google-authorization/googleImplicitAuthorization";
+} from "../../google-authorization/GoogleImplicitAuthorization";
 import {
   HomegateClient,
   type HomegateSignupInvitationErrorCode,
   type HomeserverSignupInvitation,
-} from "../../homegate/homegateClient";
-import { GoogleDrivePassportFileStore } from "../../passport-file/google/passportFileStore";
-import { GoogleDriveVisibleRecoveryCopies } from "../../passport-file/google/visibleRecoveryCopies";
+} from "../../homegate/HomegateClient";
+import { GoogleDrivePassportFileStore } from "../../passport-file/google/PassportFileStore";
+import { GoogleDriveVisibleRecoveryCopies } from "../../passport-file/google/VisibleRecoveryCopies";
 import type { PassportFileEnvelopeV1 } from "../../passport-file/passportFileEnvelope";
-import { PassportFileWebCrypto } from "../../passport-file/passportFileWebCrypto";
+import { PassportFileWebCrypto } from "../../passport-file/PassportFileWebCrypto";
 import {
   PUBKY_SECRET_KEY_FORMAT,
   type PubkyIdentityKey,
 } from "../../pubky/pubkyIdentityKey";
-import { PubkySdkAdapter } from "../../pubky/pubkySdkAdapter";
+import { PubkySdkAdapter } from "../../pubky/PubkySdkAdapter";
 import {
   WrappingKeyApiClient,
   type GoogleWrappingKeyErrorCode,
-} from "../../wrapping-key/wrappingKeyApiClient";
-import { LocalStorageIdentityRepository } from "../local/localStorageIdentityRepository";
+} from "../../wrapping-key/WrappingKeyApiClient";
+import { LocalStorageIdentityRepository } from "../local/LocalStorageIdentityRepository";
 import type { PubkyPublicIdentity } from "../../pubky/pubkyIdentityKey";
 
 const VISIBLE_RECOVERY_COPY_TIMEOUT_MS = 10_000;

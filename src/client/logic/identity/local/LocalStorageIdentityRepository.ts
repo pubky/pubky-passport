@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import type { GoogleAccountProfile } from "../../google-authorization/googleImplicitAuthorization";
+import type { GoogleAccountProfile } from "../../google-authorization/GoogleImplicitAuthorization";
 import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "../../../../libs/encoding/base64Url";
 import { LOGGER } from "../../../../libs/logger/logger";
 import {

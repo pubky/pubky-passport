@@ -12,11 +12,11 @@ their credentials and encrypted file values inside the browser flow.
 
 - [`passportFileEnvelope.ts`](./passportFileEnvelope.ts) owns the v1 envelope
   model, strict schema parsing, and Passport-origin normalization.
-- [`passportFileWebCrypto.ts`](./passportFileWebCrypto.ts) encrypts and decrypts
+- [`PassportFileWebCrypto.ts`](./PassportFileWebCrypto.ts) encrypts and decrypts
   32-byte Pubky secret key material with browser WebCrypto.
-- [`google/passportFileStore.ts`](./google/passportFileStore.ts) owns operational
+- [`google/PassportFileStore.ts`](./google/PassportFileStore.ts) owns operational
   `appDataFolder/passport.json` reads, creation, and deletion.
-- [`google/visibleRecoveryCopies.ts`](./google/visibleRecoveryCopies.ts) owns
+- [`google/VisibleRecoveryCopies.ts`](./google/VisibleRecoveryCopies.ts) owns
   append-only visible-copy creation and exhaustive detachment cleanup.
 - [`google/driveHttp.ts`](./google/driveHttp.ts) contains only shared bounded Drive
   HTTP, response parsing, and multipart mechanics.

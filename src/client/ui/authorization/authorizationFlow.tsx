@@ -5,8 +5,8 @@ import { useEffect, useReducer, useRef, useState } from "react";
 import {
   PassportAuthorizationController,
   type PassportAuthorizationViewState,
-} from "../../logic/authorization/passportAuthorization";
-import type { LocalIdentityCatalog, PassportIdentityController } from "../../logic/identity/passportIdentityController";
+} from "../../logic/authorization/PassportAuthorizationController";
+import type { LocalIdentityCatalog, PassportIdentityController } from "../../logic/identity/PassportIdentityController";
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { SignInFlow } from "../onboarding/signInFlow";

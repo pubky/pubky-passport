@@ -8,7 +8,7 @@ import {
   type PubkyAuthParseError,
   type PubkyAuthRequestKind,
 } from "./pubkyAuthRequestParser";
-import type { AuthorizationOutcome } from "./authorizationOutcomeHandoff";
+import type { AuthorizationOutcome } from "./AuthorizationOutcomeHandoff";
 
 /** One safe capability row rendered during authorization review. */
 export type AuthorizationCapability = Readonly<{

@@ -6,11 +6,11 @@ a Google account and derives the wrapping key for that account's Passport file.
 
 ## Structure
 
-- [`googleWrappingKeyRequest.ts`](./googleWrappingKeyRequest.ts) owns flow order, safe errors, and configured construction.
+- [`GoogleWrappingKeyRequest.ts`](./GoogleWrappingKeyRequest.ts) owns flow order, safe errors, and configured construction.
 - [`googleIdTokenVerification.ts`](./googleIdTokenVerification.ts) defines the verified identity contract shared by the flow and dependencies.
-- [`googleIdTokenVerifier.ts`](./googleIdTokenVerifier.ts) verifies the Google token and claims.
-- [`inMemoryGoogleWrappingKeyRateLimiter.ts`](./inMemoryGoogleWrappingKeyRateLimiter.ts) rate-limits a keyed hash of the verified identity.
-- [`googleWrappingKeyDeriver.ts`](./googleWrappingKeyDeriver.ts) derives the account key with the frozen HKDF contract.
+- [`GoogleIdTokenVerifier.ts`](./GoogleIdTokenVerifier.ts) verifies the Google token and claims.
+- [`InMemoryGoogleWrappingKeyRateLimiter.ts`](./InMemoryGoogleWrappingKeyRateLimiter.ts) rate-limits a keyed hash of the verified identity.
+- [`GoogleWrappingKeyDeriver.ts`](./GoogleWrappingKeyDeriver.ts) derives the account key with the frozen HKDF contract.
 
 ## Request Flow
 

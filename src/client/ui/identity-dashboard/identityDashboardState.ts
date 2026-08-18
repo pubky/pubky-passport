@@ -1,6 +1,6 @@
 "use client";
 
-import type { LocalIdentityCatalog, LocalIdentityMetadata } from "../../logic/identity/passportIdentityController";
+import type { LocalIdentityCatalog, LocalIdentityMetadata } from "../../logic/identity/PassportIdentityController";
 
 type IdentityDashboardState =
   | { view: "onboarding" }

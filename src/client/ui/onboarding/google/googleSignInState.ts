@@ -5,7 +5,7 @@ import type {
   GoogleAccountProfile,
   GoogleIdentityFlowError,
   PubkyPublicIdentity,
-} from "../../../logic/identity/passportIdentityController";
+} from "../../../logic/identity/PassportIdentityController";
 
 type GoogleSignInView =
   | { name: "idle" }

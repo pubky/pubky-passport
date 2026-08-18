@@ -2,11 +2,11 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../../test-utils/fakes/memoryStorage";
+import { MemoryStorage } from "../../../../../test-utils/fakes/MemoryStorage";
 import { expectResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_FORMAT } from "../../pubky/pubkyIdentityKey";
-import { LocalStorageIdentityRepository } from "./localStorageIdentityRepository";
+import { LocalStorageIdentityRepository } from "./LocalStorageIdentityRepository";
 
 const FIRST_IDENTITY = { publicKeyZ32: "firstidentity111111111111111111111111111111111111111111", publicKeyDisplay: "pubkyfirstidentity111111111111111111111111111111111111111111" };
 const SECOND_IDENTITY = { publicKeyZ32: "secondidentity11111111111111111111111111111111111111111", publicKeyDisplay: "pubkysecondidentity11111111111111111111111111111111111111111" };

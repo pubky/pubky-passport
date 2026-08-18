@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { AuthorizationOutcomeHandoff } from "./authorizationOutcomeHandoff";
+import { AuthorizationOutcomeHandoff } from "./AuthorizationOutcomeHandoff";
 
 const CALLBACK = "https://app.example/auth/passport/success?private=value";
 

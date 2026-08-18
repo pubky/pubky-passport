@@ -8,7 +8,7 @@ import {
   type EarlyAuthorizationLocation,
 } from "../../../libs/authorization/earlyAuthorizationLocation";
 import { LOGGER } from "../../../libs/logger/logger";
-import { IssuedPubkyAuthRequest } from "./issuedPubkyAuthRequest";
+import { IssuedPubkyAuthRequest } from "./IssuedPubkyAuthRequest";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 
 export type AuthorizationEntry =

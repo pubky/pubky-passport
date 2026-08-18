@@ -11,8 +11,8 @@ import {
   type PubkySessionAccessErrorCode,
   type PubkySessionAccessResult,
   type PubkySignupInput,
-} from "../../src/client/logic/pubky/pubkySdkAdapter";
-import { IssuedPubkyAuthRequest } from "../../src/client/logic/authorization/issuedPubkyAuthRequest";
+} from "../../src/client/logic/pubky/PubkySdkAdapter";
+import { IssuedPubkyAuthRequest } from "../../src/client/logic/authorization/IssuedPubkyAuthRequest";
 import type { PubkyPublicIdentity } from "../../src/client/logic/pubky/pubkyIdentityKey";
 import {
   PUBKY_SECRET_KEY_BYTES,

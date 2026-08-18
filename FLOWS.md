@@ -47,7 +47,7 @@ flowchart LR
         pages --> bootstrap["src/server/config<br/>browser bootstrap"]:::server
         ui --> browserLibs["src/libs"]:::libs
         browser --> browserLibs
-        browser --> sdk["@synonymdev/pubky<br/>only via logic/pubky/pubkySdkAdapter.ts"]:::external
+        browser --> sdk["@synonymdev/pubky<br/>only via logic/pubky/PubkySdkAdapter.ts"]:::external
     end
 
     subgraph serverLane[Server import lane]
@@ -118,9 +118,9 @@ sequenceDiagram
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/authorization
         participant Bootstrap as authorizationEntryBootstrap.ts<br/>pre-hydration entry capture
-        participant Controller as passportAuthorization.ts<br/>PassportAuthorizationController
+        participant Controller as PassportAuthorizationController.ts<br/>PassportAuthorizationController
         participant Entry as authorizationEntry.ts<br/>readAndScrubAuthorizationEntry()<br/>clearPendingAuthorizationEntry()
-        participant Request as issuedPubkyAuthRequest.ts<br/>IssuedPubkyAuthRequest.issue()
+        participant Request as IssuedPubkyAuthRequest.ts<br/>IssuedPubkyAuthRequest.issue()
         participant Parser as pubkyAuthRequestParser.ts<br/>parseEncodedPubkyAuthRequest()
     end
 
@@ -164,7 +164,7 @@ sequenceDiagram
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/authorization
         participant ManualInput as manualAuthorizationInput.ts<br/>submitManualAuthorizationInput()
-        participant Request as issuedPubkyAuthRequest.ts<br/>IssuedPubkyAuthRequest.validate()
+        participant Request as IssuedPubkyAuthRequest.ts<br/>IssuedPubkyAuthRequest.validate()
     end
     box rgba(107, 114, 128, 0.18) Runtime platforms
         participant Window as PLATFORM<br/>Passport tab window
@@ -197,18 +197,18 @@ sequenceDiagram
         participant Review as authorizationReview.tsx<br/>AuthorizationReview()
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/authorization
-        participant Controller as passportAuthorization.ts<br/>PassportAuthorizationController
-        participant UseCase as activeIdentityAuthorization.ts<br/>ActiveIdentityAuthorization.approve()
-        participant AuthRequest as issuedPubkyAuthRequest.ts<br/>validatedUrlForApproval()<br/>takeOutcomeCallback()
+        participant Controller as PassportAuthorizationController.ts<br/>PassportAuthorizationController
+        participant UseCase as ActiveIdentityAuthorization.ts<br/>ActiveIdentityAuthorization.approve()
+        participant AuthRequest as IssuedPubkyAuthRequest.ts<br/>validatedUrlForApproval()<br/>takeOutcomeCallback()
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/identity/local
-        participant Local as restoreActiveLocalIdentityKey.ts<br/>RestoreActiveLocalIdentityKey
+        participant Local as RestoreActiveLocalIdentityKey.ts<br/>RestoreActiveLocalIdentityKey
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/identity/local
-        participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
+        participant Repo as LocalStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/pubky
-        participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
+        participant Pubky as PubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
     box rgba(17, 24, 39, 0.12) External
         participant SDK as @synonymdev/pubky@0.10.0<br/>Keypair / Signer
@@ -267,10 +267,10 @@ sequenceDiagram
         participant Review as authorizationReview.tsx<br/>AuthorizationReview()
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/authorization
-        participant Controller as passportAuthorization.ts<br/>PassportAuthorizationController
+        participant Controller as PassportAuthorizationController.ts<br/>PassportAuthorizationController
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/authorization
-        participant Request as issuedPubkyAuthRequest.ts<br/>takeOutcomeCallback()
+        participant Request as IssuedPubkyAuthRequest.ts<br/>takeOutcomeCallback()
     end
     box rgba(107, 114, 128, 0.18) Runtime platform
         participant Window as PLATFORM<br/>Passport tab window
@@ -301,14 +301,14 @@ sequenceDiagram
     actor User
     participant UI as src/client/ui/root<br/>GoogleIdentitySetupFlow
     box rgba(0, 158, 115, 0.18) src/client/logic/identity
-        participant Controller as passportIdentityController.ts<br/>PassportIdentityController
-        participant GoogleFlow as googleBackedIdentityFlow.ts<br/>GoogleBackedIdentityFlow
+        participant Controller as PassportIdentityController.ts<br/>PassportIdentityController
+        participant GoogleFlow as GoogleBackedIdentityFlow.ts<br/>GoogleBackedIdentityFlow
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/google-authorization
-        participant Authorization as googleImplicitAuthorization.ts<br/>GoogleImplicitAuthorization
+        participant Authorization as GoogleImplicitAuthorization.ts<br/>GoogleImplicitAuthorization
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/identity/google-backed
-        participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
+        participant Operations as GoogleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
     box rgba(17, 24, 39, 0.12) External
         participant OAuth as Google OAuth authorize endpoint
@@ -338,19 +338,19 @@ sequenceDiagram
     accTitle: Google-backed custody/recovery establishment call flow
     accDescr: GoogleBackedIdentityOperations requests a wrapping key, reads the Google Drive Passport file, and dispatches a found file to restore or requests a Homegate invitation before creating a missing identity, without passing the wrapping key to Drive storage.
     box rgba(0, 158, 115, 0.18) src/client/logic/identity
-        participant GoogleFlow as googleBackedIdentityFlow.ts<br/>GoogleBackedIdentityFlow
+        participant GoogleFlow as GoogleBackedIdentityFlow.ts<br/>GoogleBackedIdentityFlow
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/identity/google-backed
-        participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
+        participant Operations as GoogleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/wrapping-key
-        participant Wrapping as wrappingKeyApiClient.ts<br/>WrappingKeyApiClient
+        participant Wrapping as WrappingKeyApiClient.ts<br/>WrappingKeyApiClient
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/passport-file
-        participant DriveStore as google/passportFileStore.ts<br/>GoogleDrivePassportFileStore
+        participant DriveStore as google/PassportFileStore.ts<br/>GoogleDrivePassportFileStore
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/homegate
-        participant Invite as homegateClient.ts<br/>HomegateClient
+        participant Invite as HomegateClient.ts<br/>HomegateClient
     end
     box rgba(240, 228, 66, 0.18) src/app/api/wrapping-key/google
         participant API as handler.ts<br/>googleWrappingKeyPost()<br/>exported as route.ts::POST
@@ -403,16 +403,16 @@ sequenceDiagram
     accTitle: Existing identity restore call flow
     accDescr: GoogleBackedIdentityOperations decrypts the Passport file, uses DHT resolution and blocking sign-in as the returning-user fast path, and automatically reconciles missing discovery or an authoritative missing homeserver account.
     box rgba(0, 158, 115, 0.18) src/client/logic/identity/google-backed
-        participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
+        participant Operations as GoogleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/passport-file
-        participant Crypto as passportFileWebCrypto.ts<br/>PassportFileWebCrypto
+        participant Crypto as PassportFileWebCrypto.ts<br/>PassportFileWebCrypto
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/pubky
-        participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
+        participant Pubky as PubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/identity/local
-        participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
+        participant Repo as LocalStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
     end
     box rgba(17, 24, 39, 0.12) External
         participant SDK as @synonymdev/pubky@0.10.0<br/>Keypair / Signer
@@ -467,15 +467,15 @@ sequenceDiagram
     accTitle: Missing identity encryption and Drive storage call flow
     accDescr: GoogleBackedIdentityOperations encrypts a new Pubky secret, creates the operational app-data file through GoogleDrivePassportFileStore, then best-effort writes a visible recovery copy through GoogleDriveVisibleRecoveryCopies before activation and zeros the exported bytes.
     box rgba(0, 158, 115, 0.18) src/client/logic/identity/google-backed
-        participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
+        participant Operations as GoogleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/pubky
-        participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
+        participant Pubky as PubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/passport-file
-        participant Crypto as passportFileWebCrypto.ts<br/>PassportFileWebCrypto
-        participant DriveStore as google/passportFileStore.ts<br/>GoogleDrivePassportFileStore
-        participant VisibleCopies as google/visibleRecoveryCopies.ts<br/>GoogleDriveVisibleRecoveryCopies
+        participant Crypto as PassportFileWebCrypto.ts<br/>PassportFileWebCrypto
+        participant DriveStore as google/PassportFileStore.ts<br/>GoogleDrivePassportFileStore
+        participant VisibleCopies as google/VisibleRecoveryCopies.ts<br/>GoogleDriveVisibleRecoveryCopies
     end
     box rgba(17, 24, 39, 0.12) External
         participant SDK as @synonymdev/pubky@0.10.0<br/>Keypair
@@ -534,16 +534,16 @@ sequenceDiagram
     accTitle: Missing identity activation and local save call flow
     accDescr: GoogleBackedIdentityOperations requests a homeserver signup invitation, then uses its shared signup-and-activation method for both fresh creation and interrupted setup recovery.
     box rgba(0, 158, 115, 0.18) src/client/logic/identity/google-backed
-        participant Operations as googleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
+        participant Operations as GoogleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/homegate
-        participant Invite as homegateClient.ts<br/>HomegateClient
+        participant Invite as HomegateClient.ts<br/>HomegateClient
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/pubky
-        participant Pubky as pubkySdkAdapter.ts<br/>PubkySdkAdapter
+        participant Pubky as PubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/identity/local
-        participant Repo as localStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
+        participant Repo as LocalStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
     end
     box rgba(17, 24, 39, 0.12) External
         participant SDK as @synonymdev/pubky@0.10.0<br/>Signer / PKDNS
@@ -748,16 +748,16 @@ sequenceDiagram
 
 | Flow | Code | Main tests |
 | --- | --- | --- |
-| Authorization request model | `src/client/logic/authorization/issuedPubkyAuthRequest.ts` | Issuance, parser, capability, and URL tests |
-| Authorization controller and approval | `src/client/logic/authorization/passportAuthorization.ts`, `activeIdentityAuthorization.ts` | Colocated controller and approval tests |
+| Authorization request model | `src/client/logic/authorization/IssuedPubkyAuthRequest.ts` | Issuance, parser, capability, and URL tests |
+| Authorization controller and approval | `src/client/logic/authorization/PassportAuthorizationController.ts`, `ActiveIdentityAuthorization.ts` | Colocated controller and approval tests |
 | Authorization entry | `src/client/logic/authorization/authorizationEntry.ts` | `authorizationEntry.test.ts` |
 | Authorization UI | `src/client/ui/authorization` | Colocated component tests |
 | Identity controller | `src/client/logic/identity` | Controller and factory tests |
 | Google credential capabilities | `src/client/logic/google-authorization` | Colocated implicit OAuth and callback-scrubbing tests |
 | Google-backed custody/recovery lifecycle | `src/client/logic/identity/google-backed` | Colocated operation tests |
 | Drive store and WebCrypto | `src/client/logic/passport-file` | Colocated store and crypto tests |
-| Pubky SDK adapter | `src/client/logic/pubky/pubkySdkAdapter.ts` | `pubkySdkAdapter.test.ts` |
+| Pubky SDK adapter | `src/client/logic/pubky/PubkySdkAdapter.ts` | `pubkySdkAdapter.test.ts` |
 | Wrapping-key API | `src/app/api/wrapping-key/google`, `src/server/wrapping-key/google` | Route and server tests |
 | Browser bootstrap config | `src/server/config/browserBootstrapConfig.ts` | `browserBootstrapConfig.test.ts`, proxy tests |
-| Homegate signup invitation | `src/client/logic/homegate/homegateClient.ts` | `homegateClient.test.ts` |
+| Homegate signup invitation | `src/client/logic/homegate/HomegateClient.ts` | `homegateClient.test.ts` |
 | CSP and boundaries | `proxy.ts`, `next.config.mjs`, architecture test | Proxy, header, and targeted boundary tests |

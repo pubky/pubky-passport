@@ -1,6 +1,6 @@
 "use client";
 
-import type { GoogleIdentityFlowError } from "../../../../logic/identity/passportIdentityController";
+import type { GoogleIdentityFlowError } from "../../../../logic/identity/PassportIdentityController";
 
 type DetachFromGoogleOperationState =
   | { name: "preparing" }
