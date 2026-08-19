@@ -88,15 +88,18 @@ describe("SignInFlow", () => {
     render(<SignInFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
-    act(() => emitState.current?.({ status: "establishing", progress: "restoring_identity" }));
+    act(() => emitState.current?.({ status: "establishing", progress: { flow: "restore", step: "restoring" } }));
 
     expect(await screen.findByRole("heading", { name: "Restoring your pubky." })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Setting up your pubky." })).not.toBeInTheDocument();
-    expect(screen.getByText("Restoring your Pubky").closest("li")).toHaveAttribute("data-state", "active");
-    expect(screen.getByText("Activate identity").closest("li")).toHaveAttribute("data-state", "pending");
+    expect(screen.getByText("Restore encrypted backup").closest("li")).toHaveAttribute("data-state", "active");
+    expect(screen.getByText("Sign in to the homeserver").closest("li")).toHaveAttribute("data-state", "pending");
+    expect(screen.queryByText("Republish PKDNS records")).not.toBeInTheDocument();
 
-    act(() => emitState.current?.({ status: "establishing", progress: "repairing_restored_identity" }));
-    expect(screen.getByText("Activate identity").closest("li")).toHaveAttribute("data-state", "active");
+    act(() => emitState.current?.({ status: "establishing", progress: { flow: "repair", step: "signing_up" } }));
+    expect(screen.getByRole("heading", { name: "Repairing your pubky." })).toBeInTheDocument();
+    expect(screen.getByText("Restore encrypted backup").closest("li")).toHaveAttribute("data-state", "complete");
+    expect(screen.getByText("Repair homeserver access").closest("li")).toHaveAttribute("data-state", "active");
   });
 
   it("does not claim setup or restore before checking Google Drive", async () => {
@@ -106,7 +109,7 @@ describe("SignInFlow", () => {
     render(<SignInFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
-    act(() => emitState.current?.({ status: "establishing", progress: "checking_passport_file" }));
+    act(() => emitState.current?.({ status: "establishing", progress: { flow: "lookup", step: "checking" } }));
 
     expect(await screen.findByRole("heading", { name: "Looking for existing Pubky." })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Setting up your pubky." })).not.toBeInTheDocument();
@@ -197,6 +200,17 @@ describe("SignInFlow", () => {
     expect(await screen.findByText("Passport could not obtain a homeserver signup invitation.")).toBeInTheDocument();
     expect(screen.getByText("homeserver_signup_invitation_failed")).toBeInTheDocument();
     expect(screen.getByText("weekly_limit_exceeded")).toBeInTheDocument();
+  });
+
+  it("describes a final PKDNS publication failure without stale resolution language", async () => {
+    useFlow(mockGoogleIdentityFlow({
+      establishIdentity: vi.fn(async () => Result.err({ code: "discovery_failed" as const })),
+    }));
+    render(<SignInFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
+
+    expect(await screen.findByText("Passport could not publish your identity's PKDNS records.")).toBeInTheDocument();
   });
 });
 

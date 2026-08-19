@@ -1,4 +1,4 @@
-import { AuthFlowKind, Keypair, Pubky, Signer } from "@synonymdev/pubky";
+import { AuthFlowKind, Keypair, Pkdns, Pubky, Signer } from "@synonymdev/pubky";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
@@ -138,7 +138,7 @@ describe("PubkySdkAdapter", () => {
       await expectError(pubky.getPublicIdentity(keyHandle), "key_unavailable");
       await expectError(pubky.exportSecretKey(keyHandle), "key_unavailable");
       await expectError(pubky.signup({ keyHandle, homeserverPubky: "not used" }), "key_unavailable");
-      await expectError(pubky.publishHomeserverForce({ keyHandle }), "key_unavailable");
+      await expectError(pubky.publishHomeserver({ keyHandle }), "key_unavailable");
     } finally {
       pubky.dispose();
     }
@@ -160,7 +160,7 @@ describe("PubkySdkAdapter", () => {
     try {
       const created = expectOk(await pubky.createIdentityKey());
       const signup = await pubky.signup({ keyHandle: created.keyHandle, homeserverPubky: "not a public key", signupCode: "sensitive-signup-code" });
-      const discovery = await pubky.publishHomeserverForce({ keyHandle: created.keyHandle, homeserverPubky: "not a public key" });
+      const discovery = await pubky.publishHomeserver({ keyHandle: created.keyHandle, homeserverPubky: "not a public key" });
 
       expectErrorResult(signup, "invalid_homeserver_pubky");
       expectErrorResult(discovery, "invalid_homeserver_pubky");
@@ -177,6 +177,40 @@ describe("PubkySdkAdapter", () => {
       });
       expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive-signup-code");
     } finally {
+      pubky.dispose();
+    }
+  });
+
+  it("force-publishes through the SDK and logs only a safe PKARR error category", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const forcePublish = vi.spyOn(Pkdns.prototype, "publishHomeserverForce")
+      .mockImplementation(async (homeserver) => {
+        homeserver?.free();
+        throw Object.assign(new Error("sensitive PKARR transport details"), { name: "PkarrError" });
+      });
+    const pubky = new PubkySdkAdapter();
+    const homeserver = Keypair.random();
+    const homeserverPublicKey = homeserver.publicKey;
+
+    try {
+      const identity = expectOk(await pubky.createIdentityKey());
+      const result = await pubky.publishHomeserver({
+        keyHandle: identity.keyHandle,
+        homeserverPubky: homeserverPublicKey.z32(),
+      });
+
+      expectErrorResult(result, "publish_failed");
+      expect(forcePublish).toHaveBeenCalledOnce();
+      expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
+        operation: "publish_homeserver",
+        stage: "sdk_publish",
+        code: "publish_failed",
+        sdkErrorName: "PkarrError",
+      });
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive PKARR transport details");
+    } finally {
+      homeserverPublicKey.free();
+      homeserver.free();
       pubky.dispose();
     }
   });

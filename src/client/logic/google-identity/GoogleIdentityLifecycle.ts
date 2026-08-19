@@ -28,18 +28,15 @@ import {
 } from "../wrapping-key/WrappingKeyApiClient";
 import { LocalStorageIdentityRepository } from "../local-identity/LocalStorageIdentityRepository";
 
-/** Safe setup or restore phase emitted while establishing an identity. */
-export type GoogleIdentityPhase =
-  | "checking_passport_file"
-  | "preparing_new_identity"
-  | "creating_identity"
-  | "storing_encrypted_identity"
-  | "restoring_identity"
-  | "repairing_restored_identity"
-  | "signing_up_to_homeserver"
-  | "publishing_discovery"
-  | "activating_created_identity"
-  | "activating_restored_identity";
+/** Safe setup or restore progress emitted while establishing an identity. */
+export type GoogleIdentityProgress =
+  | { flow: "lookup"; step: "checking" }
+  | {
+    flow: "create";
+    step: "preparing" | "creating" | "storing_backup" | "signing_up" | "publishing" | "activating";
+  }
+  | { flow: "restore"; step: "restoring" | "signing_in" }
+  | { flow: "repair"; step: "signing_up" | "publishing" | "signing_in" };
 
 const VISIBLE_RECOVERY_COPY_TIMEOUT_MS = 10_000;
 const NETWORK_REQUEST_TIMEOUT_MS = 30_000;
@@ -135,10 +132,10 @@ export class GoogleIdentityLifecycle {
   /** Restores the Drive identity when present, otherwise creates and activates one. */
   async establishIdentity(
     credentials: GoogleIdentityCredentials,
-    report: (progress: GoogleIdentityPhase) => void,
+    report: (progress: GoogleIdentityProgress) => void,
   ): Promise<GoogleIdentityOperationResult> {
     try {
-      report("checking_passport_file");
+      report({ flow: "lookup", step: "checking" });
       const store = new GoogleDrivePassportFileStore(credentials.driveAccessToken, this.fetch);
       LOGGER.info("identity.google.drive_read.started");
       const storedFile = await store.readPassportFile();
@@ -152,13 +149,13 @@ export class GoogleIdentityLifecycle {
       }
 
       LOGGER.info("identity.google.drive_read.completed", { status: "missing" });
-      report("preparing_new_identity");
+      report({ flow: "create", step: "preparing" });
       const wrappingKey = await this.requestWrappingKey(credentials.googleIdToken);
       if (Result.isError(wrappingKey)) return failure(wrappingKey.error);
       const invitation = await this.requestSignupInvitation(credentials.googleIdToken);
       if (Result.isError(invitation)) return failure(invitation.error);
 
-      report("creating_identity");
+      report({ flow: "create", step: "creating" });
       const visibleCopies = new GoogleDriveVisibleRecoveryCopies(
         credentials.driveAccessToken,
         this.fetch,
@@ -225,7 +222,7 @@ export class GoogleIdentityLifecycle {
     googleAccount: GoogleAccountProfile,
     invitation: HomeserverSignupInvitation,
     wrappingKey: string,
-    report: (progress: GoogleIdentityPhase) => void,
+    report: (progress: GoogleIdentityProgress) => void,
     store: GoogleDrivePassportFileStore,
     visibleCopies: GoogleDriveVisibleRecoveryCopies,
   ): Promise<GoogleIdentityOperationResult> {
@@ -240,7 +237,7 @@ export class GoogleIdentityLifecycle {
       if (Result.isError(secretKey)) return failure({ code: "create_failed" });
 
       let visibleRecoveryCopyStatus: "created" | "unconfirmed" = "created";
-      report("storing_encrypted_identity");
+      report({ flow: "create", step: "storing_backup" });
       LOGGER.info("identity.google.encrypt.started");
       const encrypted = await this.crypto.encryptSecretKeyBytes(
         secretKey.value.bytes,
@@ -296,39 +293,34 @@ export class GoogleIdentityLifecycle {
   }
 
   /**
-   * Restores one encrypted key, then either signs in normally or automatically
-   * reconciles an identity whose signup or PKARR publication was interrupted.
+   * Restores one identity and signs in normally before attempting PKDNS and
+   * homeserver repair for an interrupted setup.
    */
   private async restoreIdentity(
     credentials: GoogleIdentityCredentials,
     envelope: PassportFileEnvelopeV1,
     wrappingKey: string,
-    report: (progress: GoogleIdentityPhase) => void,
+    report: (progress: GoogleIdentityProgress) => void,
   ): Promise<GoogleIdentityOperationResult> {
-    report("restoring_identity");
+    report({ flow: "restore", step: "restoring" });
     const restored = await this.restoreKey(envelope, wrappingKey);
     if (Result.isError(restored)) return failure(restored.error);
 
     try {
-      report("activating_restored_identity");
-      const homeserver = await this.pubky.resolveHomeserver(restored.value.publicIdentity.publicKeyZ32);
-      if (Result.isError(homeserver)) return failure({ code: "discovery_failed" });
-
-      if (homeserver.value !== null) {
-        const signedIn = await this.pubky.signin(restored.value.keyHandle);
-        if (!Result.isError(signedIn)) {
-          const verified = this.verifySessionIdentity(restored.value, signedIn.value.publicIdentity);
-          if (Result.isError(verified)) return failure(verified.error);
-          const saved = await this.saveIdentity(restored.value, credentials.googleAccount, "restored");
-          if (Result.isError(saved)) return failure(saved.error);
-          return Result.ok({
-            establishmentMode: "restored",
-            publicIdentity: restored.value.publicIdentity,
-          });
-        }
-        return failure({ code: "signin_failed" });
+      report({ flow: "restore", step: "signing_in" });
+      const signedIn = await this.pubky.signin(restored.value.keyHandle);
+      if (!Result.isError(signedIn)) {
+        const verified = this.verifySessionIdentity(restored.value, signedIn.value.publicIdentity);
+        if (Result.isError(verified)) return failure(verified.error);
+        const saved = await this.saveIdentity(restored.value, credentials.googleAccount, "restored");
+        if (Result.isError(saved)) return failure(saved.error);
+        return Result.ok({
+          establishmentMode: "restored",
+          publicIdentity: restored.value.publicIdentity,
+        });
       }
 
+      report({ flow: "repair", step: "signing_up" });
       const invitation = await this.requestSignupInvitation(credentials.googleIdToken);
       if (Result.isError(invitation)) return failure(invitation.error);
       const activated = await this.signupAndActivate(
@@ -376,17 +368,17 @@ export class GoogleIdentityLifecycle {
 
   /**
    * Shared activation for new and interrupted identities. Signup conflict means the
-   * account already exists; an ambiguous signup failure is verified through forced
-   * discovery publication and blocking sign-in before it is treated as fatal.
+   * account already exists. Ambiguous signup or publication failures are verified
+   * through blocking sign-in before they are treated as fatal.
    */
   private async signupAndActivate(
     identity: PubkyIdentityKey,
     invitation: HomeserverSignupInvitation,
     googleAccount: GoogleAccountProfile,
-    report: (progress: GoogleIdentityPhase) => void,
+    report: (progress: GoogleIdentityProgress) => void,
     isReconciliation = false,
   ): Promise<OperationResult> {
-    report(isReconciliation ? "repairing_restored_identity" : "signing_up_to_homeserver");
+    if (!isReconciliation) report({ flow: "create", step: "signing_up" });
     LOGGER.info("identity.google.signup.started");
     const signedUp = await this.pubky.signup({
       keyHandle: identity.keyHandle,
@@ -404,19 +396,30 @@ export class GoogleIdentityLifecycle {
       status: Result.isError(signedUp) ? signedUp.error.code : "created",
     });
 
-    if (!isReconciliation) report("publishing_discovery");
+    report(isReconciliation
+      ? { flow: "repair", step: "publishing" }
+      : { flow: "create", step: "publishing" });
     LOGGER.info("identity.google.discovery.started");
-    const published = await this.pubky.publishHomeserverForce({
+    const published = await this.pubky.publishHomeserver({
       keyHandle: identity.keyHandle,
       homeserverPubky: invitation.homeserverPubky,
     });
-    if (Result.isError(published)) return failure({ code: "discovery_failed" });
-    LOGGER.info("identity.google.discovery.completed");
+    if (Result.isError(published) && published.error.code !== "publish_failed") {
+      return failure({ code: "discovery_failed" });
+    }
+    const publicationWasUncertain = Result.isError(published);
+    if (!publicationWasUncertain) LOGGER.info("identity.google.discovery.completed");
 
-    if (!isReconciliation) report("activating_created_identity");
+    report(isReconciliation
+      ? { flow: "repair", step: "signing_in" }
+      : { flow: "create", step: "activating" });
     const signedIn = await this.pubky.signin(identity.keyHandle);
     if (Result.isError(signedIn)) {
-      return failure({ code: signupWasUncertain ? "signup_failed" : "signin_failed" });
+      return failure({
+        code: signupWasUncertain
+          ? "signup_failed"
+          : publicationWasUncertain ? "discovery_failed" : "signin_failed",
+      });
     }
     const verified = this.verifySessionIdentity(identity, signedIn.value.publicIdentity);
     if (Result.isError(verified)) return failure(verified.error);

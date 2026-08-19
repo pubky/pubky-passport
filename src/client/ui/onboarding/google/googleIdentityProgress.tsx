@@ -1,29 +1,35 @@
 "use client";
 
-import type { GoogleIdentityPhase } from "../../../logic/google-identity/GoogleIdentityFlow";
+import type { GoogleIdentityProgress as GoogleIdentityProgressState } from "../../../logic/google-identity/GoogleIdentityFlow";
 import { PassportScreen } from "../../shared/layout/passportScreen";
 import { Spinner } from "../../shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
 
 type StepState = "complete" | "active" | "pending";
 type SetupStep = { label: string; state: StepState };
+type ProgressPresentation = {
+  heading: "Setting up" | "Restoring" | "Repairing";
+  listLabel: string;
+  steps: SetupStep[];
+};
 
-function GoogleIdentityProgress({ progress }: { progress: GoogleIdentityPhase }) {
-  if (progress === "checking_passport_file") {
+function GoogleIdentityProgress({ progress }: { progress: GoogleIdentityProgressState }) {
+  if (progress.flow === "lookup") {
     return <IdentityLookup />;
   }
 
-  const steps = progressSteps(progress);
-  const restoring = progress === "restoring_identity"
-    || progress === "repairing_restored_identity"
-    || progress === "activating_restored_identity";
+  const presentation = progressPresentation(progress);
+  const activeStep = presentation.steps.find((step) => step.state === "active");
 
   return (
     <PassportScreen>
       <div className="flex flex-1 flex-col gap-6">
-        <DisplayHeading accent="your pubky." aria-label={`${restoring ? "Restoring" : "Setting up"} your pubky.`}>{restoring ? "Restoring" : "Setting up"}</DisplayHeading>
-        <ol aria-label="Pubky identity setup progress" className="flex flex-col gap-6 py-3">
-          {steps.map((step) => <ProgressStep key={step.label} step={step} />)}
+        <DisplayHeading accent="your pubky." aria-label={`${presentation.heading} your pubky.`}>{presentation.heading}</DisplayHeading>
+        <p aria-atomic="true" className="sr-only" role="status">
+          {presentation.heading} your Pubky: {activeStep?.label}.
+        </p>
+        <ol aria-label={presentation.listLabel} className="flex flex-col gap-6 py-3">
+          {presentation.steps.map((step) => <ProgressStep key={step.label} step={step} />)}
         </ol>
       </div>
     </PassportScreen>
@@ -36,7 +42,7 @@ function IdentityLookup() {
       <DisplayHeading accent="existing Pubky." aria-label="Looking for existing Pubky.">Looking for</DisplayHeading>
       <LeadText>Checking Google Drive for an encrypted Passport backup.</LeadText>
       <div className="flex items-center gap-3 py-3 text-muted-foreground" role="status">
-        <Spinner />
+        <Spinner aria-hidden="true" className="motion-reduce:animate-none" role="presentation" />
         Checking Google Drive…
       </div>
     </PassportScreen>
@@ -45,7 +51,7 @@ function IdentityLookup() {
 
 function ProgressStep({ step }: { step: SetupStep }) {
   return (
-    <li className="flex items-center gap-2" data-state={step.state}>
+    <li aria-current={step.state === "active" ? "step" : undefined} className="flex items-center gap-2" data-state={step.state}>
       {step.state === "complete" ? <CompleteIcon /> : step.state === "active" ? <ActiveIcon /> : <PendingIcon />}
       <strong className={step.state === "complete" ? "text-brand" : step.state === "pending" ? "text-muted-foreground" : "text-foreground"}>{step.label}</strong>
       <span className="sr-only"> ({step.state})</span>
@@ -53,17 +59,59 @@ function ProgressStep({ step }: { step: SetupStep }) {
   );
 }
 
-function progressSteps(progress: GoogleIdentityPhase): SetupStep[] {
-  if (progress === "restoring_identity"
-    || progress === "repairing_restored_identity"
-    || progress === "activating_restored_identity") {
-    return states(["Restoring your Pubky", "Activate identity"], progress === "restoring_identity" ? 0 : 1);
+function progressPresentation(progress: Exclude<GoogleIdentityProgressState, { flow: "lookup" }>): ProgressPresentation {
+  switch (progress.flow) {
+    case "create":
+      return setupPresentation(CREATE_STEP_INDEX[progress.step]);
+    case "restore":
+      return restorePresentation(RESTORE_STEP_INDEX[progress.step]);
+    case "repair":
+      return repairPresentation(REPAIR_STEP_INDEX[progress.step]);
   }
+}
 
-  const activeIndex = progress === "signing_up_to_homeserver" ? 1
-    : progress === "publishing_discovery" ? 2
-      : progress === "activating_created_identity" ? 3 : 0;
-  return states(["Store encrypted backup", "Sign up to the homeserver", "Publish PKDNS records", "Activate identity"], activeIndex);
+const CREATE_STEP_INDEX = {
+  preparing: 0,
+  creating: 0,
+  storing_backup: 0,
+  signing_up: 1,
+  publishing: 2,
+  activating: 3,
+} satisfies Record<Extract<GoogleIdentityProgressState, { flow: "create" }>["step"], number>;
+
+const RESTORE_STEP_INDEX = {
+  restoring: 0,
+  signing_in: 1,
+} satisfies Record<Extract<GoogleIdentityProgressState, { flow: "restore" }>["step"], number>;
+
+const REPAIR_STEP_INDEX = {
+  signing_up: 1,
+  publishing: 2,
+  signing_in: 3,
+} satisfies Record<Extract<GoogleIdentityProgressState, { flow: "repair" }>["step"], number>;
+
+function restorePresentation(activeIndex: number): ProgressPresentation {
+  return {
+    heading: "Restoring",
+    listLabel: "Pubky identity restore progress",
+    steps: states(["Restore encrypted backup", "Sign in to the homeserver"], activeIndex),
+  };
+}
+
+function repairPresentation(activeIndex: number): ProgressPresentation {
+  return {
+    heading: "Repairing",
+    listLabel: "Pubky identity repair progress",
+    steps: states(["Restore encrypted backup", "Repair homeserver access", "Publish PKDNS records", "Sign in to the homeserver"], activeIndex),
+  };
+}
+
+function setupPresentation(activeIndex: number): ProgressPresentation {
+  return {
+    heading: "Setting up",
+    listLabel: "Pubky identity setup progress",
+    steps: states(["Store encrypted backup", "Sign up to the homeserver", "Publish PKDNS records", "Activate identity"], activeIndex),
+  };
 }
 
 function states(labels: string[], activeIndex: number): SetupStep[] {
@@ -75,7 +123,7 @@ function CompleteIcon() {
 }
 
 function ActiveIcon() {
-  return <svg aria-hidden="true" className="size-6 shrink-0 animate-spin text-foreground" fill="none" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" /></svg>;
+  return <svg aria-hidden="true" className="size-6 shrink-0 animate-spin text-foreground motion-reduce:animate-none" fill="none" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" /></svg>;
 }
 
 function PendingIcon() {

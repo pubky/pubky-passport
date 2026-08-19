@@ -32,7 +32,7 @@ export class RecordingPubkySdkAdapter extends PubkySdkAdapter {
   disposedKeys: PubkyIdentityKeyHandle[] = [];
   signupCalls: Array<{ homeserverPubky: string; hasSignupCode: boolean }> = [];
   signinCalls = 0;
-  forceDiscoveryCalls: Array<{ hasHomeserverPubky: boolean }> = [];
+  discoveryCalls: Array<{ hasHomeserverPubky: boolean }> = [];
   approvalCalls: Array<{ scheme?: string; queryKeys: string[] }> = [];
 
   createFailure?: PubkyIdentityKeysErrorCode;
@@ -113,9 +113,9 @@ export class RecordingPubkySdkAdapter extends PubkySdkAdapter {
     return this.signinFailure ? sessionFailure(this.signinFailure) : Result.ok(this.session);
   }
 
-  override async publishHomeserverForce(input: PubkyDiscoveryInput): Promise<PubkyDiscoveryResult> {
+  override async publishHomeserver(input: PubkyDiscoveryInput): Promise<PubkyDiscoveryResult> {
     if (this.throwOnDiscovery) throw new Error("discovery threw");
-    this.forceDiscoveryCalls.push({ hasHomeserverPubky: Boolean(input.homeserverPubky) });
+    this.discoveryCalls.push({ hasHomeserverPubky: Boolean(input.homeserverPubky) });
     return this.discoveryFailure ? Result.err({ code: this.discoveryFailure }) : Result.ok();
   }
 

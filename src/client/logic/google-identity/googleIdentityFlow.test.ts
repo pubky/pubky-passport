@@ -65,8 +65,8 @@ describe("GoogleIdentityFlow", () => {
     }; });
     MOCKS.requestAuthorization.mockResolvedValue(Result.ok(CREDENTIALS));
     MOCKS.establishIdentity.mockImplementation(async (_credentials, reportProgress) => {
-      reportProgress("checking_passport_file");
-      reportProgress("restoring_identity");
+      reportProgress({ flow: "lookup", step: "checking" });
+      reportProgress({ flow: "restore", step: "restoring" });
       return Result.ok({ establishmentMode: "restored" as const, publicIdentity: PUBLIC_IDENTITY });
     });
     MOCKS.detachIdentity.mockResolvedValue(Result.ok({ deletionStatus: "deleted" as const }));
@@ -122,10 +122,29 @@ describe("GoogleIdentityFlow", () => {
 
     expect(states).toEqual([
       { status: "requesting-authorization" },
-      { status: "establishing", progress: "checking_passport_file" },
-      { status: "establishing", progress: "restoring_identity" },
+      { status: "establishing", progress: { flow: "lookup", step: "checking" } },
+      { status: "establishing", progress: { flow: "restore", step: "restoring" } },
     ]);
     expect(MOCKS.establishIdentity).toHaveBeenCalledWith(CREDENTIALS, expect.any(Function));
+  });
+
+  it("forwards restored-identity repair progress unchanged", async () => {
+    MOCKS.establishIdentity.mockImplementation(async (_credentials, reportProgress) => {
+      reportProgress({ flow: "repair", step: "signing_up" });
+      reportProgress({ flow: "repair", step: "publishing" });
+      reportProgress({ flow: "repair", step: "signing_in" });
+      return Result.ok({ establishmentMode: "restored" as const, publicIdentity: PUBLIC_IDENTITY });
+    });
+    const states: GoogleIdentityFlowState[] = [];
+
+    await createFlow((state) => states.push(state)).establishIdentity();
+
+    expect(states).toEqual([
+      { status: "requesting-authorization" },
+      { status: "establishing", progress: { flow: "repair", step: "signing_up" } },
+      { status: "establishing", progress: { flow: "repair", step: "publishing" } },
+      { status: "establishing", progress: { flow: "repair", step: "signing_in" } },
+    ]);
   });
 
   it("contains state listener details without failing establishment", async () => {

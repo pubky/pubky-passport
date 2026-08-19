@@ -14,10 +14,10 @@ import type { PubkyPublicIdentity } from "../pubky/pubkyIdentityKey";
 import {
   GoogleIdentityLifecycle,
   type GoogleIdentityOperationError,
-  type GoogleIdentityPhase,
+  type GoogleIdentityProgress,
 } from "./GoogleIdentityLifecycle";
 
-export type { GoogleIdentityPhase } from "./GoogleIdentityLifecycle";
+export type { GoogleIdentityProgress } from "./GoogleIdentityLifecycle";
 
 export type GoogleIdentityConfiguration = {
   googleClientId: string;
@@ -27,7 +27,7 @@ export type GoogleIdentityConfiguration = {
 /** Safe progress emitted while Passport creates or restores a Google-backed identity. */
 export type GoogleIdentityFlowState =
   | { status: "requesting-authorization" }
-  | { status: "establishing"; progress: GoogleIdentityPhase }
+  | { status: "establishing"; progress: GoogleIdentityProgress }
   | { status: "detaching" };
 
 /** Safe setup or restore details returned after the identity is active locally. */
@@ -243,7 +243,7 @@ export class GoogleIdentityFlow {
   }
 
   private createProgressReporter(): {
-    report: (progress: GoogleIdentityPhase) => void;
+    report: (progress: GoogleIdentityProgress) => void;
     stop: () => void;
   } {
     let active = true;

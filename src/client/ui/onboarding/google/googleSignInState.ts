@@ -3,7 +3,7 @@
 import type {
   GoogleIdentityFlowError,
 } from "../../../logic/google-identity/GoogleIdentityFlow";
-import type { GoogleIdentityPhase } from "../../../logic/google-identity/GoogleIdentityFlow";
+import type { GoogleIdentityProgress } from "../../../logic/google-identity/GoogleIdentityFlow";
 import type { GoogleAccountProfile } from "../../../logic/local-identity/localIdentityModels";
 import type { PubkyPublicIdentity } from "../../../logic/pubky/pubkyIdentityKey";
 
@@ -12,7 +12,7 @@ type GoogleSignInView =
   | { name: "requesting-access" }
   | { name: "denied" }
   | { name: "failed"; error: GoogleIdentityFlowError }
-  | { name: "working"; progress: GoogleIdentityPhase }
+  | { name: "working"; progress: GoogleIdentityProgress }
   | {
     name: "complete";
     googleAccount: GoogleAccountProfile;
@@ -27,7 +27,7 @@ type GoogleSignInState = {
 type GoogleSignInEvent =
   | { type: "authorization-denied" }
   | { type: "request-started" }
-  | { type: "progress-reported"; progress: GoogleIdentityPhase }
+  | { type: "progress-reported"; progress: GoogleIdentityProgress }
   | { type: "operation-failed"; error: GoogleIdentityFlowError }
   | {
     type: "operation-completed";
@@ -42,21 +42,20 @@ const INITIAL_GOOGLE_SIGN_IN_STATE: GoogleSignInState = {
 };
 
 function transitionGoogleSignIn(
-  state: GoogleSignInState,
+  _state: GoogleSignInState,
   event: GoogleSignInEvent,
 ): GoogleSignInState {
   switch (event.type) {
     case "authorization-denied":
-      return { ...state, view: { name: "denied" } };
+      return { view: { name: "denied" } };
     case "request-started":
-      return { ...state, view: { name: "requesting-access" } };
+      return { view: { name: "requesting-access" } };
     case "progress-reported":
-      return { ...state, view: { name: "working", progress: event.progress } };
+      return { view: { name: "working", progress: event.progress } };
     case "operation-failed":
-      return { ...state, view: { name: "failed", error: event.error } };
+      return { view: { name: "failed", error: event.error } };
     case "operation-completed":
       return {
-        ...state,
         view: {
           name: "complete",
           googleAccount: event.googleAccount,
@@ -65,7 +64,7 @@ function transitionGoogleSignIn(
         },
       };
     case "back":
-      return { ...state, view: { name: "idle" } };
+      return { view: { name: "idle" } };
   }
 }
 

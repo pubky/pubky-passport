@@ -5,10 +5,13 @@ import { INITIAL_GOOGLE_SIGN_IN_STATE, transitionGoogleSignIn } from "./googleSi
 describe("Google sign-in state", () => {
   it("tracks the operation and returns to the idle view", () => {
     const requesting = transitionGoogleSignIn(INITIAL_GOOGLE_SIGN_IN_STATE, { type: "request-started" });
-    const working = transitionGoogleSignIn(requesting, { type: "progress-reported", progress: "checking_passport_file" });
+    const working = transitionGoogleSignIn(requesting, {
+      type: "progress-reported",
+      progress: { flow: "lookup", step: "checking" },
+    });
 
     expect(working).toEqual({
-      view: { name: "working", progress: "checking_passport_file" },
+      view: { name: "working", progress: { flow: "lookup", step: "checking" } },
     });
     expect(transitionGoogleSignIn(working, { type: "back" }))
       .toEqual({ view: { name: "idle" } });

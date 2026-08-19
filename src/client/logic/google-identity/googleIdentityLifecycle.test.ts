@@ -9,13 +9,12 @@ import { LocalStorageIdentityRepository } from "../local-identity/LocalStorageId
 
 const MOCKS = vi.hoisted(() => ({
   PubkySdkAdapter: vi.fn(),
-  resolveHomeserver: vi.fn(),
   createIdentityKey: vi.fn(),
   exportSecretKey: vi.fn(),
   restoreIdentityKey: vi.fn(),
   signup: vi.fn(),
   signin: vi.fn(),
-  publishHomeserverForce: vi.fn(),
+  publishHomeserver: vi.fn(),
   disposeIdentityKey: vi.fn(),
   disposePubky: vi.fn(),
   WrappingKeyApiClient: vi.fn(),
@@ -63,7 +62,7 @@ vi.mock("../passport-file/google/VisibleRecoveryCopies", () => ({
   },
 }));
 
-import { GoogleIdentityLifecycle } from "./GoogleIdentityLifecycle";
+import { GoogleIdentityLifecycle, type GoogleIdentityProgress } from "./GoogleIdentityLifecycle";
 
 const PUBLIC_IDENTITY = {
   publicKeyZ32: "public-identity",
@@ -106,8 +105,7 @@ describe("GoogleIdentityLifecycle", () => {
         restoreIdentityKey: MOCKS.restoreIdentityKey,
         signup: MOCKS.signup,
         signin: MOCKS.signin,
-        resolveHomeserver: MOCKS.resolveHomeserver,
-        publishHomeserverForce: MOCKS.publishHomeserverForce,
+        publishHomeserver: MOCKS.publishHomeserver,
         disposeIdentityKey: MOCKS.disposeIdentityKey,
         dispose: MOCKS.disposePubky,
       };
@@ -134,8 +132,7 @@ describe("GoogleIdentityLifecycle", () => {
     MOCKS.restoreIdentityKey.mockResolvedValue(Result.ok(IDENTITY));
     MOCKS.signup.mockResolvedValue(Result.ok({ publicIdentity: PUBLIC_IDENTITY }));
     MOCKS.signin.mockResolvedValue(Result.ok({ publicIdentity: PUBLIC_IDENTITY }));
-    MOCKS.publishHomeserverForce.mockResolvedValue(Result.ok());
-    MOCKS.resolveHomeserver.mockResolvedValue(Result.ok("resolved-homeserver"));
+    MOCKS.publishHomeserver.mockResolvedValue(Result.ok());
     MOCKS.encryptSecretKeyBytes.mockResolvedValue(Result.ok(ENVELOPE));
     MOCKS.decryptSecretKeyBytes.mockResolvedValue(Result.ok(new Uint8Array(32).fill(9)));
     MOCKS.createPassportFile.mockResolvedValue(Result.ok());
@@ -163,10 +160,10 @@ describe("GoogleIdentityLifecycle", () => {
     record(MOCKS.createPassportFile, "drive-create", events);
     record(MOCKS.createVisibleRecoveryCopy, "visible-copy", events);
     record(MOCKS.signup, "signup", events);
-    record(MOCKS.publishHomeserverForce, "force-publish", events);
+    record(MOCKS.publishHomeserver, "force-publish", events);
     record(MOCKS.signin, "signin", events);
     record(MOCKS.repositorySave, "save", events);
-    const progress: string[] = [];
+    const progress: GoogleIdentityProgress[] = [];
 
     const result = await createSubject().establishIdentity(CREDENTIALS, (phase) => progress.push(phase));
 
@@ -186,13 +183,13 @@ describe("GoogleIdentityLifecycle", () => {
       "save",
     ]);
     expect(progress).toEqual([
-      "checking_passport_file",
-      "preparing_new_identity",
-      "creating_identity",
-      "storing_encrypted_identity",
-      "signing_up_to_homeserver",
-      "publishing_discovery",
-      "activating_created_identity",
+      { flow: "lookup", step: "checking" },
+      { flow: "create", step: "preparing" },
+      { flow: "create", step: "creating" },
+      { flow: "create", step: "storing_backup" },
+      { flow: "create", step: "signing_up" },
+      { flow: "create", step: "publishing" },
+      { flow: "create", step: "activating" },
     ]);
     expect(MOCKS.driveStoreConstructions.count).toBe(1);
     expect(MOCKS.visibleCopiesConstructions.count).toBe(1);
@@ -254,7 +251,7 @@ describe("GoogleIdentityLifecycle", () => {
     if (stage === "wrapping-key") expect(MOCKS.requestInvitation).not.toHaveBeenCalled();
   });
 
-  it("restores through DHT and blocking sign-in without requesting Homegate", async () => {
+  it("restores through normal sign-in without publishing or requesting Homegate", async () => {
     const decryptedBytes = new Uint8Array(32).fill(9);
     MOCKS.readPassportFile.mockResolvedValue(Result.ok({
       status: "found",
@@ -262,7 +259,7 @@ describe("GoogleIdentityLifecycle", () => {
       reference: REFERENCE,
     }));
     MOCKS.decryptSecretKeyBytes.mockResolvedValue(Result.ok(decryptedBytes));
-    const progress: string[] = [];
+    const progress: GoogleIdentityProgress[] = [];
 
     const result = await createSubject().establishIdentity(CREDENTIALS, (phase) => progress.push(phase));
 
@@ -270,80 +267,196 @@ describe("GoogleIdentityLifecycle", () => {
       establishmentMode: "restored",
       publicIdentity: PUBLIC_IDENTITY,
     });
-    expect(MOCKS.resolveHomeserver).toHaveBeenCalledWith(PUBLIC_IDENTITY.publicKeyZ32);
     expect(MOCKS.requestInvitation).not.toHaveBeenCalled();
     expect(MOCKS.signup).not.toHaveBeenCalled();
-    expect(MOCKS.publishHomeserverForce).not.toHaveBeenCalled();
+    expect(MOCKS.publishHomeserver).not.toHaveBeenCalled();
     expect(MOCKS.signin).toHaveBeenCalledWith(KEY_HANDLE);
     expect(decryptedBytes).toEqual(new Uint8Array(32));
     expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
     expect(progress).toEqual([
-      "checking_passport_file",
-      "restoring_identity",
-      "activating_restored_identity",
+      { flow: "lookup", step: "checking" },
+      { flow: "restore", step: "restoring" },
+      { flow: "restore", step: "signing_in" },
     ]);
   });
 
-  it("reconciles a missing DHT record when signup reports that the account exists", async () => {
+  it("reconciles an interrupted setup after normal sign-in fails", async () => {
+    const events: string[] = [];
     foundPassportFile();
-    MOCKS.resolveHomeserver.mockResolvedValue(Result.ok(null));
-    MOCKS.signup.mockResolvedValue(Result.err({ code: "account_exists" }));
-    const progress: string[] = [];
+    let signinAttempt = 0;
+    MOCKS.signin.mockImplementation(async () => {
+      events.push("signin");
+      signinAttempt += 1;
+      return signinAttempt === 1
+        ? Result.err({ code: "signin_failed" })
+        : Result.ok({ publicIdentity: PUBLIC_IDENTITY });
+    });
+    MOCKS.publishHomeserver.mockImplementation(async () => {
+      events.push("force-publish");
+      return Result.err({ code: "publish_failed" });
+    });
+    record(MOCKS.requestInvitation, "homegate", events);
+    record(MOCKS.signup, "signup", events);
+    record(MOCKS.repositorySave, "save", events);
+    const progress: GoogleIdentityProgress[] = [];
 
     expectResultOk(await createSubject().establishIdentity(CREDENTIALS, (phase) => progress.push(phase)));
 
     expect(MOCKS.requestInvitation).toHaveBeenCalledWith(CREDENTIALS.googleIdToken);
+    expect(events).toEqual([
+      "signin",
+      "homegate",
+      "signup",
+      "force-publish",
+      "signin",
+      "save",
+    ]);
     expect(MOCKS.signup).toHaveBeenCalledWith({
       keyHandle: KEY_HANDLE,
       homeserverPubky: INVITATION.homeserverPubky,
       signupCode: INVITATION.signupCode,
     });
-    expect(MOCKS.publishHomeserverForce).toHaveBeenCalledWith({
+    expect(MOCKS.publishHomeserver).toHaveBeenCalledWith({
       keyHandle: KEY_HANDLE,
       homeserverPubky: INVITATION.homeserverPubky,
     });
     expect(MOCKS.signin).toHaveBeenCalledWith(KEY_HANDLE);
     expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
-    expect(progress).toContain("repairing_restored_identity");
-    expect(progress).not.toContain("signing_up_to_homeserver");
+    expect(progress).toEqual([
+      { flow: "lookup", step: "checking" },
+      { flow: "restore", step: "restoring" },
+      { flow: "restore", step: "signing_in" },
+      { flow: "repair", step: "signing_up" },
+      { flow: "repair", step: "publishing" },
+      { flow: "repair", step: "signing_in" },
+    ]);
   });
 
-  it("does not republish when an identity with DHT discovery fails to sign in", async () => {
+  it("republishes when restored-identity signup reports that the account exists", async () => {
+    foundPassportFile();
+    MOCKS.signin.mockResolvedValueOnce(Result.err({ code: "signin_failed" }));
+    MOCKS.publishHomeserver.mockResolvedValueOnce(Result.err({ code: "publish_failed" }));
+    MOCKS.signup.mockResolvedValue(Result.err({ code: "account_exists" }));
+
+    expectResultOk(await createSubject().establishIdentity(CREDENTIALS, () => undefined));
+
+    expect(MOCKS.publishHomeserver).toHaveBeenCalledOnce();
+    expect(MOCKS.signin).toHaveBeenCalledTimes(2);
+    expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
+  });
+
+  it("reports repair before requesting a replacement homeserver invitation", async () => {
+    foundPassportFile();
+    MOCKS.signin.mockResolvedValueOnce(Result.err({ code: "signin_failed" }));
+    const events: Array<string | GoogleIdentityProgress> = [];
+    MOCKS.requestInvitation.mockImplementation(async () => {
+      events.push("homegate");
+      return Result.err({ code: "network_failed" });
+    });
+
+    expectResultError(
+      await createSubject().establishIdentity(CREDENTIALS, (phase) => events.push(phase)),
+      { code: "homeserver_signup_invitation_failed", cause: "network_failed" },
+    );
+
+    expect(events.slice(-2)).toEqual([{ flow: "repair", step: "signing_up" }, "homegate"]);
+  });
+
+  it("accepts repaired sign-in when PKDNS publication reports an uncertain failure", async () => {
+    foundPassportFile();
+    MOCKS.signin
+      .mockResolvedValueOnce(Result.err({ code: "signin_failed" }))
+      .mockResolvedValue(Result.ok({ publicIdentity: PUBLIC_IDENTITY }));
+    MOCKS.publishHomeserver.mockResolvedValueOnce(Result.err({ code: "publish_failed" }));
+    const progress: GoogleIdentityProgress[] = [];
+
+    expectResultOk(await createSubject().establishIdentity(CREDENTIALS, (phase) => progress.push(phase)));
+
+    expect(progress.at(-1)).toEqual({ flow: "repair", step: "signing_in" });
+    expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
+  });
+
+  it("fails discovery when uncertain repaired publication cannot be verified by sign-in", async () => {
     foundPassportFile();
     MOCKS.signin.mockResolvedValue(Result.err({ code: "signin_failed" }));
+    MOCKS.publishHomeserver.mockResolvedValueOnce(Result.err({ code: "publish_failed" }));
 
     expectResultError(
       await createSubject().establishIdentity(CREDENTIALS, () => undefined),
+      { code: "discovery_failed" },
+    );
+
+    expect(MOCKS.signin).toHaveBeenCalledTimes(2);
+    expect(MOCKS.repositorySave).not.toHaveBeenCalled();
+  });
+
+  it("does not verify a definitive repaired publication failure through sign-in", async () => {
+    foundPassportFile();
+    MOCKS.signin.mockResolvedValueOnce(Result.err({ code: "signin_failed" }));
+    MOCKS.publishHomeserver.mockResolvedValueOnce(Result.err({ code: "invalid_homeserver_pubky" }));
+
+    expectResultError(
+      await createSubject().establishIdentity(CREDENTIALS, () => undefined),
+      { code: "discovery_failed" },
+    );
+
+    expect(MOCKS.signin).toHaveBeenCalledOnce();
+    expect(MOCKS.repositorySave).not.toHaveBeenCalled();
+  });
+
+  it("stops on repaired sign-in failure without saving locally", async () => {
+    foundPassportFile();
+    MOCKS.signin.mockResolvedValue(Result.err({ code: "signin_failed" }));
+    const progress: GoogleIdentityProgress[] = [];
+
+    expectResultError(
+      await createSubject().establishIdentity(CREDENTIALS, (phase) => progress.push(phase)),
       { code: "signin_failed" },
     );
 
-    expect(MOCKS.requestInvitation).not.toHaveBeenCalled();
-    expect(MOCKS.signup).not.toHaveBeenCalled();
-    expect(MOCKS.publishHomeserverForce).not.toHaveBeenCalled();
+    expect(progress.at(-1)).toEqual({ flow: "repair", step: "signing_in" });
+    expect(MOCKS.repositorySave).not.toHaveBeenCalled();
+  });
+
+  it("rejects a mismatched repaired identity before local persistence", async () => {
+    foundPassportFile();
+    MOCKS.signin
+      .mockResolvedValueOnce(Result.err({ code: "signin_failed" }))
+      .mockResolvedValue(Result.ok({
+        publicIdentity: { publicKeyZ32: "different", publicKeyDisplay: "pubkydifferent" },
+      }));
+
+    expectResultError(
+      await createSubject().establishIdentity(CREDENTIALS, () => undefined),
+      { code: "identity_mismatch" },
+    );
+
+    expect(MOCKS.repositorySave).not.toHaveBeenCalled();
   });
 
   it("verifies an ambiguous signup failure before accepting the recovered account", async () => {
     foundPassportFile();
-    MOCKS.resolveHomeserver.mockResolvedValue(Result.ok(null));
+    MOCKS.signin.mockResolvedValueOnce(Result.err({ code: "signin_failed" }));
+    MOCKS.publishHomeserver.mockResolvedValueOnce(Result.err({ code: "publish_failed" }));
     MOCKS.signup.mockResolvedValue(Result.err({ code: "signup_uncertain" }));
 
     expectResultOk(await createSubject().establishIdentity(CREDENTIALS, () => undefined));
 
-    expect(MOCKS.publishHomeserverForce).toHaveBeenCalledOnce();
-    expect(MOCKS.signin).toHaveBeenCalledOnce();
+    expect(MOCKS.publishHomeserver).toHaveBeenCalledOnce();
+    expect(MOCKS.signin).toHaveBeenCalledTimes(2);
     expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
   });
 
   it("does not publish or save after a definitive signup rejection", async () => {
     foundPassportFile();
-    MOCKS.resolveHomeserver.mockResolvedValue(Result.ok(null));
+    MOCKS.signin.mockResolvedValueOnce(Result.err({ code: "signin_failed" }));
     MOCKS.signup.mockResolvedValue(Result.err({ code: "signup_failed" }));
 
     expectResultError(
       await createSubject().establishIdentity(CREDENTIALS, () => undefined),
       { code: "signup_failed" },
     );
-    expect(MOCKS.publishHomeserverForce).not.toHaveBeenCalled();
+    expect(MOCKS.publishHomeserver).not.toHaveBeenCalled();
     expect(MOCKS.repositorySave).not.toHaveBeenCalled();
     expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
   });
@@ -355,7 +468,8 @@ describe("GoogleIdentityLifecycle", () => {
   ] as const)("stops and disposes the key after a %s failure", async (stage, expectedCode) => {
     MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
     if (stage === "discovery") {
-      MOCKS.publishHomeserverForce.mockResolvedValue(Result.err({ code: "publish_failed" }));
+      MOCKS.publishHomeserver.mockResolvedValue(Result.err({ code: "publish_failed" }));
+      MOCKS.signin.mockResolvedValue(Result.err({ code: "signin_failed" }));
     } else if (stage === "signin") {
       MOCKS.signin.mockResolvedValue(Result.err({ code: "signin_failed" }));
     } else {

@@ -390,11 +390,15 @@ sequenceDiagram
 
 ### Restore Existing Identity
 
+Identity establishment reports discriminated progress as `{ flow, step }`. The
+`lookup`, `create`, `restore`, and `repair` flows each expose only their valid steps,
+so the UI cannot receive an invalid cross-flow phase combination.
+
 ```mermaid
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Existing identity restore call flow
-    accDescr: GoogleIdentityLifecycle decrypts the Passport file, uses DHT resolution and blocking sign-in as the returning-user fast path, and automatically reconciles missing discovery or an authoritative missing homeserver account.
+    accDescr: GoogleIdentityLifecycle decrypts the Passport file and tries normal blocking sign-in first, then uses Homegate signup to distinguish a missing account from an existing account before publishing PKDNS and verifying sign-in.
     box rgba(0, 158, 115, 0.18) src/client/logic/google-identity
         participant Operations as GoogleIdentityLifecycle.ts<br/>GoogleIdentityLifecycle
     end
@@ -423,15 +427,13 @@ sequenceDiagram
         alt Restore error
             Operations-->>Operations: restore_failed
         else Restored identity
-            Operations->>Pubky: resolve homeserver from DHT
-            alt Homeserver record found
-                Operations->>Pubky: signin(handle)
-                Pubky->>SDK: signer.signinBlocking("passport.pubky.app")
-                SDK-->>Pubky: grant Session or safe failure
-            else Missing record
+            Operations->>Pubky: signin(handle)
+            Pubky->>SDK: signer.signinBlocking("passport.pubky.app")
+            SDK-->>Pubky: grant Session or safe failure
+            opt Normal sign-in fails
                 Operations->>Operations: request Homegate invitation<br/>and run shared signupAndActivate()
-            else Operational DHT or sign-in failure
-                Operations-->>Operations: safe retryable failure
+                Note over Operations,Pubky: Signup success creates the account;<br/>account_exists confirms it exists;<br/>signup_uncertain is verified by final sign-in
+                Note over Operations,Pubky: Reuse the restored key for explicit<br/>publication and final sign-in
             end
             alt Session identity mismatch
                 Operations-->>Operations: identity_mismatch
@@ -560,30 +562,26 @@ sequenceDiagram
         alt Definitive signup rejection
             Operations-->>Operations: signup_failed
         else Created, existing, or ambiguous
-            Operations->>Pubky: publishHomeserverForce(...)
+            Operations->>Pubky: publishHomeserver(...)
             Pubky->>SDK: signer.pkdns.publishHomeserverForce(...)
             Note over SDK: PKDNS / PKARR publication transport is SDK-owned
             SDK-->>Pubky: completion or failure
-            Pubky-->>Operations: completion or discovery error
-            alt Discovery error
-                Operations-->>Operations: discovery_failed
-            else Discovery complete
-                Operations->>Pubky: signin(handle)
-                Pubky->>SDK: signer.signinBlocking("passport.pubky.app")
-                SDK-->>Pubky: verified Session or safe failure
-                Pubky-->>Operations: matching public identity or safe failure
-                alt Sign-in failure or identity mismatch
-                    Operations-->>Operations: signin_failed or identity_mismatch
-                else Verified identity
-                    Operations->>Pubky: exportSecretKey(handle)
-                    Pubky-->>Operations: secret bytes
-                    Operations->>Repo: save metadata + base64url secret
-                    Repo-->>Operations: saved active identity or error
-                    alt Local-save error
-                        Operations-->>Operations: local_save_failed
-                    else Saved
-                        Operations-->>Operations: active identity
-                    end
+            Pubky-->>Operations: completion or uncertain publication error
+            Operations->>Pubky: signin(handle)
+            Pubky->>SDK: signer.signinBlocking("passport.pubky.app")
+            SDK-->>Pubky: verified Session or safe failure
+            Pubky-->>Operations: matching public identity or safe failure
+            alt Sign-in cannot verify signup or publication
+                Operations-->>Operations: signup_failed, discovery_failed, or signin_failed
+            else Verified identity
+                Operations->>Pubky: exportSecretKey(handle)
+                Pubky-->>Operations: secret bytes
+                Operations->>Repo: save metadata + base64url secret
+                Repo-->>Operations: saved active identity or error
+                alt Local-save error
+                    Operations-->>Operations: local_save_failed
+                else Saved
+                    Operations-->>Operations: active identity
                 end
             end
         end
@@ -596,11 +594,14 @@ homeserver signup, and discovery. A definite homeserver signup invitation failur
 occurs before Passport file creation. After signup or discovery has been attempted,
 Passport preserves the encrypted Passport file so the key is not lost, disposes the
 key handle, and saves no ready local Pubky identity; it must not automatically delete
-the file. A later normal establishment retry restores that same key. Missing discovery
-enters automatic reconciliation: exact signup `409` is accepted as an existing
-account, the Homegate homeserver is force-published, and blocking sign-in must verify
-the account and identity before local activation. A sign-in failure after DHT
-resolution remains retryable and does not reassign discovery.
+the file. A later normal establishment retry restores that same key. Restore first
+attempts normal sign-in. A failed sign-in enters automatic homeserver reconciliation.
+Exact signup `409` confirms the account already exists; successful signup creates a
+missing account; an uncertain signup result is verified by final sign-in. The
+Homegate homeserver is then force-published and
+blocking sign-in must verify the account and identity before local activation. A
+publication error is treated as uncertain because a relay may have accepted the
+record; successful blocking sign-in confirms it without requiring another user retry.
 
 ### Detach from Google
 

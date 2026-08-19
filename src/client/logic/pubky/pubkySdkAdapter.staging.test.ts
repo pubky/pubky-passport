@@ -31,7 +31,7 @@ test("completes signup, discovery, signin, and both v0.10 authorization methods"
     }), "Passport could not sign up with the staging invitation");
     expect(signup.publicIdentity).toEqual(identity.publicIdentity);
 
-    expectOk(await passport.publishHomeserverForce({
+    expectOk(await passport.publishHomeserver({
       keyHandle: identity.keyHandle,
       homeserverPubky: invitation.homeserverPubky,
     }), "Passport could not publish homeserver discovery");

@@ -229,8 +229,8 @@ export class PubkySdkAdapter {
     }
   }
 
-  async publishHomeserverForce(input: PubkyDiscoveryInput): Promise<PubkyDiscoveryResult> {
-    return this.publishHomeserver(input.keyHandle, input.homeserverPubky);
+  async publishHomeserver(input: PubkyDiscoveryInput): Promise<PubkyDiscoveryResult> {
+    return this.publishHomeserverRecord(input.keyHandle, input.homeserverPubky);
   }
 
   async approveAuthRequest(keyHandle: PubkyIdentityKeyHandle, authRequest: IssuedPubkyAuthRequest): Promise<PubkyAuthApprovalResult> {
@@ -284,7 +284,7 @@ export class PubkySdkAdapter {
     return Result.ok({ keyHandle, publicIdentity: identity.value });
   }
 
-  private async publishHomeserver(
+  private async publishHomeserverRecord(
     keyHandle: PubkyIdentityKeyHandle,
     homeserverPubky?: string | null,
   ): Promise<PubkyDiscoveryResult> {
@@ -311,8 +311,8 @@ export class PubkySdkAdapter {
       });
 
       return Result.ok();
-    } catch {
-      return discoveryFailure("publish_homeserver", "sdk_publish", "publish_failed");
+    } catch (error) {
+      return discoveryFailure("publish_homeserver", "sdk_publish", "publish_failed", error);
     } finally {
       if (!transferredToSdk) {
         cleanup("publish_homeserver", "homeserver_free", () => homeserver.value?.free());
@@ -468,8 +468,8 @@ function sessionAccessFailure<Success>(
   return Result.err({ code });
 }
 
-function discoveryFailure(operation: "publish_homeserver", stage: PubkyFailureStage, code: PubkyDiscoveryErrorCode): PubkyDiscoveryResult {
-  logFailure(operation, stage, code);
+function discoveryFailure(operation: "publish_homeserver", stage: PubkyFailureStage, code: PubkyDiscoveryErrorCode, cause?: unknown): PubkyDiscoveryResult {
+  logFailure(operation, stage, code, cause);
   return Result.err({ code });
 }
 
