@@ -141,7 +141,7 @@ describe("GoogleIdentityLifecycle", () => {
     MOCKS.createPassportFile.mockResolvedValue(Result.ok());
     MOCKS.createVisibleRecoveryCopy.mockResolvedValue(Result.ok());
     MOCKS.deletePassportFile.mockResolvedValue(Result.ok());
-    MOCKS.deleteVisibleRecoveryCopies.mockResolvedValue(Result.ok({ deletedCount: 1 }));
+    MOCKS.deleteVisibleRecoveryCopies.mockResolvedValue(Result.ok());
     MOCKS.repositorySave.mockReturnValue(Result.ok({
       publicIdentity: PUBLIC_IDENTITY,
     }));

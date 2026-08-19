@@ -4,6 +4,10 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER } from "../../../../libs/logger/logger";
 import {
+  isPubkyPublicIdentity,
+  type PubkyPublicIdentity,
+} from "../../pubky/pubkyIdentityKey";
+import {
   serializePassportFileEnvelope,
   type PassportFileEnvelopeV1,
 } from "../passportFileEnvelope";
@@ -18,10 +22,13 @@ import {
   isNonEmptyString,
   mapDriveStatus,
   multipartBody,
+  parseDriveFileRevision,
   parseDriveFileList,
   readDriveJson,
+  sameDriveFileRevision,
   type DriveFile,
   type DriveFileList,
+  type DriveFileRevision,
 } from "./driveHttp";
 
 /** Safe visible-copy failures that contain no credentials or recovery contents. */
@@ -35,15 +42,13 @@ type VisibleCopiesErrorCode =
   | "delete_failed";
 
 type VisibleCopiesResult<Success> = ResultType<Success, { code: VisibleCopiesErrorCode }>;
-type FileReference = Readonly<{ storageId: string; revision: string }>;
 type VisibleFolder = DriveFile & { id: string };
 type VisibleFile = DriveFile & { id: string };
 
 const VISIBLE_RECOVERY_FOLDER_NAME = "Pubky Passport";
 const DRIVE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
-const PUBKY_PUBLIC_KEY_DISPLAY_PATTERN = /^pubky[ybndrfg8ejkmcpqxot1uwisza345h769]{51}[yo]$/;
 const DRIVE_FILE_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
-const LIST_PAGE_SIZE = "100";
+const LIST_PAGE_SIZE = "25";
 const MAXIMUM_LIST_PAGES = 100;
 
 /**
@@ -66,14 +71,14 @@ export class GoogleDriveVisibleRecoveryCopies {
    */
   async createVisibleRecoveryCopy(
     envelope: PassportFileEnvelopeV1,
-    publicKeyDisplay: string,
+    publicIdentity: PubkyPublicIdentity,
     signal?: AbortSignal,
   ): Promise<VisibleCopiesResult<void>> {
     if (signal?.aborted) return failure("network_failed", "create_visible_copy");
 
     const serializedEnvelope = serializePassportFileEnvelope(envelope);
     if (serializedEnvelope === null) return failure("invalid_file", "serialize_envelope");
-    const fileName = visibleRecoveryFileName(publicKeyDisplay);
+    const fileName = visibleRecoveryFileName(publicIdentity);
     if (fileName === null) return failure("invalid_file", "visible_file_name");
 
     const token = this.getAccessToken();
@@ -118,12 +123,13 @@ export class GoogleDriveVisibleRecoveryCopies {
 
   /**
    * Processes every matching `{pubky}.json` file under accessible root
-   * `Pubky Passport` folders and returns the number of successful or idempotent
-   * deletions. Pagination is bounded and folder, file, parent, and ID metadata is
-   * validated first.
+   * `Pubky Passport` folder. Pagination is bounded and folder, file, parent, and
+   * ID metadata is validated before deletion.
    */
-  async deleteVisibleRecoveryCopies(publicKeyDisplay: string): Promise<VisibleCopiesResult<{ deletedCount: number }>> {
-    const fileName = visibleRecoveryFileName(publicKeyDisplay);
+  async deleteVisibleRecoveryCopies(
+    publicIdentity: PubkyPublicIdentity,
+  ): Promise<VisibleCopiesResult<void>> {
+    const fileName = visibleRecoveryFileName(publicIdentity);
     if (fileName === null) return failure("invalid_file", "validate_file_name");
 
     const token = this.getAccessToken();
@@ -138,7 +144,6 @@ export class GoogleDriveVisibleRecoveryCopies {
       );
       if (Result.isError(folders)) return Result.err(folders.error);
 
-      let deletedCount = 0;
       for (const folder of folders.value) {
         const files = await this.listAll(
           token.value,
@@ -151,11 +156,10 @@ export class GoogleDriveVisibleRecoveryCopies {
         for (const file of files.value) {
           const deleted = await this.deleteFile(token.value, file.id);
           if (Result.isError(deleted)) return Result.err(deleted.error);
-          deletedCount += 1;
         }
       }
 
-      return Result.ok({ deletedCount });
+      return Result.ok();
     } catch {
       return failure("network_failed", "delete_visible_copies");
     }
@@ -248,23 +252,24 @@ export class GoogleDriveVisibleRecoveryCopies {
     response: Response,
     expectedName: string,
     operation: VisibleCopiesOperation,
-  ): Promise<VisibleCopiesResult<FileReference>> {
+  ): Promise<VisibleCopiesResult<DriveFileRevision>> {
     const file = await readDriveJson(response);
-    if (!isDriveFile(file)
-      || !isNonEmptyString(file.id)
+    if (!isDriveFile(file)) return failure("invalid_response", operation);
+
+    const reference = parseDriveFileRevision(file);
+    if (reference === null
       || file.name !== expectedName
-      || !isNonEmptyString(file.version)
       || file.trashed === true) {
       return failure("invalid_response", operation);
     }
-    return Result.ok({ storageId: file.id, revision: file.version });
+    return Result.ok(reference);
   }
 
   private async verifyCreatedFile(
     token: string,
     folderId: string,
     fileName: string,
-    expectedReference: FileReference,
+    expectedReference: DriveFileRevision,
     signal?: AbortSignal,
   ): Promise<VisibleCopiesResult<void>> {
     const response = await this.fetchVisible("verify_copy", metadataUrl(expectedReference.storageId), {
@@ -277,15 +282,18 @@ export class GoogleDriveVisibleRecoveryCopies {
     }
 
     const file = await readDriveJson(response.value);
-    if (!isDriveFile(file)
-      || !isNonEmptyString(file.id)
+    if (!isDriveFile(file)) {
+      return failure("invalid_response", "parse_copy_verification_response");
+    }
+
+    const reference = parseDriveFileRevision(file);
+    if (reference === null
       || file.name !== fileName
-      || !isNonEmptyString(file.version)
       || file.trashed !== false
       || !Array.isArray(file.parents)
       || file.parents.length !== 1
       || file.parents[0] !== folderId
-      || !sameReference({ storageId: file.id, revision: file.version }, expectedReference)) {
+      || !sameDriveFileRevision(reference, expectedReference)) {
       return failure("invalid_response", "parse_copy_verification_response");
     }
     return Result.ok();
@@ -300,8 +308,12 @@ export class GoogleDriveVisibleRecoveryCopies {
     const files: ExpectedFile[] = [];
     const seenPageTokens = new Set<string>();
     let pageToken: string | undefined;
+    let pagesRead = 0;
 
     do {
+      if (pagesRead >= MAXIMUM_LIST_PAGES) return failure("invalid_response", operation);
+      pagesRead += 1;
+
       const response = await this.fetchVisible(operation, url(pageToken), {
         headers: authorizationHeaders(token),
       });
@@ -315,9 +327,6 @@ export class GoogleDriveVisibleRecoveryCopies {
 
       pageToken = list.value.nextPageToken;
       if (pageToken && seenPageTokens.has(pageToken)) return failure("invalid_response", operation);
-      if (pageToken && seenPageTokens.size >= MAXIMUM_LIST_PAGES) {
-        return failure("invalid_response", operation);
-      }
       if (pageToken) seenPageTokens.add(pageToken);
     } while (pageToken);
 
@@ -407,9 +416,9 @@ function folderQuery(): string {
   return `name = '${VISIBLE_RECOVERY_FOLDER_NAME}' and mimeType = '${DRIVE_FOLDER_MIME_TYPE}' and 'root' in parents and trashed = false`;
 }
 
-function visibleRecoveryFileName(publicKeyDisplay: string): string | null {
-  return PUBKY_PUBLIC_KEY_DISPLAY_PATTERN.test(publicKeyDisplay)
-    ? `${publicKeyDisplay}.json`
+function visibleRecoveryFileName(publicIdentity: PubkyPublicIdentity): string | null {
+  return isPubkyPublicIdentity(publicIdentity)
+    ? `${publicIdentity.publicKeyDisplay}.json`
     : null;
 }
 
@@ -428,10 +437,6 @@ function isExpectedFile(file: DriveFile, folderId: string, fileName: string): fi
     && Array.isArray(file.parents) && file.parents.length === 1
     && file.parents[0] === folderId
     && file.trashed === false;
-}
-
-function sameReference(left: FileReference, right: FileReference): boolean {
-  return left.storageId === right.storageId && left.revision === right.revision;
 }
 
 function deletionFailure<Success>(

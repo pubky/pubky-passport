@@ -297,7 +297,7 @@ sequenceDiagram
     participant UI as src/client/ui/onboarding/google<br/>useGoogleSignIn
     box rgba(0, 158, 115, 0.18) src/client/logic/google-identity
         participant GoogleFlow as GoogleIdentityFlow.ts<br/>GoogleIdentityFlow
-        participant Operations as GoogleIdentityOperations.ts<br/>GoogleIdentityOperations
+        participant Operations as GoogleIdentityLifecycle.ts<br/>GoogleIdentityLifecycle
         participant Authorization as GoogleImplicitAuthorization.ts<br/>GoogleImplicitAuthorization
     end
     box rgba(17, 24, 39, 0.12) External
@@ -323,10 +323,10 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Google-backed custody/recovery establishment call flow
-    accDescr: GoogleIdentityOperations reads the Google Drive Passport file first, then requests a wrapping key and either restores the found identity or requests a Homegate invitation before creating a missing identity, without passing the wrapping key to Drive storage.
+    accDescr: GoogleIdentityLifecycle reads the Google Drive Passport file first, then requests a wrapping key and either restores the found identity or requests a Homegate invitation before creating a missing identity, without passing the wrapping key to Drive storage.
     box rgba(0, 158, 115, 0.18) src/client/logic/google-identity
         participant GoogleFlow as GoogleIdentityFlow.ts<br/>GoogleIdentityFlow
-        participant Operations as GoogleIdentityOperations.ts<br/>GoogleIdentityOperations
+        participant Operations as GoogleIdentityLifecycle.ts<br/>GoogleIdentityLifecycle
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/wrapping-key
         participant Wrapping as WrappingKeyApiClient.ts<br/>WrappingKeyApiClient
@@ -394,9 +394,9 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Existing identity restore call flow
-    accDescr: GoogleIdentityOperations decrypts the Passport file, uses DHT resolution and blocking sign-in as the returning-user fast path, and automatically reconciles missing discovery or an authoritative missing homeserver account.
+    accDescr: GoogleIdentityLifecycle decrypts the Passport file, uses DHT resolution and blocking sign-in as the returning-user fast path, and automatically reconciles missing discovery or an authoritative missing homeserver account.
     box rgba(0, 158, 115, 0.18) src/client/logic/google-identity
-        participant Operations as GoogleIdentityOperations.ts<br/>GoogleIdentityOperations
+        participant Operations as GoogleIdentityLifecycle.ts<br/>GoogleIdentityLifecycle
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/passport-file
         participant Crypto as PassportFileWebCrypto.ts<br/>PassportFileWebCrypto
@@ -458,9 +458,9 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Missing identity encryption and Drive storage call flow
-    accDescr: GoogleIdentityOperations encrypts a new Pubky secret, creates the operational app-data file through GoogleDrivePassportFileStore, then best-effort writes a visible recovery copy through GoogleDriveVisibleRecoveryCopies before activation and zeros the exported bytes.
+    accDescr: GoogleIdentityLifecycle encrypts a new Pubky secret, creates the operational app-data file through GoogleDrivePassportFileStore, then best-effort writes a visible recovery copy through GoogleDriveVisibleRecoveryCopies before activation and zeros the exported bytes.
     box rgba(0, 158, 115, 0.18) src/client/logic/google-identity
-        participant Operations as GoogleIdentityOperations.ts<br/>GoogleIdentityOperations
+        participant Operations as GoogleIdentityLifecycle.ts<br/>GoogleIdentityLifecycle
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/pubky
         participant Pubky as PubkySdkAdapter.ts<br/>PubkySdkAdapter
@@ -525,9 +525,9 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Missing identity activation and local save call flow
-    accDescr: GoogleIdentityOperations requests a homeserver signup invitation, then uses its shared signup-and-activation method for both fresh creation and interrupted setup recovery.
+    accDescr: GoogleIdentityLifecycle requests a homeserver signup invitation, then uses its shared signup-and-activation method for both fresh creation and interrupted setup recovery.
     box rgba(0, 158, 115, 0.18) src/client/logic/google-identity
-        participant Operations as GoogleIdentityOperations.ts<br/>GoogleIdentityOperations
+        participant Operations as GoogleIdentityLifecycle.ts<br/>GoogleIdentityLifecycle
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/homegate
         participant Invite as HomegateClient.ts<br/>HomegateClient
@@ -615,7 +615,7 @@ sequenceDiagram
     accDescr: Passport verifies the account and identity, deletes every Google backup, and clears the local identity last.
     participant UI as detach-from-google
     participant GoogleFlow as GoogleIdentityFlow
-    participant Operations as GoogleIdentityOperations
+    participant Operations as GoogleIdentityLifecycle
     participant DriveStore as GoogleDrivePassportFileStore
     participant VisibleCopies as GoogleDriveVisibleRecoveryCopies
     participant Drive as Google Drive API v3
@@ -718,7 +718,7 @@ sequenceDiagram
     accTitle: Direct browser Homegate signup invitation call flow
     accDescr: The browser adapter sends only the Google ID token directly to configured Homegate, then bounds and maps the invitation or plaintext error to a safe application result.
     box rgba(0, 158, 115, 0.18) Browser runtime
-        participant UseCase as APPLICATION<br/>GoogleIdentityOperations
+        participant UseCase as APPLICATION<br/>GoogleIdentityLifecycle
         participant Adapter as BROWSER<br/>HomegateClient
     end
     box rgba(17, 24, 39, 0.12) External

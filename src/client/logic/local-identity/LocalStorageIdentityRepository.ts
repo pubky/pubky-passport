@@ -5,9 +5,9 @@ import { Result, type Result as ResultType } from "better-result";
 import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "../../../libs/encoding/base64Url";
 import { LOGGER } from "../../../libs/logger/logger";
 import {
+  isPubkyPublicIdentity,
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,
-  type PubkyPublicIdentity,
   type PubkySecretKeyMaterial,
 } from "../pubky/pubkyIdentityKey";
 import type {
@@ -62,7 +62,8 @@ export class LocalStorageIdentityRepository {
 
   /** Creates or replaces an identity, persists declared fields, and makes it active. */
   save(identity: LocalIdentityMetadata, secretKey: PubkySecretKeyMaterial): LocalIdentityResult<LocalIdentityMetadata> {
-    if (!isPublicIdentity(identity.publicIdentity)) {
+    if (!isPubkyPublicIdentity(identity.publicIdentity)
+      || (identity.googleAccount !== undefined && !isGoogleAccount(identity.googleAccount))) {
       return failure("save", "invalid_identity");
     }
     if (secretKey.format !== PUBKY_SECRET_KEY_FORMAT || secretKey.bytes.byteLength !== PUBKY_SECRET_KEY_BYTES) {
@@ -258,19 +259,12 @@ function isStoredIdentity(value: unknown): value is StoredLocalIdentity {
     || !hasExactKeys(value, value.googleAccount === undefined
       ? ["publicIdentity", "secretKey"]
       : ["publicIdentity", "googleAccount", "secretKey"])
-    || !isPublicIdentity(value.publicIdentity)) {
+    || !isPubkyPublicIdentity(value.publicIdentity)) {
     return false;
   }
 
   return isEncodedSecretKey(value.secretKey)
     && (value.googleAccount === undefined || isGoogleAccount(value.googleAccount));
-}
-
-function isPublicIdentity(value: unknown): value is PubkyPublicIdentity {
-  return isRecord(value)
-    && hasExactKeys(value, ["publicKeyZ32", "publicKeyDisplay"])
-    && isNonEmptyString(value.publicKeyZ32)
-    && isNonEmptyString(value.publicKeyDisplay);
 }
 
 function isGoogleAccount(value: unknown): value is GoogleAccountProfile {

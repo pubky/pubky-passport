@@ -6,7 +6,9 @@ import type { PassportFileEnvelopeV1 } from "../passportFileEnvelope";
 import { GoogleDriveVisibleRecoveryCopies } from "./VisibleRecoveryCopies";
 
 const ACCESS_TOKEN = "SECRET-DRIVE-TOKEN";
-const PUBLIC_KEY_DISPLAY = "pubky1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
+const PUBLIC_KEY_Z32 = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
+const PUBLIC_KEY_DISPLAY = `pubky${PUBLIC_KEY_Z32}`;
+const PUBLIC_IDENTITY = { publicKeyZ32: PUBLIC_KEY_Z32, publicKeyDisplay: PUBLIC_KEY_DISPLAY };
 const VISIBLE_FILE_NAME = `${PUBLIC_KEY_DISPLAY}.json`;
 const ENVELOPE: PassportFileEnvelopeV1 = {
   v: 1,
@@ -37,7 +39,7 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
 
     const result = await visibleCopies.createVisibleRecoveryCopy(
       ENVELOPE,
-      PUBLIC_KEY_DISPLAY,
+      PUBLIC_IDENTITY,
       new AbortController().signal,
     );
 
@@ -73,8 +75,8 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
     const createVisibleCopies = () => new GoogleDriveVisibleRecoveryCopies(ACCESS_TOKEN, drive.fetch);
 
     const [first, second] = await Promise.all([
-      createVisibleCopies().createVisibleRecoveryCopy(ENVELOPE, PUBLIC_KEY_DISPLAY),
-      createVisibleCopies().createVisibleRecoveryCopy(ENVELOPE, PUBLIC_KEY_DISPLAY),
+      createVisibleCopies().createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY),
+      createVisibleCopies().createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY),
     ]);
 
     expect(Result.isOk(first)).toBe(true);
@@ -86,7 +88,7 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const visibleCopies = createVisibleCopies([jsonResponse({ files: [FOLDER], nextPageToken: "more-folders" })]);
 
-    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_KEY_DISPLAY);
+    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY);
 
     expect(Result.isError(result) && result.error).toEqual({ code: "invalid_response" });
     expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {
@@ -104,7 +106,7 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const visibleCopies = createVisibleCopies([jsonResponse({ files: [] }), jsonResponse(createdFolder)]);
 
-    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_KEY_DISPLAY);
+    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY);
 
     expect(Result.isError(result) && result.error).toEqual({ code: "invalid_response" });
     expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {
@@ -115,17 +117,18 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
   });
 
   it.each([
-    ["missing prefix", "y".repeat(52)],
-    ["invalid alphabet", `pubky${"0".repeat(52)}`],
-    ["short key", `pubky${"y".repeat(51)}`],
-    ["long key", `pubky${"y".repeat(53)}`],
-    ["noncanonical suffix", `${PUBLIC_KEY_DISPLAY.slice(0, -1)}n`],
-  ])("rejects %s public identity filename input without accessing Drive", async (_case, publicKeyDisplay) => {
+    ["missing prefix", { ...PUBLIC_IDENTITY, publicKeyDisplay: "y".repeat(52) }],
+    ["invalid alphabet", { ...PUBLIC_IDENTITY, publicKeyDisplay: `pubky${"0".repeat(52)}` }],
+    ["short key", { ...PUBLIC_IDENTITY, publicKeyDisplay: `pubky${"y".repeat(51)}` }],
+    ["long key", { ...PUBLIC_IDENTITY, publicKeyDisplay: `pubky${"y".repeat(53)}` }],
+    ["noncanonical suffix", { ...PUBLIC_IDENTITY, publicKeyDisplay: `${PUBLIC_KEY_DISPLAY.slice(0, -1)}n` }],
+    ["mismatched forms", { ...PUBLIC_IDENTITY, publicKeyDisplay: `pubky${"y".repeat(52)}` }],
+  ])("rejects %s public identity filename input without accessing Drive", async (_case, publicIdentity) => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const calls: SanitizedCall[] = [];
     const visibleCopies = createVisibleCopies([], calls);
 
-    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, publicKeyDisplay);
+    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, publicIdentity);
 
     expect(Result.isError(result) && result.error).toEqual({ code: "invalid_file" });
     expect(calls).toEqual([]);
@@ -139,7 +142,7 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const visibleCopies = createVisibleCopies([jsonResponse({ files: "SECRET-MALFORMED-SHAPE" })]);
 
-    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_KEY_DISPLAY);
+    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY);
 
     expect(Result.isError(result) && result.error).toEqual({ code: "invalid_response" });
     expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {
@@ -156,7 +159,7 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
       new Response("{}", { headers: { "Content-Length": String(16 * 1024 + 1) } }),
     ], calls);
 
-    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_KEY_DISPLAY);
+    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY);
 
     expect(Result.isError(result) && result.error).toEqual({ code: "invalid_response" });
     expect(calls).toHaveLength(1);
@@ -166,7 +169,7 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const visibleCopies = createVisibleCopies([jsonResponse({ error: "SECRET-UPSTREAM-BODY" }, 403)]);
 
-    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_KEY_DISPLAY);
+    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY);
 
     expect(Result.isError(result) && result.error).toEqual({ code: "forbidden" });
     expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {
@@ -186,7 +189,7 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
     controller.abort();
     const visibleCopies = createVisibleCopies([], calls);
 
-    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_KEY_DISPLAY, controller.signal);
+    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, controller.signal);
 
     expect(Result.isError(result) && result.error).toEqual({ code: "network_failed" });
     expect(calls).toEqual([]);
@@ -207,7 +210,7 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
     }) as typeof fetch;
     const visibleCopies = new GoogleDriveVisibleRecoveryCopies(ACCESS_TOKEN, fetchMock);
 
-    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_KEY_DISPLAY, controller.signal);
+    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, controller.signal);
 
     expect(Result.isError(result) && result.error).toEqual({ code: "network_failed" });
     expect(calls).toHaveLength(1);
@@ -225,7 +228,7 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
       new Error("SECRET-LOST-UPLOAD-RESPONSE"),
     ], calls);
 
-    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_KEY_DISPLAY);
+    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY);
 
     expect(Result.isError(result) && result.error).toEqual({ code: "network_failed" });
     expect(calls).toHaveLength(2);
@@ -241,7 +244,7 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
       jsonResponse({ ...created, trashed: false, parents: ["WRONG-FOLDER"] }),
     ]);
 
-    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_KEY_DISPLAY);
+    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY);
 
     expect(Result.isError(result) && result.error).toEqual({ code: "invalid_response" });
     expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {

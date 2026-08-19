@@ -5,8 +5,9 @@ import { LOGGER } from "../../../../libs/logger/logger";
 import { GoogleDriveVisibleRecoveryCopies } from "./VisibleRecoveryCopies";
 
 const TOKEN = "SECRET-DRIVE-TOKEN";
-const PUBLIC_KEY = "pubky1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
-const FILE_NAME = `${PUBLIC_KEY}.json`;
+const PUBLIC_KEY_Z32 = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
+const PUBLIC_IDENTITY = { publicKeyZ32: PUBLIC_KEY_Z32, publicKeyDisplay: `pubky${PUBLIC_KEY_Z32}` };
+const FILE_NAME = `${PUBLIC_IDENTITY.publicKeyDisplay}.json`;
 const FOLDER = {
   id: "folder-1",
   name: "Pubky Passport",
@@ -29,9 +30,9 @@ describe("GoogleDriveVisibleRecoveryCopies deletion", () => {
       emptyResponse(),
     ], calls);
 
-    const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_KEY);
+    const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_IDENTITY);
 
-    expect(Result.isOk(result) && result.value).toEqual({ deletedCount: 3 });
+    expect(Result.isOk(result)).toBe(true);
     expect(calls.filter((call) => call.method === "DELETE").map((call) => call.fileId)).toEqual([
       "copy-1",
       "copy-2",
@@ -52,10 +53,30 @@ describe("GoogleDriveVisibleRecoveryCopies deletion", () => {
       emptyResponse(),
     ], calls);
 
-    const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_KEY);
+    const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_IDENTITY);
 
-    expect(Result.isOk(result) && result.value.deletedCount).toBe(2);
+    expect(Result.isOk(result)).toBe(true);
     expect(calls.find((call) => call.pageToken === "next-page")).toBeDefined();
+    expect(calls.filter((call) => call.method === "DELETE").map((call) => call.fileId)).toEqual([
+      "copy-1",
+      "copy-2",
+    ]);
+  });
+
+  it("requests at most 25 files per list page", async () => {
+    const calls: SanitizedCall[] = [];
+    const files = Array.from({ length: 25 }, (_, index) => visibleFile(`copy-${index}`, "folder-1"));
+    const visibleCopies = createVisibleCopies([
+      jsonResponse({ files: [FOLDER] }),
+      jsonResponse({ files }),
+      ...files.map(() => emptyResponse()),
+    ], calls);
+
+    const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_IDENTITY);
+
+    expect(Result.isOk(result)).toBe(true);
+    expect(calls.filter((call) => call.method === "DELETE")).toHaveLength(25);
+    expect(calls.filter((call) => call.method === "GET").every((call) => call.pageSize === "25")).toBe(true);
   });
 
   it("stops and reports failure when any visible copy cannot be deleted", async () => {
@@ -66,7 +87,7 @@ describe("GoogleDriveVisibleRecoveryCopies deletion", () => {
       jsonResponse({}, 403),
     ]);
 
-    const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_KEY);
+    const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_IDENTITY);
 
     expect(Result.isError(result) && result.error).toEqual({ code: "forbidden" });
   });
@@ -78,7 +99,7 @@ describe("GoogleDriveVisibleRecoveryCopies deletion", () => {
     });
     const visibleCopies = createVisibleCopies([response], calls);
 
-    const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_KEY);
+    const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_IDENTITY);
 
     expect(Result.isError(result) && result.error).toEqual({ code: "invalid_response" });
     expect(calls).toHaveLength(1);
@@ -91,10 +112,23 @@ describe("GoogleDriveVisibleRecoveryCopies deletion", () => {
       jsonResponse({ files: [], nextPageToken: "repeated-page" }),
     ], calls);
 
-    const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_KEY);
+    const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_IDENTITY);
 
     expect(Result.isError(result) && result.error).toEqual({ code: "invalid_response" });
     expect(calls).toHaveLength(2);
+  });
+
+  it("stops before requesting a 101st list page", async () => {
+    const calls: SanitizedCall[] = [];
+    const responses = Array.from({ length: 100 }, (_, index) => (
+      jsonResponse({ files: [], nextPageToken: `page-${index + 1}` })
+    ));
+    const visibleCopies = createVisibleCopies(responses, calls);
+
+    const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_IDENTITY);
+
+    expect(Result.isError(result) && result.error).toEqual({ code: "invalid_response" });
+    expect(calls).toHaveLength(100);
   });
 
   it("logs deletion failures without retaining tokens or upstream bodies", async () => {
@@ -103,7 +137,7 @@ describe("GoogleDriveVisibleRecoveryCopies deletion", () => {
       new Response("SECRET-UPSTREAM-BODY", { status: 403 }),
     ]);
 
-    const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_KEY);
+    const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_IDENTITY);
 
     expect(Result.isError(result) && result.error).toEqual({ code: "forbidden" });
     expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {
@@ -119,7 +153,10 @@ describe("GoogleDriveVisibleRecoveryCopies deletion", () => {
     const fetch = vi.fn<typeof globalThis.fetch>();
     const visibleCopies = new GoogleDriveVisibleRecoveryCopies(TOKEN, fetch);
 
-    const result = await visibleCopies.deleteVisibleRecoveryCopies("not-a-pubky");
+    const result = await visibleCopies.deleteVisibleRecoveryCopies({
+      publicKeyZ32: "not-a-pubky",
+      publicKeyDisplay: "not-a-pubky",
+    });
 
     expect(Result.isError(result) && result.error).toEqual({ code: "invalid_file" });
     expect(fetch).not.toHaveBeenCalled();
@@ -130,6 +167,7 @@ type SanitizedCall = {
   method: string;
   fileId: string | null;
   pageToken: string | null;
+  pageSize: string | null;
   hasExpectedToken: boolean;
 };
 
@@ -140,6 +178,7 @@ function createVisibleCopies(responses: Response[], calls: SanitizedCall[] = [])
       method: init?.method ?? "GET",
       fileId: init?.method === "DELETE" ? url.pathname.split("/").at(-1) ?? null : null,
       pageToken: url.searchParams.get("pageToken"),
+      pageSize: url.searchParams.get("pageSize"),
       hasExpectedToken: new Headers(init?.headers).get("Authorization") === `Bearer ${TOKEN}`,
     });
     const response = responses.shift();

@@ -5,11 +5,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryStorage } from "../../../../test-utils/fakes/MemoryStorage";
 import { expectResultError, expectResultOk } from "../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../libs/logger/logger";
-import { PUBKY_SECRET_KEY_FORMAT } from "../pubky/pubkyIdentityKey";
+import { PUBKY_SECRET_KEY_FORMAT, type PubkyPublicIdentity } from "../pubky/pubkyIdentityKey";
 import { LocalStorageIdentityRepository } from "./LocalStorageIdentityRepository";
 
-const FIRST_IDENTITY = { publicKeyZ32: "firstidentity111111111111111111111111111111111111111111", publicKeyDisplay: "pubkyfirstidentity111111111111111111111111111111111111111111" };
-const SECOND_IDENTITY = { publicKeyZ32: "secondidentity11111111111111111111111111111111111111111", publicKeyDisplay: "pubkysecondidentity11111111111111111111111111111111111111111" };
+const FIRST_PUBLIC_KEY_Z32 = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
+const SECOND_PUBLIC_KEY_Z32 = "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo";
+const FIRST_IDENTITY = { publicKeyZ32: FIRST_PUBLIC_KEY_Z32, publicKeyDisplay: `pubky${FIRST_PUBLIC_KEY_Z32}` };
+const SECOND_IDENTITY = { publicKeyZ32: SECOND_PUBLIC_KEY_Z32, publicKeyDisplay: `pubky${SECOND_PUBLIC_KEY_Z32}` };
 
 describe("LocalStorageIdentityRepository", () => {
   afterEach(() => {
@@ -137,6 +139,42 @@ describe("LocalStorageIdentityRepository", () => {
     expect(expectResultOk(new LocalStorageIdentityRepository(storage).list()).identities[0]?.googleAccount).toEqual(googleAccount);
   });
 
+  it.each([
+    ["an empty account id", { id: "", email: "user@example.com", name: "User", pictureUrl: null }],
+    ["a remote avatar", { id: "google-1", email: "user@example.com", name: "User", pictureUrl: "https://example.com/avatar.png" }],
+    ["an undeclared account field", {
+      id: "google-1",
+      email: "user@example.com",
+      name: "User",
+      pictureUrl: null,
+      driveAccessToken: "SENSITIVE-DRIVE-TOKEN",
+    }],
+  ])("rejects Google metadata with %s before writing", (_case, googleAccount) => {
+    const storage = new MemoryStorage();
+    const repository = new LocalStorageIdentityRepository(storage);
+
+    expectResultError(repository.save(
+      { publicIdentity: FIRST_IDENTITY, googleAccount },
+      { bytes: new Uint8Array(32).fill(1), format: PUBKY_SECRET_KEY_FORMAT },
+    ), { code: "invalid_identity" });
+    expect(storage.getItem("pubky-passport/local-identities/v1")).toBeNull();
+  });
+
+  it.each([
+    ["a malformed z32 key", { ...FIRST_IDENTITY, publicKeyZ32: "not-a-pubky" }],
+    ["a mismatched display key", { ...FIRST_IDENTITY, publicKeyDisplay: SECOND_IDENTITY.publicKeyDisplay }],
+    ["an undeclared field", { ...FIRST_IDENTITY, unexpected: true }],
+  ])("rejects a public identity with %s before writing", (_case, publicIdentity) => {
+    const storage = new MemoryStorage();
+    const repository = new LocalStorageIdentityRepository(storage);
+
+    expectResultError(repository.save(
+      { publicIdentity },
+      { bytes: new Uint8Array(32).fill(1), format: PUBKY_SECRET_KEY_FORMAT },
+    ), { code: "invalid_identity" });
+    expect(storage.getItem("pubky-passport/local-identities/v1")).toBeNull();
+  });
+
   it("serializes only the declared public metadata fields", () => {
     const storage = new MemoryStorage();
     const repository = new LocalStorageIdentityRepository(storage);
@@ -219,7 +257,7 @@ describe("LocalStorageIdentityRepository", () => {
 
 });
 
-function save(repository: LocalStorageIdentityRepository, publicIdentity: typeof FIRST_IDENTITY, byte: number) {
+function save(repository: LocalStorageIdentityRepository, publicIdentity: PubkyPublicIdentity, byte: number) {
   return expectResultOk(repository.save(
     { publicIdentity },
     { bytes: new Uint8Array(32).fill(byte), format: PUBKY_SECRET_KEY_FORMAT },

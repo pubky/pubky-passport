@@ -58,7 +58,7 @@ describe("LocalIdentityController", () => {
   });
 
   it("creates an SDK recovery file for the requested local identity", async () => {
-    const publicKeyZ32 = "x8jpihgjy51fdnaingcp8rum1omfzd6p8bhm7usune41grd97dho5cwy4mra";
+    const publicKeyZ32 = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
     const repository = new LocalStorageIdentityRepository();
     expectResultOk(repository.save(
       { publicIdentity: { publicKeyDisplay: `pubky${publicKeyZ32}`, publicKeyZ32 } },

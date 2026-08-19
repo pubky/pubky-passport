@@ -5,21 +5,17 @@ import { readBoundedText } from "../../../../libs/http/boundedBody";
 const MAXIMUM_JSON_RESPONSE_BYTES = 16 * 1024;
 const MULTIPART_BOUNDARY = "pubky-passport-drive-boundary-v1";
 
-/** Google Drive v3 metadata endpoint. */
 export const DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files";
-/** Google Drive v3 media-upload endpoint. */
 export const DRIVE_UPLOAD_FILES_URL = "https://www.googleapis.com/upload/drive/v3/files";
-/** Content type for the fixed-boundary multipart bodies produced by this module. */
 export const DRIVE_MULTIPART_CONTENT_TYPE = `multipart/related; boundary=${MULTIPART_BOUNDARY}`;
 
-/** Untrusted JSON object returned by Google Drive. */
 export type DriveFile = Record<string, unknown>;
-/** Structurally validated Drive file-list response. */
 export type DriveFileList = { files: DriveFile[]; nextPageToken?: string };
+export type DriveFileRevision = Readonly<{ storageId: string; revision: string }>;
 
 /**
- * Executes a Drive request without allowing transport exceptions to escape.
- * Returns `null` for network, abort, and other fetch failures.
+ * Executes an isolated, non-cacheable Drive request without leaking transport
+ * exceptions. Returns `null` for network, abort, and other fetch failures.
  */
 export async function fetchDrive(
   fetchImpl: typeof fetch,
@@ -27,7 +23,13 @@ export async function fetchDrive(
   init: RequestInit,
 ): Promise<Response | null> {
   try {
-    return await fetchImpl(input, init);
+    return await fetchImpl(input, {
+      ...init,
+      cache: "no-store",
+      credentials: "omit",
+      redirect: "error",
+      referrerPolicy: "no-referrer",
+    });
   } catch {
     return null;
   }
@@ -47,7 +49,6 @@ export async function readDriveJson(response: Response): Promise<unknown | null>
   }
 }
 
-/** Validates the outer structure of a Drive file-list response. */
 export function parseDriveFileList(value: unknown): DriveFileList | null {
   if (!isDriveFile(value)) return null;
   if (!Array.isArray(value.files) || !value.files.every(isDriveFile)) return null;
@@ -58,24 +59,30 @@ export function parseDriveFileList(value: unknown): DriveFileList | null {
   };
 }
 
-/** Returns whether a value is a plain object suitable for field validation. */
 export function isDriveFile(value: unknown): value is DriveFile {
   return Boolean(value)
     && typeof value === "object"
     && Object.getPrototypeOf(value) === Object.prototype;
 }
 
-/** Narrows an unknown Drive field to a non-empty string. */
 export function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
 
-/** Creates a bearer authorization header for a Drive request. */
+export function parseDriveFileRevision(file: DriveFile): DriveFileRevision | null {
+  return isNonEmptyString(file.id) && isNonEmptyString(file.version)
+    ? { storageId: file.id, revision: file.version }
+    : null;
+}
+
+export function sameDriveFileRevision(left: DriveFileRevision, right: DriveFileRevision): boolean {
+  return left.storageId === right.storageId && left.revision === right.revision;
+}
+
 export function authorizationHeaders(token: string): { Authorization: string } {
   return { Authorization: `Bearer ${token}` };
 }
 
-/** Maps Drive authorization statuses while preserving the operation fallback. */
 export function mapDriveStatus<Fallback extends string>(
   status: number,
   fallback: Fallback,
@@ -85,7 +92,6 @@ export function mapDriveStatus<Fallback extends string>(
   return fallback;
 }
 
-/** Builds a Drive multipart body containing JSON metadata and JSON file contents. */
 export function multipartBody(contents: string, metadata: Record<string, unknown>): string {
   return [
     `--${MULTIPART_BOUNDARY}`,
@@ -101,7 +107,6 @@ export function multipartBody(contents: string, metadata: Record<string, unknown
   ].join("\r\n");
 }
 
-/** Builds an exact Drive file endpoint with the opaque file ID URL-encoded. */
 export function driveFileUrl(fileId: string): string {
   return `${DRIVE_FILES_URL}/${encodeURIComponent(fileId)}`;
 }

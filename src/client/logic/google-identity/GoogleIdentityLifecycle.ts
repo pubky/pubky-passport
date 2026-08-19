@@ -268,7 +268,7 @@ export class GoogleIdentityLifecycle {
       const visibleCopyConfirmed = await this.createVisibleRecoveryCopy(
         visibleCopies,
         envelope,
-        created.value.publicIdentity.publicKeyDisplay,
+        created.value.publicIdentity,
       );
       if (!visibleCopyConfirmed) {
         visibleRecoveryCopyStatus = "unconfirmed";
@@ -511,7 +511,7 @@ export class GoogleIdentityLifecycle {
       this.fetch,
     );
     const deletedVisibleCopies = await visibleCopies.deleteVisibleRecoveryCopies(
-      publicIdentity.publicKeyDisplay,
+      publicIdentity,
     );
     if (Result.isError(deletedVisibleCopies)) return null;
     if (storedFile.value.status === "missing") return "missing";
@@ -523,7 +523,7 @@ export class GoogleIdentityLifecycle {
   private async createVisibleRecoveryCopy(
     visibleCopies: GoogleDriveVisibleRecoveryCopies,
     envelope: PassportFileEnvelopeV1,
-    publicKeyDisplay: string,
+    publicIdentity: PubkyPublicIdentity,
   ): Promise<boolean> {
     const controller = new AbortController();
     return new Promise((resolve) => {
@@ -541,7 +541,7 @@ export class GoogleIdentityLifecycle {
 
       void visibleCopies.createVisibleRecoveryCopy(
         envelope,
-        publicKeyDisplay,
+        publicIdentity,
         controller.signal,
       ).then(
         (result) => finish(!Result.isError(result)),
