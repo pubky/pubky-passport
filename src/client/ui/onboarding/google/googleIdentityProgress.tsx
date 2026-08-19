@@ -1,6 +1,6 @@
 "use client";
 
-import type { GoogleBackedIdentityProgress } from "../../../logic/identity/PassportIdentityController";
+import type { GoogleIdentityPhase } from "../../../logic/google-identity/GoogleIdentityFlow";
 import { PassportScreen } from "../../shared/layout/passportScreen";
 import { Spinner } from "../../shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
@@ -8,7 +8,7 @@ import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
 type StepState = "complete" | "active" | "pending";
 type SetupStep = { label: string; state: StepState };
 
-function GoogleIdentityProgress({ progress }: { progress: GoogleBackedIdentityProgress }) {
+function GoogleIdentityProgress({ progress }: { progress: GoogleIdentityPhase }) {
   if (progress === "checking_passport_file") {
     return <IdentityLookup />;
   }
@@ -53,7 +53,7 @@ function ProgressStep({ step }: { step: SetupStep }) {
   );
 }
 
-function progressSteps(progress: GoogleBackedIdentityProgress): SetupStep[] {
+function progressSteps(progress: GoogleIdentityPhase): SetupStep[] {
   if (progress === "restoring_identity"
     || progress === "repairing_restored_identity"
     || progress === "activating_restored_identity") {

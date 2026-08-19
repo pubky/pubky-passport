@@ -1,6 +1,6 @@
 "use client";
 
-import type { LocalIdentityMetadata } from "../../../logic/identity/PassportIdentityController";
+import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import { UserRoundPlusIcon } from "../../shared/icons/actionIcons";
 import { PassportScreen } from "../../shared/layout/passportScreen";
 import { BackButton } from "../../shared/navigation/backButton";
@@ -8,12 +8,12 @@ import { Button } from "../../shared/primitives/button";
 import { DisplayHeading } from "../../shared/primitives/typography";
 import { IdentityRow } from "./identityRow";
 
-function IdentitySwitcher({ activeIdentityId, identities, onAddIdentity, onBack, onSelect }: {
-  activeIdentityId: string | null;
+function IdentitySwitcher({ activePublicKeyZ32, identities, onAddIdentity, onBack, onSelect }: {
+  activePublicKeyZ32: string | null;
   identities: LocalIdentityMetadata[];
   onAddIdentity: () => void;
   onBack: () => void;
-  onSelect: (identityId: string) => void;
+  onSelect: (publicKeyZ32: string) => void;
 }) {
   return (
     <PassportScreen className="gap-8">
@@ -22,15 +22,16 @@ function IdentitySwitcher({ activeIdentityId, identities, onAddIdentity, onBack,
         <p className="text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">Select a Pubky</p>
         {identities.map((identity) => {
           const account = identity.googleAccount;
+          const publicKeyZ32 = identity.publicIdentity.publicKeyZ32;
           return (
             <IdentityRow
               {...(account?.pictureUrl ? { avatarSrc: account.pictureUrl } : {})}
-              detail={shortPublicKey(identity.publicIdentity.publicKeyZ32)}
-              key={identity.id}
+              detail={shortPublicKey(publicKeyZ32)}
+              key={publicKeyZ32}
               name={account?.name ?? "Your Pubky"}
-              onClick={() => onSelect(identity.id)}
+              onClick={() => onSelect(publicKeyZ32)}
               {...(account ? { provider: "google" } : {})}
-              selected={identity.id === activeIdentityId}
+              selected={publicKeyZ32 === activePublicKeyZ32}
             />
           );
         })}

@@ -1,14 +1,12 @@
 "use client";
 
 import { Result } from "better-result";
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
-import type {
-  GoogleAccountProfile,
-  GoogleBackedIdentityFlow,
-  PassportIdentityController,
-  PubkyPublicIdentity,
-} from "../../../logic/identity/PassportIdentityController";
+import { GoogleIdentityFlow } from "../../../logic/google-identity/GoogleIdentityFlow";
+import type { GoogleIdentityConfiguration } from "../../../logic/google-identity/GoogleIdentityFlow";
+import type { GoogleAccountProfile } from "../../../logic/local-identity/localIdentityModels";
+import type { PubkyPublicIdentity } from "../../../logic/pubky/pubkyIdentityKey";
 import {
   INITIAL_GOOGLE_SIGN_IN_STATE,
   transitionGoogleSignIn,
@@ -21,11 +19,13 @@ type GoogleIdentityEstablished = {
 };
 
 function useGoogleSignIn(
-  controller: PassportIdentityController,
+  configuration: GoogleIdentityConfiguration,
   onEstablished?: (identity: GoogleIdentityEstablished) => void,
 ) {
+  const { googleClientId, homegateBaseUrl } = configuration;
   const operationPendingRef = useRef(false);
-  const flowRef = useRef<GoogleBackedIdentityFlow | null>(null);
+  const flowRef = useRef<GoogleIdentityFlow | null>(null);
+  const [flowReady, setFlowReady] = useState(false);
   const [state, dispatch] = useReducer(
     transitionGoogleSignIn,
     INITIAL_GOOGLE_SIGN_IN_STATE,
@@ -90,35 +90,44 @@ function useGoogleSignIn(
   }, []);
 
   useEffect(() => {
-    const googleFlow = controller.startGoogleIdentityFlow((nextState) => {
-      switch (nextState.status) {
-        case "ready":
-          dispatch({ type: "authorization-ready" });
-          return;
-        case "authorization-failed":
-          dispatch({ type: "authorization-denied" });
-          return;
-        case "requesting-authorization":
-          dispatch({ type: "request-started" });
-          return;
-        case "establishing":
-          dispatch({ type: "progress-reported", progress: nextState.progress });
-          return;
-        case "detaching":
-          return;
-      }
+    let active = true;
+    let googleFlow: GoogleIdentityFlow;
+    queueMicrotask(() => {
+      if (active) setFlowReady(false);
     });
-    flowRef.current = googleFlow;
+    try {
+      googleFlow = new GoogleIdentityFlow({ googleClientId, homegateBaseUrl }, (nextState) => {
+        switch (nextState.status) {
+          case "requesting-authorization":
+            dispatch({ type: "request-started" });
+            return;
+          case "establishing":
+            dispatch({ type: "progress-reported", progress: nextState.progress });
+            return;
+          case "detaching":
+            return;
+        }
+      });
+      flowRef.current = googleFlow;
+      queueMicrotask(() => {
+        if (active && flowRef.current === googleFlow) setFlowReady(true);
+      });
+    } catch {
+      dispatch({ type: "operation-failed", error: { code: "operation_failed" } });
+      return;
+    }
 
     return () => {
+      active = false;
       flowRef.current = null;
       googleFlow.dispose();
     };
-  }, [controller]);
+  }, [googleClientId, homegateBaseUrl]);
 
   return {
     back,
-    start: establishIdentity,
+    establishIdentity,
+    flowReady,
     state,
   };
 }

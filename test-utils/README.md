@@ -14,7 +14,7 @@ split solely because a file crosses an arbitrary line count.
 | Use-case ordering, typed failures, and cleanup | Application tests with narrow fakes |
 | Provider request shape and error mapping | Adapter contract tests |
 | Safe view state and explicit approval gating | Controller and component tests |
-| Runtime, SDK, UI-entry, and persistence confinement | ESLint plus architecture graph tests |
+| Runtime, SDK, secret-bearing capability, and persistence confinement | ESLint plus architecture graph tests |
 | Query scrubbing, response headers, CSP, and browser secrecy | Playwright |
 | Real signup, discovery, signin, and approval | Staging integration validation |
 

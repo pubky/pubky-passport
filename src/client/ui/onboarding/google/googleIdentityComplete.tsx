@@ -2,10 +2,8 @@
 
 import Image from "next/image";
 
-import type {
-  GoogleAccountProfile,
-  PubkyPublicIdentity,
-} from "../../../logic/identity/PassportIdentityController";
+import type { GoogleAccountProfile } from "../../../logic/local-identity/localIdentityModels";
+import type { PubkyPublicIdentity } from "../../../logic/pubky/pubkyIdentityKey";
 import { PassportScreen } from "../../shared/layout/passportScreen";
 import { Button } from "../../shared/primitives/button";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";

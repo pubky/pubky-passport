@@ -8,7 +8,7 @@ import {
   MIN_BACKUP_PASSWORD_LENGTH,
   type LocalIdentityBackupFile,
   type LocalIdentityBackupResult,
-} from "../../../../logic/identity/PassportIdentityController";
+} from "../../../../logic/local-identity/LocalIdentityController";
 import { DownloadBackupIcon } from "../../../shared/icons/actionIcons";
 import { PassportScreen } from "../../../shared/layout/passportScreen";
 import { BackButton } from "../../../shared/navigation/backButton";
@@ -18,9 +18,9 @@ import { Input } from "../../../shared/primitives/input";
 import { Label } from "../../../shared/primitives/label";
 import { DisplayHeading, LeadText } from "../../../shared/primitives/typography";
 
-function EncryptedBackup({ createBackup, identityId, onBack }: {
-  createBackup: (identityId: string, password: string) => Promise<LocalIdentityBackupResult>;
-  identityId: string;
+function EncryptedBackup({ createBackup, publicKeyZ32, onBack }: {
+  createBackup: (publicKeyZ32: string, password: string) => Promise<LocalIdentityBackupResult>;
+  publicKeyZ32: string;
   onBack: () => void;
 }) {
   const [password, setPassword] = useState("");
@@ -34,7 +34,7 @@ function EncryptedBackup({ createBackup, identityId, onBack }: {
     setPending(true);
     setError(false);
     try {
-      const backup = await createBackup(identityId, password);
+      const backup = await createBackup(publicKeyZ32, password);
       if (Result.isError(backup) || !downloadFile(backup.value)) setError(true);
       else setPassword("");
     } catch {

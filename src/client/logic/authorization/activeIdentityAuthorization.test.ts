@@ -2,9 +2,11 @@ import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LOGGER } from "../../../libs/logger/logger";
-import { RestoreActiveLocalIdentityKey } from "../identity/local/RestoreActiveLocalIdentityKey";
 import { RecordingPubkySdkAdapter } from "../../../../test-utils/fakes/RecordingPubkySdkAdapter";
-import { ActiveIdentityAuthorization } from "./ActiveIdentityAuthorization";
+import {
+  ActiveIdentityAuthorization,
+  restoreActiveLocalIdentity,
+} from "./ActiveIdentityAuthorization";
 import { IssuedPubkyAuthRequest } from "./IssuedPubkyAuthRequest";
 
 const REQUEST = "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
@@ -19,7 +21,7 @@ describe("ActiveIdentityAuthorization", () => {
     const restored = await createIdentity(pubky);
     const result = await new ActiveIdentityAuthorization(
       () => pubky,
-      () => restorer(pubky, Result.ok(restored)),
+      restorer(Result.ok(restored)),
     ).approve(request());
 
     expect(Result.isOk(result)).toBe(true);
@@ -29,11 +31,11 @@ describe("ActiveIdentityAuthorization", () => {
 
   it("returns a safe missing-identity error without approving", async () => {
     const pubky = new RecordingPubkySdkAdapter();
-    const restoreActiveIdentity = restorer(pubky, Result.err({ code: "no_active_identity" }));
+    const restoreActiveIdentity = restorer(Result.err({ code: "no_active_identity" }));
 
     const result = await new ActiveIdentityAuthorization(
       () => pubky,
-      () => restoreActiveIdentity,
+      restoreActiveIdentity,
     ).approve(request());
 
     expect(Result.isError(result) && result.error).toEqual({ code: "no_active_identity" });
@@ -48,7 +50,7 @@ describe("ActiveIdentityAuthorization", () => {
 
     const result = await new ActiveIdentityAuthorization(
       () => pubky,
-      () => restorer(pubky, Result.ok(restored)),
+      restorer(Result.ok(restored)),
     ).approve(request());
 
     expect(Result.isError(result) && result.error).toEqual({ code: "approval_failed" });
@@ -58,12 +60,12 @@ describe("ActiveIdentityAuthorization", () => {
   it("maps unexpected restore and approval exceptions without exposing details", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const restorePubky = new RecordingPubkySdkAdapter();
-    const failedRestore = restorer(restorePubky, Result.err({ code: "no_active_identity" }));
-    vi.mocked(failedRestore.restore).mockRejectedValueOnce(new Error("sensitive restore details"));
+    const failedRestore = restorer(Result.err({ code: "no_active_identity" }));
+    failedRestore.mockRejectedValueOnce(new Error("sensitive restore details"));
 
     const restoreFailure = await new ActiveIdentityAuthorization(
       () => restorePubky,
-      () => failedRestore,
+      failedRestore,
     ).approve(request());
     expect(Result.isError(restoreFailure) && restoreFailure.error).toEqual({ code: "identity_restore_failed" });
 
@@ -72,7 +74,7 @@ describe("ActiveIdentityAuthorization", () => {
     vi.spyOn(approvalPubky, "approveAuthRequest").mockRejectedValueOnce(new Error("sensitive approval details"));
     const approvalFailure = await new ActiveIdentityAuthorization(
       () => approvalPubky,
-      () => restorer(approvalPubky, Result.ok(restored)),
+      restorer(Result.ok(restored)),
     ).approve(request());
     expect(Result.isError(approvalFailure) && approvalFailure.error).toEqual({ code: "approval_failed" });
 
@@ -87,24 +89,6 @@ describe("ActiveIdentityAuthorization", () => {
     expect(approvalPubky.disposedKeys).toEqual([restored.keyHandle]);
   });
 
-  it("maps restorer construction failures and disposes the adapter", async () => {
-    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const pubky = new RecordingPubkySdkAdapter();
-    const dispose = vi.spyOn(pubky, "dispose");
-
-    const result = await new ActiveIdentityAuthorization(
-      () => pubky,
-      () => { throw new Error("sensitive repository details"); },
-    ).approve(request());
-
-    expect(Result.isError(result) && result.error).toEqual({ code: "identity_restore_failed" });
-    expect(dispose).toHaveBeenCalledOnce();
-    expect(warning).toHaveBeenCalledWith("authorize.approval.failed", {
-      stage: "identity_restore",
-      code: "unexpected_failure",
-    });
-  });
-
   it("logs cleanup failures without changing the approval result", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const pubky = new RecordingPubkySdkAdapter();
@@ -113,7 +97,7 @@ describe("ActiveIdentityAuthorization", () => {
 
     const result = await new ActiveIdentityAuthorization(
       () => pubky,
-      () => restorer(pubky, Result.ok(restored)),
+      restorer(Result.ok(restored)),
     ).approve(request());
 
     expect(Result.isOk(result)).toBe(true);
@@ -137,13 +121,7 @@ async function createIdentity(pubky: RecordingPubkySdkAdapter) {
 }
 
 function restorer(
-  pubky: RecordingPubkySdkAdapter,
-  result: Awaited<ReturnType<RestoreActiveLocalIdentityKey["restore"]>>,
-): RestoreActiveLocalIdentityKey {
-  const restoreActiveIdentity = new RestoreActiveLocalIdentityKey(
-    () => Result.err({ code: "no_active_identity" }),
-    pubky,
-  );
-  vi.spyOn(restoreActiveIdentity, "restore").mockResolvedValue(result);
-  return restoreActiveIdentity;
+  result: Awaited<ReturnType<typeof restoreActiveLocalIdentity>>,
+) {
+  return vi.fn(async () => result);
 }

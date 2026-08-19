@@ -13,6 +13,11 @@ export type PubkyPublicIdentity = {
   publicKeyDisplay: string;
 };
 
+export type PubkyHomeserverResolutionResult = Result<
+  string | null,
+  { code: "invalid_pubky" | "resolution_failed" }
+>;
+
 export type PubkyIdentityKeyHandle = {
   readonly [pubkyIdentityKeyHandleBrand]: "PubkyIdentityKeyHandle";
 };

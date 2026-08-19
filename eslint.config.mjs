@@ -2,10 +2,6 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
-import { STABLE_CLIENT_LOGIC_UI_ENTRIES } from "./test-utils/architecture/architectureEntries.mjs";
-
-const STABLE_CLIENT_LOGIC_UI_ENTRY = `(?:${STABLE_CLIENT_LOGIC_UI_ENTRIES.join("|")})`;
-
 const ESLINT_CONFIG = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -23,26 +19,6 @@ const ESLINT_CONFIG = defineConfig([
     ignores: ["src/libs/logger/logger.ts"],
     rules: {
       "no-console": "error"
-    }
-  },
-  {
-    files: ["src/client/ui/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              regex: `^(?:\\.\\./)+logic/(?!${STABLE_CLIENT_LOGIC_UI_ENTRY}$)`,
-              message: "UI may import client logic only through stable APIs and controllers."
-            },
-            {
-              regex: `^@/client/logic/(?!${STABLE_CLIENT_LOGIC_UI_ENTRY}$)`,
-              message: "UI may import client logic only through stable APIs and controllers."
-            }
-          ]
-        }
-      ]
     }
   },
   {

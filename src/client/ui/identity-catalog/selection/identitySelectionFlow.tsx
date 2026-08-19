@@ -1,29 +1,27 @@
 "use client";
 
-import { Result } from "better-result";
 import { useReducer } from "react";
 
-import type {
-  PassportIdentityController,
-  LocalIdentityCatalog,
-} from "../../../logic/identity/PassportIdentityController";
+import type { GoogleIdentityConfiguration } from "../../../logic/google-identity/GoogleIdentityFlow";
+import type { LocalIdentityCatalog } from "../../../logic/local-identity/localIdentityModels";
 import { SignInFlow } from "../../onboarding/signInFlow";
 import type { GoogleIdentityEstablished } from "../../onboarding/google/useGoogleSignIn";
 import { IdentitySwitcher } from "./identitySwitcher";
 import { transitionIdentitySelection } from "./identitySelectionState";
 
-function IdentitySelectionFlow({ catalog, controller, onBack, onIdentityEstablished, onIdentitySelected }: {
+function IdentitySelectionFlow({ catalog, googleIdentityConfiguration, onBack, onIdentityEstablished, onIdentitySelected, selectIdentity }: {
   catalog: LocalIdentityCatalog;
-  controller: PassportIdentityController;
+  googleIdentityConfiguration: GoogleIdentityConfiguration;
   onBack: () => void;
   onIdentityEstablished?: (identity: GoogleIdentityEstablished) => void;
   onIdentitySelected: () => void;
+  selectIdentity: (publicKeyZ32: string) => boolean;
 }) {
   const [state, dispatch] = useReducer(transitionIdentitySelection, { view: "selection" });
 
   if (state.view === "add-identity") {
     return <SignInFlow
-      controller={controller}
+      googleIdentityConfiguration={googleIdentityConfiguration}
       onBack={() => dispatch({ type: "add-cancelled" })}
       onComplete={onIdentitySelected}
       {...(onIdentityEstablished ? { onEstablished: onIdentityEstablished } : {})}
@@ -31,13 +29,12 @@ function IdentitySelectionFlow({ catalog, controller, onBack, onIdentityEstablis
   }
 
   return <IdentitySwitcher
-    activeIdentityId={catalog.activeIdentityId}
+    activePublicKeyZ32={catalog.activePublicKeyZ32}
     identities={catalog.identities}
     onAddIdentity={() => dispatch({ type: "add-requested" })}
     onBack={onBack}
-    onSelect={(identityId) => {
-      const selected = controller.selectIdentity(identityId);
-      if (Result.isOk(selected)) onIdentitySelected();
+    onSelect={(publicKeyZ32) => {
+      if (selectIdentity(publicKeyZ32)) onIdentitySelected();
     }}
   />;
 }

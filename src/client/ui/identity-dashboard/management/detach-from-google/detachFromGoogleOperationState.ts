@@ -1,9 +1,8 @@
 "use client";
 
-import type { GoogleIdentityFlowError } from "../../../../logic/identity/PassportIdentityController";
+import type { GoogleIdentityFlowError } from "../../../../logic/google-identity/GoogleIdentityFlow";
 
 type DetachFromGoogleOperationState =
-  | { name: "preparing" }
   | { name: "ready" }
   | { name: "requesting-authorization" }
   | { name: "deleting-backup" }
@@ -12,23 +11,17 @@ type DetachFromGoogleOperationState =
   | { name: "complete" };
 
 type DetachFromGoogleOperationEvent =
-  | { type: "authorization-ready" }
   | { type: "authorization-failed" }
   | { type: "request-started" }
   | { type: "deletion-started" }
   | { type: "operation-failed"; error: GoogleIdentityFlowError }
-  | { type: "operation-completed" }
-  | { type: "retry-requested" };
+  | { type: "operation-completed" };
 
 function transitionDetachFromGoogleOperation(
-  state: DetachFromGoogleOperationState,
+  _state: DetachFromGoogleOperationState,
   event: DetachFromGoogleOperationEvent,
 ): DetachFromGoogleOperationState {
   switch (event.type) {
-    case "authorization-ready":
-      return state.name === "preparing" || state.name === "authorization-failed"
-        ? { name: "ready" }
-        : state;
     case "authorization-failed":
       return { name: "authorization-failed" };
     case "request-started":
@@ -39,8 +32,6 @@ function transitionDetachFromGoogleOperation(
       return { name: "operation-failed", error: event.error };
     case "operation-completed":
       return { name: "complete" };
-    case "retry-requested":
-      return state.name === "authorization-failed" ? { name: "preparing" } : state;
   }
 }
 

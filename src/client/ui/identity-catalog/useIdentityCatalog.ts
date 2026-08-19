@@ -4,9 +4,9 @@ import { Result } from "better-result";
 import { useEffect, useState } from "react";
 
 import {
-  PassportIdentityController,
-  type LocalIdentityCatalog,
-} from "../../logic/identity/PassportIdentityController";
+  LocalIdentityController,
+} from "../../logic/local-identity/LocalIdentityController";
+import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
 
 type IdentityCatalogState =
   | { status: "loading" }
@@ -14,11 +14,11 @@ type IdentityCatalogState =
   | {
     status: "ready";
     catalog: LocalIdentityCatalog;
-    controller: PassportIdentityController;
+    controller: LocalIdentityController;
     reloadIdentities: () => void;
   };
 
-function useIdentityCatalog(googleClientId: string, homegateBaseUrl: string): IdentityCatalogState {
+function useIdentityCatalog(): IdentityCatalogState {
   const [session, setSession] = useState<IdentityCatalogState>({ status: "loading" });
 
   useEffect(() => {
@@ -28,7 +28,7 @@ function useIdentityCatalog(googleClientId: string, homegateBaseUrl: string): Id
       if (cancelled) return;
       setSession({ status: "loading" });
       try {
-        const instance = new PassportIdentityController(googleClientId, homegateBaseUrl);
+        const instance = new LocalIdentityController();
         const publish = () => {
           const catalog = instance.listIdentities();
           if (cancelled) return;
@@ -50,7 +50,7 @@ function useIdentityCatalog(googleClientId: string, homegateBaseUrl: string): Id
     return () => {
       cancelled = true;
     };
-  }, [googleClientId, homegateBaseUrl]);
+  }, []);
 
   return session;
 }

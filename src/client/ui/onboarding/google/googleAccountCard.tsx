@@ -2,7 +2,7 @@
 
 import type { ComponentPropsWithoutRef } from "react";
 
-import type { GoogleAccountProfile } from "../../../logic/identity/PassportIdentityController";
+import type { GoogleAccountProfile } from "../../../logic/local-identity/localIdentityModels";
 import { GoogleLogo } from "../../shared/brand/googleLogo";
 import { cn } from "../../shared/mergeClassNames";
 import { Avatar } from "../../shared/primitives/avatar";

@@ -2,38 +2,27 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import type { GoogleAccountProfile } from "../../google-authorization/GoogleImplicitAuthorization";
-import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "../../../../libs/encoding/base64Url";
-import { LOGGER } from "../../../../libs/logger/logger";
+import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "../../../libs/encoding/base64Url";
+import { LOGGER } from "../../../libs/logger/logger";
 import {
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,
   type PubkyPublicIdentity,
   type PubkySecretKeyMaterial,
-} from "../../pubky/pubkyIdentityKey";
+} from "../pubky/pubkyIdentityKey";
+import type {
+  GoogleAccountProfile,
+  LocalIdentityCatalog,
+  LocalIdentityMetadata,
+} from "./localIdentityModels";
 
-/** UI-safe local identity metadata. Contains no secret key material. */
-export type LocalIdentityMetadata = {
-  id: string;
-  publicIdentity: PubkyPublicIdentity;
-  googleAccount?: GoogleAccountProfile;
-};
-
-/** UI-safe local identity collection. Contains no secret key material. */
-export type LocalIdentityCatalog = {
-  activeIdentityId: string | null;
-  identities: LocalIdentityMetadata[];
-};
-
-/** localStorage record containing the base64url-encoded 32-byte Pubky secret key. */
 type StoredLocalIdentity = LocalIdentityMetadata & {
   secretKey: string;
 };
 
-/** Versioned localStorage schema containing encoded Pubky secret keys. */
 type LocalIdentityStoreV1 = {
   v: typeof LOCAL_IDENTITY_STORE_VERSION;
-  activeIdentityId: string | null;
+  activePublicKeyZ32: string | null;
   identities: StoredLocalIdentity[];
 };
 
@@ -49,9 +38,16 @@ export type LocalIdentityResult<Success> = ResultType<Success, { code: LocalIden
 const STORAGE_KEY = "pubky-passport/local-identities/v1";
 const LOCAL_IDENTITY_STORE_VERSION = 1;
 
+/**
+ * Browser persistence boundary for local Pubky identities.
+ *
+ * Secret keys are stored unencrypted as canonical base64url. Only `read` and
+ * `readActive` return decoded key material.
+ */
 export class LocalStorageIdentityRepository {
   constructor(private storage: Storage | null = getLocalStorage()) {}
 
+  /** Returns the identity catalog without secret-key material. */
   list(): LocalIdentityResult<LocalIdentityCatalog> {
     const store = this.readStore();
     if (Result.isError(store)) {
@@ -59,13 +55,14 @@ export class LocalStorageIdentityRepository {
     }
 
     return Result.ok({
-      activeIdentityId: store.value.activeIdentityId,
+      activePublicKeyZ32: store.value.activePublicKeyZ32,
       identities: store.value.identities.map(toMetadata),
     });
   }
 
+  /** Creates or replaces an identity, persists declared fields, and makes it active. */
   save(identity: LocalIdentityMetadata, secretKey: PubkySecretKeyMaterial): LocalIdentityResult<LocalIdentityMetadata> {
-    if (identity.id !== identity.publicIdentity.publicKeyZ32) {
+    if (!isPublicIdentity(identity.publicIdentity)) {
       return failure("save", "invalid_identity");
     }
     if (secretKey.format !== PUBKY_SECRET_KEY_FORMAT || secretKey.bytes.byteLength !== PUBKY_SECRET_KEY_BYTES) {
@@ -78,10 +75,24 @@ export class LocalStorageIdentityRepository {
     }
 
     const storedIdentity: StoredLocalIdentity = {
-      ...identity,
+      publicIdentity: {
+        publicKeyZ32: identity.publicIdentity.publicKeyZ32,
+        publicKeyDisplay: identity.publicIdentity.publicKeyDisplay,
+      },
+      ...(identity.googleAccount ? {
+        googleAccount: {
+          id: identity.googleAccount.id,
+          email: identity.googleAccount.email,
+          name: identity.googleAccount.name,
+          pictureUrl: identity.googleAccount.pictureUrl,
+        },
+      } : {}),
       secretKey: encodeBase64Url(secretKey.bytes),
     };
-    const existingIndex = store.value.identities.findIndex((candidate) => candidate.id === storedIdentity.id);
+    const publicKeyZ32 = storedIdentity.publicIdentity.publicKeyZ32;
+    const existingIndex = store.value.identities.findIndex(
+      (candidate) => candidate.publicIdentity.publicKeyZ32 === publicKeyZ32,
+    );
     const identities = [...store.value.identities];
     if (existingIndex === -1) {
       identities.push(storedIdentity);
@@ -91,7 +102,7 @@ export class LocalStorageIdentityRepository {
 
     const nextStore: LocalIdentityStoreV1 = {
       v: LOCAL_IDENTITY_STORE_VERSION,
-      activeIdentityId: storedIdentity.id,
+      activePublicKeyZ32: publicKeyZ32,
       identities,
     };
     const written = this.writeStore(nextStore);
@@ -102,42 +113,50 @@ export class LocalStorageIdentityRepository {
     return Result.ok(toMetadata(storedIdentity));
   }
 
-  select(id: string): LocalIdentityResult<void> {
+  select(publicKeyZ32: string): LocalIdentityResult<void> {
     const store = this.readStore();
     if (Result.isError(store)) {
       return Result.err(store.error);
     }
 
-    if (!store.value.identities.some((identity) => identity.id === id)) {
+    if (!store.value.identities.some((identity) => identity.publicIdentity.publicKeyZ32 === publicKeyZ32)) {
       return failure("select", "invalid_identity");
     }
 
-    return this.writeStore({ ...store.value, activeIdentityId: id });
+    return this.writeStore({ ...store.value, activePublicKeyZ32: publicKeyZ32 });
   }
 
-  remove(id: string): LocalIdentityResult<void> {
+  /** Removes an identity and selects the first remaining identity when needed. */
+  remove(publicKeyZ32: string): LocalIdentityResult<void> {
     const store = this.readStore();
     if (Result.isError(store)) return Result.err(store.error);
-    if (!store.value.identities.some((identity) => identity.id === id)) return failure("remove", "invalid_identity");
+    if (!store.value.identities.some((identity) => identity.publicIdentity.publicKeyZ32 === publicKeyZ32)) {
+      return failure("remove", "invalid_identity");
+    }
 
-    const identities = store.value.identities.filter((identity) => identity.id !== id);
-    const activeIdentityId = store.value.activeIdentityId === id
-      ? identities[0]?.id ?? null
-      : store.value.activeIdentityId;
-    return this.writeStore({ ...store.value, activeIdentityId, identities });
+    const identities = store.value.identities.filter(
+      (identity) => identity.publicIdentity.publicKeyZ32 !== publicKeyZ32,
+    );
+    const activePublicKeyZ32 = store.value.activePublicKeyZ32 === publicKeyZ32
+      ? identities[0]?.publicIdentity.publicKeyZ32 ?? null
+      : store.value.activePublicKeyZ32;
+    return this.writeStore({ ...store.value, activePublicKeyZ32, identities });
   }
 
+  /** Returns the active identity and a fresh secret-key buffer that the caller must clear. */
   readActive(): LocalIdentityResult<{ identity: LocalIdentityMetadata; secretKey: PubkySecretKeyMaterial }> {
     const store = this.readStore();
     if (Result.isError(store)) {
       return Result.err(store.error);
     }
 
-    if (!store.value.activeIdentityId) {
+    if (!store.value.activePublicKeyZ32) {
       return failure("read_active", "no_active_identity");
     }
 
-    const storedIdentity = store.value.identities.find((candidate) => candidate.id === store.value.activeIdentityId);
+    const storedIdentity = store.value.identities.find(
+      (candidate) => candidate.publicIdentity.publicKeyZ32 === store.value.activePublicKeyZ32,
+    );
     if (!storedIdentity) {
       return failure("read_active", "no_active_identity");
     }
@@ -153,10 +172,13 @@ export class LocalStorageIdentityRepository {
     });
   }
 
-  read(id: string): LocalIdentityResult<{ identity: LocalIdentityMetadata; secretKey: PubkySecretKeyMaterial }> {
+  /** Returns an identity and a fresh secret-key buffer that the caller must clear. */
+  read(publicKeyZ32: string): LocalIdentityResult<{ identity: LocalIdentityMetadata; secretKey: PubkySecretKeyMaterial }> {
     const store = this.readStore();
     if (Result.isError(store)) return Result.err(store.error);
-    const storedIdentity = store.value.identities.find((candidate) => candidate.id === id);
+    const storedIdentity = store.value.identities.find(
+      (candidate) => candidate.publicIdentity.publicKeyZ32 === publicKeyZ32,
+    );
     if (!storedIdentity) return failure("read_identity", "invalid_identity");
 
     const secretKey = decodeStoredSecretKey(storedIdentity.secretKey);
@@ -180,7 +202,7 @@ export class LocalStorageIdentityRepository {
     }
 
     if (stored === null) {
-      return Result.ok({ v: LOCAL_IDENTITY_STORE_VERSION, activeIdentityId: null, identities: [] });
+      return Result.ok({ v: LOCAL_IDENTITY_STORE_VERSION, activePublicKeyZ32: null, identities: [] });
     }
 
     try {
@@ -214,7 +236,7 @@ function getLocalStorage(): Storage | null {
 }
 
 function isStoreV1(value: unknown): value is LocalIdentityStoreV1 {
-  if (!isRecord(value)) {
+  if (!isRecord(value) || !hasExactKeys(value, ["v", "activePublicKeyZ32", "identities"])) {
     return false;
   }
 
@@ -222,29 +244,41 @@ function isStoreV1(value: unknown): value is LocalIdentityStoreV1 {
     return false;
   }
 
-  if (!isActiveIdentityId(value.activeIdentityId) || !value.identities.every(isStoredIdentity)) {
+  if (!isActivePublicKeyZ32(value.activePublicKeyZ32) || !value.identities.every(isStoredIdentity)) {
     return false;
   }
 
-  const ids = new Set(value.identities.map((identity) => identity.id));
-  return ids.size === value.identities.length && (value.activeIdentityId === null || ids.has(value.activeIdentityId));
+  const publicKeys = new Set(value.identities.map((identity) => identity.publicIdentity.publicKeyZ32));
+  return publicKeys.size === value.identities.length
+    && (value.activePublicKeyZ32 === null || publicKeys.has(value.activePublicKeyZ32));
 }
 
 function isStoredIdentity(value: unknown): value is StoredLocalIdentity {
-  if (!isRecord(value) || !isNonEmptyString(value.id) || !isPublicIdentity(value.publicIdentity)) {
+  if (!isRecord(value)
+    || !hasExactKeys(value, value.googleAccount === undefined
+      ? ["publicIdentity", "secretKey"]
+      : ["publicIdentity", "googleAccount", "secretKey"])
+    || !isPublicIdentity(value.publicIdentity)) {
     return false;
   }
 
-  return value.id === value.publicIdentity.publicKeyZ32 && isEncodedSecretKey(value.secretKey)
+  return isEncodedSecretKey(value.secretKey)
     && (value.googleAccount === undefined || isGoogleAccount(value.googleAccount));
 }
 
 function isPublicIdentity(value: unknown): value is PubkyPublicIdentity {
-  return isRecord(value) && isNonEmptyString(value.publicKeyZ32) && isNonEmptyString(value.publicKeyDisplay);
+  return isRecord(value)
+    && hasExactKeys(value, ["publicKeyZ32", "publicKeyDisplay"])
+    && isNonEmptyString(value.publicKeyZ32)
+    && isNonEmptyString(value.publicKeyDisplay);
 }
 
 function isGoogleAccount(value: unknown): value is GoogleAccountProfile {
-  return isRecord(value) && isNonEmptyString(value.id) && isNonEmptyString(value.email) && isNonEmptyString(value.name)
+  return isRecord(value)
+    && hasExactKeys(value, ["id", "email", "name", "pictureUrl"])
+    && isNonEmptyString(value.id)
+    && isNonEmptyString(value.email)
+    && isNonEmptyString(value.name)
     && (value.pictureUrl === null || isLocalGoogleAvatar(value.pictureUrl));
 }
 
@@ -254,7 +288,7 @@ function isLocalGoogleAvatar(value: unknown): value is string {
     && /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/u.test(value);
 }
 
-function isActiveIdentityId(value: unknown): value is string | null {
+function isActivePublicKeyZ32(value: unknown): value is string | null {
   return value === null || typeof value === "string";
 }
 
@@ -270,9 +304,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function hasExactKeys(value: Record<string, unknown>, expected: string[]): boolean {
+  const keys = Object.keys(value);
+  return keys.length === expected.length && expected.every((key) => Object.hasOwn(value, key));
+}
+
 function toMetadata(identity: StoredLocalIdentity): LocalIdentityMetadata {
   return {
-    id: identity.id,
     publicIdentity: identity.publicIdentity,
     ...(identity.googleAccount ? { googleAccount: identity.googleAccount } : {}),
   };

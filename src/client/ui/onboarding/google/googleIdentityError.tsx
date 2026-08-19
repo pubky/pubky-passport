@@ -1,6 +1,6 @@
 "use client";
 
-import type { GoogleIdentityFlowError } from "../../../logic/identity/PassportIdentityController";
+import type { GoogleIdentityFlowError } from "../../../logic/google-identity/GoogleIdentityFlow";
 import { RotateCcwIcon } from "../../shared/icons/actionIcons";
 import { PassportScreen } from "../../shared/layout/passportScreen";
 import { BackButton } from "../../shared/navigation/backButton";

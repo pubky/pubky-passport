@@ -3,16 +3,17 @@
 This feature receives a Pubky Auth request, renders only safe review data, approves
 with the active local identity, and completes the exact validated callback.
 
-## Public Entries
+## UI Usage
 
-UI code imports only:
+UI code currently uses:
 
 - `PassportAuthorizationController` from `PassportAuthorizationController.ts`.
 - `submitManualAuthorizationInput` from `manualAuthorizationInput.ts`.
 
-React constructs `PassportAuthorizationController` directly, just as identity UI
-constructs `PassportIdentityController`. The controller composes the remaining
-authorization classes and exposes only safe state and user intents.
+React constructs `PassportAuthorizationController` directly. The controller composes
+the remaining authorization classes and exposes only safe state and user intents.
+Security relies on those APIs and the private request metadata, not on an exact-file
+UI import allowlist.
 
 ## Classes
 

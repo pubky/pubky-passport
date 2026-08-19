@@ -1,12 +1,15 @@
 "use client";
 
+import { Result } from "better-result";
 import { useEffect, useReducer, useRef, useState } from "react";
 
 import {
   PassportAuthorizationController,
   type PassportAuthorizationViewState,
 } from "../../logic/authorization/PassportAuthorizationController";
-import type { LocalIdentityCatalog, PassportIdentityController } from "../../logic/identity/PassportIdentityController";
+import type { LocalIdentityController } from "../../logic/local-identity/LocalIdentityController";
+import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
+import type { GoogleIdentityConfiguration } from "../../logic/google-identity/GoogleIdentityFlow";
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { SignInFlow } from "../onboarding/signInFlow";
@@ -23,6 +26,7 @@ function AuthorizationFlow({ googleClientId, homegateBaseUrl }: {
   googleClientId: string;
   homegateBaseUrl: string;
 }) {
+  const googleIdentityConfiguration = { googleClientId, homegateBaseUrl };
   const controllerRef = useRef<PassportAuthorizationController>(null);
   const [controller, setController] = useState<PassportAuthorizationController | null>(null);
   const [authorization, setAuthorization] = useState<PassportAuthorizationViewState>();
@@ -67,19 +71,17 @@ function AuthorizationFlow({ googleClientId, homegateBaseUrl }: {
       return <AuthorizationWithIdentity
         authorization={authorization}
         controller={controller}
-        googleClientId={googleClientId}
-        homegateBaseUrl={homegateBaseUrl}
+        googleIdentityConfiguration={googleIdentityConfiguration}
       />;
   }
 }
 
-function AuthorizationWithIdentity({ authorization, controller, googleClientId, homegateBaseUrl }: {
+function AuthorizationWithIdentity({ authorization, controller, googleIdentityConfiguration }: {
   authorization: Extract<PassportAuthorizationViewState, { status: "review" | "approving" | "redirecting" }>;
   controller: PassportAuthorizationController;
-  googleClientId: string;
-  homegateBaseUrl: string;
+  googleIdentityConfiguration: GoogleIdentityConfiguration;
 }) {
-  const identityCatalog = useIdentityCatalog(googleClientId, homegateBaseUrl);
+  const identityCatalog = useIdentityCatalog();
 
   switch (identityCatalog.status) {
     case "loading":
@@ -101,17 +103,19 @@ function AuthorizationWithIdentity({ authorization, controller, googleClientId, 
         authorization={authorization}
         authorizationController={controller}
         catalog={identityCatalog.catalog}
+        googleIdentityConfiguration={googleIdentityConfiguration}
         identityController={identityCatalog.controller}
         reloadIdentities={identityCatalog.reloadIdentities}
       />;
   }
 }
 
-function ReadyAuthorizationWithIdentity({ authorization, authorizationController, catalog, identityController, reloadIdentities }: {
+function ReadyAuthorizationWithIdentity({ authorization, authorizationController, catalog, googleIdentityConfiguration, identityController, reloadIdentities }: {
   authorization: Extract<PassportAuthorizationViewState, { status: "review" | "approving" | "redirecting" }>;
   authorizationController: PassportAuthorizationController;
   catalog: LocalIdentityCatalog;
-  identityController: PassportIdentityController;
+  googleIdentityConfiguration: GoogleIdentityConfiguration;
+  identityController: LocalIdentityController;
   reloadIdentities: () => void;
 }) {
   const [onboardingRequired, setOnboardingRequired] = useState(catalog.identities.length === 0);
@@ -119,7 +123,7 @@ function ReadyAuthorizationWithIdentity({ authorization, authorizationController
 
   if (onboardingRequired) {
     return <SignInFlow
-      controller={identityController}
+      googleIdentityConfiguration={googleIdentityConfiguration}
       onBack={() => { void authorizationController.cancel(); }}
       onComplete={() => {
         reloadIdentities();
@@ -131,17 +135,18 @@ function ReadyAuthorizationWithIdentity({ authorization, authorizationController
   if (view.view === "identity-selection") {
     return <IdentitySelectionFlow
       catalog={catalog}
-      controller={identityController}
+      googleIdentityConfiguration={googleIdentityConfiguration}
       onBack={() => dispatch({ type: "selection-finished" })}
       onIdentitySelected={() => {
         reloadIdentities();
         dispatch({ type: "selection-finished" });
       }}
+      selectIdentity={(publicKeyZ32) => Result.isOk(identityController.selectIdentity(publicKeyZ32))}
     />;
   }
 
   const activeIdentity = catalog.identities.find(
-    (identity) => identity.id === catalog.activeIdentityId,
+    (identity) => identity.publicIdentity.publicKeyZ32 === catalog.activePublicKeyZ32,
   );
   return <AuthorizationReview
     approving={authorization.status !== "review"}

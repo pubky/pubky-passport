@@ -19,7 +19,7 @@ describe("EncryptedBackup", () => {
     const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:backup");
     const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
-    render(<EncryptedBackup createBackup={createBackup} identityId="identity" onBack={vi.fn()} />);
+    render(<EncryptedBackup createBackup={createBackup} publicKeyZ32="identity" onBack={vi.fn()} />);
 
     const download = screen.getByRole("button", { name: "Download backup" });
     const password = screen.getByLabelText("Enter strong password");
@@ -37,14 +37,14 @@ describe("EncryptedBackup", () => {
 
   it("returns to identity management", async () => {
     const onBack = vi.fn();
-    const { container } = render(<EncryptedBackup createBackup={vi.fn()} identityId="identity" onBack={onBack} />);
+    const { container } = render(<EncryptedBackup createBackup={vi.fn()} publicKeyZ32="identity" onBack={onBack} />);
     expect(container.querySelector('[data-slot="encrypted-backup-illustration"]')).toHaveAttribute("src", expect.stringContaining("passport-encrypted-backup.png"));
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(onBack).toHaveBeenCalledOnce();
   });
 
   it("announces backup failures without marking a valid password invalid", async () => {
-    render(<EncryptedBackup createBackup={async () => Result.err({ code: "backup_failed" })} identityId="identity" onBack={vi.fn()} />);
+    render(<EncryptedBackup createBackup={async () => Result.err({ code: "backup_failed" })} publicKeyZ32="identity" onBack={vi.fn()} />);
     const password = screen.getByLabelText("Enter strong password");
     await userEvent.setup().type(password, "123456");
     await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));

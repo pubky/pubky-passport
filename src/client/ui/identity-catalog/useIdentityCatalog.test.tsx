@@ -6,17 +6,17 @@ import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LocalIdentityCatalog } from "../../logic/identity/PassportIdentityController";
+import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
 import { useIdentityCatalog } from "./useIdentityCatalog";
 
 const MOCKS = vi.hoisted(() => ({
-  catalog: { activeIdentityId: null, identities: [] } as LocalIdentityCatalog,
+  catalog: { activePublicKeyZ32: null, identities: [] } as LocalIdentityCatalog,
   create: vi.fn(),
   unavailable: false,
 }));
 
-vi.mock("../../logic/identity/PassportIdentityController", () => ({
-  PassportIdentityController: function PassportIdentityController() {
+vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
+  LocalIdentityController: function LocalIdentityController() {
     MOCKS.create();
     return {
       listIdentities: () => MOCKS.unavailable
@@ -27,7 +27,7 @@ vi.mock("../../logic/identity/PassportIdentityController", () => ({
 }));
 
 function SessionProbe() {
-  const session = useIdentityCatalog("client", "https://homegate.example/");
+  const session = useIdentityCatalog();
   return session.status === "ready"
     ? <><p>{`${session.status}:${session.catalog.identities.length}`}</p><button onClick={session.reloadIdentities} type="button">Reload</button></>
     : <p>{session.status}</p>;
@@ -35,7 +35,7 @@ function SessionProbe() {
 
 describe("useIdentityCatalog", () => {
   beforeEach(() => {
-    MOCKS.catalog = { activeIdentityId: null, identities: [] };
+    MOCKS.catalog = { activePublicKeyZ32: null, identities: [] };
     MOCKS.unavailable = false;
   });
 
@@ -49,8 +49,8 @@ describe("useIdentityCatalog", () => {
     expect(await screen.findByText("ready:0")).toBeInTheDocument();
 
     MOCKS.catalog = {
-      activeIdentityId: "identity",
-      identities: [{ id: "identity", publicIdentity: { publicKeyDisplay: "pubkyidentity", publicKeyZ32: "identity" } }],
+      activePublicKeyZ32: "identity",
+      identities: [{ publicIdentity: { publicKeyDisplay: "pubkyidentity", publicKeyZ32: "identity" } }],
     };
     await userEvent.setup().click(screen.getByRole("button", { name: "Reload" }));
 

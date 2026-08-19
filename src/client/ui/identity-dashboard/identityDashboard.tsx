@@ -3,7 +3,9 @@
 import { Result } from "better-result";
 import { useReducer, useState } from "react";
 
-import type { LocalIdentityCatalog, PassportIdentityController } from "../../logic/identity/PassportIdentityController";
+import type { LocalIdentityController } from "../../logic/local-identity/LocalIdentityController";
+import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
+import type { GoogleIdentityConfiguration } from "../../logic/google-identity/GoogleIdentityFlow";
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { SignInFlow } from "../onboarding/signInFlow";
@@ -25,7 +27,8 @@ function IdentityDashboard({ googleClientId, homegateBaseUrl }: {
   googleClientId: string;
   homegateBaseUrl: string;
 }) {
-  const session = useIdentityCatalog(googleClientId, homegateBaseUrl);
+  const session = useIdentityCatalog();
+  const googleIdentityConfiguration = { googleClientId, homegateBaseUrl };
   const [completion, setCompletion] = useState<GoogleIdentityEstablished | null>(null);
 
   if (completion) {
@@ -46,6 +49,7 @@ function IdentityDashboard({ googleClientId, homegateBaseUrl }: {
       return <ReadyIdentityDashboard
         catalog={session.catalog}
         controller={session.controller}
+        googleIdentityConfiguration={googleIdentityConfiguration}
         onIdentitiesChanged={session.reloadIdentities}
         onIdentityEstablished={(identity) => {
           session.reloadIdentities();
@@ -55,9 +59,10 @@ function IdentityDashboard({ googleClientId, homegateBaseUrl }: {
   }
 }
 
-function ReadyIdentityDashboard({ catalog, controller, onIdentitiesChanged, onIdentityEstablished }: {
+function ReadyIdentityDashboard({ catalog, controller, googleIdentityConfiguration, onIdentitiesChanged, onIdentityEstablished }: {
   catalog: LocalIdentityCatalog;
-  controller: PassportIdentityController;
+  controller: LocalIdentityController;
+  googleIdentityConfiguration: GoogleIdentityConfiguration;
   onIdentitiesChanged: () => void;
   onIdentityEstablished: (identity: GoogleIdentityEstablished) => void;
 }) {
@@ -67,36 +72,42 @@ function ReadyIdentityDashboard({ catalog, controller, onIdentitiesChanged, onId
     initialIdentityDashboardState,
   );
   const state = resolveIdentityDashboardState(navigation, catalog);
-  const activeIdentity = catalog.identities.find((identity) => identity.id === catalog.activeIdentityId);
+  const activeIdentity = catalog.identities.find(
+    (identity) => identity.publicIdentity.publicKeyZ32 === catalog.activePublicKeyZ32,
+  );
 
   switch (state.view) {
     case "onboarding":
       return <SignInFlow
-        controller={controller}
+        googleIdentityConfiguration={googleIdentityConfiguration}
         onComplete={() => dispatch({ type: "onboarding-completed" })}
         onEstablished={onIdentityEstablished}
       />;
     case "select-identity":
       return <IdentitySelectionFlow
         catalog={catalog}
-        controller={controller}
+        googleIdentityConfiguration={googleIdentityConfiguration}
         onBack={() => dispatch({ type: "back-to-overview" })}
         onIdentityEstablished={onIdentityEstablished}
         onIdentitySelected={() => {
           onIdentitiesChanged();
           dispatch({ type: "identity-selected" });
         }}
+        selectIdentity={(publicKeyZ32) => Result.isOk(controller.selectIdentity(publicKeyZ32))}
       />;
     case "manage-identity": {
-      const identity = catalog.identities.find((candidate) => candidate.id === state.identityId);
+      const identity = catalog.identities.find(
+        (candidate) => candidate.publicIdentity.publicKeyZ32 === state.publicKeyZ32,
+      );
       if (!identity) return null;
+      const publicKeyZ32 = identity.publicIdentity.publicKeyZ32;
       return <IdentityManagement
         identity={identity}
         onBack={() => dispatch({ type: "back-to-overview" })}
         onDetachFromGoogle={() => dispatch({ type: "detachment-requested", identity })}
-        onDownloadBackup={() => dispatch({ type: "backup-requested", identityId: identity.id })}
+        onDownloadBackup={() => dispatch({ type: "backup-requested", publicKeyZ32 })}
         onLogOut={() => {
-          const removed = controller.removeIdentity(identity.id);
+          const removed = controller.removeIdentity(publicKeyZ32);
           if (Result.isOk(removed)) {
             onIdentitiesChanged();
             dispatch({ type: "identity-removed" });
@@ -106,7 +117,7 @@ function ReadyIdentityDashboard({ catalog, controller, onIdentitiesChanged, onId
           const migration = controller.createPubkyRingMigrationUrl();
           dispatch({
             type: "migration-requested",
-            identityId: identity.id,
+            publicKeyZ32,
             migrationUrl: Result.isOk(migration) ? migration.value : null,
           });
         }}
@@ -116,19 +127,27 @@ function ReadyIdentityDashboard({ catalog, controller, onIdentitiesChanged, onId
     case "encrypted-backup":
       return <EncryptedBackup
         createBackup={controller.createEncryptedBackup}
-        identityId={state.identityId}
-        onBack={() => dispatch({ type: "back-to-management", identityId: state.identityId })}
+        publicKeyZ32={state.publicKeyZ32}
+        onBack={() => dispatch({ type: "back-to-management", publicKeyZ32: state.publicKeyZ32 })}
       />;
     case "migrate-to-pubky-ring":
       return <MigrateToPubkyRing
         migrationUrl={state.migrationUrl}
-        onBack={() => dispatch({ type: "back-to-management", identityId: state.identityId })}
+        onBack={() => dispatch({ type: "back-to-management", publicKeyZ32: state.publicKeyZ32 })}
       />;
     case "detach-from-google":
       return <DetachFromGoogleFlow
-        controller={controller}
+        createBackup={controller.createEncryptedBackup}
+        createMigrationUrl={() => {
+          const migration = controller.createPubkyRingMigrationUrl();
+          return Result.isOk(migration) ? migration.value : null;
+        }}
+        googleIdentityConfiguration={googleIdentityConfiguration}
         identity={state.identity}
-        onBack={() => dispatch({ type: "back-to-management", identityId: state.identity.id })}
+        onBack={() => dispatch({
+          type: "back-to-management",
+          publicKeyZ32: state.identity.publicIdentity.publicKeyZ32,
+        })}
         onDone={() => {
           onIdentitiesChanged();
           dispatch({ type: "identity-removed" });
@@ -138,7 +157,10 @@ function ReadyIdentityDashboard({ catalog, controller, onIdentitiesChanged, onId
       return activeIdentity
         ? <IdentityOverview
           identity={activeIdentity}
-          onManage={() => dispatch({ type: "manage-requested", identityId: activeIdentity.id })}
+          onManage={() => dispatch({
+            type: "manage-requested",
+            publicKeyZ32: activeIdentity.publicIdentity.publicKeyZ32,
+          })}
           onSwitch={() => dispatch({ type: "switch-requested" })}
         />
         : <main className="grid min-h-[calc(100svh-84px)] place-items-center px-6 text-center text-muted-foreground">The active identity is unavailable.</main>;

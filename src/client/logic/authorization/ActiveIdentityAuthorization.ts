@@ -3,9 +3,14 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER } from "../../../libs/logger/logger";
-import { RestoreActiveLocalIdentityKey } from "../identity/local/RestoreActiveLocalIdentityKey";
-import { LocalStorageIdentityRepository } from "../identity/local/LocalStorageIdentityRepository";
-import type { PubkyIdentityKey } from "../pubky/pubkyIdentityKey";
+import {
+  LocalStorageIdentityRepository,
+  type LocalIdentityErrorCode,
+} from "../local-identity/LocalStorageIdentityRepository";
+import type {
+  PubkyIdentityKey,
+  PubkyPublicIdentity,
+} from "../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../pubky/PubkySdkAdapter";
 import type { IssuedPubkyAuthRequest } from "./IssuedPubkyAuthRequest";
 
@@ -17,9 +22,9 @@ export type ApproveAuthorizationErrorCode =
 export type ApproveAuthorizationResult = ResultType<void, { code: ApproveAuthorizationErrorCode }>;
 
 type CreatePubkySdkAdapter = () => PubkySdkAdapter;
-type CreateActiveIdentityRestorer = (
+type RestoreActiveIdentity = (
   pubky: PubkySdkAdapter,
-) => RestoreActiveLocalIdentityKey;
+) => Promise<RestoreActiveIdentityResult>;
 
 /**
  * Restores the active local key, approves one validated request with the same
@@ -28,13 +33,7 @@ type CreateActiveIdentityRestorer = (
 export class ActiveIdentityAuthorization {
   constructor(
     private createPubky: CreatePubkySdkAdapter = () => new PubkySdkAdapter(),
-    private createActiveIdentityRestorer: CreateActiveIdentityRestorer = (pubky) => {
-      const repository = new LocalStorageIdentityRepository();
-      return new RestoreActiveLocalIdentityKey(
-        () => repository.readActive(),
-        pubky,
-      );
-    },
+    private restoreActiveIdentity: RestoreActiveIdentity = restoreActiveLocalIdentity,
   ) {}
 
   async approve(request: IssuedPubkyAuthRequest): Promise<ApproveAuthorizationResult> {
@@ -50,21 +49,7 @@ export class ActiveIdentityAuthorization {
     }
 
     try {
-      let restoreActiveIdentity: RestoreActiveLocalIdentityKey;
-      try {
-        restoreActiveIdentity = this.createActiveIdentityRestorer(pubky);
-      } catch {
-        LOGGER.warn("authorize.approval.failed", {
-          stage: "identity_restore",
-          code: "unexpected_failure",
-        });
-        return Result.err({ code: "identity_restore_failed" });
-      }
-      return await this.approveWithRestoredIdentity(
-        request,
-        restoreActiveIdentity,
-        pubky,
-      );
+      return await this.approveWithRestoredIdentity(request, pubky);
     } finally {
       try {
         pubky.dispose();
@@ -76,13 +61,12 @@ export class ActiveIdentityAuthorization {
 
   private async approveWithRestoredIdentity(
     request: IssuedPubkyAuthRequest,
-    restoreActiveIdentity: RestoreActiveLocalIdentityKey,
     pubky: PubkySdkAdapter,
   ): Promise<ApproveAuthorizationResult> {
     let keyHandle: PubkyIdentityKey["keyHandle"] | undefined;
 
     try {
-      const restored = await restoreActiveIdentity.restore();
+      const restored = await this.restoreActiveIdentity(pubky);
       if (Result.isError(restored)) {
         return Result.err({
           code: restored.error.code === "no_active_identity"
@@ -112,4 +96,48 @@ export class ActiveIdentityAuthorization {
       }
     }
   }
+}
+
+type ReadActiveIdentity = LocalStorageIdentityRepository["readActive"];
+type RestoreActiveIdentityResult = ResultType<
+  PubkyIdentityKey,
+  { code: LocalIdentityErrorCode | "identity_mismatch" | "restore_failed" }
+>;
+
+/** Restores and verifies the local key needed for one authorization attempt. */
+export async function restoreActiveLocalIdentity(
+  pubky: PubkySdkAdapter,
+  readActive: ReadActiveIdentity = createActiveIdentityReader(),
+): Promise<RestoreActiveIdentityResult> {
+  const stored = readActive();
+  if (Result.isError(stored)) return Result.err(stored.error);
+
+  try {
+    const restored = await pubky.restoreIdentityKey(stored.value.secretKey);
+    if (Result.isError(restored)) return Result.err({ code: "restore_failed" });
+
+    if (!isSamePublicIdentity(restored.value.publicIdentity, stored.value.identity.publicIdentity)) {
+      try {
+        pubky.disposeIdentityKey(restored.value.keyHandle);
+      } catch {
+        LOGGER.warn("authorize.cleanup.failed", { operation: "identity_key_dispose" });
+      }
+      LOGGER.warn("identity.local_restore.failed", { code: "identity_mismatch" });
+      return Result.err({ code: "identity_mismatch" });
+    }
+
+    return Result.ok(restored.value);
+  } finally {
+    stored.value.secretKey.bytes.fill(0);
+  }
+}
+
+function createActiveIdentityReader(): ReadActiveIdentity {
+  const repository = new LocalStorageIdentityRepository();
+  return () => repository.readActive();
+}
+
+function isSamePublicIdentity(left: PubkyPublicIdentity, right: PubkyPublicIdentity): boolean {
+  return left.publicKeyZ32 === right.publicKeyZ32
+    && left.publicKeyDisplay === right.publicKeyDisplay;
 }

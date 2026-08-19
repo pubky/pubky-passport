@@ -3,24 +3,26 @@
 import { Result } from "better-result";
 import { useCallback, useEffect, useReducer, useRef } from "react";
 
-import type {
-  GoogleBackedIdentityFlow,
-  PassportIdentityController,
-  PubkyPublicIdentity,
-} from "../../../../logic/identity/PassportIdentityController";
+import { GoogleIdentityFlow } from "../../../../logic/google-identity/GoogleIdentityFlow";
+import type { GoogleIdentityConfiguration } from "../../../../logic/google-identity/GoogleIdentityFlow";
+import type { PubkyPublicIdentity } from "../../../../logic/pubky/pubkyIdentityKey";
 import { transitionDetachFromGoogleOperation } from "./detachFromGoogleOperationState";
 
 function useDetachFromGoogle(
-  controller: PassportIdentityController,
+  configuration: GoogleIdentityConfiguration,
   publicIdentity: PubkyPublicIdentity,
   expectedGoogleAccountId: string,
 ) {
+  const { googleClientId, homegateBaseUrl } = configuration;
   const dispatching = useRef(false);
-  const flow = useRef<GoogleBackedIdentityFlow | null>(null);
-  const [state, dispatch] = useReducer(transitionDetachFromGoogleOperation, { name: "preparing" });
+  const flow = useRef<GoogleIdentityFlow | null>(null);
+  const [state, dispatch] = useReducer(transitionDetachFromGoogleOperation, { name: "ready" });
 
   const detach = useCallback(() => {
-    if ((state.name !== "ready" && state.name !== "operation-failed") || dispatching.current) return;
+    if ((state.name !== "ready"
+      && state.name !== "authorization-failed"
+      && state.name !== "operation-failed")
+      || dispatching.current) return;
     const currentFlow = flow.current;
     if (!currentFlow) {
       dispatch({ type: "operation-failed", error: { code: "operation_failed" } });
@@ -52,38 +54,33 @@ function useDetachFromGoogle(
       });
   }, [expectedGoogleAccountId, publicIdentity, state.name]);
 
-  const retryAuthorization = useCallback(() => {
-    dispatch({ type: "retry-requested" });
-    flow.current?.start();
-  }, []);
-
   useEffect(() => {
-    const googleFlow = controller.startGoogleIdentityFlow((nextState) => {
-      switch (nextState.status) {
-        case "ready":
-          dispatch({ type: "authorization-ready" });
-          return;
-        case "authorization-failed":
-          dispatch({ type: "authorization-failed" });
-          return;
-        case "requesting-authorization":
-          dispatch({ type: "request-started" });
-          return;
-        case "detaching":
-          dispatch({ type: "deletion-started" });
-          return;
-        case "establishing":
-          return;
-      }
-    });
-    flow.current = googleFlow;
+    let googleFlow: GoogleIdentityFlow;
+    try {
+      googleFlow = new GoogleIdentityFlow({ googleClientId, homegateBaseUrl }, (nextState) => {
+        switch (nextState.status) {
+          case "requesting-authorization":
+            dispatch({ type: "request-started" });
+            return;
+          case "detaching":
+            dispatch({ type: "deletion-started" });
+            return;
+          case "establishing":
+            return;
+        }
+      });
+      flow.current = googleFlow;
+    } catch {
+      dispatch({ type: "operation-failed", error: { code: "operation_failed" } });
+      return;
+    }
     return () => {
       flow.current = null;
       googleFlow.dispose();
     };
-  }, [controller]);
+  }, [googleClientId, homegateBaseUrl]);
 
-  return { detach, retryAuthorization, state };
+  return { detach, retryDetachment: detach, state };
 }
 
 export { useDetachFromGoogle };

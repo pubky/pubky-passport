@@ -2,36 +2,34 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER } from "../../../libs/logger/logger";
 import type {
   GoogleAccountProfile,
-  GoogleBackedIdentityCredentials,
-} from "../../google-authorization/GoogleImplicitAuthorization";
+} from "../local-identity/localIdentityModels";
+import type { GoogleIdentityCredentials } from "./GoogleImplicitAuthorization";
 import {
   HomegateClient,
   type HomegateSignupInvitationErrorCode,
   type HomeserverSignupInvitation,
-} from "../../homegate/HomegateClient";
-import { GoogleDrivePassportFileStore } from "../../passport-file/google/PassportFileStore";
-import { GoogleDriveVisibleRecoveryCopies } from "../../passport-file/google/VisibleRecoveryCopies";
-import type { PassportFileEnvelopeV1 } from "../../passport-file/passportFileEnvelope";
-import { PassportFileWebCrypto } from "../../passport-file/PassportFileWebCrypto";
+} from "../homegate/HomegateClient";
+import { GoogleDrivePassportFileStore } from "../passport-file/google/PassportFileStore";
+import { GoogleDriveVisibleRecoveryCopies } from "../passport-file/google/VisibleRecoveryCopies";
+import type { PassportFileEnvelopeV1 } from "../passport-file/passportFileEnvelope";
+import { PassportFileWebCrypto } from "../passport-file/PassportFileWebCrypto";
 import {
   PUBKY_SECRET_KEY_FORMAT,
   type PubkyIdentityKey,
-} from "../../pubky/pubkyIdentityKey";
-import { PubkySdkAdapter } from "../../pubky/PubkySdkAdapter";
+  type PubkyPublicIdentity,
+} from "../pubky/pubkyIdentityKey";
+import { PubkySdkAdapter } from "../pubky/PubkySdkAdapter";
 import {
   WrappingKeyApiClient,
   type GoogleWrappingKeyErrorCode,
-} from "../../wrapping-key/WrappingKeyApiClient";
-import { LocalStorageIdentityRepository } from "../local/LocalStorageIdentityRepository";
-import type { PubkyPublicIdentity } from "../../pubky/pubkyIdentityKey";
+} from "../wrapping-key/WrappingKeyApiClient";
+import { LocalStorageIdentityRepository } from "../local-identity/LocalStorageIdentityRepository";
 
-const VISIBLE_RECOVERY_COPY_TIMEOUT_MS = 10_000;
-const NETWORK_REQUEST_TIMEOUT_MS = 30_000;
-
-export type GoogleBackedIdentityProgress =
+/** Safe setup or restore phase emitted while establishing an identity. */
+export type GoogleIdentityPhase =
   | "checking_passport_file"
   | "preparing_new_identity"
   | "creating_identity"
@@ -43,7 +41,10 @@ export type GoogleBackedIdentityProgress =
   | "activating_created_identity"
   | "activating_restored_identity";
 
-export type GoogleBackedIdentity =
+const VISIBLE_RECOVERY_COPY_TIMEOUT_MS = 10_000;
+const NETWORK_REQUEST_TIMEOUT_MS = 30_000;
+
+export type GoogleIdentityOperationValue =
   | {
     establishmentMode: "created";
     publicIdentity: PubkyPublicIdentity;
@@ -54,7 +55,7 @@ export type GoogleBackedIdentity =
     publicIdentity: PubkyPublicIdentity;
   };
 
-type GoogleBackedIdentityFailureCode =
+type GoogleIdentityFailureCode =
   | "create_failed"
   | "decrypt_failed"
   | "discovery_failed"
@@ -69,40 +70,35 @@ type GoogleBackedIdentityFailureCode =
   | "signup_failed"
   | "unexpected_failure";
 
-type GoogleBackedIdentityEstablishmentError =
+type GoogleIdentityEstablishmentError =
   | { code: "wrapping_key_failed"; cause: GoogleWrappingKeyErrorCode }
   | { code: "homeserver_signup_invitation_failed"; cause: HomegateSignupInvitationErrorCode }
-  | { code: GoogleBackedIdentityFailureCode };
+  | { code: GoogleIdentityFailureCode };
 
-type GoogleBackedIdentityResult = ResultType<
-  GoogleBackedIdentity,
-  GoogleBackedIdentityEstablishmentError
+type GoogleIdentityOperationResult = ResultType<
+  GoogleIdentityOperationValue,
+  GoogleIdentityEstablishmentError
 >;
 
-type DetachGoogleBackedIdentityError = {
+type DetachGoogleIdentityError = {
   code: "backup_deletion_failed" | "local_remove_failed" | "unexpected_failure";
 };
 
-export type GoogleBackedIdentityOperationError =
-  | GoogleBackedIdentityEstablishmentError
-  | DetachGoogleBackedIdentityError;
+export type GoogleIdentityOperationError =
+  | GoogleIdentityEstablishmentError
+  | DetachGoogleIdentityError;
 
-type DetachGoogleBackedIdentityResult = ResultType<
+type DetachGoogleIdentityResult = ResultType<
   { deletionStatus: "deleted" | "missing" },
-  DetachGoogleBackedIdentityError
+  DetachGoogleIdentityError
 >;
 
-type OperationResult<Success = void> = ResultType<Success, GoogleBackedIdentityEstablishmentError>;
+type OperationResult<Success = void> = ResultType<Success, GoogleIdentityEstablishmentError>;
 
 /**
- * Owns the complete Google-backed Pubky identity lifecycle for one screen.
- *
- * The class deliberately keeps creation, restoration, interrupted-signup recovery,
- * and detachment together so their ordering and cleanup rules can be audited in one
- * place. Google credentials are method-local and one Pubky adapter owns every opaque
- * key handle created by this instance.
+ * Manages the complete Google-backed Pubky identity lifecycle for one screen.
  */
-export class GoogleBackedIdentityOperations {
+export class GoogleIdentityLifecycle {
   private pubky: PubkySdkAdapter;
   private wrappingKeys: WrappingKeyApiClient;
   private homegate: HomegateClient;
@@ -138,9 +134,9 @@ export class GoogleBackedIdentityOperations {
 
   /** Restores the Drive identity when present, otherwise creates and activates one. */
   async establishIdentity(
-    credentials: GoogleBackedIdentityCredentials,
-    report: (progress: GoogleBackedIdentityProgress) => void,
-  ): Promise<GoogleBackedIdentityResult> {
+    credentials: GoogleIdentityCredentials,
+    report: (progress: GoogleIdentityPhase) => void,
+  ): Promise<GoogleIdentityOperationResult> {
     try {
       report("checking_passport_file");
       const store = new GoogleDrivePassportFileStore(credentials.driveAccessToken, this.fetch);
@@ -182,14 +178,14 @@ export class GoogleBackedIdentityOperations {
   }
 
   /**
-   * Deletes only backups verified to belong to the selected identity, then removes
-   * the local identity last. Any Google or Drive failure preserves the local copy.
+   * Deletes Google Drive backups belonging to the selected identity, then removes
+   * the local identity. Any Google Drive failure preserves the local copy.
    */
   async detachIdentity(
-    credentials: GoogleBackedIdentityCredentials,
+    credentials: GoogleIdentityCredentials,
     publicIdentity: PubkyPublicIdentity,
     expectedGoogleAccountId: string,
-  ): Promise<DetachGoogleBackedIdentityResult> {
+  ): Promise<DetachGoogleIdentityResult> {
     if (credentials.googleAccount.id !== expectedGoogleAccountId) {
       return failure({ code: "backup_deletion_failed" });
     }
@@ -229,10 +225,10 @@ export class GoogleBackedIdentityOperations {
     googleAccount: GoogleAccountProfile,
     invitation: HomeserverSignupInvitation,
     wrappingKey: string,
-    report: (progress: GoogleBackedIdentityProgress) => void,
+    report: (progress: GoogleIdentityPhase) => void,
     store: GoogleDrivePassportFileStore,
     visibleCopies: GoogleDriveVisibleRecoveryCopies,
-  ): Promise<GoogleBackedIdentityResult> {
+  ): Promise<GoogleIdentityOperationResult> {
     LOGGER.info("identity.google.create.started");
     LOGGER.info("identity.google.create_key.started");
     const created = await this.pubky.createIdentityKey();
@@ -304,11 +300,11 @@ export class GoogleBackedIdentityOperations {
    * reconciles an identity whose signup or PKARR publication was interrupted.
    */
   private async restoreIdentity(
-    credentials: GoogleBackedIdentityCredentials,
+    credentials: GoogleIdentityCredentials,
     envelope: PassportFileEnvelopeV1,
     wrappingKey: string,
-    report: (progress: GoogleBackedIdentityProgress) => void,
-  ): Promise<GoogleBackedIdentityResult> {
+    report: (progress: GoogleIdentityPhase) => void,
+  ): Promise<GoogleIdentityOperationResult> {
     report("restoring_identity");
     const restored = await this.restoreKey(envelope, wrappingKey);
     if (Result.isError(restored)) return failure(restored.error);
@@ -387,7 +383,7 @@ export class GoogleBackedIdentityOperations {
     identity: PubkyIdentityKey,
     invitation: HomeserverSignupInvitation,
     googleAccount: GoogleAccountProfile,
-    report: (progress: GoogleBackedIdentityProgress) => void,
+    report: (progress: GoogleIdentityPhase) => void,
     isReconciliation = false,
   ): Promise<OperationResult> {
     report(isReconciliation ? "repairing_restored_identity" : "signing_up_to_homeserver");
@@ -448,7 +444,6 @@ export class GoogleBackedIdentityOperations {
     if (Result.isError(secretKey)) return failure({ code: "local_save_failed" });
     try {
       const saved = this.repository.save({
-        id: identity.publicIdentity.publicKeyZ32,
         publicIdentity: identity.publicIdentity,
         googleAccount,
       }, secretKey.value);
@@ -486,7 +481,7 @@ export class GoogleBackedIdentityOperations {
   }
 
   private async deleteVerifiedBackups(
-    credentials: GoogleBackedIdentityCredentials,
+    credentials: GoogleIdentityCredentials,
     publicIdentity: PubkyPublicIdentity,
   ): Promise<"deleted" | "missing" | null> {
     const store = new GoogleDrivePassportFileStore(credentials.driveAccessToken, this.fetch);
@@ -565,7 +560,7 @@ export class GoogleBackedIdentityOperations {
 }
 
 function failure<
-  Error extends GoogleBackedIdentityOperationError,
+  Error extends GoogleIdentityOperationError,
   Success = never,
 >(error: Error): ResultType<Success, Error> {
   return Result.err(error);

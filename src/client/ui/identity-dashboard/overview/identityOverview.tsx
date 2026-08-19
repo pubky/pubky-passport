@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import type { LocalIdentityMetadata } from "../../../logic/identity/PassportIdentityController";
+import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import { GoogleLogo } from "../../shared/brand/googleLogo";
 import { KeyRoundIcon, SettingsIcon, SquareUserRoundIcon } from "../../shared/icons/actionIcons";
 import { PassportScreen } from "../../shared/layout/passportScreen";

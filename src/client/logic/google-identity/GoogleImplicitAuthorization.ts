@@ -9,17 +9,10 @@ import {
   EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS,
   GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE,
 } from "../../../libs/authorization/earlyGoogleImplicitResponse";
-
-/** Safe Google account metadata retained with a browser-local Pubky identity. */
-export type GoogleAccountProfile = {
-  id: string;
-  email: string;
-  name: string;
-  pictureUrl: string | null;
-};
+import type { GoogleAccountProfile } from "../local-identity/localIdentityModels";
 
 /** Short-lived credentials produced by one complete Google authorization. */
-export type GoogleBackedIdentityCredentials = {
+export type GoogleIdentityCredentials = {
   googleIdToken: string;
   driveAccessToken: string;
   googleAccount: GoogleAccountProfile;
@@ -73,7 +66,7 @@ type AuthorizationAttempt = {
   popup: Window;
   poll: ReturnType<typeof setInterval>;
   responseReceived: boolean;
-  resolve(result: GoogleImplicitAuthorizationResult<GoogleBackedIdentityCredentials>): void;
+  resolve(result: GoogleImplicitAuthorizationResult<GoogleIdentityCredentials>): void;
   state: string;
   timeout: ReturnType<typeof setTimeout>;
 };
@@ -88,13 +81,7 @@ export class GoogleImplicitAuthorization {
     private fetch: typeof globalThis.fetch = (request, init) => globalThis.fetch(request, init),
   ) {}
 
-  prepare(): Promise<GoogleImplicitAuthorizationResult<void>> {
-    return Promise.resolve(this.activeAttempt
-      ? failure("prepare", "google_authorization_failed")
-      : Result.ok());
-  }
-
-  request(loginHint?: string): Promise<GoogleImplicitAuthorizationResult<GoogleBackedIdentityCredentials>> {
+  request(loginHint?: string): Promise<GoogleImplicitAuthorizationResult<GoogleIdentityCredentials>> {
     if (this.activeAttempt) return Promise.resolve(failure("request", "google_authorization_failed"));
     const state = randomBase64Url(32);
     const nonce = randomBase64Url(32);
@@ -167,7 +154,7 @@ export class GoogleImplicitAuthorization {
   private async parseReturn(
     attempt: AuthorizationAttempt,
     capture: unknown,
-  ): Promise<GoogleImplicitAuthorizationResult<GoogleBackedIdentityCredentials>> {
+  ): Promise<GoogleImplicitAuthorizationResult<GoogleIdentityCredentials>> {
     if (!isRecord(capture)
       || capture.type !== GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE
       || capture.status !== "captured"
@@ -247,7 +234,7 @@ export class GoogleImplicitAuthorization {
 
   private finish(
     attempt: AuthorizationAttempt,
-    result: GoogleImplicitAuthorizationResult<GoogleBackedIdentityCredentials>,
+    result: GoogleImplicitAuthorizationResult<GoogleIdentityCredentials>,
   ): void {
     if (this.activeAttempt !== attempt) return;
     clearInterval(attempt.poll);

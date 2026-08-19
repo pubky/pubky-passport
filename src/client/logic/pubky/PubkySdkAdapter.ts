@@ -11,6 +11,7 @@ import {
   type PubkyIdentityKeyHandle,
   type PubkyIdentityKeysErrorCode,
   type PubkyIdentityKeysResult,
+  type PubkyHomeserverResolutionResult,
   type PubkyPublicIdentity,
   type PubkySecretKeyMaterial,
 } from "./pubkyIdentityKey";
@@ -30,7 +31,6 @@ export type PubkySessionAccessErrorCode =
 export type PubkySessionAccessResult<Success> = ResultType<Success, { code: PubkySessionAccessErrorCode }>;
 export type PubkyDiscoveryErrorCode = "invalid_homeserver_pubky" | "key_unavailable" | "publish_failed";
 export type PubkyDiscoveryResult = ResultType<void, { code: PubkyDiscoveryErrorCode }>;
-export type PubkyHomeserverResolutionResult = ResultType<string | null, { code: "invalid_pubky" | "resolution_failed" }>;
 export type PubkyRecoveryFileErrorCode = "invalid_passphrase" | "invalid_secret_key" | "key_unavailable" | "recovery_file_failed";
 export type PubkyRecoveryFileResult = ResultType<Uint8Array, { code: PubkyRecoveryFileErrorCode }>;
 export type PubkyAuthApprovalErrorCode = "approval_failed" | "key_unavailable" | "relay_failed" | "request_rejected";

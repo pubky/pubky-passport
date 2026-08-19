@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
 import { Result } from "better-result";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { MemoryStorage } from "../../../../test-utils/fakes/MemoryStorage";
 import { encodeBase64Url } from "../../../libs/encoding/base64Url";
 import { GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE } from "../../../libs/authorization/earlyGoogleImplicitResponse";
 import { GoogleImplicitAuthorization } from "./GoogleImplicitAuthorization";
@@ -20,11 +21,17 @@ const GOOGLE_RETURNED_SCOPES = [
 ].join(" ");
 
 describe("GoogleImplicitAuthorization", () => {
+  beforeEach(() => {
+    vi.stubGlobal("localStorage", new MemoryStorage());
+    vi.stubGlobal("sessionStorage", new MemoryStorage());
+  });
+
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     localStorage.clear();
     sessionStorage.clear();
+    vi.unstubAllGlobals();
   });
 
   it("opens one implicit OAuth request and returns account-bound credentials", async () => {

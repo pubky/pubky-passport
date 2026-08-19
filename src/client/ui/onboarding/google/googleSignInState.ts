@@ -1,18 +1,18 @@
 "use client";
 
 import type {
-  GoogleBackedIdentityProgress,
-  GoogleAccountProfile,
   GoogleIdentityFlowError,
-  PubkyPublicIdentity,
-} from "../../../logic/identity/PassportIdentityController";
+} from "../../../logic/google-identity/GoogleIdentityFlow";
+import type { GoogleIdentityPhase } from "../../../logic/google-identity/GoogleIdentityFlow";
+import type { GoogleAccountProfile } from "../../../logic/local-identity/localIdentityModels";
+import type { PubkyPublicIdentity } from "../../../logic/pubky/pubkyIdentityKey";
 
 type GoogleSignInView =
   | { name: "idle" }
   | { name: "requesting-access" }
   | { name: "denied" }
   | { name: "failed"; error: GoogleIdentityFlowError }
-  | { name: "working"; progress: GoogleBackedIdentityProgress }
+  | { name: "working"; progress: GoogleIdentityPhase }
   | {
     name: "complete";
     googleAccount: GoogleAccountProfile;
@@ -21,15 +21,13 @@ type GoogleSignInView =
   };
 
 type GoogleSignInState = {
-  authorizationReady: boolean;
   view: GoogleSignInView;
 };
 
 type GoogleSignInEvent =
-  | { type: "authorization-ready" }
   | { type: "authorization-denied" }
   | { type: "request-started" }
-  | { type: "progress-reported"; progress: GoogleBackedIdentityProgress }
+  | { type: "progress-reported"; progress: GoogleIdentityPhase }
   | { type: "operation-failed"; error: GoogleIdentityFlowError }
   | {
     type: "operation-completed";
@@ -40,7 +38,6 @@ type GoogleSignInEvent =
   | { type: "back" };
 
 const INITIAL_GOOGLE_SIGN_IN_STATE: GoogleSignInState = {
-  authorizationReady: false,
   view: { name: "idle" },
 };
 
@@ -49,13 +46,6 @@ function transitionGoogleSignIn(
   event: GoogleSignInEvent,
 ): GoogleSignInState {
   switch (event.type) {
-    case "authorization-ready":
-      return {
-        authorizationReady: true,
-        view: state.view.name === "idle" || state.view.name === "denied"
-          ? { name: "idle" }
-          : state.view,
-      };
     case "authorization-denied":
       return { ...state, view: { name: "denied" } };
     case "request-started":

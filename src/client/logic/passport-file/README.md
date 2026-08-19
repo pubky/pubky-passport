@@ -68,7 +68,7 @@ creates from other profiles, devices, or browsers without Web Locks are reported
 ## Visible Recovery Copy
 
 After `GoogleDrivePassportFileStore` creates `appDataFolder/passport.json`,
-`GoogleBackedIdentityOperations` asks `GoogleDriveVisibleRecoveryCopies` to write
+`GoogleIdentityOperations` asks `GoogleDriveVisibleRecoveryCopies` to write
 the encrypted envelope to:
 
 ```txt

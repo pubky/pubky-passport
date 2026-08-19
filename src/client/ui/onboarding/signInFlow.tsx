@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { PassportIdentityController } from "../../logic/identity/PassportIdentityController";
+import type { GoogleIdentityConfiguration } from "../../logic/google-identity/GoogleIdentityFlow";
 import { GoogleAccessScreen } from "./google/googleAccessScreen";
 import { GoogleIdentityComplete } from "./google/googleIdentityComplete";
 import { GoogleIdentityError } from "./google/googleIdentityError";
@@ -11,13 +11,13 @@ import { BackButton } from "../shared/navigation/backButton";
 import { ProviderSignInButton } from "./providerSignInButton";
 import { SignInPage } from "./signInPage";
 
-function SignInFlow({ controller, onBack, onComplete, onEstablished }: {
-  controller: PassportIdentityController;
+function SignInFlow({ googleIdentityConfiguration, onBack, onComplete, onEstablished }: {
+  googleIdentityConfiguration: GoogleIdentityConfiguration;
   onBack?: () => void;
   onComplete: () => void;
   onEstablished?: (identity: GoogleIdentityEstablished) => void;
 }) {
-  const google = useGoogleSignIn(controller, onEstablished);
+  const google = useGoogleSignIn(googleIdentityConfiguration, onEstablished);
   const view = google.state.view;
 
   switch (view.name) {
@@ -31,12 +31,12 @@ function SignInFlow({ controller, onBack, onComplete, onEstablished }: {
     case "requesting-access":
       return <GoogleAccessScreen status="pending" />;
     case "denied":
-      return <GoogleAccessScreen onBack={google.back} onTryAgain={google.start} status="denied" />;
+      return <GoogleAccessScreen onBack={google.back} onTryAgain={google.establishIdentity} status="denied" />;
     case "failed":
       return <GoogleIdentityError
         error={view.error}
         onBack={google.back}
-        onTryAgain={google.start}
+        onTryAgain={google.establishIdentity}
       />;
     case "working":
       return <GoogleIdentityProgress progress={view.progress} />;
@@ -45,8 +45,8 @@ function SignInFlow({ controller, onBack, onComplete, onEstablished }: {
         <SignInPage>
           <ProviderSignInButton
             className="w-full"
-            disabled={!google.state.authorizationReady}
-            onClick={google.start}
+            disabled={!google.flowReady}
+            onClick={google.establishIdentity}
             provider="google"
           >Continue with Google</ProviderSignInButton>
           <ProviderSignInButton disabled provider="apple">Continue with Apple</ProviderSignInButton>

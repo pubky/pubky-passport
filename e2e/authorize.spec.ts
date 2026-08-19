@@ -16,9 +16,8 @@ const SENSITIVE_CANARIES = [
 const LOCAL_IDENTITY_STORAGE_KEY = "pubky-passport/local-identities/v1";
 const LOCAL_IDENTITY_STORAGE_VALUE = JSON.stringify({
   v: 1,
-  activeIdentityId: "e2e-public-key",
+  activePublicKeyZ32: "e2e-public-key",
   identities: [{
-    id: "e2e-public-key",
     publicIdentity: { publicKeyDisplay: "pubkye2e-public-key", publicKeyZ32: "e2e-public-key" },
     secretKey: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
   }],

@@ -1,11 +1,9 @@
 /** @vitest-environment jsdom */
 
-import { Result } from "better-result";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { mockPassportIdentityController } from "../../../../../test-utils/fakes/mockPassportIdentityController";
 import { IdentitySelectionFlow } from "./identitySelectionFlow";
 
 vi.mock("../../onboarding/signInFlow", () => ({
@@ -18,11 +16,17 @@ vi.mock("../../onboarding/signInFlow", () => ({
 }));
 
 const CATALOG = {
-  activeIdentityId: "first",
+  activePublicKeyZ32: "first",
   identities: [
-    { id: "first", publicIdentity: { publicKeyDisplay: "pubkyfirst", publicKeyZ32: "first" } },
-    { id: "second", publicIdentity: { publicKeyDisplay: "pubkysecond", publicKeyZ32: "second" } },
+    { publicIdentity: { publicKeyDisplay: "pubkyfirst", publicKeyZ32: "first" } },
+    { publicIdentity: { publicKeyDisplay: "pubkysecond", publicKeyZ32: "second" } },
   ],
+};
+const GOOGLE_PROPS = {
+  googleIdentityConfiguration: {
+    googleClientId: "google-client-id",
+    homegateBaseUrl: "https://homegate.example/",
+  },
 };
 
 describe("IdentitySelectionFlow", () => {
@@ -30,17 +34,17 @@ describe("IdentitySelectionFlow", () => {
 
   it("selects an existing identity and finishes", async () => {
     const onIdentitySelected = vi.fn();
-    const controller = mockPassportIdentityController({ selectIdentity: vi.fn(() => Result.ok()) });
-    render(<IdentitySelectionFlow catalog={CATALOG} controller={controller} onBack={vi.fn()} onIdentitySelected={onIdentitySelected} />);
+    const selectIdentity = vi.fn(() => true);
+    render(<IdentitySelectionFlow {...GOOGLE_PROPS} catalog={CATALOG} onBack={vi.fn()} onIdentitySelected={onIdentitySelected} selectIdentity={selectIdentity} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: /Your Pubky.*seco/iu }));
-    expect(controller.selectIdentity).toHaveBeenCalledWith("second");
+    expect(selectIdentity).toHaveBeenCalledWith("second");
     expect(onIdentitySelected).toHaveBeenCalledOnce();
   });
 
   it("runs the normal identity setup flow from Add identity", async () => {
     const onIdentitySelected = vi.fn();
-    render(<IdentitySelectionFlow catalog={CATALOG} controller={mockPassportIdentityController()} onBack={vi.fn()} onIdentitySelected={onIdentitySelected} />);
+    render(<IdentitySelectionFlow {...GOOGLE_PROPS} catalog={CATALOG} onBack={vi.fn()} onIdentitySelected={onIdentitySelected} selectIdentity={() => true} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Add identity" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Complete identity setup" }));
@@ -48,7 +52,7 @@ describe("IdentitySelectionFlow", () => {
   });
 
   it("returns to identity selection when identity setup is cancelled", async () => {
-    render(<IdentitySelectionFlow catalog={CATALOG} controller={mockPassportIdentityController()} onBack={vi.fn()} onIdentitySelected={vi.fn()} />);
+    render(<IdentitySelectionFlow {...GOOGLE_PROPS} catalog={CATALOG} onBack={vi.fn()} onIdentitySelected={vi.fn()} selectIdentity={() => true} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Add identity" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Cancel identity setup" }));

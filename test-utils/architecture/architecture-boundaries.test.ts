@@ -1,9 +1,9 @@
+import { existsSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { STABLE_CLIENT_LOGIC_UI_ENTRIES } from "./architectureEntries.mjs";
 import { isSameOrInside, ModuleGraph, type ForbiddenTarget } from "./ModuleGraph";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -16,11 +16,23 @@ const UI_ROOT = join(CLIENT_ROOT, "ui");
 const LIBS_ROOT = join(SRC_ROOT, "libs");
 const PUBLIC_ENV_ROOT = join(LIBS_ROOT, "env");
 const SERVER_CONFIG_ROOT = join(SERVER_ROOT, "config");
-const IDENTITY_ROOT = join(CLIENT_LOGIC_ROOT, "identity");
-const LOCAL_IDENTITY_REPOSITORY = join(IDENTITY_ROOT, "local", "LocalStorageIdentityRepository.ts");
+const LOCAL_IDENTITY_ROOT = join(CLIENT_LOGIC_ROOT, "local-identity");
+const LOCAL_IDENTITY_REPOSITORY = join(LOCAL_IDENTITY_ROOT, "LocalStorageIdentityRepository.ts");
 const PUBKY_SDK_ADAPTER = join(CLIENT_LOGIC_ROOT, "pubky", "PubkySdkAdapter.ts");
 const PUBKY_SDK_ADAPTER_TEST = join(CLIENT_LOGIC_ROOT, "pubky", "pubkySdkAdapter.test.ts");
 const PUBKY_SDK_ADAPTER_STAGING_TEST = join(CLIENT_LOGIC_ROOT, "pubky", "pubkySdkAdapter.staging.test.ts");
+const SECRET_BEARING_BROWSER_CAPABILITIES = new Map([
+  [LOCAL_IDENTITY_REPOSITORY, "local identity secret reads"],
+  [join(CLIENT_LOGIC_ROOT, "authorization", "ActiveIdentityAuthorization.ts"), "active identity restoration and signing"],
+  [join(CLIENT_LOGIC_ROOT, "google-identity", "GoogleImplicitAuthorization.ts"), "Google credentials"],
+  [join(CLIENT_LOGIC_ROOT, "google-identity", "GoogleIdentityLifecycle.ts"), "Google identity credentials and keys"],
+  [join(CLIENT_LOGIC_ROOT, "homegate", "HomegateClient.ts"), "Google ID-token transport"],
+  [join(CLIENT_LOGIC_ROOT, "wrapping-key", "WrappingKeyApiClient.ts"), "wrapping-key transport"],
+  [join(CLIENT_LOGIC_ROOT, "passport-file", "PassportFileWebCrypto.ts"), "Passport file cryptography"],
+  [join(CLIENT_LOGIC_ROOT, "passport-file", "google", "PassportFileStore.ts"), "Drive credentials and Passport files"],
+  [join(CLIENT_LOGIC_ROOT, "passport-file", "google", "VisibleRecoveryCopies.ts"), "Drive credentials and recovery files"],
+  [PUBKY_SDK_ADAPTER, "Pubky key handles"],
+]);
 const ISSUED_AUTHORIZATION_REQUEST = join(
   CLIENT_LOGIC_ROOT,
   "authorization",
@@ -63,16 +75,6 @@ const GOOGLE_WRAPPING_KEY_ROUTE = join(APP_ROOT, "api", "wrapping-key", "google"
 const APP_HOME_PAGE = join(APP_ROOT, "page.tsx");
 const APP_AUTHORIZE_PAGE = join(APP_ROOT, "authorize", "page.tsx");
 const PROXY = join(SRC_ROOT, "proxy.ts");
-const STABLE_UI_CLIENT_LOGIC_MODULES = new Set(
-  STABLE_CLIENT_LOGIC_UI_ENTRIES.map((entry) => join(CLIENT_LOGIC_ROOT, `${entry}.ts`)),
-);
-const UI_CROSS_SLICE_COMPOSERS = new Set([
-  join(UI_ROOT, "authorization", "authorizationFlow.tsx"),
-  join(UI_ROOT, "identity-catalog", "selection", "identitySelectionFlow.tsx"),
-  join(UI_ROOT, "identity-dashboard", "identityDashboard.tsx"),
-  join(UI_ROOT, "identity-dashboard", "management", "detach-from-google", "detachFromGoogleFlow.tsx"),
-  join(UI_ROOT, "onboarding", "signInFlow.tsx"),
-]);
 const GRAPH = new ModuleGraph(REPO_ROOT);
 
 describe("architecture boundaries", () => {
@@ -184,24 +186,22 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
-  it("limits production UI logic imports to stable controllers and operations", () => {
-    expect(GRAPH.productionSourceFiles(UI_ROOT).flatMap(inspectUiLogicImports)).toEqual([]);
-  });
+  it("keeps secret-bearing browser capabilities out of UI modules", () => {
+    expect([...SECRET_BEARING_BROWSER_CAPABILITIES.keys()]
+      .filter((filePath) => !existsSync(filePath))
+      .map((filePath) => relative(REPO_ROOT, filePath))).toEqual([]);
 
-  it("confines cross-slice UI imports to explicit flow composers", () => {
-    const violations = GRAPH.productionSourceFiles(UI_ROOT).flatMap((filePath) => {
-      const sourceSlice = dirname(relative(UI_ROOT, filePath));
-      return GRAPH.importSpecifiers(filePath).flatMap((specifier) => {
-        const target = GRAPH.resolveLocalImportTarget(filePath, specifier);
-        if (!target || !isSameOrInside(target, UI_ROOT)) return [];
-        const targetFeature = relative(UI_ROOT, target).split(/[\\/]/u)[0];
-        const targetSlice = dirname(relative(UI_ROOT, target));
-        if (sourceSlice === targetSlice || targetFeature === "shared") return [];
-        return UI_CROSS_SLICE_COMPOSERS.has(filePath)
-          ? []
-          : [`${relative(REPO_ROOT, filePath)} imports UI slice ${targetSlice} without being a flow composer`];
-      });
-    });
+    const clientFacingFiles = [
+      ...GRAPH.productionSourceFiles(UI_ROOT),
+      ...GRAPH.productionSourceFiles(APP_ROOT).filter(isClientModule),
+    ];
+    const violations = clientFacingFiles.flatMap((filePath) =>
+      [...SECRET_BEARING_BROWSER_CAPABILITIES].flatMap(([target, label]) =>
+        GRAPH.importsTarget(filePath, target)
+          ? [`${relative(REPO_ROOT, filePath)} directly imports ${label}`]
+          : []
+      )
+    );
 
     expect(violations).toEqual([]);
   });
@@ -296,38 +296,6 @@ describe("architecture boundaries", () => {
   });
 
 });
-
-function inspectUiLogicImports(filePath: string): string[] {
-  const relativeFilePath = relative(REPO_ROOT, filePath);
-  const violations = GRAPH.referencesIdentifier(filePath, "IssuedPubkyAuthRequest")
-    ? [`${relativeFilePath} references the issued authorization request`]
-    : [];
-  const visited = new Set<string>();
-
-  const inspect = (currentFilePath: string): void => {
-    if (visited.has(currentFilePath)) return;
-    visited.add(currentFilePath);
-
-    for (const specifier of GRAPH.importSpecifiers(currentFilePath)) {
-      const targetPath = GRAPH.resolveLocalImportTarget(currentFilePath, specifier);
-      if (!targetPath) continue;
-      if (isSameOrInside(targetPath, CLIENT_LOGIC_ROOT)) {
-        if (!isStableUiLogicModule(targetPath)) {
-          violations.push(`${relativeFilePath} reaches non-public client logic via "${specifier}" from ${relative(REPO_ROOT, currentFilePath)}`);
-        }
-        continue;
-      }
-      inspect(targetPath);
-    }
-  };
-
-  inspect(filePath);
-  return violations;
-}
-
-function isStableUiLogicModule(filePath: string): boolean {
-  return STABLE_UI_CLIENT_LOGIC_MODULES.has(filePath);
-}
 
 function runtimeIsolationViolations(
   rootPath: string,

@@ -3,35 +3,34 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../../test-utils/fakes/MemoryStorage";
-import { expectResultError } from "../../../../../test-utils/resultAssertions";
-import { LOGGER } from "../../../../libs/logger/logger";
-import { LocalStorageIdentityRepository } from "../local/LocalStorageIdentityRepository";
+import { MemoryStorage } from "../../../../test-utils/fakes/MemoryStorage";
+import { expectResultError } from "../../../../test-utils/resultAssertions";
+import { LOGGER } from "../../../libs/logger/logger";
+import { LocalStorageIdentityRepository } from "../local-identity/LocalStorageIdentityRepository";
 
 const MOCKS = vi.hoisted(() => ({
-  GoogleBackedIdentityOperations: vi.fn(),
+  GoogleIdentityLifecycle: vi.fn(),
   GoogleImplicitAuthorization: vi.fn(),
   detachIdentity: vi.fn(),
   abortRequests: vi.fn(),
   disposeAuthorization: vi.fn(),
   disposeOperations: vi.fn(),
   establishIdentity: vi.fn(),
-  prepareAuthorization: vi.fn(),
   requestAuthorization: vi.fn(),
 }));
 
-vi.mock("./GoogleBackedIdentityOperations", () => ({
-  GoogleBackedIdentityOperations: MOCKS.GoogleBackedIdentityOperations,
+vi.mock("./GoogleIdentityLifecycle", () => ({
+  GoogleIdentityLifecycle: MOCKS.GoogleIdentityLifecycle,
 }));
 
-vi.mock("../../google-authorization/GoogleImplicitAuthorization", () => ({
+vi.mock("./GoogleImplicitAuthorization", () => ({
   GoogleImplicitAuthorization: MOCKS.GoogleImplicitAuthorization,
 }));
 
 import {
-  GoogleBackedIdentityFlow,
+  GoogleIdentityFlow,
   type GoogleIdentityFlowState,
-} from "./GoogleBackedIdentityFlow";
+} from "./GoogleIdentityFlow";
 
 const GOOGLE_ACCOUNT = {
   id: "google-account-id",
@@ -49,23 +48,21 @@ const PUBLIC_IDENTITY = {
   publicKeyDisplay: "pubky1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy",
 };
 
-describe("GoogleBackedIdentityFlow", () => {
+describe("GoogleIdentityFlow", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", new MemoryStorage());
     for (const mock of Object.values(MOCKS)) mock.mockReset();
 
     MOCKS.GoogleImplicitAuthorization.mockImplementation(function () { return {
-      prepare: MOCKS.prepareAuthorization,
       request: MOCKS.requestAuthorization,
       dispose: MOCKS.disposeAuthorization,
     }; });
-    MOCKS.GoogleBackedIdentityOperations.mockImplementation(function () { return {
+    MOCKS.GoogleIdentityLifecycle.mockImplementation(function () { return {
       establishIdentity: MOCKS.establishIdentity,
       detachIdentity: MOCKS.detachIdentity,
       abortRequests: MOCKS.abortRequests,
       dispose: MOCKS.disposeOperations,
     }; });
-    MOCKS.prepareAuthorization.mockResolvedValue(Result.ok());
     MOCKS.requestAuthorization.mockResolvedValue(Result.ok(CREDENTIALS));
     MOCKS.establishIdentity.mockImplementation(async (_credentials, reportProgress) => {
       reportProgress("checking_passport_file");
@@ -80,12 +77,43 @@ describe("GoogleBackedIdentityFlow", () => {
     vi.unstubAllGlobals();
   });
 
-  it("reports readiness, authorization, and establishment progress", async () => {
+  it("composes its screen-scoped dependencies during construction", () => {
+    const onState = vi.fn();
+
+    new GoogleIdentityFlow({
+      googleClientId: "google-client-id",
+      homegateBaseUrl: "https://homegate.example/",
+    }, onState);
+
+    expect(MOCKS.GoogleImplicitAuthorization).toHaveBeenCalledWith("google-client-id");
+    expect(MOCKS.GoogleIdentityLifecycle).toHaveBeenCalledWith(
+      expect.any(LocalStorageIdentityRepository),
+      "https://homegate.example/",
+      window.location.origin,
+    );
+  });
+
+  it("logs flow construction failures without sensitive configuration", () => {
+    const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
+    MOCKS.GoogleImplicitAuthorization.mockImplementationOnce(() => {
+      throw new Error("SECRET-CONFIGURATION-VALUE");
+    });
+
+    expect(() => new GoogleIdentityFlow({
+      googleClientId: "SECRET-CLIENT-ID",
+      homegateBaseUrl: "https://secret-homegate.example/",
+    }, vi.fn())).toThrow("SECRET-CONFIGURATION-VALUE");
+    expect(error).toHaveBeenCalledWith("identity.google.flow.failed", {
+      operation: "initialize",
+      code: "runtime_exception",
+    });
+    expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET");
+  });
+
+  it("reports authorization and establishment progress", async () => {
     const states: GoogleIdentityFlowState[] = [];
     const flow = createFlow((state) => states.push(state));
 
-    flow.start();
-    await vi.waitFor(() => expect(states).toEqual([{ status: "ready" }]));
     await expect(flow.establishIdentity()).resolves.toEqual(Result.ok({
       establishmentMode: "restored",
       googleAccount: GOOGLE_ACCOUNT,
@@ -93,11 +121,9 @@ describe("GoogleBackedIdentityFlow", () => {
     }));
 
     expect(states).toEqual([
-      { status: "ready" },
       { status: "requesting-authorization" },
       { status: "establishing", progress: "checking_passport_file" },
       { status: "establishing", progress: "restoring_identity" },
-      { status: "ready" },
     ]);
     expect(MOCKS.establishIdentity).toHaveBeenCalledWith(CREDENTIALS, expect.any(Function));
   });
@@ -118,14 +144,14 @@ describe("GoogleBackedIdentityFlow", () => {
     expect(JSON.stringify(warning.mock.calls)).not.toContain("sensitive-state-listener");
   });
 
-  it("returns a direct authorization error without constructing operations", async () => {
+  it("returns a direct authorization error without invoking identity operations", async () => {
     MOCKS.requestAuthorization.mockResolvedValue(Result.err({
       code: "google_authorization_popup_closed" as const,
     }));
     const flow = createFlow();
 
     expectResultError(await flow.establishIdentity(), { code: "google_authorization_popup_closed" });
-    expect(MOCKS.GoogleBackedIdentityOperations).not.toHaveBeenCalled();
+    expect(MOCKS.establishIdentity).not.toHaveBeenCalled();
   });
 
   it("rejects a different Google account before delegation", async () => {
@@ -221,6 +247,22 @@ describe("GoogleBackedIdentityFlow", () => {
     expect(MOCKS.disposeOperations).toHaveBeenCalledOnce();
   });
 
+  it("does not start identity operations when disposed as authorization settles", async () => {
+    let authorize!: () => void;
+    MOCKS.requestAuthorization.mockImplementation(() => new Promise((resolve) => {
+      authorize = () => resolve(Result.ok(CREDENTIALS));
+    }));
+    const flow = createFlow();
+    const pending = flow.establishIdentity();
+
+    authorize();
+    queueMicrotask(() => flow.dispose());
+
+    expectResultError(await pending, { code: "cancelled" });
+    expect(MOCKS.establishIdentity).not.toHaveBeenCalled();
+    expect(MOCKS.disposeOperations).toHaveBeenCalledOnce();
+  });
+
   it("rejects a concurrent operation without another authorization", async () => {
     let finish!: () => void;
     MOCKS.establishIdentity.mockImplementation(() => new Promise((resolve) => {
@@ -245,12 +287,12 @@ describe("GoogleBackedIdentityFlow", () => {
 
 function createFlow(
   onState: (state: GoogleIdentityFlowState) => void = vi.fn(),
-): GoogleBackedIdentityFlow {
-  return new GoogleBackedIdentityFlow(
-    new LocalStorageIdentityRepository(),
-    new MOCKS.GoogleImplicitAuthorization(),
-    "https://homegate.example/",
-    window.location.origin,
+): GoogleIdentityFlow {
+  return new GoogleIdentityFlow(
+    {
+      googleClientId: "google-client-id",
+      homegateBaseUrl: "https://homegate.example/",
+    },
     onState,
   );
 }

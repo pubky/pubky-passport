@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PassportAuthorizationViewState } from "../../logic/authorization/PassportAuthorizationController";
-import type { LocalIdentityCatalog } from "../../logic/identity/PassportIdentityController";
+import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
 import { AuthorizationFlow } from "./authorizationFlow";
 
 const MOCKS = vi.hoisted(() => ({
@@ -38,8 +38,8 @@ vi.mock("../../logic/authorization/PassportAuthorizationController", () => ({
   },
 }));
 
-vi.mock("../../logic/identity/PassportIdentityController", () => ({
-  PassportIdentityController: class {
+vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
+  LocalIdentityController: class {
     listIdentities = () => MOCKS.catalog
       ? Result.ok(MOCKS.catalog)
       : Result.err({ code: "storage_unavailable" as const });
@@ -70,12 +70,10 @@ const REVIEW = {
 } as const;
 
 const FIRST = {
-  id: "first-public-key",
   publicIdentity: { publicKeyDisplay: "pubkyfirst", publicKeyZ32: "first-public-key" },
   googleAccount: { email: "first@example.com", id: "google-first", name: "First User", pictureUrl: null },
 };
 const SECOND = {
-  id: "second-public-key",
   publicIdentity: { publicKeyDisplay: "pubkysecond", publicKeyZ32: "second-public-key" },
   googleAccount: { email: "second@example.com", id: "google-second", name: "Second User", pictureUrl: null },
 };
@@ -83,12 +81,12 @@ const SECOND = {
 describe("AuthorizationFlow", () => {
   beforeEach(() => {
     MOCKS.authorizationState = { status: "review", review: REVIEW };
-    MOCKS.catalog = { activeIdentityId: FIRST.id, identities: [FIRST, SECOND] };
+    MOCKS.catalog = { activePublicKeyZ32: FIRST.publicIdentity.publicKeyZ32, identities: [FIRST, SECOND] };
     MOCKS.approve.mockResolvedValue({ status: "approving", review: REVIEW });
     MOCKS.cancel.mockResolvedValue({ status: "cancelled" });
-    MOCKS.select.mockImplementation((identityId: string) => {
+    MOCKS.select.mockImplementation((publicKeyZ32: string) => {
       if (!MOCKS.catalog) return Result.err({ code: "storage_unavailable" as const });
-      MOCKS.catalog = { ...MOCKS.catalog, activeIdentityId: identityId };
+      MOCKS.catalog = { ...MOCKS.catalog, activePublicKeyZ32: publicKeyZ32 };
       return Result.ok();
     });
   });
@@ -172,7 +170,7 @@ describe("AuthorizationFlow", () => {
     await user.click(screen.getByRole("button", { name: /Second User/iu }));
 
     await waitFor(() => expect(screen.getByText("Second User")).toBeInTheDocument());
-    expect(MOCKS.select).toHaveBeenCalledWith(SECOND.id);
+    expect(MOCKS.select).toHaveBeenCalledWith(SECOND.publicIdentity.publicKeyZ32);
     expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
   });
 
@@ -190,7 +188,7 @@ describe("AuthorizationFlow", () => {
   });
 
   it("opens Google identity setup immediately when no local identity exists", async () => {
-    MOCKS.catalog = { activeIdentityId: null, identities: [] };
+    MOCKS.catalog = { activePublicKeyZ32: null, identities: [] };
     renderFlow();
 
     expect(await screen.findByRole("heading", { name: "Add identity" })).toBeInTheDocument();
@@ -201,11 +199,11 @@ describe("AuthorizationFlow", () => {
 
   it("waits for explicit completion after the first identity enters the catalog", async () => {
     const user = userEvent.setup();
-    MOCKS.catalog = { activeIdentityId: null, identities: [] };
+    MOCKS.catalog = { activePublicKeyZ32: null, identities: [] };
     renderFlow();
     await screen.findByRole("heading", { name: "Add identity" });
 
-    MOCKS.catalog = { activeIdentityId: FIRST.id, identities: [FIRST] };
+    MOCKS.catalog = { activePublicKeyZ32: FIRST.publicIdentity.publicKeyZ32, identities: [FIRST] };
 
     expect(screen.getByRole("heading", { name: "Add identity" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Sign in to requesting.app" })).not.toBeInTheDocument();
@@ -216,7 +214,7 @@ describe("AuthorizationFlow", () => {
 
   it("cancels authorization from first-identity setup", async () => {
     const user = userEvent.setup();
-    MOCKS.catalog = { activeIdentityId: null, identities: [] };
+    MOCKS.catalog = { activePublicKeyZ32: null, identities: [] };
     renderFlow();
 
     await user.click(await screen.findByRole("button", { name: "Back" }));

@@ -5,64 +5,65 @@ import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  LocalIdentityCatalog,
-  PubkyPublicIdentity,
-} from "../../logic/identity/PassportIdentityController";
-import {
-  mockGoogleBackedIdentityFlow,
-  mockPassportIdentityController,
-} from "../../../../test-utils/fakes/mockPassportIdentityController";
+import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
+import type { PubkyPublicIdentity } from "../../logic/pubky/pubkyIdentityKey";
+import { mockGoogleIdentityFlow } from "../../../../test-utils/fakes/mockGoogleIdentityFlow";
+import { mockLocalIdentityController } from "../../../../test-utils/fakes/mockLocalIdentityController";
 import { IdentityDashboard } from "./identityDashboard";
 
 const FLOW = vi.hoisted(() => ({
-  catalog: { activeIdentityId: null, identities: [] } as LocalIdentityCatalog,
+  catalog: { activePublicKeyZ32: null, identities: [] } as LocalIdentityCatalog,
   establishIdentity: false,
   establishmentMode: "created" as "created" | "restored",
   migrationExportCount: 0,
   migrationUrl: "pubkyring://migrate?index=0&total=1&key=active-secret",
 }));
 
-vi.mock("../../logic/identity/PassportIdentityController", () => ({
+vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
   MIN_BACKUP_PASSWORD_LENGTH: 6,
-  PassportIdentityController: function PassportIdentityController() {
-    return mockPassportIdentityController({
-      startGoogleIdentityFlow: (onState) => {
-        onState({ status: "ready" });
-        return mockGoogleBackedIdentityFlow({
-          establishIdentity: async () => {
-            if (FLOW.establishIdentity) {
-              const identity = {
-                id: "created",
-                publicIdentity: { publicKeyZ32: "created", publicKeyDisplay: "pubkycreated" },
-                googleAccount: { id: "google-created", email: "created@gmail.com", name: "Created", pictureUrl: null },
-              };
-              FLOW.catalog = { activeIdentityId: identity.id, identities: [identity] };
-              return Result.ok({
-                establishmentMode: FLOW.establishmentMode,
-                googleAccount: identity.googleAccount,
-                publicIdentity: identity.publicIdentity,
-                visibleRecoveryCopyStatus: "created" as const,
-              });
-            }
-            return Result.err({ code: "authorization_failed" as const });
-          },
-          detachIdentity: async (publicIdentity: PubkyPublicIdentity) => {
-            const identities = FLOW.catalog.identities.filter((identity) => identity.id !== publicIdentity.publicKeyZ32);
-            FLOW.catalog = { activeIdentityId: identities[0]?.id ?? null, identities };
-            return Result.ok({ deletionStatus: "deleted" as const });
-          },
-        });
-      },
+  LocalIdentityController: function LocalIdentityController() {
+    return mockLocalIdentityController({
       createPubkyRingMigrationUrl: () => {
         FLOW.migrationExportCount += 1;
         return Result.ok(FLOW.migrationUrl);
       },
       listIdentities: () => Result.ok(FLOW.catalog),
-      removeIdentity: (identityId: string) => {
-        const identities = FLOW.catalog.identities.filter((identity) => identity.id !== identityId);
-        FLOW.catalog = { activeIdentityId: identities[0]?.id ?? null, identities };
+      removeIdentity: (publicKeyZ32: string) => {
+        const identities = FLOW.catalog.identities.filter(
+          (identity) => identity.publicIdentity.publicKeyZ32 !== publicKeyZ32,
+        );
+        FLOW.catalog = { activePublicKeyZ32: identities[0]?.publicIdentity.publicKeyZ32 ?? null, identities };
         return Result.ok();
+      },
+    });
+  },
+}));
+
+vi.mock("../../logic/google-identity/GoogleIdentityFlow", () => ({
+  GoogleIdentityFlow: function GoogleIdentityFlow() {
+    return mockGoogleIdentityFlow({
+      establishIdentity: async () => {
+        if (FLOW.establishIdentity) {
+          const identity = {
+            publicIdentity: { publicKeyZ32: "created", publicKeyDisplay: "pubkycreated" },
+            googleAccount: { id: "google-created", email: "created@gmail.com", name: "Created", pictureUrl: null },
+          };
+          FLOW.catalog = { activePublicKeyZ32: identity.publicIdentity.publicKeyZ32, identities: [identity] };
+          return Result.ok({
+            establishmentMode: FLOW.establishmentMode,
+            googleAccount: identity.googleAccount,
+            publicIdentity: identity.publicIdentity,
+            visibleRecoveryCopyStatus: "created" as const,
+          });
+        }
+        return Result.err({ code: "authorization_failed" as const });
+      },
+      detachIdentity: async (publicIdentity: PubkyPublicIdentity) => {
+        const identities = FLOW.catalog.identities.filter(
+          (identity) => identity.publicIdentity.publicKeyZ32 !== publicIdentity.publicKeyZ32,
+        );
+        FLOW.catalog = { activePublicKeyZ32: identities[0]?.publicIdentity.publicKeyZ32 ?? null, identities };
+        return Result.ok({ deletionStatus: "deleted" as const });
       },
     });
   },
@@ -70,7 +71,7 @@ vi.mock("../../logic/identity/PassportIdentityController", () => ({
 
 describe("IdentityDashboard", () => {
   beforeEach(() => {
-    FLOW.catalog = { activeIdentityId: null, identities: [] };
+    FLOW.catalog = { activePublicKeyZ32: null, identities: [] };
     FLOW.establishIdentity = false;
     FLOW.establishmentMode = "created";
     FLOW.migrationExportCount = 0;
@@ -112,7 +113,7 @@ describe("IdentityDashboard", () => {
   });
 
   it("routes a stored identity to the signed-in home state", async () => {
-    FLOW.catalog = { activeIdentityId: "identity", identities: [{ id: "identity", publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" }, googleAccount: { id: "google-1", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: null } }] };
+    FLOW.catalog = { activePublicKeyZ32: "identity", identities: [{ publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" }, googleAccount: { id: "google-1", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: null } }] };
     render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
     expect(await screen.findByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
     expect(screen.getByText("Satoshi Nakamoto")).toBeInTheDocument();
@@ -122,10 +123,10 @@ describe("IdentityDashboard", () => {
 
   it("shows the active identity when several identities exist", async () => {
     FLOW.catalog = {
-      activeIdentityId: "second",
+      activePublicKeyZ32: "second",
       identities: [
-        { id: "first", publicIdentity: { publicKeyZ32: "first", publicKeyDisplay: "pubkyfirst" } },
-        { id: "second", publicIdentity: { publicKeyZ32: "second", publicKeyDisplay: "pubkysecond" }, googleAccount: { id: "google-2", email: "active@gmail.com", name: "Active Account", pictureUrl: null } },
+        { publicIdentity: { publicKeyZ32: "first", publicKeyDisplay: "pubkyfirst" } },
+        { publicIdentity: { publicKeyZ32: "second", publicKeyDisplay: "pubkysecond" }, googleAccount: { id: "google-2", email: "active@gmail.com", name: "Active Account", pictureUrl: null } },
       ],
     };
     render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
@@ -136,7 +137,7 @@ describe("IdentityDashboard", () => {
   });
 
   it("opens the switcher and sends Add identity to the signing flow", async () => {
-    FLOW.catalog = { activeIdentityId: "identity", identities: [{ id: "identity", publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" } }] };
+    FLOW.catalog = { activePublicKeyZ32: "identity", identities: [{ publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" } }] };
     render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Switch" }));
@@ -149,8 +150,8 @@ describe("IdentityDashboard", () => {
   it("gates a newly added identity behind setup completion", async () => {
     FLOW.establishIdentity = true;
     FLOW.catalog = {
-      activeIdentityId: "existing",
-      identities: [{ id: "existing", publicIdentity: { publicKeyZ32: "existing", publicKeyDisplay: "pubkyexisting" } }],
+      activePublicKeyZ32: "existing",
+      identities: [{ publicIdentity: { publicKeyZ32: "existing", publicKeyDisplay: "pubkyexisting" } }],
     };
     render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
 
@@ -167,10 +168,10 @@ describe("IdentityDashboard", () => {
 
   it("logs out only the active identity and activates a remaining identity", async () => {
     FLOW.catalog = {
-      activeIdentityId: "first",
+      activePublicKeyZ32: "first",
       identities: [
-        { id: "first", publicIdentity: { publicKeyZ32: "first", publicKeyDisplay: "pubkyfirst" }, googleAccount: { id: "google-1", email: "first@gmail.com", name: "First", pictureUrl: null } },
-        { id: "second", publicIdentity: { publicKeyZ32: "second", publicKeyDisplay: "pubkysecond" }, googleAccount: { id: "google-2", email: "second@gmail.com", name: "Second", pictureUrl: null } },
+        { publicIdentity: { publicKeyZ32: "first", publicKeyDisplay: "pubkyfirst" }, googleAccount: { id: "google-1", email: "first@gmail.com", name: "First", pictureUrl: null } },
+        { publicIdentity: { publicKeyZ32: "second", publicKeyDisplay: "pubkysecond" }, googleAccount: { id: "google-2", email: "second@gmail.com", name: "Second", pictureUrl: null } },
       ],
     };
     render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
@@ -183,7 +184,7 @@ describe("IdentityDashboard", () => {
   });
 
   it("opens encrypted backup from identity management", async () => {
-    FLOW.catalog = { activeIdentityId: "identity", identities: [{ id: "identity", publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" } }] };
+    FLOW.catalog = { activePublicKeyZ32: "identity", identities: [{ publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" } }] };
     render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
@@ -194,10 +195,10 @@ describe("IdentityDashboard", () => {
 
   it("exports only the active identity to Pubky Ring", async () => {
     FLOW.catalog = {
-      activeIdentityId: "active",
+      activePublicKeyZ32: "active",
       identities: [
-        { id: "inactive", publicIdentity: { publicKeyZ32: "inactive", publicKeyDisplay: "pubkyinactive" } },
-        { id: "active", publicIdentity: { publicKeyZ32: "active", publicKeyDisplay: "pubkyactive" } },
+        { publicIdentity: { publicKeyZ32: "inactive", publicKeyDisplay: "pubkyinactive" } },
+        { publicIdentity: { publicKeyZ32: "active", publicKeyDisplay: "pubkyactive" } },
       ],
     };
     render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
@@ -211,7 +212,7 @@ describe("IdentityDashboard", () => {
   });
 
   it("backs up, confirms detachment, clears the local identity, and shows completion", async () => {
-    FLOW.catalog = { activeIdentityId: "identity", identities: [{ id: "identity", publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" }, googleAccount: { id: "google", email: "user@gmail.com", name: "User", pictureUrl: null } }] };
+    FLOW.catalog = { activePublicKeyZ32: "identity", identities: [{ publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" }, googleAccount: { id: "google", email: "user@gmail.com", name: "User", pictureUrl: null } }] };
     render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
@@ -244,7 +245,7 @@ describe("IdentityDashboard", () => {
   });
 
   it("returns to signed out when the last identity logs out", async () => {
-    FLOW.catalog = { activeIdentityId: "only", identities: [{ id: "only", publicIdentity: { publicKeyZ32: "only", publicKeyDisplay: "pubkyonly" } }] };
+    FLOW.catalog = { activePublicKeyZ32: "only", identities: [{ publicIdentity: { publicKeyZ32: "only", publicKeyDisplay: "pubkyonly" } }] };
     render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));

@@ -1,9 +1,10 @@
 "use client";
 
-import { Result } from "better-result";
 import { useReducer } from "react";
 
-import type { LocalIdentityMetadata, PassportIdentityController } from "../../../../logic/identity/PassportIdentityController";
+import type { GoogleIdentityConfiguration } from "../../../../logic/google-identity/GoogleIdentityFlow";
+import type { LocalIdentityBackupResult } from "../../../../logic/local-identity/LocalIdentityController";
+import type { LocalIdentityMetadata } from "../../../../logic/local-identity/localIdentityModels";
 import { EncryptedBackup } from "../encrypted-backup/encryptedBackup";
 import { MigrateToPubkyRing } from "../migrate-to-pubky-ring/migrateToPubkyRing";
 import { BackupBeforeDetaching } from "./backupBeforeDetaching";
@@ -13,15 +14,17 @@ import { GoogleDetachmentComplete } from "./googleDetachmentComplete";
 import { ReviewGoogleDetachment } from "./reviewGoogleDetachment";
 import { useDetachFromGoogle } from "./useDetachFromGoogle";
 
-function DetachFromGoogleFlow({ controller, identity, onBack, onDone }: {
-  controller: PassportIdentityController;
+function DetachFromGoogleFlow({ createBackup, createMigrationUrl, googleIdentityConfiguration, identity, onBack, onDone }: {
+  createBackup: (publicKeyZ32: string, password: string) => Promise<LocalIdentityBackupResult>;
+  createMigrationUrl: () => string | null;
+  googleIdentityConfiguration: GoogleIdentityConfiguration;
   identity: LocalIdentityMetadata;
   onBack: () => void;
   onDone: () => void;
 }) {
   const [state, dispatch] = useReducer(transitionDetachFromGoogleFlow, { view: "backup" });
   const operation = useDetachFromGoogle(
-    controller,
+    googleIdentityConfiguration,
     identity.publicIdentity,
     identity.googleAccount?.id ?? "",
   );
@@ -31,8 +34,8 @@ function DetachFromGoogleFlow({ controller, identity, onBack, onDone }: {
   switch (state.view) {
     case "encrypted-backup":
       return <EncryptedBackup
-        createBackup={controller.createEncryptedBackup}
-        identityId={identity.id}
+        createBackup={createBackup}
+        publicKeyZ32={identity.publicIdentity.publicKeyZ32}
         onBack={() => dispatch({ type: "back-to-backup" })}
       />;
     case "pubky-ring":
@@ -56,7 +59,7 @@ function DetachFromGoogleFlow({ controller, identity, onBack, onDone }: {
                 : null}
             onCancel={() => dispatch({ type: "confirmation-closed" })}
             onConfirm={operation.detach}
-            onRetryAuthorization={operation.retryAuthorization}
+            onRetryAuthorization={operation.retryDetachment}
             open={state.confirmation === "open"}
             pending={pending}
           />
@@ -69,10 +72,9 @@ function DetachFromGoogleFlow({ controller, identity, onBack, onDone }: {
         onBackupConfirmed={() => dispatch({ type: "backup-confirmed" })}
         onDownloadBackup={() => dispatch({ type: "backup-requested" })}
         onMigrateToKeychain={() => {
-          const migration = controller.createPubkyRingMigrationUrl();
           dispatch({
             type: "migration-requested",
-            migrationUrl: Result.isOk(migration) ? migration.value : null,
+            migrationUrl: createMigrationUrl(),
           });
         }}
       />;

@@ -70,9 +70,10 @@ flowchart LR
 
 ESLint, `test-utils/architecture/architecture-boundaries.test.ts`, and the
 `client-only` / `server-only` markers enforce targeted runtime and security
-boundaries. These include browser/server isolation, stable UI browser entries,
-approved environment access, SDK and persistence confinement, and sensitive parser
-contract confinement. Feature-internal folder roles are not enforced.
+boundaries. These include browser/server isolation, approved environment access,
+SDK and persistence confinement, secret-bearing UI
+capability confinement, and sensitive parser contract confinement. Feature-internal
+folder roles are not enforced.
 
 ## Routes
 
@@ -201,10 +202,7 @@ sequenceDiagram
         participant UseCase as ActiveIdentityAuthorization.ts<br/>ActiveIdentityAuthorization.approve()
         participant AuthRequest as IssuedPubkyAuthRequest.ts<br/>validatedUrlForApproval()<br/>takeOutcomeCallback()
     end
-    box rgba(0, 158, 115, 0.18) src/client/logic/identity/local
-        participant Local as RestoreActiveLocalIdentityKey.ts<br/>RestoreActiveLocalIdentityKey
-    end
-    box rgba(0, 158, 115, 0.18) src/client/logic/identity/local
+    box rgba(0, 158, 115, 0.18) src/client/logic/local-identity
         participant Repo as LocalStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/pubky
@@ -222,16 +220,13 @@ sequenceDiagram
     Review->>Controller: approve()
     Controller->>UseCase: approve(issued request)
     UseCase->>Pubky: new PubkySdkAdapter()
-    UseCase->>Local: new RestoreActiveLocalIdentityKey(repository.readActive, pubky)
-    UseCase->>Local: restore()
-    Local->>Repo: readActive()
-    Repo-->>Local: public metadata + 32-byte secret
-    Local->>Pubky: restoreIdentityKey(secret)
+    UseCase->>Repo: readActive()
+    Repo-->>UseCase: public metadata + 32-byte secret
+    UseCase->>Pubky: restoreIdentityKey(secret)
     Pubky->>SDK: Keypair.fromSecret(secret)
     SDK-->>Pubky: concrete Keypair
-    Pubky-->>Local: opaque handle + public identity
-    Note over Local: Compare persisted public metadata
-    Local-->>UseCase: verified active identity
+    Pubky-->>UseCase: opaque handle + public identity
+    Note over UseCase: Compare persisted public metadata and clear secret bytes
     UseCase->>Pubky: approveAuthRequest(handle, issued request)
     Pubky->>AuthRequest: isLive() + validatedUrlForApproval()
     AuthRequest-->>Pubky: exact-request provenance + sensitive URL
@@ -299,33 +294,25 @@ sequenceDiagram
     accTitle: Single Google implicit popup call flow
     accDescr: One user click requests identity and Drive scopes; the callback fragment is scrubbed during HTML parsing and credentials remain browser-only.
     actor User
-    participant UI as src/client/ui/root<br/>GoogleIdentitySetupFlow
-    box rgba(0, 158, 115, 0.18) src/client/logic/identity
-        participant Controller as PassportIdentityController.ts<br/>PassportIdentityController
-        participant GoogleFlow as GoogleBackedIdentityFlow.ts<br/>GoogleBackedIdentityFlow
-    end
-    box rgba(0, 158, 115, 0.18) src/client/logic/google-authorization
+    participant UI as src/client/ui/onboarding/google<br/>useGoogleSignIn
+    box rgba(0, 158, 115, 0.18) src/client/logic/google-identity
+        participant GoogleFlow as GoogleIdentityFlow.ts<br/>GoogleIdentityFlow
+        participant Operations as GoogleIdentityOperations.ts<br/>GoogleIdentityOperations
         participant Authorization as GoogleImplicitAuthorization.ts<br/>GoogleImplicitAuthorization
-    end
-    box rgba(0, 158, 115, 0.18) src/client/logic/identity/google-backed
-        participant Operations as GoogleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
     end
     box rgba(17, 24, 39, 0.12) External
         participant OAuth as Google OAuth authorize endpoint
     end
 
-    UI->>Controller: new PassportIdentityController(...)
-    UI->>Controller: startGoogleIdentityFlow(onState)
-    Controller->>GoogleFlow: new GoogleBackedIdentityFlow(...) + start()
-    GoogleFlow->>Authorization: prepare()
+    UI->>GoogleFlow: new GoogleIdentityFlow(configuration, onState)
     User->>UI: Continue with Google
     UI->>GoogleFlow: establishIdentity()
     GoogleFlow->>Authorization: request()
     Authorization->>OAuth: open popup with response_type=id_token token
     OAuth-->>Authorization: redirect to Passport callback with fragment
     Note over Authorization: Parser-time bootstrap scrubs fragment<br/>validate state, nonce, scope, and UserInfo sub
-    Authorization-->>GoogleFlow: GoogleBackedIdentityCredentials
-    GoogleFlow->>Operations: establishIdentity(GoogleBackedIdentityCredentials)
+    Authorization-->>GoogleFlow: GoogleIdentityCredentials
+    GoogleFlow->>Operations: establishIdentity(GoogleIdentityCredentials)
 ```
 
 
@@ -336,12 +323,10 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Google-backed custody/recovery establishment call flow
-    accDescr: GoogleBackedIdentityOperations requests a wrapping key, reads the Google Drive Passport file, and dispatches a found file to restore or requests a Homegate invitation before creating a missing identity, without passing the wrapping key to Drive storage.
-    box rgba(0, 158, 115, 0.18) src/client/logic/identity
-        participant GoogleFlow as GoogleBackedIdentityFlow.ts<br/>GoogleBackedIdentityFlow
-    end
-    box rgba(0, 158, 115, 0.18) src/client/logic/identity/google-backed
-        participant Operations as GoogleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
+    accDescr: GoogleIdentityOperations reads the Google Drive Passport file first, then requests a wrapping key and either restores the found identity or requests a Homegate invitation before creating a missing identity, without passing the wrapping key to Drive storage.
+    box rgba(0, 158, 115, 0.18) src/client/logic/google-identity
+        participant GoogleFlow as GoogleIdentityFlow.ts<br/>GoogleIdentityFlow
+        participant Operations as GoogleIdentityOperations.ts<br/>GoogleIdentityOperations
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/wrapping-key
         participant Wrapping as WrappingKeyApiClient.ts<br/>WrappingKeyApiClient
@@ -359,37 +344,45 @@ sequenceDiagram
         participant Drive as Google Drive API v3<br/>appDataFolder + My Drive
     end
 
-    GoogleFlow->>Operations: establishIdentity(GoogleBackedIdentityCredentials)
-    Operations->>Wrapping: requestGoogleWrappingKey(ID token)
-    Wrapping->>API: POST { googleIdToken }
-    API-->>Wrapping: wrapping-key result
-    Wrapping-->>Operations: wrapping-key result
-    alt Wrapping-key error
-        Operations-->>GoogleFlow: safe failure
-    else Wrapping key
-        Operations->>DriveStore: new GoogleDrivePassportFileStore(...)
-        Operations->>DriveStore: readPassportFile()
-        DriveStore->>Drive: list passport.json
-        Drive-->>DriveStore: list response
-        opt One file found
-            DriveStore->>Drive: GET media for exact file ID
-            Drive-->>DriveStore: media response body
-            DriveStore->>DriveStore: bounded read + parsePassportFileContents()
-            DriveStore->>Drive: GET metadata for exact file ID
-            Drive-->>DriveStore: ID + name + version + trashed state
-        end
-        DriveStore-->>Operations: found, missing, or safe error
-        alt Found
+    GoogleFlow->>Operations: establishIdentity(GoogleIdentityCredentials)
+    Operations->>DriveStore: new GoogleDrivePassportFileStore(...)
+    Operations->>DriveStore: readPassportFile()
+    DriveStore->>Drive: list passport.json
+    Drive-->>DriveStore: list response
+    opt One file found
+        DriveStore->>Drive: GET media for exact file ID
+        Drive-->>DriveStore: media response body
+        DriveStore->>DriveStore: bounded read + parsePassportFileContents()
+        DriveStore->>Drive: GET metadata for exact file ID
+        Drive-->>DriveStore: ID + name + version + trashed state
+    end
+    DriveStore-->>Operations: found, missing, or safe error
+    alt Found
+        Operations->>Wrapping: requestGoogleWrappingKey(ID token)
+        Wrapping->>API: POST { googleIdToken }
+        API-->>Wrapping: wrapping-key result
+        Wrapping-->>Operations: wrapping-key result
+        alt Wrapping-key error
+            Operations-->>GoogleFlow: safe failure
+        else Wrapping key
             Operations->>Operations: restoreIdentity(envelope, wrapping key)
-        else Missing
+        end
+    else Missing
+        Operations->>Wrapping: requestGoogleWrappingKey(ID token)
+        Wrapping->>API: POST { googleIdToken }
+        API-->>Wrapping: wrapping-key result
+        Wrapping-->>Operations: wrapping-key result
+        alt Wrapping-key error
+            Operations-->>GoogleFlow: safe failure
+        else Wrapping key
             Operations->>Invite: requestGoogleHomeserverSignupInvitation(ID token)
             Invite-->>Operations: validated invitation or safe failure
             opt Invitation returned
                 Operations->>Operations: createIdentity(invitation, wrapping key)
             end
-        else Storage error
-            Operations-->>GoogleFlow: safe failure
         end
+    else Storage error
+        Operations-->>GoogleFlow: safe failure
     end
 ```
 
@@ -401,9 +394,9 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Existing identity restore call flow
-    accDescr: GoogleBackedIdentityOperations decrypts the Passport file, uses DHT resolution and blocking sign-in as the returning-user fast path, and automatically reconciles missing discovery or an authoritative missing homeserver account.
-    box rgba(0, 158, 115, 0.18) src/client/logic/identity/google-backed
-        participant Operations as GoogleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
+    accDescr: GoogleIdentityOperations decrypts the Passport file, uses DHT resolution and blocking sign-in as the returning-user fast path, and automatically reconciles missing discovery or an authoritative missing homeserver account.
+    box rgba(0, 158, 115, 0.18) src/client/logic/google-identity
+        participant Operations as GoogleIdentityOperations.ts<br/>GoogleIdentityOperations
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/passport-file
         participant Crypto as PassportFileWebCrypto.ts<br/>PassportFileWebCrypto
@@ -411,7 +404,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/client/logic/pubky
         participant Pubky as PubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
-    box rgba(0, 158, 115, 0.18) src/client/logic/identity/local
+    box rgba(0, 158, 115, 0.18) src/client/logic/local-identity
         participant Repo as LocalStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
     end
     box rgba(17, 24, 39, 0.12) External
@@ -465,9 +458,9 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Missing identity encryption and Drive storage call flow
-    accDescr: GoogleBackedIdentityOperations encrypts a new Pubky secret, creates the operational app-data file through GoogleDrivePassportFileStore, then best-effort writes a visible recovery copy through GoogleDriveVisibleRecoveryCopies before activation and zeros the exported bytes.
-    box rgba(0, 158, 115, 0.18) src/client/logic/identity/google-backed
-        participant Operations as GoogleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
+    accDescr: GoogleIdentityOperations encrypts a new Pubky secret, creates the operational app-data file through GoogleDrivePassportFileStore, then best-effort writes a visible recovery copy through GoogleDriveVisibleRecoveryCopies before activation and zeros the exported bytes.
+    box rgba(0, 158, 115, 0.18) src/client/logic/google-identity
+        participant Operations as GoogleIdentityOperations.ts<br/>GoogleIdentityOperations
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/pubky
         participant Pubky as PubkySdkAdapter.ts<br/>PubkySdkAdapter
@@ -532,9 +525,9 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Missing identity activation and local save call flow
-    accDescr: GoogleBackedIdentityOperations requests a homeserver signup invitation, then uses its shared signup-and-activation method for both fresh creation and interrupted setup recovery.
-    box rgba(0, 158, 115, 0.18) src/client/logic/identity/google-backed
-        participant Operations as GoogleBackedIdentityOperations.ts<br/>GoogleBackedIdentityOperations
+    accDescr: GoogleIdentityOperations requests a homeserver signup invitation, then uses its shared signup-and-activation method for both fresh creation and interrupted setup recovery.
+    box rgba(0, 158, 115, 0.18) src/client/logic/google-identity
+        participant Operations as GoogleIdentityOperations.ts<br/>GoogleIdentityOperations
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/homegate
         participant Invite as HomegateClient.ts<br/>HomegateClient
@@ -542,7 +535,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/client/logic/pubky
         participant Pubky as PubkySdkAdapter.ts<br/>PubkySdkAdapter
     end
-    box rgba(0, 158, 115, 0.18) src/client/logic/identity/local
+    box rgba(0, 158, 115, 0.18) src/client/logic/local-identity
         participant Repo as LocalStorageIdentityRepository.ts<br/>LocalStorageIdentityRepository
     end
     box rgba(17, 24, 39, 0.12) External
@@ -621,8 +614,8 @@ sequenceDiagram
     accTitle: Detach a Pubky identity from Google
     accDescr: Passport verifies the account and identity, deletes every Google backup, and clears the local identity last.
     participant UI as detach-from-google
-    participant GoogleFlow as GoogleBackedIdentityFlow
-    participant Operations as GoogleBackedIdentityOperations
+    participant GoogleFlow as GoogleIdentityFlow
+    participant Operations as GoogleIdentityOperations
     participant DriveStore as GoogleDrivePassportFileStore
     participant VisibleCopies as GoogleDriveVisibleRecoveryCopies
     participant Drive as Google Drive API v3
@@ -725,7 +718,7 @@ sequenceDiagram
     accTitle: Direct browser Homegate signup invitation call flow
     accDescr: The browser adapter sends only the Google ID token directly to configured Homegate, then bounds and maps the invitation or plaintext error to a safe application result.
     box rgba(0, 158, 115, 0.18) Browser runtime
-        participant UseCase as APPLICATION<br/>GoogleBackedIdentityOperations
+        participant UseCase as APPLICATION<br/>GoogleIdentityOperations
         participant Adapter as BROWSER<br/>HomegateClient
     end
     box rgba(17, 24, 39, 0.12) External
@@ -752,9 +745,8 @@ sequenceDiagram
 | Authorization controller and approval | `src/client/logic/authorization/PassportAuthorizationController.ts`, `ActiveIdentityAuthorization.ts` | Colocated controller and approval tests |
 | Authorization entry | `src/client/logic/authorization/authorizationEntry.ts` | `authorizationEntry.test.ts` |
 | Authorization UI | `src/client/ui/authorization` | Colocated component tests |
-| Identity controller | `src/client/logic/identity` | Controller and factory tests |
-| Google credential capabilities | `src/client/logic/google-authorization` | Colocated implicit OAuth and callback-scrubbing tests |
-| Google-backed custody/recovery lifecycle | `src/client/logic/identity/google-backed` | Colocated operation tests |
+| Local identity controller | `src/client/logic/local-identity` | Controller and repository tests |
+| Google OAuth and custody/recovery lifecycle | `src/client/logic/google-identity` | Colocated authorization, flow, and operation tests |
 | Drive store and WebCrypto | `src/client/logic/passport-file` | Colocated store and crypto tests |
 | Pubky SDK adapter | `src/client/logic/pubky/PubkySdkAdapter.ts` | `pubkySdkAdapter.test.ts` |
 | Wrapping-key API | `src/app/api/wrapping-key/google`, `src/server/wrapping-key/google` | Route and server tests |
