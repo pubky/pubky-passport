@@ -3,7 +3,6 @@ import "server-only";
 import { z } from "zod";
 
 import { isCspSafeHostname } from "./cspSafeUrl";
-import { parseGoogleClientId } from "./googleClientId";
 
 type EnvLike = Record<string, string | undefined>;
 
@@ -16,7 +15,7 @@ export type BrowserBootstrapConfig = {
 const MAXIMUM_URL_CHARACTERS = 2_048;
 
 function parseBrowserBootstrapConfig(input: EnvLike): BrowserBootstrapConfig {
-  const googleClientId = parseGoogleClientId(input);
+  const googleClientId = requiredString("GOOGLE_CLIENT_ID").parse(input.GOOGLE_CLIENT_ID);
   const homegate = z
     .object({
       HOMEGATE_URL: requiredString("HOMEGATE_URL").transform((value, context) => {

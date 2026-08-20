@@ -1,9 +1,10 @@
+import Image from "next/image";
+
 import { TrashIcon } from "../../../shared/icons/actionIcons";
 import { PassportScreen } from "../../../shared/layout/passportScreen";
 import { BackButton } from "../../../shared/navigation/backButton";
 import { Button } from "../../../shared/primitives/button";
 import { DisplayHeading, LeadText } from "../../../shared/primitives/typography";
-import { GoogleDetachmentIllustration } from "./googleDetachmentIllustration";
 
 function ReviewGoogleDetachment({ onBack, onRemove }: { onBack: () => void; onRemove: () => void }) {
   return (
@@ -15,7 +16,15 @@ function ReviewGoogleDetachment({ onBack, onRemove }: { onBack: () => void; onRe
         Warning: Make sure you can sign in with your keychain or encrypted key before removing Google access. This can’t be undone.
       </div>
 
-      <GoogleDetachmentIllustration />
+      <Image
+        alt=""
+        className="w-full"
+        data-slot="google-detachment-illustration"
+        height={248}
+        src="/illustrations/detach-from-google.png"
+        unoptimized
+        width={327}
+      />
 
       <div className="mt-auto flex flex-col gap-4">
         <BackButton onClick={onBack} />

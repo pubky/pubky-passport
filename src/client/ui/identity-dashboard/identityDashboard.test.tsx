@@ -5,10 +5,10 @@ import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { LocalIdentityController } from "../../logic/local-identity/LocalIdentityController";
 import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
 import type { PubkyPublicIdentity } from "../../logic/pubky/pubkyIdentityKey";
 import { mockGoogleIdentityController } from "../../../../test-utils/fakes/mockGoogleIdentityController";
-import { mockLocalIdentityController } from "../../../../test-utils/fakes/mockLocalIdentityController";
 import { IdentityDashboard } from "./identityDashboard";
 
 const FLOW = vi.hoisted(() => ({
@@ -18,6 +18,20 @@ const FLOW = vi.hoisted(() => ({
   migrationExportCount: 0,
   migrationUrl: "pubkyring://migrate?index=0&total=1&key=active-secret",
 }));
+
+function mockLocalIdentityController(
+  overrides: Partial<LocalIdentityController> = {},
+): LocalIdentityController {
+  return {
+    listIdentities: vi.fn(() => Result.ok({ activePublicKeyZ32: null, identities: [] })),
+    selectIdentity: vi.fn(() => Result.ok()),
+    removeIdentity: vi.fn(() => Result.ok()),
+    resolveHomeserver: vi.fn(async () => Result.ok(null)),
+    createEncryptedBackup: vi.fn(async () => Result.err({ code: "backup_failed" as const })),
+    createPubkyRingMigrationUrl: vi.fn(() => Result.err({ code: "no_active_identity" as const })),
+    ...overrides,
+  } as unknown as LocalIdentityController;
+}
 
 vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
   MIN_BACKUP_PASSWORD_LENGTH: 6,

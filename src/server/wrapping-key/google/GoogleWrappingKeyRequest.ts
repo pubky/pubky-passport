@@ -4,7 +4,6 @@ import { Result, type Result as ResultType } from "better-result";
 import { z } from "zod";
 
 import { LOGGER } from "../../../libs/logger/logger";
-import { getGoogleClientId } from "../../config/googleClientId";
 import { GoogleIdTokenVerifier } from "./GoogleIdTokenVerifier";
 import { GoogleWrappingKeyDeriver } from "./GoogleWrappingKeyDeriver";
 import { InMemoryGoogleWrappingKeyRateLimiter } from "./InMemoryGoogleWrappingKeyRateLimiter";
@@ -12,6 +11,7 @@ import type { GoogleIdTokenVerificationResult } from "./googleIdTokenVerificatio
 
 const MINIMUM_SERVER_SECRET_BYTES = 32;
 const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+const GOOGLE_CLIENT_ID_SCHEMA = z.string().trim().min(1, "GOOGLE_CLIENT_ID is required");
 const SERVER_SECRET_SCHEMA = z.string()
   .trim()
   .min(1, "PASSPORT_SERVER_SECRET_BASE64 is required")
@@ -73,11 +73,12 @@ export class GoogleWrappingKeyRequest {
 }
 
 export function createConfiguredGoogleWrappingKeyRequest(): GoogleWrappingKeyRequest {
+  const googleClientId = GOOGLE_CLIENT_ID_SCHEMA.parse(process.env.GOOGLE_CLIENT_ID);
   const serverSecret = SERVER_SECRET_SCHEMA.parse(process.env.PASSPORT_SERVER_SECRET_BASE64);
 
   try {
     return new GoogleWrappingKeyRequest(
-      new GoogleIdTokenVerifier(getGoogleClientId()),
+      new GoogleIdTokenVerifier(googleClientId),
       new InMemoryGoogleWrappingKeyRateLimiter(serverSecret),
       new GoogleWrappingKeyDeriver(serverSecret),
     );

@@ -63,7 +63,6 @@ const GOOGLE_WRAPPING_KEY_REQUEST = join(
   "google",
   "GoogleWrappingKeyRequest.ts",
 );
-const GOOGLE_CLIENT_ID_CONFIG = join(SERVER_CONFIG_ROOT, "googleClientId.ts");
 const CLIENT_BOOTSTRAP_CONFIG = join(SERVER_CONFIG_ROOT, "browserBootstrapConfig.ts");
 const GOOGLE_WRAPPING_KEY_ROUTE = join(APP_ROOT, "api", "wrapping-key", "google", "route.ts");
 const APP_HOME_PAGE = join(APP_ROOT, "page.tsx");
@@ -213,10 +212,6 @@ describe("architecture boundaries", () => {
   it("confines environment-backed configuration imports", () => {
     const productionModules = [...GRAPH.productionSourceFiles(SRC_ROOT), PROXY];
     const approvedConsumers = new Map<string, Set<string>>([
-      [GOOGLE_CLIENT_ID_CONFIG, new Set([
-        CLIENT_BOOTSTRAP_CONFIG,
-        GOOGLE_WRAPPING_KEY_REQUEST,
-      ])],
       [CLIENT_BOOTSTRAP_CONFIG, new Set([APP_HOME_PAGE, APP_AUTHORIZE_PAGE, PROXY])],
     ]);
     const violations = [...approvedConsumers].flatMap(([target, approved]) =>

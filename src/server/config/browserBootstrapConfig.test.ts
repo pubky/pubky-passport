@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getBrowserBootstrapConfig } from "./browserBootstrapConfig";
 
 const VALID_CONFIG = {
-  GOOGLE_CLIENT_ID: "google-client-id",
+  GOOGLE_CLIENT_ID: " google-client-id ",
   HOMEGATE_URL: "https://homegate.example/api",
 };
 

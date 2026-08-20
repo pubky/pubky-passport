@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 
 import { PubkyBrandIcon } from "../../../shared/brand/pubkyBrandIcon";
@@ -10,7 +11,6 @@ import { PassportScreen } from "../../../shared/layout/passportScreen";
 import { BackButton } from "../../../shared/navigation/backButton";
 import { Button } from "../../../shared/primitives/button";
 import { DisplayHeading, LeadText } from "../../../shared/primitives/typography";
-import { PubkyRingKeychainIllustration } from "./pubkyRingKeychainIllustration";
 import { PubkyRingQrDialog } from "./pubkyRingQrDialog";
 
 function MigrateToPubkyRing({ migrationUrl, onBack }: {
@@ -44,7 +44,15 @@ function MigrateToPubkyRing({ migrationUrl, onBack }: {
         </div>
       </section>
 
-      <PubkyRingKeychainIllustration />
+      <Image
+        alt=""
+        className="mx-auto size-[200px]"
+        data-slot="pubky-ring-keychain-illustration"
+        height={200}
+        src="/illustrations/pubky-ring-keychain.png"
+        unoptimized
+        width={200}
+      />
 
       <div className="mt-auto pt-4"><BackButton onClick={onBack} /></div>
       {migrationUrl ? <PubkyRingQrDialog onClose={() => setShowQr(false)} open={showQr} value={migrationUrl} /> : null}
