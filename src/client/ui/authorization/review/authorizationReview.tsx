@@ -41,12 +41,7 @@ function AuthorizationReview({ identity, onAuthorize, onCancel, onSwitch, phase,
             This request includes broad access that is not limited to one app namespace.
           </p>
         ) : null}
-        <p className="rounded-2xl border border-border bg-card p-4 text-sm font-medium leading-5 text-muted-foreground">
-          <strong className="font-bold text-foreground">Requester identity: not verified.</strong> Only continue if you started this request.
-          {callbackHost ? <> If Passport sends you to a site afterward, it will use <strong className="break-all font-bold text-foreground"><bdi dir="ltr">{callbackHost}</bdi></strong>.</> : " No return destination was supplied; the result will remain in Passport."}
-        </p>
         <section className="flex flex-col gap-2" aria-labelledby="authorization-identity-heading">
-          <h2 className="text-xs font-medium uppercase tracking-[0.1em] text-brand" id="authorization-identity-heading">Authorize as</h2>
           <div className="relative flex h-[72px] items-center gap-2 rounded-2xl bg-card p-4">
             {identity ? (
               <>
