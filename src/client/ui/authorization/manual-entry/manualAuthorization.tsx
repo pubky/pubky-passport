@@ -12,6 +12,7 @@ import { IconButton } from "../../shared/primitives/iconButton";
 import { Input } from "../../shared/primitives/input";
 import { Label } from "../../shared/primitives/label";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
+
 function ManualAuthorization({ onBack }: { onBack: () => void }) {
   const authorizationInput = useRef<HTMLInputElement>(null);
   const [hasAuthorization, setHasAuthorization] = useState(false);

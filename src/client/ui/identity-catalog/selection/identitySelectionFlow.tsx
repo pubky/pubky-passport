@@ -1,13 +1,12 @@
 "use client";
 
-import { useReducer } from "react";
+import { useState } from "react";
 
 import type { GoogleIdentityConfiguration } from "../../../logic/google-identity/GoogleIdentityController";
 import type { LocalIdentityCatalog } from "../../../logic/local-identity/localIdentityModels";
 import { SignInFlow } from "../../onboarding/signInFlow";
 import type { GoogleIdentityEstablished } from "../../onboarding/google/useGoogleSignIn";
 import { IdentitySwitcher } from "./identitySwitcher";
-import { transitionIdentitySelection } from "./identitySelectionState";
 
 function IdentitySelectionFlow({ catalog, googleIdentityConfiguration, onBack, onIdentityEstablished, onIdentitySelected, selectIdentity }: {
   catalog: LocalIdentityCatalog;
@@ -17,12 +16,12 @@ function IdentitySelectionFlow({ catalog, googleIdentityConfiguration, onBack, o
   onIdentitySelected: () => void;
   selectIdentity: (publicKeyZ32: string) => boolean;
 }) {
-  const [state, dispatch] = useReducer(transitionIdentitySelection, { view: "selection" });
+  const [view, setView] = useState<"selection" | "add-identity">("selection");
 
-  if (state.view === "add-identity") {
+  if (view === "add-identity") {
     return <SignInFlow
       googleIdentityConfiguration={googleIdentityConfiguration}
-      onBack={() => dispatch({ type: "add-cancelled" })}
+      onBack={() => setView("selection")}
       onComplete={onIdentitySelected}
       {...(onIdentityEstablished ? { onEstablished: onIdentityEstablished } : {})}
     />;
@@ -31,7 +30,7 @@ function IdentitySelectionFlow({ catalog, googleIdentityConfiguration, onBack, o
   return <IdentitySwitcher
     activePublicKeyZ32={catalog.activePublicKeyZ32}
     identities={catalog.identities}
-    onAddIdentity={() => dispatch({ type: "add-requested" })}
+    onAddIdentity={() => setView("add-identity")}
     onBack={onBack}
     onSelect={(publicKeyZ32) => {
       if (selectIdentity(publicKeyZ32)) onIdentitySelected();
