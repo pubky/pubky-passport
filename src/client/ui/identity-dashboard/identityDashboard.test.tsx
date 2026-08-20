@@ -17,6 +17,7 @@ const FLOW = vi.hoisted(() => ({
   establishmentMode: "created" as "created" | "restored",
   migrationExportKeys: [] as string[],
   migrationUrl: "pubkyring://migrate?index=0&total=1&key=active-secret",
+  storageUnavailable: false,
 }));
 
 function mockLocalIdentityController(
@@ -41,7 +42,9 @@ vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
         FLOW.migrationExportKeys.push(publicKeyZ32);
         return Result.ok(FLOW.migrationUrl);
       },
-      listIdentities: () => Result.ok(FLOW.catalog),
+      listIdentities: () => FLOW.storageUnavailable
+        ? Result.err({ code: "storage_unavailable" as const })
+        : Result.ok(FLOW.catalog),
       removeIdentity: (publicKeyZ32: string) => {
         const identities = FLOW.catalog.identities.filter(
           (identity) => identity.publicIdentity.publicKeyZ32 !== publicKeyZ32,
@@ -89,6 +92,7 @@ describe("IdentityDashboard", () => {
     FLOW.establishIdentity = false;
     FLOW.establishmentMode = "created";
     FLOW.migrationExportKeys = [];
+    FLOW.storageUnavailable = false;
   });
 
   afterEach(() => {
@@ -99,6 +103,14 @@ describe("IdentityDashboard", () => {
   it("shows the landing page when no local identity exists", async () => {
     render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
     expect(await screen.findByRole("heading", { name: "Quick & easy signing." })).toBeInTheDocument();
+  });
+
+  it("offers to reload when local identity storage is unavailable", async () => {
+    FLOW.storageUnavailable = true;
+    render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
+
+    expect(await screen.findByText("Local identity storage is unavailable.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Reload page" })).toHaveAttribute("href", "/");
   });
 
   it("keeps onboarding mounted until setup completion is acknowledged", async () => {

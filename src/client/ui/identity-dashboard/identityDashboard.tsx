@@ -9,6 +9,8 @@ import type { GoogleIdentityConfiguration } from "../../logic/google-identity/Go
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { SignInFlow } from "../onboarding/signInFlow";
+import { RotateCcwIcon } from "../shared/icons/actionIcons";
+import { ButtonLink } from "../shared/primitives/button";
 import { Spinner } from "../shared/primitives/spinner";
 import { IdentityManagement } from "./management/identityManagement";
 import { DetachFromGoogleFlow } from "./management/detach-from-google/detachFromGoogleFlow";
@@ -36,7 +38,14 @@ function IdentityDashboard({ googleClientId, homegateBaseUrl }: {
     case "loading":
       return <main aria-label="Checking login state" className="grid min-h-[calc(100svh-84px)] place-items-center"><Spinner /></main>;
     case "unavailable":
-      return <main className="grid min-h-[calc(100svh-84px)] place-items-center px-6 text-center text-muted-foreground">Local identity storage is unavailable.</main>;
+      return (
+        <main className="grid min-h-[calc(100svh-84px)] place-items-center px-6 text-center text-muted-foreground">
+          <div className="flex flex-col items-center gap-6">
+            <p>Local identity storage is unavailable.</p>
+            <ButtonLink href="/" size="lg"><RotateCcwIcon />Reload page</ButtonLink>
+          </div>
+        </main>
+      );
     case "ready":
       return <ReadyIdentityDashboard
         catalog={session.catalog}
