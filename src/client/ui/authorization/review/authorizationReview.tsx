@@ -3,8 +3,8 @@
 import type { AuthorizationRequestReview } from "../../../logic/authorization/flow/PassportAuthorizationController";
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import { GoogleLogo } from "../../shared/brand/googleLogo";
-import { CheckIcon, SquareUserRoundIcon, XIcon } from "../../shared/icons/actionIcons";
-import { PassportScreen } from "../../shared/layout/passportScreen";
+import { CheckIcon, SquareUserRoundIcon, XIcon } from "../../shared/actionIcons";
+import { PassportScreen } from "../../shared/passportScreen";
 import { Avatar } from "../../shared/primitives/avatar";
 import { Button } from "../../shared/primitives/button";
 import { DisplayHeading } from "../../shared/primitives/typography";

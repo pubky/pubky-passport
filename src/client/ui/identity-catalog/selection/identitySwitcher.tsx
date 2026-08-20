@@ -1,9 +1,9 @@
 "use client";
 
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
-import { UserRoundPlusIcon } from "../../shared/icons/actionIcons";
-import { PassportScreen } from "../../shared/layout/passportScreen";
-import { BackButton } from "../../shared/navigation/backButton";
+import { UserRoundPlusIcon } from "../../shared/actionIcons";
+import { BackButton } from "../../shared/backButton";
+import { PassportScreen } from "../../shared/passportScreen";
 import { Button } from "../../shared/primitives/button";
 import { DisplayHeading } from "../../shared/primitives/typography";
 import { IdentityRow } from "./identityRow";

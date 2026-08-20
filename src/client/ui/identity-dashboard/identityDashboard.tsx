@@ -9,7 +9,7 @@ import type { GoogleIdentityConfiguration } from "../../logic/google-identity/Go
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { SignInFlow } from "../onboarding/signInFlow";
-import { RotateCcwIcon } from "../shared/icons/actionIcons";
+import { RotateCcwIcon } from "../shared/actionIcons";
 import { ButtonLink } from "../shared/primitives/button";
 import { Spinner } from "../shared/primitives/spinner";
 import { IdentityManagement } from "./management/identityManagement";

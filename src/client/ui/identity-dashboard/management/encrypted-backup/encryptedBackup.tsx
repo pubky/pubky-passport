@@ -9,9 +9,9 @@ import {
   type LocalIdentityBackupFile,
   type LocalIdentityBackupResult,
 } from "../../../../logic/local-identity/LocalIdentityController";
-import { DownloadBackupIcon } from "../../../shared/icons/actionIcons";
-import { PassportScreen } from "../../../shared/layout/passportScreen";
-import { BackButton } from "../../../shared/navigation/backButton";
+import { DownloadBackupIcon } from "../../../shared/actionIcons";
+import { BackButton } from "../../../shared/backButton";
+import { PassportScreen } from "../../../shared/passportScreen";
 import { Button } from "../../../shared/primitives/button";
 import { FieldMessage } from "../../../shared/primitives/fieldMessage";
 import { Input } from "../../../shared/primitives/input";

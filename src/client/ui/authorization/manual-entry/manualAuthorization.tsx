@@ -3,9 +3,9 @@
 import { type SubmitEvent, useState } from "react";
 
 import { submitManualAuthorizationInput } from "../../../logic/authorization/entry/manualAuthorizationInput";
-import { ArrowRightIcon, ClipboardPasteIcon } from "../../shared/icons/actionIcons";
-import { PassportScreen } from "../../shared/layout/passportScreen";
-import { BackButton } from "../../shared/navigation/backButton";
+import { ArrowRightIcon, ClipboardPasteIcon } from "../../shared/actionIcons";
+import { BackButton } from "../../shared/backButton";
+import { PassportScreen } from "../../shared/passportScreen";
 import { Button } from "../../shared/primitives/button";
 import { FieldMessage } from "../../shared/primitives/fieldMessage";
 import { IconButton } from "../../shared/primitives/iconButton";

@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
-import { CheckIcon, DownloadIcon, KeyRoundIcon } from "../../../shared/icons/actionIcons";
-import { PassportScreen } from "../../../shared/layout/passportScreen";
-import { BackButton } from "../../../shared/navigation/backButton";
+import { CheckIcon, DownloadIcon, KeyRoundIcon } from "../../../shared/actionIcons";
+import { BackButton } from "../../../shared/backButton";
+import { PassportScreen } from "../../../shared/passportScreen";
 import { Button } from "../../../shared/primitives/button";
 import { LeadText } from "../../../shared/primitives/typography";
 

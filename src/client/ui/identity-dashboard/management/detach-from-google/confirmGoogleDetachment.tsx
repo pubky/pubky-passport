@@ -2,7 +2,7 @@
 
 import { type SubmitEvent, useState } from "react";
 
-import { XIcon } from "../../../shared/icons/actionIcons";
+import { XIcon } from "../../../shared/actionIcons";
 import { Button } from "../../../shared/primitives/button";
 import { Dialog } from "../../../shared/primitives/dialog";
 import { FieldMessage } from "../../../shared/primitives/fieldMessage";

@@ -11,8 +11,8 @@ import type { GoogleIdentityConfiguration } from "../../logic/google-identity/Go
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { SignInFlow } from "../onboarding/signInFlow";
-import { PassportScreen } from "../shared/layout/passportScreen";
-import { BackButton } from "../shared/navigation/backButton";
+import { BackButton } from "../shared/backButton";
+import { PassportScreen } from "../shared/passportScreen";
 import { Spinner } from "../shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "../shared/primitives/typography";
 import { AuthorizationReview } from "./review/authorizationReview";

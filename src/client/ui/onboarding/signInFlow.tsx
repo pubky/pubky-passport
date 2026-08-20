@@ -7,7 +7,7 @@ import { GoogleIdentityComplete } from "./google/googleIdentityComplete";
 import { GoogleIdentityError } from "./google/googleIdentityError";
 import { GoogleIdentityProgress } from "./google/googleIdentityProgress";
 import { useGoogleSignIn } from "./google/useGoogleSignIn";
-import { BackButton } from "../shared/navigation/backButton";
+import { BackButton } from "../shared/backButton";
 import { ProviderSignInButton } from "./providerSignInButton";
 import { SignInPage } from "./signInPage";
 

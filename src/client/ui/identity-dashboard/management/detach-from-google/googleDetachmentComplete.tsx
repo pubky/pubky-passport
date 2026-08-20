@@ -1,7 +1,7 @@
 import Image from "next/image";
 
-import { CheckIcon } from "../../../shared/icons/actionIcons";
-import { PassportScreen } from "../../../shared/layout/passportScreen";
+import { CheckIcon } from "../../../shared/actionIcons";
+import { PassportScreen } from "../../../shared/passportScreen";
 import { Button } from "../../../shared/primitives/button";
 import { DisplayHeading, LeadText } from "../../../shared/primitives/typography";
 

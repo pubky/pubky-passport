@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { FolderIcon } from "../../shared/icons/actionIcons";
+import { FolderIcon } from "../../shared/actionIcons";
 
 function PermissionList({ children }: { children: ReactNode }) {
   return <section className="flex flex-col gap-2 rounded-[12px] border border-brand/32 p-4 shadow-xl"><h2 className="text-xs font-medium uppercase tracking-[0.1em] text-brand">Requested permissions</h2>{children}</section>;

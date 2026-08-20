@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { cn } from "../mergeClassNames";
+import { cn } from "./mergeClassNames";
 
 type IconProps = { className?: string; size?: 16 | 20 };
 

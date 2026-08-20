@@ -1,5 +1,5 @@
-import { ArrowLeftIcon } from "../icons/actionIcons";
-import { Button } from "../primitives/button";
+import { ArrowLeftIcon } from "./actionIcons";
+import { Button } from "./primitives/button";
 
 function BackButton({ onClick }: { onClick: () => void }) {
   return (

@@ -1,6 +1,6 @@
 import type { ComponentPropsWithoutRef } from "react";
 
-import { cn } from "../mergeClassNames";
+import { cn } from "./mergeClassNames";
 
 function PassportScreen({ className, ...props }: ComponentPropsWithoutRef<"main">) {
   return <main

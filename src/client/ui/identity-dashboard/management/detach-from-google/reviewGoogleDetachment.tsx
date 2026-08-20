@@ -1,8 +1,8 @@
 import Image from "next/image";
 
-import { TrashIcon } from "../../../shared/icons/actionIcons";
-import { PassportScreen } from "../../../shared/layout/passportScreen";
-import { BackButton } from "../../../shared/navigation/backButton";
+import { TrashIcon } from "../../../shared/actionIcons";
+import { BackButton } from "../../../shared/backButton";
+import { PassportScreen } from "../../../shared/passportScreen";
 import { Button } from "../../../shared/primitives/button";
 import { DisplayHeading, LeadText } from "../../../shared/primitives/typography";
 

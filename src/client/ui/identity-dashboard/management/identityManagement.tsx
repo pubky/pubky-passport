@@ -6,9 +6,9 @@ import { useEffect, useState } from "react";
 
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import type { PubkyHomeserverResolutionResult } from "../../../logic/pubky/pubkyIdentityKey";
-import { CopyIcon, DownloadIcon, KeyRoundIcon, LinkOffIcon } from "../../shared/icons/actionIcons";
-import { PassportScreen } from "../../shared/layout/passportScreen";
-import { BackButton } from "../../shared/navigation/backButton";
+import { CopyIcon, DownloadIcon, KeyRoundIcon, LinkOffIcon } from "../../shared/actionIcons";
+import { BackButton } from "../../shared/backButton";
+import { PassportScreen } from "../../shared/passportScreen";
 import { Avatar } from "../../shared/primitives/avatar";
 import { Button } from "../../shared/primitives/button";
 import { IconButton } from "../../shared/primitives/iconButton";

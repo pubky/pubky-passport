@@ -2,7 +2,7 @@ import Image from "next/image";
 import type { ReactNode } from "react";
 
 import { BrandEndorsement } from "../shared/brand/brandEndorsement";
-import { PassportScreen } from "../shared/layout/passportScreen";
+import { PassportScreen } from "../shared/passportScreen";
 import { DisplayHeading, LeadText } from "../shared/primitives/typography";
 
 function SignInPage({ children }: { children: ReactNode }) {

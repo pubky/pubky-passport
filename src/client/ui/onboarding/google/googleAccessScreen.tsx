@@ -1,6 +1,6 @@
-import { RotateCcwIcon } from "../../shared/icons/actionIcons";
-import { PassportScreen } from "../../shared/layout/passportScreen";
-import { BackButton } from "../../shared/navigation/backButton";
+import { RotateCcwIcon } from "../../shared/actionIcons";
+import { BackButton } from "../../shared/backButton";
+import { PassportScreen } from "../../shared/passportScreen";
 import { Button } from "../../shared/primitives/button";
 import { Spinner } from "../../shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
