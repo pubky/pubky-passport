@@ -5,14 +5,12 @@ import { useState } from "react";
 import type { GoogleIdentityConfiguration } from "../../../logic/google-identity/GoogleIdentityController";
 import type { LocalIdentityCatalog } from "../../../logic/local-identity/localIdentityModels";
 import { SignInFlow } from "../../onboarding/signInFlow";
-import type { GoogleIdentityEstablished } from "../../onboarding/google/useGoogleSignIn";
 import { IdentitySwitcher } from "./identitySwitcher";
 
-function IdentitySelectionFlow({ catalog, googleIdentityConfiguration, onBack, onIdentityEstablished, onIdentitySelected, selectIdentity }: {
+function IdentitySelectionFlow({ catalog, googleIdentityConfiguration, onBack, onIdentitySelected, selectIdentity }: {
   catalog: LocalIdentityCatalog;
   googleIdentityConfiguration: GoogleIdentityConfiguration;
   onBack: () => void;
-  onIdentityEstablished?: (identity: GoogleIdentityEstablished) => void;
   onIdentitySelected: () => void;
   selectIdentity: (publicKeyZ32: string) => boolean;
 }) {
@@ -23,7 +21,6 @@ function IdentitySelectionFlow({ catalog, googleIdentityConfiguration, onBack, o
       googleIdentityConfiguration={googleIdentityConfiguration}
       onBack={() => setView("selection")}
       onComplete={onIdentitySelected}
-      {...(onIdentityEstablished ? { onEstablished: onIdentityEstablished } : {})}
     />;
   }
 

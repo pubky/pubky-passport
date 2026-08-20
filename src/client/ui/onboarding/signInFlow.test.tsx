@@ -153,27 +153,6 @@ describe("SignInFlow", () => {
     expect(onComplete).toHaveBeenCalledOnce();
   });
 
-  it("does not deliver completion after the flow unmounts", async () => {
-    let finishEstablishment!: () => void;
-    const googleAccount = { id: "google-1", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: null };
-    const establishIdentity = vi.fn(() => new Promise<Awaited<ReturnType<GoogleIdentityController["establishIdentity"]>>>((resolve) => {
-      finishEstablishment = () => resolve(Result.ok({
-        establishmentMode: "restored",
-        googleAccount,
-        publicIdentity: { publicKeyZ32: "key", publicKeyDisplay: "pubkykey" },
-      }));
-    }));
-    useController(mockGoogleIdentityController({ establishIdentity }));
-    const onEstablished = vi.fn();
-    const rendered = render(<SignInFlow {...GOOGLE_PROPS} onComplete={vi.fn()} onEstablished={onEstablished} />);
-    await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
-    rendered.unmount();
-
-    finishEstablishment();
-    await act(async () => Promise.resolve());
-    expect(onEstablished).not.toHaveBeenCalled();
-  });
-
   it("shows the setup error and retries automatic reconciliation", async () => {
     const establishIdentity = vi.fn()
       .mockResolvedValueOnce(Result.err({ code: "signin_failed" as const }))

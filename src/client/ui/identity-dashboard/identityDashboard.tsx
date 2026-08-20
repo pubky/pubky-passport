@@ -9,8 +9,6 @@ import type { GoogleIdentityConfiguration } from "../../logic/google-identity/Go
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { SignInFlow } from "../onboarding/signInFlow";
-import { GoogleIdentityComplete } from "../onboarding/google/googleIdentityComplete";
-import type { GoogleIdentityEstablished } from "../onboarding/google/useGoogleSignIn";
 import { Spinner } from "../shared/primitives/spinner";
 import { IdentityManagement } from "./management/identityManagement";
 import { DetachFromGoogleFlow } from "./management/detach-from-google/detachFromGoogleFlow";
@@ -33,16 +31,6 @@ function IdentityDashboard({ googleClientId, homegateBaseUrl }: {
 }) {
   const session = useIdentityCatalog();
   const googleIdentityConfiguration = { googleClientId, homegateBaseUrl };
-  const [completion, setCompletion] = useState<GoogleIdentityEstablished | null>(null);
-
-  if (completion) {
-    return <GoogleIdentityComplete
-      googleAccount={completion.googleAccount}
-      identity={completion.identity}
-      mode={completion.mode}
-      onContinue={() => setCompletion(null)}
-    />;
-  }
 
   switch (session.status) {
     case "loading":
@@ -55,20 +43,15 @@ function IdentityDashboard({ googleClientId, homegateBaseUrl }: {
         localIdentityController={session.localIdentityController}
         googleIdentityConfiguration={googleIdentityConfiguration}
         onIdentitiesChanged={session.reloadIdentities}
-        onIdentityEstablished={(identity) => {
-          session.reloadIdentities();
-          setCompletion(identity);
-        }}
       />;
   }
 }
 
-function ReadyIdentityDashboard({ catalog, localIdentityController, googleIdentityConfiguration, onIdentitiesChanged, onIdentityEstablished }: {
+function ReadyIdentityDashboard({ catalog, localIdentityController, googleIdentityConfiguration, onIdentitiesChanged }: {
   catalog: LocalIdentityCatalog;
   localIdentityController: LocalIdentityController;
   googleIdentityConfiguration: GoogleIdentityConfiguration;
   onIdentitiesChanged: () => void;
-  onIdentityEstablished: (identity: GoogleIdentityEstablished) => void;
 }) {
   const [navigation, setNavigation] = useState<IdentityDashboardView>(() => (
     catalog.identities.length === 0 ? { view: "onboarding" } : { view: "overview" }
@@ -82,15 +65,16 @@ function ReadyIdentityDashboard({ catalog, localIdentityController, googleIdenti
     case "onboarding":
       return <SignInFlow
         googleIdentityConfiguration={googleIdentityConfiguration}
-        onComplete={() => setNavigation({ view: "overview" })}
-        onEstablished={onIdentityEstablished}
+        onComplete={() => {
+          onIdentitiesChanged();
+          setNavigation({ view: "overview" });
+        }}
       />;
     case "select-identity":
       return <IdentitySelectionFlow
         catalog={catalog}
         googleIdentityConfiguration={googleIdentityConfiguration}
         onBack={() => setNavigation({ view: "overview" })}
-        onIdentityEstablished={onIdentityEstablished}
         onIdentitySelected={() => {
           onIdentitiesChanged();
           setNavigation({ view: "overview" });

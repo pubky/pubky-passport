@@ -5,23 +5,12 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
 import { GoogleIdentityController } from "../../../logic/google-identity/GoogleIdentityController";
 import type { GoogleIdentityConfiguration } from "../../../logic/google-identity/GoogleIdentityController";
-import type { GoogleAccountProfile } from "../../../logic/local-identity/localIdentityModels";
-import type { PubkyPublicIdentity } from "../../../logic/pubky/pubkyIdentityKey";
 import {
   INITIAL_GOOGLE_SIGN_IN_STATE,
   transitionGoogleSignIn,
 } from "./googleSignInState";
 
-type GoogleIdentityEstablished = {
-  googleAccount: GoogleAccountProfile;
-  identity: PubkyPublicIdentity;
-  mode: "created" | "restored";
-};
-
-function useGoogleSignIn(
-  configuration: GoogleIdentityConfiguration,
-  onEstablished?: (identity: GoogleIdentityEstablished) => void,
-) {
+function useGoogleSignIn(configuration: GoogleIdentityConfiguration) {
   const { googleClientId, homegateBaseUrl } = configuration;
   const operationPendingRef = useRef(false);
   const googleIdentityControllerRef = useRef<GoogleIdentityController | null>(null);
@@ -58,18 +47,11 @@ function useGoogleSignIn(
           return;
         }
 
-        const established: GoogleIdentityEstablished = {
+        dispatch({
+          type: "operation-completed",
           googleAccount: result.value.googleAccount,
           identity: result.value.publicIdentity,
           mode: result.value.establishmentMode,
-        };
-
-        onEstablished?.(established);
-        dispatch({
-          type: "operation-completed",
-          googleAccount: established.googleAccount,
-          identity: established.identity,
-          mode: established.mode,
         });
       })
       .catch(() => {
@@ -82,7 +64,7 @@ function useGoogleSignIn(
           operationPendingRef.current = false;
         }
       });
-  }, [onEstablished]);
+  }, []);
 
   const back = useCallback(() => {
     operationPendingRef.current = false;
@@ -135,4 +117,4 @@ function useGoogleSignIn(
   };
 }
 
-export { useGoogleSignIn, type GoogleIdentityEstablished };
+export { useGoogleSignIn };
