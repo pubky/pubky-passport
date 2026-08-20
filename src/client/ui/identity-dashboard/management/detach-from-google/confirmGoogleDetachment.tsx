@@ -53,7 +53,7 @@ function ConfirmGoogleDetachment({ canConfirm, canRetryAuthorization, error, onC
           <Label className="leading-5" htmlFor="detach-google-confirmation">Type DELETE to confirm</Label>
           <Input
             autoComplete="off"
-            className="border-dashed"
+            containerClassName="border-dashed"
             disabled={pending}
             id="detach-google-confirmation"
             onChange={(event) => setConfirmation(event.target.value)}

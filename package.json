@@ -31,7 +31,6 @@
   },
   "dependencies": {
     "@fontsource-variable/inter-tight": "^5.3.0",
-    "@radix-ui/react-slot": "1.2.4",
     "@synonymdev/pubky": "0.10.0",
     "@tailwindcss/postcss": "^4.3.3",
     "better-result": "2.10.0",

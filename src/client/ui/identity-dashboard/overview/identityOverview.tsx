@@ -1,13 +1,11 @@
 "use client";
 
-import Link from "next/link";
-
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import { GoogleLogo } from "../../shared/brand/googleLogo";
 import { KeyRoundIcon, SettingsIcon, SquareUserRoundIcon } from "../../shared/icons/actionIcons";
 import { PassportScreen } from "../../shared/layout/passportScreen";
 import { Avatar } from "../../shared/primitives/avatar";
-import { Button } from "../../shared/primitives/button";
+import { Button, ButtonLink } from "../../shared/primitives/button";
 import { DisplayHeading } from "../../shared/primitives/typography";
 
 function IdentityOverview({ identity, onManage, onSwitch }: {
@@ -28,9 +26,7 @@ function IdentityOverview({ identity, onManage, onSwitch }: {
           <p className="w-full break-all text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">{identity.publicIdentity.publicKeyZ32}</p>
           {account ? <p className="flex items-center justify-center gap-2 text-sm font-bold leading-5"><GoogleLogo />{account.email}</p> : null}
         </div>
-        <Button asChild className="w-full" size="lg" variant="secondary">
-          <Link href="/authorize"><KeyRoundIcon />Authorize</Link>
-        </Button>
+        <ButtonLink className="w-full" href="/authorize" size="lg" variant="secondary"><KeyRoundIcon />Authorize</ButtonLink>
         <div className="flex w-full gap-3">
           <Button className="min-w-0 flex-1" onClick={onManage} variant="secondary"><SettingsIcon />Manage</Button>
           <Button className="min-w-0 flex-1" onClick={onSwitch} variant="secondary"><SquareUserRoundIcon />Switch</Button>

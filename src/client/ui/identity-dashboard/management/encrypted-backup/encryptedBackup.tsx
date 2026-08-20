@@ -54,7 +54,7 @@ function EncryptedBackup({ createBackup, publicKeyZ32, onBack }: {
           <Label htmlFor="backup-password">Enter strong password</Label>
           <Input
             autoComplete="new-password"
-            className="border-dashed"
+            containerClassName="border-dashed"
             id="backup-password"
             maxLength={1024}
             minLength={MIN_BACKUP_PASSWORD_LENGTH}

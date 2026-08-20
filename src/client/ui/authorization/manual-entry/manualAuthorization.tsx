@@ -61,7 +61,7 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
               aria-invalid={Boolean(error)}
               autoCapitalize="none"
               autoComplete="off"
-              className="border-dashed bg-transparent"
+              containerClassName="border-dashed bg-transparent"
               id="authorization-link"
               onChange={(event) => {
                 setHasAuthorization(event.target.value.trim().length > 0);

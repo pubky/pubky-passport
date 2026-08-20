@@ -1,11 +1,10 @@
-import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { forwardRef, type ComponentPropsWithoutRef } from "react";
 
 import { cn } from "../mergeClassNames";
 
 export const buttonVariants = cva(
-  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-full border text-sm font-semibold shadow-xs outline-none transition-colors disabled:pointer-events-none disabled:opacity-50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-full border text-sm font-semibold shadow-xs outline-none transition-colors disabled:pointer-events-none disabled:opacity-50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-disabled:pointer-events-none aria-disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -30,23 +29,35 @@ export const buttonVariants = cva(
 );
 
 export type ButtonProps = ComponentPropsWithoutRef<"button">
-  & VariantProps<typeof buttonVariants>
-  & { asChild?: boolean };
+  & VariantProps<typeof buttonVariants>;
+
+export type ButtonLinkProps = ComponentPropsWithoutRef<"a">
+  & VariantProps<typeof buttonVariants>;
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ asChild = false, className, size, variant, ...props }, ref) => {
-    const Component = asChild ? Slot : "button";
-
-    return (
-      <Component
-        className={cn(buttonVariants({ className, size, variant }))}
-        data-slot="button"
-        data-size={size ?? "default"}
-        data-variant={variant ?? "default"}
-        ref={ref}
-        {...props}
-      />
-    );
-  },
+  ({ className, size, variant, ...props }, ref) => (
+    <button
+      className={cn(buttonVariants({ className, size, variant }))}
+      data-slot="button"
+      data-size={size ?? "default"}
+      data-variant={variant ?? "default"}
+      ref={ref}
+      {...props}
+    />
+  ),
 );
 Button.displayName = "Button";
+
+export const ButtonLink = forwardRef<HTMLAnchorElement, ButtonLinkProps>(
+  ({ className, size, variant, ...props }, ref) => (
+    <a
+      className={cn(buttonVariants({ className, size, variant }))}
+      data-slot="button-link"
+      data-size={size ?? "default"}
+      data-variant={variant ?? "default"}
+      ref={ref}
+      {...props}
+    />
+  ),
+);
+ButtonLink.displayName = "ButtonLink";

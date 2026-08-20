@@ -4,7 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { createRef } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { Button } from "./button";
+import { Button, ButtonLink } from "./button";
 
 describe("Button", () => {
   afterEach(cleanup);
@@ -87,9 +87,12 @@ describe("Button", () => {
     expect(ref.current).toBe(screen.getByRole("button", { name: "Continue" }));
   });
 
-  it("supports SHADCN composition through Slot", () => {
-    render(<Button asChild><a href="/authorize">Authorize</a></Button>);
+  it("renders an anchor and forwards its anchor ref", () => {
+    const ref = createRef<HTMLAnchorElement>();
+    render(<ButtonLink href="/authorize" ref={ref}>Authorize</ButtonLink>);
 
-    expect(screen.getByRole("link", { name: "Authorize" })).toHaveAttribute("data-slot", "button");
+    const link = screen.getByRole("link", { name: "Authorize" });
+    expect(link).toHaveAttribute("data-slot", "button-link");
+    expect(ref.current).toBe(link);
   });
 });

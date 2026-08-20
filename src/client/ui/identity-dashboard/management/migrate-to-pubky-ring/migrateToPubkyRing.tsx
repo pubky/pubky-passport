@@ -9,7 +9,7 @@ import { PubkyRingStoreBadges } from "../../../shared/brand/pubkyRingStoreBadges
 import { ScanIcon } from "../../../shared/icons/actionIcons";
 import { PassportScreen } from "../../../shared/layout/passportScreen";
 import { BackButton } from "../../../shared/navigation/backButton";
-import { Button } from "../../../shared/primitives/button";
+import { Button, ButtonLink } from "../../../shared/primitives/button";
 import { DisplayHeading, LeadText } from "../../../shared/primitives/typography";
 import { PubkyRingQrDialog } from "./pubkyRingQrDialog";
 
@@ -35,12 +35,10 @@ function MigrateToPubkyRing({ migrationUrl, onBack }: {
             <ScanIcon />
             Show QR
           </Button>
-          <Button asChild size="lg">
-            <a aria-disabled={!migrationUrl} href={migrationUrl ?? undefined} onClick={(event) => { if (!migrationUrl) event.preventDefault(); }}>
-              <PubkyBrandIcon />
-              Import pubky
-            </a>
-          </Button>
+          <ButtonLink aria-disabled={!migrationUrl} href={migrationUrl ?? undefined} onClick={(event) => { if (!migrationUrl) event.preventDefault(); }} size="lg">
+            <PubkyBrandIcon />
+            Import pubky
+          </ButtonLink>
         </div>
       </section>
 
