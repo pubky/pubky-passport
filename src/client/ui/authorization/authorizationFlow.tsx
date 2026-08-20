@@ -26,19 +26,23 @@ function AuthorizationFlow({ googleClientId, homegateBaseUrl }: {
   homegateBaseUrl: string;
 }) {
   const googleIdentityConfiguration = { googleClientId, homegateBaseUrl };
-  const controllerRef = useRef<PassportAuthorizationController>(null);
+  const passportAuthorizationControllerRef = useRef<PassportAuthorizationController>(null);
   const mountedRef = useRef(false);
-  const [controller, setController] = useState<PassportAuthorizationController | null>(null);
+  const [passportAuthorizationController, setPassportAuthorizationController] =
+    useState<PassportAuthorizationController | null>(null);
   const [authorization, setAuthorization] = useState<PassportAuthorizationViewState>();
 
   useEffect(() => {
     mountedRef.current = true;
-    const controller = controllerRef.current ?? new PassportAuthorizationController();
-    controllerRef.current = controller;
-    setController(controller);
+    const passportAuthorizationController = passportAuthorizationControllerRef.current
+      ?? new PassportAuthorizationController();
+    passportAuthorizationControllerRef.current = passportAuthorizationController;
+    setPassportAuthorizationController(passportAuthorizationController);
     let active = true;
-    const publish = () => { if (active) setAuthorization(controller.getState()); };
-    const unsubscribe = controller.subscribe(publish);
+    const publish = () => {
+      if (active) setAuthorization(passportAuthorizationController.getState());
+    };
+    const unsubscribe = passportAuthorizationController.subscribe(publish);
     queueMicrotask(publish);
     return () => {
       mountedRef.current = false;
@@ -46,12 +50,14 @@ function AuthorizationFlow({ googleClientId, homegateBaseUrl }: {
       unsubscribe();
       // StrictMode replays effects; defer disposal so the immediate setup can retain it.
       queueMicrotask(() => {
-        if (!mountedRef.current) controller.dispose();
+        if (!mountedRef.current) passportAuthorizationController.dispose();
       });
     };
   }, []);
 
-  if (!controller || !authorization) return <AuthorizationLoading label="Loading authorization" />;
+  if (!passportAuthorizationController || !authorization) {
+    return <AuthorizationLoading label="Loading authorization" />;
+  }
 
   switch (authorization.status) {
     case "manual-entry":
@@ -75,15 +81,19 @@ function AuthorizationFlow({ googleClientId, homegateBaseUrl }: {
     case "completing":
       return <AuthorizationWithIdentity
         authorization={authorization}
-        controller={controller}
+        passportAuthorizationController={passportAuthorizationController}
         googleIdentityConfiguration={googleIdentityConfiguration}
       />;
   }
 }
 
-function AuthorizationWithIdentity({ authorization, controller, googleIdentityConfiguration }: {
+function AuthorizationWithIdentity({
+  authorization,
+  passportAuthorizationController,
+  googleIdentityConfiguration,
+}: {
   authorization: Extract<PassportAuthorizationViewState, { status: "review" | "approving" | "completing" }>;
-  controller: PassportAuthorizationController;
+  passportAuthorizationController: PassportAuthorizationController;
   googleIdentityConfiguration: GoogleIdentityConfiguration;
 }) {
   const identityCatalog = useIdentityCatalog();
@@ -99,28 +109,28 @@ function AuthorizationWithIdentity({ authorization, controller, googleIdentityCo
           </DisplayHeading>
           <LeadText>Passport could not read identities stored on this device.</LeadText>
           <div className="mt-auto">
-            <BackButton onClick={() => { void controller.cancel(); }} />
+            <BackButton onClick={() => { void passportAuthorizationController.cancel(); }} />
           </div>
         </PassportScreen>
       );
     case "ready":
       return <ReadyAuthorizationWithIdentity
         authorization={authorization}
-        authorizationController={controller}
+        passportAuthorizationController={passportAuthorizationController}
         catalog={identityCatalog.catalog}
         googleIdentityConfiguration={googleIdentityConfiguration}
-        identityController={identityCatalog.controller}
+        localIdentityController={identityCatalog.localIdentityController}
         reloadIdentities={identityCatalog.reloadIdentities}
       />;
   }
 }
 
-function ReadyAuthorizationWithIdentity({ authorization, authorizationController, catalog, googleIdentityConfiguration, identityController, reloadIdentities }: {
+function ReadyAuthorizationWithIdentity({ authorization, passportAuthorizationController, catalog, googleIdentityConfiguration, localIdentityController, reloadIdentities }: {
   authorization: Extract<PassportAuthorizationViewState, { status: "review" | "approving" | "completing" }>;
-  authorizationController: PassportAuthorizationController;
+  passportAuthorizationController: PassportAuthorizationController;
   catalog: LocalIdentityCatalog;
   googleIdentityConfiguration: GoogleIdentityConfiguration;
-  identityController: LocalIdentityController;
+  localIdentityController: LocalIdentityController;
   reloadIdentities: () => void;
 }) {
   const [onboardingRequired, setOnboardingRequired] = useState(catalog.identities.length === 0);
@@ -129,7 +139,7 @@ function ReadyAuthorizationWithIdentity({ authorization, authorizationController
   if (onboardingRequired) {
     return <SignInFlow
       googleIdentityConfiguration={googleIdentityConfiguration}
-      onBack={() => { void authorizationController.cancel(); }}
+      onBack={() => { void passportAuthorizationController.cancel(); }}
       onComplete={() => {
         reloadIdentities();
         setOnboardingRequired(false);
@@ -146,7 +156,7 @@ function ReadyAuthorizationWithIdentity({ authorization, authorizationController
         reloadIdentities();
         setView("review");
       }}
-      selectIdentity={(publicKeyZ32) => Result.isOk(identityController.selectIdentity(publicKeyZ32))}
+      selectIdentity={(publicKeyZ32) => Result.isOk(localIdentityController.selectIdentity(publicKeyZ32))}
     />;
   }
 
@@ -157,11 +167,11 @@ function ReadyAuthorizationWithIdentity({ authorization, authorizationController
     {...(activeIdentity ? { identity: activeIdentity } : {})}
     onAuthorize={() => {
       if (activeIdentity) {
-        void authorizationController.approve(activeIdentity.publicIdentity.publicKeyZ32);
+        void passportAuthorizationController.approve(activeIdentity.publicIdentity.publicKeyZ32);
       }
     }}
     onCancel={() => {
-      void authorizationController.cancel();
+      void passportAuthorizationController.cancel();
     }}
     onSwitch={() => setView("identity-selection")}
     phase={authorization.status}

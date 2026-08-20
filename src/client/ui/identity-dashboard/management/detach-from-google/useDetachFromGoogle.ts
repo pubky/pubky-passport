@@ -50,7 +50,7 @@ function useDetachFromGoogle(
 ) {
   const { googleClientId, homegateBaseUrl } = configuration;
   const dispatching = useRef(false);
-  const controller = useRef<GoogleIdentityController | null>(null);
+  const googleIdentityControllerRef = useRef<GoogleIdentityController | null>(null);
   const [state, dispatch] = useReducer(transitionDetachFromGoogleOperation, { name: "ready" });
 
   const detach = useCallback(() => {
@@ -58,16 +58,16 @@ function useDetachFromGoogle(
       && state.name !== "authorization-failed"
       && state.name !== "operation-failed")
       || dispatching.current) return;
-    const currentController = controller.current;
-    if (!currentController) {
+    const googleIdentityController = googleIdentityControllerRef.current;
+    if (!googleIdentityController) {
       dispatch({ type: "operation-failed", error: { code: "operation_failed" } });
       return;
     }
     dispatching.current = true;
     dispatch({ type: "request-started" });
-    void currentController.detachIdentity(publicIdentity, expectedGoogleAccountId)
+    void googleIdentityController.detachIdentity(publicIdentity, expectedGoogleAccountId)
       .then((completed) => {
-        if (controller.current !== currentController) return;
+        if (googleIdentityControllerRef.current !== googleIdentityController) return;
         if (Result.isError(completed)) {
           if (completed.error.code === "cancelled") return;
           if (completed.error.code === "authorization_failed") {
@@ -80,19 +80,21 @@ function useDetachFromGoogle(
         dispatch({ type: "operation-completed" });
       })
       .catch(() => {
-        if (controller.current === currentController) {
+        if (googleIdentityControllerRef.current === googleIdentityController) {
           dispatch({ type: "operation-failed", error: { code: "operation_failed" } });
         }
       })
       .finally(() => {
-        if (controller.current === currentController) dispatching.current = false;
+        if (googleIdentityControllerRef.current === googleIdentityController) {
+          dispatching.current = false;
+        }
       });
   }, [expectedGoogleAccountId, publicIdentity, state.name]);
 
   useEffect(() => {
-    let googleController: GoogleIdentityController;
+    let googleIdentityController: GoogleIdentityController;
     try {
-      googleController = new GoogleIdentityController({ googleClientId, homegateBaseUrl }, (nextState) => {
+      googleIdentityController = new GoogleIdentityController({ googleClientId, homegateBaseUrl }, (nextState) => {
         switch (nextState.status) {
           case "requesting-authorization":
             dispatch({ type: "request-started" });
@@ -104,14 +106,14 @@ function useDetachFromGoogle(
             return;
         }
       });
-      controller.current = googleController;
+      googleIdentityControllerRef.current = googleIdentityController;
     } catch {
       dispatch({ type: "operation-failed", error: { code: "operation_failed" } });
       return;
     }
     return () => {
-      controller.current = null;
-      googleController.dispose();
+      googleIdentityControllerRef.current = null;
+      googleIdentityController.dispose();
     };
   }, [googleClientId, homegateBaseUrl]);
 

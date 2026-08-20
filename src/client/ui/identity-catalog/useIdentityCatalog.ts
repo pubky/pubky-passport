@@ -14,7 +14,7 @@ type IdentityCatalogState =
   | {
     status: "ready";
     catalog: LocalIdentityCatalog;
-    controller: LocalIdentityController;
+    localIdentityController: LocalIdentityController;
     reloadIdentities: () => void;
   };
 
@@ -28,15 +28,15 @@ function useIdentityCatalog(): IdentityCatalogState {
       if (cancelled) return;
       setSession({ status: "loading" });
       try {
-        const instance = new LocalIdentityController();
+        const localIdentityController = new LocalIdentityController();
         const publish = () => {
-          const catalog = instance.listIdentities();
+          const catalog = localIdentityController.listIdentities();
           if (cancelled) return;
           setSession(Result.isOk(catalog)
             ? {
               status: "ready",
               catalog: catalog.value,
-              controller: instance,
+              localIdentityController,
               reloadIdentities: publish,
             }
             : { status: "unavailable" });

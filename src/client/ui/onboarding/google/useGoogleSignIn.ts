@@ -24,7 +24,7 @@ function useGoogleSignIn(
 ) {
   const { googleClientId, homegateBaseUrl } = configuration;
   const operationPendingRef = useRef(false);
-  const controllerRef = useRef<GoogleIdentityController | null>(null);
+  const googleIdentityControllerRef = useRef<GoogleIdentityController | null>(null);
   const [controllerReady, setControllerReady] = useState(false);
   const [state, dispatch] = useReducer(
     transitionGoogleSignIn,
@@ -34,8 +34,8 @@ function useGoogleSignIn(
   const establishIdentity = useCallback((): void => {
     if (operationPendingRef.current) return;
 
-    const currentController = controllerRef.current;
-    if (!currentController) {
+    const googleIdentityController = googleIdentityControllerRef.current;
+    if (!googleIdentityController) {
       dispatch({ type: "authorization-denied" });
       return;
     }
@@ -43,9 +43,9 @@ function useGoogleSignIn(
     operationPendingRef.current = true;
     dispatch({ type: "request-started" });
 
-    void currentController.establishIdentity()
+    void googleIdentityController.establishIdentity()
       .then((result) => {
-        if (controllerRef.current !== currentController) return;
+        if (googleIdentityControllerRef.current !== googleIdentityController) return;
 
         if (Result.isError(result)) {
           if (result.error.code === "cancelled") return;
@@ -73,12 +73,12 @@ function useGoogleSignIn(
         });
       })
       .catch(() => {
-        if (controllerRef.current === currentController) {
+        if (googleIdentityControllerRef.current === googleIdentityController) {
           dispatch({ type: "operation-failed", error: { code: "operation_failed" } });
         }
       })
       .finally(() => {
-        if (controllerRef.current === currentController) {
+        if (googleIdentityControllerRef.current === googleIdentityController) {
           operationPendingRef.current = false;
         }
       });
@@ -86,18 +86,18 @@ function useGoogleSignIn(
 
   const back = useCallback(() => {
     operationPendingRef.current = false;
-    controllerRef.current?.clearPinnedGoogleAccount();
+    googleIdentityControllerRef.current?.clearPinnedGoogleAccount();
     dispatch({ type: "back" });
   }, []);
 
   useEffect(() => {
     let active = true;
-    let googleController: GoogleIdentityController;
+    let googleIdentityController: GoogleIdentityController;
     queueMicrotask(() => {
       if (active) setControllerReady(false);
     });
     try {
-      googleController = new GoogleIdentityController({ googleClientId, homegateBaseUrl }, (nextState) => {
+      googleIdentityController = new GoogleIdentityController({ googleClientId, homegateBaseUrl }, (nextState) => {
         switch (nextState.status) {
           case "requesting-authorization":
             dispatch({ type: "request-started" });
@@ -109,9 +109,11 @@ function useGoogleSignIn(
             return;
         }
       });
-      controllerRef.current = googleController;
+      googleIdentityControllerRef.current = googleIdentityController;
       queueMicrotask(() => {
-        if (active && controllerRef.current === googleController) setControllerReady(true);
+        if (active && googleIdentityControllerRef.current === googleIdentityController) {
+          setControllerReady(true);
+        }
       });
     } catch {
       dispatch({ type: "operation-failed", error: { code: "operation_failed" } });
@@ -120,8 +122,8 @@ function useGoogleSignIn(
 
     return () => {
       active = false;
-      controllerRef.current = null;
-      googleController.dispose();
+      googleIdentityControllerRef.current = null;
+      googleIdentityController.dispose();
     };
   }, [googleClientId, homegateBaseUrl]);
 

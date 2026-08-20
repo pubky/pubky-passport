@@ -102,21 +102,19 @@ describe("AuthorizationFlow", () => {
     />,
   );
 
-  it("shows the return host, requested permissions, and active identity", async () => {
+  it("shows the requested permissions and active identity", async () => {
     renderFlow();
 
     expect(await screen.findByRole("heading", { name: "Review authorization request." })).toBeInTheDocument();
-    expect(screen.getByText(/If Passport sends you to a site afterward/u)).toHaveTextContent("requesting.app");
     expect(screen.getByText("/pub/requesting.app/")).toBeInTheDocument();
     expect(screen.getByText("Read & write")).toBeInTheDocument();
     expect(screen.getByText("First User")).toBeInTheDocument();
     expect(screen.getByText(/allow the requester to read and write your data/u)).toBeInTheDocument();
-    expect(screen.getByText(/Requester identity: not verified/u)).toBeInTheDocument();
     expect(screen.getByText(/deprecated cookie authentication/u)).toBeInTheDocument();
     expect(MOCKS.createAuthorizationController).toHaveBeenCalledWith();
   });
 
-  it("treats a grant callback as an unverified return destination", async () => {
+  it("describes a grant as app-specific and revocable", async () => {
     MOCKS.authorizationState = {
       status: "review",
       review: {
@@ -129,8 +127,6 @@ describe("AuthorizationFlow", () => {
     renderFlow();
 
     expect(await screen.findByRole("heading", { name: "Review authorization request." })).toBeInTheDocument();
-    expect(screen.getByText(/If Passport sends you to a site afterward/u)).toHaveTextContent("trusted.example");
-    expect(screen.getByText(/Requester identity: not verified/u)).toBeInTheDocument();
     expect(screen.getByText(/app-specific, revocable grant/u)).toBeInTheDocument();
   });
 
