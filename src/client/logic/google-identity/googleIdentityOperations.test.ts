@@ -62,7 +62,7 @@ vi.mock("../passport-file/google/VisibleRecoveryCopies", () => ({
   },
 }));
 
-import { GoogleIdentityLifecycle, type GoogleIdentityProgress } from "./GoogleIdentityLifecycle";
+import { GoogleIdentityOperations, type GoogleIdentityProgress } from "./GoogleIdentityOperations";
 
 const PUBLIC_IDENTITY = {
   publicKeyZ32: "public-identity",
@@ -92,7 +92,7 @@ const INVITATION = {
   signupCode: "signup-code",
 };
 
-describe("GoogleIdentityLifecycle", () => {
+describe("GoogleIdentityOperations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     MOCKS.driveStoreConstructions.count = 0;
@@ -626,7 +626,7 @@ describe("GoogleIdentityLifecycle", () => {
     expect(MOCKS.disposePubky).toHaveBeenCalledOnce();
   });
 
-  it("aborts credential-bearing fetches when the screen flow is cancelled", async () => {
+  it("aborts credential-bearing fetches when the screen controller is disposed", async () => {
     let requestSignal: AbortSignal | null | undefined;
     vi.stubGlobal("fetch", vi.fn(async (_request, init) => {
       requestSignal = init?.signal;
@@ -645,8 +645,8 @@ describe("GoogleIdentityLifecycle", () => {
 
 function createSubject(
   repository = new LocalStorageIdentityRepository(new MemoryStorage()),
-): GoogleIdentityLifecycle {
-  return new GoogleIdentityLifecycle(
+): GoogleIdentityOperations {
+  return new GoogleIdentityOperations(
     repository,
     "https://homegate.example/",
     "https://passport.pubky.app",

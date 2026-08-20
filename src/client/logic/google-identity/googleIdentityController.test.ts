@@ -9,7 +9,7 @@ import { LOGGER } from "../../../libs/logger/logger";
 import { LocalStorageIdentityRepository } from "../local-identity/LocalStorageIdentityRepository";
 
 const MOCKS = vi.hoisted(() => ({
-  GoogleIdentityLifecycle: vi.fn(),
+  GoogleIdentityOperations: vi.fn(),
   GoogleImplicitAuthorization: vi.fn(),
   detachIdentity: vi.fn(),
   abortRequests: vi.fn(),
@@ -19,8 +19,8 @@ const MOCKS = vi.hoisted(() => ({
   requestAuthorization: vi.fn(),
 }));
 
-vi.mock("./GoogleIdentityLifecycle", () => ({
-  GoogleIdentityLifecycle: MOCKS.GoogleIdentityLifecycle,
+vi.mock("./GoogleIdentityOperations", () => ({
+  GoogleIdentityOperations: MOCKS.GoogleIdentityOperations,
 }));
 
 vi.mock("./GoogleImplicitAuthorization", () => ({
@@ -28,9 +28,9 @@ vi.mock("./GoogleImplicitAuthorization", () => ({
 }));
 
 import {
-  GoogleIdentityFlow,
-  type GoogleIdentityFlowState,
-} from "./GoogleIdentityFlow";
+  GoogleIdentityController,
+  type GoogleIdentityViewState,
+} from "./GoogleIdentityController";
 
 const GOOGLE_ACCOUNT = {
   id: "google-account-id",
@@ -48,7 +48,7 @@ const PUBLIC_IDENTITY = {
   publicKeyDisplay: "pubky1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy",
 };
 
-describe("GoogleIdentityFlow", () => {
+describe("GoogleIdentityController", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", new MemoryStorage());
     for (const mock of Object.values(MOCKS)) mock.mockReset();
@@ -57,7 +57,7 @@ describe("GoogleIdentityFlow", () => {
       request: MOCKS.requestAuthorization,
       dispose: MOCKS.disposeAuthorization,
     }; });
-    MOCKS.GoogleIdentityLifecycle.mockImplementation(function () { return {
+    MOCKS.GoogleIdentityOperations.mockImplementation(function () { return {
       establishIdentity: MOCKS.establishIdentity,
       detachIdentity: MOCKS.detachIdentity,
       abortRequests: MOCKS.abortRequests,
@@ -80,30 +80,30 @@ describe("GoogleIdentityFlow", () => {
   it("composes its screen-scoped dependencies during construction", () => {
     const onState = vi.fn();
 
-    new GoogleIdentityFlow({
+    new GoogleIdentityController({
       googleClientId: "google-client-id",
       homegateBaseUrl: "https://homegate.example/",
     }, onState);
 
     expect(MOCKS.GoogleImplicitAuthorization).toHaveBeenCalledWith("google-client-id");
-    expect(MOCKS.GoogleIdentityLifecycle).toHaveBeenCalledWith(
+    expect(MOCKS.GoogleIdentityOperations).toHaveBeenCalledWith(
       expect.any(LocalStorageIdentityRepository),
       "https://homegate.example/",
       window.location.origin,
     );
   });
 
-  it("logs flow construction failures without sensitive configuration", () => {
+  it("logs controller construction failures without sensitive configuration", () => {
     const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
     MOCKS.GoogleImplicitAuthorization.mockImplementationOnce(() => {
       throw new Error("SECRET-CONFIGURATION-VALUE");
     });
 
-    expect(() => new GoogleIdentityFlow({
+    expect(() => new GoogleIdentityController({
       googleClientId: "SECRET-CLIENT-ID",
       homegateBaseUrl: "https://secret-homegate.example/",
     }, vi.fn())).toThrow("SECRET-CONFIGURATION-VALUE");
-    expect(error).toHaveBeenCalledWith("identity.google.flow.failed", {
+    expect(error).toHaveBeenCalledWith("identity.google.controller.failed", {
       operation: "initialize",
       code: "runtime_exception",
     });
@@ -111,10 +111,10 @@ describe("GoogleIdentityFlow", () => {
   });
 
   it("reports authorization and establishment progress", async () => {
-    const states: GoogleIdentityFlowState[] = [];
-    const flow = createFlow((state) => states.push(state));
+    const states: GoogleIdentityViewState[] = [];
+    const controller = createController((state) => states.push(state));
 
-    await expect(flow.establishIdentity()).resolves.toEqual(Result.ok({
+    await expect(controller.establishIdentity()).resolves.toEqual(Result.ok({
       establishmentMode: "restored",
       googleAccount: GOOGLE_ACCOUNT,
       publicIdentity: PUBLIC_IDENTITY,
@@ -135,9 +135,9 @@ describe("GoogleIdentityFlow", () => {
       reportProgress({ flow: "repair", step: "signing_in" });
       return Result.ok({ establishmentMode: "restored" as const, publicIdentity: PUBLIC_IDENTITY });
     });
-    const states: GoogleIdentityFlowState[] = [];
+    const states: GoogleIdentityViewState[] = [];
 
-    await createFlow((state) => states.push(state)).establishIdentity();
+    await createController((state) => states.push(state)).establishIdentity();
 
     expect(states).toEqual([
       { status: "requesting-authorization" },
@@ -149,11 +149,11 @@ describe("GoogleIdentityFlow", () => {
 
   it("contains state listener details without failing establishment", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const flow = createFlow(() => {
+    const controller = createController(() => {
       throw new Error("sensitive-state-listener");
     });
 
-    await expect(flow.establishIdentity()).resolves.toEqual(Result.ok({
+    await expect(controller.establishIdentity()).resolves.toEqual(Result.ok({
       establishmentMode: "restored",
       googleAccount: GOOGLE_ACCOUNT,
       publicIdentity: PUBLIC_IDENTITY,
@@ -167,9 +167,9 @@ describe("GoogleIdentityFlow", () => {
     MOCKS.requestAuthorization.mockResolvedValue(Result.err({
       code: "google_authorization_popup_closed" as const,
     }));
-    const flow = createFlow();
+    const controller = createController();
 
-    expectResultError(await flow.establishIdentity(), { code: "google_authorization_popup_closed" });
+    expectResultError(await controller.establishIdentity(), { code: "google_authorization_popup_closed" });
     expect(MOCKS.establishIdentity).not.toHaveBeenCalled();
   });
 
@@ -178,24 +178,24 @@ describe("GoogleIdentityFlow", () => {
       ...CREDENTIALS,
       googleAccount: { ...GOOGLE_ACCOUNT, id: "different-account" },
     }));
-    const flow = createFlow();
+    const controller = createController();
 
     expectResultError(
-      await flow.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.id),
+      await controller.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.id),
       { code: "authorization_failed" },
     );
     expect(MOCKS.detachIdentity).not.toHaveBeenCalled();
   });
 
   it("pins establishment retries to the first authorized Google account", async () => {
-    const flow = createFlow();
-    await flow.establishIdentity();
+    const controller = createController();
+    await controller.establishIdentity();
     MOCKS.requestAuthorization.mockResolvedValueOnce(Result.ok({
       ...CREDENTIALS,
       googleAccount: { ...GOOGLE_ACCOUNT, id: "different-account" },
     }));
 
-    expectResultError(await flow.establishIdentity(), { code: "authorization_failed" });
+    expectResultError(await controller.establishIdentity(), { code: "authorization_failed" });
 
     expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(1, undefined);
     expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(2, GOOGLE_ACCOUNT.id);
@@ -203,9 +203,9 @@ describe("GoogleIdentityFlow", () => {
   });
 
   it("delegates detachment behavior", async () => {
-    const flow = createFlow();
+    const controller = createController();
 
-    await expect(flow.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.id)).resolves.toEqual(
+    await expect(controller.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.id)).resolves.toEqual(
       Result.ok({ deletionStatus: "deleted" }),
     );
 
@@ -218,7 +218,7 @@ describe("GoogleIdentityFlow", () => {
     }));
 
     expectResultError(
-      await createFlow().detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.id),
+      await createController().detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.id),
       { code: "backup_deletion_failed" },
     );
   });
@@ -228,7 +228,7 @@ describe("GoogleIdentityFlow", () => {
       code: "signin_failed" as const,
     }));
 
-    expectResultError(await createFlow().establishIdentity(), {
+    expectResultError(await createController().establishIdentity(), {
       code: "signin_failed",
     });
   });
@@ -239,7 +239,7 @@ describe("GoogleIdentityFlow", () => {
       cause: "weekly_limit_exceeded" as const,
     }));
 
-    expectResultError(await createFlow().establishIdentity(), {
+    expectResultError(await createController().establishIdentity(), {
       code: "homeserver_signup_invitation_failed",
       cause: "weekly_limit_exceeded",
     });
@@ -253,11 +253,11 @@ describe("GoogleIdentityFlow", () => {
         publicIdentity: PUBLIC_IDENTITY,
       }));
     }));
-    const flow = createFlow();
+    const controller = createController();
 
-    const pending = flow.establishIdentity();
+    const pending = controller.establishIdentity();
     await vi.waitFor(() => expect(MOCKS.establishIdentity).toHaveBeenCalledOnce());
-    flow.dispose();
+    controller.dispose();
     expect(MOCKS.abortRequests).toHaveBeenCalledOnce();
     expect(MOCKS.disposeOperations).not.toHaveBeenCalled();
     finish();
@@ -271,11 +271,11 @@ describe("GoogleIdentityFlow", () => {
     MOCKS.requestAuthorization.mockImplementation(() => new Promise((resolve) => {
       authorize = () => resolve(Result.ok(CREDENTIALS));
     }));
-    const flow = createFlow();
-    const pending = flow.establishIdentity();
+    const controller = createController();
+    const pending = controller.establishIdentity();
 
     authorize();
-    queueMicrotask(() => flow.dispose());
+    queueMicrotask(() => controller.dispose());
 
     expectResultError(await pending, { code: "cancelled" });
     expect(MOCKS.establishIdentity).not.toHaveBeenCalled();
@@ -290,12 +290,12 @@ describe("GoogleIdentityFlow", () => {
         publicIdentity: PUBLIC_IDENTITY,
       }));
     }));
-    const flow = createFlow();
+    const controller = createController();
 
-    const first = flow.establishIdentity();
+    const first = controller.establishIdentity();
     await vi.waitFor(() => expect(MOCKS.establishIdentity).toHaveBeenCalledOnce());
     expectResultError(
-      await flow.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.id),
+      await controller.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.id),
       { code: "operation_failed" },
     );
     expect(MOCKS.requestAuthorization).toHaveBeenCalledOnce();
@@ -304,10 +304,10 @@ describe("GoogleIdentityFlow", () => {
   });
 });
 
-function createFlow(
-  onState: (state: GoogleIdentityFlowState) => void = vi.fn(),
-): GoogleIdentityFlow {
-  return new GoogleIdentityFlow(
+function createController(
+  onState: (state: GoogleIdentityViewState) => void = vi.fn(),
+): GoogleIdentityController {
+  return new GoogleIdentityController(
     {
       googleClientId: "google-client-id",
       homegateBaseUrl: "https://homegate.example/",

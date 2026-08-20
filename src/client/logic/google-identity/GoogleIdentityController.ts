@@ -12,12 +12,12 @@ import type { GoogleAccountProfile } from "../local-identity/localIdentityModels
 import { LocalStorageIdentityRepository } from "../local-identity/LocalStorageIdentityRepository";
 import type { PubkyPublicIdentity } from "../pubky/pubkyIdentityKey";
 import {
-  GoogleIdentityLifecycle,
+  GoogleIdentityOperations,
   type GoogleIdentityOperationError,
   type GoogleIdentityProgress,
-} from "./GoogleIdentityLifecycle";
+} from "./GoogleIdentityOperations";
 
-export type { GoogleIdentityProgress } from "./GoogleIdentityLifecycle";
+export type { GoogleIdentityProgress } from "./GoogleIdentityOperations";
 
 export type GoogleIdentityConfiguration = {
   googleClientId: string;
@@ -25,7 +25,7 @@ export type GoogleIdentityConfiguration = {
 };
 
 /** Safe progress emitted while Passport creates or restores a Google-backed identity. */
-export type GoogleIdentityFlowState =
+export type GoogleIdentityViewState =
   | { status: "requesting-authorization" }
   | { status: "establishing"; progress: GoogleIdentityProgress }
   | { status: "detaching" };
@@ -44,7 +44,7 @@ export type EstablishedGoogleIdentity = |
     publicIdentity: PubkyPublicIdentity;
   };
 
-export type GoogleIdentityFlowError =
+export type GoogleIdentityError =
   | GoogleIdentityOperationError
   | GoogleImplicitAuthorizationError
   | {
@@ -56,12 +56,12 @@ export type GoogleIdentityFlowError =
 
 export type EstablishGoogleIdentityResult = ResultType<
   EstablishedGoogleIdentity,
-  GoogleIdentityFlowError
+  GoogleIdentityError
 >;
 
 export type DetachGoogleIdentityResult = ResultType<
   { deletionStatus: "deleted" | "missing" },
-  GoogleIdentityFlowError
+  GoogleIdentityError
 >;
 
 /**
@@ -73,9 +73,9 @@ export type DetachGoogleIdentityResult = ResultType<
  * a time. Calling {@link dispose} cancels authorization and suppresses later UI
  * updates while allowing already-started cleanup to finish safely.
  */
-export class GoogleIdentityFlow {
+export class GoogleIdentityController {
   private readonly googleAuthorization: GoogleImplicitAuthorization;
-  private readonly operations: GoogleIdentityLifecycle;
+  private readonly operations: GoogleIdentityOperations;
   private operationsDisposed = false;
   private operationPending = false;
   private googleAccountId: string | undefined;
@@ -83,18 +83,18 @@ export class GoogleIdentityFlow {
 
   constructor(
     configuration: GoogleIdentityConfiguration,
-    private readonly onState: (state: GoogleIdentityFlowState) => void,
+    private readonly onState: (state: GoogleIdentityViewState) => void,
   ) {
     try {
       const repository = new LocalStorageIdentityRepository();
       this.googleAuthorization = new GoogleImplicitAuthorization(configuration.googleClientId);
-      this.operations = new GoogleIdentityLifecycle(
+      this.operations = new GoogleIdentityOperations(
         repository,
         configuration.homegateBaseUrl,
         globalThis.location.origin,
       );
     } catch (error) {
-      LOGGER.error("identity.google.flow.failed", {
+      LOGGER.error("identity.google.controller.failed", {
         operation: "initialize",
         code: "runtime_exception",
       });
@@ -173,7 +173,7 @@ export class GoogleIdentityFlow {
     }
 
     try {
-      this.setFlowState({ status: "detaching" });
+      this.setViewState({ status: "detaching" });
       const detached = await this.operations.detachIdentity(
         authorized.value,
         publicIdentity,
@@ -192,7 +192,7 @@ export class GoogleIdentityFlow {
     }
   }
 
-  /** Cancels Google authorization and releases Pubky SDK resources owned by this flow. */
+  /** Cancels Google authorization and releases Pubky SDK resources owned by this controller. */
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
@@ -211,12 +211,12 @@ export class GoogleIdentityFlow {
 
   private async requestGoogleCredentials(
     expectedGoogleAccountId?: string,
-  ): Promise<ResultType<GoogleIdentityCredentials, GoogleIdentityFlowError>> {
+  ): Promise<ResultType<GoogleIdentityCredentials, GoogleIdentityError>> {
     if (this.disposed) return Result.err({ code: "cancelled" });
     if (this.operationPending) return Result.err({ code: "operation_failed" });
 
     this.operationPending = true;
-    this.setFlowState({ status: "requesting-authorization" });
+    this.setViewState({ status: "requesting-authorization" });
 
     try {
       const accountId = expectedGoogleAccountId ?? this.googleAccountId;
@@ -250,7 +250,7 @@ export class GoogleIdentityFlow {
     return {
       report: (progress) => {
         if (active && !this.disposed) {
-          this.setFlowState({ status: "establishing", progress });
+          this.setViewState({ status: "establishing", progress });
         }
       },
       stop: () => {
@@ -276,7 +276,7 @@ export class GoogleIdentityFlow {
     }
   }
 
-  private setFlowState(state: GoogleIdentityFlowState): void {
+  private setViewState(state: GoogleIdentityViewState): void {
     if (this.disposed) return;
     try {
       this.onState(state);

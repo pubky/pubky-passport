@@ -1,6 +1,6 @@
 "use client";
 
-import type { GoogleIdentityFlowError } from "../../../logic/google-identity/GoogleIdentityFlow";
+import type { GoogleIdentityError } from "../../../logic/google-identity/GoogleIdentityController";
 import { RotateCcwIcon } from "../../shared/icons/actionIcons";
 import { PassportScreen } from "../../shared/layout/passportScreen";
 import { BackButton } from "../../shared/navigation/backButton";
@@ -8,7 +8,7 @@ import { Button } from "../../shared/primitives/button";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
 
 function GoogleIdentityError({ error, onBack, onTryAgain }: {
-  error: GoogleIdentityFlowError;
+  error: GoogleIdentityError;
   onBack: () => void;
   onTryAgain: () => void;
 }) {
@@ -36,7 +36,7 @@ function GoogleIdentityError({ error, onBack, onTryAgain }: {
   );
 }
 
-function errorMessage(code: GoogleIdentityFlowError["code"]): string {
+function errorMessage(code: GoogleIdentityError["code"]): string {
   switch (code) {
     case "create_failed": return "Passport could not create a new Pubky identity.";
     case "decrypt_failed": return "Passport found your encrypted identity, but could not decrypt it.";

@@ -24,7 +24,7 @@ const PUBKY_SDK_ADAPTER_STAGING_TEST = join(CLIENT_LOGIC_ROOT, "pubky", "pubkySd
 const SECRET_BEARING_BROWSER_CAPABILITIES = new Map([
   [LOCAL_IDENTITY_REPOSITORY, "local identity secret reads"],
   [join(CLIENT_LOGIC_ROOT, "google-identity", "GoogleImplicitAuthorization.ts"), "Google credentials"],
-  [join(CLIENT_LOGIC_ROOT, "google-identity", "GoogleIdentityLifecycle.ts"), "Google identity credentials and keys"],
+  [join(CLIENT_LOGIC_ROOT, "google-identity", "GoogleIdentityOperations.ts"), "Google identity credentials and keys"],
   [join(CLIENT_LOGIC_ROOT, "homegate", "HomegateClient.ts"), "Google ID-token transport"],
   [join(CLIENT_LOGIC_ROOT, "wrapping-key", "WrappingKeyApiClient.ts"), "wrapping-key transport"],
   [join(CLIENT_LOGIC_ROOT, "passport-file", "PassportFileWebCrypto.ts"), "Passport file cryptography"],

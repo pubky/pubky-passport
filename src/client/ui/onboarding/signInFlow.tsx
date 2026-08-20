@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { GoogleIdentityConfiguration } from "../../logic/google-identity/GoogleIdentityFlow";
+import type { GoogleIdentityConfiguration } from "../../logic/google-identity/GoogleIdentityController";
 import { GoogleAccessScreen } from "./google/googleAccessScreen";
 import { GoogleIdentityComplete } from "./google/googleIdentityComplete";
 import { GoogleIdentityError } from "./google/googleIdentityError";
@@ -45,7 +45,7 @@ function SignInFlow({ googleIdentityConfiguration, onBack, onComplete, onEstabli
         <SignInPage>
           <ProviderSignInButton
             className="w-full"
-            disabled={!google.flowReady}
+            disabled={!google.controllerReady}
             onClick={google.establishIdentity}
             provider="google"
           >Continue with Google</ProviderSignInButton>

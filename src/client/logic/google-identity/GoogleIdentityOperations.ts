@@ -95,7 +95,7 @@ type OperationResult<Success = void> = ResultType<Success, GoogleIdentityEstabli
 /**
  * Manages the complete Google-backed Pubky identity lifecycle for one screen.
  */
-export class GoogleIdentityLifecycle {
+export class GoogleIdentityOperations {
   private pubky: PubkySdkAdapter;
   private wrappingKeys: WrappingKeyApiClient;
   private homegate: HomegateClient;

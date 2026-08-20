@@ -2,7 +2,7 @@
 
 import { useReducer } from "react";
 
-import type { GoogleIdentityConfiguration } from "../../../logic/google-identity/GoogleIdentityFlow";
+import type { GoogleIdentityConfiguration } from "../../../logic/google-identity/GoogleIdentityController";
 import type { LocalIdentityCatalog } from "../../../logic/local-identity/localIdentityModels";
 import { SignInFlow } from "../../onboarding/signInFlow";
 import type { GoogleIdentityEstablished } from "../../onboarding/google/useGoogleSignIn";

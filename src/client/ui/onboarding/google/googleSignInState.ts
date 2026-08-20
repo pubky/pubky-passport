@@ -1,9 +1,9 @@
 "use client";
 
 import type {
-  GoogleIdentityFlowError,
-} from "../../../logic/google-identity/GoogleIdentityFlow";
-import type { GoogleIdentityProgress } from "../../../logic/google-identity/GoogleIdentityFlow";
+  GoogleIdentityError,
+} from "../../../logic/google-identity/GoogleIdentityController";
+import type { GoogleIdentityProgress } from "../../../logic/google-identity/GoogleIdentityController";
 import type { GoogleAccountProfile } from "../../../logic/local-identity/localIdentityModels";
 import type { PubkyPublicIdentity } from "../../../logic/pubky/pubkyIdentityKey";
 
@@ -11,7 +11,7 @@ type GoogleSignInView =
   | { name: "idle" }
   | { name: "requesting-access" }
   | { name: "denied" }
-  | { name: "failed"; error: GoogleIdentityFlowError }
+  | { name: "failed"; error: GoogleIdentityError }
   | { name: "working"; progress: GoogleIdentityProgress }
   | {
     name: "complete";
@@ -28,7 +28,7 @@ type GoogleSignInEvent =
   | { type: "authorization-denied" }
   | { type: "request-started" }
   | { type: "progress-reported"; progress: GoogleIdentityProgress }
-  | { type: "operation-failed"; error: GoogleIdentityFlowError }
+  | { type: "operation-failed"; error: GoogleIdentityError }
   | {
     type: "operation-completed";
     googleAccount: GoogleAccountProfile;

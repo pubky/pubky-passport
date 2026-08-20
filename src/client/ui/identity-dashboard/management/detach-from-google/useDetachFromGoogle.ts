@@ -3,8 +3,8 @@
 import { Result } from "better-result";
 import { useCallback, useEffect, useReducer, useRef } from "react";
 
-import { GoogleIdentityFlow } from "../../../../logic/google-identity/GoogleIdentityFlow";
-import type { GoogleIdentityConfiguration } from "../../../../logic/google-identity/GoogleIdentityFlow";
+import { GoogleIdentityController } from "../../../../logic/google-identity/GoogleIdentityController";
+import type { GoogleIdentityConfiguration } from "../../../../logic/google-identity/GoogleIdentityController";
 import type { PubkyPublicIdentity } from "../../../../logic/pubky/pubkyIdentityKey";
 import { transitionDetachFromGoogleOperation } from "./detachFromGoogleOperationState";
 
@@ -15,7 +15,7 @@ function useDetachFromGoogle(
 ) {
   const { googleClientId, homegateBaseUrl } = configuration;
   const dispatching = useRef(false);
-  const flow = useRef<GoogleIdentityFlow | null>(null);
+  const controller = useRef<GoogleIdentityController | null>(null);
   const [state, dispatch] = useReducer(transitionDetachFromGoogleOperation, { name: "ready" });
 
   const detach = useCallback(() => {
@@ -23,16 +23,16 @@ function useDetachFromGoogle(
       && state.name !== "authorization-failed"
       && state.name !== "operation-failed")
       || dispatching.current) return;
-    const currentFlow = flow.current;
-    if (!currentFlow) {
+    const currentController = controller.current;
+    if (!currentController) {
       dispatch({ type: "operation-failed", error: { code: "operation_failed" } });
       return;
     }
     dispatching.current = true;
     dispatch({ type: "request-started" });
-    void currentFlow.detachIdentity(publicIdentity, expectedGoogleAccountId)
+    void currentController.detachIdentity(publicIdentity, expectedGoogleAccountId)
       .then((completed) => {
-        if (flow.current !== currentFlow) return;
+        if (controller.current !== currentController) return;
         if (Result.isError(completed)) {
           if (completed.error.code === "cancelled") return;
           if (completed.error.code === "authorization_failed") {
@@ -45,19 +45,19 @@ function useDetachFromGoogle(
         dispatch({ type: "operation-completed" });
       })
       .catch(() => {
-        if (flow.current === currentFlow) {
+        if (controller.current === currentController) {
           dispatch({ type: "operation-failed", error: { code: "operation_failed" } });
         }
       })
       .finally(() => {
-        if (flow.current === currentFlow) dispatching.current = false;
+        if (controller.current === currentController) dispatching.current = false;
       });
   }, [expectedGoogleAccountId, publicIdentity, state.name]);
 
   useEffect(() => {
-    let googleFlow: GoogleIdentityFlow;
+    let googleController: GoogleIdentityController;
     try {
-      googleFlow = new GoogleIdentityFlow({ googleClientId, homegateBaseUrl }, (nextState) => {
+      googleController = new GoogleIdentityController({ googleClientId, homegateBaseUrl }, (nextState) => {
         switch (nextState.status) {
           case "requesting-authorization":
             dispatch({ type: "request-started" });
@@ -69,14 +69,14 @@ function useDetachFromGoogle(
             return;
         }
       });
-      flow.current = googleFlow;
+      controller.current = googleController;
     } catch {
       dispatch({ type: "operation-failed", error: { code: "operation_failed" } });
       return;
     }
     return () => {
-      flow.current = null;
-      googleFlow.dispose();
+      controller.current = null;
+      googleController.dispose();
     };
   }, [googleClientId, homegateBaseUrl]);
 

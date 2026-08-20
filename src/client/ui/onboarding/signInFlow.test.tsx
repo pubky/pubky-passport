@@ -7,22 +7,22 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
-  GoogleIdentityFlow,
-  GoogleIdentityFlowState,
-} from "../../logic/google-identity/GoogleIdentityFlow";
-import { mockGoogleIdentityFlow } from "../../../../test-utils/fakes/mockGoogleIdentityFlow";
+  GoogleIdentityController,
+  GoogleIdentityViewState,
+} from "../../logic/google-identity/GoogleIdentityController";
+import { mockGoogleIdentityController } from "../../../../test-utils/fakes/mockGoogleIdentityController";
 import { SignInFlow } from "./signInFlow";
 
 const MOCKS = vi.hoisted(() => ({
-  constructGoogleIdentityFlow: vi.fn(),
+  constructGoogleIdentityController: vi.fn(),
 }));
 
-vi.mock("../../logic/google-identity/GoogleIdentityFlow", () => ({
-  GoogleIdentityFlow: function GoogleIdentityFlow(
+vi.mock("../../logic/google-identity/GoogleIdentityController", () => ({
+  GoogleIdentityController: function GoogleIdentityController(
     configuration: unknown,
-    onState: (state: GoogleIdentityFlowState) => void,
+    onState: (state: GoogleIdentityViewState) => void,
   ) {
-    return MOCKS.constructGoogleIdentityFlow(configuration, onState);
+    return MOCKS.constructGoogleIdentityController(configuration, onState);
   },
 }));
 
@@ -35,7 +35,7 @@ const GOOGLE_PROPS = {
 
 describe("SignInFlow", () => {
   beforeEach(() => {
-    MOCKS.constructGoogleIdentityFlow.mockImplementation(() => mockGoogleIdentityFlow());
+    MOCKS.constructGoogleIdentityController.mockImplementation(() => mockGoogleIdentityController());
   });
 
   afterEach(() => {
@@ -53,12 +53,12 @@ describe("SignInFlow", () => {
       .find((button) => button.textContent?.includes("Continue with Google"));
 
     expect(googleButton).toBeDisabled();
-    expect(MOCKS.constructGoogleIdentityFlow).not.toHaveBeenCalled();
+    expect(MOCKS.constructGoogleIdentityController).not.toHaveBeenCalled();
   });
 
   it("starts Google authorization from one button click", async () => {
     const establishIdentity = vi.fn(() => new Promise<never>(() => undefined));
-    useFlow(mockGoogleIdentityFlow({ establishIdentity }));
+    useController(mockGoogleIdentityController({ establishIdentity }));
 
     render(<SignInFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
     const continueWithGoogle = screen.getByRole("button", { name: "Continue with Google" });
@@ -82,7 +82,7 @@ describe("SignInFlow", () => {
   });
 
   it("shows the restore branch reported by the flow", async () => {
-    const emitState = captureFlowState(mockGoogleIdentityFlow({
+    const emitState = captureControllerState(mockGoogleIdentityController({
       establishIdentity: vi.fn(() => new Promise<never>(() => undefined)),
     }));
     render(<SignInFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
@@ -103,7 +103,7 @@ describe("SignInFlow", () => {
   });
 
   it("does not claim setup or restore before checking Google Drive", async () => {
-    const emitState = captureFlowState(mockGoogleIdentityFlow({
+    const emitState = captureControllerState(mockGoogleIdentityController({
       establishIdentity: vi.fn(() => new Promise<never>(() => undefined)),
     }));
     render(<SignInFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
@@ -118,10 +118,10 @@ describe("SignInFlow", () => {
 
   it("shows Google access before a recoverable denial", async () => {
     let deny!: () => void;
-    const establishIdentity = vi.fn(() => new Promise<Awaited<ReturnType<GoogleIdentityFlow["establishIdentity"]>>>((resolve) => {
+    const establishIdentity = vi.fn(() => new Promise<Awaited<ReturnType<GoogleIdentityController["establishIdentity"]>>>((resolve) => {
       deny = () => resolve(Result.err({ code: "authorization_failed" }));
     }));
-    useFlow(mockGoogleIdentityFlow({ establishIdentity }));
+    useController(mockGoogleIdentityController({ establishIdentity }));
     render(<SignInFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
@@ -137,7 +137,7 @@ describe("SignInFlow", () => {
   it("preserves restored mode through completion", async () => {
     const onComplete = vi.fn();
     const googleAccount = { id: "google-1", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: null };
-    useFlow(mockGoogleIdentityFlow({
+    useController(mockGoogleIdentityController({
       establishIdentity: vi.fn(async () => Result.ok({
         establishmentMode: "restored" as const,
         googleAccount,
@@ -156,14 +156,14 @@ describe("SignInFlow", () => {
   it("does not deliver completion after the flow unmounts", async () => {
     let finishEstablishment!: () => void;
     const googleAccount = { id: "google-1", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: null };
-    const establishIdentity = vi.fn(() => new Promise<Awaited<ReturnType<GoogleIdentityFlow["establishIdentity"]>>>((resolve) => {
+    const establishIdentity = vi.fn(() => new Promise<Awaited<ReturnType<GoogleIdentityController["establishIdentity"]>>>((resolve) => {
       finishEstablishment = () => resolve(Result.ok({
         establishmentMode: "restored",
         googleAccount,
         publicIdentity: { publicKeyZ32: "key", publicKeyDisplay: "pubkykey" },
       }));
     }));
-    useFlow(mockGoogleIdentityFlow({ establishIdentity }));
+    useController(mockGoogleIdentityController({ establishIdentity }));
     const onEstablished = vi.fn();
     const rendered = render(<SignInFlow {...GOOGLE_PROPS} onComplete={vi.fn()} onEstablished={onEstablished} />);
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
@@ -178,7 +178,7 @@ describe("SignInFlow", () => {
     const establishIdentity = vi.fn()
       .mockResolvedValueOnce(Result.err({ code: "signin_failed" as const }))
       .mockResolvedValueOnce(Result.err({ code: "operation_failed" as const }));
-    useFlow(mockGoogleIdentityFlow({ establishIdentity }));
+    useController(mockGoogleIdentityController({ establishIdentity }));
     render(<SignInFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
@@ -188,7 +188,7 @@ describe("SignInFlow", () => {
   });
 
   it("shows the specific safe operation error and cause", async () => {
-    useFlow(mockGoogleIdentityFlow({
+    useController(mockGoogleIdentityController({
       establishIdentity: vi.fn(async () => Result.err({
         code: "homeserver_signup_invitation_failed" as const,
         cause: "weekly_limit_exceeded" as const,
@@ -203,7 +203,7 @@ describe("SignInFlow", () => {
   });
 
   it("describes a final PKDNS publication failure without stale resolution language", async () => {
-    useFlow(mockGoogleIdentityFlow({
+    useController(mockGoogleIdentityController({
       establishIdentity: vi.fn(async () => Result.err({ code: "discovery_failed" as const })),
     }));
     render(<SignInFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
@@ -214,15 +214,15 @@ describe("SignInFlow", () => {
   });
 });
 
-function useFlow(flow: GoogleIdentityFlow): void {
-  MOCKS.constructGoogleIdentityFlow.mockReturnValue(flow);
+function useController(controller: GoogleIdentityController): void {
+  MOCKS.constructGoogleIdentityController.mockReturnValue(controller);
 }
 
-function captureFlowState(flow: GoogleIdentityFlow): { current?: (state: GoogleIdentityFlowState) => void } {
-  const capture: { current?: (state: GoogleIdentityFlowState) => void } = {};
-  MOCKS.constructGoogleIdentityFlow.mockImplementation((_, onState) => {
+function captureControllerState(controller: GoogleIdentityController): { current?: (state: GoogleIdentityViewState) => void } {
+  const capture: { current?: (state: GoogleIdentityViewState) => void } = {};
+  MOCKS.constructGoogleIdentityController.mockImplementation((_, onState) => {
     capture.current = onState;
-    return flow;
+    return controller;
   });
   return capture;
 }

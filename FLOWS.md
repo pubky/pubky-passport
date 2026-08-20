@@ -296,23 +296,23 @@ sequenceDiagram
     actor User
     participant UI as src/client/ui/onboarding/google<br/>useGoogleSignIn
     box rgba(0, 158, 115, 0.18) src/client/logic/google-identity
-        participant GoogleFlow as GoogleIdentityFlow.ts<br/>GoogleIdentityFlow
-        participant Operations as GoogleIdentityLifecycle.ts<br/>GoogleIdentityLifecycle
+        participant GoogleController as GoogleIdentityController.ts<br/>GoogleIdentityController
+        participant Operations as GoogleIdentityOperations.ts<br/>GoogleIdentityOperations
         participant Authorization as GoogleImplicitAuthorization.ts<br/>GoogleImplicitAuthorization
     end
     box rgba(17, 24, 39, 0.12) External
         participant OAuth as Google OAuth authorize endpoint
     end
 
-    UI->>GoogleFlow: new GoogleIdentityFlow(configuration, onState)
+    UI->>GoogleController: new GoogleIdentityController(configuration, onState)
     User->>UI: Continue with Google
-    UI->>GoogleFlow: establishIdentity()
-    GoogleFlow->>Authorization: request()
+    UI->>GoogleController: establishIdentity()
+    GoogleController->>Authorization: request()
     Authorization->>OAuth: open popup with response_type=id_token token
     OAuth-->>Authorization: redirect to Passport callback with fragment
     Note over Authorization: Parser-time bootstrap scrubs fragment<br/>validate state, nonce, scope, and UserInfo sub
-    Authorization-->>GoogleFlow: GoogleIdentityCredentials
-    GoogleFlow->>Operations: establishIdentity(GoogleIdentityCredentials)
+    Authorization-->>GoogleController: GoogleIdentityCredentials
+    GoogleController->>Operations: establishIdentity(GoogleIdentityCredentials)
 ```
 
 
@@ -323,10 +323,10 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Google-backed custody/recovery establishment call flow
-    accDescr: GoogleIdentityLifecycle reads the Google Drive Passport file first, then requests a wrapping key and either restores the found identity or requests a Homegate invitation before creating a missing identity, without passing the wrapping key to Drive storage.
+    accDescr: GoogleIdentityOperations reads the Google Drive Passport file first, then requests a wrapping key and either restores the found identity or requests a Homegate invitation before creating a missing identity, without passing the wrapping key to Drive storage.
     box rgba(0, 158, 115, 0.18) src/client/logic/google-identity
-        participant GoogleFlow as GoogleIdentityFlow.ts<br/>GoogleIdentityFlow
-        participant Operations as GoogleIdentityLifecycle.ts<br/>GoogleIdentityLifecycle
+        participant GoogleController as GoogleIdentityController.ts<br/>GoogleIdentityController
+        participant Operations as GoogleIdentityOperations.ts<br/>GoogleIdentityOperations
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/wrapping-key
         participant Wrapping as WrappingKeyApiClient.ts<br/>WrappingKeyApiClient
@@ -344,7 +344,7 @@ sequenceDiagram
         participant Drive as Google Drive API v3<br/>appDataFolder + My Drive
     end
 
-    GoogleFlow->>Operations: establishIdentity(GoogleIdentityCredentials)
+    GoogleController->>Operations: establishIdentity(GoogleIdentityCredentials)
     Operations->>DriveStore: new GoogleDrivePassportFileStore(...)
     Operations->>DriveStore: readPassportFile()
     DriveStore->>Drive: list passport.json
@@ -363,7 +363,7 @@ sequenceDiagram
         API-->>Wrapping: wrapping-key result
         Wrapping-->>Operations: wrapping-key result
         alt Wrapping-key error
-            Operations-->>GoogleFlow: safe failure
+            Operations-->>GoogleController: safe failure
         else Wrapping key
             Operations->>Operations: restoreIdentity(envelope, wrapping key)
         end
@@ -373,7 +373,7 @@ sequenceDiagram
         API-->>Wrapping: wrapping-key result
         Wrapping-->>Operations: wrapping-key result
         alt Wrapping-key error
-            Operations-->>GoogleFlow: safe failure
+            Operations-->>GoogleController: safe failure
         else Wrapping key
             Operations->>Invite: requestGoogleHomeserverSignupInvitation(ID token)
             Invite-->>Operations: validated invitation or safe failure
@@ -382,7 +382,7 @@ sequenceDiagram
             end
         end
     else Storage error
-        Operations-->>GoogleFlow: safe failure
+        Operations-->>GoogleController: safe failure
     end
 ```
 
@@ -398,9 +398,9 @@ so the UI cannot receive an invalid cross-flow phase combination.
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Existing identity restore call flow
-    accDescr: GoogleIdentityLifecycle decrypts the Passport file and tries normal blocking sign-in first, then uses Homegate signup to distinguish a missing account from an existing account before publishing PKDNS and verifying sign-in.
+    accDescr: GoogleIdentityOperations decrypts the Passport file and tries normal blocking sign-in first, then uses Homegate signup to distinguish a missing account from an existing account before publishing PKDNS and verifying sign-in.
     box rgba(0, 158, 115, 0.18) src/client/logic/google-identity
-        participant Operations as GoogleIdentityLifecycle.ts<br/>GoogleIdentityLifecycle
+        participant Operations as GoogleIdentityOperations.ts<br/>GoogleIdentityOperations
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/passport-file
         participant Crypto as PassportFileWebCrypto.ts<br/>PassportFileWebCrypto
@@ -460,9 +460,9 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Missing identity encryption and Drive storage call flow
-    accDescr: GoogleIdentityLifecycle encrypts a new Pubky secret, creates the operational app-data file through GoogleDrivePassportFileStore, then best-effort writes a visible recovery copy through GoogleDriveVisibleRecoveryCopies before activation and zeros the exported bytes.
+    accDescr: GoogleIdentityOperations encrypts a new Pubky secret, creates the operational app-data file through GoogleDrivePassportFileStore, then best-effort writes a visible recovery copy through GoogleDriveVisibleRecoveryCopies before activation and zeros the exported bytes.
     box rgba(0, 158, 115, 0.18) src/client/logic/google-identity
-        participant Operations as GoogleIdentityLifecycle.ts<br/>GoogleIdentityLifecycle
+        participant Operations as GoogleIdentityOperations.ts<br/>GoogleIdentityOperations
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/pubky
         participant Pubky as PubkySdkAdapter.ts<br/>PubkySdkAdapter
@@ -527,9 +527,9 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Missing identity activation and local save call flow
-    accDescr: GoogleIdentityLifecycle requests a homeserver signup invitation, then uses its shared signup-and-activation method for both fresh creation and interrupted setup recovery.
+    accDescr: GoogleIdentityOperations requests a homeserver signup invitation, then uses its shared signup-and-activation method for both fresh creation and interrupted setup recovery.
     box rgba(0, 158, 115, 0.18) src/client/logic/google-identity
-        participant Operations as GoogleIdentityLifecycle.ts<br/>GoogleIdentityLifecycle
+        participant Operations as GoogleIdentityOperations.ts<br/>GoogleIdentityOperations
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/homegate
         participant Invite as HomegateClient.ts<br/>HomegateClient
@@ -615,19 +615,19 @@ sequenceDiagram
     accTitle: Detach a Pubky identity from Google
     accDescr: Passport verifies the account and identity, deletes every Google backup, and clears the local identity last.
     participant UI as detach-from-google
-    participant GoogleFlow as GoogleIdentityFlow
-    participant Operations as GoogleIdentityLifecycle
+    participant GoogleController as GoogleIdentityController
+    participant Operations as GoogleIdentityOperations
     participant DriveStore as GoogleDrivePassportFileStore
     participant VisibleCopies as GoogleDriveVisibleRecoveryCopies
     participant Drive as Google Drive API v3
     participant Local as LocalStorageIdentityRepository
 
-    UI->>GoogleFlow: detachIdentity(public identity, expected Google account)
-    GoogleFlow->>GoogleFlow: request Google credentials
+    UI->>GoogleController: detachIdentity(public identity, expected Google account)
+    GoogleController->>GoogleController: request Google credentials
     alt Authorized account differs
-        GoogleFlow-->>UI: authorization_failed
+        GoogleController-->>UI: authorization_failed
     else Account matches
-        GoogleFlow->>Operations: detachIdentity(...)
+        GoogleController->>Operations: detachIdentity(...)
         Operations->>DriveStore: readPassportFile()
         DriveStore->>Drive: find appDataFolder/passport.json
         alt App-data file found
@@ -647,7 +647,7 @@ sequenceDiagram
             Note over Local: Local identity remains available
         else All Google backups removed
             Operations->>Local: remove identity
-            GoogleFlow-->>UI: detachment complete
+            GoogleController-->>UI: detachment complete
         end
     end
 ```
@@ -719,7 +719,7 @@ sequenceDiagram
     accTitle: Direct browser Homegate signup invitation call flow
     accDescr: The browser adapter sends only the Google ID token directly to configured Homegate, then bounds and maps the invitation or plaintext error to a safe application result.
     box rgba(0, 158, 115, 0.18) Browser runtime
-        participant UseCase as APPLICATION<br/>GoogleIdentityLifecycle
+        participant UseCase as APPLICATION<br/>GoogleIdentityOperations
         participant Adapter as BROWSER<br/>HomegateClient
     end
     box rgba(17, 24, 39, 0.12) External

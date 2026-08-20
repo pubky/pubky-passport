@@ -5,17 +5,17 @@ import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { mockGoogleIdentityFlow } from "../../../../../../test-utils/fakes/mockGoogleIdentityFlow";
+import { mockGoogleIdentityController } from "../../../../../../test-utils/fakes/mockGoogleIdentityController";
 import { useDetachFromGoogle } from "./useDetachFromGoogle";
 
 const MOCKS = vi.hoisted(() => ({
-  constructGoogleIdentityFlow: vi.fn(),
+  constructGoogleIdentityController: vi.fn(),
   detachIdentity: vi.fn(),
 }));
 
-vi.mock("../../../../logic/google-identity/GoogleIdentityFlow", () => ({
-  GoogleIdentityFlow: function GoogleIdentityFlow(configuration: unknown, onState: unknown) {
-    return MOCKS.constructGoogleIdentityFlow(configuration, onState);
+vi.mock("../../../../logic/google-identity/GoogleIdentityController", () => ({
+  GoogleIdentityController: function GoogleIdentityController(configuration: unknown, onState: unknown) {
+    return MOCKS.constructGoogleIdentityController(configuration, onState);
   },
 }));
 
@@ -47,7 +47,7 @@ describe("useDetachFromGoogle", () => {
     MOCKS.detachIdentity
       .mockResolvedValueOnce(Result.err({ code: "authorization_failed" as const }))
       .mockResolvedValueOnce(Result.ok({ deletionStatus: "deleted" as const }));
-    MOCKS.constructGoogleIdentityFlow.mockReturnValue(mockGoogleIdentityFlow({
+    MOCKS.constructGoogleIdentityController.mockReturnValue(mockGoogleIdentityController({
       detachIdentity: MOCKS.detachIdentity,
     }));
     render(<Probe />);

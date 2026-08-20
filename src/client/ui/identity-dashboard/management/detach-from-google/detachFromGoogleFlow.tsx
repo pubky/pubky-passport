@@ -2,7 +2,7 @@
 
 import { useReducer } from "react";
 
-import type { GoogleIdentityConfiguration } from "../../../../logic/google-identity/GoogleIdentityFlow";
+import type { GoogleIdentityConfiguration } from "../../../../logic/google-identity/GoogleIdentityController";
 import type { LocalIdentityBackupResult } from "../../../../logic/local-identity/LocalIdentityController";
 import type { LocalIdentityMetadata } from "../../../../logic/local-identity/localIdentityModels";
 import { EncryptedBackup } from "../encrypted-backup/encryptedBackup";

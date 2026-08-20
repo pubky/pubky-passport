@@ -3,8 +3,8 @@
 import { Result } from "better-result";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
-import { GoogleIdentityFlow } from "../../../logic/google-identity/GoogleIdentityFlow";
-import type { GoogleIdentityConfiguration } from "../../../logic/google-identity/GoogleIdentityFlow";
+import { GoogleIdentityController } from "../../../logic/google-identity/GoogleIdentityController";
+import type { GoogleIdentityConfiguration } from "../../../logic/google-identity/GoogleIdentityController";
 import type { GoogleAccountProfile } from "../../../logic/local-identity/localIdentityModels";
 import type { PubkyPublicIdentity } from "../../../logic/pubky/pubkyIdentityKey";
 import {
@@ -24,8 +24,8 @@ function useGoogleSignIn(
 ) {
   const { googleClientId, homegateBaseUrl } = configuration;
   const operationPendingRef = useRef(false);
-  const flowRef = useRef<GoogleIdentityFlow | null>(null);
-  const [flowReady, setFlowReady] = useState(false);
+  const controllerRef = useRef<GoogleIdentityController | null>(null);
+  const [controllerReady, setControllerReady] = useState(false);
   const [state, dispatch] = useReducer(
     transitionGoogleSignIn,
     INITIAL_GOOGLE_SIGN_IN_STATE,
@@ -34,8 +34,8 @@ function useGoogleSignIn(
   const establishIdentity = useCallback((): void => {
     if (operationPendingRef.current) return;
 
-    const currentFlow = flowRef.current;
-    if (!currentFlow) {
+    const currentController = controllerRef.current;
+    if (!currentController) {
       dispatch({ type: "authorization-denied" });
       return;
     }
@@ -43,9 +43,9 @@ function useGoogleSignIn(
     operationPendingRef.current = true;
     dispatch({ type: "request-started" });
 
-    void currentFlow.establishIdentity()
+    void currentController.establishIdentity()
       .then((result) => {
-        if (flowRef.current !== currentFlow) return;
+        if (controllerRef.current !== currentController) return;
 
         if (Result.isError(result)) {
           if (result.error.code === "cancelled") return;
@@ -73,12 +73,12 @@ function useGoogleSignIn(
         });
       })
       .catch(() => {
-        if (flowRef.current === currentFlow) {
+        if (controllerRef.current === currentController) {
           dispatch({ type: "operation-failed", error: { code: "operation_failed" } });
         }
       })
       .finally(() => {
-        if (flowRef.current === currentFlow) {
+        if (controllerRef.current === currentController) {
           operationPendingRef.current = false;
         }
       });
@@ -91,12 +91,12 @@ function useGoogleSignIn(
 
   useEffect(() => {
     let active = true;
-    let googleFlow: GoogleIdentityFlow;
+    let googleController: GoogleIdentityController;
     queueMicrotask(() => {
-      if (active) setFlowReady(false);
+      if (active) setControllerReady(false);
     });
     try {
-      googleFlow = new GoogleIdentityFlow({ googleClientId, homegateBaseUrl }, (nextState) => {
+      googleController = new GoogleIdentityController({ googleClientId, homegateBaseUrl }, (nextState) => {
         switch (nextState.status) {
           case "requesting-authorization":
             dispatch({ type: "request-started" });
@@ -108,9 +108,9 @@ function useGoogleSignIn(
             return;
         }
       });
-      flowRef.current = googleFlow;
+      controllerRef.current = googleController;
       queueMicrotask(() => {
-        if (active && flowRef.current === googleFlow) setFlowReady(true);
+        if (active && controllerRef.current === googleController) setControllerReady(true);
       });
     } catch {
       dispatch({ type: "operation-failed", error: { code: "operation_failed" } });
@@ -119,15 +119,15 @@ function useGoogleSignIn(
 
     return () => {
       active = false;
-      flowRef.current = null;
-      googleFlow.dispose();
+      controllerRef.current = null;
+      googleController.dispose();
     };
   }, [googleClientId, homegateBaseUrl]);
 
   return {
     back,
     establishIdentity,
-    flowReady,
+    controllerReady,
     state,
   };
 }

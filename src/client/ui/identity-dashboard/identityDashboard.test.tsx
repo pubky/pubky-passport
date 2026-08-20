@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
 import type { PubkyPublicIdentity } from "../../logic/pubky/pubkyIdentityKey";
-import { mockGoogleIdentityFlow } from "../../../../test-utils/fakes/mockGoogleIdentityFlow";
+import { mockGoogleIdentityController } from "../../../../test-utils/fakes/mockGoogleIdentityController";
 import { mockLocalIdentityController } from "../../../../test-utils/fakes/mockLocalIdentityController";
 import { IdentityDashboard } from "./identityDashboard";
 
@@ -39,9 +39,9 @@ vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
   },
 }));
 
-vi.mock("../../logic/google-identity/GoogleIdentityFlow", () => ({
-  GoogleIdentityFlow: function GoogleIdentityFlow() {
-    return mockGoogleIdentityFlow({
+vi.mock("../../logic/google-identity/GoogleIdentityController", () => ({
+  GoogleIdentityController: function GoogleIdentityController() {
+    return mockGoogleIdentityController({
       establishIdentity: async () => {
         if (FLOW.establishIdentity) {
           const identity = {

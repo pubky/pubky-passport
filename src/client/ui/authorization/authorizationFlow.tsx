@@ -9,7 +9,7 @@ import {
 } from "../../logic/authorization/PassportAuthorizationController";
 import type { LocalIdentityController } from "../../logic/local-identity/LocalIdentityController";
 import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
-import type { GoogleIdentityConfiguration } from "../../logic/google-identity/GoogleIdentityFlow";
+import type { GoogleIdentityConfiguration } from "../../logic/google-identity/GoogleIdentityController";
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { SignInFlow } from "../onboarding/signInFlow";

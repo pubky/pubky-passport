@@ -1,20 +1,20 @@
 "use client";
 
-import type { GoogleIdentityFlowError } from "../../../../logic/google-identity/GoogleIdentityFlow";
+import type { GoogleIdentityError } from "../../../../logic/google-identity/GoogleIdentityController";
 
 type DetachFromGoogleOperationState =
   | { name: "ready" }
   | { name: "requesting-authorization" }
   | { name: "deleting-backup" }
   | { name: "authorization-failed" }
-  | { name: "operation-failed"; error: GoogleIdentityFlowError }
+  | { name: "operation-failed"; error: GoogleIdentityError }
   | { name: "complete" };
 
 type DetachFromGoogleOperationEvent =
   | { type: "authorization-failed" }
   | { type: "request-started" }
   | { type: "deletion-started" }
-  | { type: "operation-failed"; error: GoogleIdentityFlowError }
+  | { type: "operation-failed"; error: GoogleIdentityError }
   | { type: "operation-completed" };
 
 function transitionDetachFromGoogleOperation(
