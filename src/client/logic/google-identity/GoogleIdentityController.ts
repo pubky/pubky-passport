@@ -157,6 +157,11 @@ export class GoogleIdentityController {
     }
   }
 
+  /** Allows a new establishment flow to choose a different Google account. */
+  clearPinnedGoogleAccount(): void {
+    this.googleAccountId = undefined;
+  }
+
   /**
    * Deletes the Google Drive backups first, then removes the local identity.
    * A Google Drive failure leaves the local identity untouched.

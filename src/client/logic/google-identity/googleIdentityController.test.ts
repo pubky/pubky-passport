@@ -202,6 +202,17 @@ describe("GoogleIdentityController", () => {
     expect(MOCKS.establishIdentity).toHaveBeenCalledOnce();
   });
 
+  it("allows a new establishment flow to choose another Google account", async () => {
+    const controller = createController();
+    await controller.establishIdentity();
+
+    controller.clearPinnedGoogleAccount();
+    await controller.establishIdentity();
+
+    expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(1, undefined);
+    expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(2, undefined);
+  });
+
   it("delegates detachment behavior", async () => {
     const controller = createController();
 

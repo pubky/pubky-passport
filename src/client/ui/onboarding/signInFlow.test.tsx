@@ -187,6 +187,27 @@ describe("SignInFlow", () => {
     expect(establishIdentity).toHaveBeenNthCalledWith(2);
   });
 
+  it("clears the pinned Google account when returning from an establishment failure", async () => {
+    const clearPinnedGoogleAccount = vi.fn();
+    const establishIdentity = vi.fn()
+      .mockResolvedValueOnce(Result.err({ code: "signin_failed" as const }))
+      .mockImplementationOnce(() => new Promise<never>(() => undefined));
+    useController(mockGoogleIdentityController({
+      clearPinnedGoogleAccount,
+      establishIdentity,
+    }));
+    render(<SignInFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
+
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Continue with Google" }));
+    expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
+
+    expect(clearPinnedGoogleAccount).toHaveBeenCalledOnce();
+    expect(MOCKS.constructGoogleIdentityController).toHaveBeenCalledOnce();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
+    expect(establishIdentity).toHaveBeenCalledTimes(2);
+  });
+
   it("shows the specific safe operation error and cause", async () => {
     useController(mockGoogleIdentityController({
       establishIdentity: vi.fn(async () => Result.err({

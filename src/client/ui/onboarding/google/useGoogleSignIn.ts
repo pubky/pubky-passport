@@ -86,6 +86,7 @@ function useGoogleSignIn(
 
   const back = useCallback(() => {
     operationPendingRef.current = false;
+    controllerRef.current?.clearPinnedGoogleAccount();
     dispatch({ type: "back" });
   }, []);
 
