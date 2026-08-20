@@ -1,6 +1,6 @@
 "use client";
 
-import { type SubmitEvent, useRef, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 
 import { submitManualAuthorizationInput } from "../../../logic/authorization/entry/manualAuthorizationInput";
 import { ArrowRightIcon, ClipboardPasteIcon } from "../../shared/icons/actionIcons";
@@ -14,15 +14,12 @@ import { Label } from "../../shared/primitives/label";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
 
 function ManualAuthorization({ onBack }: { onBack: () => void }) {
-  const authorizationInput = useRef<HTMLInputElement>(null);
-  const [hasAuthorization, setHasAuthorization] = useState(false);
+  const [authorization, setAuthorization] = useState("");
   const [error, setError] = useState<string>();
 
   const submit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const authorization = authorizationInput.current?.value ?? "";
-    if (authorizationInput.current) authorizationInput.current.value = "";
-    setHasAuthorization(false);
+    setAuthorization("");
     const result = submitManualAuthorizationInput(authorization);
     switch (result) {
       case "invalid":
@@ -39,9 +36,7 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
   const paste = async () => {
     try {
       const value = await navigator.clipboard.readText();
-      if (!authorizationInput.current) return;
-      authorizationInput.current.value = value;
-      setHasAuthorization(value.trim().length > 0);
+      setAuthorization(value);
       setError(undefined);
     } catch {
       setError("Clipboard access was blocked. Paste the link manually.");
@@ -65,19 +60,19 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
               containerClassName="border-dashed bg-transparent"
               id="authorization-link"
               onChange={(event) => {
-                setHasAuthorization(event.target.value.trim().length > 0);
+                setAuthorization(event.target.value);
                 setError(undefined);
               }}
               placeholder="pubkyauth://"
-              ref={authorizationInput}
               spellCheck={false}
+              value={authorization}
             />
             {error ? <FieldMessage error id="authorization-link-error" role="alert">{error}</FieldMessage> : null}
           </div>
         </div>
         <div className="mt-auto flex flex-col gap-4 pt-6">
           <BackButton onClick={onBack} />
-          <Button disabled={!hasAuthorization} size="lg" type="submit"><ArrowRightIcon />Continue</Button>
+          <Button disabled={authorization.trim().length === 0} size="lg" type="submit"><ArrowRightIcon />Continue</Button>
         </div>
       </form>
     </PassportScreen>
