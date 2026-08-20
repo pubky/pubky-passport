@@ -1,6 +1,6 @@
 "use client";
 
-import { useReducer } from "react";
+import { useState } from "react";
 
 import type { GoogleIdentityConfiguration } from "../../../../logic/google-identity/GoogleIdentityController";
 import type { LocalIdentityBackupResult } from "../../../../logic/local-identity/LocalIdentityController";
@@ -9,10 +9,15 @@ import { EncryptedBackup } from "../encrypted-backup/encryptedBackup";
 import { MigrateToPubkyRing } from "../migrate-to-pubky-ring/migrateToPubkyRing";
 import { BackupBeforeDetaching } from "./backupBeforeDetaching";
 import { ConfirmGoogleDetachment } from "./confirmGoogleDetachment";
-import { transitionDetachFromGoogleFlow } from "./detachFromGoogleFlowState";
 import { GoogleDetachmentComplete } from "./googleDetachmentComplete";
 import { ReviewGoogleDetachment } from "./reviewGoogleDetachment";
 import { useDetachFromGoogle } from "./useDetachFromGoogle";
+
+type DetachFromGoogleView =
+  | { view: "backup" }
+  | { view: "encrypted-backup" }
+  | { view: "pubky-ring"; migrationUrl: string | null }
+  | { view: "review"; confirmation: "closed" | "open" };
 
 function DetachFromGoogleFlow({ createBackup, createMigrationUrl, googleIdentityConfiguration, identity, onBack, onDone }: {
   createBackup: (publicKeyZ32: string, password: string) => Promise<LocalIdentityBackupResult>;
@@ -22,7 +27,7 @@ function DetachFromGoogleFlow({ createBackup, createMigrationUrl, googleIdentity
   onBack: () => void;
   onDone: () => void;
 }) {
-  const [state, dispatch] = useReducer(transitionDetachFromGoogleFlow, { view: "backup" });
+  const [state, setState] = useState<DetachFromGoogleView>({ view: "backup" });
   const operation = useDetachFromGoogle(
     googleIdentityConfiguration,
     identity.publicIdentity,
@@ -36,19 +41,19 @@ function DetachFromGoogleFlow({ createBackup, createMigrationUrl, googleIdentity
       return <EncryptedBackup
         createBackup={createBackup}
         publicKeyZ32={identity.publicIdentity.publicKeyZ32}
-        onBack={() => dispatch({ type: "back-to-backup" })}
+        onBack={() => setState({ view: "backup" })}
       />;
     case "pubky-ring":
       return <MigrateToPubkyRing
         migrationUrl={state.migrationUrl}
-        onBack={() => dispatch({ type: "back-to-backup" })}
+        onBack={() => setState({ view: "backup" })}
       />;
     case "review": {
       const pending = operation.state.name === "requesting-authorization"
         || operation.state.name === "deleting-backup";
       return (
         <>
-          <ReviewGoogleDetachment onBack={() => dispatch({ type: "back-to-backup" })} onRemove={() => dispatch({ type: "confirmation-requested" })} />
+          <ReviewGoogleDetachment onBack={() => setState({ view: "backup" })} onRemove={() => setState({ view: "review", confirmation: "open" })} />
           <ConfirmGoogleDetachment
             canConfirm={operation.state.name === "ready" || operation.state.name === "operation-failed"}
             canRetryAuthorization={operation.state.name === "authorization-failed"}
@@ -57,7 +62,7 @@ function DetachFromGoogleFlow({ createBackup, createMigrationUrl, googleIdentity
               : operation.state.name === "operation-failed"
                 ? operation.state.error.code
                 : null}
-            onCancel={() => dispatch({ type: "confirmation-closed" })}
+            onCancel={() => setState({ view: "review", confirmation: "closed" })}
             onConfirm={operation.detach}
             onRetryAuthorization={operation.retryDetachment}
             open={state.confirmation === "open"}
@@ -69,11 +74,11 @@ function DetachFromGoogleFlow({ createBackup, createMigrationUrl, googleIdentity
     case "backup":
       return <BackupBeforeDetaching
         onBack={onBack}
-        onBackupConfirmed={() => dispatch({ type: "backup-confirmed" })}
-        onDownloadBackup={() => dispatch({ type: "backup-requested" })}
+        onBackupConfirmed={() => setState({ view: "review", confirmation: "closed" })}
+        onDownloadBackup={() => setState({ view: "encrypted-backup" })}
         onMigrateToKeychain={() => {
-          dispatch({
-            type: "migration-requested",
+          setState({
+            view: "pubky-ring",
             migrationUrl: createMigrationUrl(),
           });
         }}

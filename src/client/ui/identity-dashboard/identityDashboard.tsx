@@ -1,10 +1,10 @@
 "use client";
 
 import { Result } from "better-result";
-import { useReducer, useState } from "react";
+import { useState } from "react";
 
 import type { LocalIdentityController } from "../../logic/local-identity/LocalIdentityController";
-import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
+import type { LocalIdentityCatalog, LocalIdentityMetadata } from "../../logic/local-identity/localIdentityModels";
 import type { GoogleIdentityConfiguration } from "../../logic/google-identity/GoogleIdentityController";
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
@@ -17,11 +17,15 @@ import { DetachFromGoogleFlow } from "./management/detach-from-google/detachFrom
 import { EncryptedBackup } from "./management/encrypted-backup/encryptedBackup";
 import { MigrateToPubkyRing } from "./management/migrate-to-pubky-ring/migrateToPubkyRing";
 import { IdentityOverview } from "./overview/identityOverview";
-import {
-  initialIdentityDashboardState,
-  resolveIdentityDashboardState,
-  transitionIdentityDashboard,
-} from "./identityDashboardState";
+
+type IdentityDashboardView =
+  | { view: "onboarding" }
+  | { view: "overview" }
+  | { view: "select-identity" }
+  | { view: "manage-identity"; publicKeyZ32: string }
+  | { view: "encrypted-backup"; publicKeyZ32: string }
+  | { view: "migrate-to-pubky-ring"; publicKeyZ32: string; migrationUrl: string | null }
+  | { view: "detach-from-google"; identity: LocalIdentityMetadata };
 
 function IdentityDashboard({ googleClientId, homegateBaseUrl }: {
   googleClientId: string;
@@ -66,12 +70,10 @@ function ReadyIdentityDashboard({ catalog, controller, googleIdentityConfigurati
   onIdentitiesChanged: () => void;
   onIdentityEstablished: (identity: GoogleIdentityEstablished) => void;
 }) {
-  const [navigation, dispatch] = useReducer(
-    transitionIdentityDashboard,
-    catalog,
-    initialIdentityDashboardState,
-  );
-  const state = resolveIdentityDashboardState(navigation, catalog);
+  const [navigation, setNavigation] = useState<IdentityDashboardView>(() => (
+    catalog.identities.length === 0 ? { view: "onboarding" } : { view: "overview" }
+  ));
+  const state = resolveIdentityDashboardView(navigation, catalog);
   const activeIdentity = catalog.identities.find(
     (identity) => identity.publicIdentity.publicKeyZ32 === catalog.activePublicKeyZ32,
   );
@@ -80,18 +82,18 @@ function ReadyIdentityDashboard({ catalog, controller, googleIdentityConfigurati
     case "onboarding":
       return <SignInFlow
         googleIdentityConfiguration={googleIdentityConfiguration}
-        onComplete={() => dispatch({ type: "onboarding-completed" })}
+        onComplete={() => setNavigation({ view: "overview" })}
         onEstablished={onIdentityEstablished}
       />;
     case "select-identity":
       return <IdentitySelectionFlow
         catalog={catalog}
         googleIdentityConfiguration={googleIdentityConfiguration}
-        onBack={() => dispatch({ type: "back-to-overview" })}
+        onBack={() => setNavigation({ view: "overview" })}
         onIdentityEstablished={onIdentityEstablished}
         onIdentitySelected={() => {
           onIdentitiesChanged();
-          dispatch({ type: "identity-selected" });
+          setNavigation({ view: "overview" });
         }}
         selectIdentity={(publicKeyZ32) => Result.isOk(controller.selectIdentity(publicKeyZ32))}
       />;
@@ -103,20 +105,20 @@ function ReadyIdentityDashboard({ catalog, controller, googleIdentityConfigurati
       const publicKeyZ32 = identity.publicIdentity.publicKeyZ32;
       return <IdentityManagement
         identity={identity}
-        onBack={() => dispatch({ type: "back-to-overview" })}
-        onDetachFromGoogle={() => dispatch({ type: "detachment-requested", identity })}
-        onDownloadBackup={() => dispatch({ type: "backup-requested", publicKeyZ32 })}
+        onBack={() => setNavigation({ view: "overview" })}
+        onDetachFromGoogle={() => setNavigation({ view: "detach-from-google", identity })}
+        onDownloadBackup={() => setNavigation({ view: "encrypted-backup", publicKeyZ32 })}
         onLogOut={() => {
           const removed = controller.removeIdentity(publicKeyZ32);
           if (Result.isOk(removed)) {
             onIdentitiesChanged();
-            dispatch({ type: "identity-removed" });
+            setNavigation({ view: "overview" });
           }
         }}
         onMigrateToKeychain={() => {
           const migration = controller.createPubkyRingMigrationUrl();
-          dispatch({
-            type: "migration-requested",
+          setNavigation({
+            view: "migrate-to-pubky-ring",
             publicKeyZ32,
             migrationUrl: Result.isOk(migration) ? migration.value : null,
           });
@@ -128,12 +130,12 @@ function ReadyIdentityDashboard({ catalog, controller, googleIdentityConfigurati
       return <EncryptedBackup
         createBackup={controller.createEncryptedBackup}
         publicKeyZ32={state.publicKeyZ32}
-        onBack={() => dispatch({ type: "back-to-management", publicKeyZ32: state.publicKeyZ32 })}
+        onBack={() => setNavigation({ view: "manage-identity", publicKeyZ32: state.publicKeyZ32 })}
       />;
     case "migrate-to-pubky-ring":
       return <MigrateToPubkyRing
         migrationUrl={state.migrationUrl}
-        onBack={() => dispatch({ type: "back-to-management", publicKeyZ32: state.publicKeyZ32 })}
+        onBack={() => setNavigation({ view: "manage-identity", publicKeyZ32: state.publicKeyZ32 })}
       />;
     case "detach-from-google":
       return <DetachFromGoogleFlow
@@ -144,27 +146,40 @@ function ReadyIdentityDashboard({ catalog, controller, googleIdentityConfigurati
         }}
         googleIdentityConfiguration={googleIdentityConfiguration}
         identity={state.identity}
-        onBack={() => dispatch({
-          type: "back-to-management",
+        onBack={() => setNavigation({
+          view: "manage-identity",
           publicKeyZ32: state.identity.publicIdentity.publicKeyZ32,
         })}
         onDone={() => {
           onIdentitiesChanged();
-          dispatch({ type: "identity-removed" });
+          setNavigation({ view: "overview" });
         }}
       />;
     case "overview":
       return activeIdentity
         ? <IdentityOverview
           identity={activeIdentity}
-          onManage={() => dispatch({
-            type: "manage-requested",
+          onManage={() => setNavigation({
+            view: "manage-identity",
             publicKeyZ32: activeIdentity.publicIdentity.publicKeyZ32,
           })}
-          onSwitch={() => dispatch({ type: "switch-requested" })}
+          onSwitch={() => setNavigation({ view: "select-identity" })}
         />
         : <main className="grid min-h-[calc(100svh-84px)] place-items-center px-6 text-center text-muted-foreground">The active identity is unavailable.</main>;
   }
+}
+
+function resolveIdentityDashboardView(
+  state: IdentityDashboardView,
+  catalog: LocalIdentityCatalog,
+): IdentityDashboardView {
+  if (state.view === "detach-from-google" || state.view === "onboarding") return state;
+  if (catalog.identities.length === 0) return { view: "onboarding" };
+  if ("publicKeyZ32" in state
+    && !catalog.identities.some((identity) => identity.publicIdentity.publicKeyZ32 === state.publicKeyZ32)) {
+    return { view: "overview" };
+  }
+  return state;
 }
 
 export { IdentityDashboard };

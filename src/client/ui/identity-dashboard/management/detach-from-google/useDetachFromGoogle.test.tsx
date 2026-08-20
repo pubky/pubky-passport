@@ -30,7 +30,7 @@ function Probe() {
   );
   return (
     <>
-      <p>{operation.state.name}</p>
+      <p>{operation.state.name === "operation-failed" ? operation.state.error.code : operation.state.name}</p>
       <button onClick={operation.detach} type="button">Detach</button>
       <button onClick={operation.retryDetachment} type="button">Retry</button>
     </>
@@ -58,5 +58,17 @@ describe("useDetachFromGoogle", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Retry" }));
     expect(await screen.findByText("complete")).toBeInTheDocument();
     expect(MOCKS.detachIdentity).toHaveBeenCalledTimes(2);
+  });
+
+  it("surfaces operation failures", async () => {
+    MOCKS.detachIdentity.mockResolvedValue(Result.err({ code: "backup_deletion_failed" as const }));
+    MOCKS.constructGoogleIdentityController.mockReturnValue(mockGoogleIdentityController({
+      detachIdentity: MOCKS.detachIdentity,
+    }));
+    render(<Probe />);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Detach" }));
+
+    expect(await screen.findByText("backup_deletion_failed")).toBeInTheDocument();
   });
 });

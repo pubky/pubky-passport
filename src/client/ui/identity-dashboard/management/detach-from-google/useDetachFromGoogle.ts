@@ -3,10 +3,45 @@
 import { Result } from "better-result";
 import { useCallback, useEffect, useReducer, useRef } from "react";
 
-import { GoogleIdentityController } from "../../../../logic/google-identity/GoogleIdentityController";
-import type { GoogleIdentityConfiguration } from "../../../../logic/google-identity/GoogleIdentityController";
+import {
+  GoogleIdentityController,
+  type GoogleIdentityConfiguration,
+  type GoogleIdentityError,
+} from "../../../../logic/google-identity/GoogleIdentityController";
 import type { PubkyPublicIdentity } from "../../../../logic/pubky/pubkyIdentityKey";
-import { transitionDetachFromGoogleOperation } from "./detachFromGoogleOperationState";
+
+type DetachFromGoogleOperationState =
+  | { name: "ready" }
+  | { name: "requesting-authorization" }
+  | { name: "deleting-backup" }
+  | { name: "authorization-failed" }
+  | { name: "operation-failed"; error: GoogleIdentityError }
+  | { name: "complete" };
+
+type DetachFromGoogleOperationEvent =
+  | { type: "authorization-failed" }
+  | { type: "request-started" }
+  | { type: "deletion-started" }
+  | { type: "operation-failed"; error: GoogleIdentityError }
+  | { type: "operation-completed" };
+
+function transitionDetachFromGoogleOperation(
+  _state: DetachFromGoogleOperationState,
+  event: DetachFromGoogleOperationEvent,
+): DetachFromGoogleOperationState {
+  switch (event.type) {
+    case "authorization-failed":
+      return { name: "authorization-failed" };
+    case "request-started":
+      return { name: "requesting-authorization" };
+    case "deletion-started":
+      return { name: "deleting-backup" };
+    case "operation-failed":
+      return { name: "operation-failed", error: event.error };
+    case "operation-completed":
+      return { name: "complete" };
+  }
+}
 
 function useDetachFromGoogle(
   configuration: GoogleIdentityConfiguration,

@@ -205,6 +205,8 @@ describe("IdentityDashboard", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
 
     expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("heading", { name: "Manage identity." })).toBeInTheDocument();
   });
 
   it("exports only the active identity to Pubky Ring", async () => {

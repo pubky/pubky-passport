@@ -1,7 +1,7 @@
 "use client";
 
 import { Result } from "better-result";
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   PassportAuthorizationController,
@@ -18,7 +18,6 @@ import { BackButton } from "../shared/navigation/backButton";
 import { Spinner } from "../shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "../shared/primitives/typography";
 import { AuthorizationReview } from "./review/authorizationReview";
-import { transitionAuthorizationView } from "./authorizationState";
 import { InvalidAuthorization } from "./invalidAuthorization";
 import { ManualAuthorization } from "./manual-entry/manualAuthorization";
 
@@ -125,7 +124,7 @@ function ReadyAuthorizationWithIdentity({ authorization, authorizationController
   reloadIdentities: () => void;
 }) {
   const [onboardingRequired, setOnboardingRequired] = useState(catalog.identities.length === 0);
-  const [view, dispatch] = useReducer(transitionAuthorizationView, { view: "review" });
+  const [view, setView] = useState<"review" | "identity-selection">("review");
 
   if (onboardingRequired) {
     return <SignInFlow
@@ -138,14 +137,14 @@ function ReadyAuthorizationWithIdentity({ authorization, authorizationController
     />;
   }
 
-  if (view.view === "identity-selection") {
+  if (view === "identity-selection") {
     return <IdentitySelectionFlow
       catalog={catalog}
       googleIdentityConfiguration={googleIdentityConfiguration}
-      onBack={() => dispatch({ type: "selection-finished" })}
+      onBack={() => setView("review")}
       onIdentitySelected={() => {
         reloadIdentities();
-        dispatch({ type: "selection-finished" });
+        setView("review");
       }}
       selectIdentity={(publicKeyZ32) => Result.isOk(identityController.selectIdentity(publicKeyZ32))}
     />;
@@ -164,7 +163,7 @@ function ReadyAuthorizationWithIdentity({ authorization, authorizationController
     onCancel={() => {
       void authorizationController.cancel();
     }}
-    onSwitch={() => dispatch({ type: "switch-requested" })}
+    onSwitch={() => setView("identity-selection")}
     phase={authorization.status}
     review={authorization.review}
   />;
