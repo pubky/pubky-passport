@@ -1,8 +1,16 @@
-import { AuthFlowKind, Keypair, Pkdns, Pubky, Signer } from "@synonymdev/pubky";
+import {
+  AuthFlowKind,
+  Keypair,
+  Pkdns,
+  Pubky,
+  Signer,
+  validateCapabilities,
+} from "@synonymdev/pubky";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
 import { IssuedPubkyAuthRequest } from "../authorization/IssuedPubkyAuthRequest";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "../authorization/pubkyAuthRequestLimits";
 import { LOGGER } from "../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkyIdentityKeyHandle } from "./pubkyIdentityKey";
 import { PubkySdkAdapter } from "./PubkySdkAdapter";
@@ -29,12 +37,29 @@ describe("PubkySdkAdapter", () => {
 
       expect(Result.isOk(cookie) && cookie.value.review.authenticationMethod).toBe("cookie");
       expect(Result.isOk(grant) && grant.value.review.authenticationMethod).toBe("grant");
-      expect(Result.isOk(grant) && grant.value.review.requestingAppDisplayHost).toBeUndefined();
+      expect(Result.isOk(grant) && grant.value.review.callbackHost).toBeUndefined();
     } finally {
       cookieFlow.free();
       grantFlow.free();
       relyingParty.free();
     }
+  });
+
+  it("keeps the capability path bound aligned with the SDK", () => {
+    const atLimit = capabilityPath(PUBKY_AUTH_REQUEST_LIMITS.capabilityPathLength);
+    const overLimit = capabilityPath(PUBKY_AUTH_REQUEST_LIMITS.capabilityPathLength + 1);
+
+    expect(() => validateCapabilities(`${atLimit}:r`)).not.toThrow();
+    expect(() => validateCapabilities(`${overLimit}:r`)).toThrow();
+
+    const accepted = IssuedPubkyAuthRequest.issue(encodeURIComponent(
+      authorizationRequest(atLimit),
+    ));
+    const rejected = IssuedPubkyAuthRequest.issue(encodeURIComponent(
+      authorizationRequest(overLimit),
+    ));
+    expect(Result.isOk(accepted)).toBe(true);
+    expect(Result.isError(rejected) && rejected.error).toEqual({ code: "invalid_capability" });
   });
 
   it("creates an opaque key handle and derives public identity", async () => {
@@ -398,6 +423,22 @@ describe("PubkySdkAdapter", () => {
     await expectError(pubky.getPublicIdentity(secondBulkHandle), "key_unavailable");
   });
 });
+
+function authorizationRequest(capabilityPath: string): string {
+  return `pubkyauth://signin?caps=${capabilityPath}:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8`;
+}
+
+function capabilityPath(length: number): string {
+  const segments: string[] = [];
+  let remaining = length - 1;
+  while (remaining > 0) {
+    const segmentLength = Math.min(255, remaining);
+    segments.push("a".repeat(segmentLength));
+    remaining -= segmentLength;
+    if (remaining > 0) remaining -= 1;
+  }
+  return `/${segments.join("/")}`;
+}
 
 async function expectError<Success>(result: Promise<ResultType<Success, { code: string }>>, code: string): Promise<void> {
   expectErrorResult(await result, code);

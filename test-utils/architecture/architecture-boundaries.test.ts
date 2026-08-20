@@ -23,7 +23,6 @@ const PUBKY_SDK_ADAPTER_TEST = join(CLIENT_LOGIC_ROOT, "pubky", "pubkySdkAdapter
 const PUBKY_SDK_ADAPTER_STAGING_TEST = join(CLIENT_LOGIC_ROOT, "pubky", "pubkySdkAdapter.staging.test.ts");
 const SECRET_BEARING_BROWSER_CAPABILITIES = new Map([
   [LOCAL_IDENTITY_REPOSITORY, "local identity secret reads"],
-  [join(CLIENT_LOGIC_ROOT, "authorization", "ActiveIdentityAuthorization.ts"), "active identity restoration and signing"],
   [join(CLIENT_LOGIC_ROOT, "google-identity", "GoogleImplicitAuthorization.ts"), "Google credentials"],
   [join(CLIENT_LOGIC_ROOT, "google-identity", "GoogleIdentityLifecycle.ts"), "Google identity credentials and keys"],
   [join(CLIENT_LOGIC_ROOT, "homegate", "HomegateClient.ts"), "Google ID-token transport"],
@@ -42,11 +41,6 @@ const PASSPORT_AUTHORIZATION = join(
   CLIENT_LOGIC_ROOT,
   "authorization",
   "PassportAuthorizationController.ts",
-);
-const ACTIVE_IDENTITY_AUTHORIZATION = join(
-  CLIENT_LOGIC_ROOT,
-  "authorization",
-  "ActiveIdentityAuthorization.ts",
 );
 const MANUAL_AUTHORIZATION_INPUT = join(
   CLIENT_LOGIC_ROOT,
@@ -248,9 +242,19 @@ describe("architecture boundaries", () => {
     expect(violations).toEqual([]);
   });
 
+  it("keeps authorization signing helpers out of UI modules", () => {
+    const protectedIdentifiers = ["approveAuthorization", "restoreLocalIdentity"];
+    const violations = GRAPH.productionSourceFiles(UI_ROOT).flatMap((filePath) =>
+      protectedIdentifiers
+        .filter((identifier) => GRAPH.referencesIdentifier(filePath, identifier))
+        .map((identifier) => `${relative(REPO_ROOT, filePath)} references protected signing helper ${identifier}`)
+    );
+
+    expect(violations).toEqual([]);
+  });
+
   it("confines issued authorization requests to their owning modules", () => {
     const approvedConsumers = new Set([
-      ACTIVE_IDENTITY_AUTHORIZATION,
       AUTHORIZATION_ENTRY,
       MANUAL_AUTHORIZATION_INPUT,
       PASSPORT_AUTHORIZATION,

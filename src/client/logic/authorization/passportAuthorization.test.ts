@@ -1,9 +1,16 @@
 /** @vitest-environment jsdom */
 
+import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MemoryStorage } from "../../../../test-utils/fakes/MemoryStorage";
 import { LOGGER } from "../../../libs/logger/logger";
+import { LocalStorageIdentityRepository } from "../local-identity/LocalStorageIdentityRepository";
+import type { LocalIdentityMetadata } from "../local-identity/localIdentityModels";
+import {
+  PUBKY_SECRET_KEY_FORMAT,
+  type PubkySecretKeyMaterial,
+} from "../pubky/pubkyIdentityKey";
 
 const MOCKS = vi.hoisted(() => ({
   PubkySdkAdapter: vi.fn(),
@@ -26,6 +33,9 @@ describe("PassportAuthorizationController composition", () => {
     vi.stubGlobal("localStorage", new MemoryStorage());
     MOCKS.PubkySdkAdapter.mockReset();
     MOCKS.dispose.mockReset();
+    MOCKS.restoreIdentityKey.mockReset();
+    MOCKS.disposeIdentityKey.mockReset();
+    MOCKS.approveAuthRequest.mockReset();
     MOCKS.PubkySdkAdapter.mockImplementation(function () {
       return {
         dispose: MOCKS.dispose,
@@ -49,9 +59,8 @@ describe("PassportAuthorizationController composition", () => {
     expect(controller.getState().status).toBe("review");
     expect(MOCKS.PubkySdkAdapter).not.toHaveBeenCalled();
 
-    await expect(controller.approve()).resolves.toEqual({
+    await expect(controller.approve("missing-public-key")).resolves.toEqual({
       status: "failed",
-      failureCode: "no_active_identity",
     });
     expect(MOCKS.PubkySdkAdapter).toHaveBeenCalledOnce();
     expect(MOCKS.dispose).toHaveBeenCalledOnce();
@@ -62,9 +71,8 @@ describe("PassportAuthorizationController composition", () => {
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
     const controller = new PassportAuthorizationController();
 
-    await expect(controller.approve()).resolves.toEqual({
+    await expect(controller.approve("missing-public-key")).resolves.toEqual({
       status: "failed",
-      failureCode: "identity_restore_failed",
     });
     expect(MOCKS.dispose).toHaveBeenCalledOnce();
   });
@@ -77,9 +85,8 @@ describe("PassportAuthorizationController composition", () => {
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
     const controller = new PassportAuthorizationController();
 
-    await expect(controller.approve()).resolves.toEqual({
+    await expect(controller.approve("missing-public-key")).resolves.toEqual({
       status: "failed",
-      failureCode: "approval_failed",
     });
     expect(warning).toHaveBeenCalledOnce();
     expect(warning).toHaveBeenCalledWith("authorize.approval.failed", {
@@ -97,21 +104,60 @@ describe("PassportAuthorizationController composition", () => {
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
     const controller = new PassportAuthorizationController();
 
-    await expect(controller.approve()).resolves.toEqual({
+    await expect(controller.approve("missing-public-key")).resolves.toEqual({
       status: "failed",
-      failureCode: "no_active_identity",
     });
     expect(info).toHaveBeenCalledWith("identity.local_store.failed", {
-      operation: "read_active",
-      code: "no_active_identity",
+      operation: "read_identity",
+      code: "invalid_identity",
     });
     expect(warning).toHaveBeenCalledOnce();
     expect(warning).toHaveBeenCalledWith("authorize.cleanup.failed", {
       operation: "pubky_dispose",
     });
   });
+
+  it("approves with the reviewed identity after another identity becomes active", async () => {
+    const firstIdentity = identity("5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo");
+    const secondIdentity = identity("y".repeat(52));
+    const repository = new LocalStorageIdentityRepository(window.localStorage);
+    expect(Result.isOk(repository.save(firstIdentity, secretKey(1)))).toBe(true);
+    expect(Result.isOk(repository.save(secondIdentity, secretKey(2)))).toBe(true);
+    let restoredSecretByte: number | undefined;
+    MOCKS.restoreIdentityKey.mockImplementation(async (secretKey) => {
+      restoredSecretByte = secretKey.bytes[0];
+      secretKey.bytes.fill(0);
+      return Result.ok({ keyHandle: {}, publicIdentity: firstIdentity.publicIdentity });
+    });
+    MOCKS.approveAuthRequest.mockResolvedValue(Result.ok());
+    window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
+    const controller = new PassportAuthorizationController();
+
+    await expect(controller.approve(firstIdentity.publicIdentity.publicKeyZ32)).resolves.toEqual({
+      status: "approved",
+    });
+
+    expect(restoredSecretByte).toBe(1);
+    expect(MOCKS.approveAuthRequest).toHaveBeenCalledOnce();
+  });
 });
 
 function validRequest(): string {
   return `pubkyauth://signin?caps=/pub/example.app/:rw&relay=${encodeURIComponent(`${RELAY_ORIGIN}/inbox`)}&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8`;
+}
+
+function identity(publicKeyZ32: string): LocalIdentityMetadata {
+  return {
+    publicIdentity: {
+      publicKeyZ32,
+      publicKeyDisplay: `pubky${publicKeyZ32}`,
+    },
+  };
+}
+
+function secretKey(value: number): PubkySecretKeyMaterial {
+  return {
+    bytes: new Uint8Array(32).fill(value),
+    format: PUBKY_SECRET_KEY_FORMAT,
+  };
 }

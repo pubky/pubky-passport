@@ -14,11 +14,15 @@ const SENSITIVE_CANARIES = [
   GRANT_CLIENT_PUBLIC_KEY,
 ];
 const LOCAL_IDENTITY_STORAGE_KEY = "pubky-passport/local-identities/v1";
+const LOCAL_IDENTITY_PUBLIC_KEY = "tkrq8zmwb8a3m9k15csu3q17qmfgqnp9dskbrg9uq1rydpyxp7qy";
 const LOCAL_IDENTITY_STORAGE_VALUE = JSON.stringify({
   v: 1,
-  activePublicKeyZ32: "e2e-public-key",
+  activePublicKeyZ32: LOCAL_IDENTITY_PUBLIC_KEY,
   identities: [{
-    publicIdentity: { publicKeyDisplay: "pubkye2e-public-key", publicKeyZ32: "e2e-public-key" },
+    publicIdentity: {
+      publicKeyDisplay: `pubky${LOCAL_IDENTITY_PUBLIC_KEY}`,
+      publicKeyZ32: LOCAL_IDENTITY_PUBLIC_KEY,
+    },
     secretKey: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
   }],
 });
@@ -58,7 +62,7 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   expect(policy).not.toContain(SENSITIVE_SECRET);
 
   await expect(page).toHaveURL(/\/authorize$/u);
-  await expect(page.getByRole("heading", { name: "Sign in to client.example" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Review authorization request." })).toBeVisible();
   await expect(page.getByText("/pub/example.app/", { exact: true })).toBeVisible();
 
   const renderedReview = await page.locator("main").innerHTML();
@@ -115,7 +119,7 @@ test("reviews and scrubs a v0.10 grant authorization request", async ({ page }) 
 
   expect(response?.ok()).toBe(true);
   await expect(page).toHaveURL(/\/authorize$/u);
-  await expect(page.getByRole("heading", { name: "Sign in to client.example" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Review authorization request." })).toBeVisible();
   await expect(page.getByText(/app-specific, revocable grant/u)).toBeVisible();
   expect(await page.locator("main").innerHTML()).not.toContain(GRANT_CLIENT_PUBLIC_KEY);
   expect(await page.evaluate(() => window.location.search)).toBe("");
@@ -134,7 +138,7 @@ test("manual entry reloads into fragment-backed capability review", async ({ pag
   await page.getByRole("textbox", { name: "Authorization link" }).fill(authorizationRequest(`${RELAY_ORIGIN}/inbox`));
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await expect(page.getByRole("heading", { name: "Sign in to client.example" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Review authorization request." })).toBeVisible();
   await expect(page).toHaveURL(/\/authorize$/u);
   expect(await page.evaluate(() => window.location.hash)).toBe("");
 });

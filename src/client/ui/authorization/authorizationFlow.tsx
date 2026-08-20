@@ -28,10 +28,12 @@ function AuthorizationFlow({ googleClientId, homegateBaseUrl }: {
 }) {
   const googleIdentityConfiguration = { googleClientId, homegateBaseUrl };
   const controllerRef = useRef<PassportAuthorizationController>(null);
+  const mountedRef = useRef(false);
   const [controller, setController] = useState<PassportAuthorizationController | null>(null);
   const [authorization, setAuthorization] = useState<PassportAuthorizationViewState>();
 
   useEffect(() => {
+    mountedRef.current = true;
     const controller = controllerRef.current ?? new PassportAuthorizationController();
     controllerRef.current = controller;
     setController(controller);
@@ -39,10 +41,14 @@ function AuthorizationFlow({ googleClientId, homegateBaseUrl }: {
     const publish = () => { if (active) setAuthorization(controller.getState()); };
     const unsubscribe = controller.subscribe(publish);
     queueMicrotask(publish);
-    controller.commitInitialEntry();
     return () => {
+      mountedRef.current = false;
       active = false;
       unsubscribe();
+      // StrictMode replays effects; defer disposal so the immediate setup can retain it.
+      queueMicrotask(() => {
+        if (!mountedRef.current) controller.dispose();
+      });
     };
   }, []);
 
@@ -67,7 +73,7 @@ function AuthorizationFlow({ googleClientId, homegateBaseUrl }: {
       return <AuthorizationTerminal outcome="cancelled" />;
     case "review":
     case "approving":
-    case "redirecting":
+    case "completing":
       return <AuthorizationWithIdentity
         authorization={authorization}
         controller={controller}
@@ -77,7 +83,7 @@ function AuthorizationFlow({ googleClientId, homegateBaseUrl }: {
 }
 
 function AuthorizationWithIdentity({ authorization, controller, googleIdentityConfiguration }: {
-  authorization: Extract<PassportAuthorizationViewState, { status: "review" | "approving" | "redirecting" }>;
+  authorization: Extract<PassportAuthorizationViewState, { status: "review" | "approving" | "completing" }>;
   controller: PassportAuthorizationController;
   googleIdentityConfiguration: GoogleIdentityConfiguration;
 }) {
@@ -111,7 +117,7 @@ function AuthorizationWithIdentity({ authorization, controller, googleIdentityCo
 }
 
 function ReadyAuthorizationWithIdentity({ authorization, authorizationController, catalog, googleIdentityConfiguration, identityController, reloadIdentities }: {
-  authorization: Extract<PassportAuthorizationViewState, { status: "review" | "approving" | "redirecting" }>;
+  authorization: Extract<PassportAuthorizationViewState, { status: "review" | "approving" | "completing" }>;
   authorizationController: PassportAuthorizationController;
   catalog: LocalIdentityCatalog;
   googleIdentityConfiguration: GoogleIdentityConfiguration;
@@ -149,15 +155,17 @@ function ReadyAuthorizationWithIdentity({ authorization, authorizationController
     (identity) => identity.publicIdentity.publicKeyZ32 === catalog.activePublicKeyZ32,
   );
   return <AuthorizationReview
-    approving={authorization.status !== "review"}
     {...(activeIdentity ? { identity: activeIdentity } : {})}
     onAuthorize={() => {
-      void authorizationController.approve();
+      if (activeIdentity) {
+        void authorizationController.approve(activeIdentity.publicIdentity.publicKeyZ32);
+      }
     }}
     onCancel={() => {
       void authorizationController.cancel();
     }}
     onSwitch={() => dispatch({ type: "switch-requested" })}
+    phase={authorization.status}
     review={authorization.review}
   />;
 }
@@ -173,7 +181,7 @@ function AuthorizationTerminal({ outcome }: { outcome: "approved" | "cancelled" 
         Authorization
       </DisplayHeading>
       <LeadText>{approved
-        ? "You can return to the requesting app."
+        ? "You can return to the app or device where you started."
         : "No authorization was granted."}</LeadText>
       <div className="mt-auto"><BackButton onClick={goHome} /></div>
     </PassportScreen>

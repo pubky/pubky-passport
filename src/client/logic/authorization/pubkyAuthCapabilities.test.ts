@@ -107,9 +107,10 @@ describe("parsePubkyAuthCapabilities", () => {
     expectError(`/${"ü".repeat(128)}:r`, "invalid_capability_path");
   });
 
-  it("reports multibyte paths over 1,000 UTF-8 bytes as too long", () => {
-    const segment = `${"ü".repeat(124)}a`;
-    const atLimit = `/${segment}/${segment}/${segment}/${segment}`;
+  it("reports multibyte paths over 972 UTF-8 bytes as too long", () => {
+    const fullSegment = `${"ü".repeat(124)}a`;
+    const finalSegment = `${"ü".repeat(110)}a`;
+    const atLimit = `/${fullSegment}/${fullSegment}/${fullSegment}/${finalSegment}`;
 
     expect(expectCapabilities(`${atLimit}:r`)).toHaveLength(1);
     expectError(`${atLimit}a:r`, "capability_too_long");

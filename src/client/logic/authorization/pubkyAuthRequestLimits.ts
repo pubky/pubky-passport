@@ -9,5 +9,6 @@ export const PUBKY_AUTH_REQUEST_LIMITS = {
   callbackUrlLength: 2_048,
   capabilityCount: 64,
   capabilityLength: 1_024,
-  capabilityPathLength: 1_000,
+  // Mirrors @synonymdev/pubky 0.10 storage-path validation; adapter tests guard drift.
+  capabilityPathLength: 972,
 } as const;

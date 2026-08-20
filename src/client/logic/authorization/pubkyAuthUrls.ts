@@ -13,10 +13,10 @@ export type PubkyAuthUrlValidationError = {
   code: PubkyAuthUrlValidationErrorCode;
 };
 
-export type PubkyAuthUrlValidationResult = ResultType<{
-  callbacks: ValidatedPubkyAuthCallbacks;
-  relayHost: string;
-}, PubkyAuthUrlValidationError>;
+export type PubkyAuthUrlValidationResult = ResultType<
+  ValidatedPubkyAuthCallbacks,
+  PubkyAuthUrlValidationError
+>;
 
 export type PubkyAuthUrlParameterNames = Readonly<{
   relay: string;
@@ -38,21 +38,13 @@ export function validatePubkyAuthUrls(
     return Result.err(relay.error);
   }
 
-  const callbacks = validateCallbacks(authUrl, parameterNames);
-  if (Result.isError(callbacks)) {
-    return Result.err(callbacks.error);
-  }
-
-  return Result.ok({
-    callbacks: callbacks.value,
-    relayHost: relay.value.host,
-  });
+  return validateCallbacks(authUrl, parameterNames);
 }
 
 /** Validates one exact CSP-safe HTTPS relay URL. */
 function validateRelayUrl(
   value: string | null,
-): ResultType<URL, PubkyAuthUrlValidationError> {
+): ResultType<void, PubkyAuthUrlValidationError> {
   if (!value) {
     return error("missing_relay");
   }
@@ -73,7 +65,7 @@ function validateRelayUrl(
     return error("invalid_relay");
   }
 
-  return Result.ok(parsed);
+  return Result.ok();
 }
 
 function isExactRelayHostname(hostname: string): boolean {

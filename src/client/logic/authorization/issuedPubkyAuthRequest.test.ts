@@ -12,15 +12,12 @@ describe("IssuedPubkyAuthRequest", () => {
     if (Result.isError(issued)) throw new Error(issued.error.code);
 
     expect(issued.value.review).toEqual({
-      kind: "signin",
       authenticationMethod: "cookie",
       capabilities: [
         { path: "/pub/pubky.app/", read: true, write: true, scope: "specific" },
         { path: "/", read: true, write: false, scope: "broad" },
       ],
-      callbackAvailability: { success: true, error: true, cancel: true },
-      relayHost: "relay.example",
-      requestingAppDisplayHost: "pubky.app",
+      callbackHost: "pubky.app",
     });
     expect(JSON.stringify(issued.value)).not.toContain("token=private");
     expect(JSON.stringify(issued.value)).not.toContain("/inbox");
@@ -81,23 +78,47 @@ describe("IssuedPubkyAuthRequest", () => {
       "pubkyauth://signin?caps=/pub/app/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-error=https://errors.example/error",
     ));
     if (Result.isError(errorOnly)) throw new Error(errorOnly.error.code);
-    expect(errorOnly.value.review.requestingAppDisplayHost).toBe("errors.example");
+    expect(errorOnly.value.review.callbackHost).toBe("errors.example");
 
     const internationalized = IssuedPubkyAuthRequest.issue(encodeURIComponent(
       "pubkyauth://signin?caps=/pub/app/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-success=https://\u0430pple.example/success",
     ));
     if (Result.isError(internationalized)) throw new Error(internationalized.error.code);
-    expect(internationalized.value.review.requestingAppDisplayHost).toBe("xn--pple-43d.example");
-    expect(internationalized.value.review.requestingAppDisplayHost).not.toContain("\u0430");
+    expect(internationalized.value.review.callbackHost).toBe("xn--pple-43d.example");
+    expect(internationalized.value.review.callbackHost).not.toContain("\u0430");
   });
 
-  it("does not present the relay host as the requesting app when callbacks are absent", () => {
+  it("includes a non-default callback port in the callback host", () => {
+    const issued = IssuedPubkyAuthRequest.issue(encodeURIComponent(
+      "pubkyauth://signin?caps=/pub/app/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-success=https://app.example:8443/success",
+    ));
+    if (Result.isError(issued)) throw new Error(issued.error.code);
+
+    expect(issued.value.review.callbackHost).toBe("app.example:8443");
+  });
+
+  it("warns only for namespace-wide capability paths", () => {
+    const issued = IssuedPubkyAuthRequest.issue(encodeURIComponent(
+      "pubkyauth://signin?caps=/:r,/pub:r,/pub/:r,/priv:r,/priv/:r,/priv/app/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8",
+    ));
+    if (Result.isError(issued)) throw new Error(issued.error.code);
+
+    expect(issued.value.review.capabilities.map(({ path, scope }) => ({ path, scope }))).toEqual([
+      { path: "/", scope: "broad" },
+      { path: "/pub", scope: "specific" },
+      { path: "/pub/", scope: "broad" },
+      { path: "/priv", scope: "specific" },
+      { path: "/priv/", scope: "broad" },
+      { path: "/priv/app/", scope: "specific" },
+    ]);
+  });
+
+  it("does not present the relay host as a callback host", () => {
     const issued = IssuedPubkyAuthRequest.issue(encodeURIComponent(
       "pubkyauth://signin?caps=/pub/app/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8",
     ));
     if (Result.isError(issued)) throw new Error(issued.error.code);
 
-    expect(issued.value.review.callbackAvailability).toEqual({ success: false, error: false, cancel: false });
-    expect(issued.value.review.requestingAppDisplayHost).toBeUndefined();
+    expect(issued.value.review.callbackHost).toBeUndefined();
   });
 });

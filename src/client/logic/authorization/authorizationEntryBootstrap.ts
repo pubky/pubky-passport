@@ -1,7 +1,6 @@
 import "client-only";
 
 import {
-  clearPendingAuthorizationEntry,
   expireAuthorizationEntry,
   readAndScrubAuthorizationEntry,
   scrubAuthorizationLocation,
@@ -21,7 +20,6 @@ export function takeInitialAuthorizationEntry(): AuthorizationEntry | undefined 
   bootstrappedEntry = undefined;
   if (entry?.status === "valid" && Date.now() >= entry.expiresAt) {
     entry = expireAuthorizationEntry(entry);
-    clearPendingAuthorizationEntry(window);
   }
   if (
     entry
@@ -40,17 +38,17 @@ function scheduleExpiration(entry: AuthorizationEntry | undefined): number | und
   const remainingLifetime = Math.max(0, entry.expiresAt - Date.now());
   if (remainingLifetime === 0) {
     bootstrappedEntry = expireAuthorizationEntry(entry);
-    clearPendingAuthorizationEntry(window);
     return undefined;
   }
 
-  return window.setTimeout(() => {
-    if (bootstrappedEntry) {
-      bootstrappedEntry = expireAuthorizationEntry(bootstrappedEntry);
-    }
-    expirationTimer = undefined;
-    clearPendingAuthorizationEntry(window);
-  }, remainingLifetime);
+  return window.setTimeout(expireBootstrappedEntry, remainingLifetime);
+}
+
+function expireBootstrappedEntry(): void {
+  if (bootstrappedEntry) {
+    bootstrappedEntry = expireAuthorizationEntry(bootstrappedEntry);
+  }
+  expirationTimer = undefined;
 }
 
 function readInitialAuthorizationEntry(): AuthorizationEntry | undefined {

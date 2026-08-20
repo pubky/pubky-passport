@@ -3,7 +3,8 @@
 Passport accepts both Pubky Auth request types:
 
 - Cookie authentication: `pubkyauth://signin...`
-·
+- Grant authentication: `pubkyauth://signin_grant...`
+
 The client creates the Pubky Auth request and opens:
 
 ```txt

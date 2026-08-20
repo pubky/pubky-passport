@@ -44,15 +44,15 @@ export type EstablishedGoogleIdentity = |
     publicIdentity: PubkyPublicIdentity;
   };
 
-type GoogleIdentityFlowFailureCode =
-  | "authorization_failed"
-  | "cancelled"
-  | "operation_failed";
-
 export type GoogleIdentityFlowError =
   | GoogleIdentityOperationError
   | GoogleImplicitAuthorizationError
-  | { code: GoogleIdentityFlowFailureCode };
+  | {
+    code:
+      | "authorization_failed"
+      | "cancelled"
+      | "operation_failed";
+  };
 
 export type EstablishGoogleIdentityResult = ResultType<
   EstablishedGoogleIdentity,
@@ -108,7 +108,7 @@ export class GoogleIdentityFlow {
     if (Result.isError(authorized)) return Result.err(authorized.error);
     if (this.disposed) {
       this.finishOperation();
-      return failure("cancelled");
+      return Result.err({ code: "cancelled" });
     }
 
     try {
@@ -125,10 +125,10 @@ export class GoogleIdentityFlow {
           operation: "establish",
           code: established.error.code,
         });
-        if (this.disposed) return failure("cancelled");
-        return failure(established.error);
+        if (this.disposed) return Result.err({ code: "cancelled" });
+        return Result.err(established.error);
       }
-      if (this.disposed) return failure("cancelled");
+      if (this.disposed) return Result.err({ code: "cancelled" });
 
       const googleAccount = authorized.value.googleAccount;
       switch (established.value.establishmentMode) {
@@ -151,7 +151,7 @@ export class GoogleIdentityFlow {
         operation: "establish",
         code: "unexpected_failure",
       });
-      return failure(this.disposed ? "cancelled" : "operation_failed");
+      return Result.err({ code: this.disposed ? "cancelled" : "operation_failed" });
     } finally {
       this.finishOperation();
     }
@@ -169,7 +169,7 @@ export class GoogleIdentityFlow {
     if (Result.isError(authorized)) return Result.err(authorized.error);
     if (this.disposed) {
       this.finishOperation();
-      return failure("cancelled");
+      return Result.err({ code: "cancelled" });
     }
 
     try {
@@ -179,14 +179,14 @@ export class GoogleIdentityFlow {
         publicIdentity,
         expectedGoogleAccountId,
       );
-      if (this.disposed) return failure("cancelled");
+      if (this.disposed) return Result.err({ code: "cancelled" });
       return detached;
     } catch {
       LOGGER.warn("identity.google.action.failed", {
         operation: "detach",
         code: "unexpected_failure",
       });
-      return failure(this.disposed ? "cancelled" : "operation_failed");
+      return Result.err({ code: this.disposed ? "cancelled" : "operation_failed" });
     } finally {
       this.finishOperation();
     }
@@ -212,8 +212,8 @@ export class GoogleIdentityFlow {
   private async requestGoogleCredentials(
     expectedGoogleAccountId?: string,
   ): Promise<ResultType<GoogleIdentityCredentials, GoogleIdentityFlowError>> {
-    if (this.disposed) return failure("cancelled");
-    if (this.operationPending) return failure("operation_failed");
+    if (this.disposed) return Result.err({ code: "cancelled" });
+    if (this.operationPending) return Result.err({ code: "operation_failed" });
 
     this.operationPending = true;
     this.setFlowState({ status: "requesting-authorization" });
@@ -224,7 +224,7 @@ export class GoogleIdentityFlow {
       if (this.disposed) {
         this.operationPending = false;
         this.disposeOperationsOnce();
-        return failure("cancelled");
+        return Result.err({ code: "cancelled" });
       }
       if (Result.isError(credentials)) {
         this.operationPending = false;
@@ -232,13 +232,13 @@ export class GoogleIdentityFlow {
       }
       if (accountId !== undefined && credentials.value.googleAccount.id !== accountId) {
         this.operationPending = false;
-        return failure("authorization_failed");
+        return Result.err({ code: "authorization_failed" });
       }
       this.googleAccountId ??= credentials.value.googleAccount.id;
       return Result.ok(credentials.value);
     } catch {
       this.operationPending = false;
-      return failure("authorization_failed");
+      return Result.err({ code: "authorization_failed" });
     }
   }
 
@@ -284,10 +284,4 @@ export class GoogleIdentityFlow {
       LOGGER.warn("identity.google.state_listener.failed");
     }
   }
-}
-
-function failure<Success = never>(
-  error: GoogleIdentityFlowFailureCode | GoogleIdentityFlowError,
-): ResultType<Success, GoogleIdentityFlowError> {
-  return Result.err(typeof error === "string" ? { code: error } : error);
 }

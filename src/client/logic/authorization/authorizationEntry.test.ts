@@ -7,7 +7,7 @@ import { LOGGER } from "../../../libs/logger/logger";
 import { IssuedPubkyAuthRequest } from "./IssuedPubkyAuthRequest";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 import {
-  clearPendingAuthorizationEntry,
+  expireAuthorizationEntry,
   readAndScrubAuthorizationEntry,
   scrubAuthorizationLocation,
 } from "./authorizationEntry";
@@ -17,7 +17,6 @@ const SECRET = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
 describe("authorizationEntry", () => {
   afterEach(async () => {
-    clearPendingAuthorizationEntry(window);
     vi.useRealTimers();
     vi.restoreAllMocks();
     await Promise.resolve();
@@ -41,7 +40,7 @@ describe("authorizationEntry", () => {
     expect(window.location.hash).toBe("");
   });
 
-  it("preserves an expired capture across a StrictMode double initializer", () => {
+  it("consumes an expired capture once", () => {
     window.history.replaceState({}, "", "/authorize");
     Object.defineProperty(window, EARLY_AUTHORIZATION_LOCATION_PROPERTY, {
       configurable: true,
@@ -55,10 +54,10 @@ describe("authorizationEntry", () => {
     const second = readAndScrubAuthorizationEntry(window);
 
     expect(first).toEqual({ status: "expired" });
-    expect(second).toBe(first);
+    expect(second).toEqual({ status: "empty" });
   });
 
-  it("scrubs synchronously and preserves an issued request across a StrictMode double initializer", () => {
+  it("scrubs synchronously and consumes the fragment once", () => {
     setAuthorizationUrl(validRequest());
 
     const first = readAndScrubAuthorizationEntry(window);
@@ -68,7 +67,7 @@ describe("authorizationEntry", () => {
     expect(window.location.search).toBe("");
     expect(window.location.hash).toBe("");
     expect(first.status).toBe("valid");
-    expect(second).toBe(first);
+    expect(second).toEqual({ status: "empty" });
   });
 
   it("bypasses framework-patched history methods while scrubbing", () => {
@@ -90,37 +89,14 @@ describe("authorizationEntry", () => {
     }
   });
 
-  it("retains an entry until commit or the pre-commit cache expires", async () => {
-    vi.useFakeTimers();
-    setAuthorizationUrl(validRequest());
-    const first = readAndScrubAuthorizationEntry(window);
-
-    await Promise.resolve();
-    window.history.replaceState({}, "", "/authorize");
-    expect(readAndScrubAuthorizationEntry(window)).toBe(first);
-
-    vi.advanceTimersByTime(60_000);
-
-    expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "empty" });
-  });
-
-  it("invalidates approval provenance when an unconsumed entry expires", () => {
-    vi.useFakeTimers();
+  it("invalidates approval provenance when an entry expires", () => {
     setAuthorizationUrl(validRequest());
     const entry = readAndScrubAuthorizationEntry(window);
     if (entry.status !== "valid") throw new Error("Expected a valid authorization entry");
 
-    vi.advanceTimersByTime(60_000);
+    expect(expireAuthorizationEntry(entry)).toEqual({ status: "expired" });
 
     expect(IssuedPubkyAuthRequest.isLive(entry.request)).toBe(false);
-  });
-
-  it("clears the pre-commit cache explicitly", () => {
-    setAuthorizationUrl(validRequest());
-    readAndScrubAuthorizationEntry(window);
-    clearPendingAuthorizationEntry(window);
-
-    expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "empty" });
   });
 
   it("distinguishes an empty manual entry from a malformed request", () => {

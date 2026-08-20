@@ -4,11 +4,12 @@ import { Result, type Result as ResultType } from "better-result";
 
 import {
   parseEncodedPubkyAuthRequest,
+  type ParsedPubkyAuthRequest,
   type PubkyAuthenticationMethod,
   type PubkyAuthParseError,
-  type PubkyAuthRequestKind,
 } from "./pubkyAuthRequestParser";
-import type { AuthorizationOutcome } from "./AuthorizationOutcomeHandoff";
+import type { AuthorizationOutcome } from "./completeAuthorizationOutcome";
+import type { ValidatedPubkyAuthCallbacks } from "./pubkyAuthUrls";
 
 /** One safe capability row rendered during authorization review. */
 export type AuthorizationCapability = Readonly<{
@@ -20,26 +21,13 @@ export type AuthorizationCapability = Readonly<{
 
 /** Safe, immutable request data that may enter React state and rendered output. */
 export type AuthorizationRequestReview = Readonly<{
-  kind: PubkyAuthRequestKind;
   authenticationMethod: PubkyAuthenticationMethod;
   capabilities: readonly AuthorizationCapability[];
-  callbackAvailability: Readonly<{
-    success: boolean;
-    error: boolean;
-    cancel: boolean;
-  }>;
-  relayHost: string;
-  requestingAppDisplayHost?: string;
-}>;
-
-type ValidatedAuthorizationCallbacks = Readonly<{
-  success?: string;
-  error?: string;
-  cancel?: string;
+  callbackHost?: string;
 }>;
 
 type ValidatedAuthorizationMetadata = Readonly<{
-  callbacks: ValidatedAuthorizationCallbacks;
+  callbacks: Readonly<ValidatedPubkyAuthCallbacks>;
   sensitivePubkyAuthUrl: string;
 }>;
 
@@ -101,9 +89,13 @@ export class IssuedPubkyAuthRequest {
     request: IssuedPubkyAuthRequest,
     outcome: AuthorizationOutcome,
   ): string | undefined {
-    const callback = REQUEST_METADATA.get(request)?.callbacks[outcome];
-    REQUEST_METADATA.delete(request);
-    return callback;
+    try {
+      return REQUEST_METADATA.get(request)?.callbacks[outcome];
+    } catch {
+      return undefined;
+    } finally {
+      REQUEST_METADATA.delete(request);
+    }
   }
 
   /** Releases private metadata when the request expires or is abandoned. */
@@ -112,47 +104,40 @@ export class IssuedPubkyAuthRequest {
   }
 }
 
-function createAuthorizationReview(parsed: {
-  kind: PubkyAuthRequestKind;
-  authenticationMethod: PubkyAuthenticationMethod;
-  capabilities: Array<{ path: string; read: boolean; write: boolean }>;
-  callbacks: ValidatedAuthorizationCallbacks;
-  relayHost: string;
-}): AuthorizationRequestReview {
+function createAuthorizationReview(
+  parsed: Pick<
+    ParsedPubkyAuthRequest,
+    "authenticationMethod" | "capabilities" | "callbacks"
+  >,
+): AuthorizationRequestReview {
   const capabilities = Object.freeze(parsed.capabilities.map((capability) => Object.freeze({
     ...capability,
     scope: getCapabilityScope(capability.path),
   })));
-  const callbackAvailability = Object.freeze({
-    success: parsed.callbacks.success !== undefined,
-    error: parsed.callbacks.error !== undefined,
-    cancel: parsed.callbacks.cancel !== undefined,
-  });
-  const requestingAppDisplayHost = getRequestingAppDisplayHost(parsed.callbacks);
+  const callbackHost = getCallbackHost(parsed.callbacks);
 
   return Object.freeze({
-    kind: parsed.kind,
     authenticationMethod: parsed.authenticationMethod,
     capabilities,
-    callbackAvailability,
-    relayHost: parsed.relayHost,
-    ...(requestingAppDisplayHost ? { requestingAppDisplayHost } : {}),
+    ...(callbackHost ? { callbackHost } : {}),
   });
 }
 
 function getCapabilityScope(path: string): AuthorizationCapability["scope"] {
-  return path === "/" || path === "/pub" || path === "/pub/" ? "broad" : "specific";
+  return path === "/" || path === "/pub/" || path === "/priv/"
+    ? "broad"
+    : "specific";
 }
 
-function getRequestingAppDisplayHost(
-  callbacks: ValidatedAuthorizationCallbacks,
+function getCallbackHost(
+  callbacks: Readonly<ValidatedPubkyAuthCallbacks>,
 ): string | undefined {
   const displayCallback = callbacks.success ?? callbacks.error ?? callbacks.cancel;
   if (!displayCallback) return undefined;
 
   try {
-    // URL.hostname preserves punycode, avoiding Unicode homograph display.
-    return new URL(displayCallback).hostname || undefined;
+    // URL.host preserves punycode and non-default ports without displaying userinfo.
+    return new URL(displayCallback).host || undefined;
   } catch {
     return undefined;
   }

@@ -14,7 +14,6 @@ import {
 } from "./pubkyAuthUrls";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 
-export type PubkyAuthRequestKind = "signin";
 export type PubkyAuthenticationMethod = "cookie" | "grant";
 
 const PUBKY_AUTH_REQUEST_PARAMETERS = {
@@ -70,11 +69,9 @@ export type PubkyAuthParseError = {
 };
 
 export type ParsedPubkyAuthRequest = {
-  kind: PubkyAuthRequestKind;
   authenticationMethod: PubkyAuthenticationMethod;
   capabilities: PubkyAuthCapability[];
   callbacks: Readonly<ValidatedPubkyAuthCallbacks>;
-  relayHost: string;
   sensitivePubkyAuthUrl: string;
 };
 
@@ -123,9 +120,9 @@ export function parseEncodedPubkyAuthRequest(
     return error("unsupported_scheme");
   }
 
-  const intent = parseAuthRequestIntent(authUrl.value);
-  if (Result.isError(intent)) {
-    return Result.err(intent.error);
+  const authenticationMethod = parseAuthenticationMethod(authUrl.value);
+  if (Result.isError(authenticationMethod)) {
+    return Result.err(authenticationMethod.error);
   }
 
   const secret = authUrl.value.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.secret);
@@ -142,13 +139,16 @@ export function parseEncodedPubkyAuthRequest(
 
   const parameters = validatePubkyAuthRequestParameters(
     authUrl.value.searchParams,
-    intent.value.authenticationMethod,
+    authenticationMethod.value,
   );
   if (Result.isError(parameters)) {
     return Result.err(parameters.error);
   }
 
-  const grantParameters = validateGrantParameters(authUrl.value, intent.value.authenticationMethod);
+  const grantParameters = validateGrantParameters(
+    authUrl.value,
+    authenticationMethod.value,
+  );
   if (Result.isError(grantParameters)) {
     return Result.err(grantParameters.error);
   }
@@ -158,17 +158,17 @@ export function parseEncodedPubkyAuthRequest(
     return Result.err(urls.error);
   }
 
-  const capabilities = parsePubkyAuthCapabilities(authUrl.value.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.capabilities));
+  const capabilities = parsePubkyAuthCapabilities(
+    authUrl.value.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.capabilities),
+  );
   if (Result.isError(capabilities)) {
     return error(mapCapabilitiesError(capabilities.error));
   }
 
   return Result.ok({
-    kind: intent.value.kind,
-    authenticationMethod: intent.value.authenticationMethod,
+    authenticationMethod: authenticationMethod.value,
     capabilities: capabilities.value,
-    callbacks: Object.freeze({ ...urls.value.callbacks }),
-    relayHost: urls.value.relayHost,
+    callbacks: Object.freeze({ ...urls.value }),
     sensitivePubkyAuthUrl: decoded.value,
   });
 }
@@ -189,20 +189,17 @@ function parseUrl(value: string): ParseValueResult<URL> {
   }
 }
 
-function parseAuthRequestIntent(url: URL): ParseValueResult<{
-  kind: PubkyAuthRequestKind;
-  authenticationMethod: PubkyAuthenticationMethod;
-}> {
+function parseAuthenticationMethod(url: URL): ParseValueResult<PubkyAuthenticationMethod> {
   if (url.hostname === "signin" && url.pathname === "") {
-    return Result.ok({ kind: "signin", authenticationMethod: "cookie" });
+    return Result.ok("cookie");
   }
 
   if (url.hostname === "signin_grant" && url.pathname === "") {
-    return Result.ok({ kind: "signin", authenticationMethod: "grant" });
+    return Result.ok("grant");
   }
 
   if (url.hostname === "" && url.pathname === "/") {
-    return Result.ok({ kind: "signin", authenticationMethod: "cookie" });
+    return Result.ok("cookie");
   }
 
   return error("invalid_auth_request_path");

@@ -1,58 +1,50 @@
 # Authorization
 
-This feature receives a Pubky Auth request, renders only safe review data, approves
-with the active local identity, and completes the exact validated callback.
+This feature handles one Pubky Auth request through a linear flow:
 
-## UI Usage
+1. Capture and scrub the request fragment before hydration.
+2. Parse it into safe review data plus an opaque issued request.
+3. Review it with one explicitly selected local identity.
+4. Approve or cancel before the fixed request deadline.
+5. Complete the validated callback or show a local terminal state.
 
-UI code currently uses:
+## UI API
 
-- `PassportAuthorizationController` from `PassportAuthorizationController.ts`.
-- `submitManualAuthorizationInput` from `manualAuthorizationInput.ts`.
+React uses only:
 
-React constructs `PassportAuthorizationController` directly. The controller composes
-the remaining authorization classes and exposes only safe state and user intents.
-Security relies on those APIs and the private request metadata, not on an exact-file
-UI import allowlist.
+- `PassportAuthorizationController` for review state and approve/cancel intents.
+- `submitManualAuthorizationInput` for pasted requests.
 
-## Classes
+The UI receives review data, never the raw authorization URL, secret, or callback
+URLs. A callback host may be shown only as an unverified return destination.
+`approve(publicKeyZ32)` binds approval to the identity displayed when the user clicks
+Authorize, even if another tab changes the active identity meanwhile.
 
-- `IssuedPubkyAuthRequest` validates one encoded request and becomes the exact
-  authority required for approval. Its `review` property is safe for UI state;
-  sensitive request details remain private to the instance.
-- `PassportAuthorizationController` owns review state, approval and cancellation
-  intents, callback selection, and terminal state transitions.
-- `ActiveIdentityAuthorization` restores the active identity, approves with the same
-  Pubky adapter, and disposes key and adapter resources.
-- `AuthorizationOutcomeHandoff` owns opener acknowledgement, popup closing, and
-  callback navigation through its injected `Window`.
+## Runtime Pieces
 
-## Protocol Model
+- `authorizationEntryBootstrap.ts` retains the pre-hydration entry until the
+  controller takes it or its deadline expires.
+- `authorizationEntry.ts` consumes and scrubs browser input, then issues a request.
+- `IssuedPubkyAuthRequest.ts` owns safe review data and private request metadata.
+- `PassportAuthorizationController.ts` owns the request deadline, abandonment,
+  state flow, selected-key restoration, approval, and SDK cleanup.
+- `completeAuthorizationOutcome.ts` tries acknowledged popup completion, then falls
+  back to the exact validated callback.
 
-Pure Pubky Auth grammar remains in focused model modules:
-
-- `pubkyAuthRequestParser.ts`
-- `pubkyAuthCapabilities.ts`
-- `pubkyAuthUrls.ts`
-
-These are functions because they transform one input into one result and own no
-state or lifecycle, matching the Passport file envelope parser style.
-
-## Entry Lifecycle
-
-`authorizationEntry.ts` owns fragment capture, address-bar scrubbing, StrictMode
-retention, and absolute expiry. A valid entry carries one `IssuedPubkyAuthRequest`;
-it does not duplicate review and approval values. The separate bootstrap module is
-loaded before hydration by `instrumentation-client.ts`.
+The protocol parser is split into `pubkyAuthRequestParser.ts`,
+`pubkyAuthCapabilities.ts`, and `pubkyAuthUrls.ts`. These modules are stateless and
+keep protocol validation separate from browser and SDK lifecycles.
 
 ## Security Invariants
 
 - The raw authorization URL, secret, and complete callbacks never enter UI state.
-- Only the exact `IssuedPubkyAuthRequest` instance can retrieve approval data.
-- Private request data is released after callback selection or entry expiry.
-- One `PubkySdkAdapter` restores the active key and approves the request.
-- Success, error, and cancellation use only the callback validated for that outcome.
-- Fragment capture and native History API scrubbing remain pre-hydration behavior.
+- Only the exact live `IssuedPubkyAuthRequest` can retrieve approval data.
+- Review expires at the original entry deadline, including after hydration, and the
+  deadline is checked again immediately before SDK approval.
+- Approval uses the exact public key passed from the rendered identity review.
+- Private request data is released after an outcome is selected or review expires.
+- Success, error, and cancellation use only their validated callback.
+- Fragment capture and native History API scrubbing happen before hydration.
 
 ## Reading Order
 
@@ -60,5 +52,4 @@ loaded before hydration by `instrumentation-client.ts`.
 2. `authorizationEntry.ts`
 3. `IssuedPubkyAuthRequest.ts`
 4. `PassportAuthorizationController.ts`
-5. `ActiveIdentityAuthorization.ts`
-6. `AuthorizationOutcomeHandoff.ts`
+5. `completeAuthorizationOutcome.ts`

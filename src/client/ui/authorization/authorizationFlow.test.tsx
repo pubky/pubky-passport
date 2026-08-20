@@ -3,6 +3,7 @@
 import { Result } from "better-result";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PassportAuthorizationViewState } from "../../logic/authorization/PassportAuthorizationController";
@@ -15,7 +16,6 @@ const MOCKS = vi.hoisted(() => ({
   authorizationState: undefined as PassportAuthorizationViewState | undefined,
   cancel: vi.fn(),
   catalog: undefined as LocalIdentityCatalog | undefined,
-  commitInitialEntry: vi.fn(),
   dispose: vi.fn(),
   select: vi.fn(),
   createAuthorizationController: vi.fn(),
@@ -29,7 +29,7 @@ vi.mock("../../logic/authorization/PassportAuthorizationController", () => ({
 
     approve = MOCKS.approve;
     cancel = MOCKS.cancel;
-    commitInitialEntry = MOCKS.commitInitialEntry;
+    dispose = MOCKS.dispose;
     getState = () => MOCKS.authorizationState;
     subscribe = (listener: () => void) => {
       MOCKS.authorizationListener = listener;
@@ -58,15 +58,12 @@ vi.mock("../onboarding/signInFlow", () => ({
 }));
 
 const REVIEW = {
-  kind: "signin",
   authenticationMethod: "cookie",
   capabilities: [
     { path: "/pub/requesting.app/", read: true, write: true, scope: "specific" },
     { path: "/pub/paykit/", read: true, write: false, scope: "specific" },
   ],
-  callbackAvailability: { success: true, error: true, cancel: true },
-  relayHost: "relay.example",
-  requestingAppDisplayHost: "requesting.app",
+  callbackHost: "requesting.app",
 } as const;
 
 const FIRST = {
@@ -91,8 +88,9 @@ describe("AuthorizationFlow", () => {
     });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     cleanup();
+    await Promise.resolve();
     vi.clearAllMocks();
     MOCKS.authorizationListener = null;
   });
@@ -104,28 +102,35 @@ describe("AuthorizationFlow", () => {
     />,
   );
 
-  it("shows the callback domain, requested permissions, and active identity", async () => {
+  it("shows the return host, requested permissions, and active identity", async () => {
     renderFlow();
 
-    expect(await screen.findByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Review authorization request." })).toBeInTheDocument();
+    expect(screen.getByText(/If Passport sends you to a site afterward/u)).toHaveTextContent("requesting.app");
     expect(screen.getByText("/pub/requesting.app/")).toBeInTheDocument();
-    expect(screen.getByText("Read,Write")).toBeInTheDocument();
+    expect(screen.getByText("Read & write")).toBeInTheDocument();
     expect(screen.getByText("First User")).toBeInTheDocument();
-    expect(screen.getByText(/allow requesting\.app to read and update your data/u)).toBeInTheDocument();
+    expect(screen.getByText(/allow the requester to read and write your data/u)).toBeInTheDocument();
+    expect(screen.getByText(/Requester identity: not verified/u)).toBeInTheDocument();
     expect(screen.getByText(/deprecated cookie authentication/u)).toBeInTheDocument();
-    expect(MOCKS.commitInitialEntry).toHaveBeenCalledOnce();
     expect(MOCKS.createAuthorizationController).toHaveBeenCalledWith();
   });
 
-  it("identifies a grant request without replacing the validated display host", async () => {
+  it("treats a grant callback as an unverified return destination", async () => {
     MOCKS.authorizationState = {
       status: "review",
-      review: { ...REVIEW, authenticationMethod: "grant" },
+      review: {
+        ...REVIEW,
+        authenticationMethod: "grant",
+        callbackHost: "trusted.example",
+      },
     };
 
     renderFlow();
 
-    expect(await screen.findByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Review authorization request." })).toBeInTheDocument();
+    expect(screen.getByText(/If Passport sends you to a site afterward/u)).toHaveTextContent("trusted.example");
+    expect(screen.getByText(/Requester identity: not verified/u)).toBeInTheDocument();
     expect(screen.getByText(/app-specific, revocable grant/u)).toBeInTheDocument();
   });
 
@@ -141,6 +146,40 @@ describe("AuthorizationFlow", () => {
     renderFlow();
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/broad access/u);
+  });
+
+  it.each([
+    [{ path: "/pub/app/", read: true, write: false, scope: "specific" as const }, /allow the requester to read your data/u],
+    [{ path: "/pub/app/", read: false, write: true, scope: "specific" as const }, /allow the requester to create, change, and delete data/u],
+  ])("describes the requested actions accurately", async (capability, expectedText) => {
+    MOCKS.authorizationState = {
+      status: "review",
+      review: { ...REVIEW, capabilities: [capability] },
+    };
+
+    renderFlow();
+
+    expect(await screen.findByText(expectedText)).toBeInTheDocument();
+  });
+
+  it("states when sign-in requests no data access", async () => {
+    MOCKS.authorizationState = {
+      status: "review",
+      review: { ...REVIEW, capabilities: [] },
+    };
+
+    renderFlow();
+
+    expect(await screen.findByText(/does not ask for data access/u)).toBeInTheDocument();
+    expect(screen.getByText("No data permissions requested.")).toBeInTheDocument();
+  });
+
+  it("uses a neutral progress label while completing the callback", async () => {
+    MOCKS.authorizationState = { status: "completing", review: REVIEW };
+
+    renderFlow();
+
+    expect(await screen.findByRole("button", { name: "Completing…" })).toBeDisabled();
   });
 
   it("shows manual entry only when no authorization request was supplied", async () => {
@@ -162,7 +201,7 @@ describe("AuthorizationFlow", () => {
   it("switches the active identity without losing the authorization review", async () => {
     const user = userEvent.setup();
     renderFlow();
-    await screen.findByRole("heading", { name: "Sign in to requesting.app" });
+    await screen.findByRole("heading", { name: "Review authorization request." });
 
     await user.click(screen.getByRole("button", { name: "Switch" }));
     expect(screen.getByRole("heading", { name: "Switch identity." })).toBeInTheDocument();
@@ -171,20 +210,20 @@ describe("AuthorizationFlow", () => {
 
     await waitFor(() => expect(screen.getByText("Second User")).toBeInTheDocument());
     expect(MOCKS.select).toHaveBeenCalledWith(SECOND.publicIdentity.publicKeyZ32);
-    expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Review authorization request." })).toBeInTheDocument();
   });
 
   it("adds an identity through the normal sign-in flow without losing the review", async () => {
     const user = userEvent.setup();
     renderFlow();
-    await screen.findByRole("heading", { name: "Sign in to requesting.app" });
+    await screen.findByRole("heading", { name: "Review authorization request." });
 
     await user.click(screen.getByRole("button", { name: "Switch" }));
     await user.click(screen.getByRole("button", { name: /add identity/iu }));
 
     expect(screen.getByRole("heading", { name: "Add identity" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Complete identity setup" }));
-    expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Review authorization request." })).toBeInTheDocument();
   });
 
   it("opens Google identity setup immediately when no local identity exists", async () => {
@@ -206,10 +245,10 @@ describe("AuthorizationFlow", () => {
     MOCKS.catalog = { activePublicKeyZ32: FIRST.publicIdentity.publicKeyZ32, identities: [FIRST] };
 
     expect(screen.getByRole("heading", { name: "Add identity" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Sign in to requesting.app" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Review authorization request." })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Complete identity setup" }));
-    expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Review authorization request." })).toBeInTheDocument();
   });
 
   it("cancels authorization from first-identity setup", async () => {
@@ -236,11 +275,28 @@ describe("AuthorizationFlow", () => {
   it("authorizes with the selected identity", async () => {
     const user = userEvent.setup();
     renderFlow();
-    await screen.findByRole("heading", { name: "Sign in to requesting.app" });
+    await screen.findByRole("heading", { name: "Review authorization request." });
 
     await user.click(screen.getByRole("button", { name: "Authorize" }));
 
-    expect(MOCKS.approve).toHaveBeenCalledOnce();
+    expect(MOCKS.approve).toHaveBeenCalledWith(FIRST.publicIdentity.publicKeyZ32);
+  });
+
+  it("survives StrictMode effect replay and disposes after final unmount", async () => {
+    const rendered = render(
+      <StrictMode>
+        <AuthorizationFlow
+          googleClientId="google-client-id"
+          homegateBaseUrl="https://homegate.example/"
+        />
+      </StrictMode>,
+    );
+    await screen.findByRole("heading", { name: "Review authorization request." });
+    await Promise.resolve();
+    expect(MOCKS.dispose).not.toHaveBeenCalled();
+
+    rendered.unmount();
+    await waitFor(() => expect(MOCKS.dispose).toHaveBeenCalledOnce());
   });
 
   it.each([

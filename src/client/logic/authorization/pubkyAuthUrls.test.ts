@@ -48,7 +48,7 @@ describe("validateRelayUrl", () => {
       throw new Error(result.error.code);
     }
 
-    expect(result.value.relayHost).toBe("custom-relay.example");
+    expect(result.value).toEqual({});
   });
 
   it("rejects missing relay URLs", () => {
@@ -107,7 +107,7 @@ describe("validatePubkyAuthUrls", () => {
       throw new Error(result.error.code);
     }
 
-    expect(result.value.callbacks).toEqual({
+    expect(result.value).toEqual({
       success: "https://third.example/success",
       error: "https://third.example/error",
       cancel: "https://third.example/cancel",
@@ -151,7 +151,7 @@ describe("validatePubkyAuthUrls", () => {
       throw new Error(result.error.code);
     }
 
-    expect(result.value.callbacks).toEqual({});
+    expect(result.value).toEqual({});
   });
 
   it("uses legacy callback only when x-success is absent", () => {
@@ -163,8 +163,8 @@ describe("validatePubkyAuthUrls", () => {
     ));
 
     if (Result.isError(legacy) || Result.isError(canonical)) throw new Error("callbacks must parse");
-    expect(legacy.value.callbacks.success).toBe("https://third.example/success?nonce=legacy");
-    expect(canonical.value.callbacks.success).toBeUndefined();
+    expect(legacy.value.success).toBe("https://third.example/success?nonce=legacy");
+    expect(canonical.value.success).toBeUndefined();
   });
 
   it("decodes callbacks exactly once and preserves literal plus signs", () => {
@@ -175,7 +175,7 @@ describe("validatePubkyAuthUrls", () => {
     ));
 
     if (Result.isError(result)) throw new Error(result.error.code);
-    expect(result.value.callbacks.success).toBe("https://third.example/success?nonce=a+b&nested=%2Fvalue");
+    expect(result.value.success).toBe("https://third.example/success?nonce=a+b&nested=%2Fvalue");
   });
 
   it("rejects malformed callback encoding", () => {
@@ -187,14 +187,12 @@ describe("validatePubkyAuthUrls", () => {
     }
   });
 
-  it("returns the normalized client-provided relay host", () => {
+  it("accepts an HTTPS relay with an explicit default port", () => {
     const result = validatePubkyAuthUrls(
       authUrl("relay=https://custom-relay.example:443/inbox&secret=secret-value"),
     );
 
     expect(Result.isOk(result)).toBe(true);
-    if (Result.isError(result)) throw new Error(result.error.code);
-    expect(result.value.relayHost).toBe("custom-relay.example");
   });
 
   it("rejects unsafe callback schemes", () => {

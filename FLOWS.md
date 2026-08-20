@@ -120,7 +120,7 @@ sequenceDiagram
     box rgba(0, 158, 115, 0.18) src/client/logic/authorization
         participant Bootstrap as authorizationEntryBootstrap.ts<br/>pre-hydration entry capture
         participant Controller as PassportAuthorizationController.ts<br/>PassportAuthorizationController
-        participant Entry as authorizationEntry.ts<br/>readAndScrubAuthorizationEntry()<br/>clearPendingAuthorizationEntry()
+        participant Entry as authorizationEntry.ts<br/>readAndScrubAuthorizationEntry()
         participant Request as IssuedPubkyAuthRequest.ts<br/>IssuedPubkyAuthRequest.issue()
         participant Parser as pubkyAuthRequestParser.ts<br/>parseEncodedPubkyAuthRequest()
     end
@@ -145,9 +145,8 @@ sequenceDiagram
     Flow->>Controller: new PassportAuthorizationController()
     Controller->>Bootstrap: takeInitialAuthorizationEntry()
     Bootstrap-->>Controller: valid entry or invalid
+    Note over Controller: Retain review only until the original entry deadline
     Controller-->>Flow: controller with safe view state
-    Flow->>Controller: commitInitialEntry()
-    Controller->>Entry: clearPendingAuthorizationEntry(window)
 ```
 
 
@@ -192,14 +191,14 @@ sequenceDiagram
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Authorization approval call flow
-    accDescr: Passport restores the active local key, asks the Pubky SDK to deliver approval, disposes key resources, and then resolves the validated outcome callback.
+    accDescr: Passport restores the identity shown during review, asks the Pubky SDK to deliver approval, disposes key resources, and then resolves the validated outcome callback.
     actor User
     box rgba(0, 114, 178, 0.18) src/client/ui
         participant Review as authorizationReview.tsx<br/>AuthorizationReview()
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/authorization
         participant Controller as PassportAuthorizationController.ts<br/>PassportAuthorizationController
-        participant UseCase as ActiveIdentityAuthorization.ts<br/>ActiveIdentityAuthorization.approve()
+        participant UseCase as PassportAuthorizationController.ts<br/>approveAuthorization()
         participant AuthRequest as IssuedPubkyAuthRequest.ts<br/>validatedUrlForApproval()<br/>takeOutcomeCallback()
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/local-identity
@@ -217,16 +216,17 @@ sequenceDiagram
     end
 
     User->>Review: Approve
-    Review->>Controller: approve()
-    Controller->>UseCase: approve(issued request)
+    Review->>Controller: approve(displayed publicKeyZ32)
+    Controller->>UseCase: approveAuthorization(issued request, publicKeyZ32, expiresAt)
     UseCase->>Pubky: new PubkySdkAdapter()
-    UseCase->>Repo: readActive()
+    UseCase->>Repo: read(publicKeyZ32)
     Repo-->>UseCase: public metadata + 32-byte secret
     UseCase->>Pubky: restoreIdentityKey(secret)
     Pubky->>SDK: Keypair.fromSecret(secret)
     SDK-->>Pubky: concrete Keypair
     Pubky-->>UseCase: opaque handle + public identity
     Note over UseCase: Compare persisted public metadata and clear secret bytes
+    Note over UseCase: Recheck the original request deadline before SDK approval
     UseCase->>Pubky: approveAuthRequest(handle, issued request)
     Pubky->>AuthRequest: isLive() + validatedUrlForApproval()
     AuthRequest-->>Pubky: exact-request provenance + sensitive URL
@@ -743,7 +743,7 @@ sequenceDiagram
 | Flow | Code | Main tests |
 | --- | --- | --- |
 | Authorization request model | `src/client/logic/authorization/IssuedPubkyAuthRequest.ts` | Issuance, parser, capability, and URL tests |
-| Authorization controller and approval | `src/client/logic/authorization/PassportAuthorizationController.ts`, `ActiveIdentityAuthorization.ts` | Colocated controller and approval tests |
+| Authorization controller and approval | `src/client/logic/authorization/PassportAuthorizationController.ts` | Colocated controller and approval tests |
 | Authorization entry | `src/client/logic/authorization/authorizationEntry.ts` | `authorizationEntry.test.ts` |
 | Authorization UI | `src/client/ui/authorization` | Colocated component tests |
 | Local identity controller | `src/client/logic/local-identity` | Controller and repository tests |

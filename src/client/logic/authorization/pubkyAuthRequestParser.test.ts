@@ -51,7 +51,6 @@ describe("parseEncodedPubkyAuthRequest", () => {
     }
 
     expect(result.value).toEqual({
-      kind: "signin",
       authenticationMethod: "cookie",
       capabilities: [
         {
@@ -65,7 +64,6 @@ describe("parseEncodedPubkyAuthRequest", () => {
         error: "https://pubky.app/passport-error",
         cancel: "https://pubky.app/passport-cancel",
       },
-      relayHost: "httprelay.pubky.app",
       sensitivePubkyAuthUrl: VALID_REQUEST,
     });
   });
@@ -77,7 +75,7 @@ describe("parseEncodedPubkyAuthRequest", () => {
 
     expect(Result.isOk(result)).toBe(true);
     if (Result.isError(result)) throw new Error(result.error.code);
-    expect(result.value.relayHost).toBe("relay.client.example");
+    expect(result.value.authenticationMethod).toBe("cookie");
   });
 
   it("parses the documented pubkyauth:/// form", () => {
@@ -91,7 +89,7 @@ describe("parseEncodedPubkyAuthRequest", () => {
       throw new Error(result.error.code);
     }
 
-    expect(result.value.kind).toBe("signin");
+    expect(result.value.authenticationMethod).toBe("cookie");
   });
 
   it("parses the v0.10 grant signin intent and required PoP parameters", () => {
