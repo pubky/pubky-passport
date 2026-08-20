@@ -320,6 +320,13 @@ export class GoogleIdentityOperations {
         });
       }
 
+      const homeserver = await this.pubky.resolveHomeserver(
+        restored.value.publicIdentity.publicKeyZ32,
+      );
+      if (Result.isError(homeserver) || homeserver.value !== null) {
+        return failure({ code: "signin_failed" });
+      }
+
       report({ flow: "repair", step: "signing_up" });
       const invitation = await this.requestSignupInvitation(credentials.googleIdToken);
       if (Result.isError(invitation)) return failure(invitation.error);

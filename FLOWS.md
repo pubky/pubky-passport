@@ -595,7 +595,9 @@ occurs before Passport file creation. After signup or discovery has been attempt
 Passport preserves the encrypted Passport file so the key is not lost, disposes the
 key handle, and saves no ready local Pubky identity; it must not automatically delete
 the file. A later normal establishment retry restores that same key. Restore first
-attempts normal sign-in. A failed sign-in enters automatic homeserver reconciliation.
+attempts normal sign-in. After a failed sign-in, automatic homeserver reconciliation
+only starts when PKDNS resolution definitively confirms that no homeserver record exists.
+An existing record or uncertain resolution fails without requesting another invitation.
 Exact signup `409` confirms the account already exists; successful signup creates a
 missing account; an uncertain signup result is verified by final sign-in. The
 Homegate homeserver is then force-published and

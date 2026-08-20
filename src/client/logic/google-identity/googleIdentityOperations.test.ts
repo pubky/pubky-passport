@@ -14,6 +14,7 @@ const MOCKS = vi.hoisted(() => ({
   restoreIdentityKey: vi.fn(),
   signup: vi.fn(),
   signin: vi.fn(),
+  resolveHomeserver: vi.fn(),
   publishHomeserver: vi.fn(),
   disposeIdentityKey: vi.fn(),
   disposePubky: vi.fn(),
@@ -105,6 +106,7 @@ describe("GoogleIdentityOperations", () => {
         restoreIdentityKey: MOCKS.restoreIdentityKey,
         signup: MOCKS.signup,
         signin: MOCKS.signin,
+        resolveHomeserver: MOCKS.resolveHomeserver,
         publishHomeserver: MOCKS.publishHomeserver,
         disposeIdentityKey: MOCKS.disposeIdentityKey,
         dispose: MOCKS.disposePubky,
@@ -132,6 +134,7 @@ describe("GoogleIdentityOperations", () => {
     MOCKS.restoreIdentityKey.mockResolvedValue(Result.ok(IDENTITY));
     MOCKS.signup.mockResolvedValue(Result.ok({ publicIdentity: PUBLIC_IDENTITY }));
     MOCKS.signin.mockResolvedValue(Result.ok({ publicIdentity: PUBLIC_IDENTITY }));
+    MOCKS.resolveHomeserver.mockResolvedValue(Result.ok(null));
     MOCKS.publishHomeserver.mockResolvedValue(Result.ok());
     MOCKS.encryptSecretKeyBytes.mockResolvedValue(Result.ok(ENVELOPE));
     MOCKS.decryptSecretKeyBytes.mockResolvedValue(Result.ok(new Uint8Array(32).fill(9)));
@@ -271,6 +274,7 @@ describe("GoogleIdentityOperations", () => {
     expect(MOCKS.signup).not.toHaveBeenCalled();
     expect(MOCKS.publishHomeserver).not.toHaveBeenCalled();
     expect(MOCKS.signin).toHaveBeenCalledWith(KEY_HANDLE);
+    expect(MOCKS.resolveHomeserver).not.toHaveBeenCalled();
     expect(decryptedBytes).toEqual(new Uint8Array(32));
     expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
     expect(progress).toEqual([
@@ -278,6 +282,37 @@ describe("GoogleIdentityOperations", () => {
       { flow: "restore", step: "restoring" },
       { flow: "restore", step: "signing_in" },
     ]);
+  });
+
+  it("does not request another invitation when an established identity sign-in fails", async () => {
+    foundPassportFile();
+    MOCKS.signin.mockResolvedValue(Result.err({ code: "signin_failed" }));
+    MOCKS.resolveHomeserver.mockResolvedValue(Result.ok("existing-homeserver"));
+
+    expectResultError(
+      await createSubject().establishIdentity(CREDENTIALS, () => undefined),
+      { code: "signin_failed" },
+    );
+
+    expect(MOCKS.resolveHomeserver).toHaveBeenCalledWith(PUBLIC_IDENTITY.publicKeyZ32);
+    expect(MOCKS.requestInvitation).not.toHaveBeenCalled();
+    expect(MOCKS.signup).not.toHaveBeenCalled();
+    expect(MOCKS.publishHomeserver).not.toHaveBeenCalled();
+  });
+
+  it("does not request an invitation when homeserver resolution is uncertain", async () => {
+    foundPassportFile();
+    MOCKS.signin.mockResolvedValue(Result.err({ code: "signin_failed" }));
+    MOCKS.resolveHomeserver.mockResolvedValue(Result.err({ code: "resolution_failed" }));
+
+    expectResultError(
+      await createSubject().establishIdentity(CREDENTIALS, () => undefined),
+      { code: "signin_failed" },
+    );
+
+    expect(MOCKS.requestInvitation).not.toHaveBeenCalled();
+    expect(MOCKS.signup).not.toHaveBeenCalled();
+    expect(MOCKS.publishHomeserver).not.toHaveBeenCalled();
   });
 
   it("reconciles an interrupted setup after normal sign-in fails", async () => {
@@ -303,6 +338,7 @@ describe("GoogleIdentityOperations", () => {
     expectResultOk(await createSubject().establishIdentity(CREDENTIALS, (phase) => progress.push(phase)));
 
     expect(MOCKS.requestInvitation).toHaveBeenCalledWith(CREDENTIALS.googleIdToken);
+    expect(MOCKS.resolveHomeserver).toHaveBeenCalledWith(PUBLIC_IDENTITY.publicKeyZ32);
     expect(events).toEqual([
       "signin",
       "homegate",
