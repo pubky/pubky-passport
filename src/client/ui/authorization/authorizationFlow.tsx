@@ -7,8 +7,6 @@ import {
   PassportAuthorizationController,
   type PassportAuthorizationViewState,
 } from "../../logic/authorization/flow/PassportAuthorizationController";
-import type { LocalIdentityController } from "../../logic/local-identity/LocalIdentityController";
-import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
 import type { GoogleIdentityConfiguration } from "../../logic/google-identity/GoogleIdentityController";
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
@@ -97,6 +95,7 @@ function AuthorizationWithIdentity({
   googleIdentityConfiguration: GoogleIdentityConfiguration;
 }) {
   const identityCatalog = useIdentityCatalog();
+  const [view, setView] = useState<"review" | "identity-selection">("review");
 
   switch (identityCatalog.status) {
     case "loading":
@@ -113,70 +112,49 @@ function AuthorizationWithIdentity({
           </div>
         </PassportScreen>
       );
-    case "ready":
-      return <ReadyAuthorizationWithIdentity
-        authorization={authorization}
-        passportAuthorizationController={passportAuthorizationController}
-        catalog={identityCatalog.catalog}
-        googleIdentityConfiguration={googleIdentityConfiguration}
-        localIdentityController={identityCatalog.localIdentityController}
-        reloadIdentities={identityCatalog.reloadIdentities}
-      />;
-  }
-}
+    case "ready": {
+      const { catalog, localIdentityController, reloadIdentities } = identityCatalog;
 
-function ReadyAuthorizationWithIdentity({ authorization, passportAuthorizationController, catalog, googleIdentityConfiguration, localIdentityController, reloadIdentities }: {
-  authorization: Extract<PassportAuthorizationViewState, { status: "review" | "approving" | "completing" }>;
-  passportAuthorizationController: PassportAuthorizationController;
-  catalog: LocalIdentityCatalog;
-  googleIdentityConfiguration: GoogleIdentityConfiguration;
-  localIdentityController: LocalIdentityController;
-  reloadIdentities: () => void;
-}) {
-  const [onboardingRequired, setOnboardingRequired] = useState(catalog.identities.length === 0);
-  const [view, setView] = useState<"review" | "identity-selection">("review");
-
-  if (onboardingRequired) {
-    return <SignInFlow
-      googleIdentityConfiguration={googleIdentityConfiguration}
-      onBack={() => { void passportAuthorizationController.cancel(); }}
-      onComplete={() => {
-        reloadIdentities();
-        setOnboardingRequired(false);
-      }}
-    />;
-  }
-
-  if (view === "identity-selection") {
-    return <IdentitySelectionFlow
-      catalog={catalog}
-      googleIdentityConfiguration={googleIdentityConfiguration}
-      onBack={() => setView("review")}
-      onIdentitySelected={() => {
-        reloadIdentities();
-        setView("review");
-      }}
-      selectIdentity={(publicKeyZ32) => Result.isOk(localIdentityController.selectIdentity(publicKeyZ32))}
-    />;
-  }
-
-  const activeIdentity = catalog.identities.find(
-    (identity) => identity.publicIdentity.publicKeyZ32 === catalog.activePublicKeyZ32,
-  );
-  return <AuthorizationReview
-    {...(activeIdentity ? { identity: activeIdentity } : {})}
-    onAuthorize={() => {
-      if (activeIdentity) {
-        void passportAuthorizationController.approve(activeIdentity.publicIdentity.publicKeyZ32);
+      if (catalog.identities.length === 0) {
+        return <SignInFlow
+          googleIdentityConfiguration={googleIdentityConfiguration}
+          onBack={() => { void passportAuthorizationController.cancel(); }}
+          onComplete={reloadIdentities}
+        />;
       }
-    }}
-    onCancel={() => {
-      void passportAuthorizationController.cancel();
-    }}
-    onSwitch={() => setView("identity-selection")}
-    phase={authorization.status}
-    review={authorization.review}
-  />;
+
+      if (view === "identity-selection") {
+        return <IdentitySelectionFlow
+          catalog={catalog}
+          googleIdentityConfiguration={googleIdentityConfiguration}
+          onBack={() => setView("review")}
+          onIdentitySelected={() => {
+            reloadIdentities();
+            setView("review");
+          }}
+          selectIdentity={(publicKeyZ32) => Result.isOk(localIdentityController.selectIdentity(publicKeyZ32))}
+        />;
+      }
+
+      const activeIdentity = catalog.identities.find(
+        (identity) => identity.publicIdentity.publicKeyZ32 === catalog.activePublicKeyZ32,
+      );
+      return <AuthorizationReview
+        {...(activeIdentity ? { identity: activeIdentity } : {})}
+        onAuthorize={() => {
+          if (activeIdentity) {
+            void passportAuthorizationController.approve(activeIdentity.publicIdentity.publicKeyZ32);
+          }
+        }}
+        onCancel={() => {
+          void passportAuthorizationController.cancel();
+        }}
+        onSwitch={() => setView("identity-selection")}
+        phase={authorization.status}
+        review={authorization.review}
+      />;
+    }
+  }
 }
 
 function AuthorizationTerminal({ outcome }: { outcome: "approved" | "cancelled" }) {
