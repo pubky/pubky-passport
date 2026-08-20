@@ -22,18 +22,26 @@ Authorize, even if another tab changes the active identity meanwhile.
 
 ## Runtime Pieces
 
-- `authorizationEntryBootstrap.ts` retains the pre-hydration entry until the
+- `entry/` owns browser input, early fragment scrubbing, and manual navigation.
+- `request/` owns untrusted protocol parsing and the opaque issued request.
+- `flow/` owns review state, approval, request lifetime, and outcome handoff.
+
+Within those boundaries:
+
+- `entry/authorizationEntryBootstrap.ts` retains the pre-hydration entry until the
   controller takes it or its deadline expires.
-- `authorizationEntry.ts` consumes and scrubs browser input, then issues a request.
-- `IssuedPubkyAuthRequest.ts` owns safe review data and private request metadata.
-- `PassportAuthorizationController.ts` owns the request deadline, abandonment,
-  state flow, selected-key restoration, approval, and SDK cleanup.
-- `completeAuthorizationOutcome.ts` tries acknowledged popup completion, then falls
+- `entry/authorizationEntry.ts` consumes and scrubs browser input, then issues a request.
+- `request/IssuedPubkyAuthRequest.ts` owns safe review data and private request metadata.
+- `flow/PassportAuthorizationController.ts` owns the request deadline, abandonment,
+  and finite state flow.
+- `flow/approveAuthorization.ts` owns selected-key restoration, SDK approval, and
+  key-resource cleanup.
+- `flow/authorizationOutcomeHandoff.ts` tries acknowledged popup handoff, then falls
   back to the exact validated callback.
 
-The protocol parser is split into `pubkyAuthRequestParser.ts`,
-`pubkyAuthCapabilities.ts`, and `pubkyAuthUrls.ts`. These modules are stateless and
-keep protocol validation separate from browser and SDK lifecycles.
+The protocol parser is split into `request/pubkyAuthRequestParser.ts`,
+`request/pubkyAuthCapabilities.ts`, and `request/pubkyAuthUrls.ts`. These modules
+are stateless and keep protocol validation separate from browser and SDK lifecycles.
 
 ## Security Invariants
 
@@ -48,8 +56,9 @@ keep protocol validation separate from browser and SDK lifecycles.
 
 ## Reading Order
 
-1. `authorizationEntryBootstrap.ts`
-2. `authorizationEntry.ts`
-3. `IssuedPubkyAuthRequest.ts`
-4. `PassportAuthorizationController.ts`
-5. `completeAuthorizationOutcome.ts`
+1. `entry/authorizationEntryBootstrap.ts`
+2. `entry/authorizationEntry.ts`
+3. `request/IssuedPubkyAuthRequest.ts`
+4. `flow/PassportAuthorizationController.ts`
+5. `flow/approveAuthorization.ts`
+6. `flow/authorizationOutcomeHandoff.ts`

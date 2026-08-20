@@ -6,10 +6,10 @@ import {
   EARLY_AUTHORIZATION_LOCATION_LIFETIME_MS,
   EARLY_AUTHORIZATION_LOCATION_PROPERTY,
   type EarlyAuthorizationLocation,
-} from "../../../libs/authorization/earlyAuthorizationLocation";
-import { LOGGER } from "../../../libs/logger/logger";
-import { IssuedPubkyAuthRequest } from "./IssuedPubkyAuthRequest";
-import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
+} from "../../../../libs/authorization/earlyAuthorizationLocation";
+import { LOGGER } from "../../../../libs/logger/logger";
+import { IssuedPubkyAuthRequest } from "../request/IssuedPubkyAuthRequest";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "../request/pubkyAuthRequestLimits";
 
 export type AuthorizationEntry =
   | {

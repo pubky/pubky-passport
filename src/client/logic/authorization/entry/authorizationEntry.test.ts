@@ -2,10 +2,10 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { EARLY_AUTHORIZATION_LOCATION_PROPERTY } from "../../../libs/authorization/earlyAuthorizationLocation";
-import { LOGGER } from "../../../libs/logger/logger";
-import { IssuedPubkyAuthRequest } from "./IssuedPubkyAuthRequest";
-import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
+import { EARLY_AUTHORIZATION_LOCATION_PROPERTY } from "../../../../libs/authorization/earlyAuthorizationLocation";
+import { LOGGER } from "../../../../libs/logger/logger";
+import { IssuedPubkyAuthRequest } from "../request/IssuedPubkyAuthRequest";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "../request/pubkyAuthRequestLimits";
 import {
   expireAuthorizationEntry,
   readAndScrubAuthorizationEntry,

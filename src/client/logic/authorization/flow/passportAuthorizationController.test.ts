@@ -3,43 +3,31 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
-import { LOGGER } from "../../../libs/logger/logger";
-import type { AuthorizationEntry } from "./authorizationEntry";
-import type { AuthorizationOutcome } from "./completeAuthorizationOutcome";
-import { IssuedPubkyAuthRequest } from "./IssuedPubkyAuthRequest";
+import { LOGGER } from "../../../../libs/logger/logger";
+import type { AuthorizationEntry } from "../entry/authorizationEntry";
+import { IssuedPubkyAuthRequest } from "../request/IssuedPubkyAuthRequest";
+import type { AuthorizationOutcome } from "./authorizationOutcomeHandoff";
 import {
   PassportAuthorizationController,
   type PassportAuthorizationViewState,
 } from "./PassportAuthorizationController";
 
 const MOCKS = vi.hoisted(() => ({
-  approveAuthRequest: vi.fn(),
-  completeAuthorizationOutcome: vi.fn(),
-  dispose: vi.fn(),
-  disposeIdentityKey: vi.fn(),
-  PubkySdkAdapter: vi.fn(),
-  readIdentity: vi.fn(),
-  restoreIdentityKey: vi.fn(),
+  approveAuthorization: vi.fn(),
+  handoffAuthorizationOutcome: vi.fn(),
 }));
 
-vi.mock("../pubky/PubkySdkAdapter", () => ({
-  PubkySdkAdapter: MOCKS.PubkySdkAdapter,
+vi.mock("./approveAuthorization", () => ({
+  approveAuthorization: MOCKS.approveAuthorization,
 }));
 
-vi.mock("../local-identity/LocalStorageIdentityRepository", async (importOriginal) => ({
-  ...await importOriginal<typeof import("../local-identity/LocalStorageIdentityRepository")>(),
-  LocalStorageIdentityRepository: class {
-    read = MOCKS.readIdentity;
-  },
-}));
-
-vi.mock("./completeAuthorizationOutcome", async (importOriginal) => ({
-  ...await importOriginal<typeof import("./completeAuthorizationOutcome")>(),
-  completeAuthorizationOutcome: MOCKS.completeAuthorizationOutcome,
+vi.mock("./authorizationOutcomeHandoff", async (importOriginal) => ({
+  ...await importOriginal<typeof import("./authorizationOutcomeHandoff")>(),
+  handoffAuthorizationOutcome: MOCKS.handoffAuthorizationOutcome,
 }));
 
 type ControllerOverrides = {
-  completeOutcome: (
+  handoffOutcome: (
     appWindow: Window,
     callback: string,
     outcome: AuthorizationOutcome,
@@ -59,37 +47,12 @@ const ERROR_CALLBACK = "https://app.example/error?code=private";
 const CANCEL_CALLBACK = "https://app.example/cancel?code=private";
 const SECRET = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 const SELECTED_IDENTITY = "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo";
-const PUBLIC_IDENTITY = {
-  publicKeyZ32: SELECTED_IDENTITY,
-  publicKeyDisplay: `pubky${SELECTED_IDENTITY}`,
-};
-const OTHER_PUBLIC_IDENTITY = {
-  publicKeyZ32: "y".repeat(52),
-  publicKeyDisplay: `pubky${"y".repeat(52)}`,
-};
-const KEY_HANDLE = {};
 
 describe("PassportAuthorizationController", () => {
   beforeEach(() => {
     for (const mock of Object.values(MOCKS)) mock.mockReset();
-    MOCKS.PubkySdkAdapter.mockImplementation(function () {
-      return {
-        approveAuthRequest: MOCKS.approveAuthRequest,
-        dispose: MOCKS.dispose,
-        disposeIdentityKey: MOCKS.disposeIdentityKey,
-        restoreIdentityKey: MOCKS.restoreIdentityKey,
-      };
-    });
-    MOCKS.readIdentity.mockReturnValue(Result.ok({
-      identity: { publicIdentity: PUBLIC_IDENTITY },
-      secretKey: { bytes: new Uint8Array(32).fill(7), format: "pubky-secret-key" },
-    }));
-    MOCKS.restoreIdentityKey.mockImplementation(async (secretKey) => {
-      secretKey.bytes.fill(0);
-      return Result.ok({ keyHandle: KEY_HANDLE, publicIdentity: PUBLIC_IDENTITY });
-    });
-    MOCKS.approveAuthRequest.mockResolvedValue(Result.ok());
-    MOCKS.completeAuthorizationOutcome.mockResolvedValue(true);
+    MOCKS.approveAuthorization.mockResolvedValue(Result.ok());
+    MOCKS.handoffAuthorizationOutcome.mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -114,28 +77,30 @@ describe("PassportAuthorizationController", () => {
   it("approves once with the reviewed identity and completes the success callback", async () => {
     let completeApproval: (() => void) | undefined;
     let capturedRequest: IssuedPubkyAuthRequest | undefined;
-    MOCKS.approveAuthRequest.mockImplementation((keyHandle, request) => {
-      void keyHandle;
+    MOCKS.approveAuthorization.mockImplementation((request) => {
       capturedRequest = request;
       return new Promise((resolve) => {
         completeApproval = () => resolve(Result.ok());
       });
     });
-    const completeOutcome = vi.fn(async () => true);
-    const { controller } = createController({ completeOutcome });
+    const handoffOutcome = vi.fn(async () => true);
+    const { controller } = createController({ handoffOutcome });
 
     const first = controller.approve(SELECTED_IDENTITY);
     const second = controller.approve("other-public-key");
 
     expect(controller.getState().status).toBe("approving");
-    await vi.waitFor(() => expect(MOCKS.approveAuthRequest).toHaveBeenCalledOnce());
-    expect(MOCKS.readIdentity).toHaveBeenCalledWith(SELECTED_IDENTITY);
-    expect(MOCKS.approveAuthRequest).toHaveBeenCalledWith(KEY_HANDLE, capturedRequest);
+    await vi.waitFor(() => expect(MOCKS.approveAuthorization).toHaveBeenCalledOnce());
+    expect(MOCKS.approveAuthorization).toHaveBeenCalledWith(
+      capturedRequest,
+      SELECTED_IDENTITY,
+      expect.any(Number),
+    );
     completeApproval?.();
 
     await expect(first).resolves.toMatchObject({ status: "completing" });
     await expect(second).resolves.toMatchObject({ status: "approving" });
-    expect(completeOutcome).toHaveBeenCalledWith(
+    expect(handoffOutcome).toHaveBeenCalledWith(
       window,
       SUCCESS_CALLBACK,
       "success",
@@ -145,21 +110,20 @@ describe("PassportAuthorizationController", () => {
   });
 
   it("routes approval errors and cancellation through exact validated callbacks", async () => {
-    const completeOutcome = vi.fn(async () => true);
-    MOCKS.approveAuthRequest.mockResolvedValueOnce(Result.err({ code: "approval_failed" }));
-    const failed = createController({ completeOutcome }).controller;
+    const handoffOutcome = vi.fn(async () => true);
+    MOCKS.approveAuthorization.mockResolvedValueOnce(Result.err({ code: "approval_failed" }));
+    const failed = createController({ handoffOutcome }).controller;
     await failed.approve(SELECTED_IDENTITY);
-    expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
-    expect(completeOutcome).toHaveBeenLastCalledWith(
+    expect(handoffOutcome).toHaveBeenLastCalledWith(
       window,
       ERROR_CALLBACK,
       "error",
       expect.anything(),
     );
 
-    const cancelled = createController({ completeOutcome }).controller;
+    const cancelled = createController({ handoffOutcome }).controller;
     await cancelled.cancel();
-    expect(completeOutcome).toHaveBeenLastCalledWith(
+    expect(handoffOutcome).toHaveBeenLastCalledWith(
       window,
       CANCEL_CALLBACK,
       "cancel",
@@ -179,9 +143,9 @@ describe("PassportAuthorizationController", () => {
   ) => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     if (approvalFails) {
-      MOCKS.approveAuthRequest.mockResolvedValueOnce(Result.err({ code: "approval_failed" }));
+      MOCKS.approveAuthorization.mockResolvedValueOnce(Result.err({ code: "approval_failed" }));
     }
-    const { controller } = createController({ completeOutcome: async () => false });
+    const { controller } = createController({ handoffOutcome: async () => false });
 
     const state = intent === "approve"
       ? await controller.approve(SELECTED_IDENTITY)
@@ -196,68 +160,36 @@ describe("PassportAuthorizationController", () => {
   });
 
   it("uses one render state for approval failure", async () => {
-    MOCKS.approveAuthRequest.mockResolvedValueOnce(Result.err({ code: "approval_failed" }));
+    MOCKS.approveAuthorization.mockResolvedValueOnce(Result.err({ code: "approval_failed" }));
     const { controller } = createController({}, { callbacks: false });
 
     await expect(controller.approve(SELECTED_IDENTITY)).resolves.toEqual({ status: "failed" });
   });
 
-  it("rejects repository data for a different identity before restoring it", async () => {
-    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const secretKey = { bytes: new Uint8Array(32).fill(7), format: "pubky-secret-key" };
-    MOCKS.readIdentity.mockReturnValue(Result.ok({
-      identity: { publicIdentity: OTHER_PUBLIC_IDENTITY },
-      secretKey,
-    }));
-    const { controller } = createController({}, { callbacks: false });
-
-    await expect(controller.approve(SELECTED_IDENTITY)).resolves.toEqual({ status: "failed" });
-
-    expect(MOCKS.restoreIdentityKey).not.toHaveBeenCalled();
-    expect(secretKey.bytes).toEqual(new Uint8Array(32));
-  });
-
-  it("disposes a restored key that does not match stored identity metadata", async () => {
-    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    MOCKS.restoreIdentityKey.mockImplementationOnce(async (secretKey) => {
-      secretKey.bytes.fill(0);
-      return Result.ok({ keyHandle: KEY_HANDLE, publicIdentity: OTHER_PUBLIC_IDENTITY });
-    });
-    const { controller } = createController({}, { callbacks: false });
-
-    await expect(controller.approve(SELECTED_IDENTITY)).resolves.toEqual({ status: "failed" });
-
-    expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
-    expect(MOCKS.approveAuthRequest).not.toHaveBeenCalled();
-  });
-
-  it("makes approval and state listeners exception-total", async () => {
+  it("makes state listeners exception-total", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    MOCKS.approveAuthRequest.mockRejectedValueOnce(new Error("approval exploded"));
     const { controller } = createController({}, { callbacks: false });
     controller.subscribe(() => { throw new Error("listener exploded"); });
 
-    await expect(controller.approve(SELECTED_IDENTITY)).resolves.toEqual({ status: "failed" });
-    await expect(controller.cancel()).resolves.toEqual({ status: "failed" });
-    expect(warning).toHaveBeenCalledTimes(3);
-    expect(warning).toHaveBeenCalledWith("authorize.approval.failed", {
-      stage: "sdk_approve",
-      code: "unexpected_failure",
+    await expect(controller.cancel()).resolves.toEqual({ status: "cancelled" });
+    expect(warning).toHaveBeenCalledOnce();
+    expect(warning).toHaveBeenCalledWith("authorize.state_listener.failed", {
+      state: "cancelled",
     });
   });
 
   it("releases an abandoned request without completing its callback", async () => {
     let completeApproval: (() => void) | undefined;
-    MOCKS.approveAuthRequest.mockImplementationOnce(() =>
+    MOCKS.approveAuthorization.mockImplementationOnce(() =>
       new Promise((resolve) => {
         completeApproval = () => resolve(Result.ok());
       })
     );
-    const completeOutcome = vi.fn(async () => true);
-    const { controller, entry } = createController({ completeOutcome });
+    const handoffOutcome = vi.fn(async () => true);
+    const { controller, entry } = createController({ handoffOutcome });
     if (entry.status !== "valid") throw new Error("Expected a valid entry");
     const approval = controller.approve(SELECTED_IDENTITY);
-    await vi.waitFor(() => expect(MOCKS.approveAuthRequest).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(MOCKS.approveAuthorization).toHaveBeenCalledOnce());
 
     controller.dispose();
     completeApproval?.();
@@ -267,12 +199,12 @@ describe("PassportAuthorizationController", () => {
       review: entry.request.review,
     });
     expect(IssuedPubkyAuthRequest.isLive(entry.request)).toBe(false);
-    expect(completeOutcome).not.toHaveBeenCalled();
+    expect(handoffOutcome).not.toHaveBeenCalled();
   });
 
   it("aborts callback completion when the controller is abandoned", async () => {
     let completionSignal: AbortSignal | undefined;
-    const completeOutcome = vi.fn((
+    const handoffOutcome = vi.fn((
       ...args: [Window, string, AuthorizationOutcome, AbortSignal]
     ) => {
       completionSignal = args[3];
@@ -280,9 +212,9 @@ describe("PassportAuthorizationController", () => {
         completionSignal?.addEventListener("abort", () => resolve(true), { once: true });
       });
     });
-    const { controller } = createController({ completeOutcome });
+    const { controller } = createController({ handoffOutcome });
     const approval = controller.approve(SELECTED_IDENTITY);
-    await vi.waitFor(() => expect(completeOutcome).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(handoffOutcome).toHaveBeenCalledOnce());
 
     controller.dispose();
 
@@ -291,16 +223,16 @@ describe("PassportAuthorizationController", () => {
   });
 
   it("never approves or completes an invalid request", async () => {
-    const completeOutcome = vi.fn(async () => true);
+    const handoffOutcome = vi.fn(async () => true);
     const { controller } = createController(
-      { completeOutcome },
+      { handoffOutcome },
       { status: "invalid" },
     );
 
     await expect(controller.approve(SELECTED_IDENTITY)).resolves.toEqual({ status: "invalid" });
     await expect(controller.cancel()).resolves.toEqual({ status: "invalid" });
-    expect(MOCKS.PubkySdkAdapter).not.toHaveBeenCalled();
-    expect(completeOutcome).not.toHaveBeenCalled();
+    expect(MOCKS.approveAuthorization).not.toHaveBeenCalled();
+    expect(handoffOutcome).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -334,33 +266,7 @@ describe("PassportAuthorizationController", () => {
     now = 1_001;
 
     await expect(controller.approve(SELECTED_IDENTITY)).resolves.toEqual({ status: "invalid" });
-    expect(MOCKS.PubkySdkAdapter).not.toHaveBeenCalled();
-  });
-
-  it("does not approve when identity restoration finishes after the deadline", async () => {
-    let now = 0;
-    let continueRestoration: () => void = () => undefined;
-    const restorationGate = new Promise<void>((resolve) => {
-      continueRestoration = resolve;
-    });
-    MOCKS.restoreIdentityKey.mockImplementationOnce(async (secretKey) => {
-      await restorationGate;
-      secretKey.bytes.fill(0);
-      return Result.ok({ keyHandle: KEY_HANDLE, publicIdentity: PUBLIC_IDENTITY });
-    });
-    const { controller } = createController(
-      { now: () => now },
-      { callbacks: false, expiresAt: 1_000 },
-    );
-    const approval = controller.approve(SELECTED_IDENTITY);
-    await vi.waitFor(() => expect(MOCKS.restoreIdentityKey).toHaveBeenCalledOnce());
-
-    now = 1_000;
-    continueRestoration();
-
-    await expect(approval).resolves.toEqual({ status: "failed" });
-    expect(MOCKS.approveAuthRequest).not.toHaveBeenCalled();
-    expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
+    expect(MOCKS.approveAuthorization).not.toHaveBeenCalled();
   });
 });
 
@@ -371,8 +277,8 @@ function createController(
   controller: PassportAuthorizationController;
   entry: AuthorizationEntry;
 } {
-  if (overrides.completeOutcome) {
-    MOCKS.completeAuthorizationOutcome.mockImplementation(overrides.completeOutcome);
+  if (overrides.handoffOutcome) {
+    MOCKS.handoffAuthorizationOutcome.mockImplementation(overrides.handoffOutcome);
   }
   if (overrides.now) vi.spyOn(Date, "now").mockImplementation(overrides.now);
 

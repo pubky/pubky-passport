@@ -8,7 +8,7 @@ const MESSAGE_VERSION = 1;
 const ACKNOWLEDGEMENT_TIMEOUT_MS = 3_000;
 
 /** Uses an acknowledged opener message when possible, then falls back to navigation. */
-export async function completeAuthorizationOutcome(
+export async function handoffAuthorizationOutcome(
   appWindow: Window,
   callback: string,
   outcome: AuthorizationOutcome,

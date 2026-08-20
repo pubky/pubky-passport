@@ -17,6 +17,10 @@ const LIBS_ROOT = join(SRC_ROOT, "libs");
 const PUBLIC_ENV_ROOT = join(LIBS_ROOT, "env");
 const SERVER_CONFIG_ROOT = join(SERVER_ROOT, "config");
 const LOCAL_IDENTITY_ROOT = join(CLIENT_LOGIC_ROOT, "local-identity");
+const AUTHORIZATION_ROOT = join(CLIENT_LOGIC_ROOT, "authorization");
+const AUTHORIZATION_ENTRY_ROOT = join(AUTHORIZATION_ROOT, "entry");
+const AUTHORIZATION_REQUEST_ROOT = join(AUTHORIZATION_ROOT, "request");
+const AUTHORIZATION_FLOW_ROOT = join(AUTHORIZATION_ROOT, "flow");
 const LOCAL_IDENTITY_REPOSITORY = join(LOCAL_IDENTITY_ROOT, "LocalStorageIdentityRepository.ts");
 const PUBKY_SDK_ADAPTER = join(CLIENT_LOGIC_ROOT, "pubky", "PubkySdkAdapter.ts");
 const PUBKY_SDK_ADAPTER_TEST = join(CLIENT_LOGIC_ROOT, "pubky", "pubkySdkAdapter.test.ts");
@@ -33,30 +37,37 @@ const SECRET_BEARING_BROWSER_CAPABILITIES = new Map([
   [PUBKY_SDK_ADAPTER, "Pubky key handles"],
 ]);
 const ISSUED_AUTHORIZATION_REQUEST = join(
-  CLIENT_LOGIC_ROOT,
-  "authorization",
+  AUTHORIZATION_REQUEST_ROOT,
   "IssuedPubkyAuthRequest.ts",
 );
 const PASSPORT_AUTHORIZATION = join(
-  CLIENT_LOGIC_ROOT,
-  "authorization",
+  AUTHORIZATION_FLOW_ROOT,
   "PassportAuthorizationController.ts",
 );
+const APPROVE_AUTHORIZATION = join(
+  AUTHORIZATION_FLOW_ROOT,
+  "approveAuthorization.ts",
+);
 const MANUAL_AUTHORIZATION_INPUT = join(
-  CLIENT_LOGIC_ROOT,
-  "authorization",
+  AUTHORIZATION_ENTRY_ROOT,
   "manualAuthorizationInput.ts",
 );
 const AUTHORIZATION_ENTRY = join(
-  CLIENT_LOGIC_ROOT,
-  "authorization",
+  AUTHORIZATION_ENTRY_ROOT,
   "authorizationEntry.ts",
 );
 const ENCODED_AUTHORIZATION_REQUEST_PARSER = join(
-  CLIENT_LOGIC_ROOT,
-  "authorization",
+  AUTHORIZATION_REQUEST_ROOT,
   "pubkyAuthRequestParser.ts",
 );
+const AUTHORIZATION_BOUNDARY_TARGETS = [
+  ISSUED_AUTHORIZATION_REQUEST,
+  PASSPORT_AUTHORIZATION,
+  APPROVE_AUTHORIZATION,
+  MANUAL_AUTHORIZATION_INPUT,
+  AUTHORIZATION_ENTRY,
+  ENCODED_AUTHORIZATION_REQUEST_PARSER,
+];
 const GOOGLE_WRAPPING_KEY_REQUEST = join(
   SERVER_ROOT,
   "wrapping-key",
@@ -98,6 +109,28 @@ describe("architecture boundaries", () => {
     ];
 
     expect(violations).toEqual([]);
+  });
+
+  it("keeps authorization dependencies flowing from entry and flow into request", () => {
+    const violations = [
+      ...GRAPH.productionSourceFiles(AUTHORIZATION_REQUEST_ROOT)
+        .filter((filePath) =>
+          GRAPH.importsTarget(filePath, AUTHORIZATION_ENTRY_ROOT)
+          || GRAPH.importsTarget(filePath, AUTHORIZATION_FLOW_ROOT)
+        )
+        .map((filePath) => `${relative(REPO_ROOT, filePath)} imports an authorization runtime owner`),
+      ...GRAPH.productionSourceFiles(AUTHORIZATION_ENTRY_ROOT)
+        .filter((filePath) => GRAPH.importsTarget(filePath, AUTHORIZATION_FLOW_ROOT))
+        .map((filePath) => `${relative(REPO_ROOT, filePath)} imports authorization flow orchestration`),
+    ];
+
+    expect(violations).toEqual([]);
+  });
+
+  it("keeps protected authorization boundary targets present", () => {
+    expect(AUTHORIZATION_BOUNDARY_TARGETS
+      .filter((filePath) => !existsSync(filePath))
+      .map((filePath) => relative(REPO_ROOT, filePath))).toEqual([]);
   });
 
   it("starts every runtime module with its runtime marker", () => {
@@ -253,6 +286,7 @@ describe("architecture boundaries", () => {
       AUTHORIZATION_ENTRY,
       MANUAL_AUTHORIZATION_INPUT,
       PASSPORT_AUTHORIZATION,
+      APPROVE_AUTHORIZATION,
       PUBKY_SDK_ADAPTER,
     ]);
     const violations = GRAPH.productionSourceFiles(SRC_ROOT)

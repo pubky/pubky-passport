@@ -2,7 +2,7 @@
 
 import { type SubmitEvent, useRef, useState } from "react";
 
-import { submitManualAuthorizationInput } from "../../../logic/authorization/manualAuthorizationInput";
+import { submitManualAuthorizationInput } from "../../../logic/authorization/entry/manualAuthorizationInput";
 import { ArrowRightIcon, ClipboardPasteIcon } from "../../shared/icons/actionIcons";
 import { PassportScreen } from "../../shared/layout/passportScreen";
 import { BackButton } from "../../shared/navigation/backButton";

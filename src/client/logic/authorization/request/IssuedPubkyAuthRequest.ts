@@ -8,7 +8,6 @@ import {
   type PubkyAuthenticationMethod,
   type PubkyAuthParseError,
 } from "./pubkyAuthRequestParser";
-import type { AuthorizationOutcome } from "./completeAuthorizationOutcome";
 import type { ValidatedPubkyAuthCallbacks } from "./pubkyAuthUrls";
 
 /** One safe capability row rendered during authorization review. */
@@ -87,7 +86,7 @@ export class IssuedPubkyAuthRequest {
   /** Takes one validated callback and releases all remaining private metadata. */
   static takeOutcomeCallback(
     request: IssuedPubkyAuthRequest,
-    outcome: AuthorizationOutcome,
+    outcome: keyof ValidatedPubkyAuthCallbacks,
   ): string | undefined {
     try {
       return REQUEST_METADATA.get(request)?.callbacks[outcome];

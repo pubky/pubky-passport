@@ -2,9 +2,9 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { IssuedPubkyAuthRequest } from "./IssuedPubkyAuthRequest";
-import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
-import { LOGGER } from "../../../libs/logger/logger";
+import { LOGGER } from "../../../../libs/logger/logger";
+import { IssuedPubkyAuthRequest } from "../request/IssuedPubkyAuthRequest";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "../request/pubkyAuthRequestLimits";
 
 export type ManualAuthorizationInputResult = "invalid" | "navigation_failed" | "navigating";
 

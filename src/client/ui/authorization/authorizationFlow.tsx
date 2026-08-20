@@ -6,7 +6,7 @@ import { useEffect, useReducer, useRef, useState } from "react";
 import {
   PassportAuthorizationController,
   type PassportAuthorizationViewState,
-} from "../../logic/authorization/PassportAuthorizationController";
+} from "../../logic/authorization/flow/PassportAuthorizationController";
 import type { LocalIdentityController } from "../../logic/local-identity/LocalIdentityController";
 import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
 import type { GoogleIdentityConfiguration } from "../../logic/google-identity/GoogleIdentityController";

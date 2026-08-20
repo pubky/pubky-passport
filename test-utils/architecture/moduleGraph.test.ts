@@ -42,8 +42,8 @@ describe("ModuleGraph", () => {
   it("resolves aliases, JavaScript specifiers, index re-exports, and mts modules", () => {
     expect(GRAPH.resolveLocalImportTarget(
       join(REPO_ROOT, "src", "client", "ui", "authorizationReview.tsx"),
-      "@/client/logic/authorization/PassportAuthorizationController",
-    )).toBe(join(REPO_ROOT, "src", "client", "logic", "authorization", "PassportAuthorizationController.ts"));
+      "@/client/logic/authorization/flow/PassportAuthorizationController",
+    )).toBe(join(REPO_ROOT, "src", "client", "logic", "authorization", "flow", "PassportAuthorizationController.ts"));
     expect(GRAPH.resolveLocalImportTarget(
       join(FIXTURE_ROOT, "transitive-entry.ts"),
       "./shared/index.js",

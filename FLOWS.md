@@ -117,7 +117,7 @@ sequenceDiagram
     box rgba(0, 114, 178, 0.18) src/client/ui
         participant Flow as authorizationFlow.tsx<br/>AuthorizationFlow()
     end
-    box rgba(0, 158, 115, 0.18) src/client/logic/authorization
+    box rgba(0, 158, 115, 0.18) src/client/logic/authorization/{entry,request,flow}
         participant Bootstrap as authorizationEntryBootstrap.ts<br/>pre-hydration entry capture
         participant Controller as PassportAuthorizationController.ts<br/>PassportAuthorizationController
         participant Entry as authorizationEntry.ts<br/>readAndScrubAuthorizationEntry()
@@ -162,7 +162,7 @@ sequenceDiagram
     box rgba(0, 114, 178, 0.18) src/client/ui
         participant Form as manualAuthorization.tsx<br/>ManualAuthorization()<br/>submit()
     end
-    box rgba(0, 158, 115, 0.18) src/client/logic/authorization
+    box rgba(0, 158, 115, 0.18) src/client/logic/authorization/{entry,request}
         participant ManualInput as manualAuthorizationInput.ts<br/>submitManualAuthorizationInput()
         participant Request as IssuedPubkyAuthRequest.ts<br/>IssuedPubkyAuthRequest.validate()
     end
@@ -196,9 +196,12 @@ sequenceDiagram
     box rgba(0, 114, 178, 0.18) src/client/ui
         participant Review as authorizationReview.tsx<br/>AuthorizationReview()
     end
-    box rgba(0, 158, 115, 0.18) src/client/logic/authorization
+    box rgba(0, 158, 115, 0.18) src/client/logic/authorization/flow
         participant Controller as PassportAuthorizationController.ts<br/>PassportAuthorizationController
-        participant UseCase as PassportAuthorizationController.ts<br/>approveAuthorization()
+        participant UseCase as approveAuthorization.ts<br/>approveAuthorization()
+        participant Handoff as authorizationOutcomeHandoff.ts<br/>handoffAuthorizationOutcome()
+    end
+    box rgba(0, 158, 115, 0.18) src/client/logic/authorization/request
         participant AuthRequest as IssuedPubkyAuthRequest.ts<br/>validatedUrlForApproval()<br/>takeOutcomeCallback()
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/local-identity
@@ -239,12 +242,13 @@ sequenceDiagram
     UseCase-->>Controller: safe result
     Controller->>AuthRequest: takeOutcomeCallback(outcome)
     AuthRequest-->>Controller: success or error callback
+    Controller->>Handoff: handoffAuthorizationOutcome(callback, outcome)
     alt Callback exists and opener acknowledges
-        Controller->>Window: post finite outcome to callback origin
-        Window-->>Controller: exact-origin acknowledgement
-        Controller->>Window: close popup
-    else Callback exists without popup completion
-        Controller->>Window: location.replace(callback) after timeout
+        Handoff->>Window: post finite outcome to callback origin
+        Window-->>Handoff: exact-origin acknowledgement
+        Handoff->>Window: close popup
+    else Popup handoff is unavailable, fails, or times out
+        Handoff->>Window: location.replace(callback)
     else No callback or completion fails
         Controller-->>Review: safe local terminal state
     end
@@ -261,10 +265,11 @@ sequenceDiagram
     box rgba(0, 114, 178, 0.18) src/client/ui
         participant Review as authorizationReview.tsx<br/>AuthorizationReview()
     end
-    box rgba(0, 158, 115, 0.18) src/client/logic/authorization
+    box rgba(0, 158, 115, 0.18) src/client/logic/authorization/flow
         participant Controller as PassportAuthorizationController.ts<br/>PassportAuthorizationController
+        participant Handoff as authorizationOutcomeHandoff.ts<br/>handoffAuthorizationOutcome()
     end
-    box rgba(0, 158, 115, 0.18) src/client/logic/authorization
+    box rgba(0, 158, 115, 0.18) src/client/logic/authorization/request
         participant Request as IssuedPubkyAuthRequest.ts<br/>takeOutcomeCallback()
     end
     box rgba(107, 114, 128, 0.18) Runtime platform
@@ -275,12 +280,13 @@ sequenceDiagram
     Review->>Controller: cancel()
     Controller->>Request: takeOutcomeCallback(cancel)
     Request-->>Controller: cancel callback or none
+    Controller->>Handoff: handoffAuthorizationOutcome(callback, cancel)
     alt Callback exists and opener acknowledges
-        Controller->>Window: post cancel outcome to callback origin
-        Window-->>Controller: exact-origin acknowledgement
-        Controller->>Window: close popup
-    else Callback exists without popup completion
-        Controller->>Window: location.replace(callback) after timeout
+        Handoff->>Window: post cancel outcome to callback origin
+        Window-->>Handoff: exact-origin acknowledgement
+        Handoff->>Window: close popup
+    else Popup handoff is unavailable, fails, or times out
+        Handoff->>Window: location.replace(callback)
     else No callback or completion fails
         Controller-->>Review: local cancelled state
     end
@@ -744,9 +750,9 @@ sequenceDiagram
 
 | Flow | Code | Main tests |
 | --- | --- | --- |
-| Authorization request model | `src/client/logic/authorization/IssuedPubkyAuthRequest.ts` | Issuance, parser, capability, and URL tests |
-| Authorization controller and approval | `src/client/logic/authorization/PassportAuthorizationController.ts` | Colocated controller and approval tests |
-| Authorization entry | `src/client/logic/authorization/authorizationEntry.ts` | `authorizationEntry.test.ts` |
+| Authorization request model | `src/client/logic/authorization/request/IssuedPubkyAuthRequest.ts` | Issuance, parser, capability, and URL tests |
+| Authorization controller and approval | `src/client/logic/authorization/flow` | Controller, approval, and outcome handoff tests |
+| Authorization entry | `src/client/logic/authorization/entry/authorizationEntry.ts` | `authorizationEntry.test.ts` |
 | Authorization UI | `src/client/ui/authorization` | Colocated component tests |
 | Local identity controller | `src/client/logic/local-identity` | Controller and repository tests |
 | Google OAuth and custody/recovery lifecycle | `src/client/logic/google-identity` | Colocated authorization, flow, and operation tests |

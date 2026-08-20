@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   EARLY_AUTHORIZATION_LOCATION_LIFETIME_MS,
   EARLY_AUTHORIZATION_LOCATION_PROPERTY,
-} from "../../../libs/authorization/earlyAuthorizationLocation";
+} from "../../../../libs/authorization/earlyAuthorizationLocation";
 
 const SECRET = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 

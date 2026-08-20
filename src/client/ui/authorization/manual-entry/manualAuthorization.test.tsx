@@ -4,10 +4,10 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { submitManualAuthorizationInput } from "../../../logic/authorization/manualAuthorizationInput";
+import { submitManualAuthorizationInput } from "../../../logic/authorization/entry/manualAuthorizationInput";
 import { ManualAuthorization } from "./manualAuthorization";
 
-vi.mock("../../../logic/authorization/manualAuthorizationInput", () => ({
+vi.mock("../../../logic/authorization/entry/manualAuthorizationInput", () => ({
   submitManualAuthorizationInput: vi.fn(() => "navigating"),
 }));
 

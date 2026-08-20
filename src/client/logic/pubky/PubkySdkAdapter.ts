@@ -3,7 +3,7 @@ import "client-only";
 import { Keypair, Pubky, PublicKey, type PubkyError, type Session } from "@synonymdev/pubky";
 import { Result, type Result as ResultType } from "better-result";
 
-import { IssuedPubkyAuthRequest } from "../authorization/IssuedPubkyAuthRequest";
+import { IssuedPubkyAuthRequest } from "../authorization/request/IssuedPubkyAuthRequest";
 import {
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,

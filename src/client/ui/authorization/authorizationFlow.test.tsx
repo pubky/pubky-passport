@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PassportAuthorizationViewState } from "../../logic/authorization/PassportAuthorizationController";
+import type { PassportAuthorizationViewState } from "../../logic/authorization/flow/PassportAuthorizationController";
 import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
 import { AuthorizationFlow } from "./authorizationFlow";
 
@@ -21,7 +21,7 @@ const MOCKS = vi.hoisted(() => ({
   createAuthorizationController: vi.fn(),
 }));
 
-vi.mock("../../logic/authorization/PassportAuthorizationController", () => ({
+vi.mock("../../logic/authorization/flow/PassportAuthorizationController", () => ({
   PassportAuthorizationController: class {
     constructor(...args: unknown[]) {
       MOCKS.createAuthorizationController(...args);

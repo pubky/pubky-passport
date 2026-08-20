@@ -2,7 +2,7 @@ import { AuthFlowKind, Pubky, PublicKey, type Session } from "@synonymdev/pubky"
 import { Result, type Result as ResultType } from "better-result";
 import { expect, test } from "vitest";
 
-import { IssuedPubkyAuthRequest } from "../authorization/IssuedPubkyAuthRequest";
+import { IssuedPubkyAuthRequest } from "../authorization/request/IssuedPubkyAuthRequest";
 import { HomegateClient } from "../homegate/HomegateClient";
 import { PubkySdkAdapter } from "./PubkySdkAdapter";
 

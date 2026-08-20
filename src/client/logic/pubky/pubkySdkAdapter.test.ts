@@ -9,8 +9,8 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
-import { IssuedPubkyAuthRequest } from "../authorization/IssuedPubkyAuthRequest";
-import { PUBKY_AUTH_REQUEST_LIMITS } from "../authorization/pubkyAuthRequestLimits";
+import { IssuedPubkyAuthRequest } from "../authorization/request/IssuedPubkyAuthRequest";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "../authorization/request/pubkyAuthRequestLimits";
 import { LOGGER } from "../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkyIdentityKeyHandle } from "./pubkyIdentityKey";
 import { PubkySdkAdapter } from "./PubkySdkAdapter";

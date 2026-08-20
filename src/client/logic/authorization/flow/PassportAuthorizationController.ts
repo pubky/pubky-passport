@@ -1,31 +1,23 @@
 import "client-only";
 
-import { Result, type Result as ResultType } from "better-result";
+import { Result } from "better-result";
 
-import { LOGGER } from "../../../libs/logger/logger";
-import {
-  LocalStorageIdentityRepository,
-  type LocalIdentityErrorCode,
-} from "../local-identity/LocalStorageIdentityRepository";
-import type {
-  PubkyIdentityKey,
-  PubkyPublicIdentity,
-} from "../pubky/pubkyIdentityKey";
-import { PubkySdkAdapter } from "../pubky/PubkySdkAdapter";
+import { LOGGER } from "../../../../libs/logger/logger";
 import {
   expireAuthorizationEntry,
   readAndScrubAuthorizationEntry,
   type AuthorizationEntry,
-} from "./authorizationEntry";
-import { takeInitialAuthorizationEntry } from "./authorizationEntryBootstrap";
-import {
-  completeAuthorizationOutcome,
-  type AuthorizationOutcome,
-} from "./completeAuthorizationOutcome";
+} from "../entry/authorizationEntry";
+import { takeInitialAuthorizationEntry } from "../entry/authorizationEntryBootstrap";
 import {
   type AuthorizationRequestReview,
   IssuedPubkyAuthRequest,
-} from "./IssuedPubkyAuthRequest";
+} from "../request/IssuedPubkyAuthRequest";
+import { approveAuthorization } from "./approveAuthorization";
+import {
+  type AuthorizationOutcome,
+  handoffAuthorizationOutcome,
+} from "./authorizationOutcomeHandoff";
 
 /** Finite, render-safe states emitted by the authorization controller. */
 export type PassportAuthorizationViewState =
@@ -46,6 +38,7 @@ type LocalTerminalState = Extract<
 type AuthorizationAction = Readonly<{
   request: IssuedPubkyAuthRequest;
   expiresAt: number;
+  review: AuthorizationRequestReview;
 }>;
 
 /** Coordinates one reviewed request from browser entry to a terminal outcome. */
@@ -104,9 +97,9 @@ export class PassportAuthorizationController {
 
   async approve(publicKeyZ32: string): Promise<PassportAuthorizationViewState> {
     const action = this.beginAction();
-    if (!action || this.state.status !== "review") return this.state;
+    if (!action) return this.state;
 
-    const review = this.state.review;
+    const review = action.review;
     this.update({ status: "approving", review });
     const result = await approveAuthorization(
       action.request,
@@ -122,9 +115,9 @@ export class PassportAuthorizationController {
 
   async cancel(): Promise<PassportAuthorizationViewState> {
     const action = this.beginAction();
-    if (!action || this.state.status !== "review") return this.state;
+    if (!action) return this.state;
 
-    return this.completeRequestOutcome(action.request, "cancel", this.state.review);
+    return this.completeRequestOutcome(action.request, "cancel", action.review);
   }
 
   private beginAction(): AuthorizationAction | undefined {
@@ -136,7 +129,11 @@ export class PassportAuthorizationController {
     }
 
     this.clearExpirationTimer();
-    return { request: this.request, expiresAt: this.expiresAt };
+    return {
+      request: this.request,
+      expiresAt: this.expiresAt,
+      review: this.state.review,
+    };
   }
 
   private async completeRequestOutcome(
@@ -157,7 +154,7 @@ export class PassportAuthorizationController {
     this.update({ status: "completing", review });
     let completed = false;
     try {
-      completed = await completeAuthorizationOutcome(
+      completed = await handoffAuthorizationOutcome(
         this.appWindow,
         callback,
         outcome,
@@ -236,117 +233,4 @@ function localStateForOutcome(outcome: AuthorizationOutcome): LocalTerminalState
   }
 }
 
-export type { AuthorizationRequestReview } from "./IssuedPubkyAuthRequest";
-
-type ApproveAuthorizationResult = ResultType<
-  void,
-  { code: "approval_failed" }
->;
-
-type RestoreLocalIdentityResult = ResultType<
-  PubkyIdentityKey,
-  { code: RestoreLocalIdentityErrorCode }
->;
-
-type RestoreLocalIdentityErrorCode =
-  | LocalIdentityErrorCode
-  | "identity_mismatch"
-  | "restore_failed";
-
-/** Approves one request with the exact local identity selected during review. */
-async function approveAuthorization(
-  request: IssuedPubkyAuthRequest,
-  publicKeyZ32: string,
-  expiresAt: number,
-): Promise<ApproveAuthorizationResult> {
-  let pubky: PubkySdkAdapter;
-  try {
-    pubky = new PubkySdkAdapter();
-  } catch {
-    LOGGER.warn("authorize.approval.failed", {
-      stage: "sdk_initialize",
-      code: "unexpected_failure",
-    });
-    return Result.err({ code: "approval_failed" });
-  }
-
-  let keyHandle: PubkyIdentityKey["keyHandle"] | undefined;
-  let stage: "identity_restore" | "sdk_approve" = "identity_restore";
-  try {
-    const restored = await restoreLocalIdentity(pubky, publicKeyZ32);
-    if (Result.isError(restored)) return Result.err({ code: "approval_failed" });
-
-    keyHandle = restored.value.keyHandle;
-    if (Date.now() >= expiresAt) return Result.err({ code: "approval_failed" });
-
-    stage = "sdk_approve";
-    const approved = await pubky.approveAuthRequest(keyHandle, request);
-    return Result.isError(approved)
-      ? Result.err({ code: "approval_failed" })
-      : Result.ok();
-  } catch {
-    LOGGER.warn("authorize.approval.failed", {
-      stage,
-      code: "unexpected_failure",
-    });
-    return Result.err({ code: "approval_failed" });
-  } finally {
-    disposeIdentityKey(pubky, keyHandle);
-    disposePubky(pubky);
-  }
-}
-
-/** Restores and verifies one named local identity, clearing plaintext key bytes. */
-async function restoreLocalIdentity(
-  pubky: PubkySdkAdapter,
-  publicKeyZ32: string,
-): Promise<RestoreLocalIdentityResult> {
-  const stored = new LocalStorageIdentityRepository().read(publicKeyZ32);
-  if (Result.isError(stored)) return Result.err(stored.error);
-
-  try {
-    if (stored.value.identity.publicIdentity.publicKeyZ32 !== publicKeyZ32) {
-      LOGGER.warn("identity.local_restore.failed", { code: "identity_mismatch" });
-      return Result.err({ code: "identity_mismatch" });
-    }
-
-    const restored = await pubky.restoreIdentityKey(stored.value.secretKey);
-    if (Result.isError(restored)) return Result.err({ code: "restore_failed" });
-
-    if (!isSamePublicIdentity(restored.value.publicIdentity, stored.value.identity.publicIdentity)) {
-      disposeIdentityKey(pubky, restored.value.keyHandle);
-      LOGGER.warn("identity.local_restore.failed", { code: "identity_mismatch" });
-      return Result.err({ code: "identity_mismatch" });
-    }
-
-    return Result.ok(restored.value);
-  } finally {
-    stored.value.secretKey.bytes.fill(0);
-  }
-}
-
-function disposeIdentityKey(
-  pubky: PubkySdkAdapter,
-  keyHandle: PubkyIdentityKey["keyHandle"] | undefined,
-): void {
-  if (!keyHandle) return;
-
-  try {
-    pubky.disposeIdentityKey(keyHandle);
-  } catch {
-    LOGGER.warn("authorize.cleanup.failed", { operation: "identity_key_dispose" });
-  }
-}
-
-function disposePubky(pubky: PubkySdkAdapter): void {
-  try {
-    pubky.dispose();
-  } catch {
-    LOGGER.warn("authorize.cleanup.failed", { operation: "pubky_dispose" });
-  }
-}
-
-function isSamePublicIdentity(left: PubkyPublicIdentity, right: PubkyPublicIdentity): boolean {
-  return left.publicKeyZ32 === right.publicKeyZ32
-    && left.publicKeyDisplay === right.publicKeyDisplay;
-}
+export type { AuthorizationRequestReview } from "../request/IssuedPubkyAuthRequest";

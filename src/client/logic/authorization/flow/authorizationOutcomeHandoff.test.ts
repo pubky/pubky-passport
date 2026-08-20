@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { completeAuthorizationOutcome } from "./completeAuthorizationOutcome";
+import { handoffAuthorizationOutcome } from "./authorizationOutcomeHandoff";
 
 const CALLBACK = "https://app.example/auth/passport/success?private=value";
 
-describe("completeAuthorizationOutcome", () => {
+describe("handoffAuthorizationOutcome", () => {
   it("closes only after an exact opener acknowledgement", async () => {
     const harness = windowHarness({ opener: true, closeSucceeds: true });
 
@@ -139,7 +139,7 @@ describe("completeAuthorizationOutcome", () => {
   ])("rejects an unvalidated callback: %s", async (callback) => {
     const harness = windowHarness({ opener: false });
 
-    await expect(completeAuthorizationOutcome(
+    await expect(handoffAuthorizationOutcome(
       harness.window,
       callback,
       "success",
@@ -183,7 +183,7 @@ function complete(
   outcome: "success" | "error" | "cancel",
   signal: AbortSignal = new AbortController().signal,
 ): Promise<boolean> {
-  return completeAuthorizationOutcome(harness.window, CALLBACK, outcome, signal);
+  return handoffAuthorizationOutcome(harness.window, CALLBACK, outcome, signal);
 }
 
 function windowHarness(input: {
