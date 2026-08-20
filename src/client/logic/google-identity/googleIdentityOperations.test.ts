@@ -163,7 +163,7 @@ describe("GoogleIdentityOperations", () => {
     record(MOCKS.createPassportFile, "drive-create", events);
     record(MOCKS.createVisibleRecoveryCopy, "visible-copy", events);
     record(MOCKS.signup, "signup", events);
-    record(MOCKS.publishHomeserver, "force-publish", events);
+    record(MOCKS.publishHomeserver, "publish-if-stale", events);
     record(MOCKS.signin, "signin", events);
     record(MOCKS.repositorySave, "save", events);
     const progress: GoogleIdentityProgress[] = [];
@@ -181,7 +181,7 @@ describe("GoogleIdentityOperations", () => {
       "drive-create",
       "visible-copy",
       "signup",
-      "force-publish",
+      "publish-if-stale",
       "signin",
       "save",
     ]);
@@ -327,7 +327,7 @@ describe("GoogleIdentityOperations", () => {
         : Result.ok({ publicIdentity: PUBLIC_IDENTITY });
     });
     MOCKS.publishHomeserver.mockImplementation(async () => {
-      events.push("force-publish");
+      events.push("publish-if-stale");
       return Result.err({ code: "publish_failed" });
     });
     record(MOCKS.requestInvitation, "homegate", events);
@@ -343,7 +343,7 @@ describe("GoogleIdentityOperations", () => {
       "signin",
       "homegate",
       "signup",
-      "force-publish",
+      "publish-if-stale",
       "signin",
       "save",
     ]);

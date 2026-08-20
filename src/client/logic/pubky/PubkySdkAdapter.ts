@@ -304,7 +304,7 @@ export class PubkySdkAdapter {
         const pkdns = signer.pkdns;
         try {
           transferredToSdk = homeserver.value !== null;
-          await pkdns.publishHomeserverForce(homeserver.value);
+          await pkdns.publishHomeserverIfStale(homeserver.value);
         } finally {
           cleanup("publish_homeserver", "pkdns_free", () => pkdns.free());
         }
