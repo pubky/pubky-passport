@@ -116,7 +116,7 @@ function ReadyIdentityDashboard({ catalog, controller, googleIdentityConfigurati
           }
         }}
         onMigrateToKeychain={() => {
-          const migration = controller.createPubkyRingMigrationUrl();
+          const migration = controller.createPubkyRingMigrationUrl(publicKeyZ32);
           setNavigation({
             view: "migrate-to-pubky-ring",
             publicKeyZ32,
@@ -141,7 +141,10 @@ function ReadyIdentityDashboard({ catalog, controller, googleIdentityConfigurati
       return <DetachFromGoogleFlow
         createBackup={controller.createEncryptedBackup}
         createMigrationUrl={() => {
-          const migration = controller.createPubkyRingMigrationUrl();
+          // Detachment must back up the same identity that it will remove.
+          const migration = controller.createPubkyRingMigrationUrl(
+            state.identity.publicIdentity.publicKeyZ32,
+          );
           return Result.isOk(migration) ? migration.value : null;
         }}
         googleIdentityConfiguration={googleIdentityConfiguration}

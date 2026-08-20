@@ -18,7 +18,6 @@ function AuthorizationReview({ identity, onAuthorize, onCancel, onSwitch, phase,
   phase: "review" | "approving" | "completing";
   review: AuthorizationRequestReview;
 }) {
-  const callbackHost = review.callbackHost;
   const busy = phase !== "review";
   const hasBroadAccess = review.capabilities.some((capability) => capability.scope === "broad");
   const authorizationEffect = describeAuthorizationEffect(review.capabilities);

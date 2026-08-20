@@ -97,9 +97,14 @@ export class LocalIdentityController {
     }
   };
 
-  /** Creates a Pubky Ring migration URL for the currently active identity. */
-  createPubkyRingMigrationUrl(): LocalIdentityResult<string> {
-    const stored = this.repository.readActive();
+  /**
+   * Creates a Pubky Ring migration URL for the requested identity.
+   *
+   * The explicit key binds the export to the identity shown by the caller. The
+   * active identity can change in another tab while a management flow is open.
+   */
+  createPubkyRingMigrationUrl(publicKeyZ32: string): LocalIdentityResult<string> {
+    const stored = this.repository.read(publicKeyZ32);
     if (Result.isError(stored)) return Result.err(stored.error);
 
     try {

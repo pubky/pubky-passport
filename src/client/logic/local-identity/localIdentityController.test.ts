@@ -30,30 +30,49 @@ describe("LocalIdentityController", () => {
     }));
   });
 
-  it("creates a Ring migration URL and clears the returned secret bytes", () => {
+  it("creates a Ring migration URL for the requested identity and clears the returned secret bytes", () => {
     const bytes = Uint8Array.from({ length: 32 }, (_, index) => index);
-    vi.spyOn(LocalStorageIdentityRepository.prototype, "readActive").mockReturnValue(Result.ok({
+    const readIdentity = vi.spyOn(LocalStorageIdentityRepository.prototype, "read").mockReturnValue(Result.ok({
       identity: {
-        publicIdentity: { publicKeyZ32: "active", publicKeyDisplay: "pubkyactive" },
+        publicIdentity: { publicKeyZ32: "expected", publicKeyDisplay: "pubkyexpected" },
       },
       secretKey: { bytes, format: PUBKY_SECRET_KEY_FORMAT },
     }));
     const controller = createController();
 
-    expect(controller.createPubkyRingMigrationUrl()).toEqual(Result.ok(
+    expect(controller.createPubkyRingMigrationUrl("expected")).toEqual(Result.ok(
       "pubkyring://migrate?index=0&total=1&key=000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
     ));
+    expect(readIdentity).toHaveBeenCalledWith("expected");
     expect(bytes).toEqual(new Uint8Array(32));
   });
 
-  it("preserves a migration read failure", () => {
+  it("exports the requested identity when a different identity is active", () => {
+    const requestedPublicKey = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
+    const activePublicKey = "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo";
+    const repository = new LocalStorageIdentityRepository();
+    expectResultOk(repository.save(
+      { publicIdentity: { publicKeyDisplay: `pubky${requestedPublicKey}`, publicKeyZ32: requestedPublicKey } },
+      { bytes: new Uint8Array(32).fill(1), format: PUBKY_SECRET_KEY_FORMAT },
+    ));
+    expectResultOk(repository.save(
+      { publicIdentity: { publicKeyDisplay: `pubky${activePublicKey}`, publicKeyZ32: activePublicKey } },
+      { bytes: new Uint8Array(32).fill(2), format: PUBKY_SECRET_KEY_FORMAT },
+    ));
+
+    expect(createController().createPubkyRingMigrationUrl(requestedPublicKey)).toEqual(Result.ok(
+      `pubkyring://migrate?index=0&total=1&key=${"01".repeat(32)}`,
+    ));
+  });
+
+  it("preserves a requested identity read failure", () => {
     const controller = createController();
 
-    const migration = controller.createPubkyRingMigrationUrl();
+    const migration = controller.createPubkyRingMigrationUrl("missing");
 
     expect(Result.isError(migration)).toBe(true);
     if (Result.isError(migration)) {
-      expect(migration.error).toEqual({ code: "no_active_identity" });
+      expect(migration.error).toEqual({ code: "invalid_identity" });
     }
   });
 

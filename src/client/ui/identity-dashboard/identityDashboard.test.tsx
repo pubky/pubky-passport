@@ -15,7 +15,7 @@ const FLOW = vi.hoisted(() => ({
   catalog: { activePublicKeyZ32: null, identities: [] } as LocalIdentityCatalog,
   establishIdentity: false,
   establishmentMode: "created" as "created" | "restored",
-  migrationExportCount: 0,
+  migrationExportKeys: [] as string[],
   migrationUrl: "pubkyring://migrate?index=0&total=1&key=active-secret",
 }));
 
@@ -28,7 +28,7 @@ function mockLocalIdentityController(
     removeIdentity: vi.fn(() => Result.ok()),
     resolveHomeserver: vi.fn(async () => Result.ok(null)),
     createEncryptedBackup: vi.fn(async () => Result.err({ code: "backup_failed" as const })),
-    createPubkyRingMigrationUrl: vi.fn(() => Result.err({ code: "no_active_identity" as const })),
+    createPubkyRingMigrationUrl: vi.fn(() => Result.err({ code: "invalid_identity" as const })),
     ...overrides,
   } as unknown as LocalIdentityController;
 }
@@ -37,8 +37,8 @@ vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
   MIN_BACKUP_PASSWORD_LENGTH: 6,
   LocalIdentityController: function LocalIdentityController() {
     return mockLocalIdentityController({
-      createPubkyRingMigrationUrl: () => {
-        FLOW.migrationExportCount += 1;
+      createPubkyRingMigrationUrl: (publicKeyZ32: string) => {
+        FLOW.migrationExportKeys.push(publicKeyZ32);
         return Result.ok(FLOW.migrationUrl);
       },
       listIdentities: () => Result.ok(FLOW.catalog),
@@ -88,7 +88,7 @@ describe("IdentityDashboard", () => {
     FLOW.catalog = { activePublicKeyZ32: null, identities: [] };
     FLOW.establishIdentity = false;
     FLOW.establishmentMode = "created";
-    FLOW.migrationExportCount = 0;
+    FLOW.migrationExportKeys = [];
   });
 
   afterEach(() => {
@@ -209,7 +209,7 @@ describe("IdentityDashboard", () => {
     expect(screen.getByRole("heading", { name: "Manage identity." })).toBeInTheDocument();
   });
 
-  it("exports only the active identity to Pubky Ring", async () => {
+  it("exports the managed identity to Pubky Ring", async () => {
     FLOW.catalog = {
       activePublicKeyZ32: "active",
       identities: [
@@ -224,7 +224,7 @@ describe("IdentityDashboard", () => {
 
     expect(screen.getByRole("heading", { name: "Migrate to keychain." })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Import pubky" })).toHaveAttribute("href", FLOW.migrationUrl);
-    expect(FLOW.migrationExportCount).toBe(1);
+    expect(FLOW.migrationExportKeys).toEqual(["active"]);
   });
 
   it("backs up, confirms detachment, clears the local identity, and shows completion", async () => {
@@ -237,6 +237,7 @@ describe("IdentityDashboard", () => {
     expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Migrate to keychain" }));
     expect(screen.getByRole("heading", { name: "Migrate to keychain." })).toBeInTheDocument();
+    expect(FLOW.migrationExportKeys).toEqual(["identity"]);
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Download encrypted backup" }));
