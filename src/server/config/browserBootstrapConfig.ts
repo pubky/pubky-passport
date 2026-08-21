@@ -2,48 +2,31 @@ import "server-only";
 
 import { z } from "zod";
 
-import { isCspSafeHostname } from "./cspSafeUrl";
-
-type EnvLike = Record<string, string | undefined>;
-
-export type BrowserBootstrapConfig = {
-  googleClientId: string;
-  homegateBaseUrl: string;
-  homegateOrigin: string;
-};
+import { isCspSafeHostname } from "../../libs/http/cspSafeHostname";
 
 const MAXIMUM_URL_CHARACTERS = 2_048;
 
-function parseBrowserBootstrapConfig(input: EnvLike): BrowserBootstrapConfig {
-  const googleClientId = requiredString("GOOGLE_CLIENT_ID").parse(input.GOOGLE_CLIENT_ID);
-  const homegate = z
-    .object({
-      HOMEGATE_URL: requiredString("HOMEGATE_URL").transform((value, context) => {
-        const homegate = parseHomegateUrl(value);
-        if (homegate) return homegate;
+export function getBrowserBootstrapConfig() {
+  const googleClientId = z.string().trim().min(1, "GOOGLE_CLIENT_ID is required")
+    .parse(process.env.GOOGLE_CLIENT_ID);
+  const homegate = z.string().trim().min(1, "HOMEGATE_URL is required")
+    .transform((value, context) => {
+      const homegate = parseHomegateUrl(value);
+      if (homegate) return homegate;
 
-        context.addIssue({
-          code: "custom",
-          message: "HOMEGATE_URL must be a CSP-safe HTTPS base URL",
-        });
-        return z.NEVER;
-      }),
+      context.addIssue({
+        code: "custom",
+        message: "HOMEGATE_URL must be a CSP-safe HTTPS base URL",
+      });
+      return z.NEVER;
     })
-    .parse(input);
+    .parse(process.env.HOMEGATE_URL);
 
   return {
     googleClientId,
-    homegateBaseUrl: homegate.HOMEGATE_URL.baseUrl,
-    homegateOrigin: homegate.HOMEGATE_URL.origin,
+    homegateBaseUrl: homegate.baseUrl,
+    homegateOrigin: homegate.origin,
   };
-}
-
-export function getBrowserBootstrapConfig(): BrowserBootstrapConfig {
-  return parseBrowserBootstrapConfig(process.env);
-}
-
-function requiredString(name: string) {
-  return z.string().trim().min(1, `${name} is required`);
 }
 
 function parseHomegateUrl(value: string): { baseUrl: string; origin: string } | null {
