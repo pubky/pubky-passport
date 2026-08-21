@@ -81,7 +81,6 @@ folder roles are not enforced.
 | --- | --- | --- |
 | `/` | `src/app/page.tsx::Home` | Development identity panel and manual auth entry. |
 | `/authorize` | `src/app/authorize/page.tsx::AuthorizePage` | Review, approve, cancel, callbacks. |
-| `GET /api/health` | `src/app/api/health/route.ts::GET` | Health response. |
 | `POST /api/wrapping-key/google` | `src/app/api/wrapping-key/google/route.ts::POST` | Verify provider-account claims and derive a wrapping key. |
 
 ## Call Flows
