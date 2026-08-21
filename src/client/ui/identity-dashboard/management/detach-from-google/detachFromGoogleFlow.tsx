@@ -16,7 +16,7 @@ import { useDetachFromGoogle } from "./useDetachFromGoogle";
 type DetachFromGoogleView =
   | { view: "backup" }
   | { view: "encrypted-backup" }
-  | { view: "pubky-ring"; migrationUrl: string | null }
+  | { view: "pubky-ring" }
   | { view: "review"; confirmation: "closed" | "open" };
 
 function DetachFromGoogleFlow({ createBackup, createMigrationUrl, googleIdentityConfiguration, identity, onBack, onDone }: {
@@ -45,7 +45,7 @@ function DetachFromGoogleFlow({ createBackup, createMigrationUrl, googleIdentity
       />;
     case "pubky-ring":
       return <MigrateToPubkyRing
-        migrationUrl={state.migrationUrl}
+        createMigrationUrl={createMigrationUrl}
         onBack={() => setState({ view: "backup" })}
       />;
     case "review": {
@@ -76,12 +76,7 @@ function DetachFromGoogleFlow({ createBackup, createMigrationUrl, googleIdentity
         onBack={onBack}
         onBackupConfirmed={() => setState({ view: "review", confirmation: "closed" })}
         onDownloadBackup={() => setState({ view: "encrypted-backup" })}
-        onMigrateToKeychain={() => {
-          setState({
-            view: "pubky-ring",
-            migrationUrl: createMigrationUrl(),
-          });
-        }}
+        onMigrateToKeychain={() => setState({ view: "pubky-ring" })}
       />;
   }
 }

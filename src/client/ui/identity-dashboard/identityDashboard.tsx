@@ -24,7 +24,7 @@ type IdentityDashboardView =
   | { view: "select-identity" }
   | { view: "manage-identity"; publicKeyZ32: string }
   | { view: "encrypted-backup"; publicKeyZ32: string }
-  | { view: "migrate-to-pubky-ring"; publicKeyZ32: string; migrationUrl: string | null }
+  | { view: "migrate-to-pubky-ring"; publicKeyZ32: string }
   | { view: "detach-from-google"; identity: LocalIdentityMetadata };
 
 function IdentityDashboard({ googleClientId, homegateBaseUrl }: {
@@ -109,11 +109,9 @@ function ReadyIdentityDashboard({ catalog, localIdentityController, googleIdenti
           }
         }}
         onMigrateToKeychain={() => {
-          const migration = localIdentityController.createPubkyRingMigrationUrl(publicKeyZ32);
           setNavigation({
             view: "migrate-to-pubky-ring",
             publicKeyZ32,
-            migrationUrl: Result.isOk(migration) ? migration.value : null,
           });
         }}
         resolveHomeserver={localIdentityController.resolveHomeserver}
@@ -127,7 +125,10 @@ function ReadyIdentityDashboard({ catalog, localIdentityController, googleIdenti
       />;
     case "migrate-to-pubky-ring":
       return <MigrateToPubkyRing
-        migrationUrl={state.migrationUrl}
+        createMigrationUrl={() => {
+          const migration = localIdentityController.createPubkyRingMigrationUrl(state.publicKeyZ32);
+          return Result.isOk(migration) ? migration.value : null;
+        }}
         onBack={() => setNavigation({ view: "manage-identity", publicKeyZ32: state.publicKeyZ32 })}
       />;
     case "detach-from-google":

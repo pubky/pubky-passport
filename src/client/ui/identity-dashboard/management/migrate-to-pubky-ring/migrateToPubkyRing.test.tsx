@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -9,31 +9,63 @@ import { MigrateToPubkyRing } from "./migrateToPubkyRing";
 const MIGRATION_URL = "pubkyring://migrate?index=0&total=1&key=0123456789abcdef";
 
 describe("MigrateToPubkyRing", () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
 
-  it("offers the verified stores and direct import for the active identity", () => {
-    render(<MigrateToPubkyRing migrationUrl={MIGRATION_URL} onBack={vi.fn()} />);
+  it("offers the verified stores without exporting the identity on entry", () => {
+    const createMigrationUrl = vi.fn(() => MIGRATION_URL);
+    render(<MigrateToPubkyRing createMigrationUrl={createMigrationUrl} onBack={vi.fn()} />);
 
     expect(screen.getByRole("link", { name: "Download Pubky Ring on the App Store" }))
       .toHaveAttribute("href", "https://apps.apple.com/us/app/pubky-ring/id6739356756");
     expect(screen.getByRole("link", { name: "Get Pubky Ring on Google Play" }))
       .toHaveAttribute("href", "https://play.google.com/store/apps/details?id=to.pubky.ring&hl=en-US");
-    expect(screen.getByRole("link", { name: "Import pubky" })).toHaveAttribute("href", MIGRATION_URL);
+    expect(screen.getByRole("button", { name: "Import pubky" })).not.toHaveAttribute("href");
+    expect(screen.queryByRole("dialog", { name: "Scan with Pubky Ring" })).not.toBeInTheDocument();
+    expect(createMigrationUrl).not.toHaveBeenCalled();
     expect(document.querySelector('[data-slot="pubky-ring-keychain-illustration"]'))
       .toHaveAttribute("src", "/illustrations/pubky-ring-keychain.png");
   });
 
-  it("reveals the Ring-compatible QR without exporting another identity", async () => {
-    render(<MigrateToPubkyRing migrationUrl={MIGRATION_URL} onBack={vi.fn()} />);
+  it("generates the URL on confirmation and unmounts the QR on close", async () => {
+    const createMigrationUrl = vi.fn(() => MIGRATION_URL);
+    render(<MigrateToPubkyRing createMigrationUrl={createMigrationUrl} onBack={vi.fn()} />);
 
     const showQr = screen.getByRole("button", { name: "Show QR" });
     expect(showQr).toHaveAttribute("data-variant", "secondary");
     await userEvent.setup().click(showQr);
 
+    expect(createMigrationUrl).toHaveBeenCalledOnce();
     const dialog = screen.getByRole("dialog", { name: "Scan with Pubky Ring" });
     expect(dialog).toHaveAttribute("open");
     expect(screen.getByRole("img", { name: "Pubky Ring migration QR code" })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Close" }));
-    expect(dialog).not.toHaveAttribute("open");
+    expect(screen.queryByRole("dialog", { name: "Scan with Pubky Ring" })).not.toBeInTheDocument();
+  });
+
+  it("clears the QR URL when navigating back", () => {
+    const onBack = vi.fn();
+    render(<MigrateToPubkyRing createMigrationUrl={() => MIGRATION_URL} onBack={onBack} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show QR" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(onBack).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("dialog", { name: "Scan with Pubky Ring" })).not.toBeInTheDocument();
+  });
+
+  it("hands direct import to the browser without retaining an anchor href", async () => {
+    const assign = vi.fn();
+    const createMigrationUrl = vi.fn(() => MIGRATION_URL);
+    vi.stubGlobal("location", { assign, href: "http://localhost/" });
+    render(<MigrateToPubkyRing createMigrationUrl={createMigrationUrl} onBack={vi.fn()} />);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Import pubky" }));
+
+    expect(createMigrationUrl).toHaveBeenCalledOnce();
+    expect(assign).toHaveBeenCalledWith(MIGRATION_URL);
+    expect(screen.queryByRole("link", { name: "Import pubky" })).not.toBeInTheDocument();
   });
 });

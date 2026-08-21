@@ -5,13 +5,13 @@ import { QRCodeSVG } from "qrcode.react";
 import { Button } from "../../../shared/primitives/button";
 import { Dialog } from "../../../shared/primitives/dialog";
 
-function PubkyRingQrDialog({ onClose, open, value }: { onClose: () => void; open: boolean; value: string }) {
+function PubkyRingQrDialog({ onClose, value }: { onClose: () => void; value: string }) {
   return (
     <Dialog
       aria-labelledby="pubky-ring-qr-title"
       className="mb-0 mt-auto w-full max-w-none rounded-t-xl border bg-popover p-6 text-foreground shadow-2xl backdrop:bg-black/75 sm:m-auto sm:max-w-[375px] sm:rounded-xl"
       onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}
-      open={open}
+      open
     >
       <div className="flex flex-col items-center gap-6">
         <h2 className="text-center text-xl font-bold leading-7" id="pubky-ring-qr-title">Scan with Pubky Ring</h2>

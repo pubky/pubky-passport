@@ -9,15 +9,43 @@ import { PubkyRingStoreBadges } from "../../../shared/brand/pubkyRingStoreBadges
 import { ScanIcon } from "../../../shared/actionIcons";
 import { BackButton } from "../../../shared/backButton";
 import { PassportScreen } from "../../../shared/passportScreen";
-import { Button, ButtonLink } from "../../../shared/primitives/button";
+import { Button } from "../../../shared/primitives/button";
 import { DisplayHeading, LeadText } from "../../../shared/primitives/typography";
 import { PubkyRingQrDialog } from "./pubkyRingQrDialog";
 
-function MigrateToPubkyRing({ migrationUrl, onBack }: {
-  migrationUrl: string | null;
+function MigrateToPubkyRing({ createMigrationUrl, onBack }: {
+  createMigrationUrl: () => string | null;
   onBack: () => void;
 }) {
-  const [showQr, setShowQr] = useState(false);
+  const [migrationUrl, setMigrationUrl] = useState<string | null>(null);
+  const [exportFailed, setExportFailed] = useState(false);
+
+  function clearMigrationUrl() {
+    setMigrationUrl(null);
+  }
+
+  function createUrl(): string | null {
+    const url = createMigrationUrl();
+    setExportFailed(url === null);
+    return url;
+  }
+
+  function showQr() {
+    const url = createUrl();
+    if (!url) return;
+
+    setMigrationUrl(url);
+  }
+
+  function importPubky() {
+    const url = createUrl();
+    if (url) globalThis.location.assign(url);
+  }
+
+  function back() {
+    clearMigrationUrl();
+    onBack();
+  }
 
   return (
     <PassportScreen className="gap-6">
@@ -28,17 +56,17 @@ function MigrateToPubkyRing({ migrationUrl, onBack }: {
         <div className="flex justify-center"><PubkyRingLogo /></div>
         <PubkyRingStoreBadges />
 
-        {!migrationUrl ? <p className="text-center text-sm text-muted-foreground">The active Pubky could not be exported.</p> : null}
+        {exportFailed ? <p className="text-center text-sm text-muted-foreground">The active Pubky could not be exported.</p> : null}
 
         <div className="flex flex-col gap-3">
-          <Button disabled={!migrationUrl} onClick={() => setShowQr(true)} size="lg" type="button" variant="secondary">
+          <Button onClick={showQr} size="lg" type="button" variant="secondary">
             <ScanIcon />
             Show QR
           </Button>
-          <ButtonLink aria-disabled={!migrationUrl} href={migrationUrl ?? undefined} onClick={(event) => { if (!migrationUrl) event.preventDefault(); }} size="lg">
+          <Button onClick={importPubky} size="lg" type="button">
             <PubkyBrandIcon />
             Import pubky
-          </ButtonLink>
+          </Button>
         </div>
       </section>
 
@@ -52,8 +80,8 @@ function MigrateToPubkyRing({ migrationUrl, onBack }: {
         width={200}
       />
 
-      <div className="mt-auto pt-4"><BackButton onClick={onBack} /></div>
-      {migrationUrl ? <PubkyRingQrDialog onClose={() => setShowQr(false)} open={showQr} value={migrationUrl} /> : null}
+      <div className="mt-auto pt-4"><BackButton onClick={back} /></div>
+      {migrationUrl ? <PubkyRingQrDialog onClose={clearMigrationUrl} value={migrationUrl} /> : null}
     </PassportScreen>
   );
 }

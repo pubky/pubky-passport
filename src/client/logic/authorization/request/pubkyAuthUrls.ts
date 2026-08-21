@@ -60,6 +60,7 @@ function validateRelayUrl(
     parsed.username !== "" ||
     parsed.password !== "" ||
     parsed.hash !== "" ||
+    parsed.port !== "" ||
     !isExactRelayHostname(parsed.hostname)
   ) {
     return error("invalid_relay");

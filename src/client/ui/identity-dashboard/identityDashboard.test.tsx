@@ -235,7 +235,9 @@ describe("IdentityDashboard", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Migrate to keychain" }));
 
     expect(screen.getByRole("heading", { name: "Migrate to keychain." })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Import pubky" })).toHaveAttribute("href", FLOW.migrationUrl);
+    expect(FLOW.migrationExportKeys).toEqual([]);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Show QR" }));
+    expect(screen.getByRole("dialog", { name: "Scan with Pubky Ring" })).toBeInTheDocument();
     expect(FLOW.migrationExportKeys).toEqual(["active"]);
   });
 
@@ -249,7 +251,10 @@ describe("IdentityDashboard", () => {
     expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Migrate to keychain" }));
     expect(screen.getByRole("heading", { name: "Migrate to keychain." })).toBeInTheDocument();
+    expect(FLOW.migrationExportKeys).toEqual([]);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Show QR" }));
     expect(FLOW.migrationExportKeys).toEqual(["identity"]);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Close" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Download encrypted backup" }));

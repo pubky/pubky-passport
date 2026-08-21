@@ -81,6 +81,15 @@ describe("validateRelayUrl", () => {
     }
   });
 
+  it("rejects non-default relay ports", () => {
+    expect(Result.isError(validateRelay("https://relay.example:444/inbox"))).toBe(true);
+  });
+
+  it("allows public IP relay destinations", () => {
+    expect(Result.isOk(validateRelay("https://1.1.1.1/inbox"))).toBe(true);
+    expect(Result.isOk(validateRelay("https://[2606:4700:4700::1111]/inbox"))).toBe(true);
+  });
+
   it("accepts the relay URL length limit and rejects limit plus one", () => {
     const prefix = "https://httprelay.pubky.app/";
     const atLimit = `${prefix}${"a".repeat(PUBKY_AUTH_REQUEST_LIMITS.relayUrlLength - prefix.length)}`;
