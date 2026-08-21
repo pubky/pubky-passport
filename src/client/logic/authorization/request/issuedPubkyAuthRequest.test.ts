@@ -46,6 +46,17 @@ describe("IssuedPubkyAuthRequest", () => {
     expect(JSON.stringify(issued.value.review)).not.toContain("5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo");
   });
 
+  it("grants the same NFC capability path shown in the review", () => {
+    const request = REQUEST.replace("/pub/pubky.app/", "/pub/cafe\u0301/");
+    const issued = IssuedPubkyAuthRequest.issue(encodeURIComponent(request));
+    if (Result.isError(issued)) throw new Error(issued.error.code);
+
+    const approvalUrl = IssuedPubkyAuthRequest.validatedUrlForApproval(issued.value);
+    if (approvalUrl === undefined) throw new Error("Missing approval URL");
+    expect(issued.value.review.capabilities[0]?.path).toBe("/pub/café/");
+    expect(new URL(approvalUrl).searchParams.get("caps")).toContain("/pub/café/:rw");
+  });
+
   it.each([
     ["success", "https://pubky.app/success?token=private"],
     ["error", "https://pubky.app/error"],

@@ -158,19 +158,32 @@ export function parseEncodedPubkyAuthRequest(
     return Result.err(urls.error);
   }
 
-  const capabilities = parsePubkyAuthCapabilities(
-    authUrl.value.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.capabilities),
-  );
+  const requestedCapabilities = authUrl.value.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.capabilities);
+  if (requestedCapabilities === null) {
+    return error("missing_capabilities");
+  }
+
+  const capabilities = parsePubkyAuthCapabilities(requestedCapabilities);
   if (Result.isError(capabilities)) {
     return error(mapCapabilitiesError(capabilities.error));
   }
+
+  const normalizedCapabilities = requestedCapabilities.normalize("NFC");
+  const sensitivePubkyAuthUrl = normalizedCapabilities === requestedCapabilities
+    ? decoded.value
+    : replaceCapabilities(authUrl.value, normalizedCapabilities);
 
   return Result.ok({
     authenticationMethod: authenticationMethod.value,
     capabilities: capabilities.value,
     callbacks: Object.freeze({ ...urls.value }),
-    sensitivePubkyAuthUrl: decoded.value,
+    sensitivePubkyAuthUrl,
   });
+}
+
+function replaceCapabilities(authUrl: URL, capabilities: string): string {
+  authUrl.searchParams.set(PUBKY_AUTH_REQUEST_PARAMETERS.capabilities, capabilities);
+  return authUrl.toString();
 }
 
 function decodeDParam(d: string): ParseValueResult<string> {

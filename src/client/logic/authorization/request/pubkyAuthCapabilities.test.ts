@@ -102,6 +102,12 @@ describe("parsePubkyAuthCapabilities", () => {
     ]);
   });
 
+  it("normalizes capability paths to NFC before validation", () => {
+    expect(expectCapabilities("/pub/cafe\u0301/:r")).toEqual([
+      { path: "/pub/café/", read: true, write: false },
+    ]);
+  });
+
   it("bounds multibyte path segments by UTF-8 length", () => {
     expect(expectCapabilities(`/${"ü".repeat(127)}:r`)).toHaveLength(1);
     expectError(`/${"ü".repeat(128)}:r`, "invalid_capability_path");
@@ -143,6 +149,17 @@ describe("parsePubkyAuthCapabilities", () => {
     expectError("/pub/../app/:rw", "invalid_capability_path");
     expectError("/pub/app :rw", "invalid_capability_path");
     expectError("/pub/example.com/time:series:r", "unsupported_capability_actions");
+  });
+
+  it.each([
+    ["a bidi override", "\u202e"],
+    ["a bidi isolate", "\u2066"],
+    ["a zero-width space", "\u200b"],
+    ["a zero-width joiner", "\u200d"],
+    ["a soft hyphen", "\u00ad"],
+    ["a variation selector", "\ufe0f"],
+  ])("rejects capability paths containing %s", (_case, character) => {
+    expectError(`/pub/trusted${character}spoofed/:r`, "invalid_capability_path");
   });
 
   it("rejects missing or unsupported actions", () => {

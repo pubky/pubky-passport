@@ -28,18 +28,18 @@ function AuthorizationReview({ identity, onAuthorize, onCancel, onSwitch, phase,
     <PassportScreen>
       <div className="flex flex-1 flex-col gap-6">
         <DisplayHeading accent="request." aria-label="Review authorization request.">Review</DisplayHeading>
-        <PermissionList>
-          {review.capabilities.length === 0 ? (
-            <p className="text-sm font-medium text-muted-foreground">No data permissions requested.</p>
-          ) : review.capabilities.map((capability) => (
-            <PermissionRow access={formatAccess(capability)} key={`${capability.path}:${capability.read}:${capability.write}`} path={capability.path} />
-          ))}
-        </PermissionList>
         {hasBroadAccess ? (
           <p className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm font-medium leading-5 text-foreground" role="alert">
             This request includes broad access that is not limited to one app namespace.
           </p>
         ) : null}
+        <PermissionList>
+          {review.capabilities.length === 0 ? (
+            <p className="text-sm font-medium text-muted-foreground">No data permissions requested.</p>
+          ) : review.capabilities.map((capability, index) => (
+            <PermissionRow access={formatAccess(capability)} key={`${capability.path}:${capability.read}:${capability.write}:${index}`} path={capability.path} />
+          ))}
+        </PermissionList>
         <section className="flex flex-col gap-2" aria-labelledby="authorization-identity-heading">
           <div className="relative flex h-[72px] items-center gap-2 rounded-2xl bg-card p-4">
             {identity ? (

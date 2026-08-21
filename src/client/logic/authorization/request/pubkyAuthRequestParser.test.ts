@@ -68,6 +68,15 @@ describe("parseEncodedPubkyAuthRequest", () => {
     });
   });
 
+  it("uses the reviewed NFC capability path in the approval URL", () => {
+    const request = VALID_REQUEST.replace("/pub/pubky.app/", "/pub/cafe\u0301/");
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
+    if (Result.isError(result)) throw new Error(result.error.code);
+
+    expect(result.value.capabilities[0]?.path).toBe("/pub/café/");
+    expect(new URL(result.value.sensitivePubkyAuthUrl).searchParams.get("caps")).toBe("/pub/café/:rw");
+  });
+
   it("accepts a client-provided HTTPS relay", () => {
     const result = parseEncodedPubkyAuthRequest(encodeRequest(
       VALID_REQUEST.replace("https://httprelay.pubky.app/inbox", "https://relay.client.example/custom-inbox"),

@@ -144,6 +144,31 @@ describe("AuthorizationFlow", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/broad access/u);
   });
 
+  it("lists permissions in the requested order", async () => {
+    MOCKS.authorizationState = {
+      status: "review",
+      review: {
+        ...REVIEW,
+        capabilities: [
+          { path: "/pub/ordinary.app/", read: true, write: false, scope: "specific" },
+          { path: "/pub/", read: true, write: false, scope: "broad" },
+          { path: "/priv/vault/", read: false, write: true, scope: "specific" },
+          { path: "/", read: true, write: false, scope: "broad" },
+        ],
+      },
+    };
+
+    renderFlow();
+
+    const permissionSection = (await screen.findByRole("heading", { name: "Requested permissions" })).closest("section");
+    expect(Array.from(permissionSection?.querySelectorAll("bdi") ?? [], (path) => path.textContent)).toEqual([
+      "/pub/ordinary.app/",
+      "/pub/",
+      "/priv/vault/",
+      "/",
+    ]);
+  });
+
   it.each([
     [{ path: "/pub/app/", read: true, write: false, scope: "specific" as const }, /allow the requester to read your data/u],
     [{ path: "/pub/app/", read: false, write: true, scope: "specific" as const }, /allow the requester to create, change, and delete data/u],

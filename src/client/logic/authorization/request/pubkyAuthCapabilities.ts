@@ -32,7 +32,7 @@ export function parsePubkyAuthCapabilities(input: string | null | undefined): Pu
 
   if (input.length === 0) return Result.ok([]);
 
-  const rawCapabilities = input.split(",");
+  const rawCapabilities = input.split(",").map((capability) => capability.normalize("NFC"));
   if (rawCapabilities.length > PUBKY_AUTH_REQUEST_LIMITS.capabilityCount) {
     return error("too_many_capabilities");
   }
@@ -89,6 +89,9 @@ function parseCapability(input: string): CapabilityParseResult {
 
 function isValidCapabilityPath(path: string): boolean {
   if (!path.startsWith("/") || /[:,]/u.test(path)) {
+    return false;
+  }
+  if (/[\p{Bidi_Control}\p{Default_Ignorable_Code_Point}]/u.test(path)) {
     return false;
   }
   if (path === "/") return true;
