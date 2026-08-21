@@ -145,18 +145,6 @@ export class PubkySdkAdapter {
     }
   }
 
-  async getPublicIdentity(keyHandle: PubkyIdentityKeyHandle): Promise<PubkyIdentityKeysResult<PubkyPublicIdentity>> {
-    const keypair = this.keypairFor(keyHandle);
-    if (!keypair) {
-      return keyFailure("get_public_identity", "key_lookup", "key_unavailable");
-    }
-
-    const identity = publicIdentity("get_public_identity", keypair);
-    return Result.isError(identity)
-      ? keyFailure("get_public_identity", "sdk_public_identity", identity.error.code)
-      : identity;
-  }
-
   async signup(input: PubkySignupInput): Promise<PubkySessionAccessResult<PubkyIdentitySession>> {
     const keypair = this.keypairFor(input.keyHandle);
     if (!keypair) {
@@ -406,7 +394,6 @@ type PubkyOperation =
   | "dispose_adapter"
   | "dispose_identity_key"
   | "export_secret_key"
-  | "get_public_identity"
   | "publish_homeserver"
   | "resolve_homeserver"
   | "restore_identity_key"

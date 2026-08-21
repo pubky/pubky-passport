@@ -37,7 +37,7 @@ describe("LocalStorageIdentityRepository", () => {
         { ...second, secretKey: "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI" },
       ],
     });
-    expect(expectResultOk(reloadedRepository.readActive())).toEqual({
+    expect(expectResultOk(reloadedRepository.read(second.publicIdentity.publicKeyZ32))).toEqual({
       identity: second,
       secretKey: { bytes: new Uint8Array(32).fill(2), format: PUBKY_SECRET_KEY_FORMAT },
     });
@@ -54,7 +54,7 @@ describe("LocalStorageIdentityRepository", () => {
     const second = save(repository, SECOND_IDENTITY, 2);
 
     expectResultOk(repository.select(first.publicIdentity.publicKeyZ32));
-    expect(expectResultOk(repository.readActive()).identity).toEqual(first);
+    expect(expectResultOk(repository.list()).activePublicKeyZ32).toBe(first.publicIdentity.publicKeyZ32);
 
     const replacement = expectResultOk(repository.save(
       {
@@ -73,7 +73,7 @@ describe("LocalStorageIdentityRepository", () => {
       activePublicKeyZ32: FIRST_IDENTITY.publicKeyZ32,
       identities: [replacement, second],
     });
-    expect(expectResultOk(repository.readActive()).secretKey.bytes).toEqual(new Uint8Array(32).fill(3));
+    expect(expectResultOk(repository.read(FIRST_IDENTITY.publicKeyZ32)).secretKey.bytes).toEqual(new Uint8Array(32).fill(3));
   });
 
   it("rejects malformed persisted values", () => {
@@ -119,7 +119,7 @@ describe("LocalStorageIdentityRepository", () => {
       activePublicKeyZ32: identity.publicIdentity.publicKeyZ32,
       identities: [identity],
     });
-    expect(expectResultOk(repository.readActive())).toEqual({
+    expect(expectResultOk(repository.read(FIRST_IDENTITY.publicKeyZ32))).toEqual({
       identity,
       secretKey: { bytes: new Uint8Array(32).fill(1), format: PUBKY_SECRET_KEY_FORMAT },
     });

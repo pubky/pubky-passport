@@ -30,7 +30,6 @@ export type LocalIdentityErrorCode =
   | "invalid_identity"
   | "invalid_secret_key"
   | "invalid_store"
-  | "no_active_identity"
   | "storage_unavailable";
 
 export type LocalIdentityResult<Success> = ResultType<Success, { code: LocalIdentityErrorCode }>;
@@ -41,8 +40,8 @@ const LOCAL_IDENTITY_STORE_VERSION = 1;
 /**
  * Browser persistence boundary for local Pubky identities.
  *
- * Secret keys are stored unencrypted as canonical base64url. Only `read` and
- * `readActive` return decoded key material.
+ * Secret keys are stored unencrypted as canonical base64url. Only `read`
+ * returns decoded key material.
  */
 export class LocalStorageIdentityRepository {
   constructor(private storage: Storage | null = getLocalStorage()) {}
@@ -142,35 +141,6 @@ export class LocalStorageIdentityRepository {
       ? identities[0]?.publicIdentity.publicKeyZ32 ?? null
       : store.value.activePublicKeyZ32;
     return this.writeStore({ ...store.value, activePublicKeyZ32, identities });
-  }
-
-  /** Returns the active identity and a fresh secret-key buffer that the caller must clear. */
-  readActive(): LocalIdentityResult<{ identity: LocalIdentityMetadata; secretKey: PubkySecretKeyMaterial }> {
-    const store = this.readStore();
-    if (Result.isError(store)) {
-      return Result.err(store.error);
-    }
-
-    if (!store.value.activePublicKeyZ32) {
-      return failure("read_active", "no_active_identity");
-    }
-
-    const storedIdentity = store.value.identities.find(
-      (candidate) => candidate.publicIdentity.publicKeyZ32 === store.value.activePublicKeyZ32,
-    );
-    if (!storedIdentity) {
-      return failure("read_active", "no_active_identity");
-    }
-
-    const secretKey = decodeStoredSecretKey(storedIdentity.secretKey);
-    if (!secretKey) {
-      return localStoreFailure("read", "invalid_store");
-    }
-
-    return Result.ok({
-      identity: toMetadata(storedIdentity),
-      secretKey: { bytes: secretKey, format: PUBKY_SECRET_KEY_FORMAT },
-    });
   }
 
   /** Returns an identity and a fresh secret-key buffer that the caller must clear. */
@@ -316,11 +286,11 @@ function decodeStoredSecretKey(value: string): Uint8Array | undefined {
 }
 
 function failure<Success>(
-  operation: "save" | "select" | "remove" | "read_active" | "read_identity",
+  operation: "save" | "select" | "remove" | "read_identity",
   code: LocalIdentityErrorCode,
 ): LocalIdentityResult<Success> {
-  const expectedOutcome = code === "no_active_identity"
-    || ((operation === "select" || operation === "remove" || operation === "read_identity") && code === "invalid_identity");
+  const expectedOutcome = (operation === "select" || operation === "remove" || operation === "read_identity")
+    && code === "invalid_identity";
   LOGGER[expectedOutcome ? "info" : "warn"]("identity.local_store.failed", { operation, code });
   return Result.err({ code });
 }

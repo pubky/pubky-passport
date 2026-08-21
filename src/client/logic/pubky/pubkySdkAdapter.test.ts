@@ -62,16 +62,14 @@ describe("PubkySdkAdapter", () => {
     expect(Result.isError(rejected) && rejected.error).toEqual({ code: "invalid_capability" });
   });
 
-  it("creates an opaque key handle and derives public identity", async () => {
+  it("creates an opaque key handle and public identity", async () => {
     const pubky = new PubkySdkAdapter();
 
     try {
       const created = expectOk(await pubky.createIdentityKey());
-      const identity = expectOk(await pubky.getPublicIdentity(created.keyHandle));
 
-      expect(identity).toEqual(created.publicIdentity);
-      expect(identity.publicKeyZ32).toMatch(/^[13456789abcdefghijkmnopqrstuwxyz]+$/);
-      expect(identity.publicKeyDisplay).toBe(`pubky${identity.publicKeyZ32}`);
+      expect(created.publicIdentity.publicKeyZ32).toMatch(/^[13456789abcdefghijkmnopqrstuwxyz]+$/);
+      expect(created.publicIdentity.publicKeyDisplay).toBe(`pubky${created.publicIdentity.publicKeyZ32}`);
     } finally {
       pubky.dispose();
     }
@@ -160,7 +158,6 @@ describe("PubkySdkAdapter", () => {
     const keyHandle = {} as PubkyIdentityKeyHandle;
 
     try {
-      await expectError(pubky.getPublicIdentity(keyHandle), "key_unavailable");
       await expectError(pubky.exportSecretKey(keyHandle), "key_unavailable");
       await expectError(pubky.signup({ keyHandle, homeserverPubky: "not used" }), "key_unavailable");
       await expectError(pubky.publishHomeserver({ keyHandle }), "key_unavailable");
@@ -391,7 +388,7 @@ describe("PubkySdkAdapter", () => {
     pubky.dispose();
     pubky.dispose();
 
-    await expectError(pubky.getPublicIdentity(created.keyHandle), "key_unavailable");
+    await expectError(pubky.exportSecretKey(created.keyHandle), "key_unavailable");
     await expectError(pubky.createIdentityKey(), "key_unavailable");
   });
 
@@ -405,7 +402,7 @@ describe("PubkySdkAdapter", () => {
 
     free.mockImplementationOnce(() => { throw new Error("SECRET-KEY-CANARY"); });
     expect(() => pubky.disposeIdentityKey(individuallyDisposed.keyHandle)).not.toThrow();
-    await expectError(pubky.getPublicIdentity(individuallyDisposed.keyHandle), "key_unavailable");
+    await expectError(pubky.exportSecretKey(individuallyDisposed.keyHandle), "key_unavailable");
 
     free.mockImplementationOnce(() => { throw new Error("free failed"); });
     expect(() => pubky.dispose()).not.toThrow();
@@ -421,8 +418,8 @@ describe("PubkySdkAdapter", () => {
       code: "cleanup_failed",
     });
     expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-KEY-CANARY");
-    await expectError(pubky.getPublicIdentity(firstBulkHandle), "key_unavailable");
-    await expectError(pubky.getPublicIdentity(secondBulkHandle), "key_unavailable");
+    await expectError(pubky.exportSecretKey(firstBulkHandle), "key_unavailable");
+    await expectError(pubky.exportSecretKey(secondBulkHandle), "key_unavailable");
   });
 });
 
