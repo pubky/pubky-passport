@@ -33,12 +33,10 @@ type ControllerOverrides = {
     outcome: AuthorizationOutcome,
     signal: AbortSignal,
   ) => Promise<boolean>;
-  now: () => number;
 };
 
 type EntryOptions = {
   callbacks?: boolean;
-  expiresAt?: number;
   status?: "valid" | "invalid" | "empty" | "expired";
 };
 
@@ -94,7 +92,6 @@ describe("PassportAuthorizationController", () => {
     expect(MOCKS.approveAuthorization).toHaveBeenCalledWith(
       capturedRequest,
       SELECTED_IDENTITY,
-      expect.any(Number),
     );
     completeApproval?.();
 
@@ -244,29 +241,16 @@ describe("PassportAuthorizationController", () => {
     expect(controller.getState()).toEqual({ status: viewStatus });
   });
 
-  it("expires a request while it is waiting for review", () => {
+  it("keeps a request live while the user completes onboarding", () => {
     vi.useFakeTimers();
-    const expiresAt = Date.now() + 1_000;
-    const { controller, entry } = createController({}, { expiresAt });
+    const { controller, entry } = createController();
     if (entry.status !== "valid") throw new Error("Expected a valid entry");
 
-    vi.advanceTimersByTime(1_000);
+    vi.advanceTimersByTime(24 * 60 * 60_000);
 
-    expect(controller.getState()).toEqual({ status: "invalid" });
-    expect(IssuedPubkyAuthRequest.isLive(entry.request)).toBe(false);
-  });
-
-  it("checks the deadline when a throttled expiration timer has not run", async () => {
-    let now = 0;
-    const { controller } = createController(
-      { now: () => now },
-      { expiresAt: 1_000 },
-    );
-
-    now = 1_001;
-
-    await expect(controller.approve(SELECTED_IDENTITY)).resolves.toEqual({ status: "invalid" });
-    expect(MOCKS.approveAuthorization).not.toHaveBeenCalled();
+    expect(controller.getState().status).toBe("review");
+    expect(IssuedPubkyAuthRequest.isLive(entry.request)).toBe(true);
+    controller.dispose();
   });
 });
 
@@ -280,8 +264,6 @@ function createController(
   if (overrides.handoffOutcome) {
     MOCKS.handoffAuthorizationOutcome.mockImplementation(overrides.handoffOutcome);
   }
-  if (overrides.now) vi.spyOn(Date, "now").mockImplementation(overrides.now);
-
   const entry = createEntry(entryOptions);
   return {
     controller: new PassportAuthorizationController(window, entry),
@@ -299,7 +281,6 @@ function createEntry(options: EntryOptions): AuthorizationEntry {
       return {
         status: "valid",
         request: issued.value,
-        expiresAt: options.expiresAt ?? Date.now() + 60_000,
       };
     }
     case "invalid":

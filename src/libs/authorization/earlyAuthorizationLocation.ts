@@ -23,6 +23,8 @@ export const EARLY_AUTHORIZATION_LOCATION_SCRIPT = `(() => {
   try {
     History.prototype.replaceState.call(history, null, "", location.pathname);
   } catch {
+    try { stop(); } catch {}
+    try { location.replace(location.pathname); } catch {}
     return;
   }
 

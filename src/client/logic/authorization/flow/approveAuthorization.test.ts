@@ -70,7 +70,7 @@ describe("approveAuthorization", () => {
   it("approves with the selected identity and disposes key resources", async () => {
     const request = issuedRequest();
 
-    const result = await approveAuthorization(request, SELECTED_IDENTITY, Date.now() + 60_000);
+    const result = await approveAuthorization(request, SELECTED_IDENTITY);
 
     expect(Result.isOk(result)).toBe(true);
     expect(MOCKS.readIdentity).toHaveBeenCalledWith(SELECTED_IDENTITY);
@@ -88,7 +88,7 @@ describe("approveAuthorization", () => {
       secretKey,
     }));
 
-    const result = await approveAuthorization(issuedRequest(), SELECTED_IDENTITY, Date.now() + 60_000);
+    const result = await approveAuthorization(issuedRequest(), SELECTED_IDENTITY);
 
     expect(Result.isError(result)).toBe(true);
     expect(MOCKS.restoreIdentityKey).not.toHaveBeenCalled();
@@ -102,7 +102,7 @@ describe("approveAuthorization", () => {
       publicIdentity: OTHER_PUBLIC_IDENTITY,
     }));
 
-    const result = await approveAuthorization(issuedRequest(), SELECTED_IDENTITY, Date.now() + 60_000);
+    const result = await approveAuthorization(issuedRequest(), SELECTED_IDENTITY);
 
     expect(Result.isError(result)).toBe(true);
     expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
@@ -113,7 +113,7 @@ describe("approveAuthorization", () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     MOCKS.approveAuthRequest.mockRejectedValueOnce(new Error("approval exploded"));
 
-    const result = await approveAuthorization(issuedRequest(), SELECTED_IDENTITY, Date.now() + 60_000);
+    const result = await approveAuthorization(issuedRequest(), SELECTED_IDENTITY);
 
     expect(Result.isError(result)).toBe(true);
     expect(warning).toHaveBeenCalledWith("authorize.approval.failed", {
@@ -124,25 +124,22 @@ describe("approveAuthorization", () => {
     expect(MOCKS.dispose).toHaveBeenCalledOnce();
   });
 
-  it("does not approve when identity restoration finishes after the deadline", async () => {
-    let now = 0;
+  it("allows identity restoration to take as long as the user needs", async () => {
     let continueRestoration: () => void = () => undefined;
     const restorationGate = new Promise<void>((resolve) => {
       continueRestoration = resolve;
     });
-    vi.spyOn(Date, "now").mockImplementation(() => now);
     MOCKS.restoreIdentityKey.mockImplementationOnce(async () => {
       await restorationGate;
       return Result.ok({ keyHandle: KEY_HANDLE, publicIdentity: PUBLIC_IDENTITY });
     });
-    const approval = approveAuthorization(issuedRequest(), SELECTED_IDENTITY, 1_000);
+    const approval = approveAuthorization(issuedRequest(), SELECTED_IDENTITY);
     await vi.waitFor(() => expect(MOCKS.restoreIdentityKey).toHaveBeenCalledOnce());
 
-    now = 1_000;
     continueRestoration();
 
-    expect(Result.isError(await approval)).toBe(true);
-    expect(MOCKS.approveAuthRequest).not.toHaveBeenCalled();
+    expect(Result.isOk(await approval)).toBe(true);
+    expect(MOCKS.approveAuthRequest).toHaveBeenCalledWith(KEY_HANDLE, expect.anything());
     expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
   });
 });

@@ -33,7 +33,6 @@ type RestoreLocalIdentityErrorCode =
 export async function approveAuthorization(
   request: IssuedPubkyAuthRequest,
   publicKeyZ32: string,
-  expiresAt: number,
 ): Promise<ApproveAuthorizationResult> {
   let pubky: PubkySdkAdapter;
   try {
@@ -53,8 +52,6 @@ export async function approveAuthorization(
     if (Result.isError(restored)) return Result.err({ code: "approval_failed" });
 
     keyHandle = restored.value.keyHandle;
-    if (Date.now() >= expiresAt) return Result.err({ code: "approval_failed" });
-
     stage = "sdk_approve";
     const approved = await pubky.approveAuthRequest(keyHandle, request);
     return Result.isError(approved)

@@ -7,7 +7,7 @@ import { LOGGER } from "../../../../libs/logger/logger";
 import { IssuedPubkyAuthRequest } from "../request/IssuedPubkyAuthRequest";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "../request/pubkyAuthRequestLimits";
 import {
-  expireAuthorizationEntry,
+  invalidateAuthorizationEntry,
   readAndScrubAuthorizationEntry,
   scrubAuthorizationLocation,
 } from "./authorizationEntry";
@@ -89,12 +89,12 @@ describe("authorizationEntry", () => {
     }
   });
 
-  it("invalidates approval provenance when an entry expires", () => {
+  it("invalidates approval provenance when an entry is abandoned", () => {
     setAuthorizationUrl(validRequest());
     const entry = readAndScrubAuthorizationEntry(window);
     if (entry.status !== "valid") throw new Error("Expected a valid authorization entry");
 
-    expect(expireAuthorizationEntry(entry)).toEqual({ status: "expired" });
+    expect(invalidateAuthorizationEntry(entry)).toEqual({ status: "invalid" });
 
     expect(IssuedPubkyAuthRequest.isLive(entry.request)).toBe(false);
   });
@@ -171,6 +171,31 @@ describe("authorizationEntry", () => {
 
     expect(window.history.state).toBeNull();
     expect(window.location.hash).toBe("");
+  });
+
+  it("stops loading and abandons the request when native scrubbing fails", () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const stop = vi.fn();
+    const replace = vi.fn();
+    const appWindow = {
+      History: { prototype: { replaceState() { throw new Error("unavailable"); } } },
+      history: {},
+      location: {
+        hash: `#d=${encodeURIComponent(validRequest())}`,
+        pathname: "/authorize",
+        replace,
+        search: "",
+      },
+      stop,
+    } as unknown as Window;
+
+    expect(readAndScrubAuthorizationEntry(appWindow)).toEqual({ status: "invalid" });
+    expect(stop).toHaveBeenCalledOnce();
+    expect(replace).toHaveBeenCalledWith("/authorize");
+    expect(warning).toHaveBeenCalledWith("authorize.entry.failed", {
+      operation: "scrub_fragment",
+      code: "history_unavailable",
+    });
   });
 
 });

@@ -3,7 +3,6 @@ import "client-only";
 import { Result } from "better-result";
 
 import {
-  EARLY_AUTHORIZATION_LOCATION_LIFETIME_MS,
   EARLY_AUTHORIZATION_LOCATION_PROPERTY,
   type EarlyAuthorizationLocation,
 } from "../../../../libs/authorization/earlyAuthorizationLocation";
@@ -15,7 +14,6 @@ export type AuthorizationEntry =
   | {
     status: "valid";
     request: IssuedPubkyAuthRequest;
-    expiresAt: number;
   }
   | { status: "empty" }
   | { status: "expired" }
@@ -31,7 +29,7 @@ export function readAndScrubAuthorizationEntry(
   const earlyLocation = takeEarlyAuthorizationLocation(appWindow);
   const rawSearch = earlyLocation?.status === "captured" ? "" : appWindow.location.search;
   const rawHash = earlyLocation?.status === "captured" ? earlyLocation.hash : appWindow.location.hash;
-  scrubAuthorizationLocation(appWindow);
+  if (!scrubAuthorizationLocation(appWindow)) return { status: "invalid" };
 
   if (earlyLocation?.status === "expired") {
     return { status: "expired" };
@@ -64,9 +62,6 @@ export function readAndScrubAuthorizationEntry(
     : {
       status: "valid",
       request: issued.value,
-      expiresAt: earlyLocation?.status === "captured"
-        ? earlyLocation.expiresAt
-        : Date.now() + EARLY_AUTHORIZATION_LOCATION_LIFETIME_MS,
     };
 }
 
@@ -118,26 +113,31 @@ function extractAuthorizationFragmentValue(
   return value === undefined ? { valid: true } : { valid: true, value };
 }
 
-/** Removes authorization query and fragment data using the native History API. */
+/** Removes authorization data, navigating away without it when native scrubbing fails. */
 export function scrubAuthorizationLocation(
   appWindow: Window,
   options: { preserveSanitizedHistoryState?: boolean } = {},
-): void {
+): boolean {
   // Avoid framework-patched history methods while scrubbing before React commits.
-  const HistoryConstructor = (appWindow as Window & { History: typeof History }).History;
   try {
+    const HistoryConstructor = (appWindow as Window & { History: typeof History }).History;
     HistoryConstructor.prototype.replaceState.call(
       appWindow.history,
       options.preserveSanitizedHistoryState ? safeHistoryState(appWindow) : null,
       "",
       appWindow.location.pathname,
     );
+    return true;
   } catch {
     LOGGER.warn("authorize.entry.failed", {
       operation: "scrub_fragment",
       code: "history_unavailable",
     });
-    throw new Error("Authorization entry could not be scrubbed.");
+    try { appWindow.stop(); } catch { /* Loading may already have stopped. */ }
+    try { appWindow.location.replace(appWindow.location.pathname); } catch {
+      /* Clean navigation is best effort when both native location APIs fail. */
+    }
+    return false;
   }
 }
 
@@ -162,8 +162,8 @@ function safeHistoryState(appWindow: Window): unknown {
   }
 }
 
-/** Invalidates private approval metadata when an unconsumed entry expires. */
-export function expireAuthorizationEntry(entry: AuthorizationEntry): AuthorizationEntry {
+/** Invalidates private approval metadata when an entry must be abandoned. */
+export function invalidateAuthorizationEntry(entry: AuthorizationEntry): AuthorizationEntry {
   if (entry.status === "valid") IssuedPubkyAuthRequest.release(entry.request);
-  return { status: "expired" };
+  return { status: "invalid" };
 }

@@ -97,7 +97,7 @@ export class IssuedPubkyAuthRequest {
     }
   }
 
-  /** Releases private metadata when the request expires or is abandoned. */
+  /** Releases private metadata when the request completes or is abandoned. */
   static release(request: IssuedPubkyAuthRequest): void {
     REQUEST_METADATA.delete(request);
   }

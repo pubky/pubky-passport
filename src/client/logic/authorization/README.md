@@ -5,7 +5,7 @@ This feature handles one Pubky Auth request through a linear flow:
 1. Capture and scrub the request fragment before hydration.
 2. Parse it into safe review data plus an opaque issued request.
 3. Review it with one explicitly selected local identity.
-4. Approve or cancel before the fixed request deadline.
+4. Approve or cancel after any required identity onboarding.
 5. Complete the validated callback or show a local terminal state.
 
 ## UI API
@@ -29,11 +29,11 @@ Authorize, even if another tab changes the active identity meanwhile.
 Within those boundaries:
 
 - `entry/authorizationEntryBootstrap.ts` retains the pre-hydration entry until the
-  controller takes it or its deadline expires.
+  controller takes it.
 - `entry/authorizationEntry.ts` consumes and scrubs browser input, then issues a request.
 - `request/IssuedPubkyAuthRequest.ts` owns safe review data and private request metadata.
-- `flow/PassportAuthorizationController.ts` owns the request deadline, abandonment,
-  and finite state flow.
+- `flow/PassportAuthorizationController.ts` owns request abandonment and the finite
+  state flow.
 - `flow/approveAuthorization.ts` owns selected-key restoration, SDK approval, and
   key-resource cleanup.
 - `flow/authorizationOutcomeHandoff.ts` tries acknowledged popup handoff, then falls
@@ -47,10 +47,9 @@ are stateless and keep protocol validation separate from browser and SDK lifecyc
 
 - The raw authorization URL, secret, and complete callbacks never enter UI state.
 - Only the exact live `IssuedPubkyAuthRequest` can retrieve approval data.
-- Review expires at the original entry deadline, including after hydration, and the
-  deadline is checked again immediately before SDK approval.
+- Review remains live while the user signs up, restores, or selects an identity.
 - Approval uses the exact public key passed from the rendered identity review.
-- Private request data is released after an outcome is selected or review expires.
+- Private request data is released after an outcome is selected or review is abandoned.
 - Success, error, and cancellation use only their validated callback.
 - Fragment capture and native History API scrubbing happen before hydration.
 
