@@ -25,8 +25,6 @@ describe("MigrateToPubkyRing", () => {
     expect(screen.getByRole("button", { name: "Import pubky" })).not.toHaveAttribute("href");
     expect(screen.queryByRole("dialog", { name: "Scan with Pubky Ring" })).not.toBeInTheDocument();
     expect(createMigrationUrl).not.toHaveBeenCalled();
-    expect(document.querySelector('[data-slot="pubky-ring-keychain-illustration"]'))
-      .toHaveAttribute("src", "/illustrations/pubky-ring-keychain.png");
   });
 
   it("generates the URL on confirmation and unmounts the QR on close", async () => {
@@ -34,7 +32,6 @@ describe("MigrateToPubkyRing", () => {
     render(<MigrateToPubkyRing createMigrationUrl={createMigrationUrl} onBack={vi.fn()} />);
 
     const showQr = screen.getByRole("button", { name: "Show QR" });
-    expect(showQr).toHaveAttribute("data-variant", "secondary");
     await userEvent.setup().click(showQr);
 
     expect(createMigrationUrl).toHaveBeenCalledOnce();

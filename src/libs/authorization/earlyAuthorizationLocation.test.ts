@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   EARLY_AUTHORIZATION_LOCATION_LIFETIME_MS,
+  EARLY_AUTHORIZATION_LOCATION_MAX_CHARACTERS,
   EARLY_AUTHORIZATION_LOCATION_PROPERTY,
   EARLY_AUTHORIZATION_LOCATION_SCRIPT,
 } from "./earlyAuthorizationLocation";
@@ -35,6 +36,25 @@ describe("early authorization location bootstrap", () => {
     const captured = take();
     expect(captured).toEqual({ status: "invalid_search" });
     expect(JSON.stringify(captured)).not.toContain("canary");
+  });
+
+  it("captures the fragment size limit and rejects limit plus one without retaining it", () => {
+    const canary = "secret-canary";
+    const atLimit = `#${"a".repeat(EARLY_AUTHORIZATION_LOCATION_MAX_CHARACTERS - canary.length - 1)}${canary}`;
+    const accepted = createContext("", atLimit);
+    runInNewContext(EARLY_AUTHORIZATION_LOCATION_SCRIPT, accepted);
+    const takeAccepted = accepted[EARLY_AUTHORIZATION_LOCATION_PROPERTY];
+    if (typeof takeAccepted !== "function") throw new Error("Expected authorization capture");
+    expect(takeAccepted()).toMatchObject({ status: "captured", hash: atLimit });
+
+    const overLimit = `${atLimit}x`;
+    const rejected = createContext("", overLimit);
+    runInNewContext(EARLY_AUTHORIZATION_LOCATION_SCRIPT, rejected);
+    const takeRejected = rejected[EARLY_AUTHORIZATION_LOCATION_PROPERTY];
+    if (typeof takeRejected !== "function") throw new Error("Expected oversized marker");
+    const result = takeRejected();
+    expect(result).toEqual({ status: "too_large" });
+    expect(JSON.stringify(result)).not.toContain(canary);
   });
 
   it("discards an unconsumed capture and returns an expired marker", async () => {

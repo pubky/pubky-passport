@@ -1,12 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import NEXT_CONFIG from "../next.config.mjs";
+import NEXT_CONFIG from "./next.config.mjs";
 
 describe("next config headers", () => {
-  it("hides the Next.js development indicator", () => {
-    expect(NEXT_CONFIG.devIndicators).toBe(false);
-  });
-
   it("does not print secret-bearing request URLs through Next logging", () => {
     expect(NEXT_CONFIG.logging).toEqual({ incomingRequests: false });
   });

@@ -41,8 +41,8 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Unit tests
-        run: pnpm test:run
+      - name: Unit tests and coverage
+        run: pnpm test:coverage
 
   browser:
     runs-on: ubuntu-latest

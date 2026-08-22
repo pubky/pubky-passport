@@ -47,4 +47,19 @@ describe("ManualAuthorization", () => {
     expect(screen.getByLabelText("Authorization link")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
   });
+
+  it.each([
+    ["invalid", "Enter a valid pubkyauth:// authorization link."],
+    ["navigation_failed", "Could not open the authorization request. Try again."],
+  ] as const)("shows the %s submission error", async (result, message) => {
+    vi.mocked(submitManualAuthorizationInput).mockReturnValueOnce(result);
+    render(<ManualAuthorization onBack={vi.fn()} />);
+
+    await userEvent.setup().type(screen.getByLabelText("Authorization link"), "invalid request");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(message);
+    expect(screen.getByLabelText("Authorization link")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Authorization link")).toHaveValue("");
+  });
 });

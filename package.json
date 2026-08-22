@@ -14,20 +14,12 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:staging:pubky": "vitest run --config vitest.staging.config.ts",
     "test:e2e": "pnpm build && pnpm test:e2e:run",
     "test:e2e:run": "playwright test",
-    "check": "pnpm lint && pnpm typecheck && pnpm test:run && pnpm build",
+    "check": "pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build",
     "check:critical": "pnpm audit --prod && pnpm check && pnpm test:e2e:run"
-  },
-  "pnpm": {
-    "overrides": {
-      "minimatch@3>brace-expansion": "^5.0.8",
-      "next>postcss": "^8.5.18",
-      "next>sharp": "^0.35.0",
-      "postcss>nanoid": "^3.3.18",
-      "vite>esbuild": "^0.28.1"
-    }
   },
   "dependencies": {
     "@fontsource-variable/inter-tight": "^5.3.0",
@@ -55,6 +47,7 @@
     "@types/node": "24",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.12",
     "jsdom": "^30.0.0",

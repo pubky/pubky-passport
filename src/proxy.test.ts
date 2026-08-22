@@ -3,10 +3,10 @@ import { NextRequest } from "next/server";
 import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { EARLY_AUTHORIZATION_LOCATION_SCRIPT } from "../src/libs/authorization/earlyAuthorizationLocation";
-import { EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT } from "../src/libs/authorization/earlyGoogleImplicitResponse";
-import { LOGGER } from "../src/libs/logger/logger";
-import { config, proxy } from "../src/proxy";
+import { EARLY_AUTHORIZATION_LOCATION_SCRIPT } from "./libs/authorization/earlyAuthorizationLocation";
+import { EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT } from "./libs/authorization/earlyGoogleImplicitResponse";
+import { LOGGER } from "./libs/logger/logger";
+import { config, proxy } from "./proxy";
 
 describe("request CSP proxy", () => {
   beforeEach(() => {
