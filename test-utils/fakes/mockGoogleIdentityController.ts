@@ -7,7 +7,7 @@ export function mockGoogleIdentityController(
   overrides: Partial<GoogleIdentityController> = {},
 ): GoogleIdentityController {
   return {
-    clearPinnedGoogleAccount: overrides.clearPinnedGoogleAccount ?? vi.fn(),
+    clearPinnedGoogleSubject: overrides.clearPinnedGoogleSubject ?? vi.fn(),
     establishIdentity: overrides.establishIdentity
       ?? vi.fn(async () => Result.err({ code: "authorization_failed" as const })),
     detachIdentity: overrides.detachIdentity

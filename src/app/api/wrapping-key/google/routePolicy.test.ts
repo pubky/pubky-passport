@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
 
 import { expectAsyncResultError } from "../../../../../test-utils/resultAssertions";
-import { parseGoogleWrappingKeyRequest } from "./routePolicy";
+import { parseGoogleIdTokenRequest } from "./routePolicy";
 
 describe("Google wrapping-key route policy", () => {
   it("accepts an exact non-empty field with JSON parameters", async () => {
-    const result = await parseGoogleWrappingKeyRequest(
+    const result = await parseGoogleIdTokenRequest(
       jsonRequest({ googleIdToken: "id-token" }, "application/json; charset=utf-8"),
     );
 
@@ -26,21 +26,21 @@ describe("Google wrapping-key route policy", () => {
     ["application/json", null],
   ])("rejects invalid request shape", async (contentType, body) => {
     await expectAsyncResultError(
-      parseGoogleWrappingKeyRequest(jsonRequest(body, contentType)),
+      parseGoogleIdTokenRequest(jsonRequest(body, contentType)),
       "invalid_request",
     );
   });
 
   it("rejects malformed JSON", async () => {
     await expectAsyncResultError(
-      parseGoogleWrappingKeyRequest(requestWithBody("not json")),
+      parseGoogleIdTokenRequest(requestWithBody("not json")),
       "invalid_request",
     );
   });
 
   it("rejects oversized bodies before parsing", async () => {
     await expectAsyncResultError(
-      parseGoogleWrappingKeyRequest(requestWithBody("{}", {
+      parseGoogleIdTokenRequest(requestWithBody("{}", {
         "Content-Type": "application/json",
         "Content-Length": String(16 * 1024 + 1),
       })),

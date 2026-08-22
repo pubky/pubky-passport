@@ -46,8 +46,8 @@ describe("PubkySdkAdapter", () => {
   });
 
   it("keeps the capability path bound aligned with the SDK", () => {
-    const atLimit = capabilityPath(PUBKY_AUTH_REQUEST_LIMITS.capabilityPathLength);
-    const overLimit = capabilityPath(PUBKY_AUTH_REQUEST_LIMITS.capabilityPathLength + 1);
+    const atLimit = capabilityPath(PUBKY_AUTH_REQUEST_LIMITS.maximumCapabilityPathUtf8Bytes);
+    const overLimit = capabilityPath(PUBKY_AUTH_REQUEST_LIMITS.maximumCapabilityPathUtf8Bytes + 1);
 
     expect(() => validateCapabilities(`${atLimit}:r`)).not.toThrow();
     expect(() => validateCapabilities(`${overLimit}:r`)).toThrow();
@@ -182,10 +182,10 @@ describe("PubkySdkAdapter", () => {
     try {
       const created = expectOk(await pubky.createIdentityKey());
       const signup = await pubky.signup({ keyHandle: created.keyHandle, homeserverPubky: "not a public key", signupCode: "sensitive-signup-code" });
-      const discovery = await pubky.publishHomeserver({ keyHandle: created.keyHandle, homeserverPubky: "not a public key" });
+      const publication = await pubky.publishHomeserver({ keyHandle: created.keyHandle, homeserverPubky: "not a public key" });
 
       expectErrorResult(signup, "invalid_homeserver_pubky");
-      expectErrorResult(discovery, "invalid_homeserver_pubky");
+      expectErrorResult(publication, "invalid_homeserver_pubky");
       expect(JSON.stringify(signup)).not.toContain("sensitive-signup-code");
       expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
         operation: "signup",

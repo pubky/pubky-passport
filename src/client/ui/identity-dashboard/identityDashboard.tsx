@@ -8,13 +8,13 @@ import type { LocalIdentityCatalog, LocalIdentityMetadata } from "../../logic/lo
 import type { GoogleIdentityConfiguration } from "../../logic/google-identity/GoogleIdentityController";
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
-import { SignInFlow } from "../onboarding/signInFlow";
+import { IdentityEstablishmentFlow } from "../onboarding/identityEstablishmentFlow";
 import { RotateCcwIcon } from "../shared/actionIcons";
 import { ButtonLink } from "../shared/primitives/button";
 import { Spinner } from "../shared/primitives/spinner";
 import { IdentityManagement } from "./management/identityManagement";
 import { DetachFromGoogleFlow } from "./management/detach-from-google/detachFromGoogleFlow";
-import { EncryptedBackup } from "./management/encrypted-backup/encryptedBackup";
+import { RecoveryFileDownload } from "./management/recovery-file/recoveryFileDownload";
 import { MigrateToPubkyRing } from "./management/migrate-to-pubky-ring/migrateToPubkyRing";
 import { IdentityOverview } from "./overview/identityOverview";
 
@@ -23,7 +23,7 @@ type IdentityDashboardView =
   | { view: "overview" }
   | { view: "select-identity" }
   | { view: "manage-identity"; publicKeyZ32: string }
-  | { view: "encrypted-backup"; publicKeyZ32: string }
+  | { view: "recovery-file"; publicKeyZ32: string }
   | { view: "migrate-to-pubky-ring"; publicKeyZ32: string }
   | { view: "detach-from-google"; identity: LocalIdentityMetadata };
 
@@ -31,10 +31,10 @@ function IdentityDashboard({ googleClientId, homegateBaseUrl }: {
   googleClientId: string;
   homegateBaseUrl: string;
 }) {
-  const session = useIdentityCatalog();
+  const identityCatalogState = useIdentityCatalog();
   const googleIdentityConfiguration = { googleClientId, homegateBaseUrl };
 
-  switch (session.status) {
+  switch (identityCatalogState.status) {
     case "loading":
       return <main aria-label="Checking login state" className="grid min-h-[calc(100svh-84px)] place-items-center"><Spinner /></main>;
     case "unavailable":
@@ -48,19 +48,19 @@ function IdentityDashboard({ googleClientId, homegateBaseUrl }: {
       );
     case "ready":
       return <ReadyIdentityDashboard
-        catalog={session.catalog}
-        localIdentityController={session.localIdentityController}
+        catalog={identityCatalogState.catalog}
+        localIdentityController={identityCatalogState.localIdentityController}
         googleIdentityConfiguration={googleIdentityConfiguration}
-        onIdentitiesChanged={session.reloadIdentities}
+        refreshIdentityCatalog={identityCatalogState.refreshIdentityCatalog}
       />;
   }
 }
 
-function ReadyIdentityDashboard({ catalog, localIdentityController, googleIdentityConfiguration, onIdentitiesChanged }: {
+function ReadyIdentityDashboard({ catalog, localIdentityController, googleIdentityConfiguration, refreshIdentityCatalog }: {
   catalog: LocalIdentityCatalog;
   localIdentityController: LocalIdentityController;
   googleIdentityConfiguration: GoogleIdentityConfiguration;
-  onIdentitiesChanged: () => void;
+  refreshIdentityCatalog: () => void;
 }) {
   const [navigation, setNavigation] = useState<IdentityDashboardView>(() => (
     catalog.identities.length === 0 ? { view: "onboarding" } : { view: "overview" }
@@ -72,10 +72,10 @@ function ReadyIdentityDashboard({ catalog, localIdentityController, googleIdenti
 
   switch (state.view) {
     case "onboarding":
-      return <SignInFlow
+      return <IdentityEstablishmentFlow
         googleIdentityConfiguration={googleIdentityConfiguration}
         onComplete={() => {
-          onIdentitiesChanged();
+          refreshIdentityCatalog();
           setNavigation({ view: "overview" });
         }}
       />;
@@ -85,7 +85,7 @@ function ReadyIdentityDashboard({ catalog, localIdentityController, googleIdenti
         googleIdentityConfiguration={googleIdentityConfiguration}
         onBack={() => setNavigation({ view: "overview" })}
         onIdentitySelected={() => {
-          onIdentitiesChanged();
+          refreshIdentityCatalog();
           setNavigation({ view: "overview" });
         }}
         selectIdentity={(publicKeyZ32) => Result.isOk(localIdentityController.selectIdentity(publicKeyZ32))}
@@ -100,11 +100,11 @@ function ReadyIdentityDashboard({ catalog, localIdentityController, googleIdenti
         identity={identity}
         onBack={() => setNavigation({ view: "overview" })}
         onDetachFromGoogle={() => setNavigation({ view: "detach-from-google", identity })}
-        onDownloadBackup={() => setNavigation({ view: "encrypted-backup", publicKeyZ32 })}
-        onLogOut={() => {
+        onDownloadRecoveryFile={() => setNavigation({ view: "recovery-file", publicKeyZ32 })}
+        onRemoveLocalIdentity={() => {
           const removed = localIdentityController.removeIdentity(publicKeyZ32);
           if (Result.isOk(removed)) {
-            onIdentitiesChanged();
+            refreshIdentityCatalog();
             setNavigation({ view: "overview" });
           }
         }}
@@ -117,9 +117,9 @@ function ReadyIdentityDashboard({ catalog, localIdentityController, googleIdenti
         resolveHomeserver={localIdentityController.resolveHomeserver}
       />;
     }
-    case "encrypted-backup":
-      return <EncryptedBackup
-        createBackup={localIdentityController.createEncryptedBackup}
+    case "recovery-file":
+      return <RecoveryFileDownload
+        createRecoveryFile={localIdentityController.createRecoveryFile}
         publicKeyZ32={state.publicKeyZ32}
         onBack={() => setNavigation({ view: "manage-identity", publicKeyZ32: state.publicKeyZ32 })}
       />;
@@ -133,7 +133,7 @@ function ReadyIdentityDashboard({ catalog, localIdentityController, googleIdenti
       />;
     case "detach-from-google":
       return <DetachFromGoogleFlow
-        createBackup={localIdentityController.createEncryptedBackup}
+        createRecoveryFile={localIdentityController.createRecoveryFile}
         createMigrationUrl={() => {
           // Detachment must back up the same identity that it will remove.
           const migration = localIdentityController.createPubkyRingMigrationUrl(
@@ -148,7 +148,7 @@ function ReadyIdentityDashboard({ catalog, localIdentityController, googleIdenti
           publicKeyZ32: state.identity.publicIdentity.publicKeyZ32,
         })}
         onDone={() => {
-          onIdentitiesChanged();
+          refreshIdentityCatalog();
           setNavigation({ view: "overview" });
         }}
       />;

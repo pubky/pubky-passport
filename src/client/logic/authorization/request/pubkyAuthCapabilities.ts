@@ -33,7 +33,7 @@ export function parsePubkyAuthCapabilities(input: string | null | undefined): Pu
   if (input.length === 0) return Result.ok([]);
 
   const rawCapabilities = input.split(",").map((capability) => capability.normalize("NFC"));
-  if (rawCapabilities.length > PUBKY_AUTH_REQUEST_LIMITS.capabilityCount) {
+  if (rawCapabilities.length > PUBKY_AUTH_REQUEST_LIMITS.maximumCapabilityCount) {
     return error("too_many_capabilities");
   }
 
@@ -41,7 +41,7 @@ export function parsePubkyAuthCapabilities(input: string | null | undefined): Pu
     return error("empty_capability");
   }
 
-  if (rawCapabilities.some((capability) => capability.length > PUBKY_AUTH_REQUEST_LIMITS.capabilityLength)) {
+  if (rawCapabilities.some((capability) => capability.length > PUBKY_AUTH_REQUEST_LIMITS.maximumCapabilityCodeUnits)) {
     return error("capability_too_long");
   }
 
@@ -68,7 +68,7 @@ function parseCapability(input: string): CapabilityParseResult {
 
   const path = input.slice(0, actionsStart);
   const actions = input.slice(actionsStart + 1);
-  if (utf8Length(path) > PUBKY_AUTH_REQUEST_LIMITS.capabilityPathLength) {
+  if (utf8Length(path) > PUBKY_AUTH_REQUEST_LIMITS.maximumCapabilityPathUtf8Bytes) {
     return error("capability_too_long");
   }
 

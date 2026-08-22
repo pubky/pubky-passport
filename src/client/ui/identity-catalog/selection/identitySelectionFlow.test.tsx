@@ -6,8 +6,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { IdentitySelectionFlow } from "./identitySelectionFlow";
 
-vi.mock("../../onboarding/signInFlow", () => ({
-  SignInFlow: ({ onBack, onComplete }: { onBack: () => void; onComplete: () => void }) => (
+vi.mock("../../onboarding/identityEstablishmentFlow", () => ({
+  IdentityEstablishmentFlow: ({ onBack, onComplete }: { onBack: () => void; onComplete: () => void }) => (
     <>
       <button onClick={onComplete} type="button">Complete identity setup</button>
       <button onClick={onBack} type="button">Cancel identity setup</button>

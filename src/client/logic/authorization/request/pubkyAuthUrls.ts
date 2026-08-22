@@ -49,7 +49,7 @@ function validateRelayUrl(
     return error("missing_relay");
   }
 
-  if (value.length > PUBKY_AUTH_REQUEST_LIMITS.relayUrlLength) {
+  if (value.length > PUBKY_AUTH_REQUEST_LIMITS.maximumRelayUrlCodeUnits) {
     return error("invalid_relay");
   }
 
@@ -169,7 +169,7 @@ function validateOptionalCallback(
     return Result.ok(undefined);
   }
 
-  if (value.length > PUBKY_AUTH_REQUEST_LIMITS.callbackUrlLength) {
+  if (value.length > PUBKY_AUTH_REQUEST_LIMITS.maximumCallbackUrlCodeUnits) {
     return error("invalid_callback");
   }
 

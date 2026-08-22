@@ -14,7 +14,7 @@ describe("GoogleDetachmentComplete", () => {
     render(<GoogleDetachmentComplete onDone={onDone} />);
 
     expect(screen.getByRole("heading", { name: "Detached from Google." })).toBeInTheDocument();
-    expect(screen.getByText("Google access has been removed. Your identity is self-managed, and recoverable only with your backup.")).toBeInTheDocument();
+    expect(screen.getByText("Google access has been removed. Your identity is self-managed and recoverable only through your chosen recovery method.")).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Done" }));
     expect(onDone).toHaveBeenCalledOnce();
   });

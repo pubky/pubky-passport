@@ -7,8 +7,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { IdentitySwitcher } from "./identitySwitcher";
 
 const IDENTITIES = [
-  { publicIdentity: { publicKeyZ32: "firstidentity1234", publicKeyDisplay: "pubkyfirst" }, googleAccount: { id: "google-1", email: "other@gmail.com", name: "Other Account", pictureUrl: null } },
-  { publicIdentity: { publicKeyZ32: "secondidentity5678", publicKeyDisplay: "pubkysecond" }, googleAccount: { id: "google-2", email: "active@gmail.com", name: "Active Account", pictureUrl: null } },
+  { publicIdentity: { publicKeyZ32: "firstidentity1234", publicKeyDisplay: "pubkyfirst" }, googleAccount: { googleSubject: "google-1", email: "other@gmail.com", name: "Other Account", pictureUrl: null } },
+  { publicIdentity: { publicKeyZ32: "secondidentity5678", publicKeyDisplay: "pubkysecond" }, googleAccount: { googleSubject: "google-2", email: "active@gmail.com", name: "Active Account", pictureUrl: null } },
 ];
 
 describe("IdentitySwitcher", () => {

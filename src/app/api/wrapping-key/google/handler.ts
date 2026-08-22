@@ -3,31 +3,31 @@ import { Result } from "better-result";
 
 import { LOGGER } from "../../../../libs/logger/logger";
 import {
-  type GoogleWrappingKeyRequest,
-  type GoogleWrappingKeyRequestErrorCode,
-} from "../../../../server/wrapping-key/google/GoogleWrappingKeyRequest";
+  type GoogleWrappingKeyIssuer,
+  type GoogleWrappingKeyIssueErrorCode,
+} from "../../../../server/wrapping-key/google/GoogleWrappingKeyIssuer";
 import {
   GOOGLE_WRAPPING_KEY_RESPONSE_HEADERS,
-  parseGoogleWrappingKeyRequest,
+  parseGoogleIdTokenRequest,
 } from "./routePolicy";
 
 type GoogleWrappingKeyRouteBody =
   | { wrappingKey: string }
   | {
     error: {
-      code: GoogleWrappingKeyRequestErrorCode | "invalid_request" | "internal_error";
+      code: GoogleWrappingKeyIssueErrorCode | "invalid_request" | "internal_error";
     };
   };
 
 export function createGoogleWrappingKeyPostHandler(
-  createRequest: () => GoogleWrappingKeyRequest,
+  createIssuer: () => GoogleWrappingKeyIssuer,
 ) {
-  let activeRequest: ReturnType<typeof createRequest> | undefined;
+  let activeIssuer: ReturnType<typeof createIssuer> | undefined;
 
   return async function googleWrappingKeyPost(request: Request): Promise<NextResponse<GoogleWrappingKeyRouteBody>> {
     let operation: "parse" | "compose" | "execute" = "parse";
     try {
-      const body = await parseGoogleWrappingKeyRequest(request);
+      const body = await parseGoogleIdTokenRequest(request);
 
       if (Result.isError(body)) {
         LOGGER.info("identity.google.wrapping_key.failed", {
@@ -40,9 +40,9 @@ export function createGoogleWrappingKeyPostHandler(
       }
 
       operation = "compose";
-      if (!activeRequest) activeRequest = createRequest();
+      if (!activeIssuer) activeIssuer = createIssuer();
       operation = "execute";
-      const result = await activeRequest.requestGoogleWrappingKey(body.value);
+      const result = await activeIssuer.issueGoogleWrappingKey(body.value);
 
       if (Result.isError(result)) {
         return jsonResponse({ error: { code: result.error.code } }, statusForError(result.error.code));
@@ -68,7 +68,7 @@ function jsonResponse(
   return NextResponse.json(body, { status, headers: GOOGLE_WRAPPING_KEY_RESPONSE_HEADERS });
 }
 
-function statusForError(code: GoogleWrappingKeyRequestErrorCode): number {
+function statusForError(code: GoogleWrappingKeyIssueErrorCode): number {
   switch (code) {
     case "invalid_google_id_token":
       return 401;

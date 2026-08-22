@@ -5,7 +5,7 @@ import { InMemoryGoogleWrappingKeyRateLimiter } from "./InMemoryGoogleWrappingKe
 const IDENTITY_PEPPER = Buffer.alloc(32, 7);
 const IDENTITY = {
   issuer: "https://accounts.google.com" as const,
-  subject: "google-subject",
+  googleSubject: "google-subject",
 };
 
 describe("wrapping-key rate limit", () => {
@@ -46,7 +46,7 @@ describe("wrapping-key rate limit", () => {
     );
 
     expect(limiter.tryConsumeRequest(IDENTITY)).toBe(true);
-    expect(limiter.tryConsumeRequest({ ...IDENTITY, subject: "other-google-subject" })).toBe(true);
+    expect(limiter.tryConsumeRequest({ ...IDENTITY, googleSubject: "other-google-subject" })).toBe(true);
     now = new Date("2026-01-01T00:01:00.000Z");
     expect(limiter.tryConsumeRequest(IDENTITY)).toBe(true);
   });
@@ -60,7 +60,7 @@ describe("wrapping-key rate limit", () => {
       60_000,
     );
 
-    const otherIdentity = { ...IDENTITY, subject: "other-google-subject" };
+    const otherIdentity = { ...IDENTITY, googleSubject: "other-google-subject" };
     expect(limiter.tryConsumeRequest(otherIdentity)).toBe(true);
     now = new Date("2026-01-01T00:00:30.000Z");
     expect(limiter.tryConsumeRequest(IDENTITY)).toBe(true);

@@ -30,7 +30,7 @@ function Probe() {
   );
   return (
     <>
-      <p>{operation.state.name === "operation-failed" ? operation.state.error.code : operation.state.name}</p>
+      <p>{operation.state.status === "operation-failed" ? operation.state.error.code : operation.state.status}</p>
       <button onClick={operation.detach} type="button">Detach</button>
       <button onClick={operation.retryDetachment} type="button">Retry</button>
     </>
@@ -61,7 +61,7 @@ describe("useDetachFromGoogle", () => {
   });
 
   it("surfaces operation failures", async () => {
-    MOCKS.detachIdentity.mockResolvedValue(Result.err({ code: "backup_deletion_failed" as const }));
+    MOCKS.detachIdentity.mockResolvedValue(Result.err({ code: "google_drive_cleanup_failed" as const }));
     MOCKS.constructGoogleIdentityController.mockReturnValue(mockGoogleIdentityController({
       detachIdentity: MOCKS.detachIdentity,
     }));
@@ -69,6 +69,6 @@ describe("useDetachFromGoogle", () => {
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Detach" }));
 
-    expect(await screen.findByText("backup_deletion_failed")).toBeInTheDocument();
+    expect(await screen.findByText("google_drive_cleanup_failed")).toBeInTheDocument();
   });
 });

@@ -78,7 +78,7 @@ export class GoogleIdentityController {
   private readonly operations: GoogleIdentityOperations;
   private operationsDisposed = false;
   private operationPending = false;
-  private googleAccountId: string | undefined;
+  private googleSubject: string | undefined;
   private disposed = false;
 
   constructor(
@@ -158,19 +158,19 @@ export class GoogleIdentityController {
   }
 
   /** Allows a new establishment flow to choose a different Google account. */
-  clearPinnedGoogleAccount(): void {
-    this.googleAccountId = undefined;
+  clearPinnedGoogleSubject(): void {
+    this.googleSubject = undefined;
   }
 
   /**
-   * Deletes the Google Drive backups first, then removes the local identity.
+   * Deletes the Google Drive Passport files first, then removes the local identity.
    * A Google Drive failure leaves the local identity untouched.
    */
   async detachIdentity(
     publicIdentity: PubkyPublicIdentity,
-    expectedGoogleAccountId: string,
+    expectedGoogleSubject: string,
   ): Promise<DetachGoogleIdentityResult> {
-    const authorized = await this.requestGoogleCredentials(expectedGoogleAccountId);
+    const authorized = await this.requestGoogleCredentials(expectedGoogleSubject);
     if (Result.isError(authorized)) return Result.err(authorized.error);
     if (this.disposed) {
       this.finishOperation();
@@ -182,7 +182,7 @@ export class GoogleIdentityController {
       const detached = await this.operations.detachIdentity(
         authorized.value,
         publicIdentity,
-        expectedGoogleAccountId,
+        expectedGoogleSubject,
       );
       if (this.disposed) return Result.err({ code: "cancelled" });
       return detached;
@@ -201,7 +201,7 @@ export class GoogleIdentityController {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    this.googleAccountId = undefined;
+    this.googleSubject = undefined;
     try {
       this.googleAuthorization.dispose();
     } catch {
@@ -215,7 +215,7 @@ export class GoogleIdentityController {
   }
 
   private async requestGoogleCredentials(
-    expectedGoogleAccountId?: string,
+    expectedGoogleSubject?: string,
   ): Promise<ResultType<GoogleIdentityCredentials, GoogleIdentityError>> {
     if (this.disposed) return Result.err({ code: "cancelled" });
     if (this.operationPending) return Result.err({ code: "operation_failed" });
@@ -224,8 +224,8 @@ export class GoogleIdentityController {
     this.setViewState({ status: "requesting-authorization" });
 
     try {
-      const accountId = expectedGoogleAccountId ?? this.googleAccountId;
-      const credentials = await this.googleAuthorization.request(accountId);
+      const googleSubject = expectedGoogleSubject ?? this.googleSubject;
+      const credentials = await this.googleAuthorization.request(googleSubject);
       if (this.disposed) {
         this.operationPending = false;
         this.disposeOperationsOnce();
@@ -235,11 +235,11 @@ export class GoogleIdentityController {
         this.operationPending = false;
         return Result.err(credentials.error);
       }
-      if (accountId !== undefined && credentials.value.googleAccount.id !== accountId) {
+      if (googleSubject !== undefined && credentials.value.googleAccount.googleSubject !== googleSubject) {
         this.operationPending = false;
         return Result.err({ code: "authorization_failed" });
       }
-      this.googleAccountId ??= credentials.value.googleAccount.id;
+      this.googleSubject ??= credentials.value.googleAccount.googleSubject;
       return Result.ok(credentials.value);
     } catch {
       this.operationPending = false;

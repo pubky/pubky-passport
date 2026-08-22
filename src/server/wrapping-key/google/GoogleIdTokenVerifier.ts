@@ -96,7 +96,7 @@ function validatePayload(
     return failure();
   }
 
-  return Result.ok({ issuer: CANONICAL_GOOGLE_ISSUER, subject: payload.sub });
+  return Result.ok({ issuer: CANONICAL_GOOGLE_ISSUER, googleSubject: payload.sub });
 }
 
 function audienceMatches(

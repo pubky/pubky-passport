@@ -38,7 +38,7 @@ function ClipboardPasteIcon(props: IconProps) {
   return <Glyph height={17.9967} viewBox="0 0 15.4967 17.9967" width={15.4967} {...props}><path d="M3.99833 2.33167H2.33167c-.44203 0-.86595.17559-1.17851.48815A1.66668 1.66668 0 0 0 .665 3.99833V15.665c0 .442.175595.866.48816 1.1785.31256.3126.73648.4882 1.17851.4882h10c.442 0 .8659-.1756 1.1785-.4882.3125-.3125.4881-.7365.4881-1.1785M10.665 2.33167h1.6667c.442 0 .8659.17559 1.1785.48815.3125.31256.4881.73649.4881 1.17851V5.665M6.49833 10.665h8.33337m-3.3334 3.3333 3.3334-3.3333-3.3334-3.33333M9.83167.665h-5c-.22102 0-.43298.087797-.58926.244078-.15628.156282-.24408.368242-.24408.589252V3.165c0 .5.33334.83333.83334.83333h5c.50003 0 .83333-.33333.83333-.83333V1.49833C10.665.998333 10.3317.665 9.83167.665Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.33" /></Glyph>;
 }
 
-function DownloadBackupIcon(props: IconProps) {
+function DownloadRecoveryFileIcon(props: IconProps) {
   return <Glyph height={13.33} viewBox="0 0 13.33 13.33" width={13.33} {...props}><path d="M12.665 8.665v2.6667a1.3333 1.3333 0 0 1-1.3333 1.3333H1.99833A1.3333 1.3333 0 0 1 .665 11.3317V8.665m9.33333-3.33333L6.665 8.665 3.33167 5.33167M6.665 8.665v-8" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.33" /></Glyph>;
 }
 
@@ -92,7 +92,7 @@ export {
   CheckIcon,
   ClipboardPasteIcon,
   CopyIcon,
-  DownloadBackupIcon,
+  DownloadRecoveryFileIcon,
   DownloadIcon,
   FolderIcon,
   KeyRoundIcon,

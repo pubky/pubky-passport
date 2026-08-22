@@ -9,17 +9,17 @@ import type { LocalIdentityCatalog } from "./localIdentityModels";
 import type { LocalIdentityResult } from "./LocalStorageIdentityRepository";
 import { LocalStorageIdentityRepository } from "./LocalStorageIdentityRepository";
 
-export const MIN_BACKUP_PASSWORD_LENGTH = 6;
-const MAX_BACKUP_PASSWORD_LENGTH = 1024;
+export const MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS = 6;
+const MAXIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS = 1024;
 
-export type LocalIdentityBackupFile = { bytes: Uint8Array; fileName: string };
-export type LocalIdentityBackupErrorCode =
-  | "backup_failed"
+export type LocalIdentityRecoveryFile = { bytes: Uint8Array; fileName: string };
+export type LocalIdentityRecoveryFileErrorCode =
+  | "recovery_file_failed"
   | "identity_unavailable"
   | "invalid_password";
-export type LocalIdentityBackupResult = ResultType<
-  LocalIdentityBackupFile,
-  { code: LocalIdentityBackupErrorCode }
+export type LocalIdentityRecoveryFileResult = ResultType<
+  LocalIdentityRecoveryFile,
+  { code: LocalIdentityRecoveryFileErrorCode }
 >;
 
 /**
@@ -53,7 +53,7 @@ export class LocalIdentityController {
   /**
    * Removes one identity from this browser only.
    *
-   * This does not delete Google Drive backups. Use the Google identity flow for
+   * This does not delete Google Drive Passport files. Use the Google identity flow for
    * detachment.
    */
   removeIdentity(publicKeyZ32: string): LocalIdentityResult<void> {
@@ -65,11 +65,12 @@ export class LocalIdentityController {
   ): Promise<PubkyHomeserverResolutionResult> => resolvePubkyHomeserver(publicKeyZ32);
 
   /** Creates a password-encrypted recovery file for the requested identity. */
-  createEncryptedBackup = async (
+  createRecoveryFile = async (
     publicKeyZ32: string,
     password: string,
-  ): Promise<LocalIdentityBackupResult> => {
-    if (password.length < MIN_BACKUP_PASSWORD_LENGTH || password.length > MAX_BACKUP_PASSWORD_LENGTH) {
+  ): Promise<LocalIdentityRecoveryFileResult> => {
+    if (password.length < MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS
+      || password.length > MAXIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS) {
       return Result.err({ code: "invalid_password" });
     }
 
@@ -80,19 +81,19 @@ export class LocalIdentityController {
     try {
       pubky = new PubkySdkAdapter();
       const recoveryFile = pubky.createRecoveryFile(stored.value.secretKey, password);
-      if (Result.isError(recoveryFile)) return Result.err({ code: "backup_failed" });
+      if (Result.isError(recoveryFile)) return Result.err({ code: "recovery_file_failed" });
       return Result.ok({
         bytes: recoveryFile.value,
         fileName: `pubky-${publicKeyZ32}.pkarr`,
       });
     } catch {
-      return Result.err({ code: "backup_failed" });
+      return Result.err({ code: "recovery_file_failed" });
     } finally {
       stored.value.secretKey.bytes.fill(0);
       try {
         pubky?.dispose();
       } catch {
-        LOGGER.warn("identity.local_backup.cleanup.failed", { operation: "pubky_dispose" });
+        LOGGER.warn("identity.recovery_file.cleanup.failed", { operation: "pubky_dispose" });
       }
     }
   };

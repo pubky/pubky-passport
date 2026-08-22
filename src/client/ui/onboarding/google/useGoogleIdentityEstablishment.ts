@@ -6,18 +6,18 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { GoogleIdentityController } from "../../../logic/google-identity/GoogleIdentityController";
 import type { GoogleIdentityConfiguration } from "../../../logic/google-identity/GoogleIdentityController";
 import {
-  INITIAL_GOOGLE_SIGN_IN_STATE,
-  transitionGoogleSignIn,
-} from "./googleSignInState";
+  INITIAL_GOOGLE_IDENTITY_ESTABLISHMENT_STATE,
+  transitionGoogleIdentityEstablishment,
+} from "./googleIdentityEstablishmentState";
 
-function useGoogleSignIn(configuration: GoogleIdentityConfiguration) {
+function useGoogleIdentityEstablishment(configuration: GoogleIdentityConfiguration) {
   const { googleClientId, homegateBaseUrl } = configuration;
   const operationPendingRef = useRef(false);
   const googleIdentityControllerRef = useRef<GoogleIdentityController | null>(null);
   const [controllerReady, setControllerReady] = useState(false);
   const [state, dispatch] = useReducer(
-    transitionGoogleSignIn,
-    INITIAL_GOOGLE_SIGN_IN_STATE,
+    transitionGoogleIdentityEstablishment,
+    INITIAL_GOOGLE_IDENTITY_ESTABLISHMENT_STATE,
   );
 
   const establishIdentity = useCallback((): void => {
@@ -25,7 +25,7 @@ function useGoogleSignIn(configuration: GoogleIdentityConfiguration) {
 
     const googleIdentityController = googleIdentityControllerRef.current;
     if (!googleIdentityController) {
-      dispatch({ type: "authorization-denied" });
+      dispatch({ type: "operation-failed", error: { code: "operation_failed" } });
       return;
     }
 
@@ -40,7 +40,7 @@ function useGoogleSignIn(configuration: GoogleIdentityConfiguration) {
           if (result.error.code === "cancelled") return;
 
           dispatch(
-            result.error.code === "authorization_failed"
+            result.error.code === "google_authorization_denied"
               ? { type: "authorization-denied" }
               : { type: "operation-failed", error: result.error },
           );
@@ -68,7 +68,7 @@ function useGoogleSignIn(configuration: GoogleIdentityConfiguration) {
 
   const back = useCallback(() => {
     operationPendingRef.current = false;
-    googleIdentityControllerRef.current?.clearPinnedGoogleAccount();
+    googleIdentityControllerRef.current?.clearPinnedGoogleSubject();
     dispatch({ type: "back" });
   }, []);
 
@@ -117,4 +117,4 @@ function useGoogleSignIn(configuration: GoogleIdentityConfiguration) {
   };
 }
 
-export { useGoogleSignIn };
+export { useGoogleIdentityEstablishment };

@@ -5,9 +5,9 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { EncryptedBackup } from "./encryptedBackup";
+import { RecoveryFileDownload } from "./recoveryFileDownload";
 
-describe("EncryptedBackup", () => {
+describe("RecoveryFileDownload", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
@@ -15,20 +15,20 @@ describe("EncryptedBackup", () => {
 
   it("encrypts and downloads the recovery file with the entered password", async () => {
     const bytes = new Uint8Array([1, 2, 3]);
-    const createBackup = vi.fn(async () => Result.ok({ bytes, fileName: "pubky-identity.pkarr" }));
+    const createRecoveryFile = vi.fn(async () => Result.ok({ bytes, fileName: "pubky-identity.pkarr" }));
     const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:backup");
     const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
-    render(<EncryptedBackup createBackup={createBackup} publicKeyZ32="identity" onBack={vi.fn()} />);
+    render(<RecoveryFileDownload createRecoveryFile={createRecoveryFile} publicKeyZ32="identity" onBack={vi.fn()} />);
 
-    const download = screen.getByRole("button", { name: "Download backup" });
+    const download = screen.getByRole("button", { name: "Download recovery file" });
     const password = screen.getByLabelText("Enter strong password");
     expect(password).toHaveAttribute("minlength", "6");
     expect(download).toBeDisabled();
     await userEvent.setup().type(password, "123456");
     await userEvent.setup().click(download);
 
-    expect(createBackup).toHaveBeenCalledWith("identity", "123456");
+    expect(createRecoveryFile).toHaveBeenCalledWith("identity", "123456");
     expect(createObjectURL).toHaveBeenCalledOnce();
     expect(click).toHaveBeenCalledOnce();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:backup");
@@ -37,19 +37,19 @@ describe("EncryptedBackup", () => {
 
   it("returns to identity management", async () => {
     const onBack = vi.fn();
-    const { container } = render(<EncryptedBackup createBackup={vi.fn()} publicKeyZ32="identity" onBack={onBack} />);
-    expect(container.querySelector('[data-slot="encrypted-backup-illustration"]')).toHaveAttribute("src", expect.stringContaining("passport-encrypted-backup.png"));
+    const { container } = render(<RecoveryFileDownload createRecoveryFile={vi.fn()} publicKeyZ32="identity" onBack={onBack} />);
+    expect(container.querySelector('[data-slot="recovery-file-illustration"]')).toHaveAttribute("src", expect.stringContaining("passport-encrypted-backup.png"));
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(onBack).toHaveBeenCalledOnce();
   });
 
-  it("announces backup failures without marking a valid password invalid", async () => {
-    render(<EncryptedBackup createBackup={async () => Result.err({ code: "backup_failed" })} publicKeyZ32="identity" onBack={vi.fn()} />);
+  it("announces recovery-file failures without marking a valid password invalid", async () => {
+    render(<RecoveryFileDownload createRecoveryFile={async () => Result.err({ code: "recovery_file_failed" })} publicKeyZ32="identity" onBack={vi.fn()} />);
     const password = screen.getByLabelText("Enter strong password");
     await userEvent.setup().type(password, "123456");
-    await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Download recovery file" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Could not create the encrypted backup");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not create the recovery file");
     expect(password).not.toHaveAttribute("aria-invalid");
   });
 });

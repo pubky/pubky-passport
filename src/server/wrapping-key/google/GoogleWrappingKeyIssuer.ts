@@ -22,21 +22,21 @@ const SERVER_SECRET_SCHEMA = z.string()
     `PASSPORT_SERVER_SECRET_BASE64 must decode to at least ${MINIMUM_SERVER_SECRET_BYTES} bytes`,
   );
 
-export type GoogleWrappingKeyRequestErrorCode =
+export type GoogleWrappingKeyIssueErrorCode =
   | "invalid_google_id_token"
   | "rate_limited"
   | "dependency_unavailable";
 
-export type GoogleWrappingKeyRequestResult = ResultType<string, { code: GoogleWrappingKeyRequestErrorCode }>;
+export type GoogleWrappingKeyIssueResult = ResultType<string, { code: GoogleWrappingKeyIssueErrorCode }>;
 
-export class GoogleWrappingKeyRequest {
+export class GoogleWrappingKeyIssuer {
   constructor(
     private googleIdTokenVerifier: GoogleIdTokenVerifier,
     private rateLimiter: InMemoryGoogleWrappingKeyRateLimiter,
     private deriver: GoogleWrappingKeyDeriver,
   ) {}
 
-  async requestGoogleWrappingKey(googleIdToken: string): Promise<GoogleWrappingKeyRequestResult> {
+  async issueGoogleWrappingKey(googleIdToken: string): Promise<GoogleWrappingKeyIssueResult> {
     let identity: GoogleIdTokenVerificationResult;
     try {
       identity = await this.googleIdTokenVerifier.verifyGoogleIdToken(googleIdToken);
@@ -72,12 +72,12 @@ export class GoogleWrappingKeyRequest {
   }
 }
 
-export function createConfiguredGoogleWrappingKeyRequest(): GoogleWrappingKeyRequest {
+export function createConfiguredGoogleWrappingKeyIssuer(): GoogleWrappingKeyIssuer {
   const googleClientId = GOOGLE_CLIENT_ID_SCHEMA.parse(process.env.GOOGLE_CLIENT_ID);
   const serverSecret = SERVER_SECRET_SCHEMA.parse(process.env.PASSPORT_SERVER_SECRET_BASE64);
 
   try {
-    return new GoogleWrappingKeyRequest(
+    return new GoogleWrappingKeyIssuer(
       new GoogleIdTokenVerifier(googleClientId),
       new InMemoryGoogleWrappingKeyRateLimiter(serverSecret),
       new GoogleWrappingKeyDeriver(serverSecret),
@@ -87,11 +87,11 @@ export function createConfiguredGoogleWrappingKeyRequest(): GoogleWrappingKeyReq
   }
 }
 
-function failure(code: GoogleWrappingKeyRequestErrorCode): GoogleWrappingKeyRequestResult {
+function failure(code: GoogleWrappingKeyIssueErrorCode): GoogleWrappingKeyIssueResult {
   return Result.err({ code });
 }
 
-function dependencyFailure(operation: "verify" | "rate_limit" | "derive"): GoogleWrappingKeyRequestResult {
+function dependencyFailure(operation: "verify" | "rate_limit" | "derive"): GoogleWrappingKeyIssueResult {
   LOGGER.error("identity.google.wrapping_key.failed", {
     layer: "server",
     operation,

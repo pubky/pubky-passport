@@ -6,7 +6,7 @@ import "./globals.css";
 import { PassportLogo } from "../client/ui/shared/brand/passportLogo";
 import { ParserTimeScripts } from "./parserTimeScripts";
 
-export const METADATA: Metadata = {
+export const metadata: Metadata = {
   title: "Pubky Passport",
   description: "Google-backed Pubky Passport authorization app.",
 };

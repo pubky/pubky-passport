@@ -33,7 +33,7 @@ const ERROR_RESPONSE_SCHEMA = z.object({
   error: z.object({ code: ROUTE_ERROR_CODE_SCHEMA }).strict(),
 }).strict();
 
-export class WrappingKeyApiClient {
+export class GoogleWrappingKeyApiClient {
   constructor(
     private fetch: typeof globalThis.fetch = (request, init) => globalThis.fetch(request, init),
   ) {}

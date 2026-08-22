@@ -19,11 +19,11 @@ export class GoogleWrappingKeyDeriver {
   }
 
   deriveWrappingKey(identity: VerifiedGoogleIdentity): string {
-    if (identity.issuer !== CANONICAL_GOOGLE_ISSUER || !identity.subject.trim()) {
+    if (identity.issuer !== CANONICAL_GOOGLE_ISSUER || !identity.googleSubject.trim()) {
       throw new Error("Invalid wrapping key identity.");
     }
 
-    const info = Buffer.from(`${GOOGLE_WRAPPING_KEY_HKDF_INFO_PREFIX}${identity.issuer}\n${identity.subject}`, "utf8");
+    const info = Buffer.from(`${GOOGLE_WRAPPING_KEY_HKDF_INFO_PREFIX}${identity.issuer}\n${identity.googleSubject}`, "utf8");
     const derivedKey = Buffer.from(hkdfSync("sha256", this.serverSecret, GOOGLE_WRAPPING_KEY_HKDF_SALT, info, WRAPPING_KEY_BYTES));
 
     return derivedKey.toString("base64url");

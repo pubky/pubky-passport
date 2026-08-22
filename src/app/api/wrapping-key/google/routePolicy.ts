@@ -4,21 +4,21 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { readBoundedText } from "../../../../libs/http/boundedBody";
 
-const MAXIMUM_CREDENTIAL_REQUEST_BYTES = 16 * 1024;
+const MAXIMUM_GOOGLE_ID_TOKEN_REQUEST_BYTES = 16 * 1024;
 
 export const GOOGLE_WRAPPING_KEY_RESPONSE_HEADERS = {
   "Cache-Control": "no-store",
   "Referrer-Policy": "no-referrer",
 } as const;
 
-export async function parseGoogleWrappingKeyRequest(
+export async function parseGoogleIdTokenRequest(
   request: Request,
 ): Promise<ResultType<string, "invalid_request">> {
   if (!isJsonContentType(request.headers.get("Content-Type"))) {
     return Result.err("invalid_request");
   }
 
-  const text = await readBoundedText(request, MAXIMUM_CREDENTIAL_REQUEST_BYTES);
+  const text = await readBoundedText(request, MAXIMUM_GOOGLE_ID_TOKEN_REQUEST_BYTES);
   if (text === null || text === "too_large") {
     return Result.err("invalid_request");
   }

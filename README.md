@@ -8,7 +8,7 @@ and detach flows are not implemented yet.
 ## Features
 
 - Single-request Google authorization and Google Drive `appDataFolder/passport.json` encrypted Passport file storage.
-- Pubky identity creation, homeserver signup, discovery publication, and restore.
+- Pubky identity creation, homeserver signup, PKDNS publication, and restore.
 - Manual and `/authorize#d=...` Pubky Auth entry points.
 - Capability review for v0.10 grant and legacy cookie authentication, SDK-owned
   relay handoff, and validated callback navigation.
@@ -18,7 +18,7 @@ and detach flows are not implemented yet.
 `appDataFolder/passport.json` remains the only operational Passport file. New
 identities also write the encrypted envelope to the user-visible
 `Google Drive/Pubky Passport/{pubky}.json` path as a recovery
-artifact, without using that copy in normal Passport operations. Repeated backups
+artifact, without using that copy in normal Passport operations. Repeated recovery-copy writes
 create additional same-name Drive files and never overwrite an existing file. If
 Passport cannot confirm the visible copy,
 the operational identity is not stranded: setup continues and surfaces a warning.
@@ -37,6 +37,14 @@ See [FLOWS.md](./FLOWS.md) for the runtime call paths and import boundaries.
 ## Integration
 
 See [INTEGRATION.md](./INTEGRATION.md) for the web app integration flow.
+
+## Naming Conventions
+
+- Use camelCase for variables and functions, PascalCase for exported types, classes, and React components, and `UPPER_SNAKE_CASE` for module constants. Framework-reserved exports keep their prescribed spelling.
+- Use kebab-case feature directories, lower-camel filenames for function and UI modules, and class-matching PascalCase filenames for class-owning modules. Test stems mirror their production module.
+- Keep protocol field names such as OAuth `sub` only at external boundaries. Application and persistence models use `googleSubject`.
+- Use `Passport file` for the origin-bound Google Drive envelope, `recovery file` for the password-protected `.pkarr`, and `visible recovery copy` for the My Drive copy.
+- Use `status` for lifecycle-state discriminators and `view` for navigation-state discriminators. Reserve `session` and `publish` for Pubky SDK sessions and network publication.
 
 ## Local Development
 

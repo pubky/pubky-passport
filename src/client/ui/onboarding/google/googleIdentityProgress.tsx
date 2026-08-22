@@ -40,7 +40,7 @@ function IdentityLookup() {
   return (
     <PassportScreen className="gap-6">
       <DisplayHeading accent="existing Pubky." aria-label="Looking for existing Pubky.">Looking for</DisplayHeading>
-      <LeadText>Checking Google Drive for an encrypted Passport backup.</LeadText>
+      <LeadText>Checking Google Drive for an encrypted Passport file.</LeadText>
       <div className="flex items-center gap-3 py-3 text-muted-foreground" role="status">
         <Spinner aria-hidden="true" className="motion-reduce:animate-none" role="presentation" />
         Checking Google Drive…
@@ -73,7 +73,7 @@ function progressPresentation(progress: Exclude<GoogleIdentityProgressState, { f
 const CREATE_STEP_INDEX = {
   preparing: 0,
   creating: 0,
-  storing_backup: 0,
+  storing_passport_file: 0,
   signing_up: 1,
   publishing: 2,
   activating: 3,
@@ -94,7 +94,7 @@ function restorePresentation(activeIndex: number): ProgressPresentation {
   return {
     heading: "Restoring",
     listLabel: "Pubky identity restore progress",
-    steps: states(["Restore encrypted backup", "Sign in to the homeserver"], activeIndex),
+    steps: states(["Restore Passport file", "Sign in to the homeserver"], activeIndex),
   };
 }
 
@@ -102,7 +102,7 @@ function repairPresentation(activeIndex: number): ProgressPresentation {
   return {
     heading: "Repairing",
     listLabel: "Pubky identity repair progress",
-    steps: states(["Restore encrypted backup", "Repair homeserver access", "Publish PKDNS records", "Sign in to the homeserver"], activeIndex),
+    steps: states(["Restore Passport file", "Repair homeserver access", "Publish PKDNS records", "Sign in to the homeserver"], activeIndex),
   };
 }
 
@@ -110,7 +110,7 @@ function setupPresentation(activeIndex: number): ProgressPresentation {
   return {
     heading: "Setting up",
     listLabel: "Pubky identity setup progress",
-    steps: states(["Store encrypted backup", "Sign up to the homeserver", "Publish PKDNS records", "Activate identity"], activeIndex),
+    steps: states(["Store Passport file", "Sign up to the homeserver", "Publish PKDNS records", "Activate identity"], activeIndex),
   };
 }
 

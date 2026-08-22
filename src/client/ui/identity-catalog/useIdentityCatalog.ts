@@ -15,35 +15,35 @@ type IdentityCatalogState =
     status: "ready";
     catalog: LocalIdentityCatalog;
     localIdentityController: LocalIdentityController;
-    reloadIdentities: () => void;
+    refreshIdentityCatalog: () => void;
   };
 
 function useIdentityCatalog(): IdentityCatalogState {
-  const [session, setSession] = useState<IdentityCatalogState>({ status: "loading" });
+  const [identityCatalogState, setIdentityCatalogState] = useState<IdentityCatalogState>({ status: "loading" });
 
   useEffect(() => {
     let cancelled = false;
 
     queueMicrotask(() => {
       if (cancelled) return;
-      setSession({ status: "loading" });
+      setIdentityCatalogState({ status: "loading" });
       try {
         const localIdentityController = new LocalIdentityController();
-        const publish = () => {
+        const refreshIdentityCatalog = () => {
           const catalog = localIdentityController.listIdentities();
           if (cancelled) return;
-          setSession(Result.isOk(catalog)
+          setIdentityCatalogState(Result.isOk(catalog)
             ? {
               status: "ready",
               catalog: catalog.value,
               localIdentityController,
-              reloadIdentities: publish,
+              refreshIdentityCatalog,
             }
             : { status: "unavailable" });
         };
-        publish();
+        refreshIdentityCatalog();
       } catch {
-        if (!cancelled) setSession({ status: "unavailable" });
+        if (!cancelled) setIdentityCatalogState({ status: "unavailable" });
       }
     });
 
@@ -52,7 +52,7 @@ function useIdentityCatalog(): IdentityCatalogState {
     };
   }, []);
 
-  return session;
+  return identityCatalogState;
 }
 
 export { useIdentityCatalog, type IdentityCatalogState };

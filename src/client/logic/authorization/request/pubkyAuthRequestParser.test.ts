@@ -193,7 +193,7 @@ describe("parseEncodedPubkyAuthRequest", () => {
   });
 
   it("allows encoded d at its size limit and rejects limit plus one", () => {
-    const atLimit = "%41".repeat(PUBKY_AUTH_REQUEST_LIMITS.encodedDLength / 3);
+    const atLimit = "%41".repeat(PUBKY_AUTH_REQUEST_LIMITS.maximumEncodedDCodeUnits / 3);
 
     expectError(atLimit, "invalid_url");
     expectError(`${atLimit}A`, "request_too_large");
@@ -201,7 +201,7 @@ describe("parseEncodedPubkyAuthRequest", () => {
 
   it("allows a decoded auth URL at its size limit and rejects limit plus one", () => {
     const prefix = "pubkyauth:";
-    const atLimit = `${prefix}${"a".repeat(PUBKY_AUTH_REQUEST_LIMITS.decodedAuthUrlLength - prefix.length)}`;
+    const atLimit = `${prefix}${"a".repeat(PUBKY_AUTH_REQUEST_LIMITS.maximumDecodedAuthUrlCodeUnits - prefix.length)}`;
 
     expectError(encodeRequest(atLimit), "invalid_auth_request_path");
     expectError(encodeRequest(`${atLimit}a`), "request_too_large");
@@ -270,7 +270,7 @@ describe("parseEncodedPubkyAuthRequest", () => {
     const request = "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=";
 
     expectError(encodeRequest(`${request}short`), "invalid_secret");
-    expectError(encodeRequest(`${request}${"s".repeat(PUBKY_AUTH_REQUEST_LIMITS.secretLength + 1)}`), "invalid_secret");
+    expectError(encodeRequest(`${request}${"s".repeat(PUBKY_AUTH_REQUEST_LIMITS.maximumSecretCodeUnits + 1)}`), "invalid_secret");
     expectError(encodeRequest(`${request}kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse9`), "invalid_secret");
   });
 
@@ -291,8 +291,8 @@ describe("parseEncodedPubkyAuthRequest", () => {
   });
 
   it("maps oversized capability arrays and paths to a safe error", () => {
-    const tooMany = Array(PUBKY_AUTH_REQUEST_LIMITS.capabilityCount + 1).fill("/pub/app/:r").join(",");
-    const longPath = `/${"a".repeat(PUBKY_AUTH_REQUEST_LIMITS.capabilityPathLength)}`;
+    const tooMany = Array(PUBKY_AUTH_REQUEST_LIMITS.maximumCapabilityCount + 1).fill("/pub/app/:r").join(",");
+    const longPath = `/${"a".repeat(PUBKY_AUTH_REQUEST_LIMITS.maximumCapabilityPathUtf8Bytes)}`;
 
     expectError(encodeRequest(VALID_REQUEST.replace("/pub/pubky.app/:rw", tooMany)), "invalid_capability");
     expectError(encodeRequest(VALID_REQUEST.replace("/pub/pubky.app/:rw", `${longPath}:r`)), "invalid_capability");

@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import type { GoogleIdentityConfiguration } from "../../../logic/google-identity/GoogleIdentityController";
 import type { LocalIdentityCatalog } from "../../../logic/local-identity/localIdentityModels";
-import { SignInFlow } from "../../onboarding/signInFlow";
+import { IdentityEstablishmentFlow } from "../../onboarding/identityEstablishmentFlow";
 import { IdentitySwitcher } from "./identitySwitcher";
 
 function IdentitySelectionFlow({ catalog, googleIdentityConfiguration, onBack, onIdentitySelected, selectIdentity }: {
@@ -17,7 +17,7 @@ function IdentitySelectionFlow({ catalog, googleIdentityConfiguration, onBack, o
   const [view, setView] = useState<"selection" | "add-identity">("selection");
 
   if (view === "add-identity") {
-    return <SignInFlow
+    return <IdentityEstablishmentFlow
       googleIdentityConfiguration={googleIdentityConfiguration}
       onBack={() => setView("selection")}
       onComplete={onIdentitySelected}

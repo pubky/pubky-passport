@@ -10,7 +10,7 @@ const CAPABILITIES = "/pub/passport-staging.pubky.app/:rw" as const;
 const RESOLUTION_TIMEOUT_MS = 60_000;
 const RESOLUTION_POLL_INTERVAL_MS = 2_000;
 
-test("completes signup, discovery, signin, and both v0.10 authorization methods", async () => {
+test("completes signup, publication, signin, and both v0.10 authorization methods", async () => {
   const config = stagingConfig();
   const homegate = new HomegateClient(config.homegateBaseUrl);
   const invitation = expectOk(
@@ -34,7 +34,7 @@ test("completes signup, discovery, signin, and both v0.10 authorization methods"
     expectOk(await passport.publishHomeserver({
       keyHandle: identity.keyHandle,
       homeserverPubky: invitation.homeserverPubky,
-    }), "Passport could not publish homeserver discovery");
+    }), "Passport could not publish the homeserver record");
     await expectHomeserverResolution(
       relyingParty,
       identity.publicIdentity.publicKeyZ32,

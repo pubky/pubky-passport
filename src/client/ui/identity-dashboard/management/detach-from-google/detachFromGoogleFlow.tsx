@@ -3,63 +3,63 @@
 import { useState } from "react";
 
 import type { GoogleIdentityConfiguration } from "../../../../logic/google-identity/GoogleIdentityController";
-import type { LocalIdentityBackupResult } from "../../../../logic/local-identity/LocalIdentityController";
+import type { LocalIdentityRecoveryFileResult } from "../../../../logic/local-identity/LocalIdentityController";
 import type { LocalIdentityMetadata } from "../../../../logic/local-identity/localIdentityModels";
-import { EncryptedBackup } from "../encrypted-backup/encryptedBackup";
+import { RecoveryFileDownload } from "../recovery-file/recoveryFileDownload";
 import { MigrateToPubkyRing } from "../migrate-to-pubky-ring/migrateToPubkyRing";
-import { BackupBeforeDetaching } from "./backupBeforeDetaching";
+import { RecoveryBeforeDetaching } from "./recoveryBeforeDetaching";
 import { ConfirmGoogleDetachment } from "./confirmGoogleDetachment";
 import { GoogleDetachmentComplete } from "./googleDetachmentComplete";
 import { ReviewGoogleDetachment } from "./reviewGoogleDetachment";
 import { useDetachFromGoogle } from "./useDetachFromGoogle";
 
 type DetachFromGoogleView =
-  | { view: "backup" }
-  | { view: "encrypted-backup" }
+  | { view: "recovery-options" }
+  | { view: "recovery-file" }
   | { view: "pubky-ring" }
   | { view: "review"; confirmation: "closed" | "open" };
 
-function DetachFromGoogleFlow({ createBackup, createMigrationUrl, googleIdentityConfiguration, identity, onBack, onDone }: {
-  createBackup: (publicKeyZ32: string, password: string) => Promise<LocalIdentityBackupResult>;
+function DetachFromGoogleFlow({ createRecoveryFile, createMigrationUrl, googleIdentityConfiguration, identity, onBack, onDone }: {
+  createRecoveryFile: (publicKeyZ32: string, password: string) => Promise<LocalIdentityRecoveryFileResult>;
   createMigrationUrl: () => string | null;
   googleIdentityConfiguration: GoogleIdentityConfiguration;
   identity: LocalIdentityMetadata;
   onBack: () => void;
   onDone: () => void;
 }) {
-  const [state, setState] = useState<DetachFromGoogleView>({ view: "backup" });
+  const [state, setState] = useState<DetachFromGoogleView>({ view: "recovery-options" });
   const operation = useDetachFromGoogle(
     googleIdentityConfiguration,
     identity.publicIdentity,
-    identity.googleAccount?.id ?? "",
+    identity.googleAccount?.googleSubject ?? "",
   );
 
-  if (operation.state.name === "complete") return <GoogleDetachmentComplete onDone={onDone} />;
+  if (operation.state.status === "complete") return <GoogleDetachmentComplete onDone={onDone} />;
 
   switch (state.view) {
-    case "encrypted-backup":
-      return <EncryptedBackup
-        createBackup={createBackup}
+    case "recovery-file":
+      return <RecoveryFileDownload
+        createRecoveryFile={createRecoveryFile}
         publicKeyZ32={identity.publicIdentity.publicKeyZ32}
-        onBack={() => setState({ view: "backup" })}
+        onBack={() => setState({ view: "recovery-options" })}
       />;
     case "pubky-ring":
       return <MigrateToPubkyRing
         createMigrationUrl={createMigrationUrl}
-        onBack={() => setState({ view: "backup" })}
+        onBack={() => setState({ view: "recovery-options" })}
       />;
     case "review": {
-      const pending = operation.state.name === "requesting-authorization"
-        || operation.state.name === "deleting-backup";
+      const pending = operation.state.status === "requesting-authorization"
+        || operation.state.status === "detaching";
       return (
         <>
-          <ReviewGoogleDetachment onBack={() => setState({ view: "backup" })} onRemove={() => setState({ view: "review", confirmation: "open" })} />
+          <ReviewGoogleDetachment onBack={() => setState({ view: "recovery-options" })} onRemove={() => setState({ view: "review", confirmation: "open" })} />
           <ConfirmGoogleDetachment
-            canConfirm={operation.state.name === "ready" || operation.state.name === "operation-failed"}
-            canRetryAuthorization={operation.state.name === "authorization-failed"}
-            error={operation.state.name === "authorization-failed"
+            canConfirm={operation.state.status === "ready" || operation.state.status === "operation-failed"}
+            canRetryAuthorization={operation.state.status === "authorization-failed"}
+            error={operation.state.status === "authorization-failed"
               ? "authorization_failed"
-              : operation.state.name === "operation-failed"
+              : operation.state.status === "operation-failed"
                 ? operation.state.error.code
                 : null}
             onCancel={() => setState({ view: "review", confirmation: "closed" })}
@@ -71,11 +71,11 @@ function DetachFromGoogleFlow({ createBackup, createMigrationUrl, googleIdentity
         </>
       );
     }
-    case "backup":
-      return <BackupBeforeDetaching
+    case "recovery-options":
+      return <RecoveryBeforeDetaching
         onBack={onBack}
-        onBackupConfirmed={() => setState({ view: "review", confirmation: "closed" })}
-        onDownloadBackup={() => setState({ view: "encrypted-backup" })}
+        onRecoveryConfirmed={() => setState({ view: "review", confirmation: "closed" })}
+        onDownloadRecoveryFile={() => setState({ view: "recovery-file" })}
         onMigrateToKeychain={() => setState({ view: "pubky-ring" })}
       />;
   }

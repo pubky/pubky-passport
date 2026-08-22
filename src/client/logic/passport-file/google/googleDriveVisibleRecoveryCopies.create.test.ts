@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LOGGER } from "../../../../libs/logger/logger";
 import type { PassportFileEnvelopeV1 } from "../passportFileEnvelope";
-import { GoogleDriveVisibleRecoveryCopies } from "./VisibleRecoveryCopies";
+import { GoogleDriveVisibleRecoveryCopies } from "./GoogleDriveVisibleRecoveryCopies";
 
 const ACCESS_TOKEN = "SECRET-DRIVE-TOKEN";
 const PUBLIC_KEY_Z32 = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";

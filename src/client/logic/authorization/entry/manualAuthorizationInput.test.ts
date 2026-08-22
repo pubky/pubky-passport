@@ -24,8 +24,8 @@ describe("submitManualAuthorizationInput", () => {
   it("rejects oversized input before encoding or navigating", () => {
     const navigate = sanitizedNavigationRecorder();
 
-    expect(submitManualAuthorizationInput("a".repeat(PUBKY_AUTH_REQUEST_LIMITS.decodedAuthUrlLength + 1), navigate.navigate)).toBe("invalid");
-    expect(submitManualAuthorizationInput(`${" ".repeat(PUBKY_AUTH_REQUEST_LIMITS.decodedAuthUrlLength)}a`, navigate.navigate)).toBe("invalid");
+    expect(submitManualAuthorizationInput("a".repeat(PUBKY_AUTH_REQUEST_LIMITS.maximumDecodedAuthUrlCodeUnits + 1), navigate.navigate)).toBe("invalid");
+    expect(submitManualAuthorizationInput(`${" ".repeat(PUBKY_AUTH_REQUEST_LIMITS.maximumDecodedAuthUrlCodeUnits)}a`, navigate.navigate)).toBe("invalid");
     expect(navigate.calls).toBe(0);
   });
 

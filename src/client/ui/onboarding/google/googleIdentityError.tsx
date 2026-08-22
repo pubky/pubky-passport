@@ -48,7 +48,7 @@ function errorMessage(code: GoogleIdentityError["code"]): string {
     case "restore_failed": return "Passport could not restore the Pubky identity from the encrypted file.";
     case "signin_failed": return "Passport found your encrypted identity, but could not sign in to its homeserver.";
     case "signup_failed": return "Passport found your encrypted identity, but could not finish homeserver setup.";
-    case "discovery_failed": return "Passport could not publish your identity's PKDNS records.";
+    case "publication_failed": return "Passport could not publish your identity's PKDNS records.";
     case "local_save_failed": return "Your identity was activated, but could not be saved in this browser.";
     case "wrapping_key_failed": return "Passport could not unlock your encrypted identity with this Google account.";
     case "homeserver_signup_invitation_failed": return "Passport could not obtain a homeserver signup invitation.";

@@ -93,7 +93,7 @@ function takeEarlyAuthorizationLocation(appWindow: Window): EarlyAuthorizationLo
 function extractAuthorizationFragmentValue(
   hash: string,
 ): { valid: true; value?: string } | { valid: false } {
-  if (hash.length > PUBKY_AUTH_REQUEST_LIMITS.encodedDLength + "#d=".length) {
+  if (hash.length > PUBKY_AUTH_REQUEST_LIMITS.maximumEncodedDCodeUnits + "#d=".length) {
     return { valid: false };
   }
 

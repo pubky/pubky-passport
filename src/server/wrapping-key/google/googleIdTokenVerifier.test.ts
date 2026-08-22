@@ -29,7 +29,7 @@ describe("Google ID token verifier", () => {
 
     await expect(verifier.verifyGoogleIdToken(TOKEN)).resolves.toEqual(Result.ok({
       issuer: "https://accounts.google.com",
-      subject: "google-subject",
+      googleSubject: "google-subject",
     }));
   });
 
@@ -85,7 +85,7 @@ describe("Google ID token verifier", () => {
 
     await expect(valid.verifyGoogleIdToken(TOKEN)).resolves.toEqual(Result.ok({
       issuer: "https://accounts.google.com",
-      subject: "google-subject",
+      googleSubject: "google-subject",
     }));
     await expectAsyncResultError(invalid.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
   });

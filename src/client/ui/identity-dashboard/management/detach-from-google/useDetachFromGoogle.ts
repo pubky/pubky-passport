@@ -11,17 +11,17 @@ import {
 import type { PubkyPublicIdentity } from "../../../../logic/pubky/pubkyIdentityKey";
 
 type DetachFromGoogleOperationState =
-  | { name: "ready" }
-  | { name: "requesting-authorization" }
-  | { name: "deleting-backup" }
-  | { name: "authorization-failed" }
-  | { name: "operation-failed"; error: GoogleIdentityError }
-  | { name: "complete" };
+  | { status: "ready" }
+  | { status: "requesting-authorization" }
+  | { status: "detaching" }
+  | { status: "authorization-failed" }
+  | { status: "operation-failed"; error: GoogleIdentityError }
+  | { status: "complete" };
 
 type DetachFromGoogleOperationEvent =
   | { type: "authorization-failed" }
   | { type: "request-started" }
-  | { type: "deletion-started" }
+  | { type: "detachment-started" }
   | { type: "operation-failed"; error: GoogleIdentityError }
   | { type: "operation-completed" };
 
@@ -31,41 +31,41 @@ function transitionDetachFromGoogleOperation(
 ): DetachFromGoogleOperationState {
   switch (event.type) {
     case "authorization-failed":
-      return { name: "authorization-failed" };
+      return { status: "authorization-failed" };
     case "request-started":
-      return { name: "requesting-authorization" };
-    case "deletion-started":
-      return { name: "deleting-backup" };
+      return { status: "requesting-authorization" };
+    case "detachment-started":
+      return { status: "detaching" };
     case "operation-failed":
-      return { name: "operation-failed", error: event.error };
+      return { status: "operation-failed", error: event.error };
     case "operation-completed":
-      return { name: "complete" };
+      return { status: "complete" };
   }
 }
 
 function useDetachFromGoogle(
   configuration: GoogleIdentityConfiguration,
   publicIdentity: PubkyPublicIdentity,
-  expectedGoogleAccountId: string,
+  expectedGoogleSubject: string,
 ) {
   const { googleClientId, homegateBaseUrl } = configuration;
-  const dispatching = useRef(false);
+  const operationPendingRef = useRef(false);
   const googleIdentityControllerRef = useRef<GoogleIdentityController | null>(null);
-  const [state, dispatch] = useReducer(transitionDetachFromGoogleOperation, { name: "ready" });
+  const [state, dispatch] = useReducer(transitionDetachFromGoogleOperation, { status: "ready" });
 
   const detach = useCallback(() => {
-    if ((state.name !== "ready"
-      && state.name !== "authorization-failed"
-      && state.name !== "operation-failed")
-      || dispatching.current) return;
+    if ((state.status !== "ready"
+      && state.status !== "authorization-failed"
+      && state.status !== "operation-failed")
+      || operationPendingRef.current) return;
     const googleIdentityController = googleIdentityControllerRef.current;
     if (!googleIdentityController) {
       dispatch({ type: "operation-failed", error: { code: "operation_failed" } });
       return;
     }
-    dispatching.current = true;
+    operationPendingRef.current = true;
     dispatch({ type: "request-started" });
-    void googleIdentityController.detachIdentity(publicIdentity, expectedGoogleAccountId)
+    void googleIdentityController.detachIdentity(publicIdentity, expectedGoogleSubject)
       .then((completed) => {
         if (googleIdentityControllerRef.current !== googleIdentityController) return;
         if (Result.isError(completed)) {
@@ -86,10 +86,10 @@ function useDetachFromGoogle(
       })
       .finally(() => {
         if (googleIdentityControllerRef.current === googleIdentityController) {
-          dispatching.current = false;
+          operationPendingRef.current = false;
         }
       });
-  }, [expectedGoogleAccountId, publicIdentity, state.name]);
+  }, [expectedGoogleSubject, publicIdentity, state.status]);
 
   useEffect(() => {
     let googleIdentityController: GoogleIdentityController;
@@ -100,7 +100,7 @@ function useDetachFromGoogle(
             dispatch({ type: "request-started" });
             return;
           case "detaching":
-            dispatch({ type: "deletion-started" });
+            dispatch({ type: "detachment-started" });
             return;
           case "establishing":
             return;

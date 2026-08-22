@@ -44,7 +44,7 @@ export class InMemoryGoogleWrappingKeyRateLimiter {
     }
 
     const identityHash = createHmac("sha256", this.identityPepper)
-      .update(`${identity.issuer}\n${identity.subject}`, "utf8")
+      .update(`${identity.issuer}\n${identity.googleSubject}`, "utf8")
       .digest("base64url");
     const requests = recentRequests(this.requestsByIdentity.get(identityHash) ?? [], cutoff);
     if (requests.length >= this.maximumRequests) {

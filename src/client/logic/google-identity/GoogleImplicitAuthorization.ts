@@ -19,6 +19,7 @@ export type GoogleIdentityCredentials = {
 };
 
 type GoogleImplicitAuthorizationErrorCode =
+  | "google_authorization_denied"
   | "google_authorization_failed"
   | "google_authorization_popup_closed"
   | "google_authorization_popup_failed_to_open";
@@ -164,7 +165,14 @@ export class GoogleImplicitAuthorization {
     const rawFragment = capture.hash;
     if (rawFragment.length === 0 || rawFragment.length > EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS) return failure("response", "google_authorization_failed");
     const params = new URLSearchParams(rawFragment.slice(1));
-    if (params.has("error")) return failure("response", "google_authorization_failed");
+    if (params.has("error")) {
+      return failure(
+        "response",
+        oneValue(params, "error") === "access_denied"
+          ? "google_authorization_denied"
+          : "google_authorization_failed",
+      );
+    }
     const state = oneValue(params, "state");
     const idToken = oneValue(params, "id_token");
     const accessToken = oneValue(params, "access_token");
@@ -175,9 +183,9 @@ export class GoogleImplicitAuthorization {
       || !hasAllowedScopes(scope)) {
       return failure("response", "google_authorization_failed");
     }
-    const subject = readBoundedIdTokenSubject(idToken, attempt.nonce);
-    if (!subject) return failure("id_token", "google_authorization_failed");
-    const account = await this.fetchGoogleAccount(accessToken, subject, attempt.abortController.signal);
+    const googleSubject = readBoundedIdTokenSubject(idToken, attempt.nonce);
+    if (!googleSubject) return failure("id_token", "google_authorization_failed");
+    const account = await this.fetchGoogleAccount(accessToken, googleSubject, attempt.abortController.signal);
     return Result.isError(account)
       ? Result.err(account.error)
       : Result.ok({ googleIdToken: idToken, driveAccessToken: accessToken, googleAccount: account.value });
@@ -185,7 +193,7 @@ export class GoogleImplicitAuthorization {
 
   private async fetchGoogleAccount(
     accessToken: string,
-    expectedSubject: string,
+    expectedGoogleSubject: string,
     signal: AbortSignal,
   ): Promise<GoogleImplicitAuthorizationResult<GoogleAccountProfile>> {
     try {
@@ -200,11 +208,11 @@ export class GoogleImplicitAuthorization {
       const text = response.ok ? await readBoundedText(response, MAXIMUM_USER_INFO_BYTES) : null;
       if (!text || text === "too_large") return failure("userinfo", "google_authorization_failed");
       const value: unknown = JSON.parse(text);
-      if (!isGoogleAccount(value) || value.sub !== expectedSubject) {
+      if (!isGoogleUserInfo(value) || value.sub !== expectedGoogleSubject) {
         return failure("account_binding", "google_authorization_failed");
       }
       const pictureUrl = value.picture ? await this.fetchAvatar(value.picture, signal) : null;
-      return Result.ok({ id: value.sub, email: value.email, name: value.name, pictureUrl });
+      return Result.ok({ googleSubject: value.sub, email: value.email, name: value.name, pictureUrl });
     } catch {
       return failure("userinfo", "google_authorization_failed");
     }
@@ -291,7 +299,7 @@ function oneValue(params: URLSearchParams, name: string): string | null {
   return values.length === 1 ? values[0] ?? null : null;
 }
 
-function isGoogleAccount(value: unknown): value is { sub: string; email: string; name: string; picture?: string } {
+function isGoogleUserInfo(value: unknown): value is { sub: string; email: string; name: string; picture?: string } {
   return isRecord(value)
     && boundedString(value.sub, 255)
     && boundedString(value.email, 320)

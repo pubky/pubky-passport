@@ -9,7 +9,7 @@ const SERVER_SECRET = Buffer.from(
 
 const IDENTITY = {
   issuer: "https://accounts.google.com" as const,
-  subject: "google-subject",
+  googleSubject: "google-subject",
 };
 
 describe("Google wrapping-key derivation", () => {
@@ -25,7 +25,7 @@ describe("Google wrapping-key derivation", () => {
     const deriver = new GoogleWrappingKeyDeriver(SERVER_SECRET);
 
     const first = deriver.deriveWrappingKey(IDENTITY);
-    const second = deriver.deriveWrappingKey({ ...IDENTITY, subject: "other-google-subject" });
+    const second = deriver.deriveWrappingKey({ ...IDENTITY, googleSubject: "other-google-subject" });
 
     expect(first).not.toBe(second);
   });
@@ -33,6 +33,6 @@ describe("Google wrapping-key derivation", () => {
   it("rejects invalid verified identity input", () => {
     const deriver = new GoogleWrappingKeyDeriver(SERVER_SECRET);
 
-    expect(() => deriver.deriveWrappingKey({ ...IDENTITY, subject: "" })).toThrow("Invalid wrapping key identity.");
+    expect(() => deriver.deriveWrappingKey({ ...IDENTITY, googleSubject: "" })).toThrow("Invalid wrapping key identity.");
   });
 });

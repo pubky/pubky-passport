@@ -50,8 +50,8 @@ describe("ConfirmGoogleDetachment", () => {
   });
 
   it("shows the safe detachment error code", async () => {
-    render(<ConfirmGoogleDetachment canConfirm canRetryAuthorization={false} error="backup_deletion_failed" onCancel={vi.fn()} onConfirm={vi.fn()} onRetryAuthorization={vi.fn()} open pending={false} />);
+    render(<ConfirmGoogleDetachment canConfirm canRetryAuthorization={false} error="google_drive_cleanup_failed" onCancel={vi.fn()} onConfirm={vi.fn()} onRetryAuthorization={vi.fn()} open pending={false} />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("backup_deletion_failed");
+    expect(await screen.findByRole("alert")).toHaveTextContent("google_drive_cleanup_failed");
   });
 });

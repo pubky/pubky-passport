@@ -13,7 +13,7 @@ export function submitManualAuthorizationInput(
   inputValue: string,
   replaceLocation: (url: string) => void = replaceAndReload,
 ): ManualAuthorizationInputResult {
-  if (inputValue.length > PUBKY_AUTH_REQUEST_LIMITS.decodedAuthUrlLength) {
+  if (inputValue.length > PUBKY_AUTH_REQUEST_LIMITS.maximumDecodedAuthUrlCodeUnits) {
     logFailure("request_too_large");
     return "invalid";
   }

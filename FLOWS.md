@@ -299,7 +299,7 @@ sequenceDiagram
     accTitle: Single Google implicit popup call flow
     accDescr: One user click requests identity and Drive scopes; the callback fragment is scrubbed during HTML parsing and credentials remain browser-only.
     actor User
-    participant UI as src/client/ui/onboarding/google<br/>useGoogleSignIn
+    participant UI as src/client/ui/onboarding/google<br/>useGoogleIdentityEstablishment
     box rgba(0, 158, 115, 0.18) src/client/logic/google-identity
         participant GoogleController as GoogleIdentityController.ts<br/>GoogleIdentityController
         participant Operations as GoogleIdentityOperations.ts<br/>GoogleIdentityOperations
@@ -334,10 +334,10 @@ sequenceDiagram
         participant Operations as GoogleIdentityOperations.ts<br/>GoogleIdentityOperations
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/wrapping-key
-        participant Wrapping as WrappingKeyApiClient.ts<br/>WrappingKeyApiClient
+        participant Wrapping as GoogleWrappingKeyApiClient.ts<br/>GoogleWrappingKeyApiClient
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/passport-file
-        participant DriveStore as google/PassportFileStore.ts<br/>GoogleDrivePassportFileStore
+        participant DriveStore as google/GoogleDrivePassportFileStore.ts<br/>GoogleDrivePassportFileStore
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/homegate
         participant Invite as HomegateClient.ts<br/>HomegateClient
@@ -474,8 +474,8 @@ sequenceDiagram
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/passport-file
         participant Crypto as PassportFileWebCrypto.ts<br/>PassportFileWebCrypto
-        participant DriveStore as google/PassportFileStore.ts<br/>GoogleDrivePassportFileStore
-        participant VisibleCopies as google/VisibleRecoveryCopies.ts<br/>GoogleDriveVisibleRecoveryCopies
+        participant DriveStore as google/GoogleDrivePassportFileStore.ts<br/>GoogleDrivePassportFileStore
+        participant VisibleCopies as google/GoogleDriveVisibleRecoveryCopies.ts<br/>GoogleDriveVisibleRecoveryCopies
     end
     box rgba(17, 24, 39, 0.12) External
         participant SDK as @synonymdev/pubky@0.10.0<br/>Keypair
@@ -577,7 +577,7 @@ sequenceDiagram
             SDK-->>Pubky: verified Session or safe failure
             Pubky-->>Operations: matching public identity or safe failure
             alt Sign-in cannot verify signup or publication
-                Operations-->>Operations: signup_failed, discovery_failed, or signin_failed
+                Operations-->>Operations: signup_failed, publication_failed, or signin_failed
             else Verified identity
                 Operations->>Pubky: exportSecretKey(handle)
                 Pubky-->>Operations: secret bytes
@@ -595,8 +595,8 @@ sequenceDiagram
 ```
 
 Local ready state is saved last. Setup cannot be atomic across Drive, Homegate,
-homeserver signup, and discovery. A definite homeserver signup invitation failure
-occurs before Passport file creation. After signup or discovery has been attempted,
+homeserver signup, and publication. A definite homeserver signup invitation failure
+occurs before Passport file creation. After signup or publication has been attempted,
 Passport preserves the encrypted Passport file so the key is not lost, disposes the
 key handle, and saves no ready local Pubky identity; it must not automatically delete
 the file. A later normal establishment retry restores that same key. Restore first
@@ -620,7 +620,7 @@ request is made.
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Detach a Pubky identity from Google
-    accDescr: Passport verifies the account and identity, deletes every Google backup, and clears the local identity last.
+    accDescr: Passport verifies the account and identity, deletes every Google Drive Passport file and visible recovery copy, and clears the local identity last.
     participant UI as detach-from-google
     participant GoogleController as GoogleIdentityController
     participant Operations as GoogleIdentityOperations
@@ -652,7 +652,7 @@ sequenceDiagram
         alt Any verification or Drive cleanup fails
             Operations-->>UI: safe retryable failure
             Note over Local: Local identity remains available
-        else All Google backups removed
+        else All Google Drive files removed
             Operations->>Local: remove identity
             GoogleController-->>UI: detachment complete
         end
@@ -669,14 +669,14 @@ sequenceDiagram
     accTitle: Google wrapping-key API call flow
     accDescr: The route validates its request, verifies provider-account claims, applies a keyed identity rate limit, and derives a wrapping key with HKDF.
     box rgba(0, 158, 115, 0.18) Browser runtime
-        participant Browser as BROWSER<br/>WrappingKeyApiClient
+        participant Browser as BROWSER<br/>GoogleWrappingKeyApiClient
     end
     box rgba(240, 228, 66, 0.18) Next transport
         participant Handler as APP<br/>wrapping-key handler
         participant Policy as APP<br/>routePolicy
     end
     box rgba(213, 94, 0, 0.18) Server
-        participant Request as SERVER<br/>GoogleWrappingKeyRequest
+        participant Issuer as SERVER<br/>GoogleWrappingKeyIssuer
         participant Verifier as SERVER<br/>GoogleIdTokenVerifier
         participant Limiter as SERVER<br/>InMemoryGoogleWrappingKeyRateLimiter
         participant Deriver as SERVER<br/>GoogleWrappingKeyDeriver
@@ -687,30 +687,30 @@ sequenceDiagram
     end
 
     Browser->>Handler: POST { googleIdToken }
-    Handler->>Policy: parseGoogleWrappingKeyRequest(request)
+    Handler->>Policy: parseGoogleIdTokenRequest(request)
     Policy-->>Handler: Google ID token or invalid_request
     alt Invalid request
         Handler-->>Browser: fixed 400 invalid_request
     else Valid Google ID token
-        Handler->>Request: requestGoogleWrappingKey(token)
-        Request->>Verifier: verifyGoogleIdToken(token)
+        Handler->>Issuer: issueGoogleWrappingKey(token)
+        Issuer->>Verifier: verifyGoogleIdToken(token)
         Verifier->>Google: verifyIdToken(token, audience)
         Google-->>Verifier: LoginTicket
         Verifier->>Ticket: getPayload()
         Ticket-->>Verifier: token payload
         Note over Verifier: Validate issuer + audience/azp + expiry + sub
-        Verifier-->>Request: verified identity or safe error
+        Verifier-->>Issuer: verified identity or safe error
         alt Verification error
-            Request-->>Handler: safe authentication error
+            Issuer-->>Handler: safe authentication error
         else Verified identity
-            Request->>Limiter: tryConsumeRequest(identity)
-            Limiter-->>Request: allowed or rate-limited
+            Issuer->>Limiter: tryConsumeRequest(identity)
+            Limiter-->>Issuer: allowed or rate-limited
             alt Rate-limited
-                Request-->>Handler: rate_limited
+                Issuer-->>Handler: rate_limited
             else Allowed
-                Request->>Deriver: deriveWrappingKey(identity)
-                Deriver-->>Request: 32-byte base64url key
-                Request-->>Handler: wrapping key
+                Issuer->>Deriver: deriveWrappingKey(identity)
+                Deriver-->>Issuer: 32-byte base64url key
+                Issuer-->>Handler: wrapping key
             end
         end
         Handler-->>Browser: fixed JSON response

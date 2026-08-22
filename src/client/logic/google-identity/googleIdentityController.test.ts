@@ -33,7 +33,7 @@ import {
 } from "./GoogleIdentityController";
 
 const GOOGLE_ACCOUNT = {
-  id: "google-account-id",
+  googleSubject: "google-account-id",
   email: "satoshi@gmail.com",
   name: "Satoshi Nakamoto",
   pictureUrl: null,
@@ -176,12 +176,12 @@ describe("GoogleIdentityController", () => {
   it("rejects a different Google account before delegation", async () => {
     MOCKS.requestAuthorization.mockResolvedValue(Result.ok({
       ...CREDENTIALS,
-      googleAccount: { ...GOOGLE_ACCOUNT, id: "different-account" },
+      googleAccount: { ...GOOGLE_ACCOUNT, googleSubject: "different-account" },
     }));
     const controller = createController();
 
     expectResultError(
-      await controller.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.id),
+      await controller.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.googleSubject),
       { code: "authorization_failed" },
     );
     expect(MOCKS.detachIdentity).not.toHaveBeenCalled();
@@ -192,13 +192,13 @@ describe("GoogleIdentityController", () => {
     await controller.establishIdentity();
     MOCKS.requestAuthorization.mockResolvedValueOnce(Result.ok({
       ...CREDENTIALS,
-      googleAccount: { ...GOOGLE_ACCOUNT, id: "different-account" },
+      googleAccount: { ...GOOGLE_ACCOUNT, googleSubject: "different-account" },
     }));
 
     expectResultError(await controller.establishIdentity(), { code: "authorization_failed" });
 
     expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(1, undefined);
-    expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(2, GOOGLE_ACCOUNT.id);
+    expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(2, GOOGLE_ACCOUNT.googleSubject);
     expect(MOCKS.establishIdentity).toHaveBeenCalledOnce();
   });
 
@@ -206,7 +206,7 @@ describe("GoogleIdentityController", () => {
     const controller = createController();
     await controller.establishIdentity();
 
-    controller.clearPinnedGoogleAccount();
+    controller.clearPinnedGoogleSubject();
     await controller.establishIdentity();
 
     expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(1, undefined);
@@ -216,21 +216,21 @@ describe("GoogleIdentityController", () => {
   it("delegates detachment behavior", async () => {
     const controller = createController();
 
-    await expect(controller.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.id)).resolves.toEqual(
+    await expect(controller.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.googleSubject)).resolves.toEqual(
       Result.ok({ deletionStatus: "deleted" }),
     );
 
-    expect(MOCKS.detachIdentity).toHaveBeenCalledWith(CREDENTIALS, PUBLIC_IDENTITY, GOOGLE_ACCOUNT.id);
+    expect(MOCKS.detachIdentity).toHaveBeenCalledWith(CREDENTIALS, PUBLIC_IDENTITY, GOOGLE_ACCOUNT.googleSubject);
   });
 
   it("preserves safe typed detachment errors for the UI", async () => {
     MOCKS.detachIdentity.mockResolvedValue(Result.err({
-      code: "backup_deletion_failed" as const,
+      code: "google_drive_cleanup_failed" as const,
     }));
 
     expectResultError(
-      await createController().detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.id),
-      { code: "backup_deletion_failed" },
+      await createController().detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.googleSubject),
+      { code: "google_drive_cleanup_failed" },
     );
   });
 
@@ -306,7 +306,7 @@ describe("GoogleIdentityController", () => {
     const first = controller.establishIdentity();
     await vi.waitFor(() => expect(MOCKS.establishIdentity).toHaveBeenCalledOnce());
     expectResultError(
-      await controller.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.id),
+      await controller.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.googleSubject),
       { code: "operation_failed" },
     );
     expect(MOCKS.requestAuthorization).toHaveBeenCalledOnce();

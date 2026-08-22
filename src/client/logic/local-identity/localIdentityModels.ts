@@ -4,7 +4,7 @@ import type { PubkyPublicIdentity } from "../pubky/pubkyIdentityKey";
 
 /** Safe Google account metadata retained with a browser-local Pubky identity. */
 export type GoogleAccountProfile = {
-  id: string;
+  googleSubject: string;
   email: string;
   name: string;
   pictureUrl: string | null;

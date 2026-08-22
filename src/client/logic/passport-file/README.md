@@ -10,9 +10,9 @@ Pubky identities, or activate homeserver sessions.
   the v1 envelope.
 - [`PassportFileWebCrypto.ts`](./PassportFileWebCrypto.ts) encrypts and decrypts
   32-byte Pubky secret keys.
-- [`google/PassportFileStore.ts`](./google/PassportFileStore.ts) owns the authoritative
+- [`google/GoogleDrivePassportFileStore.ts`](./google/GoogleDrivePassportFileStore.ts) owns the authoritative
   `appDataFolder/passport.json` file.
-- [`google/VisibleRecoveryCopies.ts`](./google/VisibleRecoveryCopies.ts) owns
+- [`google/GoogleDriveVisibleRecoveryCopies.ts`](./google/GoogleDriveVisibleRecoveryCopies.ts) owns
   append-only visible copies and detachment cleanup.
 - [`google/driveHttp.ts`](./google/driveHttp.ts) contains shared bounded Drive HTTP
   and multipart mechanics.

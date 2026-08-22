@@ -14,7 +14,7 @@ import { Button } from "../../shared/primitives/button";
 import { IconButton } from "../../shared/primitives/iconButton";
 import { DisplayHeading } from "../../shared/primitives/typography";
 
-function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadBackup, onLogOut, onMigrateToKeychain, resolveHomeserver }: { identity: LocalIdentityMetadata; onBack: () => void; onDetachFromGoogle: () => void; onDownloadBackup: () => void; onLogOut: () => void; onMigrateToKeychain: () => void; resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult> }) {
+function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadRecoveryFile, onRemoveLocalIdentity, onMigrateToKeychain, resolveHomeserver }: { identity: LocalIdentityMetadata; onBack: () => void; onDetachFromGoogle: () => void; onDownloadRecoveryFile: () => void; onRemoveLocalIdentity: () => void; onMigrateToKeychain: () => void; resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult> }) {
   const account = identity.googleAccount;
   const name = account?.name ?? "Your Pubky";
   const [homeserver, setHomeserver] = useState<string | null | undefined>();
@@ -29,7 +29,7 @@ function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadBa
 
   return (
     <PassportScreen className="gap-6">
-      <Button className="absolute right-6 top-[22px] z-10" onClick={onLogOut} variant="secondary">Log out</Button>
+      <Button className="absolute right-6 top-[22px] z-10" onClick={onRemoveLocalIdentity} variant="secondary">Log out</Button>
       <header className="flex items-start gap-6">
         <DisplayHeading accent="identity." aria-label="Manage identity.">Manage</DisplayHeading>
         <Avatar className="ml-auto" fallback={name} size="lg" {...(account?.pictureUrl ? { src: account.pictureUrl } : {})} />
@@ -44,7 +44,7 @@ function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadBa
 
       <div className="mt-auto flex flex-col gap-4 pt-6">
         <ManagementButton icon={<KeyRoundIcon />} onClick={onMigrateToKeychain}>Migrate to keychain</ManagementButton>
-        <ManagementButton icon={<DownloadIcon />} onClick={onDownloadBackup}>Download backup</ManagementButton>
+        <ManagementButton icon={<DownloadIcon />} onClick={onDownloadRecoveryFile}>Download recovery file</ManagementButton>
         <ManagementButton icon={<LinkOffIcon />} onClick={onDetachFromGoogle}>Detach from Google</ManagementButton>
         <BackButton onClick={onBack} />
       </div>

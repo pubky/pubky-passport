@@ -15,7 +15,7 @@ function GoogleIdentityComplete({ googleAccount, identity, mode, onContinue }: {
     <PassportScreen className="gap-8">
       <div className="flex flex-col gap-6">
         <DisplayHeading accent="complete." aria-label={restored ? "Restore complete." : "Setup complete."}>{restored ? "Restore" : "Setup"}</DisplayHeading>
-        <LeadText>{restored ? "Restored backup from Google Drive." : "Stored backup in Google Drive."}</LeadText>
+        <LeadText>{restored ? "Restored Passport file from Google Drive." : "Stored Passport file in Google Drive."}</LeadText>
         <GoogleAccountCard account={googleAccount} />
         <div className="rounded-xl border border-brand/30 p-4 shadow-xl">
           <p className="mb-2 text-xs font-medium uppercase tracking-[0.1em] text-brand">Your Pubky</p>

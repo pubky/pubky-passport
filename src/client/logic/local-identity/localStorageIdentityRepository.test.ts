@@ -60,7 +60,7 @@ describe("LocalStorageIdentityRepository", () => {
       {
         publicIdentity: FIRST_IDENTITY,
         googleAccount: {
-          id: "google-1",
+          googleSubject: "google-1",
           email: "first@example.com",
           name: "First",
           pictureUrl: null,
@@ -105,30 +105,30 @@ describe("LocalStorageIdentityRepository", () => {
     });
   });
 
-  it("reads the v1 localStorage format without a redundant identity id", () => {
+  it("rejects Google account metadata using id instead of googleSubject", () => {
     const storage = new MemoryStorage();
-    const identity = { publicIdentity: FIRST_IDENTITY };
     storage.setItem("pubky-passport/local-identities/v1", JSON.stringify({
       v: 1,
-      activePublicKeyZ32: identity.publicIdentity.publicKeyZ32,
-      identities: [{ ...identity, secretKey: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE" }],
+      activePublicKeyZ32: FIRST_IDENTITY.publicKeyZ32,
+      identities: [{
+        publicIdentity: FIRST_IDENTITY,
+        googleAccount: {
+          id: "google-1",
+          email: "user@example.com",
+          name: "User",
+          pictureUrl: null,
+        },
+        secretKey: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+      }],
     }));
-    const repository = new LocalStorageIdentityRepository(storage);
 
-    expect(expectResultOk(repository.list())).toEqual({
-      activePublicKeyZ32: identity.publicIdentity.publicKeyZ32,
-      identities: [identity],
-    });
-    expect(expectResultOk(repository.read(FIRST_IDENTITY.publicKeyZ32))).toEqual({
-      identity,
-      secretKey: { bytes: new Uint8Array(32).fill(1), format: PUBKY_SECRET_KEY_FORMAT },
-    });
+    expectResultError(new LocalStorageIdentityRepository(storage).list(), { code: "invalid_store" });
   });
 
   it("persists the Google account associated with an identity", () => {
     const storage = new MemoryStorage();
     const repository = new LocalStorageIdentityRepository(storage);
-    const googleAccount = { id: "google-1", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: "data:image/png;base64,AQID" };
+    const googleAccount = { googleSubject: "google-1", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: "data:image/png;base64,AQID" };
 
     const identity = expectResultOk(repository.save(
       { publicIdentity: FIRST_IDENTITY, googleAccount },
@@ -140,10 +140,10 @@ describe("LocalStorageIdentityRepository", () => {
   });
 
   it.each([
-    ["an empty account id", { id: "", email: "user@example.com", name: "User", pictureUrl: null }],
-    ["a remote avatar", { id: "google-1", email: "user@example.com", name: "User", pictureUrl: "https://example.com/avatar.png" }],
+    ["an empty Google subject", { googleSubject: "", email: "user@example.com", name: "User", pictureUrl: null }],
+    ["a remote avatar", { googleSubject: "google-1", email: "user@example.com", name: "User", pictureUrl: "https://example.com/avatar.png" }],
     ["an undeclared account field", {
-      id: "google-1",
+      googleSubject: "google-1",
       email: "user@example.com",
       name: "User",
       pictureUrl: null,
@@ -180,7 +180,7 @@ describe("LocalStorageIdentityRepository", () => {
     const repository = new LocalStorageIdentityRepository(storage);
     const identityWithToken = {
       publicIdentity: FIRST_IDENTITY,
-      googleAccount: { id: "google-1", email: "user@example.com", name: "User", pictureUrl: null },
+      googleAccount: { googleSubject: "google-1", email: "user@example.com", name: "User", pictureUrl: null },
       googleIdToken: "SENSITIVE-ID-TOKEN",
       driveAccessToken: "SENSITIVE-DRIVE-TOKEN",
     };

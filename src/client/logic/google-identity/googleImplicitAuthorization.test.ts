@@ -62,7 +62,7 @@ describe("GoogleImplicitAuthorization", () => {
     await expect(request).resolves.toEqual(Result.ok({
       googleIdToken: jwt({ sub: SUBJECT, nonce }),
       driveAccessToken: ACCESS_TOKEN,
-      googleAccount: { id: SUBJECT, email: "person@example.com", name: "Person", pictureUrl: null },
+      googleAccount: { googleSubject: SUBJECT, email: "person@example.com", name: "Person", pictureUrl: null },
     }));
     expect(fetch).toHaveBeenCalledWith("https://openidconnect.googleapis.com/v1/userinfo", expect.objectContaining({
       credentials: "omit",
@@ -98,7 +98,7 @@ describe("GoogleImplicitAuthorization", () => {
     await expect(request).resolves.toEqual(Result.ok({
       googleIdToken: jwt({ sub: SUBJECT, nonce: authorizeUrl.searchParams.get("nonce") }),
       driveAccessToken: ACCESS_TOKEN,
-      googleAccount: { id: SUBJECT, email: "person@example.com", name: "Person", pictureUrl: null },
+      googleAccount: { googleSubject: SUBJECT, email: "person@example.com", name: "Person", pictureUrl: null },
     }));
     expect(fetch).toHaveBeenCalledOnce();
   });
@@ -164,6 +164,21 @@ describe("GoogleImplicitAuthorization", () => {
     const result = await request;
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error.code).toBe("google_authorization_popup_closed");
+  });
+
+  it.each([
+    ["access_denied", "google_authorization_denied"],
+    ["server_error", "google_authorization_failed"],
+  ] as const)("maps the Google %s response precisely", async (googleError, expectedCode) => {
+    const popup = createPopup();
+    const authorization = new GoogleImplicitAuthorization("client-id", ORIGIN, () => popup.window);
+    const request = authorization.request();
+
+    popup.returnTo(`${ORIGIN}/#${new URLSearchParams({ error: googleError })}`);
+
+    const result = await request;
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) expect(result.error).toEqual({ code: expectedCode });
   });
 
   it("rejects state, nonce, scope, and account mismatches", async () => {

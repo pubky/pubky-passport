@@ -10,7 +10,7 @@ import {
 import type { GoogleIdentityConfiguration } from "../../logic/google-identity/GoogleIdentityController";
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
-import { SignInFlow } from "../onboarding/signInFlow";
+import { IdentityEstablishmentFlow } from "../onboarding/identityEstablishmentFlow";
 import { BackButton } from "../shared/backButton";
 import { PassportScreen } from "../shared/passportScreen";
 import { Spinner } from "../shared/primitives/spinner";
@@ -37,11 +37,11 @@ function AuthorizationFlow({ googleClientId, homegateBaseUrl }: {
     passportAuthorizationControllerRef.current = passportAuthorizationController;
     setPassportAuthorizationController(passportAuthorizationController);
     let active = true;
-    const publish = () => {
+    const syncAuthorizationState = () => {
       if (active) setAuthorization(passportAuthorizationController.getState());
     };
-    const unsubscribe = passportAuthorizationController.subscribe(publish);
-    queueMicrotask(publish);
+    const unsubscribe = passportAuthorizationController.subscribe(syncAuthorizationState);
+    queueMicrotask(syncAuthorizationState);
     return () => {
       mountedRef.current = false;
       active = false;
@@ -113,13 +113,13 @@ function AuthorizationWithIdentity({
         </PassportScreen>
       );
     case "ready": {
-      const { catalog, localIdentityController, reloadIdentities } = identityCatalog;
+      const { catalog, localIdentityController, refreshIdentityCatalog } = identityCatalog;
 
       if (catalog.identities.length === 0) {
-        return <SignInFlow
+        return <IdentityEstablishmentFlow
           googleIdentityConfiguration={googleIdentityConfiguration}
           onBack={() => { void passportAuthorizationController.cancel(); }}
-          onComplete={reloadIdentities}
+          onComplete={refreshIdentityCatalog}
         />;
       }
 
@@ -129,7 +129,7 @@ function AuthorizationWithIdentity({
           googleIdentityConfiguration={googleIdentityConfiguration}
           onBack={() => setView("review")}
           onIdentitySelected={() => {
-            reloadIdentities();
+            refreshIdentityCatalog();
             setView("review");
           }}
           selectIdentity={(publicKeyZ32) => Result.isOk(localIdentityController.selectIdentity(publicKeyZ32))}

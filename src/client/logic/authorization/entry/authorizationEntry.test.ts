@@ -109,7 +109,7 @@ describe("authorizationEntry", () => {
 
   it.each([
     () => `d=${validRequest()}`,
-    () => `d=${"%41".repeat(Math.ceil(PUBKY_AUTH_REQUEST_LIMITS.encodedDLength / 3) + 1)}`,
+    () => `d=${"%41".repeat(Math.ceil(PUBKY_AUTH_REQUEST_LIMITS.maximumEncodedDCodeUnits / 3) + 1)}`,
     () => `d=${encodeURIComponent(validRequest())}&d=${encodeURIComponent(validRequest())}`,
     () => "d=%E0%A4%A",
     () => `d=${encodeURIComponent(validRequest())}&unexpected=value`,
@@ -143,7 +143,7 @@ describe("authorizationEntry", () => {
   });
 
   it("rejects an oversized fragment before detailed parsing", () => {
-    setRawAuthorizationFragment(`unexpected=${"a".repeat(PUBKY_AUTH_REQUEST_LIMITS.encodedDLength + 1)}`);
+    setRawAuthorizationFragment(`unexpected=${"a".repeat(PUBKY_AUTH_REQUEST_LIMITS.maximumEncodedDCodeUnits + 1)}`);
 
     expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "invalid" });
     expect(window.location.hash).toBe("");

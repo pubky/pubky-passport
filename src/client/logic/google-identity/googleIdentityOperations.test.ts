@@ -18,7 +18,7 @@ const MOCKS = vi.hoisted(() => ({
   publishHomeserver: vi.fn(),
   disposeIdentityKey: vi.fn(),
   disposePubky: vi.fn(),
-  WrappingKeyApiClient: vi.fn(),
+  GoogleWrappingKeyApiClient: vi.fn(),
   requestWrappingKey: vi.fn(),
   HomegateClient: vi.fn(),
   requestInvitation: vi.fn(),
@@ -38,10 +38,10 @@ const MOCKS = vi.hoisted(() => ({
 vi.mock("../pubky/PubkySdkAdapter", () => ({
   PubkySdkAdapter: MOCKS.PubkySdkAdapter,
 }));
-vi.mock("../wrapping-key/WrappingKeyApiClient", () => ({ WrappingKeyApiClient: MOCKS.WrappingKeyApiClient }));
+vi.mock("../wrapping-key/GoogleWrappingKeyApiClient", () => ({ GoogleWrappingKeyApiClient: MOCKS.GoogleWrappingKeyApiClient }));
 vi.mock("../homegate/HomegateClient", () => ({ HomegateClient: MOCKS.HomegateClient }));
 vi.mock("../passport-file/PassportFileWebCrypto", () => ({ PassportFileWebCrypto: MOCKS.PassportFileWebCrypto }));
-vi.mock("../passport-file/google/PassportFileStore", () => ({
+vi.mock("../passport-file/google/GoogleDrivePassportFileStore", () => ({
   GoogleDrivePassportFileStore: class {
     constructor() {
       MOCKS.driveStoreConstructions.count += 1;
@@ -52,7 +52,7 @@ vi.mock("../passport-file/google/PassportFileStore", () => ({
     deletePassportFile = MOCKS.deletePassportFile;
   },
 }));
-vi.mock("../passport-file/google/VisibleRecoveryCopies", () => ({
+vi.mock("../passport-file/google/GoogleDriveVisibleRecoveryCopies", () => ({
   GoogleDriveVisibleRecoveryCopies: class {
     constructor() {
       MOCKS.visibleCopiesConstructions.count += 1;
@@ -82,7 +82,7 @@ const CREDENTIALS = {
   googleIdToken: "google-id-token",
   driveAccessToken: "drive-access-token",
   googleAccount: {
-    id: "google-account",
+    googleSubject: "google-account",
     email: "user@example.com",
     name: "User",
     pictureUrl: null,
@@ -112,7 +112,7 @@ describe("GoogleIdentityOperations", () => {
         dispose: MOCKS.disposePubky,
       };
     });
-    MOCKS.WrappingKeyApiClient.mockImplementation(function () {
+    MOCKS.GoogleWrappingKeyApiClient.mockImplementation(function () {
       return { requestGoogleWrappingKey: MOCKS.requestWrappingKey };
     });
     MOCKS.HomegateClient.mockImplementation(function () {
@@ -189,7 +189,7 @@ describe("GoogleIdentityOperations", () => {
       { flow: "lookup", step: "checking" },
       { flow: "create", step: "preparing" },
       { flow: "create", step: "creating" },
-      { flow: "create", step: "storing_backup" },
+      { flow: "create", step: "storing_passport_file" },
       { flow: "create", step: "signing_up" },
       { flow: "create", step: "publishing" },
       { flow: "create", step: "activating" },
@@ -412,14 +412,14 @@ describe("GoogleIdentityOperations", () => {
     expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
   });
 
-  it("fails discovery when uncertain repaired publication cannot be verified by sign-in", async () => {
+  it("fails publication when uncertain repaired publication cannot be verified by sign-in", async () => {
     foundPassportFile();
     MOCKS.signin.mockResolvedValue(Result.err({ code: "signin_failed" }));
     MOCKS.publishHomeserver.mockResolvedValueOnce(Result.err({ code: "publish_failed" }));
 
     expectResultError(
       await createSubject().establishIdentity(CREDENTIALS, () => undefined),
-      { code: "discovery_failed" },
+      { code: "publication_failed" },
     );
 
     expect(MOCKS.signin).toHaveBeenCalledTimes(2);
@@ -433,7 +433,7 @@ describe("GoogleIdentityOperations", () => {
 
     expectResultError(
       await createSubject().establishIdentity(CREDENTIALS, () => undefined),
-      { code: "discovery_failed" },
+      { code: "publication_failed" },
     );
 
     expect(MOCKS.signin).toHaveBeenCalledOnce();
@@ -498,12 +498,12 @@ describe("GoogleIdentityOperations", () => {
   });
 
   it.each([
-    ["discovery", "discovery_failed"],
+    ["publication", "publication_failed"],
     ["signin", "signin_failed"],
     ["local-save", "local_save_failed"],
   ] as const)("stops and disposes the key after a %s failure", async (stage, expectedCode) => {
     MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
-    if (stage === "discovery") {
+    if (stage === "publication") {
       MOCKS.publishHomeserver.mockResolvedValue(Result.err({ code: "publish_failed" }));
       MOCKS.signin.mockResolvedValue(Result.err({ code: "signin_failed" }));
     } else if (stage === "signin") {
@@ -585,7 +585,7 @@ describe("GoogleIdentityOperations", () => {
     expectResultOk(await createSubject().establishIdentity(CREDENTIALS, () => undefined));
   });
 
-  it("verifies Drive backups before deleting them and removes the local identity last", async () => {
+  it("verifies Google Drive files before deleting them and removes the local identity last", async () => {
     const events: string[] = [];
     foundPassportFile();
     record(MOCKS.deleteVisibleRecoveryCopies, "visible-delete", events);
@@ -599,7 +599,7 @@ describe("GoogleIdentityOperations", () => {
     const result = await createSubject(repository).detachIdentity(
       CREDENTIALS,
       PUBLIC_IDENTITY,
-      CREDENTIALS.googleAccount.id,
+      CREDENTIALS.googleAccount.googleSubject,
     );
 
     expect(expectResultOk(result)).toEqual({ deletionStatus: "deleted" });
@@ -618,7 +618,7 @@ describe("GoogleIdentityOperations", () => {
     expect(expectResultOk(await createSubject(repository).detachIdentity(
       CREDENTIALS,
       PUBLIC_IDENTITY,
-      CREDENTIALS.googleAccount.id,
+      CREDENTIALS.googleAccount.googleSubject,
     ))).toEqual({ deletionStatus: "missing" });
     expect(MOCKS.deleteVisibleRecoveryCopies).toHaveBeenCalledOnce();
     expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
@@ -634,8 +634,8 @@ describe("GoogleIdentityOperations", () => {
     expectResultError(await createSubject(repository).detachIdentity(
       CREDENTIALS,
       PUBLIC_IDENTITY,
-      CREDENTIALS.googleAccount.id,
-    ), { code: "backup_deletion_failed" });
+      CREDENTIALS.googleAccount.googleSubject,
+    ), { code: "google_drive_cleanup_failed" });
     expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
     expect(remove).not.toHaveBeenCalled();
   });
@@ -648,7 +648,7 @@ describe("GoogleIdentityOperations", () => {
       CREDENTIALS,
       PUBLIC_IDENTITY,
       "different-google-account",
-    ), { code: "backup_deletion_failed" });
+    ), { code: "google_drive_cleanup_failed" });
     expect(MOCKS.readPassportFile).not.toHaveBeenCalled();
     expect(remove).not.toHaveBeenCalled();
   });
@@ -669,7 +669,7 @@ describe("GoogleIdentityOperations", () => {
       return new Response("{}", { status: 200 });
     }));
     const subject = createSubject();
-    const fetchWithDeadline = MOCKS.WrappingKeyApiClient.mock.calls[0]?.[0] as typeof fetch;
+    const fetchWithDeadline = MOCKS.GoogleWrappingKeyApiClient.mock.calls[0]?.[0] as typeof fetch;
 
     await fetchWithDeadline("/test");
     expect(requestSignal?.aborted).toBe(false);

@@ -20,7 +20,7 @@ type StoredLocalIdentity = LocalIdentityMetadata & {
   secretKey: string;
 };
 
-type LocalIdentityStoreV1 = {
+type LocalIdentityStore = {
   v: typeof LOCAL_IDENTITY_STORE_VERSION;
   activePublicKeyZ32: string | null;
   identities: StoredLocalIdentity[];
@@ -62,7 +62,7 @@ export class LocalStorageIdentityRepository {
   /** Creates or replaces an identity, persists declared fields, and makes it active. */
   save(identity: LocalIdentityMetadata, secretKey: PubkySecretKeyMaterial): LocalIdentityResult<LocalIdentityMetadata> {
     if (!isPubkyPublicIdentity(identity.publicIdentity)
-      || (identity.googleAccount !== undefined && !isGoogleAccount(identity.googleAccount))) {
+      || (identity.googleAccount !== undefined && !isStoredGoogleAccountProfile(identity.googleAccount))) {
       return failure("save", "invalid_identity");
     }
     if (secretKey.format !== PUBKY_SECRET_KEY_FORMAT || secretKey.bytes.byteLength !== PUBKY_SECRET_KEY_BYTES) {
@@ -81,7 +81,7 @@ export class LocalStorageIdentityRepository {
       },
       ...(identity.googleAccount ? {
         googleAccount: {
-          id: identity.googleAccount.id,
+          googleSubject: identity.googleAccount.googleSubject,
           email: identity.googleAccount.email,
           name: identity.googleAccount.name,
           pictureUrl: identity.googleAccount.pictureUrl,
@@ -100,7 +100,7 @@ export class LocalStorageIdentityRepository {
       identities[existingIndex] = storedIdentity;
     }
 
-    const nextStore: LocalIdentityStoreV1 = {
+    const nextStore: LocalIdentityStore = {
       v: LOCAL_IDENTITY_STORE_VERSION,
       activePublicKeyZ32: publicKeyZ32,
       identities,
@@ -160,7 +160,7 @@ export class LocalStorageIdentityRepository {
     });
   }
 
-  private readStore(): LocalIdentityResult<LocalIdentityStoreV1> {
+  private readStore(): LocalIdentityResult<LocalIdentityStore> {
     if (!this.storage) {
       return localStoreFailure("read", "storage_unavailable");
     }
@@ -176,15 +176,10 @@ export class LocalStorageIdentityRepository {
       return Result.ok({ v: LOCAL_IDENTITY_STORE_VERSION, activePublicKeyZ32: null, identities: [] });
     }
 
-    try {
-      const parsed: unknown = JSON.parse(stored);
-      return isStoreV1(parsed) ? Result.ok(parsed) : localStoreFailure("read", "invalid_store");
-    } catch {
-      return localStoreFailure("read", "invalid_store");
-    }
+    return parseStore(stored);
   }
 
-  private writeStore(store: LocalIdentityStoreV1): LocalIdentityResult<void> {
+  private writeStore(store: LocalIdentityStore): LocalIdentityResult<void> {
     if (!this.storage) {
       return localStoreFailure("write", "storage_unavailable");
     }
@@ -206,7 +201,16 @@ function getLocalStorage(): Storage | null {
   }
 }
 
-function isStoreV1(value: unknown): value is LocalIdentityStoreV1 {
+function parseStore(value: string): LocalIdentityResult<LocalIdentityStore> {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return isStore(parsed) ? Result.ok(parsed) : localStoreFailure("read", "invalid_store");
+  } catch {
+    return localStoreFailure("read", "invalid_store");
+  }
+}
+
+function isStore(value: unknown): value is LocalIdentityStore {
   if (!isRecord(value) || !hasExactKeys(value, ["v", "activePublicKeyZ32", "identities"])) {
     return false;
   }
@@ -234,13 +238,13 @@ function isStoredIdentity(value: unknown): value is StoredLocalIdentity {
   }
 
   return isEncodedSecretKey(value.secretKey)
-    && (value.googleAccount === undefined || isGoogleAccount(value.googleAccount));
+    && (value.googleAccount === undefined || isStoredGoogleAccountProfile(value.googleAccount));
 }
 
-function isGoogleAccount(value: unknown): value is GoogleAccountProfile {
+function isStoredGoogleAccountProfile(value: unknown): value is GoogleAccountProfile {
   return isRecord(value)
-    && hasExactKeys(value, ["id", "email", "name", "pictureUrl"])
-    && isNonEmptyString(value.id)
+    && hasExactKeys(value, ["googleSubject", "email", "name", "pictureUrl"])
+    && isNonEmptyString(value.googleSubject)
     && isNonEmptyString(value.email)
     && isNonEmptyString(value.name)
     && (value.pictureUrl === null || isLocalGoogleAvatar(value.pictureUrl));

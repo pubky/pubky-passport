@@ -84,8 +84,7 @@ const PUBKY_AUTH_PROTOCOL = "pubkyauth:";
 /**
  * Parses and bounds one encoded Pubky Auth URL without issuing signing
  * authority. The returned URL remains sensitive and must not enter UI state.
- * Production imports are confined by architecture tests to issuance and the
- * validation-only wrapper.
+ * Callers must either issue it immediately or use the validation-only wrapper.
  */
 export function parseEncodedPubkyAuthRequest(
   encodedRequest: unknown,
@@ -94,7 +93,7 @@ export function parseEncodedPubkyAuthRequest(
     return error("missing_d");
   }
 
-  if (encodedRequest.length > PUBKY_AUTH_REQUEST_LIMITS.encodedDLength) {
+  if (encodedRequest.length > PUBKY_AUTH_REQUEST_LIMITS.maximumEncodedDCodeUnits) {
     return error("request_too_large");
   }
 
@@ -103,7 +102,7 @@ export function parseEncodedPubkyAuthRequest(
     return Result.err(decoded.error);
   }
 
-  if (decoded.value.length > PUBKY_AUTH_REQUEST_LIMITS.decodedAuthUrlLength) {
+  if (decoded.value.length > PUBKY_AUTH_REQUEST_LIMITS.maximumDecodedAuthUrlCodeUnits) {
     return error("request_too_large");
   }
 
@@ -131,7 +130,7 @@ export function parseEncodedPubkyAuthRequest(
   }
 
   if (
-    secret.length > PUBKY_AUTH_REQUEST_LIMITS.secretLength ||
+    secret.length > PUBKY_AUTH_REQUEST_LIMITS.maximumSecretCodeUnits ||
     !isCanonicalAuthSecret(secret)
   ) {
     return error("invalid_secret");
@@ -252,7 +251,7 @@ function validateGrantParameters(
   if (clientId === null || clientId.length === 0) {
     return error("missing_client_id");
   }
-  if (utf8Length(clientId) > 253) {
+  if (utf8Length(clientId) > PUBKY_AUTH_REQUEST_LIMITS.maximumClientIdUtf8Bytes) {
     return error("invalid_client_id");
   }
 

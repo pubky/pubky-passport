@@ -26,11 +26,11 @@ vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
   },
 }));
 
-function SessionProbe() {
-  const session = useIdentityCatalog();
-  return session.status === "ready"
-    ? <><p>{`${session.status}:${session.catalog.identities.length}`}</p><button onClick={session.reloadIdentities} type="button">Reload</button></>
-    : <p>{session.status}</p>;
+function IdentityCatalogProbe() {
+  const identityCatalogState = useIdentityCatalog();
+  return identityCatalogState.status === "ready"
+    ? <><p>{`${identityCatalogState.status}:${identityCatalogState.catalog.identities.length}`}</p><button onClick={identityCatalogState.refreshIdentityCatalog} type="button">Refresh</button></>
+    : <p>{identityCatalogState.status}</p>;
 }
 
 describe("useIdentityCatalog", () => {
@@ -45,26 +45,26 @@ describe("useIdentityCatalog", () => {
   });
 
   it("reloads the identity catalog explicitly", async () => {
-    render(<SessionProbe />);
+    render(<IdentityCatalogProbe />);
     expect(await screen.findByText("ready:0")).toBeInTheDocument();
 
     MOCKS.catalog = {
       activePublicKeyZ32: "identity",
       identities: [{ publicIdentity: { publicKeyDisplay: "pubkyidentity", publicKeyZ32: "identity" } }],
     };
-    await userEvent.setup().click(screen.getByRole("button", { name: "Reload" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Refresh" }));
 
     expect(await screen.findByText("ready:1")).toBeInTheDocument();
   });
 
   it("maps catalog failures", async () => {
     MOCKS.unavailable = true;
-    render(<SessionProbe />);
+    render(<IdentityCatalogProbe />);
     expect(await screen.findByText("unavailable")).toBeInTheDocument();
   });
 
   it("creates one live controller under Strict Mode", async () => {
-    const rendered = render(<StrictMode><SessionProbe /></StrictMode>);
+    const rendered = render(<StrictMode><IdentityCatalogProbe /></StrictMode>);
     expect(await screen.findByText("ready:0")).toBeInTheDocument();
     expect(MOCKS.create).toHaveBeenCalledOnce();
 

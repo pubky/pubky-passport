@@ -47,8 +47,8 @@ vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
   },
 }));
 
-vi.mock("../onboarding/signInFlow", () => ({
-  SignInFlow: ({ onBack, onComplete }: { onBack?: () => void; onComplete: () => void }) => (
+vi.mock("../onboarding/identityEstablishmentFlow", () => ({
+  IdentityEstablishmentFlow: ({ onBack, onComplete }: { onBack?: () => void; onComplete: () => void }) => (
     <main>
       <h1>Add identity</h1>
       <button onClick={onComplete} type="button">Complete identity setup</button>
@@ -68,11 +68,11 @@ const REVIEW = {
 
 const FIRST = {
   publicIdentity: { publicKeyDisplay: "pubkyfirst", publicKeyZ32: "first-public-key" },
-  googleAccount: { email: "first@example.com", id: "google-first", name: "First User", pictureUrl: null },
+  googleAccount: { email: "first@example.com", googleSubject: "google-first", name: "First User", pictureUrl: null },
 };
 const SECOND = {
   publicIdentity: { publicKeyDisplay: "pubkysecond", publicKeyZ32: "second-public-key" },
-  googleAccount: { email: "second@example.com", id: "google-second", name: "Second User", pictureUrl: null },
+  googleAccount: { email: "second@example.com", googleSubject: "google-second", name: "Second User", pictureUrl: null },
 };
 
 describe("AuthorizationFlow", () => {
@@ -323,6 +323,7 @@ describe("AuthorizationFlow", () => {
   it.each([
     ["approved", "Authorization complete."],
     ["cancelled", "Authorization cancelled."],
+    ["failed", "Authorization failed."],
   ] as const)("renders the safe local %s terminal state", async (status, heading) => {
     MOCKS.authorizationState = { status };
     renderFlow();

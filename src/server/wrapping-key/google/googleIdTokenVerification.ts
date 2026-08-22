@@ -6,7 +6,7 @@ export const CANONICAL_GOOGLE_ISSUER = "https://accounts.google.com";
 
 export type VerifiedGoogleIdentity = {
   issuer: typeof CANONICAL_GOOGLE_ISSUER;
-  subject: string;
+  googleSubject: string;
 };
 
 export type GoogleIdTokenVerificationResult = Result<

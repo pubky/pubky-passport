@@ -6,8 +6,8 @@ the identity flow to open an encrypted Passport file.
 
 ## Structure
 
-- [`WrappingKeyApiClient.ts`](./WrappingKeyApiClient.ts) owns the result types, HTTP request, and strict response validation.
-- [`wrappingKeyApiClient.test.ts`](./wrappingKeyApiClient.test.ts) covers request secrecy, response bounds, schemas, and error mapping.
+- [`GoogleWrappingKeyApiClient.ts`](./GoogleWrappingKeyApiClient.ts) owns the result types, HTTP request, and strict response validation.
+- [`googleWrappingKeyApiClient.test.ts`](./googleWrappingKeyApiClient.test.ts) covers request secrecy, response bounds, schemas, and error mapping.
 
 ## Request Flow
 

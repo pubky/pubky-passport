@@ -12,8 +12,8 @@ import {
   type HomegateSignupInvitationErrorCode,
   type HomeserverSignupInvitation,
 } from "../homegate/HomegateClient";
-import { GoogleDrivePassportFileStore } from "../passport-file/google/PassportFileStore";
-import { GoogleDriveVisibleRecoveryCopies } from "../passport-file/google/VisibleRecoveryCopies";
+import { GoogleDrivePassportFileStore } from "../passport-file/google/GoogleDrivePassportFileStore";
+import { GoogleDriveVisibleRecoveryCopies } from "../passport-file/google/GoogleDriveVisibleRecoveryCopies";
 import type { PassportFileEnvelopeV1 } from "../passport-file/passportFileEnvelope";
 import { PassportFileWebCrypto } from "../passport-file/PassportFileWebCrypto";
 import {
@@ -23,9 +23,9 @@ import {
 } from "../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../pubky/PubkySdkAdapter";
 import {
-  WrappingKeyApiClient,
+  GoogleWrappingKeyApiClient,
   type GoogleWrappingKeyErrorCode,
-} from "../wrapping-key/WrappingKeyApiClient";
+} from "../wrapping-key/GoogleWrappingKeyApiClient";
 import { LocalStorageIdentityRepository } from "../local-identity/LocalStorageIdentityRepository";
 
 /** Safe setup or restore progress emitted while establishing an identity. */
@@ -33,7 +33,7 @@ export type GoogleIdentityProgress =
   | { flow: "lookup"; step: "checking" }
   | {
     flow: "create";
-    step: "preparing" | "creating" | "storing_backup" | "signing_up" | "publishing" | "activating";
+    step: "preparing" | "creating" | "storing_passport_file" | "signing_up" | "publishing" | "activating";
   }
   | { flow: "restore"; step: "restoring" | "signing_in" }
   | { flow: "repair"; step: "signing_up" | "publishing" | "signing_in" };
@@ -55,7 +55,7 @@ export type GoogleIdentityOperationValue =
 type GoogleIdentityFailureCode =
   | "create_failed"
   | "decrypt_failed"
-  | "discovery_failed"
+  | "publication_failed"
   | "drive_create_conflict"
   | "drive_read_failed"
   | "drive_write_failed"
@@ -78,7 +78,7 @@ type GoogleIdentityOperationResult = ResultType<
 >;
 
 type DetachGoogleIdentityError = {
-  code: "backup_deletion_failed" | "local_remove_failed" | "unexpected_failure";
+  code: "google_drive_cleanup_failed" | "local_remove_failed" | "unexpected_failure";
 };
 
 export type GoogleIdentityOperationError =
@@ -97,7 +97,7 @@ type OperationResult<Success = void> = ResultType<Success, GoogleIdentityEstabli
  */
 export class GoogleIdentityOperations {
   private pubky: PubkySdkAdapter;
-  private wrappingKeys: WrappingKeyApiClient;
+  private wrappingKeys: GoogleWrappingKeyApiClient;
   private homegate: HomegateClient;
   private crypto: PassportFileWebCrypto;
   private requests = new AbortController();
@@ -116,7 +116,7 @@ export class GoogleIdentityOperations {
     const pubky = new PubkySdkAdapter();
     this.pubky = pubky;
     try {
-      this.wrappingKeys = new WrappingKeyApiClient(this.fetch);
+      this.wrappingKeys = new GoogleWrappingKeyApiClient(this.fetch);
       this.homegate = new HomegateClient(homegateBaseUrl, this.fetch);
       this.crypto = new PassportFileWebCrypto();
     } catch (error) {
@@ -175,21 +175,21 @@ export class GoogleIdentityOperations {
   }
 
   /**
-   * Deletes Google Drive backups belonging to the selected identity, then removes
+   * Deletes Google Drive Passport files belonging to the selected identity, then removes
    * the local identity. Any Google Drive failure preserves the local copy.
    */
   async detachIdentity(
     credentials: GoogleIdentityCredentials,
     publicIdentity: PubkyPublicIdentity,
-    expectedGoogleAccountId: string,
+    expectedGoogleSubject: string,
   ): Promise<DetachGoogleIdentityResult> {
-    if (credentials.googleAccount.id !== expectedGoogleAccountId) {
-      return failure({ code: "backup_deletion_failed" });
+    if (credentials.googleAccount.googleSubject !== expectedGoogleSubject) {
+      return failure({ code: "google_drive_cleanup_failed" });
     }
 
     try {
-      const deleted = await this.deleteVerifiedBackups(credentials, publicIdentity);
-      if (deleted === null) return failure({ code: "backup_deletion_failed" });
+      const deleted = await this.deleteVerifiedGoogleDriveFiles(credentials, publicIdentity);
+      if (deleted === null) return failure({ code: "google_drive_cleanup_failed" });
 
       const removed = this.repository.remove(publicIdentity.publicKeyZ32);
       return Result.isError(removed)
@@ -237,7 +237,7 @@ export class GoogleIdentityOperations {
       if (Result.isError(secretKey)) return failure({ code: "create_failed" });
 
       let visibleRecoveryCopyStatus: "created" | "unconfirmed" = "created";
-      report({ flow: "create", step: "storing_backup" });
+      report({ flow: "create", step: "storing_passport_file" });
       LOGGER.info("identity.google.encrypt.started");
       const encrypted = await this.crypto.encryptSecretKeyBytes(
         secretKey.value.bytes,
@@ -406,16 +406,16 @@ export class GoogleIdentityOperations {
     report(isReconciliation
       ? { flow: "repair", step: "publishing" }
       : { flow: "create", step: "publishing" });
-    LOGGER.info("identity.google.discovery.started");
+    LOGGER.info("identity.google.publication.started");
     const published = await this.pubky.publishHomeserver({
       keyHandle: identity.keyHandle,
       homeserverPubky: invitation.homeserverPubky,
     });
     if (Result.isError(published) && published.error.code !== "publish_failed") {
-      return failure({ code: "discovery_failed" });
+      return failure({ code: "publication_failed" });
     }
     const publicationWasUncertain = Result.isError(published);
-    if (!publicationWasUncertain) LOGGER.info("identity.google.discovery.completed");
+    if (!publicationWasUncertain) LOGGER.info("identity.google.publication.completed");
 
     report(isReconciliation
       ? { flow: "repair", step: "signing_in" }
@@ -425,7 +425,7 @@ export class GoogleIdentityOperations {
       return failure({
         code: signupWasUncertain
           ? "signup_failed"
-          : publicationWasUncertain ? "discovery_failed" : "signin_failed",
+          : publicationWasUncertain ? "publication_failed" : "signin_failed",
       });
     }
     const verified = this.verifySessionIdentity(identity, signedIn.value.publicIdentity);
@@ -490,7 +490,7 @@ export class GoogleIdentityOperations {
     return Result.ok(wrappingKey.value);
   }
 
-  private async deleteVerifiedBackups(
+  private async deleteVerifiedGoogleDriveFiles(
     credentials: GoogleIdentityCredentials,
     publicIdentity: PubkyPublicIdentity,
   ): Promise<"deleted" | "missing" | null> {

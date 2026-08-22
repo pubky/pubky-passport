@@ -17,9 +17,9 @@ describe("GoogleIdentityProgress", () => {
   });
 
   it.each([
-    [{ flow: "create", step: "preparing" }, "Store encrypted backup"],
-    [{ flow: "create", step: "creating" }, "Store encrypted backup"],
-    [{ flow: "create", step: "storing_backup" }, "Store encrypted backup"],
+    [{ flow: "create", step: "preparing" }, "Store Passport file"],
+    [{ flow: "create", step: "creating" }, "Store Passport file"],
+    [{ flow: "create", step: "storing_passport_file" }, "Store Passport file"],
     [{ flow: "create", step: "signing_up" }, "Sign up to the homeserver"],
     [{ flow: "create", step: "publishing" }, "Publish PKDNS records"],
     [{ flow: "create", step: "activating" }, "Activate identity"],
@@ -35,7 +35,7 @@ describe("GoogleIdentityProgress", () => {
   );
 
   it.each([
-    [{ flow: "restore", step: "restoring" }, "Restoring", "restore", "Restore encrypted backup"],
+    [{ flow: "restore", step: "restoring" }, "Restoring", "restore", "Restore Passport file"],
     [{ flow: "restore", step: "signing_in" }, "Restoring", "restore", "Sign in to the homeserver"],
     [{ flow: "repair", step: "signing_up" }, "Repairing", "repair", "Repair homeserver access"],
     [{ flow: "repair", step: "publishing" }, "Repairing", "repair", "Publish PKDNS records"],

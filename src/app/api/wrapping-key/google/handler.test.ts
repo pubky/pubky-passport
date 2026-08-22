@@ -7,15 +7,15 @@ import { GoogleIdTokenVerifier } from "../../../../server/wrapping-key/google/Go
 import { GoogleWrappingKeyDeriver } from "../../../../server/wrapping-key/google/GoogleWrappingKeyDeriver";
 import { InMemoryGoogleWrappingKeyRateLimiter } from "../../../../server/wrapping-key/google/InMemoryGoogleWrappingKeyRateLimiter";
 import {
-  GoogleWrappingKeyRequest,
-  type GoogleWrappingKeyRequestResult,
-} from "../../../../server/wrapping-key/google/GoogleWrappingKeyRequest";
+  GoogleWrappingKeyIssuer,
+  type GoogleWrappingKeyIssueResult,
+} from "../../../../server/wrapping-key/google/GoogleWrappingKeyIssuer";
 
 describe("POST /api/wrapping-key/google", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("maps valid wrapping-key results to HTTP success", async () => {
-    const post = createGoogleWrappingKeyPostHandler(wrappingKeyRequestFactory(Result.ok("opaque-key")));
+    const post = createGoogleWrappingKeyPostHandler(wrappingKeyIssuerFactory(Result.ok("opaque-key")));
 
     const response = await post(jsonRequest({ googleIdToken: "id-token" }));
 
@@ -30,7 +30,7 @@ describe("POST /api/wrapping-key/google", () => {
     let factoryCalls = 0;
     const post = createGoogleWrappingKeyPostHandler(() => {
       factoryCalls += 1;
-      return concreteWrappingKeyRequest(async () => {
+      return concreteWrappingKeyIssuer(async () => {
           return Result.ok("opaque-key");
       });
     });
@@ -55,7 +55,7 @@ describe("POST /api/wrapping-key/google", () => {
     ["rate_limited", 429],
     ["dependency_unavailable", 503],
   ] as const)("maps %s failures to HTTP %i", async (code, status) => {
-    const post = createGoogleWrappingKeyPostHandler(wrappingKeyRequestFactory(Result.err({ code })));
+    const post = createGoogleWrappingKeyPostHandler(wrappingKeyIssuerFactory(Result.err({ code })));
 
     await expect(post(jsonRequest({ googleIdToken: "id-token" })).then(responseSummary)).resolves.toEqual({
       status,
@@ -67,7 +67,7 @@ describe("POST /api/wrapping-key/google", () => {
     let factoryCalls = 0;
     const post = createGoogleWrappingKeyPostHandler(() => {
       factoryCalls += 1;
-      return concreteWrappingKeyRequest(async () => {
+      return concreteWrappingKeyIssuer(async () => {
           return Result.ok("opaque-key");
       });
     });
@@ -86,7 +86,7 @@ describe("POST /api/wrapping-key/google", () => {
     const post = createGoogleWrappingKeyPostHandler(() => {
       factoryCalls += 1;
       if (factoryCalls === 1) throw new Error("configuration temporarily unavailable");
-      return concreteWrappingKeyRequest(async () => {
+      return concreteWrappingKeyIssuer(async () => {
           return Result.ok("opaque-key");
       });
     });
@@ -104,7 +104,7 @@ describe("POST /api/wrapping-key/google", () => {
 
   it("maps unexpected wrapping-key failures to safe 500 responses", async () => {
     const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
-    const post = createGoogleWrappingKeyPostHandler(() => concreteWrappingKeyRequest(async () => {
+    const post = createGoogleWrappingKeyPostHandler(() => concreteWrappingKeyIssuer(async () => {
         throw new Error("SECRET-GOOGLE-ID-TOKEN");
     }));
 
@@ -124,18 +124,18 @@ describe("POST /api/wrapping-key/google", () => {
 
 });
 
-function wrappingKeyRequestFactory(result: GoogleWrappingKeyRequestResult) {
-  return () => concreteWrappingKeyRequest(async () => result);
+function wrappingKeyIssuerFactory(result: GoogleWrappingKeyIssueResult) {
+  return () => concreteWrappingKeyIssuer(async () => result);
 }
 
-function concreteWrappingKeyRequest(
-  requestGoogleWrappingKey: GoogleWrappingKeyRequest["requestGoogleWrappingKey"],
-): GoogleWrappingKeyRequest {
-  return new TestGoogleWrappingKeyRequest(requestGoogleWrappingKey);
+function concreteWrappingKeyIssuer(
+  issueGoogleWrappingKey: GoogleWrappingKeyIssuer["issueGoogleWrappingKey"],
+): GoogleWrappingKeyIssuer {
+  return new TestGoogleWrappingKeyIssuer(issueGoogleWrappingKey);
 }
 
-class TestGoogleWrappingKeyRequest extends GoogleWrappingKeyRequest {
-  constructor(private request: GoogleWrappingKeyRequest["requestGoogleWrappingKey"]) {
+class TestGoogleWrappingKeyIssuer extends GoogleWrappingKeyIssuer {
+  constructor(private issue: GoogleWrappingKeyIssuer["issueGoogleWrappingKey"]) {
     super(
       new GoogleIdTokenVerifier("test-client"),
       new InMemoryGoogleWrappingKeyRateLimiter(new Uint8Array(32)),
@@ -143,8 +143,8 @@ class TestGoogleWrappingKeyRequest extends GoogleWrappingKeyRequest {
     );
   }
 
-  override requestGoogleWrappingKey(googleIdToken: string): Promise<GoogleWrappingKeyRequestResult> {
-    return this.request(googleIdToken);
+  override issueGoogleWrappingKey(googleIdToken: string): Promise<GoogleWrappingKeyIssueResult> {
+    return this.issue(googleIdToken);
   }
 }
 

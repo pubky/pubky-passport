@@ -6,20 +6,20 @@ import { GoogleAccessScreen } from "./google/googleAccessScreen";
 import { GoogleIdentityComplete } from "./google/googleIdentityComplete";
 import { GoogleIdentityError } from "./google/googleIdentityError";
 import { GoogleIdentityProgress } from "./google/googleIdentityProgress";
-import { useGoogleSignIn } from "./google/useGoogleSignIn";
+import { useGoogleIdentityEstablishment } from "./google/useGoogleIdentityEstablishment";
 import { BackButton } from "../shared/backButton";
 import { ProviderSignInButton } from "./providerSignInButton";
 import { SignInPage } from "./signInPage";
 
-function SignInFlow({ googleIdentityConfiguration, onBack, onComplete }: {
+function IdentityEstablishmentFlow({ googleIdentityConfiguration, onBack, onComplete }: {
   googleIdentityConfiguration: GoogleIdentityConfiguration;
   onBack?: () => void;
   onComplete: () => void;
 }) {
-  const google = useGoogleSignIn(googleIdentityConfiguration);
+  const google = useGoogleIdentityEstablishment(googleIdentityConfiguration);
   const view = google.state.view;
 
-  switch (view.name) {
+  switch (view.status) {
     case "complete":
       return <GoogleIdentityComplete
         googleAccount={view.googleAccount}
@@ -55,4 +55,4 @@ function SignInFlow({ googleIdentityConfiguration, onBack, onComplete }: {
   }
 }
 
-export { SignInFlow };
+export { IdentityEstablishmentFlow };
