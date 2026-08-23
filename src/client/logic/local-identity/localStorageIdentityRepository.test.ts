@@ -2,7 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../test-utils/fakes/MemoryStorage";
+import { MemoryStorage } from "../../../../test-utils/MemoryStorage";
 import { expectResultError, expectResultOk } from "../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_FORMAT, type PubkyPublicIdentity } from "../pubky/pubkyIdentityKey";
@@ -103,6 +103,36 @@ describe("LocalStorageIdentityRepository", () => {
       operation: "read",
       code: "storage_unavailable",
     });
+  });
+
+  it("reports write failures as unavailable storage", () => {
+    const storage = new MemoryStorage();
+    vi.spyOn(storage, "setItem").mockImplementation(() => {
+      throw new Error("quota exceeded");
+    });
+
+    expectResultError(
+      new LocalStorageIdentityRepository(storage).save(
+        { publicIdentity: FIRST_IDENTITY },
+        { bytes: new Uint8Array(32), format: PUBKY_SECRET_KEY_FORMAT },
+      ),
+      { code: "storage_unavailable" },
+    );
+  });
+
+  it.each([
+    [new Uint8Array(31), PUBKY_SECRET_KEY_FORMAT],
+    [new Uint8Array(32), "unknown-format"],
+  ])("rejects invalid secret-key material", (bytes, format) => {
+    const repository = new LocalStorageIdentityRepository(new MemoryStorage());
+
+    expectResultError(
+      repository.save(
+        { publicIdentity: FIRST_IDENTITY },
+        { bytes, format } as Parameters<LocalStorageIdentityRepository["save"]>[1],
+      ),
+      { code: "invalid_secret_key" },
+    );
   });
 
   it("rejects Google account metadata using id instead of googleSubject", () => {
@@ -241,6 +271,18 @@ describe("LocalStorageIdentityRepository", () => {
       activePublicKeyZ32: first.publicIdentity.publicKeyZ32,
       identities: [first],
     });
+  });
+
+  it("keeps the active identity when removing another and clears it when removing the last", () => {
+    const repository = new LocalStorageIdentityRepository(new MemoryStorage());
+    save(repository, FIRST_IDENTITY, 1);
+    save(repository, SECOND_IDENTITY, 2);
+
+    expectResultOk(repository.remove(FIRST_IDENTITY.publicKeyZ32));
+    expect(expectResultOk(repository.list()).activePublicKeyZ32).toBe(SECOND_IDENTITY.publicKeyZ32);
+
+    expectResultOk(repository.remove(SECOND_IDENTITY.publicKeyZ32));
+    expect(expectResultOk(repository.list())).toEqual({ activePublicKeyZ32: null, identities: [] });
   });
 
   it("uses one last-write-wins write without read-back retries", () => {

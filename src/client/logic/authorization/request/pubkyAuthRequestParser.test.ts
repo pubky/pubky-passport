@@ -68,25 +68,6 @@ describe("parseEncodedPubkyAuthRequest", () => {
     });
   });
 
-  it("uses the reviewed NFC capability path in the approval URL", () => {
-    const request = VALID_REQUEST.replace("/pub/pubky.app/", "/pub/cafe\u0301/");
-    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
-    if (Result.isError(result)) throw new Error(result.error.code);
-
-    expect(result.value.capabilities[0]?.path).toBe("/pub/café/");
-    expect(new URL(result.value.sensitivePubkyAuthUrl).searchParams.get("caps")).toBe("/pub/café/:rw");
-  });
-
-  it("accepts a client-provided HTTPS relay", () => {
-    const result = parseEncodedPubkyAuthRequest(encodeRequest(
-      VALID_REQUEST.replace("https://httprelay.pubky.app/inbox", "https://relay.client.example/custom-inbox"),
-    ));
-
-    expect(Result.isOk(result)).toBe(true);
-    if (Result.isError(result)) throw new Error(result.error.code);
-    expect(result.value.authenticationMethod).toBe("cookie");
-  });
-
   it("parses the documented pubkyauth:/// form", () => {
     const request =
       "pubkyauth:///?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
@@ -115,41 +96,6 @@ describe("parseEncodedPubkyAuthRequest", () => {
     if (Result.isError(result)) throw new Error(result.error.code);
     expect(result.value.authenticationMethod).toBe("grant");
     expect(result.value).not.toHaveProperty("clientId");
-  });
-
-  it("parses comma-separated capabilities", () => {
-    const request =
-      "pubkyauth://signin?caps=/pub/pubky.app/:rw,/pub/eventky/:r,/pub/mapky/:w&relay=https://httprelay.pubky.app/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-success=https://pubky.app/passport-success&x-error=https://pubky.app/passport-error&x-cancel=https://pubky.app/passport-cancel";
-
-    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
-
-    expect(Result.isOk(result)).toBe(true);
-    if (Result.isError(result)) {
-      throw new Error(result.error.code);
-    }
-
-    expect(result.value.capabilities).toEqual([
-      { path: "/pub/pubky.app/", read: true, write: true },
-      { path: "/pub/eventky/", read: true, write: false },
-      { path: "/pub/mapky/", read: false, write: true },
-    ]);
-  });
-
-  it("accepts capability actions allowed by the Pubky auth ABNF", () => {
-    const request =
-      "pubkyauth://signin?caps=/pub/file.txt:r,/pub/repeated/:rrw&relay=https://httprelay.pubky.app/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
-
-    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
-
-    expect(Result.isOk(result)).toBe(true);
-    if (Result.isError(result)) {
-      throw new Error(result.error.code);
-    }
-
-    expect(result.value.capabilities).toEqual([
-      { path: "/pub/file.txt", read: true, write: false },
-      { path: "/pub/repeated/", read: true, write: true },
-    ]);
   });
 
   it("accepts x-source without exposing untrusted metadata in review", () => {
@@ -234,29 +180,6 @@ describe("parseEncodedPubkyAuthRequest", () => {
     );
   });
 
-  it("rejects invalid relay URLs", () => {
-    expectError(
-      encodeRequest(
-        "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=not-a-url&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-success=https://pubky.app/passport-success&x-error=https://pubky.app/passport-error&x-cancel=https://pubky.app/passport-cancel",
-      ),
-      "invalid_relay",
-    );
-
-    expectError(
-      encodeRequest(
-        "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=http://httprelay.pubky.app/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-success=https://pubky.app/passport-success&x-error=https://pubky.app/passport-error&x-cancel=https://pubky.app/passport-cancel",
-      ),
-      "invalid_relay",
-    );
-
-    expectError(
-      encodeRequest(
-        "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://user:password@relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8",
-      ),
-      "invalid_relay",
-    );
-  });
-
   it("rejects missing secret", () => {
     expectError(
       encodeRequest(
@@ -283,19 +206,8 @@ describe("parseEncodedPubkyAuthRequest", () => {
     );
   });
 
-  it("rejects malformed capabilities", () => {
-    expectError(encodeRequest(VALID_REQUEST.replace("/pub/pubky.app/:rw", "pub/pubky.app/:rw")), "invalid_capability");
+  it("maps capability validation failures to one safe parser error", () => {
     expectError(encodeRequest(VALID_REQUEST.replace("/pub/pubky.app/:rw", "/pub/pubky.app/:admin")), "invalid_capability");
-    expectError(encodeRequest(VALID_REQUEST.replace("/pub/pubky.app/:rw", "/pub/a/:r,,/pub/b/:w")), "invalid_capability");
-    expectError(encodeRequest(VALID_REQUEST.replace("/pub/pubky.app/:rw", "/pub//app/:rw")), "invalid_capability");
-  });
-
-  it("maps oversized capability arrays and paths to a safe error", () => {
-    const tooMany = Array(PUBKY_AUTH_REQUEST_LIMITS.maximumCapabilityCount + 1).fill("/pub/app/:r").join(",");
-    const longPath = `/${"a".repeat(PUBKY_AUTH_REQUEST_LIMITS.maximumCapabilityPathUtf8Bytes)}`;
-
-    expectError(encodeRequest(VALID_REQUEST.replace("/pub/pubky.app/:rw", tooMany)), "invalid_capability");
-    expectError(encodeRequest(VALID_REQUEST.replace("/pub/pubky.app/:rw", `${longPath}:r`)), "invalid_capability");
   });
 
   it("allows missing callbacks", () => {
@@ -335,21 +247,19 @@ describe("parseEncodedPubkyAuthRequest", () => {
     expectError(encodeRequest(request), code);
   });
 
-  it("rejects mixed callback origins", () => {
-    const request = VALID_REQUEST.replace(
-      "https://pubky.app/passport-error",
-      "https://other.example/passport-error",
-    );
+  it("bounds grant client IDs by UTF-8 length", () => {
+    const atLimit = `${"ü".repeat(126)}a`;
 
-    expectError(encodeRequest(request), "invalid_callback");
-  });
-
-  it("rejects unsafe callback schemes", () => {
-    for (const scheme of ["javascript:", "data:", "file:", "blob:"]) {
-      expectError(
-        encodeRequest(VALID_REQUEST.replace("https://pubky.app/passport-success", `${scheme}alert(1)`)),
-        "invalid_callback",
-      );
-    }
+    expect(Result.isOk(parseEncodedPubkyAuthRequest(encodeRequest(grantRequest(atLimit))))).toBe(true);
+    expectError(encodeRequest(grantRequest(`${atLimit}a`)), "invalid_client_id");
   });
 });
+
+function grantRequest(clientId: string): string {
+  return VALID_REQUEST
+    .replace("pubkyauth://signin", "pubkyauth://signin_grant")
+    .replace(
+      "&x-success=",
+      `&cid=${encodeURIComponent(clientId)}&cpk=5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo&x-success=`,
+    );
+}

@@ -3,7 +3,7 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../test-utils/fakes/MemoryStorage";
+import { MemoryStorage } from "../../../../test-utils/MemoryStorage";
 import { expectResultError, expectResultOk } from "../../../../test-utils/resultAssertions";
 import { LocalStorageIdentityRepository } from "../local-identity/LocalStorageIdentityRepository";
 
@@ -356,7 +356,10 @@ describe("GoogleIdentityOperations", () => {
       keyHandle: KEY_HANDLE,
       homeserverPubky: INVITATION.homeserverPubky,
     });
-    expect(MOCKS.signin).toHaveBeenCalledWith(KEY_HANDLE);
+    expect(MOCKS.signin).toHaveBeenNthCalledWith(1, KEY_HANDLE);
+    expect(MOCKS.signin).toHaveBeenNthCalledWith(2, KEY_HANDLE, {
+      waitForPkdnsPublication: true,
+    });
     expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
     expect(progress).toEqual([
       { flow: "lookup", step: "checking" },

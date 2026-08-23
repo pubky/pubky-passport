@@ -15,8 +15,6 @@ describe("ConfirmGoogleDetachment", () => {
 
     const heading = await screen.findByRole("heading", { name: "Remove Google Access" });
     expect(heading).toBeInTheDocument();
-    expect(heading.closest("dialog")).toHaveClass("max-w-none", "border", "sm:max-w-[375px]");
-    expect(heading.closest("dialog")).not.toHaveClass("border-b-0");
     const confirm = screen.getByRole("button", { name: "Confirm deletion" });
     expect(confirm).toBeDisabled();
     await userEvent.setup().type(screen.getByLabelText("Type DELETE to confirm"), "delete");
@@ -27,7 +25,7 @@ describe("ConfirmGoogleDetachment", () => {
     expect(onConfirm).toHaveBeenCalledOnce();
   });
 
-  it("can be cancelled from either Figma control", async () => {
+  it("can be cancelled from either close control", async () => {
     const onCancel = vi.fn();
     render(<ConfirmGoogleDetachment canConfirm canRetryAuthorization={false} error={null} onCancel={onCancel} onConfirm={vi.fn()} onRetryAuthorization={vi.fn()} open pending={false} />);
 

@@ -1,11 +1,16 @@
 import { Result } from "better-result";
 import { vi } from "vitest";
 
-import type { GoogleIdentityController } from "../../src/client/logic/google-identity/GoogleIdentityController";
+import type { GoogleIdentityController } from "../src/client/logic/google-identity/GoogleIdentityController";
+
+export type MockGoogleIdentityController = Pick<
+  GoogleIdentityController,
+  "clearPinnedGoogleSubject" | "detachIdentity" | "dispose" | "establishIdentity"
+>;
 
 export function mockGoogleIdentityController(
-  overrides: Partial<GoogleIdentityController> = {},
-): GoogleIdentityController {
+  overrides: Partial<MockGoogleIdentityController> = {},
+): MockGoogleIdentityController {
   return {
     clearPinnedGoogleSubject: overrides.clearPinnedGoogleSubject ?? vi.fn(),
     establishIdentity: overrides.establishIdentity
@@ -13,5 +18,5 @@ export function mockGoogleIdentityController(
     detachIdentity: overrides.detachIdentity
       ?? vi.fn(async () => Result.err({ code: "authorization_failed" as const })),
     dispose: overrides.dispose ?? vi.fn(),
-  } as unknown as GoogleIdentityController;
+  };
 }

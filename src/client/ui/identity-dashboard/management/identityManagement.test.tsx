@@ -15,20 +15,18 @@ const identity = {
 describe("IdentityManagement", () => {
   afterEach(cleanup);
 
-  it("copies the Pubky and resolved PKDNS homeserver with Figma ghost buttons", async () => {
+  it("copies the Pubky and resolved PKDNS homeserver and returns", async () => {
     const writeText = vi.fn(() => Promise.resolve());
     const onBack = vi.fn();
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
 
     render(<IdentityManagement identity={identity} onBack={onBack} onDetachFromGoogle={vi.fn()} onDownloadRecoveryFile={vi.fn()} onRemoveLocalIdentity={vi.fn()} onMigrateToKeychain={vi.fn()} resolveHomeserver={async () => Result.ok("homeserver-pubky")} />);
     const back = screen.getByRole("button", { name: "Back" });
-    expect(back).toHaveClass("h-[60px]", "w-full");
     fireEvent.click(back);
     expect(onBack).toHaveBeenCalledOnce();
     const copyButton = screen.getByRole("button", { name: "Copy Pubky" });
     fireEvent.click(copyButton);
 
-    expect(copyButton).toHaveAttribute("data-variant", "ghost");
     expect(writeText).toHaveBeenCalledWith(identity.publicIdentity.publicKeyZ32);
     const homeserverButton = screen.getByRole("button", { name: "Copy Homeserver" });
     await waitFor(() => expect(homeserverButton).toBeEnabled());

@@ -420,7 +420,9 @@ export class GoogleIdentityOperations {
     report(isReconciliation
       ? { flow: "repair", step: "signing_in" }
       : { flow: "create", step: "activating" });
-    const signedIn = await this.pubky.signin(identity.keyHandle);
+    const signedIn = await this.pubky.signin(identity.keyHandle, {
+      waitForPkdnsPublication: true,
+    });
     if (Result.isError(signedIn)) {
       return failure({
         code: signupWasUncertain

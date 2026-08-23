@@ -7,10 +7,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
-  GoogleIdentityController,
   GoogleIdentityViewState,
 } from "../../logic/google-identity/GoogleIdentityController";
-import { mockGoogleIdentityController } from "../../../../test-utils/fakes/mockGoogleIdentityController";
+import {
+  mockGoogleIdentityController,
+  type MockGoogleIdentityController,
+} from "../../../../test-utils/mockGoogleIdentityController";
 import { IdentityEstablishmentFlow } from "./identityEstablishmentFlow";
 
 const MOCKS = vi.hoisted(() => ({
@@ -118,7 +120,7 @@ describe("IdentityEstablishmentFlow", () => {
 
   it("shows Google access before a recoverable denial", async () => {
     let deny!: () => void;
-    const establishIdentity = vi.fn(() => new Promise<Awaited<ReturnType<GoogleIdentityController["establishIdentity"]>>>((resolve) => {
+    const establishIdentity = vi.fn(() => new Promise<Awaited<ReturnType<MockGoogleIdentityController["establishIdentity"]>>>((resolve) => {
       deny = () => resolve(Result.err({ code: "google_authorization_denied" }));
     }));
     useController(mockGoogleIdentityController({ establishIdentity }));
@@ -214,11 +216,11 @@ describe("IdentityEstablishmentFlow", () => {
   });
 });
 
-function useController(controller: GoogleIdentityController): void {
+function useController(controller: MockGoogleIdentityController): void {
   MOCKS.constructGoogleIdentityController.mockReturnValue(controller);
 }
 
-function captureControllerState(controller: GoogleIdentityController): { current?: (state: GoogleIdentityViewState) => void } {
+function captureControllerState(controller: MockGoogleIdentityController): { current?: (state: GoogleIdentityViewState) => void } {
   const capture: { current?: (state: GoogleIdentityViewState) => void } = {};
   MOCKS.constructGoogleIdentityController.mockImplementation((_, onState) => {
     capture.current = onState;

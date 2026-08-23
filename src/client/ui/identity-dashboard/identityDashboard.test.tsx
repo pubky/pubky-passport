@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LocalIdentityController } from "../../logic/local-identity/LocalIdentityController";
 import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
 import type { PubkyPublicIdentity } from "../../logic/pubky/pubkyIdentityKey";
-import { mockGoogleIdentityController } from "../../../../test-utils/fakes/mockGoogleIdentityController";
+import { mockGoogleIdentityController } from "../../../../test-utils/mockGoogleIdentityController";
 import { IdentityDashboard } from "./identityDashboard";
 
 const FLOW = vi.hoisted(() => ({

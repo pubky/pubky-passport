@@ -3,7 +3,7 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../test-utils/fakes/MemoryStorage";
+import { MemoryStorage } from "../../../../test-utils/MemoryStorage";
 import { encodeBase64Url } from "../../../libs/encoding/base64Url";
 import { GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE } from "../../../libs/authorization/earlyGoogleImplicitResponse";
 import { GoogleImplicitAuthorization } from "./GoogleImplicitAuthorization";
@@ -171,14 +171,51 @@ describe("GoogleImplicitAuthorization", () => {
     ["server_error", "google_authorization_failed"],
   ] as const)("maps the Google %s response precisely", async (googleError, expectedCode) => {
     const popup = createPopup();
-    const authorization = new GoogleImplicitAuthorization("client-id", ORIGIN, () => popup.window);
+    const open = vi.fn<typeof window.open>(() => popup.window);
+    const authorization = new GoogleImplicitAuthorization("client-id", ORIGIN, open);
     const request = authorization.request();
+    const state = new URL(String(open.mock.calls[0]?.[0])).searchParams.get("state") ?? "";
 
-    popup.returnTo(`${ORIGIN}/#${new URLSearchParams({ error: googleError })}`);
+    popup.returnTo(`${ORIGIN}/#${new URLSearchParams({ error: googleError, state })}`);
 
     const result = await request;
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error).toEqual({ code: expectedCode });
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["wrong", "wrong"],
+    ["duplicate", "duplicate"],
+  ] as const)("rejects an error response with %s state", async (stateCase, suppliedState) => {
+    const popup = createPopup();
+    const open = vi.fn<typeof window.open>(() => popup.window);
+    const authorization = new GoogleImplicitAuthorization("client-id", ORIGIN, open);
+    const request = authorization.request();
+    const expectedState = new URL(String(open.mock.calls[0]?.[0])).searchParams.get("state") ?? "";
+    const state = stateCase === "duplicate" ? expectedState : suppliedState;
+    const params = new URLSearchParams({ error: "access_denied", ...(state ? { state } : {}) });
+    if (stateCase === "duplicate") params.append("state", "duplicate");
+
+    popup.returnTo(`${ORIGIN}/#${params}`);
+
+    const result = await request;
+    expect(Result.isError(result) && result.error).toEqual({ code: "google_authorization_failed" });
+  });
+
+  it("rejects concurrent requests and times out the active request", async () => {
+    vi.useFakeTimers();
+    const popup = createPopup();
+    const authorization = new GoogleImplicitAuthorization("client-id", ORIGIN, () => popup.window);
+    const active = authorization.request();
+
+    const concurrent = await authorization.request();
+    expect(Result.isError(concurrent) && concurrent.error).toEqual({ code: "google_authorization_failed" });
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+
+    const timedOut = await active;
+    expect(Result.isError(timedOut) && timedOut.error).toEqual({ code: "google_authorization_failed" });
+    expect(popup.close).toHaveBeenCalledOnce();
   });
 
   it("rejects state, nonce, scope, and account mismatches", async () => {
@@ -212,6 +249,9 @@ describe("GoogleImplicitAuthorization", () => {
     vi.useFakeTimers();
     for (const fragmentSuffix of [
       `&state=duplicate`,
+      `&id_token=duplicate`,
+      `&access_token=duplicate`,
+      `&scope=${encodeURIComponent(APP_DATA_SCOPE)}`,
       `&scope=${encodeURIComponent("https://www.googleapis.com/auth/drive")}`,
     ]) {
       const popup = createPopup();

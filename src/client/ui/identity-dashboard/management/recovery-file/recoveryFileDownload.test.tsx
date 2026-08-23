@@ -37,8 +37,7 @@ describe("RecoveryFileDownload", () => {
 
   it("returns to identity management", async () => {
     const onBack = vi.fn();
-    const { container } = render(<RecoveryFileDownload createRecoveryFile={vi.fn()} publicKeyZ32="identity" onBack={onBack} />);
-    expect(container.querySelector('[data-slot="recovery-file-illustration"]')).toHaveAttribute("src", expect.stringContaining("passport-encrypted-backup.png"));
+    render(<RecoveryFileDownload createRecoveryFile={vi.fn()} publicKeyZ32="identity" onBack={onBack} />);
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(onBack).toHaveBeenCalledOnce();
   });

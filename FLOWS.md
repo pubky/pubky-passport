@@ -68,12 +68,9 @@ flowchart LR
     linkStyle default stroke:#64748B,stroke-width:2.5px;
 ```
 
-ESLint, `test-utils/architecture/architecture-boundaries.test.ts`, and the
-`client-only` / `server-only` markers enforce targeted runtime and security
-boundaries. These include browser/server isolation, approved environment access,
-SDK and persistence confinement, secret-bearing UI
-capability confinement, and sensitive parser contract confinement. Feature-internal
-folder roles are not enforced.
+ESLint and the `client-only` / `server-only` markers provide build-time checks for
+accidental browser/server imports. The remaining module boundaries are review
+conventions rather than a custom test framework.
 
 ## Routes
 
@@ -403,7 +400,7 @@ so the UI cannot receive an invalid cross-flow phase combination.
 %%{init: {"themeVariables": {"signalColor": "#64748B", "signalTextColor": "#64748B"}}}%%
 sequenceDiagram
     accTitle: Existing identity restore call flow
-    accDescr: GoogleIdentityOperations decrypts the Passport file and tries normal blocking sign-in first, then uses Homegate signup to distinguish a missing account from an existing account before publishing PKDNS and verifying sign-in.
+    accDescr: GoogleIdentityOperations decrypts the Passport file and tries fast sign-in first, then uses Homegate signup to distinguish a missing account from an existing account before publishing PKDNS and verifying sign-in.
     box rgba(0, 158, 115, 0.18) src/client/logic/google-identity
         participant Operations as GoogleIdentityOperations.ts<br/>GoogleIdentityOperations
     end
@@ -433,7 +430,8 @@ sequenceDiagram
             Operations-->>Operations: restore_failed
         else Restored identity
             Operations->>Pubky: signin(handle)
-            Pubky->>SDK: signer.signinBlocking("passport.pubky.app")
+            Pubky->>SDK: signer.signin("passport.pubky.app")
+            Note over SDK: Returning-user PKDNS refresh continues in the background
             SDK-->>Pubky: grant Session or safe failure
             opt Normal sign-in fails
                 Operations->>Operations: request Homegate invitation<br/>and run shared signupAndActivate()
@@ -568,11 +566,11 @@ sequenceDiagram
             Operations-->>Operations: signup_failed
         else Created, existing, or ambiguous
             Operations->>Pubky: publishHomeserver(...)
-            Pubky->>SDK: signer.pkdns.publishHomeserverForce(...)
+            Pubky->>SDK: signer.pkdns.publishHomeserverIfStale(...)
             Note over SDK: PKDNS / PKARR publication transport is SDK-owned
             SDK-->>Pubky: completion or failure
             Pubky-->>Operations: completion or uncertain publication error
-            Operations->>Pubky: signin(handle)
+            Operations->>Pubky: signin(handle, waitForPkdnsPublication)
             Pubky->>SDK: signer.signinBlocking("passport.pubky.app")
             SDK-->>Pubky: verified Session or safe failure
             Pubky-->>Operations: matching public identity or safe failure
@@ -760,4 +758,4 @@ sequenceDiagram
 | Wrapping-key API | `src/app/api/wrapping-key/google`, `src/server/wrapping-key/google` | Route and server tests |
 | Browser bootstrap config | `src/server/config/browserBootstrapConfig.ts` | `browserBootstrapConfig.test.ts`, proxy tests |
 | Homegate signup invitation | `src/client/logic/homegate/HomegateClient.ts` | `homegateClient.test.ts` |
-| CSP and boundaries | `proxy.ts`, `next.config.mjs`, architecture test | Proxy, header, and targeted boundary tests |
+| CSP and runtime headers | `src/proxy.ts`, `next.config.mjs` | Proxy, config, and Playwright tests |

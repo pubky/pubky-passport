@@ -165,7 +165,9 @@ export class GoogleImplicitAuthorization {
     const rawFragment = capture.hash;
     if (rawFragment.length === 0 || rawFragment.length > EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS) return failure("response", "google_authorization_failed");
     const params = new URLSearchParams(rawFragment.slice(1));
+    const state = oneValue(params, "state");
     if (params.has("error")) {
+      if (state !== attempt.state) return failure("response", "google_authorization_failed");
       return failure(
         "response",
         oneValue(params, "error") === "access_denied"
@@ -173,7 +175,6 @@ export class GoogleImplicitAuthorization {
           : "google_authorization_failed",
       );
     }
-    const state = oneValue(params, "state");
     const idToken = oneValue(params, "id_token");
     const accessToken = oneValue(params, "access_token");
     const scope = oneValue(params, "scope");

@@ -3,7 +3,7 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../test-utils/fakes/MemoryStorage";
+import { MemoryStorage } from "../../../../test-utils/MemoryStorage";
 import { expectResultOk } from "../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_FORMAT } from "../pubky/pubkyIdentityKey";

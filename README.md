@@ -2,8 +2,8 @@
 
 Pubky Passport is a browser-based Pubky identity and authorization app. The current
 implementation covers the core Google-backed custody/recovery strategy and Pubky authorization
-flows. The root page is still a development surface; settings, visible-file restore,
-and detach flows are not implemented yet.
+flows. The root page is still a development surface; settings and visible-file restore
+are not implemented yet.
 
 ## Features
 
@@ -37,6 +37,8 @@ See [FLOWS.md](./FLOWS.md) for the runtime call paths and import boundaries.
 ## Integration
 
 See [INTEGRATION.md](./INTEGRATION.md) for the web app integration flow.
+
+See [TESTING.md](./TESTING.md) for test ownership, layers, and commands.
 
 ## Naming Conventions
 

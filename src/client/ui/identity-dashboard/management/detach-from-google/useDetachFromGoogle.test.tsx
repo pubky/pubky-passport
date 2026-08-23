@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { mockGoogleIdentityController } from "../../../../../../test-utils/fakes/mockGoogleIdentityController";
+import { mockGoogleIdentityController } from "../../../../../../test-utils/mockGoogleIdentityController";
 import { useDetachFromGoogle } from "./useDetachFromGoogle";
 
 const MOCKS = vi.hoisted(() => ({

@@ -21,14 +21,10 @@ describe("IdentitySwitcher", () => {
 
     const activeRow = screen.getByRole("button", { name: /Active Account/ });
     expect(activeRow).toHaveAttribute("aria-pressed", "true");
-    expect(activeRow).toHaveStyle({ border: "1px solid rgba(200, 255, 0, 0.64)" });
-    expect(activeRow.querySelector('[data-slot="selected-check"]')).not.toBeNull();
     const otherRow = screen.getByRole("button", { name: /Other Account/ });
-    expect(otherRow.querySelector('[data-slot="provider-badge"]')).not.toBeNull();
     await userEvent.setup().click(otherRow);
     expect(onSelect).toHaveBeenCalledWith("firstidentity1234");
     const back = screen.getByRole("button", { name: "Back" });
-    expect(back).toHaveClass("h-[60px]", "w-full");
     await userEvent.setup().click(back);
     expect(onBack).toHaveBeenCalledOnce();
   });

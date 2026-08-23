@@ -3,7 +3,9 @@ import {
   Keypair,
   Pkdns,
   Pubky,
+  PublicKey,
   Signer,
+  type Session,
   validateCapabilities,
 } from "@synonymdev/pubky";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -336,7 +338,7 @@ describe("PubkySdkAdapter", () => {
 
   it("does not treat an unscoped SDK 404 as proof that the account is missing", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    vi.spyOn(Signer.prototype, "signinBlocking").mockRejectedValue(Object.assign(
+    vi.spyOn(Signer.prototype, "signin").mockRejectedValue(Object.assign(
       new Error("sensitive homeserver response"),
       { name: "RequestError", data: { statusCode: 404 } },
     ));
@@ -346,6 +348,55 @@ describe("PubkySdkAdapter", () => {
       const created = expectOk(await pubky.createIdentityKey());
       await expectError(pubky.signin(created.keyHandle), "signin_failed");
       expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive homeserver response");
+    } finally {
+      pubky.dispose();
+    }
+  });
+
+  it("does not block a successful signin on PKDNS publication", async () => {
+    const signin = vi.spyOn(Signer.prototype, "signin");
+    const signinBlocking = vi.spyOn(Signer.prototype, "signinBlocking");
+    const pubky = new PubkySdkAdapter();
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      const session = {
+        get info() {
+          return {
+            publicKey: PublicKey.from(created.publicIdentity.publicKeyZ32),
+            free: vi.fn(),
+          };
+        },
+        signout: vi.fn().mockResolvedValue(undefined),
+        free: vi.fn(),
+      } as unknown as Session;
+      signin.mockResolvedValue(session);
+      const result = expectOk(await pubky.signin(created.keyHandle));
+
+      expect(result.publicIdentity).toEqual(created.publicIdentity);
+      expect(signin).toHaveBeenCalledWith("passport.pubky.app");
+      expect(signinBlocking).not.toHaveBeenCalled();
+    } finally {
+      pubky.dispose();
+    }
+  });
+
+  it("can wait for PKDNS publication when activating an identity", async () => {
+    const signin = vi.spyOn(Signer.prototype, "signin");
+    const signinBlocking = vi.spyOn(Signer.prototype, "signinBlocking").mockRejectedValue(Object.assign(
+      new Error("sensitive PKARR transport details"),
+      { name: "PkarrError" },
+    ));
+    const pubky = new PubkySdkAdapter();
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      await expectError(pubky.signin(created.keyHandle, {
+        waitForPkdnsPublication: true,
+      }), "signin_failed");
+
+      expect(signinBlocking).toHaveBeenCalledWith("passport.pubky.app");
+      expect(signin).not.toHaveBeenCalled();
     } finally {
       pubky.dispose();
     }

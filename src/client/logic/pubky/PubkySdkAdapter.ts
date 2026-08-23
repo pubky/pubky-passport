@@ -181,7 +181,10 @@ export class PubkySdkAdapter {
     }
   }
 
-  async signin(keyHandle: PubkyIdentityKeyHandle): Promise<PubkySessionAccessResult<PubkyAuthenticatedIdentity>> {
+  async signin(
+    keyHandle: PubkyIdentityKeyHandle,
+    options: { waitForPkdnsPublication?: boolean } = {},
+  ): Promise<PubkySessionAccessResult<PubkyAuthenticatedIdentity>> {
     const keypair = this.keypairFor(keyHandle);
     if (!keypair) {
       return sessionAccessFailure("signin", "key_lookup", "key_unavailable");
@@ -189,7 +192,9 @@ export class PubkySdkAdapter {
 
     let session: Session | undefined;
     try {
-      session = await this.withSigner("signin", keypair, (signer) => signer.signinBlocking(PASSPORT_CLIENT_ID));
+      session = await this.withSigner("signin", keypair, (signer) => options.waitForPkdnsPublication
+        ? signer.signinBlocking(PASSPORT_CLIENT_ID)
+        : signer.signin(PASSPORT_CLIENT_ID));
       const authenticatedIdentity = authenticatedIdentityFromSession("signin", session);
       await session.signout();
 
