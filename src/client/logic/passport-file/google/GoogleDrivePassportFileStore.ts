@@ -22,6 +22,7 @@ import {
   parseDriveFileRevision,
   parseDriveFileList,
   readDriveJson,
+  sameDriveFileIdentity,
   sameDriveFileRevision,
   type DriveFileRevision,
 } from "./driveHttp";
@@ -55,8 +56,9 @@ const CREATE_PASSPORT_FILE_LOCK_NAME = "pubky-passport:google-drive:passport-fil
  * Owns the authoritative `appDataFolder/passport.json` Drive operations.
  *
  * The access token is operation-scoped and never returned or persisted. Reads,
- * creates, and deletes verify an exact Drive file revision so stale or duplicate
- * files are rejected rather than selected or overwritten.
+ * Reads and deletes verify exact Drive revisions. Creates verify the stable file
+ * ID and uniqueness because Drive may advance `version` for invisible server-side
+ * changes immediately after upload.
  */
 export class GoogleDrivePassportFileStore {
   constructor(
@@ -196,7 +198,7 @@ export class GoogleDrivePassportFileStore {
     const afterCreate = await this.locateForCreate(token);
     if (Result.isError(afterCreate)) return Result.err(afterCreate.error);
     if (afterCreate.value.status === "missing"
-      || !sameDriveFileRevision(afterCreate.value.reference, created.value)) {
+      || !sameDriveFileIdentity(afterCreate.value.reference, created.value)) {
       return failure("create_conflict", "create");
     }
 

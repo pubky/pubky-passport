@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   fetchDrive,
   parseDriveFileRevision,
+  sameDriveFileIdentity,
   sameDriveFileRevision,
 } from "./driveHttp";
 
@@ -64,5 +65,12 @@ describe("Drive file revisions", () => {
     expect(sameDriveFileRevision(reference, reference)).toBe(true);
     expect(sameDriveFileRevision(reference, { ...reference, storageId: "file-2" })).toBe(false);
     expect(sameDriveFileRevision(reference, { ...reference, revision: "8" })).toBe(false);
+  });
+
+  it("compares stable Drive file identity independently of revision", () => {
+    const reference = { storageId: "file-1", revision: "7" };
+
+    expect(sameDriveFileIdentity(reference, { ...reference, revision: "8" })).toBe(true);
+    expect(sameDriveFileIdentity(reference, { storageId: "file-2", revision: "7" })).toBe(false);
   });
 });

@@ -79,6 +79,14 @@ export function sameDriveFileRevision(left: DriveFileRevision, right: DriveFileR
   return left.storageId === right.storageId && left.revision === right.revision;
 }
 
+/**
+ * Compares stable Drive file identity without treating server-managed metadata
+ * changes as replacement of the file itself.
+ */
+export function sameDriveFileIdentity(left: DriveFileRevision, right: DriveFileRevision): boolean {
+  return left.storageId === right.storageId;
+}
+
 export function authorizationHeaders(token: string): { Authorization: string } {
   return { Authorization: `Bearer ${token}` };
 }

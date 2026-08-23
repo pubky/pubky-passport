@@ -510,8 +510,8 @@ sequenceDiagram
     Drive-->>VisibleCopies: visible folder response
     VisibleCopies->>Drive: create-only {pubky}.json copy
     Drive-->>VisibleCopies: visible copy response
-    VisibleCopies->>Drive: verify exact created file ID and revision
-    Drive-->>VisibleCopies: exact metadata, parent, and trashed state
+    VisibleCopies->>Drive: verify created file ID and expected metadata
+    Drive-->>VisibleCopies: created file ID, parent, and trashed state
     Note over DriveStore,VisibleCopies: Operational reads and deletion remain appDataFolder-only
     VisibleCopies-->>Operations: confirmed creation or safe unconfirmed outcome
     Note over Operations: Zero exported secret bytes

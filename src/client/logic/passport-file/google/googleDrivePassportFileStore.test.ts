@@ -530,12 +530,23 @@ describe("GoogleDrivePassportFileStore", () => {
     expect(calls.some((call) => call.method === "PATCH")).toBe(false);
   });
 
-  it("maps a changed post-create revision to create_conflict", async () => {
+  it("accepts the created file when Drive advances its server-managed version", async () => {
     const created = { id: "created", name: "passport.json", version: "1" };
     const { store } = createStore([
       jsonResponse({ files: [] }),
       jsonResponse(created),
       jsonResponse({ files: [{ ...created, version: "2" }] }),
+    ]);
+
+    await expectSuccess(store.createPassportFile(ENVELOPE), undefined);
+  });
+
+  it("maps a different post-create file ID to create_conflict", async () => {
+    const created = { id: "created", name: "passport.json", version: "1" };
+    const { store } = createStore([
+      jsonResponse({ files: [] }),
+      jsonResponse(created),
+      jsonResponse({ files: [{ ...created, id: "racing-create", version: "2" }] }),
     ]);
 
     await expectFailure(store.createPassportFile(ENVELOPE), "create_conflict");

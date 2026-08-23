@@ -25,7 +25,7 @@ import {
   parseDriveFileRevision,
   parseDriveFileList,
   readDriveJson,
-  sameDriveFileRevision,
+  sameDriveFileIdentity,
   type DriveFile,
   type DriveFileList,
   type DriveFileRevision,
@@ -65,8 +65,8 @@ export class GoogleDriveVisibleRecoveryCopies {
   ) {}
 
   /**
-   * Appends one encrypted `{pubky}.json` recovery copy and verifies its exact
-   * created revision and parent folder. Existing same-name files are preserved.
+   * Appends one encrypted `{pubky}.json` recovery copy and verifies its created
+   * file ID, name, and parent folder. Existing same-name files are preserved.
    * An optional signal lets the caller cancel or deadline-bound the attempt.
    */
   async createVisibleRecoveryCopy(
@@ -293,7 +293,7 @@ export class GoogleDriveVisibleRecoveryCopies {
       || !Array.isArray(file.parents)
       || file.parents.length !== 1
       || file.parents[0] !== folderId
-      || !sameDriveFileRevision(reference, expectedReference)) {
+      || !sameDriveFileIdentity(reference, expectedReference)) {
       return failure("invalid_response", "parse_copy_verification_response");
     }
     return Result.ok();

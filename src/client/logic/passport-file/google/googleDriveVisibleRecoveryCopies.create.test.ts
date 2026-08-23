@@ -253,6 +253,38 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
     });
     expect(warning).toHaveBeenCalledOnce();
   });
+
+  it("accepts the created file when Drive advances its server-managed version", async () => {
+    const created = { id: "SECRET-CREATED-ID", name: VISIBLE_FILE_NAME, version: "1" };
+    const visibleCopies = createVisibleCopies([
+      jsonResponse({ files: [FOLDER] }),
+      jsonResponse(created),
+      jsonResponse({ ...created, version: "2", trashed: false, parents: [FOLDER.id] }),
+    ]);
+
+    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY);
+
+    expect(Result.isOk(result)).toBe(true);
+  });
+
+  it("rejects created-file metadata for a different file ID", async () => {
+    const created = { id: "SECRET-CREATED-ID", name: VISIBLE_FILE_NAME, version: "1" };
+    const visibleCopies = createVisibleCopies([
+      jsonResponse({ files: [FOLDER] }),
+      jsonResponse(created),
+      jsonResponse({
+        ...created,
+        id: "SECRET-DIFFERENT-ID",
+        version: "2",
+        trashed: false,
+        parents: [FOLDER.id],
+      }),
+    ]);
+
+    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY);
+
+    expect(Result.isError(result) && result.error).toEqual({ code: "invalid_response" });
+  });
 });
 
 type SanitizedCall = {
