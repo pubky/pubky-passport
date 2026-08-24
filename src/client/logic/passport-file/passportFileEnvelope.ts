@@ -79,6 +79,10 @@ export function parsePassportFileEnvelope(input: unknown): PassportFileParseResu
     return error("invalid_shape");
   }
 
+  if (typeof input.v === "number" && input.v !== 1) {
+    return error("unsupported_version", "v");
+  }
+
   const parsed = PASSPORT_FILE_ENVELOPE_SCHEMA.safeParse(input);
   if (!parsed.success) {
     if (parsed.error.issues.some((issue) => issue.code === "unrecognized_keys")) {
@@ -96,10 +100,6 @@ export function parsePassportFileEnvelope(input: unknown): PassportFileParseResu
     }
 
     return error(Object.hasOwn(input, field) ? "invalid_field" : "missing_field", field);
-  }
-
-  if (parsed.data.v !== 1) {
-    return error("unsupported_version", "v");
   }
 
   const origin = normalizePassportFileOrigin(parsed.data.url);

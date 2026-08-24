@@ -34,6 +34,7 @@ type StoreErrorCode =
   | "network_failed"
   | "invalid_response"
   | "invalid_file"
+  | "unsupported_file"
   | "duplicate_files"
   | "create_conflict"
   | "stale_file"
@@ -46,6 +47,9 @@ type PassportFileReadResult =
   | { status: "found"; envelope: PassportFileEnvelopeV1; reference: DriveFileRevision }
   | { status: "missing" };
 type LocatedFile = { status: "missing" } | { status: "found"; reference: DriveFileRevision };
+type InspectedPassportFileMedia =
+  | { status: "valid"; envelope: PassportFileEnvelopeV1 }
+  | { status: "invalid" };
 type RequestLock = <LockResult>(name: string, callback: () => Promise<LockResult>) => Promise<LockResult>;
 
 const PASSPORT_FILE_NAME = "passport.json";
@@ -82,21 +86,9 @@ export class GoogleDrivePassportFileStore {
     if (Result.isError(located)) return Result.err(located.error);
     if (located.value.status === "missing") return Result.ok({ status: "missing" });
 
-    const response = await this.fetchStore("read_media", passportFileMediaUrl(located.value.reference.storageId), {
-      headers: authorizationHeaders(token.value),
-    });
-    if (Result.isError(response)) return Result.err(response.error);
-    if (response.value.status === 404) return failure("stale_file", "read_media");
-    if (!response.value.ok) {
-      return failure(mapDriveStatus(response.value.status, "invalid_response"), "read_media");
-    }
-
-    const contents = await readBoundedText(response.value, MAXIMUM_PASSPORT_FILE_BYTES);
-    if (contents === "too_large") return failure("invalid_file", "read_media");
-    if (contents === null) return failure("invalid_response", "read_media");
-
-    const parsed = parsePassportFileContents(contents);
-    if (Result.isError(parsed)) return failure("invalid_file", "read_media");
+    const inspected = await this.inspectPassportFileMedia(token.value, located.value.reference.storageId);
+    if (Result.isError(inspected)) return Result.err(inspected.error);
+    if (inspected.value.status === "invalid") return failure("invalid_file", "read_media");
 
     const revalidated = await this.readPassportFileMetadata(token.value, located.value.reference.storageId);
     if (Result.isError(revalidated)) {
@@ -110,9 +102,26 @@ export class GoogleDrivePassportFileStore {
 
     return Result.ok({
       status: "found",
-      envelope: parsed.value,
+      envelope: inspected.value.envelope,
       reference: located.value.reference,
     });
+  }
+
+  /** Deletes the sole file only after confirming its current media is malformed. */
+  async deleteInvalidPassportFile(): Promise<StoreResult<"deleted" | "missing">> {
+    const token = this.getAccessToken();
+    if (Result.isError(token)) return Result.err(token.error);
+
+    const located = await this.locatePassportFile(token.value);
+    if (Result.isError(located)) return Result.err(located.error);
+    if (located.value.status === "missing") return Result.ok("missing");
+
+    const inspected = await this.inspectPassportFileMedia(token.value, located.value.reference.storageId);
+    if (Result.isError(inspected)) return Result.err(inspected.error);
+    if (inspected.value.status === "valid") return failure("stale_file", "delete_invalid");
+
+    const deleted = await this.deletePassportFile(located.value.reference);
+    return Result.isError(deleted) ? Result.err(deleted.error) : Result.ok("deleted");
   }
 
   /**
@@ -259,6 +268,32 @@ export class GoogleDrivePassportFileStore {
     return this.parseCurrentFileReference(response.value);
   }
 
+  private async inspectPassportFileMedia(
+    token: string,
+    fileId: string,
+  ): Promise<StoreResult<InspectedPassportFileMedia>> {
+    const response = await this.fetchStore("read_media", passportFileMediaUrl(fileId), {
+      headers: authorizationHeaders(token),
+    });
+    if (Result.isError(response)) return Result.err(response.error);
+    if (response.value.status === 404) return failure("stale_file", "read_media");
+    if (!response.value.ok) {
+      return failure(mapDriveStatus(response.value.status, "invalid_response"), "read_media");
+    }
+
+    const contents = await readBoundedText(response.value, MAXIMUM_PASSPORT_FILE_BYTES);
+    if (contents === "too_large") return failure("unsupported_file", "read_media");
+    if (contents === null) return failure("invalid_response", "read_media");
+
+    const parsed = parsePassportFileContents(contents);
+    if (Result.isError(parsed)) {
+      return parsed.error.code === "unsupported_version"
+        ? failure("unsupported_file", "read_media")
+        : Result.ok({ status: "invalid" });
+    }
+    return Result.ok({ status: "valid", envelope: parsed.value });
+  }
+
   private async parseCreatedFileReference(response: Response): Promise<StoreResult<DriveFileRevision>> {
     const file = await readDriveJson(response);
     if (!isDriveFile(file)) return failure("invalid_response", "parse_create_response");
@@ -342,6 +377,7 @@ type StoreOperation =
   | "read_metadata"
   | "create"
   | "delete"
+  | "delete_invalid"
   | "create_lock"
   | "serialize_envelope"
   | "parse_list_response"

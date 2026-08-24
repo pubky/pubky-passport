@@ -5,7 +5,7 @@ import type { GoogleIdentityController } from "../src/client/logic/google-identi
 
 export type MockGoogleIdentityController = Pick<
   GoogleIdentityController,
-  "clearPinnedGoogleSubject" | "detachIdentity" | "dispose" | "establishIdentity"
+  "clearPinnedGoogleSubject" | "detachIdentity" | "dispose" | "establishIdentity" | "replaceInvalidPassportFile"
 >;
 
 export function mockGoogleIdentityController(
@@ -14,6 +14,8 @@ export function mockGoogleIdentityController(
   return {
     clearPinnedGoogleSubject: overrides.clearPinnedGoogleSubject ?? vi.fn(),
     establishIdentity: overrides.establishIdentity
+      ?? vi.fn(async () => Result.err({ code: "authorization_failed" as const })),
+    replaceInvalidPassportFile: overrides.replaceInvalidPassportFile
       ?? vi.fn(async () => Result.err({ code: "authorization_failed" as const })),
     detachIdentity: overrides.detachIdentity
       ?? vi.fn(async () => Result.err({ code: "authorization_failed" as const })),

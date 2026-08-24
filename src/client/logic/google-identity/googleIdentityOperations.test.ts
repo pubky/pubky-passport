@@ -29,6 +29,7 @@ const MOCKS = vi.hoisted(() => ({
   driveStoreConstructions: { count: 0 },
   visibleCopiesConstructions: { count: 0 },
   readPassportFile: vi.fn(),
+  deleteInvalidPassportFile: vi.fn(),
   createPassportFile: vi.fn(),
   deletePassportFile: vi.fn(),
   createVisibleRecoveryCopy: vi.fn(),
@@ -48,6 +49,7 @@ vi.mock("../passport-file/google/GoogleDrivePassportFileStore", () => ({
     }
 
     readPassportFile = MOCKS.readPassportFile;
+    deleteInvalidPassportFile = MOCKS.deleteInvalidPassportFile;
     createPassportFile = MOCKS.createPassportFile;
     deletePassportFile = MOCKS.deletePassportFile;
   },
@@ -139,6 +141,7 @@ describe("GoogleIdentityOperations", () => {
     MOCKS.encryptSecretKeyBytes.mockResolvedValue(Result.ok(ENVELOPE));
     MOCKS.decryptSecretKeyBytes.mockResolvedValue(Result.ok(new Uint8Array(32).fill(9)));
     MOCKS.createPassportFile.mockResolvedValue(Result.ok());
+    MOCKS.deleteInvalidPassportFile.mockResolvedValue(Result.ok("deleted"));
     MOCKS.createVisibleRecoveryCopy.mockResolvedValue(Result.ok());
     MOCKS.deletePassportFile.mockResolvedValue(Result.ok());
     MOCKS.deleteVisibleRecoveryCopies.mockResolvedValue(Result.ok());
@@ -252,6 +255,55 @@ describe("GoogleIdentityOperations", () => {
     expect(MOCKS.repositorySave).not.toHaveBeenCalled();
     if (stage === "drive-read") expect(MOCKS.requestWrappingKey).not.toHaveBeenCalled();
     if (stage === "wrapping-key") expect(MOCKS.requestInvitation).not.toHaveBeenCalled();
+  });
+
+  it("exposes malformed passport files as a specific recoverable error", async () => {
+    MOCKS.readPassportFile.mockResolvedValue(Result.err({ code: "invalid_file" }));
+
+    expectResultError(
+      await createSubject().establishIdentity(CREDENTIALS, () => undefined),
+      { code: "invalid_passport_file" },
+    );
+    expect(MOCKS.requestWrappingKey).not.toHaveBeenCalled();
+  });
+
+  it.each(["deleted", "missing"] as const)("automatically creates a new identity after the invalid file is %s", async (deletionStatus) => {
+    const events: string[] = [];
+    MOCKS.deleteInvalidPassportFile.mockResolvedValue(Result.ok(deletionStatus));
+    MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
+    record(MOCKS.deleteInvalidPassportFile, "delete-invalid-file", events);
+    record(MOCKS.createIdentityKey, "create-key", events);
+
+    const result = await createSubject().replaceInvalidPassportFile(CREDENTIALS, () => undefined);
+
+    expect(expectResultOk(result)).toMatchObject({
+      establishmentMode: "created",
+      publicIdentity: PUBLIC_IDENTITY,
+    });
+    expect(events).toEqual(["delete-invalid-file", "create-key"]);
+    expect(MOCKS.driveStoreConstructions.count).toBe(2);
+  });
+
+  it("does not create an identity when invalid-file deletion fails", async () => {
+    MOCKS.deleteInvalidPassportFile.mockResolvedValue(Result.err({ code: "delete_failed" }));
+
+    expectResultError(
+      await createSubject().replaceInvalidPassportFile(CREDENTIALS, () => undefined),
+      { code: "invalid_passport_file_delete_failed" },
+    );
+    expect(MOCKS.readPassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.createIdentityKey).not.toHaveBeenCalled();
+  });
+
+  it("does not replace an invalid file that became valid before confirmation", async () => {
+    MOCKS.deleteInvalidPassportFile.mockResolvedValue(Result.err({ code: "stale_file" }));
+
+    expectResultError(
+      await createSubject().replaceInvalidPassportFile(CREDENTIALS, () => undefined),
+      { code: "invalid_passport_file_delete_failed" },
+    );
+    expect(MOCKS.readPassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.createIdentityKey).not.toHaveBeenCalled();
   });
 
   it("restores through normal sign-in without publishing or requesting Homegate", async () => {

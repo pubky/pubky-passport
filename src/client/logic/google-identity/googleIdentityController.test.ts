@@ -16,6 +16,7 @@ const MOCKS = vi.hoisted(() => ({
   disposeAuthorization: vi.fn(),
   disposeOperations: vi.fn(),
   establishIdentity: vi.fn(),
+  replaceInvalidPassportFile: vi.fn(),
   requestAuthorization: vi.fn(),
 }));
 
@@ -59,6 +60,7 @@ describe("GoogleIdentityController", () => {
     }; });
     MOCKS.GoogleIdentityOperations.mockImplementation(function () { return {
       establishIdentity: MOCKS.establishIdentity,
+      replaceInvalidPassportFile: MOCKS.replaceInvalidPassportFile,
       detachIdentity: MOCKS.detachIdentity,
       abortRequests: MOCKS.abortRequests,
       dispose: MOCKS.disposeOperations,
@@ -70,6 +72,11 @@ describe("GoogleIdentityController", () => {
       return Result.ok({ establishmentMode: "restored" as const, publicIdentity: PUBLIC_IDENTITY });
     });
     MOCKS.detachIdentity.mockResolvedValue(Result.ok({ deletionStatus: "deleted" as const }));
+    MOCKS.replaceInvalidPassportFile.mockResolvedValue(Result.ok({
+      establishmentMode: "created" as const,
+      publicIdentity: PUBLIC_IDENTITY,
+      visibleRecoveryCopyStatus: "created" as const,
+    }));
   });
 
   afterEach(() => {
@@ -254,6 +261,35 @@ describe("GoogleIdentityController", () => {
       code: "homeserver_signup_invitation_failed",
       cause: "weekly_limit_exceeded",
     });
+  });
+
+  it("replaces an invalid file with the pinned Google account and returns the created identity", async () => {
+    const controller = createController();
+    MOCKS.establishIdentity.mockResolvedValueOnce(Result.err({ code: "invalid_passport_file" as const }));
+    await controller.establishIdentity();
+
+    await expect(controller.replaceInvalidPassportFile()).resolves.toEqual(Result.ok({
+      establishmentMode: "created",
+      googleAccount: GOOGLE_ACCOUNT,
+      publicIdentity: PUBLIC_IDENTITY,
+      visibleRecoveryCopyStatus: "created",
+    }));
+
+    expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(2, GOOGLE_ACCOUNT.googleSubject);
+    expect(MOCKS.replaceInvalidPassportFile).toHaveBeenCalledWith(CREDENTIALS, expect.any(Function));
+  });
+
+  it("rejects a different Google account before invalid-file replacement", async () => {
+    const controller = createController();
+    MOCKS.establishIdentity.mockResolvedValueOnce(Result.err({ code: "invalid_passport_file" as const }));
+    await controller.establishIdentity();
+    MOCKS.requestAuthorization.mockResolvedValueOnce(Result.ok({
+      ...CREDENTIALS,
+      googleAccount: { ...GOOGLE_ACCOUNT, googleSubject: "different-account" },
+    }));
+
+    expectResultError(await controller.replaceInvalidPassportFile(), { code: "authorization_failed" });
+    expect(MOCKS.replaceInvalidPassportFile).not.toHaveBeenCalled();
   });
 
   it("defers operation cleanup until in-flight work settles", async () => {

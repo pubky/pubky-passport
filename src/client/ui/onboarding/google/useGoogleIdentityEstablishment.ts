@@ -20,7 +20,7 @@ function useGoogleIdentityEstablishment(configuration: GoogleIdentityConfigurati
     INITIAL_GOOGLE_IDENTITY_ESTABLISHMENT_STATE,
   );
 
-  const establishIdentity = useCallback((): void => {
+  const startIdentityOperation = useCallback((operation: "establish" | "replace-invalid-file"): void => {
     if (operationPendingRef.current) return;
 
     const googleIdentityController = googleIdentityControllerRef.current;
@@ -32,7 +32,10 @@ function useGoogleIdentityEstablishment(configuration: GoogleIdentityConfigurati
     operationPendingRef.current = true;
     dispatch({ type: "request-started" });
 
-    void googleIdentityController.establishIdentity()
+    const pending = operation === "establish"
+      ? googleIdentityController.establishIdentity()
+      : googleIdentityController.replaceInvalidPassportFile();
+    void pending
       .then((result) => {
         if (googleIdentityControllerRef.current !== googleIdentityController) return;
 
@@ -65,6 +68,14 @@ function useGoogleIdentityEstablishment(configuration: GoogleIdentityConfigurati
         }
       });
   }, []);
+
+  const establishIdentity = useCallback((): void => {
+    startIdentityOperation("establish");
+  }, [startIdentityOperation]);
+
+  const replaceInvalidPassportFile = useCallback((): void => {
+    startIdentityOperation("replace-invalid-file");
+  }, [startIdentityOperation]);
 
   const back = useCallback(() => {
     operationPendingRef.current = false;
@@ -112,6 +123,7 @@ function useGoogleIdentityEstablishment(configuration: GoogleIdentityConfigurati
   return {
     back,
     establishIdentity,
+    replaceInvalidPassportFile,
     controllerReady,
     state,
   };

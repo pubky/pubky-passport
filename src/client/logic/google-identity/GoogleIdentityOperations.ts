@@ -57,6 +57,8 @@ type GoogleIdentityFailureCode =
   | "decrypt_failed"
   | "publication_failed"
   | "drive_create_conflict"
+  | "invalid_passport_file"
+  | "invalid_passport_file_delete_failed"
   | "drive_read_failed"
   | "drive_write_failed"
   | "encrypt_failed"
@@ -139,7 +141,13 @@ export class GoogleIdentityOperations {
       const store = new GoogleDrivePassportFileStore(credentials.driveAccessToken, this.fetch);
       LOGGER.info("identity.google.drive_read.started");
       const storedFile = await store.readPassportFile();
-      if (Result.isError(storedFile)) return failure({ code: "drive_read_failed" });
+      if (Result.isError(storedFile)) {
+        return failure({
+          code: storedFile.error.code === "invalid_file"
+            ? "invalid_passport_file"
+            : "drive_read_failed",
+        });
+      }
 
       if (storedFile.value.status === "found") {
         LOGGER.info("identity.google.drive_read.completed", { status: "found" });
@@ -171,6 +179,26 @@ export class GoogleIdentityOperations {
     } catch {
       LOGGER.warn("identity.google.restore_or_create.failed", { code: "unexpected_failure" });
       return failure({ code: "unexpected_failure" });
+    }
+  }
+
+  /** Deletes a confirmed malformed Drive file, then creates or restores current state. */
+  async replaceInvalidPassportFile(
+    credentials: GoogleIdentityCredentials,
+    report: (progress: GoogleIdentityProgress) => void,
+  ): Promise<GoogleIdentityOperationResult> {
+    try {
+      const store = new GoogleDrivePassportFileStore(credentials.driveAccessToken, this.fetch);
+      const deleted = await store.deleteInvalidPassportFile();
+      if (Result.isError(deleted)) {
+        return failure({ code: "invalid_passport_file_delete_failed" });
+      }
+      return this.establishIdentity(credentials, report);
+    } catch {
+      LOGGER.warn("identity.google.invalid_passport_file_replacement.failed", {
+        code: "unexpected_failure",
+      });
+      return failure({ code: "invalid_passport_file_delete_failed" });
     }
   }
 

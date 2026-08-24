@@ -168,6 +168,39 @@ describe("IdentityEstablishmentFlow", () => {
     expect(establishIdentity).toHaveBeenNthCalledWith(2);
   });
 
+  it("confirms permanent invalid-file deletion and automatically creates a new identity", async () => {
+    const googleAccount = { googleSubject: "google-1", email: "user@example.com", name: "User", pictureUrl: null };
+    const replaceInvalidPassportFile = vi.fn(async () => Result.ok({
+      establishmentMode: "created" as const,
+      googleAccount,
+      publicIdentity: { publicKeyZ32: "new-key", publicKeyDisplay: "pubkynew-key" },
+      visibleRecoveryCopyStatus: "created" as const,
+    }));
+    useController(mockGoogleIdentityController({
+      establishIdentity: vi.fn(async () => Result.err({ code: "invalid_passport_file" as const })),
+      replaceInvalidPassportFile,
+    }));
+    render(<IdentityEstablishmentFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "Continue with Google" }));
+
+    expect(await screen.findByRole("heading", { name: "Identity file can't be restored." })).toBeInTheDocument();
+    expect(screen.getByText(/you will lose access to your current Pubky identity/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Delete file and create new identity" }));
+
+    const confirmation = screen.getByRole("textbox", { name: "Type DELETE to confirm" });
+    const replace = screen.getByRole("button", { name: "Delete and create new identity" });
+    expect(confirmation).toHaveFocus();
+    expect(replace).toBeDisabled();
+    await user.type(confirmation, "DELETE");
+    expect(replace).toBeEnabled();
+    await user.click(replace);
+
+    expect(replaceInvalidPassportFile).toHaveBeenCalledOnce();
+    expect(await screen.findByRole("heading", { name: "Setup complete." })).toBeInTheDocument();
+  });
+
   it("clears the pinned Google account when returning from an establishment failure", async () => {
     const clearPinnedGoogleSubject = vi.fn();
     const establishIdentity = vi.fn()

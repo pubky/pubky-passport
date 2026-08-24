@@ -104,6 +104,17 @@ export class GoogleIdentityController {
 
   /** Restores or creates and activates an identity. */
   async establishIdentity(): Promise<EstablishGoogleIdentityResult> {
+    return this.runIdentityEstablishment("establish");
+  }
+
+  /** Permanently removes a malformed Drive file and immediately creates a replacement identity. */
+  async replaceInvalidPassportFile(): Promise<EstablishGoogleIdentityResult> {
+    return this.runIdentityEstablishment("replace_invalid_passport_file");
+  }
+
+  private async runIdentityEstablishment(
+    operation: "establish" | "replace_invalid_passport_file",
+  ): Promise<EstablishGoogleIdentityResult> {
     const authorized = await this.requestGoogleCredentials();
     if (Result.isError(authorized)) return Result.err(authorized.error);
     if (this.disposed) {
@@ -113,16 +124,16 @@ export class GoogleIdentityController {
 
     try {
       const progress = this.createProgressReporter();
-      const established = await this.operations.establishIdentity(
-        authorized.value,
-        progress.report,
-      ).finally(() => {
+      const establishment = operation === "establish"
+        ? this.operations.establishIdentity(authorized.value, progress.report)
+        : this.operations.replaceInvalidPassportFile(authorized.value, progress.report);
+      const established = await establishment.finally(() => {
         progress.stop();
       });
 
       if (Result.isError(established)) {
         LOGGER.warn("identity.google.action.failed", {
-          operation: "establish",
+          operation,
           code: established.error.code,
         });
         if (this.disposed) return Result.err({ code: "cancelled" });
@@ -148,7 +159,7 @@ export class GoogleIdentityController {
       }
     } catch {
       LOGGER.warn("identity.google.action.failed", {
-        operation: "establish",
+        operation,
         code: "unexpected_failure",
       });
       return Result.err({ code: this.disposed ? "cancelled" : "operation_failed" });

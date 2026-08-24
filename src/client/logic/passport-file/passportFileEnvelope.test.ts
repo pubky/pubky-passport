@@ -91,6 +91,14 @@ describe("parsePassportFileContents", () => {
     }
   });
 
+  it("detects unsupported versions before applying the strict v1 shape", () => {
+    expectParseError(
+      stringifyEnvelope({ v: 2, futureField: true }),
+      "unsupported_version",
+      "v",
+    );
+  });
+
   it("rejects invalid version field types", () => {
     for (const version of ["1", null, true]) {
       expectParseError(stringifyEnvelope({ v: version }), "invalid_field", "v");

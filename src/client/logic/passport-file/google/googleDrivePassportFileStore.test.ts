@@ -248,14 +248,61 @@ describe("GoogleDrivePassportFileStore", () => {
     expect(JSON.stringify(result)).not.toContain("do-not-return");
   });
 
-  it("rejects an oversized Drive media response before reading it", async () => {
+  it("does not classify unsupported-version envelopes as deletable invalid files", async () => {
+    await expectFailure(createStore([
+      jsonResponse({ files: [LISTED_FILE] }),
+      textResponse(JSON.stringify({ ...ENVELOPE, v: 2, futureField: true })),
+    ]).store.readPassportFile(), "unsupported_file");
+
+    const { store, calls } = createStore([
+      jsonResponse({ files: [LISTED_FILE] }),
+      textResponse(JSON.stringify({ ...ENVELOPE, v: 2, futureField: true })),
+    ]);
+    await expectFailure(store.deleteInvalidPassportFile(), "unsupported_file");
+    expect(calls.some((call) => call.method === "DELETE")).toBe(false);
+  });
+
+  it("revalidates and deletes a confirmed malformed passport file", async () => {
+    const { store, calls } = createStore([
+      jsonResponse({ files: [LISTED_FILE] }),
+      textResponse("malformed"),
+      jsonResponse(EXACT_FILE),
+      new Response(null, { status: 204 }),
+    ]);
+
+    await expectSuccess(store.deleteInvalidPassportFile(), "deleted");
+
+    expect(calls).toHaveLength(4);
+    expect(calls[3]?.method).toBe("DELETE");
+  });
+
+  it("never deletes a file that became valid before confirmed replacement", async () => {
+    const { store, calls } = createStore([
+      jsonResponse({ files: [LISTED_FILE] }),
+      textResponse(JSON.stringify(ENVELOPE)),
+    ]);
+
+    await expectFailure(store.deleteInvalidPassportFile(), "stale_file");
+
+    expect(calls).toHaveLength(2);
+    expect(calls.some((call) => call.method === "DELETE")).toBe(false);
+  });
+
+  it("returns missing when the invalid file was removed before confirmation", async () => {
+    const { store, calls } = createStore([jsonResponse({ files: [] })]);
+
+    await expectSuccess(store.deleteInvalidPassportFile(), "missing");
+    expect(calls).toHaveLength(1);
+  });
+
+  it("does not classify an oversized Drive media response as safely deletable", async () => {
     const cancel = vi.fn();
     const { store } = createStore([
       jsonResponse({ files: [LISTED_FILE] }),
       oversizedMediaResponse(cancel),
     ]);
 
-    await expectFailure(store.readPassportFile(), "invalid_file");
+    await expectFailure(store.readPassportFile(), "unsupported_file");
     expect(cancel).toHaveBeenCalledOnce();
   });
 
@@ -275,14 +322,14 @@ describe("GoogleDrivePassportFileStore", () => {
     expect(cancel).toHaveBeenCalledOnce();
   });
 
-  it("rejects streamed Drive media that exceeds the size limit", async () => {
+  it("does not classify streamed oversized Drive media as safely deletable", async () => {
     const cancel = vi.fn();
     const { store } = createStore([
       jsonResponse({ files: [LISTED_FILE] }),
       streamResponse([new Uint8Array(16 * 1024), new Uint8Array(1)], cancel),
     ]);
 
-    await expectFailure(store.readPassportFile(), "invalid_file");
+    await expectFailure(store.readPassportFile(), "unsupported_file");
     expect(cancel).toHaveBeenCalledOnce();
   });
 

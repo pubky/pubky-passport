@@ -6,6 +6,7 @@ import { GoogleAccessScreen } from "./google/googleAccessScreen";
 import { GoogleIdentityComplete } from "./google/googleIdentityComplete";
 import { GoogleIdentityError } from "./google/googleIdentityError";
 import { GoogleIdentityProgress } from "./google/googleIdentityProgress";
+import { InvalidGoogleDrivePassportFile } from "./google/invalidGoogleDrivePassportFile";
 import { useGoogleIdentityEstablishment } from "./google/useGoogleIdentityEstablishment";
 import { BackButton } from "../shared/backButton";
 import { ProviderSignInButton } from "./providerSignInButton";
@@ -31,12 +32,21 @@ function IdentityEstablishmentFlow({ googleIdentityConfiguration, onBack, onComp
       return <GoogleAccessScreen status="pending" />;
     case "denied":
       return <GoogleAccessScreen onBack={google.back} onTryAgain={google.establishIdentity} status="denied" />;
-    case "failed":
+    case "failed": {
+      if (view.error.code === "invalid_passport_file"
+        || view.error.code === "invalid_passport_file_delete_failed") {
+        return <InvalidGoogleDrivePassportFile
+          deletionFailed={view.error.code === "invalid_passport_file_delete_failed"}
+          onBack={google.back}
+          onReplace={google.replaceInvalidPassportFile}
+        />;
+      }
       return <GoogleIdentityError
         error={view.error}
         onBack={google.back}
         onTryAgain={google.establishIdentity}
       />;
+    }
     case "working":
       return <GoogleIdentityProgress progress={view.progress} />;
     case "idle":
