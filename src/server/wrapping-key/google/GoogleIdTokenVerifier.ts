@@ -23,7 +23,6 @@ export class GoogleIdTokenVerifier {
   constructor(
     private audience: string,
     private verifier: OAuth2Client = new OAuth2Client(),
-    private now: () => Date = () => new Date(),
   ) {}
 
   async verifyGoogleIdToken(idToken: string): Promise<GoogleIdTokenVerificationResult> {
@@ -54,7 +53,7 @@ export class GoogleIdTokenVerifier {
       return Result.err({ code: "invalid_google_id_token" });
     }
 
-    const result = validatePayload(payload, this.audience, this.now());
+    const result = validatePayload(payload, this.audience);
     if (Result.isError(result)) {
       LOGGER.warn("identity.google.id_token_verification.failed", {
         operation: "validate_claims",
@@ -68,7 +67,6 @@ export class GoogleIdTokenVerifier {
 function validatePayload(
   payload: GoogleIdTokenPayload,
   expectedAudience: string,
-  now: Date,
 ): GoogleIdTokenVerificationResult {
   if (!payload.iss || !ACCEPTED_GOOGLE_ISSUERS.has(payload.iss)) {
     return Result.err({ code: "invalid_google_id_token" });
@@ -78,12 +76,7 @@ function validatePayload(
     return Result.err({ code: "invalid_google_id_token" });
   }
 
-  const nowMilliseconds = now.getTime();
-  if (!Number.isFinite(nowMilliseconds)) {
-    throw new Error("Invalid Google ID token verifier clock.");
-  }
-
-  const nowSeconds = Math.floor(nowMilliseconds / 1000);
+  const nowSeconds = Math.floor(Date.now() / 1000);
   if (
     typeof payload.exp !== "number"
     || !Number.isFinite(payload.exp)

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 import { OAuth2Client, type LoginTicket } from "google-auth-library";
 
@@ -20,6 +20,10 @@ type TestGoogleIdTokenPayload = {
 };
 
 describe("Google ID token verifier", () => {
+  beforeEach(() => {
+    vi.spyOn(Date, "now").mockReturnValue(NOW.getTime());
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -41,7 +45,6 @@ describe("Google ID token verifier", () => {
         calls.push({ tokenPresent: idToken.length > 0, audience: verifierAudience });
         return validPayload();
       }),
-      () => NOW,
     );
 
     await verifier.verifyGoogleIdToken(TOKEN);
@@ -99,7 +102,6 @@ describe("Google ID token verifier", () => {
         googleVerifier(async () => {
             throw new Error(`${message} token ${TOKEN}`);
         }),
-        () => NOW,
       );
 
       await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
@@ -115,7 +117,6 @@ describe("Google ID token verifier", () => {
     const verifier = new GoogleIdTokenVerifier(
       AUDIENCE,
       googleVerifier(async () => googleLoginTicketFixture(() => undefined)),
-      () => NOW,
     );
 
     await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
@@ -132,7 +133,6 @@ describe("Google ID token verifier", () => {
       googleVerifier(async () => googleLoginTicketFixture(() => {
         throw new Error(`payload failed for ${TOKEN}`);
       })),
-      () => NOW,
     );
 
     await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
@@ -141,23 +141,12 @@ describe("Google ID token verifier", () => {
       code: "payload_access_failed",
     });
   });
-
-  it("rejects an invalid verification clock", async () => {
-    const verifier = new GoogleIdTokenVerifier(
-      AUDIENCE,
-      fakeGoogleVerifier(() => validPayload()),
-      () => new Date(Number.NaN),
-    );
-
-    await expect(verifier.verifyGoogleIdToken(TOKEN)).rejects.toThrow("Invalid Google ID token verifier clock.");
-  });
 });
 
 function createVerifierWithPayload(payload: TestGoogleIdTokenPayload) {
   return new GoogleIdTokenVerifier(
     AUDIENCE,
     fakeGoogleVerifier(() => payload),
-    () => NOW,
   );
 }
 
