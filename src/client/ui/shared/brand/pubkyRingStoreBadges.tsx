@@ -7,10 +7,10 @@ function PubkyRingStoreBadges() {
   return (
     <div className="flex items-center justify-center gap-4">
       <a aria-label="Download Pubky Ring on the App Store" href={APP_STORE_URL} rel="noreferrer" target="_blank">
-        <Image alt="Download on the App Store" height={32} src="/brand/app-store-badge.png" unoptimized width={96} />
+        <Image alt="Download on the App Store" height={32} src="/brand/app-store-badge.svg" width={96} />
       </a>
       <a aria-label="Get Pubky Ring on Google Play" href={GOOGLE_PLAY_URL} rel="noreferrer" target="_blank">
-        <Image alt="Get it on Google Play" height={32} src="/brand/google-play-badge.png" unoptimized width={108} />
+        <Image alt="Get it on Google Play" height={32} src="/brand/google-play-badge.svg" width={108} />
       </a>
     </div>
   );
