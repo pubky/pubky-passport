@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import "@fontsource-variable/inter-tight";
 import "./globals.css";
 import { PassportLogo } from "../client/ui/shared/brand/passportLogo";
+import { Sonner } from "../client/ui/shared/sonner";
 import { ParserTimeScripts } from "./parserTimeScripts";
 
 export const metadata: Metadata = {
@@ -23,6 +24,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           <PassportLogo />
         </header>
         {children}
+        <Sonner />
       </body>
     </html>
   );

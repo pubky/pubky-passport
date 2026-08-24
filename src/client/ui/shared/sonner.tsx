@@ -1,0 +1,35 @@
+"use client";
+
+import Image from "next/image";
+import { Toaster, toast } from "sonner";
+
+function Sonner() {
+  return (
+    <Toaster
+      duration={3000}
+      icons={{
+        info: <Image alt="" aria-hidden="true" height={20} src="/icons/sonner-info.svg" unoptimized width={20} />,
+      }}
+      mobileOffset={{ left: 15, right: 15, top: 5 }}
+      offset={{ top: 5 }}
+      position="top-center"
+      style={{ "--width": "420px" } as React.CSSProperties}
+      toastOptions={{
+        unstyled: true,
+        classNames: {
+          content: "flex min-w-0 flex-1 flex-col gap-0.5",
+          icon: "flex size-5 shrink-0 items-center justify-center",
+          info: "border-brand/50 bg-brand/25",
+          title: "w-full text-sm font-bold leading-5 text-popover-foreground",
+          toast: "pointer-events-auto flex w-full items-center gap-2 rounded-lg border p-6 shadow-[0_10px_15px_rgba(5,5,10,0.5)] backdrop-blur-[10px]",
+        },
+      }}
+    />
+  );
+}
+
+function showCopyConfirmation(label: string) {
+  toast.info(`${label} copied`);
+}
+
+export { showCopyConfirmation, Sonner };

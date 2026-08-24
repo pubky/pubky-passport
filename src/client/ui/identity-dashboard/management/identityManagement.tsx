@@ -13,6 +13,7 @@ import { Avatar } from "../../shared/primitives/avatar";
 import { Button } from "../../shared/primitives/button";
 import { IconButton } from "../../shared/primitives/iconButton";
 import { DisplayHeading } from "../../shared/primitives/typography";
+import { showCopyConfirmation } from "../../shared/sonner";
 
 function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadRecoveryFile, onRemoveLocalIdentity, onMigrateToKeychain, resolveHomeserver }: { identity: LocalIdentityMetadata; onBack: () => void; onDetachFromGoogle: () => void; onDownloadRecoveryFile: () => void; onRemoveLocalIdentity: () => void; onMigrateToKeychain: () => void; resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult> }) {
   const account = identity.googleAccount;
@@ -55,8 +56,13 @@ function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadRe
 function IdentityDetail({ copy = false, label, value }: { copy?: boolean; label: string; value: string }) {
   const isCopyable = copy && value !== "Unavailable" && value !== "Looking up…";
 
-  function copyValue() {
-    void navigator.clipboard.writeText(value).catch(() => undefined);
+  async function copyValue() {
+    try {
+      await navigator.clipboard.writeText(value);
+      showCopyConfirmation(label);
+    } catch {
+      // Keep clipboard failures silent; a success toast must only confirm a completed copy.
+    }
   }
 
   return (
@@ -66,7 +72,7 @@ function IdentityDetail({ copy = false, label, value }: { copy?: boolean; label:
         <p className="break-all font-medium leading-6">{value}</p>
       </div>
       {copy ? (
-        <IconButton aria-label={`Copy ${label}`} className="size-9 p-1" disabled={!isCopyable} onClick={copyValue} variant="ghost">
+        <IconButton aria-label={`Copy ${label}`} className="size-9 p-1" disabled={!isCopyable} onClick={() => { void copyValue(); }} variant="ghost">
           <CopyIcon size={20} />
         </IconButton>
       ) : null}
