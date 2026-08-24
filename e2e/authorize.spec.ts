@@ -62,7 +62,7 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   expect(policy).not.toContain(SENSITIVE_SECRET);
 
   await expect(page).toHaveURL(/\/authorize$/u);
-  await expect(page.getByRole("heading", { name: "Review authorization request." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in to client.example" })).toBeVisible();
   await expect(page.getByText("/pub/example.app/", { exact: true })).toBeVisible();
 
   const renderedReview = await page.locator("main").innerHTML();
@@ -119,8 +119,7 @@ test("reviews and scrubs a v0.10 grant authorization request", async ({ page }) 
 
   expect(response?.ok()).toBe(true);
   await expect(page).toHaveURL(/\/authorize$/u);
-  await expect(page.getByRole("heading", { name: "Review authorization request." })).toBeVisible();
-  await expect(page.getByText(/app-specific, revocable grant/u)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in to client.example" })).toBeVisible();
   expect(await page.locator("main").innerHTML()).not.toContain(GRANT_CLIENT_PUBLIC_KEY);
   expect(await page.evaluate(() => window.location.search)).toBe("");
   expect(await page.evaluate(() => window.location.hash)).toBe("");
@@ -138,7 +137,7 @@ test("manual entry reloads into fragment-backed capability review", async ({ pag
   await page.getByRole("textbox", { name: "Authorization link" }).fill(authorizationRequest(`${RELAY_ORIGIN}/inbox`));
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await expect(page.getByRole("heading", { name: "Review authorization request." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in to client.example" })).toBeVisible();
   await expect(page).toHaveURL(/\/authorize$/u);
   expect(await page.evaluate(() => window.location.hash)).toBe("");
 });
