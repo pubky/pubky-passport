@@ -6,16 +6,17 @@ import { LOGGER } from "../../../../libs/logger/logger";
 import { IssuedPubkyAuthRequest } from "../request/IssuedPubkyAuthRequest";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "../request/pubkyAuthRequestLimits";
 
-export type ManualAuthorizationInputResult = "invalid" | "navigation_failed" | "navigating";
+export type ManualAuthorizationInputValidationResult =
+  | { status: "invalid" }
+  | { status: "valid"; destination: string };
 
-/** Validates a pasted request and navigates without retaining or redisplaying it. */
-export function submitManualAuthorizationInput(
+/** Validates a pasted request and returns its browser-entry destination. */
+export function validateManualAuthorizationInput(
   inputValue: string,
-  replaceLocation: (url: string) => void = replaceAndReload,
-): ManualAuthorizationInputResult {
+): ManualAuthorizationInputValidationResult {
   if (inputValue.length > PUBKY_AUTH_REQUEST_LIMITS.maximumDecodedAuthUrlCodeUnits) {
     logFailure("request_too_large");
-    return "invalid";
+    return { status: "invalid" };
   }
 
   const request = inputValue.trim();
@@ -24,27 +25,16 @@ export function submitManualAuthorizationInput(
     encodedRequest = encodeURIComponent(request);
   } catch {
     logFailure("invalid_encoding");
-    return "invalid";
+    return { status: "invalid" };
   }
 
   const validated = IssuedPubkyAuthRequest.validate(encodedRequest);
   if (Result.isError(validated)) {
     logFailure(validated.error.code);
-    return "invalid";
+    return { status: "invalid" };
   }
 
-  try {
-    replaceLocation(`/authorize#d=${encodedRequest}`);
-  } catch {
-    logFailure("navigation_failed");
-    return "navigation_failed";
-  }
-  return "navigating";
-}
-
-function replaceAndReload(url: string): void {
-  History.prototype.replaceState.call(window.history, null, "", url);
-  window.location.reload();
+  return { status: "valid", destination: `/authorize#d=${encodedRequest}` };
 }
 
 function logFailure(code: string): void {

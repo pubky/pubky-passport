@@ -71,7 +71,7 @@ describe("GoogleIdentityController", () => {
       reportProgress({ flow: "restore", step: "restoring" });
       return Result.ok({ establishmentMode: "restored" as const, publicIdentity: PUBLIC_IDENTITY });
     });
-    MOCKS.detachIdentity.mockResolvedValue(Result.ok({ deletionStatus: "deleted" as const }));
+    MOCKS.detachIdentity.mockResolvedValue(Result.ok());
     MOCKS.replaceInvalidPassportFile.mockResolvedValue(Result.ok({
       establishmentMode: "created" as const,
       publicIdentity: PUBLIC_IDENTITY,
@@ -224,7 +224,7 @@ describe("GoogleIdentityController", () => {
     const controller = createController();
 
     await expect(controller.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.googleSubject)).resolves.toEqual(
-      Result.ok({ deletionStatus: "deleted" }),
+      Result.ok(),
     );
 
     expect(MOCKS.detachIdentity).toHaveBeenCalledWith(CREDENTIALS, PUBLIC_IDENTITY, GOOGLE_ACCOUNT.googleSubject);

@@ -1,16 +1,14 @@
 import { redactForLog } from "./redaction";
 
-export type LogLevel = "debug" | "info" | "warn" | "error";
+type LogLevel = "debug" | "info" | "warn" | "error";
 
 export type LogFieldValue = string | number | boolean | null | undefined;
 
 export type LogFields = Record<string, LogFieldValue>;
 
-export type LogSink = Record<LogLevel, (message: string) => void>;
-
 export type Logger = Record<LogLevel, (event: string, fields?: LogFields) => void>;
 
-const CONSOLE_SINK: LogSink = {
+const CONSOLE_SINK: Record<LogLevel, (message: string) => void> = {
   debug(message) {
     console.debug(message);
   },
@@ -25,28 +23,28 @@ const CONSOLE_SINK: LogSink = {
   },
 };
 
-export function createLogger(sink: LogSink = CONSOLE_SINK): Logger {
+function createLogger(): Logger {
   return {
     debug(event, fields) {
-      writeLog(sink, "debug", event, fields);
+      writeLog("debug", event, fields);
     },
     info(event, fields) {
-      writeLog(sink, "info", event, fields);
+      writeLog("info", event, fields);
     },
     warn(event, fields) {
-      writeLog(sink, "warn", event, fields);
+      writeLog("warn", event, fields);
     },
     error(event, fields) {
-      writeLog(sink, "error", event, fields);
+      writeLog("error", event, fields);
     },
   };
 }
 
 export const LOGGER = createLogger();
 
-function writeLog(sink: LogSink, level: LogLevel, event: string, fields: LogFields | undefined): void {
+function writeLog(level: LogLevel, event: string, fields: LogFields | undefined): void {
   try {
-    sink[level](redactForLog(formatLogLine(level, event, fields)));
+    CONSOLE_SINK[level](redactForLog(formatLogLine(level, event, fields)));
   } catch {
     // Logging must never alter the application flow it is observing.
   }

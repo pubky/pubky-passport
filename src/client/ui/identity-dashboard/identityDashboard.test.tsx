@@ -80,7 +80,7 @@ vi.mock("../../logic/google-identity/GoogleIdentityController", () => ({
           (identity) => identity.publicIdentity.publicKeyZ32 !== publicIdentity.publicKeyZ32,
         );
         FLOW.catalog = { activePublicKeyZ32: identities[0]?.publicIdentity.publicKeyZ32 ?? null, identities };
-        return Result.ok({ deletionStatus: "deleted" as const });
+        return Result.ok();
       },
     });
   },

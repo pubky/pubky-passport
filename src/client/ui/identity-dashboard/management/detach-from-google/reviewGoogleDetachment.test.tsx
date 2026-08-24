@@ -15,10 +15,8 @@ describe("ReviewGoogleDetachment", () => {
     render(<ReviewGoogleDetachment onBack={onBack} onRemove={onRemove} />);
 
     expect(screen.getByRole("heading", { name: "Detach from Google." })).toBeInTheDocument();
+    expect(screen.getByText("You are about to remove Google as a way to access your pubky identity.")).toBeInTheDocument();
     expect(screen.getByText(/This can’t be undone/)).toBeInTheDocument();
-    const illustrationLayers = document.querySelectorAll('[data-slot="google-detachment-illustration"] img');
-    expect(illustrationLayers[0]).toHaveAttribute("src", "/illustrations/cloud.png");
-    expect(illustrationLayers[1]).toHaveAttribute("src", "/illustrations/red-line.svg");
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Remove Google Access" }));
     expect(onRemove).toHaveBeenCalledOnce();

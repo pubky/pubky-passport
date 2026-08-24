@@ -26,21 +26,28 @@ export type GoogleWrappingKeyIssueErrorCode =
   | "rate_limited"
   | "dependency_unavailable";
 
-export type GoogleWrappingKeyIssueResult = ResultType<string, { code: GoogleWrappingKeyIssueErrorCode }>;
+export type GoogleWrappingKeyIssueResult = ResultType<
+  string,
+  { code: GoogleWrappingKeyIssueErrorCode }
+>;
+type GoogleIdTokenVerification = Pick<GoogleIdTokenVerifier, "verifyGoogleIdToken">;
+type GoogleWrappingKeyRateLimit = Pick<InMemoryGoogleWrappingKeyRateLimiter, "tryConsumeRequest">;
+type GoogleWrappingKeyDerivation = Pick<GoogleWrappingKeyDeriver, "deriveWrappingKey">;
 
 export class GoogleWrappingKeyIssuer {
   constructor(
-    googleClientId: string,
-    serverSecret: Uint8Array,
-    private googleIdTokenVerifier: GoogleIdTokenVerifier = new GoogleIdTokenVerifier(googleClientId),
-    private rateLimiter: InMemoryGoogleWrappingKeyRateLimiter = new InMemoryGoogleWrappingKeyRateLimiter(serverSecret),
-    private deriver: GoogleWrappingKeyDeriver = new GoogleWrappingKeyDeriver(serverSecret),
+    private googleIdTokenVerifier: GoogleIdTokenVerification,
+    private rateLimiter: GoogleWrappingKeyRateLimit,
+    private deriver: GoogleWrappingKeyDerivation,
   ) {}
 
   static fromEnvironment(): GoogleWrappingKeyIssuer {
+    const googleClientId = GOOGLE_CLIENT_ID_SCHEMA.parse(process.env.GOOGLE_CLIENT_ID);
+    const serverSecret = SERVER_SECRET_SCHEMA.parse(process.env.PASSPORT_SERVER_SECRET_BASE64);
     return new GoogleWrappingKeyIssuer(
-      GOOGLE_CLIENT_ID_SCHEMA.parse(process.env.GOOGLE_CLIENT_ID),
-      SERVER_SECRET_SCHEMA.parse(process.env.PASSPORT_SERVER_SECRET_BASE64),
+      GoogleIdTokenVerifier.forAudience(googleClientId),
+      new InMemoryGoogleWrappingKeyRateLimiter(serverSecret),
+      new GoogleWrappingKeyDeriver(serverSecret),
     );
   }
 

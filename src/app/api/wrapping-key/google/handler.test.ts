@@ -6,7 +6,10 @@ import { createGoogleWrappingKeyPostHandler } from "./handler";
 import { GoogleWrappingKeyIssuer } from "../../../../server/wrapping-key/google/GoogleWrappingKeyIssuer";
 
 describe("POST /api/wrapping-key/google", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
 
   it("maps valid wrapping-key results to HTTP success", async () => {
     const post = postHandler(async () => Result.ok("opaque-key"));
@@ -117,7 +120,11 @@ function postHandler(issueGoogleWrappingKey: GoogleWrappingKeyIssuer["issueGoogl
 function wrappingKeyIssuer(
   issueGoogleWrappingKey: GoogleWrappingKeyIssuer["issueGoogleWrappingKey"],
 ): GoogleWrappingKeyIssuer {
-  const issuer = new GoogleWrappingKeyIssuer("test-client", new Uint8Array(32));
+  const issuer = new GoogleWrappingKeyIssuer(
+    { verifyGoogleIdToken: async () => Result.err({ code: "invalid_google_id_token" }) },
+    { tryConsumeRequest: () => false },
+    { deriveWrappingKey: () => "" },
+  );
   vi.spyOn(issuer, "issueGoogleWrappingKey").mockImplementation(issueGoogleWrappingKey);
   return issuer;
 }

@@ -153,8 +153,9 @@ function testIssuer(
   tryConsumeRequest: InMemoryGoogleWrappingKeyRateLimiter["tryConsumeRequest"],
   deriveWrappingKey: GoogleWrappingKeyDeriver["deriveWrappingKey"],
 ): GoogleWrappingKeyIssuer {
-  vi.spyOn(GoogleIdTokenVerifier.prototype, "verifyGoogleIdToken").mockImplementation(verifyGoogleIdToken);
-  vi.spyOn(InMemoryGoogleWrappingKeyRateLimiter.prototype, "tryConsumeRequest").mockImplementation(tryConsumeRequest);
-  vi.spyOn(GoogleWrappingKeyDeriver.prototype, "deriveWrappingKey").mockImplementation(deriveWrappingKey);
-  return new GoogleWrappingKeyIssuer("test-client", new Uint8Array(32));
+  return new GoogleWrappingKeyIssuer(
+    { verifyGoogleIdToken },
+    { tryConsumeRequest },
+    { deriveWrappingKey },
+  );
 }

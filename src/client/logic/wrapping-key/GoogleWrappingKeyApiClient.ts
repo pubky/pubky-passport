@@ -7,7 +7,7 @@ import { LOGGER } from "../../../libs/logger/logger";
 import { readBoundedText } from "../../../libs/http/boundedBody";
 import { isCanonicalBase64Url } from "../../../libs/encoding/base64Url";
 
-export const GOOGLE_WRAPPING_KEY_API_ERROR_CODES = [
+const GOOGLE_WRAPPING_KEY_API_ERROR_CODES = [
   "invalid_request",
   "invalid_google_id_token",
   "rate_limited",
@@ -35,7 +35,7 @@ const ERROR_RESPONSE_SCHEMA = z.object({
 
 export class GoogleWrappingKeyApiClient {
   constructor(
-    private fetch: typeof globalThis.fetch = (request, init) => globalThis.fetch(request, init),
+    private fetch: typeof globalThis.fetch,
   ) {}
 
   async requestGoogleWrappingKey(googleIdToken: string): Promise<GoogleWrappingKeyResult> {

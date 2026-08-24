@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -54,7 +54,7 @@ describe("IdentityEstablishmentFlow", () => {
     const googleButton = [...shell.querySelectorAll("button")]
       .find((button) => button.textContent?.includes("Continue with Google"));
 
-    expect(shell.querySelector('[data-slot="sign-in-illustration"]')).toHaveAttribute("src", "/illustrations/cloud.png");
+    expect(within(shell).getByRole("heading", { name: "Quick & easy signing." })).toHaveTextContent("Quick & easy");
     expect(googleButton).toBeDisabled();
     expect(MOCKS.constructGoogleIdentityController).not.toHaveBeenCalled();
   });
@@ -95,14 +95,18 @@ describe("IdentityEstablishmentFlow", () => {
 
     expect(await screen.findByRole("heading", { name: "Restoring your pubky." })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Setting up your pubky." })).not.toBeInTheDocument();
-    expect(screen.getByText("Restore Passport file").closest("li")).toHaveAttribute("data-state", "active");
-    expect(screen.getByText("Sign in to the homeserver").closest("li")).toHaveAttribute("data-state", "pending");
+    const restoreProgress = screen.getByRole("list", { name: "Pubky identity restore progress" });
+    expect(within(restoreProgress).getByText("Restore Passport file").closest("li")).toHaveAttribute("aria-current", "step");
+    expect(within(restoreProgress).getByText("Sign in to the homeserver").closest("li")).toHaveTextContent("Sign in to the homeserver (pending)");
+    expect(screen.getByRole("status")).toHaveTextContent("Restoring your Pubky: Restore Passport file.");
     expect(screen.queryByText("Republish PKDNS records")).not.toBeInTheDocument();
 
     act(() => emitState.current?.({ status: "establishing", progress: { flow: "repair", step: "signing_up" } }));
     expect(screen.getByRole("heading", { name: "Repairing your pubky." })).toBeInTheDocument();
-    expect(screen.getByText("Restore Passport file").closest("li")).toHaveAttribute("data-state", "complete");
-    expect(screen.getByText("Repair homeserver access").closest("li")).toHaveAttribute("data-state", "active");
+    const repairProgress = screen.getByRole("list", { name: "Pubky identity repair progress" });
+    expect(within(repairProgress).getByText("Restore Passport file").closest("li")).toHaveTextContent("Restore Passport file (complete)");
+    expect(within(repairProgress).getByText("Repair homeserver access").closest("li")).toHaveAttribute("aria-current", "step");
+    expect(screen.getByRole("status")).toHaveTextContent("Repairing your Pubky: Repair homeserver access.");
   });
 
   it("does not claim setup or restore before checking Google Drive", async () => {

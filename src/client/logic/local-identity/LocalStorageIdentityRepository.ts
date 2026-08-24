@@ -44,7 +44,7 @@ const LOCAL_IDENTITY_STORE_VERSION = 1;
  * returns decoded key material.
  */
 export class LocalStorageIdentityRepository {
-  constructor(private storage: Storage | null = getLocalStorage()) {}
+  private readonly storage = getLocalStorage();
 
   /** Returns the identity catalog without secret-key material. */
   list(): LocalIdentityResult<LocalIdentityCatalog> {

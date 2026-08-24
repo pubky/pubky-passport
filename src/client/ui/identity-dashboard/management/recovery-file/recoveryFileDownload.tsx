@@ -75,7 +75,7 @@ function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
           {recoveryFileFailed ? <FieldMessage error>Could not create the recovery file. Please try again.</FieldMessage> : null}
         </div>
 
-        <Image alt="" aria-hidden="true" className="mx-auto size-[200px]" data-slot="recovery-file-illustration" height={200} src="/illustrations/file.png" unoptimized width={200} />
+        <Image alt="" aria-hidden="true" className="mx-auto size-[200px]" height={200} src="/illustrations/file.png" unoptimized width={200} />
 
         <div className="mt-auto flex flex-col gap-4 pt-4">
           <BackButton onClick={onBack} />

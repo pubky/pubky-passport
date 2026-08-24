@@ -23,6 +23,10 @@ const MOCKS = vi.hoisted(() => ({
 
 vi.mock("../../logic/authorization/flow/PassportAuthorizationController", () => ({
   PassportAuthorizationController: class {
+    static fromBrowser() {
+      return new this();
+    }
+
     constructor(...args: unknown[]) {
       MOCKS.createAuthorizationController(...args);
     }
@@ -350,20 +354,15 @@ describe("AuthorizationFlow", () => {
   });
 
   it.each([
-    ["approved", "Authorization complete.", "Continue"],
-    ["cancelled", "Authorization cancelled.", "Back"],
-    ["failed", "Authorization failed.", "Back"],
-  ] as const)("renders the safe local %s terminal state", async (status, heading, action) => {
+    ["approved", "Authorization complete.", "Continue", "You can return to the app or device where you started."],
+    ["cancelled", "Authorization cancelled.", "Back", "No authorization was granted."],
+    ["failed", "Authorization failed.", "Back", "Passport could not authorize this request with the selected identity."],
+  ] as const)("renders the safe local %s terminal state", async (status, heading, action, message) => {
     MOCKS.authorizationState = { status };
     renderFlow();
 
     expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
+    expect(screen.getByText(message)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: action })).toBeInTheDocument();
-    const completionIllustration = document.querySelector('[data-slot="authorization-complete-illustration"]');
-    if (status === "approved") {
-      expect(completionIllustration).toHaveAttribute("src", "/illustrations/checkmark.png");
-    } else {
-      expect(completionIllustration).not.toBeInTheDocument();
-    }
   });
 });

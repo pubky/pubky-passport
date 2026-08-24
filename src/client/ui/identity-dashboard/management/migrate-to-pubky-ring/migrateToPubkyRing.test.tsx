@@ -48,8 +48,7 @@ describe("MigrateToPubkyRing", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Show QR" }));
     const continueButton = screen.getByRole("button", { name: "Continue" });
-    expect(continueButton).toHaveAttribute("data-variant", "default");
-    expect(continueButton.querySelector("svg")).toBeInTheDocument();
+    expect(continueButton).toBeEnabled();
     fireEvent.click(continueButton);
 
     expect(onBack).toHaveBeenCalledOnce();

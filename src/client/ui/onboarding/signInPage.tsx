@@ -11,7 +11,7 @@ function SignInPage({ children }: { children: ReactNode }) {
       <section className="flex flex-col gap-6">
         <DisplayHeading accent="signing." aria-label="Quick & easy signing.">Quick &amp; easy</DisplayHeading>
         <LeadText>Pubky Passport is a browser-based signer for the Pubky ecosystem. No seed phrase, no app, no hassle.</LeadText>
-        <Image alt="" aria-hidden="true" className="mx-auto size-[200px]" data-slot="sign-in-illustration" height={200} priority src="/illustrations/cloud.png" unoptimized width={200} />
+        <Image alt="" aria-hidden="true" className="mx-auto size-[200px]" height={200} priority src="/illustrations/cloud.png" unoptimized width={200} />
         <div className="flex flex-col gap-3">
           {children}
         </div>

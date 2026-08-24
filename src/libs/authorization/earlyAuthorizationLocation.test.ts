@@ -3,8 +3,6 @@ import { runInNewContext } from "node:vm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  EARLY_AUTHORIZATION_LOCATION_LIFETIME_MS,
-  EARLY_AUTHORIZATION_LOCATION_MAX_CHARACTERS,
   EARLY_AUTHORIZATION_LOCATION_PROPERTY,
   EARLY_AUTHORIZATION_LOCATION_SCRIPT,
 } from "./earlyAuthorizationLocation";
@@ -40,7 +38,7 @@ describe("early authorization location bootstrap", () => {
 
   it("captures the fragment size limit and rejects limit plus one without retaining it", () => {
     const canary = "secret-canary";
-    const atLimit = `#${"a".repeat(EARLY_AUTHORIZATION_LOCATION_MAX_CHARACTERS - canary.length - 1)}${canary}`;
+    const atLimit = `#${"a".repeat(32_768 - canary.length - 1)}${canary}`;
     const accepted = createContext("", atLimit);
     runInNewContext(EARLY_AUTHORIZATION_LOCATION_SCRIPT, accepted);
     const takeAccepted = accepted[EARLY_AUTHORIZATION_LOCATION_PROPERTY];
@@ -62,7 +60,7 @@ describe("early authorization location bootstrap", () => {
     const context = createContext("", "#d=sensitive");
     runInNewContext(EARLY_AUTHORIZATION_LOCATION_SCRIPT, context);
 
-    await vi.advanceTimersByTimeAsync(EARLY_AUTHORIZATION_LOCATION_LIFETIME_MS);
+    await vi.advanceTimersByTimeAsync(60_000);
 
     const take = context[EARLY_AUTHORIZATION_LOCATION_PROPERTY];
     expect(typeof take).toBe("function");

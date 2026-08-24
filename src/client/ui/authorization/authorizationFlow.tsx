@@ -37,7 +37,7 @@ function AuthorizationFlow({ googleClientId, homegateBaseUrl }: {
   useEffect(() => {
     mountedRef.current = true;
     const passportAuthorizationController = passportAuthorizationControllerRef.current
-      ?? new PassportAuthorizationController();
+      ?? PassportAuthorizationController.fromBrowser();
     passportAuthorizationControllerRef.current = passportAuthorizationController;
     setPassportAuthorizationController(passportAuthorizationController);
     let active = true;
@@ -179,7 +179,7 @@ function AuthorizationTerminal({ outcome }: { outcome: "approved" | "cancelled" 
         ? "You can return to the app or device where you started."
         : "No authorization was granted."}</LeadText>
       {approved ? (
-        <Image alt="" aria-hidden="true" className="mx-auto size-[200px]" data-slot="authorization-complete-illustration" height={200} src="/illustrations/checkmark.png" unoptimized width={200} />
+        <Image alt="" aria-hidden="true" className="mx-auto size-[200px]" height={200} src="/illustrations/checkmark.png" unoptimized width={200} />
       ) : null}
       <div className="mt-auto">
         {approved ? (

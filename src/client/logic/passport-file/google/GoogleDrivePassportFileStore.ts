@@ -68,7 +68,6 @@ export class GoogleDrivePassportFileStore {
   constructor(
     private accessToken: string,
     private fetchImpl: typeof fetch,
-    private requestLock: RequestLock | null = browserRequestLock(),
   ) {}
 
   /**
@@ -152,9 +151,10 @@ export class GoogleDrivePassportFileStore {
 
     const create = () => this.createMissingPassportFile(token.value, serializedEnvelope);
 
-    if (this.requestLock === null) return create();
+    const requestLock = browserRequestLock();
+    if (requestLock === null) return create();
     try {
-      return await this.requestLock(CREATE_PASSPORT_FILE_LOCK_NAME, create);
+      return await requestLock(CREATE_PASSPORT_FILE_LOCK_NAME, create);
     } catch {
       LOGGER.warn("identity.google.drive_store.failed", { operation: "create_lock", code: "write_failed" });
       return Result.err({ code: "write_failed" });

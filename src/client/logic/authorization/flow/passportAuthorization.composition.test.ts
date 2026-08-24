@@ -54,7 +54,7 @@ describe("PassportAuthorizationController composition", () => {
   it("constructs Pubky lazily for approval and owns adapter cleanup", async () => {
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
 
-    const controller = new PassportAuthorizationController();
+    const controller = PassportAuthorizationController.fromBrowser();
 
     expect(controller.getState().status).toBe("review");
     expect(MOCKS.PubkySdkAdapter).not.toHaveBeenCalled();
@@ -69,7 +69,7 @@ describe("PassportAuthorizationController composition", () => {
   it("maps identity repository failures at the authorization composition boundary", async () => {
     window.localStorage.setItem("pubky-passport/local-identities/v1", "invalid-store");
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
-    const controller = new PassportAuthorizationController();
+    const controller = PassportAuthorizationController.fromBrowser();
 
     await expect(controller.approve("missing-public-key")).resolves.toEqual({
       status: "failed",
@@ -83,7 +83,7 @@ describe("PassportAuthorizationController composition", () => {
       throw new Error("sensitive authorization request");
     });
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
-    const controller = new PassportAuthorizationController();
+    const controller = PassportAuthorizationController.fromBrowser();
 
     await expect(controller.approve("missing-public-key")).resolves.toEqual({
       status: "failed",
@@ -102,7 +102,7 @@ describe("PassportAuthorizationController composition", () => {
       throw new Error("cleanup failed");
     });
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
-    const controller = new PassportAuthorizationController();
+    const controller = PassportAuthorizationController.fromBrowser();
 
     await expect(controller.approve("missing-public-key")).resolves.toEqual({
       status: "failed",
@@ -120,7 +120,7 @@ describe("PassportAuthorizationController composition", () => {
   it("approves with the reviewed identity after another identity becomes active", async () => {
     const firstIdentity = identity("5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo");
     const secondIdentity = identity("y".repeat(52));
-    const repository = new LocalStorageIdentityRepository(window.localStorage);
+    const repository = new LocalStorageIdentityRepository();
     expect(Result.isOk(repository.save(firstIdentity, secretKey(1)))).toBe(true);
     expect(Result.isOk(repository.save(secondIdentity, secretKey(2)))).toBe(true);
     let restoredSecretByte: number | undefined;
@@ -131,7 +131,7 @@ describe("PassportAuthorizationController composition", () => {
     });
     MOCKS.approveAuthRequest.mockResolvedValue(Result.ok());
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
-    const controller = new PassportAuthorizationController();
+    const controller = PassportAuthorizationController.fromBrowser();
 
     await expect(controller.approve(firstIdentity.publicIdentity.publicKeyZ32)).resolves.toEqual({
       status: "approved",

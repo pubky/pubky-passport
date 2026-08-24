@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MemoryStorage } from "../../../../test-utils/MemoryStorage";
 import { expectResultError, expectResultOk } from "../../../../test-utils/resultAssertions";
@@ -14,22 +14,26 @@ const FIRST_IDENTITY = { publicKeyZ32: FIRST_PUBLIC_KEY_Z32, publicKeyDisplay: `
 const SECOND_IDENTITY = { publicKeyZ32: SECOND_PUBLIC_KEY_Z32, publicKeyDisplay: `pubky${SECOND_PUBLIC_KEY_Z32}` };
 
 describe("LocalStorageIdentityRepository", () => {
+  beforeEach(() => {
+    vi.stubGlobal("localStorage", new MemoryStorage());
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("persists identities and selects the latest one", () => {
-    const storage = new MemoryStorage();
-    const repository = new LocalStorageIdentityRepository(storage);
+    const repository = new LocalStorageIdentityRepository();
     const first = save(repository, FIRST_IDENTITY, 1);
     const second = save(repository, SECOND_IDENTITY, 2);
 
-    const reloadedRepository = new LocalStorageIdentityRepository(storage);
+    const reloadedRepository = new LocalStorageIdentityRepository();
     expect(expectResultOk(reloadedRepository.list())).toEqual({
       activePublicKeyZ32: second.publicIdentity.publicKeyZ32,
       identities: [first, second],
     });
-    expect(JSON.parse(storage.getItem("pubky-passport/local-identities/v1")!)).toEqual({
+    expect(JSON.parse(window.localStorage.getItem("pubky-passport/local-identities/v1")!)).toEqual({
       v: 1,
       activePublicKeyZ32: second.publicIdentity.publicKeyZ32,
       identities: [
@@ -48,8 +52,7 @@ describe("LocalStorageIdentityRepository", () => {
   });
 
   it("selects and replaces identities by their z32 public key", () => {
-    const storage = new MemoryStorage();
-    const repository = new LocalStorageIdentityRepository(storage);
+    const repository = new LocalStorageIdentityRepository();
     const first = save(repository, FIRST_IDENTITY, 1);
     const second = save(repository, SECOND_IDENTITY, 2);
 
@@ -78,9 +81,8 @@ describe("LocalStorageIdentityRepository", () => {
 
   it("rejects malformed persisted values", () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const storage = new MemoryStorage();
-    storage.setItem("pubky-passport/local-identities/v1", '{"v":1,"identities":"secret"}');
-    expectResultError(new LocalStorageIdentityRepository(storage).list(), { code: "invalid_store" });
+    window.localStorage.setItem("pubky-passport/local-identities/v1", '{"v":1,"identities":"secret"}');
+    expectResultError(new LocalStorageIdentityRepository().list(), { code: "invalid_store" });
     expect(warning).toHaveBeenCalledOnce();
     expect(warning).toHaveBeenCalledWith("identity.local_store.failed", {
       operation: "read",
@@ -90,12 +92,11 @@ describe("LocalStorageIdentityRepository", () => {
 
   it("logs storage exceptions without exposing persisted contents", () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const storage = new MemoryStorage();
-    vi.spyOn(storage, "getItem").mockImplementation(() => {
+    vi.spyOn(window.localStorage, "getItem").mockImplementation(() => {
       throw new Error("sensitive persisted contents");
     });
 
-    expectResultError(new LocalStorageIdentityRepository(storage).list(), {
+    expectResultError(new LocalStorageIdentityRepository().list(), {
       code: "storage_unavailable",
     });
     expect(warning).toHaveBeenCalledOnce();
@@ -106,13 +107,12 @@ describe("LocalStorageIdentityRepository", () => {
   });
 
   it("reports write failures as unavailable storage", () => {
-    const storage = new MemoryStorage();
-    vi.spyOn(storage, "setItem").mockImplementation(() => {
+    vi.spyOn(window.localStorage, "setItem").mockImplementation(() => {
       throw new Error("quota exceeded");
     });
 
     expectResultError(
-      new LocalStorageIdentityRepository(storage).save(
+      new LocalStorageIdentityRepository().save(
         { publicIdentity: FIRST_IDENTITY },
         { bytes: new Uint8Array(32), format: PUBKY_SECRET_KEY_FORMAT },
       ),
@@ -124,7 +124,7 @@ describe("LocalStorageIdentityRepository", () => {
     [new Uint8Array(31), PUBKY_SECRET_KEY_FORMAT],
     [new Uint8Array(32), "unknown-format"],
   ])("rejects invalid secret-key material", (bytes, format) => {
-    const repository = new LocalStorageIdentityRepository(new MemoryStorage());
+    const repository = new LocalStorageIdentityRepository();
 
     expectResultError(
       repository.save(
@@ -136,8 +136,7 @@ describe("LocalStorageIdentityRepository", () => {
   });
 
   it("rejects Google account metadata using id instead of googleSubject", () => {
-    const storage = new MemoryStorage();
-    storage.setItem("pubky-passport/local-identities/v1", JSON.stringify({
+    window.localStorage.setItem("pubky-passport/local-identities/v1", JSON.stringify({
       v: 1,
       activePublicKeyZ32: FIRST_IDENTITY.publicKeyZ32,
       identities: [{
@@ -152,12 +151,11 @@ describe("LocalStorageIdentityRepository", () => {
       }],
     }));
 
-    expectResultError(new LocalStorageIdentityRepository(storage).list(), { code: "invalid_store" });
+    expectResultError(new LocalStorageIdentityRepository().list(), { code: "invalid_store" });
   });
 
   it("persists the Google account associated with an identity", () => {
-    const storage = new MemoryStorage();
-    const repository = new LocalStorageIdentityRepository(storage);
+    const repository = new LocalStorageIdentityRepository();
     const googleAccount = { googleSubject: "google-1", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: "data:image/png;base64,AQID" };
 
     const identity = expectResultOk(repository.save(
@@ -166,7 +164,7 @@ describe("LocalStorageIdentityRepository", () => {
     ));
 
     expect(identity.googleAccount).toEqual(googleAccount);
-    expect(expectResultOk(new LocalStorageIdentityRepository(storage).list()).identities[0]?.googleAccount).toEqual(googleAccount);
+    expect(expectResultOk(new LocalStorageIdentityRepository().list()).identities[0]?.googleAccount).toEqual(googleAccount);
   });
 
   it.each([
@@ -180,14 +178,13 @@ describe("LocalStorageIdentityRepository", () => {
       driveAccessToken: "SENSITIVE-DRIVE-TOKEN",
     }],
   ])("rejects Google metadata with %s before writing", (_case, googleAccount) => {
-    const storage = new MemoryStorage();
-    const repository = new LocalStorageIdentityRepository(storage);
+    const repository = new LocalStorageIdentityRepository();
 
     expectResultError(repository.save(
       { publicIdentity: FIRST_IDENTITY, googleAccount },
       { bytes: new Uint8Array(32).fill(1), format: PUBKY_SECRET_KEY_FORMAT },
     ), { code: "invalid_identity" });
-    expect(storage.getItem("pubky-passport/local-identities/v1")).toBeNull();
+    expect(window.localStorage.getItem("pubky-passport/local-identities/v1")).toBeNull();
   });
 
   it.each([
@@ -195,19 +192,17 @@ describe("LocalStorageIdentityRepository", () => {
     ["a mismatched display key", { ...FIRST_IDENTITY, publicKeyDisplay: SECOND_IDENTITY.publicKeyDisplay }],
     ["an undeclared field", { ...FIRST_IDENTITY, unexpected: true }],
   ])("rejects a public identity with %s before writing", (_case, publicIdentity) => {
-    const storage = new MemoryStorage();
-    const repository = new LocalStorageIdentityRepository(storage);
+    const repository = new LocalStorageIdentityRepository();
 
     expectResultError(repository.save(
       { publicIdentity },
       { bytes: new Uint8Array(32).fill(1), format: PUBKY_SECRET_KEY_FORMAT },
     ), { code: "invalid_identity" });
-    expect(storage.getItem("pubky-passport/local-identities/v1")).toBeNull();
+    expect(window.localStorage.getItem("pubky-passport/local-identities/v1")).toBeNull();
   });
 
   it("serializes only the declared public metadata fields", () => {
-    const storage = new MemoryStorage();
-    const repository = new LocalStorageIdentityRepository(storage);
+    const repository = new LocalStorageIdentityRepository();
     const identityWithToken = {
       publicIdentity: FIRST_IDENTITY,
       googleAccount: { googleSubject: "google-1", email: "user@example.com", name: "User", pictureUrl: null },
@@ -220,13 +215,12 @@ describe("LocalStorageIdentityRepository", () => {
       { bytes: new Uint8Array(32).fill(1), format: PUBKY_SECRET_KEY_FORMAT },
     ));
 
-    const stored = storage.getItem("pubky-passport/local-identities/v1");
+    const stored = window.localStorage.getItem("pubky-passport/local-identities/v1");
     expect(stored).not.toContain("SENSITIVE");
   });
 
   it("rejects the obsolete local identity store schema", () => {
-    const storage = new MemoryStorage();
-    storage.setItem("pubky-passport/local-identities/v1", JSON.stringify({
+    window.localStorage.setItem("pubky-passport/local-identities/v1", JSON.stringify({
       v: 1,
       activeIdentityId: FIRST_IDENTITY.publicKeyZ32,
       identities: [{
@@ -236,12 +230,11 @@ describe("LocalStorageIdentityRepository", () => {
       }],
     }));
 
-    expectResultError(new LocalStorageIdentityRepository(storage).list(), { code: "invalid_store" });
+    expectResultError(new LocalStorageIdentityRepository().list(), { code: "invalid_store" });
   });
 
   it("rejects duplicate persisted public keys", () => {
-    const storage = new MemoryStorage();
-    storage.setItem("pubky-passport/local-identities/v1", JSON.stringify({
+    window.localStorage.setItem("pubky-passport/local-identities/v1", JSON.stringify({
       v: 1,
       activePublicKeyZ32: FIRST_IDENTITY.publicKeyZ32,
       identities: [
@@ -256,12 +249,11 @@ describe("LocalStorageIdentityRepository", () => {
       ],
     }));
 
-    expectResultError(new LocalStorageIdentityRepository(storage).list(), { code: "invalid_store" });
+    expectResultError(new LocalStorageIdentityRepository().list(), { code: "invalid_store" });
   });
 
   it("removes only one identity and activates a remaining identity", () => {
-    const storage = new MemoryStorage();
-    const repository = new LocalStorageIdentityRepository(storage);
+    const repository = new LocalStorageIdentityRepository();
     const first = save(repository, FIRST_IDENTITY, 1);
     const second = save(repository, SECOND_IDENTITY, 2);
 
@@ -274,7 +266,7 @@ describe("LocalStorageIdentityRepository", () => {
   });
 
   it("keeps the active identity when removing another and clears it when removing the last", () => {
-    const repository = new LocalStorageIdentityRepository(new MemoryStorage());
+    const repository = new LocalStorageIdentityRepository();
     save(repository, FIRST_IDENTITY, 1);
     save(repository, SECOND_IDENTITY, 2);
 
@@ -286,10 +278,9 @@ describe("LocalStorageIdentityRepository", () => {
   });
 
   it("uses one last-write-wins write without read-back retries", () => {
-    const storage = new MemoryStorage();
-    const getItem = vi.spyOn(storage, "getItem");
-    const setItem = vi.spyOn(storage, "setItem");
-    const repository = new LocalStorageIdentityRepository(storage);
+    const getItem = vi.spyOn(window.localStorage, "getItem");
+    const setItem = vi.spyOn(window.localStorage, "setItem");
+    const repository = new LocalStorageIdentityRepository();
 
     save(repository, FIRST_IDENTITY, 1);
 

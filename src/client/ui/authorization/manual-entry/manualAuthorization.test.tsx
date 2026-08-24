@@ -4,15 +4,23 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { submitManualAuthorizationInput } from "../../../logic/authorization/entry/manualAuthorizationInput";
+import { LOGGER } from "../../../../libs/logger/logger";
+import { validateManualAuthorizationInput } from "../../../logic/authorization/entry/manualAuthorizationInput";
 import { ManualAuthorization } from "./manualAuthorization";
 
 vi.mock("../../../logic/authorization/entry/manualAuthorizationInput", () => ({
-  submitManualAuthorizationInput: vi.fn(() => "navigating"),
+  validateManualAuthorizationInput: vi.fn(() => ({
+    status: "valid",
+    destination: "/authorize#d=encoded-request",
+  })),
 }));
 
 describe("ManualAuthorization", () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    window.history.replaceState({}, "", "/");
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -43,23 +51,43 @@ describe("ManualAuthorization", () => {
     await user.type(screen.getByLabelText("Authorization link"), request);
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(submitManualAuthorizationInput).toHaveBeenCalledWith(request);
+    expect(validateManualAuthorizationInput).toHaveBeenCalledWith(request);
     expect(screen.getByLabelText("Authorization link")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+    expect(window.location.pathname).toBe("/authorize");
+    expect(new URLSearchParams(window.location.hash.slice(1)).get("d")).toBe("encoded-request");
   });
 
-  it.each([
-    ["invalid", "Enter a valid pubkyauth:// authorization link."],
-    ["navigation_failed", "Could not open the authorization request. Try again."],
-  ] as const)("shows the %s submission error", async (result, message) => {
-    vi.mocked(submitManualAuthorizationInput).mockReturnValueOnce(result);
+  it("shows a validation error", async () => {
+    vi.mocked(validateManualAuthorizationInput).mockReturnValueOnce({ status: "invalid" });
     render(<ManualAuthorization onBack={vi.fn()} />);
 
     await userEvent.setup().type(screen.getByLabelText("Authorization link"), "invalid request");
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent(message);
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter a valid pubkyauth:// authorization link.");
     expect(screen.getByLabelText("Authorization link")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText("Authorization link")).toHaveValue("");
+  });
+
+  it("shows and safely logs a browser navigation failure", async () => {
+    const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+    vi.spyOn(History.prototype, "replaceState").mockImplementationOnce(() => {
+      throw new Error("secret-canary");
+    });
+    render(<ManualAuthorization onBack={vi.fn()} />);
+
+    await userEvent.setup().type(screen.getByLabelText("Authorization link"), "valid request");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not open the authorization request. Try again.");
+    expect(screen.getByLabelText("Authorization link")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Authorization link")).toHaveValue("");
+    expect(info).toHaveBeenCalledWith("authorize.manual_entry.failed", {
+      operation: "enter_authorization",
+      code: "navigation_failed",
+    });
+    expect(info).toHaveBeenCalledOnce();
+    expect(JSON.stringify(info.mock.calls)).not.toContain("secret-canary");
   });
 });

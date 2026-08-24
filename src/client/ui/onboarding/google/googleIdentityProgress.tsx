@@ -51,7 +51,7 @@ function IdentityLookup() {
 
 function ProgressStep({ step }: { step: SetupStep }) {
   return (
-    <li aria-current={step.state === "active" ? "step" : undefined} className="flex items-center gap-2" data-state={step.state}>
+    <li aria-current={step.state === "active" ? "step" : undefined} className="flex items-center gap-2">
       {step.state === "complete" ? <CompleteIcon /> : step.state === "active" ? <ActiveIcon /> : <PendingIcon />}
       <strong className={step.state === "complete" ? "text-brand" : step.state === "pending" ? "text-muted-foreground" : "text-foreground"}>{step.label}</strong>
       <span className="sr-only"> ({step.state})</span>

@@ -75,12 +75,7 @@ type AuthorizationAttempt = {
 export class GoogleImplicitAuthorization {
   private activeAttempt: AuthorizationAttempt | null = null;
 
-  constructor(
-    private clientId: string,
-    private origin: string = globalThis.location.origin,
-    private open: typeof window.open = (url, target, features) => globalThis.window.open(url, target, features),
-    private fetch: typeof globalThis.fetch = (request, init) => globalThis.fetch(request, init),
-  ) {}
+  constructor(private clientId: string) {}
 
   request(loginHint?: string): Promise<GoogleImplicitAuthorizationResult<GoogleIdentityCredentials>> {
     if (this.activeAttempt) {
@@ -91,6 +86,7 @@ export class GoogleImplicitAuthorization {
       });
       return Promise.resolve(Result.err({ code: "google_authorization_failed" }));
     }
+    const origin = globalThis.location.origin;
     const state = randomBase64Url(32);
     const nonce = randomBase64Url(32);
     const url = new URL(GOOGLE_AUTHORIZE_URL);
@@ -98,7 +94,7 @@ export class GoogleImplicitAuthorization {
       client_id: this.clientId,
       response_type: "id_token token",
       scope: GOOGLE_AUTHORIZATION_SCOPE,
-      redirect_uri: this.origin,
+      redirect_uri: origin,
       nonce,
       state,
       prompt: "consent",
@@ -106,7 +102,7 @@ export class GoogleImplicitAuthorization {
       ...(loginHint ? { login_hint: loginHint } : {}),
     }).toString();
 
-    const popup = this.open(url, `pubky-passport-google-${state}`, "popup,width=520,height=680");
+    const popup = globalThis.open(url, `pubky-passport-google-${state}`, "popup,width=520,height=680");
     if (!popup) {
       LOGGER.warn("identity.google.implicit_authorization.failed", {
         operation: "authorize",
@@ -130,7 +126,7 @@ export class GoogleImplicitAuthorization {
       };
       this.activeAttempt = attempt;
       attempt.messageListener = (event) => {
-        if (event.origin !== this.origin
+        if (event.origin !== origin
           || event.source !== popup
           || this.activeAttempt !== attempt
           || attempt.responseReceived
@@ -251,7 +247,7 @@ export class GoogleImplicitAuthorization {
     signal: AbortSignal,
   ): Promise<GoogleImplicitAuthorizationResult<GoogleAccountProfile>> {
     try {
-      const response = await this.fetch(GOOGLE_USER_INFO_URL, {
+      const response = await globalThis.fetch(GOOGLE_USER_INFO_URL, {
         headers: { Accept: "application/json", Authorization: `Bearer ${accessToken}` },
         cache: "no-store",
         credentials: "omit",
@@ -293,7 +289,7 @@ export class GoogleImplicitAuthorization {
     try {
       const url = new URL(value);
       if (url.protocol !== "https:" || url.hostname !== GOOGLE_AVATAR_HOST || url.username || url.password || url.hash) return null;
-      const response = await this.fetch(url, {
+      const response = await globalThis.fetch(url, {
         cache: "no-store",
         credentials: "omit",
         redirect: "error",

@@ -4,8 +4,8 @@ import { createHmac } from "node:crypto";
 
 import type { VerifiedGoogleIdentity } from "./googleIdTokenVerification";
 
-const DEFAULT_MAXIMUM_REQUESTS = 10;
-const DEFAULT_WINDOW_MILLISECONDS = 60_000;
+const MAXIMUM_REQUESTS = 10;
+const WINDOW_MILLISECONDS = 60_000;
 
 /** Process-local limiter; multi-instance deployments need shared storage. */
 export class InMemoryGoogleWrappingKeyRateLimiter {
@@ -13,41 +13,23 @@ export class InMemoryGoogleWrappingKeyRateLimiter {
   private requestsByIdentity = new Map<string, number[]>();
   private nextCleanupAt = Number.NEGATIVE_INFINITY;
 
-  constructor(
-    identityPepper: Uint8Array,
-    private currentTime: () => Date = () => new Date(),
-    private maximumRequests = DEFAULT_MAXIMUM_REQUESTS,
-    private windowMilliseconds = DEFAULT_WINDOW_MILLISECONDS,
-  ) {
+  constructor(identityPepper: Uint8Array) {
     this.identityPepper = Buffer.from(identityPepper);
-
-    if (
-      !Number.isSafeInteger(this.maximumRequests)
-      || this.maximumRequests < 1
-      || !Number.isSafeInteger(this.windowMilliseconds)
-      || this.windowMilliseconds < 1
-    ) {
-      throw new Error("Invalid wrapping key rate limit configuration.");
-    }
   }
 
   tryConsumeRequest(identity: VerifiedGoogleIdentity): boolean {
-    const now = this.currentTime().getTime();
-    if (!Number.isFinite(now)) {
-      throw new Error("Invalid wrapping key rate limit request.");
-    }
-
-    const cutoff = now - this.windowMilliseconds;
+    const now = Date.now();
+    const cutoff = now - WINDOW_MILLISECONDS;
     if (now >= this.nextCleanupAt) {
       removeExpiredRequests(this.requestsByIdentity, cutoff);
-      this.nextCleanupAt = now + this.windowMilliseconds;
+      this.nextCleanupAt = now + WINDOW_MILLISECONDS;
     }
 
     const identityHash = createHmac("sha256", this.identityPepper)
       .update(`${identity.issuer}\n${identity.googleSubject}`, "utf8")
       .digest("base64url");
     const requests = recentRequests(this.requestsByIdentity.get(identityHash) ?? [], cutoff);
-    if (requests.length >= this.maximumRequests) {
+    if (requests.length >= MAXIMUM_REQUESTS) {
       return false;
     }
 

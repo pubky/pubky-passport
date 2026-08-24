@@ -87,10 +87,7 @@ export type GoogleIdentityOperationError =
   | GoogleIdentityEstablishmentError
   | DetachGoogleIdentityError;
 
-type DetachGoogleIdentityResult = ResultType<
-  { deletionStatus: "deleted" | "missing" },
-  DetachGoogleIdentityError
->;
+type DetachGoogleIdentityResult = ResultType<void, DetachGoogleIdentityError>;
 
 type OperationResult<Success = void> = ResultType<Success, GoogleIdentityEstablishmentError>;
 
@@ -217,12 +214,12 @@ export class GoogleIdentityOperations {
 
     try {
       const deleted = await this.deleteVerifiedGoogleDriveFiles(credentials, publicIdentity);
-      if (deleted === null) return Result.err({ code: "google_drive_cleanup_failed" });
+      if (!deleted) return Result.err({ code: "google_drive_cleanup_failed" });
 
       const removed = this.repository.remove(publicIdentity.publicKeyZ32);
       return Result.isError(removed)
         ? Result.err({ code: "local_remove_failed" })
-        : Result.ok({ deletionStatus: deleted });
+        : Result.ok();
     } catch {
       LOGGER.warn("identity.google.detach.failed", { code: "unexpected_failure" });
       return Result.err({ code: "unexpected_failure" });
@@ -519,23 +516,23 @@ export class GoogleIdentityOperations {
   private async deleteVerifiedGoogleDriveFiles(
     credentials: GoogleIdentityCredentials,
     publicIdentity: PubkyPublicIdentity,
-  ): Promise<"deleted" | "missing" | null> {
+  ): Promise<boolean> {
     const store = new GoogleDrivePassportFileStore(credentials.driveAccessToken, this.fetch);
     const storedFile = await store.readPassportFile();
-    if (Result.isError(storedFile)) return null;
+    if (Result.isError(storedFile)) return false;
 
     if (storedFile.value.status === "found") {
       const wrappingKey = await this.wrappingKeys.requestGoogleWrappingKey(credentials.googleIdToken);
-      if (Result.isError(wrappingKey)) return null;
+      if (Result.isError(wrappingKey)) return false;
       const restored = await this.restoreKey(storedFile.value.envelope, wrappingKey.value);
-      if (Result.isError(restored)) return null;
+      if (Result.isError(restored)) return false;
       try {
         if (restored.value.publicIdentity.publicKeyZ32 !== publicIdentity.publicKeyZ32) {
           LOGGER.warn("identity.google.delete.failed", {
             stage: "identity_validation",
             code: "identity_mismatch",
           });
-          return null;
+          return false;
         }
       } finally {
         this.disposeIdentityKey(restored.value, "deleted_key_dispose");
@@ -549,11 +546,11 @@ export class GoogleIdentityOperations {
     const deletedVisibleCopies = await visibleCopies.deleteVisibleRecoveryCopies(
       publicIdentity,
     );
-    if (Result.isError(deletedVisibleCopies)) return null;
-    if (storedFile.value.status === "missing") return "missing";
+    if (Result.isError(deletedVisibleCopies)) return false;
+    if (storedFile.value.status === "missing") return true;
 
     const deleted = await store.deletePassportFile(storedFile.value.reference);
-    return Result.isError(deleted) ? null : "deleted";
+    return !Result.isError(deleted);
   }
 
   private async createVisibleRecoveryCopy(

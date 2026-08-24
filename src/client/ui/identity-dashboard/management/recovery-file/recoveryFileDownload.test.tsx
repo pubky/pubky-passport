@@ -29,7 +29,7 @@ describe("RecoveryFileDownload", () => {
 
     const download = screen.getByRole("button", { name: "Download backup" });
     const password = screen.getByLabelText("Enter strong password");
-    expect(document.querySelector('[data-slot="recovery-file-illustration"]')).toHaveAttribute("src", "/illustrations/file.png");
+    expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
     expect(password).toHaveAttribute("minlength", "6");
     expect(download).toBeDisabled();
     await userEvent.setup().type(password, "123456");

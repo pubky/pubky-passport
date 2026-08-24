@@ -41,9 +41,12 @@ describe("Google ID token verifier", () => {
     const calls: Array<{ tokenPresent: boolean; audience: string }> = [];
     const verifier = new GoogleIdTokenVerifier(
       AUDIENCE,
-      fakeGoogleVerifier(({ idToken, audience: verifierAudience }) => {
-        calls.push({ tokenPresent: idToken.length > 0, audience: verifierAudience });
-        return validPayload();
+      googleVerifier(async ({ idToken, audience: verifierAudience }) => {
+        calls.push({
+          tokenPresent: idToken.length > 0,
+          audience: typeof verifierAudience === "string" ? verifierAudience : "",
+        });
+        return googleLoginTicketFixture(validPayload);
       }),
     );
 
@@ -75,32 +78,37 @@ describe("Google ID token verifier", () => {
   });
 
   it("requires the authorized party for multiple audiences", async () => {
-    const valid = createVerifierWithPayload({
-      ...validPayload(),
-      aud: ["other-client-id", AUDIENCE],
-      azp: AUDIENCE,
-    });
-    const invalid = createVerifierWithPayload({
-      ...validPayload(),
-      aud: ["other-client-id", AUDIENCE],
-      azp: "other-client-id",
-    });
+    const verifier = new GoogleIdTokenVerifier(
+      AUDIENCE,
+      googleVerifier(vi.fn()
+        .mockResolvedValueOnce(googleLoginTicketFixture(() => ({
+          ...validPayload(),
+          aud: ["other-client-id", AUDIENCE],
+          azp: AUDIENCE,
+        })))
+        .mockResolvedValueOnce(googleLoginTicketFixture(() => ({
+          ...validPayload(),
+          aud: ["other-client-id", AUDIENCE],
+          azp: "other-client-id",
+        })))),
+    );
 
-    await expect(valid.verifyGoogleIdToken(TOKEN)).resolves.toEqual(Result.ok({
+    await expect(verifier.verifyGoogleIdToken(TOKEN)).resolves.toEqual(Result.ok({
       issuer: "https://accounts.google.com",
       googleSubject: "google-subject",
     }));
-    await expectAsyncResultError(invalid.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
+    await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
   });
 
   it.each(["expired", "audience recipient", "invalid"])(
-    "maps verifier %s failures generically without exposing the token",
+    "maps verifier %s failures without logging the token",
     async (message) => {
       const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+      const cause = new Error(`${message} token ${TOKEN}: {"sub":"google-subject"}`);
       const verifier = new GoogleIdTokenVerifier(
         AUDIENCE,
         googleVerifier(async () => {
-            throw new Error(`${message} token ${TOKEN}`);
+          throw cause;
         }),
       );
 
@@ -108,7 +116,10 @@ describe("Google ID token verifier", () => {
       expect(warning).toHaveBeenCalledOnce();
       expect(warning).toHaveBeenCalledWith("identity.google.id_token_verification.failed", {
         code: "google_verifier_rejected",
+        thrownValue: "error",
       });
+      expect(JSON.stringify(warning.mock.calls)).not.toContain(TOKEN);
+      expect(JSON.stringify(warning.mock.calls)).not.toContain("google-subject");
     },
   );
 
@@ -128,10 +139,11 @@ describe("Google ID token verifier", () => {
 
   it("maps payload access exceptions without logging their details", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const cause = new Error(`payload failed for ${TOKEN}`);
     const verifier = new GoogleIdTokenVerifier(
       AUDIENCE,
       googleVerifier(async () => googleLoginTicketFixture(() => {
-        throw new Error(`payload failed for ${TOKEN}`);
+        throw cause;
       })),
     );
 
@@ -139,14 +151,16 @@ describe("Google ID token verifier", () => {
     expect(warning).toHaveBeenCalledOnce();
     expect(warning).toHaveBeenCalledWith("identity.google.id_token_verification.failed", {
       code: "payload_access_failed",
+      thrownValue: "error",
     });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(TOKEN);
   });
 });
 
 function createVerifierWithPayload(payload: TestGoogleIdTokenPayload) {
   return new GoogleIdTokenVerifier(
     AUDIENCE,
-    fakeGoogleVerifier(() => payload),
+    googleVerifier(async () => googleLoginTicketFixture(() => payload)),
   );
 }
 
@@ -159,21 +173,10 @@ function validPayload(): TestGoogleIdTokenPayload {
   };
 }
 
-function fakeGoogleVerifier(
-  payload: (input: { idToken: string; audience: string }) => TestGoogleIdTokenPayload,
-): OAuth2Client {
-  return googleVerifier(async (input) => googleLoginTicketFixture(() => payload({
-    idToken: input.idToken,
-    audience: typeof input.audience === "string" ? input.audience : "",
-  })));
-}
-
 function googleVerifier(
   verifyIdToken: OAuth2Client["verifyIdToken"],
-): OAuth2Client {
-  const verifier = new OAuth2Client();
-  verifier.verifyIdToken = verifyIdToken;
-  return verifier;
+): Pick<OAuth2Client, "verifyIdToken"> {
+  return { verifyIdToken };
 }
 
 function googleLoginTicketFixture(getPayload: () => TestGoogleIdTokenPayload | undefined): LoginTicket {

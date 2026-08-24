@@ -47,9 +47,16 @@ export class PassportAuthorizationController {
   private request: IssuedPubkyAuthRequest | undefined;
   private state: PassportAuthorizationViewState;
 
+  static fromBrowser(): PassportAuthorizationController {
+    const appWindow = window;
+    const entry = takeInitialAuthorizationEntry()
+      ?? readAndScrubAuthorizationEntry(appWindow);
+    return new PassportAuthorizationController(appWindow, entry);
+  }
+
   constructor(
-    private appWindow: Window = window,
-    entry: AuthorizationEntry = readAuthorizationEntry(appWindow),
+    private appWindow: Window,
+    entry: AuthorizationEntry,
   ) {
     if (entry.status !== "valid") {
       this.state = { status: entry.status === "empty" ? "manual-entry" : "invalid" };
@@ -160,13 +167,6 @@ export class PassportAuthorizationController {
     }
     return state;
   }
-}
-
-function readAuthorizationEntry(appWindow: Window): AuthorizationEntry {
-  const initialEntry = appWindow === window
-    ? takeInitialAuthorizationEntry()
-    : undefined;
-  return initialEntry ?? readAndScrubAuthorizationEntry(appWindow);
 }
 
 function localStateForOutcome(outcome: AuthorizationOutcome): LocalTerminalState {

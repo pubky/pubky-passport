@@ -16,7 +16,10 @@ const ENVELOPE: PassportFileEnvelopeV1 = {
 const REFERENCE = { storageId: "file-1", revision: "opaque-revision-7" };
 const LISTED_FILE = { id: "file-1", name: "passport.json", version: "opaque-revision-7" };
 const EXACT_FILE = { ...LISTED_FILE, trashed: false };
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 type FetchCall = {
   endpoint: string;
@@ -102,10 +105,7 @@ function cancellableStream(chunks: ByteChunk[], onCancel?: () => void): Readable
   return new ReadableStream(source);
 }
 
-function createStore(
-  responses: Array<Response | Error>,
-  options: { requestLock?: (<LockResult>(name: string, callback: () => Promise<LockResult>) => Promise<LockResult>) | null } = {},
-) {
+function createStore(responses: Array<Response | Error>) {
   const calls: FetchCall[] = [];
   const fetchMock = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     calls.push(sanitizeFetchCall(input, init, calls.length));
@@ -119,7 +119,7 @@ function createStore(
     return response;
   }) as typeof fetch;
 
-  const store = new GoogleDrivePassportFileStore(ACCESS_TOKEN, fetchMock, options.requestLock);
+  const store = new GoogleDrivePassportFileStore(ACCESS_TOKEN, fetchMock);
 
   return { store, calls };
 }
@@ -499,8 +499,8 @@ describe("GoogleDrivePassportFileStore", () => {
     const createLockedStore = () => new GoogleDrivePassportFileStore(
       ACCESS_TOKEN,
       fetchMock,
-      (name, callback) => lockManager.request(name, callback),
     );
+    vi.stubGlobal("navigator", { locks: lockManager });
 
     const firstCreate = createLockedStore().createPassportFile(ENVELOPE);
     const secondCreate = createLockedStore().createPassportFile(ENVELOPE);
@@ -519,7 +519,8 @@ describe("GoogleDrivePassportFileStore", () => {
 
   it("creates without locking when Web Locks are unavailable", async () => {
     const created = { id: "created", name: "passport.json", version: "1" };
-    const { store, calls } = createStore(successfulCreateResponses(created), { requestLock: null });
+    vi.stubGlobal("navigator", {});
+    const { store, calls } = createStore(successfulCreateResponses(created));
 
     await expectSuccess(store.createPassportFile(ENVELOPE), undefined);
     expect(calls).toHaveLength(3);
@@ -527,10 +528,12 @@ describe("GoogleDrivePassportFileStore", () => {
 
   it("logs browser lock failures without retaining exception details", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    vi.stubGlobal("navigator", {
+      locks: { request: async () => { throw new Error("SECRET-LOCK-FAILURE"); } },
+    });
     const store = new GoogleDrivePassportFileStore(
       ACCESS_TOKEN,
       (async () => jsonResponse({ files: [] })) as typeof fetch,
-      async () => { throw new Error("SECRET-LOCK-FAILURE"); },
     );
 
     await expectFailure(store.createPassportFile(ENVELOPE), "write_failed");

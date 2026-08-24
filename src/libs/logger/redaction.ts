@@ -46,7 +46,7 @@ const TOKEN_VALUE_PATTERN = new RegExp(`\\b(${SENSITIVE_TOKEN_KEYS})\\b\\s*[:=]\
 // preserving a fail-closed logger is more important than logging public identity.
 const FAIL_CLOSED_OPAQUE_VALUE_PATTERN = /(?<![A-Za-z0-9+/_-])[A-Za-z0-9+/_-]{43,}={0,2}(?![A-Za-z0-9+/_=-])/gu;
 
-export function redactAuthorizationUrls(value: string): string {
+function redactAuthorizationUrls(value: string): string {
   return value
     .replace(PUBKY_AUTH_URL_PATTERN, AUTHORIZATION_URL_REDACTION)
     .replace(RELATIVE_AUTHORIZE_QUERY_URL_PATTERN, (_match, prefix: string) => `${prefix}${AUTHORIZATION_URL_REDACTION}`)
@@ -56,11 +56,11 @@ export function redactAuthorizationUrls(value: string): string {
     );
 }
 
-export function redactHttpUrlParams(value: string): string {
+function redactHttpUrlParams(value: string): string {
   return value.replace(HTTP_URL_PATTERN, (match) => redactUrlQuery(match));
 }
 
-export function redactSensitiveAndOpaqueValues(value: string): string {
+function redactSensitiveAndOpaqueValues(value: string): string {
   return value
     .replace(AUTHORIZATION_HEADER_PATTERN, (_match, scheme: string) => `Authorization: ${scheme} ${TOKEN_REDACTION}`)
     .replace(JWT_PATTERN, TOKEN_REDACTION)

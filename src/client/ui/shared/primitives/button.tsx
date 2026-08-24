@@ -3,7 +3,7 @@ import { forwardRef, type ComponentPropsWithoutRef } from "react";
 
 import { cn } from "../mergeClassNames";
 
-export const buttonVariants = cva(
+const buttonVariants = cva(
   "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-full border text-sm font-semibold shadow-xs outline-none transition-colors disabled:pointer-events-none disabled:opacity-50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-disabled:pointer-events-none aria-disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
@@ -38,9 +38,6 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, size, variant, ...props }, ref) => (
     <button
       className={cn(buttonVariants({ className, size, variant }))}
-      data-slot="button"
-      data-size={size ?? "default"}
-      data-variant={variant ?? "default"}
       ref={ref}
       {...props}
     />
@@ -52,9 +49,6 @@ export const ButtonLink = forwardRef<HTMLAnchorElement, ButtonLinkProps>(
   ({ className, size, variant, ...props }, ref) => (
     <a
       className={cn(buttonVariants({ className, size, variant }))}
-      data-slot="button-link"
-      data-size={size ?? "default"}
-      data-variant={variant ?? "default"}
       ref={ref}
       {...props}
     />

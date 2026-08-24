@@ -1,9 +1,8 @@
 export const EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS = 32_768;
-export const GOOGLE_OAUTH_CALLBACK_PATH = "/";
 export const GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE = "pubky-passport-google-implicit-response";
 
 export const EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT = `(() => {
-  if (location.pathname !== "${GOOGLE_OAUTH_CALLBACK_PATH}") return;
+  if (location.pathname !== "/") return;
   const hash = location.hash;
   if (!/(?:^|&)(?:access_token|id_token|error)=/.test(hash.slice(1))) return;
   try {

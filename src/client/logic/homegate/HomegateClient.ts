@@ -41,7 +41,7 @@ export class HomegateClient {
 
   constructor(
     homegateBaseUrl: string,
-    private fetch: typeof globalThis.fetch = (request, init) => globalThis.fetch(request, init),
+    private fetch: typeof globalThis.fetch,
   ) {
     this.googleVerificationEndpoint = new URL(GOOGLE_VERIFICATION_PATH, homegateBaseUrl);
   }

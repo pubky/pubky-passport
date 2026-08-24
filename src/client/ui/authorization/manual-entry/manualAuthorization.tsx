@@ -2,7 +2,8 @@
 
 import { type SubmitEvent, useState } from "react";
 
-import { submitManualAuthorizationInput } from "../../../logic/authorization/entry/manualAuthorizationInput";
+import { LOGGER } from "../../../../libs/logger/logger";
+import { validateManualAuthorizationInput } from "../../../logic/authorization/entry/manualAuthorizationInput";
 import { ArrowRightIcon, ClipboardPasteIcon } from "../../shared/actionIcons";
 import { BackButton } from "../../shared/backButton";
 import { PassportScreen } from "../../shared/passportScreen";
@@ -20,16 +21,21 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
   const submit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     setAuthorization("");
-    const result = submitManualAuthorizationInput(authorization);
-    switch (result) {
-      case "invalid":
-        setError("Enter a valid pubkyauth:// authorization link.");
-        return;
-      case "navigation_failed":
-        setError("Could not open the authorization request. Try again.");
-        return;
-      case "navigating":
-        return;
+    const result = validateManualAuthorizationInput(authorization);
+    if (result.status === "invalid") {
+      setError("Enter a valid pubkyauth:// authorization link.");
+      return;
+    }
+
+    try {
+      History.prototype.replaceState.call(window.history, null, "", result.destination);
+      window.location.reload();
+    } catch {
+      LOGGER.info("authorize.manual_entry.failed", {
+        operation: "enter_authorization",
+        code: "navigation_failed",
+      });
+      setError("Could not open the authorization request. Try again.");
     }
   };
 

@@ -32,22 +32,6 @@ function createCrypto(): PassportFileWebCrypto {
   return new PassportFileWebCrypto();
 }
 
-function nativeDecrypt(...args: Parameters<SubtleCrypto["decrypt"]>): ReturnType<SubtleCrypto["decrypt"]> {
-  return globalThis.crypto.subtle.decrypt(...args);
-}
-
-function nativeDeriveKey(...args: Parameters<SubtleCrypto["deriveKey"]>): ReturnType<SubtleCrypto["deriveKey"]> {
-  return globalThis.crypto.subtle.deriveKey(...args);
-}
-
-function nativeEncrypt(...args: Parameters<SubtleCrypto["encrypt"]>): ReturnType<SubtleCrypto["encrypt"]> {
-  return globalThis.crypto.subtle.encrypt(...args);
-}
-
-function nativeImportKey(...args: Parameters<SubtleCrypto["importKey"]>): ReturnType<SubtleCrypto["importKey"]> {
-  return globalThis.crypto.subtle.importKey(...args);
-}
-
 function encrypt(
   crypto: PassportFileWebCrypto,
   secretKeyBytes: Uint8Array,
@@ -72,12 +56,9 @@ function tamperBase64Url(value: string): string {
 }
 
 describe("PassportFileWebCrypto", () => {
-  it("does not throw when browser crypto dependencies are unavailable", () => {
-    expect(() => new PassportFileWebCrypto(null)).not.toThrow();
-  });
-
   it("returns unsupported_browser_crypto when SubtleCrypto is unavailable", async () => {
-    const crypto = new PassportFileWebCrypto(null);
+    vi.stubGlobal("crypto", undefined);
+    const crypto = new PassportFileWebCrypto();
 
     await expectAsyncResultError(
       encrypt(crypto, SECRET_KEY_BYTES, "not+decoded", "https://passport.pubky.app"),
@@ -88,7 +69,7 @@ describe("PassportFileWebCrypto", () => {
   it("returns unsupported_browser_crypto when getRandomValues is unavailable", async () => {
     const subtle = globalThis.crypto.subtle;
     vi.stubGlobal("crypto", { subtle });
-    const crypto = new PassportFileWebCrypto(subtle);
+    const crypto = new PassportFileWebCrypto();
 
     await expectAsyncResultError(
       encrypt(crypto, SECRET_KEY_BYTES, "not+decoded", "https://passport.pubky.app"),
@@ -107,7 +88,7 @@ describe("PassportFileWebCrypto", () => {
     const subtle = globalThis.crypto.subtle;
     vi.stubGlobal("crypto", { subtle });
     const secretKey = expectResultOk(await decrypt(
-      new PassportFileWebCrypto(subtle),
+      new PassportFileWebCrypto(),
       envelope,
       WRAPPING_KEY,
       "https://passport.pubky.app",
@@ -117,7 +98,8 @@ describe("PassportFileWebCrypto", () => {
   });
 
   it("returns unsupported_browser_crypto during decrypt when WebCrypto is unavailable", async () => {
-    const crypto = new PassportFileWebCrypto(null);
+    vi.stubGlobal("crypto", undefined);
+    const crypto = new PassportFileWebCrypto();
 
     await expectAsyncResultError(
       decrypt(
@@ -132,15 +114,8 @@ describe("PassportFileWebCrypto", () => {
 
   it("maps unsupported HKDF import to unsupported_browser_crypto", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const subtle = {
-      decrypt: nativeDecrypt,
-      deriveKey: nativeDeriveKey,
-      encrypt: nativeEncrypt,
-      importKey: async (): Promise<CryptoKey> => {
-        throw new Error("SECRET-HKDF-FAILURE");
-      },
-    } as unknown as SubtleCrypto;
-    const crypto = new PassportFileWebCrypto(subtle);
+    vi.spyOn(SubtleCrypto.prototype, "importKey").mockRejectedValue(new Error("SECRET-HKDF-FAILURE"));
+    const crypto = new PassportFileWebCrypto();
 
     await expectAsyncResultError(
       encrypt(crypto, SECRET_KEY_BYTES, WRAPPING_KEY, "https://passport.pubky.app"),
@@ -159,16 +134,11 @@ describe("PassportFileWebCrypto", () => {
 
   it("logs encryption exceptions without retaining key material or exception details", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const subtle = {
-      decrypt: nativeDecrypt,
-      deriveKey: nativeDeriveKey,
-      encrypt: async (): Promise<ArrayBuffer> => { throw new Error("SECRET-ENCRYPT-FAILURE"); },
-      importKey: nativeImportKey,
-    } as unknown as SubtleCrypto;
+    vi.spyOn(SubtleCrypto.prototype, "encrypt").mockRejectedValue(new Error("SECRET-ENCRYPT-FAILURE"));
 
     await expectAsyncResultError(
       encrypt(
-        new PassportFileWebCrypto(subtle),
+        new PassportFileWebCrypto(),
         SECRET_KEY_BYTES,
         WRAPPING_KEY,
         "https://passport.pubky.app",
@@ -188,15 +158,8 @@ describe("PassportFileWebCrypto", () => {
   });
 
   it("maps unsupported AES-GCM derivation to unsupported_browser_crypto", async () => {
-    const subtle = {
-      decrypt: nativeDecrypt,
-      deriveKey: async (): Promise<CryptoKey> => {
-        throw new Error("AES-GCM derivation unsupported");
-      },
-      encrypt: nativeEncrypt,
-      importKey: nativeImportKey,
-    } as unknown as SubtleCrypto;
-    const crypto = new PassportFileWebCrypto(subtle);
+    vi.spyOn(SubtleCrypto.prototype, "deriveKey").mockRejectedValue(new Error("AES-GCM derivation unsupported"));
+    const crypto = new PassportFileWebCrypto();
 
     await expectAsyncResultError(
       encrypt(crypto, SECRET_KEY_BYTES, WRAPPING_KEY, "https://passport.pubky.app"),
@@ -267,20 +230,19 @@ describe("PassportFileWebCrypto", () => {
     let markDerivationStarted = (): void => undefined;
     const derivationStarted = new Promise<void>((resolve) => { markDerivationStarted = resolve; });
     const derivationMayContinue = new Promise<void>((resolve) => { continueDerivation = resolve; });
-    const subtle = {
-      decrypt: nativeDecrypt,
-      deriveKey: async (...args: Parameters<SubtleCrypto["deriveKey"]>): ReturnType<SubtleCrypto["deriveKey"]> => {
+    const subtle = globalThis.crypto.subtle;
+    const nativeDeriveKey = subtle.deriveKey.bind(subtle);
+    vi.spyOn(SubtleCrypto.prototype, "deriveKey").mockImplementation(
+      async (...args: Parameters<SubtleCrypto["deriveKey"]>): ReturnType<SubtleCrypto["deriveKey"]> => {
         markDerivationStarted();
         await derivationMayContinue;
         return nativeDeriveKey(...args);
       },
-      encrypt: nativeEncrypt,
-      importKey: nativeImportKey,
-    } as unknown as SubtleCrypto;
+    );
     const mutableSecret = Uint8Array.from(SECRET_KEY_BYTES);
 
     const pendingEncryption = encrypt(
-      new PassportFileWebCrypto(subtle),
+      new PassportFileWebCrypto(),
       mutableSecret,
       WRAPPING_KEY,
       "https://passport.pubky.app",
@@ -344,16 +306,11 @@ describe("PassportFileWebCrypto", () => {
       "https://passport.pubky.app",
     ));
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const subtle = {
-      decrypt: async (): Promise<ArrayBuffer> => { throw new Error("SECRET-DECRYPT-FAILURE"); },
-      deriveKey: nativeDeriveKey,
-      encrypt: nativeEncrypt,
-      importKey: nativeImportKey,
-    } as unknown as SubtleCrypto;
+    vi.spyOn(SubtleCrypto.prototype, "decrypt").mockRejectedValue(new Error("SECRET-DECRYPT-FAILURE"));
 
     await expectAsyncResultError(
       decrypt(
-        new PassportFileWebCrypto(subtle),
+        new PassportFileWebCrypto(),
         envelope,
         WRAPPING_KEY,
         "https://passport.pubky.app",
@@ -442,13 +399,8 @@ describe("PassportFileWebCrypto", () => {
 
   it("clears rejected decrypted plaintext", async () => {
     const rejectedPlaintext = new Uint8Array(PUBKY_SECRET_KEY_BYTES - 1).fill(7);
-    const subtle = {
-      decrypt: async (): Promise<ArrayBuffer> => rejectedPlaintext.buffer,
-      deriveKey: nativeDeriveKey,
-      encrypt: nativeEncrypt,
-      importKey: nativeImportKey,
-    } as unknown as SubtleCrypto;
-    const crypto = new PassportFileWebCrypto(subtle);
+    vi.spyOn(SubtleCrypto.prototype, "decrypt").mockResolvedValue(rejectedPlaintext.buffer);
+    const crypto = new PassportFileWebCrypto();
 
     await expectAsyncResultError(
       decrypt(

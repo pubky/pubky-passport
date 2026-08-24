@@ -651,7 +651,7 @@ describe("GoogleIdentityOperations", () => {
     foundPassportFile();
     record(MOCKS.deleteVisibleRecoveryCopies, "visible-delete", events);
     record(MOCKS.deletePassportFile, "app-data-delete", events);
-    const repository = new LocalStorageIdentityRepository(new MemoryStorage());
+    const repository = new LocalStorageIdentityRepository();
     vi.spyOn(repository, "remove").mockImplementation(() => {
       events.push("local-remove");
       return Result.ok();
@@ -663,7 +663,7 @@ describe("GoogleIdentityOperations", () => {
       CREDENTIALS.googleAccount.googleSubject,
     );
 
-    expect(expectResultOk(result)).toEqual({ deletionStatus: "deleted" });
+    expect(expectResultOk(result)).toBeUndefined();
     expect(events).toEqual(["visible-delete", "app-data-delete", "local-remove"]);
     expect(MOCKS.driveStoreConstructions.count).toBe(1);
     expect(MOCKS.visibleCopiesConstructions.count).toBe(1);
@@ -673,14 +673,14 @@ describe("GoogleIdentityOperations", () => {
 
   it("deletes visible copies and the local identity when app-data is already missing", async () => {
     MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
-    const repository = new LocalStorageIdentityRepository(new MemoryStorage());
+    const repository = new LocalStorageIdentityRepository();
     const remove = vi.spyOn(repository, "remove").mockReturnValue(Result.ok());
 
     expect(expectResultOk(await createSubject(repository).detachIdentity(
       CREDENTIALS,
       PUBLIC_IDENTITY,
       CREDENTIALS.googleAccount.googleSubject,
-    ))).toEqual({ deletionStatus: "missing" });
+    ))).toBeUndefined();
     expect(MOCKS.deleteVisibleRecoveryCopies).toHaveBeenCalledOnce();
     expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
     expect(remove).toHaveBeenCalledWith(PUBLIC_IDENTITY.publicKeyZ32);
@@ -689,7 +689,7 @@ describe("GoogleIdentityOperations", () => {
   it("keeps app-data and the local identity when visible-copy deletion fails", async () => {
     foundPassportFile();
     MOCKS.deleteVisibleRecoveryCopies.mockResolvedValue(Result.err({ code: "delete_failed" }));
-    const repository = new LocalStorageIdentityRepository(new MemoryStorage());
+    const repository = new LocalStorageIdentityRepository();
     const remove = vi.spyOn(repository, "remove");
 
     expectResultError(await createSubject(repository).detachIdentity(
@@ -702,7 +702,7 @@ describe("GoogleIdentityOperations", () => {
   });
 
   it("does not access Drive when detachment authorizes a different Google account", async () => {
-    const repository = new LocalStorageIdentityRepository(new MemoryStorage());
+    const repository = new LocalStorageIdentityRepository();
     const remove = vi.spyOn(repository, "remove");
 
     expectResultError(await createSubject(repository).detachIdentity(
@@ -741,7 +741,7 @@ describe("GoogleIdentityOperations", () => {
 });
 
 function createSubject(
-  repository = new LocalStorageIdentityRepository(new MemoryStorage()),
+  repository = new LocalStorageIdentityRepository(),
 ): GoogleIdentityOperations {
   return new GoogleIdentityOperations(
     repository,

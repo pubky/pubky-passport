@@ -159,7 +159,7 @@ sequenceDiagram
         participant Form as manualAuthorization.tsx<br/>ManualAuthorization()<br/>submit()
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/authorization/{entry,request}
-        participant ManualInput as manualAuthorizationInput.ts<br/>submitManualAuthorizationInput()
+        participant ManualInput as manualAuthorizationInput.ts<br/>validateManualAuthorizationInput()
         participant Request as IssuedPubkyAuthRequest.ts<br/>IssuedPubkyAuthRequest.validate()
     end
     box rgba(107, 114, 128, 0.18) Runtime platforms
@@ -168,15 +168,16 @@ sequenceDiagram
     end
 
     User->>Form: Submit pasted pubkyauth URL
-    Form->>ManualInput: submitManualAuthorizationInput(input)
+    Form->>ManualInput: validateManualAuthorizationInput(input)
     ManualInput->>Request: IssuedPubkyAuthRequest.validate(encoded input)
     Request-->>ManualInput: validation success or typed error
-    Note over Form: Clear the uncontrolled input before validation
+    Note over Form: Clear the input before validation
     alt Invalid
         ManualInput-->>Form: invalid
         Form-->>User: safe local error
     else Valid
-        ManualInput->>Window: History.prototype.replaceState(/authorize#d=...) + reload
+        ManualInput-->>Form: validated /authorize#d=... destination
+        Form->>Window: History.prototype.replaceState(/authorize#d=...) + reload
         Window->>Next: full document request
     end
 ```

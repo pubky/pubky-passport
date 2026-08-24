@@ -67,14 +67,14 @@ export class GoogleDriveVisibleRecoveryCopies {
   /**
    * Appends one encrypted `{pubky}.json` recovery copy and verifies its created
    * file ID, name, and parent folder. Existing same-name files are preserved.
-   * An optional signal lets the caller cancel or deadline-bound the attempt.
+   * The signal lets the caller cancel or deadline-bound the attempt.
    */
   async createVisibleRecoveryCopy(
     envelope: PassportFileEnvelopeV1,
     publicIdentity: PubkyPublicIdentity,
-    signal?: AbortSignal,
+    signal: AbortSignal,
   ): Promise<VisibleCopiesResult<void>> {
-    if (signal?.aborted) {
+    if (signal.aborted) {
       LOGGER.warn("identity.google.visible_recovery_copies.failed", {
         operation: "create_visible_copy",
         code: "network_failed",
@@ -101,7 +101,7 @@ export class GoogleDriveVisibleRecoveryCopies {
 
     const token = this.getAccessToken();
     if (Result.isError(token)) return Result.err(token.error);
-    if (signal?.aborted) {
+    if (signal.aborted) {
       LOGGER.warn("identity.google.visible_recovery_copies.failed", {
         operation: "create_visible_copy",
         code: "network_failed",
@@ -122,7 +122,7 @@ export class GoogleDriveVisibleRecoveryCopies {
         name: fileName,
         parents: [folder.value],
       }),
-      ...(signal ? { signal } : {}),
+      signal,
     });
     if (Result.isError(response)) return Result.err(response.error);
     if (!response.value.ok) {
@@ -215,7 +215,7 @@ export class GoogleDriveVisibleRecoveryCopies {
 
   private async findOrCreateFolder(
     token: string,
-    signal?: AbortSignal,
+    signal: AbortSignal,
   ): Promise<VisibleCopiesResult<string>> {
     const located = await this.findSingleFolder(token, signal);
     if (Result.isError(located)) return Result.err(located.error);
@@ -232,7 +232,7 @@ export class GoogleDriveVisibleRecoveryCopies {
         mimeType: DRIVE_FOLDER_MIME_TYPE,
         parents: ["root"],
       }),
-      ...(signal ? { signal } : {}),
+      signal,
     });
     if (Result.isError(response)) return Result.err(response.error);
     if (!response.value.ok) {
@@ -259,11 +259,11 @@ export class GoogleDriveVisibleRecoveryCopies {
 
   private async findSingleFolder(
     token: string,
-    signal?: AbortSignal,
+    signal: AbortSignal,
   ): Promise<VisibleCopiesResult<string | null>> {
     const response = await this.fetchVisible("list_folder", singleFolderListUrl(), {
       headers: authorizationHeaders(token),
-      ...(signal ? { signal } : {}),
+      signal,
     });
     if (Result.isError(response)) return Result.err(response.error);
     if (!response.value.ok) {
@@ -341,11 +341,11 @@ export class GoogleDriveVisibleRecoveryCopies {
     folderId: string,
     fileName: string,
     expectedReference: DriveFileRevision,
-    signal?: AbortSignal,
+    signal: AbortSignal,
   ): Promise<VisibleCopiesResult<void>> {
     const response = await this.fetchVisible("verify_copy", metadataUrl(expectedReference.storageId), {
       headers: authorizationHeaders(token),
-      ...(signal ? { signal } : {}),
+      signal,
     });
     if (Result.isError(response)) return Result.err(response.error);
     if (!response.value.ok) {

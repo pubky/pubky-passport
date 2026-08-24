@@ -12,7 +12,7 @@ const RESOLUTION_POLL_INTERVAL_MS = 2_000;
 
 test("completes signup, publication, signin, and both v0.10 authorization methods", async () => {
   const config = stagingConfig();
-  const homegate = new HomegateClient(config.homegateBaseUrl);
+  const homegate = new HomegateClient(config.homegateBaseUrl, globalThis.fetch);
   const invitation = expectOk(
     await homegate.requestGoogleHomeserverSignupInvitation(config.googleIdToken),
     "Homegate did not issue a staging invitation",

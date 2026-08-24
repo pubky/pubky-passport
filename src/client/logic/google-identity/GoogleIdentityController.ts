@@ -59,10 +59,7 @@ export type EstablishGoogleIdentityResult = ResultType<
   GoogleIdentityError
 >;
 
-export type DetachGoogleIdentityResult = ResultType<
-  { deletionStatus: "deleted" | "missing" },
-  GoogleIdentityError
->;
+export type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityError>;
 
 /**
  * Owns one screen's Google authorization and identity operation lifecycle.

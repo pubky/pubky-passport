@@ -39,10 +39,6 @@ const AES_GCM_DERIVATION_INFO = TEXT_ENCODER.encode("passport-file:aes-gcm:v1");
  * browser exceptions or key material.
  */
 export class PassportFileWebCrypto {
-  constructor(
-    private subtle: SubtleCrypto | null = globalThis.crypto?.subtle ?? null,
-  ) {}
-
   /**
    * Encrypts exactly 32 secret bytes with a fresh 96-bit IV and returns a
    * normalized v1 envelope. The caller retains ownership of the input bytes and
@@ -53,12 +49,12 @@ export class PassportFileWebCrypto {
     wrappingKey: string,
     passportOrigin: string,
   ): Promise<CryptoResult<PassportFileEnvelopeV1>> {
-    const { subtle } = this;
-    const crypto = globalThis.crypto;
-    if (!subtle || typeof crypto?.getRandomValues !== "function") {
+    const browserCrypto = getBrowserCrypto();
+    if (!browserCrypto || typeof browserCrypto.crypto.getRandomValues !== "function") {
       LOGGER.warn("passport_file.crypto.failed", { operation: "encrypt", code: "unsupported_browser_crypto" });
       return Result.err({ code: "unsupported_browser_crypto" });
     }
+    const { crypto, subtle } = browserCrypto;
 
     if (!isValidSecretKeyBytes(secretKeyBytes)) {
       LOGGER.warn("passport_file.crypto.failed", { operation: "encrypt", code: "invalid_plaintext" });
@@ -124,11 +120,12 @@ export class PassportFileWebCrypto {
     wrappingKey: string,
     passportOrigin: string,
   ): Promise<CryptoResult<Uint8Array>> {
-    const { subtle } = this;
-    if (!subtle) {
+    const browserCrypto = getBrowserCrypto();
+    if (!browserCrypto) {
       LOGGER.warn("passport_file.crypto.failed", { operation: "decrypt", code: "unsupported_browser_crypto" });
       return Result.err({ code: "unsupported_browser_crypto" });
     }
+    const { subtle } = browserCrypto;
 
     const parsed = parsePassportFileEnvelope(envelope);
     if (Result.isError(parsed)) {
@@ -220,6 +217,16 @@ export class PassportFileWebCrypto {
     } finally {
       clearArrayBuffer(wrappingMaterial);
     }
+  }
+}
+
+function getBrowserCrypto(): { crypto: Crypto; subtle: SubtleCrypto } | null {
+  try {
+    const crypto = globalThis.crypto;
+    const subtle = crypto?.subtle;
+    return crypto && subtle ? { crypto, subtle } : null;
+  } catch {
+    return null;
   }
 }
 

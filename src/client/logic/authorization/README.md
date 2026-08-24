@@ -13,7 +13,7 @@ This feature handles one Pubky Auth request through a linear flow:
 React uses only:
 
 - `PassportAuthorizationController` for review state and approve/cancel intents.
-- `submitManualAuthorizationInput` for pasted requests.
+- `validateManualAuthorizationInput` for pasted requests.
 
 The UI receives review data, never the raw authorization URL, secret, or callback
 URLs. A callback host may be shown only as an unverified return destination.
@@ -22,7 +22,7 @@ Authorize, even if another tab changes the active identity meanwhile.
 
 ## Runtime Pieces
 
-- `entry/` owns browser input, early fragment scrubbing, and manual navigation.
+- `entry/` owns browser input, early fragment scrubbing, and manual request validation.
 - `request/` owns untrusted protocol parsing and the opaque issued request.
 - `flow/` owns review state, approval, request lifetime, and outcome handoff.
 

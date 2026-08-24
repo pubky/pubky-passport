@@ -46,7 +46,7 @@ describe("useDetachFromGoogle", () => {
   it("reruns detachment after Google authorization fails", async () => {
     MOCKS.detachIdentity
       .mockResolvedValueOnce(Result.err({ code: "authorization_failed" as const }))
-      .mockResolvedValueOnce(Result.ok({ deletionStatus: "deleted" as const }));
+      .mockResolvedValueOnce(Result.ok());
     MOCKS.constructGoogleIdentityController.mockReturnValue(mockGoogleIdentityController({
       detachIdentity: MOCKS.detachIdentity,
     }));
