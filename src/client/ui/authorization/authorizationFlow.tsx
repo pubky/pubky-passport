@@ -1,6 +1,7 @@
 "use client";
 
 import { Result } from "better-result";
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -11,8 +12,10 @@ import type { GoogleIdentityConfiguration } from "../../logic/google-identity/Go
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { IdentityEstablishmentFlow } from "../onboarding/identityEstablishmentFlow";
+import { ArrowRightIcon } from "../shared/actionIcons";
 import { BackButton } from "../shared/backButton";
 import { PassportScreen } from "../shared/passportScreen";
+import { Button } from "../shared/primitives/button";
 import { Spinner } from "../shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "../shared/primitives/typography";
 import { AuthorizationReview } from "./review/authorizationReview";
@@ -170,7 +173,17 @@ function AuthorizationTerminal({ outcome }: { outcome: "approved" | "cancelled" 
       <LeadText>{approved
         ? "You can return to the app or device where you started."
         : "No authorization was granted."}</LeadText>
-      <div className="mt-auto"><BackButton onClick={goHome} /></div>
+      {approved ? (
+        <Image alt="" aria-hidden="true" className="mx-auto size-[200px]" data-slot="authorization-complete-illustration" height={200} src="/illustrations/checkmark.png" unoptimized width={200} />
+      ) : null}
+      <div className="mt-auto">
+        {approved ? (
+          <Button className="w-full" onClick={goHome} size="lg" type="button">
+            <ArrowRightIcon />
+            Continue
+          </Button>
+        ) : <BackButton onClick={goHome} />}
+      </div>
     </PassportScreen>
   );
 }

@@ -26,7 +26,7 @@ function IdentitySwitcher({ activePublicKeyZ32, identities, onAddIdentity, onBac
           return (
             <IdentityRow
               {...(account?.pictureUrl ? { avatarSrc: account.pictureUrl } : {})}
-              detail={shortPublicKey(publicKeyZ32)}
+              detail={account?.email ?? shortPublicKey(publicKeyZ32)}
               key={publicKeyZ32}
               name={account?.name ?? "Your Pubky"}
               onClick={() => onSelect(publicKeyZ32)}

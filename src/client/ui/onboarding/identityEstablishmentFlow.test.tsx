@@ -54,6 +54,7 @@ describe("IdentityEstablishmentFlow", () => {
     const googleButton = [...shell.querySelectorAll("button")]
       .find((button) => button.textContent?.includes("Continue with Google"));
 
+    expect(shell.querySelector('[data-slot="sign-in-illustration"]')).toHaveAttribute("src", "/illustrations/cloud.png");
     expect(googleButton).toBeDisabled();
     expect(MOCKS.constructGoogleIdentityController).not.toHaveBeenCalled();
   });
@@ -151,6 +152,8 @@ describe("IdentityEstablishmentFlow", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(await screen.findByRole("heading", { name: "Restore complete." })).toBeInTheDocument();
     expect(screen.getByText("Satoshi Nakamoto")).toBeInTheDocument();
+    expect(screen.getByText("satoshi@gmail.com")).toHaveClass("normal-case");
+    expect(screen.getByText("satoshi@gmail.com")).not.toHaveClass("uppercase");
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
     expect(onComplete).toHaveBeenCalledOnce();
   });

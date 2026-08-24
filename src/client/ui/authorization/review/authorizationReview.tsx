@@ -48,7 +48,7 @@ function AuthorizationReview({ identity, onAuthorize, onCancel, onSwitch, phase,
                 {account ? <span className="absolute left-[39px] top-[39px] flex size-4 items-center justify-center drop-shadow-xl"><GoogleLogo /></span> : null}
                 <span className="min-w-0 flex-1">
                   <strong className="block truncate leading-6">{identityName}</strong>
-                  <span className="block truncate text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">{shortPublicKey(identity.publicIdentity.publicKeyZ32)}</span>
+                  <span className="block truncate text-xs font-medium normal-case tracking-[0.1em] text-muted-foreground">{shortPublicKey(identity.publicIdentity.publicKeyZ32)}</span>
                 </span>
               </>
             ) : <span className="min-w-0 flex-1 text-sm font-medium text-muted-foreground">No local identity available</span>}

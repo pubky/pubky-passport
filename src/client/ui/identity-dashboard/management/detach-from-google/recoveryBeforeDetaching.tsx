@@ -15,16 +15,15 @@ function RecoveryBeforeDetaching({ onBack, onRecoveryConfirmed, onDownloadRecove
   return (
     <PassportScreen className="gap-8">
       <div className="flex flex-col gap-6">
-        <h1 aria-label="Secure your pubky first." className="text-5xl font-bold leading-none">
-          <span className="block">Secure your</span>
+        <h1 aria-label="Backup your pubky first." className="text-5xl font-bold leading-none">
+          <span className="block">Backup your</span>
           <span className="text-brand">pubky</span> first.
         </h1>
-        <LeadText>If you remove Google as a way to access your pubky identity, you need another recovery method.</LeadText>
-
+        <LeadText>If you remove Google as a way to access your pubky identity, you need a backup to restore account access.</LeadText>
         <section className="flex flex-col gap-3 rounded-2xl bg-card p-6">
           <p className="text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">Choose recovery method</p>
           <RecoveryMethodButton icon={<KeyRoundIcon />} onClick={onMigrateToKeychain}>Migrate to keychain</RecoveryMethodButton>
-          <RecoveryMethodButton icon={<DownloadIcon />} onClick={onDownloadRecoveryFile}>Download recovery file</RecoveryMethodButton>
+          <RecoveryMethodButton icon={<DownloadIcon />} onClick={onDownloadRecoveryFile}>Download encrypted backup</RecoveryMethodButton>
         </section>
       </div>
 
@@ -32,7 +31,7 @@ function RecoveryBeforeDetaching({ onBack, onRecoveryConfirmed, onDownloadRecove
         <BackButton onClick={onBack} />
         <Button onClick={onRecoveryConfirmed} size="lg" type="button">
           <CheckIcon />
-          I secured my pubky
+          I backed up my pubky
         </Button>
       </div>
     </PassportScreen>

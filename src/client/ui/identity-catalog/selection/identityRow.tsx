@@ -16,7 +16,7 @@ function IdentityRow({ avatarSrc, className, detail, name, provider, selected, s
       {googleProvider ? <span className="absolute left-[39px] top-[39px] flex size-4 items-center justify-center drop-shadow-xl" data-slot="provider-badge">{providerMark}</span> : null}
       <span className="min-w-0 flex-1">
         <strong className="block truncate leading-6">{name}</strong>
-        <span className="block truncate text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">{detail}</span>
+        <span className="block truncate text-xs font-medium normal-case tracking-[0.1em] text-muted-foreground">{detail}</span>
       </span>
       {selected ? <CheckIcon /> : !googleProvider && providerMark ? <span className="flex size-4 shrink-0 items-center justify-center">{providerMark}</span> : null}
     </button>

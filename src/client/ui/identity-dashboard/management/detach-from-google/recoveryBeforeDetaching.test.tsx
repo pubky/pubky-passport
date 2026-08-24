@@ -12,11 +12,11 @@ describe("RecoveryBeforeDetaching", () => {
   it("shows the recovery gate and its available recovery methods", () => {
     render(<RecoveryBeforeDetaching onBack={vi.fn()} onRecoveryConfirmed={vi.fn()} onDownloadRecoveryFile={vi.fn()} onMigrateToKeychain={vi.fn()} />);
 
-    expect(screen.getByRole("heading", { name: "Secure your pubky first." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
     expect(screen.getByText("Choose recovery method")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Migrate to keychain" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Download recovery file" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "I secured my pubky" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Download encrypted backup" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "I backed up my pubky" })).toBeInTheDocument();
   });
 
   it("supports returning and opening the recovery-file screen", async () => {
@@ -28,9 +28,9 @@ describe("RecoveryBeforeDetaching", () => {
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Migrate to keychain" }));
     expect(onMigrateToKeychain).toHaveBeenCalledOnce();
-    await userEvent.setup().click(screen.getByRole("button", { name: "Download recovery file" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Download encrypted backup" }));
     expect(onDownloadRecoveryFile).toHaveBeenCalledOnce();
-    await userEvent.setup().click(screen.getByRole("button", { name: "I secured my pubky" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "I backed up my pubky" }));
     expect(onRecoveryConfirmed).toHaveBeenCalledOnce();
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(onBack).toHaveBeenCalledOnce();

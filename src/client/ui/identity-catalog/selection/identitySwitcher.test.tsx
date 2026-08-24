@@ -21,11 +21,27 @@ describe("IdentitySwitcher", () => {
 
     const activeRow = screen.getByRole("button", { name: /Active Account/ });
     expect(activeRow).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("active@gmail.com")).toHaveClass("normal-case");
+    expect(screen.getByText("active@gmail.com")).not.toHaveClass("uppercase");
+    expect(activeRow).not.toHaveTextContent("seco...5678");
     const otherRow = screen.getByRole("button", { name: /Other Account/ });
+    expect(otherRow).toHaveTextContent("other@gmail.com");
     await userEvent.setup().click(otherRow);
     expect(onSelect).toHaveBeenCalledWith("firstidentity1234");
     const back = screen.getByRole("button", { name: "Back" });
     await userEvent.setup().click(back);
     expect(onBack).toHaveBeenCalledOnce();
+  });
+
+  it("falls back to the shortened Pubky when an identity has no email", () => {
+    render(<IdentitySwitcher
+      activePublicKeyZ32="localidentity1234"
+      identities={[{ publicIdentity: { publicKeyZ32: "localidentity1234", publicKeyDisplay: "pubkylocal" } }]}
+      onAddIdentity={vi.fn()}
+      onBack={vi.fn()}
+      onSelect={vi.fn()}
+    />);
+
+    expect(screen.getByRole("button", { name: /Your Pubky/ })).toHaveTextContent("loca...1234");
   });
 });

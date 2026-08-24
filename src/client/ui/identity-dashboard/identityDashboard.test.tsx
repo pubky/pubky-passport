@@ -143,7 +143,8 @@ describe("IdentityDashboard", () => {
     render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
     expect(await screen.findByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
     expect(screen.getByText("Satoshi Nakamoto")).toBeInTheDocument();
-    expect(screen.getByText("identity")).toBeInTheDocument();
+    expect(screen.getByText("identity")).toHaveClass("normal-case");
+    expect(screen.getByText("identity")).not.toHaveClass("uppercase");
     expect(screen.queryByRole("heading", { name: "Quick & easy signing." })).not.toBeInTheDocument();
   });
 
@@ -216,7 +217,7 @@ describe("IdentityDashboard", () => {
     await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Download recovery file" }));
 
-    expect(screen.getByRole("heading", { name: "Recovery file." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Manage identity." })).toBeInTheDocument();
   });
@@ -248,7 +249,7 @@ describe("IdentityDashboard", () => {
     await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Detach from Google" }));
 
-    expect(screen.getByRole("heading", { name: "Secure your pubky first." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Migrate to keychain" }));
     expect(screen.getByRole("heading", { name: "Migrate to keychain." })).toBeInTheDocument();
     expect(FLOW.migrationExportKeys).toEqual([]);
@@ -256,13 +257,13 @@ describe("IdentityDashboard", () => {
     expect(FLOW.migrationExportKeys).toEqual(["identity"]);
     await userEvent.setup().click(screen.getByRole("button", { name: "Close" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.getByRole("heading", { name: "Secure your pubky first." })).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole("button", { name: "Download recovery file" }));
-    expect(screen.getByRole("heading", { name: "Recovery file." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Download encrypted backup" }));
+    expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.getByRole("heading", { name: "Secure your pubky first." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
 
-    await userEvent.setup().click(screen.getByRole("button", { name: "I secured my pubky" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "I backed up my pubky" }));
     expect(screen.getByRole("heading", { name: "Detach from Google." })).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Remove Google Access" })).not.toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Remove Google Access" }));

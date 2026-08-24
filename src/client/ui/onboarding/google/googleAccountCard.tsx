@@ -17,7 +17,7 @@ function GoogleAccountCard({ account, className, ...props }: GoogleAccountCardPr
       <Avatar fallback={account.name} size="sm" {...(account.pictureUrl ? { src: account.pictureUrl } : {})} />
       <span className="min-w-0 flex-1">
         <strong className="block truncate leading-6">{account.name}</strong>
-        <span className="block truncate text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">{account.email}</span>
+        <span className="block truncate text-xs font-medium normal-case leading-4 tracking-[0.1em] text-muted-foreground">{account.email}</span>
       </span>
       <GoogleLogo className="size-4 shrink-0" />
     </div>

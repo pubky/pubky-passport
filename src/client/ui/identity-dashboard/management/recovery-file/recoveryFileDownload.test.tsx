@@ -19,10 +19,12 @@ describe("RecoveryFileDownload", () => {
     const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:backup");
     const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
-    render(<RecoveryFileDownload createRecoveryFile={createRecoveryFile} publicKeyZ32="identity" onBack={vi.fn()} />);
+    const onBack = vi.fn();
+    render(<RecoveryFileDownload createRecoveryFile={createRecoveryFile} publicKeyZ32="identity" onBack={onBack} />);
 
-    const download = screen.getByRole("button", { name: "Download recovery file" });
+    const download = screen.getByRole("button", { name: "Download backup" });
     const password = screen.getByLabelText("Enter strong password");
+    expect(document.querySelector('[data-slot="recovery-file-illustration"]')).toHaveAttribute("src", "/illustrations/file.png");
     expect(password).toHaveAttribute("minlength", "6");
     expect(download).toBeDisabled();
     await userEvent.setup().type(password, "123456");
@@ -33,6 +35,7 @@ describe("RecoveryFileDownload", () => {
     expect(click).toHaveBeenCalledOnce();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:backup");
     expect(bytes).toEqual(new Uint8Array(3));
+    expect(onBack).toHaveBeenCalledOnce();
   });
 
   it("returns to identity management", async () => {
@@ -43,12 +46,14 @@ describe("RecoveryFileDownload", () => {
   });
 
   it("announces recovery-file failures without marking a valid password invalid", async () => {
-    render(<RecoveryFileDownload createRecoveryFile={async () => Result.err({ code: "recovery_file_failed" })} publicKeyZ32="identity" onBack={vi.fn()} />);
+    const onBack = vi.fn();
+    render(<RecoveryFileDownload createRecoveryFile={async () => Result.err({ code: "recovery_file_failed" })} publicKeyZ32="identity" onBack={onBack} />);
     const password = screen.getByLabelText("Enter strong password");
     await userEvent.setup().type(password, "123456");
-    await userEvent.setup().click(screen.getByRole("button", { name: "Download recovery file" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not create the recovery file");
     expect(password).not.toHaveAttribute("aria-invalid");
+    expect(onBack).not.toHaveBeenCalled();
   });
 });

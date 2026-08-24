@@ -17,8 +17,8 @@ function ReviewGoogleDetachment({ onBack, onRemove }: { onBack: () => void; onRe
       </div>
 
       <div className="relative flex h-[248px] w-full items-center justify-center" data-slot="google-detachment-illustration">
-        <Image alt="" aria-hidden="true" className="size-[200px] object-cover" height={200} src="/illustrations/detach-from-google-source.png" unoptimized width={200} />
-        <Image alt="" aria-hidden="true" className="absolute left-1/2 top-1/2 h-2 w-[282.137px] -translate-x-1/2 -translate-y-1/2 -rotate-[45.14deg]" height={8} src="/illustrations/detach-from-google-line.svg" width={282.137} />
+        <Image alt="" aria-hidden="true" className="size-[200px] object-cover" height={200} src="/illustrations/cloud.png" unoptimized width={200} />
+        <Image alt="" aria-hidden="true" className="absolute left-1/2 top-1/2 h-2 w-[282.137px] -translate-x-1/2 -translate-y-1/2 -rotate-[45.14deg]" height={8} src="/illustrations/red-line.svg" width={282.137} />
       </div>
 
       <div className="mt-auto flex flex-col gap-4">

@@ -83,7 +83,7 @@ function ConfirmDeletionDialog({
         </IconButton>
 
         <div className="flex flex-col gap-2">
-          <Label className="leading-5" htmlFor={confirmationId}>Type DELETE to confirm</Label>
+          <Label className="leading-5" htmlFor={confirmationId}>Type <span className="text-white">DELETE</span> to confirm</Label>
           <Input
             autoComplete="off"
             containerClassName="border-dashed"

@@ -58,7 +58,6 @@ function IdentityEstablishmentFlow({ googleIdentityConfiguration, onBack, onComp
             onClick={google.establishIdentity}
             provider="google"
           >Continue with Google</ProviderSignInButton>
-          <ProviderSignInButton disabled provider="apple">Continue with Apple</ProviderSignInButton>
           {onBack ? <BackButton onClick={onBack} /> : null}
         </SignInPage>
       );

@@ -33,22 +33,27 @@ function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
     if (!validPassword || pending) return;
     setPending(true);
     setRecoveryFileFailed(false);
+    let downloaded = false;
     try {
       const recoveryFile = await createRecoveryFile(publicKeyZ32, password);
       if (Result.isError(recoveryFile) || !downloadFile(recoveryFile.value)) setRecoveryFileFailed(true);
-      else setPassword("");
+      else {
+        downloaded = true;
+        setPassword("");
+      }
     } catch {
       setRecoveryFileFailed(true);
     } finally {
       setPending(false);
     }
+    if (downloaded) onBack();
   }
 
   return (
     <PassportScreen>
       <form className="flex min-h-full flex-1 flex-col gap-6" onSubmit={submit}>
-        <DisplayHeading accent="file." aria-label="Recovery file.">Recovery</DisplayHeading>
-        <LeadText>Set a password, download the recovery file, and keep both somewhere safe. You’ll need them to restore access.</LeadText>
+        <DisplayHeading accent="backup." aria-label="Encrypted backup.">Encrypted</DisplayHeading>
+        <LeadText>Set a password, download the file, and keep both somewhere safe. You’ll need them to restore access.</LeadText>
 
         <div className="flex flex-col gap-2">
           <Label htmlFor="recovery-file-password">Enter strong password</Label>
@@ -66,13 +71,13 @@ function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
           {recoveryFileFailed ? <FieldMessage error>Could not create the recovery file. Please try again.</FieldMessage> : null}
         </div>
 
-        <Image alt="" className="mx-auto size-[200px]" data-slot="recovery-file-illustration" height={200} src="/illustrations/passport-encrypted-backup-source.png" unoptimized width={200} />
+        <Image alt="" aria-hidden="true" className="mx-auto size-[200px]" data-slot="recovery-file-illustration" height={200} src="/illustrations/file.png" unoptimized width={200} />
 
         <div className="mt-auto flex flex-col gap-4 pt-4">
           <BackButton onClick={onBack} />
           <Button disabled={!validPassword || pending} size="lg" type="submit">
             <DownloadRecoveryFileIcon />
-            {pending ? "Encrypting…" : "Download recovery file"}
+            {pending ? "Encrypting…" : "Download backup"}
           </Button>
         </div>
       </form>

@@ -23,7 +23,7 @@ function IdentityOverview({ identity, onManage, onSwitch }: {
         <Avatar fallback={name} size="lg" {...(account?.pictureUrl ? { src: account.pictureUrl } : {})} />
         <div className="flex w-full flex-col items-center gap-3 text-center">
           <h2 className="text-2xl font-bold leading-8">{name}</h2>
-          <p className="w-full break-all text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">{identity.publicIdentity.publicKeyZ32}</p>
+          <p className="w-full break-all text-xs font-medium normal-case leading-4 tracking-[0.1em] text-muted-foreground">{identity.publicIdentity.publicKeyZ32}</p>
           {account ? <p className="flex items-center justify-center gap-2 text-sm font-bold leading-5"><GoogleLogo />{account.email}</p> : null}
         </div>
         <ButtonLink className="w-full" href="/authorize" size="lg" variant="secondary"><KeyRoundIcon />Authorize</ButtonLink>

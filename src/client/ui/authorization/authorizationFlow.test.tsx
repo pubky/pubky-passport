@@ -232,6 +232,8 @@ describe("AuthorizationFlow", () => {
     await waitFor(() => expect(screen.getByText("Second User")).toBeInTheDocument());
     expect(MOCKS.select).toHaveBeenCalledWith(SECOND.publicIdentity.publicKeyZ32);
     expect(screen.getByRole("heading", { name: "Review authorization request." })).toBeInTheDocument();
+    expect(screen.getByText("seco...-key")).toHaveClass("normal-case");
+    expect(screen.getByText("seco...-key")).not.toHaveClass("uppercase");
   });
 
   it("adds an identity through the normal sign-in flow without losing the review", async () => {
@@ -321,13 +323,20 @@ describe("AuthorizationFlow", () => {
   });
 
   it.each([
-    ["approved", "Authorization complete."],
-    ["cancelled", "Authorization cancelled."],
-    ["failed", "Authorization failed."],
-  ] as const)("renders the safe local %s terminal state", async (status, heading) => {
+    ["approved", "Authorization complete.", "Continue"],
+    ["cancelled", "Authorization cancelled.", "Back"],
+    ["failed", "Authorization failed.", "Back"],
+  ] as const)("renders the safe local %s terminal state", async (status, heading, action) => {
     MOCKS.authorizationState = { status };
     renderFlow();
 
     expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: action })).toBeInTheDocument();
+    const completionIllustration = document.querySelector('[data-slot="authorization-complete-illustration"]');
+    if (status === "approved") {
+      expect(completionIllustration).toHaveAttribute("src", "/illustrations/checkmark.png");
+    } else {
+      expect(completionIllustration).not.toBeInTheDocument();
+    }
   });
 });
