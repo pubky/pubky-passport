@@ -256,7 +256,7 @@ describe("IdentityDashboard", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Show QR" }));
     expect(FLOW.migrationExportKeys).toEqual(["identity"]);
     await userEvent.setup().click(screen.getByRole("button", { name: "Close" }));
-    await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Download encrypted backup" }));
     expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();

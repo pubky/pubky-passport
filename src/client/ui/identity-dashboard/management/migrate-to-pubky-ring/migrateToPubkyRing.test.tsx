@@ -42,12 +42,15 @@ describe("MigrateToPubkyRing", () => {
     expect(screen.queryByRole("dialog", { name: "Scan with Pubky Ring" })).not.toBeInTheDocument();
   });
 
-  it("clears the QR URL when navigating back", () => {
+  it("clears the QR URL when continuing", () => {
     const onBack = vi.fn();
     render(<MigrateToPubkyRing createMigrationUrl={() => MIGRATION_URL} onBack={onBack} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Show QR" }));
-    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    const continueButton = screen.getByRole("button", { name: "Continue" });
+    expect(continueButton).toHaveAttribute("data-variant", "default");
+    expect(continueButton.querySelector("svg")).toBeInTheDocument();
+    fireEvent.click(continueButton);
 
     expect(onBack).toHaveBeenCalledOnce();
     expect(screen.queryByRole("dialog", { name: "Scan with Pubky Ring" })).not.toBeInTheDocument();

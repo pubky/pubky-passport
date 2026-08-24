@@ -6,8 +6,7 @@ import { useState } from "react";
 import { PubkyBrandIcon } from "../../../shared/brand/pubkyBrandIcon";
 import { PubkyRingLogo } from "../../../shared/brand/pubkyRingLogo";
 import { PubkyRingStoreBadges } from "../../../shared/brand/pubkyRingStoreBadges";
-import { ScanIcon } from "../../../shared/actionIcons";
-import { BackButton } from "../../../shared/backButton";
+import { CheckIcon, ScanIcon } from "../../../shared/actionIcons";
 import { PassportScreen } from "../../../shared/passportScreen";
 import { Button } from "../../../shared/primitives/button";
 import { DisplayHeading, LeadText } from "../../../shared/primitives/typography";
@@ -80,7 +79,9 @@ function MigrateToPubkyRing({ createMigrationUrl, onBack }: {
         width={200}
       />
 
-      <div className="mt-auto pt-4"><BackButton onClick={back} /></div>
+      <div className="mt-auto pt-4">
+        <Button className="w-full" onClick={back} size="lg" type="button"><CheckIcon />Continue</Button>
+      </div>
       {migrationUrl ? <PubkyRingQrDialog onClose={clearMigrationUrl} value={migrationUrl} /> : null}
     </PassportScreen>
   );

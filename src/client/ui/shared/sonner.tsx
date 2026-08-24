@@ -14,16 +14,17 @@ function Sonner() {
       mobileOffset={{ left: 15, right: 15, top: 5 }}
       offset={{ top: 5 }}
       position="top-center"
-      style={{ "--width": "420px" } as React.CSSProperties}
+      style={{ "--width": "392px" } as React.CSSProperties}
       toastOptions={{
         unstyled: true,
         classNames: {
           content: "flex min-w-0 flex-1 flex-col gap-0.5",
+          description: "w-full text-sm leading-5 text-secondary-foreground",
           icon: "flex size-5 shrink-0 items-center justify-center",
-          info: "bg-brand/25",
-          success: "bg-brand/25",
+          info: "!border-[#303034] bg-[linear-gradient(rgba(5,5,10,0.6),rgba(5,5,10,0.6)),linear-gradient(#454549,#454549)]",
+          success: "!border-brand/50 bg-brand/25",
           title: "w-full text-sm font-bold leading-5 text-popover-foreground",
-          toast: "pointer-events-auto flex w-full items-center gap-2 rounded-lg border border-solid !border-[rgba(200,255,0,0.5)] p-6 shadow-[0_10px_15px_rgba(5,5,10,0.5)] backdrop-blur-[10px]",
+          toast: "pointer-events-auto flex w-full items-center gap-2 rounded-lg border border-solid p-6 shadow-[0_10px_15px_rgba(5,5,10,0.5)] backdrop-blur-[10px]",
         },
       }}
     />

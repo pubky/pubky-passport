@@ -20,14 +20,14 @@ function AuthorizationReview({ identity, onAuthorize, onCancel, onSwitch, phase,
 }) {
   const busy = phase !== "review";
   const hasBroadAccess = review.capabilities.some((capability) => capability.scope === "broad");
-  const authorizationEffect = describeAuthorizationEffect(review.capabilities);
   const account = identity?.googleAccount;
   const identityName = account?.name ?? "Your Pubky";
+  const requester = review.callbackHost ?? "this service";
 
   return (
     <PassportScreen>
       <div className="flex flex-1 flex-col gap-6">
-        <DisplayHeading accent="request." aria-label="Review authorization request.">Review</DisplayHeading>
+        <DisplayHeading accent={<bdi className="break-words">{requester}</bdi>} aria-label={`Sign in to ${requester}`}>Sign in to</DisplayHeading>
         {hasBroadAccess ? (
           <p className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm font-medium leading-5 text-foreground" role="alert">
             This request includes broad access that is not limited to one app namespace.
@@ -55,9 +55,8 @@ function AuthorizationReview({ identity, onAuthorize, onCancel, onSwitch, phase,
             <Button disabled={busy} onClick={onSwitch} size="sm" type="button" variant="secondary"><SquareUserRoundIcon />Switch</Button>
           </div>
         </section>
-        <p className="text-sm font-medium leading-5 text-muted-foreground">
-          Make sure you trust this service, app, or device before authorizing with your pubky. <strong className="font-bold text-foreground">{authorizationEffect}</strong>
-          {review.authenticationMethod === "grant" ? " This approval creates an app-specific, revocable grant." : " This request uses deprecated cookie authentication."}
+        <p className="text-sm font-medium leading-5 text-muted-foreground opacity-80">
+          Make sure you trust this service, browser, or device before authorizing with your pubky. <strong className="font-bold text-foreground">{describeAuthorizationEffect(review.capabilities, requester)}</strong>
         </p>
         <div className="mt-auto flex flex-col gap-4 pt-6">
           <Button disabled={busy} onClick={onCancel} size="lg" type="button" variant="outline"><XIcon />Cancel</Button>
@@ -76,15 +75,16 @@ function authorizationButtonLabel(phase: "review" | "approving" | "completing"):
 
 function describeAuthorizationEffect(
   capabilities: AuthorizationRequestReview["capabilities"],
+  requester: string,
 ): string {
   const canRead = capabilities.some((capability) => capability.read);
   const canWrite = capabilities.some((capability) => capability.write);
 
   if (canRead && canWrite) {
-    return "Authorizing will allow the requester to read and write your data.";
+    return `Authorizing will allow ${requester} to read and update your data.`;
   }
-  if (canRead) return "Authorizing will allow the requester to read your data.";
-  if (canWrite) return "Authorizing will allow the requester to create, change, and delete data.";
+  if (canRead) return `Authorizing will allow ${requester} to read your data.`;
+  if (canWrite) return `Authorizing will allow ${requester} to update your data.`;
   return "This request does not ask for data access.";
 }
 
