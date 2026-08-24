@@ -39,10 +39,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <header className="flex h-[84px] w-full items-center justify-between bg-[linear-gradient(180deg,rgba(5,5,10,0.96),rgba(5,5,10,0))] px-6">
           <PassportLogo />
         </header>
-        <GoogleIdentityConfigurationProvider configuration={{
-          googleClientId: config.googleClientId,
-          homegateBaseUrl: config.homegateBaseUrl,
-        }}>
+        <GoogleIdentityConfigurationProvider
+          googleClientId={config.googleClientId}
+          homegateBaseUrl={config.homegateBaseUrl}
+        >
           {children}
         </GoogleIdentityConfigurationProvider>
         <Sonner />

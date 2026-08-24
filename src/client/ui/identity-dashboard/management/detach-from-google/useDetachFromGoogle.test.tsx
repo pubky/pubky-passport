@@ -16,8 +16,12 @@ const MOCKS = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../../logic/google-identity/GoogleIdentityController", () => ({
-  GoogleIdentityController: function GoogleIdentityController(configuration: unknown, onState: unknown) {
-    return MOCKS.constructGoogleIdentityController(configuration, onState);
+  GoogleIdentityController: function GoogleIdentityController(
+    googleClientId: string,
+    homegateBaseUrl: string,
+    onState: unknown,
+  ) {
+    return MOCKS.constructGoogleIdentityController(googleClientId, homegateBaseUrl, onState);
   },
 }));
 

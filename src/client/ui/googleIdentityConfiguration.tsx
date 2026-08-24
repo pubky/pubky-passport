@@ -2,22 +2,24 @@
 
 import { createContext, type ReactNode, useContext } from "react";
 
-import type { GoogleIdentityConfiguration } from "../logic/google-identity/GoogleIdentityController";
+const GoogleIdentityConfigurationContext = createContext<{
+  googleClientId: string;
+  homegateBaseUrl: string;
+} | null>(null);
 
-const GoogleIdentityConfigurationContext = createContext<GoogleIdentityConfiguration | null>(null);
-
-function GoogleIdentityConfigurationProvider({ children, configuration }: {
+function GoogleIdentityConfigurationProvider({ children, googleClientId, homegateBaseUrl }: {
   children: ReactNode;
-  configuration: GoogleIdentityConfiguration;
+  googleClientId: string;
+  homegateBaseUrl: string;
 }) {
   return (
-    <GoogleIdentityConfigurationContext value={configuration}>
+    <GoogleIdentityConfigurationContext value={{ googleClientId, homegateBaseUrl }}>
       {children}
     </GoogleIdentityConfigurationContext>
   );
 }
 
-function useGoogleIdentityConfiguration(): GoogleIdentityConfiguration {
+function useGoogleIdentityConfiguration() {
   const configuration = useContext(GoogleIdentityConfigurationContext);
   if (!configuration) {
     throw new Error("Google identity configuration is unavailable.");

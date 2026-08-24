@@ -19,11 +19,6 @@ import {
 
 export type { GoogleIdentityProgress } from "./GoogleIdentityOperations";
 
-export type GoogleIdentityConfiguration = {
-  googleClientId: string;
-  homegateBaseUrl: string;
-};
-
 /** Safe progress emitted while Passport creates or restores a Google-backed identity. */
 export type GoogleIdentityViewState =
   | { status: "requesting-authorization" }
@@ -89,13 +84,14 @@ export class GoogleIdentityController {
   private disposed = false;
 
   constructor(
-    configuration: GoogleIdentityConfiguration,
+    googleClientId: string,
+    homegateBaseUrl: string,
     private readonly onState: (state: GoogleIdentityViewState) => void,
   ) {
     try {
-      this.googleAuthorization = new GoogleImplicitAuthorization(configuration.googleClientId);
+      this.googleAuthorization = new GoogleImplicitAuthorization(googleClientId);
       this.operations = new GoogleIdentityOperations(
-        configuration.homegateBaseUrl,
+        homegateBaseUrl,
         globalThis.location.origin,
       );
     } catch {

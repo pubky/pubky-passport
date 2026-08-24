@@ -95,7 +95,7 @@ function useGoogleIdentityEstablishment() {
       if (active) setControllerReady(false);
     });
     try {
-      googleIdentityController = new GoogleIdentityController({ googleClientId, homegateBaseUrl }, (nextState) => {
+      googleIdentityController = new GoogleIdentityController(googleClientId, homegateBaseUrl, (nextState) => {
         switch (nextState.status) {
           case "requesting-authorization":
             dispatch({ type: "request-started" });

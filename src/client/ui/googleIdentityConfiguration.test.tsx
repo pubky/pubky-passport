@@ -16,10 +16,10 @@ function ConfigurationProbe() {
 describe("GoogleIdentityConfigurationProvider", () => {
   it("makes browser bootstrap configuration available to client consumers", () => {
     render(
-      <GoogleIdentityConfigurationProvider configuration={{
-        googleClientId: "google-client-id",
-        homegateBaseUrl: "https://homegate.example/",
-      }}>
+      <GoogleIdentityConfigurationProvider
+        googleClientId="google-client-id"
+        homegateBaseUrl="https://homegate.example/"
+      >
         <ConfigurationProbe />
       </GoogleIdentityConfigurationProvider>,
     );

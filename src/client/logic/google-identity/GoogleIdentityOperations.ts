@@ -444,11 +444,11 @@ export class GoogleIdentityOperations {
   ): Promise<OperationResult> {
     if (!isReconciliation) report({ flow: "create", step: "signing_up" });
     LOGGER.info("identity.google.signup.started");
-    const signedUp = await this.pubky.signup({
-      keyHandle: identity.keyHandle,
-      homeserverPubky: invitation.homeserverPubky,
-      signupCode: invitation.signupCode,
-    });
+    const signedUp = await this.pubky.signup(
+      identity.keyHandle,
+      invitation.homeserverPubky,
+      invitation.signupCode,
+    );
     if (Result.isError(signedUp)
       && signedUp.error.code !== "account_exists"
       && signedUp.error.code !== "signup_uncertain") {
@@ -464,10 +464,10 @@ export class GoogleIdentityOperations {
       ? { flow: "repair", step: "publishing" }
       : { flow: "create", step: "publishing" });
     LOGGER.info("identity.google.publication.started");
-    const published = await this.pubky.publishHomeserver({
-      keyHandle: identity.keyHandle,
-      homeserverPubky: invitation.homeserverPubky,
-    });
+    const published = await this.pubky.publishHomeserver(
+      identity.keyHandle,
+      invitation.homeserverPubky,
+    );
     if (Result.isError(published) && published.error.code !== "publish_failed") {
       return Result.err({ code: "publication_failed", cause: published.error });
     }

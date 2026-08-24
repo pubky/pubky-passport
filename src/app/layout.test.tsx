@@ -29,14 +29,13 @@ describe("RootLayout bootstrap", () => {
       children: ReactNode;
     }>;
     const provider = Children.toArray(body.props.children)[1] as ReactElement<{
-      configuration: { googleClientId: string; homegateBaseUrl: string };
+      googleClientId: string;
+      homegateBaseUrl: string;
     }>;
 
     expect(MOCKS.connection).toHaveBeenCalledOnce();
-    expect(provider.props.configuration).toEqual({
-      googleClientId: "google-client-id",
-      homegateBaseUrl: "https://homegate.example/api/",
-    });
+    expect(provider.props.googleClientId).toBe("google-client-id");
+    expect(provider.props.homegateBaseUrl).toBe("https://homegate.example/api/");
   });
 
   it("rejects invalid bootstrap configuration without exposing its values", async () => {

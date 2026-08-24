@@ -434,15 +434,15 @@ describe("GoogleIdentityOperations", () => {
       "signin",
       "save",
     ]);
-    expect(MOCKS.signup).toHaveBeenCalledWith({
-      keyHandle: KEY_HANDLE,
-      homeserverPubky: INVITATION.homeserverPubky,
-      signupCode: INVITATION.signupCode,
-    });
-    expect(MOCKS.publishHomeserver).toHaveBeenCalledWith({
-      keyHandle: KEY_HANDLE,
-      homeserverPubky: INVITATION.homeserverPubky,
-    });
+    expect(MOCKS.signup).toHaveBeenCalledWith(
+      KEY_HANDLE,
+      INVITATION.homeserverPubky,
+      INVITATION.signupCode,
+    );
+    expect(MOCKS.publishHomeserver).toHaveBeenCalledWith(
+      KEY_HANDLE,
+      INVITATION.homeserverPubky,
+    );
     expect(MOCKS.signin).toHaveBeenNthCalledWith(1, KEY_HANDLE);
     expect(MOCKS.signin).toHaveBeenNthCalledWith(2, KEY_HANDLE, {
       waitForPkdnsPublication: true,

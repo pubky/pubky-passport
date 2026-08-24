@@ -86,10 +86,11 @@ describe("GoogleIdentityController", () => {
   it("composes its screen-scoped dependencies during construction", () => {
     const onState = vi.fn();
 
-    new GoogleIdentityController({
-      googleClientId: "google-client-id",
-      homegateBaseUrl: "https://homegate.example/",
-    }, onState);
+    new GoogleIdentityController(
+      "google-client-id",
+      "https://homegate.example/",
+      onState,
+    );
 
     expect(MOCKS.GoogleImplicitAuthorization).toHaveBeenCalledWith("google-client-id");
     expect(MOCKS.GoogleIdentityOperations).toHaveBeenCalledWith(
@@ -107,10 +108,11 @@ describe("GoogleIdentityController", () => {
       throw thrown;
     });
 
-    expect(() => new GoogleIdentityController({
-      googleClientId: "SECRET-CLIENT-ID",
-      homegateBaseUrl: "https://secret-homegate.example/",
-    }, vi.fn())).toThrow("Google identity initialization unavailable.");
+    expect(() => new GoogleIdentityController(
+      "SECRET-CLIENT-ID",
+      "https://secret-homegate.example/",
+      vi.fn(),
+    )).toThrow("Google identity initialization unavailable.");
     expect(error).toHaveBeenCalledWith("identity.google.controller.failed", {
       operation: "initialize",
       code: "runtime_exception",
@@ -394,10 +396,8 @@ function createController(
   onState: (state: GoogleIdentityViewState) => void = vi.fn(),
 ): GoogleIdentityController {
   return new GoogleIdentityController(
-    {
-      googleClientId: "google-client-id",
-      homegateBaseUrl: "https://homegate.example/",
-    },
+    "google-client-id",
+    "https://homegate.example/",
     onState,
   );
 }

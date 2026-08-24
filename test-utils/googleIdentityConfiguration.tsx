@@ -9,7 +9,7 @@ export const TEST_GOOGLE_IDENTITY_CONFIGURATION = {
 
 export function withGoogleIdentityConfiguration(children: ReactNode) {
   return (
-    <GoogleIdentityConfigurationProvider configuration={TEST_GOOGLE_IDENTITY_CONFIGURATION}>
+    <GoogleIdentityConfigurationProvider {...TEST_GOOGLE_IDENTITY_CONFIGURATION}>
       {children}
     </GoogleIdentityConfigurationProvider>
   );

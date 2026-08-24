@@ -237,8 +237,8 @@ describe("PubkySdkAdapter", () => {
 
     try {
       await expectError(pubky.exportSecretKey(keyHandle), "key_unavailable");
-      await expectError(pubky.signup({ keyHandle, homeserverPubky: "not used" }), "key_unavailable");
-      await expectError(pubky.publishHomeserver({ keyHandle }), "key_unavailable");
+      await expectError(pubky.signup(keyHandle, "not used"), "key_unavailable");
+      await expectError(pubky.publishHomeserver(keyHandle), "key_unavailable");
     } finally {
       pubky.dispose();
     }
@@ -279,8 +279,8 @@ describe("PubkySdkAdapter", () => {
 
     try {
       const created = expectOk(await pubky.createIdentityKey());
-      const signup = await pubky.signup({ keyHandle: created.keyHandle, homeserverPubky: "not a public key", signupCode: "sensitive-signup-code" });
-      const publication = await pubky.publishHomeserver({ keyHandle: created.keyHandle, homeserverPubky: "not a public key" });
+      const signup = await pubky.signup(created.keyHandle, "not a public key", "sensitive-signup-code");
+      const publication = await pubky.publishHomeserver(created.keyHandle, "not a public key");
 
       expectErrorResult(signup, "invalid_homeserver_pubky");
       expectErrorResult(publication, "invalid_homeserver_pubky");
@@ -316,10 +316,10 @@ describe("PubkySdkAdapter", () => {
 
     try {
       const identity = expectOk(await pubky.createIdentityKey());
-      const result = await pubky.publishHomeserver({
-        keyHandle: identity.keyHandle,
-        homeserverPubky: homeserverPublicKey.z32(),
-      });
+      const result = await pubky.publishHomeserver(
+        identity.keyHandle,
+        homeserverPublicKey.z32(),
+      );
 
       expectErrorCause(result, "publish_failed", cause);
       expect(publishIfStale).toHaveBeenCalledOnce();
@@ -351,11 +351,11 @@ describe("PubkySdkAdapter", () => {
 
     try {
       const created = expectOk(await pubky.createIdentityKey());
-      const result = await pubky.signup({
-        keyHandle: created.keyHandle,
-        homeserverPubky: homeserverPublicKey.z32(),
-        signupCode: "sensitive-signup-code",
-      });
+      const result = await pubky.signup(
+        created.keyHandle,
+        homeserverPublicKey.z32(),
+        "sensitive-signup-code",
+      );
 
       expectErrorCause(result, "signup_failed", cause);
       expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
@@ -390,11 +390,11 @@ describe("PubkySdkAdapter", () => {
 
     try {
       const created = expectOk(await pubky.createIdentityKey());
-      const result = await pubky.signup({
-        keyHandle: created.keyHandle,
-        homeserverPubky: homeserverPublicKey.z32(),
-        signupCode: "SECRET-SIGNUP-CODE",
-      });
+      const result = await pubky.signup(
+        created.keyHandle,
+        homeserverPublicKey.z32(),
+        "SECRET-SIGNUP-CODE",
+      );
 
       expectErrorCause(result, "signup_uncertain", cause);
       expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
@@ -434,11 +434,11 @@ describe("PubkySdkAdapter", () => {
 
     try {
       const created = expectOk(await pubky.createIdentityKey());
-      await expectError(pubky.signup({
-        keyHandle: created.keyHandle,
-        homeserverPubky: homeserverPublicKey.z32(),
-        signupCode: "sensitive-signup-code",
-      }), expectedCode);
+      await expectError(pubky.signup(
+        created.keyHandle,
+        homeserverPublicKey.z32(),
+        "sensitive-signup-code",
+      ), expectedCode);
     } finally {
       homeserverPublicKey.free();
       homeserver.free();
@@ -461,11 +461,11 @@ describe("PubkySdkAdapter", () => {
 
     try {
       const created = expectOk(await pubky.createIdentityKey());
-      await expectError(pubky.signup({
-        keyHandle: created.keyHandle,
-        homeserverPubky: homeserverPublicKey.z32(),
-        signupCode: "sensitive-signup-code",
-      }), expectedCode);
+      await expectError(pubky.signup(
+        created.keyHandle,
+        homeserverPublicKey.z32(),
+        "sensitive-signup-code",
+      ), expectedCode);
     } finally {
       homeserverPublicKey.free();
       homeserver.free();

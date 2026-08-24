@@ -41,17 +41,6 @@ type Signer = ReturnType<Pubky["signer"]>;
 type PublicKeyParseResult<ErrorCode extends string> = ResultType<PublicKey, CodedFailure<ErrorCode>>;
 const PASSPORT_CLIENT_ID = "passport.pubky.app";
 
-export type PubkySignupInput = {
-  keyHandle: PubkyIdentityKeyHandle;
-  homeserverPubky: string;
-  signupCode?: string | null;
-};
-
-export type PubkyPublicationInput = {
-  keyHandle: PubkyIdentityKeyHandle;
-  homeserverPubky?: string | null;
-};
-
 /**
  * Browser-local Pubky adapter. Opaque handles keep SDK keypairs out of application and
  * UI state while this adapter owns all SDK resource cleanup.
@@ -142,19 +131,23 @@ export class PubkySdkAdapter {
     }
   }
 
-  async signup(input: PubkySignupInput): Promise<PubkySessionAccessResult<PubkyAuthenticatedIdentity>> {
-    const keypair = this.keypairFor(input.keyHandle);
+  async signup(
+    keyHandle: PubkyIdentityKeyHandle,
+    homeserverPubky: string,
+    signupCode?: string | null,
+  ): Promise<PubkySessionAccessResult<PubkyAuthenticatedIdentity>> {
+    const keypair = this.keypairFor(keyHandle);
     if (!keypair) {
       return sessionAccessFailure("signup", "key_lookup", "key_unavailable");
     }
 
-    const homeserver = parsePubkyPublicKey(input.homeserverPubky, "invalid_homeserver_pubky");
+    const homeserver = parsePubkyPublicKey(homeserverPubky, "invalid_homeserver_pubky");
     if (Result.isError(homeserver)) {
       return sessionAccessFailure("signup", "homeserver_parse", homeserver.error.code);
     }
 
     try {
-      await this.withSigner("signup", keypair, (signer) => signer.signup(homeserver.value, input.signupCode ?? null));
+      await this.withSigner("signup", keypair, (signer) => signer.signup(homeserver.value, signupCode ?? null));
       const identity = publicIdentity("signup", keypair);
       if (Result.isError(identity)) {
         return sessionAccessFailure("signup", "sdk_public_identity", "signup_failed", identity.error.cause);
@@ -271,13 +264,16 @@ export class PubkySdkAdapter {
     return Result.ok({ keyHandle, publicIdentity: identity.value });
   }
 
-  async publishHomeserver(input: PubkyPublicationInput): Promise<PubkyPublicationResult> {
-    const keypair = this.keypairFor(input.keyHandle);
+  async publishHomeserver(
+    keyHandle: PubkyIdentityKeyHandle,
+    homeserverPubky?: string | null,
+  ): Promise<PubkyPublicationResult> {
+    const keypair = this.keypairFor(keyHandle);
     if (!keypair) {
       return publicationFailure("key_lookup", "key_unavailable");
     }
 
-    const homeserver = parseOptionalHomeserverPublicKey(input.homeserverPubky);
+    const homeserver = parseOptionalHomeserverPublicKey(homeserverPubky);
     if (Result.isError(homeserver)) {
       return publicationFailure("homeserver_parse", homeserver.error.code);
     }

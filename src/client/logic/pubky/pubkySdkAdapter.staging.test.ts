@@ -24,17 +24,17 @@ test("completes signup, publication, signin, and both v0.10 authorization method
   try {
     const identity = expectOk(await passport.createIdentityKey(), "Passport could not create an identity");
 
-    const signup = expectOk(await passport.signup({
-      keyHandle: identity.keyHandle,
-      homeserverPubky: invitation.homeserverPubky,
-      signupCode: invitation.signupCode,
-    }), "Passport could not sign up with the staging invitation");
+    const signup = expectOk(await passport.signup(
+      identity.keyHandle,
+      invitation.homeserverPubky,
+      invitation.signupCode,
+    ), "Passport could not sign up with the staging invitation");
     expect(signup.publicIdentity).toEqual(identity.publicIdentity);
 
-    expectOk(await passport.publishHomeserver({
-      keyHandle: identity.keyHandle,
-      homeserverPubky: invitation.homeserverPubky,
-    }), "Passport could not publish the homeserver record");
+    expectOk(await passport.publishHomeserver(
+      identity.keyHandle,
+      invitation.homeserverPubky,
+    ), "Passport could not publish the homeserver record");
     await expectHomeserverResolution(
       relyingParty,
       identity.publicIdentity.publicKeyZ32,

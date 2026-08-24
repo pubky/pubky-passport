@@ -23,10 +23,11 @@ const MOCKS = vi.hoisted(() => ({
 
 vi.mock("../../logic/google-identity/GoogleIdentityController", () => ({
   GoogleIdentityController: function GoogleIdentityController(
-    configuration: unknown,
+    googleClientId: string,
+    homegateBaseUrl: string,
     onState: (state: GoogleIdentityViewState) => void,
   ) {
-    return MOCKS.constructGoogleIdentityController(configuration, onState);
+    return MOCKS.constructGoogleIdentityController(googleClientId, homegateBaseUrl, onState);
   },
 }));
 
@@ -314,7 +315,7 @@ function useController(controller: MockGoogleIdentityController): void {
 
 function captureControllerState(controller: MockGoogleIdentityController): { current?: (state: GoogleIdentityViewState) => void } {
   const capture: { current?: (state: GoogleIdentityViewState) => void } = {};
-  MOCKS.constructGoogleIdentityController.mockImplementation((_, onState) => {
+  MOCKS.constructGoogleIdentityController.mockImplementation((_, __, onState) => {
     capture.current = onState;
     return controller;
   });
