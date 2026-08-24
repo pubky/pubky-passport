@@ -75,7 +75,7 @@ function MigrateToPubkyRing({ createMigrationUrl, onBack }: {
         className="mx-auto size-[200px]"
         data-slot="pubky-ring-keychain-illustration"
         height={200}
-        src="/illustrations/pubky-ring-keychain.png"
+        src="/illustrations/pubky-ring-keychain-source.png"
         unoptimized
         width={200}
       />
