@@ -240,8 +240,11 @@ describe("IdentityEstablishmentFlow", () => {
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(await screen.findByText("Passport could not obtain a homeserver signup invitation.")).toBeInTheDocument();
-    expect(screen.getByText("homeserver_signup_invitation_failed")).toBeInTheDocument();
-    expect(screen.getByText("weekly_limit_exceeded")).toBeInTheDocument();
+    const errorDetails = screen.getByRole("group", { name: "Error" });
+    expect(errorDetails).toHaveClass("border-dashed", "border-input", "min-h-[60px]");
+    expect(errorDetails).not.toContainElement(screen.getByText("Error"));
+    expect(within(errorDetails).getByText("homeserver_signup_invitation_failed")).toBeInTheDocument();
+    expect(within(errorDetails).getByText("weekly_limit_exceeded")).toBeInTheDocument();
   });
 
   it("describes a final PKDNS publication failure without stale resolution language", async () => {

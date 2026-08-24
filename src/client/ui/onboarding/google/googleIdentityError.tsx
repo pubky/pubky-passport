@@ -5,6 +5,7 @@ import { RotateCcwIcon } from "../../shared/actionIcons";
 import { BackButton } from "../../shared/backButton";
 import { PassportScreen } from "../../shared/passportScreen";
 import { Button } from "../../shared/primitives/button";
+import { Label } from "../../shared/primitives/label";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
 
 function GoogleIdentityError({ error, onBack, onTryAgain }: {
@@ -17,12 +18,18 @@ function GoogleIdentityError({ error, onBack, onTryAgain }: {
       <div className="flex flex-col gap-6">
         <DisplayHeading accent="interrupted." aria-label="Setup interrupted.">Setup</DisplayHeading>
         <LeadText>{errorMessage(error.code)}</LeadText>
-        <div className="rounded-xl border border-border p-4">
-          <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">Error</p>
-          <p className="mt-2 break-all font-medium text-secondary-foreground">{error.code}</p>
-          {"cause" in error
-            ? <p className="mt-1 break-all text-sm text-muted-foreground">{error.cause}</p>
-            : null}
+        <div className="flex flex-col gap-2">
+          <Label id="google-identity-error-label">Error</Label>
+          <div
+            aria-labelledby="google-identity-error-label"
+            className="flex min-h-[60px] flex-col justify-center gap-1 rounded-lg border border-dashed border-input bg-black/10 py-4 pl-6 pr-5 shadow-xs"
+            role="group"
+          >
+            <p className="break-all text-base font-medium leading-6 text-foreground">{error.code}</p>
+            {"cause" in error
+              ? <p className="break-all text-base font-medium leading-6 text-muted-foreground">{error.cause}</p>
+              : null}
+          </div>
         </div>
       </div>
 
