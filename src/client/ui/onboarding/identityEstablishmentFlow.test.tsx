@@ -71,6 +71,10 @@ describe("IdentityEstablishmentFlow", () => {
     expect(establishIdentity).toHaveBeenCalledWith();
     expect(screen.queryByRole("button", { name: "Continue with Apple" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Requesting Google access." })).toBeInTheDocument();
+    const waiting = screen.getByRole("button", { name: "Waiting for Google..." });
+    expect(waiting).toBeDisabled();
+    expect(waiting).toHaveClass("w-full", "h-[60px]", "bg-secondary", "disabled:opacity-50");
+    expect(within(screen.getByRole("status")).getByText("Waiting for Google...")).toBeInTheDocument();
   });
 
   it("only shows contextual back navigation when supplied by its parent flow", async () => {

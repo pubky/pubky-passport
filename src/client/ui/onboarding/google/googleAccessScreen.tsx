@@ -16,7 +16,14 @@ function GoogleAccessScreen(props: GoogleAccessScreenProps) {
       <div className="flex flex-col gap-6">
         <DisplayHeading accent={denied ? "denied." : "access."} aria-label={denied ? "Google access denied." : "Requesting Google access."}>{denied ? "Google access" : "Requesting Google"}</DisplayHeading>
         <LeadText>{denied ? "Passport needs Google Drive access to create or restore your Pubky." : "Complete the Google request to securely create or restore your Pubky."}</LeadText>
-        {!denied ? <div className="flex items-center gap-3 py-3 text-muted-foreground" role="status"><Spinner />Waiting for Google…</div> : null}
+        {!denied ? (
+          <div aria-live="polite" role="status">
+            <Button className="w-full" disabled size="lg" type="button" variant="secondary">
+              <Spinner aria-hidden="true" className="size-4 motion-reduce:animate-none" role="presentation" />
+              Waiting for Google...
+            </Button>
+          </div>
+        ) : null}
       </div>
       {denied ? (
         <div className="mt-auto flex flex-col gap-3">
