@@ -97,12 +97,15 @@ function downloadFile(file: LocalIdentityRecoveryFile): boolean {
   try {
     const blob = new Blob([file.bytes.slice().buffer], { type: "application/octet-stream" });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.download = file.fileName;
-    link.href = url;
-    link.click();
-    URL.revokeObjectURL(url);
-    return true;
+    try {
+      const link = document.createElement("a");
+      link.download = file.fileName;
+      link.href = url;
+      link.click();
+      return true;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
   } catch {
     LOGGER.warn("identity.recovery_file.ui.failed", {
       operation: "download",

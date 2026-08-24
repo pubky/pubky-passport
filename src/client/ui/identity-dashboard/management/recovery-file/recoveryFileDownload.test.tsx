@@ -45,6 +45,32 @@ describe("RecoveryFileDownload", () => {
     expect(onBack).toHaveBeenCalledOnce();
   });
 
+  it("revokes the recovery-file URL when clicking the download link throws", async () => {
+    const createRecoveryFile = vi.fn(async () => Result.ok({
+      bytes: new Uint8Array([1, 2, 3]),
+      fileName: "pubky-identity.pkarr",
+    }));
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:backup");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {
+      throw new Error("download failed");
+    });
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const onBack = vi.fn();
+    render(<RecoveryFileDownload createRecoveryFile={createRecoveryFile} publicKeyZ32="identity" onBack={onBack} />);
+
+    await userEvent.setup().type(screen.getByLabelText("Enter strong password"), "123456");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not create the recovery file");
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:backup");
+    expect(warning).toHaveBeenCalledWith("identity.recovery_file.ui.failed", {
+      operation: "download",
+    });
+    expect(MOCKS.showDownloadConfirmation).not.toHaveBeenCalled();
+    expect(onBack).not.toHaveBeenCalled();
+  });
+
   it("returns to identity management", async () => {
     const onBack = vi.fn();
     render(<RecoveryFileDownload createRecoveryFile={vi.fn()} publicKeyZ32="identity" onBack={onBack} />);
