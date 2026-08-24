@@ -63,10 +63,12 @@ export class LocalStorageIdentityRepository {
   save(identity: LocalIdentityMetadata, secretKey: PubkySecretKeyMaterial): LocalIdentityResult<LocalIdentityMetadata> {
     if (!isPubkyPublicIdentity(identity.publicIdentity)
       || (identity.googleAccount !== undefined && !isStoredGoogleAccountProfile(identity.googleAccount))) {
-      return failure("save", "invalid_identity");
+      LOGGER.warn("identity.local_store.failed", { operation: "save", code: "invalid_identity" });
+      return Result.err({ code: "invalid_identity" });
     }
     if (secretKey.format !== PUBKY_SECRET_KEY_FORMAT || secretKey.bytes.byteLength !== PUBKY_SECRET_KEY_BYTES) {
-      return failure("save", "invalid_secret_key");
+      LOGGER.warn("identity.local_store.failed", { operation: "save", code: "invalid_secret_key" });
+      return Result.err({ code: "invalid_secret_key" });
     }
 
     const store = this.readStore();
@@ -120,7 +122,8 @@ export class LocalStorageIdentityRepository {
     }
 
     if (!store.value.identities.some((identity) => identity.publicIdentity.publicKeyZ32 === publicKeyZ32)) {
-      return failure("select", "invalid_identity");
+      LOGGER.info("identity.local_store.failed", { operation: "select", code: "invalid_identity" });
+      return Result.err({ code: "invalid_identity" });
     }
 
     return this.writeStore({ ...store.value, activePublicKeyZ32: publicKeyZ32 });
@@ -131,7 +134,8 @@ export class LocalStorageIdentityRepository {
     const store = this.readStore();
     if (Result.isError(store)) return Result.err(store.error);
     if (!store.value.identities.some((identity) => identity.publicIdentity.publicKeyZ32 === publicKeyZ32)) {
-      return failure("remove", "invalid_identity");
+      LOGGER.info("identity.local_store.failed", { operation: "remove", code: "invalid_identity" });
+      return Result.err({ code: "invalid_identity" });
     }
 
     const identities = store.value.identities.filter(
@@ -150,7 +154,10 @@ export class LocalStorageIdentityRepository {
     const storedIdentity = store.value.identities.find(
       (candidate) => candidate.publicIdentity.publicKeyZ32 === publicKeyZ32,
     );
-    if (!storedIdentity) return failure("read_identity", "invalid_identity");
+    if (!storedIdentity) {
+      LOGGER.info("identity.local_store.failed", { operation: "read_identity", code: "invalid_identity" });
+      return Result.err({ code: "invalid_identity" });
+    }
 
     const secretKey = decodeStoredSecretKey(storedIdentity.secretKey);
     if (!secretKey) return localStoreFailure("read", "invalid_store");
@@ -287,16 +294,6 @@ function toMetadata(identity: StoredLocalIdentity): LocalIdentityMetadata {
 function decodeStoredSecretKey(value: string): Uint8Array | undefined {
   const decoded = decodeBase64Url(value);
   return decoded?.byteLength === PUBKY_SECRET_KEY_BYTES ? decoded : undefined;
-}
-
-function failure<Success>(
-  operation: "save" | "select" | "remove" | "read_identity",
-  code: LocalIdentityErrorCode,
-): LocalIdentityResult<Success> {
-  const expectedOutcome = (operation === "select" || operation === "remove" || operation === "read_identity")
-    && code === "invalid_identity";
-  LOGGER[expectedOutcome ? "info" : "warn"]("identity.local_store.failed", { operation, code });
-  return Result.err({ code });
 }
 
 function localStoreFailure<Success>(

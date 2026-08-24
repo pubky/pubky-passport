@@ -3,7 +3,7 @@ import { Result } from "better-result";
 
 import { LOGGER } from "../../../../libs/logger/logger";
 import {
-  type GoogleWrappingKeyIssuer,
+  GoogleWrappingKeyIssuer,
   type GoogleWrappingKeyIssueErrorCode,
 } from "../../../../server/wrapping-key/google/GoogleWrappingKeyIssuer";
 import {
@@ -19,10 +19,8 @@ type GoogleWrappingKeyRouteBody =
     };
   };
 
-export function createGoogleWrappingKeyPostHandler(
-  createIssuer: () => GoogleWrappingKeyIssuer,
-) {
-  let activeIssuer: ReturnType<typeof createIssuer> | undefined;
+export function createGoogleWrappingKeyPostHandler() {
+  let activeIssuer: GoogleWrappingKeyIssuer | undefined;
 
   return async function googleWrappingKeyPost(request: Request): Promise<NextResponse<GoogleWrappingKeyRouteBody>> {
     let operation: "parse" | "compose" | "execute" = "parse";
@@ -40,7 +38,7 @@ export function createGoogleWrappingKeyPostHandler(
       }
 
       operation = "compose";
-      if (!activeIssuer) activeIssuer = createIssuer();
+      if (!activeIssuer) activeIssuer = GoogleWrappingKeyIssuer.fromEnvironment();
       operation = "execute";
       const result = await activeIssuer.issueGoogleWrappingKey(body.value);
 

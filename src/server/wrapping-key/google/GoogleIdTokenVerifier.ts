@@ -34,7 +34,7 @@ export class GoogleIdTokenVerifier {
       LOGGER.warn("identity.google.id_token_verification.failed", {
         code: "google_verifier_rejected",
       });
-      return failure();
+      return Result.err({ code: "invalid_google_id_token" });
     }
 
     let payload: GoogleIdTokenPayload | undefined;
@@ -44,14 +44,14 @@ export class GoogleIdTokenVerifier {
       LOGGER.warn("identity.google.id_token_verification.failed", {
         code: "payload_access_failed",
       });
-      return failure();
+      return Result.err({ code: "invalid_google_id_token" });
     }
 
     if (!payload) {
       LOGGER.warn("identity.google.id_token_verification.failed", {
         code: "missing_payload",
       });
-      return failure();
+      return Result.err({ code: "invalid_google_id_token" });
     }
 
     const result = validatePayload(payload, this.audience, this.now());
@@ -71,11 +71,11 @@ function validatePayload(
   now: Date,
 ): GoogleIdTokenVerificationResult {
   if (!payload.iss || !ACCEPTED_GOOGLE_ISSUERS.has(payload.iss)) {
-    return failure();
+    return Result.err({ code: "invalid_google_id_token" });
   }
 
   if (!audienceMatches(payload.aud, payload.azp, expectedAudience)) {
-    return failure();
+    return Result.err({ code: "invalid_google_id_token" });
   }
 
   const nowMilliseconds = now.getTime();
@@ -89,11 +89,11 @@ function validatePayload(
     || !Number.isFinite(payload.exp)
     || payload.exp <= nowSeconds
   ) {
-    return failure();
+    return Result.err({ code: "invalid_google_id_token" });
   }
 
   if (!payload.sub?.trim()) {
-    return failure();
+    return Result.err({ code: "invalid_google_id_token" });
   }
 
   return Result.ok({ issuer: CANONICAL_GOOGLE_ISSUER, googleSubject: payload.sub });
@@ -109,8 +109,4 @@ function audienceMatches(
   }
 
   return audience === expectedAudience;
-}
-
-function failure(): GoogleIdTokenVerificationResult {
-  return Result.err({ code: "invalid_google_id_token" });
 }

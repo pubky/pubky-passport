@@ -48,7 +48,14 @@ export class HomegateClient {
   async requestGoogleHomeserverSignupInvitation(
     googleIdToken: string,
   ): Promise<Result<HomeserverSignupInvitation, { code: HomegateSignupInvitationErrorCode }>> {
-    if (!isValidGoogleIdToken(googleIdToken)) return failure("input_validation", "homegate_invalid_request");
+    if (!isValidGoogleIdToken(googleIdToken)) {
+      LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
+        operation: "request_google_invitation",
+        stage: "input_validation",
+        code: "homegate_invalid_request",
+      });
+      return Result.err({ code: "homegate_invalid_request" });
+    }
 
     let signal: AbortSignal;
     let response: Response;
@@ -65,29 +72,66 @@ export class HomegateClient {
         signal,
       });
     } catch {
-      return failure("request", "network_failed");
+      LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
+        operation: "request_google_invitation",
+        stage: "request",
+        code: "network_failed",
+      });
+      return Result.err({ code: "network_failed" });
     }
 
     const responseText = await readBoundedText(
       response,
       response.ok ? MAX_SUCCESS_RESPONSE_BYTES : MAX_ERROR_RESPONSE_BYTES,
     );
-    if (responseText === null && signal.aborted) return failure("response_read", "network_failed");
+    if (responseText === null && signal.aborted) {
+      LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
+        operation: "request_google_invitation",
+        stage: "response_read",
+        code: "network_failed",
+      });
+      return Result.err({ code: "network_failed" });
+    }
     if (responseText === null || responseText === "too_large") {
-      return failure("response_read", response.ok ? "malformed_homegate_response" : "homegate_unavailable");
+      const code = response.ok ? "malformed_homegate_response" : "homegate_unavailable";
+      LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
+        operation: "request_google_invitation",
+        stage: "response_read",
+        code,
+      });
+      return Result.err({ code });
     }
 
-    if (!response.ok) return failure("error_response", mapHomegateError(responseText));
+    if (!response.ok) {
+      const code = mapHomegateError(responseText);
+      LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
+        operation: "request_google_invitation",
+        stage: "error_response",
+        code,
+      });
+      return Result.err({ code });
+    }
 
     let responseJson: unknown;
     try {
       responseJson = JSON.parse(responseText);
     } catch {
-      return failure("response_parse", "malformed_homegate_response");
+      LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
+        operation: "request_google_invitation",
+        stage: "response_parse",
+        code: "malformed_homegate_response",
+      });
+      return Result.err({ code: "malformed_homegate_response" });
     }
 
     const invitation = INVITATION_SCHEMA.safeParse(responseJson);
-    return invitation.success ? Result.ok(invitation.data) : failure("response_validation", "malformed_homegate_response");
+    if (invitation.success) return Result.ok(invitation.data);
+    LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
+      operation: "request_google_invitation",
+      stage: "response_validation",
+      code: "malformed_homegate_response",
+    });
+    return Result.err({ code: "malformed_homegate_response" });
   }
 }
 
@@ -115,16 +159,4 @@ function mapHomegateError(body: string): HomegateSignupInvitationErrorCode {
 function isValidGoogleIdToken(value: string): boolean {
   return value.length <= MAX_GOOGLE_ID_TOKEN_LENGTH
     && value.trim().length > 0;
-}
-
-function failure(
-  stage: "input_validation" | "request" | "response_read" | "error_response" | "response_parse" | "response_validation",
-  code: HomegateSignupInvitationErrorCode,
-) {
-  LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
-    operation: "request_google_invitation",
-    stage,
-    code,
-  });
-  return Result.err({ code });
 }

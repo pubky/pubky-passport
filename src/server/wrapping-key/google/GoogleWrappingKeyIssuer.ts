@@ -14,7 +14,6 @@ const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/
 const GOOGLE_CLIENT_ID_SCHEMA = z.string().trim().min(1, "GOOGLE_CLIENT_ID is required");
 const SERVER_SECRET_SCHEMA = z.string()
   .trim()
-  .min(1, "PASSPORT_SERVER_SECRET_BASE64 is required")
   .regex(BASE64_PATTERN, "PASSPORT_SERVER_SECRET_BASE64 must be valid base64")
   .transform((value) => Buffer.from(value, "base64"))
   .refine(
@@ -31,28 +30,47 @@ export type GoogleWrappingKeyIssueResult = ResultType<string, { code: GoogleWrap
 
 export class GoogleWrappingKeyIssuer {
   constructor(
-    private googleIdTokenVerifier: GoogleIdTokenVerifier,
-    private rateLimiter: InMemoryGoogleWrappingKeyRateLimiter,
-    private deriver: GoogleWrappingKeyDeriver,
+    googleClientId: string,
+    serverSecret: Uint8Array,
+    private googleIdTokenVerifier: GoogleIdTokenVerifier = new GoogleIdTokenVerifier(googleClientId),
+    private rateLimiter: InMemoryGoogleWrappingKeyRateLimiter = new InMemoryGoogleWrappingKeyRateLimiter(serverSecret),
+    private deriver: GoogleWrappingKeyDeriver = new GoogleWrappingKeyDeriver(serverSecret),
   ) {}
+
+  static fromEnvironment(): GoogleWrappingKeyIssuer {
+    return new GoogleWrappingKeyIssuer(
+      GOOGLE_CLIENT_ID_SCHEMA.parse(process.env.GOOGLE_CLIENT_ID),
+      SERVER_SECRET_SCHEMA.parse(process.env.PASSPORT_SERVER_SECRET_BASE64),
+    );
+  }
 
   async issueGoogleWrappingKey(googleIdToken: string): Promise<GoogleWrappingKeyIssueResult> {
     let identity: GoogleIdTokenVerificationResult;
     try {
       identity = await this.googleIdTokenVerifier.verifyGoogleIdToken(googleIdToken);
     } catch {
-      return dependencyFailure("verify");
+      LOGGER.error("identity.google.wrapping_key.failed", {
+        layer: "server",
+        operation: "verify",
+        code: "dependency_unavailable",
+      });
+      return Result.err({ code: "dependency_unavailable" });
     }
 
     if (Result.isError(identity)) {
-      return failure(identity.error.code);
+      return Result.err({ code: identity.error.code });
     }
 
     let allowed: boolean;
     try {
       allowed = this.rateLimiter.tryConsumeRequest(identity.value);
     } catch {
-      return dependencyFailure("rate_limit");
+      LOGGER.error("identity.google.wrapping_key.failed", {
+        layer: "server",
+        operation: "rate_limit",
+        code: "dependency_unavailable",
+      });
+      return Result.err({ code: "dependency_unavailable" });
     }
 
     if (!allowed) {
@@ -61,41 +79,18 @@ export class GoogleWrappingKeyIssuer {
         operation: "rate_limit",
         code: "rate_limited",
       });
-      return failure("rate_limited");
+      return Result.err({ code: "rate_limited" });
     }
 
     try {
       return Result.ok(this.deriver.deriveWrappingKey(identity.value));
     } catch {
-      return dependencyFailure("derive");
+      LOGGER.error("identity.google.wrapping_key.failed", {
+        layer: "server",
+        operation: "derive",
+        code: "dependency_unavailable",
+      });
+      return Result.err({ code: "dependency_unavailable" });
     }
   }
-}
-
-export function createConfiguredGoogleWrappingKeyIssuer(): GoogleWrappingKeyIssuer {
-  const googleClientId = GOOGLE_CLIENT_ID_SCHEMA.parse(process.env.GOOGLE_CLIENT_ID);
-  const serverSecret = SERVER_SECRET_SCHEMA.parse(process.env.PASSPORT_SERVER_SECRET_BASE64);
-
-  try {
-    return new GoogleWrappingKeyIssuer(
-      new GoogleIdTokenVerifier(googleClientId),
-      new InMemoryGoogleWrappingKeyRateLimiter(serverSecret),
-      new GoogleWrappingKeyDeriver(serverSecret),
-    );
-  } finally {
-    serverSecret.fill(0);
-  }
-}
-
-function failure(code: GoogleWrappingKeyIssueErrorCode): GoogleWrappingKeyIssueResult {
-  return Result.err({ code });
-}
-
-function dependencyFailure(operation: "verify" | "rate_limit" | "derive"): GoogleWrappingKeyIssueResult {
-  LOGGER.error("identity.google.wrapping_key.failed", {
-    layer: "server",
-    operation,
-    code: "dependency_unavailable",
-  });
-  return failure("dependency_unavailable");
 }

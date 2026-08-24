@@ -6,11 +6,7 @@ import { expectAsyncResultError } from "../../../../test-utils/resultAssertions"
 import { GoogleIdTokenVerifier } from "./GoogleIdTokenVerifier";
 import { GoogleWrappingKeyDeriver } from "./GoogleWrappingKeyDeriver";
 import { InMemoryGoogleWrappingKeyRateLimiter } from "./InMemoryGoogleWrappingKeyRateLimiter";
-import type { VerifiedGoogleIdentity } from "./googleIdTokenVerification";
-import {
-  createConfiguredGoogleWrappingKeyIssuer,
-  GoogleWrappingKeyIssuer,
-} from "./GoogleWrappingKeyIssuer";
+import { GoogleWrappingKeyIssuer } from "./GoogleWrappingKeyIssuer";
 
 const IDENTITY = {
   issuer: "https://accounts.google.com" as const,
@@ -127,28 +123,28 @@ describe("Google wrapping-key issuer", () => {
     vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
     vi.stubEnv("PASSPORT_SERVER_SECRET_BASE64", Buffer.alloc(32, 1).toString("base64"));
 
-    expect(createConfiguredGoogleWrappingKeyIssuer()).toBeInstanceOf(GoogleWrappingKeyIssuer);
+    expect(GoogleWrappingKeyIssuer.fromEnvironment()).toBeInstanceOf(GoogleWrappingKeyIssuer);
   });
 
   it.each(["not-base64!", "base64url_value"])("rejects invalid base64 server secret %s", (value) => {
     vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
     vi.stubEnv("PASSPORT_SERVER_SECRET_BASE64", value);
 
-    expect(() => createConfiguredGoogleWrappingKeyIssuer()).toThrow();
+    expect(() => GoogleWrappingKeyIssuer.fromEnvironment()).toThrow();
   });
 
   it("rejects a server secret shorter than 32 decoded bytes", () => {
     vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
     vi.stubEnv("PASSPORT_SERVER_SECRET_BASE64", Buffer.alloc(31, 1).toString("base64"));
 
-    expect(() => createConfiguredGoogleWrappingKeyIssuer()).toThrow();
+    expect(() => GoogleWrappingKeyIssuer.fromEnvironment()).toThrow();
   });
 
   it("requires server secret configuration", () => {
     vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
     vi.stubEnv("PASSPORT_SERVER_SECRET_BASE64", undefined);
 
-    expect(() => createConfiguredGoogleWrappingKeyIssuer()).toThrow();
+    expect(() => GoogleWrappingKeyIssuer.fromEnvironment()).toThrow();
   });
 });
 
@@ -157,39 +153,8 @@ function testIssuer(
   tryConsumeRequest: InMemoryGoogleWrappingKeyRateLimiter["tryConsumeRequest"],
   deriveWrappingKey: GoogleWrappingKeyDeriver["deriveWrappingKey"],
 ): GoogleWrappingKeyIssuer {
-  return new GoogleWrappingKeyIssuer(
-    new TestGoogleIdTokenVerifier(verifyGoogleIdToken),
-    new TestGoogleWrappingKeyRateLimiter(tryConsumeRequest),
-    new TestGoogleWrappingKeyDeriver(deriveWrappingKey),
-  );
-}
-
-class TestGoogleIdTokenVerifier extends GoogleIdTokenVerifier {
-  constructor(private verify: GoogleIdTokenVerifier["verifyGoogleIdToken"]) {
-    super("test-client");
-  }
-
-  override verifyGoogleIdToken(idToken: string) {
-    return this.verify(idToken);
-  }
-}
-
-class TestGoogleWrappingKeyRateLimiter extends InMemoryGoogleWrappingKeyRateLimiter {
-  constructor(private tryConsume: InMemoryGoogleWrappingKeyRateLimiter["tryConsumeRequest"]) {
-    super(new Uint8Array(32));
-  }
-
-  override tryConsumeRequest(identity: VerifiedGoogleIdentity): boolean {
-    return this.tryConsume(identity);
-  }
-}
-
-class TestGoogleWrappingKeyDeriver extends GoogleWrappingKeyDeriver {
-  constructor(private derive: GoogleWrappingKeyDeriver["deriveWrappingKey"]) {
-    super(new Uint8Array(32));
-  }
-
-  override deriveWrappingKey(identity: VerifiedGoogleIdentity): string {
-    return this.derive(identity);
-  }
+  vi.spyOn(GoogleIdTokenVerifier.prototype, "verifyGoogleIdToken").mockImplementation(verifyGoogleIdToken);
+  vi.spyOn(InMemoryGoogleWrappingKeyRateLimiter.prototype, "tryConsumeRequest").mockImplementation(tryConsumeRequest);
+  vi.spyOn(GoogleWrappingKeyDeriver.prototype, "deriveWrappingKey").mockImplementation(deriveWrappingKey);
+  return new GoogleWrappingKeyIssuer("test-client", new Uint8Array(32));
 }

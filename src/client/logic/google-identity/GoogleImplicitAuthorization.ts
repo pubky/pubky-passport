@@ -83,7 +83,14 @@ export class GoogleImplicitAuthorization {
   ) {}
 
   request(loginHint?: string): Promise<GoogleImplicitAuthorizationResult<GoogleIdentityCredentials>> {
-    if (this.activeAttempt) return Promise.resolve(failure("request", "google_authorization_failed"));
+    if (this.activeAttempt) {
+      LOGGER.warn("identity.google.implicit_authorization.failed", {
+        operation: "authorize",
+        stage: "request",
+        code: "google_authorization_failed",
+      });
+      return Promise.resolve(Result.err({ code: "google_authorization_failed" }));
+    }
     const state = randomBase64Url(32);
     const nonce = randomBase64Url(32);
     const url = new URL(GOOGLE_AUTHORIZE_URL);
@@ -100,7 +107,14 @@ export class GoogleImplicitAuthorization {
     }).toString();
 
     const popup = this.open(url, `pubky-passport-google-${state}`, "popup,width=520,height=680");
-    if (!popup) return Promise.resolve(failure("popup", "google_authorization_popup_failed_to_open"));
+    if (!popup) {
+      LOGGER.warn("identity.google.implicit_authorization.failed", {
+        operation: "authorize",
+        stage: "popup",
+        code: "google_authorization_popup_failed_to_open",
+      });
+      return Promise.resolve(Result.err({ code: "google_authorization_popup_failed_to_open" }));
+    }
 
     return new Promise((resolve) => {
       const attempt: AuthorizationAttempt = {
@@ -130,7 +144,12 @@ export class GoogleImplicitAuthorization {
       globalThis.window.addEventListener("message", attempt.messageListener);
       attempt.poll = setInterval(() => this.inspectPopup(attempt), POPUP_POLL_MS);
       attempt.timeout = setTimeout(() => {
-        this.finish(attempt, failure("timeout", "google_authorization_failed"));
+        LOGGER.warn("identity.google.implicit_authorization.failed", {
+          operation: "authorize",
+          stage: "timeout",
+          code: "google_authorization_failed",
+        });
+        this.finish(attempt, Result.err({ code: "google_authorization_failed" }));
       }, AUTHORIZATION_TIMEOUT_MS);
     });
   }
@@ -160,20 +179,42 @@ export class GoogleImplicitAuthorization {
       || capture.type !== GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE
       || capture.status !== "captured"
       || typeof capture.hash !== "string") {
-      return failure("response", "google_authorization_failed");
+      LOGGER.warn("identity.google.implicit_authorization.failed", {
+        operation: "authorize",
+        stage: "response",
+        code: "google_authorization_failed",
+      });
+      return Result.err({ code: "google_authorization_failed" });
     }
     const rawFragment = capture.hash;
-    if (rawFragment.length === 0 || rawFragment.length > EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS) return failure("response", "google_authorization_failed");
+    if (rawFragment.length === 0 || rawFragment.length > EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS) {
+      LOGGER.warn("identity.google.implicit_authorization.failed", {
+        operation: "authorize",
+        stage: "response",
+        code: "google_authorization_failed",
+      });
+      return Result.err({ code: "google_authorization_failed" });
+    }
     const params = new URLSearchParams(rawFragment.slice(1));
     const state = oneValue(params, "state");
     if (params.has("error")) {
-      if (state !== attempt.state) return failure("response", "google_authorization_failed");
-      return failure(
-        "response",
-        oneValue(params, "error") === "access_denied"
-          ? "google_authorization_denied"
-          : "google_authorization_failed",
-      );
+      if (state !== attempt.state) {
+        LOGGER.warn("identity.google.implicit_authorization.failed", {
+          operation: "authorize",
+          stage: "response",
+          code: "google_authorization_failed",
+        });
+        return Result.err({ code: "google_authorization_failed" });
+      }
+      const code = oneValue(params, "error") === "access_denied"
+        ? "google_authorization_denied"
+        : "google_authorization_failed";
+      LOGGER.warn("identity.google.implicit_authorization.failed", {
+        operation: "authorize",
+        stage: "response",
+        code,
+      });
+      return Result.err({ code });
     }
     const idToken = oneValue(params, "id_token");
     const accessToken = oneValue(params, "access_token");
@@ -182,10 +223,22 @@ export class GoogleImplicitAuthorization {
       || !boundedToken(idToken)
       || !boundedToken(accessToken)
       || !hasAllowedScopes(scope)) {
-      return failure("response", "google_authorization_failed");
+      LOGGER.warn("identity.google.implicit_authorization.failed", {
+        operation: "authorize",
+        stage: "response",
+        code: "google_authorization_failed",
+      });
+      return Result.err({ code: "google_authorization_failed" });
     }
     const googleSubject = readBoundedIdTokenSubject(idToken, attempt.nonce);
-    if (!googleSubject) return failure("id_token", "google_authorization_failed");
+    if (!googleSubject) {
+      LOGGER.warn("identity.google.implicit_authorization.failed", {
+        operation: "authorize",
+        stage: "id_token",
+        code: "google_authorization_failed",
+      });
+      return Result.err({ code: "google_authorization_failed" });
+    }
     const account = await this.fetchGoogleAccount(accessToken, googleSubject, attempt.abortController.signal);
     return Result.isError(account)
       ? Result.err(account.error)
@@ -207,15 +260,32 @@ export class GoogleImplicitAuthorization {
         signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
       });
       const text = response.ok ? await readBoundedText(response, MAXIMUM_USER_INFO_BYTES) : null;
-      if (!text || text === "too_large") return failure("userinfo", "google_authorization_failed");
+      if (!text || text === "too_large") {
+        LOGGER.warn("identity.google.implicit_authorization.failed", {
+          operation: "authorize",
+          stage: "userinfo",
+          code: "google_authorization_failed",
+        });
+        return Result.err({ code: "google_authorization_failed" });
+      }
       const value: unknown = JSON.parse(text);
       if (!isGoogleUserInfo(value) || value.sub !== expectedGoogleSubject) {
-        return failure("account_binding", "google_authorization_failed");
+        LOGGER.warn("identity.google.implicit_authorization.failed", {
+          operation: "authorize",
+          stage: "account_binding",
+          code: "google_authorization_failed",
+        });
+        return Result.err({ code: "google_authorization_failed" });
       }
       const pictureUrl = value.picture ? await this.fetchAvatar(value.picture, signal) : null;
       return Result.ok({ googleSubject: value.sub, email: value.email, name: value.name, pictureUrl });
     } catch {
-      return failure("userinfo", "google_authorization_failed");
+      LOGGER.warn("identity.google.implicit_authorization.failed", {
+        operation: "authorize",
+        stage: "userinfo",
+        code: "google_authorization_failed",
+      });
+      return Result.err({ code: "google_authorization_failed" });
     }
   }
 
@@ -322,12 +392,4 @@ function bytesToBase64(bytes: Uint8Array): string {
     binary += String.fromCharCode(...bytes.subarray(offset, offset + 32_768));
   }
   return btoa(binary);
-}
-
-function failure<Success>(stage: string, code: GoogleImplicitAuthorizationErrorCode): GoogleImplicitAuthorizationResult<Success> {
-  LOGGER[code === "google_authorization_popup_closed" ? "info" : "warn"](
-    "identity.google.implicit_authorization.failed",
-    { operation: "authorize", stage, code },
-  );
-  return Result.err({ code });
 }

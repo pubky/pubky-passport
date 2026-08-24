@@ -52,37 +52,54 @@ export class GoogleWrappingKeyApiClient {
         referrerPolicy: "no-referrer",
       });
     } catch {
-      return failure("request", "network_failed");
+      LOGGER.warn("identity.google.wrapping_key.failed", {
+        operation: "request_google_wrapping_key",
+        stage: "request",
+        code: "network_failed",
+      });
+      return Result.err({ code: "network_failed" });
     }
 
     const contents = await readBoundedText(response, MAXIMUM_RESPONSE_BYTES);
-    if (contents === null || contents === "too_large") return failure("response_read", "invalid_response");
+    if (contents === null || contents === "too_large") {
+      LOGGER.warn("identity.google.wrapping_key.failed", {
+        operation: "request_google_wrapping_key",
+        stage: "response_read",
+        code: "invalid_response",
+      });
+      return Result.err({ code: "invalid_response" });
+    }
 
     let body: unknown;
     try {
       body = JSON.parse(contents);
     } catch {
-      return failure("response_parse", "invalid_response");
+      LOGGER.warn("identity.google.wrapping_key.failed", {
+        operation: "request_google_wrapping_key",
+        stage: "response_parse",
+        code: "invalid_response",
+      });
+      return Result.err({ code: "invalid_response" });
     }
 
     if (!response.ok) {
       const parsed = ERROR_RESPONSE_SCHEMA.safeParse(body);
-      return failure("error_response", parsed.success ? parsed.data.error.code : "invalid_response");
+      const code = parsed.success ? parsed.data.error.code : "invalid_response";
+      LOGGER.warn("identity.google.wrapping_key.failed", {
+        operation: "request_google_wrapping_key",
+        stage: "error_response",
+        code,
+      });
+      return Result.err({ code });
     }
 
     const parsed = SUCCESS_RESPONSE_SCHEMA.safeParse(body);
-    return parsed.success ? Result.ok(parsed.data.wrappingKey) : failure("response_validation", "invalid_response");
+    if (parsed.success) return Result.ok(parsed.data.wrappingKey);
+    LOGGER.warn("identity.google.wrapping_key.failed", {
+      operation: "request_google_wrapping_key",
+      stage: "response_validation",
+      code: "invalid_response",
+    });
+    return Result.err({ code: "invalid_response" });
   }
-}
-
-function failure(
-  stage: "request" | "response_read" | "response_parse" | "error_response" | "response_validation",
-  code: GoogleWrappingKeyErrorCode,
-): GoogleWrappingKeyResult {
-  LOGGER.warn("identity.google.wrapping_key.failed", {
-    operation: "request_google_wrapping_key",
-    stage,
-    code,
-  });
-  return Result.err({ code });
 }

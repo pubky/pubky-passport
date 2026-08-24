@@ -87,25 +87,6 @@ const ESLINT_CONFIG = defineConfig([
       ]
     }
   },
-  {
-    files: ["src/app/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
-    ignores: [
-      "src/app/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
-      "src/app/api/wrapping-key/google/route.ts"
-    ],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [{
-            regex: "(?:^|/)GoogleWrappingKeyIssuer$",
-            importNames: ["createConfiguredGoogleWrappingKeyIssuer"],
-            message: "The wrapping-key secret bootstrap is confined to its API route."
-          }]
-        }
-      ]
-    }
-  },
 ]);
 
 export default ESLINT_CONFIG;
