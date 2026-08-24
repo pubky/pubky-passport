@@ -375,7 +375,7 @@ export class GoogleIdentityOperations {
     }
   }
 
-  /** Decrypts exactly 32 secret bytes, restores the key, and always clears the bytes. */
+  /** Decrypts exactly 32 secret bytes; the Pubky adapter consumes and clears them during restoration. */
   private async restoreKey(
     envelope: PassportFileEnvelopeV1,
     wrappingKey: string,
@@ -388,17 +388,13 @@ export class GoogleIdentityOperations {
     );
     if (Result.isError(secretKey)) return Result.err({ code: "decrypt_failed" });
 
-    try {
-      const restored = await this.pubky.restoreIdentityKey({
-        bytes: secretKey.value,
-        format: PUBKY_SECRET_KEY_FORMAT,
-      });
-      if (Result.isError(restored)) return Result.err({ code: "restore_failed" });
-      LOGGER.info("identity.google.restore.completed");
-      return Result.ok(restored.value);
-    } finally {
-      secretKey.value.fill(0);
-    }
+    const restored = await this.pubky.restoreIdentityKey({
+      bytes: secretKey.value,
+      format: PUBKY_SECRET_KEY_FORMAT,
+    });
+    if (Result.isError(restored)) return Result.err({ code: "restore_failed" });
+    LOGGER.info("identity.google.restore.completed");
+    return Result.ok(restored.value);
   }
 
   /**

@@ -39,7 +39,7 @@ describe("RecoveryFileDownload", () => {
     expect(createObjectURL).toHaveBeenCalledOnce();
     expect(click).toHaveBeenCalledOnce();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:backup");
-    expect(bytes).toEqual(new Uint8Array(3));
+    expect(bytes).toEqual(new Uint8Array([1, 2, 3]));
     expect(MOCKS.showDownloadConfirmation).toHaveBeenCalledOnce();
     expect(onBack).toHaveBeenCalledOnce();
   });

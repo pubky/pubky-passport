@@ -133,7 +133,10 @@ describe("GoogleIdentityOperations", () => {
       bytes: new Uint8Array(32).fill(7),
       format: "pubky-secret-key",
     }));
-    MOCKS.restoreIdentityKey.mockResolvedValue(Result.ok(IDENTITY));
+    MOCKS.restoreIdentityKey.mockImplementation(async (secretKey: { bytes: Uint8Array }) => {
+      secretKey.bytes.fill(0);
+      return Result.ok(IDENTITY);
+    });
     MOCKS.signup.mockResolvedValue(Result.ok({ publicIdentity: PUBLIC_IDENTITY }));
     MOCKS.signin.mockResolvedValue(Result.ok({ publicIdentity: PUBLIC_IDENTITY }));
     MOCKS.resolveHomeserver.mockResolvedValue(Result.ok(null));
@@ -574,11 +577,14 @@ describe("GoogleIdentityOperations", () => {
     expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
   });
 
-  it("clears decrypted bytes when key restoration fails", async () => {
+  it("relies on the Pubky adapter to clear decrypted bytes when key restoration fails", async () => {
     const decryptedBytes = new Uint8Array(32).fill(9);
     foundPassportFile();
     MOCKS.decryptSecretKeyBytes.mockResolvedValue(Result.ok(decryptedBytes));
-    MOCKS.restoreIdentityKey.mockResolvedValue(Result.err({ code: "restore_failed" }));
+    MOCKS.restoreIdentityKey.mockImplementation(async (secretKey: { bytes: Uint8Array }) => {
+      secretKey.bytes.fill(0);
+      return Result.err({ code: "restore_failed" });
+    });
 
     expectResultError(
       await createSubject().establishIdentity(CREDENTIALS, () => undefined),

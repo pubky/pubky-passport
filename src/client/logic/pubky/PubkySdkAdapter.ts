@@ -56,13 +56,9 @@ export type PubkyPublicationInput = {
  * UI state while this adapter owns all SDK resource cleanup.
  */
 export class PubkySdkAdapter {
-  private pubky: Pubky;
+  private readonly pubky = new Pubky();
   private keypairs = new Map<PubkyIdentityKeyHandle, Keypair>();
   private disposed = false;
-
-  constructor() {
-    this.pubky = new Pubky();
-  }
 
   async createIdentityKey(): Promise<PubkyIdentityKeysResult<PubkyIdentityKey>> {
     if (this.disposed) {

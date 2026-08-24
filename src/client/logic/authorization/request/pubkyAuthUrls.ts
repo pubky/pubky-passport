@@ -1,6 +1,6 @@
 import "client-only";
 
-import { Result, type Err, type Result as ResultType } from "better-result";
+import { Result, type Result as ResultType } from "better-result";
 
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 
@@ -46,11 +46,11 @@ function validateRelayUrl(
   value: string | null,
 ): ResultType<void, PubkyAuthUrlValidationError> {
   if (!value) {
-    return error("missing_relay");
+    return Result.err<never, PubkyAuthUrlValidationError>({ code: "missing_relay" });
   }
 
   if (value.length > PUBKY_AUTH_REQUEST_LIMITS.maximumRelayUrlCodeUnits) {
-    return error("invalid_relay");
+    return Result.err<never, PubkyAuthUrlValidationError>({ code: "invalid_relay" });
   }
 
   const parsed = parseAbsoluteUrl(value);
@@ -63,7 +63,7 @@ function validateRelayUrl(
     parsed.port !== "" ||
     !isExactRelayHostname(parsed.hostname)
   ) {
-    return error("invalid_relay");
+    return Result.err<never, PubkyAuthUrlValidationError>({ code: "invalid_relay" });
   }
 
   return Result.ok();
@@ -125,7 +125,7 @@ function validateCallbacks(
       .map((callback) => callback.origin),
   );
   if (callbackOrigins.size > 1) {
-    return error("invalid_callback");
+    return Result.err<never, PubkyAuthUrlValidationError>({ code: "invalid_callback" });
   }
 
   return Result.ok(callbacks);
@@ -151,7 +151,7 @@ function validateEncodedCallback(
     // without converting a literal plus sign into a space.
     return validateOptionalCallback(decodeURIComponent(value));
   } catch {
-    return error("invalid_callback");
+    return Result.err<never, PubkyAuthUrlValidationError>({ code: "invalid_callback" });
   }
 }
 
@@ -170,12 +170,12 @@ function validateOptionalCallback(
   }
 
   if (value.length > PUBKY_AUTH_REQUEST_LIMITS.maximumCallbackUrlCodeUnits) {
-    return error("invalid_callback");
+    return Result.err<never, PubkyAuthUrlValidationError>({ code: "invalid_callback" });
   }
 
   const parsed = parseAbsoluteUrl(value);
   if (parsed === null || parsed.protocol !== "https:") {
-    return error("invalid_callback");
+    return Result.err<never, PubkyAuthUrlValidationError>({ code: "invalid_callback" });
   }
 
   return Result.ok(parsed);
@@ -187,10 +187,4 @@ function parseAbsoluteUrl(value: string): URL | null {
   } catch {
     return null;
   }
-}
-
-function error(
-  code: PubkyAuthUrlValidationErrorCode,
-): Err<never, PubkyAuthUrlValidationError> {
-  return Result.err<never, PubkyAuthUrlValidationError>({ code });
 }

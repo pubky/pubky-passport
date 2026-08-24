@@ -160,7 +160,10 @@ export class LocalStorageIdentityRepository {
     }
 
     const secretKey = decodeStoredSecretKey(storedIdentity.secretKey);
-    if (!secretKey) return localStoreFailure("read", "invalid_store");
+    if (!secretKey) {
+      LOGGER.warn("identity.local_store.failed", { operation: "read", code: "invalid_store" });
+      return Result.err({ code: "invalid_store" });
+    }
     return Result.ok({
       identity: toMetadata(storedIdentity),
       secretKey: { bytes: secretKey, format: PUBKY_SECRET_KEY_FORMAT },
@@ -169,14 +172,16 @@ export class LocalStorageIdentityRepository {
 
   private readStore(): LocalIdentityResult<LocalIdentityStore> {
     if (!this.storage) {
-      return localStoreFailure("read", "storage_unavailable");
+      LOGGER.warn("identity.local_store.failed", { operation: "read", code: "storage_unavailable" });
+      return Result.err({ code: "storage_unavailable" });
     }
 
     let stored: string | null;
     try {
       stored = this.storage.getItem(STORAGE_KEY);
     } catch {
-      return localStoreFailure("read", "storage_unavailable");
+      LOGGER.warn("identity.local_store.failed", { operation: "read", code: "storage_unavailable" });
+      return Result.err({ code: "storage_unavailable" });
     }
 
     if (stored === null) {
@@ -188,14 +193,16 @@ export class LocalStorageIdentityRepository {
 
   private writeStore(store: LocalIdentityStore): LocalIdentityResult<void> {
     if (!this.storage) {
-      return localStoreFailure("write", "storage_unavailable");
+      LOGGER.warn("identity.local_store.failed", { operation: "write", code: "storage_unavailable" });
+      return Result.err({ code: "storage_unavailable" });
     }
 
     try {
       this.storage.setItem(STORAGE_KEY, JSON.stringify(store));
       return Result.ok();
     } catch {
-      return localStoreFailure("write", "storage_unavailable");
+      LOGGER.warn("identity.local_store.failed", { operation: "write", code: "storage_unavailable" });
+      return Result.err({ code: "storage_unavailable" });
     }
   }
 }
@@ -211,9 +218,12 @@ function getLocalStorage(): Storage | null {
 function parseStore(value: string): LocalIdentityResult<LocalIdentityStore> {
   try {
     const parsed: unknown = JSON.parse(value);
-    return isStore(parsed) ? Result.ok(parsed) : localStoreFailure("read", "invalid_store");
+    if (isStore(parsed)) return Result.ok(parsed);
+    LOGGER.warn("identity.local_store.failed", { operation: "read", code: "invalid_store" });
+    return Result.err({ code: "invalid_store" });
   } catch {
-    return localStoreFailure("read", "invalid_store");
+    LOGGER.warn("identity.local_store.failed", { operation: "read", code: "invalid_store" });
+    return Result.err({ code: "invalid_store" });
   }
 }
 
@@ -294,12 +304,4 @@ function toMetadata(identity: StoredLocalIdentity): LocalIdentityMetadata {
 function decodeStoredSecretKey(value: string): Uint8Array | undefined {
   const decoded = decodeBase64Url(value);
   return decoded?.byteLength === PUBKY_SECRET_KEY_BYTES ? decoded : undefined;
-}
-
-function localStoreFailure<Success>(
-  operation: "read" | "write",
-  code: "storage_unavailable" | "invalid_store",
-): LocalIdentityResult<Success> {
-  LOGGER.warn("identity.local_store.failed", { operation, code });
-  return Result.err({ code });
 }

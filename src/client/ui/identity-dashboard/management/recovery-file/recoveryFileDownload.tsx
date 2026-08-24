@@ -101,8 +101,6 @@ function downloadFile(file: LocalIdentityRecoveryFile): boolean {
     return true;
   } catch {
     return false;
-  } finally {
-    file.bytes.fill(0);
   }
 }
 

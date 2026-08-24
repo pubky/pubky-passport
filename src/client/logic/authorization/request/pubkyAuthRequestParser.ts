@@ -1,6 +1,6 @@
 import "client-only";
 
-import { Result, type Err, type Result as ResultType } from "better-result";
+import { Result, type Result as ResultType } from "better-result";
 
 import {
   parsePubkyAuthCapabilities,
@@ -90,11 +90,11 @@ export function parseEncodedPubkyAuthRequest(
   encodedRequest: unknown,
 ): PubkyAuthParseResult {
   if (typeof encodedRequest !== "string" || encodedRequest.length === 0) {
-    return error("missing_d");
+    return Result.err<never, PubkyAuthParseError>({ code: "missing_d" });
   }
 
   if (encodedRequest.length > PUBKY_AUTH_REQUEST_LIMITS.maximumEncodedDCodeUnits) {
-    return error("request_too_large");
+    return Result.err<never, PubkyAuthParseError>({ code: "request_too_large" });
   }
 
   const decoded = decodeDParam(encodedRequest);
@@ -103,11 +103,11 @@ export function parseEncodedPubkyAuthRequest(
   }
 
   if (decoded.value.length > PUBKY_AUTH_REQUEST_LIMITS.maximumDecodedAuthUrlCodeUnits) {
-    return error("request_too_large");
+    return Result.err<never, PubkyAuthParseError>({ code: "request_too_large" });
   }
 
   if (decoded.value === encodedRequest) {
-    return error("invalid_encoding");
+    return Result.err<never, PubkyAuthParseError>({ code: "invalid_encoding" });
   }
 
   const authUrl = parseUrl(decoded.value);
@@ -116,7 +116,7 @@ export function parseEncodedPubkyAuthRequest(
   }
 
   if (authUrl.value.protocol !== PUBKY_AUTH_PROTOCOL) {
-    return error("unsupported_scheme");
+    return Result.err<never, PubkyAuthParseError>({ code: "unsupported_scheme" });
   }
 
   const authenticationMethod = parseAuthenticationMethod(authUrl.value);
@@ -126,14 +126,14 @@ export function parseEncodedPubkyAuthRequest(
 
   const secret = authUrl.value.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.secret);
   if (!secret) {
-    return error("missing_secret");
+    return Result.err<never, PubkyAuthParseError>({ code: "missing_secret" });
   }
 
   if (
     secret.length > PUBKY_AUTH_REQUEST_LIMITS.maximumSecretCodeUnits ||
     !isCanonicalAuthSecret(secret)
   ) {
-    return error("invalid_secret");
+    return Result.err<never, PubkyAuthParseError>({ code: "invalid_secret" });
   }
 
   const parameters = validatePubkyAuthRequestParameters(
@@ -159,12 +159,12 @@ export function parseEncodedPubkyAuthRequest(
 
   const requestedCapabilities = authUrl.value.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.capabilities);
   if (requestedCapabilities === null) {
-    return error("missing_capabilities");
+    return Result.err<never, PubkyAuthParseError>({ code: "missing_capabilities" });
   }
 
   const capabilities = parsePubkyAuthCapabilities(requestedCapabilities);
   if (Result.isError(capabilities)) {
-    return error(mapCapabilitiesError(capabilities.error));
+    return Result.err<never, PubkyAuthParseError>({ code: mapCapabilitiesError(capabilities.error) });
   }
 
   const normalizedCapabilities = requestedCapabilities.normalize("NFC");
@@ -189,7 +189,7 @@ function decodeDParam(d: string): ParseValueResult<string> {
   try {
     return Result.ok(decodeURIComponent(d));
   } catch {
-    return error("invalid_encoding");
+    return Result.err<never, PubkyAuthParseError>({ code: "invalid_encoding" });
   }
 }
 
@@ -197,7 +197,7 @@ function parseUrl(value: string): ParseValueResult<URL> {
   try {
     return Result.ok(new URL(value));
   } catch {
-    return error("invalid_url");
+    return Result.err<never, PubkyAuthParseError>({ code: "invalid_url" });
   }
 }
 
@@ -214,7 +214,7 @@ function parseAuthenticationMethod(url: URL): ParseValueResult<PubkyAuthenticati
     return Result.ok("cookie");
   }
 
-  return error("invalid_auth_request_path");
+  return Result.err<never, PubkyAuthParseError>({ code: "invalid_auth_request_path" });
 }
 
 function validatePubkyAuthRequestParameters(
@@ -228,11 +228,11 @@ function validatePubkyAuthRequestParameters(
 
   for (const [name] of searchParams) {
     if (!supportedParameters.has(name)) {
-      return error("unsupported_parameter");
+      return Result.err<never, PubkyAuthParseError>({ code: "unsupported_parameter" });
     }
 
     if (seen.has(name)) {
-      return error("duplicate_parameter");
+      return Result.err<never, PubkyAuthParseError>({ code: "duplicate_parameter" });
     }
 
     seen.add(name);
@@ -249,18 +249,18 @@ function validateGrantParameters(
 
   const clientId = url.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.clientId);
   if (clientId === null || clientId.length === 0) {
-    return error("missing_client_id");
+    return Result.err<never, PubkyAuthParseError>({ code: "missing_client_id" });
   }
   if (utf8Length(clientId) > PUBKY_AUTH_REQUEST_LIMITS.maximumClientIdUtf8Bytes) {
-    return error("invalid_client_id");
+    return Result.err<never, PubkyAuthParseError>({ code: "invalid_client_id" });
   }
 
   const clientPublicKey = url.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.clientPublicKey);
   if (clientPublicKey === null || clientPublicKey.length === 0) {
-    return error("missing_client_public_key");
+    return Result.err<never, PubkyAuthParseError>({ code: "missing_client_public_key" });
   }
   if (!isCanonicalPublicKey(clientPublicKey)) {
-    return error("invalid_client_public_key");
+    return Result.err<never, PubkyAuthParseError>({ code: "invalid_client_public_key" });
   }
 
   return Result.ok();
@@ -293,10 +293,4 @@ function mapCapabilitiesError(
   return capabilitiesError.code === "missing_capabilities"
     ? "missing_capabilities"
     : "invalid_capability";
-}
-
-function error(
-  code: PubkyAuthParseErrorCode,
-): Err<never, PubkyAuthParseError> {
-  return Result.err<never, PubkyAuthParseError>({ code });
 }

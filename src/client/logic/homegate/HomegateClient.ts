@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { readBoundedText } from "../../../libs/http/boundedBody";
 import { LOGGER } from "../../../libs/logger/logger";
+import { isPubkyPublicKey } from "../pubky/pubkyIdentityKey";
 
 export type HomeserverSignupInvitation = {
   signupCode: string;
@@ -24,15 +25,15 @@ export type HomegateSignupInvitationErrorCode =
 
 const MAX_SUCCESS_RESPONSE_BYTES = 16 * 1024;
 const MAX_ERROR_RESPONSE_BYTES = 256;
-const MAX_INVITATION_FIELD_LENGTH = 1024;
+const MAX_SIGNUP_CODE_LENGTH = 1024;
 const MAX_GOOGLE_ID_TOKEN_LENGTH = 16 * 1024;
 const REQUEST_TIMEOUT_MS = 10_000;
 const GOOGLE_VERIFICATION_PATH = "google_verification";
-const INVITATION_FIELD_SCHEMA = z.string().min(1).max(MAX_INVITATION_FIELD_LENGTH)
+const SIGNUP_CODE_SCHEMA = z.string().min(1).max(MAX_SIGNUP_CODE_LENGTH)
   .refine((value) => value.trim().length > 0);
 const INVITATION_SCHEMA = z.object({
-  signupCode: INVITATION_FIELD_SCHEMA,
-  homeserverPubky: INVITATION_FIELD_SCHEMA,
+  signupCode: SIGNUP_CODE_SCHEMA,
+  homeserverPubky: z.string().refine(isPubkyPublicKey),
 }).strict();
 
 export class HomegateClient {

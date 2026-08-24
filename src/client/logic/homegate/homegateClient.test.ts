@@ -5,6 +5,7 @@ import { LOGGER } from "../../../libs/logger/logger";
 import { HomegateClient, type HomegateSignupInvitationErrorCode } from "./HomegateClient";
 
 const HOMEGATE_BASE_URL = "https://homegate.example/";
+const HOMESERVER_PUBKY = "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo";
 const HOMEGATE_ERROR_CASES = [
   ["invalid_request", "homegate_invalid_request"],
   ["invalid_google_id_token", "invalid_google_id_token"],
@@ -16,12 +17,13 @@ const HOMEGATE_ERROR_CASES = [
   ["unknown error containing SECRET-GOOGLE-ID-TOKEN", "malformed_homegate_response"],
 ] satisfies ReadonlyArray<readonly [string, HomegateSignupInvitationErrorCode]>;
 const MALFORMED_SUCCESS_CASES = [
-  ["an unknown field", () => jsonResponse({ signupCode: "code", homeserverPubky: "home", extra: "unsafe" })],
-  ["an empty signup code", () => jsonResponse({ signupCode: "", homeserverPubky: "home" })],
-  ["an oversized signup code", () => jsonResponse({ signupCode: "x".repeat(1025), homeserverPubky: "home" })],
+  ["an unknown field", () => jsonResponse({ signupCode: "code", homeserverPubky: HOMESERVER_PUBKY, extra: "unsafe" })],
+  ["an empty signup code", () => jsonResponse({ signupCode: "", homeserverPubky: HOMESERVER_PUBKY })],
+  ["an oversized signup code", () => jsonResponse({ signupCode: "x".repeat(1025), homeserverPubky: HOMESERVER_PUBKY })],
   ["an empty homeserver public key", () => jsonResponse({ signupCode: "code", homeserverPubky: "" })],
   ["an oversized homeserver public key", () => jsonResponse({ signupCode: "code", homeserverPubky: "x".repeat(1025) })],
-  ["a non-string field", () => jsonResponse({ signupCode: 42, homeserverPubky: "home" })],
+  ["a non-canonical homeserver public key", () => jsonResponse({ signupCode: "code", homeserverPubky: "homeserver-pubky" })],
+  ["a non-string field", () => jsonResponse({ signupCode: 42, homeserverPubky: HOMESERVER_PUBKY })],
   ["invalid JSON", () => new Response("not-json", { status: 200 })],
   ["an oversized body", () => new Response("x".repeat(16 * 1024 + 1), { status: 200 })],
 ] satisfies ReadonlyArray<readonly [string, () => Response]>;
@@ -34,7 +36,7 @@ describe("HomegateClient", () => {
     const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValue(requestSignal);
     const fetch = new SanitizedFetchRecorder(jsonResponse({
       signupCode: "signup-code",
-      homeserverPubky: "homeserver-pubky",
+      homeserverPubky: HOMESERVER_PUBKY,
     }), requestSignal);
     const client = new HomegateClient(HOMEGATE_BASE_URL, fetch.fetch);
 
@@ -42,7 +44,7 @@ describe("HomegateClient", () => {
 
     expect(result).toEqual(Result.ok({
       signupCode: "signup-code",
-      homeserverPubky: "homeserver-pubky",
+      homeserverPubky: HOMESERVER_PUBKY,
     }));
     expect(fetch.calls).toEqual([{
       url: "https://homegate.example/google_verification",
@@ -64,7 +66,7 @@ describe("HomegateClient", () => {
   it("appends the endpoint to the normalized Homegate base path", async () => {
     const fetch = new SanitizedFetchRecorder(jsonResponse({
       signupCode: "signup-code",
-      homeserverPubky: "homeserver-pubky",
+      homeserverPubky: HOMESERVER_PUBKY,
     }));
     const client = new HomegateClient("https://homegate.example/api/", fetch.fetch);
 

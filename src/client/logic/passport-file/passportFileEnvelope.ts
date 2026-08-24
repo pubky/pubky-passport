@@ -1,6 +1,6 @@
 import "client-only";
 
-import { Result, type Err, type Result as ResultType } from "better-result";
+import { Result, type Result as ResultType } from "better-result";
 import { z } from "zod";
 
 /** Strict encrypted envelope persisted as Passport file format version 1. */
@@ -56,14 +56,14 @@ const PASSPORT_FILE_ENVELOPE_SCHEMA = z
  */
 export function parsePassportFileContents(input: unknown): PassportFileParseResult {
   if (typeof input !== "string") {
-    return error("invalid_json");
+    return Result.err<never, PassportFileParseError>({ code: "invalid_json" });
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(input);
   } catch {
-    return error("invalid_json");
+    return Result.err<never, PassportFileParseError>({ code: "invalid_json" });
   }
 
   return parsePassportFileEnvelope(parsed);
@@ -76,17 +76,17 @@ export function parsePassportFileContents(input: unknown): PassportFileParseResu
  */
 export function parsePassportFileEnvelope(input: unknown): PassportFileParseResult {
   if (!isPlainObject(input)) {
-    return error("invalid_shape");
+    return Result.err<never, PassportFileParseError>({ code: "invalid_shape" });
   }
 
   if (typeof input.v === "number" && input.v !== 1) {
-    return error("unsupported_version", "v");
+    return Result.err<never, PassportFileParseError>({ code: "unsupported_version", field: "v" });
   }
 
   const parsed = PASSPORT_FILE_ENVELOPE_SCHEMA.safeParse(input);
   if (!parsed.success) {
     if (parsed.error.issues.some((issue) => issue.code === "unrecognized_keys")) {
-      return error("unknown_field");
+      return Result.err<never, PassportFileParseError>({ code: "unknown_field" });
     }
 
     const field = parsed.error.issues
@@ -96,15 +96,21 @@ export function parsePassportFileEnvelope(input: unknown): PassportFileParseResu
           typeof value === "string" && Object.hasOwn(PASSPORT_FILE_ENVELOPE_SCHEMA.shape, value),
       );
     if (!field) {
-      return error("invalid_shape");
+      return Result.err<never, PassportFileParseError>({ code: "invalid_shape" });
     }
 
-    return error(Object.hasOwn(input, field) ? "invalid_field" : "missing_field", field);
+    return Result.err<never, PassportFileParseError>({
+      code: Object.hasOwn(input, field) ? "invalid_field" : "missing_field",
+      field,
+    });
   }
 
   const origin = normalizePassportFileOrigin(parsed.data.url);
   if (Result.isError(origin)) {
-    return error(origin.error.code, origin.error.field);
+    return Result.err<never, PassportFileParseError>({
+      code: origin.error.code,
+      field: origin.error.field,
+    });
   }
 
   return Result.ok({
@@ -137,7 +143,10 @@ export function serializePassportFileEnvelope(input: unknown): string | null {
 export function normalizePassportFileOrigin(value: string): PassportFileOriginResult {
   const url = parseUrl(value);
   if (!url || !isAllowedPassportFileOrigin(url)) {
-    return invalidUrl();
+    return Result.err<never, { code: "invalid_field"; field: "url" }>({
+      code: "invalid_field",
+      field: "url",
+    });
   }
 
   return Result.ok(url.origin);
@@ -159,21 +168,10 @@ function parseUrl(value: string): URL | null {
   }
 }
 
-function invalidUrl(): Err<never, { code: "invalid_field"; field: "url" }> {
-  return Result.err<never, { code: "invalid_field"; field: "url" }>({ code: "invalid_field", field: "url" });
-}
-
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype;
 }
 
 function hasNoCredentialsOrUrlParts(url: URL): boolean {
   return !url.username && !url.password && !url.search && !url.hash;
-}
-
-function error(
-  code: PassportFileParseErrorCode,
-  field?: PassportFileField,
-): Err<never, PassportFileParseError> {
-  return Result.err<never, PassportFileParseError>(field ? { code, field } : { code });
 }

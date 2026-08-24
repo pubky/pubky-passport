@@ -27,9 +27,12 @@ export function isPubkyPublicIdentity(value: unknown): value is PubkyPublicIdent
   }
 
   const publicKeyZ32 = identity.publicKeyZ32;
-  return typeof publicKeyZ32 === "string"
-    && PUBKY_PUBLIC_KEY_Z32_PATTERN.test(publicKeyZ32)
+  return isPubkyPublicKey(publicKeyZ32)
     && identity.publicKeyDisplay === `pubky${publicKeyZ32}`;
+}
+
+export function isPubkyPublicKey(value: unknown): value is string {
+  return typeof value === "string" && PUBKY_PUBLIC_KEY_Z32_PATTERN.test(value);
 }
 
 export type PubkyHomeserverResolutionResult = Result<
