@@ -59,7 +59,7 @@ function IdentityDetail({ copy = false, label, value }: { copy?: boolean; label:
   async function copyValue() {
     try {
       await navigator.clipboard.writeText(value);
-      showCopyConfirmation(label);
+      showCopyConfirmation(label, value);
     } catch {
       // Keep clipboard failures silent; a success toast must only confirm a completed copy.
     }

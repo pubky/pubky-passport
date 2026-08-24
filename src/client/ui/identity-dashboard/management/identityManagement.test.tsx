@@ -35,12 +35,12 @@ describe("IdentityManagement", () => {
     fireEvent.click(copyButton);
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(identity.publicIdentity.publicKeyZ32));
-    expect(MOCKS.showCopyConfirmation).toHaveBeenCalledWith("Pubky");
+    expect(MOCKS.showCopyConfirmation).toHaveBeenCalledWith("Pubky", identity.publicIdentity.publicKeyZ32);
     const homeserverButton = screen.getByRole("button", { name: "Copy Homeserver" });
     await waitFor(() => expect(homeserverButton).toBeEnabled());
     fireEvent.click(homeserverButton);
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("homeserver-pubky"));
-    expect(MOCKS.showCopyConfirmation).toHaveBeenCalledWith("Homeserver");
+    expect(MOCKS.showCopyConfirmation).toHaveBeenCalledWith("Homeserver", "homeserver-pubky");
   });
 
   it("does not confirm a failed copy", async () => {

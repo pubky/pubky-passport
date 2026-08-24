@@ -15,9 +15,13 @@ describe("Sonner", () => {
   it("renders the designed copy confirmation", async () => {
     render(<Sonner />);
 
-    act(() => { showCopyConfirmation("Pubky"); });
+    const pubky = "x8jpihgjy51fdnaingcp8rum1omfzd6p8bhm7usune41grd97dho5cwy4mra";
+    act(() => { showCopyConfirmation("Pubky", pubky); });
 
-    const message = await screen.findByText("Pubky copied");
+    const message = await screen.findByText("Pubky copied to clipboard");
+    expect(screen.getByText("x8jp...4mra")).toHaveClass("font-normal", "text-secondary-foreground");
+    expect(screen.queryByText(pubky)).not.toBeInTheDocument();
+    expect(message).toHaveClass("font-bold", "text-popover-foreground");
     expect(document.querySelector("[data-sonner-toaster]")).toHaveStyle("--width: 392px");
     const notification = message.closest("[data-sonner-toast]");
     expect(notification).toHaveClass(
@@ -32,6 +36,16 @@ describe("Sonner", () => {
     expect(notification?.querySelector("img")).toHaveAttribute("src", "/icons/sonner-info.svg");
     expect(notification?.querySelector("img")).toHaveAttribute("width", "20");
     expect(notification?.querySelector("img")).toHaveAttribute("height", "20");
+  });
+
+  it("renders the copied homeserver below its confirmation title", async () => {
+    render(<Sonner />);
+
+    act(() => { showCopyConfirmation("Homeserver", "homeserver-pubky"); });
+
+    expect(await screen.findByText("Homeserver copied to clipboard")).toHaveClass("font-bold");
+    expect(screen.getByText("home...ubky")).toHaveClass("font-normal");
+    expect(screen.queryByText("homeserver-pubky")).not.toBeInTheDocument();
   });
 
   it("renders a recovery-file download confirmation", async () => {

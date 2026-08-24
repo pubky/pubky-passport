@@ -18,8 +18,8 @@ function Sonner() {
       toastOptions={{
         unstyled: true,
         classNames: {
-          content: "flex min-w-0 flex-1 flex-col gap-0.5",
-          description: "w-full text-sm leading-5 text-secondary-foreground",
+          content: "flex min-w-0 flex-1 flex-col gap-0.5 break-words",
+          description: "w-full text-sm font-normal leading-5 text-secondary-foreground",
           icon: "flex size-5 shrink-0 items-center justify-center",
           info: "!border-[#303034] bg-[linear-gradient(rgba(5,5,10,0.6),rgba(5,5,10,0.6)),linear-gradient(#454549,#454549)]",
           success: "!border-brand/50 bg-brand/25",
@@ -31,8 +31,12 @@ function Sonner() {
   );
 }
 
-function showCopyConfirmation(label: string) {
-  toast.info(`${label} copied`);
+function showCopyConfirmation(label: string, value: string) {
+  toast.info(`${label} copied to clipboard`, { description: shortCopiedValue(value) });
+}
+
+function shortCopiedValue(value: string): string {
+  return value.length > 12 ? `${value.slice(0, 4)}...${value.slice(-4)}` : value;
 }
 
 function showDownloadConfirmation() {
