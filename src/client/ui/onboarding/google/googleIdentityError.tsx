@@ -27,7 +27,7 @@ function GoogleIdentityError({ error, onBack, onTryAgain }: {
           >
             <p className="break-all text-base font-medium leading-6 text-foreground">{error.code}</p>
             {"cause" in error
-              ? <p className="break-all text-base font-medium leading-6 text-muted-foreground">{error.cause}</p>
+              ? <p className="break-all text-base font-medium leading-6 text-foreground">{error.cause}</p>
               : null}
           </div>
         </div>
