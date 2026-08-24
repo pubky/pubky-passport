@@ -13,6 +13,7 @@ import {
   mockGoogleIdentityController,
   type MockGoogleIdentityController,
 } from "../../../../test-utils/mockGoogleIdentityController";
+import { withGoogleIdentityConfiguration } from "../../../../test-utils/googleIdentityConfiguration";
 import { LOGGER } from "../../../libs/logger/logger";
 import { IdentityEstablishmentFlow } from "./identityEstablishmentFlow";
 
@@ -29,12 +30,17 @@ vi.mock("../../logic/google-identity/GoogleIdentityController", () => ({
   },
 }));
 
-const GOOGLE_PROPS = {
-  googleIdentityConfiguration: {
-    googleClientId: "google-client-id",
-    homegateBaseUrl: "https://homegate.example/",
-  },
-};
+function ConfiguredIdentityEstablishmentFlow({ onBack, onComplete }: {
+  onBack?: () => void;
+  onComplete: () => void;
+}) {
+  return withGoogleIdentityConfiguration(
+    <IdentityEstablishmentFlow
+      {...(onBack ? { onBack } : {})}
+      onComplete={onComplete}
+    />,
+  );
+}
 
 describe("IdentityEstablishmentFlow", () => {
   beforeEach(() => {
@@ -48,7 +54,7 @@ describe("IdentityEstablishmentFlow", () => {
 
   it("keeps Google authorization disabled before the screen flow is mounted", () => {
     const markup = renderToStaticMarkup(
-      <IdentityEstablishmentFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />,
+      <ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />,
     );
     const shell = document.createElement("div");
     shell.innerHTML = markup;
@@ -64,7 +70,7 @@ describe("IdentityEstablishmentFlow", () => {
     const establishIdentity = vi.fn(() => new Promise<never>(() => undefined));
     useController(mockGoogleIdentityController({ establishIdentity }));
 
-    render(<IdentityEstablishmentFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
+    render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
     const continueWithGoogle = screen.getByRole("button", { name: "Continue with Google" });
     await waitFor(() => expect(continueWithGoogle).toBeEnabled());
     await userEvent.setup().click(continueWithGoogle);
@@ -80,12 +86,12 @@ describe("IdentityEstablishmentFlow", () => {
 
   it("only shows contextual back navigation when supplied by its parent flow", async () => {
     const onBack = vi.fn();
-    const rendered = render(<IdentityEstablishmentFlow {...GOOGLE_PROPS} onBack={onBack} onComplete={vi.fn()} />);
+    const rendered = render(<ConfiguredIdentityEstablishmentFlow onBack={onBack} onComplete={vi.fn()} />);
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Back" }));
     expect(onBack).toHaveBeenCalledOnce();
 
-    rendered.rerender(<IdentityEstablishmentFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
+    rendered.rerender(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
   });
 
@@ -93,7 +99,7 @@ describe("IdentityEstablishmentFlow", () => {
     const emitState = captureControllerState(mockGoogleIdentityController({
       establishIdentity: vi.fn(() => new Promise<never>(() => undefined)),
     }));
-    render(<IdentityEstablishmentFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
+    render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
     act(() => emitState.current?.({ status: "establishing", progress: { flow: "restore", step: "restoring" } }));
@@ -118,7 +124,7 @@ describe("IdentityEstablishmentFlow", () => {
     const emitState = captureControllerState(mockGoogleIdentityController({
       establishIdentity: vi.fn(() => new Promise<never>(() => undefined)),
     }));
-    render(<IdentityEstablishmentFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
+    render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
     act(() => emitState.current?.({ status: "establishing", progress: { flow: "lookup", step: "checking" } }));
@@ -134,7 +140,7 @@ describe("IdentityEstablishmentFlow", () => {
       deny = () => resolve(Result.err({ code: "google_authorization_denied" }));
     }));
     useController(mockGoogleIdentityController({ establishIdentity }));
-    render(<IdentityEstablishmentFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
+    render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(screen.getByRole("heading", { name: "Requesting Google access." })).toBeInTheDocument();
@@ -158,7 +164,7 @@ describe("IdentityEstablishmentFlow", () => {
         publicIdentity: { publicKeyZ32: "key", publicKeyDisplay: "pubkykey" },
       })),
     }));
-    render(<IdentityEstablishmentFlow {...GOOGLE_PROPS} onComplete={onComplete} />);
+    render(<ConfiguredIdentityEstablishmentFlow onComplete={onComplete} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(await screen.findByRole("heading", { name: "Restore complete." })).toBeInTheDocument();
@@ -174,7 +180,7 @@ describe("IdentityEstablishmentFlow", () => {
       .mockResolvedValueOnce(Result.err({ code: "signin_failed" as const }))
       .mockResolvedValueOnce(Result.err({ code: "operation_failed" as const }));
     useController(mockGoogleIdentityController({ establishIdentity }));
-    render(<IdentityEstablishmentFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
+    render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
@@ -194,7 +200,7 @@ describe("IdentityEstablishmentFlow", () => {
       establishIdentity: vi.fn(async () => Result.err({ code: "invalid_passport_file" as const })),
       replaceInvalidPassportFile,
     }));
-    render(<IdentityEstablishmentFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
+    render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole("button", { name: "Continue with Google" }));
@@ -229,7 +235,7 @@ describe("IdentityEstablishmentFlow", () => {
       clearPinnedGoogleSubject,
       establishIdentity,
     }));
-    render(<IdentityEstablishmentFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
+    render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Continue with Google" }));
     expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
@@ -249,7 +255,7 @@ describe("IdentityEstablishmentFlow", () => {
         cause: { secret: "DOM-CAUSE-CANARY" },
       })),
     }));
-    render(<IdentityEstablishmentFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
+    render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(await screen.findByText("Passport could not obtain a homeserver signup invitation.")).toBeInTheDocument();
@@ -267,7 +273,7 @@ describe("IdentityEstablishmentFlow", () => {
     useController(mockGoogleIdentityController({
       establishIdentity: vi.fn().mockRejectedValue(thrown),
     }));
-    render(<IdentityEstablishmentFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
+    render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Continue with Google" }));
 
@@ -283,7 +289,7 @@ describe("IdentityEstablishmentFlow", () => {
       throw thrown;
     });
 
-    render(<IdentityEstablishmentFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
+    render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
     expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent("ESTABLISHMENT-CONSTRUCTOR-CANARY");
@@ -294,7 +300,7 @@ describe("IdentityEstablishmentFlow", () => {
     useController(mockGoogleIdentityController({
       establishIdentity: vi.fn(async () => Result.err({ code: "publication_failed" as const })),
     }));
-    render(<IdentityEstablishmentFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
+    render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
 

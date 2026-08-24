@@ -1,9 +1,7 @@
-
 "use client";
 
 import { preload } from "react-dom";
 
-import type { GoogleIdentityConfiguration } from "../../logic/google-identity/GoogleIdentityController";
 import { GoogleAccessScreen } from "./google/googleAccessScreen";
 import { GoogleIdentityComplete } from "./google/googleIdentityComplete";
 import { GoogleIdentityError } from "./google/googleIdentityError";
@@ -13,12 +11,11 @@ import { BackButton } from "../shared/backButton";
 import { ProviderSignInButton } from "./providerSignInButton";
 import { SignInPage } from "./signInPage";
 
-function IdentityEstablishmentFlow({ googleIdentityConfiguration, onBack, onComplete }: {
-  googleIdentityConfiguration: GoogleIdentityConfiguration;
+function IdentityEstablishmentFlow({ onBack, onComplete }: {
   onBack?: () => void;
   onComplete: () => void;
 }) {
-  const google = useGoogleIdentityEstablishment(googleIdentityConfiguration);
+  const google = useGoogleIdentityEstablishment();
   const view = google.state.view;
 
   if (view.status === "requesting-access" || view.status === "working") {

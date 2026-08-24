@@ -5,7 +5,6 @@ import { useState } from "react";
 
 import type { LocalIdentityController } from "../../logic/local-identity/LocalIdentityController";
 import type { LocalIdentityCatalog, LocalIdentityMetadata } from "../../logic/local-identity/localIdentityModels";
-import type { GoogleIdentityConfiguration } from "../../logic/google-identity/GoogleIdentityController";
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { IdentityEstablishmentFlow } from "../onboarding/identityEstablishmentFlow";
@@ -27,12 +26,8 @@ type IdentityDashboardView =
   | { view: "migrate-to-pubky-ring"; publicKeyZ32: string }
   | { view: "detach-from-google"; identity: LocalIdentityMetadata };
 
-function IdentityDashboard({ googleClientId, homegateBaseUrl }: {
-  googleClientId: string;
-  homegateBaseUrl: string;
-}) {
+function IdentityDashboard() {
   const identityCatalogState = useIdentityCatalog();
-  const googleIdentityConfiguration = { googleClientId, homegateBaseUrl };
 
   switch (identityCatalogState.status) {
     case "loading":
@@ -50,16 +45,14 @@ function IdentityDashboard({ googleClientId, homegateBaseUrl }: {
       return <ReadyIdentityDashboard
         catalog={identityCatalogState.catalog}
         localIdentityController={identityCatalogState.localIdentityController}
-        googleIdentityConfiguration={googleIdentityConfiguration}
         refreshIdentityCatalog={identityCatalogState.refreshIdentityCatalog}
       />;
   }
 }
 
-function ReadyIdentityDashboard({ catalog, localIdentityController, googleIdentityConfiguration, refreshIdentityCatalog }: {
+function ReadyIdentityDashboard({ catalog, localIdentityController, refreshIdentityCatalog }: {
   catalog: LocalIdentityCatalog;
   localIdentityController: LocalIdentityController;
-  googleIdentityConfiguration: GoogleIdentityConfiguration;
   refreshIdentityCatalog: () => void;
 }) {
   const [navigation, setNavigation] = useState<IdentityDashboardView>(() => (
@@ -73,7 +66,6 @@ function ReadyIdentityDashboard({ catalog, localIdentityController, googleIdenti
   switch (state.view) {
     case "onboarding":
       return <IdentityEstablishmentFlow
-        googleIdentityConfiguration={googleIdentityConfiguration}
         onComplete={() => {
           refreshIdentityCatalog();
           setNavigation({ view: "overview" });
@@ -82,7 +74,6 @@ function ReadyIdentityDashboard({ catalog, localIdentityController, googleIdenti
     case "select-identity":
       return <IdentitySelectionFlow
         catalog={catalog}
-        googleIdentityConfiguration={googleIdentityConfiguration}
         onBack={() => setNavigation({ view: "overview" })}
         onIdentitySelected={() => {
           refreshIdentityCatalog();
@@ -141,7 +132,6 @@ function ReadyIdentityDashboard({ catalog, localIdentityController, googleIdenti
           );
           return Result.isOk(migration) ? migration.value : null;
         }}
-        googleIdentityConfiguration={googleIdentityConfiguration}
         identity={state.identity}
         onBack={() => setNavigation({
           view: "manage-identity",

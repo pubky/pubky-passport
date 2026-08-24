@@ -99,12 +99,7 @@ describe("AuthorizationFlow", () => {
     MOCKS.authorizationListener = null;
   });
 
-  const renderFlow = () => render(
-    <AuthorizationFlow
-      googleClientId="google-client-id"
-      homegateBaseUrl="https://homegate.example/"
-    />,
-  );
+  const renderFlow = () => render(<AuthorizationFlow />);
 
   it("shows the requested permissions and active identity", async () => {
     renderFlow();
@@ -339,10 +334,7 @@ describe("AuthorizationFlow", () => {
   it("survives StrictMode effect replay and disposes after final unmount", async () => {
     const rendered = render(
       <StrictMode>
-        <AuthorizationFlow
-          googleClientId="google-client-id"
-          homegateBaseUrl="https://homegate.example/"
-        />
+        <AuthorizationFlow />
       </StrictMode>,
     );
     await screen.findByRole("heading", { name: "Sign in to requesting.app" });

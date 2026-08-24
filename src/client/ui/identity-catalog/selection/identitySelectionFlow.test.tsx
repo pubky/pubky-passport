@@ -22,20 +22,13 @@ const CATALOG = {
     { publicIdentity: { publicKeyDisplay: "pubkysecond", publicKeyZ32: "second" } },
   ],
 };
-const GOOGLE_PROPS = {
-  googleIdentityConfiguration: {
-    googleClientId: "google-client-id",
-    homegateBaseUrl: "https://homegate.example/",
-  },
-};
-
 describe("IdentitySelectionFlow", () => {
   afterEach(cleanup);
 
   it("selects an existing identity and finishes", async () => {
     const onIdentitySelected = vi.fn();
     const selectIdentity = vi.fn(() => true);
-    render(<IdentitySelectionFlow {...GOOGLE_PROPS} catalog={CATALOG} onBack={vi.fn()} onIdentitySelected={onIdentitySelected} selectIdentity={selectIdentity} />);
+    render(<IdentitySelectionFlow catalog={CATALOG} onBack={vi.fn()} onIdentitySelected={onIdentitySelected} selectIdentity={selectIdentity} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: /Your Pubky.*seco/iu }));
     expect(selectIdentity).toHaveBeenCalledWith("second");
@@ -44,7 +37,7 @@ describe("IdentitySelectionFlow", () => {
 
   it("runs the normal identity setup flow from Add identity", async () => {
     const onIdentitySelected = vi.fn();
-    render(<IdentitySelectionFlow {...GOOGLE_PROPS} catalog={CATALOG} onBack={vi.fn()} onIdentitySelected={onIdentitySelected} selectIdentity={() => true} />);
+    render(<IdentitySelectionFlow catalog={CATALOG} onBack={vi.fn()} onIdentitySelected={onIdentitySelected} selectIdentity={() => true} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Add identity" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Complete identity setup" }));
@@ -52,7 +45,7 @@ describe("IdentitySelectionFlow", () => {
   });
 
   it("returns to identity selection when identity setup is cancelled", async () => {
-    render(<IdentitySelectionFlow {...GOOGLE_PROPS} catalog={CATALOG} onBack={vi.fn()} onIdentitySelected={vi.fn()} selectIdentity={() => true} />);
+    render(<IdentitySelectionFlow catalog={CATALOG} onBack={vi.fn()} onIdentitySelected={vi.fn()} selectIdentity={() => true} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Add identity" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Cancel identity setup" }));

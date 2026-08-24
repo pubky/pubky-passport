@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LocalIdentityController } from "../../logic/local-identity/LocalIdentityController";
 import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
 import type { PubkyPublicIdentity } from "../../logic/pubky/pubkyIdentityKey";
+import { withGoogleIdentityConfiguration } from "../../../../test-utils/googleIdentityConfiguration";
 import { mockGoogleIdentityController } from "../../../../test-utils/mockGoogleIdentityController";
 import { IdentityDashboard } from "./identityDashboard";
 
@@ -86,6 +87,10 @@ vi.mock("../../logic/google-identity/GoogleIdentityController", () => ({
   },
 }));
 
+function renderDashboard() {
+  return render(withGoogleIdentityConfiguration(<IdentityDashboard />));
+}
+
 describe("IdentityDashboard", () => {
   beforeEach(() => {
     FLOW.catalog = { activePublicKeyZ32: null, identities: [] };
@@ -101,13 +106,13 @@ describe("IdentityDashboard", () => {
   });
 
   it("shows the landing page when no local identity exists", async () => {
-    render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
+    renderDashboard();
     expect(await screen.findByRole("heading", { name: "Quick & easy signing." })).toBeInTheDocument();
   });
 
   it("offers to reload when local identity storage is unavailable", async () => {
     FLOW.storageUnavailable = true;
-    render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
+    renderDashboard();
 
     expect(await screen.findByText("Local identity storage is unavailable.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Reload page" })).toHaveAttribute("href", "/");
@@ -115,7 +120,7 @@ describe("IdentityDashboard", () => {
 
   it("keeps onboarding mounted until setup completion is acknowledged", async () => {
     FLOW.establishIdentity = true;
-    render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
+    renderDashboard();
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Continue with Google" }));
 
@@ -128,7 +133,7 @@ describe("IdentityDashboard", () => {
   it("keeps restored onboarding mounted until restore completion is acknowledged", async () => {
     FLOW.establishIdentity = true;
     FLOW.establishmentMode = "restored";
-    render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
+    renderDashboard();
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Continue with Google" }));
 
@@ -140,7 +145,7 @@ describe("IdentityDashboard", () => {
 
   it("routes a stored identity to the signed-in home state", async () => {
     FLOW.catalog = { activePublicKeyZ32: "identity", identities: [{ publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" }, googleAccount: { googleSubject: "google-1", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: null } }] };
-    render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
+    renderDashboard();
     expect(await screen.findByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
     expect(screen.getByText("Satoshi Nakamoto")).toBeInTheDocument();
     expect(screen.getByText("identity")).toHaveClass("normal-case");
@@ -156,7 +161,7 @@ describe("IdentityDashboard", () => {
         { publicIdentity: { publicKeyZ32: "second", publicKeyDisplay: "pubkysecond" }, googleAccount: { googleSubject: "google-2", email: "active@gmail.com", name: "Active Account", pictureUrl: null } },
       ],
     };
-    render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
+    renderDashboard();
 
     expect(await screen.findByText("Active Account")).toBeInTheDocument();
     expect(screen.getByText("second")).toBeInTheDocument();
@@ -165,7 +170,7 @@ describe("IdentityDashboard", () => {
 
   it("opens the switcher and sends Add identity to the signing flow", async () => {
     FLOW.catalog = { activePublicKeyZ32: "identity", identities: [{ publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" } }] };
-    render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
+    renderDashboard();
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Switch" }));
     expect(screen.getByRole("heading", { name: "Switch identity." })).toBeInTheDocument();
@@ -180,7 +185,7 @@ describe("IdentityDashboard", () => {
       activePublicKeyZ32: "existing",
       identities: [{ publicIdentity: { publicKeyZ32: "existing", publicKeyDisplay: "pubkyexisting" } }],
     };
-    render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
+    renderDashboard();
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Switch" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Add identity" }));
@@ -201,7 +206,7 @@ describe("IdentityDashboard", () => {
         { publicIdentity: { publicKeyZ32: "second", publicKeyDisplay: "pubkysecond" }, googleAccount: { googleSubject: "google-2", email: "second@gmail.com", name: "Second", pictureUrl: null } },
       ],
     };
-    render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
+    renderDashboard();
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Log out" }));
@@ -212,7 +217,7 @@ describe("IdentityDashboard", () => {
 
   it("opens recovery-file download from identity management", async () => {
     FLOW.catalog = { activePublicKeyZ32: "identity", identities: [{ publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" } }] };
-    render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
+    renderDashboard();
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Download recovery file" }));
@@ -230,7 +235,7 @@ describe("IdentityDashboard", () => {
         { publicIdentity: { publicKeyZ32: "active", publicKeyDisplay: "pubkyactive" } },
       ],
     };
-    render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
+    renderDashboard();
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Migrate to keychain" }));
@@ -244,7 +249,7 @@ describe("IdentityDashboard", () => {
 
   it("secures recovery, confirms detachment, clears the local identity, and shows completion", async () => {
     FLOW.catalog = { activePublicKeyZ32: "identity", identities: [{ publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" }, googleAccount: { googleSubject: "google", email: "user@gmail.com", name: "User", pictureUrl: null } }] };
-    render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
+    renderDashboard();
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Detach from Google" }));
@@ -281,7 +286,7 @@ describe("IdentityDashboard", () => {
 
   it("returns to signed out when the last identity logs out", async () => {
     FLOW.catalog = { activePublicKeyZ32: "only", identities: [{ publicIdentity: { publicKeyZ32: "only", publicKeyDisplay: "pubkyonly" } }] };
-    render(<IdentityDashboard googleClientId="client" homegateBaseUrl="https://homegate.example/" />);
+    renderDashboard();
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Log out" }));

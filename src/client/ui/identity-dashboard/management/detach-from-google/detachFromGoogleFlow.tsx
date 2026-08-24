@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { preload } from "react-dom";
 
-import type { GoogleIdentityConfiguration } from "../../../../logic/google-identity/GoogleIdentityController";
 import type { LocalIdentityRecoveryFileResult } from "../../../../logic/local-identity/LocalIdentityController";
 import type { LocalIdentityMetadata } from "../../../../logic/local-identity/localIdentityModels";
 import { RecoveryFileDownload } from "../recovery-file/recoveryFileDownload";
@@ -20,17 +19,15 @@ type DetachFromGoogleView =
   | { view: "pubky-ring" }
   | { view: "review"; confirmation: "closed" | "open" };
 
-function DetachFromGoogleFlow({ createRecoveryFile, createMigrationUrl, googleIdentityConfiguration, identity, onBack, onDone }: {
+function DetachFromGoogleFlow({ createRecoveryFile, createMigrationUrl, identity, onBack, onDone }: {
   createRecoveryFile: (publicKeyZ32: string, password: string) => Promise<LocalIdentityRecoveryFileResult>;
   createMigrationUrl: () => string | null;
-  googleIdentityConfiguration: GoogleIdentityConfiguration;
   identity: LocalIdentityMetadata;
   onBack: () => void;
   onDone: () => void;
 }) {
   const [state, setState] = useState<DetachFromGoogleView>({ view: "recovery-options" });
   const operation = useDetachFromGoogle(
-    googleIdentityConfiguration,
     identity.publicIdentity,
     identity.googleAccount?.googleSubject ?? "",
   );

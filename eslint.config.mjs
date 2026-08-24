@@ -72,8 +72,7 @@ const ESLINT_CONFIG = defineConfig([
     files: ["src/app/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     ignores: [
       "src/app/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
-      "src/app/page.tsx",
-      "src/app/authorize/page.tsx"
+      "src/app/layout.tsx"
     ],
     rules: {
       "no-restricted-imports": [

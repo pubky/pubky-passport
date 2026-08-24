@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { withGoogleIdentityConfiguration } from "../../../../../../test-utils/googleIdentityConfiguration";
 import { mockGoogleIdentityController } from "../../../../../../test-utils/mockGoogleIdentityController";
 import { LOGGER } from "../../../../../libs/logger/logger";
 import { useDetachFromGoogle } from "./useDetachFromGoogle";
@@ -22,10 +23,6 @@ vi.mock("../../../../logic/google-identity/GoogleIdentityController", () => ({
 
 function Probe() {
   const operation = useDetachFromGoogle(
-    {
-      googleClientId: "google-client-id",
-      homegateBaseUrl: "https://homegate.example/",
-    },
     { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" },
     "google-account",
   );
@@ -37,6 +34,10 @@ function Probe() {
       <button onClick={operation.retryDetachment} type="button">Retry</button>
     </>
   );
+}
+
+function renderProbe() {
+  return render(withGoogleIdentityConfiguration(<Probe />));
 }
 
 describe("useDetachFromGoogle", () => {
@@ -52,7 +53,7 @@ describe("useDetachFromGoogle", () => {
     MOCKS.constructGoogleIdentityController.mockReturnValue(mockGoogleIdentityController({
       detachIdentity: MOCKS.detachIdentity,
     }));
-    render(<Probe />);
+    renderProbe();
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Detach" }));
     expect(await screen.findByText("authorization-failed")).toBeInTheDocument();
@@ -70,7 +71,7 @@ describe("useDetachFromGoogle", () => {
     MOCKS.constructGoogleIdentityController.mockReturnValue(mockGoogleIdentityController({
       detachIdentity: MOCKS.detachIdentity,
     }));
-    render(<Probe />);
+    renderProbe();
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Detach" }));
 
@@ -88,7 +89,7 @@ describe("useDetachFromGoogle", () => {
     MOCKS.constructGoogleIdentityController.mockReturnValue(mockGoogleIdentityController({
       detachIdentity: MOCKS.detachIdentity,
     }));
-    render(<Probe />);
+    renderProbe();
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Detach" }));
 
@@ -104,7 +105,7 @@ describe("useDetachFromGoogle", () => {
       throw thrown;
     });
 
-    render(<Probe />);
+    renderProbe();
 
     expect(await screen.findByText("operation_failed")).toBeInTheDocument();
     expect(screen.getByTestId("operation-state")).not.toHaveTextContent("DETACH-CONSTRUCTOR-CANARY");

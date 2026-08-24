@@ -9,7 +9,6 @@ import {
   PassportAuthorizationController,
   type PassportAuthorizationViewState,
 } from "../../logic/authorization/flow/PassportAuthorizationController";
-import type { GoogleIdentityConfiguration } from "../../logic/google-identity/GoogleIdentityController";
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { IdentityEstablishmentFlow } from "../onboarding/identityEstablishmentFlow";
@@ -23,11 +22,7 @@ import { AuthorizationReview } from "./review/authorizationReview";
 import { InvalidAuthorization } from "./invalidAuthorization";
 import { ManualAuthorization } from "./manual-entry/manualAuthorization";
 
-function AuthorizationFlow({ googleClientId, homegateBaseUrl }: {
-  googleClientId: string;
-  homegateBaseUrl: string;
-}) {
-  const googleIdentityConfiguration = { googleClientId, homegateBaseUrl };
+function AuthorizationFlow() {
   const passportAuthorizationControllerRef = useRef<PassportAuthorizationController>(null);
   const mountedRef = useRef(false);
   const [passportAuthorizationController, setPassportAuthorizationController] =
@@ -88,7 +83,6 @@ function AuthorizationFlow({ googleClientId, homegateBaseUrl }: {
       return <AuthorizationWithIdentity
         authorization={authorization}
         passportAuthorizationController={passportAuthorizationController}
-        googleIdentityConfiguration={googleIdentityConfiguration}
       />;
   }
 }
@@ -96,11 +90,9 @@ function AuthorizationFlow({ googleClientId, homegateBaseUrl }: {
 function AuthorizationWithIdentity({
   authorization,
   passportAuthorizationController,
-  googleIdentityConfiguration,
 }: {
   authorization: Extract<PassportAuthorizationViewState, { status: "review" | "approving" | "completing" }>;
   passportAuthorizationController: PassportAuthorizationController;
-  googleIdentityConfiguration: GoogleIdentityConfiguration;
 }) {
   const identityCatalog = useIdentityCatalog();
   const [view, setView] = useState<"review" | "identity-selection">("review");
@@ -125,7 +117,6 @@ function AuthorizationWithIdentity({
 
       if (catalog.identities.length === 0) {
         return <IdentityEstablishmentFlow
-          googleIdentityConfiguration={googleIdentityConfiguration}
           onBack={() => { void passportAuthorizationController.cancel(); }}
           onComplete={refreshIdentityCatalog}
         />;
@@ -134,7 +125,6 @@ function AuthorizationWithIdentity({
       if (view === "identity-selection") {
         return <IdentitySelectionFlow
           catalog={catalog}
-          googleIdentityConfiguration={googleIdentityConfiguration}
           onBack={() => setView("review")}
           onIdentitySelected={() => {
             refreshIdentityCatalog();

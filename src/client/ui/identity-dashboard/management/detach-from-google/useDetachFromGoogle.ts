@@ -6,11 +6,11 @@ import { useCallback, useEffect, useReducer, useRef } from "react";
 import { LOGGER } from "../../../../../libs/logger/logger";
 import {
   GoogleIdentityController,
-  type GoogleIdentityConfiguration,
   type GoogleIdentityViewError,
 } from "../../../../logic/google-identity/GoogleIdentityController";
 import { toGoogleIdentityViewError } from "../../../../logic/google-identity/googleIdentityViewError";
 import type { PubkyPublicIdentity } from "../../../../logic/pubky/pubkyIdentityKey";
+import { useGoogleIdentityConfiguration } from "../../../googleIdentityConfiguration";
 
 type DetachFromGoogleOperationState =
   | { status: "ready" }
@@ -49,11 +49,10 @@ function transitionDetachFromGoogleOperation(
 }
 
 function useDetachFromGoogle(
-  configuration: GoogleIdentityConfiguration,
   publicIdentity: PubkyPublicIdentity,
   expectedGoogleSubject: string,
 ) {
-  const { googleClientId, homegateBaseUrl } = configuration;
+  const { googleClientId, homegateBaseUrl } = useGoogleIdentityConfiguration();
   const operationPendingRef = useRef(false);
   const googleIdentityControllerRef = useRef<GoogleIdentityController | null>(null);
   const [state, dispatch] = useReducer(transitionDetachFromGoogleOperation, { status: "ready" });

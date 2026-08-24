@@ -5,15 +5,15 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
 import { LOGGER } from "../../../../libs/logger/logger";
 import { GoogleIdentityController } from "../../../logic/google-identity/GoogleIdentityController";
-import type { GoogleIdentityConfiguration } from "../../../logic/google-identity/GoogleIdentityController";
+import { useGoogleIdentityConfiguration } from "../../googleIdentityConfiguration";
 import { toGoogleIdentityViewError } from "../../../logic/google-identity/googleIdentityViewError";
 import {
   INITIAL_GOOGLE_IDENTITY_ESTABLISHMENT_STATE,
   transitionGoogleIdentityEstablishment,
 } from "./googleIdentityEstablishmentState";
 
-function useGoogleIdentityEstablishment(configuration: GoogleIdentityConfiguration) {
-  const { googleClientId, homegateBaseUrl } = configuration;
+function useGoogleIdentityEstablishment() {
+  const { googleClientId, homegateBaseUrl } = useGoogleIdentityConfiguration();
   const operationPendingRef = useRef(false);
   const googleIdentityControllerRef = useRef<GoogleIdentityController | null>(null);
   const [controllerReady, setControllerReady] = useState(false);
