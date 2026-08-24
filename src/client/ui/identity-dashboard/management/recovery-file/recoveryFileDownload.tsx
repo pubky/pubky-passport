@@ -17,6 +17,7 @@ import { FieldMessage } from "../../../shared/primitives/fieldMessage";
 import { Input } from "../../../shared/primitives/input";
 import { Label } from "../../../shared/primitives/label";
 import { DisplayHeading, LeadText } from "../../../shared/primitives/typography";
+import { showDownloadConfirmation } from "../../../shared/sonner";
 
 function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
   createRecoveryFile: (publicKeyZ32: string, password: string) => Promise<LocalIdentityRecoveryFileResult>;
@@ -46,7 +47,10 @@ function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
     } finally {
       setPending(false);
     }
-    if (downloaded) onBack();
+    if (downloaded) {
+      showDownloadConfirmation();
+      onBack();
+    }
   }
 
   return (

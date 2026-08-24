@@ -32,4 +32,8 @@ function showCopyConfirmation(label: string) {
   toast.info(`${label} copied`);
 }
 
-export { showCopyConfirmation, Sonner };
+function showDownloadConfirmation() {
+  toast.info("File downloaded");
+}
+
+export { showCopyConfirmation, showDownloadConfirmation, Sonner };

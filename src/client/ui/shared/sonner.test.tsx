@@ -4,7 +4,7 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { toast } from "sonner";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { showCopyConfirmation, Sonner } from "./sonner";
+import { showCopyConfirmation, showDownloadConfirmation, Sonner } from "./sonner";
 
 describe("Sonner", () => {
   afterEach(() => {
@@ -24,5 +24,13 @@ describe("Sonner", () => {
     expect(notification?.querySelector("img")).toHaveAttribute("src", "/icons/sonner-info.svg");
     expect(notification?.querySelector("img")).toHaveAttribute("width", "20");
     expect(notification?.querySelector("img")).toHaveAttribute("height", "20");
+  });
+
+  it("renders a recovery-file download confirmation", async () => {
+    render(<Sonner />);
+
+    act(() => { showDownloadConfirmation(); });
+
+    expect(await screen.findByText("File downloaded")).toBeInTheDocument();
   });
 });

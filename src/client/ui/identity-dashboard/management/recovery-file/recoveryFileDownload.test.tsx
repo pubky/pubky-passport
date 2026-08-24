@@ -7,9 +7,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { RecoveryFileDownload } from "./recoveryFileDownload";
 
+const MOCKS = vi.hoisted(() => ({ showDownloadConfirmation: vi.fn() }));
+
+vi.mock("../../../shared/sonner", () => ({ showDownloadConfirmation: MOCKS.showDownloadConfirmation }));
+
 describe("RecoveryFileDownload", () => {
   afterEach(() => {
     cleanup();
+    vi.clearAllMocks();
     vi.restoreAllMocks();
   });
 
@@ -35,6 +40,7 @@ describe("RecoveryFileDownload", () => {
     expect(click).toHaveBeenCalledOnce();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:backup");
     expect(bytes).toEqual(new Uint8Array(3));
+    expect(MOCKS.showDownloadConfirmation).toHaveBeenCalledOnce();
     expect(onBack).toHaveBeenCalledOnce();
   });
 
@@ -54,6 +60,7 @@ describe("RecoveryFileDownload", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not create the recovery file");
     expect(password).not.toHaveAttribute("aria-invalid");
+    expect(MOCKS.showDownloadConfirmation).not.toHaveBeenCalled();
     expect(onBack).not.toHaveBeenCalled();
   });
 });
