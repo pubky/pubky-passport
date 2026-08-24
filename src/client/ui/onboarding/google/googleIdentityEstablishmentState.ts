@@ -10,7 +10,6 @@ import type { PubkyPublicIdentity } from "../../../logic/pubky/pubkyIdentityKey"
 type GoogleIdentityEstablishmentView =
   | { status: "idle" }
   | { status: "requesting-access" }
-  | { status: "denied" }
   | { status: "failed"; error: GoogleIdentityError }
   | { status: "working"; progress: GoogleIdentityProgress }
   | {
@@ -25,7 +24,6 @@ type GoogleIdentityEstablishmentState = {
 };
 
 type GoogleIdentityEstablishmentEvent =
-  | { type: "authorization-denied" }
   | { type: "request-started" }
   | { type: "progress-reported"; progress: GoogleIdentityProgress }
   | { type: "operation-failed"; error: GoogleIdentityError }
@@ -46,8 +44,6 @@ function transitionGoogleIdentityEstablishment(
   event: GoogleIdentityEstablishmentEvent,
 ): GoogleIdentityEstablishmentState {
   switch (event.type) {
-    case "authorization-denied":
-      return { view: { status: "denied" } };
     case "request-started":
       return { view: { status: "requesting-access" } };
     case "progress-reported":

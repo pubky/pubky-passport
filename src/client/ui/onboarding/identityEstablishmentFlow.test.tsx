@@ -127,7 +127,7 @@ describe("IdentityEstablishmentFlow", () => {
     expect(screen.queryByRole("heading", { name: "Restoring your pubky." })).not.toBeInTheDocument();
   });
 
-  it("shows Google access before a recoverable denial", async () => {
+  it("shows setup interrupted after Google access is rejected", async () => {
     let deny!: () => void;
     const establishIdentity = vi.fn(() => new Promise<Awaited<ReturnType<MockGoogleIdentityController["establishIdentity"]>>>((resolve) => {
       deny = () => resolve(Result.err({ code: "google_authorization_denied" }));
@@ -139,7 +139,9 @@ describe("IdentityEstablishmentFlow", () => {
     expect(screen.getByRole("heading", { name: "Requesting Google access." })).toBeInTheDocument();
     act(deny);
 
-    expect(await screen.findByRole("heading", { name: "Google access denied." })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
+    expect(screen.getByText("Google access was denied. Passport needs Google Drive access to create or restore your Pubky.")).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "Error" })).getByText("google_authorization_denied")).toBeInTheDocument();
     const tryAgain = screen.getByRole("button", { name: "Try again" });
     await userEvent.setup().click(tryAgain);
     expect(establishIdentity).toHaveBeenCalledTimes(2);
@@ -196,9 +198,14 @@ describe("IdentityEstablishmentFlow", () => {
 
     await user.click(await screen.findByRole("button", { name: "Continue with Google" }));
 
-    expect(await screen.findByRole("heading", { name: "Identity file can't be restored." })).toBeInTheDocument();
-    expect(screen.getByText(/you will lose access to your current Pubky identity/i)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Delete file and create new identity" }));
+    expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "Error" })).getByText("invalid_passport_file")).toBeInTheDocument();
+    const tryAgain = screen.getByRole("button", { name: "Try again" });
+    const deleteFile = screen.getByRole("button", { name: "Delete file and create new identity" });
+    const back = screen.getByRole("button", { name: "Back" });
+    expect(within(deleteFile.parentElement!).getAllByRole("button")).toEqual([tryAgain, deleteFile, back]);
+    expect(deleteFile).toHaveClass("bg-destructive-surface", "text-destructive-foreground");
+    await user.click(deleteFile);
 
     const confirmation = screen.getByRole("textbox", { name: "Type DELETE to confirm" });
     const replace = screen.getByRole("button", { name: "Delete and create new identity" });

@@ -42,11 +42,7 @@ function useGoogleIdentityEstablishment(configuration: GoogleIdentityConfigurati
         if (Result.isError(result)) {
           if (result.error.code === "cancelled") return;
 
-          dispatch(
-            result.error.code === "google_authorization_denied"
-              ? { type: "authorization-denied" }
-              : { type: "operation-failed", error: result.error },
-          );
+          dispatch({ type: "operation-failed", error: result.error });
           return;
         }
 

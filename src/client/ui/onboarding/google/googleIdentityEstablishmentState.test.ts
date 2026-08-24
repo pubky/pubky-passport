@@ -20,8 +20,4 @@ describe("Google identity establishment state", () => {
       .toEqual({ view: { status: "idle" } });
   });
 
-  it("shows a recoverable authorization denial", () => {
-    expect(transitionGoogleIdentityEstablishment(INITIAL_GOOGLE_IDENTITY_ESTABLISHMENT_STATE, { type: "authorization-denied" }))
-      .toEqual({ view: { status: "denied" } });
-  });
 });
