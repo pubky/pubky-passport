@@ -93,6 +93,7 @@ describe("PassportAuthorizationController composition", () => {
       stage: "sdk_initialize",
       code: "unexpected_failure",
     });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("sensitive authorization request");
   });
 
   it("logs adapter cleanup failures without changing the authorization result", async () => {

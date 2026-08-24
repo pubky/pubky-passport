@@ -6,6 +6,7 @@ import { z } from "zod";
 import { LOGGER } from "../../../libs/logger/logger";
 import { readBoundedText } from "../../../libs/http/boundedBody";
 import { isCanonicalBase64Url } from "../../../libs/encoding/base64Url";
+import type { CodedFailure } from "../../../libs/result";
 
 const GOOGLE_WRAPPING_KEY_API_ERROR_CODES = [
   "invalid_request",
@@ -20,7 +21,7 @@ export type GoogleWrappingKeyErrorCode =
   | "invalid_response"
   | "network_failed";
 
-export type GoogleWrappingKeyResult = Result<string, { code: GoogleWrappingKeyErrorCode }>;
+export type GoogleWrappingKeyResult = Result<string, CodedFailure<GoogleWrappingKeyErrorCode>>;
 
 const MAXIMUM_RESPONSE_BYTES = 16 * 1024;
 const WRAPPING_KEY_BYTES = 32;
@@ -51,13 +52,13 @@ export class GoogleWrappingKeyApiClient {
         redirect: "error",
         referrerPolicy: "no-referrer",
       });
-    } catch {
+    } catch (cause) {
       LOGGER.warn("identity.google.wrapping_key.failed", {
         operation: "request_google_wrapping_key",
         stage: "request",
         code: "network_failed",
       });
-      return Result.err({ code: "network_failed" });
+      return Result.err({ code: "network_failed", cause });
     }
 
     const contents = await readBoundedText(response, MAXIMUM_RESPONSE_BYTES);

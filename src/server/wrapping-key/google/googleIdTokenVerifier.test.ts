@@ -112,11 +112,16 @@ describe("Google ID token verifier", () => {
         }),
       );
 
-      await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
+      const result = await verifier.verifyGoogleIdToken(TOKEN);
+
+      expect(Result.isError(result)).toBe(true);
+      if (Result.isError(result)) {
+        expect(result.error).toEqual({ code: "invalid_google_id_token", cause });
+        expect(result.error.cause).toBe(cause);
+      }
       expect(warning).toHaveBeenCalledOnce();
       expect(warning).toHaveBeenCalledWith("identity.google.id_token_verification.failed", {
         code: "google_verifier_rejected",
-        thrownValue: "error",
       });
       expect(JSON.stringify(warning.mock.calls)).not.toContain(TOKEN);
       expect(JSON.stringify(warning.mock.calls)).not.toContain("google-subject");
@@ -147,11 +152,16 @@ describe("Google ID token verifier", () => {
       })),
     );
 
-    await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
+    const result = await verifier.verifyGoogleIdToken(TOKEN);
+
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error).toEqual({ code: "invalid_google_id_token", cause });
+      expect(result.error.cause).toBe(cause);
+    }
     expect(warning).toHaveBeenCalledOnce();
     expect(warning).toHaveBeenCalledWith("identity.google.id_token_verification.failed", {
       code: "payload_access_failed",
-      thrownValue: "error",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain(TOKEN);
   });

@@ -166,14 +166,16 @@ describe("HomegateClient", () => {
 
   it("maps network failures without leaking the Google ID token", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const fetch = new SanitizedFetchRecorder(new Error("SECRET-GOOGLE-ID-TOKEN"));
+    const cause = new TypeError("SECRET-GOOGLE-ID-TOKEN");
+    const fetch = new SanitizedFetchRecorder(cause);
     const client = new HomegateClient(HOMEGATE_BASE_URL, fetch.fetch);
 
     const result = await client.requestGoogleHomeserverSignupInvitation("SECRET-GOOGLE-ID-TOKEN");
 
     expect(Result.isError(result)).toBe(true);
     if (!Result.isError(result)) throw new Error("Expected Homegate network failure.");
-    expect(result.error).toEqual({ code: "network_failed" });
+    expect(result.error.code).toBe("network_failed");
+    expect(result.error.cause).toBe(cause);
     expect(warn).toHaveBeenCalledWith("identity.google.homeserver_signup_invitation.failed", {
       operation: "request_google_invitation",
       stage: "request",
@@ -184,8 +186,10 @@ describe("HomegateClient", () => {
   });
 
   it("maps timeout setup failures to a network failure", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const cause = new DOMException("SECRET-HOMEGATE-URL", "NotSupportedError");
     vi.spyOn(AbortSignal, "timeout").mockImplementation(() => {
-      throw new Error("unsupported");
+      throw cause;
     });
     const fetch = new SanitizedFetchRecorder();
     const client = new HomegateClient(HOMEGATE_BASE_URL, fetch.fetch);
@@ -195,7 +199,14 @@ describe("HomegateClient", () => {
     expect(fetch.calls).toEqual([]);
     expect(Result.isError(result)).toBe(true);
     if (!Result.isError(result)) throw new Error("Expected Homegate network failure.");
-    expect(result.error).toEqual({ code: "network_failed" });
+    expect(result.error.code).toBe("network_failed");
+    expect(result.error.cause).toBe(cause);
+    expect(warn).toHaveBeenCalledWith("identity.google.homeserver_signup_invitation.failed", {
+      operation: "request_google_invitation",
+      stage: "request",
+      code: "network_failed",
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-HOMEGATE-URL");
   });
 
   it("maps a timeout while reading the response body to a network failure", async () => {

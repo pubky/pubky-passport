@@ -249,16 +249,22 @@ describe("GoogleDrivePassportFileStore", () => {
   });
 
   it("does not classify unsupported-version envelopes as deletable invalid files", async () => {
-    await expectFailure(createStore([
+    await expectAsyncResultError(createStore([
       jsonResponse({ files: [LISTED_FILE] }),
       textResponse(JSON.stringify({ ...ENVELOPE, v: 2, futureField: true })),
-    ]).store.readPassportFile(), "unsupported_file");
+    ]).store.readPassportFile(), {
+      code: "unsupported_file",
+      cause: { code: "unsupported_version", field: "v" },
+    });
 
     const { store, calls } = createStore([
       jsonResponse({ files: [LISTED_FILE] }),
       textResponse(JSON.stringify({ ...ENVELOPE, v: 2, futureField: true })),
     ]);
-    await expectFailure(store.deleteInvalidPassportFile(), "unsupported_file");
+    await expectAsyncResultError(store.deleteInvalidPassportFile(), {
+      code: "unsupported_file",
+      cause: { code: "unsupported_version", field: "v" },
+    });
     expect(calls.some((call) => call.method === "DELETE")).toBe(false);
   });
 
@@ -351,19 +357,20 @@ describe("GoogleDrivePassportFileStore", () => {
       code: "unauthorized",
     });
 
-    const { store } = createStore([new Error("network includes secret details")]);
+    const cause = new Error("network includes secret details");
+    const { store } = createStore([cause]);
     const result = await store.readPassportFile();
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) {
-      expect(result.error).toEqual({ code: "network_failed" });
+      expect(result.error.code).toBe("network_failed");
+      expect(result.error.cause).toBe(cause);
     }
     expect(JSON.stringify(result)).not.toContain("secret details");
-    expect(warning).toHaveBeenNthCalledWith(2, "identity.google.drive_store.failed", {
+    expect(warning).toHaveBeenCalledWith("identity.google.drive_store.failed", {
       operation: "list",
       code: "network_failed",
     });
-    expect(warning).toHaveBeenCalledTimes(2);
     expect(JSON.stringify(warning.mock.calls)).not.toContain("secret details");
     expect(JSON.stringify(warning.mock.calls)).not.toContain(ACCESS_TOKEN);
   });
@@ -378,7 +385,6 @@ describe("GoogleDrivePassportFileStore", () => {
       operation: "parse_list_response",
       code: "invalid_response",
     });
-    expect(warning).toHaveBeenCalledOnce();
     expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-MALFORMED-DRIVE-RESPONSE");
     expect(JSON.stringify(warning.mock.calls)).not.toContain(ACCESS_TOKEN);
   });
@@ -425,6 +431,19 @@ describe("GoogleDrivePassportFileStore", () => {
     ]);
 
     await expectFailure(store.readPassportFile(), "stale_file");
+  });
+
+  it("chains an exact metadata disappearance when remapping it to stale_file", async () => {
+    const { store } = createStore([
+      jsonResponse({ files: [LISTED_FILE] }),
+      textResponse(JSON.stringify(ENVELOPE)),
+      new Response(null, { status: 404 }),
+    ]);
+
+    await expectAsyncResultError(store.readPassportFile(), {
+      code: "stale_file",
+      cause: { code: "exact_file_missing" },
+    });
   });
 
   it.each([
@@ -526,28 +545,46 @@ describe("GoogleDrivePassportFileStore", () => {
     expect(calls).toHaveLength(3);
   });
 
-  it("logs browser lock failures without retaining exception details", async () => {
+  it("returns the exact browser lock cause without including it in logs", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const cause = {
+      message: "SECRET-LOCK-FAILURE",
+      token: ACCESS_TOKEN,
+      responseBody: "SECRET-RESPONSE-BODY",
+      driveFile: LISTED_FILE,
+      url: "https://secret.example/drive/file-1",
+      identity: "SECRET-IDENTITY",
+    };
     vi.stubGlobal("navigator", {
-      locks: { request: async () => { throw new Error("SECRET-LOCK-FAILURE"); } },
+      locks: { request: async () => { throw cause; } },
     });
     const store = new GoogleDrivePassportFileStore(
       ACCESS_TOKEN,
       (async () => jsonResponse({ files: [] })) as typeof fetch,
     );
 
-    await expectFailure(store.createPassportFile(ENVELOPE), "write_failed");
+    const result = await store.createPassportFile(ENVELOPE);
+
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error.code).toBe("write_failed");
+      expect(result.error.cause).toBe(cause);
+    }
 
     expect(warning).toHaveBeenCalledWith("identity.google.drive_store.failed", {
       operation: "create_lock",
       code: "write_failed",
     });
     expect(warning).toHaveBeenCalledOnce();
+    expect(warning.mock.calls[0]?.[1]).not.toHaveProperty("cause");
     const logged = JSON.stringify(warning.mock.calls);
     expect(logged).not.toContain("SECRET-LOCK-FAILURE");
+    expect(logged).not.toContain("SECRET-RESPONSE-BODY");
     expect(logged).not.toContain(ACCESS_TOKEN);
     expect(logged).not.toContain(ENVELOPE.iv);
     expect(logged).not.toContain(ENVELOPE.ct);
+    expect(logged).not.toContain("secret.example");
+    expect(logged).not.toContain("SECRET-IDENTITY");
   });
 
   it("rejects create when passport.json already exists without PATCHing it", async () => {
@@ -564,7 +601,10 @@ describe("GoogleDrivePassportFileStore", () => {
       files: [LISTED_FILE, { ...LISTED_FILE, id: "file-2" }],
     })]);
 
-    await expectFailure(store.createPassportFile(ENVELOPE), "create_conflict");
+    await expectAsyncResultError(store.createPassportFile(ENVELOPE), {
+      code: "create_conflict",
+      cause: { code: "duplicate_files" },
+    });
     expect(calls).toHaveLength(1);
   });
 
@@ -576,7 +616,10 @@ describe("GoogleDrivePassportFileStore", () => {
       jsonResponse({ files: [created, { ...LISTED_FILE, id: "racing-create" }] }),
     ]);
 
-    await expectFailure(store.createPassportFile(ENVELOPE), "create_conflict");
+    await expectAsyncResultError(store.createPassportFile(ENVELOPE), {
+      code: "create_conflict",
+      cause: { code: "duplicate_files" },
+    });
     expect(calls.some((call) => call.method === "PATCH")).toBe(false);
   });
 

@@ -13,6 +13,7 @@ import {
   mockGoogleIdentityController,
   type MockGoogleIdentityController,
 } from "../../../../test-utils/mockGoogleIdentityController";
+import { LOGGER } from "../../../libs/logger/logger";
 import { IdentityEstablishmentFlow } from "./identityEstablishmentFlow";
 
 const MOCKS = vi.hoisted(() => ({
@@ -240,11 +241,12 @@ describe("IdentityEstablishmentFlow", () => {
     expect(establishIdentity).toHaveBeenCalledTimes(2);
   });
 
-  it("shows the specific safe operation error and cause", async () => {
+  it("renders the safe detail code without exposing the diagnostic cause", async () => {
     useController(mockGoogleIdentityController({
       establishIdentity: vi.fn(async () => Result.err({
         code: "homeserver_signup_invitation_failed" as const,
-        cause: "weekly_limit_exceeded" as const,
+        detailCode: "weekly_limit_exceeded" as const,
+        cause: { secret: "DOM-CAUSE-CANARY" },
       })),
     }));
     render(<IdentityEstablishmentFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
@@ -256,6 +258,36 @@ describe("IdentityEstablishmentFlow", () => {
     expect(errorDetails).not.toContainElement(screen.getByText("Error"));
     expect(within(errorDetails).getByText("homeserver_signup_invitation_failed")).toBeInTheDocument();
     expect(within(errorDetails).getByText("weekly_limit_exceeded")).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent("DOM-CAUSE-CANARY");
+  });
+
+  it("contains rejected operation details outside hook state and logs safe metadata", async () => {
+    const thrown = { secret: "ESTABLISHMENT-HOOK-CANARY" };
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    useController(mockGoogleIdentityController({
+      establishIdentity: vi.fn().mockRejectedValue(thrown),
+    }));
+    render(<IdentityEstablishmentFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
+
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Continue with Google" }));
+
+    expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent("ESTABLISHMENT-HOOK-CANARY");
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("ESTABLISHMENT-HOOK-CANARY");
+  });
+
+  it("contains controller construction details outside hook state", async () => {
+    const thrown = { secret: "ESTABLISHMENT-CONSTRUCTOR-CANARY" };
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    MOCKS.constructGoogleIdentityController.mockImplementationOnce(() => {
+      throw thrown;
+    });
+
+    render(<IdentityEstablishmentFlow {...GOOGLE_PROPS} onComplete={vi.fn()} />);
+
+    expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent("ESTABLISHMENT-CONSTRUCTOR-CANARY");
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("ESTABLISHMENT-CONSTRUCTOR-CANARY");
   });
 
   it("describes a final PKDNS publication failure without stale resolution language", async () => {

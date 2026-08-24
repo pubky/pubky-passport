@@ -1,10 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { LOGGER } from "../../../../libs/logger/logger";
 import { handoffAuthorizationOutcome } from "./authorizationOutcomeHandoff";
 
 const CALLBACK = "https://app.example/auth/passport/success?private=value";
 
 describe("handoffAuthorizationOutcome", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it("closes only after an exact opener acknowledgement", async () => {
     const harness = windowHarness({ opener: true, closeSucceeds: true });
 
@@ -64,11 +67,16 @@ describe("handoffAuthorizationOutcome", () => {
   });
 
   it("uses callback navigation when messaging fails or acknowledgement times out", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const messageFailure = windowHarness({ opener: true, postMessageFails: true });
     await expect(complete(messageFailure, "error")).resolves.toBe(true);
     expect(messageFailure.navigate).toHaveBeenCalledWith(CALLBACK);
     expect(messageFailure.removeEventListener).toHaveBeenCalledOnce();
     expect(messageFailure.clearTimeout).toHaveBeenCalledOnce();
+    expect(warning).toHaveBeenCalledWith("authorize.callback_handoff.failed", {
+      operation: "post_message",
+    });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(CALLBACK);
 
     const timeout = windowHarness({ opener: true });
     const completion = complete(timeout, "success");
@@ -97,10 +105,34 @@ describe("handoffAuthorizationOutcome", () => {
     expect(harness.navigate).toHaveBeenCalledWith(CALLBACK);
   });
 
+  it.each([
+    "removeEventListener",
+    "clearTimeout",
+  ] as const)("settles an acknowledgement when %s cleanup fails", async (failure) => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const harness = windowHarness({ opener: true, closeSucceeds: true, cleanupFailure: failure });
+    const completion = complete(harness, "success");
+
+    harness.dispatchAcknowledgement();
+
+    await expect(completion).resolves.toBe(true);
+    expect(harness.close).toHaveBeenCalledOnce();
+    expect(warning).toHaveBeenCalledWith("authorize.callback_handoff.failed", {
+      operation: failure === "removeEventListener"
+        ? "remove_message_listener"
+        : "clear_acknowledgement_timeout",
+    });
+  });
+
   it("reports unavailable when direct callback navigation fails", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const harness = windowHarness({ opener: false, navigationFails: true });
 
     await expect(complete(harness, "cancel")).resolves.toBe(false);
+    expect(warning).toHaveBeenCalledWith("authorize.callback_handoff.failed", {
+      operation: "navigate",
+    });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(CALLBACK);
   });
 
   it("stops an active handoff when it is abandoned", async () => {
@@ -188,6 +220,7 @@ function complete(
 
 function windowHarness(input: {
   opener: boolean;
+  cleanupFailure?: "removeEventListener" | "clearTimeout";
   closeSucceeds?: boolean;
   navigationFails?: boolean;
   postMessageFails?: boolean;
@@ -209,9 +242,11 @@ function windowHarness(input: {
     listener = next;
   });
   const clearTimeout = vi.fn(() => {
+    if (input.cleanupFailure === "clearTimeout") throw new Error("cleanup failed");
     timeout = undefined;
   });
   const removeEventListener = vi.fn(() => {
+    if (input.cleanupFailure === "removeEventListener") throw new Error("cleanup failed");
     listener = undefined;
   });
   const state = {

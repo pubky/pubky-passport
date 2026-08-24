@@ -1,3 +1,4 @@
+import { Result, type Result as ResultType } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -112,15 +113,45 @@ describe("PassportFileWebCrypto", () => {
     );
   });
 
+  it("preserves browser crypto capability probe exceptions without logging their contents", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const cause = new DOMException("SECRET-CRYPTO-PROVIDER", "SecurityError");
+    vi.stubGlobal("crypto", new Proxy(globalThis.crypto, {
+      get(target, property, receiver) {
+        if (property === "subtle") throw cause;
+        return Reflect.get(target, property, receiver);
+      },
+    }));
+
+    const error = expectCryptoError(
+      await encrypt(
+        new PassportFileWebCrypto(),
+        SECRET_KEY_BYTES,
+        WRAPPING_KEY,
+        "https://passport.pubky.app",
+      ),
+      "unsupported_browser_crypto",
+    );
+
+    expect(error.cause).toBe(cause);
+    expect(warning).toHaveBeenCalledWith("passport_file.crypto.failed", {
+      operation: "encrypt",
+      code: "unsupported_browser_crypto",
+    });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-CRYPTO-PROVIDER");
+  });
+
   it("maps unsupported HKDF import to unsupported_browser_crypto", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    vi.spyOn(SubtleCrypto.prototype, "importKey").mockRejectedValue(new Error("SECRET-HKDF-FAILURE"));
+    const cause = new TypeError("SECRET-HKDF-FAILURE");
+    vi.spyOn(SubtleCrypto.prototype, "importKey").mockRejectedValue(cause);
     const crypto = new PassportFileWebCrypto();
 
-    await expectAsyncResultError(
-      encrypt(crypto, SECRET_KEY_BYTES, WRAPPING_KEY, "https://passport.pubky.app"),
-      { code: "unsupported_browser_crypto" },
+    const error = expectCryptoError(
+      await encrypt(crypto, SECRET_KEY_BYTES, WRAPPING_KEY, "https://passport.pubky.app"),
+      "unsupported_browser_crypto",
     );
+    expect(error.cause).toBe(cause);
     expect(warning).toHaveBeenCalledWith("passport_file.crypto.failed", {
       operation: "encrypt",
       code: "unsupported_browser_crypto",
@@ -134,17 +165,19 @@ describe("PassportFileWebCrypto", () => {
 
   it("logs encryption exceptions without retaining key material or exception details", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    vi.spyOn(SubtleCrypto.prototype, "encrypt").mockRejectedValue(new Error("SECRET-ENCRYPT-FAILURE"));
+    const cause = new Error("SECRET-ENCRYPT-FAILURE");
+    vi.spyOn(SubtleCrypto.prototype, "encrypt").mockRejectedValue(cause);
 
-    await expectAsyncResultError(
-      encrypt(
+    const error = expectCryptoError(
+      await encrypt(
         new PassportFileWebCrypto(),
         SECRET_KEY_BYTES,
         WRAPPING_KEY,
         "https://passport.pubky.app",
       ),
-      { code: "encrypt_failed" },
+      "encrypt_failed",
     );
+    expect(error.cause).toBe(cause);
 
     expect(warning).toHaveBeenCalledWith("passport_file.crypto.failed", {
       operation: "encrypt",
@@ -158,13 +191,15 @@ describe("PassportFileWebCrypto", () => {
   });
 
   it("maps unsupported AES-GCM derivation to unsupported_browser_crypto", async () => {
-    vi.spyOn(SubtleCrypto.prototype, "deriveKey").mockRejectedValue(new Error("AES-GCM derivation unsupported"));
+    const cause = new DOMException("SECRET-AES-GCM-DERIVATION", "NotSupportedError");
+    vi.spyOn(SubtleCrypto.prototype, "deriveKey").mockRejectedValue(cause);
     const crypto = new PassportFileWebCrypto();
 
-    await expectAsyncResultError(
-      encrypt(crypto, SECRET_KEY_BYTES, WRAPPING_KEY, "https://passport.pubky.app"),
-      { code: "unsupported_browser_crypto" },
+    const error = expectCryptoError(
+      await encrypt(crypto, SECRET_KEY_BYTES, WRAPPING_KEY, "https://passport.pubky.app"),
+      "unsupported_browser_crypto",
     );
+    expect(error.cause).toBe(cause);
   });
 
   it("encrypts a Pubky secret key into a v1 envelope", async () => {
@@ -285,7 +320,7 @@ describe("PassportFileWebCrypto", () => {
       "https://passport.pubky.app",
     );
 
-    expectResultError(decrypted, { code: "decrypt_failed" });
+    expectCryptoError(decrypted, "decrypt_failed");
     expect(warning).toHaveBeenCalledWith("passport_file.crypto.failed", {
       operation: "decrypt",
       code: "decrypt_failed",
@@ -306,17 +341,19 @@ describe("PassportFileWebCrypto", () => {
       "https://passport.pubky.app",
     ));
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    vi.spyOn(SubtleCrypto.prototype, "decrypt").mockRejectedValue(new Error("SECRET-DECRYPT-FAILURE"));
+    const cause = new RangeError("SECRET-DECRYPT-FAILURE");
+    vi.spyOn(SubtleCrypto.prototype, "decrypt").mockRejectedValue(cause);
 
-    await expectAsyncResultError(
-      decrypt(
+    const error = expectCryptoError(
+      await decrypt(
         new PassportFileWebCrypto(),
         envelope,
         WRAPPING_KEY,
         "https://passport.pubky.app",
       ),
-      { code: "decrypt_failed" },
+      "decrypt_failed",
     );
+    expect(error.cause).toBe(cause);
 
     expect(warning).toHaveBeenCalledWith("passport_file.crypto.failed", {
       operation: "decrypt",
@@ -344,7 +381,7 @@ describe("PassportFileWebCrypto", () => {
       "https://passport.pubky.app",
     );
 
-    expectResultError(decrypted, { code: "decrypt_failed" });
+    expectCryptoError(decrypted, "decrypt_failed");
   });
 
   it("rejects an incorrectly sized IV before decryption", async () => {
@@ -379,7 +416,7 @@ describe("PassportFileWebCrypto", () => {
       "https://passport.pubky.app",
     );
 
-    expectResultError(decrypted, { code: "decrypt_failed" });
+    expectCryptoError(decrypted, "decrypt_failed");
   });
 
   it("rejects ciphertext that is not the v1 secret key and GCM tag size", async () => {
@@ -449,7 +486,7 @@ describe("PassportFileWebCrypto", () => {
       "https://passport-staging.pubky.app",
     );
 
-    expectResultError(decrypted, { code: "decrypt_failed" });
+    expectCryptoError(decrypted, "decrypt_failed");
   });
 
   it("rejects an envelope created for a different Passport origin", async () => {
@@ -508,9 +545,20 @@ describe("PassportFileWebCrypto", () => {
       { code: "invalid_plaintext" },
     );
 
-    await expectAsyncResultError(
-      encrypt(crypto, SECRET_KEY_BYTES, WRAPPING_KEY, "https://passport.pubky.app/path"),
-      { code: "invalid_envelope" },
+    const error = expectCryptoError(
+      await encrypt(crypto, SECRET_KEY_BYTES, WRAPPING_KEY, "https://passport.pubky.app/path"),
+      "invalid_envelope",
     );
+    expect(error.cause).toEqual({ code: "invalid_field", field: "url" });
   });
 });
+
+function expectCryptoError<Success>(
+  result: ResultType<Success, { code: string; cause?: unknown }>,
+  code: string,
+): { code: string; cause?: unknown } {
+  expect(Result.isError(result)).toBe(true);
+  if (!Result.isError(result)) throw new Error(`Expected ${code}.`);
+  expect(result.error.code).toBe(code);
+  return result.error;
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import type {
-  GoogleIdentityError,
+  GoogleIdentityViewError,
 } from "../../../logic/google-identity/GoogleIdentityController";
 import type { GoogleIdentityProgress } from "../../../logic/google-identity/GoogleIdentityController";
 import type { GoogleAccountProfile } from "../../../logic/local-identity/localIdentityModels";
@@ -10,7 +10,7 @@ import type { PubkyPublicIdentity } from "../../../logic/pubky/pubkyIdentityKey"
 type GoogleIdentityEstablishmentView =
   | { status: "idle" }
   | { status: "requesting-access" }
-  | { status: "failed"; error: GoogleIdentityError }
+  | { status: "failed"; error: GoogleIdentityViewError }
   | { status: "working"; progress: GoogleIdentityProgress }
   | {
     status: "complete";
@@ -26,7 +26,7 @@ type GoogleIdentityEstablishmentState = {
 type GoogleIdentityEstablishmentEvent =
   | { type: "request-started" }
   | { type: "progress-reported"; progress: GoogleIdentityProgress }
-  | { type: "operation-failed"; error: GoogleIdentityError }
+  | { type: "operation-failed"; error: GoogleIdentityViewError }
   | {
     type: "operation-completed";
     googleAccount: GoogleAccountProfile;
@@ -49,7 +49,12 @@ function transitionGoogleIdentityEstablishment(
     case "progress-reported":
       return { view: { status: "working", progress: event.progress } };
     case "operation-failed":
-      return { view: { status: "failed", error: event.error } };
+      return {
+        view: {
+          status: "failed",
+          error: event.error,
+        },
+      };
     case "operation-completed":
       return {
         view: {

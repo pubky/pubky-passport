@@ -13,6 +13,7 @@ describe("request CSP proxy", () => {
     vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
     vi.stubEnv("HOMEGATE_URL", "https://homegate.example/config/path");
     vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example");
+    vi.stubEnv("PASSPORT_SERVER_SECRET_BASE64", Buffer.alloc(32, 1).toString("base64"));
     vi.stubEnv("NODE_ENV", "production");
   });
 
@@ -97,7 +98,7 @@ describe("request CSP proxy", () => {
     vi.stubEnv("HOMEGATE_URL", "https://*.example.com");
 
     expect(() => proxy(new NextRequest("https://passport.example/")))
-      .toThrow("HOMEGATE_URL must be a CSP-safe HTTPS base URL");
+      .toThrow("Proxy configuration unavailable.");
     expect(error).toHaveBeenCalledWith("proxy.bootstrap.failed", {
       layer: "proxy",
       operation: "build_response_policy",
@@ -120,7 +121,7 @@ describe("request CSP proxy", () => {
     vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", origins);
 
     expect(() => proxy(new NextRequest("https://passport.example/")))
-      .toThrow("PUBKY_HOMESERVER_CONNECT_ORIGINS must contain CSP-safe HTTPS origins");
+      .toThrow("Proxy configuration unavailable.");
     expect(error).toHaveBeenCalledWith("proxy.bootstrap.failed", {
       layer: "proxy",
       operation: "build_response_policy",

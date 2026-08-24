@@ -45,6 +45,10 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
       setAuthorization(value);
       setError(undefined);
     } catch {
+      LOGGER.info("authorize.manual_entry.failed", {
+        operation: "read_clipboard",
+        code: "clipboard_unavailable",
+      });
       setError("Clipboard access was blocked. Paste the link manually.");
     }
   };

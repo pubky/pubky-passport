@@ -2,6 +2,8 @@ import "client-only";
 
 import type { Result } from "better-result";
 
+import type { CodedFailure } from "../../../libs/result";
+
 declare const pubkyIdentityKeyHandleBrand: unique symbol;
 
 export const PUBKY_SECRET_KEY_BYTES = 32;
@@ -37,7 +39,7 @@ export function isPubkyPublicKey(value: unknown): value is string {
 
 export type PubkyHomeserverResolutionResult = Result<
   string | null,
-  { code: "invalid_pubky" | "resolution_failed" }
+  CodedFailure<"invalid_pubky" | "resolution_failed">
 >;
 
 export type PubkyIdentityKeyHandle = {
@@ -62,4 +64,4 @@ export type PubkyIdentityKeysErrorCode =
   | "public_identity_failed"
   | "restore_failed";
 
-export type PubkyIdentityKeysResult<Success> = Result<Success, { code: PubkyIdentityKeysErrorCode }>;
+export type PubkyIdentityKeysResult<Success> = Result<Success, CodedFailure<PubkyIdentityKeysErrorCode>>;

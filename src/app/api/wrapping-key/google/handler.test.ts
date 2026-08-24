@@ -1,9 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 
-import { LOGGER } from "../../../../libs/logger/logger";
-import { createGoogleWrappingKeyPostHandler } from "./handler";
-import { GoogleWrappingKeyIssuer } from "../../../../server/wrapping-key/google/GoogleWrappingKeyIssuer";
+import type { GoogleWrappingKeyIssuer } from "../../../../server/wrapping-key/google/GoogleWrappingKeyIssuer";
 
 describe("POST /api/wrapping-key/google", () => {
   afterEach(() => {
@@ -12,7 +10,7 @@ describe("POST /api/wrapping-key/google", () => {
   });
 
   it("maps valid wrapping-key results to HTTP success", async () => {
-    const post = postHandler(async () => Result.ok("opaque-key"));
+    const post = await postHandler(async () => Result.ok("opaque-key"));
 
     const response = await post(jsonRequest({ googleIdToken: "id-token" }));
 
@@ -23,9 +21,9 @@ describe("POST /api/wrapping-key/google", () => {
   });
 
   it("does not construct configured dependencies for invalid requests", async () => {
+    const { GoogleWrappingKeyIssuer, LOGGER, post } = await handlerContext();
     const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
     const fromEnvironment = vi.spyOn(GoogleWrappingKeyIssuer, "fromEnvironment");
-    const post = createGoogleWrappingKeyPostHandler();
 
     const response = await post(jsonRequest({}));
 
@@ -47,7 +45,7 @@ describe("POST /api/wrapping-key/google", () => {
     ["rate_limited", 429],
     ["dependency_unavailable", 503],
   ] as const)("maps %s failures to HTTP %i", async (code, status) => {
-    const post = postHandler(async () => Result.err({ code }));
+    const post = await postHandler(async () => Result.err({ code }));
 
     await expect(post(jsonRequest({ googleIdToken: "id-token" })).then(responseSummary)).resolves.toEqual({
       status,
@@ -55,10 +53,26 @@ describe("POST /api/wrapping-key/google", () => {
     });
   });
 
+  it("never serializes an internal failure cause", async () => {
+    const cause = new Error("SECRET-GOOGLE-ID-TOKEN");
+    const post = await postHandler(async () => Result.err({
+      code: "dependency_unavailable" as const,
+      cause,
+    }));
+
+    const response = await post(jsonRequest({ googleIdToken: "id-token" }));
+    const responseText = await response.text();
+
+    expect(response.status).toBe(503);
+    expect(JSON.parse(responseText)).toEqual({ error: { code: "dependency_unavailable" } });
+    expect(responseText).not.toContain("cause");
+    expect(responseText).not.toContain("SECRET-GOOGLE-ID-TOKEN");
+  });
+
   it("reuses the configured wrapping-key request flow", async () => {
-    const issuer = wrappingKeyIssuer(async () => Result.ok("opaque-key"));
+    const { GoogleWrappingKeyIssuer, post } = await handlerContext();
+    const issuer = wrappingKeyIssuer(GoogleWrappingKeyIssuer, async () => Result.ok("opaque-key"));
     const fromEnvironment = vi.spyOn(GoogleWrappingKeyIssuer, "fromEnvironment").mockReturnValue(issuer);
-    const post = createGoogleWrappingKeyPostHandler();
 
     await Promise.all([
       post(jsonRequest({ googleIdToken: "first-id-token" })),
@@ -69,14 +83,14 @@ describe("POST /api/wrapping-key/google", () => {
   });
 
   it("retries composition after a factory failure", async () => {
+    const { GoogleWrappingKeyIssuer, LOGGER, post } = await handlerContext();
     const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
-    const issuer = wrappingKeyIssuer(async () => Result.ok("opaque-key"));
+    const issuer = wrappingKeyIssuer(GoogleWrappingKeyIssuer, async () => Result.ok("opaque-key"));
     const fromEnvironment = vi.spyOn(GoogleWrappingKeyIssuer, "fromEnvironment")
       .mockImplementationOnce(() => {
         throw new Error("configuration temporarily unavailable");
       })
       .mockReturnValue(issuer);
-    const post = createGoogleWrappingKeyPostHandler();
 
     expect((await post(jsonRequest({ googleIdToken: "first-id-token" }))).status).toBe(500);
     expect((await post(jsonRequest({ googleIdToken: "second-id-token" }))).status).toBe(200);
@@ -90,10 +104,12 @@ describe("POST /api/wrapping-key/google", () => {
   });
 
   it("maps unexpected wrapping-key failures to safe 500 responses", async () => {
+    const { GoogleWrappingKeyIssuer, LOGGER, post } = await handlerContext();
     const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
-    const post = postHandler(async () => {
+    const issuer = wrappingKeyIssuer(GoogleWrappingKeyIssuer, async () => {
       throw new Error("SECRET-GOOGLE-ID-TOKEN");
     });
+    vi.spyOn(GoogleWrappingKeyIssuer, "fromEnvironment").mockReturnValue(issuer);
 
     const response = await post(jsonRequest({ googleIdToken: "id-token" }));
 
@@ -111,22 +127,32 @@ describe("POST /api/wrapping-key/google", () => {
 
 });
 
-function postHandler(issueGoogleWrappingKey: GoogleWrappingKeyIssuer["issueGoogleWrappingKey"]) {
-  const issuer = wrappingKeyIssuer(issueGoogleWrappingKey);
+async function postHandler(issueGoogleWrappingKey: GoogleWrappingKeyIssuer["issueGoogleWrappingKey"]) {
+  const { GoogleWrappingKeyIssuer, post } = await handlerContext();
+  const issuer = wrappingKeyIssuer(GoogleWrappingKeyIssuer, issueGoogleWrappingKey);
   vi.spyOn(GoogleWrappingKeyIssuer, "fromEnvironment").mockReturnValue(issuer);
-  return createGoogleWrappingKeyPostHandler();
+  return post;
 }
 
 function wrappingKeyIssuer(
+  Issuer: typeof GoogleWrappingKeyIssuer,
   issueGoogleWrappingKey: GoogleWrappingKeyIssuer["issueGoogleWrappingKey"],
 ): GoogleWrappingKeyIssuer {
-  const issuer = new GoogleWrappingKeyIssuer(
-    { verifyGoogleIdToken: async () => Result.err({ code: "invalid_google_id_token" }) },
-    { tryConsumeRequest: () => false },
-    { deriveWrappingKey: () => "" },
-  );
+  vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
+  vi.stubEnv("HOMEGATE_URL", "https://homegate.example/");
+  vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example");
+  vi.stubEnv("PASSPORT_SERVER_SECRET_BASE64", Buffer.alloc(32, 1).toString("base64"));
+  const issuer = Issuer.fromEnvironment();
   vi.spyOn(issuer, "issueGoogleWrappingKey").mockImplementation(issueGoogleWrappingKey);
   return issuer;
+}
+
+async function handlerContext() {
+  vi.resetModules();
+  const { LOGGER } = await import("../../../../libs/logger/logger");
+  const { GoogleWrappingKeyIssuer } = await import("../../../../server/wrapping-key/google/GoogleWrappingKeyIssuer");
+  const { googleWrappingKeyPost: post } = await import("./handler");
+  return { GoogleWrappingKeyIssuer, LOGGER, post };
 }
 
 function jsonRequest(body: unknown): Request {

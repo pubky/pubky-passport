@@ -3,13 +3,13 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER } from "../../../libs/logger/logger";
+import type { CodedFailure } from "../../../libs/result";
 import {
   GoogleImplicitAuthorization,
   type GoogleIdentityCredentials,
   type GoogleImplicitAuthorizationError,
 } from "./GoogleImplicitAuthorization";
 import type { GoogleAccountProfile } from "../local-identity/localIdentityModels";
-import { LocalStorageIdentityRepository } from "../local-identity/LocalStorageIdentityRepository";
 import type { PubkyPublicIdentity } from "../pubky/pubkyIdentityKey";
 import {
   GoogleIdentityOperations,
@@ -47,12 +47,22 @@ export type EstablishedGoogleIdentity = |
 export type GoogleIdentityError =
   | GoogleIdentityOperationError
   | GoogleImplicitAuthorizationError
-  | {
-    code:
-      | "authorization_failed"
-      | "cancelled"
-      | "operation_failed";
-  };
+  | CodedFailure<
+    | "authorization_failed"
+    | "cancelled"
+    | "operation_failed"
+  >;
+
+export type GoogleIdentityErrorDetailCode = Extract<
+  GoogleIdentityOperationError,
+  { detailCode: string }
+>["detailCode"];
+
+/** Error fields explicitly allowed to cross into React state or rendered output. */
+export type GoogleIdentityViewError = {
+  code: GoogleIdentityError["code"];
+  detailCode?: GoogleIdentityErrorDetailCode;
+};
 
 export type EstablishGoogleIdentityResult = ResultType<
   EstablishedGoogleIdentity,
@@ -83,19 +93,17 @@ export class GoogleIdentityController {
     private readonly onState: (state: GoogleIdentityViewState) => void,
   ) {
     try {
-      const repository = new LocalStorageIdentityRepository();
       this.googleAuthorization = new GoogleImplicitAuthorization(configuration.googleClientId);
       this.operations = new GoogleIdentityOperations(
-        repository,
         configuration.homegateBaseUrl,
         globalThis.location.origin,
       );
-    } catch (error) {
+    } catch {
       LOGGER.error("identity.google.controller.failed", {
         operation: "initialize",
         code: "runtime_exception",
       });
-      throw error;
+      throw new Error("Google identity initialization unavailable.");
     }
   }
 
@@ -154,12 +162,14 @@ export class GoogleIdentityController {
             publicIdentity: established.value.publicIdentity,
           });
       }
-    } catch {
+    } catch (error) {
       LOGGER.warn("identity.google.action.failed", {
         operation,
         code: "unexpected_failure",
       });
-      return Result.err({ code: this.disposed ? "cancelled" : "operation_failed" });
+      return this.disposed
+        ? Result.err({ code: "cancelled" })
+        : Result.err({ code: "operation_failed", cause: error });
     } finally {
       this.finishOperation();
     }
@@ -194,12 +204,14 @@ export class GoogleIdentityController {
       );
       if (this.disposed) return Result.err({ code: "cancelled" });
       return detached;
-    } catch {
+    } catch (error) {
       LOGGER.warn("identity.google.action.failed", {
         operation: "detach",
         code: "unexpected_failure",
       });
-      return Result.err({ code: this.disposed ? "cancelled" : "operation_failed" });
+      return this.disposed
+        ? Result.err({ code: "cancelled" })
+        : Result.err({ code: "operation_failed", cause: error });
     } finally {
       this.finishOperation();
     }
@@ -249,9 +261,17 @@ export class GoogleIdentityController {
       }
       this.googleSubject ??= credentials.value.googleAccount.googleSubject;
       return Result.ok(credentials.value);
-    } catch {
+    } catch (error) {
       this.operationPending = false;
-      return Result.err({ code: "authorization_failed" });
+      if (this.disposed) {
+        this.disposeOperationsOnce();
+        return Result.err({ code: "cancelled" });
+      }
+      LOGGER.warn("identity.google.authorization.failed", {
+        operation: "request_credentials",
+        code: "authorization_failed",
+      });
+      return Result.err({ code: "authorization_failed", cause: error });
     }
   }
 
@@ -294,7 +314,9 @@ export class GoogleIdentityController {
     try {
       this.onState(state);
     } catch {
-      LOGGER.warn("identity.google.state_listener.failed");
+      LOGGER.warn("identity.google.state_listener.failed", {
+        state: state.status,
+      });
     }
   }
 }

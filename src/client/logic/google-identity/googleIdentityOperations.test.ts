@@ -1,10 +1,11 @@
 /** @vitest-environment jsdom */
 
-import { Result } from "better-result";
+import { Result, type Result as ResultType } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MemoryStorage } from "../../../../test-utils/MemoryStorage";
-import { expectResultError, expectResultOk } from "../../../../test-utils/resultAssertions";
+import { expectResultOk } from "../../../../test-utils/resultAssertions";
+import { LOGGER } from "../../../libs/logger/logger";
 import { LocalStorageIdentityRepository } from "../local-identity/LocalStorageIdentityRepository";
 
 const MOCKS = vi.hoisted(() => ({
@@ -227,7 +228,7 @@ describe("GoogleIdentityOperations", () => {
 
   it.each([
     ["drive-read", { code: "drive_read_failed" }],
-    ["wrapping-key", { code: "wrapping_key_failed", cause: "network_failed" }],
+    ["wrapping-key", { code: "wrapping_key_failed", detailCode: "network_failed" }],
     ["key-creation", { code: "create_failed" }],
     ["encryption", { code: "encrypt_failed" }],
     ["drive-conflict", { code: "drive_create_conflict" }],
@@ -258,6 +259,37 @@ describe("GoogleIdentityOperations", () => {
     expect(MOCKS.repositorySave).not.toHaveBeenCalled();
     if (stage === "drive-read") expect(MOCKS.requestWrappingKey).not.toHaveBeenCalled();
     if (stage === "wrapping-key") expect(MOCKS.requestInvitation).not.toHaveBeenCalled();
+  });
+
+  it("preserves the entire translated lower failure as the diagnostic cause", async () => {
+    const diagnosticCanary = { secret: "TRANSLATED-CAUSE-CANARY" };
+    const lowerFailure = {
+      code: "network_failed" as const,
+      cause: diagnosticCanary,
+    };
+    MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
+    MOCKS.requestWrappingKey.mockResolvedValue(Result.err(lowerFailure));
+
+    const failure = expectResultError(
+      await createSubject().establishIdentity(CREDENTIALS, () => undefined),
+      { code: "wrapping_key_failed", detailCode: "network_failed" },
+    );
+
+    expect(failure.cause).toBe(lowerFailure);
+  });
+
+  it("preserves broad-catch identity without logging thrown details", async () => {
+    const thrown = { secret: "BROAD-CATCH-CANARY" };
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    MOCKS.readPassportFile.mockRejectedValue(thrown);
+
+    const failure = expectResultError(
+      await createSubject().establishIdentity(CREDENTIALS, () => undefined),
+      { code: "unexpected_failure" },
+    );
+
+    expect(failure.cause).toBe(thrown);
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("BROAD-CATCH-CANARY");
   });
 
   it("exposes malformed passport files as a specific recoverable error", async () => {
@@ -450,7 +482,7 @@ describe("GoogleIdentityOperations", () => {
 
     expectResultError(
       await createSubject().establishIdentity(CREDENTIALS, (phase) => events.push(phase)),
-      { code: "homeserver_signup_invitation_failed", cause: "network_failed" },
+      { code: "homeserver_signup_invitation_failed", detailCode: "network_failed" },
     );
 
     expect(events.slice(-2)).toEqual([{ flow: "repair", step: "signing_up" }, "homegate"]);
@@ -607,8 +639,13 @@ describe("GoogleIdentityOperations", () => {
   });
 
   it("continues activation with an unconfirmed visible recovery copy", async () => {
+    const diagnosticCanary = { secret: "VISIBLE-COPY-CAUSE-CANARY" };
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
-    MOCKS.createVisibleRecoveryCopy.mockResolvedValue(Result.err({ code: "forbidden" }));
+    MOCKS.createVisibleRecoveryCopy.mockResolvedValue(Result.err({
+      code: "forbidden",
+      cause: diagnosticCanary,
+    }));
 
     const result = await createSubject().establishIdentity(CREDENTIALS, () => undefined);
 
@@ -617,6 +654,25 @@ describe("GoogleIdentityOperations", () => {
       visibleRecoveryCopyStatus: "unconfirmed",
     });
     expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("VISIBLE-COPY-CAUSE-CANARY");
+  });
+
+  it("keeps visible-copy timer setup failures nonfatal and safely logged", async () => {
+    const cause = { secret: "VISIBLE-COPY-SETUP-CANARY" };
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
+    const subject = createSubject();
+    vi.spyOn(globalThis, "setTimeout").mockImplementationOnce(() => {
+      throw cause;
+    });
+
+    const result = await subject.establishIdentity(CREDENTIALS, () => undefined);
+
+    expect(expectResultOk(result)).toMatchObject({
+      establishmentMode: "created",
+      visibleRecoveryCopyStatus: "unconfirmed",
+    });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("VISIBLE-COPY-SETUP-CANARY");
   });
 
   it("bounds a stalled visible recovery copy and continues activation", async () => {
@@ -651,13 +707,12 @@ describe("GoogleIdentityOperations", () => {
     foundPassportFile();
     record(MOCKS.deleteVisibleRecoveryCopies, "visible-delete", events);
     record(MOCKS.deletePassportFile, "app-data-delete", events);
-    const repository = new LocalStorageIdentityRepository();
-    vi.spyOn(repository, "remove").mockImplementation(() => {
+    vi.spyOn(LocalStorageIdentityRepository.prototype, "remove").mockImplementation(() => {
       events.push("local-remove");
       return Result.ok();
     });
 
-    const result = await createSubject(repository).detachIdentity(
+    const result = await createSubject().detachIdentity(
       CREDENTIALS,
       PUBLIC_IDENTITY,
       CREDENTIALS.googleAccount.googleSubject,
@@ -673,10 +728,9 @@ describe("GoogleIdentityOperations", () => {
 
   it("deletes visible copies and the local identity when app-data is already missing", async () => {
     MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
-    const repository = new LocalStorageIdentityRepository();
-    const remove = vi.spyOn(repository, "remove").mockReturnValue(Result.ok());
+    const remove = vi.spyOn(LocalStorageIdentityRepository.prototype, "remove").mockReturnValue(Result.ok());
 
-    expect(expectResultOk(await createSubject(repository).detachIdentity(
+    expect(expectResultOk(await createSubject().detachIdentity(
       CREDENTIALS,
       PUBLIC_IDENTITY,
       CREDENTIALS.googleAccount.googleSubject,
@@ -687,25 +741,28 @@ describe("GoogleIdentityOperations", () => {
   });
 
   it("keeps app-data and the local identity when visible-copy deletion fails", async () => {
+    const diagnosticCanary = { secret: "DRIVE-CLEANUP-CAUSE-CANARY" };
+    const lowerFailure = { code: "delete_failed", cause: diagnosticCanary };
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     foundPassportFile();
-    MOCKS.deleteVisibleRecoveryCopies.mockResolvedValue(Result.err({ code: "delete_failed" }));
-    const repository = new LocalStorageIdentityRepository();
-    const remove = vi.spyOn(repository, "remove");
+    MOCKS.deleteVisibleRecoveryCopies.mockResolvedValue(Result.err(lowerFailure));
+    const remove = vi.spyOn(LocalStorageIdentityRepository.prototype, "remove");
 
-    expectResultError(await createSubject(repository).detachIdentity(
+    const failure = expectResultError(await createSubject().detachIdentity(
       CREDENTIALS,
       PUBLIC_IDENTITY,
       CREDENTIALS.googleAccount.googleSubject,
     ), { code: "google_drive_cleanup_failed" });
+    expect(failure.cause).toBe(lowerFailure);
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("DRIVE-CLEANUP-CAUSE-CANARY");
     expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
     expect(remove).not.toHaveBeenCalled();
   });
 
   it("does not access Drive when detachment authorizes a different Google account", async () => {
-    const repository = new LocalStorageIdentityRepository();
-    const remove = vi.spyOn(repository, "remove");
+    const remove = vi.spyOn(LocalStorageIdentityRepository.prototype, "remove");
 
-    expectResultError(await createSubject(repository).detachIdentity(
+    expectResultError(await createSubject().detachIdentity(
       CREDENTIALS,
       PUBLIC_IDENTITY,
       "different-google-account",
@@ -740,11 +797,8 @@ describe("GoogleIdentityOperations", () => {
   });
 });
 
-function createSubject(
-  repository = new LocalStorageIdentityRepository(),
-): GoogleIdentityOperations {
+function createSubject(): GoogleIdentityOperations {
   return new GoogleIdentityOperations(
-    repository,
     "https://homegate.example/",
     "https://passport.pubky.app",
   );
@@ -764,4 +818,18 @@ function record(mock: ReturnType<typeof vi.fn>, event: string, events: string[])
     events.push(event);
     return implementation?.(...args);
   });
+}
+
+function expectResultError<Success, Failure extends { code: string }>(
+  result: ResultType<Success, Failure>,
+  expected: { code: Failure["code"]; detailCode?: string },
+): Failure {
+  expect(Result.isError(result)).toBe(true);
+  if (!Result.isError(result)) throw new Error("Expected an error Result");
+  expect(result.error.code).toBe(expected.code);
+  if (expected.detailCode !== undefined) {
+    expect((result.error as Failure & { detailCode?: string }).detailCode)
+      .toBe(expected.detailCode);
+  }
+  return result.error;
 }

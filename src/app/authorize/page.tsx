@@ -7,7 +7,13 @@ export default function AuthorizePage() {
   try {
     config = getBrowserBootstrapConfig();
   } catch {
-    LOGGER.error("page.bootstrap.failed", { route: "authorize", layer: "page", operation: "bootstrap", stage: "configuration", code: "invalid_configuration" });
+    LOGGER.error("page.bootstrap.failed", {
+      route: "authorize",
+      layer: "page",
+      operation: "bootstrap",
+      stage: "configuration",
+      code: "invalid_configuration",
+    });
     throw new Error("Authorization page configuration unavailable.");
   }
 

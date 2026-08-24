@@ -4,6 +4,7 @@ import { Result } from "better-result";
 import Image from "next/image";
 import { type SubmitEvent, useState } from "react";
 
+import { LOGGER } from "../../../../../libs/logger/logger";
 import {
   MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS,
   type LocalIdentityRecoveryFile,
@@ -43,6 +44,9 @@ function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
         setPassword("");
       }
     } catch {
+      LOGGER.warn("identity.recovery_file.ui.failed", {
+        operation: "create_and_download",
+      });
       setRecoveryFileFailed(true);
     } finally {
       setPending(false);
@@ -100,6 +104,9 @@ function downloadFile(file: LocalIdentityRecoveryFile): boolean {
     URL.revokeObjectURL(url);
     return true;
   } catch {
+    LOGGER.warn("identity.recovery_file.ui.failed", {
+      operation: "download",
+    });
     return false;
   }
 }

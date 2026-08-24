@@ -12,6 +12,7 @@ import { useIdentityCatalog } from "./useIdentityCatalog";
 const MOCKS = vi.hoisted(() => ({
   catalog: { activePublicKeyZ32: null, identities: [] } as LocalIdentityCatalog,
   create: vi.fn(),
+  loadError: undefined as unknown,
   unavailable: false,
 }));
 
@@ -19,9 +20,12 @@ vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
   LocalIdentityController: function LocalIdentityController() {
     MOCKS.create();
     return {
-      listIdentities: () => MOCKS.unavailable
-        ? Result.err({ code: "storage_unavailable" as const })
-        : Result.ok(MOCKS.catalog),
+      listIdentities: () => {
+        if (MOCKS.loadError !== undefined) throw MOCKS.loadError;
+        return MOCKS.unavailable
+          ? Result.err({ code: "storage_unavailable" as const })
+          : Result.ok(MOCKS.catalog);
+      },
     };
   },
 }));
@@ -36,6 +40,7 @@ function IdentityCatalogProbe() {
 describe("useIdentityCatalog", () => {
   beforeEach(() => {
     MOCKS.catalog = { activePublicKeyZ32: null, identities: [] };
+    MOCKS.loadError = undefined;
     MOCKS.unavailable = false;
   });
 
@@ -61,6 +66,16 @@ describe("useIdentityCatalog", () => {
     MOCKS.unavailable = true;
     render(<IdentityCatalogProbe />);
     expect(await screen.findByText("unavailable")).toBeInTheDocument();
+  });
+
+  it("contains thrown load failures outside UI state", async () => {
+    const secret = "sensitive catalog detail";
+    MOCKS.loadError = new TypeError(secret);
+
+    render(<IdentityCatalogProbe />);
+
+    const state = await screen.findByText("unavailable");
+    expect(state).not.toHaveTextContent(secret);
   });
 
   it("creates one live controller under Strict Mode", async () => {

@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { readBoundedText } from "../../../libs/http/boundedBody";
 import { LOGGER } from "../../../libs/logger/logger";
+import type { CodedFailure } from "../../../libs/result";
 import { isPubkyPublicKey } from "../pubky/pubkyIdentityKey";
 
 export type HomeserverSignupInvitation = {
@@ -48,7 +49,7 @@ export class HomegateClient {
 
   async requestGoogleHomeserverSignupInvitation(
     googleIdToken: string,
-  ): Promise<Result<HomeserverSignupInvitation, { code: HomegateSignupInvitationErrorCode }>> {
+  ): Promise<Result<HomeserverSignupInvitation, CodedFailure<HomegateSignupInvitationErrorCode>>> {
     if (!isValidGoogleIdToken(googleIdToken)) {
       LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
         operation: "request_google_invitation",
@@ -72,13 +73,13 @@ export class HomegateClient {
         referrerPolicy: "no-referrer",
         signal,
       });
-    } catch {
+    } catch (cause) {
       LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
         operation: "request_google_invitation",
         stage: "request",
         code: "network_failed",
       });
-      return Result.err({ code: "network_failed" });
+      return Result.err({ code: "network_failed", cause });
     }
 
     const responseText = await readBoundedText(

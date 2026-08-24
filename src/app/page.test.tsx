@@ -16,7 +16,23 @@ describe("home page bootstrap", () => {
     vi.stubEnv("GOOGLE_CLIENT_ID", "SECRET-GOOGLE-CLIENT-ID");
     vi.stubEnv("HOMEGATE_URL", "SECRET-HOMEGATE-URL");
 
-    expect(() => Home()).toThrow("Home page configuration unavailable.");
+    let outwardError: unknown;
+    try {
+      Home();
+    } catch (cause) {
+      outwardError = cause;
+    }
+
+    expect(outwardError).toBeInstanceOf(Error);
+    expect((outwardError as Error).message).toBe("Home page configuration unavailable.");
+    expect((outwardError as Error).cause).toBeUndefined();
+    expect(error).toHaveBeenCalledWith("page.bootstrap.failed", {
+      route: "home",
+      layer: "page",
+      operation: "bootstrap",
+      stage: "configuration",
+      code: "invalid_configuration",
+    });
     expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET-GOOGLE-CLIENT-ID");
     expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET-HOMEGATE-URL");
   });

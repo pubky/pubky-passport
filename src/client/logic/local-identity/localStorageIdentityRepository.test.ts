@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 
+import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MemoryStorage } from "../../../../test-utils/MemoryStorage";
@@ -92,32 +93,44 @@ describe("LocalStorageIdentityRepository", () => {
 
   it("logs storage exceptions without exposing persisted contents", () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const cause = new TypeError("sensitive persisted contents");
     vi.spyOn(window.localStorage, "getItem").mockImplementation(() => {
-      throw new Error("sensitive persisted contents");
+      throw cause;
     });
 
-    expectResultError(new LocalStorageIdentityRepository().list(), {
-      code: "storage_unavailable",
-    });
+    const result = new LocalStorageIdentityRepository().list();
+    expect(Result.isError(result)).toBe(true);
+    if (!Result.isError(result)) throw new Error("Expected unavailable storage.");
+    expect(result.error.code).toBe("storage_unavailable");
+    expect(result.error.cause).toBe(cause);
     expect(warning).toHaveBeenCalledOnce();
     expect(warning).toHaveBeenCalledWith("identity.local_store.failed", {
       operation: "read",
       code: "storage_unavailable",
     });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("sensitive persisted contents");
   });
 
   it("reports write failures as unavailable storage", () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const cause = new DOMException("SECRET-STORED-IDENTITY", "QuotaExceededError");
     vi.spyOn(window.localStorage, "setItem").mockImplementation(() => {
-      throw new Error("quota exceeded");
+      throw cause;
     });
 
-    expectResultError(
-      new LocalStorageIdentityRepository().save(
-        { publicIdentity: FIRST_IDENTITY },
-        { bytes: new Uint8Array(32), format: PUBKY_SECRET_KEY_FORMAT },
-      ),
-      { code: "storage_unavailable" },
+    const result = new LocalStorageIdentityRepository().save(
+      { publicIdentity: FIRST_IDENTITY },
+      { bytes: new Uint8Array(32), format: PUBKY_SECRET_KEY_FORMAT },
     );
+    expect(Result.isError(result)).toBe(true);
+    if (!Result.isError(result)) throw new Error("Expected unavailable storage.");
+    expect(result.error.code).toBe("storage_unavailable");
+    expect(result.error.cause).toBe(cause);
+    expect(warning).toHaveBeenCalledWith("identity.local_store.failed", {
+      operation: "write",
+      code: "storage_unavailable",
+    });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-STORED-IDENTITY");
   });
 
   it.each([

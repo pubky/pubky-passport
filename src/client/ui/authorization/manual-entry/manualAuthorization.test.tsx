@@ -90,4 +90,22 @@ describe("ManualAuthorization", () => {
     expect(info).toHaveBeenCalledOnce();
     expect(JSON.stringify(info.mock.calls)).not.toContain("secret-canary");
   });
+
+  it("shows and safely logs a clipboard failure", async () => {
+    const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+    vi.spyOn(navigator.clipboard, "readText").mockRejectedValueOnce(new DOMException(
+      "SECRET-CLIPBOARD-CANARY",
+      "NotAllowedError",
+    ));
+    render(<ManualAuthorization onBack={vi.fn()} />);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Paste authorization link" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Clipboard access was blocked. Paste the link manually.");
+    expect(info).toHaveBeenCalledWith("authorize.manual_entry.failed", {
+      operation: "read_clipboard",
+      code: "clipboard_unavailable",
+    });
+    expect(JSON.stringify(info.mock.calls)).not.toContain("SECRET-CLIPBOARD-CANARY");
+  });
 });

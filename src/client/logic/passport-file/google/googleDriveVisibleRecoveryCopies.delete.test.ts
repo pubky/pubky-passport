@@ -149,6 +149,46 @@ describe("GoogleDriveVisibleRecoveryCopies deletion", () => {
     expect(logged).not.toContain("SECRET-UPSTREAM-BODY");
   });
 
+  it("returns the exact unexpected deletion cause without including it in logs", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const cause = {
+      message: "SECRET-DELETE-FAILURE",
+      token: TOKEN,
+      responseBody: "SECRET-RESPONSE-BODY",
+      driveFile: FOLDER,
+      url: "https://secret.example/drive/file-1",
+      identity: PUBLIC_IDENTITY.publicKeyDisplay,
+    };
+    const response = new Response(null);
+    Object.defineProperty(response, "ok", {
+      get() {
+        throw cause;
+      },
+    });
+    const visibleCopies = createVisibleCopies([response]);
+
+    const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_IDENTITY);
+
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error.code).toBe("network_failed");
+      expect(result.error.cause).toBe(cause);
+    }
+    expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {
+      operation: "delete_visible_copies",
+      code: "network_failed",
+    });
+    expect(warning).toHaveBeenCalledOnce();
+    expect(warning.mock.calls[0]?.[1]).not.toHaveProperty("cause");
+    const logged = JSON.stringify(warning.mock.calls);
+    expect(logged).not.toContain("SECRET-DELETE-FAILURE");
+    expect(logged).not.toContain("SECRET-RESPONSE-BODY");
+    expect(logged).not.toContain(TOKEN);
+    expect(logged).not.toContain(FOLDER.id);
+    expect(logged).not.toContain("secret.example");
+    expect(logged).not.toContain(PUBLIC_IDENTITY.publicKeyDisplay);
+  });
+
   it("rejects an invalid Pubky before accessing Drive", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>();
     const visibleCopies = new GoogleDriveVisibleRecoveryCopies(TOKEN, fetch);

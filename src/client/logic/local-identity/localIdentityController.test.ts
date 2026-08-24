@@ -94,6 +94,20 @@ describe("LocalIdentityController", () => {
     recoveryFile.bytes.fill(0);
   });
 
+  it("preserves the complete repository failure when recovery identity storage is unavailable", async () => {
+    const lowerCause = new DOMException("SECRET-LOCAL-IDENTITY", "SecurityError");
+    const repositoryFailure = { code: "storage_unavailable" as const, cause: lowerCause };
+    vi.spyOn(LocalStorageIdentityRepository.prototype, "read").mockReturnValue(Result.err(repositoryFailure));
+    const controller = createController();
+
+    const result = await controller.createRecoveryFile("identity", "a strong recovery password");
+
+    expect(Result.isError(result)).toBe(true);
+    if (!Result.isError(result)) throw new Error("Expected unavailable recovery identity.");
+    expect(result.error.code).toBe("identity_unavailable");
+    expect(result.error.cause).toBe(repositoryFailure);
+  });
+
   it("rejects weak recovery-file passwords before reading local identity storage", async () => {
     const readIdentity = vi.spyOn(LocalStorageIdentityRepository.prototype, "read");
     const createRecoveryFile = vi.spyOn(PubkySdkAdapter.prototype, "createRecoveryFile");
@@ -110,7 +124,11 @@ describe("LocalIdentityController", () => {
   it.each(["failure", "exception"] as const)(
     "zeros secret bytes and disposes the SDK adapter after a recovery-file SDK %s",
     async (outcome) => {
+      const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
       const secretKey = { bytes: new Uint8Array(32).fill(7), format: PUBKY_SECRET_KEY_FORMAT } as const;
+      const thrownCause = new TypeError("SECRET-RECOVERY-PASSWORD");
+      const sdkFailure = { code: "recovery_file_failed" as const };
+      const expectedCause = outcome === "exception" ? thrownCause : sdkFailure;
       vi.spyOn(LocalStorageIdentityRepository.prototype, "read").mockReturnValue(Result.ok({
         identity: {
           publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" },
@@ -119,18 +137,28 @@ describe("LocalIdentityController", () => {
       }));
       const createRecoveryFile = vi.spyOn(PubkySdkAdapter.prototype, "createRecoveryFile")
         .mockImplementation(() => {
-          if (outcome === "exception") throw new Error("recovery file failed");
-          return Result.err({ code: "recovery_file_failed" as const });
+          if (outcome === "exception") throw thrownCause;
+          return Result.err(sdkFailure);
         });
       const dispose = vi.spyOn(PubkySdkAdapter.prototype, "dispose");
       const controller = createController();
 
       const result = await controller.createRecoveryFile("identity", "a strong recovery password");
 
-      expect(Result.isError(result) && result.error).toEqual({ code: "recovery_file_failed" });
+      expect(Result.isError(result)).toBe(true);
+      if (!Result.isError(result)) throw new Error("Expected recovery-file failure.");
+      expect(result.error.code).toBe("recovery_file_failed");
+      expect(result.error.cause).toBe(expectedCause);
       expect(secretKey.bytes).toEqual(new Uint8Array(32));
       expect(createRecoveryFile).toHaveBeenCalledOnce();
       expect(dispose).toHaveBeenCalledOnce();
+      if (outcome === "exception") {
+        expect(warning).toHaveBeenCalledWith("identity.controller.failed", {
+          operation: "create_recovery_file",
+          code: "recovery_file_failed",
+        });
+        expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-RECOVERY-PASSWORD");
+      }
     },
   );
 

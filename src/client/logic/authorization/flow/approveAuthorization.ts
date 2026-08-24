@@ -3,6 +3,7 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER } from "../../../../libs/logger/logger";
+import type { CodedFailure } from "../../../../libs/result";
 import {
   LocalStorageIdentityRepository,
   type LocalIdentityErrorCode,
@@ -16,12 +17,12 @@ import type { IssuedPubkyAuthRequest } from "../request/IssuedPubkyAuthRequest";
 
 type ApproveAuthorizationResult = ResultType<
   void,
-  { code: "approval_failed" }
+  CodedFailure<"approval_failed">
 >;
 
 type RestoreLocalIdentityResult = ResultType<
   PubkyIdentityKey,
-  { code: RestoreLocalIdentityErrorCode }
+  CodedFailure<RestoreLocalIdentityErrorCode>
 >;
 
 type RestoreLocalIdentityErrorCode =
@@ -37,32 +38,34 @@ export async function approveAuthorization(
   let pubky: PubkySdkAdapter;
   try {
     pubky = new PubkySdkAdapter();
-  } catch {
+  } catch (error) {
     LOGGER.warn("authorize.approval.failed", {
       stage: "sdk_initialize",
       code: "unexpected_failure",
     });
-    return Result.err({ code: "approval_failed" });
+    return Result.err({ code: "approval_failed", cause: error });
   }
 
   let keyHandle: PubkyIdentityKey["keyHandle"] | undefined;
   let stage: "identity_restore" | "sdk_approve" = "identity_restore";
   try {
     const restored = await restoreLocalIdentity(pubky, publicKeyZ32);
-    if (Result.isError(restored)) return Result.err({ code: "approval_failed" });
+    if (Result.isError(restored)) {
+      return Result.err({ code: "approval_failed", cause: restored.error });
+    }
 
     keyHandle = restored.value.keyHandle;
     stage = "sdk_approve";
     const approved = await pubky.approveAuthRequest(keyHandle, request);
     return Result.isError(approved)
-      ? Result.err({ code: "approval_failed" })
+      ? Result.err({ code: "approval_failed", cause: approved.error })
       : Result.ok();
-  } catch {
+  } catch (error) {
     LOGGER.warn("authorize.approval.failed", {
       stage,
       code: "unexpected_failure",
     });
-    return Result.err({ code: "approval_failed" });
+    return Result.err({ code: "approval_failed", cause: error });
   } finally {
     disposeIdentityKey(pubky, keyHandle);
     disposePubky(pubky);
@@ -84,7 +87,9 @@ async function restoreLocalIdentity(
     }
 
     const restored = await pubky.restoreIdentityKey(stored.value.secretKey);
-    if (Result.isError(restored)) return Result.err({ code: "restore_failed" });
+    if (Result.isError(restored)) {
+      return Result.err({ code: "restore_failed", cause: restored.error });
+    }
 
     if (!isSamePublicIdentity(restored.value.publicIdentity, stored.value.identity.publicIdentity)) {
       disposeIdentityKey(pubky, restored.value.keyHandle);

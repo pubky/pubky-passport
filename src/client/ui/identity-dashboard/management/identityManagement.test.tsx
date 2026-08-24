@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { LOGGER } from "../../../../libs/logger/logger";
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import { IdentityManagement } from "./identityManagement";
 
@@ -44,11 +45,27 @@ describe("IdentityManagement", () => {
   });
 
   it("does not confirm a failed copy", async () => {
-    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: vi.fn(() => Promise.reject(new Error("denied"))) } });
+    const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: vi.fn(() => Promise.reject(new Error("SECRET-COPY-CANARY"))) } });
     render(<IdentityManagement identity={identity} onBack={vi.fn()} onDetachFromGoogle={vi.fn()} onDownloadRecoveryFile={vi.fn()} onRemoveLocalIdentity={vi.fn()} onMigrateToKeychain={vi.fn()} resolveHomeserver={async () => Result.ok("homeserver-pubky")} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Copy Pubky" }));
 
     await waitFor(() => expect(MOCKS.showCopyConfirmation).not.toHaveBeenCalled());
+    expect(info).toHaveBeenCalledWith("identity.management.failed", {
+      operation: "copy",
+    });
+    expect(JSON.stringify(info.mock.calls)).not.toContain("SECRET-COPY-CANARY");
+  });
+
+  it("settles a rejected homeserver lookup as unavailable", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    render(<IdentityManagement identity={identity} onBack={vi.fn()} onDetachFromGoogle={vi.fn()} onDownloadRecoveryFile={vi.fn()} onRemoveLocalIdentity={vi.fn()} onMigrateToKeychain={vi.fn()} resolveHomeserver={async () => { throw new Error("SECRET-HOMESERVER-CANARY"); }} />);
+
+    await waitFor(() => expect(screen.getByText("Unavailable")).toBeInTheDocument());
+    expect(warning).toHaveBeenCalledWith("identity.management.failed", {
+      operation: "resolve_homeserver",
+    });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-HOMESERVER-CANARY");
   });
 });

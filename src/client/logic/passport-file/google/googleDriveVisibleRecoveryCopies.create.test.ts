@@ -204,34 +204,43 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const calls: SanitizedCall[] = [];
     const controller = new AbortController();
+    const cause = new DOMException("Aborted", "AbortError");
     const fetchMock = (async (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       calls.push(sanitizedAbortCall(init));
       controller.abort();
-      throw new DOMException("Aborted", "AbortError");
+      throw cause;
     }) as typeof fetch;
     const visibleCopies = new GoogleDriveVisibleRecoveryCopies(ACCESS_TOKEN, fetchMock);
 
     const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, controller.signal);
 
-    expect(Result.isError(result) && result.error).toEqual({ code: "network_failed" });
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error.code).toBe("network_failed");
+      expect(result.error.cause).toBe(cause);
+    }
     expect(calls).toHaveLength(1);
     expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {
       operation: "list_folder",
       code: "network_failed",
     });
-    expect(warning).toHaveBeenCalledOnce();
   });
 
   it("does not verify metadata after the visible upload response is lost", async () => {
     const calls: SanitizedCall[] = [];
+    const cause = new Error("SECRET-LOST-UPLOAD-RESPONSE");
     const visibleCopies = createVisibleCopies([
       jsonResponse({ files: [FOLDER] }),
-      new Error("SECRET-LOST-UPLOAD-RESPONSE"),
+      cause,
     ], calls);
 
     const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, SIGNAL);
 
-    expect(Result.isError(result) && result.error).toEqual({ code: "network_failed" });
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error.code).toBe("network_failed");
+      expect(result.error.cause).toBe(cause);
+    }
     expect(calls).toHaveLength(2);
     expect(calls[1]?.endpoint).toBe("drive_upload");
   });

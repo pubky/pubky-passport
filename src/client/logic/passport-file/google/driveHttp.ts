@@ -1,6 +1,9 @@
 import "client-only";
 
+import { Result, type Result as ResultType } from "better-result";
+
 import { readBoundedText } from "../../../../libs/http/boundedBody";
+import type { CodedFailure } from "../../../../libs/result";
 
 const MAXIMUM_JSON_RESPONSE_BYTES = 16 * 1024;
 const MULTIPART_BOUNDARY = "pubky-passport-drive-boundary-v1";
@@ -12,26 +15,27 @@ export const DRIVE_MULTIPART_CONTENT_TYPE = `multipart/related; boundary=${MULTI
 export type DriveFile = Record<string, unknown>;
 export type DriveFileList = { files: DriveFile[]; nextPageToken?: string };
 export type DriveFileRevision = Readonly<{ storageId: string; revision: string }>;
+type DriveFetchResult = ResultType<Response, CodedFailure<"network_failed">>;
 
 /**
  * Executes an isolated, non-cacheable Drive request without leaking transport
- * exceptions. Returns `null` for network, abort, and other fetch failures.
+ * exceptions. Diagnostic causes remain internal to the typed failure.
  */
 export async function fetchDrive(
   fetchImpl: typeof fetch,
   input: string,
   init: RequestInit,
-): Promise<Response | null> {
+): Promise<DriveFetchResult> {
   try {
-    return await fetchImpl(input, {
+    return Result.ok(await fetchImpl(input, {
       ...init,
       cache: "no-store",
       credentials: "omit",
       redirect: "error",
       referrerPolicy: "no-referrer",
-    });
-  } catch {
-    return null;
+    }));
+  } catch (cause) {
+    return Result.err({ code: "network_failed", cause });
   }
 }
 

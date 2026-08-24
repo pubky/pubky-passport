@@ -2,6 +2,7 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
+import { LOGGER } from "../../../../libs/logger/logger";
 import {
   parseEncodedPubkyAuthRequest,
   type ParsedPubkyAuthRequest,
@@ -91,6 +92,9 @@ export class IssuedPubkyAuthRequest {
     try {
       return REQUEST_METADATA.get(request)?.callbacks[outcome];
     } catch {
+      LOGGER.warn("authorize.request_metadata.failed", {
+        operation: "take_outcome_callback",
+      });
       return undefined;
     } finally {
       REQUEST_METADATA.delete(request);

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryStorage } from "../../../../test-utils/MemoryStorage";
 import { encodeBase64Url } from "../../../libs/encoding/base64Url";
 import { GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE } from "../../../libs/authorization/earlyGoogleImplicitResponse";
+import { LOGGER } from "../../../libs/logger/logger";
 import { GoogleImplicitAuthorization } from "./GoogleImplicitAuthorization";
 
 const ORIGIN = "https://passport.example";
@@ -159,6 +160,68 @@ describe("GoogleImplicitAuthorization", () => {
     if (Result.isError(result)) return;
     expect(result.value.googleAccount.pictureUrl).toBe("data:image/png;base64,AQID");
     expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps avatar failures nonfatal and logs only safe metadata", async () => {
+    const thrown = { secret: "AVATAR-FAILURE-CANARY" };
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const popup = createPopup();
+    const fetch = vi.fn<typeof globalThis.fetch>(async (input) => {
+      if (String(input) === "https://openidconnect.googleapis.com/v1/userinfo") {
+        return Response.json({
+          sub: SUBJECT,
+          email: "person@example.com",
+          name: "Person",
+          picture: "https://lh3.googleusercontent.com/avatar",
+        });
+      }
+      throw thrown;
+    });
+    const open = vi.fn<typeof window.open>(() => popup.window);
+    vi.stubGlobal("open", open);
+    vi.stubGlobal("fetch", fetch);
+    const authorization = new GoogleImplicitAuthorization("client-id");
+    const request = authorization.request();
+    const authorizeUrl = new URL(String(open.mock.calls[0]?.[0]));
+    popup.returnTo(`${ORIGIN}/#${new URLSearchParams({
+      access_token: ACCESS_TOKEN,
+      id_token: jwt({ sub: SUBJECT, nonce: authorizeUrl.searchParams.get("nonce") }),
+      scope: APP_DATA_SCOPE,
+      state: authorizeUrl.searchParams.get("state") ?? "",
+    })}`);
+
+    const result = await request;
+
+    expect(Result.isError(result)).toBe(false);
+    if (!Result.isError(result)) expect(result.value.googleAccount.pictureUrl).toBeNull();
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("AVATAR-FAILURE-CANARY");
+  });
+
+  it("preserves user-info exceptions as exact causes without logging details", async () => {
+    const thrown = { secret: "USERINFO-FAILURE-CANARY" };
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const popup = createPopup();
+    const open = vi.fn<typeof window.open>(() => popup.window);
+    vi.stubGlobal("open", open);
+    vi.stubGlobal("fetch", vi.fn<typeof globalThis.fetch>().mockRejectedValue(thrown));
+    const authorization = new GoogleImplicitAuthorization("client-id");
+    const request = authorization.request();
+    const authorizeUrl = new URL(String(open.mock.calls[0]?.[0]));
+    popup.returnTo(`${ORIGIN}/#${new URLSearchParams({
+      access_token: ACCESS_TOKEN,
+      id_token: jwt({ sub: SUBJECT, nonce: authorizeUrl.searchParams.get("nonce") }),
+      scope: APP_DATA_SCOPE,
+      state: authorizeUrl.searchParams.get("state") ?? "",
+    })}`);
+
+    const result = await request;
+
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error.code).toBe("google_authorization_failed");
+      expect(result.error.cause).toBe(thrown);
+    }
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("USERINFO-FAILURE-CANARY");
   });
 
   it("reports popup closure from the popup handle", async () => {
@@ -322,6 +385,62 @@ describe("GoogleImplicitAuthorization", () => {
     const result = await authorization.request();
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) expect(result.error.code).toBe("google_authorization_popup_failed_to_open");
+  });
+
+  it("preserves authorization setup exceptions as exact causes", async () => {
+    const thrown = { secret: "AUTHORIZATION-SETUP-CANARY" };
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementationOnce(() => {
+      throw thrown;
+    });
+
+    const result = await new GoogleImplicitAuthorization("client-id").request();
+
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error.code).toBe("google_authorization_failed");
+      expect(result.error.cause).toBe(thrown);
+    }
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("AUTHORIZATION-SETUP-CANARY");
+  });
+
+  it("closes the popup when attempt registration fails", async () => {
+    const popup = createPopup();
+    const cause = new Error("SECRET-ATTEMPT-SETUP-CANARY");
+    vi.stubGlobal("open", vi.fn<typeof window.open>(() => popup.window));
+    vi.spyOn(globalThis.window, "addEventListener").mockImplementationOnce(() => {
+      throw cause;
+    });
+
+    const result = await new GoogleImplicitAuthorization("client-id").request();
+
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) expect(result.error.cause).toBe(cause);
+    expect(popup.close).toHaveBeenCalledOnce();
+  });
+
+  it("settles the request when attempt cleanup fails", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const popup = createPopup();
+    vi.stubGlobal("open", vi.fn<typeof window.open>(() => popup.window));
+    vi.spyOn(globalThis.window, "removeEventListener").mockImplementationOnce(() => {
+      throw new Error("SECRET-CLEANUP-CANARY");
+    });
+    const authorization = new GoogleImplicitAuthorization("client-id");
+    const request = authorization.request();
+
+    authorization.dispose();
+
+    const result = await request;
+
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) expect(result.error.code).toBe("google_authorization_failed");
+    expect(popup.close).toHaveBeenCalledOnce();
+    expect(warning).toHaveBeenCalledWith(
+      "identity.google.implicit_authorization.cleanup_failed",
+      { operation: "remove_message_listener" },
+    );
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-CLEANUP-CANARY");
   });
 });
 

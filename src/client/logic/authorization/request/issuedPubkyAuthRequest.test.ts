@@ -1,6 +1,7 @@
 import { Result } from "better-result";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { LOGGER } from "../../../../libs/logger/logger";
 import { IssuedPubkyAuthRequest } from "./IssuedPubkyAuthRequest";
 
 const REQUEST =
@@ -8,6 +9,8 @@ const REQUEST =
 const SECRET = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
 describe("IssuedPubkyAuthRequest", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it("creates an immutable safe review and exact approval authority", () => {
     const issued = IssuedPubkyAuthRequest.issue(encodeURIComponent(REQUEST));
     if (Result.isError(issued)) throw new Error(issued.error.code);
@@ -85,6 +88,28 @@ describe("IssuedPubkyAuthRequest", () => {
     expect(IssuedPubkyAuthRequest.isLive(issued.value)).toBe(false);
   });
 
+  it("contains metadata access failures and releases the request", () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const issued = IssuedPubkyAuthRequest.issue(encodeURIComponent(REQUEST));
+    if (Result.isError(issued)) throw new Error(issued.error.code);
+    const hostileOutcome = {
+      [Symbol.toPrimitive]() {
+        throw new TypeError(`metadata access failed ${SECRET} ${REQUEST}`);
+      },
+    } as unknown as "success";
+
+    expect(IssuedPubkyAuthRequest.takeOutcomeCallback(
+      issued.value,
+      hostileOutcome,
+    )).toBeUndefined();
+    expect(IssuedPubkyAuthRequest.isLive(issued.value)).toBe(false);
+    expect(warning).toHaveBeenCalledWith("authorize.request_metadata.failed", {
+      operation: "take_outcome_callback",
+    });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(SECRET);
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(REQUEST);
+  });
+
   it("derives display hosts from fallback callbacks and preserves punycode", () => {
     const errorOnly = IssuedPubkyAuthRequest.issue(encodeURIComponent(
       "pubkyauth://signin?caps=/pub/app/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-error=https://errors.example/error",
@@ -149,6 +174,8 @@ describe("IssuedPubkyAuthRequest.validate", () => {
     ));
 
     expect(Result.isError(result) && result.error).toEqual({ code: "missing_relay" });
+    if (Result.isOk(result)) throw new Error("Expected validation to fail");
+    expect(result.error).not.toHaveProperty("cause");
     expect(JSON.stringify(result)).not.toContain(SECRET);
   });
 });

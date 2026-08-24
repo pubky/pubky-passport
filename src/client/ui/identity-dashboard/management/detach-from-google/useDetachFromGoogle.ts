@@ -3,11 +3,13 @@
 import { Result } from "better-result";
 import { useCallback, useEffect, useReducer, useRef } from "react";
 
+import { LOGGER } from "../../../../../libs/logger/logger";
 import {
   GoogleIdentityController,
   type GoogleIdentityConfiguration,
-  type GoogleIdentityError,
+  type GoogleIdentityViewError,
 } from "../../../../logic/google-identity/GoogleIdentityController";
+import { toGoogleIdentityViewError } from "../../../../logic/google-identity/googleIdentityViewError";
 import type { PubkyPublicIdentity } from "../../../../logic/pubky/pubkyIdentityKey";
 
 type DetachFromGoogleOperationState =
@@ -15,14 +17,14 @@ type DetachFromGoogleOperationState =
   | { status: "requesting-authorization" }
   | { status: "detaching" }
   | { status: "authorization-failed" }
-  | { status: "operation-failed"; error: GoogleIdentityError }
+  | { status: "operation-failed"; error: GoogleIdentityViewError }
   | { status: "complete" };
 
 type DetachFromGoogleOperationEvent =
   | { type: "authorization-failed" }
   | { type: "request-started" }
   | { type: "detachment-started" }
-  | { type: "operation-failed"; error: GoogleIdentityError }
+  | { type: "operation-failed"; error: GoogleIdentityViewError }
   | { type: "operation-completed" };
 
 function transitionDetachFromGoogleOperation(
@@ -37,7 +39,10 @@ function transitionDetachFromGoogleOperation(
     case "detachment-started":
       return { status: "detaching" };
     case "operation-failed":
-      return { status: "operation-failed", error: event.error };
+      return {
+        status: "operation-failed",
+        error: event.error,
+      };
     case "operation-completed":
       return { status: "complete" };
   }
@@ -73,13 +78,20 @@ function useDetachFromGoogle(
           if (completed.error.code === "authorization_failed") {
             dispatch({ type: "authorization-failed" });
           } else {
-            dispatch({ type: "operation-failed", error: completed.error });
+            dispatch({
+              type: "operation-failed",
+              error: toGoogleIdentityViewError(completed.error),
+            });
           }
           return;
         }
         dispatch({ type: "operation-completed" });
       })
       .catch(() => {
+        LOGGER.warn("identity.google.detachment_ui.failed", {
+          operation: "detach",
+          stage: "operation_promise",
+        });
         if (googleIdentityControllerRef.current === googleIdentityController) {
           dispatch({ type: "operation-failed", error: { code: "operation_failed" } });
         }
@@ -113,7 +125,13 @@ function useDetachFromGoogle(
     }
     return () => {
       googleIdentityControllerRef.current = null;
-      googleIdentityController.dispose();
+      try {
+        googleIdentityController.dispose();
+      } catch {
+        LOGGER.warn("identity.google.cleanup.failed", {
+          operation: "detachment_controller_dispose",
+        });
+      }
     };
   }, [googleClientId, homegateBaseUrl]);
 

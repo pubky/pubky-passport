@@ -4,6 +4,7 @@ import { Result } from "better-result";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
+import { LOGGER } from "../../../../libs/logger/logger";
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import type { PubkyHomeserverResolutionResult } from "../../../logic/pubky/pubkyIdentityKey";
 import { CopyIcon, DownloadIcon, KeyRoundIcon, LinkOffIcon } from "../../shared/actionIcons";
@@ -22,9 +23,16 @@ function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadRe
 
   useEffect(() => {
     let cancelled = false;
-    resolveHomeserver(identity.publicIdentity.publicKeyZ32).then((result) => {
-      if (!cancelled) setHomeserver(Result.isError(result) ? null : result.value);
-    });
+    void resolveHomeserver(identity.publicIdentity.publicKeyZ32)
+      .then((result) => {
+        if (!cancelled) setHomeserver(Result.isError(result) ? null : result.value);
+      })
+      .catch(() => {
+        LOGGER.warn("identity.management.failed", {
+          operation: "resolve_homeserver",
+        });
+        if (!cancelled) setHomeserver(null);
+      });
     return () => { cancelled = true; };
   }, [identity.publicIdentity.publicKeyZ32, resolveHomeserver]);
 
@@ -61,7 +69,9 @@ function IdentityDetail({ copy = false, label, value }: { copy?: boolean; label:
       await navigator.clipboard.writeText(value);
       showCopyConfirmation(label, value);
     } catch {
-      // Keep clipboard failures silent; a success toast must only confirm a completed copy.
+      LOGGER.info("identity.management.failed", {
+        operation: "copy",
+      });
     }
   }
 

@@ -3,8 +3,10 @@
 import { Result } from "better-result";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
+import { LOGGER } from "../../../../libs/logger/logger";
 import { GoogleIdentityController } from "../../../logic/google-identity/GoogleIdentityController";
 import type { GoogleIdentityConfiguration } from "../../../logic/google-identity/GoogleIdentityController";
+import { toGoogleIdentityViewError } from "../../../logic/google-identity/googleIdentityViewError";
 import {
   INITIAL_GOOGLE_IDENTITY_ESTABLISHMENT_STATE,
   transitionGoogleIdentityEstablishment,
@@ -42,7 +44,10 @@ function useGoogleIdentityEstablishment(configuration: GoogleIdentityConfigurati
         if (Result.isError(result)) {
           if (result.error.code === "cancelled") return;
 
-          dispatch({ type: "operation-failed", error: result.error });
+          dispatch({
+            type: "operation-failed",
+            error: toGoogleIdentityViewError(result.error),
+          });
           return;
         }
 
@@ -54,6 +59,10 @@ function useGoogleIdentityEstablishment(configuration: GoogleIdentityConfigurati
         });
       })
       .catch(() => {
+        LOGGER.warn("identity.google.establishment_ui.failed", {
+          operation,
+          stage: "operation_promise",
+        });
         if (googleIdentityControllerRef.current === googleIdentityController) {
           dispatch({ type: "operation-failed", error: { code: "operation_failed" } });
         }
@@ -112,7 +121,13 @@ function useGoogleIdentityEstablishment(configuration: GoogleIdentityConfigurati
     return () => {
       active = false;
       googleIdentityControllerRef.current = null;
-      googleIdentityController.dispose();
+      try {
+        googleIdentityController.dispose();
+      } catch {
+        LOGGER.warn("identity.google.cleanup.failed", {
+          operation: "establishment_controller_dispose",
+        });
+      }
     };
   }, [googleClientId, homegateBaseUrl]);
 

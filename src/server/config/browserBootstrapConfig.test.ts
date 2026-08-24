@@ -5,12 +5,16 @@ import { getBrowserBootstrapConfig } from "./browserBootstrapConfig";
 const VALID_CONFIG = {
   GOOGLE_CLIENT_ID: " google-client-id ",
   HOMEGATE_URL: "https://homegate.example/api",
+  PUBKY_HOMESERVER_CONNECT_ORIGINS: "https://homeserver.example",
+  PASSPORT_SERVER_SECRET_BASE64: Buffer.alloc(32, 1).toString("base64"),
 };
 
 describe("browser bootstrap config", () => {
   beforeEach(() => {
     vi.stubEnv("GOOGLE_CLIENT_ID", VALID_CONFIG.GOOGLE_CLIENT_ID);
     vi.stubEnv("HOMEGATE_URL", VALID_CONFIG.HOMEGATE_URL);
+    vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", VALID_CONFIG.PUBKY_HOMESERVER_CONNECT_ORIGINS);
+    vi.stubEnv("PASSPORT_SERVER_SECRET_BASE64", VALID_CONFIG.PASSPORT_SERVER_SECRET_BASE64);
   });
 
   afterEach(() => vi.unstubAllEnvs());

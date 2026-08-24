@@ -5,6 +5,7 @@ import { Result, type Result as ResultType } from "better-result";
 import { decodeBase64Url, encodeBase64Url } from "../../../libs/encoding/base64Url";
 import { readBoundedBytes, readBoundedText } from "../../../libs/http/boundedBody";
 import { LOGGER } from "../../../libs/logger/logger";
+import type { CodedFailure } from "../../../libs/result";
 import {
   EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS,
   GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE,
@@ -23,9 +24,7 @@ type GoogleImplicitAuthorizationErrorCode =
   | "google_authorization_failed"
   | "google_authorization_popup_closed"
   | "google_authorization_popup_failed_to_open";
-export type GoogleImplicitAuthorizationError = {
-  code: GoogleImplicitAuthorizationErrorCode;
-};
+export type GoogleImplicitAuthorizationError = CodedFailure<GoogleImplicitAuthorizationErrorCode>;
 export type GoogleImplicitAuthorizationResult<Success> = ResultType<
   Success,
   GoogleImplicitAuthorizationError
@@ -86,68 +85,91 @@ export class GoogleImplicitAuthorization {
       });
       return Promise.resolve(Result.err({ code: "google_authorization_failed" }));
     }
-    const origin = globalThis.location.origin;
-    const state = randomBase64Url(32);
-    const nonce = randomBase64Url(32);
-    const url = new URL(GOOGLE_AUTHORIZE_URL);
-    url.search = new URLSearchParams({
-      client_id: this.clientId,
-      response_type: "id_token token",
-      scope: GOOGLE_AUTHORIZATION_SCOPE,
-      redirect_uri: origin,
-      nonce,
-      state,
-      prompt: "consent",
-      include_granted_scopes: "false",
-      ...(loginHint ? { login_hint: loginHint } : {}),
-    }).toString();
-
-    const popup = globalThis.open(url, `pubky-passport-google-${state}`, "popup,width=520,height=680");
-    if (!popup) {
-      LOGGER.warn("identity.google.implicit_authorization.failed", {
-        operation: "authorize",
-        stage: "popup",
-        code: "google_authorization_popup_failed_to_open",
-      });
-      return Promise.resolve(Result.err({ code: "google_authorization_popup_failed_to_open" }));
-    }
-
-    return new Promise((resolve) => {
-      const attempt: AuthorizationAttempt = {
+    let popup: Window | null = null;
+    try {
+      const origin = globalThis.location.origin;
+      const state = randomBase64Url(32);
+      const nonce = randomBase64Url(32);
+      const abortController = new AbortController();
+      const url = new URL(GOOGLE_AUTHORIZE_URL);
+      url.search = new URLSearchParams({
+        client_id: this.clientId,
+        response_type: "id_token token",
+        scope: GOOGLE_AUTHORIZATION_SCOPE,
+        redirect_uri: origin,
         nonce,
-        abortController: new AbortController(),
-        messageListener: () => undefined,
-        popup,
-        poll: 0 as unknown as ReturnType<typeof setInterval>,
-        responseReceived: false,
-        resolve,
         state,
-        timeout: 0 as unknown as ReturnType<typeof setTimeout>,
-      };
-      this.activeAttempt = attempt;
-      attempt.messageListener = (event) => {
-        if (event.origin !== origin
-          || event.source !== popup
-          || this.activeAttempt !== attempt
-          || attempt.responseReceived
-          || !isRecord(event.data)
-          || event.data.type !== GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE) return;
-        attempt.responseReceived = true;
-        clearInterval(attempt.poll);
-        closePopup(attempt.popup);
-        void this.handleResponseMessage(attempt, event.data);
-      };
-      globalThis.window.addEventListener("message", attempt.messageListener);
-      attempt.poll = setInterval(() => this.inspectPopup(attempt), POPUP_POLL_MS);
-      attempt.timeout = setTimeout(() => {
+        prompt: "consent",
+        include_granted_scopes: "false",
+        ...(loginHint ? { login_hint: loginHint } : {}),
+      }).toString();
+
+      popup = globalThis.open(url, `pubky-passport-google-${state}`, "popup,width=520,height=680");
+      if (!popup) {
         LOGGER.warn("identity.google.implicit_authorization.failed", {
           operation: "authorize",
-          stage: "timeout",
-          code: "google_authorization_failed",
+          stage: "popup",
+          code: "google_authorization_popup_failed_to_open",
         });
-        this.finish(attempt, Result.err({ code: "google_authorization_failed" }));
-      }, AUTHORIZATION_TIMEOUT_MS);
-    });
+        return Promise.resolve(Result.err({ code: "google_authorization_popup_failed_to_open" }));
+      }
+      const openedPopup = popup;
+
+      return new Promise((resolve) => {
+        const attempt: AuthorizationAttempt = {
+          nonce,
+          abortController,
+          messageListener: () => undefined,
+          popup: openedPopup,
+          poll: 0 as unknown as ReturnType<typeof setInterval>,
+          responseReceived: false,
+          resolve,
+          state,
+          timeout: 0 as unknown as ReturnType<typeof setTimeout>,
+        };
+        this.activeAttempt = attempt;
+        attempt.messageListener = (event) => {
+          try {
+            if (event.origin !== origin
+              || event.source !== openedPopup
+              || this.activeAttempt !== attempt
+              || attempt.responseReceived
+              || !isRecord(event.data)
+              || event.data.type !== GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE) return;
+            attempt.responseReceived = true;
+            clearInterval(attempt.poll);
+            closePopup(attempt.popup);
+            void this.handleResponseMessage(attempt, event.data).catch((error: unknown) => {
+              this.failAttempt(attempt, "response_handler", error);
+            });
+          } catch (error) {
+            this.failAttempt(attempt, "message_listener", error);
+          }
+        };
+        try {
+          globalThis.window.addEventListener("message", attempt.messageListener);
+          attempt.poll = setInterval(() => this.inspectPopup(attempt), POPUP_POLL_MS);
+          attempt.timeout = setTimeout(() => {
+            LOGGER.warn("identity.google.implicit_authorization.failed", {
+              operation: "authorize",
+              stage: "timeout",
+              code: "google_authorization_failed",
+            });
+            this.finish(attempt, Result.err({ code: "google_authorization_failed" }));
+          }, AUTHORIZATION_TIMEOUT_MS);
+        } catch (error) {
+          this.failAttempt(attempt, "attempt_setup", error);
+        }
+      });
+    } catch (error) {
+      if (popup) closePopup(popup);
+      LOGGER.warn("identity.google.implicit_authorization.failed", {
+        operation: "authorize",
+        stage: "request_setup",
+        code: "google_authorization_failed",
+      });
+      return Promise.resolve(Result.err({ code: "google_authorization_failed", cause: error }));
+    }
   }
 
   dispose(): void {
@@ -156,9 +178,13 @@ export class GoogleImplicitAuthorization {
   }
 
   private inspectPopup(attempt: AuthorizationAttempt): void {
-    if (this.activeAttempt !== attempt || attempt.responseReceived) return;
-    if (attempt.popup.closed) {
-      this.finish(attempt, Result.err({ code: "google_authorization_popup_closed" }));
+    try {
+      if (this.activeAttempt !== attempt || attempt.responseReceived) return;
+      if (attempt.popup.closed) {
+        this.finish(attempt, Result.err({ code: "google_authorization_popup_closed" }));
+      }
+    } catch (error) {
+      this.failAttempt(attempt, "popup_poll", error);
     }
   }
 
@@ -275,13 +301,13 @@ export class GoogleImplicitAuthorization {
       }
       const pictureUrl = value.picture ? await this.fetchAvatar(value.picture, signal) : null;
       return Result.ok({ googleSubject: value.sub, email: value.email, name: value.name, pictureUrl });
-    } catch {
+    } catch (error) {
       LOGGER.warn("identity.google.implicit_authorization.failed", {
         operation: "authorize",
         stage: "userinfo",
         code: "google_authorization_failed",
       });
-      return Result.err({ code: "google_authorization_failed" });
+      return Result.err({ code: "google_authorization_failed", cause: error });
     }
   }
 
@@ -307,18 +333,43 @@ export class GoogleImplicitAuthorization {
     }
   }
 
+  private failAttempt(
+    attempt: AuthorizationAttempt,
+    stage: "attempt_setup" | "message_listener" | "popup_poll" | "response_handler",
+    error: unknown,
+  ): void {
+    LOGGER.warn("identity.google.implicit_authorization.failed", {
+      operation: "authorize",
+      stage,
+      code: "google_authorization_failed",
+    });
+    if (this.activeAttempt === attempt) {
+      this.finish(attempt, Result.err({ code: "google_authorization_failed", cause: error }));
+    }
+  }
+
   private finish(
     attempt: AuthorizationAttempt,
     result: GoogleImplicitAuthorizationResult<GoogleIdentityCredentials>,
   ): void {
     if (this.activeAttempt !== attempt) return;
-    clearInterval(attempt.poll);
-    clearTimeout(attempt.timeout);
-    globalThis.window.removeEventListener("message", attempt.messageListener);
-    attempt.abortController.abort();
     this.activeAttempt = null;
-    closePopup(attempt.popup);
+    cleanupAuthorizationAttempt("clear_poll", () => clearInterval(attempt.poll));
+    cleanupAuthorizationAttempt("clear_timeout", () => clearTimeout(attempt.timeout));
+    cleanupAuthorizationAttempt("remove_message_listener", () => {
+      globalThis.window.removeEventListener("message", attempt.messageListener);
+    });
+    cleanupAuthorizationAttempt("abort_requests", () => attempt.abortController.abort());
+    cleanupAuthorizationAttempt("close_popup", () => closePopup(attempt.popup));
     attempt.resolve(result);
+  }
+}
+
+function cleanupAuthorizationAttempt(operation: string, cleanup: () => void): void {
+  try {
+    cleanup();
+  } catch {
+    LOGGER.warn("identity.google.implicit_authorization.cleanup_failed", { operation });
   }
 }
 

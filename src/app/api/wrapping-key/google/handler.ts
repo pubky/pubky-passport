@@ -19,44 +19,44 @@ type GoogleWrappingKeyRouteBody =
     };
   };
 
-export function createGoogleWrappingKeyPostHandler() {
-  let activeIssuer: GoogleWrappingKeyIssuer | undefined;
+let activeIssuer: GoogleWrappingKeyIssuer | undefined;
 
-  return async function googleWrappingKeyPost(request: Request): Promise<NextResponse<GoogleWrappingKeyRouteBody>> {
-    let operation: "parse" | "compose" | "execute" = "parse";
-    try {
-      const body = await parseGoogleIdTokenRequest(request);
+export async function googleWrappingKeyPost(
+  request: Request,
+): Promise<NextResponse<GoogleWrappingKeyRouteBody>> {
+  let operation: "parse" | "compose" | "execute" = "parse";
+  try {
+    const body = await parseGoogleIdTokenRequest(request);
 
-      if (Result.isError(body)) {
-        LOGGER.info("identity.google.wrapping_key.failed", {
-          route: "api.wrapping_key.google",
-          layer: "route",
-          operation,
-          code: "invalid_request",
-        });
-        return jsonResponse({ error: { code: "invalid_request" } }, 400);
-      }
-
-      operation = "compose";
-      if (!activeIssuer) activeIssuer = GoogleWrappingKeyIssuer.fromEnvironment();
-      operation = "execute";
-      const result = await activeIssuer.issueGoogleWrappingKey(body.value);
-
-      if (Result.isError(result)) {
-        return jsonResponse({ error: { code: result.error.code } }, statusForError(result.error.code));
-      }
-
-      return jsonResponse({ wrappingKey: result.value }, 200);
-    } catch {
-      LOGGER.error("identity.google.wrapping_key.failed", {
+    if (Result.isError(body)) {
+      LOGGER.info("identity.google.wrapping_key.failed", {
         route: "api.wrapping_key.google",
         layer: "route",
         operation,
-        code: "internal_error",
+        code: "invalid_request",
       });
-      return jsonResponse({ error: { code: "internal_error" } }, 500);
+      return jsonResponse({ error: { code: "invalid_request" } }, 400);
     }
-  };
+
+    operation = "compose";
+    if (!activeIssuer) activeIssuer = GoogleWrappingKeyIssuer.fromEnvironment();
+    operation = "execute";
+    const result = await activeIssuer.issueGoogleWrappingKey(body.value);
+
+    if (Result.isError(result)) {
+      return jsonResponse({ error: { code: result.error.code } }, statusForError(result.error.code));
+    }
+
+    return jsonResponse({ wrappingKey: result.value }, 200);
+  } catch {
+    LOGGER.error("identity.google.wrapping_key.failed", {
+      route: "api.wrapping_key.google",
+      layer: "route",
+      operation,
+      code: "internal_error",
+    });
+    return jsonResponse({ error: { code: "internal_error" } }, 500);
+  }
 }
 
 function jsonResponse(

@@ -29,6 +29,7 @@ export default defineConfig({
       GOOGLE_CLIENT_ID: "e2e-google-client-id",
       HOMEGATE_URL: "https://homegate.example/",
       PUBKY_HOMESERVER_CONNECT_ORIGINS: "https://homeserver.example",
+      PASSPORT_SERVER_SECRET_BASE64: Buffer.alloc(32, 1).toString("base64"),
     },
     url: BASE_URL,
     reuseExistingServer: false,

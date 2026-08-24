@@ -4,10 +4,14 @@ import { OAuth2Client, type LoginTicket } from "google-auth-library";
 import { Result } from "better-result";
 
 import { LOGGER } from "../../../libs/logger/logger";
-import {
-  CANONICAL_GOOGLE_ISSUER,
-  type GoogleIdTokenVerificationResult,
-} from "./googleIdTokenVerification";
+import type { CodedFailure } from "../../../libs/result";
+
+export const CANONICAL_GOOGLE_ISSUER = "https://accounts.google.com";
+
+export type VerifiedGoogleIdentity = {
+  issuer: typeof CANONICAL_GOOGLE_ISSUER;
+  googleSubject: string;
+};
 
 type GoogleIdTokenPayload = {
   iss?: string;
@@ -17,17 +21,15 @@ type GoogleIdTokenPayload = {
   sub?: string | undefined;
 };
 
-const ACCEPTED_GOOGLE_ISSUERS = new Set(["accounts.google.com", CANONICAL_GOOGLE_ISSUER]);
-type GoogleTokenVerifier = Pick<OAuth2Client, "verifyIdToken">;
+export type GoogleIdTokenVerificationResult = Result<
+  VerifiedGoogleIdentity,
+  CodedFailure<"invalid_google_id_token">
+>;
 
 export class GoogleIdTokenVerifier {
-  static forAudience(audience: string): GoogleIdTokenVerifier {
-    return new GoogleIdTokenVerifier(audience, new OAuth2Client());
-  }
-
   constructor(
     private audience: string,
-    private verifier: GoogleTokenVerifier,
+    private verifier: Pick<OAuth2Client, "verifyIdToken"> = new OAuth2Client(),
   ) {}
 
   async verifyGoogleIdToken(idToken: string): Promise<GoogleIdTokenVerificationResult> {
@@ -37,9 +39,8 @@ export class GoogleIdTokenVerifier {
     } catch (cause) {
       LOGGER.warn("identity.google.id_token_verification.failed", {
         code: "google_verifier_rejected",
-        thrownValue: cause instanceof Error ? "error" : "unknown",
       });
-      return Result.err({ code: "invalid_google_id_token" });
+      return Result.err({ code: "invalid_google_id_token", cause });
     }
 
     let payload: GoogleIdTokenPayload | undefined;
@@ -48,9 +49,8 @@ export class GoogleIdTokenVerifier {
     } catch (cause) {
       LOGGER.warn("identity.google.id_token_verification.failed", {
         code: "payload_access_failed",
-        thrownValue: cause instanceof Error ? "error" : "unknown",
       });
-      return Result.err({ code: "invalid_google_id_token" });
+      return Result.err({ code: "invalid_google_id_token", cause });
     }
 
     if (!payload) {
@@ -75,7 +75,7 @@ function validatePayload(
   payload: GoogleIdTokenPayload,
   expectedAudience: string,
 ): GoogleIdTokenVerificationResult {
-  if (!payload.iss || !ACCEPTED_GOOGLE_ISSUERS.has(payload.iss)) {
+  if (payload.iss !== "accounts.google.com" && payload.iss !== CANONICAL_GOOGLE_ISSUER) {
     return Result.err({ code: "invalid_google_id_token" });
   }
 

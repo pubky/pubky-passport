@@ -86,6 +86,10 @@ function takeEarlyAuthorizationLocation(appWindow: Window): EarlyAuthorizationLo
       ? { status: "captured", hash: capture.hash, expiresAt: capture.expiresAt }
       : undefined;
   } catch {
+    LOGGER.warn("authorize.entry.failed", {
+      operation: "take_early_capture",
+      code: "capture_unavailable",
+    });
     return undefined;
   }
 }

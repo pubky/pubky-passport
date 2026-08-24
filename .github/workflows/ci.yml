@@ -50,6 +50,7 @@ jobs:
       GOOGLE_CLIENT_ID: "e2e-google-client-id"
       HOMEGATE_URL: "https://homegate.example/"
       PUBKY_HOMESERVER_CONNECT_ORIGINS: "https://homeserver.example"
+      PASSPORT_SERVER_SECRET_BASE64: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
 
     steps:
       - name: Checkout

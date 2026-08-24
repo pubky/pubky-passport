@@ -3,6 +3,7 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER } from "../../../libs/logger/logger";
+import type { CodedFailure } from "../../../libs/result";
 import type { PubkyHomeserverResolutionResult } from "../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter, resolvePubkyHomeserver } from "../pubky/PubkySdkAdapter";
 import type { LocalIdentityCatalog } from "./localIdentityModels";
@@ -19,7 +20,7 @@ export type LocalIdentityRecoveryFileErrorCode =
   | "invalid_password";
 export type LocalIdentityRecoveryFileResult = ResultType<
   LocalIdentityRecoveryFile,
-  { code: LocalIdentityRecoveryFileErrorCode }
+  CodedFailure<LocalIdentityRecoveryFileErrorCode>
 >;
 
 /**
@@ -31,12 +32,12 @@ export class LocalIdentityController {
   constructor() {
     try {
       this.repository = new LocalStorageIdentityRepository();
-    } catch (error) {
+    } catch {
       LOGGER.error("identity.controller.failed", {
         operation: "initialize",
         code: "runtime_exception",
       });
-      throw error;
+      throw new Error("Local identity initialization unavailable.");
     }
   }
 
@@ -75,19 +76,27 @@ export class LocalIdentityController {
     }
 
     const stored = this.repository.read(publicKeyZ32);
-    if (Result.isError(stored)) return Result.err({ code: "identity_unavailable" });
+    if (Result.isError(stored)) {
+      return Result.err({ code: "identity_unavailable", cause: stored.error });
+    }
 
     let pubky: PubkySdkAdapter | undefined;
     try {
       pubky = new PubkySdkAdapter();
       const recoveryFile = pubky.createRecoveryFile(stored.value.secretKey, password);
-      if (Result.isError(recoveryFile)) return Result.err({ code: "recovery_file_failed" });
+      if (Result.isError(recoveryFile)) {
+        return Result.err({ code: "recovery_file_failed", cause: recoveryFile.error });
+      }
       return Result.ok({
         bytes: recoveryFile.value,
         fileName: `pubky-${publicKeyZ32}.pkarr`,
       });
-    } catch {
-      return Result.err({ code: "recovery_file_failed" });
+    } catch (cause) {
+      LOGGER.warn("identity.controller.failed", {
+        operation: "create_recovery_file",
+        code: "recovery_file_failed",
+      });
+      return Result.err({ code: "recovery_file_failed", cause });
     } finally {
       stored.value.secretKey.bytes.fill(0);
       try {

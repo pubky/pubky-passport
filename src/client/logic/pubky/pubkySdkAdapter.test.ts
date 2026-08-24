@@ -77,6 +77,53 @@ describe("PubkySdkAdapter", () => {
     }
   });
 
+  it("returns the exact SDK cause when key creation throws without logging its value", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const cause = "SECRET-KEY-CREATION-VALUE";
+    vi.spyOn(Keypair, "random").mockImplementation(() => {
+      throw cause;
+    });
+    const pubky = new PubkySdkAdapter();
+
+    try {
+      expectErrorCause(await pubky.createIdentityKey(), "create_failed", cause);
+      expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
+        operation: "create_identity_key",
+        stage: "sdk_create",
+        code: "create_failed",
+      });
+      expect(JSON.stringify(warn.mock.calls)).not.toContain(cause);
+    } finally {
+      pubky.dispose();
+    }
+  });
+
+  it("preserves public-identity failures without wrapping or logging them twice", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const thrownValue = new Error("SECRET-PUBLIC-KEY-MATERIAL");
+    vi.spyOn(Keypair.prototype, "publicKey", "get").mockImplementation(() => {
+      throw thrownValue;
+    });
+    const pubky = new PubkySdkAdapter();
+
+    try {
+      const result = await pubky.createIdentityKey();
+      expect(Result.isError(result)).toBe(true);
+      if (!Result.isError(result)) throw new Error("Expected public-identity failure.");
+      expect(result.error.code).toBe("public_identity_failed");
+      expect(result.error.cause).toBe(thrownValue);
+      expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
+        operation: "create_identity_key",
+        stage: "sdk_public_identity",
+        code: "public_identity_failed",
+      });
+      expect(warn).toHaveBeenCalledOnce();
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-PUBLIC-KEY-MATERIAL");
+    } finally {
+      pubky.dispose();
+    }
+  });
+
   it("exports and restores 32-byte key material without retaining plaintext input", async () => {
     const pubky = new PubkySdkAdapter();
 
@@ -115,6 +162,35 @@ describe("PubkySdkAdapter", () => {
       }
     } finally {
       restored?.free();
+      pubky.dispose();
+    }
+  });
+
+  it("returns the exact recovery-file SDK cause without logging the passphrase", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const pubky = new PubkySdkAdapter();
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      const secretKey = expectOk(await pubky.exportSecretKey(created.keyHandle));
+      const cause = new RangeError("SECRET-RECOVERY-PASSPHRASE");
+      vi.spyOn(Keypair.prototype, "createRecoveryFile").mockImplementation(() => {
+        throw cause;
+      });
+
+      expectErrorCause(
+        pubky.createRecoveryFile(secretKey, "SECRET-RECOVERY-PASSPHRASE"),
+        "recovery_file_failed",
+        cause,
+      );
+      expect(secretKey.bytes).toEqual(new Uint8Array(PUBKY_SECRET_KEY_BYTES));
+      expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
+        operation: "create_recovery_file",
+        stage: "sdk_recovery_file",
+        code: "recovery_file_failed",
+      });
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-RECOVERY-PASSPHRASE");
+    } finally {
       pubky.dispose();
     }
   });
@@ -177,6 +253,26 @@ describe("PubkySdkAdapter", () => {
     }
   });
 
+  it("returns the exact homeserver-resolution cause without logging SDK details", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const cause = new TypeError("SECRET-HOMESERVER-URL");
+    vi.spyOn(Pubky.prototype, "getHomeserverOf").mockRejectedValue(cause);
+    const pubky = new PubkySdkAdapter();
+
+    try {
+      const result = await pubky.resolveHomeserver("8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo");
+      expectErrorCause(result, "resolution_failed", cause);
+      expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
+        operation: "resolve_homeserver",
+        stage: "sdk_resolution",
+        code: "resolution_failed",
+      });
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-HOMESERVER-URL");
+    } finally {
+      pubky.dispose();
+    }
+  });
+
   it("maps invalid homeserver values without exposing signup codes", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const pubky = new PubkySdkAdapter();
@@ -208,10 +304,11 @@ describe("PubkySdkAdapter", () => {
   it("publishes stale PKDNS records through the SDK and logs only a safe PKARR error category", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const forcePublish = vi.spyOn(Pkdns.prototype, "publishHomeserverForce");
+    const cause = Object.assign(new Error("sensitive PKARR transport details"), { name: "PkarrError" });
     const publishIfStale = vi.spyOn(Pkdns.prototype, "publishHomeserverIfStale")
       .mockImplementation(async (homeserver) => {
         homeserver?.free();
-        throw Object.assign(new Error("sensitive PKARR transport details"), { name: "PkarrError" });
+        throw cause;
       });
     const pubky = new PubkySdkAdapter();
     const homeserver = Keypair.random();
@@ -224,7 +321,7 @@ describe("PubkySdkAdapter", () => {
         homeserverPubky: homeserverPublicKey.z32(),
       });
 
-      expectErrorResult(result, "publish_failed");
+      expectErrorCause(result, "publish_failed", cause);
       expect(publishIfStale).toHaveBeenCalledOnce();
       expect(forcePublish).not.toHaveBeenCalled();
       expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
@@ -243,10 +340,11 @@ describe("PubkySdkAdapter", () => {
 
   it("logs only the safe SDK error category when signup fails", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    vi.spyOn(Signer.prototype, "signup").mockRejectedValue(Object.assign(
+    const cause = Object.assign(
       new Error("signup token and request URL must stay private"),
       { name: "AuthenticationError" },
-    ));
+    );
+    vi.spyOn(Signer.prototype, "signup").mockRejectedValue(cause);
     const pubky = new PubkySdkAdapter();
     const homeserver = Keypair.random();
     const homeserverPublicKey = homeserver.publicKey;
@@ -259,7 +357,7 @@ describe("PubkySdkAdapter", () => {
         signupCode: "sensitive-signup-code",
       });
 
-      expectErrorResult(result, "signup_failed");
+      expectErrorCause(result, "signup_failed", cause);
       expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
         operation: "signup",
         stage: "sdk_signup",
@@ -268,6 +366,45 @@ describe("PubkySdkAdapter", () => {
       });
       expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive-signup-code");
       expect(JSON.stringify(warn.mock.calls)).not.toContain("signup token and request URL");
+    } finally {
+      homeserverPublicKey.free();
+      homeserver.free();
+      pubky.dispose();
+    }
+  });
+
+  it("returns an uninspectable SDK cause without reading or logging an arbitrary name", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const cause = new Proxy({}, {
+      get() {
+        throw new Error("SECRET-ERROR-NAME");
+      },
+      has() {
+        throw new Error("SECRET-ERROR-NAME");
+      },
+    });
+    vi.spyOn(Signer.prototype, "signup").mockRejectedValue(cause);
+    const pubky = new PubkySdkAdapter();
+    const homeserver = Keypair.random();
+    const homeserverPublicKey = homeserver.publicKey;
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      const result = await pubky.signup({
+        keyHandle: created.keyHandle,
+        homeserverPubky: homeserverPublicKey.z32(),
+        signupCode: "SECRET-SIGNUP-CODE",
+      });
+
+      expectErrorCause(result, "signup_uncertain", cause);
+      expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
+        operation: "signup",
+        stage: "sdk_signup",
+        code: "signup_uncertain",
+      });
+      const logged = JSON.stringify(warn.mock.calls);
+      expect(logged).not.toContain("SECRET-ERROR-NAME");
+      expect(logged).not.toContain("SECRET-SIGNUP-CODE");
     } finally {
       homeserverPublicKey.free();
       homeserver.free();
@@ -432,6 +569,31 @@ describe("PubkySdkAdapter", () => {
     }
   });
 
+  it("returns the exact approval cause without logging the authorization URL", async () => {
+    const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const cause = new Error("SECRET-AUTHORIZATION-URL");
+    vi.spyOn(Signer.prototype, "approveAuthRequest").mockRejectedValue(cause);
+    const pubky = new PubkySdkAdapter();
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      const request = expectOk(IssuedPubkyAuthRequest.issue(encodeURIComponent(
+        authorizationRequest("/pub/passport.test"),
+      )));
+      const result = await pubky.approveAuthRequest(created.keyHandle, request);
+
+      expectErrorCause(result, "approval_failed", cause);
+      expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
+        operation: "approve_auth_request",
+        stage: "sdk_approval",
+        code: "approval_failed",
+      });
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-AUTHORIZATION-URL");
+    } finally {
+      pubky.dispose();
+    }
+  });
+
   it("disposes keypairs and rejects old handles", async () => {
     const pubky = new PubkySdkAdapter();
     const created = expectOk(await pubky.createIdentityKey());
@@ -497,8 +659,19 @@ async function expectError<Success>(result: Promise<ResultType<Success, { code: 
 function expectErrorResult(result: ResultType<unknown, { code: string }>, code: string): void {
   expect(Result.isError(result)).toBe(true);
   if (Result.isError(result)) {
-    expect(result.error).toEqual({ code });
+    expect(result.error.code).toBe(code);
   }
+}
+
+function expectErrorCause(
+  result: ResultType<unknown, { code: string; cause?: unknown }>,
+  code: string,
+  cause: unknown,
+): void {
+  expect(Result.isError(result)).toBe(true);
+  if (!Result.isError(result)) return;
+  expect(result.error.code).toBe(code);
+  expect(result.error.cause).toBe(cause);
 }
 
 function expectOk<Success>(result: ResultType<Success, unknown>): Success {

@@ -5,7 +5,7 @@ import { hkdfSync } from "node:crypto";
 import {
   CANONICAL_GOOGLE_ISSUER,
   type VerifiedGoogleIdentity,
-} from "./googleIdTokenVerification";
+} from "./GoogleIdTokenVerifier";
 
 const WRAPPING_KEY_BYTES = 32;
 const GOOGLE_WRAPPING_KEY_HKDF_SALT = Buffer.from("pubky-passport/wrapping-key/salt/v1", "utf8");

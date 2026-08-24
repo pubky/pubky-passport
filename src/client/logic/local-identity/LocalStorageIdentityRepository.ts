@@ -4,6 +4,7 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "../../../libs/encoding/base64Url";
 import { LOGGER } from "../../../libs/logger/logger";
+import type { CodedFailure } from "../../../libs/result";
 import {
   isPubkyPublicIdentity,
   PUBKY_SECRET_KEY_BYTES,
@@ -32,7 +33,7 @@ export type LocalIdentityErrorCode =
   | "invalid_store"
   | "storage_unavailable";
 
-export type LocalIdentityResult<Success> = ResultType<Success, { code: LocalIdentityErrorCode }>;
+export type LocalIdentityResult<Success> = ResultType<Success, CodedFailure<LocalIdentityErrorCode>>;
 
 const STORAGE_KEY = "pubky-passport/local-identities/v1";
 const LOCAL_IDENTITY_STORE_VERSION = 1;
@@ -179,9 +180,12 @@ export class LocalStorageIdentityRepository {
     let stored: string | null;
     try {
       stored = this.storage.getItem(STORAGE_KEY);
-    } catch {
-      LOGGER.warn("identity.local_store.failed", { operation: "read", code: "storage_unavailable" });
-      return Result.err({ code: "storage_unavailable" });
+    } catch (cause) {
+      LOGGER.warn("identity.local_store.failed", {
+        operation: "read",
+        code: "storage_unavailable",
+      });
+      return Result.err({ code: "storage_unavailable", cause });
     }
 
     if (stored === null) {
@@ -200,9 +204,12 @@ export class LocalStorageIdentityRepository {
     try {
       this.storage.setItem(STORAGE_KEY, JSON.stringify(store));
       return Result.ok();
-    } catch {
-      LOGGER.warn("identity.local_store.failed", { operation: "write", code: "storage_unavailable" });
-      return Result.err({ code: "storage_unavailable" });
+    } catch (cause) {
+      LOGGER.warn("identity.local_store.failed", {
+        operation: "write",
+        code: "storage_unavailable",
+      });
+      return Result.err({ code: "storage_unavailable", cause });
     }
   }
 }

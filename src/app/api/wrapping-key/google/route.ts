@@ -1,3 +1,1 @@
-import { createGoogleWrappingKeyPostHandler } from "./handler";
-
-export const POST = createGoogleWrappingKeyPostHandler();
+export { googleWrappingKeyPost as POST } from "./handler";

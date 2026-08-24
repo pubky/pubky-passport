@@ -178,7 +178,7 @@ describe("authorizationEntry", () => {
     const stop = vi.fn();
     const replace = vi.fn();
     const appWindow = {
-      History: { prototype: { replaceState() { throw new Error("unavailable"); } } },
+      History: { prototype: { replaceState() { throw new Error(`unavailable ${SECRET}`); } } },
       history: {},
       location: {
         hash: `#d=${encodeURIComponent(validRequest())}`,
@@ -196,6 +196,23 @@ describe("authorizationEntry", () => {
       operation: "scrub_fragment",
       code: "history_unavailable",
     });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(SECRET);
+  });
+
+  it("contains early-capture failures without exposing their contents", () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    window.history.replaceState({}, "", "/authorize");
+    Object.defineProperty(window, EARLY_AUTHORIZATION_LOCATION_PROPERTY, {
+      configurable: true,
+      value: () => { throw new TypeError(`capture failed ${SECRET}`); },
+    });
+
+    expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "empty" });
+    expect(warning).toHaveBeenCalledWith("authorize.entry.failed", {
+      operation: "take_early_capture",
+      code: "capture_unavailable",
+    });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(SECRET);
   });
 
 });

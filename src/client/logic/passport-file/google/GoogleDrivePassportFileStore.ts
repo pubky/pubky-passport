@@ -4,6 +4,7 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { readBoundedText } from "../../../../libs/http/boundedBody";
 import { LOGGER } from "../../../../libs/logger/logger";
+import type { CodedFailure } from "../../../../libs/result";
 import {
   parsePassportFileContents,
   serializePassportFileEnvelope,
@@ -27,7 +28,7 @@ import {
   type DriveFileRevision,
 } from "./driveHttp";
 
-/** Safe operational Drive-store failures that contain no credentials or file data. */
+/** Stable operational Drive-store failure codes. */
 type StoreErrorCode =
   | "unauthorized"
   | "forbidden"
@@ -41,7 +42,10 @@ type StoreErrorCode =
   | "write_failed"
   | "delete_failed";
 
-type StoreResult<Success> = ResultType<Success, { code: StoreErrorCode }>;
+type StoreResult<Success> = ResultType<Success, CodedFailure<StoreErrorCode>>;
+type PassportFileMetadataFailure =
+  | CodedFailure<StoreErrorCode>
+  | CodedFailure<"exact_file_missing">;
 /** Result of looking up the sole operational Passport file in `appDataFolder`. */
 type PassportFileReadResult =
   | { status: "found"; envelope: PassportFileEnvelopeV1; reference: DriveFileRevision }
@@ -95,10 +99,10 @@ export class GoogleDrivePassportFileStore {
     const revalidated = await this.readPassportFileMetadata(token.value, located.value.reference.storageId);
     if (Result.isError(revalidated)) {
       if (revalidated.error.code !== "exact_file_missing") {
-        return Result.err({ code: revalidated.error.code });
+        return Result.err(revalidated.error);
       }
       LOGGER.warn("identity.google.drive_store.failed", { operation: "read_metadata", code: "stale_file" });
-      return Result.err({ code: "stale_file" });
+      return Result.err({ code: "stale_file", cause: revalidated.error });
     }
     if (!sameDriveFileRevision(revalidated.value, located.value.reference)) {
       LOGGER.warn("identity.google.drive_store.failed", { operation: "read_metadata", code: "stale_file" });
@@ -155,9 +159,12 @@ export class GoogleDrivePassportFileStore {
     if (requestLock === null) return create();
     try {
       return await requestLock(CREATE_PASSPORT_FILE_LOCK_NAME, create);
-    } catch {
-      LOGGER.warn("identity.google.drive_store.failed", { operation: "create_lock", code: "write_failed" });
-      return Result.err({ code: "write_failed" });
+    } catch (cause) {
+      LOGGER.warn("identity.google.drive_store.failed", {
+        operation: "create_lock",
+        code: "write_failed",
+      });
+      return Result.err({ code: "write_failed", cause });
     }
   }
 
@@ -172,9 +179,8 @@ export class GoogleDrivePassportFileStore {
 
     const current = await this.readPassportFileMetadata(token.value, reference.storageId);
     if (Result.isError(current)) {
-      return current.error.code === "exact_file_missing"
-        ? Result.ok()
-        : Result.err({ code: current.error.code });
+      if (current.error.code === "exact_file_missing") return Result.ok();
+      return Result.err(current.error);
     }
     if (!sameDriveFileRevision(current.value, reference)) {
       LOGGER.warn("identity.google.drive_store.failed", { operation: "delete", code: "stale_file" });
@@ -242,7 +248,7 @@ export class GoogleDrivePassportFileStore {
     const located = await this.locatePassportFile(token);
     if (Result.isError(located) && located.error.code === "duplicate_files") {
       LOGGER.warn("identity.google.drive_store.failed", { operation: "create", code: "create_conflict" });
-      return Result.err({ code: "create_conflict" });
+      return Result.err({ code: "create_conflict", cause: located.error });
     }
     return located;
   }
@@ -293,7 +299,7 @@ export class GoogleDrivePassportFileStore {
   private async readPassportFileMetadata(
     token: string,
     fileId: string,
-  ): Promise<ResultType<DriveFileRevision, { code: StoreErrorCode | "exact_file_missing" }>> {
+  ): Promise<ResultType<DriveFileRevision, PassportFileMetadataFailure>> {
     const response = await this.fetchStore("read_metadata", passportFileMetadataUrl(fileId), {
       headers: authorizationHeaders(token),
     });
@@ -340,7 +346,7 @@ export class GoogleDrivePassportFileStore {
     if (Result.isError(parsed)) {
       if (parsed.error.code !== "unsupported_version") return Result.ok({ status: "invalid" });
       LOGGER.warn("identity.google.drive_store.failed", { operation: "read_media", code: "unsupported_file" });
-      return Result.err({ code: "unsupported_file" });
+      return Result.err({ code: "unsupported_file", cause: parsed.error });
     }
     return Result.ok({ status: "valid", envelope: parsed.value });
   }
@@ -390,9 +396,9 @@ export class GoogleDrivePassportFileStore {
     init: RequestInit,
   ): Promise<StoreResult<Response>> {
     const response = await fetchDrive(this.fetchImpl, input, init);
-    if (response !== null) return Result.ok(response);
+    if (!Result.isError(response)) return Result.ok(response.value);
     LOGGER.warn("identity.google.drive_store.failed", { operation, code: "network_failed" });
-    return Result.err({ code: "network_failed" });
+    return Result.err(response.error);
   }
 }
 

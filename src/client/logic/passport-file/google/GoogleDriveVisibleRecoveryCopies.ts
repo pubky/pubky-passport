@@ -3,6 +3,7 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER } from "../../../../libs/logger/logger";
+import type { CodedFailure } from "../../../../libs/result";
 import {
   isPubkyPublicIdentity,
   type PubkyPublicIdentity,
@@ -31,7 +32,7 @@ import {
   type DriveFileRevision,
 } from "./driveHttp";
 
-/** Safe visible-copy failures that contain no credentials or recovery contents. */
+/** Stable visible-copy failure codes. */
 type VisibleCopiesErrorCode =
   | "unauthorized"
   | "forbidden"
@@ -41,7 +42,7 @@ type VisibleCopiesErrorCode =
   | "write_failed"
   | "delete_failed";
 
-type VisibleCopiesResult<Success> = ResultType<Success, { code: VisibleCopiesErrorCode }>;
+type VisibleCopiesResult<Success> = ResultType<Success, CodedFailure<VisibleCopiesErrorCode>>;
 type VisibleFolder = DriveFile & { id: string };
 type VisibleFile = DriveFile & { id: string };
 
@@ -195,12 +196,12 @@ export class GoogleDriveVisibleRecoveryCopies {
       }
 
       return Result.ok();
-    } catch {
+    } catch (cause) {
       LOGGER.warn("identity.google.visible_recovery_copies.failed", {
         operation: "delete_visible_copies",
         code: "network_failed",
       });
-      return Result.err({ code: "network_failed" });
+      return Result.err({ code: "network_failed", cause });
     }
   }
 
@@ -452,9 +453,9 @@ export class GoogleDriveVisibleRecoveryCopies {
     init: RequestInit,
   ): Promise<VisibleCopiesResult<Response>> {
     const response = await fetchDrive(this.fetchImpl, input, init);
-    if (response !== null) return Result.ok(response);
+    if (!Result.isError(response)) return Result.ok(response.value);
     LOGGER.warn("identity.google.visible_recovery_copies.failed", { operation, code: "network_failed" });
-    return Result.err({ code: "network_failed" });
+    return Result.err(response.error);
   }
 }
 

@@ -123,12 +123,15 @@ describe("GoogleWrappingKeyApiClient", () => {
 
   it("maps fetch failures to network_failed", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const cause = new TypeError("SECRET-GOOGLE-ID-TOKEN");
     const requester = new GoogleWrappingKeyApiClient(async () => {
-      throw new TypeError("SECRET-GOOGLE-ID-TOKEN");
+      throw cause;
     });
     const result = await requester.requestGoogleWrappingKey("SECRET-GOOGLE-ID-TOKEN");
     expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) expect(result.error).toEqual({ code: "network_failed" });
+    if (!Result.isError(result)) throw new Error("Expected wrapping-key network failure.");
+    expect(result.error.code).toBe("network_failed");
+    expect(result.error.cause).toBe(cause);
     expect(warn).toHaveBeenCalledWith("identity.google.wrapping_key.failed", {
       operation: "request_google_wrapping_key",
       stage: "request",

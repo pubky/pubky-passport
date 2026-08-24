@@ -145,7 +145,11 @@ export class PassportAuthorizationController {
         this.abortController.signal,
       );
     } catch {
-      // Continue to the safe local outcome below.
+      LOGGER.warn("authorize.callback.failed", {
+        outcome,
+        operation: "complete",
+      });
+      return this.update(localStateForOutcome(outcome));
     }
     if (completed) return this.state;
 
@@ -162,7 +166,9 @@ export class PassportAuthorizationController {
       try {
         listener(state);
       } catch {
-        LOGGER.warn("authorize.state_listener.failed", { state: state.status });
+        LOGGER.warn("authorize.state_listener.failed", {
+          state: state.status,
+        });
       }
     }
     return state;

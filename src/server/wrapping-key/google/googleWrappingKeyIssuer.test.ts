@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 
 import { LOGGER } from "../../../libs/logger/logger";
-import { expectAsyncResultError } from "../../../../test-utils/resultAssertions";
+import { expectAsyncResultError, expectResultError } from "../../../../test-utils/resultAssertions";
 import { GoogleIdTokenVerifier } from "./GoogleIdTokenVerifier";
 import { GoogleWrappingKeyDeriver } from "./GoogleWrappingKeyDeriver";
 import { InMemoryGoogleWrappingKeyRateLimiter } from "./InMemoryGoogleWrappingKeyRateLimiter";
@@ -13,6 +13,11 @@ const IDENTITY = {
   googleSubject: "google-subject",
 };
 describe("Google wrapping-key issuer", () => {
+  beforeEach(() => {
+    vi.stubEnv("HOMEGATE_URL", "https://homegate.example/");
+    vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example");
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
@@ -66,6 +71,24 @@ describe("Google wrapping-key issuer", () => {
     expect(deriveCalls).toBe(0);
   });
 
+  it("passes verifier failure causes through unchanged", async () => {
+    const cause = new Error("SECRET-GOOGLE-ID-TOKEN");
+    const verificationFailure = { code: "invalid_google_id_token" as const, cause };
+    const issuer = testIssuer(
+      async () => Result.err(verificationFailure),
+      () => true,
+      () => "derived-wrapping-key",
+    );
+
+    const result = await issuer.issueGoogleWrappingKey("id-token");
+
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error).toBe(verificationFailure);
+      expect(result.error.cause).toBe(cause);
+    }
+  });
+
   it("rejects rate-limited identities", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const rateLimited = testIssuer(
@@ -91,25 +114,26 @@ describe("Google wrapping-key issuer", () => {
     "maps %s exceptions to dependency_unavailable",
     async (unavailableDependency, operation) => {
       const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
+      const cause = new Error("SECRET-GOOGLE-ID-TOKEN");
       const issuer = testIssuer(
         async () => {
-          if (unavailableDependency === "verification") throw new Error("SECRET-GOOGLE-ID-TOKEN");
+          if (unavailableDependency === "verification") throw cause;
           return Result.ok(IDENTITY);
         },
         () => {
-          if (unavailableDependency === "rate limit") throw new Error("SECRET-GOOGLE-ID-TOKEN");
+          if (unavailableDependency === "rate limit") throw cause;
           return true;
         },
         () => {
-          if (unavailableDependency === "derivation") throw new Error("SECRET-GOOGLE-ID-TOKEN");
+          if (unavailableDependency === "derivation") throw cause;
           return "derived-wrapping-key";
         },
       );
 
-      await expectAsyncResultError(
-        issuer.issueGoogleWrappingKey("id-token"),
-        { code: "dependency_unavailable" },
-      );
+      const result = await issuer.issueGoogleWrappingKey("id-token");
+
+      expectResultError(result, { code: "dependency_unavailable", cause });
+      if (Result.isError(result)) expect(result.error.cause).toBe(cause);
       expect(error).toHaveBeenCalledWith("identity.google.wrapping_key.failed", {
         layer: "server",
         operation,
@@ -153,9 +177,12 @@ function testIssuer(
   tryConsumeRequest: InMemoryGoogleWrappingKeyRateLimiter["tryConsumeRequest"],
   deriveWrappingKey: GoogleWrappingKeyDeriver["deriveWrappingKey"],
 ): GoogleWrappingKeyIssuer {
-  return new GoogleWrappingKeyIssuer(
-    { verifyGoogleIdToken },
-    { tryConsumeRequest },
-    { deriveWrappingKey },
-  );
+  const secret = Buffer.alloc(32, 1);
+  const verifier = new GoogleIdTokenVerifier("google-client-id");
+  const rateLimiter = new InMemoryGoogleWrappingKeyRateLimiter(secret);
+  const deriver = new GoogleWrappingKeyDeriver(secret);
+  vi.spyOn(verifier, "verifyGoogleIdToken").mockImplementation(verifyGoogleIdToken);
+  vi.spyOn(rateLimiter, "tryConsumeRequest").mockImplementation(tryConsumeRequest);
+  vi.spyOn(deriver, "deriveWrappingKey").mockImplementation(deriveWrappingKey);
+  return new GoogleWrappingKeyIssuer(verifier, rateLimiter, deriver);
 }

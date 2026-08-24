@@ -157,10 +157,36 @@ describe("PassportAuthorizationController", () => {
   });
 
   it("uses one render state for approval failure", async () => {
-    MOCKS.approveAuthorization.mockResolvedValueOnce(Result.err({ code: "approval_failed" }));
+    MOCKS.approveAuthorization.mockResolvedValueOnce(Result.err({
+      code: "approval_failed",
+      cause: new Error(SECRET),
+    }));
     const { controller } = createController({}, { callbacks: false });
 
-    await expect(controller.approve(SELECTED_IDENTITY)).resolves.toEqual({ status: "failed" });
+    const state = await controller.approve(SELECTED_IDENTITY);
+
+    expect(state).toEqual({ status: "failed" });
+    expect(JSON.stringify(state)).not.toContain(SECRET);
+    expect(state).not.toHaveProperty("cause");
+  });
+
+  it("contains handoff exceptions without exposing them to view state", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const handoffError = new TypeError(`handoff failed ${SECRET} ${SUCCESS_CALLBACK}`);
+    const { controller } = createController({
+      handoffOutcome: async () => { throw handoffError; },
+    });
+
+    const state = await controller.approve(SELECTED_IDENTITY);
+
+    expect(state).toEqual({ status: "approved" });
+    expect(state).not.toHaveProperty("cause");
+    expect(warning).toHaveBeenCalledWith("authorize.callback.failed", {
+      outcome: "success",
+      operation: "complete",
+    });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(SECRET);
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(SUCCESS_CALLBACK);
   });
 
   it("makes state listeners exception-total", async () => {

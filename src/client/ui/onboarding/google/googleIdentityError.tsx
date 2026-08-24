@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import type { GoogleIdentityError } from "../../../logic/google-identity/GoogleIdentityController";
+import type { GoogleIdentityViewError } from "../../../logic/google-identity/GoogleIdentityController";
 import { RotateCcwIcon, TrashIcon } from "../../shared/actionIcons";
 import { BackButton } from "../../shared/backButton";
 import { ConfirmDeletionDialog } from "../../shared/confirmDeletionDialog";
@@ -12,7 +12,7 @@ import { Label } from "../../shared/primitives/label";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
 
 function GoogleIdentityError({ error, onBack, onReplaceInvalidFile, onTryAgain }: {
-  error: GoogleIdentityError;
+  error: GoogleIdentityViewError;
   onBack: () => void;
   onReplaceInvalidFile?: () => void;
   onTryAgain: () => void;
@@ -37,8 +37,8 @@ function GoogleIdentityError({ error, onBack, onReplaceInvalidFile, onTryAgain }
               role="group"
             >
               <p className="break-all text-base font-medium leading-6 text-foreground">{error.code}</p>
-              {"cause" in error
-                ? <p className="break-all text-base font-medium leading-6 text-foreground">{error.cause}</p>
+              {error.detailCode !== undefined
+                ? <p className="break-all text-base font-medium leading-6 text-foreground">{error.detailCode}</p>
                 : null}
             </div>
           </div>
@@ -75,7 +75,7 @@ function GoogleIdentityError({ error, onBack, onReplaceInvalidFile, onTryAgain }
   );
 }
 
-function errorMessage(code: GoogleIdentityError["code"]): string {
+function errorMessage(code: GoogleIdentityViewError["code"]): string {
   switch (code) {
     case "create_failed": return "Passport could not create a new Pubky identity.";
     case "decrypt_failed": return "Passport found your encrypted identity, but could not decrypt it.";

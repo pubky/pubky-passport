@@ -1,5 +1,7 @@
 import "client-only";
 
+import { LOGGER } from "../../../../libs/logger/logger";
+
 export type AuthorizationOutcome = "success" | "error" | "cancel";
 
 const MESSAGE_TYPE = "pubky-passport.authorization-outcome";
@@ -67,6 +69,7 @@ async function postOutcomeAndWaitForAcknowledgement(
     }
     return await result;
   } catch {
+    logHandoffFailure("post_message");
     acknowledgement.cancel();
     return false;
   }
@@ -131,9 +134,21 @@ class OutcomeAcknowledgement {
     if (this.settled) return;
 
     this.settled = true;
-    this.appWindow.removeEventListener("message", this.handleMessage);
-    this.signal.removeEventListener("abort", this.handleAbort);
-    if (this.timeoutId !== undefined) this.appWindow.clearTimeout(this.timeoutId);
+    try {
+      this.appWindow.removeEventListener("message", this.handleMessage);
+    } catch {
+      logHandoffFailure("remove_message_listener");
+    }
+    try {
+      this.signal.removeEventListener("abort", this.handleAbort);
+    } catch {
+      logHandoffFailure("remove_abort_listener");
+    }
+    try {
+      if (this.timeoutId !== undefined) this.appWindow.clearTimeout(this.timeoutId);
+    } catch {
+      logHandoffFailure("clear_acknowledgement_timeout");
+    }
     this.resolveResult(acknowledged);
   }
 }
@@ -187,6 +202,13 @@ function navigate(appWindow: Window, callback: string): boolean {
     appWindow.location.replace(callback);
     return true;
   } catch {
+    logHandoffFailure("navigate");
     return false;
   }
+}
+
+function logHandoffFailure(operation: string): void {
+  LOGGER.warn("authorize.callback_handoff.failed", {
+    operation,
+  });
 }

@@ -1,3 +1,4 @@
+import { Result } from "better-result";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -27,7 +28,8 @@ describe("fetchDrive", () => {
       referrerPolicy: "unsafe-url",
     });
 
-    expect(result).toBe(response);
+    expect(Result.isError(result)).toBe(false);
+    if (!Result.isError(result)) expect(result.value).toBe(response);
     expect(receivedInit).toMatchObject({
       method: "POST",
       headers: { Authorization: "Bearer token" },
@@ -39,13 +41,19 @@ describe("fetchDrive", () => {
     });
   });
 
-  it("maps fetch failures to null", async () => {
+  it("preserves fetch failures as diagnostic causes", async () => {
+    const cause = new Error("network details");
     const fetchImpl = (async () => {
-      throw new Error("network details");
+      throw cause;
     }) as typeof fetch;
 
-    await expect(fetchDrive(fetchImpl, "https://www.googleapis.com/drive/v3/files", {}))
-      .resolves.toBeNull();
+    const result = await fetchDrive(fetchImpl, "https://www.googleapis.com/drive/v3/files", {});
+
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error.code).toBe("network_failed");
+      expect(result.error.cause).toBe(cause);
+    }
   });
 });
 
