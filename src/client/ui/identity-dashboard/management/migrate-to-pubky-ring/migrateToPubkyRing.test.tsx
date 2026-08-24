@@ -37,7 +37,10 @@ describe("MigrateToPubkyRing", () => {
     expect(createMigrationUrl).toHaveBeenCalledOnce();
     const dialog = screen.getByRole("dialog", { name: "Scan with Pubky Ring" });
     expect(dialog).toHaveAttribute("open");
-    expect(screen.getByRole("img", { name: "Pubky Ring migration QR code" })).toBeInTheDocument();
+    const qrCode = screen.getByRole("img", { name: "Pubky Ring migration QR code" });
+    expect(qrCode).toHaveClass("size-full");
+    expect(dialog.querySelector('img[src="/brand/pubky-brand-mark.svg"]')).toHaveAttribute("width", "15");
+    expect(dialog.querySelector('img[src="/brand/pubky-brand-mark.svg"]')).toHaveAttribute("height", "24");
     await userEvent.setup().click(screen.getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog", { name: "Scan with Pubky Ring" })).not.toBeInTheDocument();
   });
