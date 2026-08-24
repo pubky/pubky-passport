@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { preload } from "react-dom";
 
 import type { GoogleIdentityConfiguration } from "../../../../logic/google-identity/GoogleIdentityController";
 import type { LocalIdentityRecoveryFileResult } from "../../../../logic/local-identity/LocalIdentityController";
@@ -33,6 +34,10 @@ function DetachFromGoogleFlow({ createRecoveryFile, createMigrationUrl, googleId
     identity.publicIdentity,
     identity.googleAccount?.googleSubject ?? "",
   );
+
+  preload("/illustrations/cloud.png", { as: "image" });
+  preload("/illustrations/red-line.svg", { as: "image" });
+  if (state.view === "review") preload("/illustrations/checkmark.png", { as: "image" });
 
   if (operation.state.status === "complete") return <GoogleDetachmentComplete onDone={onDone} />;
 

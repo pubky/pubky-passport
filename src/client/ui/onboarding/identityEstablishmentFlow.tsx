@@ -1,6 +1,8 @@
 
 "use client";
 
+import { preload } from "react-dom";
+
 import type { GoogleIdentityConfiguration } from "../../logic/google-identity/GoogleIdentityController";
 import { GoogleAccessScreen } from "./google/googleAccessScreen";
 import { GoogleIdentityComplete } from "./google/googleIdentityComplete";
@@ -19,6 +21,10 @@ function IdentityEstablishmentFlow({ googleIdentityConfiguration, onBack, onComp
 }) {
   const google = useGoogleIdentityEstablishment(googleIdentityConfiguration);
   const view = google.state.view;
+
+  if (view.status === "requesting-access" || view.status === "working") {
+    preload("/illustrations/checkmark.png", { as: "image" });
+  }
 
   switch (view.status) {
     case "complete":

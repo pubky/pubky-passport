@@ -3,6 +3,7 @@
 import { Result } from "better-result";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+import { preload } from "react-dom";
 
 import {
   PassportAuthorizationController,
@@ -58,6 +59,10 @@ function AuthorizationFlow({ googleClientId, homegateBaseUrl }: {
 
   if (!passportAuthorizationController || !authorization) {
     return <AuthorizationLoading label="Loading authorization" />;
+  }
+
+  if (authorization.status === "completing") {
+    preload("/illustrations/checkmark.png", { as: "image" });
   }
 
   switch (authorization.status) {
