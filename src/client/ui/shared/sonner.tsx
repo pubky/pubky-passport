@@ -9,6 +9,7 @@ function Sonner() {
       duration={3000}
       icons={{
         info: <Image alt="" aria-hidden="true" height={20} src="/icons/sonner-info.svg" unoptimized width={20} />,
+        success: <Image alt="" aria-hidden="true" height={20} src="/icons/sonner-success.svg" unoptimized width={20} />,
       }}
       mobileOffset={{ left: 15, right: 15, top: 5 }}
       offset={{ top: 5 }}
@@ -19,9 +20,10 @@ function Sonner() {
         classNames: {
           content: "flex min-w-0 flex-1 flex-col gap-0.5",
           icon: "flex size-5 shrink-0 items-center justify-center",
-          info: "border-brand/50 bg-brand/25",
+          info: "bg-brand/25",
+          success: "bg-brand/25",
           title: "w-full text-sm font-bold leading-5 text-popover-foreground",
-          toast: "pointer-events-auto flex w-full items-center gap-2 rounded-lg border p-6 shadow-[0_10px_15px_rgba(5,5,10,0.5)] backdrop-blur-[10px]",
+          toast: "pointer-events-auto flex w-full items-center gap-2 rounded-lg border border-solid !border-[rgba(200,255,0,0.5)] p-6 shadow-[0_10px_15px_rgba(5,5,10,0.5)] backdrop-blur-[10px]",
         },
       }}
     />
@@ -33,7 +35,7 @@ function showCopyConfirmation(label: string) {
 }
 
 function showDownloadConfirmation() {
-  toast.info("File downloaded");
+  toast.success("File downloaded");
 }
 
 export { showCopyConfirmation, showDownloadConfirmation, Sonner };
