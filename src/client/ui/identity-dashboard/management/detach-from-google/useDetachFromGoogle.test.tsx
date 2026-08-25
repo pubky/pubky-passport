@@ -111,8 +111,25 @@ describe("useDetachFromGoogle", () => {
 
     renderProbe();
 
+    await userEvent.setup().click(screen.getByRole("button", { name: "Detach" }));
     expect(await screen.findByText("operation_failed")).toBeInTheDocument();
     expect(screen.getByTestId("operation-state")).not.toHaveTextContent("DETACH-CONSTRUCTOR-CANARY");
     expect(JSON.stringify(warning.mock.calls)).not.toContain("DETACH-CONSTRUCTOR-CANARY");
+  });
+
+  it("retries controller construction on a user retry", async () => {
+    MOCKS.constructGoogleIdentityController
+      .mockImplementationOnce(() => { throw new Error("temporarily unavailable"); })
+      .mockReturnValue(mockGoogleIdentityController({
+        detachIdentity: vi.fn(async () => Result.ok()),
+      }));
+    renderProbe();
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Detach" }));
+    expect(await screen.findByText("operation_failed")).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("complete")).toBeInTheDocument();
+    expect(MOCKS.constructGoogleIdentityController).toHaveBeenCalledTimes(2);
   });
 });

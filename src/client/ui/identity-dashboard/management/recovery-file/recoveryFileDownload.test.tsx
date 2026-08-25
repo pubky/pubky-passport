@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { Result } from "better-result";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -120,5 +120,29 @@ describe("RecoveryFileDownload", () => {
       operation: "create_and_download",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain(secret);
+  });
+
+  it("disables Back and ignores completion after the screen is left", async () => {
+    let finish!: (result: ReturnType<typeof Result.ok<{ bytes: Uint8Array; fileName: string }>>) => void;
+    const createRecoveryFile = vi.fn(() => new Promise<ReturnType<typeof Result.ok<{ bytes: Uint8Array; fileName: string }>>>((resolve) => {
+      finish = resolve;
+    }));
+    const createObjectURL = vi.spyOn(URL, "createObjectURL");
+    const onBack = vi.fn();
+    const rendered = render(<RecoveryFileDownload
+      createRecoveryFile={createRecoveryFile}
+      publicKeyZ32="identity"
+      onBack={onBack}
+    />);
+    await userEvent.setup().type(screen.getByLabelText("Enter strong password"), "123456");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
+
+    expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
+    rendered.unmount();
+    await act(async () => finish(Result.ok({ bytes: new Uint8Array([1]), fileName: "backup.pkarr" })));
+
+    expect(createObjectURL).not.toHaveBeenCalled();
+    expect(MOCKS.showDownloadConfirmation).not.toHaveBeenCalled();
+    expect(onBack).not.toHaveBeenCalled();
   });
 });

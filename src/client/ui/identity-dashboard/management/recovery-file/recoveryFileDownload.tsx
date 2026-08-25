@@ -2,7 +2,7 @@
 
 import { Result } from "better-result";
 import Image from "next/image";
-import { type SubmitEvent, useState } from "react";
+import { type SubmitEvent, useEffect, useRef, useState } from "react";
 
 import { LOGGER } from "../../../../../libs/logger/logger";
 import {
@@ -28,7 +28,12 @@ function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [recoveryFileFailed, setRecoveryFileFailed] = useState(false);
+  const activeRef = useRef(true);
   const validPassword = password.length >= MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS;
+
+  useEffect(() => () => {
+    activeRef.current = false;
+  }, []);
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -38,6 +43,7 @@ function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
     let downloaded = false;
     try {
       const recoveryFile = await createRecoveryFile(publicKeyZ32, password);
+      if (!activeRef.current) return;
       if (Result.isError(recoveryFile) || !downloadFile(recoveryFile.value)) setRecoveryFileFailed(true);
       else {
         downloaded = true;
@@ -47,11 +53,11 @@ function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
       LOGGER.warn("identity.recovery_file.ui.failed", {
         operation: "create_and_download",
       });
-      setRecoveryFileFailed(true);
+      if (activeRef.current) setRecoveryFileFailed(true);
     } finally {
-      setPending(false);
+      if (activeRef.current) setPending(false);
     }
-    if (downloaded) {
+    if (downloaded && activeRef.current) {
       showDownloadConfirmation();
       onBack();
     }
@@ -82,7 +88,7 @@ function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
         <Image alt="" aria-hidden="true" className="mx-auto size-[200px]" height={200} src="/illustrations/file.png" unoptimized width={200} />
 
         <div className="mt-auto flex flex-col gap-4 pt-4">
-          <BackButton onClick={onBack} />
+          <BackButton disabled={pending} onClick={onBack} />
           <Button disabled={!validPassword || pending} size="lg" type="submit">
             <DownloadRecoveryFileIcon />
             {pending ? "Encrypting…" : "Download backup"}

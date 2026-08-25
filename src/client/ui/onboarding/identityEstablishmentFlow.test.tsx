@@ -53,7 +53,7 @@ describe("IdentityEstablishmentFlow", () => {
     vi.clearAllMocks();
   });
 
-  it("keeps Google authorization disabled before the screen flow is mounted", () => {
+  it("renders without constructing browser dependencies on the server", () => {
     const markup = renderToStaticMarkup(
       <ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />,
     );
@@ -63,7 +63,7 @@ describe("IdentityEstablishmentFlow", () => {
       .find((button) => button.textContent?.includes("Continue with Google"));
 
     expect(within(shell).getByRole("heading", { name: "Quick & easy signing." })).toHaveTextContent("Quick & easy");
-    expect(googleButton).toBeDisabled();
+    expect(googleButton).toBeEnabled();
     expect(MOCKS.constructGoogleIdentityController).not.toHaveBeenCalled();
   });
 
@@ -292,9 +292,50 @@ describe("IdentityEstablishmentFlow", () => {
 
     render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent("ESTABLISHMENT-CONSTRUCTOR-CANARY");
     expect(JSON.stringify(warning.mock.calls)).not.toContain("ESTABLISHMENT-CONSTRUCTOR-CANARY");
+  });
+
+  it("retries controller construction when the user tries again", async () => {
+    const googleAccount = { googleSubject: "google-1", email: "user@example.com", name: "User", pictureUrl: null };
+    const recoveredController = mockGoogleIdentityController({
+      establishIdentity: vi.fn(async () => Result.ok({
+        establishmentMode: "created" as const,
+        googleAccount,
+        publicIdentity: { publicKeyZ32: "key", publicKeyDisplay: "pubkykey" },
+        visibleRecoveryCopyStatus: "created" as const,
+      })),
+    });
+    MOCKS.constructGoogleIdentityController
+      .mockImplementationOnce(() => { throw new Error("temporarily unavailable"); })
+      .mockReturnValue(recoveredController);
+    render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByRole("heading", { name: "Setup complete." })).toBeInTheDocument();
+    expect(MOCKS.constructGoogleIdentityController).toHaveBeenCalledTimes(2);
+  });
+
+  it("warns when a visible recovery copy could not be confirmed", async () => {
+    useController(mockGoogleIdentityController({
+      establishIdentity: vi.fn(async () => Result.ok({
+        establishmentMode: "created" as const,
+        googleAccount: { googleSubject: "google-1", email: "user@example.com", name: "User", pictureUrl: null },
+        publicIdentity: { publicKeyZ32: "key", publicKeyDisplay: "pubkykey" },
+        visibleRecoveryCopyStatus: "unconfirmed" as const,
+      })),
+    }));
+    render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
+
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Continue with Google" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Passport could not confirm the visible recovery copy",
+    );
   });
 
   it("describes a final PKDNS publication failure without stale resolution language", async () => {
