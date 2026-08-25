@@ -4,25 +4,20 @@ node_modules/
 # Next.js
 .next/
 out/
+next-env.d.ts
 
 # Build output
 dist/
 build/
 coverage/
-*.tsbuildinfo
 playwright-report/
 test-results/
+*.tsbuildinfo
 
 # Env
 .env
 .env.*
 !.env.example
-
-# OS / editor
-.DS_Store
-.idea/
-.vscode/*
-!.vscode/extensions.json
 
 # Local bootstrap recovery files
 .bootstrap-trash/
@@ -40,4 +35,9 @@ docs/vendor/pubky/SOURCE.md
 
 # Local Plans
 plan/*
-!plan/TEMPLATE.md
+docs/*
+scripts/fetch-pubky-docs.sh
+opencode.json
+
+# Certificates
+certificates/

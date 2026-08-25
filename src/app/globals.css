@@ -1,14 +1,70 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: "Inter Tight Variable", "Inter Tight", sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-surface: var(--destructive-surface);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-surface: var(--input-surface);
+  --color-ring: var(--ring);
+  --color-brand: var(--brand);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: 1rem;
+  --shadow-xs: 0 1px 2px 0 rgb(5 5 10 / 20%);
+}
+
 :root {
-  color-scheme: light dark;
-  --background: #f8f5ef;
-  --foreground: #17120f;
+  color-scheme: dark;
+  --radius: 0.625rem;
+  --background: oklch(0.118 0.014 284.115);
+  --foreground: oklch(1 0 0);
+  --card: oklch(0.232 0.006 285.946);
+  --card-foreground: oklch(0.951 0.011 286.195);
+  --popover: oklch(0.118 0.014 284.115);
+  --popover-foreground: oklch(0.951 0.011 286.195);
+  --primary: oklch(0.791 0.01 286.174);
+  --primary-foreground: oklch(0.232 0.006 285.946);
+  --secondary: #303034;
+  --secondary-foreground: #d4d4db;
+  --muted: oklch(0.311 0.007 285.98);
+  --muted-foreground: #89898f;
+  --accent: oklch(0.392 0.007 286.088);
+  --accent-foreground: oklch(0.951 0.011 286.195);
+  --destructive: oklch(0.628 0.258 29.234);
+  --destructive-foreground: #fef2f2;
+  --destructive-surface: #ff000099;
+  --border: #303034;
+  --input: #525252;
+  --input-surface: #ffffff0b;
+  --ring: oklch(0.55 0.008 286.145);
+  --brand: #c8ff00;
+}
+
+* {
+  border-color: var(--border);
 }
 
 body {
   min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 }

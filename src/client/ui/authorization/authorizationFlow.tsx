@@ -1,0 +1,194 @@
+"use client";
+
+import { Result } from "better-result";
+import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
+import { preload } from "react-dom";
+
+import {
+  PassportAuthorizationController,
+  type PassportAuthorizationViewState,
+} from "../../logic/authorization/flow/PassportAuthorizationController";
+import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
+import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
+import { IdentityEstablishmentFlow } from "../onboarding/identityEstablishmentFlow";
+import { ArrowRightIcon } from "../shared/actionIcons";
+import { BackButton } from "../shared/backButton";
+import { PassportScreen } from "../shared/passportScreen";
+import { Button } from "../shared/primitives/button";
+import { Spinner } from "../shared/primitives/spinner";
+import { DisplayHeading, LeadText } from "../shared/primitives/typography";
+import { AuthorizationReview } from "./review/authorizationReview";
+import { InvalidAuthorization } from "./invalidAuthorization";
+import { ManualAuthorization } from "./manual-entry/manualAuthorization";
+
+function AuthorizationFlow() {
+  const passportAuthorizationControllerRef = useRef<PassportAuthorizationController>(null);
+  const mountedRef = useRef(false);
+  const [passportAuthorizationController, setPassportAuthorizationController] =
+    useState<PassportAuthorizationController | null>(null);
+  const [authorization, setAuthorization] = useState<PassportAuthorizationViewState>();
+
+  useEffect(() => {
+    mountedRef.current = true;
+    const passportAuthorizationController = passportAuthorizationControllerRef.current
+      ?? PassportAuthorizationController.fromBrowser();
+    passportAuthorizationControllerRef.current = passportAuthorizationController;
+    setPassportAuthorizationController(passportAuthorizationController);
+    let active = true;
+    const syncAuthorizationState = () => {
+      if (active) setAuthorization(passportAuthorizationController.getState());
+    };
+    const unsubscribe = passportAuthorizationController.subscribe(syncAuthorizationState);
+    queueMicrotask(syncAuthorizationState);
+    return () => {
+      mountedRef.current = false;
+      active = false;
+      unsubscribe();
+      // StrictMode replays effects; defer disposal so the immediate setup can retain it.
+      queueMicrotask(() => {
+        if (!mountedRef.current) passportAuthorizationController.dispose();
+      });
+    };
+  }, []);
+
+  if (!passportAuthorizationController || !authorization) {
+    return <AuthorizationLoading label="Loading authorization" />;
+  }
+
+  if (authorization.status === "completing") {
+    preload("/illustrations/checkmark.png", { as: "image" });
+  }
+
+  switch (authorization.status) {
+    case "manual-entry":
+      return <ManualAuthorization onBack={goHome} />;
+    case "invalid":
+      return <InvalidAuthorization onBack={goHome} />;
+    case "failed":
+      return (
+        <PassportScreen className="gap-6">
+          <DisplayHeading accent="failed." aria-label="Authorization failed.">Authorization</DisplayHeading>
+          <LeadText>Passport could not authorize this request with the selected identity.</LeadText>
+          <div className="mt-auto"><BackButton onClick={goHome} /></div>
+        </PassportScreen>
+      );
+    case "approved":
+      return <AuthorizationTerminal outcome="approved" />;
+    case "cancelled":
+      return <AuthorizationTerminal outcome="cancelled" />;
+    case "review":
+    case "approving":
+    case "completing":
+      return <AuthorizationWithIdentity
+        authorization={authorization}
+        passportAuthorizationController={passportAuthorizationController}
+      />;
+  }
+}
+
+function AuthorizationWithIdentity({
+  authorization,
+  passportAuthorizationController,
+}: {
+  authorization: Extract<PassportAuthorizationViewState, { status: "review" | "approving" | "completing" }>;
+  passportAuthorizationController: PassportAuthorizationController;
+}) {
+  const identityCatalog = useIdentityCatalog();
+  const [view, setView] = useState<"review" | "identity-selection">("review");
+
+  switch (identityCatalog.status) {
+    case "loading":
+      return <AuthorizationLoading label="Loading identities" />;
+    case "unavailable":
+      return (
+        <PassportScreen className="gap-6">
+          <DisplayHeading accent="unavailable." aria-label="Identities unavailable.">
+            Identities
+          </DisplayHeading>
+          <LeadText>Passport could not read identities stored on this device.</LeadText>
+          <div className="mt-auto">
+            <BackButton onClick={() => { void passportAuthorizationController.cancel(); }} />
+          </div>
+        </PassportScreen>
+      );
+    case "ready": {
+      const { catalog, localIdentityController, refreshIdentityCatalog } = identityCatalog;
+
+      if (catalog.identities.length === 0) {
+        return <IdentityEstablishmentFlow
+          onBack={() => { void passportAuthorizationController.cancel(); }}
+          onComplete={refreshIdentityCatalog}
+        />;
+      }
+
+      if (view === "identity-selection") {
+        return <IdentitySelectionFlow
+          catalog={catalog}
+          onBack={() => setView("review")}
+          onIdentitySelected={() => {
+            refreshIdentityCatalog();
+            setView("review");
+          }}
+          selectIdentity={(publicKeyZ32) => Result.isOk(localIdentityController.selectIdentity(publicKeyZ32))}
+        />;
+      }
+
+      const activeIdentity = catalog.identities.find(
+        (identity) => identity.publicIdentity.publicKeyZ32 === catalog.activePublicKeyZ32,
+      );
+      return <AuthorizationReview
+        {...(activeIdentity ? { identity: activeIdentity } : {})}
+        onAuthorize={() => {
+          if (activeIdentity) {
+            void passportAuthorizationController.approve(activeIdentity.publicIdentity.publicKeyZ32);
+          }
+        }}
+        onCancel={() => {
+          void passportAuthorizationController.cancel();
+        }}
+        onSwitch={() => setView("identity-selection")}
+        phase={authorization.status}
+        review={authorization.review}
+      />;
+    }
+  }
+}
+
+function AuthorizationTerminal({ outcome }: { outcome: "approved" | "cancelled" }) {
+  const approved = outcome === "approved";
+  return (
+    <PassportScreen className="gap-6">
+      <DisplayHeading
+        accent={approved ? "complete." : "cancelled."}
+        aria-label={approved ? "Authorization complete." : "Authorization cancelled."}
+      >
+        Authorization
+      </DisplayHeading>
+      <LeadText>{approved
+        ? "You can return to the app or device where you started."
+        : "No authorization was granted."}</LeadText>
+      {approved ? (
+        <Image alt="" aria-hidden="true" className="mx-auto size-[200px]" height={200} src="/illustrations/checkmark.png" unoptimized width={200} />
+      ) : null}
+      <div className="mt-auto">
+        {approved ? (
+          <Button className="w-full" onClick={goHome} size="lg" type="button">
+            <ArrowRightIcon />
+            Continue
+          </Button>
+        ) : <BackButton onClick={goHome} />}
+      </div>
+    </PassportScreen>
+  );
+}
+
+function AuthorizationLoading({ label }: { label: string }) {
+  return <main aria-label={label} className="grid min-h-[calc(100svh-84px)] place-items-center"><Spinner /></main>;
+}
+
+function goHome() {
+  window.location.replace("/");
+}
+
+export { AuthorizationFlow };

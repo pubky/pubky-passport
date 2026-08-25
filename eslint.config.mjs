@@ -2,7 +2,7 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
-const eslintConfig = defineConfig([
+const ESLINT_CONFIG = defineConfig([
   ...nextVitals,
   ...nextTs,
   globalIgnores([
@@ -11,90 +11,81 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "coverage/**",
-    "playwright-report/**",
-    "test-results/**",
     "next-env.d.ts"
   ]),
   {
-    files: ["**/*.{js,mjs,ts,tsx}"],
+    files: ["**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     ignores: ["src/libs/logger/logger.ts"],
     rules: {
       "no-console": "error"
     }
   },
   {
-    files: ["src/core/**/*.{ts,tsx}"],
+    files: ["src/client/logic/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    ignores: ["src/client/logic/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
-          patterns: [
-            {
-              group: [
-                "next",
-                "next/*",
-                "react",
-                "react/*",
-                "@synonymdev/pubky",
-                "google-auth-library",
-                "google-auth-library/*",
-                "googleapis",
-                "googleapis/*",
-                "server-only",
-                "@/app/*",
-                "@/ui/*",
-                "@/infrastructure/*",
-                "@/libs/env/*"
-              ],
-              message: "Core must stay framework-independent. Use ports and adapters instead."
-            }
-          ]
-        }
-      ],
-      "no-restricted-globals": [
-        "error",
-        {
-          name: "window",
-          message: "Core must not access browser globals. Use a port instead."
-        },
-        {
-          name: "document",
-          message: "Core must not access browser globals. Use a port instead."
-        },
-        {
-          name: "localStorage",
-          message: "Core must not access browser storage directly. Use a port instead."
-        },
-        {
-          name: "process",
-          message: "Core must not read runtime environment directly. Pass configuration through ports or inputs."
+          patterns: [{
+            regex: "^(?:server-only$|@/server(?:/|$)|(?:\\.\\./)+server(?:/|$))",
+            message: "Client logic modules must not import server runtime code."
+          }]
         }
       ]
     }
   },
   {
-    files: ["src/core/domain/**/*.{ts,tsx}"],
+    files: ["src/server/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    ignores: ["src/server/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
-          patterns: [
-            {
-              group: [
-                "@/core/application/*",
-                "@/core/controllers/*",
-                "@/core/stores/*",
-                "@/infrastructure/*",
-                "@/app/*",
-                "@/ui/*"
-              ],
-              message: "Domain must not depend on outer layers."
-            }
-          ]
+          patterns: [{
+            regex: "^(?:client-only$|@/(?:client/logic|libs/env)(?:/|$)|(?:\\.\\./)+(?:client/logic|libs/env)(?:/|$))",
+            message: "Server modules must not import client logic or public environment code."
+          }]
         }
       ]
     }
-  }
+  },
+  {
+    files: ["src/server/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    ignores: [
+      "src/server/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+      "src/server/wrapping-key/google/GoogleWrappingKeyIssuer.ts"
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [{
+            regex: "^(?:@/server/config(?:/|$)|(?:\\.\\./)+config(?:/|$))",
+            message: "Environment-backed configuration is confined to approved bootstrap modules."
+          }]
+        }
+      ]
+    }
+  },
+  {
+    files: ["src/app/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    ignores: [
+      "src/app/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
+      "src/app/layout.tsx"
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [{
+            regex: "^(?:@/server/config(?:/|$)|(?:\\.\\./)+server/config(?:/|$))",
+            message: "Environment-backed client bootstrap configuration is confined to approved app entries."
+          }]
+        }
+      ]
+    }
+  },
 ]);
 
-export default eslintConfig;
+export default ESLINT_CONFIG;

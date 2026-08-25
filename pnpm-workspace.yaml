@@ -1,2 +1,9 @@
 overrides:
-  postcss: 8.5.15
+  minimatch@3>brace-expansion: ^5.0.8
+  next>postcss: ^8.5.18
+  next>sharp: ^0.35.0
+  postcss>nanoid: ^3.3.18
+  vite>esbuild: ^0.28.1
+
+patchedDependencies:
+  minimatch@3.1.5: patches/minimatch@3.1.5.patch

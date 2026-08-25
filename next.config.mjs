@@ -3,34 +3,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const httpRelayOrigin = safeOrigin(process.env.NEXT_PUBLIC_HTTP_RELAY_URL) ?? "https://httprelay.pubky.app";
-
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  "script-src 'self' https://accounts.google.com https://apis.google.com",
-  [
-    "connect-src 'self'",
-    "https://accounts.google.com",
-    "https://oauth2.googleapis.com",
-    "https://www.googleapis.com",
-    httpRelayOrigin,
-  ].join(" "),
-  "img-src 'self' data: https://*.googleusercontent.com",
-  "style-src 'self'",
-  "font-src 'self'",
-  "frame-src https://accounts.google.com",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self' https://accounts.google.com",
-  "frame-ancestors 'none'",
-  "manifest-src 'self'",
-].join("; ");
-
-const baselineSecurityHeaders = [
-  {
-    key: "Content-Security-Policy",
-    value: contentSecurityPolicy,
-  },
+const BASELINE_SECURITY_HEADERS = [
   {
     key: "X-Content-Type-Options",
     value: "nosniff",
@@ -60,7 +33,7 @@ const baselineSecurityHeaders = [
   },
 ];
 
-const authorizeTransportHeaders = [
+const AUTHORIZE_TRANSPORT_HEADERS = [
   {
     key: "Cache-Control",
     value: "no-store",
@@ -71,38 +44,34 @@ const authorizeTransportHeaders = [
   },
 ];
 
-function safeOrigin(value) {
-  if (!value) {
-    return undefined;
-  }
-
-  try {
-    return new URL(value).origin;
-  } catch {
-    return undefined;
-  }
-}
-
 /** @type {import('next').NextConfig} */
-const nextConfig = {
+const NEXT_CONFIG = {
+  devIndicators: false,
+  logging: {
+    incomingRequests: false,
+  },
   outputFileTracingRoot: __dirname,
   serverExternalPackages: ["@synonymdev/pubky"],
   async headers() {
     return [
       {
         source: "/:path*",
-        headers: baselineSecurityHeaders,
+        headers: BASELINE_SECURITY_HEADERS,
       },
       {
         source: "/authorize",
-        headers: authorizeTransportHeaders,
+        headers: AUTHORIZE_TRANSPORT_HEADERS,
       },
       {
         source: "/authorize/:path*",
-        headers: authorizeTransportHeaders,
+        headers: AUTHORIZE_TRANSPORT_HEADERS,
+      },
+      {
+        source: "/",
+        headers: AUTHORIZE_TRANSPORT_HEADERS,
       },
     ];
   },
 };
 
-export default nextConfig;
+export default NEXT_CONFIG;

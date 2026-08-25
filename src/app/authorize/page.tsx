@@ -1,3 +1,5 @@
+import { AuthorizationFlow } from "../../client/ui/authorization/authorizationFlow";
+
 export default function AuthorizePage() {
-  return <main className="p-8">Pubky authorization flow placeholder.</main>;
+  return <AuthorizationFlow />;
 }
