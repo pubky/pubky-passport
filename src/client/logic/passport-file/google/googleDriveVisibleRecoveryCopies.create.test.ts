@@ -12,8 +12,8 @@ const PUBLIC_IDENTITY = { publicKeyZ32: PUBLIC_KEY_Z32, publicKeyDisplay: PUBLIC
 const VISIBLE_FILE_NAME = `${PUBLIC_KEY_DISPLAY}.json`;
 const ENVELOPE: PassportFileEnvelopeV1 = {
   v: 1,
-  iv: "SECRET-IV",
-  ct: "SECRET-CIPHERTEXT",
+  iv: "AAECAwQFBgcICQoL",
+  ct: "YZy1I_a6WzFnql8rW2A94EJrgz38Sqd1LV_KjVe2Qd2n1mvFMXg9qzRHwJ_WQvrm",
   url: "https://passport.pubky.app/",
 };
 const FOLDER = {

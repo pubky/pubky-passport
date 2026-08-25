@@ -9,9 +9,14 @@ import { GoogleDrivePassportFileStore } from "./GoogleDrivePassportFileStore";
 const ACCESS_TOKEN = "test-drive-access-token";
 const ENVELOPE: PassportFileEnvelopeV1 = {
   v: 1,
-  iv: "iv_value",
-  ct: "ct_value",
+  iv: "AAECAwQFBgcICQoL",
+  ct: "YZy1I_a6WzFnql8rW2A94EJrgz38Sqd1LV_KjVe2Qd2n1mvFMXg9qzRHwJ_WQvrm",
   url: "https://passport.pubky.app",
+};
+const INVALID_LENGTH_ENVELOPE = {
+  ...ENVELOPE,
+  iv: "abc123_-",
+  ct: "ciphertext_123-ABC",
 };
 const REFERENCE = { storageId: "file-1", revision: "opaque-revision-7" };
 const LISTED_FILE = { id: "file-1", name: "passport.json", version: "opaque-revision-7" };
@@ -233,10 +238,10 @@ describe("GoogleDrivePassportFileStore", () => {
     expectSanitizedCalls(calls);
   });
 
-  it("maps malformed Drive envelope contents to a safe invalid_file error", async () => {
+  it("maps impossible cryptographic lengths to a safe invalid_file error", async () => {
     const { store } = createStore([
       jsonResponse({ files: [LISTED_FILE] }),
-      textResponse(JSON.stringify({ ...ENVELOPE, secret: "do-not-return" })),
+      textResponse(JSON.stringify(INVALID_LENGTH_ENVELOPE)),
     ]);
 
     const result = await store.readPassportFile();
@@ -245,7 +250,8 @@ describe("GoogleDrivePassportFileStore", () => {
     if (Result.isError(result)) {
       expect(result.error).toEqual({ code: "invalid_file" });
     }
-    expect(JSON.stringify(result)).not.toContain("do-not-return");
+    expect(JSON.stringify(result)).not.toContain(INVALID_LENGTH_ENVELOPE.iv);
+    expect(JSON.stringify(result)).not.toContain(INVALID_LENGTH_ENVELOPE.ct);
   });
 
   it("does not classify unsupported-version envelopes as deletable invalid files", async () => {
@@ -268,10 +274,10 @@ describe("GoogleDrivePassportFileStore", () => {
     expect(calls.some((call) => call.method === "DELETE")).toBe(false);
   });
 
-  it("revalidates and deletes a confirmed malformed passport file", async () => {
+  it("revalidates and deletes an envelope with impossible cryptographic lengths", async () => {
     const { store, calls } = createStore([
       jsonResponse({ files: [LISTED_FILE] }),
-      textResponse("malformed"),
+      textResponse(JSON.stringify(INVALID_LENGTH_ENVELOPE)),
       jsonResponse(EXACT_FILE),
       new Response(null, { status: 204 }),
     ]);

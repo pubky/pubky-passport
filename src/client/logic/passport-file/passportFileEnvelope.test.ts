@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
 
+import { encodeBase64Url } from "../../../libs/encoding/base64Url";
 import {
   normalizePassportFileOrigin,
   parsePassportFileContents,
@@ -12,8 +13,8 @@ import {
 
 const VALID_ENVELOPE = {
   v: 1,
-  iv: "abc123_-",
-  ct: "ciphertext_123-ABC",
+  iv: "AAECAwQFBgcICQoL",
+  ct: "YZy1I_a6WzFnql8rW2A94EJrgz38Sqd1LV_KjVe2Qd2n1mvFMXg9qzRHwJ_WQvrm",
   url: "https://passport.pubky.app",
 } satisfies PassportFileEnvelopeV1;
 
@@ -106,14 +107,34 @@ describe("parsePassportFileContents", () => {
   });
 
   it("rejects empty and non-base64url iv values", () => {
-    for (const iv of ["", "abc+123", "abc/123", "abc=", "abc 123", null]) {
+    for (const iv of ["", "abc+123", "abc/123", "abc=", "abc 123", "AB", null]) {
       expectParseError(stringifyEnvelope({ iv }), "invalid_field", "iv");
     }
   });
 
+  it("rejects canonically encoded iv values with the wrong decoded length", () => {
+    for (const byteLength of [11, 13]) {
+      expectParseError(
+        stringifyEnvelope({ iv: encodeBase64Url(new Uint8Array(byteLength)) }),
+        "invalid_field",
+        "iv",
+      );
+    }
+  });
+
   it("rejects empty and non-base64url ciphertext values", () => {
-    for (const ct of ["", "abc+123", "abc/123", "abc=", "abc 123", null]) {
+    for (const ct of ["", "abc+123", "abc/123", "abc=", "abc 123", "AB", null]) {
       expectParseError(stringifyEnvelope({ ct }), "invalid_field", "ct");
+    }
+  });
+
+  it("rejects canonically encoded ciphertext values with the wrong decoded length", () => {
+    for (const byteLength of [47, 49]) {
+      expectParseError(
+        stringifyEnvelope({ ct: encodeBase64Url(new Uint8Array(byteLength)) }),
+        "invalid_field",
+        "ct",
+      );
     }
   });
 

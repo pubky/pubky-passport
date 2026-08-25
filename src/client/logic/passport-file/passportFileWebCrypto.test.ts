@@ -398,7 +398,10 @@ describe("PassportFileWebCrypto", () => {
       "https://passport.pubky.app",
     );
 
-    expectResultError(decrypted, { code: "invalid_envelope" });
+    expectResultError(decrypted, {
+      code: "invalid_envelope",
+      cause: { code: "invalid_field", field: "iv" },
+    });
   });
 
   it("fails authentication when a valid-length IV is tampered", async () => {
@@ -431,7 +434,10 @@ describe("PassportFileWebCrypto", () => {
       "https://passport.pubky.app",
     );
 
-    expectResultError(decrypted, { code: "invalid_envelope" });
+    expectResultError(decrypted, {
+      code: "invalid_envelope",
+      cause: { code: "invalid_field", field: "ct" },
+    });
   });
 
   it("clears rejected decrypted plaintext", async () => {
@@ -469,7 +475,10 @@ describe("PassportFileWebCrypto", () => {
       "https://passport.pubky.app",
     );
 
-    expectResultError(decrypted, { code: "invalid_envelope" });
+    expectResultError(decrypted, {
+      code: "invalid_envelope",
+      cause: { code: "invalid_field", field: "ct" },
+    });
   });
 
   it("fails safely when authenticated envelope metadata is tampered", async () => {

@@ -3,6 +3,9 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 import { z } from "zod";
 
+import { decodeBase64Url } from "../../../libs/encoding/base64Url";
+import { PUBKY_SECRET_KEY_BYTES } from "../pubky/pubkyIdentityKey";
+
 /** Strict encrypted envelope persisted as Passport file format version 1. */
 export type PassportFileEnvelopeV1 = {
   /** Numeric storage format version. */
@@ -37,12 +40,14 @@ type PassportFileParseResult = ResultType<PassportFileEnvelopeV1, PassportFilePa
 
 type PassportFileOriginResult = ResultType<string, { code: "invalid_field"; field: "url" }>;
 
-const BASE64_URL_PATTERN = /^[A-Za-z0-9_-]+$/;
+const AES_GCM_IV_BYTES = 12;
+const AES_GCM_TAG_BYTES = 16;
+const AES_GCM_CIPHERTEXT_BYTES = PUBKY_SECRET_KEY_BYTES + AES_GCM_TAG_BYTES;
 const PASSPORT_FILE_ENVELOPE_SCHEMA = z
   .object({
     v: z.number(),
-    iv: z.string().regex(BASE64_URL_PATTERN),
-    ct: z.string().regex(BASE64_URL_PATTERN),
+    iv: z.string().refine((value) => isFixedLengthBase64Url(value, AES_GCM_IV_BYTES)),
+    ct: z.string().refine((value) => isFixedLengthBase64Url(value, AES_GCM_CIPHERTEXT_BYTES)),
     url: z.string(),
   })
   .strict();
@@ -50,9 +55,9 @@ const PASSPORT_FILE_ENVELOPE_SCHEMA = z
 /**
  * Parses serialized Passport file contents into a validated v1 envelope.
  *
- * JSON syntax, object shape, accepted fields, version, and origin are validated.
- * The IV and ciphertext are not decoded, decrypted, or checked for cryptographic
- * byte lengths by this parser.
+ * JSON syntax, object shape, accepted fields, version, cryptographic field
+ * encoding and lengths, and origin are validated. Authentication is left to
+ * decryption.
  */
 export function parsePassportFileContents(input: unknown): PassportFileParseResult {
   if (typeof input !== "string") {
@@ -170,6 +175,11 @@ function parseUrl(value: string): URL | null {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype;
+}
+
+function isFixedLengthBase64Url(value: string, expectedByteLength: number): boolean {
+  if (value.length !== Math.ceil((expectedByteLength * 4) / 3)) return false;
+  return decodeBase64Url(value)?.byteLength === expectedByteLength;
 }
 
 function hasNoCredentialsOrUrlParts(url: URL): boolean {
