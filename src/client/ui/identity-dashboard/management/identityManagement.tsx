@@ -54,7 +54,7 @@ function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadRe
       <div className="mt-auto flex flex-col gap-4 pt-6">
         <ManagementButton icon={<KeyRoundIcon />} onClick={onMigrateToKeychain}>Migrate to keychain</ManagementButton>
         <ManagementButton icon={<DownloadIcon />} onClick={onDownloadRecoveryFile}>Download recovery file</ManagementButton>
-        <ManagementButton icon={<LinkOffIcon />} onClick={onDetachFromGoogle}>Detach from Google</ManagementButton>
+        {account ? <ManagementButton icon={<LinkOffIcon />} onClick={onDetachFromGoogle}>Detach from Google</ManagementButton> : null}
         <BackButton onClick={onBack} />
       </div>
     </PassportScreen>

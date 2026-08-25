@@ -220,6 +220,7 @@ describe("IdentityDashboard", () => {
     renderDashboard();
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
+    expect(screen.queryByRole("button", { name: "Detach from Google" })).not.toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Download recovery file" }));
 
     expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();

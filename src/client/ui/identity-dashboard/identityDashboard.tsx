@@ -24,7 +24,7 @@ type IdentityDashboardView =
   | { view: "manage-identity"; publicKeyZ32: string }
   | { view: "recovery-file"; publicKeyZ32: string }
   | { view: "migrate-to-pubky-ring"; publicKeyZ32: string }
-  | { view: "detach-from-google"; identity: LocalIdentityMetadata };
+  | { view: "detach-from-google"; googleSubject: string; identity: LocalIdentityMetadata };
 
 function IdentityDashboard() {
   const identityCatalogState = useIdentityCatalog();
@@ -90,7 +90,15 @@ function ReadyIdentityDashboard({ catalog, localIdentityController, refreshIdent
       return <IdentityManagement
         identity={identity}
         onBack={() => setNavigation({ view: "overview" })}
-        onDetachFromGoogle={() => setNavigation({ view: "detach-from-google", identity })}
+        onDetachFromGoogle={() => {
+          if (identity.googleAccount) {
+            setNavigation({
+              view: "detach-from-google",
+              googleSubject: identity.googleAccount.googleSubject,
+              identity,
+            });
+          }
+        }}
         onDownloadRecoveryFile={() => setNavigation({ view: "recovery-file", publicKeyZ32 })}
         onRemoveLocalIdentity={() => {
           const removed = localIdentityController.removeIdentity(publicKeyZ32);
@@ -132,6 +140,7 @@ function ReadyIdentityDashboard({ catalog, localIdentityController, refreshIdent
           );
           return Result.isOk(migration) ? migration.value : null;
         }}
+        googleSubject={state.googleSubject}
         identity={state.identity}
         onBack={() => setNavigation({
           view: "manage-identity",

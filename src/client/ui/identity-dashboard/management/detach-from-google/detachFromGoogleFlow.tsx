@@ -19,9 +19,10 @@ type DetachFromGoogleView =
   | { view: "pubky-ring" }
   | { view: "review"; confirmation: "closed" | "open" };
 
-function DetachFromGoogleFlow({ createRecoveryFile, createMigrationUrl, identity, onBack, onDone }: {
+function DetachFromGoogleFlow({ createRecoveryFile, createMigrationUrl, googleSubject, identity, onBack, onDone }: {
   createRecoveryFile: (publicKeyZ32: string, password: string) => Promise<LocalIdentityRecoveryFileResult>;
   createMigrationUrl: () => string | null;
+  googleSubject: string;
   identity: LocalIdentityMetadata;
   onBack: () => void;
   onDone: () => void;
@@ -29,7 +30,7 @@ function DetachFromGoogleFlow({ createRecoveryFile, createMigrationUrl, identity
   const [state, setState] = useState<DetachFromGoogleView>({ view: "recovery-options" });
   const operation = useDetachFromGoogle(
     identity.publicIdentity,
-    identity.googleAccount?.googleSubject ?? "",
+    googleSubject,
   );
 
   preload("/illustrations/cloud.png", { as: "image" });
