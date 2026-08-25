@@ -103,6 +103,7 @@ sequenceDiagram
     end
     box rgba(240, 228, 66, 0.18) repository root
         participant Proxy as proxy.ts<br/>proxy()
+        participant Bootstrap as instrumentation-client.ts<br/>pre-hydration entry capture
     end
     box rgba(240, 228, 66, 0.18) src/app/authorize
         participant Page as page.tsx<br/>AuthorizePage()
@@ -114,7 +115,6 @@ sequenceDiagram
         participant Flow as authorizationFlow.tsx<br/>AuthorizationFlow()
     end
     box rgba(0, 158, 115, 0.18) src/client/logic/authorization/{entry,request,flow}
-        participant Bootstrap as authorizationEntryBootstrap.ts<br/>pre-hydration entry capture
         participant Controller as PassportAuthorizationController.ts<br/>PassportAuthorizationController
         participant Entry as authorizationEntry.ts<br/>readAndScrubAuthorizationEntry()
         participant Request as IssuedPubkyAuthRequest.ts<br/>IssuedPubkyAuthRequest.issue()
@@ -141,7 +141,7 @@ sequenceDiagram
     Flow->>Controller: new PassportAuthorizationController()
     Controller->>Bootstrap: takeInitialAuthorizationEntry()
     Bootstrap-->>Controller: valid entry or invalid
-    Note over Controller: Retain review only until the original entry deadline
+    Note over Controller: Retain review until the controller takes ownership
     Controller-->>Flow: controller with safe view state
 ```
 

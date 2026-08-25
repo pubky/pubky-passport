@@ -7,7 +7,7 @@ import {
   readAndScrubAuthorizationEntry,
   type AuthorizationEntry,
 } from "../entry/authorizationEntry";
-import { takeInitialAuthorizationEntry } from "../entry/authorizationEntryBootstrap";
+import { takeInitialAuthorizationEntry } from "../../../../instrumentation-client";
 import {
   type AuthorizationRequestReview,
   IssuedPubkyAuthRequest,

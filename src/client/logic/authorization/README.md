@@ -28,7 +28,7 @@ Authorize, even if another tab changes the active identity meanwhile.
 
 Within those boundaries:
 
-- `entry/authorizationEntryBootstrap.ts` retains the pre-hydration entry until the
+- `instrumentation-client.ts` captures and retains the pre-hydration entry until the
   controller takes it.
 - `entry/authorizationEntry.ts` consumes and scrubs browser input, then issues a request.
 - `request/IssuedPubkyAuthRequest.ts` owns safe review data and private request metadata.
@@ -55,7 +55,7 @@ are stateless and keep protocol validation separate from browser and SDK lifecyc
 
 ## Reading Order
 
-1. `entry/authorizationEntryBootstrap.ts`
+1. `../../../instrumentation-client.ts`
 2. `entry/authorizationEntry.ts`
 3. `request/IssuedPubkyAuthRequest.ts`
 4. `flow/PassportAuthorizationController.ts`

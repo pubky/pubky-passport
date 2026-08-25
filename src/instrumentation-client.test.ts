@@ -4,12 +4,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   EARLY_AUTHORIZATION_LOCATION_PROPERTY,
-} from "../../../../libs/authorization/earlyAuthorizationLocation";
-import { IssuedPubkyAuthRequest } from "../request/IssuedPubkyAuthRequest";
+} from "./libs/authorization/earlyAuthorizationLocation";
+import { IssuedPubkyAuthRequest } from "./client/logic/authorization/request/IssuedPubkyAuthRequest";
 
 const SECRET = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
-describe("authorizationEntryBootstrap", () => {
+describe("instrumentation-client authorization entry", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.resetModules();
@@ -23,7 +23,7 @@ describe("authorizationEntryBootstrap", () => {
       "",
       `/authorize#d=${encodeURIComponent(validRequest())}`,
     );
-    const bootstrap = await import("./authorizationEntryBootstrap");
+    const bootstrap = await import("./instrumentation-client");
 
     vi.advanceTimersByTime(24 * 60 * 60_000);
 
@@ -44,7 +44,7 @@ describe("authorizationEntryBootstrap", () => {
         return { status: "captured", hash, expiresAt: Date.now() + 1_000 };
       },
     });
-    const bootstrap = await import("./authorizationEntryBootstrap");
+    const bootstrap = await import("./instrumentation-client");
 
     vi.advanceTimersByTime(24 * 60 * 60_000);
 
@@ -67,7 +67,7 @@ describe("authorizationEntryBootstrap", () => {
     });
 
     vi.setSystemTime(new Date(1_001));
-    const bootstrap = await import("./authorizationEntryBootstrap");
+    const bootstrap = await import("./instrumentation-client");
 
     expect(bootstrap.takeInitialAuthorizationEntry()).toEqual({ status: "expired" });
   });
