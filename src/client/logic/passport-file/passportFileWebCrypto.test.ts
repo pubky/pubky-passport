@@ -242,6 +242,27 @@ describe("PassportFileWebCrypto", () => {
     expect(secretKey).toEqual(SECRET_KEY_BYTES);
   });
 
+  it("round-trips a v2 envelope and authenticates its key ID", async () => {
+    const crypto = createCrypto();
+    const encrypted = expectResultOk(await crypto.encryptSecretKeyBytes(
+      SECRET_KEY_BYTES,
+      WRAPPING_KEY,
+      "https://passport.pubky.app",
+      "2026-08",
+    ));
+
+    expect(encrypted).toMatchObject({ v: 2, kid: "2026-08" });
+    expectResultOk(await decrypt(crypto, encrypted, WRAPPING_KEY, "https://passport.pubky.app"));
+    if (encrypted.v !== 2) throw new Error("Expected a v2 envelope.");
+    const tampered = await decrypt(
+      crypto,
+      { ...encrypted, kid: "2026-07" },
+      WRAPPING_KEY,
+      "https://passport.pubky.app",
+    );
+    expect(Result.isError(tampered) && tampered.error.code).toBe("decrypt_failed");
+  });
+
   it("round-trips encrypted Pubky secret key bytes", async () => {
     const crypto = createCrypto();
     const envelope = expectResultOk(await encrypt(
@@ -400,7 +421,7 @@ describe("PassportFileWebCrypto", () => {
 
     expectResultError(decrypted, {
       code: "invalid_envelope",
-      cause: { code: "invalid_field", field: "iv" },
+      cause: { code: "invalid_file" },
     });
   });
 
@@ -436,7 +457,7 @@ describe("PassportFileWebCrypto", () => {
 
     expectResultError(decrypted, {
       code: "invalid_envelope",
-      cause: { code: "invalid_field", field: "ct" },
+      cause: { code: "invalid_file" },
     });
   });
 
@@ -477,7 +498,7 @@ describe("PassportFileWebCrypto", () => {
 
     expectResultError(decrypted, {
       code: "invalid_envelope",
-      cause: { code: "invalid_field", field: "ct" },
+      cause: { code: "invalid_file" },
     });
   });
 

@@ -21,7 +21,11 @@ describe("application environment", () => {
       homegateBaseUrl: "https://homegate.example/api/",
       homegateOrigin: "https://homegate.example",
       homeserverConnectOrigins: ["https://homeserver.example", "https://migrated.example"],
-      serverSecret: Buffer.alloc(32, 1),
+      serverSecretKeyring: {
+        legacyV1Secret: Buffer.alloc(32, 1),
+        currentKeyId: null,
+        secretsByKeyId: new Map(),
+      },
     });
   });
 
@@ -33,6 +37,31 @@ describe("application environment", () => {
   ])("requires %s", (name) => {
     vi.stubEnv(name, undefined);
 
+    expect(() => getApplicationEnvironment()).toThrow();
+  });
+
+  it("loads a bounded rotatable keyring while retaining the v1 secret", () => {
+    const currentSecret = Buffer.alloc(32, 2);
+    const previousSecret = Buffer.alloc(32, 3);
+    vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", "2026-08");
+    vi.stubEnv("PASSPORT_SERVER_SECRET_KEYRING_JSON", JSON.stringify({
+      "2026-07": previousSecret.toString("base64"),
+      "2026-08": currentSecret.toString("base64"),
+    }));
+
+    expect(getApplicationEnvironment().serverSecretKeyring).toEqual({
+      legacyV1Secret: Buffer.alloc(32, 1),
+      currentKeyId: "2026-08",
+      secretsByKeyId: new Map([
+        ["2026-07", previousSecret],
+        ["2026-08", currentSecret],
+      ]),
+    });
+  });
+
+  it("rejects incomplete or inconsistent keyring configuration", () => {
+    vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", "missing");
+    vi.stubEnv("PASSPORT_SERVER_SECRET_KEYRING_JSON", JSON.stringify({ other: Buffer.alloc(32, 2).toString("base64") }));
     expect(() => getApplicationEnvironment()).toThrow();
   });
 });

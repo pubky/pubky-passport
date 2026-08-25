@@ -257,19 +257,19 @@ describe("GoogleDrivePassportFileStore", () => {
   it("does not classify unsupported-version envelopes as deletable invalid files", async () => {
     await expectAsyncResultError(createStore([
       jsonResponse({ files: [LISTED_FILE] }),
-      textResponse(JSON.stringify({ ...ENVELOPE, v: 2, futureField: true })),
+      textResponse(JSON.stringify({ ...ENVELOPE, v: 3, futureField: true })),
     ]).store.readPassportFile(), {
       code: "unsupported_file",
-      cause: { code: "unsupported_version", field: "v" },
+      cause: { code: "unsupported_version" },
     });
 
     const { store, calls } = createStore([
       jsonResponse({ files: [LISTED_FILE] }),
-      textResponse(JSON.stringify({ ...ENVELOPE, v: 2, futureField: true })),
+      textResponse(JSON.stringify({ ...ENVELOPE, v: 3, futureField: true })),
     ]);
     await expectAsyncResultError(store.deleteInvalidPassportFile(), {
       code: "unsupported_file",
-      cause: { code: "unsupported_version", field: "v" },
+      cause: { code: "unsupported_version" },
     });
     expect(calls.some((call) => call.method === "DELETE")).toBe(false);
   });

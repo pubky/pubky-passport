@@ -127,7 +127,7 @@ describe("GoogleIdentityOperations", () => {
         decryptSecretKeyBytes: MOCKS.decryptSecretKeyBytes,
       };
     });
-    MOCKS.requestWrappingKey.mockResolvedValue(Result.ok("w".repeat(43)));
+    MOCKS.requestWrappingKey.mockResolvedValue(Result.ok({ wrappingKey: "w".repeat(43) }));
     MOCKS.requestInvitation.mockResolvedValue(Result.ok(INVITATION));
     MOCKS.createIdentityKey.mockResolvedValue(Result.ok(IDENTITY));
     MOCKS.exportSecretKey.mockImplementation(async () => Result.ok({

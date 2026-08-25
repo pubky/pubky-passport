@@ -8,6 +8,8 @@ const MAXIMUM_HOMESERVER_ORIGINS_CHARACTERS = 8_192;
 const MAXIMUM_HOMESERVER_ORIGINS = 16;
 const MAXIMUM_URL_CHARACTERS = 2_048;
 const MINIMUM_SERVER_SECRET_BYTES = 32;
+const MAXIMUM_SERVER_SECRETS = 16;
+const SERVER_SECRET_KEY_ID_PATTERN = /^[A-Za-z0-9._-]{1,32}$/;
 const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 const APPLICATION_ENVIRONMENT_SCHEMA = z.object({
@@ -42,14 +44,22 @@ const APPLICATION_ENVIRONMENT_SCHEMA = z.object({
       (value) => value.byteLength >= MINIMUM_SERVER_SECRET_BYTES,
       `PASSPORT_SERVER_SECRET_BASE64 must decode to at least ${MINIMUM_SERVER_SECRET_BYTES} bytes`,
     ),
+  PASSPORT_SERVER_SECRET_CURRENT_KEY_ID: z.string().trim().optional(),
+  PASSPORT_SERVER_SECRET_KEYRING_JSON: z.string().trim().optional(),
 });
+
+export type ServerSecretKeyring = {
+  legacyV1Secret: Buffer;
+  currentKeyId: string | null;
+  secretsByKeyId: ReadonlyMap<string, Buffer>;
+};
 
 export type ApplicationEnvironment = {
   googleClientId: string;
   homegateBaseUrl: string;
   homegateOrigin: string;
   homeserverConnectOrigins: string[];
-  serverSecret: Buffer;
+  serverSecretKeyring: ServerSecretKeyring;
 }
 
 export function getApplicationEnvironment(): ApplicationEnvironment {
@@ -58,15 +68,72 @@ export function getApplicationEnvironment(): ApplicationEnvironment {
     HOMEGATE_URL: process.env.HOMEGATE_URL,
     PUBKY_HOMESERVER_CONNECT_ORIGINS: process.env.PUBKY_HOMESERVER_CONNECT_ORIGINS,
     PASSPORT_SERVER_SECRET_BASE64: process.env.PASSPORT_SERVER_SECRET_BASE64,
+    PASSPORT_SERVER_SECRET_CURRENT_KEY_ID: process.env.PASSPORT_SERVER_SECRET_CURRENT_KEY_ID,
+    PASSPORT_SERVER_SECRET_KEYRING_JSON: process.env.PASSPORT_SERVER_SECRET_KEYRING_JSON,
   });
+
+  const serverSecretKeyring = parseServerSecretKeyring(
+    environment.PASSPORT_SERVER_SECRET_BASE64,
+    environment.PASSPORT_SERVER_SECRET_CURRENT_KEY_ID,
+    environment.PASSPORT_SERVER_SECRET_KEYRING_JSON,
+  );
 
   return {
     googleClientId: environment.GOOGLE_CLIENT_ID,
     homegateBaseUrl: environment.HOMEGATE_URL.baseUrl,
     homegateOrigin: environment.HOMEGATE_URL.origin,
     homeserverConnectOrigins: environment.PUBKY_HOMESERVER_CONNECT_ORIGINS,
-    serverSecret: environment.PASSPORT_SERVER_SECRET_BASE64,
+    serverSecretKeyring,
   };
+}
+
+function parseServerSecretKeyring(
+  legacyV1Secret: Buffer,
+  currentKeyId: string | undefined,
+  keyringJson: string | undefined,
+): ServerSecretKeyring {
+  if (!currentKeyId && !keyringJson) {
+    return { legacyV1Secret, currentKeyId: null, secretsByKeyId: new Map() };
+  }
+  if (!currentKeyId || !keyringJson || !SERVER_SECRET_KEY_ID_PATTERN.test(currentKeyId)) {
+    throw new Error("Passport server keyring requires a valid current key ID and keyring JSON.");
+  }
+
+  let rawKeyring: unknown;
+  try {
+    rawKeyring = JSON.parse(keyringJson);
+  } catch {
+    throw new Error("PASSPORT_SERVER_SECRET_KEYRING_JSON must be valid JSON.");
+  }
+  if (!isPlainObject(rawKeyring) || Object.keys(rawKeyring).length > MAXIMUM_SERVER_SECRETS) {
+    throw new Error("PASSPORT_SERVER_SECRET_KEYRING_JSON must be a bounded object.");
+  }
+
+  const secretsByKeyId = new Map<string, Buffer>();
+  for (const [keyId, encodedSecret] of Object.entries(rawKeyring)) {
+    if (!SERVER_SECRET_KEY_ID_PATTERN.test(keyId) || typeof encodedSecret !== "string") {
+      throw new Error("Passport server keyring contains an invalid entry.");
+    }
+    const secret = decodeServerSecret(encodedSecret);
+    if (!secret) throw new Error("Passport server keyring contains an invalid secret.");
+    secretsByKeyId.set(keyId, secret);
+  }
+  if (!secretsByKeyId.has(currentKeyId)) {
+    throw new Error("Passport server keyring does not contain its current key ID.");
+  }
+
+  return { legacyV1Secret, currentKeyId, secretsByKeyId };
+}
+
+function decodeServerSecret(value: string): Buffer | null {
+  if (!BASE64_PATTERN.test(value)) return null;
+  const secret = Buffer.from(value, "base64");
+  return secret.byteLength >= MINIMUM_SERVER_SECRET_BYTES ? secret : null;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
+    && Object.getPrototypeOf(value) === Object.prototype;
 }
 
 function parseHomegateUrl(value: string): { baseUrl: string; origin: string } | null {

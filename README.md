@@ -21,6 +21,13 @@ Configure `.env.local`:
 | `HOMEGATE_URL` | CSP-safe HTTPS Homegate base URL passed to the browser. |
 | `PUBKY_HOMESERVER_CONNECT_ORIGINS` | Up to 16 comma-separated exact HTTPS homeserver origins allowed by browser CSP. Include origins used by current and returning identities during migrations. This does not select a homeserver. |
 | `PASSPORT_SERVER_SECRET_BASE64` | Server secret with at least 32 decoded bytes. Generate one with `openssl rand -base64 32`. |
+| `PASSPORT_SERVER_SECRET_CURRENT_KEY_ID` | Optional public ID for the key used by newly created v2 Passport files. |
+| `PASSPORT_SERVER_SECRET_KEYRING_JSON` | Optional JSON object mapping key IDs to base64 secrets. It must contain the current ID. Retain old entries while any Passport files reference them. |
+
+`PASSPORT_SERVER_SECRET_BASE64` remains the permanent legacy key for v1 files. Do
+not replace it during rotation. To rotate new files, add a new keyring entry and
+change `PASSPORT_SERVER_SECRET_CURRENT_KEY_ID`; existing v2 entries must remain in
+the keyring until their files have been replaced.
 
 Add `https://localhost:3000` as both an authorized JavaScript origin and an
 authorized redirect URI on the Google OAuth web client, then start Next.js with

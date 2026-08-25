@@ -52,6 +52,20 @@ describe("GoogleWrappingKeyApiClient", () => {
     });
   });
 
+  it("requests and returns a retained v2 key by public ID", async () => {
+    const wrappingKey = encodeBase64Url(new Uint8Array(32).fill(7));
+    let requestBody: unknown;
+    const requester = new GoogleWrappingKeyApiClient(async (_input, init) => {
+      requestBody = await new Request("https://passport.pubky.app", init).json();
+      return Response.json({ wrappingKey, keyId: "2026-07" });
+    });
+
+    const result = await requester.requestGoogleWrappingKey("id-token", "2026-07");
+
+    expect(requestBody).toEqual({ googleIdToken: "id-token", keyId: "2026-07" });
+    expect(Result.isOk(result) && result.value).toEqual({ wrappingKey, keyId: "2026-07" });
+  });
+
   it("rejects unknown route errors instead of creating dynamic codes", async () => {
     const requester = new GoogleWrappingKeyApiClient(async () => (
       Response.json({ error: { code: "future_error" } }, { status: 401 })
@@ -108,7 +122,7 @@ describe("GoogleWrappingKeyApiClient", () => {
       const requester = new GoogleWrappingKeyApiClient(async () => Response.json({ wrappingKey }));
       const result = await requester.requestGoogleWrappingKey("id-token");
       expect(Result.isError(result)).toBe(false);
-      if (!Result.isError(result)) expect(result.value).toBe(wrappingKey);
+      if (!Result.isError(result)) expect(result.value).toEqual({ wrappingKey });
     }
   });
 

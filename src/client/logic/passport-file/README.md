@@ -7,7 +7,7 @@ Pubky identities, or activate homeserver sessions.
 ## Modules
 
 - [`passportFileEnvelope.ts`](./passportFileEnvelope.ts) defines and strictly parses
-  the v1 envelope.
+  legacy v1 and rotatable v2 envelopes.
 - [`PassportFileWebCrypto.ts`](./PassportFileWebCrypto.ts) encrypts and decrypts
   32-byte Pubky secret keys.
 - [`google/GoogleDrivePassportFileStore.ts`](./google/GoogleDrivePassportFileStore.ts) owns the authoritative

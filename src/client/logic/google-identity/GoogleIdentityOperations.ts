@@ -15,7 +15,8 @@ import {
 } from "../homegate/HomegateClient";
 import { GoogleDrivePassportFileStore } from "../passport-file/google/GoogleDrivePassportFileStore";
 import { GoogleDriveVisibleRecoveryCopies } from "../passport-file/google/GoogleDriveVisibleRecoveryCopies";
-import type { PassportFileEnvelopeV1 } from "../passport-file/passportFileEnvelope";
+import type { PassportFileEnvelope } from "../passport-file/passportFileEnvelope";
+import type { GoogleWrappingKey } from "../../../libs/googleWrappingKeyApi";
 import { PassportFileWebCrypto } from "../passport-file/PassportFileWebCrypto";
 import {
   PUBKY_SECRET_KEY_FORMAT,
@@ -160,7 +161,10 @@ export class GoogleIdentityOperations {
 
       if (storedFile.value.status === "found") {
         LOGGER.info("identity.google.drive_read.completed", { status: "found" });
-        const wrappingKey = await this.requestWrappingKey(credentials.googleIdToken);
+        const wrappingKey = await this.requestWrappingKey(
+          credentials.googleIdToken,
+          storedFile.value.envelope,
+        );
         if (Result.isError(wrappingKey)) return Result.err(wrappingKey.error);
         return this.restoreIdentity(credentials, storedFile.value.envelope, wrappingKey.value, report);
       }
@@ -268,7 +272,7 @@ export class GoogleIdentityOperations {
   private async createIdentity(
     googleAccount: GoogleAccountProfile,
     invitation: HomeserverSignupInvitation,
-    wrappingKey: string,
+    wrappingKey: GoogleWrappingKey,
     report: (progress: GoogleIdentityProgress) => void,
     store: GoogleDrivePassportFileStore,
     visibleCopies: GoogleDriveVisibleRecoveryCopies,
@@ -292,8 +296,9 @@ export class GoogleIdentityOperations {
       LOGGER.info("identity.google.encrypt.started");
       const encrypted = await this.crypto.encryptSecretKeyBytes(
         secretKey.value.bytes,
-        wrappingKey,
+        wrappingKey.wrappingKey,
         this.passportOrigin,
+        "keyId" in wrappingKey ? wrappingKey.keyId : undefined,
       ).finally(() => {
         secretKey.value.bytes.fill(0);
       });
@@ -352,8 +357,8 @@ export class GoogleIdentityOperations {
    */
   private async restoreIdentity(
     credentials: GoogleIdentityCredentials,
-    envelope: PassportFileEnvelopeV1,
-    wrappingKey: string,
+    envelope: PassportFileEnvelope,
+    wrappingKey: GoogleWrappingKey,
     report: (progress: GoogleIdentityProgress) => void,
   ): Promise<GoogleIdentityOperationResult> {
     report({ flow: "restore", step: "restoring" });
@@ -406,13 +411,13 @@ export class GoogleIdentityOperations {
 
   /** Decrypts exactly 32 secret bytes; the Pubky adapter consumes and clears them during restoration. */
   private async restoreKey(
-    envelope: PassportFileEnvelopeV1,
-    wrappingKey: string,
+    envelope: PassportFileEnvelope,
+    wrappingKey: GoogleWrappingKey,
   ): Promise<OperationResult<PubkyIdentityKey>> {
     LOGGER.info("identity.google.decrypt.started");
     const secretKey = await this.crypto.decryptSecretKeyBytes(
       envelope,
-      wrappingKey,
+      wrappingKey.wrappingKey,
       this.passportOrigin,
     );
     if (Result.isError(secretKey)) {
@@ -545,9 +550,15 @@ export class GoogleIdentityOperations {
     return Result.ok(invitation.value);
   }
 
-  private async requestWrappingKey(googleIdToken: string): Promise<OperationResult<string>> {
+  private async requestWrappingKey(
+    googleIdToken: string,
+    envelope?: PassportFileEnvelope,
+  ): Promise<OperationResult<GoogleWrappingKey>> {
     LOGGER.info("identity.google.wrapping_key.started");
-    const wrappingKey = await this.wrappingKeys.requestGoogleWrappingKey(googleIdToken);
+    const wrappingKey = await this.wrappingKeys.requestGoogleWrappingKey(
+      googleIdToken,
+      envelope?.v === 2 ? envelope.kid : undefined,
+    );
     if (Result.isError(wrappingKey)) {
       return Result.err({
         code: "wrapping_key_failed",
@@ -570,7 +581,10 @@ export class GoogleIdentityOperations {
     }
 
     if (storedFile.value.status === "found") {
-      const wrappingKey = await this.wrappingKeys.requestGoogleWrappingKey(credentials.googleIdToken);
+      const wrappingKey = await this.wrappingKeys.requestGoogleWrappingKey(
+        credentials.googleIdToken,
+        storedFile.value.envelope.v === 2 ? storedFile.value.envelope.kid : undefined,
+      );
       if (Result.isError(wrappingKey)) {
         return Result.err({ code: "google_drive_cleanup_failed", cause: wrappingKey.error });
       }
@@ -611,7 +625,7 @@ export class GoogleIdentityOperations {
 
   private async createVisibleRecoveryCopy(
     visibleCopies: GoogleDriveVisibleRecoveryCopies,
-    envelope: PassportFileEnvelopeV1,
+    envelope: PassportFileEnvelope,
     publicIdentity: PubkyPublicIdentity,
   ): Promise<boolean> {
     let timeout: ReturnType<typeof setTimeout> | undefined;

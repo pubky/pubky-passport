@@ -2,88 +2,105 @@ import "server-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
+import type { GoogleWrappingKey } from "../../../libs/googleWrappingKeyApi";
 import { LOGGER } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
-import { getApplicationEnvironment } from "../../config/applicationEnvironment";
+import {
+  getApplicationEnvironment,
+  type ServerSecretKeyring,
+} from "../../config/applicationEnvironment";
 import {
   GoogleIdTokenVerifier,
   type GoogleIdTokenVerificationResult,
 } from "./GoogleIdTokenVerifier";
-import { GoogleWrappingKeyDeriver } from "./GoogleWrappingKeyDeriver";
-import { InMemoryGoogleWrappingKeyRateLimiter } from "./InMemoryGoogleWrappingKeyRateLimiter";
+import { deriveGoogleWrappingKey } from "./GoogleWrappingKeyDeriver";
 
 export type GoogleWrappingKeyIssueErrorCode =
   | "invalid_google_id_token"
-  | "rate_limited"
+  | "key_unavailable"
   | "dependency_unavailable";
 
 export type GoogleWrappingKeyIssueResult = ResultType<
-  string,
+  GoogleWrappingKey,
   CodedFailure<GoogleWrappingKeyIssueErrorCode>
 >;
 
-export class GoogleWrappingKeyIssuer {
-  constructor(
-    private googleIdTokenVerifier: GoogleIdTokenVerifier,
-    private rateLimiter: InMemoryGoogleWrappingKeyRateLimiter,
-    private deriver: GoogleWrappingKeyDeriver,
-  ) {}
+export type GoogleWrappingKeyIssuer = {
+  issueGoogleWrappingKey: (
+    googleIdToken: string,
+    keyId?: string,
+  ) => Promise<GoogleWrappingKeyIssueResult>;
+};
 
-  static fromEnvironment(): GoogleWrappingKeyIssuer {
-    const { googleClientId, serverSecret } = getApplicationEnvironment();
-    const googleIdTokenVerifier = new GoogleIdTokenVerifier(googleClientId);
-    const rateLimiter = new InMemoryGoogleWrappingKeyRateLimiter(serverSecret);
-    const deriver = new GoogleWrappingKeyDeriver(serverSecret);
-    return new GoogleWrappingKeyIssuer(googleIdTokenVerifier, rateLimiter, deriver);
+type VerifyGoogleIdToken = (token: string) => Promise<GoogleIdTokenVerificationResult>;
+
+export function createGoogleWrappingKeyIssuer(
+  verifyGoogleIdToken: VerifyGoogleIdToken,
+  keyring: ServerSecretKeyring,
+): GoogleWrappingKeyIssuer {
+  return {
+    async issueGoogleWrappingKey(googleIdToken, requestedKeyId) {
+      let identity: GoogleIdTokenVerificationResult;
+      try {
+        identity = await verifyGoogleIdToken(googleIdToken);
+      } catch (cause) {
+        LOGGER.error("identity.google.wrapping_key.failed", {
+          layer: "server",
+          operation: "verify",
+          code: "dependency_unavailable",
+        });
+        return Result.err({ code: "dependency_unavailable", cause });
+      }
+
+      if (Result.isError(identity)) return Result.err(identity.error);
+
+      const selected = selectServerSecret(keyring, requestedKeyId);
+      if (!selected) {
+        LOGGER.warn("identity.google.wrapping_key.failed", {
+          layer: "server",
+          operation: "select_key",
+          code: "key_unavailable",
+        });
+        return Result.err({ code: "key_unavailable" });
+      }
+
+      try {
+        const wrappingKey = deriveGoogleWrappingKey(selected.secret, identity.value);
+        return Result.ok(selected.keyId
+          ? { wrappingKey, keyId: selected.keyId }
+          : { wrappingKey });
+      } catch (cause) {
+        LOGGER.error("identity.google.wrapping_key.failed", {
+          layer: "server",
+          operation: "derive",
+          code: "dependency_unavailable",
+        });
+        return Result.err({ code: "dependency_unavailable", cause });
+      }
+    },
+  };
+}
+
+export function createGoogleWrappingKeyIssuerFromEnvironment(): GoogleWrappingKeyIssuer {
+  const { googleClientId, serverSecretKeyring } = getApplicationEnvironment();
+  const verifier = new GoogleIdTokenVerifier(googleClientId);
+  return createGoogleWrappingKeyIssuer(
+    (token) => verifier.verifyGoogleIdToken(token),
+    serverSecretKeyring,
+  );
+}
+
+function selectServerSecret(
+  keyring: ServerSecretKeyring,
+  requestedKeyId: string | undefined,
+): { keyId?: string; secret: Buffer } | null {
+  if (requestedKeyId) {
+    const secret = keyring.secretsByKeyId.get(requestedKeyId);
+    return secret ? { keyId: requestedKeyId, secret } : null;
   }
-
-  async issueGoogleWrappingKey(googleIdToken: string): Promise<GoogleWrappingKeyIssueResult> {
-    let identity: GoogleIdTokenVerificationResult;
-    try {
-      identity = await this.googleIdTokenVerifier.verifyGoogleIdToken(googleIdToken);
-    } catch (cause) {
-      LOGGER.error("identity.google.wrapping_key.failed", {
-        layer: "server",
-        operation: "verify",
-        code: "dependency_unavailable",
-      });
-      return Result.err({ code: "dependency_unavailable", cause });
-    }
-
-    if (Result.isError(identity)) {
-      return Result.err(identity.error);
-    }
-
-    let allowed: boolean;
-    try {
-      allowed = this.rateLimiter.tryConsumeRequest(identity.value);
-    } catch (cause) {
-      LOGGER.error("identity.google.wrapping_key.failed", {
-        layer: "server",
-        operation: "rate_limit",
-        code: "dependency_unavailable",
-      });
-      return Result.err({ code: "dependency_unavailable", cause });
-    }
-
-    if (!allowed) {
-      LOGGER.warn("identity.google.wrapping_key.failed", {
-        layer: "server",
-        operation: "rate_limit",
-        code: "rate_limited",
-      });
-      return Result.err({ code: "rate_limited" });
-    }
-
-    try {
-      return Result.ok(this.deriver.deriveWrappingKey(identity.value));
-    } catch (cause) {
-      LOGGER.error("identity.google.wrapping_key.failed", {
-        layer: "server",
-        operation: "derive",
-        code: "dependency_unavailable",
-      });
-      return Result.err({ code: "dependency_unavailable", cause });
-    }
+  if (keyring.currentKeyId) {
+    const secret = keyring.secretsByKeyId.get(keyring.currentKeyId);
+    return secret ? { keyId: keyring.currentKeyId, secret } : null;
   }
+  return { secret: keyring.legacyV1Secret };
 }

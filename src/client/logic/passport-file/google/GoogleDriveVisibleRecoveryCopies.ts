@@ -10,7 +10,7 @@ import {
 } from "../../pubky/pubkyIdentityKey";
 import {
   serializePassportFileEnvelope,
-  type PassportFileEnvelopeV1,
+  type PassportFileEnvelope,
 } from "../passportFileEnvelope";
 import {
   authorizationHeaders,
@@ -71,7 +71,7 @@ export class GoogleDriveVisibleRecoveryCopies {
    * The signal lets the caller cancel or deadline-bound the attempt.
    */
   async createVisibleRecoveryCopy(
-    envelope: PassportFileEnvelopeV1,
+    envelope: PassportFileEnvelope,
     publicIdentity: PubkyPublicIdentity,
     signal: AbortSignal,
   ): Promise<VisibleCopiesResult<void>> {
