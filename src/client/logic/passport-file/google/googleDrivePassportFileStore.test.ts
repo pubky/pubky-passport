@@ -3,12 +3,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAsyncResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../../libs/logger/logger";
-import type { PassportFileEnvelopeV1 } from "../passportFileEnvelope";
+import type { PassportFileEnvelope } from "../passportFileEnvelope";
 import { GoogleDrivePassportFileStore } from "./GoogleDrivePassportFileStore";
 
 const ACCESS_TOKEN = "test-drive-access-token";
-const ENVELOPE: PassportFileEnvelopeV1 = {
+const ENVELOPE: PassportFileEnvelope = {
   v: 1,
+  keyId: "current",
   iv: "AAECAwQFBgcICQoL",
   ct: "YZy1I_a6WzFnql8rW2A94EJrgz38Sqd1LV_KjVe2Qd2n1mvFMXg9qzRHwJ_WQvrm",
   url: "https://passport.pubky.app",

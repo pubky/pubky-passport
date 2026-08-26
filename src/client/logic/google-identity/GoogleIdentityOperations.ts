@@ -291,7 +291,7 @@ export class GoogleIdentityOperations {
         secretKey.value.bytes,
         wrappingKey.wrappingKey,
         this.passportOrigin,
-        "keyId" in wrappingKey ? wrappingKey.keyId : undefined,
+        wrappingKey.keyId,
       ).finally(() => {
         secretKey.value.bytes.fill(0);
       });
@@ -545,7 +545,7 @@ export class GoogleIdentityOperations {
     LOGGER.info("identity.google.wrapping_key.started");
     const wrappingKey = await this.wrappingKeys.requestGoogleWrappingKey(
       googleIdToken,
-      envelope?.v === 2 ? envelope.kid : undefined,
+      envelope?.keyId,
     );
     if (Result.isError(wrappingKey)) {
       return Result.err({
@@ -570,7 +570,7 @@ export class GoogleIdentityOperations {
     if (storedFile.value.status === "found") {
       const wrappingKey = await this.wrappingKeys.requestGoogleWrappingKey(
         credentials.googleIdToken,
-        storedFile.value.envelope.v === 2 ? storedFile.value.envelope.kid : undefined,
+        storedFile.value.envelope.keyId,
       );
       if (Result.isError(wrappingKey)) {
         return Result.err({ code: "google_drive_cleanup_failed" });

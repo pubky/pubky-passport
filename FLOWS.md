@@ -86,13 +86,11 @@ Local-only identities do not expose this action.
 
 ## Wrapping-key rotation
 
-- Version 1 envelopes use `PASSPORT_SERVER_SECRET_BASE64`, which must be retained
-  for as long as any v1 file exists.
-- Version 2 envelopes carry a public, non-secret key ID. New files use
-  `PASSPORT_SERVER_SECRET_CURRENT_KEY_ID`; the server resolves it through
-  `PASSPORT_SERVER_SECRET_KEYRING_JSON`.
-- Old keyring entries must remain available until every referencing file has
-  been replaced. The key ID and origin are authenticated with the ciphertext.
+- Every envelope carries a public, non-secret key ID. New files use
+  `PASSPORT_SERVER_SECRET_CURRENT_KEY_ID`; existing files request the ID they
+  contain. The server resolves both through `PASSPORT_SERVER_SECRET_KEYRING_JSON`.
+- The key ID and origin are authenticated with the ciphertext. Removing a keyring
+  entry makes files that reference it undecryptable.
 - The API verifies token audience, issuer, subject, time claims, and replay
   limits before deriving a key. Traffic limiting is an infrastructure concern,
   not a process-local guarantee.

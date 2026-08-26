@@ -5,10 +5,7 @@ import { Result, type Result as ResultType } from "better-result";
 import type { GoogleWrappingKey } from "../../../libs/googleWrappingKeyApi";
 import { LOGGER } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
-import {
-  getApplicationEnvironment,
-  type ServerSecretKeyring,
-} from "../../config/applicationEnvironment";
+import { getApplicationEnvironment } from "../../config/applicationEnvironment";
 import {
   GoogleIdTokenVerifier,
   type GoogleIdTokenVerificationResult,
@@ -28,15 +25,17 @@ export type GoogleWrappingKeyIssueResult = ResultType<
 export class GoogleWrappingKeyIssuer {
   constructor(
     private readonly verifyGoogleIdToken: (token: string) => Promise<GoogleIdTokenVerificationResult>,
-    private readonly keyring: ServerSecretKeyring,
+    private readonly currentKeyId: string,
+    private readonly secrets: ReadonlyMap<string, Buffer>,
   ) {}
 
   static fromEnvironment(): GoogleWrappingKeyIssuer {
-    const { googleClientId, serverSecretKeyring } = getApplicationEnvironment();
+    const { googleClientId, serverSecretCurrentKeyId, serverSecrets } = getApplicationEnvironment();
     const verifier = new GoogleIdTokenVerifier(googleClientId);
     return new GoogleWrappingKeyIssuer(
       (token) => verifier.verifyGoogleIdToken(token),
-      serverSecretKeyring,
+      serverSecretCurrentKeyId,
+      serverSecrets,
     );
   }
 
@@ -58,8 +57,9 @@ export class GoogleWrappingKeyIssuer {
 
     if (Result.isError(identity)) return Result.err(identity.error);
 
-    const selected = selectServerSecret(this.keyring, requestedKeyId);
-    if (!selected) {
+    const keyId = requestedKeyId ?? this.currentKeyId;
+    const secret = this.secrets.get(keyId);
+    if (!secret) {
       LOGGER.warn("identity.google.wrapping_key.failed", {
         layer: "server",
         operation: "select_key",
@@ -69,10 +69,8 @@ export class GoogleWrappingKeyIssuer {
     }
 
     try {
-      const wrappingKey = deriveGoogleWrappingKey(selected.secret, identity.value);
-      return Result.ok(selected.keyId
-        ? { wrappingKey, keyId: selected.keyId }
-        : { wrappingKey });
+      const wrappingKey = deriveGoogleWrappingKey(secret, identity.value);
+      return Result.ok({ wrappingKey, keyId });
     } catch (cause) {
       LOGGER.error("identity.google.wrapping_key.failed", {
         layer: "server",
@@ -82,19 +80,4 @@ export class GoogleWrappingKeyIssuer {
       return Result.err({ code: "dependency_unavailable", cause });
     }
   }
-}
-
-function selectServerSecret(
-  keyring: ServerSecretKeyring,
-  requestedKeyId: string | undefined,
-): { keyId?: string; secret: Buffer } | null {
-  if (requestedKeyId) {
-    const secret = keyring.secretsByKeyId.get(requestedKeyId);
-    return secret ? { keyId: requestedKeyId, secret } : null;
-  }
-  if (keyring.currentKeyId) {
-    const secret = keyring.secretsByKeyId.get(keyring.currentKeyId);
-    return secret ? { keyId: keyring.currentKeyId, secret } : null;
-  }
-  return { secret: keyring.legacyV1Secret };
 }

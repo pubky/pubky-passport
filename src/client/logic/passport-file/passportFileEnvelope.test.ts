@@ -6,17 +6,18 @@ import {
   normalizePassportFileOrigin,
   parsePassportFileContents,
   parsePassportFileEnvelope,
-  type PassportFileEnvelopeV1,
+  type PassportFileEnvelope,
 } from "./passportFileEnvelope";
 
 const VALID_ENVELOPE = {
   v: 1,
+  keyId: "2026-08",
   iv: "AAECAwQFBgcICQoL",
   ct: "YZy1I_a6WzFnql8rW2A94EJrgz38Sqd1LV_KjVe2Qd2n1mvFMXg9qzRHwJ_WQvrm",
   url: "https://passport.pubky.app",
-} satisfies PassportFileEnvelopeV1;
+} satisfies PassportFileEnvelope;
 
-type PassportFileField = keyof typeof VALID_ENVELOPE | "kid";
+type PassportFileField = keyof typeof VALID_ENVELOPE;
 type PassportFileParseErrorCode = "invalid_json" | "invalid_file" | "unsupported_version";
 const PASSPORT_FILE_FIELDS = Object.keys(VALID_ENVELOPE) as PassportFileField[];
 
@@ -88,7 +89,7 @@ describe("parsePassportFileContents", () => {
   });
 
   it("rejects unsupported numeric versions", () => {
-    for (const version of [0, 3, 1.5]) {
+    for (const version of [0, 2, 3, 1.5]) {
       expectParseError(stringifyEnvelope({ v: version }), "unsupported_version", "v");
     }
   });
@@ -101,18 +102,8 @@ describe("parsePassportFileContents", () => {
     );
   });
 
-  it("parses v2 envelopes with a public key ID", () => {
-    const result = parsePassportFileContents(stringifyEnvelope({ v: 2, kid: "2026-08" }));
-
-    expect(Result.isOk(result) && result.value).toEqual({
-      ...VALID_ENVELOPE,
-      v: 2,
-      kid: "2026-08",
-    });
-  });
-
-  it.each(["", "spaces are invalid", "?", "x".repeat(33)])("rejects invalid v2 key ID %s", (kid) => {
-    expectParseError(stringifyEnvelope({ v: 2, kid }), "invalid_file", "kid");
+  it.each(["", "spaces are invalid", "?", "x".repeat(33)])("rejects invalid key ID %s", (keyId) => {
+    expectParseError(stringifyEnvelope({ keyId }), "invalid_file", "keyId");
   });
 
   it("rejects invalid version field types", () => {

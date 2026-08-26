@@ -22,7 +22,10 @@ describe("GoogleWrappingKeyApiClient", () => {
         redirect: request.redirect,
         referrerPolicy: request.referrerPolicy,
       };
-      return Response.json({ wrappingKey: encodeBase64Url(new Uint8Array(32).fill(7)) });
+      return Response.json({
+        wrappingKey: encodeBase64Url(new Uint8Array(32).fill(7)),
+        keyId: "current",
+      });
     });
 
     const result = await client.requestGoogleWrappingKey("id-token");
@@ -52,7 +55,7 @@ describe("GoogleWrappingKeyApiClient", () => {
     });
   });
 
-  it("requests and returns a retained v2 key by public ID", async () => {
+  it("requests and returns a retained key by public ID", async () => {
     const wrappingKey = encodeBase64Url(new Uint8Array(32).fill(7));
     let requestBody: unknown;
     const client = new GoogleWrappingKeyApiClient(async (_input, init) => {
@@ -83,12 +86,13 @@ describe("GoogleWrappingKeyApiClient", () => {
   });
 
   it.each([
-    { wrappingKey: "w".repeat(42) },
-    { wrappingKey: "w".repeat(43), extra: true },
-    { wrappingKey: `${"w".repeat(42)}x` },
-    { wrappingKey: `${"w".repeat(42)}=` },
-    { wrappingKey: "A".repeat(44) },
-    { wrappingKey: `${"A".repeat(42)}*` },
+    { wrappingKey: "w".repeat(42), keyId: "current" },
+    { wrappingKey: "w".repeat(43) },
+    { wrappingKey: "w".repeat(43), keyId: "current", extra: true },
+    { wrappingKey: `${"w".repeat(42)}x`, keyId: "current" },
+    { wrappingKey: `${"w".repeat(42)}=`, keyId: "current" },
+    { wrappingKey: "A".repeat(44), keyId: "current" },
+    { wrappingKey: `${"A".repeat(42)}*`, keyId: "current" },
   ])("rejects invalid or non-canonical wrapping-key responses", async (body) => {
     const client = new GoogleWrappingKeyApiClient(async () => Response.json(body));
     const result = await client.requestGoogleWrappingKey("id-token");
@@ -103,7 +107,7 @@ describe("GoogleWrappingKeyApiClient", () => {
       bytes[31] = value;
       const wrappingKey = encodeBase64Url(bytes);
       terminalCharacters.push(wrappingKey.at(-1) ?? "");
-      const client = new GoogleWrappingKeyApiClient(async () => Response.json({ wrappingKey }));
+      const client = new GoogleWrappingKeyApiClient(async () => Response.json({ wrappingKey, keyId: "current" }));
 
       expect(Result.isOk(await client.requestGoogleWrappingKey("id-token"))).toBe(true);
     }
@@ -119,10 +123,10 @@ describe("GoogleWrappingKeyApiClient", () => {
       Uint8Array.from({ length: 32 }, (_, index) => index),
     ]) {
       const wrappingKey = encodeBase64Url(bytes);
-      const client = new GoogleWrappingKeyApiClient(async () => Response.json({ wrappingKey }));
+      const client = new GoogleWrappingKeyApiClient(async () => Response.json({ wrappingKey, keyId: "current" }));
       const result = await client.requestGoogleWrappingKey("id-token");
       expect(Result.isError(result)).toBe(false);
-      if (!Result.isError(result)) expect(result.value).toEqual({ wrappingKey });
+      if (!Result.isError(result)) expect(result.value).toEqual({ wrappingKey, keyId: "current" });
     }
   });
 

@@ -32,9 +32,6 @@ const TEXT_ENCODER = new TextEncoder();
 
 const AES_GCM_DERIVATION_SALT = TEXT_ENCODER.encode("pubky-passport/passport-file/aes-gcm/salt/v1");
 const AES_GCM_DERIVATION_INFO = TEXT_ENCODER.encode("passport-file:aes-gcm:v1");
-type EnvelopeMetadata =
-  | { v: 1; url: string }
-  | { v: 2; kid: string; url: string };
 
 /**
  * Encrypts and decrypts the 32-byte Pubky secret stored in a v1 Passport file.
@@ -54,7 +51,7 @@ export class PassportFileWebCrypto {
     secretKeyBytes: Uint8Array,
     wrappingKey: string,
     passportOrigin: string,
-    keyId?: string,
+    keyId: string,
   ): Promise<CryptoResult<PassportFileEnvelope>> {
     const browserCrypto = getBrowserCrypto();
     if (Result.isError(browserCrypto)) {
@@ -89,9 +86,6 @@ export class PassportFileWebCrypto {
 
     const plaintext = copyToArrayBuffer(secretKeyBytes);
     try {
-      const envelopeMetadata = keyId
-        ? { v: 2 as const, kid: keyId, url: origin.value }
-        : { v: 1 as const, url: origin.value };
       const key = await this.deriveAesGcmKey(subtle, wrappingMaterial);
       if (Result.isError(key)) {
         LOGGER.warn("passport_file.crypto.failed", {
@@ -107,7 +101,7 @@ export class PassportFileWebCrypto {
         {
           name: "AES-GCM",
           iv,
-          additionalData: createEnvelopeAdditionalData(envelopeMetadata),
+          additionalData: createEnvelopeAdditionalData(keyId, origin.value),
           tagLength: AES_GCM_TAG_BITS,
         },
         key.value,
@@ -115,10 +109,11 @@ export class PassportFileWebCrypto {
       );
 
       return Result.ok({
-        ...envelopeMetadata,
+        v: 1,
+        keyId,
         iv: encodeBase64Url(iv),
         ct: encodeBase64Url(new Uint8Array(ciphertext)),
-        url: envelopeMetadata.url,
+        url: origin.value,
       });
     } catch (cause) {
       LOGGER.warn("passport_file.crypto.failed", {
@@ -201,7 +196,7 @@ export class PassportFileWebCrypto {
         {
           name: "AES-GCM",
           iv: copyToArrayBuffer(iv),
-          additionalData: createEnvelopeAdditionalData(parsedEnvelope),
+          additionalData: createEnvelopeAdditionalData(parsedEnvelope.keyId, parsedEnvelope.url),
           tagLength: AES_GCM_TAG_BITS,
         },
         key.value,
@@ -282,10 +277,9 @@ function base64UrlLength(byteLength: number): number {
   return Math.ceil((byteLength * 4) / 3);
 }
 
-function createEnvelopeAdditionalData(envelope: EnvelopeMetadata): ArrayBuffer {
-  const keyId = envelope.v === 2 ? `\n${envelope.kid}` : "";
+function createEnvelopeAdditionalData(keyId: string, url: string): ArrayBuffer {
   return copyToArrayBuffer(TEXT_ENCODER.encode(
-    `pubky-passport/passport-file/v${envelope.v}\n${envelope.url}${keyId}`,
+    `pubky-passport/passport-file/v1\n${url}\n${keyId}`,
   ));
 }
 

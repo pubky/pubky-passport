@@ -6,10 +6,11 @@ import { z } from "zod";
 import { decodeBase64Url } from "../../../libs/encoding/base64Url";
 import { PUBKY_SECRET_KEY_BYTES } from "../pubky/pubkyIdentityKey";
 
-/** Legacy envelope encrypted with PASSPORT_SERVER_SECRET_BASE64. */
-export type PassportFileEnvelopeV1 = {
+export type PassportFileEnvelope = {
   /** Numeric storage format version. */
   v: 1;
+  /** Public identifier for the server secret used to derive the wrapping key. */
+  keyId: string;
   /** Unpadded base64url AES-GCM initialization vector. */
   iv: string;
   /** Unpadded base64url ciphertext including the AES-GCM authentication tag. */
@@ -17,18 +18,6 @@ export type PassportFileEnvelopeV1 = {
   /** Normalized Passport origin authenticated during encryption. */
   url: string;
 };
-
-/** Rotatable envelope whose key ID selects a retained server secret. */
-export type PassportFileEnvelopeV2 = {
-  v: 2;
-  /** Public identifier only; never secret key material. */
-  kid: string;
-  iv: string;
-  ct: string;
-  url: string;
-};
-
-export type PassportFileEnvelope = PassportFileEnvelopeV1 | PassportFileEnvelopeV2;
 
 /** Only distinctions that change production behavior are exposed. */
 export type PassportFileParseError = {
@@ -47,16 +36,10 @@ const CRYPTO_FIELDS = {
   ct: z.string().refine((value) => isFixedLengthBase64Url(value, AES_GCM_CIPHERTEXT_BYTES)),
   url: z.string(),
 };
-const PASSPORT_FILE_ENVELOPE_V1_SCHEMA = z
+const PASSPORT_FILE_ENVELOPE_SCHEMA = z
   .object({
     v: z.literal(1),
-    ...CRYPTO_FIELDS,
-  })
-  .strict();
-const PASSPORT_FILE_ENVELOPE_V2_SCHEMA = z
-  .object({
-    v: z.literal(2),
-    kid: z.string().regex(/^[A-Za-z0-9._-]{1,32}$/),
+    keyId: z.string().regex(/^[A-Za-z0-9._-]{1,32}$/),
     ...CRYPTO_FIELDS,
   })
   .strict();
@@ -93,18 +76,11 @@ export function parsePassportFileEnvelope(input: unknown): PassportFileParseResu
     return Result.err<never, PassportFileParseError>({ code: "invalid_file" });
   }
 
-  if (typeof input.v === "number" && input.v !== 1 && input.v !== 2) {
+  if (typeof input.v === "number" && input.v !== 1) {
     return Result.err<never, PassportFileParseError>({ code: "unsupported_version" });
   }
 
-  const schema = input.v === 1
-    ? PASSPORT_FILE_ENVELOPE_V1_SCHEMA
-    : input.v === 2
-      ? PASSPORT_FILE_ENVELOPE_V2_SCHEMA
-      : null;
-  if (!schema) return Result.err<never, PassportFileParseError>({ code: "invalid_file" });
-
-  const parsed = schema.safeParse(input);
+  const parsed = PASSPORT_FILE_ENVELOPE_SCHEMA.safeParse(input);
   if (!parsed.success) {
     return Result.err<never, PassportFileParseError>({ code: "invalid_file" });
   }
@@ -129,9 +105,13 @@ export function parsePassportFileEnvelope(input: unknown): PassportFileParseResu
 export function serializePassportFileEnvelope(input: unknown): string | null {
   const parsed = parsePassportFileEnvelope(input);
   if (Result.isError(parsed)) return null;
-  return JSON.stringify(parsed.value.v === 1
-    ? { v: 1, iv: parsed.value.iv, ct: parsed.value.ct, url: parsed.value.url }
-    : { v: 2, kid: parsed.value.kid, iv: parsed.value.iv, ct: parsed.value.ct, url: parsed.value.url });
+  return JSON.stringify({
+    v: 1,
+    keyId: parsed.value.keyId,
+    iv: parsed.value.iv,
+    ct: parsed.value.ct,
+    url: parsed.value.url,
+  });
 }
 
 /**

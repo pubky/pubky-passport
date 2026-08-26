@@ -13,9 +13,9 @@ a Google account and derives the wrapping key for that account's Passport file.
 ## Request Flow
 
 1. Verify the Google ID token and normalize its issuer and Google subject.
-2. Select the permanent v1 secret or the retained keyring entry named by the public key ID.
+2. Select the requested keyring entry, or the configured current entry for a new file.
 3. Use HKDF to derive a deterministic 32-byte wrapping key from that secret and identity.
-4. Return the base64url key, its public key ID when applicable, or a safe typed error.
+4. Return the base64url key and its public key ID, or a safe typed error.
 
 Traffic controls belong at the shared deployment edge. A process-local limiter is
 not used because it would give misleading guarantees in multi-instance deployments.

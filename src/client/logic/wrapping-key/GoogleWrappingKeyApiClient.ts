@@ -82,7 +82,7 @@ export class GoogleWrappingKeyApiClient {
     }
 
     const parsed = GOOGLE_WRAPPING_KEY_SUCCESS_SCHEMA.safeParse(body);
-    if (parsed.success && (!keyId || ("keyId" in parsed.data && parsed.data.keyId === keyId))) {
+    if (parsed.success && (!keyId || parsed.data.keyId === keyId)) {
       return Result.ok(parsed.data);
     }
     LOGGER.warn("identity.google.wrapping_key.failed", {

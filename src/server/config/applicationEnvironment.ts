@@ -37,29 +37,18 @@ const APPLICATION_ENVIRONMENT_SCHEMA = z.object({
       });
       return z.NEVER;
     }),
-  PASSPORT_SERVER_SECRET_BASE64: z.string().trim()
-    .regex(BASE64_PATTERN, "PASSPORT_SERVER_SECRET_BASE64 must be valid base64")
-    .transform((value) => Buffer.from(value, "base64"))
-    .refine(
-      (value) => value.byteLength >= MINIMUM_SERVER_SECRET_BYTES,
-      `PASSPORT_SERVER_SECRET_BASE64 must decode to at least ${MINIMUM_SERVER_SECRET_BYTES} bytes`,
-    ),
-  PASSPORT_SERVER_SECRET_CURRENT_KEY_ID: z.string().trim().optional(),
-  PASSPORT_SERVER_SECRET_KEYRING_JSON: z.string().trim().optional(),
+  PASSPORT_SERVER_SECRET_CURRENT_KEY_ID: z.string().trim()
+    .regex(SERVER_SECRET_KEY_ID_PATTERN, "PASSPORT_SERVER_SECRET_CURRENT_KEY_ID is invalid"),
+  PASSPORT_SERVER_SECRET_KEYRING_JSON: z.string().trim().min(1),
 });
-
-export type ServerSecretKeyring = {
-  legacyV1Secret: Buffer;
-  currentKeyId: string | null;
-  secretsByKeyId: ReadonlyMap<string, Buffer>;
-};
 
 export type ApplicationEnvironment = {
   googleClientId: string;
   homegateBaseUrl: string;
   homegateOrigin: string;
   homeserverConnectOrigins: string[];
-  serverSecretKeyring: ServerSecretKeyring;
+  serverSecretCurrentKeyId: string;
+  serverSecrets: ReadonlyMap<string, Buffer>;
 }
 
 export function getApplicationEnvironment(): ApplicationEnvironment {
@@ -67,13 +56,11 @@ export function getApplicationEnvironment(): ApplicationEnvironment {
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
     HOMEGATE_URL: process.env.HOMEGATE_URL,
     PUBKY_HOMESERVER_CONNECT_ORIGINS: process.env.PUBKY_HOMESERVER_CONNECT_ORIGINS,
-    PASSPORT_SERVER_SECRET_BASE64: process.env.PASSPORT_SERVER_SECRET_BASE64,
     PASSPORT_SERVER_SECRET_CURRENT_KEY_ID: process.env.PASSPORT_SERVER_SECRET_CURRENT_KEY_ID,
     PASSPORT_SERVER_SECRET_KEYRING_JSON: process.env.PASSPORT_SERVER_SECRET_KEYRING_JSON,
   });
 
-  const serverSecretKeyring = parseServerSecretKeyring(
-    environment.PASSPORT_SERVER_SECRET_BASE64,
+  const serverSecrets = parseServerSecrets(
     environment.PASSPORT_SERVER_SECRET_CURRENT_KEY_ID,
     environment.PASSPORT_SERVER_SECRET_KEYRING_JSON,
   );
@@ -83,22 +70,15 @@ export function getApplicationEnvironment(): ApplicationEnvironment {
     homegateBaseUrl: environment.HOMEGATE_URL.baseUrl,
     homegateOrigin: environment.HOMEGATE_URL.origin,
     homeserverConnectOrigins: environment.PUBKY_HOMESERVER_CONNECT_ORIGINS,
-    serverSecretKeyring,
+    serverSecretCurrentKeyId: environment.PASSPORT_SERVER_SECRET_CURRENT_KEY_ID,
+    serverSecrets,
   };
 }
 
-function parseServerSecretKeyring(
-  legacyV1Secret: Buffer,
-  currentKeyId: string | undefined,
-  keyringJson: string | undefined,
-): ServerSecretKeyring {
-  if (!currentKeyId && !keyringJson) {
-    return { legacyV1Secret, currentKeyId: null, secretsByKeyId: new Map() };
-  }
-  if (!currentKeyId || !keyringJson || !SERVER_SECRET_KEY_ID_PATTERN.test(currentKeyId)) {
-    throw new Error("Passport server keyring requires a valid current key ID and keyring JSON.");
-  }
-
+function parseServerSecrets(
+  currentKeyId: string,
+  keyringJson: string,
+): ReadonlyMap<string, Buffer> {
   let rawKeyring: unknown;
   try {
     rawKeyring = JSON.parse(keyringJson);
@@ -109,20 +89,20 @@ function parseServerSecretKeyring(
     throw new Error("PASSPORT_SERVER_SECRET_KEYRING_JSON must be a bounded object.");
   }
 
-  const secretsByKeyId = new Map<string, Buffer>();
+  const secrets = new Map<string, Buffer>();
   for (const [keyId, encodedSecret] of Object.entries(rawKeyring)) {
     if (!SERVER_SECRET_KEY_ID_PATTERN.test(keyId) || typeof encodedSecret !== "string") {
       throw new Error("Passport server keyring contains an invalid entry.");
     }
     const secret = decodeServerSecret(encodedSecret);
     if (!secret) throw new Error("Passport server keyring contains an invalid secret.");
-    secretsByKeyId.set(keyId, secret);
+    secrets.set(keyId, secret);
   }
-  if (!secretsByKeyId.has(currentKeyId)) {
+  if (!secrets.has(currentKeyId)) {
     throw new Error("Passport server keyring does not contain its current key ID.");
   }
 
-  return { legacyV1Secret, currentKeyId, secretsByKeyId };
+  return secrets;
 }
 
 function decodeServerSecret(value: string): Buffer | null {

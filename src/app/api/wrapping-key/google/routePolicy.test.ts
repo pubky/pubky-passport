@@ -32,7 +32,7 @@ describe("Google wrapping-key route policy", () => {
     );
   });
 
-  it("accepts a public key ID for v2 files", async () => {
+  it("accepts a public key ID for an existing file", async () => {
     const result = await parseGoogleIdTokenRequest(jsonRequest({
       googleIdToken: "id-token",
       keyId: "2026-08",

@@ -6,7 +6,10 @@ const VALID_CONFIG = {
   GOOGLE_CLIENT_ID: " google-client-id ",
   HOMEGATE_URL: "https://homegate.example/api",
   PUBKY_HOMESERVER_CONNECT_ORIGINS: "https://homeserver.example",
-  PASSPORT_SERVER_SECRET_BASE64: Buffer.alloc(32, 1).toString("base64"),
+  PASSPORT_SERVER_SECRET_CURRENT_KEY_ID: "current",
+  PASSPORT_SERVER_SECRET_KEYRING_JSON: JSON.stringify({
+    current: Buffer.alloc(32, 1).toString("base64"),
+  }),
 };
 
 describe("browser bootstrap config", () => {
@@ -14,7 +17,8 @@ describe("browser bootstrap config", () => {
     vi.stubEnv("GOOGLE_CLIENT_ID", VALID_CONFIG.GOOGLE_CLIENT_ID);
     vi.stubEnv("HOMEGATE_URL", VALID_CONFIG.HOMEGATE_URL);
     vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", VALID_CONFIG.PUBKY_HOMESERVER_CONNECT_ORIGINS);
-    vi.stubEnv("PASSPORT_SERVER_SECRET_BASE64", VALID_CONFIG.PASSPORT_SERVER_SECRET_BASE64);
+    vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", VALID_CONFIG.PASSPORT_SERVER_SECRET_CURRENT_KEY_ID);
+    vi.stubEnv("PASSPORT_SERVER_SECRET_KEYRING_JSON", VALID_CONFIG.PASSPORT_SERVER_SECRET_KEYRING_JSON);
   });
 
   afterEach(() => vi.unstubAllEnvs());

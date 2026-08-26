@@ -100,6 +100,7 @@ const KEY_HANDLE = {};
 const IDENTITY = { keyHandle: KEY_HANDLE, publicIdentity: PUBLIC_IDENTITY };
 const ENVELOPE = {
   v: 1 as const,
+  keyId: "current",
   iv: "a".repeat(16),
   ct: "b".repeat(64),
   url: "https://passport.pubky.app",
@@ -127,7 +128,10 @@ describe("Google identity use cases", () => {
     MOCKS.visibleCopiesConstructions.count = 0;
     vi.stubGlobal("localStorage", new MemoryStorage());
     MOCKS.contextFetch.current = undefined;
-    MOCKS.requestWrappingKey.mockResolvedValue(Result.ok({ wrappingKey: "w".repeat(43) }));
+    MOCKS.requestWrappingKey.mockResolvedValue(Result.ok({
+      wrappingKey: "w".repeat(43),
+      keyId: "current",
+    }));
     MOCKS.requestInvitation.mockResolvedValue(Result.ok(INVITATION));
     MOCKS.createIdentityKey.mockResolvedValue(Result.ok(IDENTITY));
     MOCKS.exportSecretKey.mockImplementation(async () => Result.ok({

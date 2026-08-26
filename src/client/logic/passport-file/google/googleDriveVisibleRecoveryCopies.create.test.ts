@@ -2,7 +2,7 @@ import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LOGGER } from "../../../../libs/logger/logger";
-import type { PassportFileEnvelopeV1 } from "../passportFileEnvelope";
+import type { PassportFileEnvelope } from "../passportFileEnvelope";
 import { GoogleDriveVisibleRecoveryCopies } from "./GoogleDriveVisibleRecoveryCopies";
 
 const ACCESS_TOKEN = "SECRET-DRIVE-TOKEN";
@@ -10,8 +10,9 @@ const PUBLIC_KEY_Z32 = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
 const PUBLIC_KEY_DISPLAY = `pubky${PUBLIC_KEY_Z32}`;
 const PUBLIC_IDENTITY = { publicKeyZ32: PUBLIC_KEY_Z32,};
 const VISIBLE_FILE_NAME = `${PUBLIC_KEY_DISPLAY}.json`;
-const ENVELOPE: PassportFileEnvelopeV1 = {
+const ENVELOPE: PassportFileEnvelope = {
   v: 1,
+  keyId: "current",
   iv: "AAECAwQFBgcICQoL",
   ct: "YZy1I_a6WzFnql8rW2A94EJrgz38Sqd1LV_KjVe2Qd2n1mvFMXg9qzRHwJ_WQvrm",
   url: "https://passport.pubky.app/",
@@ -340,6 +341,7 @@ function createVisibleCopies(
       visibleFileName: body.match(/"name":"(pubky[^"]+\.json)"/)?.[1] ?? null,
       hasExactEnvelope: body.includes(JSON.stringify({
         v: ENVELOPE.v,
+        keyId: ENVELOPE.keyId,
         iv: ENVELOPE.iv,
         ct: ENVELOPE.ct,
         url: "https://passport.pubky.app",

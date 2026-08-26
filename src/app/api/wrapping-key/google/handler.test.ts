@@ -9,20 +9,23 @@ describe("POST /api/wrapping-key/google", () => {
     vi.restoreAllMocks();
   });
 
-  it("returns legacy and versioned wrapping-key results", async () => {
-    const legacyPost = await postHandler(async () => Result.ok({ wrappingKey: "opaque-key" }));
-    const legacy = await legacyPost(jsonRequest({ googleIdToken: "id-token" }));
-    expect(await responseSummary(legacy)).toEqual({
+  it("returns the selected wrapping key and its public ID", async () => {
+    const currentPost = await postHandler(async () => Result.ok({
+      wrappingKey: "opaque-key",
+      keyId: "current",
+    }));
+    const current = await currentPost(jsonRequest({ googleIdToken: "id-token" }));
+    expect(await responseSummary(current)).toEqual({
       status: 200,
-      body: { wrappingKey: "opaque-key" },
+      body: { wrappingKey: "opaque-key", keyId: "current" },
     });
-    expect(legacy.headers.get("Cache-Control")).toBe("no-store");
+    expect(current.headers.get("Cache-Control")).toBe("no-store");
 
-    const versionedPost = await postHandler(async (_token, keyId) => Result.ok({
+    const retainedPost = await postHandler(async (_token, keyId) => Result.ok({
       wrappingKey: "rotated-key",
       keyId: keyId ?? "current",
     }));
-    await expect(versionedPost(jsonRequest({ googleIdToken: "id-token", keyId: "old" }))
+    await expect(retainedPost(jsonRequest({ googleIdToken: "id-token", keyId: "old" }))
       .then(responseSummary)).resolves.toEqual({
         status: 200,
         body: { wrappingKey: "rotated-key", keyId: "old" },
@@ -30,7 +33,10 @@ describe("POST /api/wrapping-key/google", () => {
   });
 
   it("does not construct dependencies for invalid requests", async () => {
-    const factory = vi.fn(() => issuer(async () => Result.ok({ wrappingKey: "opaque-key" })));
+    const factory = vi.fn(() => issuer(async () => Result.ok({
+      wrappingKey: "opaque-key",
+      keyId: "current",
+    })));
     const post = await handlerWithFactory(factory);
 
     const response = await post(jsonRequest({}));
@@ -67,7 +73,10 @@ describe("POST /api/wrapping-key/google", () => {
   });
 
   it("reuses the configured issuer", async () => {
-    const factory = vi.fn(() => issuer(async () => Result.ok({ wrappingKey: "opaque-key" })));
+    const factory = vi.fn(() => issuer(async () => Result.ok({
+      wrappingKey: "opaque-key",
+      keyId: "current",
+    })));
     const post = await handlerWithFactory(factory);
 
     await post(jsonRequest({ googleIdToken: "first" }));
@@ -79,7 +88,10 @@ describe("POST /api/wrapping-key/google", () => {
   it("retries composition after a factory failure", async () => {
     const factory = vi.fn()
       .mockImplementationOnce(() => { throw new Error("temporarily unavailable"); })
-      .mockReturnValue(issuer(async () => Result.ok({ wrappingKey: "opaque-key" })));
+      .mockReturnValue(issuer(async () => Result.ok({
+        wrappingKey: "opaque-key",
+        keyId: "current",
+      })));
     const post = await handlerWithFactory(factory);
 
     expect((await post(jsonRequest({ googleIdToken: "first" }))).status).toBe(500);

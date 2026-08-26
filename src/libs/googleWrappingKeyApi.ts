@@ -24,14 +24,12 @@ const WRAPPING_KEY_SCHEMA = z.string()
   .length(WRAPPING_KEY_LENGTH)
   .refine(isCanonicalBase64Url);
 
-export const GOOGLE_WRAPPING_KEY_SUCCESS_SCHEMA = z.union([
-  z.object({ wrappingKey: WRAPPING_KEY_SCHEMA }).strict(),
-  z.object({ wrappingKey: WRAPPING_KEY_SCHEMA, keyId: GOOGLE_WRAPPING_KEY_ID_SCHEMA }).strict(),
-]);
+export const GOOGLE_WRAPPING_KEY_SUCCESS_SCHEMA = z.object({
+  wrappingKey: WRAPPING_KEY_SCHEMA,
+  keyId: GOOGLE_WRAPPING_KEY_ID_SCHEMA,
+}).strict();
 
-export type GoogleWrappingKey =
-  | { wrappingKey: string }
-  | { wrappingKey: string; keyId: string };
+export type GoogleWrappingKey = { wrappingKey: string; keyId: string };
 
 export const GOOGLE_WRAPPING_KEY_ERROR_SCHEMA = z.object({
   error: z.object({ code: z.enum(GOOGLE_WRAPPING_KEY_ERROR_CODES) }).strict(),

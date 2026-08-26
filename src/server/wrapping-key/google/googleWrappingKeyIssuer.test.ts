@@ -3,15 +3,14 @@ import { Result } from "better-result";
 
 import { LOGGER } from "../../../libs/logger/logger";
 import { expectAsyncResultError } from "../../../../test-utils/resultAssertions";
-import type { ServerSecretKeyring } from "../../config/applicationEnvironment";
 import { GoogleWrappingKeyIssuer } from "./GoogleWrappingKeyIssuer";
 
 const IDENTITY = {
   issuer: "https://accounts.google.com" as const,
   googleSubject: "google-subject",
 };
-const LEGACY_SECRET = Buffer.alloc(32, 1);
 const CURRENT_SECRET = Buffer.alloc(32, 2);
+const SECRETS = new Map([["current", CURRENT_SECRET]]);
 
 describe("Google wrapping-key issuer", () => {
   afterEach(() => {
@@ -19,24 +18,26 @@ describe("Google wrapping-key issuer", () => {
     vi.unstubAllEnvs();
   });
 
-  it("uses the legacy secret for v1 requests", async () => {
+  it("uses the current secret when no key ID is requested", async () => {
     const issuer = new GoogleWrappingKeyIssuer(
       async () => Result.ok(IDENTITY),
-      keyring(),
+      "current",
+      SECRETS,
     );
 
-    await expect(issuer.issueGoogleWrappingKey("id-token")).resolves.toEqual(Result.ok({
-      wrappingKey: "5jWnH-DnDZcQGwxnVGwbikKkva6JaUejOqog5PIQ78Q",
-    }));
+    const result = await issuer.issueGoogleWrappingKey("id-token");
+
+    expect(Result.isOk(result) && result.value.keyId).toBe("current");
   });
 
-  it("returns the current key ID for new v2 files and retained keys for old v2 files", async () => {
+  it("returns the current key ID for new files and retained keys for existing files", async () => {
     const issuer = new GoogleWrappingKeyIssuer(
       async () => Result.ok(IDENTITY),
-      keyring("current", new Map([
+      "current",
+      new Map([
         ["old", Buffer.alloc(32, 3)],
         ["current", CURRENT_SECRET],
-      ])),
+      ]),
     );
 
     const current = await issuer.issueGoogleWrappingKey("id-token");
@@ -50,7 +51,7 @@ describe("Google wrapping-key issuer", () => {
 
   it("rejects a key ID that is no longer retained", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const issuer = new GoogleWrappingKeyIssuer(async () => Result.ok(IDENTITY), keyring());
+    const issuer = new GoogleWrappingKeyIssuer(async () => Result.ok(IDENTITY), "current", SECRETS);
 
     await expectAsyncResultError(
       issuer.issueGoogleWrappingKey("id-token", "removed"),
@@ -66,7 +67,8 @@ describe("Google wrapping-key issuer", () => {
   it("does not derive material for rejected tokens", async () => {
     const issuer = new GoogleWrappingKeyIssuer(
       async () => Result.err({ code: "invalid_google_id_token" as const }),
-      keyring(),
+      "current",
+      SECRETS,
     );
 
     await expectAsyncResultError(
@@ -79,7 +81,8 @@ describe("Google wrapping-key issuer", () => {
     const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
     const issuer = new GoogleWrappingKeyIssuer(
       async () => { throw new Error("SECRET-GOOGLE-ID-TOKEN"); },
-      keyring(),
+      "current",
+      SECRETS,
     );
 
     const result = await issuer.issueGoogleWrappingKey("id-token");
@@ -91,16 +94,12 @@ describe("Google wrapping-key issuer", () => {
     vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
     vi.stubEnv("HOMEGATE_URL", "https://homegate.example/");
     vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example");
-    vi.stubEnv("PASSPORT_SERVER_SECRET_BASE64", LEGACY_SECRET.toString("base64"));
+    vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", "current");
+    vi.stubEnv("PASSPORT_SERVER_SECRET_KEYRING_JSON", JSON.stringify({
+      current: CURRENT_SECRET.toString("base64"),
+    }));
 
     expect(GoogleWrappingKeyIssuer.fromEnvironment().issueGoogleWrappingKey)
       .toEqual(expect.any(Function));
   });
 });
-
-function keyring(
-  currentKeyId: string | null = null,
-  secretsByKeyId: ReadonlyMap<string, Buffer> = new Map(),
-): ServerSecretKeyring {
-  return { legacyV1Secret: LEGACY_SECRET, currentKeyId, secretsByKeyId };
-}
