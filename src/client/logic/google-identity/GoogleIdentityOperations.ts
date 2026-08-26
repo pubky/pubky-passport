@@ -9,7 +9,7 @@ import type {
 } from "../local-identity/localIdentityModels";
 import type { GoogleIdentityCredentials } from "./GoogleImplicitAuthorization";
 import {
-  createGoogleSignupInvitationRequester,
+  HomegateClient,
   type HomegateSignupInvitationErrorCode,
   type HomeserverSignupInvitation,
 } from "../homegate/HomegateClient";
@@ -25,7 +25,7 @@ import {
 } from "../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../pubky/PubkySdkAdapter";
 import {
-  createGoogleWrappingKeyRequester,
+  GoogleWrappingKeyApiClient,
   type GoogleWrappingKeyErrorCode,
 } from "../wrapping-key/GoogleWrappingKeyApiClient";
 import { LocalStorageIdentityRepository } from "../local-identity/LocalStorageIdentityRepository";
@@ -101,105 +101,14 @@ type DetachGoogleIdentityResult = ResultType<void, DetachGoogleIdentityError>;
 
 type OperationResult<Success = void> = ResultType<Success, GoogleIdentityEstablishmentError>;
 
-export type GoogleIdentityContextDependencies = {
-  repository: Pick<LocalStorageIdentityRepository, "remove" | "save">;
-  pubky: Pick<
-    PubkySdkAdapter,
-    | "createIdentityKey"
-    | "dispose"
-    | "disposeIdentityKey"
-    | "exportSecretKey"
-    | "publishHomeserver"
-    | "resolveHomeserver"
-    | "restoreIdentityKey"
-    | "signin"
-    | "signinAfterPublication"
-    | "signup"
-  >;
-  crypto: Pick<PassportFileWebCrypto, "decryptSecretKeyBytes" | "encryptSecretKeyBytes">;
-  requestWrappingKey: ReturnType<typeof createGoogleWrappingKeyRequester>;
-  requestSignupInvitation: ReturnType<typeof createGoogleSignupInvitationRequester>;
-  createPassportFileStore(
-    driveAccessToken: string,
-    fetchImpl: typeof fetch,
-  ): Pick<
-    GoogleDrivePassportFileStore,
-    | "createPassportFile"
-    | "deleteInvalidPassportFile"
-    | "deletePassportFile"
-    | "readPassportFile"
-  >;
-  createVisibleRecoveryCopies(
-    driveAccessToken: string,
-    fetchImpl: typeof fetch,
-  ): Pick<
-    GoogleDriveVisibleRecoveryCopies,
-    "createVisibleRecoveryCopy" | "deleteVisibleRecoveryCopies"
-  >;
-};
-
-export type GoogleIdentityContext = {
-  establishIdentity(
-    credentials: GoogleIdentityCredentials,
-    report: (progress: GoogleIdentityProgress) => void,
-  ): Promise<GoogleIdentityOperationResult>;
-  replaceInvalidPassportFile(
-    credentials: GoogleIdentityCredentials,
-    report: (progress: GoogleIdentityProgress) => void,
-  ): Promise<GoogleIdentityOperationResult>;
-  detachIdentity(
-    credentials: GoogleIdentityCredentials,
-    publicIdentity: PubkyPublicIdentity,
-    expectedGoogleSubject: string,
-  ): Promise<DetachGoogleIdentityResult>;
-  abortRequests(): void;
-  dispose(): void;
-};
-
-/** Creates the resource context shared by one screen's concrete use cases. */
-export function createGoogleIdentityContext(
-  homegateBaseUrl: string,
-  passportOrigin: string,
-  dependencies?: GoogleIdentityContextDependencies,
-): GoogleIdentityContext {
-  return new ScreenGoogleIdentityContext(homegateBaseUrl, passportOrigin, dependencies);
-}
-
-export function establishGoogleIdentity(
-  context: GoogleIdentityContext,
-  credentials: GoogleIdentityCredentials,
-  report: (progress: GoogleIdentityProgress) => void,
-): Promise<GoogleIdentityOperationResult> {
-  return context.establishIdentity(credentials, report);
-}
-
-export function replaceInvalidGooglePassportFile(
-  context: GoogleIdentityContext,
-  credentials: GoogleIdentityCredentials,
-  report: (progress: GoogleIdentityProgress) => void,
-): Promise<GoogleIdentityOperationResult> {
-  return context.replaceInvalidPassportFile(credentials, report);
-}
-
-export function detachGoogleIdentity(
-  context: GoogleIdentityContext,
-  credentials: GoogleIdentityCredentials,
-  publicIdentity: PubkyPublicIdentity,
-  expectedGoogleSubject: string,
-): Promise<DetachGoogleIdentityResult> {
-  return context.detachIdentity(credentials, publicIdentity, expectedGoogleSubject);
-}
-
-class ScreenGoogleIdentityContext implements GoogleIdentityContext {
-  private repository: GoogleIdentityContextDependencies["repository"];
-  private pubky: GoogleIdentityContextDependencies["pubky"];
-  private requestWrappingKeyFromServer: ReturnType<typeof createGoogleWrappingKeyRequester>;
-  private requestSignupInvitationFromHomegate: ReturnType<typeof createGoogleSignupInvitationRequester>;
-  private crypto: GoogleIdentityContextDependencies["crypto"];
-  private createPassportFileStore: GoogleIdentityContextDependencies["createPassportFileStore"];
-  private createVisibleRecoveryCopies: GoogleIdentityContextDependencies["createVisibleRecoveryCopies"];
-  private requests = new AbortController();
-  private fetch: typeof fetch = (request, init) => {
+export class GoogleIdentityOperations {
+  private readonly repository = new LocalStorageIdentityRepository();
+  private readonly pubky: PubkySdkAdapter;
+  private readonly wrappingKeys: GoogleWrappingKeyApiClient;
+  private readonly homegate: HomegateClient;
+  private readonly crypto: PassportFileWebCrypto;
+  private readonly requests = new AbortController();
+  private readonly fetch: typeof fetch = (request, init) => {
     const signals = [this.requests.signal, AbortSignal.timeout(NETWORK_REQUEST_TIMEOUT_MS)];
     if (init?.signal) signals.push(init.signal);
     return globalThis.fetch(request, { ...init, signal: AbortSignal.any(signals) });
@@ -208,28 +117,16 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
 
   constructor(
     homegateBaseUrl: string,
-    private passportOrigin: string,
-    dependencies?: GoogleIdentityContextDependencies,
+    private readonly passportOrigin: string,
   ) {
-    const pubky = dependencies?.pubky ?? new PubkySdkAdapter();
-    this.pubky = pubky;
-    this.repository = dependencies?.repository ?? new LocalStorageIdentityRepository();
-    this.createPassportFileStore = dependencies?.createPassportFileStore
-      ?? ((driveAccessToken, fetchImpl) => new GoogleDrivePassportFileStore(driveAccessToken, fetchImpl));
-    this.createVisibleRecoveryCopies = dependencies?.createVisibleRecoveryCopies
-      ?? ((driveAccessToken, fetchImpl) => new GoogleDriveVisibleRecoveryCopies(driveAccessToken, fetchImpl));
+    this.pubky = new PubkySdkAdapter();
     try {
-      this.requestWrappingKeyFromServer = dependencies?.requestWrappingKey
-        ?? createGoogleWrappingKeyRequester(this.fetch);
-      this.requestSignupInvitationFromHomegate = dependencies?.requestSignupInvitation
-        ?? createGoogleSignupInvitationRequester(
-        homegateBaseUrl,
-        this.fetch,
-      );
-      this.crypto = dependencies?.crypto ?? new PassportFileWebCrypto();
+      this.wrappingKeys = new GoogleWrappingKeyApiClient(this.fetch);
+      this.homegate = new HomegateClient(homegateBaseUrl, this.fetch);
+      this.crypto = new PassportFileWebCrypto();
     } catch (error) {
       try {
-        pubky.dispose();
+        this.pubky.dispose();
       } catch {
         LOGGER.warn("identity.google.cleanup.failed", {
           operation: "construction_pubky_dispose",
@@ -246,7 +143,7 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
   ): Promise<GoogleIdentityOperationResult> {
     try {
       report({ flow: "lookup", step: "checking" });
-      const store = this.createPassportFileStore(credentials.driveAccessToken, this.fetch);
+      const store = new GoogleDrivePassportFileStore(credentials.driveAccessToken, this.fetch);
       LOGGER.info("identity.google.drive_read.started");
       const storedFile = await store.readPassportFile();
       if (Result.isError(storedFile)) {
@@ -275,7 +172,7 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
       if (Result.isError(invitation)) return Result.err(invitation.error);
 
       report({ flow: "create", step: "creating" });
-      const visibleCopies = this.createVisibleRecoveryCopies(
+      const visibleCopies = new GoogleDriveVisibleRecoveryCopies(
         credentials.driveAccessToken,
         this.fetch,
       );
@@ -301,7 +198,7 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
     report: (progress: GoogleIdentityProgress) => void,
   ): Promise<GoogleIdentityOperationResult> {
     try {
-      const store = this.createPassportFileStore(credentials.driveAccessToken, this.fetch);
+      const store = new GoogleDrivePassportFileStore(credentials.driveAccessToken, this.fetch);
       const deleted = await store.deleteInvalidPassportFile();
       if (Result.isError(deleted)) {
         return Result.err({
@@ -370,8 +267,8 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
     invitation: HomeserverSignupInvitation,
     wrappingKey: GoogleWrappingKey,
     report: (progress: GoogleIdentityProgress) => void,
-    store: ReturnType<GoogleIdentityContextDependencies["createPassportFileStore"]>,
-    visibleCopies: ReturnType<GoogleIdentityContextDependencies["createVisibleRecoveryCopies"]>,
+    store: GoogleDrivePassportFileStore,
+    visibleCopies: GoogleDriveVisibleRecoveryCopies,
   ): Promise<GoogleIdentityOperationResult> {
     LOGGER.info("identity.google.create.started");
     LOGGER.info("identity.google.create_key.started");
@@ -462,7 +359,7 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
 
     try {
       report({ flow: "restore", step: "signing_in" });
-      const signedIn = await this.pubky.signin(restored.value.keyHandle);
+      const signedIn = await this.pubky.signin(restored.value.keyHandle, "normal");
       if (!Result.isError(signedIn)) {
         const verified = this.verifySessionIdentity(restored.value, signedIn.value.publicIdentity);
         if (Result.isError(verified)) return Result.err(verified.error);
@@ -577,7 +474,7 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
     report(isReconciliation
       ? { flow: "repair", step: "signing_in" }
       : { flow: "create", step: "activating" });
-    const signedIn = await this.pubky.signinAfterPublication(identity.keyHandle);
+    const signedIn = await this.pubky.signin(identity.keyHandle, "after-publication");
     if (Result.isError(signedIn)) {
       return Result.err({
         code: signupWasUncertain
@@ -630,7 +527,7 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
     googleIdToken: string,
   ): Promise<OperationResult<HomeserverSignupInvitation>> {
     LOGGER.info("identity.google.homeserver_signup_invitation.started");
-    const invitation = await this.requestSignupInvitationFromHomegate(googleIdToken);
+    const invitation = await this.homegate.requestGoogleSignupInvitation(googleIdToken);
     if (Result.isError(invitation)) {
       return Result.err({
         code: "homeserver_signup_invitation_failed",
@@ -646,7 +543,7 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
     envelope?: PassportFileEnvelope,
   ): Promise<OperationResult<GoogleWrappingKey>> {
     LOGGER.info("identity.google.wrapping_key.started");
-    const wrappingKey = await this.requestWrappingKeyFromServer(
+    const wrappingKey = await this.wrappingKeys.requestGoogleWrappingKey(
       googleIdToken,
       envelope?.v === 2 ? envelope.kid : undefined,
     );
@@ -664,14 +561,14 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
     credentials: GoogleIdentityCredentials,
     publicIdentity: PubkyPublicIdentity,
   ): Promise<DetachGoogleIdentityResult> {
-    const store = this.createPassportFileStore(credentials.driveAccessToken, this.fetch);
+    const store = new GoogleDrivePassportFileStore(credentials.driveAccessToken, this.fetch);
     const storedFile = await store.readPassportFile();
     if (Result.isError(storedFile)) {
       return Result.err({ code: "google_drive_cleanup_failed" });
     }
 
     if (storedFile.value.status === "found") {
-      const wrappingKey = await this.requestWrappingKeyFromServer(
+      const wrappingKey = await this.wrappingKeys.requestGoogleWrappingKey(
         credentials.googleIdToken,
         storedFile.value.envelope.v === 2 ? storedFile.value.envelope.kid : undefined,
       );
@@ -695,7 +592,7 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
       }
     }
 
-    const visibleCopies = this.createVisibleRecoveryCopies(
+    const visibleCopies = new GoogleDriveVisibleRecoveryCopies(
       credentials.driveAccessToken,
       this.fetch,
     );
@@ -714,7 +611,7 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
   }
 
   private async createVisibleRecoveryCopy(
-    visibleCopies: ReturnType<GoogleIdentityContextDependencies["createVisibleRecoveryCopies"]>,
+    visibleCopies: GoogleDriveVisibleRecoveryCopies,
     envelope: PassportFileEnvelope,
     publicIdentity: PubkyPublicIdentity,
   ): Promise<boolean> {

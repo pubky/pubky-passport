@@ -2,8 +2,7 @@ import { Result } from "better-result";
 import { useState, useSyncExternalStore } from "react";
 
 import {
-  createLocalIdentityService,
-  type LocalIdentityService,
+  LocalIdentityController,
   type LocalIdentityRecoveryFileResult,
 } from "../../logic/local-identity/LocalIdentityController";
 import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
@@ -28,7 +27,7 @@ type IdentityCatalogState =
 const SERVER_SNAPSHOT: IdentityCatalogState = { status: "loading" };
 
 class IdentityCatalogStore {
-  private readonly controller: LocalIdentityService | null;
+  private readonly controller: LocalIdentityController | null;
   private dirty = true;
   private snapshot: IdentityCatalogState | undefined;
 
@@ -36,7 +35,7 @@ class IdentityCatalogStore {
 
   constructor() {
     try {
-      this.controller = createLocalIdentityService();
+      this.controller = new LocalIdentityController();
     } catch {
       this.controller = null;
     }

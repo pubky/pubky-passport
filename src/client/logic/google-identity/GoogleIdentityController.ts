@@ -12,13 +12,9 @@ import {
 import type { GoogleAccountProfile } from "../local-identity/localIdentityModels";
 import type { PubkyPublicIdentity } from "../pubky/pubkyIdentityKey";
 import {
-  createGoogleIdentityContext,
-  detachGoogleIdentity,
-  establishGoogleIdentity,
-  type GoogleIdentityContext,
+  GoogleIdentityOperations,
   type GoogleIdentityOperationError,
   type GoogleIdentityProgress,
-  replaceInvalidGooglePassportFile,
 } from "./GoogleIdentityOperations";
 
 export type { GoogleIdentityProgress } from "./GoogleIdentityOperations";
@@ -65,10 +61,10 @@ export type GoogleIdentityViewError = {
 
 export type EstablishGoogleIdentityResult = ResultType<
   EstablishedGoogleIdentity,
-  GoogleIdentityError
+  GoogleIdentityViewError
 >;
 
-export type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityError>;
+export type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityViewError>;
 
 /**
  * Owns one screen's Google authorization and identity operation lifecycle.
@@ -79,41 +75,9 @@ export type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityError>;
  * a time. Calling {@link dispose} cancels authorization and suppresses later UI
  * updates while allowing already-started cleanup to finish safely.
  */
-export type GoogleIdentitySession = {
-  establishIdentity(): Promise<EstablishGoogleIdentityResult>;
-  replaceInvalidPassportFile(): Promise<EstablishGoogleIdentityResult>;
-  clearPinnedGoogleSubject(): void;
-  detachIdentity(
-    publicIdentity: PubkyPublicIdentity,
-    expectedGoogleSubject: string,
-  ): Promise<DetachGoogleIdentityResult>;
-  dispose(): void;
-};
-
-export type GoogleIdentitySessionDependencies = {
-  authorization: Pick<GoogleImplicitAuthorization, "dispose" | "request">;
-  context: GoogleIdentityContext;
-  establish: typeof establishGoogleIdentity;
-  replaceInvalidFile: typeof replaceInvalidGooglePassportFile;
-  detach: typeof detachGoogleIdentity;
-};
-
-/** Creates the single lifecycle owner for one Google identity screen. */
-export function createGoogleIdentitySession(
-  googleClientId: string,
-  homegateBaseUrl: string,
-  onState: (state: GoogleIdentityViewState) => void,
-  dependencies?: GoogleIdentitySessionDependencies,
-): GoogleIdentitySession {
-  return new ScreenGoogleIdentitySession(googleClientId, homegateBaseUrl, onState, dependencies);
-}
-
-class ScreenGoogleIdentitySession implements GoogleIdentitySession {
-  private readonly googleAuthorization: GoogleIdentitySessionDependencies["authorization"];
-  private readonly context: GoogleIdentityContext;
-  private readonly establish: typeof establishGoogleIdentity;
-  private readonly replaceInvalidFile: typeof replaceInvalidGooglePassportFile;
-  private readonly detach: typeof detachGoogleIdentity;
+export class GoogleIdentityController {
+  private readonly googleAuthorization: GoogleImplicitAuthorization;
+  private readonly operations: GoogleIdentityOperations;
   private operationsDisposed = false;
   private operationPending = false;
   private googleSubject: string | undefined;
@@ -123,19 +87,13 @@ class ScreenGoogleIdentitySession implements GoogleIdentitySession {
     googleClientId: string,
     homegateBaseUrl: string,
     private readonly onState: (state: GoogleIdentityViewState) => void,
-    dependencies?: GoogleIdentitySessionDependencies,
   ) {
     try {
-      this.googleAuthorization = dependencies?.authorization
-        ?? new GoogleImplicitAuthorization(googleClientId);
-      this.context = dependencies?.context ?? createGoogleIdentityContext(
+      this.googleAuthorization = new GoogleImplicitAuthorization(googleClientId);
+      this.operations = new GoogleIdentityOperations(
         homegateBaseUrl,
         globalThis.location.origin,
       );
-      this.establish = dependencies?.establish ?? establishGoogleIdentity;
-      this.replaceInvalidFile = dependencies?.replaceInvalidFile
-        ?? replaceInvalidGooglePassportFile;
-      this.detach = dependencies?.detach ?? detachGoogleIdentity;
     } catch {
       LOGGER.error("identity.google.controller.failed", {
         operation: "initialize",
@@ -168,8 +126,8 @@ class ScreenGoogleIdentitySession implements GoogleIdentitySession {
     try {
       const progress = this.createProgressReporter();
       const establishment = operation === "establish"
-        ? this.establish(this.context, authorized.value, progress.report)
-        : this.replaceInvalidFile(this.context, authorized.value, progress.report);
+        ? this.operations.establishIdentity(authorized.value, progress.report)
+        : this.operations.replaceInvalidPassportFile(authorized.value, progress.report);
       const established = await establishment.finally(() => {
         progress.stop();
       });
@@ -235,8 +193,7 @@ class ScreenGoogleIdentitySession implements GoogleIdentitySession {
 
     try {
       this.setViewState({ status: "detaching" });
-      const detached = await this.detach(
-        this.context,
+      const detached = await this.operations.detachIdentity(
         authorized.value,
         publicIdentity,
         expectedGoogleSubject,
@@ -270,7 +227,7 @@ class ScreenGoogleIdentitySession implements GoogleIdentitySession {
         operation: "authorization_dispose",
       });
     } finally {
-      this.context.abortRequests();
+      this.operations.abortRequests();
       if (!this.operationPending) this.disposeOperationsOnce();
     }
   }
@@ -342,7 +299,7 @@ class ScreenGoogleIdentitySession implements GoogleIdentitySession {
     if (this.operationsDisposed) return;
     this.operationsDisposed = true;
     try {
-      this.context.dispose();
+      this.operations.dispose();
     } catch {
       LOGGER.warn("identity.google.cleanup.failed", {
         operation: "pubky_dispose",
@@ -362,7 +319,7 @@ class ScreenGoogleIdentitySession implements GoogleIdentitySession {
   }
 }
 
-function withoutCause(error: GoogleIdentityError): GoogleIdentityError {
+function withoutCause(error: GoogleIdentityError): GoogleIdentityViewError {
   switch (error.code) {
     case "wrapping_key_failed":
       return { code: error.code, detailCode: error.detailCode };

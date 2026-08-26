@@ -3,8 +3,7 @@ import { Result } from "better-result";
 
 import { LOGGER } from "../../../../libs/logger/logger";
 import {
-  createGoogleWrappingKeyIssuerFromEnvironment,
-  type GoogleWrappingKeyIssuer,
+  GoogleWrappingKeyIssuer,
   type GoogleWrappingKeyIssueErrorCode,
 } from "../../../../server/wrapping-key/google/GoogleWrappingKeyIssuer";
 import type { GoogleWrappingKey } from "../../../../libs/googleWrappingKeyApi";
@@ -41,7 +40,7 @@ export async function googleWrappingKeyPost(
     }
 
     operation = "compose";
-    if (!activeIssuer) activeIssuer = createGoogleWrappingKeyIssuerFromEnvironment();
+    if (!activeIssuer) activeIssuer = GoogleWrappingKeyIssuer.fromEnvironment();
     operation = "execute";
     const result = await activeIssuer.issueGoogleWrappingKey(
       body.value.googleIdToken,

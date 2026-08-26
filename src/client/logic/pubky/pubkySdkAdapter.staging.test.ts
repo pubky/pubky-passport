@@ -3,7 +3,7 @@ import { Result, type Result as ResultType } from "better-result";
 import { expect, test } from "vitest";
 
 import { IssuedPubkyAuthRequest } from "../authorization/request/IssuedPubkyAuthRequest";
-import { createGoogleSignupInvitationRequester } from "../homegate/HomegateClient";
+import { HomegateClient } from "../homegate/HomegateClient";
 import { PubkySdkAdapter } from "./PubkySdkAdapter";
 
 const CAPABILITIES = "/pub/passport-staging.pubky.app/:rw" as const;
@@ -12,12 +12,12 @@ const RESOLUTION_POLL_INTERVAL_MS = 2_000;
 
 test("completes signup, publication, signin, and both v0.10 authorization methods", async () => {
   const config = stagingConfig();
-  const requestSignupInvitation = createGoogleSignupInvitationRequester(
+  const homegate = new HomegateClient(
     config.homegateBaseUrl,
     globalThis.fetch,
   );
   const invitation = expectOk(
-    await requestSignupInvitation(config.googleIdToken),
+    await homegate.requestGoogleSignupInvitation(config.googleIdToken),
     "Homegate did not issue a staging invitation",
   );
   const passport = new PubkySdkAdapter();
@@ -45,7 +45,7 @@ test("completes signup, publication, signin, and both v0.10 authorization method
     );
 
     const signin = expectOk(
-      await passport.signin(identity.keyHandle),
+      await passport.signin(identity.keyHandle, "normal"),
       "Passport could not sign in the restored identity",
     );
     expect(signin.publicIdentity).toEqual(identity.publicIdentity);
@@ -160,3 +160,4 @@ function expectOk<Success, Failure>(result: ResultType<Success, Failure>, messag
   if (Result.isError(result)) throw new Error(message);
   return result.value;
 }
+

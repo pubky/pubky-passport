@@ -16,9 +16,24 @@ const MOCKS = vi.hoisted(() => ({
   requestAuthorization: vi.fn(),
 }));
 
+vi.mock("./GoogleImplicitAuthorization", () => ({
+  GoogleImplicitAuthorization: class {
+    request = MOCKS.requestAuthorization;
+    dispose = MOCKS.disposeAuthorization;
+  },
+}));
+vi.mock("./GoogleIdentityOperations", () => ({
+  GoogleIdentityOperations: class {
+    abortRequests = MOCKS.abortRequests;
+    detachIdentity = MOCKS.detachIdentity;
+    dispose = MOCKS.disposeOperations;
+    establishIdentity = MOCKS.establishIdentity;
+    replaceInvalidPassportFile = MOCKS.replaceInvalidPassportFile;
+  },
+}));
+
 import {
-  createGoogleIdentitySession,
-  type GoogleIdentitySession,
+  GoogleIdentityController,
   type GoogleIdentityViewState,
 } from "./GoogleIdentityController";
 
@@ -37,7 +52,7 @@ const PUBLIC_IDENTITY = {
   publicKeyZ32: "public-key",
 };
 
-describe("createGoogleIdentitySession", () => {
+describe("GoogleIdentityController", () => {
   beforeEach(() => {
     for (const mock of Object.values(MOCKS)) mock.mockReset();
     MOCKS.requestAuthorization.mockResolvedValue(Result.ok(CREDENTIALS));
@@ -60,7 +75,7 @@ describe("createGoogleIdentitySession", () => {
   });
 
   it("composes and disposes its real screen-scoped dependencies", () => {
-    const session = createGoogleIdentitySession(
+    const session = new GoogleIdentityController(
       "google-client-id",
       "https://homegate.example/",
       vi.fn(),
@@ -338,30 +353,10 @@ describe("createGoogleIdentitySession", () => {
 
 function createController(
   onState: (state: GoogleIdentityViewState) => void = vi.fn(),
-): GoogleIdentitySession {
-  return createGoogleIdentitySession(
+): GoogleIdentityController {
+  return new GoogleIdentityController(
     "google-client-id",
     "https://homegate.example/",
     onState,
-    {
-      authorization: {
-        dispose: MOCKS.disposeAuthorization,
-        request: MOCKS.requestAuthorization,
-      },
-      context: {
-        abortRequests: MOCKS.abortRequests,
-        detachIdentity: MOCKS.detachIdentity,
-        dispose: MOCKS.disposeOperations,
-        establishIdentity: MOCKS.establishIdentity,
-        replaceInvalidPassportFile: MOCKS.replaceInvalidPassportFile,
-      },
-      establish: (_context, credentials, report) => MOCKS.establishIdentity(credentials, report),
-      replaceInvalidFile: (_context, credentials, report) => (
-        MOCKS.replaceInvalidPassportFile(credentials, report)
-      ),
-      detach: (_context, credentials, publicIdentity, expectedGoogleSubject) => (
-        MOCKS.detachIdentity(credentials, publicIdentity, expectedGoogleSubject)
-      ),
-    },
   );
 }

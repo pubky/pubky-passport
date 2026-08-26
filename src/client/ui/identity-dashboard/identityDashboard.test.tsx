@@ -5,7 +5,6 @@ import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LocalIdentityService } from "../../logic/local-identity/LocalIdentityController";
 import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
 import type { PubkyPublicIdentity } from "../../logic/pubky/pubkyIdentityKey";
 import { withGoogleIdentityConfiguration } from "../../../../test-utils/googleIdentityConfiguration";
@@ -22,82 +21,73 @@ const FLOW = vi.hoisted(() => ({
   storageUnavailable: false,
 }));
 
-function mockLocalIdentityController(
-  overrides: Partial<LocalIdentityService> = {},
-): LocalIdentityService {
-  return {
-    listIdentities: vi.fn(() => Result.ok({ activePublicKeyZ32: null, identities: [] })),
-    selectIdentity: vi.fn(() => Result.ok()),
-    removeIdentity: vi.fn(() => Result.ok()),
-    subscribeToIdentityChanges: vi.fn(() => () => undefined),
-    resolveHomeserver: vi.fn(async () => Result.ok(null)),
-    createRecoveryFile: vi.fn(async () => Result.err({ code: "recovery_file_failed" as const })),
-    createPubkyRingMigrationUrl: vi.fn(() => Result.err({ code: "invalid_identity" as const })),
-    ...overrides,
-  } satisfies LocalIdentityService;
-}
-
 vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
   MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS: 6,
-  createLocalIdentityService: function createLocalIdentityService() {
-    return mockLocalIdentityController({
-      createPubkyRingMigrationUrl: (publicKeyZ32: string) => {
-        FLOW.migrationExportKeys.push(publicKeyZ32);
-        return Result.ok(FLOW.migrationUrl);
-      },
-      listIdentities: () => FLOW.storageUnavailable
-        ? Result.err({ code: "storage_unavailable" as const })
-        : Result.ok(FLOW.catalog),
-      removeIdentity: (publicKeyZ32: string) => {
-        const identities = FLOW.catalog.identities.filter(
-          (identity) => identity.publicIdentity.publicKeyZ32 !== publicKeyZ32,
-        );
-        FLOW.catalog = { activePublicKeyZ32: identities[0]?.publicIdentity.publicKeyZ32 ?? null, identities };
-        FLOW.catalogListener?.();
-        return Result.ok();
-      },
-      selectIdentity: (publicKeyZ32: string) => {
-        FLOW.catalog = { ...FLOW.catalog, activePublicKeyZ32: publicKeyZ32 };
-        FLOW.catalogListener?.();
-        return Result.ok();
-      },
-      subscribeToIdentityChanges: (listener: () => void) => {
-        FLOW.catalogListener = listener;
-        return () => { FLOW.catalogListener = undefined; };
-      },
-    });
+  LocalIdentityController: class {
+    constructor() {
+      return {
+        createPubkyRingMigrationUrl: (publicKeyZ32: string) => {
+          FLOW.migrationExportKeys.push(publicKeyZ32);
+          return Result.ok(FLOW.migrationUrl);
+        },
+        listIdentities: () => FLOW.storageUnavailable
+          ? Result.err({ code: "storage_unavailable" as const })
+          : Result.ok(FLOW.catalog),
+        removeIdentity: (publicKeyZ32: string) => {
+          const identities = FLOW.catalog.identities.filter(
+            (identity) => identity.publicIdentity.publicKeyZ32 !== publicKeyZ32,
+          );
+          FLOW.catalog = { activePublicKeyZ32: identities[0]?.publicIdentity.publicKeyZ32 ?? null, identities };
+          FLOW.catalogListener?.();
+          return Result.ok();
+        },
+        selectIdentity: (publicKeyZ32: string) => {
+          FLOW.catalog = { ...FLOW.catalog, activePublicKeyZ32: publicKeyZ32 };
+          FLOW.catalogListener?.();
+          return Result.ok();
+        },
+        subscribeToIdentityChanges: (listener: () => void) => {
+          FLOW.catalogListener = listener;
+          return () => { FLOW.catalogListener = undefined; };
+        },
+        resolveHomeserver: vi.fn(async () => Result.ok(null)),
+        createRecoveryFile: vi.fn(async () => Result.err({ code: "recovery_file_failed" as const })),
+      };
+    }
   },
 }));
 
 vi.mock("../../logic/google-identity/GoogleIdentityController", () => ({
-  createGoogleIdentitySession: function createGoogleIdentitySession() {
-    return mockGoogleIdentityController({
-      establishIdentity: async () => {
-        if (FLOW.establishIdentity) {
-          const identity = {
-            publicIdentity: { publicKeyZ32: "created",},
-            googleAccount: { googleSubject: "google-created", email: "created@gmail.com", name: "Created", pictureUrl: null },
-          };
-          FLOW.catalog = { activePublicKeyZ32: identity.publicIdentity.publicKeyZ32, identities: [identity] };
+  GoogleIdentityController: class {
+    constructor() {
+      return mockGoogleIdentityController({
+        establishIdentity: async () => {
+          if (FLOW.establishIdentity) {
+            const identity = {
+              publicIdentity: { publicKeyZ32: "created",},
+              googleAccount: { googleSubject: "google-created", email: "created@gmail.com", name: "Created", pictureUrl: null },
+            };
+            FLOW.catalog = { activePublicKeyZ32: identity.publicIdentity.publicKeyZ32, identities: [identity] };
+            FLOW.catalogListener?.();
+            return Result.ok({
+              establishmentMode: FLOW.establishmentMode,
+              googleAccount: identity.googleAccount,
+              publicIdentity: identity.publicIdentity,
+              visibleRecoveryCopyStatus: "created" as const,
+            });
+          }
+          return Result.err({ code: "authorization_failed" as const });
+        },
+        detachIdentity: async (publicIdentity: PubkyPublicIdentity) => {
+          const identities = FLOW.catalog.identities.filter(
+            (identity) => identity.publicIdentity.publicKeyZ32 !== publicIdentity.publicKeyZ32,
+          );
+          FLOW.catalog = { activePublicKeyZ32: identities[0]?.publicIdentity.publicKeyZ32 ?? null, identities };
           FLOW.catalogListener?.();
-          return Result.ok({
-            establishmentMode: FLOW.establishmentMode,
-            googleAccount: identity.googleAccount,
-            publicIdentity: identity.publicIdentity,
-            visibleRecoveryCopyStatus: "created" as const,
-          });
-        }
-        return Result.err({ code: "authorization_failed" as const });
-      },
-      detachIdentity: async (publicIdentity: PubkyPublicIdentity) => {
-        const identities = FLOW.catalog.identities.filter(
-          (identity) => identity.publicIdentity.publicKeyZ32 !== publicIdentity.publicKeyZ32,
-        );
-        FLOW.catalog = { activePublicKeyZ32: identities[0]?.publicIdentity.publicKeyZ32 ?? null, identities };
-        FLOW.catalogListener?.();
-        return Result.ok();
-      },
-    });
+          return Result.ok();
+        },
+      });
+    }
   },
 }));
 

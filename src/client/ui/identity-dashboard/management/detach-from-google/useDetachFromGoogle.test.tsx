@@ -16,12 +16,10 @@ const MOCKS = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../../logic/google-identity/GoogleIdentityController", () => ({
-  createGoogleIdentitySession: function createGoogleIdentitySession(
-    googleClientId: string,
-    homegateBaseUrl: string,
-    onState: unknown,
-  ) {
-    return MOCKS.constructGoogleIdentityController(googleClientId, homegateBaseUrl, onState);
+  GoogleIdentityController: class {
+    constructor(googleClientId: string, homegateBaseUrl: string, onState: unknown) {
+      return MOCKS.constructGoogleIdentityController(googleClientId, homegateBaseUrl, onState);
+    }
   },
 }));
 
@@ -67,10 +65,9 @@ describe("useDetachFromGoogle", () => {
     expect(MOCKS.detachIdentity).toHaveBeenCalledTimes(2);
   });
 
-  it("projects operation failures into cause-free hook state", async () => {
+  it("shows operation failures returned by the controller", async () => {
     MOCKS.detachIdentity.mockResolvedValue(Result.err({
       code: "google_drive_cleanup_failed" as const,
-      cause: { secret: "DETACH-HOOK-CAUSE-CANARY" },
     }));
     MOCKS.constructGoogleIdentityController.mockReturnValue(mockGoogleIdentityController({
       detachIdentity: MOCKS.detachIdentity,
@@ -83,7 +80,6 @@ describe("useDetachFromGoogle", () => {
     expect(screen.getByTestId("operation-state")).toHaveTextContent(
       JSON.stringify({ status: "operation-failed", error: { code: "google_drive_cleanup_failed" } }),
     );
-    expect(screen.getByTestId("operation-state")).not.toHaveTextContent("DETACH-HOOK-CAUSE-CANARY");
   });
 
   it("contains rejected promise details outside hook state and log arguments", async () => {

@@ -3,12 +3,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { LOGGER } from "../../../../libs/logger/logger";
 import {
-  createGoogleIdentitySession,
+  GoogleIdentityController,
   type GoogleIdentityProgress,
-  type GoogleIdentitySession,
   type GoogleIdentityViewError,
 } from "../../../logic/google-identity/GoogleIdentityController";
-import { toGoogleIdentityViewError } from "../../../logic/google-identity/googleIdentityViewError";
 import type { GoogleAccountProfile } from "../../../logic/local-identity/localIdentityModels";
 import type { PubkyPublicIdentity } from "../../../logic/pubky/pubkyIdentityKey";
 import { useGoogleIdentityConfiguration } from "../../googleIdentityConfiguration";
@@ -28,16 +26,16 @@ type GoogleIdentityEstablishmentView =
 
 function useGoogleIdentityEstablishment() {
   const { googleClientId, homegateBaseUrl } = useGoogleIdentityConfiguration();
-  const controllerRef = useRef<GoogleIdentitySession | null>(null);
+  const controllerRef = useRef<GoogleIdentityController | null>(null);
   const operationPendingRef = useRef(false);
   const operationIdRef = useRef(0);
   const [view, setView] = useState<GoogleIdentityEstablishmentView>({ status: "idle" });
 
-  const ensureController = useCallback((): GoogleIdentitySession | null => {
+  const ensureController = useCallback((): GoogleIdentityController | null => {
     if (controllerRef.current) return controllerRef.current;
 
     try {
-      const controller = createGoogleIdentitySession(
+      const controller = new GoogleIdentityController(
         googleClientId,
         homegateBaseUrl,
         (nextState) => {
@@ -73,7 +71,7 @@ function useGoogleIdentityEstablishment() {
       if (controllerRef.current !== controller || operationIdRef.current !== operationId) return;
       if (Result.isError(result)) {
         if (result.error.code !== "cancelled") {
-          setView({ status: "failed", error: toGoogleIdentityViewError(result.error) });
+          setView({ status: "failed", error: result.error });
         }
         return;
       }

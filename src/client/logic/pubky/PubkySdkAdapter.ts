@@ -172,19 +172,6 @@ export class PubkySdkAdapter {
 
   async signin(
     keyHandle: PubkyIdentityKeyHandle,
-  ): Promise<PubkySessionAccessResult<PubkyAuthenticatedIdentity>> {
-    return this.signinWith(keyHandle, "normal");
-  }
-
-  /** Signs in while waiting for a just-published PKDNS record to become visible. */
-  async signinAfterPublication(
-    keyHandle: PubkyIdentityKeyHandle,
-  ): Promise<PubkySessionAccessResult<PubkyAuthenticatedIdentity>> {
-    return this.signinWith(keyHandle, "after-publication");
-  }
-
-  private async signinWith(
-    keyHandle: PubkyIdentityKeyHandle,
     mode: "normal" | "after-publication",
   ): Promise<PubkySessionAccessResult<PubkyAuthenticatedIdentity>> {
     const keypair = this.keypairFor(keyHandle);

@@ -17,7 +17,6 @@ import type {
   LocalIdentityCatalog,
   LocalIdentityMetadata,
 } from "./localIdentityModels";
-import { isGoogleAvatarUrl } from "../google-identity/googleProfileFetcher";
 
 type StoredLocalIdentity = {
   v: 2;
@@ -326,14 +325,23 @@ function isLegacyIdentity(value: unknown): value is LegacyStoredIdentity {
 }
 
 function isStoredGoogleAccountProfile(value: unknown): value is GoogleAccountProfile {
-  return isRecord(value)
-    && hasExactKeys(value, ["googleSubject", "email", "name", "pictureUrl"])
-    && isNonEmptyString(value.googleSubject)
-    && isNonEmptyString(value.email)
-    && isNonEmptyString(value.name)
-    && (value.pictureUrl === null
-      || isLocalGoogleAvatar(value.pictureUrl)
-      || isGoogleAvatarUrl(value.pictureUrl));
+  if (!isRecord(value)
+    || !hasExactKeys(value, ["googleSubject", "email", "name", "pictureUrl"])
+    || !isNonEmptyString(value.googleSubject)
+    || !isNonEmptyString(value.email)
+    || !isNonEmptyString(value.name)) return false;
+  if (value.pictureUrl === null || isLocalGoogleAvatar(value.pictureUrl)) return true;
+  if (!isNonEmptyString(value.pictureUrl) || value.pictureUrl.length > 2_048) return false;
+  try {
+    const url = new URL(value.pictureUrl);
+    return url.protocol === "https:"
+      && url.hostname === "lh3.googleusercontent.com"
+      && !url.username
+      && !url.password
+      && !url.hash;
+  } catch {
+    return false;
+  }
 }
 
 function isLocalGoogleAvatar(value: unknown): value is string {

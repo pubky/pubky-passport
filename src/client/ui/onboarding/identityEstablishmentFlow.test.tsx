@@ -22,12 +22,14 @@ const MOCKS = vi.hoisted(() => ({
 }));
 
 vi.mock("../../logic/google-identity/GoogleIdentityController", () => ({
-  createGoogleIdentitySession: function createGoogleIdentitySession(
-    googleClientId: string,
-    homegateBaseUrl: string,
-    onState: (state: GoogleIdentityViewState) => void,
-  ) {
-    return MOCKS.constructGoogleIdentityController(googleClientId, homegateBaseUrl, onState);
+  GoogleIdentityController: class {
+    constructor(
+      googleClientId: string,
+      homegateBaseUrl: string,
+      onState: (state: GoogleIdentityViewState) => void,
+    ) {
+      return MOCKS.constructGoogleIdentityController(googleClientId, homegateBaseUrl, onState);
+    }
   },
 }));
 
@@ -248,12 +250,11 @@ describe("IdentityEstablishmentFlow", () => {
     expect(establishIdentity).toHaveBeenCalledTimes(2);
   });
 
-  it("renders the safe detail code without exposing the diagnostic cause", async () => {
+  it("renders the safe detail code returned by the controller", async () => {
     useController(mockGoogleIdentityController({
       establishIdentity: vi.fn(async () => Result.err({
         code: "homeserver_signup_invitation_failed" as const,
         detailCode: "weekly_limit_exceeded" as const,
-        cause: { secret: "DOM-CAUSE-CANARY" },
       })),
     }));
     render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
@@ -265,7 +266,6 @@ describe("IdentityEstablishmentFlow", () => {
     expect(errorDetails).not.toContainElement(screen.getByText("Error"));
     expect(within(errorDetails).getByText("homeserver_signup_invitation_failed")).toBeInTheDocument();
     expect(within(errorDetails).getByText("weekly_limit_exceeded")).toBeInTheDocument();
-    expect(document.body).not.toHaveTextContent("DOM-CAUSE-CANARY");
   });
 
   it("contains rejected operation details outside hook state and logs safe metadata", async () => {

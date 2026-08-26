@@ -23,32 +23,34 @@ const MOCKS = vi.hoisted(() => ({
 }));
 
 vi.mock("../../logic/authorization/flow/PassportAuthorizationController", () => ({
-  createBrowserPassportAuthorizationController: () => {
-    MOCKS.createAuthorizationController();
-    return {
-      approve: MOCKS.approve,
-      cancel: MOCKS.cancel,
-      dispose: MOCKS.dispose,
-      getState: () => MOCKS.authorizationState,
-      subscribe: (listener: () => void) => {
-      MOCKS.authorizationListener = listener;
-      return () => { MOCKS.authorizationListener = null; };
-      },
-    };
+  PassportAuthorizationController: class {
+    static fromBrowser() {
+      MOCKS.createAuthorizationController();
+      return {
+        approve: MOCKS.approve,
+        cancel: MOCKS.cancel,
+        dispose: MOCKS.dispose,
+        getState: () => MOCKS.authorizationState,
+        subscribe: (listener: () => void) => {
+          MOCKS.authorizationListener = listener;
+          return () => { MOCKS.authorizationListener = null; };
+        },
+      };
+    }
   },
 }));
 
 vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
-  createLocalIdentityService: () => ({
-    listIdentities: () => MOCKS.catalog
+  LocalIdentityController: class {
+    listIdentities = () => MOCKS.catalog
       ? Result.ok(MOCKS.catalog)
-      : Result.err({ code: "storage_unavailable" as const }),
-    selectIdentity: MOCKS.select,
-    subscribeToIdentityChanges: (listener: () => void) => {
+      : Result.err({ code: "storage_unavailable" as const });
+    selectIdentity = MOCKS.select;
+    subscribeToIdentityChanges = (listener: () => void) => {
       MOCKS.catalogListener = listener;
       return () => { MOCKS.catalogListener = undefined; };
-    },
-  }),
+    };
+  },
 }));
 
 vi.mock("../onboarding/identityEstablishmentFlow", () => ({

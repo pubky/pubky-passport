@@ -16,22 +16,24 @@ const MOCKS = vi.hoisted(() => ({
 }));
 
 vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
-  createLocalIdentityService: function createLocalIdentityService() {
-    MOCKS.create();
-    return {
-      createPubkyRingMigrationUrl: () => Result.err({ code: "invalid_identity" as const }),
-      createRecoveryFile: async () => Result.err({ code: "identity_unavailable" as const }),
-      listIdentities: () => MOCKS.unavailable
-        ? Result.err({ code: "storage_unavailable" as const })
-        : Result.ok(MOCKS.catalog),
-      removeIdentity: () => Result.ok(),
-      resolveHomeserver: async () => Result.ok(null),
-      selectIdentity: () => Result.ok(),
-      subscribeToIdentityChanges: (listener: () => void) => {
-        MOCKS.listener = listener;
-        return () => { MOCKS.listener = undefined; };
-      },
-    };
+  LocalIdentityController: class {
+    constructor() {
+      MOCKS.create();
+      return {
+        createPubkyRingMigrationUrl: () => Result.err({ code: "invalid_identity" as const }),
+        createRecoveryFile: async () => Result.err({ code: "identity_unavailable" as const }),
+        listIdentities: () => MOCKS.unavailable
+          ? Result.err({ code: "storage_unavailable" as const })
+          : Result.ok(MOCKS.catalog),
+        removeIdentity: () => Result.ok(),
+        resolveHomeserver: async () => Result.ok(null),
+        selectIdentity: () => Result.ok(),
+        subscribeToIdentityChanges: (listener: () => void) => {
+          MOCKS.listener = listener;
+          return () => { MOCKS.listener = undefined; };
+        },
+      };
+    }
   },
 }));
 

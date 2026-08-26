@@ -3,11 +3,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { LOGGER } from "../../../../../libs/logger/logger";
 import {
-  createGoogleIdentitySession,
-  type GoogleIdentitySession,
+  GoogleIdentityController,
   type GoogleIdentityViewError,
 } from "../../../../logic/google-identity/GoogleIdentityController";
-import { toGoogleIdentityViewError } from "../../../../logic/google-identity/googleIdentityViewError";
 import type { PubkyPublicIdentity } from "../../../../logic/pubky/pubkyIdentityKey";
 import { useGoogleIdentityConfiguration } from "../../../googleIdentityConfiguration";
 
@@ -24,16 +22,16 @@ function useDetachFromGoogle(
   expectedGoogleSubject: string,
 ) {
   const { googleClientId, homegateBaseUrl } = useGoogleIdentityConfiguration();
-  const controllerRef = useRef<GoogleIdentitySession | null>(null);
+  const controllerRef = useRef<GoogleIdentityController | null>(null);
   const operationPendingRef = useRef(false);
   const operationIdRef = useRef(0);
   const [state, setState] = useState<DetachFromGoogleOperationState>({ status: "ready" });
 
-  const ensureController = useCallback((): GoogleIdentitySession | null => {
+  const ensureController = useCallback((): GoogleIdentityController | null => {
     if (controllerRef.current) return controllerRef.current;
 
     try {
-      const controller = createGoogleIdentitySession(googleClientId, homegateBaseUrl, (nextState) => {
+      const controller = new GoogleIdentityController(googleClientId, homegateBaseUrl, (nextState) => {
         if (controllerRef.current !== controller) return;
         if (nextState.status === "requesting-authorization") {
           setState({ status: "requesting-authorization" });
@@ -71,7 +69,10 @@ function useDetachFromGoogle(
         if (completed.error.code === "cancelled") return;
         setState(completed.error.code === "authorization_failed"
           ? { status: "authorization-failed" }
-          : { status: "operation-failed", error: toGoogleIdentityViewError(completed.error) });
+          : {
+            status: "operation-failed",
+            error: completed.error,
+          });
         return;
       }
       setState({ status: "complete" });

@@ -11,8 +11,7 @@ import type {
   AuthorizationOutcome,
 } from "./authorizationOutcomeHandoff";
 import {
-  createPassportAuthorizationController,
-  type PassportAuthorizationController,
+  PassportAuthorizationController,
   type PassportAuthorizationViewState,
 } from "./PassportAuthorizationController";
 
@@ -296,7 +295,7 @@ function createController(
   }
   const entry = createEntry(entryOptions);
   return {
-    controller: createPassportAuthorizationController(window, entry),
+    controller: new PassportAuthorizationController(window, entry),
     entry,
   };
 }

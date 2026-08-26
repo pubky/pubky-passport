@@ -1,8 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import {
-  createBrowserPassportAuthorizationController,
-  type PassportAuthorizationController,
+  PassportAuthorizationController,
   type PassportAuthorizationViewState,
 } from "../../logic/authorization/flow/PassportAuthorizationController";
 
@@ -22,32 +21,31 @@ export function usePassportAuthorization(): PassportAuthorization {
   return { controller: browserAuthorizationStore.getController(), state };
 }
 
-function createBrowserAuthorizationStore() {
-  let controller: PassportAuthorizationController | null = null;
-  let pagehideListenerInstalled = false;
-  const dispose = () => {
-    controller?.dispose();
-    controller = null;
-    pagehideListenerInstalled = false;
+class BrowserAuthorizationStore {
+  private controller: PassportAuthorizationController | null = null;
+  private pagehideListenerInstalled = false;
+
+  dispose = () => {
+    this.controller?.dispose();
+    this.controller = null;
+    this.pagehideListenerInstalled = false;
   };
-  const getController = () => {
-    if (!controller && typeof window !== "undefined") {
-      controller = createBrowserPassportAuthorizationController();
-      if (!pagehideListenerInstalled) {
-        window.addEventListener("pagehide", dispose, { once: true });
-        pagehideListenerInstalled = true;
+
+  getController = (): PassportAuthorizationController | null => {
+    if (!this.controller && typeof window !== "undefined") {
+      this.controller = PassportAuthorizationController.fromBrowser();
+      if (!this.pagehideListenerInstalled) {
+        window.addEventListener("pagehide", this.dispose, { once: true });
+        this.pagehideListenerInstalled = true;
       }
     }
-    return controller;
+    return this.controller;
   };
 
-  return {
-    dispose,
-    getController,
-    getSnapshot: () => getController()?.getState(),
-    subscribe: (listener: () => void) => getController()?.subscribe(() => listener())
-      ?? (() => undefined),
-  };
+  getSnapshot = (): PassportAuthorizationViewState | undefined => this.getController()?.getState();
+
+  subscribe = (listener: () => void): (() => void) => this.getController()
+    ?.subscribe(() => listener()) ?? (() => undefined);
 }
 
-const browserAuthorizationStore = createBrowserAuthorizationStore();
+const browserAuthorizationStore = new BrowserAuthorizationStore();

@@ -1,10 +1,10 @@
 import { Result } from "better-result";
 import { vi } from "vitest";
 
-import type { GoogleIdentitySession } from "../src/client/logic/google-identity/GoogleIdentityController";
+import type { GoogleIdentityController } from "../src/client/logic/google-identity/GoogleIdentityController";
 
 export type MockGoogleIdentityController = Pick<
-  GoogleIdentitySession,
+  GoogleIdentityController,
   "clearPinnedGoogleSubject" | "detachIdentity" | "dispose" | "establishIdentity" | "replaceInvalidPassportFile"
 >;
 

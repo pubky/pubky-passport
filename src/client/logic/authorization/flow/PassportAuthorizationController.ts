@@ -39,41 +39,25 @@ type AuthorizationAction = Readonly<{
   review: AuthorizationRequestReview;
 }>;
 
-export type PassportAuthorizationController = {
-  getState(): PassportAuthorizationViewState;
-  subscribe(listener: (state: PassportAuthorizationViewState) => void): () => void;
-  dispose(): void;
-  approve(publicKeyZ32: string): Promise<PassportAuthorizationViewState>;
-  cancel(): Promise<PassportAuthorizationViewState>;
-};
-
 let browserController: PassportAuthorizationController | undefined;
 
-/** Constructs the testable core around an already captured browser entry. */
-export function createPassportAuthorizationController(
-  appWindow: Window,
-  entry: AuthorizationEntry,
-): PassportAuthorizationController {
-  return new ScreenPassportAuthorizationController(appWindow, entry);
-}
-
-/** Idempotently captures and owns the current authorization document. */
-export function createBrowserPassportAuthorizationController(): PassportAuthorizationController {
-  if (browserController) return browserController;
-  const appWindow = window;
-  const entry = takeInitialAuthorizationEntry()
-    ?? readAndScrubAuthorizationEntry(appWindow);
-  browserController = createPassportAuthorizationController(appWindow, entry);
-  return browserController;
-}
-
 /** Coordinates one reviewed request from browser entry to a terminal outcome. */
-class ScreenPassportAuthorizationController implements PassportAuthorizationController {
+export class PassportAuthorizationController {
   private abortController = new AbortController();
   private disposed = false;
   private listeners = new Set<(state: PassportAuthorizationViewState) => void>();
   private request: IssuedPubkyAuthRequest | undefined;
   private state: PassportAuthorizationViewState;
+
+  /** Idempotently captures and owns the current authorization document. */
+  static fromBrowser(): PassportAuthorizationController {
+    if (browserController) return browserController;
+    const appWindow = window;
+    const entry = takeInitialAuthorizationEntry()
+      ?? readAndScrubAuthorizationEntry(appWindow);
+    browserController = new PassportAuthorizationController(appWindow, entry);
+    return browserController;
+  }
 
   constructor(
     private appWindow: Window,

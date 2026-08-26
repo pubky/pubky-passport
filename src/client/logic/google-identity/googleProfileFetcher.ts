@@ -6,7 +6,6 @@ import { readBoundedText } from "../../../libs/http/boundedBody";
 import type { GoogleAccountProfile } from "../local-identity/localIdentityModels";
 
 const GOOGLE_USER_INFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
-const GOOGLE_AVATAR_HOST = "lh3.googleusercontent.com";
 const MAXIMUM_USER_INFO_BYTES = 16 * 1024;
 
 type GoogleProfileFailure = {
@@ -38,33 +37,28 @@ export async function fetchGoogleAccountProfile(
     if (!isGoogleUserInfo(value) || value.sub !== expectedGoogleSubject) {
       return Result.err({ code: "google_authorization_failed", stage: "account_binding" });
     }
+    let pictureUrl: string | null = null;
+    if (value.picture) {
+      try {
+        const url = new URL(value.picture);
+        if (url.protocol === "https:"
+          && url.hostname === "lh3.googleusercontent.com"
+          && !url.username
+          && !url.password
+          && !url.hash) pictureUrl = value.picture;
+      } catch {
+        // An avatar is optional; malformed URLs do not fail account authorization.
+      }
+    }
     return Result.ok({
       googleSubject: value.sub,
       email: value.email,
       name: value.name,
-      pictureUrl: googleAvatarUrl(value.picture),
+      pictureUrl,
     });
   } catch (cause) {
     return Result.err({ code: "google_authorization_failed", stage: "userinfo", cause });
   }
-}
-
-export function isGoogleAvatarUrl(value: unknown): value is string {
-  if (typeof value !== "string" || value.length > 2_048) return false;
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:"
-      && url.hostname === GOOGLE_AVATAR_HOST
-      && !url.username
-      && !url.password
-      && !url.hash;
-  } catch {
-    return false;
-  }
-}
-
-function googleAvatarUrl(value: string | undefined): string | null {
-  return isGoogleAvatarUrl(value) ? value : null;
 }
 
 function isGoogleUserInfo(value: unknown): value is {

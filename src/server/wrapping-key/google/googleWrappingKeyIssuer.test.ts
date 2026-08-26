@@ -4,10 +4,7 @@ import { Result } from "better-result";
 import { LOGGER } from "../../../libs/logger/logger";
 import { expectAsyncResultError } from "../../../../test-utils/resultAssertions";
 import type { ServerSecretKeyring } from "../../config/applicationEnvironment";
-import {
-  createGoogleWrappingKeyIssuer,
-  createGoogleWrappingKeyIssuerFromEnvironment,
-} from "./GoogleWrappingKeyIssuer";
+import { GoogleWrappingKeyIssuer } from "./GoogleWrappingKeyIssuer";
 
 const IDENTITY = {
   issuer: "https://accounts.google.com" as const,
@@ -23,7 +20,7 @@ describe("Google wrapping-key issuer", () => {
   });
 
   it("uses the legacy secret for v1 requests", async () => {
-    const issuer = createGoogleWrappingKeyIssuer(
+    const issuer = new GoogleWrappingKeyIssuer(
       async () => Result.ok(IDENTITY),
       keyring(),
     );
@@ -34,7 +31,7 @@ describe("Google wrapping-key issuer", () => {
   });
 
   it("returns the current key ID for new v2 files and retained keys for old v2 files", async () => {
-    const issuer = createGoogleWrappingKeyIssuer(
+    const issuer = new GoogleWrappingKeyIssuer(
       async () => Result.ok(IDENTITY),
       keyring("current", new Map([
         ["old", Buffer.alloc(32, 3)],
@@ -53,7 +50,7 @@ describe("Google wrapping-key issuer", () => {
 
   it("rejects a key ID that is no longer retained", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const issuer = createGoogleWrappingKeyIssuer(async () => Result.ok(IDENTITY), keyring());
+    const issuer = new GoogleWrappingKeyIssuer(async () => Result.ok(IDENTITY), keyring());
 
     await expectAsyncResultError(
       issuer.issueGoogleWrappingKey("id-token", "removed"),
@@ -67,7 +64,7 @@ describe("Google wrapping-key issuer", () => {
   });
 
   it("does not derive material for rejected tokens", async () => {
-    const issuer = createGoogleWrappingKeyIssuer(
+    const issuer = new GoogleWrappingKeyIssuer(
       async () => Result.err({ code: "invalid_google_id_token" as const }),
       keyring(),
     );
@@ -80,7 +77,7 @@ describe("Google wrapping-key issuer", () => {
 
   it("maps verifier exceptions to a safe dependency failure", async () => {
     const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
-    const issuer = createGoogleWrappingKeyIssuer(
+    const issuer = new GoogleWrappingKeyIssuer(
       async () => { throw new Error("SECRET-GOOGLE-ID-TOKEN"); },
       keyring(),
     );
@@ -96,7 +93,7 @@ describe("Google wrapping-key issuer", () => {
     vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example");
     vi.stubEnv("PASSPORT_SERVER_SECRET_BASE64", LEGACY_SECRET.toString("base64"));
 
-    expect(createGoogleWrappingKeyIssuerFromEnvironment().issueGoogleWrappingKey)
+    expect(GoogleWrappingKeyIssuer.fromEnvironment().issueGoogleWrappingKey)
       .toEqual(expect.any(Function));
   });
 });

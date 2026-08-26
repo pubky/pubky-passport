@@ -25,69 +25,63 @@ export type GoogleWrappingKeyIssueResult = ResultType<
   CodedFailure<GoogleWrappingKeyIssueErrorCode>
 >;
 
-export type GoogleWrappingKeyIssuer = {
-  issueGoogleWrappingKey: (
+export class GoogleWrappingKeyIssuer {
+  constructor(
+    private readonly verifyGoogleIdToken: (token: string) => Promise<GoogleIdTokenVerificationResult>,
+    private readonly keyring: ServerSecretKeyring,
+  ) {}
+
+  static fromEnvironment(): GoogleWrappingKeyIssuer {
+    const { googleClientId, serverSecretKeyring } = getApplicationEnvironment();
+    const verifier = new GoogleIdTokenVerifier(googleClientId);
+    return new GoogleWrappingKeyIssuer(
+      (token) => verifier.verifyGoogleIdToken(token),
+      serverSecretKeyring,
+    );
+  }
+
+  async issueGoogleWrappingKey(
     googleIdToken: string,
-    keyId?: string,
-  ) => Promise<GoogleWrappingKeyIssueResult>;
-};
+    requestedKeyId?: string,
+  ): Promise<GoogleWrappingKeyIssueResult> {
+    let identity: GoogleIdTokenVerificationResult;
+    try {
+      identity = await this.verifyGoogleIdToken(googleIdToken);
+    } catch (cause) {
+      LOGGER.error("identity.google.wrapping_key.failed", {
+        layer: "server",
+        operation: "verify",
+        code: "dependency_unavailable",
+      });
+      return Result.err({ code: "dependency_unavailable", cause });
+    }
 
-type VerifyGoogleIdToken = (token: string) => Promise<GoogleIdTokenVerificationResult>;
+    if (Result.isError(identity)) return Result.err(identity.error);
 
-export function createGoogleWrappingKeyIssuer(
-  verifyGoogleIdToken: VerifyGoogleIdToken,
-  keyring: ServerSecretKeyring,
-): GoogleWrappingKeyIssuer {
-  return {
-    async issueGoogleWrappingKey(googleIdToken, requestedKeyId) {
-      let identity: GoogleIdTokenVerificationResult;
-      try {
-        identity = await verifyGoogleIdToken(googleIdToken);
-      } catch (cause) {
-        LOGGER.error("identity.google.wrapping_key.failed", {
-          layer: "server",
-          operation: "verify",
-          code: "dependency_unavailable",
-        });
-        return Result.err({ code: "dependency_unavailable", cause });
-      }
+    const selected = selectServerSecret(this.keyring, requestedKeyId);
+    if (!selected) {
+      LOGGER.warn("identity.google.wrapping_key.failed", {
+        layer: "server",
+        operation: "select_key",
+        code: "key_unavailable",
+      });
+      return Result.err({ code: "key_unavailable" });
+    }
 
-      if (Result.isError(identity)) return Result.err(identity.error);
-
-      const selected = selectServerSecret(keyring, requestedKeyId);
-      if (!selected) {
-        LOGGER.warn("identity.google.wrapping_key.failed", {
-          layer: "server",
-          operation: "select_key",
-          code: "key_unavailable",
-        });
-        return Result.err({ code: "key_unavailable" });
-      }
-
-      try {
-        const wrappingKey = deriveGoogleWrappingKey(selected.secret, identity.value);
-        return Result.ok(selected.keyId
-          ? { wrappingKey, keyId: selected.keyId }
-          : { wrappingKey });
-      } catch (cause) {
-        LOGGER.error("identity.google.wrapping_key.failed", {
-          layer: "server",
-          operation: "derive",
-          code: "dependency_unavailable",
-        });
-        return Result.err({ code: "dependency_unavailable", cause });
-      }
-    },
-  };
-}
-
-export function createGoogleWrappingKeyIssuerFromEnvironment(): GoogleWrappingKeyIssuer {
-  const { googleClientId, serverSecretKeyring } = getApplicationEnvironment();
-  const verifier = new GoogleIdTokenVerifier(googleClientId);
-  return createGoogleWrappingKeyIssuer(
-    (token) => verifier.verifyGoogleIdToken(token),
-    serverSecretKeyring,
-  );
+    try {
+      const wrappingKey = deriveGoogleWrappingKey(selected.secret, identity.value);
+      return Result.ok(selected.keyId
+        ? { wrappingKey, keyId: selected.keyId }
+        : { wrappingKey });
+    } catch (cause) {
+      LOGGER.error("identity.google.wrapping_key.failed", {
+        layer: "server",
+        operation: "derive",
+        code: "dependency_unavailable",
+      });
+      return Result.err({ code: "dependency_unavailable", cause });
+    }
+  }
 }
 
 function selectServerSecret(

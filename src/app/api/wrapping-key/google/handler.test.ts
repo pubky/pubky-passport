@@ -106,18 +106,24 @@ async function postHandler(
   return handlerWithFactory(() => issuer(issueGoogleWrappingKey));
 }
 
-async function handlerWithFactory(factory: () => GoogleWrappingKeyIssuer) {
+async function handlerWithFactory(factory: () => {
+  issueGoogleWrappingKey: GoogleWrappingKeyIssuer["issueGoogleWrappingKey"];
+}) {
   vi.resetModules();
   vi.doMock("../../../../server/wrapping-key/google/GoogleWrappingKeyIssuer", async (importOriginal) => ({
     ...await importOriginal<typeof import("../../../../server/wrapping-key/google/GoogleWrappingKeyIssuer")>(),
-    createGoogleWrappingKeyIssuerFromEnvironment: factory,
+    GoogleWrappingKeyIssuer: class {
+      static fromEnvironment() {
+        return factory();
+      }
+    },
   }));
   return (await import("./handler")).googleWrappingKeyPost;
 }
 
 function issuer(
   issueGoogleWrappingKey: GoogleWrappingKeyIssuer["issueGoogleWrappingKey"],
-): GoogleWrappingKeyIssuer {
+) {
   return { issueGoogleWrappingKey };
 }
 

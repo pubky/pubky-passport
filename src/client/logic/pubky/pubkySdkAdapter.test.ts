@@ -482,7 +482,7 @@ describe("PubkySdkAdapter", () => {
 
     try {
       const created = expectOk(await pubky.createIdentityKey());
-      await expectError(pubky.signin(created.keyHandle), "signin_failed");
+      await expectError(pubky.signin(created.keyHandle, "normal"), "signin_failed");
       expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive homeserver response");
     } finally {
       pubky.dispose();
@@ -507,7 +507,7 @@ describe("PubkySdkAdapter", () => {
         free: vi.fn(),
       } as unknown as Session;
       signin.mockResolvedValue(session);
-      const result = expectOk(await pubky.signin(created.keyHandle));
+      const result = expectOk(await pubky.signin(created.keyHandle, "normal"));
 
       expect(result.publicIdentity).toEqual(created.publicIdentity);
       expect(signin).toHaveBeenCalledWith("passport.pubky.app");
@@ -527,7 +527,7 @@ describe("PubkySdkAdapter", () => {
 
     try {
       const created = expectOk(await pubky.createIdentityKey());
-      await expectError(pubky.signinAfterPublication(created.keyHandle), "signin_failed");
+      await expectError(pubky.signin(created.keyHandle, "after-publication"), "signin_failed");
 
       expect(signinBlocking).toHaveBeenCalledWith("passport.pubky.app");
       expect(signin).not.toHaveBeenCalled();
