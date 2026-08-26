@@ -100,6 +100,7 @@ describe("AuthorizationFlow", () => {
 
   afterEach(async () => {
     cleanup();
+    window.dispatchEvent(new PageTransitionEvent("pagehide"));
     await Promise.resolve();
     vi.clearAllMocks();
     MOCKS.authorizationListener = null;
@@ -338,7 +339,7 @@ describe("AuthorizationFlow", () => {
     expect(MOCKS.approve).toHaveBeenCalledWith(FIRST.publicIdentity.publicKeyZ32);
   });
 
-  it("survives StrictMode effect replay and disposes after final unmount", async () => {
+  it("survives StrictMode replay and keeps the request until the page is left", async () => {
     const rendered = render(
       <StrictMode>
         <AuthorizationFlow />
@@ -349,6 +350,9 @@ describe("AuthorizationFlow", () => {
     expect(MOCKS.dispose).not.toHaveBeenCalled();
 
     rendered.unmount();
+    expect(MOCKS.dispose).not.toHaveBeenCalled();
+
+    window.dispatchEvent(new PageTransitionEvent("pagehide"));
     await waitFor(() => expect(MOCKS.dispose).toHaveBeenCalledOnce());
   });
 

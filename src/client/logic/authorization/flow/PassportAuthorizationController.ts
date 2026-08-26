@@ -39,6 +39,8 @@ type AuthorizationAction = Readonly<{
   review: AuthorizationRequestReview;
 }>;
 
+let browserController: PassportAuthorizationController | undefined;
+
 /** Coordinates one reviewed request from browser entry to a terminal outcome. */
 export class PassportAuthorizationController {
   private abortController = new AbortController();
@@ -48,10 +50,12 @@ export class PassportAuthorizationController {
   private state: PassportAuthorizationViewState;
 
   static fromBrowser(): PassportAuthorizationController {
+    if (browserController) return browserController;
     const appWindow = window;
     const entry = takeInitialAuthorizationEntry()
       ?? readAndScrubAuthorizationEntry(appWindow);
-    return new PassportAuthorizationController(appWindow, entry);
+    browserController = new PassportAuthorizationController(appWindow, entry);
+    return browserController;
   }
 
   constructor(
@@ -83,9 +87,10 @@ export class PassportAuthorizationController {
 
     this.disposed = true;
     this.abortController.abort();
-    if (this.request) IssuedPubkyAuthRequest.release(this.request);
+    this.request?.release();
     this.request = undefined;
     this.listeners.clear();
+    if (browserController === this) browserController = undefined;
   }
 
   async approve(publicKeyZ32: string): Promise<PassportAuthorizationViewState> {
@@ -127,18 +132,18 @@ export class PassportAuthorizationController {
     review: AuthorizationRequestReview,
   ): Promise<PassportAuthorizationViewState> {
     if (this.disposed) {
-      IssuedPubkyAuthRequest.release(request);
+      request.release();
       return this.state;
     }
 
     this.request = undefined;
-    const callback = IssuedPubkyAuthRequest.takeOutcomeCallback(request, outcome);
+    const callback = request.takeOutcomeCallback(outcome);
     if (!callback) return this.update(localStateForOutcome(outcome));
 
     this.update({ status: "completing", review });
-    let completed = false;
+    let handoffStatus: Awaited<ReturnType<typeof handoffAuthorizationOutcome>>;
     try {
-      completed = await handoffAuthorizationOutcome(
+      handoffStatus = await handoffAuthorizationOutcome(
         this.appWindow,
         callback,
         outcome,
@@ -151,7 +156,7 @@ export class PassportAuthorizationController {
       });
       return this.update(localStateForOutcome(outcome));
     }
-    if (completed) return this.state;
+    if (handoffStatus !== "unavailable") return this.state;
 
     LOGGER.warn("authorize.callback.failed", {
       outcome,

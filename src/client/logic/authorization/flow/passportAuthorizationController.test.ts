@@ -6,7 +6,10 @@ import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "v
 import { LOGGER } from "../../../../libs/logger/logger";
 import type { AuthorizationEntry } from "../entry/authorizationEntry";
 import { IssuedPubkyAuthRequest } from "../request/IssuedPubkyAuthRequest";
-import type { AuthorizationOutcome } from "./authorizationOutcomeHandoff";
+import type {
+  AuthorizationHandoffStatus,
+  AuthorizationOutcome,
+} from "./authorizationOutcomeHandoff";
 import {
   PassportAuthorizationController,
   type PassportAuthorizationViewState,
@@ -32,7 +35,7 @@ type ControllerOverrides = {
     callback: string,
     outcome: AuthorizationOutcome,
     signal: AbortSignal,
-  ) => Promise<boolean>;
+  ) => Promise<AuthorizationHandoffStatus>;
 };
 
 type EntryOptions = {
@@ -50,7 +53,7 @@ describe("PassportAuthorizationController", () => {
   beforeEach(() => {
     for (const mock of Object.values(MOCKS)) mock.mockReset();
     MOCKS.approveAuthorization.mockResolvedValue(Result.ok());
-    MOCKS.handoffAuthorizationOutcome.mockResolvedValue(true);
+    MOCKS.handoffAuthorizationOutcome.mockResolvedValue("navigated");
   });
 
   afterEach(() => {
@@ -81,7 +84,7 @@ describe("PassportAuthorizationController", () => {
         completeApproval = () => resolve(Result.ok());
       });
     });
-    const handoffOutcome = vi.fn(async () => true);
+    const handoffOutcome = vi.fn(async () => "navigated" as const);
     const { controller } = createController({ handoffOutcome });
 
     const first = controller.approve(SELECTED_IDENTITY);
@@ -103,11 +106,11 @@ describe("PassportAuthorizationController", () => {
       "success",
       expect.anything(),
     );
-    expect(IssuedPubkyAuthRequest.isLive(capturedRequest)).toBe(false);
+    expect(capturedRequest?.isLive()).toBe(false);
   });
 
   it("routes approval errors and cancellation through exact validated callbacks", async () => {
-    const handoffOutcome = vi.fn(async () => true);
+    const handoffOutcome = vi.fn(async () => "navigated" as const);
     MOCKS.approveAuthorization.mockResolvedValueOnce(Result.err({ code: "approval_failed" }));
     const failed = createController({ handoffOutcome }).controller;
     await failed.approve(SELECTED_IDENTITY);
@@ -142,7 +145,7 @@ describe("PassportAuthorizationController", () => {
     if (approvalFails) {
       MOCKS.approveAuthorization.mockResolvedValueOnce(Result.err({ code: "approval_failed" }));
     }
-    const { controller } = createController({ handoffOutcome: async () => false });
+    const { controller } = createController({ handoffOutcome: async () => "unavailable" });
 
     const state = intent === "approve"
       ? await controller.approve(SELECTED_IDENTITY)
@@ -208,7 +211,7 @@ describe("PassportAuthorizationController", () => {
         completeApproval = () => resolve(Result.ok());
       })
     );
-    const handoffOutcome = vi.fn(async () => true);
+    const handoffOutcome = vi.fn(async () => "navigated" as const);
     const { controller, entry } = createController({ handoffOutcome });
     if (entry.status !== "valid") throw new Error("Expected a valid entry");
     const approval = controller.approve(SELECTED_IDENTITY);
@@ -221,7 +224,7 @@ describe("PassportAuthorizationController", () => {
       status: "approving",
       review: entry.request.review,
     });
-    expect(IssuedPubkyAuthRequest.isLive(entry.request)).toBe(false);
+    expect(entry.request.isLive()).toBe(false);
     expect(handoffOutcome).not.toHaveBeenCalled();
   });
 
@@ -231,8 +234,8 @@ describe("PassportAuthorizationController", () => {
       ...args: [Window, string, AuthorizationOutcome, AbortSignal]
     ) => {
       completionSignal = args[3];
-      return new Promise<boolean>((resolve) => {
-        completionSignal?.addEventListener("abort", () => resolve(true), { once: true });
+      return new Promise<AuthorizationHandoffStatus>((resolve) => {
+        completionSignal?.addEventListener("abort", () => resolve("aborted"), { once: true });
       });
     });
     const { controller } = createController({ handoffOutcome });
@@ -246,7 +249,7 @@ describe("PassportAuthorizationController", () => {
   });
 
   it("never approves or completes an invalid request", async () => {
-    const handoffOutcome = vi.fn(async () => true);
+    const handoffOutcome = vi.fn(async () => "navigated" as const);
     const { controller } = createController(
       { handoffOutcome },
       { status: "invalid" },
@@ -275,7 +278,7 @@ describe("PassportAuthorizationController", () => {
     vi.advanceTimersByTime(24 * 60 * 60_000);
 
     expect(controller.getState().status).toBe("review");
-    expect(IssuedPubkyAuthRequest.isLive(entry.request)).toBe(true);
+    expect(entry.request.isLive()).toBe(true);
     controller.dispose();
   });
 });

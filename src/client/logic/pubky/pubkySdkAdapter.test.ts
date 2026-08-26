@@ -538,22 +538,16 @@ describe("PubkySdkAdapter", () => {
     }
   });
 
-  it("rejects auth requests not issued by the parser before SDK approval", async () => {
+  it("rejects invalid auth request URLs before SDK approval", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const pubky = new PubkySdkAdapter();
 
     try {
-      const forgedRequests = [
-        Object.create(IssuedPubkyAuthRequest.prototype) as IssuedPubkyAuthRequest,
-        {
-          isLive: () => true,
-          validatedUrlForApproval: () => "pubkyauth://signin?secret=forged",
-        } as unknown as IssuedPubkyAuthRequest,
-      ];
-      for (const forgedRequest of forgedRequests) {
+      const invalidRequests = ["not a URL", "https://example.com/signin"];
+      for (const invalidRequest of invalidRequests) {
         const result = await pubky.approveAuthRequest(
           {} as PubkyIdentityKeyHandle,
-          forgedRequest,
+          invalidRequest,
         );
         expectErrorResult(result, "request_rejected");
       }
@@ -579,7 +573,9 @@ describe("PubkySdkAdapter", () => {
       const request = expectOk(IssuedPubkyAuthRequest.issue(encodeURIComponent(
         authorizationRequest("/pub/passport.test"),
       )));
-      const result = await pubky.approveAuthRequest(created.keyHandle, request);
+      const authorizationUrl = request.validatedUrlForApproval();
+      if (!authorizationUrl) throw new Error("Issued request was unexpectedly unavailable");
+      const result = await pubky.approveAuthRequest(created.keyHandle, authorizationUrl);
 
       expectErrorCause(result, "approval_failed", cause);
       expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {

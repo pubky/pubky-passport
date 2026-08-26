@@ -5,7 +5,6 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
-import { IssuedPubkyAuthRequest } from "../authorization/request/IssuedPubkyAuthRequest";
 import {
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,
@@ -34,7 +33,7 @@ export type PubkyPublicationErrorCode = "invalid_homeserver_pubky" | "key_unavai
 export type PubkyPublicationResult = ResultType<void, CodedFailure<PubkyPublicationErrorCode>>;
 export type PubkyRecoveryFileErrorCode = "invalid_passphrase" | "invalid_secret_key" | "key_unavailable" | "recovery_file_failed";
 export type PubkyRecoveryFileResult = ResultType<Uint8Array, CodedFailure<PubkyRecoveryFileErrorCode>>;
-export type PubkyAuthApprovalErrorCode = "approval_failed" | "key_unavailable" | "relay_failed" | "request_rejected";
+export type PubkyAuthApprovalErrorCode = "approval_failed" | "key_unavailable" | "request_rejected";
 export type PubkyAuthApprovalResult = ResultType<void, CodedFailure<PubkyAuthApprovalErrorCode>>;
 
 type Signer = ReturnType<Pubky["signer"]>;
@@ -213,13 +212,11 @@ export class PubkySdkAdapter {
     }
   }
 
-  async approveAuthRequest(keyHandle: PubkyIdentityKeyHandle, authRequest: IssuedPubkyAuthRequest): Promise<PubkyAuthApprovalResult> {
-    if (!IssuedPubkyAuthRequest.isLive(authRequest)) {
-      return authApprovalFailure("request_validation", "request_rejected");
-    }
-
-    const sensitivePubkyAuthUrl = IssuedPubkyAuthRequest.validatedUrlForApproval(authRequest);
-    if (sensitivePubkyAuthUrl === undefined || !isPubkyAuthRequestUrl(sensitivePubkyAuthUrl)) {
+  async approveAuthRequest(
+    keyHandle: PubkyIdentityKeyHandle,
+    sensitivePubkyAuthUrl: string,
+  ): Promise<PubkyAuthApprovalResult> {
+    if (!isPubkyAuthRequestUrl(sensitivePubkyAuthUrl)) {
       return authApprovalFailure("request_validation", "request_rejected");
     }
 

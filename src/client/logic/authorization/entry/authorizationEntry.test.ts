@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { EARLY_AUTHORIZATION_LOCATION_PROPERTY } from "../../../../libs/authorization/earlyAuthorizationLocation";
 import { LOGGER } from "../../../../libs/logger/logger";
-import { IssuedPubkyAuthRequest } from "../request/IssuedPubkyAuthRequest";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "../request/pubkyAuthRequestLimits";
 import {
   invalidateAuthorizationEntry,
@@ -96,7 +95,7 @@ describe("authorizationEntry", () => {
 
     expect(invalidateAuthorizationEntry(entry)).toEqual({ status: "invalid" });
 
-    expect(IssuedPubkyAuthRequest.isLive(entry.request)).toBe(false);
+    expect(entry.request.isLive()).toBe(false);
   });
 
   it("distinguishes an empty manual entry from a malformed request", () => {

@@ -1,13 +1,10 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { preload } from "react-dom";
 
-import {
-  PassportAuthorizationController,
-  type PassportAuthorizationViewState,
-} from "../../logic/authorization/flow/PassportAuthorizationController";
+import type { PassportAuthorizationController, PassportAuthorizationViewState } from "../../logic/authorization/flow/PassportAuthorizationController";
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { IdentityEstablishmentFlow } from "../onboarding/identityEstablishmentFlow";
@@ -20,36 +17,10 @@ import { DisplayHeading, LeadText } from "../shared/primitives/typography";
 import { AuthorizationReview } from "./review/authorizationReview";
 import { InvalidAuthorization } from "./invalidAuthorization";
 import { ManualAuthorization } from "./manual-entry/manualAuthorization";
+import { usePassportAuthorization } from "./usePassportAuthorization";
 
 function AuthorizationFlow() {
-  const passportAuthorizationControllerRef = useRef<PassportAuthorizationController>(null);
-  const mountedRef = useRef(false);
-  const [passportAuthorizationController, setPassportAuthorizationController] =
-    useState<PassportAuthorizationController | null>(null);
-  const [authorization, setAuthorization] = useState<PassportAuthorizationViewState>();
-
-  useEffect(() => {
-    mountedRef.current = true;
-    const passportAuthorizationController = passportAuthorizationControllerRef.current
-      ?? PassportAuthorizationController.fromBrowser();
-    passportAuthorizationControllerRef.current = passportAuthorizationController;
-    setPassportAuthorizationController(passportAuthorizationController);
-    let active = true;
-    const syncAuthorizationState = () => {
-      if (active) setAuthorization(passportAuthorizationController.getState());
-    };
-    const unsubscribe = passportAuthorizationController.subscribe(syncAuthorizationState);
-    queueMicrotask(syncAuthorizationState);
-    return () => {
-      mountedRef.current = false;
-      active = false;
-      unsubscribe();
-      // StrictMode replays effects; defer disposal so the immediate setup can retain it.
-      queueMicrotask(() => {
-        if (!mountedRef.current) passportAuthorizationController.dispose();
-      });
-    };
-  }, []);
+  const { controller: passportAuthorizationController, state: authorization } = usePassportAuthorization();
 
   if (!passportAuthorizationController || !authorization) {
     return <AuthorizationLoading label="Loading authorization" />;

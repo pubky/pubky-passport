@@ -25,12 +25,12 @@ describe("IssuedPubkyAuthRequest", () => {
     });
     expect(JSON.stringify(issued.value)).not.toContain("token=private");
     expect(JSON.stringify(issued.value)).not.toContain("/inbox");
-    expect(IssuedPubkyAuthRequest.isLive(issued.value)).toBe(true);
+    expect(issued.value.isLive()).toBe(true);
     expect(Object.isFrozen(issued.value)).toBe(true);
     expect(Object.isFrozen(issued.value.review)).toBe(true);
     expect(Object.isFrozen(issued.value.review.capabilities)).toBe(true);
     expect(issued.value.review.capabilities.every(Object.isFrozen)).toBe(true);
-    expect(IssuedPubkyAuthRequest.validatedUrlForApproval(issued.value)).toBe(REQUEST);
+    expect(issued.value.validatedUrlForApproval()).toBe(REQUEST);
   });
 
   it("projects the v0.10 grant method without exposing proof parameters", () => {
@@ -54,7 +54,7 @@ describe("IssuedPubkyAuthRequest", () => {
     const issued = IssuedPubkyAuthRequest.issue(encodeURIComponent(request));
     if (Result.isError(issued)) throw new Error(issued.error.code);
 
-    const approvalUrl = IssuedPubkyAuthRequest.validatedUrlForApproval(issued.value);
+    const approvalUrl = issued.value.validatedUrlForApproval();
     if (approvalUrl === undefined) throw new Error("Missing approval URL");
     expect(issued.value.review.capabilities[0]?.path).toBe("/pub/café/");
     expect(new URL(approvalUrl).searchParams.get("caps")).toContain("/pub/café/:rw");
@@ -68,9 +68,9 @@ describe("IssuedPubkyAuthRequest", () => {
     const issued = IssuedPubkyAuthRequest.issue(encodeURIComponent(REQUEST));
     if (Result.isError(issued)) throw new Error(issued.error.code);
 
-    expect(IssuedPubkyAuthRequest.takeOutcomeCallback(issued.value, outcome)).toBe(callback);
-    expect(IssuedPubkyAuthRequest.isLive(issued.value)).toBe(false);
-    expect(IssuedPubkyAuthRequest.validatedUrlForApproval(issued.value)).toBeUndefined();
+    expect(issued.value.takeOutcomeCallback(outcome)).toBe(callback);
+    expect(issued.value.isLive()).toBe(false);
+    expect(issued.value.validatedUrlForApproval()).toBeUndefined();
   });
 
   it("rejects forged instances and releases private metadata explicitly", () => {
@@ -80,12 +80,10 @@ describe("IssuedPubkyAuthRequest", () => {
       Object.getPrototypeOf(issued.value),
     ) as IssuedPubkyAuthRequest;
 
-    expect(IssuedPubkyAuthRequest.isLive(forged)).toBe(false);
-    expect(IssuedPubkyAuthRequest.validatedUrlForApproval(forged)).toBeUndefined();
-    expect(IssuedPubkyAuthRequest.takeOutcomeCallback(forged, "success")).toBeUndefined();
+    expect(() => forged.validatedUrlForApproval()).toThrow(TypeError);
 
-    IssuedPubkyAuthRequest.release(issued.value);
-    expect(IssuedPubkyAuthRequest.isLive(issued.value)).toBe(false);
+    issued.value.release();
+    expect(issued.value.isLive()).toBe(false);
   });
 
   it("contains metadata access failures and releases the request", () => {
@@ -98,11 +96,8 @@ describe("IssuedPubkyAuthRequest", () => {
       },
     } as unknown as "success";
 
-    expect(IssuedPubkyAuthRequest.takeOutcomeCallback(
-      issued.value,
-      hostileOutcome,
-    )).toBeUndefined();
-    expect(IssuedPubkyAuthRequest.isLive(issued.value)).toBe(false);
+    expect(issued.value.takeOutcomeCallback(hostileOutcome)).toBeUndefined();
+    expect(issued.value.isLive()).toBe(false);
     expect(warning).toHaveBeenCalledWith("authorize.request_metadata.failed", {
       operation: "take_outcome_callback",
     });

@@ -168,6 +168,6 @@ function safeHistoryState(appWindow: Window): unknown {
 
 /** Invalidates private approval metadata when an entry must be abandoned. */
 export function invalidateAuthorizationEntry(entry: AuthorizationEntry): AuthorizationEntry {
-  if (entry.status === "valid") IssuedPubkyAuthRequest.release(entry.request);
+  if (entry.status === "valid") entry.request.release();
   return { status: "invalid" };
 }

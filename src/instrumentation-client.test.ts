@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   EARLY_AUTHORIZATION_LOCATION_PROPERTY,
 } from "./libs/authorization/earlyAuthorizationLocation";
-import { IssuedPubkyAuthRequest } from "./client/logic/authorization/request/IssuedPubkyAuthRequest";
 
 const SECRET = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
@@ -29,7 +28,7 @@ describe("instrumentation-client authorization entry", () => {
 
     const entry = bootstrap.takeInitialAuthorizationEntry();
     expect(entry?.status).toBe("valid");
-    if (entry?.status === "valid") IssuedPubkyAuthRequest.release(entry.request);
+      if (entry?.status === "valid") entry.request.release();
     expect(window.location.hash).toBe("");
   });
 
@@ -50,7 +49,7 @@ describe("instrumentation-client authorization entry", () => {
 
     const entry = bootstrap.takeInitialAuthorizationEntry();
     expect(entry?.status).toBe("valid");
-    if (entry?.status === "valid") IssuedPubkyAuthRequest.release(entry.request);
+      if (entry?.status === "valid") entry.request.release();
   });
 
   it("rejects an early capture whose short deadline already passed", async () => {

@@ -38,34 +38,51 @@ export async function approveAuthorization(
   let pubky: PubkySdkAdapter;
   try {
     pubky = new PubkySdkAdapter();
-  } catch (error) {
+  } catch {
     LOGGER.warn("authorize.approval.failed", {
       stage: "sdk_initialize",
       code: "unexpected_failure",
     });
-    return Result.err({ code: "approval_failed", cause: error });
+    return Result.err({ code: "approval_failed" });
   }
 
   let keyHandle: PubkyIdentityKey["keyHandle"] | undefined;
   let stage: "identity_restore" | "sdk_approve" = "identity_restore";
   try {
+    const authRequestUrl = request.validatedUrlForApproval();
+    if (!authRequestUrl) {
+      LOGGER.warn("authorize.approval.failed", {
+        stage: "request_validation",
+        code: "request_unavailable",
+      });
+      return Result.err({ code: "approval_failed" });
+    }
     const restored = await restoreLocalIdentity(pubky, publicKeyZ32);
     if (Result.isError(restored)) {
-      return Result.err({ code: "approval_failed", cause: restored.error });
+      LOGGER.warn("authorize.approval.failed", {
+        stage: "identity_restore",
+        code: restored.error.code,
+      });
+      return Result.err({ code: "approval_failed" });
     }
 
     keyHandle = restored.value.keyHandle;
     stage = "sdk_approve";
-    const approved = await pubky.approveAuthRequest(keyHandle, request);
-    return Result.isError(approved)
-      ? Result.err({ code: "approval_failed", cause: approved.error })
-      : Result.ok();
-  } catch (error) {
+    const approved = await pubky.approveAuthRequest(keyHandle, authRequestUrl);
+    if (Result.isError(approved)) {
+      LOGGER.warn("authorize.approval.failed", {
+        stage: "sdk_approve",
+        code: approved.error.code,
+      });
+      return Result.err({ code: "approval_failed" });
+    }
+    return Result.ok();
+  } catch {
     LOGGER.warn("authorize.approval.failed", {
       stage,
       code: "unexpected_failure",
     });
-    return Result.err({ code: "approval_failed", cause: error });
+    return Result.err({ code: "approval_failed" });
   } finally {
     disposeIdentityKey(pubky, keyHandle);
     disposePubky(pubky);

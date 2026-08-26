@@ -67,7 +67,9 @@ test("completes signup, publication, signin, and both v0.10 authorization method
           "Passport rejected the SDK-generated authorization request",
         );
 
-        const approval = passport.approveAuthRequest(identity.keyHandle, request);
+        const authorizationUrl = request.validatedUrlForApproval();
+        if (!authorizationUrl) throw new Error("Issued request was unexpectedly unavailable");
+        const approval = passport.approveAuthRequest(identity.keyHandle, authorizationUrl);
         const [approvedSession] = await Promise.all([
           flow.awaitApproval(),
           expectOkAsync(approval, "Passport could not approve the authorization request"),
