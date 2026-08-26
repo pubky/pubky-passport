@@ -15,6 +15,7 @@ const MOCKS = vi.hoisted(() => ({
   restoreIdentityKey: vi.fn(),
   signup: vi.fn(),
   signin: vi.fn(),
+  signinAfterPublication: vi.fn(),
   resolveHomeserver: vi.fn(),
   publishHomeserver: vi.fn(),
   disposeIdentityKey: vi.fn(),
@@ -40,8 +41,8 @@ const MOCKS = vi.hoisted(() => ({
 vi.mock("../pubky/PubkySdkAdapter", () => ({
   PubkySdkAdapter: MOCKS.PubkySdkAdapter,
 }));
-vi.mock("../wrapping-key/GoogleWrappingKeyApiClient", () => ({ GoogleWrappingKeyApiClient: MOCKS.GoogleWrappingKeyApiClient }));
-vi.mock("../homegate/HomegateClient", () => ({ HomegateClient: MOCKS.HomegateClient }));
+vi.mock("../wrapping-key/GoogleWrappingKeyApiClient", () => ({ createGoogleWrappingKeyRequester: MOCKS.GoogleWrappingKeyApiClient }));
+vi.mock("../homegate/HomegateClient", () => ({ createGoogleSignupInvitationRequester: MOCKS.HomegateClient }));
 vi.mock("../passport-file/PassportFileWebCrypto", () => ({ PassportFileWebCrypto: MOCKS.PassportFileWebCrypto }));
 vi.mock("../passport-file/google/GoogleDrivePassportFileStore", () => ({
   GoogleDrivePassportFileStore: class {
@@ -66,7 +67,11 @@ vi.mock("../passport-file/google/GoogleDriveVisibleRecoveryCopies", () => ({
   },
 }));
 
-import { GoogleIdentityOperations, type GoogleIdentityProgress } from "./GoogleIdentityOperations";
+import {
+  createGoogleIdentityContext,
+  type GoogleIdentityContext,
+  type GoogleIdentityProgress,
+} from "./GoogleIdentityOperations";
 
 const PUBLIC_IDENTITY = {
   publicKeyZ32: "public-identity",
@@ -95,7 +100,7 @@ const INVITATION = {
   signupCode: "signup-code",
 };
 
-describe("GoogleIdentityOperations", () => {
+describe("Google identity use cases", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     MOCKS.driveStoreConstructions.count = 0;
@@ -108,6 +113,7 @@ describe("GoogleIdentityOperations", () => {
         restoreIdentityKey: MOCKS.restoreIdentityKey,
         signup: MOCKS.signup,
         signin: MOCKS.signin,
+        signinAfterPublication: MOCKS.signinAfterPublication,
         resolveHomeserver: MOCKS.resolveHomeserver,
         publishHomeserver: MOCKS.publishHomeserver,
         disposeIdentityKey: MOCKS.disposeIdentityKey,
@@ -115,10 +121,10 @@ describe("GoogleIdentityOperations", () => {
       };
     });
     MOCKS.GoogleWrappingKeyApiClient.mockImplementation(function () {
-      return { requestGoogleWrappingKey: MOCKS.requestWrappingKey };
+      return MOCKS.requestWrappingKey;
     });
     MOCKS.HomegateClient.mockImplementation(function () {
-      return { requestGoogleHomeserverSignupInvitation: MOCKS.requestInvitation };
+      return MOCKS.requestInvitation;
     });
     MOCKS.PassportFileWebCrypto.mockImplementation(function () {
       return {
@@ -139,6 +145,7 @@ describe("GoogleIdentityOperations", () => {
     });
     MOCKS.signup.mockResolvedValue(Result.ok({ publicIdentity: PUBLIC_IDENTITY }));
     MOCKS.signin.mockResolvedValue(Result.ok({ publicIdentity: PUBLIC_IDENTITY }));
+    MOCKS.signinAfterPublication.mockImplementation((...args) => MOCKS.signin(...args));
     MOCKS.resolveHomeserver.mockResolvedValue(Result.ok(null));
     MOCKS.publishHomeserver.mockResolvedValue(Result.ok());
     MOCKS.encryptSecretKeyBytes.mockResolvedValue(Result.ok(ENVELOPE));
@@ -442,10 +449,8 @@ describe("GoogleIdentityOperations", () => {
       KEY_HANDLE,
       INVITATION.homeserverPubky,
     );
-    expect(MOCKS.signin).toHaveBeenNthCalledWith(1, KEY_HANDLE);
-    expect(MOCKS.signin).toHaveBeenNthCalledWith(2, KEY_HANDLE, {
-      waitForPkdnsPublication: true,
-    });
+    expect(MOCKS.signin).toHaveBeenCalledWith(KEY_HANDLE);
+    expect(MOCKS.signinAfterPublication).toHaveBeenCalledWith(KEY_HANDLE);
     expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
     expect(progress).toEqual([
       { flow: "lookup", step: "checking" },
@@ -796,8 +801,8 @@ describe("GoogleIdentityOperations", () => {
   });
 });
 
-function createSubject(): GoogleIdentityOperations {
-  return new GoogleIdentityOperations(
+function createSubject(): GoogleIdentityContext {
+  return createGoogleIdentityContext(
     "https://homegate.example/",
     "https://passport.pubky.app",
   );

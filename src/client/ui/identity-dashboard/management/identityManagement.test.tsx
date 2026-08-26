@@ -13,9 +13,14 @@ const MOCKS = vi.hoisted(() => ({ showCopyConfirmation: vi.fn() }));
 vi.mock("../../shared/sonner", () => ({ showCopyConfirmation: MOCKS.showCopyConfirmation }));
 
 const identity = {
-  googleAccount: { email: "satoshi@gmail.com", name: "Satoshi Nakamoto" },
+  googleAccount: {
+    email: "satoshi@gmail.com",
+    googleSubject: "google-subject",
+    name: "Satoshi Nakamoto",
+    pictureUrl: null,
+  },
   publicIdentity: { publicKeyZ32: "x8jpihgjy51fdnaingcp8rum1omfzd6p8bhm7usune41grd97dho5cwy4mra" },
-} as LocalIdentityMetadata;
+} satisfies LocalIdentityMetadata;
 
 describe("IdentityManagement", () => {
   afterEach(() => {

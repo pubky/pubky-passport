@@ -73,7 +73,7 @@ function createContentSecurityPolicy(input: {
       "https://pkarr.pubky.org",
       ...(input.allowPubkyAuthRelays ? ["https:"] : []),
     ].join(" "),
-    "img-src 'self' data:",
+    "img-src 'self' data: https://lh3.googleusercontent.com",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
     "frame-src 'none'",

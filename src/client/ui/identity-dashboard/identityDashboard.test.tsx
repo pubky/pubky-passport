@@ -70,7 +70,7 @@ vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
 }));
 
 vi.mock("../../logic/google-identity/GoogleIdentityController", () => ({
-  GoogleIdentityController: function GoogleIdentityController() {
+  createGoogleIdentitySession: function createGoogleIdentitySession() {
     return mockGoogleIdentityController({
       establishIdentity: async () => {
         if (FLOW.establishIdentity) {

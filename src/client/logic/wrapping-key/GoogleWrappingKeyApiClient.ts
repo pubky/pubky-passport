@@ -20,18 +20,19 @@ export type GoogleWrappingKeyResult = Result<GoogleWrappingKey, CodedFailure<Goo
 
 const MAXIMUM_RESPONSE_BYTES = 16 * 1024;
 
-export class GoogleWrappingKeyApiClient {
-  constructor(
-    private fetch: typeof globalThis.fetch,
-  ) {}
-
-  async requestGoogleWrappingKey(
+export function createGoogleWrappingKeyRequester(
+  fetchImpl: typeof globalThis.fetch,
+): (
+  googleIdToken: string,
+  keyId?: string,
+) => Promise<GoogleWrappingKeyResult> {
+  return async (
     googleIdToken: string,
     keyId?: string,
-  ): Promise<GoogleWrappingKeyResult> {
+  ): Promise<GoogleWrappingKeyResult> => {
     let response: Response;
     try {
-      response = await this.fetch("/api/wrapping-key/google", {
+      response = await fetchImpl("/api/wrapping-key/google", {
         method: "POST",
         headers: { Accept: "application/json", "Content-Type": "application/json" },
         // The optional key ID is public envelope metadata; Drive tokens never cross this boundary.
@@ -93,5 +94,5 @@ export class GoogleWrappingKeyApiClient {
       code: "invalid_response",
     });
     return Result.err({ code: "invalid_response" });
-  }
+  };
 }

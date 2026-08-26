@@ -17,6 +17,7 @@ import type {
   LocalIdentityCatalog,
   LocalIdentityMetadata,
 } from "./localIdentityModels";
+import { isGoogleAvatarUrl } from "../google-identity/googleProfileFetcher";
 
 type StoredLocalIdentity = {
   v: 2;
@@ -330,7 +331,9 @@ function isStoredGoogleAccountProfile(value: unknown): value is GoogleAccountPro
     && isNonEmptyString(value.googleSubject)
     && isNonEmptyString(value.email)
     && isNonEmptyString(value.name)
-    && (value.pictureUrl === null || isLocalGoogleAvatar(value.pictureUrl));
+    && (value.pictureUrl === null
+      || isLocalGoogleAvatar(value.pictureUrl)
+      || isGoogleAvatarUrl(value.pictureUrl));
 }
 
 function isLocalGoogleAvatar(value: unknown): value is string {

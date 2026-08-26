@@ -37,19 +37,16 @@ const INVITATION_SCHEMA = z.object({
   homeserverPubky: z.string().refine(isPubkyPublicKey),
 }).strict();
 
-export class HomegateClient {
-  private googleVerificationEndpoint: URL;
-
-  constructor(
-    homegateBaseUrl: string,
-    private fetch: typeof globalThis.fetch,
-  ) {
-    this.googleVerificationEndpoint = new URL(GOOGLE_VERIFICATION_PATH, homegateBaseUrl);
-  }
-
-  async requestGoogleHomeserverSignupInvitation(
+export function createGoogleSignupInvitationRequester(
+  homegateBaseUrl: string,
+  fetchImpl: typeof globalThis.fetch,
+): (
+  googleIdToken: string,
+) => Promise<Result<HomeserverSignupInvitation, CodedFailure<HomegateSignupInvitationErrorCode>>> {
+  const googleVerificationEndpoint = new URL(GOOGLE_VERIFICATION_PATH, homegateBaseUrl);
+  return async (
     googleIdToken: string,
-  ): Promise<Result<HomeserverSignupInvitation, CodedFailure<HomegateSignupInvitationErrorCode>>> {
+  ): Promise<Result<HomeserverSignupInvitation, CodedFailure<HomegateSignupInvitationErrorCode>>> => {
     if (!isValidGoogleIdToken(googleIdToken)) {
       LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
         operation: "request_google_invitation",
@@ -63,7 +60,7 @@ export class HomegateClient {
     let response: Response;
     try {
       signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
-      response = await this.fetch(this.googleVerificationEndpoint, {
+      response = await fetchImpl(googleVerificationEndpoint, {
         method: "POST",
         headers: { Accept: "application/json, text/plain", "Content-Type": "application/json" },
         body: JSON.stringify({ googleIdToken }),
@@ -134,7 +131,7 @@ export class HomegateClient {
       code: "malformed_homegate_response",
     });
     return Result.err({ code: "malformed_homegate_response" });
-  }
+  };
 }
 
 function mapHomegateError(body: string): HomegateSignupInvitationErrorCode {

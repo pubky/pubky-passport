@@ -527,9 +527,7 @@ describe("PubkySdkAdapter", () => {
 
     try {
       const created = expectOk(await pubky.createIdentityKey());
-      await expectError(pubky.signin(created.keyHandle, {
-        waitForPkdnsPublication: true,
-      }), "signin_failed");
+      await expectError(pubky.signinAfterPublication(created.keyHandle), "signin_failed");
 
       expect(signinBlocking).toHaveBeenCalledWith("passport.pubky.app");
       expect(signin).not.toHaveBeenCalled();
@@ -647,7 +645,7 @@ function capabilityPath(length: number): string {
   return `/${segments.join("/")}`;
 }
 
-async function expectError<Success>(result: Promise<ResultType<Success, { code: string }>>, code: string): Promise<void> {
+async function expectError<Success>(result: Promise<ResultType<Success, { code: string }>> | ResultType<Success, { code: string }>, code: string): Promise<void> {
   expectErrorResult(await result, code);
 }
 

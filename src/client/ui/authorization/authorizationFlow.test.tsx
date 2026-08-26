@@ -23,22 +23,17 @@ const MOCKS = vi.hoisted(() => ({
 }));
 
 vi.mock("../../logic/authorization/flow/PassportAuthorizationController", () => ({
-  PassportAuthorizationController: class {
-    static fromBrowser() {
-      return new this();
-    }
-
-    constructor(...args: unknown[]) {
-      MOCKS.createAuthorizationController(...args);
-    }
-
-    approve = MOCKS.approve;
-    cancel = MOCKS.cancel;
-    dispose = MOCKS.dispose;
-    getState = () => MOCKS.authorizationState;
-    subscribe = (listener: () => void) => {
+  createBrowserPassportAuthorizationController: () => {
+    MOCKS.createAuthorizationController();
+    return {
+      approve: MOCKS.approve,
+      cancel: MOCKS.cancel,
+      dispose: MOCKS.dispose,
+      getState: () => MOCKS.authorizationState,
+      subscribe: (listener: () => void) => {
       MOCKS.authorizationListener = listener;
       return () => { MOCKS.authorizationListener = null; };
+      },
     };
   },
 }));

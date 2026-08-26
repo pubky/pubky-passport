@@ -20,7 +20,10 @@ const MOCKS = vi.hoisted(() => ({
 }));
 
 vi.mock("./GoogleIdentityOperations", () => ({
-  GoogleIdentityOperations: MOCKS.GoogleIdentityOperations,
+  createGoogleIdentityContext: MOCKS.GoogleIdentityOperations,
+  establishGoogleIdentity: (_context: unknown, ...args: unknown[]) => MOCKS.establishIdentity(...args),
+  replaceInvalidGooglePassportFile: (_context: unknown, ...args: unknown[]) => MOCKS.replaceInvalidPassportFile(...args),
+  detachGoogleIdentity: (_context: unknown, ...args: unknown[]) => MOCKS.detachIdentity(...args),
 }));
 
 vi.mock("./GoogleImplicitAuthorization", () => ({
@@ -28,7 +31,8 @@ vi.mock("./GoogleImplicitAuthorization", () => ({
 }));
 
 import {
-  GoogleIdentityController,
+  createGoogleIdentitySession,
+  type GoogleIdentitySession,
   type GoogleIdentityViewState,
 } from "./GoogleIdentityController";
 
@@ -47,7 +51,7 @@ const PUBLIC_IDENTITY = {
   publicKeyZ32: "public-key",
 };
 
-describe("GoogleIdentityController", () => {
+describe("createGoogleIdentitySession", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", new MemoryStorage());
     for (const mock of Object.values(MOCKS)) mock.mockReset();
@@ -57,9 +61,6 @@ describe("GoogleIdentityController", () => {
       dispose: MOCKS.disposeAuthorization,
     }; });
     MOCKS.GoogleIdentityOperations.mockImplementation(function () { return {
-      establishIdentity: MOCKS.establishIdentity,
-      replaceInvalidPassportFile: MOCKS.replaceInvalidPassportFile,
-      detachIdentity: MOCKS.detachIdentity,
       abortRequests: MOCKS.abortRequests,
       dispose: MOCKS.disposeOperations,
     }; });
@@ -85,7 +86,7 @@ describe("GoogleIdentityController", () => {
   it("composes its screen-scoped dependencies during construction", () => {
     const onState = vi.fn();
 
-    new GoogleIdentityController(
+    createGoogleIdentitySession(
       "google-client-id",
       "https://homegate.example/",
       onState,
@@ -107,7 +108,7 @@ describe("GoogleIdentityController", () => {
       throw thrown;
     });
 
-    expect(() => new GoogleIdentityController(
+    expect(() => createGoogleIdentitySession(
       "SECRET-CLIENT-ID",
       "https://secret-homegate.example/",
       vi.fn(),
@@ -258,7 +259,7 @@ describe("GoogleIdentityController", () => {
     });
   });
 
-  it("preserves operation error identity while logging only safe fields", async () => {
+  it("preserves safe operation classifications without diagnostic causes", async () => {
     const diagnosticCanary = { secret: "CONTROLLER-CAUSE-CANARY" };
     const operationError = {
       code: "homeserver_signup_invitation_failed" as const,
@@ -273,32 +274,28 @@ describe("GoogleIdentityController", () => {
     expectResultError(result, {
       code: "homeserver_signup_invitation_failed",
       detailCode: "weekly_limit_exceeded",
-      cause: diagnosticCanary,
     });
-    expect(Result.isError(result) && result.error).toBe(operationError);
     expect(JSON.stringify(warning.mock.calls)).not.toContain("CONTROLLER-CAUSE-CANARY");
   });
 
-  it("preserves broad operation exceptions as causes without logging their details", async () => {
+  it("classifies broad operation exceptions without exposing their details", async () => {
     const thrown = { secret: "CONTROLLER-BROAD-CATCH-CANARY" };
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     MOCKS.establishIdentity.mockRejectedValue(thrown);
 
     expectResultError(await createController().establishIdentity(), {
       code: "operation_failed",
-      cause: thrown,
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("CONTROLLER-BROAD-CATCH-CANARY");
   });
 
-  it("preserves authorization promise exceptions as causes", async () => {
+  it("classifies authorization promise exceptions without exposing their details", async () => {
     const thrown = { secret: "AUTHORIZATION-BROAD-CATCH-CANARY" };
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     MOCKS.requestAuthorization.mockRejectedValue(thrown);
 
     expectResultError(await createController().establishIdentity(), {
       code: "authorization_failed",
-      cause: thrown,
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("AUTHORIZATION-BROAD-CATCH-CANARY");
   });
@@ -393,8 +390,8 @@ describe("GoogleIdentityController", () => {
 
 function createController(
   onState: (state: GoogleIdentityViewState) => void = vi.fn(),
-): GoogleIdentityController {
-  return new GoogleIdentityController(
+): GoogleIdentitySession {
+  return createGoogleIdentitySession(
     "google-client-id",
     "https://homegate.example/",
     onState,

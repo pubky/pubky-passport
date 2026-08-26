@@ -9,7 +9,7 @@ import type {
 } from "../local-identity/localIdentityModels";
 import type { GoogleIdentityCredentials } from "./GoogleImplicitAuthorization";
 import {
-  HomegateClient,
+  createGoogleSignupInvitationRequester,
   type HomegateSignupInvitationErrorCode,
   type HomeserverSignupInvitation,
 } from "../homegate/HomegateClient";
@@ -25,7 +25,7 @@ import {
 } from "../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../pubky/PubkySdkAdapter";
 import {
-  GoogleWrappingKeyApiClient,
+  createGoogleWrappingKeyRequester,
   type GoogleWrappingKeyErrorCode,
 } from "../wrapping-key/GoogleWrappingKeyApiClient";
 import { LocalStorageIdentityRepository } from "../local-identity/LocalStorageIdentityRepository";
@@ -101,14 +101,62 @@ type DetachGoogleIdentityResult = ResultType<void, DetachGoogleIdentityError>;
 
 type OperationResult<Success = void> = ResultType<Success, GoogleIdentityEstablishmentError>;
 
-/**
- * Manages the complete Google-backed Pubky identity lifecycle for one screen.
- */
-export class GoogleIdentityOperations {
+export type GoogleIdentityContext = {
+  establishIdentity(
+    credentials: GoogleIdentityCredentials,
+    report: (progress: GoogleIdentityProgress) => void,
+  ): Promise<GoogleIdentityOperationResult>;
+  replaceInvalidPassportFile(
+    credentials: GoogleIdentityCredentials,
+    report: (progress: GoogleIdentityProgress) => void,
+  ): Promise<GoogleIdentityOperationResult>;
+  detachIdentity(
+    credentials: GoogleIdentityCredentials,
+    publicIdentity: PubkyPublicIdentity,
+    expectedGoogleSubject: string,
+  ): Promise<DetachGoogleIdentityResult>;
+  abortRequests(): void;
+  dispose(): void;
+};
+
+/** Creates the resource context shared by one screen's concrete use cases. */
+export function createGoogleIdentityContext(
+  homegateBaseUrl: string,
+  passportOrigin: string,
+): GoogleIdentityContext {
+  return new ScreenGoogleIdentityContext(homegateBaseUrl, passportOrigin);
+}
+
+export function establishGoogleIdentity(
+  context: GoogleIdentityContext,
+  credentials: GoogleIdentityCredentials,
+  report: (progress: GoogleIdentityProgress) => void,
+): Promise<GoogleIdentityOperationResult> {
+  return context.establishIdentity(credentials, report);
+}
+
+export function replaceInvalidGooglePassportFile(
+  context: GoogleIdentityContext,
+  credentials: GoogleIdentityCredentials,
+  report: (progress: GoogleIdentityProgress) => void,
+): Promise<GoogleIdentityOperationResult> {
+  return context.replaceInvalidPassportFile(credentials, report);
+}
+
+export function detachGoogleIdentity(
+  context: GoogleIdentityContext,
+  credentials: GoogleIdentityCredentials,
+  publicIdentity: PubkyPublicIdentity,
+  expectedGoogleSubject: string,
+): Promise<DetachGoogleIdentityResult> {
+  return context.detachIdentity(credentials, publicIdentity, expectedGoogleSubject);
+}
+
+class ScreenGoogleIdentityContext implements GoogleIdentityContext {
   private repository = new LocalStorageIdentityRepository();
   private pubky: PubkySdkAdapter;
-  private wrappingKeys: GoogleWrappingKeyApiClient;
-  private homegate: HomegateClient;
+  private requestWrappingKeyFromServer: ReturnType<typeof createGoogleWrappingKeyRequester>;
+  private requestSignupInvitationFromHomegate: ReturnType<typeof createGoogleSignupInvitationRequester>;
   private crypto: PassportFileWebCrypto;
   private requests = new AbortController();
   private fetch: typeof fetch = (request, init) => {
@@ -125,8 +173,11 @@ export class GoogleIdentityOperations {
     const pubky = new PubkySdkAdapter();
     this.pubky = pubky;
     try {
-      this.wrappingKeys = new GoogleWrappingKeyApiClient(this.fetch);
-      this.homegate = new HomegateClient(homegateBaseUrl, this.fetch);
+      this.requestWrappingKeyFromServer = createGoogleWrappingKeyRequester(this.fetch);
+      this.requestSignupInvitationFromHomegate = createGoogleSignupInvitationRequester(
+        homegateBaseUrl,
+        this.fetch,
+      );
       this.crypto = new PassportFileWebCrypto();
     } catch (error) {
       try {
@@ -482,9 +533,7 @@ export class GoogleIdentityOperations {
     report(isReconciliation
       ? { flow: "repair", step: "signing_in" }
       : { flow: "create", step: "activating" });
-    const signedIn = await this.pubky.signin(identity.keyHandle, {
-      waitForPkdnsPublication: true,
-    });
+    const signedIn = await this.pubky.signinAfterPublication(identity.keyHandle);
     if (Result.isError(signedIn)) {
       return Result.err({
         code: signupWasUncertain
@@ -538,7 +587,7 @@ export class GoogleIdentityOperations {
     googleIdToken: string,
   ): Promise<OperationResult<HomeserverSignupInvitation>> {
     LOGGER.info("identity.google.homeserver_signup_invitation.started");
-    const invitation = await this.homegate.requestGoogleHomeserverSignupInvitation(googleIdToken);
+    const invitation = await this.requestSignupInvitationFromHomegate(googleIdToken);
     if (Result.isError(invitation)) {
       return Result.err({
         code: "homeserver_signup_invitation_failed",
@@ -555,7 +604,7 @@ export class GoogleIdentityOperations {
     envelope?: PassportFileEnvelope,
   ): Promise<OperationResult<GoogleWrappingKey>> {
     LOGGER.info("identity.google.wrapping_key.started");
-    const wrappingKey = await this.wrappingKeys.requestGoogleWrappingKey(
+    const wrappingKey = await this.requestWrappingKeyFromServer(
       googleIdToken,
       envelope?.v === 2 ? envelope.kid : undefined,
     );
@@ -581,7 +630,7 @@ export class GoogleIdentityOperations {
     }
 
     if (storedFile.value.status === "found") {
-      const wrappingKey = await this.wrappingKeys.requestGoogleWrappingKey(
+      const wrappingKey = await this.requestWrappingKeyFromServer(
         credentials.googleIdToken,
         storedFile.value.envelope.v === 2 ? storedFile.value.envelope.kid : undefined,
       );

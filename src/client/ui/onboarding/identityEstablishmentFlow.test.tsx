@@ -22,7 +22,7 @@ const MOCKS = vi.hoisted(() => ({
 }));
 
 vi.mock("../../logic/google-identity/GoogleIdentityController", () => ({
-  GoogleIdentityController: function GoogleIdentityController(
+  createGoogleIdentitySession: function createGoogleIdentitySession(
     googleClientId: string,
     homegateBaseUrl: string,
     onState: (state: GoogleIdentityViewState) => void,

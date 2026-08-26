@@ -1,7 +1,8 @@
 import { useSyncExternalStore } from "react";
 
 import {
-  PassportAuthorizationController,
+  createBrowserPassportAuthorizationController,
+  type PassportAuthorizationController,
   type PassportAuthorizationViewState,
 } from "../../logic/authorization/flow/PassportAuthorizationController";
 
@@ -31,7 +32,7 @@ function createBrowserAuthorizationStore() {
   };
   const getController = () => {
     if (!controller && typeof window !== "undefined") {
-      controller = PassportAuthorizationController.fromBrowser();
+      controller = createBrowserPassportAuthorizationController();
       if (!pagehideListenerInstalled) {
         window.addEventListener("pagehide", dispose, { once: true });
         pagehideListenerInstalled = true;

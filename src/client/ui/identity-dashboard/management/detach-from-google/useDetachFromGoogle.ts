@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { LOGGER } from "../../../../../libs/logger/logger";
 import {
-  GoogleIdentityController,
+  createGoogleIdentitySession,
+  type GoogleIdentitySession,
   type GoogleIdentityViewError,
 } from "../../../../logic/google-identity/GoogleIdentityController";
 import { toGoogleIdentityViewError } from "../../../../logic/google-identity/googleIdentityViewError";
@@ -23,16 +24,16 @@ function useDetachFromGoogle(
   expectedGoogleSubject: string,
 ) {
   const { googleClientId, homegateBaseUrl } = useGoogleIdentityConfiguration();
-  const controllerRef = useRef<GoogleIdentityController | null>(null);
+  const controllerRef = useRef<GoogleIdentitySession | null>(null);
   const operationPendingRef = useRef(false);
   const operationIdRef = useRef(0);
   const [state, setState] = useState<DetachFromGoogleOperationState>({ status: "ready" });
 
-  const ensureController = useCallback((): GoogleIdentityController | null => {
+  const ensureController = useCallback((): GoogleIdentitySession | null => {
     if (controllerRef.current) return controllerRef.current;
 
     try {
-      const controller = new GoogleIdentityController(googleClientId, homegateBaseUrl, (nextState) => {
+      const controller = createGoogleIdentitySession(googleClientId, homegateBaseUrl, (nextState) => {
         if (controllerRef.current !== controller) return;
         if (nextState.status === "requesting-authorization") {
           setState({ status: "requesting-authorization" });

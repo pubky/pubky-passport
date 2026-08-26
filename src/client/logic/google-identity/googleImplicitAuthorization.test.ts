@@ -132,7 +132,7 @@ describe("GoogleImplicitAuthorization", () => {
     expect(fetch).toHaveBeenCalledOnce();
   });
 
-  it("localizes a supported Google avatar before returning credentials", async () => {
+  it("returns a validated Google avatar URL without downloading it", async () => {
     const popup = createPopup();
     const fetch = vi.fn<typeof globalThis.fetch>(async (input) => String(input) === "https://openidconnect.googleapis.com/v1/userinfo"
       ? Response.json({
@@ -158,12 +158,11 @@ describe("GoogleImplicitAuthorization", () => {
     const result = await request;
     expect(Result.isError(result)).toBe(false);
     if (Result.isError(result)) return;
-    expect(result.value.googleAccount.pictureUrl).toBe("data:image/png;base64,AQID");
-    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(result.value.googleAccount.pictureUrl).toBe("https://lh3.googleusercontent.com/avatar");
+    expect(fetch).toHaveBeenCalledOnce();
   });
 
-  it("keeps avatar failures nonfatal and logs only safe metadata", async () => {
-    const thrown = { secret: "AVATAR-FAILURE-CANARY" };
+  it("ignores unsupported avatar origins", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const popup = createPopup();
     const fetch = vi.fn<typeof globalThis.fetch>(async (input) => {
@@ -172,10 +171,10 @@ describe("GoogleImplicitAuthorization", () => {
           sub: SUBJECT,
           email: "person@example.com",
           name: "Person",
-          picture: "https://lh3.googleusercontent.com/avatar",
+          picture: "https://attacker.example/avatar",
         });
       }
-      throw thrown;
+      throw new Error("Avatar download must not run");
     });
     const open = vi.fn<typeof window.open>(() => popup.window);
     vi.stubGlobal("open", open);
@@ -194,7 +193,8 @@ describe("GoogleImplicitAuthorization", () => {
 
     expect(Result.isError(result)).toBe(false);
     if (!Result.isError(result)) expect(result.value.googleAccount.pictureUrl).toBeNull();
-    expect(JSON.stringify(warning.mock.calls)).not.toContain("AVATAR-FAILURE-CANARY");
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(warning).not.toHaveBeenCalled();
   });
 
   it("preserves user-info exceptions as exact causes without logging details", async () => {

@@ -3,7 +3,7 @@ import { Result, type Result as ResultType } from "better-result";
 import { expect, test } from "vitest";
 
 import { IssuedPubkyAuthRequest } from "../authorization/request/IssuedPubkyAuthRequest";
-import { HomegateClient } from "../homegate/HomegateClient";
+import { createGoogleSignupInvitationRequester } from "../homegate/HomegateClient";
 import { PubkySdkAdapter } from "./PubkySdkAdapter";
 
 const CAPABILITIES = "/pub/passport-staging.pubky.app/:rw" as const;
@@ -12,9 +12,12 @@ const RESOLUTION_POLL_INTERVAL_MS = 2_000;
 
 test("completes signup, publication, signin, and both v0.10 authorization methods", async () => {
   const config = stagingConfig();
-  const homegate = new HomegateClient(config.homegateBaseUrl, globalThis.fetch);
+  const requestSignupInvitation = createGoogleSignupInvitationRequester(
+    config.homegateBaseUrl,
+    globalThis.fetch,
+  );
   const invitation = expectOk(
-    await homegate.requestGoogleHomeserverSignupInvitation(config.googleIdToken),
+    await requestSignupInvitation(config.googleIdToken),
     "Homegate did not issue a staging invitation",
   );
   const passport = new PubkySdkAdapter();

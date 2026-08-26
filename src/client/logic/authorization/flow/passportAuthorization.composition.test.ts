@@ -24,7 +24,10 @@ vi.mock("../../pubky/PubkySdkAdapter", () => ({
   PubkySdkAdapter: MOCKS.PubkySdkAdapter,
 }));
 
-import { PassportAuthorizationController } from "./PassportAuthorizationController";
+import {
+  createBrowserPassportAuthorizationController,
+  type PassportAuthorizationController,
+} from "./PassportAuthorizationController";
 
 const RELAY_ORIGIN = "https://relay.example";
 
@@ -58,7 +61,7 @@ describe("PassportAuthorizationController composition", () => {
   it("constructs Pubky lazily for approval and owns adapter cleanup", async () => {
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
 
-    controller = PassportAuthorizationController.fromBrowser();
+    controller = createBrowserPassportAuthorizationController();
 
     expect(controller.getState().status).toBe("review");
     expect(MOCKS.PubkySdkAdapter).not.toHaveBeenCalled();
@@ -73,7 +76,7 @@ describe("PassportAuthorizationController composition", () => {
   it("maps identity repository failures at the authorization composition boundary", async () => {
     window.localStorage.setItem("pubky-passport/local-identities/v1", "invalid-store");
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
-    controller = PassportAuthorizationController.fromBrowser();
+    controller = createBrowserPassportAuthorizationController();
 
     await expect(controller.approve("missing-public-key")).resolves.toEqual({
       status: "failed",
@@ -87,7 +90,7 @@ describe("PassportAuthorizationController composition", () => {
       throw new Error("sensitive authorization request");
     });
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
-    controller = PassportAuthorizationController.fromBrowser();
+    controller = createBrowserPassportAuthorizationController();
 
     await expect(controller.approve("missing-public-key")).resolves.toEqual({
       status: "failed",
@@ -107,7 +110,7 @@ describe("PassportAuthorizationController composition", () => {
       throw new Error("cleanup failed");
     });
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
-    controller = PassportAuthorizationController.fromBrowser();
+    controller = createBrowserPassportAuthorizationController();
 
     await expect(controller.approve("missing-public-key")).resolves.toEqual({
       status: "failed",
@@ -135,7 +138,7 @@ describe("PassportAuthorizationController composition", () => {
     });
     MOCKS.approveAuthRequest.mockResolvedValue(Result.ok());
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
-    controller = PassportAuthorizationController.fromBrowser();
+    controller = createBrowserPassportAuthorizationController();
 
     await expect(controller.approve(firstIdentity.publicIdentity.publicKeyZ32)).resolves.toEqual({
       status: "approved",
