@@ -13,7 +13,7 @@ const FIRST_KEY = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
 const SECOND_KEY = "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo";
 const FIRST_IDENTITY = { publicKeyZ32: FIRST_KEY };
 const SECOND_IDENTITY = { publicKeyZ32: SECOND_KEY };
-const IDENTITY_PREFIX = "pubky-passport/local-identities/v2/identity/";
+const IDENTITY_PREFIX = "pubky-passport/local-identities/v1/identity/";
 
 describe("LocalStorageIdentityRepository", () => {
   beforeEach(() => vi.stubGlobal("localStorage", new MemoryStorage()));
@@ -34,7 +34,7 @@ describe("LocalStorageIdentityRepository", () => {
     });
     expect(localStorage.getItem(`${IDENTITY_PREFIX}${FIRST_KEY}`)).toContain(FIRST_KEY);
     expect(localStorage.getItem(`${IDENTITY_PREFIX}${SECOND_KEY}`)).toContain(SECOND_KEY);
-    expect(localStorage.getItem("pubky-passport/local-identities/v2/active")).toBe(SECOND_KEY);
+    expect(localStorage.getItem("pubky-passport/local-identities/v1/active")).toBe(SECOND_KEY);
   });
 
   it("does not lose writes made through concurrent repository instances", () => {
@@ -63,7 +63,7 @@ describe("LocalStorageIdentityRepository", () => {
   it("repairs a stale active key and never returns a dead-end catalog", () => {
     const repository = new LocalStorageIdentityRepository();
     save(repository, FIRST_IDENTITY, 1);
-    localStorage.setItem("pubky-passport/local-identities/v2/active", SECOND_KEY);
+    localStorage.setItem("pubky-passport/local-identities/v1/active", SECOND_KEY);
 
     expect(expectResultOk(repository.list()).activePublicKeyZ32).toBe(FIRST_KEY);
   });
@@ -80,23 +80,6 @@ describe("LocalStorageIdentityRepository", () => {
     });
   });
 
-  it("migrates the legacy array while dropping duplicated display state", () => {
-    localStorage.setItem("pubky-passport/local-identities/v1", JSON.stringify({
-      v: 1,
-      activePublicKeyZ32: FIRST_KEY,
-      identities: [{
-        publicIdentity: { publicKeyZ32: FIRST_KEY, publicKeyDisplay: `pubky${FIRST_KEY}` },
-        secretKey: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
-      }],
-    }));
-
-    expect(expectResultOk(new LocalStorageIdentityRepository().list())).toEqual({
-      activePublicKeyZ32: FIRST_KEY,
-      identities: [{ publicIdentity: FIRST_IDENTITY }],
-    });
-    expect(localStorage.getItem(`${IDENTITY_PREFIX}${FIRST_KEY}`)).not.toContain("publicKeyDisplay");
-  });
-
   it("notifies subscribers for same-tab and browser storage changes", () => {
     const repository = new LocalStorageIdentityRepository();
     const listener = vi.fn();
@@ -110,9 +93,12 @@ describe("LocalStorageIdentityRepository", () => {
     expect(listener).toHaveBeenCalledTimes(2);
   });
 
-  it("rejects malformed records and input metadata", () => {
-    localStorage.setItem("pubky-passport/local-identities/v2/migrated", "1");
-    localStorage.setItem(`${IDENTITY_PREFIX}${FIRST_KEY}`, '{"v":2,"secretKey":"plaintext"}');
+  it("rejects incompatible records and invalid input metadata", () => {
+    localStorage.setItem(`${IDENTITY_PREFIX}${FIRST_KEY}`, JSON.stringify({
+      v: 2,
+      publicKeyZ32: FIRST_KEY,
+      secretKey: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+    }));
     expectResultError(new LocalStorageIdentityRepository().list(), { code: "invalid_store" });
 
     localStorage.clear();

@@ -14,16 +14,15 @@ const SENSITIVE_CANARIES = [
   GRANT_CLIENT_PUBLIC_KEY,
 ];
 const LOCAL_IDENTITY_PUBLIC_KEY = "tkrq8zmwb8a3m9k15csu3q17qmfgqnp9dskbrg9uq1rydpyxp7qy";
-const LOCAL_IDENTITY_STORAGE_KEY = `pubky-passport/local-identities/v2/identity/${LOCAL_IDENTITY_PUBLIC_KEY}`;
+const LOCAL_IDENTITY_STORAGE_KEY = `pubky-passport/local-identities/v1/identity/${LOCAL_IDENTITY_PUBLIC_KEY}`;
 const LOCAL_IDENTITY_STORAGE_VALUE = JSON.stringify({
-  v: 2,
+  v: 1,
   publicKeyZ32: LOCAL_IDENTITY_PUBLIC_KEY,
   secretKey: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
 });
 const LOCAL_IDENTITY_STORAGE = {
   [LOCAL_IDENTITY_STORAGE_KEY]: LOCAL_IDENTITY_STORAGE_VALUE,
-  "pubky-passport/local-identities/v2/active": LOCAL_IDENTITY_PUBLIC_KEY,
-  "pubky-passport/local-identities/v2/migrated": "1",
+  "pubky-passport/local-identities/v1/active": LOCAL_IDENTITY_PUBLIC_KEY,
 };
 
 test("shows manual authorization entry when no request was supplied", async ({ page }) => {

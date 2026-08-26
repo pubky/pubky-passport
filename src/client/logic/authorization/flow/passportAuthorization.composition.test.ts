@@ -29,6 +29,7 @@ import {
 } from "./PassportAuthorizationController";
 
 const RELAY_ORIGIN = "https://relay.example";
+const PUBLIC_KEY_Z32 = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
 
 describe("PassportAuthorizationController composition", () => {
   let controller: PassportAuthorizationController | undefined;
@@ -73,7 +74,10 @@ describe("PassportAuthorizationController composition", () => {
   });
 
   it("maps identity repository failures at the authorization composition boundary", async () => {
-    window.localStorage.setItem("pubky-passport/local-identities/v1", "invalid-store");
+    window.localStorage.setItem(
+      `pubky-passport/local-identities/v1/identity/${PUBLIC_KEY_Z32}`,
+      "invalid-store",
+    );
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
     controller = PassportAuthorizationController.fromBrowser();
 

@@ -19,22 +19,10 @@ import type {
 } from "./localIdentityModels";
 
 type StoredLocalIdentity = {
-  v: 2;
+  v: 1;
   publicKeyZ32: string;
   googleAccount?: GoogleAccountProfile;
   secretKey: string;
-};
-
-type LegacyStoredIdentity = {
-  publicIdentity: { publicKeyZ32: string; publicKeyDisplay: string };
-  googleAccount?: GoogleAccountProfile;
-  secretKey: string;
-};
-
-type LegacyStore = {
-  v: 1;
-  activePublicKeyZ32: string | null;
-  identities: LegacyStoredIdentity[];
 };
 
 export type LocalIdentityErrorCode =
@@ -45,11 +33,9 @@ export type LocalIdentityErrorCode =
 
 export type LocalIdentityResult<Success> = ResultType<Success, CodedFailure<LocalIdentityErrorCode>>;
 
-const LEGACY_STORAGE_KEY = "pubky-passport/local-identities/v1";
-const STORAGE_ROOT = "pubky-passport/local-identities/v2";
+const STORAGE_ROOT = "pubky-passport/local-identities/v1";
 const IDENTITY_KEY_PREFIX = `${STORAGE_ROOT}/identity/`;
 const ACTIVE_IDENTITY_KEY = `${STORAGE_ROOT}/active`;
-const MIGRATION_MARKER_KEY = `${STORAGE_ROOT}/migrated`;
 const SAME_TAB_LISTENERS = new Set<() => void>();
 
 /** Stores each identity independently so concurrent tabs cannot overwrite a shared array. */
@@ -57,8 +43,6 @@ export class LocalStorageIdentityRepository {
   list(): LocalIdentityResult<LocalIdentityCatalog> {
     const storage = getLocalStorage();
     if (!storage) return storageUnavailable("read");
-    const migrated = ensureMigrated(storage);
-    if (Result.isError(migrated)) return Result.err(migrated.error);
 
     const identities = readAllIdentities(storage);
     if (Result.isError(identities)) return Result.err(identities.error);
@@ -95,10 +79,8 @@ export class LocalStorageIdentityRepository {
 
     const storage = getLocalStorage();
     if (!storage) return storageUnavailable("write");
-    const migrated = ensureMigrated(storage);
-    if (Result.isError(migrated)) return Result.err(migrated.error);
     const stored: StoredLocalIdentity = {
-      v: 2,
+      v: 1,
       publicKeyZ32: identity.publicIdentity.publicKeyZ32,
       ...(identity.googleAccount ? { googleAccount: { ...identity.googleAccount } } : {}),
       secretKey: encodeBase64Url(secretKey.bytes),
@@ -117,8 +99,6 @@ export class LocalStorageIdentityRepository {
   select(publicKeyZ32: string): LocalIdentityResult<void> {
     const storage = getLocalStorage();
     if (!storage) return storageUnavailable("write");
-    const migrated = ensureMigrated(storage);
-    if (Result.isError(migrated)) return migrated;
     const identity = readIdentity(storage, publicKeyZ32);
     if (Result.isError(identity)) return Result.err(identity.error);
     if (!identity.value) return invalidIdentity("select");
@@ -131,8 +111,6 @@ export class LocalStorageIdentityRepository {
   remove(publicKeyZ32: string): LocalIdentityResult<void> {
     const storage = getLocalStorage();
     if (!storage) return storageUnavailable("write");
-    const migrated = ensureMigrated(storage);
-    if (Result.isError(migrated)) return migrated;
     const identity = readIdentity(storage, publicKeyZ32);
     if (Result.isError(identity)) return Result.err(identity.error);
     if (!identity.value) return invalidIdentity("remove");
@@ -158,8 +136,6 @@ export class LocalStorageIdentityRepository {
   }> {
     const storage = getLocalStorage();
     if (!storage) return storageUnavailable("read");
-    const migrated = ensureMigrated(storage);
-    if (Result.isError(migrated)) return Result.err(migrated.error);
     const stored = readIdentity(storage, publicKeyZ32);
     if (Result.isError(stored)) return Result.err(stored.error);
     if (!stored.value) return invalidIdentity("read_identity");
@@ -176,7 +152,6 @@ export class LocalStorageIdentityRepository {
     SAME_TAB_LISTENERS.add(listener);
     const onStorage = (event: StorageEvent) => {
       if (event.key === null
-        || event.key === LEGACY_STORAGE_KEY
         || event.key.startsWith(`${STORAGE_ROOT}/`)) listener();
     };
     globalThis.window?.addEventListener("storage", onStorage);
@@ -184,31 +159,6 @@ export class LocalStorageIdentityRepository {
       SAME_TAB_LISTENERS.delete(listener);
       globalThis.window?.removeEventListener("storage", onStorage);
     };
-  }
-}
-
-function ensureMigrated(storage: Storage): LocalIdentityResult<void> {
-  try {
-    if (storage.getItem(MIGRATION_MARKER_KEY) === "1") return Result.ok();
-    const legacyValue = storage.getItem(LEGACY_STORAGE_KEY);
-    if (!legacyValue) return Result.ok();
-
-    const legacy = parseLegacyStore(legacyValue);
-    if (!legacy) return invalidStore();
-    for (const identity of legacy.identities) {
-      const migrated: StoredLocalIdentity = {
-        v: 2,
-        publicKeyZ32: identity.publicIdentity.publicKeyZ32,
-        ...(identity.googleAccount ? { googleAccount: identity.googleAccount } : {}),
-        secretKey: identity.secretKey,
-      };
-      storage.setItem(identityStorageKey(migrated.publicKeyZ32), JSON.stringify(migrated));
-    }
-    writeActiveIdentityOrThrow(storage, legacy.activePublicKeyZ32);
-    storage.setItem(MIGRATION_MARKER_KEY, "1");
-    return Result.ok();
-  } catch (cause) {
-    return storageUnavailable("migrate", cause);
   }
 }
 
@@ -285,41 +235,8 @@ function isStoredIdentity(value: unknown): value is StoredLocalIdentity {
     && hasExactKeys(value, value.googleAccount === undefined
       ? ["v", "publicKeyZ32", "secretKey"]
       : ["v", "publicKeyZ32", "googleAccount", "secretKey"])
-    && value.v === 2
+    && value.v === 1
     && isPubkyPublicKey(value.publicKeyZ32)
-    && isEncodedSecretKey(value.secretKey)
-    && (value.googleAccount === undefined || isStoredGoogleAccountProfile(value.googleAccount));
-}
-
-function parseLegacyStore(value: string): LegacyStore | null {
-  try {
-    const parsed: unknown = JSON.parse(value);
-    if (!isRecord(parsed)
-      || !hasExactKeys(parsed, ["v", "activePublicKeyZ32", "identities"])
-      || parsed.v !== 1
-      || !Array.isArray(parsed.identities)
-      || !parsed.identities.every(isLegacyIdentity)
-      || (parsed.activePublicKeyZ32 !== null && !isPubkyPublicKey(parsed.activePublicKeyZ32))) return null;
-    const keys = new Set(parsed.identities.map((identity) => identity.publicIdentity.publicKeyZ32));
-    return keys.size === parsed.identities.length
-      && (parsed.activePublicKeyZ32 === null || keys.has(parsed.activePublicKeyZ32))
-      ? parsed as LegacyStore
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-function isLegacyIdentity(value: unknown): value is LegacyStoredIdentity {
-  if (!isRecord(value)
-    || !hasExactKeys(value, value.googleAccount === undefined
-      ? ["publicIdentity", "secretKey"]
-      : ["publicIdentity", "googleAccount", "secretKey"])
-    || !isRecord(value.publicIdentity)
-    || !hasExactKeys(value.publicIdentity, ["publicKeyZ32", "publicKeyDisplay"])) return false;
-  const publicKeyZ32 = value.publicIdentity.publicKeyZ32;
-  return isPubkyPublicKey(publicKeyZ32)
-    && value.publicIdentity.publicKeyDisplay === `pubky${publicKeyZ32}`
     && isEncodedSecretKey(value.secretKey)
     && (value.googleAccount === undefined || isStoredGoogleAccountProfile(value.googleAccount));
 }
