@@ -1,22 +1,38 @@
 import "client-only";
 
 import { Result } from "better-result";
+import { z } from "zod";
+
+import { isCanonicalBase64Url } from "../../../libs/encoding/base64Url";
 import { LOGGER } from "../../../libs/logger/logger";
 import { readBoundedText } from "../../../libs/http/boundedBody";
 import type { CodedFailure } from "../../../libs/result";
-import {
-  GOOGLE_WRAPPING_KEY_ERROR_SCHEMA,
-  type GoogleWrappingKeyApiErrorCode,
-  GOOGLE_WRAPPING_KEY_SUCCESS_SCHEMA,
-  type GoogleWrappingKey,
-} from "../../../libs/googleWrappingKeyApi";
+
+const ERROR_CODES = [
+  "invalid_request",
+  "invalid_google_id_token",
+  "key_unavailable",
+  "dependency_unavailable",
+  "internal_error",
+] as const;
+const KEY_ID_SCHEMA = z.string().regex(/^[A-Za-z0-9._-]{1,32}$/);
+const SUCCESS_SCHEMA = z.object({
+  wrappingKey: z.string().length(43).refine(isCanonicalBase64Url),
+  keyId: KEY_ID_SCHEMA,
+}).strict();
+const ERROR_SCHEMA = z.object({
+  error: z.object({ code: z.enum(ERROR_CODES) }).strict(),
+}).strict();
 
 export type GoogleWrappingKeyErrorCode =
-  | GoogleWrappingKeyApiErrorCode
+  | (typeof ERROR_CODES)[number]
   | "invalid_response"
   | "network_failed";
 
-export type GoogleWrappingKeyResult = Result<GoogleWrappingKey, CodedFailure<GoogleWrappingKeyErrorCode>>;
+export type GoogleWrappingKeyResult = Result<
+  { wrappingKey: string; keyId: string },
+  CodedFailure<GoogleWrappingKeyErrorCode>
+>;
 
 const MAXIMUM_RESPONSE_BYTES = 16 * 1024;
 
@@ -71,7 +87,7 @@ export class GoogleWrappingKeyApiClient {
     }
 
     if (!response.ok) {
-      const parsed = GOOGLE_WRAPPING_KEY_ERROR_SCHEMA.safeParse(body);
+      const parsed = ERROR_SCHEMA.safeParse(body);
       const code = parsed.success ? parsed.data.error.code : "invalid_response";
       LOGGER.warn("identity.google.wrapping_key.failed", {
         operation: "request_google_wrapping_key",
@@ -81,7 +97,7 @@ export class GoogleWrappingKeyApiClient {
       return Result.err({ code });
     }
 
-    const parsed = GOOGLE_WRAPPING_KEY_SUCCESS_SCHEMA.safeParse(body);
+    const parsed = SUCCESS_SCHEMA.safeParse(body);
     if (parsed.success && (!keyId || parsed.data.keyId === keyId)) {
       return Result.ok(parsed.data);
     }

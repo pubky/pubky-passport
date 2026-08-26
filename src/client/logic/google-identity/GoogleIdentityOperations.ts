@@ -16,7 +16,6 @@ import {
 import { GoogleDrivePassportFileStore } from "../passport-file/google/GoogleDrivePassportFileStore";
 import { GoogleDriveVisibleRecoveryCopies } from "../passport-file/google/GoogleDriveVisibleRecoveryCopies";
 import type { PassportFileEnvelope } from "../passport-file/passportFileEnvelope";
-import type { GoogleWrappingKey } from "../../../libs/googleWrappingKeyApi";
 import { PassportFileWebCrypto } from "../passport-file/PassportFileWebCrypto";
 import {
   PUBKY_SECRET_KEY_FORMAT,
@@ -161,7 +160,12 @@ export class GoogleIdentityOperations {
           storedFile.value.envelope,
         );
         if (Result.isError(wrappingKey)) return Result.err(wrappingKey.error);
-        return this.restoreIdentity(credentials, storedFile.value.envelope, wrappingKey.value, report);
+        return this.restoreIdentity(
+          credentials,
+          storedFile.value.envelope,
+          wrappingKey.value.wrappingKey,
+          report,
+        );
       }
 
       LOGGER.info("identity.google.drive_read.completed", { status: "missing" });
@@ -179,7 +183,8 @@ export class GoogleIdentityOperations {
       return this.createIdentity(
         credentials.googleAccount,
         invitation.value,
-        wrappingKey.value,
+        wrappingKey.value.wrappingKey,
+        wrappingKey.value.keyId,
         report,
         store,
         visibleCopies,
@@ -265,7 +270,8 @@ export class GoogleIdentityOperations {
   private async createIdentity(
     googleAccount: GoogleAccountProfile,
     invitation: HomeserverSignupInvitation,
-    wrappingKey: GoogleWrappingKey,
+    wrappingKey: string,
+    keyId: string,
     report: (progress: GoogleIdentityProgress) => void,
     store: GoogleDrivePassportFileStore,
     visibleCopies: GoogleDriveVisibleRecoveryCopies,
@@ -289,9 +295,9 @@ export class GoogleIdentityOperations {
       LOGGER.info("identity.google.encrypt.started");
       const encrypted = await this.crypto.encryptSecretKeyBytes(
         secretKey.value.bytes,
-        wrappingKey.wrappingKey,
+        wrappingKey,
         this.passportOrigin,
-        wrappingKey.keyId,
+        keyId,
       ).finally(() => {
         secretKey.value.bytes.fill(0);
       });
@@ -350,7 +356,7 @@ export class GoogleIdentityOperations {
   private async restoreIdentity(
     credentials: GoogleIdentityCredentials,
     envelope: PassportFileEnvelope,
-    wrappingKey: GoogleWrappingKey,
+    wrappingKey: string,
     report: (progress: GoogleIdentityProgress) => void,
   ): Promise<GoogleIdentityOperationResult> {
     report({ flow: "restore", step: "restoring" });
@@ -404,12 +410,12 @@ export class GoogleIdentityOperations {
   /** Decrypts exactly 32 secret bytes; the Pubky adapter consumes and clears them during restoration. */
   private async restoreKey(
     envelope: PassportFileEnvelope,
-    wrappingKey: GoogleWrappingKey,
+    wrappingKey: string,
   ): Promise<OperationResult<PubkyIdentityKey>> {
     LOGGER.info("identity.google.decrypt.started");
     const secretKey = await this.crypto.decryptSecretKeyBytes(
       envelope,
-      wrappingKey.wrappingKey,
+      wrappingKey,
       this.passportOrigin,
     );
     if (Result.isError(secretKey)) {
@@ -541,7 +547,7 @@ export class GoogleIdentityOperations {
   private async requestWrappingKey(
     googleIdToken: string,
     envelope?: PassportFileEnvelope,
-  ): Promise<OperationResult<GoogleWrappingKey>> {
+  ): Promise<OperationResult<{ wrappingKey: string; keyId: string }>> {
     LOGGER.info("identity.google.wrapping_key.started");
     const wrappingKey = await this.wrappingKeys.requestGoogleWrappingKey(
       googleIdToken,
@@ -575,7 +581,10 @@ export class GoogleIdentityOperations {
       if (Result.isError(wrappingKey)) {
         return Result.err({ code: "google_drive_cleanup_failed" });
       }
-      const restored = await this.restoreKey(storedFile.value.envelope, wrappingKey.value);
+      const restored = await this.restoreKey(
+        storedFile.value.envelope,
+        wrappingKey.value.wrappingKey,
+      );
       if (Result.isError(restored)) {
         return Result.err({ code: "google_drive_cleanup_failed" });
       }

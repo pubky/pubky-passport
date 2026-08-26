@@ -1,11 +1,15 @@
 import "server-only";
 
 import { Result, type Result as ResultType } from "better-result";
+import { z } from "zod";
 
 import { readBoundedText } from "../../../../libs/http/boundedBody";
-import { GOOGLE_WRAPPING_KEY_REQUEST_SCHEMA } from "../../../../libs/googleWrappingKeyApi";
 
 const MAXIMUM_GOOGLE_ID_TOKEN_REQUEST_BYTES = 16 * 1024;
+const REQUEST_SCHEMA = z.object({
+  googleIdToken: z.string().trim().min(1),
+  keyId: z.string().regex(/^[A-Za-z0-9._-]{1,32}$/).optional(),
+}).strict();
 
 export const GOOGLE_WRAPPING_KEY_RESPONSE_HEADERS = {
   "Cache-Control": "no-store",
@@ -31,7 +35,7 @@ export async function parseGoogleIdTokenRequest(
     return Result.err("invalid_request");
   }
 
-  const parsed = GOOGLE_WRAPPING_KEY_REQUEST_SCHEMA.safeParse(body);
+  const parsed = REQUEST_SCHEMA.safeParse(body);
   return parsed.success ? Result.ok(parsed.data) : Result.err("invalid_request");
 }
 

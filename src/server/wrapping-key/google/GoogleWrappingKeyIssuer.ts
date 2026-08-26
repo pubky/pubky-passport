@@ -2,7 +2,6 @@ import "server-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import type { GoogleWrappingKey } from "../../../libs/googleWrappingKeyApi";
 import { LOGGER } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
 import { getApplicationEnvironment } from "../../config/applicationEnvironment";
@@ -18,7 +17,7 @@ export type GoogleWrappingKeyIssueErrorCode =
   | "dependency_unavailable";
 
 export type GoogleWrappingKeyIssueResult = ResultType<
-  GoogleWrappingKey,
+  { wrappingKey: string; keyId: string },
   CodedFailure<GoogleWrappingKeyIssueErrorCode>
 >;
 

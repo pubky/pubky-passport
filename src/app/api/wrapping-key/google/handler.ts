@@ -6,14 +6,13 @@ import {
   GoogleWrappingKeyIssuer,
   type GoogleWrappingKeyIssueErrorCode,
 } from "../../../../server/wrapping-key/google/GoogleWrappingKeyIssuer";
-import type { GoogleWrappingKey } from "../../../../libs/googleWrappingKeyApi";
 import {
   GOOGLE_WRAPPING_KEY_RESPONSE_HEADERS,
   parseGoogleIdTokenRequest,
 } from "./routePolicy";
 
 type GoogleWrappingKeyRouteBody =
-  | GoogleWrappingKey
+  | { wrappingKey: string; keyId: string }
   | {
     error: {
       code: GoogleWrappingKeyIssueErrorCode | "invalid_request" | "internal_error";
