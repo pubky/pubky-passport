@@ -97,19 +97,6 @@ describe("parseEncodedPubkyAuthRequest", () => {
     expect(result.value).not.toHaveProperty("clientId");
   });
 
-  it("accepts x-source without exposing untrusted metadata in review", () => {
-    const request = `${VALID_REQUEST}&x-source=Pubky%20App`;
-
-    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
-
-    expect(Result.isOk(result)).toBe(true);
-    if (Result.isError(result)) {
-      throw new Error(result.error.code);
-    }
-
-    expect(JSON.stringify(result.value)).not.toContain("Pubky App");
-  });
-
   it.each([
     `${VALID_REQUEST}&relay=https://other-relay.example/inbox`,
     `${VALID_REQUEST}&secret=other-secret`,
@@ -117,15 +104,17 @@ describe("parseEncodedPubkyAuthRequest", () => {
     `${VALID_REQUEST}&x-success=https://other.example/success`,
     `${VALID_REQUEST}&x-error=https://other.example/error`,
     `${VALID_REQUEST}&x-cancel=https://other.example/cancel`,
-    `${VALID_REQUEST}&x-source=one&x-source=two`,
     `${VALID_REQUEST}&callback=https://pubky.app/one&callback=https://pubky.app/two`,
   ])("rejects duplicate supported parameters", (request) => {
     expectError(encodeRequest(request), "duplicate_parameter");
   });
 
-  it("rejects unsupported parameters", () => {
-    expectError(encodeRequest(`${VALID_REQUEST}&x-unreviewed=true`), "unsupported_parameter");
-  });
+  it.each(["x-source=Pubky%20App", "x-unreviewed=true"])(
+    "rejects unsupported parameter %s",
+    (parameter) => {
+      expectError(encodeRequest(`${VALID_REQUEST}&${parameter}`), "unsupported_parameter");
+    },
+  );
 
   it("rejects missing and empty d values", () => {
     expectError(undefined, "missing_d");
