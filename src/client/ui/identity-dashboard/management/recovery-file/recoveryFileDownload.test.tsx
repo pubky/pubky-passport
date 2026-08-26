@@ -3,6 +3,7 @@
 import { Result } from "better-result";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LOGGER } from "../../../../../libs/logger/logger";
@@ -19,14 +20,22 @@ describe("RecoveryFileDownload", () => {
     vi.restoreAllMocks();
   });
 
-  it("encrypts and downloads the recovery file with the entered password", async () => {
+  it("encrypts and downloads the recovery file under Strict Mode", async () => {
     const bytes = new Uint8Array([1, 2, 3]);
     const createRecoveryFile = vi.fn(async () => Result.ok({ bytes, fileName: "pubky-identity.pkarr" }));
     const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:backup");
     const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
     const onBack = vi.fn();
-    render(<RecoveryFileDownload createRecoveryFile={createRecoveryFile} publicKeyZ32="identity" onBack={onBack} />);
+    render(
+      <StrictMode>
+        <RecoveryFileDownload
+          createRecoveryFile={createRecoveryFile}
+          publicKeyZ32="identity"
+          onBack={onBack}
+        />
+      </StrictMode>,
+    );
 
     const download = screen.getByRole("button", { name: "Download backup" });
     const password = screen.getByLabelText("Enter strong password");

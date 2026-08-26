@@ -29,8 +29,11 @@ function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
   const activeRef = useRef(true);
   const validPassword = password.length >= MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS;
 
-  useEffect(() => () => {
-    activeRef.current = false;
+  useEffect(() => {
+    activeRef.current = true;
+    return () => {
+      activeRef.current = false;
+    };
   }, []);
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
