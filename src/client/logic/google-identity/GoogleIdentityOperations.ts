@@ -7,7 +7,7 @@ import type { CodedFailure } from "../../../libs/result";
 import type {
   GoogleAccountProfile,
 } from "../local-identity/localIdentityModels";
-import type { GoogleIdentityCredentials } from "./GoogleImplicitAuthorization";
+import type { GoogleIdentityCredentials } from "./gia/GoogleImplicitAuthorization";
 import {
   HomegateClient,
   type HomegateSignupInvitationErrorCode,

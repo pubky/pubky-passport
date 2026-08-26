@@ -8,7 +8,7 @@ import {
   GoogleImplicitAuthorization,
   type GoogleIdentityCredentials,
   type GoogleImplicitAuthorizationError,
-} from "./GoogleImplicitAuthorization";
+} from "./gia/GoogleImplicitAuthorization";
 import type { GoogleAccountProfile } from "../local-identity/localIdentityModels";
 import type { PubkyPublicIdentity } from "../pubky/pubkyIdentityKey";
 import {

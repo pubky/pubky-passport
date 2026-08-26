@@ -16,7 +16,7 @@ const MOCKS = vi.hoisted(() => ({
   requestAuthorization: vi.fn(),
 }));
 
-vi.mock("./GoogleImplicitAuthorization", () => ({
+vi.mock("./gia/GoogleImplicitAuthorization", () => ({
   GoogleImplicitAuthorization: class {
     request = MOCKS.requestAuthorization;
     dispose = MOCKS.disposeAuthorization;

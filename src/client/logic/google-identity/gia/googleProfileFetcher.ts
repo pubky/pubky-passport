@@ -2,8 +2,8 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { readBoundedText } from "../../../libs/http/boundedBody";
-import type { GoogleAccountProfile } from "../local-identity/localIdentityModels";
+import { readBoundedText } from "../../../../libs/http/boundedBody";
+import type { GoogleAccountProfile } from "../../local-identity/localIdentityModels";
 
 const GOOGLE_USER_INFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 const MAXIMUM_USER_INFO_BYTES = 16 * 1024;

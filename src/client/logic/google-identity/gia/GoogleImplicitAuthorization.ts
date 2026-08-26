@@ -2,11 +2,11 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { encodeBase64Url } from "../../../libs/encoding/base64Url";
-import { LOGGER } from "../../../libs/logger/logger";
-import type { CodedFailure } from "../../../libs/result";
-import { GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE } from "../../../libs/authorization/earlyGoogleImplicitResponse";
-import type { GoogleAccountProfile } from "../local-identity/localIdentityModels";
+import { encodeBase64Url } from "../../../../libs/encoding/base64Url";
+import { LOGGER } from "../../../../libs/logger/logger";
+import type { CodedFailure } from "../../../../libs/result";
+import { GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE } from "../../../../libs/authorization/earlyGoogleImplicitResponse";
+import type { GoogleAccountProfile } from "../../local-identity/localIdentityModels";
 import {
   GOOGLE_AUTHORIZATION_SCOPE,
   parseGoogleAuthorizationResponse,

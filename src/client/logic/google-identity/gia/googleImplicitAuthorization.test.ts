@@ -3,10 +3,10 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../test-utils/MemoryStorage";
-import { encodeBase64Url } from "../../../libs/encoding/base64Url";
-import { GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE } from "../../../libs/authorization/earlyGoogleImplicitResponse";
-import { LOGGER } from "../../../libs/logger/logger";
+import { MemoryStorage } from "../../../../../test-utils/MemoryStorage";
+import { encodeBase64Url } from "../../../../libs/encoding/base64Url";
+import { GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE } from "../../../../libs/authorization/earlyGoogleImplicitResponse";
+import { LOGGER } from "../../../../libs/logger/logger";
 import { GoogleImplicitAuthorization } from "./GoogleImplicitAuthorization";
 
 const ORIGIN = "https://passport.example";
