@@ -206,7 +206,6 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
           code: storedFile.error.code === "invalid_file"
             ? "invalid_passport_file"
             : "drive_read_failed",
-          cause: storedFile.error,
         });
       }
 
@@ -240,11 +239,11 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
         store,
         visibleCopies,
       );
-    } catch (error) {
+    } catch {
       LOGGER.warn("identity.google.restore_or_create.failed", {
         code: "unexpected_failure",
       });
-      return Result.err({ code: "unexpected_failure", cause: error });
+      return Result.err({ code: "unexpected_failure" });
     }
   }
 
@@ -259,17 +258,15 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
       if (Result.isError(deleted)) {
         return Result.err({
           code: "invalid_passport_file_delete_failed",
-          cause: deleted.error,
         });
       }
       return this.establishIdentity(credentials, report);
-    } catch (error) {
+    } catch {
       LOGGER.warn("identity.google.invalid_passport_file_replacement.failed", {
         code: "unexpected_failure",
       });
       return Result.err({
         code: "invalid_passport_file_delete_failed",
-        cause: error,
       });
     }
   }
@@ -293,13 +290,13 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
 
       const removed = this.repository.remove(publicIdentity.publicKeyZ32);
       return Result.isError(removed)
-        ? Result.err({ code: "local_remove_failed", cause: removed.error })
+        ? Result.err({ code: "local_remove_failed" })
         : Result.ok();
-    } catch (error) {
+    } catch {
       LOGGER.warn("identity.google.detach.failed", {
         code: "unexpected_failure",
       });
-      return Result.err({ code: "unexpected_failure", cause: error });
+      return Result.err({ code: "unexpected_failure" });
     }
   }
 
@@ -332,14 +329,14 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
     LOGGER.info("identity.google.create_key.started");
     const created = await this.pubky.createIdentityKey();
     if (Result.isError(created)) {
-      return Result.err({ code: "create_failed", cause: created.error });
+      return Result.err({ code: "create_failed" });
     }
     LOGGER.info("identity.google.create_key.completed");
 
     try {
       const secretKey = await this.pubky.exportSecretKey(created.value.keyHandle);
       if (Result.isError(secretKey)) {
-        return Result.err({ code: "create_failed", cause: secretKey.error });
+        return Result.err({ code: "create_failed" });
       }
 
       let visibleRecoveryCopyStatus: "created" | "unconfirmed" = "created";
@@ -354,7 +351,7 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
         secretKey.value.bytes.fill(0);
       });
       if (Result.isError(encrypted)) {
-        return Result.err({ code: "encrypt_failed", cause: encrypted.error });
+        return Result.err({ code: "encrypt_failed" });
       }
       const envelope = encrypted.value;
       LOGGER.info("identity.google.encrypt.completed");
@@ -366,7 +363,6 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
           code: written.error.code === "create_conflict"
             ? "drive_create_conflict"
             : "drive_write_failed",
-          cause: written.error,
         });
       }
       LOGGER.info("identity.google.operational_drive_write.completed");
@@ -434,10 +430,10 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
         restored.value.publicIdentity.publicKeyZ32,
       );
       if (Result.isError(homeserver)) {
-        return Result.err({ code: "signin_failed", cause: homeserver.error });
+        return Result.err({ code: "signin_failed" });
       }
       if (homeserver.value !== null) {
-        return Result.err({ code: "signin_failed", cause: signedIn.error });
+        return Result.err({ code: "signin_failed" });
       }
 
       report({ flow: "repair", step: "signing_up" });
@@ -472,7 +468,7 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
       this.passportOrigin,
     );
     if (Result.isError(secretKey)) {
-      return Result.err({ code: "decrypt_failed", cause: secretKey.error });
+      return Result.err({ code: "decrypt_failed" });
     }
 
     const restored = await this.pubky.restoreIdentityKey({
@@ -480,7 +476,7 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
       format: PUBKY_SECRET_KEY_FORMAT,
     });
     if (Result.isError(restored)) {
-      return Result.err({ code: "restore_failed", cause: restored.error });
+      return Result.err({ code: "restore_failed" });
     }
     LOGGER.info("identity.google.restore.completed");
     return Result.ok(restored.value);
@@ -508,7 +504,7 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
     if (Result.isError(signedUp)
       && signedUp.error.code !== "account_exists"
       && signedUp.error.code !== "signup_uncertain") {
-      return Result.err({ code: "signup_failed", cause: signedUp.error });
+      return Result.err({ code: "signup_failed" });
     }
     const signupWasUncertain = Result.isError(signedUp)
       && signedUp.error.code === "signup_uncertain";
@@ -525,7 +521,7 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
       invitation.homeserverPubky,
     );
     if (Result.isError(published) && published.error.code !== "publish_failed") {
-      return Result.err({ code: "publication_failed", cause: published.error });
+      return Result.err({ code: "publication_failed" });
     }
     const publicationWasUncertain = Result.isError(published);
     if (!publicationWasUncertain) LOGGER.info("identity.google.publication.completed");
@@ -539,7 +535,6 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
         code: signupWasUncertain
           ? "signup_failed"
           : publicationWasUncertain ? "publication_failed" : "signin_failed",
-        cause: signedIn.error,
       });
     }
     const verified = this.verifySessionIdentity(identity, signedIn.value.publicIdentity);
@@ -566,7 +561,7 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
     LOGGER.info("identity.local_save.started", { activation });
     const secretKey = await this.pubky.exportSecretKey(identity.keyHandle);
     if (Result.isError(secretKey)) {
-      return Result.err({ code: "local_save_failed", cause: secretKey.error });
+      return Result.err({ code: "local_save_failed" });
     }
     try {
       const saved = this.repository.save({
@@ -574,7 +569,7 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
         googleAccount,
       }, secretKey.value);
       if (Result.isError(saved)) {
-        return Result.err({ code: "local_save_failed", cause: saved.error });
+        return Result.err({ code: "local_save_failed" });
       }
       LOGGER.info("identity.local_save.completed", { activation });
       return Result.ok();
@@ -592,7 +587,6 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
       return Result.err({
         code: "homeserver_signup_invitation_failed",
         detailCode: invitation.error.code,
-        cause: invitation.error,
       });
     }
     LOGGER.info("identity.google.homeserver_signup_invitation.completed");
@@ -612,7 +606,6 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
       return Result.err({
         code: "wrapping_key_failed",
         detailCode: wrappingKey.error.code,
-        cause: wrappingKey.error,
       });
     }
     LOGGER.info("identity.google.wrapping_key.completed");
@@ -626,7 +619,7 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
     const store = new GoogleDrivePassportFileStore(credentials.driveAccessToken, this.fetch);
     const storedFile = await store.readPassportFile();
     if (Result.isError(storedFile)) {
-      return Result.err({ code: "google_drive_cleanup_failed", cause: storedFile.error });
+      return Result.err({ code: "google_drive_cleanup_failed" });
     }
 
     if (storedFile.value.status === "found") {
@@ -635,11 +628,11 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
         storedFile.value.envelope.v === 2 ? storedFile.value.envelope.kid : undefined,
       );
       if (Result.isError(wrappingKey)) {
-        return Result.err({ code: "google_drive_cleanup_failed", cause: wrappingKey.error });
+        return Result.err({ code: "google_drive_cleanup_failed" });
       }
       const restored = await this.restoreKey(storedFile.value.envelope, wrappingKey.value);
       if (Result.isError(restored)) {
-        return Result.err({ code: "google_drive_cleanup_failed", cause: restored.error });
+        return Result.err({ code: "google_drive_cleanup_failed" });
       }
       try {
         if (restored.value.publicIdentity.publicKeyZ32 !== publicIdentity.publicKeyZ32) {
@@ -662,13 +655,13 @@ class ScreenGoogleIdentityContext implements GoogleIdentityContext {
       publicIdentity,
     );
     if (Result.isError(deletedVisibleCopies)) {
-      return Result.err({ code: "google_drive_cleanup_failed", cause: deletedVisibleCopies.error });
+      return Result.err({ code: "google_drive_cleanup_failed" });
     }
     if (storedFile.value.status === "missing") return Result.ok();
 
     const deleted = await store.deletePassportFile(storedFile.value.reference);
     return Result.isError(deleted)
-      ? Result.err({ code: "google_drive_cleanup_failed", cause: deleted.error })
+      ? Result.err({ code: "google_drive_cleanup_failed" })
       : Result.ok();
   }
 
