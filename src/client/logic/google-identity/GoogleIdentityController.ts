@@ -90,18 +90,30 @@ export type GoogleIdentitySession = {
   dispose(): void;
 };
 
+export type GoogleIdentitySessionDependencies = {
+  authorization: Pick<GoogleImplicitAuthorization, "dispose" | "request">;
+  context: GoogleIdentityContext;
+  establish: typeof establishGoogleIdentity;
+  replaceInvalidFile: typeof replaceInvalidGooglePassportFile;
+  detach: typeof detachGoogleIdentity;
+};
+
 /** Creates the single lifecycle owner for one Google identity screen. */
 export function createGoogleIdentitySession(
   googleClientId: string,
   homegateBaseUrl: string,
   onState: (state: GoogleIdentityViewState) => void,
+  dependencies?: GoogleIdentitySessionDependencies,
 ): GoogleIdentitySession {
-  return new ScreenGoogleIdentitySession(googleClientId, homegateBaseUrl, onState);
+  return new ScreenGoogleIdentitySession(googleClientId, homegateBaseUrl, onState, dependencies);
 }
 
 class ScreenGoogleIdentitySession implements GoogleIdentitySession {
-  private readonly googleAuthorization: GoogleImplicitAuthorization;
+  private readonly googleAuthorization: GoogleIdentitySessionDependencies["authorization"];
   private readonly context: GoogleIdentityContext;
+  private readonly establish: typeof establishGoogleIdentity;
+  private readonly replaceInvalidFile: typeof replaceInvalidGooglePassportFile;
+  private readonly detach: typeof detachGoogleIdentity;
   private operationsDisposed = false;
   private operationPending = false;
   private googleSubject: string | undefined;
@@ -111,13 +123,19 @@ class ScreenGoogleIdentitySession implements GoogleIdentitySession {
     googleClientId: string,
     homegateBaseUrl: string,
     private readonly onState: (state: GoogleIdentityViewState) => void,
+    dependencies?: GoogleIdentitySessionDependencies,
   ) {
     try {
-      this.googleAuthorization = new GoogleImplicitAuthorization(googleClientId);
-      this.context = createGoogleIdentityContext(
+      this.googleAuthorization = dependencies?.authorization
+        ?? new GoogleImplicitAuthorization(googleClientId);
+      this.context = dependencies?.context ?? createGoogleIdentityContext(
         homegateBaseUrl,
         globalThis.location.origin,
       );
+      this.establish = dependencies?.establish ?? establishGoogleIdentity;
+      this.replaceInvalidFile = dependencies?.replaceInvalidFile
+        ?? replaceInvalidGooglePassportFile;
+      this.detach = dependencies?.detach ?? detachGoogleIdentity;
     } catch {
       LOGGER.error("identity.google.controller.failed", {
         operation: "initialize",
@@ -150,8 +168,8 @@ class ScreenGoogleIdentitySession implements GoogleIdentitySession {
     try {
       const progress = this.createProgressReporter();
       const establishment = operation === "establish"
-        ? establishGoogleIdentity(this.context, authorized.value, progress.report)
-        : replaceInvalidGooglePassportFile(this.context, authorized.value, progress.report);
+        ? this.establish(this.context, authorized.value, progress.report)
+        : this.replaceInvalidFile(this.context, authorized.value, progress.report);
       const established = await establishment.finally(() => {
         progress.stop();
       });
@@ -217,7 +235,7 @@ class ScreenGoogleIdentitySession implements GoogleIdentitySession {
 
     try {
       this.setViewState({ status: "detaching" });
-      const detached = await detachGoogleIdentity(
+      const detached = await this.detach(
         this.context,
         authorized.value,
         publicIdentity,

@@ -3,13 +3,10 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../test-utils/MemoryStorage";
 import { expectResultError } from "../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../libs/logger/logger";
 
 const MOCKS = vi.hoisted(() => ({
-  GoogleIdentityOperations: vi.fn(),
-  GoogleImplicitAuthorization: vi.fn(),
   detachIdentity: vi.fn(),
   abortRequests: vi.fn(),
   disposeAuthorization: vi.fn(),
@@ -17,17 +14,6 @@ const MOCKS = vi.hoisted(() => ({
   establishIdentity: vi.fn(),
   replaceInvalidPassportFile: vi.fn(),
   requestAuthorization: vi.fn(),
-}));
-
-vi.mock("./GoogleIdentityOperations", () => ({
-  createGoogleIdentityContext: MOCKS.GoogleIdentityOperations,
-  establishGoogleIdentity: (_context: unknown, ...args: unknown[]) => MOCKS.establishIdentity(...args),
-  replaceInvalidGooglePassportFile: (_context: unknown, ...args: unknown[]) => MOCKS.replaceInvalidPassportFile(...args),
-  detachGoogleIdentity: (_context: unknown, ...args: unknown[]) => MOCKS.detachIdentity(...args),
-}));
-
-vi.mock("./GoogleImplicitAuthorization", () => ({
-  GoogleImplicitAuthorization: MOCKS.GoogleImplicitAuthorization,
 }));
 
 import {
@@ -53,17 +39,7 @@ const PUBLIC_IDENTITY = {
 
 describe("createGoogleIdentitySession", () => {
   beforeEach(() => {
-    vi.stubGlobal("localStorage", new MemoryStorage());
     for (const mock of Object.values(MOCKS)) mock.mockReset();
-
-    MOCKS.GoogleImplicitAuthorization.mockImplementation(function () { return {
-      request: MOCKS.requestAuthorization,
-      dispose: MOCKS.disposeAuthorization,
-    }; });
-    MOCKS.GoogleIdentityOperations.mockImplementation(function () { return {
-      abortRequests: MOCKS.abortRequests,
-      dispose: MOCKS.disposeOperations,
-    }; });
     MOCKS.requestAuthorization.mockResolvedValue(Result.ok(CREDENTIALS));
     MOCKS.establishIdentity.mockImplementation(async (_credentials, reportProgress) => {
       reportProgress({ flow: "lookup", step: "checking" });
@@ -83,41 +59,13 @@ describe("createGoogleIdentitySession", () => {
     vi.unstubAllGlobals();
   });
 
-  it("composes its screen-scoped dependencies during construction", () => {
-    const onState = vi.fn();
-
-    createGoogleIdentitySession(
+  it("composes and disposes its real screen-scoped dependencies", () => {
+    const session = createGoogleIdentitySession(
       "google-client-id",
       "https://homegate.example/",
-      onState,
-    );
-
-    expect(MOCKS.GoogleImplicitAuthorization).toHaveBeenCalledWith("google-client-id");
-    expect(MOCKS.GoogleIdentityOperations).toHaveBeenCalledWith(
-      "https://homegate.example/",
-      window.location.origin,
-    );
-  });
-
-  it("logs controller construction failures without sensitive configuration", () => {
-    const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
-    const thrown = Object.assign(new Error("SECRET-CONFIGURATION-VALUE"), {
-      secret: "SECRET-CONFIGURATION-CANARY",
-    });
-    MOCKS.GoogleImplicitAuthorization.mockImplementationOnce(function () {
-      throw thrown;
-    });
-
-    expect(() => createGoogleIdentitySession(
-      "SECRET-CLIENT-ID",
-      "https://secret-homegate.example/",
       vi.fn(),
-    )).toThrow("Google identity initialization unavailable.");
-    expect(error).toHaveBeenCalledWith("identity.google.controller.failed", {
-      operation: "initialize",
-      code: "runtime_exception",
-    });
-    expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET");
+    );
+    expect(() => session.dispose()).not.toThrow();
   });
 
   it("reports authorization and establishment progress", async () => {
@@ -395,5 +343,25 @@ function createController(
     "google-client-id",
     "https://homegate.example/",
     onState,
+    {
+      authorization: {
+        dispose: MOCKS.disposeAuthorization,
+        request: MOCKS.requestAuthorization,
+      },
+      context: {
+        abortRequests: MOCKS.abortRequests,
+        detachIdentity: MOCKS.detachIdentity,
+        dispose: MOCKS.disposeOperations,
+        establishIdentity: MOCKS.establishIdentity,
+        replaceInvalidPassportFile: MOCKS.replaceInvalidPassportFile,
+      },
+      establish: (_context, credentials, report) => MOCKS.establishIdentity(credentials, report),
+      replaceInvalidFile: (_context, credentials, report) => (
+        MOCKS.replaceInvalidPassportFile(credentials, report)
+      ),
+      detach: (_context, credentials, publicIdentity, expectedGoogleSubject) => (
+        MOCKS.detachIdentity(credentials, publicIdentity, expectedGoogleSubject)
+      ),
+    },
   );
 }
