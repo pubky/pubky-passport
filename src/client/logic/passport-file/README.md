@@ -27,5 +27,5 @@ Pubky identities, or activate homeserver sessions.
 - Visible-copy failures do not block activation, but cleanup failures preserve the
   local identity for retry.
 
-`GoogleIdentityOperations` composes these adapters. End-to-end behavior is documented
-in [`FLOWS.md`](../../../../FLOWS.md).
+The screen-scoped Google identity context composes these adapters. End-to-end
+behavior is documented in [`FLOWS.md`](../../../../FLOWS.md).
