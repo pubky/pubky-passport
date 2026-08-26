@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { LOGGER } from "../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
 import {
   GoogleImplicitAuthorization,
@@ -94,12 +94,13 @@ export class GoogleIdentityController {
         homegateBaseUrl,
         globalThis.location.origin,
       );
-    } catch {
+    } catch (cause) {
       LOGGER.error("identity.google.controller.failed", {
         operation: "initialize",
         code: "runtime_exception",
+        ...safeErrorLogFields(cause),
       });
-      throw new Error("Google identity initialization unavailable.");
+      throw new Error("Google identity initialization unavailable.", { cause });
     }
   }
 
@@ -136,6 +137,7 @@ export class GoogleIdentityController {
         LOGGER.warn("identity.google.action.failed", {
           operation,
           code: established.error.code,
+          ...safeErrorLogFields(established.error),
         });
         if (this.disposed) return Result.err({ code: "cancelled" });
         return Result.err(withoutCause(established.error));
@@ -158,10 +160,11 @@ export class GoogleIdentityController {
             publicIdentity: established.value.publicIdentity,
           });
       }
-    } catch {
+    } catch (cause) {
       LOGGER.warn("identity.google.action.failed", {
         operation,
         code: "unexpected_failure",
+        ...safeErrorLogFields(cause),
       });
       return this.disposed
         ? Result.err({ code: "cancelled" })
@@ -199,13 +202,20 @@ export class GoogleIdentityController {
         expectedGoogleSubject,
       );
       if (this.disposed) return Result.err({ code: "cancelled" });
-      return Result.isError(detached)
-        ? Result.err(withoutCause(detached.error))
-        : Result.ok();
-    } catch {
+      if (Result.isError(detached)) {
+        LOGGER.warn("identity.google.action.failed", {
+          operation: "detach",
+          code: detached.error.code,
+          ...safeErrorLogFields(detached.error),
+        });
+        return Result.err(withoutCause(detached.error));
+      }
+      return Result.ok();
+    } catch (cause) {
       LOGGER.warn("identity.google.action.failed", {
         operation: "detach",
         code: "unexpected_failure",
+        ...safeErrorLogFields(cause),
       });
       return this.disposed
         ? Result.err({ code: "cancelled" })
@@ -222,9 +232,10 @@ export class GoogleIdentityController {
     this.googleSubject = undefined;
     try {
       this.googleAuthorization.dispose();
-    } catch {
+    } catch (cause) {
       LOGGER.warn("identity.google.cleanup.failed", {
         operation: "authorization_dispose",
+        ...safeErrorLogFields(cause),
       });
     } finally {
       this.operations.abortRequests();
@@ -259,7 +270,7 @@ export class GoogleIdentityController {
       }
       this.googleSubject ??= credentials.value.googleAccount.googleSubject;
       return Result.ok(credentials.value);
-    } catch {
+    } catch (cause) {
       this.operationPending = false;
       if (this.disposed) {
         this.disposeOperationsOnce();
@@ -268,6 +279,7 @@ export class GoogleIdentityController {
       LOGGER.warn("identity.google.authorization.failed", {
         operation: "request_credentials",
         code: "authorization_failed",
+        ...safeErrorLogFields(cause),
       });
       return Result.err({ code: "authorization_failed" });
     }
@@ -300,9 +312,10 @@ export class GoogleIdentityController {
     this.operationsDisposed = true;
     try {
       this.operations.dispose();
-    } catch {
+    } catch (cause) {
       LOGGER.warn("identity.google.cleanup.failed", {
         operation: "pubky_dispose",
+        ...safeErrorLogFields(cause),
       });
     }
   }
@@ -311,9 +324,10 @@ export class GoogleIdentityController {
     if (this.disposed) return;
     try {
       this.onState(state);
-    } catch {
+    } catch (cause) {
       LOGGER.warn("identity.google.state_listener.failed", {
         state: state.status,
+        ...safeErrorLogFields(cause),
       });
     }
   }

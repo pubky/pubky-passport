@@ -2,7 +2,7 @@ import "server-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { LOGGER } from "../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
 import { getApplicationEnvironment } from "../../config/applicationEnvironment";
 import {
@@ -50,6 +50,7 @@ export class GoogleWrappingKeyIssuer {
         layer: "server",
         operation: "verify",
         code: "dependency_unavailable",
+        ...safeErrorLogFields(cause),
       });
       return Result.err({ code: "dependency_unavailable", cause });
     }
@@ -75,6 +76,7 @@ export class GoogleWrappingKeyIssuer {
         layer: "server",
         operation: "derive",
         code: "dependency_unavailable",
+        ...safeErrorLogFields(cause),
       });
       return Result.err({ code: "dependency_unavailable", cause });
     }

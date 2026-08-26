@@ -135,9 +135,11 @@ describe("GoogleIdentityController", () => {
       publicIdentity: PUBLIC_IDENTITY,
     }));
 
-    expect(warning).toHaveBeenCalledWith("identity.google.state_listener.failed", {
+    expect(warning).toHaveBeenCalledWith("identity.google.state_listener.failed", expect.objectContaining({
       state: "requesting-authorization",
-    });
+      diagnosticId: expect.any(String),
+      errorName: "Error",
+    }));
     expect(JSON.stringify(warning.mock.calls)).not.toContain("sensitive-state-listener");
   });
 

@@ -14,6 +14,7 @@ const SECOND_KEY = "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo";
 const FIRST_IDENTITY = { publicKeyZ32: FIRST_KEY };
 const SECOND_IDENTITY = { publicKeyZ32: SECOND_KEY };
 const IDENTITY_PREFIX = "pubky-passport/local-identities/v1/identity/";
+const ACTIVE_IDENTITY_KEY = "pubky-passport/local-identities/v1/active";
 
 describe("LocalStorageIdentityRepository", () => {
   beforeEach(() => vi.stubGlobal("localStorage", new MemoryStorage()));
@@ -91,6 +92,131 @@ describe("LocalStorageIdentityRepository", () => {
     save(repository, SECOND_IDENTITY, 2);
 
     expect(listener).toHaveBeenCalledTimes(2);
+  });
+
+  it("isolates a throwing subscriber from mutations and other subscribers", () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const repository = new LocalStorageIdentityRepository();
+    const healthyListener = vi.fn();
+    const unsubscribeThrowing = repository.subscribe(() => { throw new TypeError("listener failed"); });
+    const unsubscribeHealthy = repository.subscribe(healthyListener);
+
+    expectResultOk(repository.save({ publicIdentity: FIRST_IDENTITY }, secret(1)));
+    expectResultOk(repository.select(FIRST_KEY));
+
+    expect(healthyListener).toHaveBeenCalledTimes(2);
+    expect(warning).toHaveBeenCalledWith("identity.local_store.listener.failed", expect.objectContaining({
+      source: "same_tab",
+      diagnosticId: expect.any(String),
+      errorName: "TypeError",
+    }));
+    unsubscribeThrowing();
+    unsubscribeHealthy();
+  });
+
+  it("rolls back an identity write when selecting it as active fails", () => {
+    const repository = new LocalStorageIdentityRepository();
+    const first = save(repository, FIRST_IDENTITY, 1);
+    const storage = localStorage as MemoryStorage;
+    const setItem = storage.setItem.bind(storage);
+    const writeFailure = new DOMException("quota", "QuotaExceededError");
+    let rejectActiveWrite = true;
+    vi.spyOn(storage, "setItem").mockImplementation((key, value) => {
+      if (key === ACTIVE_IDENTITY_KEY && rejectActiveWrite) {
+        rejectActiveWrite = false;
+        throw writeFailure;
+      }
+      setItem(key, value);
+    });
+
+    expectResultError(repository.save({ publicIdentity: SECOND_IDENTITY }, secret(2)), {
+      code: "storage_unavailable",
+      cause: writeFailure,
+    });
+
+    expect(expectResultOk(repository.list())).toEqual({
+      activePublicKeyZ32: FIRST_KEY,
+      identities: [first],
+    });
+    expect(storage.getItem(`${IDENTITY_PREFIX}${SECOND_KEY}`)).toBeNull();
+  });
+
+  it("preserves the catalog when writing the identity record fails", () => {
+    const repository = new LocalStorageIdentityRepository();
+    const first = save(repository, FIRST_IDENTITY, 1);
+    const storage = localStorage as MemoryStorage;
+    const setItem = storage.setItem.bind(storage);
+    const writeFailure = new DOMException("quota", "QuotaExceededError");
+    let rejectIdentityWrite = true;
+    vi.spyOn(storage, "setItem").mockImplementation((key, value) => {
+      if (key === `${IDENTITY_PREFIX}${SECOND_KEY}` && rejectIdentityWrite) {
+        rejectIdentityWrite = false;
+        throw writeFailure;
+      }
+      setItem(key, value);
+    });
+
+    expectResultError(repository.save({ publicIdentity: SECOND_IDENTITY }, secret(2)), {
+      code: "storage_unavailable",
+      cause: writeFailure,
+    });
+    expect(expectResultOk(repository.list())).toEqual({
+      activePublicKeyZ32: FIRST_KEY,
+      identities: [first],
+    });
+  });
+
+  it("rolls back active selection when removing its identity fails", () => {
+    const repository = new LocalStorageIdentityRepository();
+    const first = save(repository, FIRST_IDENTITY, 1);
+    const second = save(repository, SECOND_IDENTITY, 2);
+    const storage = localStorage as MemoryStorage;
+    const removeItem = storage.removeItem.bind(storage);
+    const removeFailure = new DOMException("unavailable", "SecurityError");
+    let rejectIdentityRemoval = true;
+    vi.spyOn(storage, "removeItem").mockImplementation((key) => {
+      if (key === `${IDENTITY_PREFIX}${SECOND_KEY}` && rejectIdentityRemoval) {
+        rejectIdentityRemoval = false;
+        throw removeFailure;
+      }
+      removeItem(key);
+    });
+
+    expectResultError(repository.remove(SECOND_KEY), {
+      code: "storage_unavailable",
+      cause: removeFailure,
+    });
+
+    expect(expectResultOk(repository.list())).toEqual({
+      activePublicKeyZ32: SECOND_KEY,
+      identities: [first, second],
+    });
+  });
+
+  it("preserves the identity when selecting its replacement fails", () => {
+    const repository = new LocalStorageIdentityRepository();
+    const first = save(repository, FIRST_IDENTITY, 1);
+    const second = save(repository, SECOND_IDENTITY, 2);
+    const storage = localStorage as MemoryStorage;
+    const setItem = storage.setItem.bind(storage);
+    const writeFailure = new DOMException("unavailable", "SecurityError");
+    let rejectActiveWrite = true;
+    vi.spyOn(storage, "setItem").mockImplementation((key, value) => {
+      if (key === ACTIVE_IDENTITY_KEY && rejectActiveWrite) {
+        rejectActiveWrite = false;
+        throw writeFailure;
+      }
+      setItem(key, value);
+    });
+
+    expectResultError(repository.remove(SECOND_KEY), {
+      code: "storage_unavailable",
+      cause: writeFailure,
+    });
+    expect(expectResultOk(repository.list())).toEqual({
+      activePublicKeyZ32: SECOND_KEY,
+      identities: [first, second],
+    });
   });
 
   it("rejects incompatible records and invalid input metadata", () => {

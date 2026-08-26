@@ -268,7 +268,7 @@ describe("Google identity use cases", () => {
     if (stage === "wrapping-key") expect(MOCKS.requestInvitation).not.toHaveBeenCalled();
   });
 
-  it("translates lower failures without exposing diagnostic causes", async () => {
+  it("translates lower failures while retaining internal diagnostic causes", async () => {
     const diagnosticCanary = { secret: "TRANSLATED-CAUSE-CANARY" };
     const lowerFailure = {
       code: "network_failed" as const,
@@ -282,10 +282,10 @@ describe("Google identity use cases", () => {
       { code: "wrapping_key_failed", detailCode: "network_failed" },
     );
 
-    expect(failure).not.toHaveProperty("cause");
+    expect(failure.cause).toBe(lowerFailure);
   });
 
-  it("classifies broad exceptions without exposing or logging details", async () => {
+  it("classifies broad exceptions without logging their details", async () => {
     const thrown = { secret: "BROAD-CATCH-CANARY" };
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     MOCKS.readPassportFile.mockRejectedValue(thrown);
@@ -295,7 +295,7 @@ describe("Google identity use cases", () => {
       { code: "unexpected_failure" },
     );
 
-    expect(failure).not.toHaveProperty("cause");
+    expect(failure.cause).toBe(thrown);
     expect(JSON.stringify(warning.mock.calls)).not.toContain("BROAD-CATCH-CANARY");
   });
 
@@ -758,7 +758,7 @@ describe("Google identity use cases", () => {
       PUBLIC_IDENTITY,
       CREDENTIALS.googleAccount.googleSubject,
     ), { code: "google_drive_cleanup_failed" });
-    expect(failure).not.toHaveProperty("cause");
+    expect(failure.cause).toBe(lowerFailure);
     expect(JSON.stringify(warning.mock.calls)).not.toContain("DRIVE-CLEANUP-CAUSE-CANARY");
     expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
     expect(remove).not.toHaveBeenCalled();

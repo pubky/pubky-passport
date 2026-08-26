@@ -1,6 +1,8 @@
 import Image from "next/image";
+import { Result } from "better-result";
 import { useState } from "react";
 
+import type { LocalIdentityResult } from "../../../../logic/local-identity/LocalStorageIdentityRepository";
 import { PubkyBrandIcon } from "../../../shared/brand/pubkyBrandIcon";
 import { PubkyRingLogo } from "../../../shared/brand/pubkyRingLogo";
 import { PubkyRingStoreBadges } from "../../../shared/brand/pubkyRingStoreBadges";
@@ -11,7 +13,7 @@ import { DisplayHeading, LeadText } from "../../../shared/primitives/typography"
 import { PubkyRingQrDialog } from "./pubkyRingQrDialog";
 
 function MigrateToPubkyRing({ createMigrationUrl, onBack }: {
-  createMigrationUrl: () => string | null;
+  createMigrationUrl: () => LocalIdentityResult<string>;
   onBack: () => void;
 }) {
   const [migrationUrl, setMigrationUrl] = useState<string | null>(null);
@@ -22,9 +24,9 @@ function MigrateToPubkyRing({ createMigrationUrl, onBack }: {
   }
 
   function createUrl(): string | null {
-    const url = createMigrationUrl();
-    setExportFailed(url === null);
-    return url;
+    const result = createMigrationUrl();
+    setExportFailed(Result.isError(result));
+    return Result.isOk(result) ? result.value : null;
   }
 
   function showQr() {

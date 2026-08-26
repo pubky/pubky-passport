@@ -92,9 +92,7 @@ function ReadyIdentityDashboard({ actions, catalog }: {
           }
         }}
         onDownloadRecoveryFile={() => setNavigation({ view: "recovery-file", publicKeyZ32 })}
-        onRemoveLocalIdentity={() => {
-          if (actions.removeIdentity(publicKeyZ32)) setNavigation({ view: "overview" });
-        }}
+        onRemoveLocalIdentity={() => actions.removeIdentity(publicKeyZ32)}
         onMigrateToKeychain={() => {
           setNavigation({
             view: "migrate-to-pubky-ring",

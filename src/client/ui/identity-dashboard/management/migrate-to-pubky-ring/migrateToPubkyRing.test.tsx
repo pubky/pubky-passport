@@ -2,6 +2,7 @@
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MigrateToPubkyRing } from "./migrateToPubkyRing";
@@ -15,7 +16,7 @@ describe("MigrateToPubkyRing", () => {
   });
 
   it("offers the verified stores without exporting the identity on entry", () => {
-    const createMigrationUrl = vi.fn(() => MIGRATION_URL);
+    const createMigrationUrl = vi.fn(() => Result.ok(MIGRATION_URL));
     render(<MigrateToPubkyRing createMigrationUrl={createMigrationUrl} onBack={vi.fn()} />);
 
     expect(screen.getByRole("link", { name: "Download Pubky Ring on the App Store" }))
@@ -28,7 +29,7 @@ describe("MigrateToPubkyRing", () => {
   });
 
   it("generates the URL on confirmation and unmounts the QR on close", async () => {
-    const createMigrationUrl = vi.fn(() => MIGRATION_URL);
+    const createMigrationUrl = vi.fn(() => Result.ok(MIGRATION_URL));
     render(<MigrateToPubkyRing createMigrationUrl={createMigrationUrl} onBack={vi.fn()} />);
 
     const showQr = screen.getByRole("button", { name: "Show QR" });
@@ -47,7 +48,7 @@ describe("MigrateToPubkyRing", () => {
 
   it("clears the QR URL when continuing", () => {
     const onBack = vi.fn();
-    render(<MigrateToPubkyRing createMigrationUrl={() => MIGRATION_URL} onBack={onBack} />);
+    render(<MigrateToPubkyRing createMigrationUrl={() => Result.ok(MIGRATION_URL)} onBack={onBack} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Show QR" }));
     const continueButton = screen.getByRole("button", { name: "Continue" });
@@ -60,7 +61,7 @@ describe("MigrateToPubkyRing", () => {
 
   it("hands direct import to the browser without retaining an anchor href", async () => {
     const assign = vi.fn();
-    const createMigrationUrl = vi.fn(() => MIGRATION_URL);
+    const createMigrationUrl = vi.fn(() => Result.ok(MIGRATION_URL));
     vi.stubGlobal("location", { assign, href: "http://localhost/" });
     render(<MigrateToPubkyRing createMigrationUrl={createMigrationUrl} onBack={vi.fn()} />);
 
@@ -69,5 +70,14 @@ describe("MigrateToPubkyRing", () => {
     expect(createMigrationUrl).toHaveBeenCalledOnce();
     expect(assign).toHaveBeenCalledWith(MIGRATION_URL);
     expect(screen.queryByRole("link", { name: "Import pubky" })).not.toBeInTheDocument();
+  });
+
+  it("shows an export failure from the structured result", async () => {
+    render(<MigrateToPubkyRing createMigrationUrl={() => Result.err({ code: "storage_unavailable" })} onBack={vi.fn()} />);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Show QR" }));
+
+    expect(screen.getByText("The active Pubky could not be exported.")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Scan with Pubky Ring" })).not.toBeInTheDocument();
   });
 });

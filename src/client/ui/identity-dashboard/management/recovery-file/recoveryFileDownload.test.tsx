@@ -73,9 +73,11 @@ describe("RecoveryFileDownload", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not create the recovery file");
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:backup");
-    expect(warning).toHaveBeenCalledWith("identity.recovery_file.ui.failed", {
+    expect(warning).toHaveBeenCalledWith("identity.recovery_file.ui.failed", expect.objectContaining({
       operation: "download",
-    });
+      diagnosticId: expect.any(String),
+      errorName: "Error",
+    }));
     expect(MOCKS.showDownloadConfirmation).not.toHaveBeenCalled();
     expect(onBack).not.toHaveBeenCalled();
   });
@@ -125,9 +127,11 @@ describe("RecoveryFileDownload", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not create the recovery file");
     expect(password).toHaveValue("123456");
-    expect(warning).toHaveBeenCalledWith("identity.recovery_file.ui.failed", {
+    expect(warning).toHaveBeenCalledWith("identity.recovery_file.ui.failed", expect.objectContaining({
       operation: "create_and_download",
-    });
+      diagnosticId: expect.any(String),
+      errorName: "TypeError",
+    }));
     expect(JSON.stringify(warning.mock.calls)).not.toContain(secret);
   });
 

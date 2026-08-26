@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { LOGGER } from "../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
 import type { PubkyHomeserverResolutionResult } from "../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter, resolvePubkyHomeserver } from "../pubky/PubkySdkAdapter";
@@ -33,12 +33,13 @@ export class LocalIdentityController {
   constructor() {
     try {
       this.repository = new LocalStorageIdentityRepository();
-    } catch {
+    } catch (cause) {
       LOGGER.error("identity.controller.failed", {
         operation: "initialize",
         code: "runtime_exception",
+        ...safeErrorLogFields(cause),
       });
-      throw new Error("Local identity initialization unavailable.");
+      throw new Error("Local identity initialization unavailable.", { cause });
     }
   }
 
@@ -92,6 +93,7 @@ export class LocalIdentityController {
       LOGGER.warn("identity.controller.failed", {
         operation: "create_recovery_file",
         code: "recovery_file_failed",
+        ...safeErrorLogFields(cause),
       });
       return Result.err({ code: "recovery_file_failed", cause });
     } finally {

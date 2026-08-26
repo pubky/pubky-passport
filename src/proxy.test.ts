@@ -102,11 +102,13 @@ describe("request CSP proxy", () => {
 
     expect(() => proxy(new NextRequest("https://passport.example/")))
       .toThrow("Proxy configuration unavailable.");
-    expect(error).toHaveBeenCalledWith("proxy.bootstrap.failed", {
+    expect(error).toHaveBeenCalledWith("proxy.bootstrap.failed", expect.objectContaining({
       layer: "proxy",
       operation: "build_response_policy",
       code: "runtime_exception",
-    });
+      diagnosticId: expect.any(String),
+      errorName: expect.any(String),
+    }));
     expect(JSON.stringify(error.mock.calls)).not.toContain("https://*.example.com");
   });
 
@@ -125,11 +127,13 @@ describe("request CSP proxy", () => {
 
     expect(() => proxy(new NextRequest("https://passport.example/")))
       .toThrow("Proxy configuration unavailable.");
-    expect(error).toHaveBeenCalledWith("proxy.bootstrap.failed", {
+    expect(error).toHaveBeenCalledWith("proxy.bootstrap.failed", expect.objectContaining({
       layer: "proxy",
       operation: "build_response_policy",
       code: "runtime_exception",
-    });
+      diagnosticId: expect.any(String),
+      errorName: expect.any(String),
+    }));
     expect(JSON.stringify(error.mock.calls)).not.toContain(origins);
   });
 

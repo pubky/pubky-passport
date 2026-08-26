@@ -1,7 +1,7 @@
 import { Result } from "better-result";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
 import {
   GoogleIdentityController,
   type GoogleIdentityProgress,
@@ -85,10 +85,11 @@ function useGoogleIdentityEstablishment() {
           ? result.value.visibleRecoveryCopyStatus
           : null,
       });
-    }).catch(() => {
+    }).catch((cause: unknown) => {
       LOGGER.warn("identity.google.establishment_ui.failed", {
         operation,
         stage: "operation_promise",
+        ...safeErrorLogFields(cause),
       });
       if (controllerRef.current === controller && operationIdRef.current === operationId) {
         setView({ status: "failed", error: { code: "operation_failed" } });
@@ -114,9 +115,10 @@ function useGoogleIdentityEstablishment() {
       controllerRef.current = null;
       try {
         controller.dispose();
-      } catch {
+      } catch (cause) {
         LOGGER.warn("identity.google.cleanup.failed", {
           operation: "establishment_controller_dispose",
+          ...safeErrorLogFields(cause),
         });
       }
     };

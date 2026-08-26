@@ -33,12 +33,14 @@ describe("RootLayout bootstrap", () => {
     await expect(RootLayout({ children: null })).rejects.toThrow(
       "Application configuration unavailable.",
     );
-    expect(error).toHaveBeenCalledWith("layout.bootstrap.failed", {
+    expect(error).toHaveBeenCalledWith("layout.bootstrap.failed", expect.objectContaining({
       layer: "layout",
       operation: "bootstrap",
       stage: "configuration",
       code: "invalid_configuration",
-    });
+      diagnosticId: expect.any(String),
+      errorName: expect.any(String),
+    }));
     expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET-GOOGLE-CLIENT-ID");
     expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET-HOMEGATE-URL");
   });

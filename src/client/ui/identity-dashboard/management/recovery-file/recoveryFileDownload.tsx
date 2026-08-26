@@ -2,7 +2,7 @@ import { Result } from "better-result";
 import Image from "next/image";
 import { type SubmitEvent, useEffect, useRef, useState } from "react";
 
-import { LOGGER } from "../../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../../../libs/logger/logger";
 import {
   MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS,
   type LocalIdentityRecoveryFile,
@@ -50,9 +50,10 @@ function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
         downloaded = true;
         setPassword("");
       }
-    } catch {
+    } catch (cause) {
       LOGGER.warn("identity.recovery_file.ui.failed", {
         operation: "create_and_download",
+        ...safeErrorLogFields(cause),
       });
       if (activeRef.current) setRecoveryFileFailed(true);
     } finally {
@@ -113,9 +114,10 @@ function downloadFile(file: LocalIdentityRecoveryFile): boolean {
     } finally {
       URL.revokeObjectURL(url);
     }
-  } catch {
+  } catch (cause) {
     LOGGER.warn("identity.recovery_file.ui.failed", {
       operation: "download",
+      ...safeErrorLogFields(cause),
     });
     return false;
   }

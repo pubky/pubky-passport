@@ -1,7 +1,7 @@
 import { Result } from "better-result";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { LOGGER } from "../../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../../../libs/logger/logger";
 import {
   GoogleIdentityController,
   type GoogleIdentityViewError,
@@ -76,10 +76,11 @@ function useDetachFromGoogle(
         return;
       }
       setState({ status: "complete" });
-    }).catch(() => {
+    }).catch((cause: unknown) => {
       LOGGER.warn("identity.google.detachment_ui.failed", {
         operation: "detach",
         stage: "operation_promise",
+        ...safeErrorLogFields(cause),
       });
       if (controllerRef.current === controller && operationIdRef.current === operationId) {
         setState({ status: "operation-failed", error: { code: "operation_failed" } });
@@ -98,9 +99,10 @@ function useDetachFromGoogle(
       controllerRef.current = null;
       try {
         controller.dispose();
-      } catch {
+      } catch (cause) {
         LOGGER.warn("identity.google.cleanup.failed", {
           operation: "detachment_controller_dispose",
+          ...safeErrorLogFields(cause),
         });
       }
     };

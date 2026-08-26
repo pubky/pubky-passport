@@ -2,7 +2,8 @@ import { Result } from "better-result";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
+import type { LocalIdentityResult } from "../../../logic/local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import type { PubkyHomeserverResolutionResult } from "../../../logic/pubky/pubkyIdentityKey";
 import { CopyIcon, DownloadIcon, KeyRoundIcon, LinkOffIcon } from "../../shared/actionIcons";
@@ -11,13 +12,24 @@ import { PassportScreen } from "../../shared/passportScreen";
 import { Avatar } from "../../shared/primitives/avatar";
 import { Button } from "../../shared/primitives/button";
 import { IconButton } from "../../shared/primitives/iconButton";
+import { FieldMessage } from "../../shared/primitives/fieldMessage";
 import { DisplayHeading } from "../../shared/primitives/typography";
 import { showCopyConfirmation } from "../../shared/sonner";
 
-function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadRecoveryFile, onRemoveLocalIdentity, onMigrateToKeychain, resolveHomeserver }: { identity: LocalIdentityMetadata; onBack: () => void; onDetachFromGoogle: () => void; onDownloadRecoveryFile: () => void; onRemoveLocalIdentity: () => void; onMigrateToKeychain: () => void; resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult> }) {
+function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadRecoveryFile, onRemoveLocalIdentity, onMigrateToKeychain, resolveHomeserver }: { identity: LocalIdentityMetadata; onBack: () => void; onDetachFromGoogle: () => void; onDownloadRecoveryFile: () => void; onRemoveLocalIdentity: () => LocalIdentityResult<void>; onMigrateToKeychain: () => void; resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult> }) {
   const account = identity.googleAccount;
   const name = account?.name ?? "Your Pubky";
   const [homeserver, setHomeserver] = useState<string | null | undefined>();
+  const [logoutFailed, setLogoutFailed] = useState(false);
+
+  function logout(): void {
+    const removed = onRemoveLocalIdentity();
+    if (Result.isError(removed)) {
+      setLogoutFailed(true);
+      return;
+    }
+    onBack();
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -25,9 +37,10 @@ function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadRe
       .then((result) => {
         if (!cancelled) setHomeserver(Result.isError(result) ? null : result.value);
       })
-      .catch(() => {
+      .catch((cause: unknown) => {
         LOGGER.warn("identity.management.failed", {
           operation: "resolve_homeserver",
+          ...safeErrorLogFields(cause),
         });
         if (!cancelled) setHomeserver(null);
       });
@@ -36,7 +49,7 @@ function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadRe
 
   return (
     <PassportScreen className="gap-6">
-      <Button className="absolute right-6 top-[22px] z-10" onClick={onRemoveLocalIdentity} variant="secondary">Log out</Button>
+      <Button className="absolute right-6 top-[22px] z-10" onClick={logout} variant="secondary">Log out</Button>
       <header className="flex items-start gap-6">
         <DisplayHeading accent="identity." aria-label="Manage identity.">Manage</DisplayHeading>
         <Avatar className="ml-auto" fallback={name} size="lg" {...(account?.pictureUrl ? { src: account.pictureUrl } : {})} />
@@ -50,6 +63,7 @@ function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadRe
       </section>
 
       <div className="mt-auto flex flex-col gap-4 pt-6">
+        {logoutFailed ? <FieldMessage error>Could not log out. Please try again.</FieldMessage> : null}
         <ManagementButton icon={<KeyRoundIcon />} onClick={onMigrateToKeychain}>Migrate to keychain</ManagementButton>
         <ManagementButton icon={<DownloadIcon />} onClick={onDownloadRecoveryFile}>Download recovery file</ManagementButton>
         {account ? <ManagementButton icon={<LinkOffIcon />} onClick={onDetachFromGoogle}>Detach from Google</ManagementButton> : null}
@@ -66,9 +80,10 @@ function IdentityDetail({ copy = false, label, value }: { copy?: boolean; label:
     try {
       await navigator.clipboard.writeText(value);
       showCopyConfirmation(label, value);
-    } catch {
+    } catch (cause) {
       LOGGER.info("identity.management.failed", {
         operation: "copy",
+        ...safeErrorLogFields(cause),
       });
     }
   }

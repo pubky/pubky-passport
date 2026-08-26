@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Result } from "better-result";
 
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
 import {
   GoogleWrappingKeyIssuer,
   type GoogleWrappingKeyIssueErrorCode,
@@ -51,12 +51,13 @@ export async function googleWrappingKeyPost(
     }
 
     return jsonResponse(result.value, 200);
-  } catch {
+  } catch (cause) {
     LOGGER.error("identity.google.wrapping_key.failed", {
       route: "api.wrapping_key.google",
       layer: "route",
       operation,
       code: "internal_error",
+      ...safeErrorLogFields(cause),
     });
     return jsonResponse({ error: { code: "internal_error" } }, 500);
   }

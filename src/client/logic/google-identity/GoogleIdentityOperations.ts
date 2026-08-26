@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { LOGGER } from "../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
 import type {
   GoogleAccountProfile,
@@ -149,6 +149,7 @@ export class GoogleIdentityOperations {
           code: storedFile.error.code === "invalid_file"
             ? "invalid_passport_file"
             : "drive_read_failed",
+          cause: storedFile.error,
         });
       }
 
@@ -188,11 +189,12 @@ export class GoogleIdentityOperations {
         store,
         visibleCopies,
       );
-    } catch {
+    } catch (cause) {
       LOGGER.warn("identity.google.restore_or_create.failed", {
         code: "unexpected_failure",
+        ...safeErrorLogFields(cause),
       });
-      return Result.err({ code: "unexpected_failure" });
+      return Result.err({ code: "unexpected_failure", cause });
     }
   }
 
@@ -207,15 +209,18 @@ export class GoogleIdentityOperations {
       if (Result.isError(deleted)) {
         return Result.err({
           code: "invalid_passport_file_delete_failed",
+          cause: deleted.error,
         });
       }
       return this.establishIdentity(credentials, report);
-    } catch {
+    } catch (cause) {
       LOGGER.warn("identity.google.invalid_passport_file_replacement.failed", {
         code: "unexpected_failure",
+        ...safeErrorLogFields(cause),
       });
       return Result.err({
         code: "invalid_passport_file_delete_failed",
+        cause,
       });
     }
   }
@@ -239,13 +244,14 @@ export class GoogleIdentityOperations {
 
       const removed = this.repository.remove(publicIdentity.publicKeyZ32);
       return Result.isError(removed)
-        ? Result.err({ code: "local_remove_failed" })
+        ? Result.err({ code: "local_remove_failed", cause: removed.error })
         : Result.ok();
-    } catch {
+    } catch (cause) {
       LOGGER.warn("identity.google.detach.failed", {
         code: "unexpected_failure",
+        ...safeErrorLogFields(cause),
       });
-      return Result.err({ code: "unexpected_failure" });
+      return Result.err({ code: "unexpected_failure", cause });
     }
   }
 
@@ -279,14 +285,14 @@ export class GoogleIdentityOperations {
     LOGGER.info("identity.google.create_key.started");
     const created = await this.pubky.createIdentityKey();
     if (Result.isError(created)) {
-      return Result.err({ code: "create_failed" });
+      return Result.err({ code: "create_failed", cause: created.error });
     }
     LOGGER.info("identity.google.create_key.completed");
 
     try {
       const secretKey = await this.pubky.exportSecretKey(created.value.keyHandle);
       if (Result.isError(secretKey)) {
-        return Result.err({ code: "create_failed" });
+        return Result.err({ code: "create_failed", cause: secretKey.error });
       }
 
       let visibleRecoveryCopyStatus: "created" | "unconfirmed" = "created";
@@ -301,7 +307,7 @@ export class GoogleIdentityOperations {
         secretKey.value.bytes.fill(0);
       });
       if (Result.isError(encrypted)) {
-        return Result.err({ code: "encrypt_failed" });
+        return Result.err({ code: "encrypt_failed", cause: encrypted.error });
       }
       const envelope = encrypted.value;
       LOGGER.info("identity.google.encrypt.completed");
@@ -313,6 +319,7 @@ export class GoogleIdentityOperations {
           code: written.error.code === "create_conflict"
             ? "drive_create_conflict"
             : "drive_write_failed",
+          cause: written.error,
         });
       }
       LOGGER.info("identity.google.operational_drive_write.completed");
@@ -380,10 +387,10 @@ export class GoogleIdentityOperations {
         restored.value.publicIdentity.publicKeyZ32,
       );
       if (Result.isError(homeserver)) {
-        return Result.err({ code: "signin_failed" });
+        return Result.err({ code: "signin_failed", cause: homeserver.error });
       }
       if (homeserver.value !== null) {
-        return Result.err({ code: "signin_failed" });
+        return Result.err({ code: "signin_failed", cause: signedIn.error });
       }
 
       report({ flow: "repair", step: "signing_up" });
@@ -418,7 +425,7 @@ export class GoogleIdentityOperations {
       this.passportOrigin,
     );
     if (Result.isError(secretKey)) {
-      return Result.err({ code: "decrypt_failed" });
+      return Result.err({ code: "decrypt_failed", cause: secretKey.error });
     }
 
     const restored = await this.pubky.restoreIdentityKey({
@@ -426,7 +433,7 @@ export class GoogleIdentityOperations {
       format: PUBKY_SECRET_KEY_FORMAT,
     });
     if (Result.isError(restored)) {
-      return Result.err({ code: "restore_failed" });
+      return Result.err({ code: "restore_failed", cause: restored.error });
     }
     LOGGER.info("identity.google.restore.completed");
     return Result.ok(restored.value);
@@ -454,7 +461,7 @@ export class GoogleIdentityOperations {
     if (Result.isError(signedUp)
       && signedUp.error.code !== "account_exists"
       && signedUp.error.code !== "signup_uncertain") {
-      return Result.err({ code: "signup_failed" });
+      return Result.err({ code: "signup_failed", cause: signedUp.error });
     }
     const signupWasUncertain = Result.isError(signedUp)
       && signedUp.error.code === "signup_uncertain";
@@ -471,7 +478,7 @@ export class GoogleIdentityOperations {
       invitation.homeserverPubky,
     );
     if (Result.isError(published) && published.error.code !== "publish_failed") {
-      return Result.err({ code: "publication_failed" });
+      return Result.err({ code: "publication_failed", cause: published.error });
     }
     const publicationWasUncertain = Result.isError(published);
     if (!publicationWasUncertain) LOGGER.info("identity.google.publication.completed");
@@ -485,6 +492,7 @@ export class GoogleIdentityOperations {
         code: signupWasUncertain
           ? "signup_failed"
           : publicationWasUncertain ? "publication_failed" : "signin_failed",
+        cause: signedIn.error,
       });
     }
     const verified = this.verifySessionIdentity(identity, signedIn.value.publicIdentity);
@@ -511,7 +519,7 @@ export class GoogleIdentityOperations {
     LOGGER.info("identity.local_save.started", { activation });
     const secretKey = await this.pubky.exportSecretKey(identity.keyHandle);
     if (Result.isError(secretKey)) {
-      return Result.err({ code: "local_save_failed" });
+      return Result.err({ code: "local_save_failed", cause: secretKey.error });
     }
     try {
       const saved = this.repository.save({
@@ -519,7 +527,7 @@ export class GoogleIdentityOperations {
         googleAccount,
       }, secretKey.value);
       if (Result.isError(saved)) {
-        return Result.err({ code: "local_save_failed" });
+        return Result.err({ code: "local_save_failed", cause: saved.error });
       }
       LOGGER.info("identity.local_save.completed", { activation });
       return Result.ok();
@@ -537,6 +545,7 @@ export class GoogleIdentityOperations {
       return Result.err({
         code: "homeserver_signup_invitation_failed",
         detailCode: invitation.error.code,
+        cause: invitation.error,
       });
     }
     LOGGER.info("identity.google.homeserver_signup_invitation.completed");
@@ -556,6 +565,7 @@ export class GoogleIdentityOperations {
       return Result.err({
         code: "wrapping_key_failed",
         detailCode: wrappingKey.error.code,
+        cause: wrappingKey.error,
       });
     }
     LOGGER.info("identity.google.wrapping_key.completed");
@@ -569,7 +579,7 @@ export class GoogleIdentityOperations {
     const store = new GoogleDrivePassportFileStore(credentials.driveAccessToken, this.fetch);
     const storedFile = await store.readPassportFile();
     if (Result.isError(storedFile)) {
-      return Result.err({ code: "google_drive_cleanup_failed" });
+      return Result.err({ code: "google_drive_cleanup_failed", cause: storedFile.error });
     }
 
     if (storedFile.value.status === "found") {
@@ -578,14 +588,14 @@ export class GoogleIdentityOperations {
         storedFile.value.envelope.keyId,
       );
       if (Result.isError(wrappingKey)) {
-        return Result.err({ code: "google_drive_cleanup_failed" });
+        return Result.err({ code: "google_drive_cleanup_failed", cause: wrappingKey.error });
       }
       const restored = await this.restoreKey(
         storedFile.value.envelope,
         wrappingKey.value.wrappingKey,
       );
       if (Result.isError(restored)) {
-        return Result.err({ code: "google_drive_cleanup_failed" });
+        return Result.err({ code: "google_drive_cleanup_failed", cause: restored.error });
       }
       try {
         if (restored.value.publicIdentity.publicKeyZ32 !== publicIdentity.publicKeyZ32) {
@@ -608,13 +618,13 @@ export class GoogleIdentityOperations {
       publicIdentity,
     );
     if (Result.isError(deletedVisibleCopies)) {
-      return Result.err({ code: "google_drive_cleanup_failed" });
+      return Result.err({ code: "google_drive_cleanup_failed", cause: deletedVisibleCopies.error });
     }
     if (storedFile.value.status === "missing") return Result.ok();
 
     const deleted = await store.deletePassportFile(storedFile.value.reference);
     return Result.isError(deleted)
-      ? Result.err({ code: "google_drive_cleanup_failed" })
+      ? Result.err({ code: "google_drive_cleanup_failed", cause: deleted.error })
       : Result.ok();
   }
 
@@ -638,10 +648,17 @@ export class GoogleIdentityOperations {
         visibleCopies.createVisibleRecoveryCopy(envelope, publicIdentity, controller.signal),
         deadline,
       ]);
-      return result !== undefined && Result.isOk(result);
-    } catch {
+      if (result === undefined || Result.isOk(result)) return result !== undefined;
       LOGGER.warn("identity.google.visible_recovery_copy.failed", {
         stage: "create",
+        code: result.error.code,
+        ...safeErrorLogFields(result.error),
+      });
+      return false;
+    } catch (cause) {
+      LOGGER.warn("identity.google.visible_recovery_copy.failed", {
+        stage: "create",
+        ...safeErrorLogFields(cause),
       });
       return false;
     } finally {

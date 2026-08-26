@@ -5,18 +5,19 @@ import {
   LocalIdentityController,
   type LocalIdentityRecoveryFileResult,
 } from "../../logic/local-identity/LocalIdentityController";
+import type { LocalIdentityResult } from "../../logic/local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
 import type { PubkyHomeserverResolutionResult } from "../../logic/pubky/pubkyIdentityKey";
 
 type IdentityCatalogActions = {
-  createMigrationUrl: (publicKeyZ32: string) => string | null;
+  createMigrationUrl: (publicKeyZ32: string) => LocalIdentityResult<string>;
   createRecoveryFile: (
     publicKeyZ32: string,
     password: string,
   ) => Promise<LocalIdentityRecoveryFileResult>;
-  removeIdentity: (publicKeyZ32: string) => boolean;
+  removeIdentity: (publicKeyZ32: string) => LocalIdentityResult<void>;
   resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult>;
-  selectIdentity: (publicKeyZ32: string) => boolean;
+  selectIdentity: (publicKeyZ32: string) => LocalIdentityResult<void>;
 };
 
 type IdentityCatalogState =
@@ -40,24 +41,19 @@ class IdentityCatalogStore {
       this.controller = null;
     }
     this.actions = {
-      createMigrationUrl: (publicKeyZ32) => {
-        const result = this.controller?.createPubkyRingMigrationUrl(publicKeyZ32);
-        return result && Result.isOk(result) ? result.value : null;
-      },
+      createMigrationUrl: (publicKeyZ32) => this.controller
+        ? this.controller.createPubkyRingMigrationUrl(publicKeyZ32)
+        : Result.err({ code: "storage_unavailable" }),
       createRecoveryFile: async (publicKeyZ32, password) => this.controller
         ? this.controller.createRecoveryFile(publicKeyZ32, password)
         : Result.err({ code: "identity_unavailable" }),
-      removeIdentity: (publicKeyZ32) => Result.isOk(
-        this.controller?.removeIdentity(publicKeyZ32)
-          ?? Result.err({ code: "storage_unavailable" }),
-      ),
+      removeIdentity: (publicKeyZ32) => this.controller?.removeIdentity(publicKeyZ32)
+        ?? Result.err({ code: "storage_unavailable" }),
       resolveHomeserver: async (publicKeyZ32) => this.controller
         ? this.controller.resolveHomeserver(publicKeyZ32)
         : Result.err({ code: "resolution_failed" }),
-      selectIdentity: (publicKeyZ32) => Result.isOk(
-        this.controller?.selectIdentity(publicKeyZ32)
-          ?? Result.err({ code: "storage_unavailable" }),
-      ),
+      selectIdentity: (publicKeyZ32) => this.controller?.selectIdentity(publicKeyZ32)
+        ?? Result.err({ code: "storage_unavailable" }),
     };
   }
 
