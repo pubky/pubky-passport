@@ -36,9 +36,7 @@ function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadRe
 
   return (
     <PassportScreen className="gap-6">
-      <div className="flex justify-end">
-        <Button onClick={onRemoveLocalIdentity} variant="secondary">Log out</Button>
-      </div>
+      <Button className="absolute right-6 top-[22px] z-10" onClick={onRemoveLocalIdentity} variant="secondary">Log out</Button>
       <header className="flex items-start gap-6">
         <DisplayHeading accent="identity." aria-label="Manage identity.">Manage</DisplayHeading>
         <Avatar className="ml-auto" fallback={name} size="lg" {...(account?.pictureUrl ? { src: account.pictureUrl } : {})} />
