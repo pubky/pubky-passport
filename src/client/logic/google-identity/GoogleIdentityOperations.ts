@@ -53,23 +53,6 @@ export type GoogleIdentityOperationValue =
     publicIdentity: PubkyPublicIdentity;
   };
 
-type GoogleIdentityFailureCode =
-  | "create_failed"
-  | "decrypt_failed"
-  | "publication_failed"
-  | "drive_create_conflict"
-  | "invalid_passport_file"
-  | "invalid_passport_file_delete_failed"
-  | "drive_read_failed"
-  | "drive_write_failed"
-  | "encrypt_failed"
-  | "identity_mismatch"
-  | "local_save_failed"
-  | "restore_failed"
-  | "signin_failed"
-  | "signup_failed"
-  | "unexpected_failure";
-
 type GoogleIdentityEstablishmentError =
   | {
     code: "wrapping_key_failed";
@@ -81,7 +64,23 @@ type GoogleIdentityEstablishmentError =
     detailCode: HomegateSignupInvitationErrorCode;
     cause?: unknown;
   }
-  | CodedFailure<GoogleIdentityFailureCode>;
+  | CodedFailure<
+    "create_failed"
+    | "decrypt_failed"
+    | "publication_failed"
+    | "drive_create_conflict"
+    | "invalid_passport_file"
+    | "invalid_passport_file_delete_failed"
+    | "drive_read_failed"
+    | "drive_write_failed"
+    | "encrypt_failed"
+    | "identity_mismatch"
+    | "local_save_failed"
+    | "restore_failed"
+    | "signin_failed"
+    | "signup_failed"
+    | "unexpected_failure"
+  >;
 
 type GoogleIdentityOperationResult = ResultType<
   GoogleIdentityOperationValue,
