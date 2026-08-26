@@ -4,7 +4,7 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 
-export type PubkyAuthUrlValidationErrorCode =
+type PubkyAuthUrlValidationErrorCode =
   | "missing_relay"
   | "invalid_relay"
   | "invalid_callback";
@@ -18,7 +18,7 @@ export type PubkyAuthUrlValidationResult = ResultType<
   PubkyAuthUrlValidationError
 >;
 
-export type PubkyAuthUrlParameterNames = Readonly<{
+type PubkyAuthUrlParameterNames = Readonly<{
   relay: string;
   success: string;
   error: string;

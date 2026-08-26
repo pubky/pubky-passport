@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 
 import type { GoogleIdentityViewError } from "../../../logic/google-identity/GoogleIdentityController";

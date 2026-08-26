@@ -1,5 +1,3 @@
-"use client";
-
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import { UserRoundPlusIcon } from "../../shared/actionIcons";
 import { BackButton } from "../../shared/backButton";

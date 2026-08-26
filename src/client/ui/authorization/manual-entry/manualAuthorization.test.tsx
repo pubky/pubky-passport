@@ -5,15 +5,9 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LOGGER } from "../../../../libs/logger/logger";
-import { validateManualAuthorizationInput } from "../../../logic/authorization/entry/manualAuthorizationInput";
 import { ManualAuthorization } from "./manualAuthorization";
 
-vi.mock("../../../logic/authorization/entry/manualAuthorizationInput", () => ({
-  validateManualAuthorizationInput: vi.fn(() => ({
-    status: "valid",
-    destination: "/authorize#d=encoded-request",
-  })),
-}));
+const VALID_REQUEST = "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
 describe("ManualAuthorization", () => {
   afterEach(() => {
@@ -46,20 +40,17 @@ describe("ManualAuthorization", () => {
   it("submits through the validated authorization entry", async () => {
     const user = userEvent.setup();
     render(<ManualAuthorization onBack={vi.fn()} />);
-    const request = "pubkyauth://signin?request=test";
-
-    await user.type(screen.getByLabelText("Authorization link"), request);
+    await user.type(screen.getByLabelText("Authorization link"), VALID_REQUEST);
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(validateManualAuthorizationInput).toHaveBeenCalledWith(request);
     expect(screen.getByLabelText("Authorization link")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     expect(window.location.pathname).toBe("/authorize");
-    expect(new URLSearchParams(window.location.hash.slice(1)).get("d")).toBe("encoded-request");
+    expect(decodeURIComponent(new URLSearchParams(window.location.hash.slice(1)).get("d") ?? ""))
+      .toBe(VALID_REQUEST);
   });
 
   it("shows a validation error", async () => {
-    vi.mocked(validateManualAuthorizationInput).mockReturnValueOnce({ status: "invalid" });
     render(<ManualAuthorization onBack={vi.fn()} />);
 
     await userEvent.setup().type(screen.getByLabelText("Authorization link"), "invalid request");
@@ -77,7 +68,7 @@ describe("ManualAuthorization", () => {
     });
     render(<ManualAuthorization onBack={vi.fn()} />);
 
-    await userEvent.setup().type(screen.getByLabelText("Authorization link"), "valid request");
+    await userEvent.setup().type(screen.getByLabelText("Authorization link"), VALID_REQUEST);
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent("Could not open the authorization request. Try again.");

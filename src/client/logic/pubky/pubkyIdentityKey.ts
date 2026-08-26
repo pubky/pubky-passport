@@ -3,12 +3,12 @@ import "client-only";
 import type { Result } from "better-result";
 
 import type { CodedFailure } from "../../../libs/result";
+import { isCanonicalPubkyPublicKey } from "./pubkyProtocol";
 
 declare const pubkyIdentityKeyHandleBrand: unique symbol;
 
 export const PUBKY_SECRET_KEY_BYTES = 32;
 export const PUBKY_SECRET_KEY_FORMAT = "pubky-secret-key";
-const PUBKY_PUBLIC_KEY_Z32_PATTERN = /^[ybndrfg8ejkmcpqxot1uwisza345h769]{51}[yo]$/u;
 
 /** Public metadata derived from a browser-owned Pubky keypair. */
 export type PubkyPublicIdentity = {
@@ -30,7 +30,7 @@ export function isPubkyPublicIdentity(value: unknown): value is PubkyPublicIdent
 }
 
 export function isPubkyPublicKey(value: unknown): value is string {
-  return typeof value === "string" && PUBKY_PUBLIC_KEY_Z32_PATTERN.test(value);
+  return isCanonicalPubkyPublicKey(value);
 }
 
 export function formatPubkyPublicKey(publicKeyZ32: string): string {

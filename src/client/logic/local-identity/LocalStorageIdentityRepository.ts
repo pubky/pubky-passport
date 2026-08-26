@@ -58,19 +58,19 @@ export class LocalStorageIdentityRepository {
     const storage = getLocalStorage();
     if (!storage) return storageUnavailable("read");
     const migrated = ensureMigrated(storage);
-    if (Result.isError(migrated)) return migrated;
+    if (Result.isError(migrated)) return Result.err(migrated.error);
 
     const identities = readAllIdentities(storage);
-    if (Result.isError(identities)) return identities;
+    if (Result.isError(identities)) return Result.err(identities.error);
     const active = readActiveIdentity(storage);
-    if (Result.isError(active)) return active;
+    if (Result.isError(active)) return Result.err(active.error);
 
     const activePublicKeyZ32 = identities.value.some(
       (identity) => identity.publicKeyZ32 === active.value,
     ) ? active.value : identities.value[0]?.publicKeyZ32 ?? null;
     if (activePublicKeyZ32 !== active.value) {
       const repaired = writeActiveIdentity(storage, activePublicKeyZ32);
-      if (Result.isError(repaired)) return repaired;
+      if (Result.isError(repaired)) return Result.err(repaired.error);
     }
 
     return Result.ok({
@@ -96,7 +96,7 @@ export class LocalStorageIdentityRepository {
     const storage = getLocalStorage();
     if (!storage) return storageUnavailable("write");
     const migrated = ensureMigrated(storage);
-    if (Result.isError(migrated)) return migrated;
+    if (Result.isError(migrated)) return Result.err(migrated.error);
     const stored: StoredLocalIdentity = {
       v: 2,
       publicKeyZ32: identity.publicIdentity.publicKeyZ32,
@@ -120,7 +120,7 @@ export class LocalStorageIdentityRepository {
     const migrated = ensureMigrated(storage);
     if (Result.isError(migrated)) return migrated;
     const identity = readIdentity(storage, publicKeyZ32);
-    if (Result.isError(identity)) return identity;
+    if (Result.isError(identity)) return Result.err(identity.error);
     if (!identity.value) return invalidIdentity("select");
 
     const written = writeActiveIdentity(storage, publicKeyZ32);
@@ -134,14 +134,14 @@ export class LocalStorageIdentityRepository {
     const migrated = ensureMigrated(storage);
     if (Result.isError(migrated)) return migrated;
     const identity = readIdentity(storage, publicKeyZ32);
-    if (Result.isError(identity)) return identity;
+    if (Result.isError(identity)) return Result.err(identity.error);
     if (!identity.value) return invalidIdentity("remove");
 
     try {
       storage.removeItem(identityStorageKey(publicKeyZ32));
       if (storage.getItem(ACTIVE_IDENTITY_KEY) === publicKeyZ32) {
         const remaining = readAllIdentities(storage);
-        if (Result.isError(remaining)) return remaining;
+        if (Result.isError(remaining)) return Result.err(remaining.error);
         const selected = writeActiveIdentity(storage, remaining.value[0]?.publicKeyZ32 ?? null);
         if (Result.isError(selected)) return selected;
       }
@@ -159,9 +159,9 @@ export class LocalStorageIdentityRepository {
     const storage = getLocalStorage();
     if (!storage) return storageUnavailable("read");
     const migrated = ensureMigrated(storage);
-    if (Result.isError(migrated)) return migrated;
+    if (Result.isError(migrated)) return Result.err(migrated.error);
     const stored = readIdentity(storage, publicKeyZ32);
-    if (Result.isError(stored)) return stored;
+    if (Result.isError(stored)) return Result.err(stored.error);
     if (!stored.value) return invalidIdentity("read_identity");
 
     const secretKey = decodeStoredSecretKey(stored.value.secretKey);

@@ -3,18 +3,19 @@ import { describe, expect, it } from "vitest";
 
 import {
   validatePubkyAuthUrls as validateUrlValues,
-  type PubkyAuthUrlValidationErrorCode,
-  type PubkyAuthUrlParameterNames,
+  type PubkyAuthUrlValidationError,
 } from "./pubkyAuthUrls";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 
-const PARAMETER_NAMES: PubkyAuthUrlParameterNames = {
+type PubkyAuthUrlValidationErrorCode = PubkyAuthUrlValidationError["code"];
+
+const PARAMETER_NAMES = {
   relay: "relay",
   success: "x-success",
   error: "x-error",
   cancel: "x-cancel",
   legacySuccess: "callback",
-};
+} as const;
 
 function authUrl(query: string): URL {
   return new URL(`pubkyauth://signin?${query}`);

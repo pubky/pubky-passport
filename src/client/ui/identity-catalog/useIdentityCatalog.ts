@@ -1,5 +1,3 @@
-"use client";
-
 import { Result } from "better-result";
 import { useState, useSyncExternalStore } from "react";
 

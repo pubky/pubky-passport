@@ -3,6 +3,7 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
+import { isValidPubkyCapabilityPath, utf8Length } from "../../pubky/pubkyProtocol";
 
 export type PubkyAuthCapability = {
   path: string;
@@ -10,7 +11,7 @@ export type PubkyAuthCapability = {
   write: boolean;
 };
 
-export type PubkyAuthCapabilitiesParseErrorCode =
+type PubkyAuthCapabilitiesParseErrorCode =
   | "missing_capabilities"
   | "too_many_capabilities"
   | "capability_too_long"
@@ -72,7 +73,7 @@ function parseCapability(input: string): CapabilityParseResult {
     return Result.err<never, PubkyAuthCapabilitiesParseError>({ code: "capability_too_long" });
   }
 
-  if (!isValidCapabilityPath(path)) {
+  if (!isValidPubkyCapabilityPath(path)) {
     return Result.err<never, PubkyAuthCapabilitiesParseError>({ code: "invalid_capability_path" });
   }
 
@@ -85,37 +86,6 @@ function parseCapability(input: string): CapabilityParseResult {
     read: actions.includes("r"),
     write: actions.includes("w"),
   });
-}
-
-function isValidCapabilityPath(path: string): boolean {
-  if (!path.startsWith("/") || /[:,]/u.test(path)) {
-    return false;
-  }
-  if (/[\p{Bidi_Control}\p{Default_Ignorable_Code_Point}]/u.test(path)) {
-    return false;
-  }
-  if (path === "/") return true;
-  if (/\s$/u.test(path)) return false;
-
-  const segments = path.slice(1).split("/");
-  return segments.every((segment, index) => {
-    if (segment.length === 0) return index === segments.length - 1;
-    if (segment === "." || segment === "..") return false;
-    if (utf8Length(segment) > 255 || segment.includes("\\")) return false;
-    return ![...segment].some((character) => isControlCharacter(character));
-  });
-}
-
-function isControlCharacter(character: string): boolean {
-  const codePoint = character.codePointAt(0);
-  return codePoint !== undefined && (
-    codePoint <= 0x1f ||
-    (codePoint >= 0x7f && codePoint <= 0x9f)
-  );
-}
-
-function utf8Length(value: string): number {
-  return new TextEncoder().encode(value).byteLength;
 }
 
 function isValidCapabilityActions(actions: string): boolean {

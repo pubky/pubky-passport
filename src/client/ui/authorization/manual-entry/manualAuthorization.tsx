@@ -1,5 +1,3 @@
-"use client";
-
 import { type SubmitEvent, useState } from "react";
 
 import { LOGGER } from "../../../../libs/logger/logger";

@@ -1,5 +1,3 @@
-"use client";
-
 import { Result } from "better-result";
 import Image from "next/image";
 import { type SubmitEvent, useEffect, useRef, useState } from "react";

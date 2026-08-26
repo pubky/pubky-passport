@@ -1,5 +1,3 @@
-"use client";
-
 import type { AuthorizationRequestReview } from "../../../logic/authorization/flow/PassportAuthorizationController";
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import { GoogleLogo } from "../../shared/brand/googleLogo";

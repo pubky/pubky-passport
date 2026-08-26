@@ -1,5 +1,3 @@
-"use client";
-
 import { preload } from "react-dom";
 
 import { GoogleAccessScreen } from "./google/googleAccessScreen";

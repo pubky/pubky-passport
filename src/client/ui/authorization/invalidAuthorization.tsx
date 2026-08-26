@@ -1,5 +1,3 @@
-"use client";
-
 import { BackButton } from "../shared/backButton";
 import { PassportScreen } from "../shared/passportScreen";
 import { DisplayHeading, LeadText } from "../shared/primitives/typography";

@@ -33,6 +33,7 @@
 
 :root {
   color-scheme: dark;
+  --passport-header-height: 84px;
   --radius: 0.625rem;
   --background: oklch(0.118 0.014 284.115);
   --foreground: oklch(1 0 0);

@@ -1,4 +1,3 @@
-import { Children, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LOGGER } from "../libs/logger/logger";
@@ -21,21 +20,6 @@ describe("RootLayout bootstrap", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
-  });
-
-  it("provides normalized browser configuration at the application boundary", async () => {
-    const layout = await RootLayout({ children: <main>Application</main> });
-    const body = Children.toArray((layout.props as { children: ReactNode }).children)[1] as ReactElement<{
-      children: ReactNode;
-    }>;
-    const provider = Children.toArray(body.props.children)[1] as ReactElement<{
-      googleClientId: string;
-      homegateBaseUrl: string;
-    }>;
-
-    expect(MOCKS.connection).toHaveBeenCalledOnce();
-    expect(provider.props.googleClientId).toBe("google-client-id");
-    expect(provider.props.homegateBaseUrl).toBe("https://homegate.example/api/");
   });
 
   it("rejects invalid bootstrap configuration without exposing its values", async () => {

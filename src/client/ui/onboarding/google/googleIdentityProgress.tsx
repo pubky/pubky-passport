@@ -1,5 +1,3 @@
-"use client";
-
 import type { GoogleIdentityProgress as GoogleIdentityProgressState } from "../../../logic/google-identity/GoogleIdentityController";
 import { PassportScreen } from "../../shared/passportScreen";
 import { Spinner } from "../../shared/primitives/spinner";

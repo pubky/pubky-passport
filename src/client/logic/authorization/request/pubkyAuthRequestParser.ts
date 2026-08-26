@@ -13,6 +13,11 @@ import {
   type PubkyAuthUrlValidationError,
 } from "./pubkyAuthUrls";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
+import {
+  isCanonicalPubkyAuthSecret,
+  isCanonicalPubkyPublicKey,
+  utf8Length,
+} from "../../pubky/pubkyProtocol";
 
 export type PubkyAuthenticationMethod = "cookie" | "grant";
 
@@ -45,7 +50,7 @@ const GRANT_PARAMETERS = new Set<string>([
   PUBKY_AUTH_REQUEST_PARAMETERS.clientPublicKey,
 ]);
 
-export type PubkyAuthParseErrorCode =
+type PubkyAuthParseErrorCode =
   | "missing_d"
   | "request_too_large"
   | "invalid_encoding"
@@ -131,7 +136,7 @@ export function parseEncodedPubkyAuthRequest(
 
   if (
     secret.length > PUBKY_AUTH_REQUEST_LIMITS.maximumSecretCodeUnits ||
-    !isCanonicalAuthSecret(secret)
+    !isCanonicalPubkyAuthSecret(secret)
   ) {
     return Result.err<never, PubkyAuthParseError>({ code: "invalid_secret" });
   }
@@ -259,32 +264,11 @@ function validateGrantParameters(
   if (clientPublicKey === null || clientPublicKey.length === 0) {
     return Result.err<never, PubkyAuthParseError>({ code: "missing_client_public_key" });
   }
-  if (!isCanonicalPublicKey(clientPublicKey)) {
+  if (!isCanonicalPubkyPublicKey(clientPublicKey)) {
     return Result.err<never, PubkyAuthParseError>({ code: "invalid_client_public_key" });
   }
 
   return Result.ok();
-}
-
-const BASE64_URL_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-const Z_BASE_32_ALPHABET = "ybndrfg8ejkmcpqxot1uwisza345h769";
-
-function isCanonicalAuthSecret(value: string): boolean {
-  if (!/^[A-Za-z0-9_-]{43}$/u.test(value)) return false;
-  const lastCharacter = value.at(-1);
-  return lastCharacter !== undefined && BASE64_URL_ALPHABET.indexOf(lastCharacter) % 4 === 0;
-}
-
-function isCanonicalPublicKey(value: string): boolean {
-  if (value.length !== 52) return false;
-  for (const character of value) {
-    if (!Z_BASE_32_ALPHABET.includes(character)) return false;
-  }
-  return value.endsWith("y") || value.endsWith("o");
-}
-
-function utf8Length(value: string): number {
-  return new TextEncoder().encode(value).byteLength;
 }
 
 function mapCapabilitiesError(

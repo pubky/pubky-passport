@@ -1,5 +1,3 @@
-"use client";
-
 import Image from "next/image";
 
 import type { GoogleAccountProfile } from "../../../logic/local-identity/localIdentityModels";

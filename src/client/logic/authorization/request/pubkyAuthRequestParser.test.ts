@@ -1,9 +1,8 @@
-import { describe, expect, expectTypeOf, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
 
-import { parseEncodedPubkyAuthRequest, type PubkyAuthParseErrorCode } from "./pubkyAuthRequestParser";
+import { parseEncodedPubkyAuthRequest, type PubkyAuthParseError } from "./pubkyAuthRequestParser";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
-import type { PubkyAuthUrlValidationErrorCode } from "./pubkyAuthUrls";
 
 const VALID_REQUEST =
   "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-success=https://pubky.app/passport-success&x-error=https://pubky.app/passport-error&x-cancel=https://pubky.app/passport-cancel";
@@ -17,7 +16,7 @@ const PUBKY_SDK_V0_10_COMPATIBILITY_FIXTURES = [
     request: "pubkyauth://signin_grant?caps=/pub/passport.test/:rw&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&cid=passport.test&cpk=5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo",
   },
 ] as const;
-expectTypeOf<PubkyAuthUrlValidationErrorCode>().toMatchTypeOf<PubkyAuthParseErrorCode>();
+type PubkyAuthParseErrorCode = PubkyAuthParseError["code"];
 
 function encodeRequest(request: string): string {
   return encodeURIComponent(request);

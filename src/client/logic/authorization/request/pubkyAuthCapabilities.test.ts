@@ -3,9 +3,11 @@ import { Result } from "better-result";
 
 import {
   parsePubkyAuthCapabilities,
-  type PubkyAuthCapabilitiesParseErrorCode,
+  type PubkyAuthCapabilitiesParseError,
 } from "./pubkyAuthCapabilities";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
+
+type PubkyAuthCapabilitiesParseErrorCode = PubkyAuthCapabilitiesParseError["code"];
 
 function expectCapabilities(input: string) {
   const result = parsePubkyAuthCapabilities(input);

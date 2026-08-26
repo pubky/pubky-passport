@@ -1,5 +1,3 @@
-"use client";
-
 import { Result } from "better-result";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
@@ -38,7 +36,9 @@ function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadRe
 
   return (
     <PassportScreen className="gap-6">
-      <Button className="absolute right-6 top-[22px] z-10" onClick={onRemoveLocalIdentity} variant="secondary">Log out</Button>
+      <div className="flex justify-end">
+        <Button onClick={onRemoveLocalIdentity} variant="secondary">Log out</Button>
+      </div>
       <header className="flex items-start gap-6">
         <DisplayHeading accent="identity." aria-label="Manage identity.">Manage</DisplayHeading>
         <Avatar className="ml-auto" fallback={name} size="lg" {...(account?.pictureUrl ? { src: account.pictureUrl } : {})} />

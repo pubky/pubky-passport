@@ -1,5 +1,3 @@
-"use client";
-
 import { Result } from "better-result";
 import { useCallback, useEffect, useRef, useState } from "react";
 

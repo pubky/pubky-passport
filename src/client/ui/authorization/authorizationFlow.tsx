@@ -151,7 +151,7 @@ function AuthorizationTerminal({ outcome }: { outcome: "approved" | "cancelled" 
 }
 
 function AuthorizationLoading({ label }: { label: string }) {
-  return <main aria-label={label} className="grid min-h-[calc(100svh-84px)] place-items-center"><Spinner /></main>;
+  return <main aria-label={label} className="grid min-h-[calc(100svh-var(--passport-header-height))] place-items-center"><Spinner /></main>;
 }
 
 function goHome() {

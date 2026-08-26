@@ -29,10 +29,10 @@ function IdentityDashboard() {
 
   switch (identityCatalogState.status) {
     case "loading":
-      return <main aria-label="Checking login state" className="grid min-h-[calc(100svh-84px)] place-items-center"><Spinner /></main>;
+      return <main aria-label="Checking login state" className="grid min-h-[calc(100svh-var(--passport-header-height))] place-items-center"><Spinner /></main>;
     case "unavailable":
       return (
-        <main className="grid min-h-[calc(100svh-84px)] place-items-center px-6 text-center text-muted-foreground">
+        <main className="grid min-h-[calc(100svh-var(--passport-header-height))] place-items-center px-6 text-center text-muted-foreground">
           <div className="flex flex-col items-center gap-6">
             <p>Local identity storage is unavailable.</p>
             <ButtonLink href="/" size="lg"><RotateCcwIcon />Reload page</ButtonLink>
