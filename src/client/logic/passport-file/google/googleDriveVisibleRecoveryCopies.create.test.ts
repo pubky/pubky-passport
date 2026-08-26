@@ -8,7 +8,7 @@ import { GoogleDriveVisibleRecoveryCopies } from "./GoogleDriveVisibleRecoveryCo
 const ACCESS_TOKEN = "SECRET-DRIVE-TOKEN";
 const PUBLIC_KEY_Z32 = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
 const PUBLIC_KEY_DISPLAY = `pubky${PUBLIC_KEY_Z32}`;
-const PUBLIC_IDENTITY = { publicKeyZ32: PUBLIC_KEY_Z32, publicKeyDisplay: PUBLIC_KEY_DISPLAY };
+const PUBLIC_IDENTITY = { publicKeyZ32: PUBLIC_KEY_Z32,};
 const VISIBLE_FILE_NAME = `${PUBLIC_KEY_DISPLAY}.json`;
 const ENVELOPE: PassportFileEnvelopeV1 = {
   v: 1,
@@ -118,12 +118,10 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
   });
 
   it.each([
-    ["missing prefix", { ...PUBLIC_IDENTITY, publicKeyDisplay: "y".repeat(52) }],
-    ["invalid alphabet", { ...PUBLIC_IDENTITY, publicKeyDisplay: `pubky${"0".repeat(52)}` }],
-    ["short key", { ...PUBLIC_IDENTITY, publicKeyDisplay: `pubky${"y".repeat(51)}` }],
-    ["long key", { ...PUBLIC_IDENTITY, publicKeyDisplay: `pubky${"y".repeat(53)}` }],
-    ["noncanonical suffix", { ...PUBLIC_IDENTITY, publicKeyDisplay: `${PUBLIC_KEY_DISPLAY.slice(0, -1)}n` }],
-    ["mismatched forms", { ...PUBLIC_IDENTITY, publicKeyDisplay: `pubky${"y".repeat(52)}` }],
+    ["invalid alphabet", { publicKeyZ32: "0".repeat(52) }],
+    ["short key", { publicKeyZ32: "y".repeat(51) }],
+    ["long key", { publicKeyZ32: "y".repeat(53) }],
+    ["noncanonical suffix", { publicKeyZ32: `${PUBLIC_KEY_Z32.slice(0, -1)}n` }],
   ])("rejects %s public identity filename input without accessing Drive", async (_case, publicIdentity) => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const calls: SanitizedCall[] = [];

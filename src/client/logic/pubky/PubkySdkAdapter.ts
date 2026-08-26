@@ -329,7 +329,6 @@ function publicIdentity(operation: PubkyOperation, keypair: Keypair): PubkyIdent
     try {
       return Result.ok({
         publicKeyZ32: publicKey.z32(),
-        publicKeyDisplay: publicKey.toString(),
       });
     } finally {
       cleanup(operation, "public_key_free", () => publicKey.free());
@@ -375,7 +374,6 @@ function authenticatedIdentityFromSession(operation: "signup" | "signin", sessio
     return {
       publicIdentity: {
         publicKeyZ32: publicKey.z32(),
-        publicKeyDisplay: publicKey.toString(),
       },
     };
   } finally {

@@ -71,7 +71,6 @@ describe("PubkySdkAdapter", () => {
       const created = expectOk(await pubky.createIdentityKey());
 
       expect(created.publicIdentity.publicKeyZ32).toMatch(/^[13456789abcdefghijkmnopqrstuwxyz]+$/);
-      expect(created.publicIdentity.publicKeyDisplay).toBe(`pubky${created.publicIdentity.publicKeyZ32}`);
     } finally {
       pubky.dispose();
     }

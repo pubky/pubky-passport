@@ -7,8 +7,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { IdentitySwitcher } from "./identitySwitcher";
 
 const IDENTITIES = [
-  { publicIdentity: { publicKeyZ32: "firstidentity1234", publicKeyDisplay: "pubkyfirst" }, googleAccount: { googleSubject: "google-1", email: "other@gmail.com", name: "Other Account", pictureUrl: null } },
-  { publicIdentity: { publicKeyZ32: "secondidentity5678", publicKeyDisplay: "pubkysecond" }, googleAccount: { googleSubject: "google-2", email: "active@gmail.com", name: "Active Account", pictureUrl: null } },
+  { publicIdentity: { publicKeyZ32: "firstidentity1234",}, googleAccount: { googleSubject: "google-1", email: "other@gmail.com", name: "Other Account", pictureUrl: null } },
+  { publicIdentity: { publicKeyZ32: "secondidentity5678",}, googleAccount: { googleSubject: "google-2", email: "active@gmail.com", name: "Active Account", pictureUrl: null } },
 ];
 
 describe("IdentitySwitcher", () => {
@@ -36,7 +36,7 @@ describe("IdentitySwitcher", () => {
   it("falls back to the shortened Pubky when an identity has no email", () => {
     render(<IdentitySwitcher
       activePublicKeyZ32="localidentity1234"
-      identities={[{ publicIdentity: { publicKeyZ32: "localidentity1234", publicKeyDisplay: "pubkylocal" } }]}
+      identities={[{ publicIdentity: { publicKeyZ32: "localidentity1234",} }]}
       onAddIdentity={vi.fn()}
       onBack={vi.fn()}
       onSelect={vi.fn()}

@@ -162,7 +162,7 @@ describe("IdentityEstablishmentFlow", () => {
       establishIdentity: vi.fn(async () => Result.ok({
         establishmentMode: "restored" as const,
         googleAccount,
-        publicIdentity: { publicKeyZ32: "key", publicKeyDisplay: "pubkykey" },
+        publicIdentity: { publicKeyZ32: "key",},
       })),
     }));
     render(<ConfiguredIdentityEstablishmentFlow onComplete={onComplete} />);
@@ -194,7 +194,7 @@ describe("IdentityEstablishmentFlow", () => {
     const replaceInvalidPassportFile = vi.fn(async () => Result.ok({
       establishmentMode: "created" as const,
       googleAccount,
-      publicIdentity: { publicKeyZ32: "new-key", publicKeyDisplay: "pubkynew-key" },
+      publicIdentity: { publicKeyZ32: "new-key",},
       visibleRecoveryCopyStatus: "created" as const,
     }));
     useController(mockGoogleIdentityController({
@@ -304,7 +304,7 @@ describe("IdentityEstablishmentFlow", () => {
       establishIdentity: vi.fn(async () => Result.ok({
         establishmentMode: "created" as const,
         googleAccount,
-        publicIdentity: { publicKeyZ32: "key", publicKeyDisplay: "pubkykey" },
+        publicIdentity: { publicKeyZ32: "key",},
         visibleRecoveryCopyStatus: "created" as const,
       })),
     });
@@ -325,7 +325,7 @@ describe("IdentityEstablishmentFlow", () => {
       establishIdentity: vi.fn(async () => Result.ok({
         establishmentMode: "created" as const,
         googleAccount: { googleSubject: "google-1", email: "user@example.com", name: "User", pictureUrl: null },
-        publicIdentity: { publicKeyZ32: "key", publicKeyDisplay: "pubkykey" },
+        publicIdentity: { publicKeyZ32: "key",},
         visibleRecoveryCopyStatus: "unconfirmed" as const,
       })),
     }));

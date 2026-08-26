@@ -1,215 +1,130 @@
-/** @vitest-environment jsdom */
-
 import { Result } from "better-result";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../test-utils/MemoryStorage";
 import { expectResultOk } from "../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../libs/logger/logger";
-import { PUBKY_SECRET_KEY_FORMAT } from "../pubky/pubkyIdentityKey";
-import { PubkySdkAdapter } from "../pubky/PubkySdkAdapter";
-import { LocalIdentityController } from "./LocalIdentityController";
-import { LocalStorageIdentityRepository } from "./LocalStorageIdentityRepository";
+import { PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../pubky/pubkyIdentityKey";
+import {
+  createLocalIdentityService,
+  type LocalIdentityDependencies,
+} from "./LocalIdentityController";
 
-describe("LocalIdentityController", () => {
-  beforeEach(() => {
-    vi.stubGlobal("localStorage", new MemoryStorage());
+const PUBLIC_KEY = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
+
+afterEach(() => vi.restoreAllMocks());
+
+describe("local identity service", () => {
+  it("delegates catalog actions to its concrete repository", () => {
+    const dependencies = createDependencies();
+    const service = createLocalIdentityService(dependencies);
+
+    expect(service.listIdentities()).toEqual(Result.ok({ activePublicKeyZ32: null, identities: [] }));
+    expect(service.selectIdentity(PUBLIC_KEY)).toEqual(Result.ok());
+    expect(service.removeIdentity(PUBLIC_KEY)).toEqual(Result.ok());
+    expect(dependencies.repository.select).toHaveBeenCalledWith(PUBLIC_KEY);
+    expect(dependencies.repository.remove).toHaveBeenCalledWith(PUBLIC_KEY);
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
-  });
-
-  it("lists local identities", () => {
-    const controller = createController();
-
-    expect(controller.listIdentities()).toEqual(Result.ok({
-      activePublicKeyZ32: null,
-      identities: [],
-    }));
-  });
-
-  it("creates a Ring migration URL for the requested identity and clears the returned secret bytes", () => {
+  it("creates a Ring migration URL for the requested identity and clears secret bytes", () => {
     const bytes = Uint8Array.from({ length: 32 }, (_, index) => index);
-    const readIdentity = vi.spyOn(LocalStorageIdentityRepository.prototype, "read").mockReturnValue(Result.ok({
-      identity: {
-        publicIdentity: { publicKeyZ32: "expected", publicKeyDisplay: "pubkyexpected" },
-      },
-      secretKey: { bytes, format: PUBKY_SECRET_KEY_FORMAT },
-    }));
-    const controller = createController();
+    const dependencies = createDependencies({ secretBytes: bytes });
+    const service = createLocalIdentityService(dependencies);
 
-    expect(controller.createPubkyRingMigrationUrl("expected")).toEqual(Result.ok(
+    expect(service.createPubkyRingMigrationUrl(PUBLIC_KEY)).toEqual(Result.ok(
       "pubkyring://migrate?index=0&total=1&key=000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
     ));
-    expect(readIdentity).toHaveBeenCalledWith("expected");
+    expect(dependencies.repository.read).toHaveBeenCalledWith(PUBLIC_KEY);
     expect(bytes).toEqual(new Uint8Array(32));
   });
 
-  it("exports the requested identity when a different identity is active", () => {
-    const requestedPublicKey = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
-    const activePublicKey = "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo";
-    const repository = new LocalStorageIdentityRepository();
-    expectResultOk(repository.save(
-      { publicIdentity: { publicKeyDisplay: `pubky${requestedPublicKey}`, publicKeyZ32: requestedPublicKey } },
-      { bytes: new Uint8Array(32).fill(1), format: PUBKY_SECRET_KEY_FORMAT },
-    ));
-    expectResultOk(repository.save(
-      { publicIdentity: { publicKeyDisplay: `pubky${activePublicKey}`, publicKeyZ32: activePublicKey } },
-      { bytes: new Uint8Array(32).fill(2), format: PUBKY_SECRET_KEY_FORMAT },
-    ));
+  it("rejects weak recovery passwords before reading storage or creating the SDK", async () => {
+    const dependencies = createDependencies();
+    const service = createLocalIdentityService(dependencies);
 
-    expect(createController().createPubkyRingMigrationUrl(requestedPublicKey)).toEqual(Result.ok(
-      `pubkyring://migrate?index=0&total=1&key=${"01".repeat(32)}`,
-    ));
+    const result = await service.createRecoveryFile(PUBLIC_KEY, "short");
+    expect(Result.isError(result) && result.error).toEqual({ code: "invalid_password" });
+    expect(dependencies.repository.read).not.toHaveBeenCalled();
+    expect(dependencies.createPubky).not.toHaveBeenCalled();
   });
 
-  it("preserves a requested identity read failure", () => {
-    const controller = createController();
-
-    const migration = controller.createPubkyRingMigrationUrl("missing");
-
-    expect(Result.isError(migration)).toBe(true);
-    if (Result.isError(migration)) {
-      expect(migration.error).toEqual({ code: "invalid_identity" });
-    }
-  });
-
-  it("creates an SDK recovery file for the requested local identity", async () => {
-    const publicKeyZ32 = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
-    const repository = new LocalStorageIdentityRepository();
-    expectResultOk(repository.save(
-      { publicIdentity: { publicKeyDisplay: `pubky${publicKeyZ32}`, publicKeyZ32 } },
-      { bytes: new Uint8Array(32).fill(7), format: PUBKY_SECRET_KEY_FORMAT },
-    ));
-    const controller = createController();
-
-    const recoveryFile = expectResultOk(
-      await controller.createRecoveryFile(publicKeyZ32, "a strong recovery password"),
-    );
-
-    expect(recoveryFile.bytes.byteLength).toBeGreaterThan(32);
-    expect(recoveryFile.fileName).toBe(`pubky-${publicKeyZ32}.pkarr`);
-    recoveryFile.bytes.fill(0);
-  });
-
-  it("preserves the complete repository failure when recovery identity storage is unavailable", async () => {
-    const lowerCause = new DOMException("SECRET-LOCAL-IDENTITY", "SecurityError");
-    const repositoryFailure = { code: "storage_unavailable" as const, cause: lowerCause };
-    vi.spyOn(LocalStorageIdentityRepository.prototype, "read").mockReturnValue(Result.err(repositoryFailure));
-    const controller = createController();
-
-    const result = await controller.createRecoveryFile("identity", "a strong recovery password");
-
-    expect(Result.isError(result)).toBe(true);
-    if (!Result.isError(result)) throw new Error("Expected unavailable recovery identity.");
-    expect(result.error.code).toBe("identity_unavailable");
-    expect(result.error.cause).toBe(repositoryFailure);
-  });
-
-  it("rejects weak recovery-file passwords before reading local identity storage", async () => {
-    const readIdentity = vi.spyOn(LocalStorageIdentityRepository.prototype, "read");
-    const createRecoveryFile = vi.spyOn(PubkySdkAdapter.prototype, "createRecoveryFile");
-    const controller = createController();
-
-    const result = await controller.createRecoveryFile("identity", "short");
-
-    expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) expect(result.error).toEqual({ code: "invalid_password" });
-    expect(readIdentity).not.toHaveBeenCalled();
-    expect(createRecoveryFile).not.toHaveBeenCalled();
-  });
-
-  it.each(["failure", "exception"] as const)(
-    "zeros secret bytes and disposes the SDK adapter after a recovery-file SDK %s",
-    async (outcome) => {
-      const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-      const secretKey = { bytes: new Uint8Array(32).fill(7), format: PUBKY_SECRET_KEY_FORMAT } as const;
-      const thrownCause = new TypeError("SECRET-RECOVERY-PASSWORD");
-      const sdkFailure = { code: "recovery_file_failed" as const };
-      const expectedCause = outcome === "exception" ? thrownCause : sdkFailure;
-      vi.spyOn(LocalStorageIdentityRepository.prototype, "read").mockReturnValue(Result.ok({
-        identity: {
-          publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" },
-        },
-        secretKey,
-      }));
-      const createRecoveryFile = vi.spyOn(PubkySdkAdapter.prototype, "createRecoveryFile")
-        .mockImplementation(() => {
-          if (outcome === "exception") throw thrownCause;
-          return Result.err(sdkFailure);
-        });
-      const dispose = vi.spyOn(PubkySdkAdapter.prototype, "dispose");
-      const controller = createController();
-
-      const result = await controller.createRecoveryFile("identity", "a strong recovery password");
-
-      expect(Result.isError(result)).toBe(true);
-      if (!Result.isError(result)) throw new Error("Expected recovery-file failure.");
-      expect(result.error.code).toBe("recovery_file_failed");
-      expect(result.error.cause).toBe(expectedCause);
-      expect(secretKey.bytes).toEqual(new Uint8Array(32));
-      expect(createRecoveryFile).toHaveBeenCalledOnce();
-      expect(dispose).toHaveBeenCalledOnce();
-      if (outcome === "exception") {
-        expect(warning).toHaveBeenCalledWith("identity.controller.failed", {
-          operation: "create_recovery_file",
-          code: "recovery_file_failed",
-        });
-        expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-RECOVERY-PASSWORD");
-      }
-    },
-  );
-
-  it("zeros secret bytes and disposes the SDK adapter after a successful recovery file", async () => {
-    const secretKey = { bytes: new Uint8Array(32).fill(7), format: PUBKY_SECRET_KEY_FORMAT } as const;
-    vi.spyOn(LocalStorageIdentityRepository.prototype, "read").mockReturnValue(Result.ok({
-      identity: {
-        publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" },
-      },
-      secretKey,
-    }));
+  it("creates a named recovery file and releases sensitive resources", async () => {
+    const secretBytes = new Uint8Array(32).fill(7);
     const recoveryBytes = new Uint8Array(64).fill(9);
-    vi.spyOn(PubkySdkAdapter.prototype, "createRecoveryFile").mockReturnValue(Result.ok(recoveryBytes));
-    const dispose = vi.spyOn(PubkySdkAdapter.prototype, "dispose");
-    const controller = createController();
+    const dispose = vi.fn();
+    const dependencies = createDependencies({ secretBytes });
+    dependencies.createPubky = vi.fn(() => ({
+      createRecoveryFile: () => Result.ok(recoveryBytes),
+      dispose,
+    }));
 
-    const recoveryFile = expectResultOk(
-      await controller.createRecoveryFile("identity", "a strong recovery password"),
-    );
+    const recoveryFile = expectResultOk(await createLocalIdentityService(dependencies)
+      .createRecoveryFile(PUBLIC_KEY, "a strong recovery password"));
 
-    expect(recoveryFile.bytes).toBe(recoveryBytes);
-    expect(secretKey.bytes).toEqual(new Uint8Array(32));
+    expect(recoveryFile).toEqual({ bytes: recoveryBytes, fileName: `pubky-${PUBLIC_KEY}.pkarr` });
+    expect(secretBytes).toEqual(new Uint8Array(32));
     expect(dispose).toHaveBeenCalledOnce();
   });
 
-  it("preserves a successful recovery file when SDK cleanup throws", async () => {
+  it.each(["failure", "exception"] as const)(
+    "contains an SDK %s and still clears and disposes",
+    async (outcome) => {
+      const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+      const secretBytes = new Uint8Array(32).fill(7);
+      const dispose = vi.fn();
+      const dependencies = createDependencies({ secretBytes });
+      dependencies.createPubky = vi.fn(() => ({
+        createRecoveryFile: () => {
+          if (outcome === "exception") throw new Error("SECRET-RECOVERY-PASSWORD");
+          return Result.err({ code: "recovery_file_failed" as const });
+        },
+        dispose,
+      }));
+
+      const result = await createLocalIdentityService(dependencies)
+        .createRecoveryFile(PUBLIC_KEY, "a strong recovery password");
+
+      expect(Result.isError(result) && result.error.code).toBe("recovery_file_failed");
+      expect(secretBytes).toEqual(new Uint8Array(32));
+      expect(dispose).toHaveBeenCalledOnce();
+      expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-RECOVERY-PASSWORD");
+    },
+  );
+
+  it("preserves success when SDK cleanup fails", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const secretKey = { bytes: new Uint8Array(32).fill(7), format: PUBKY_SECRET_KEY_FORMAT } as const;
-    vi.spyOn(LocalStorageIdentityRepository.prototype, "read").mockReturnValue(Result.ok({
-      identity: {
-        publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" },
-      },
-      secretKey,
+    const dependencies = createDependencies();
+    dependencies.createPubky = vi.fn(() => ({
+      createRecoveryFile: () => Result.ok(new Uint8Array(64)),
+      dispose: () => { throw new Error("cleanup failed"); },
     }));
-    vi.spyOn(PubkySdkAdapter.prototype, "createRecoveryFile")
-      .mockReturnValue(Result.ok(new Uint8Array(64).fill(9)));
-    vi.spyOn(PubkySdkAdapter.prototype, "dispose").mockImplementation(() => {
-      throw new Error("cleanup failed");
-    });
-    const controller = createController();
 
-    expectResultOk(await controller.createRecoveryFile("identity", "a strong recovery password"));
-
-    expect(secretKey.bytes).toEqual(new Uint8Array(32));
+    expectResultOk(await createLocalIdentityService(dependencies)
+      .createRecoveryFile(PUBLIC_KEY, "a strong recovery password"));
     expect(warning).toHaveBeenCalledWith("identity.recovery_file.cleanup.failed", {
       operation: "pubky_dispose",
     });
   });
-
 });
 
-function createController(): LocalIdentityController {
-  return new LocalIdentityController();
+function createDependencies({ secretBytes = new Uint8Array(32).fill(1) } = {}): LocalIdentityDependencies {
+  return {
+    createPubky: vi.fn(() => ({
+      createRecoveryFile: () => Result.err({ code: "recovery_file_failed" as const }),
+      dispose: vi.fn(),
+    })),
+    repository: {
+      list: vi.fn(() => Result.ok({ activePublicKeyZ32: null, identities: [] })),
+      read: vi.fn(() => Result.ok({
+        identity: { publicIdentity: { publicKeyZ32: PUBLIC_KEY } },
+        secretKey: {
+          bytes: secretBytes,
+          format: PUBKY_SECRET_KEY_FORMAT,
+        } satisfies PubkySecretKeyMaterial,
+      })),
+      remove: vi.fn(() => Result.ok()),
+      select: vi.fn(() => Result.ok()),
+      subscribe: vi.fn(() => () => undefined),
+    },
+    resolveHomeserver: vi.fn(async () => Result.ok(null)),
+  };
 }

@@ -6,8 +6,8 @@ import { GoogleDriveVisibleRecoveryCopies } from "./GoogleDriveVisibleRecoveryCo
 
 const TOKEN = "SECRET-DRIVE-TOKEN";
 const PUBLIC_KEY_Z32 = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
-const PUBLIC_IDENTITY = { publicKeyZ32: PUBLIC_KEY_Z32, publicKeyDisplay: `pubky${PUBLIC_KEY_Z32}` };
-const FILE_NAME = `${PUBLIC_IDENTITY.publicKeyDisplay}.json`;
+const PUBLIC_IDENTITY = { publicKeyZ32: PUBLIC_KEY_Z32,};
+const FILE_NAME = `pubky${PUBLIC_IDENTITY.publicKeyZ32}.json`;
 const FOLDER = {
   id: "folder-1",
   name: "Pubky Passport",
@@ -157,7 +157,7 @@ describe("GoogleDriveVisibleRecoveryCopies deletion", () => {
       responseBody: "SECRET-RESPONSE-BODY",
       driveFile: FOLDER,
       url: "https://secret.example/drive/file-1",
-      identity: PUBLIC_IDENTITY.publicKeyDisplay,
+      identity: `pubky${PUBLIC_IDENTITY.publicKeyZ32}`,
     };
     const response = new Response(null);
     Object.defineProperty(response, "ok", {
@@ -186,7 +186,7 @@ describe("GoogleDriveVisibleRecoveryCopies deletion", () => {
     expect(logged).not.toContain(TOKEN);
     expect(logged).not.toContain(FOLDER.id);
     expect(logged).not.toContain("secret.example");
-    expect(logged).not.toContain(PUBLIC_IDENTITY.publicKeyDisplay);
+    expect(logged).not.toContain(`pubky${PUBLIC_IDENTITY.publicKeyZ32}`);
   });
 
   it("rejects an invalid Pubky before accessing Drive", async () => {
@@ -195,7 +195,6 @@ describe("GoogleDriveVisibleRecoveryCopies deletion", () => {
 
     const result = await visibleCopies.deleteVisibleRecoveryCopies({
       publicKeyZ32: "not-a-pubky",
-      publicKeyDisplay: "not-a-pubky",
     });
 
     expect(Result.isError(result) && result.error).toEqual({ code: "invalid_file" });

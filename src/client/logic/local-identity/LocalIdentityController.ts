@@ -6,9 +6,12 @@ import { LOGGER } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
 import type { PubkyHomeserverResolutionResult } from "../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter, resolvePubkyHomeserver } from "../pubky/PubkySdkAdapter";
+import { createPubkyRingMigrationUrl } from "../pubky/pubkyRingMigration";
 import type { LocalIdentityCatalog } from "./localIdentityModels";
-import type { LocalIdentityResult } from "./LocalStorageIdentityRepository";
-import { LocalStorageIdentityRepository } from "./LocalStorageIdentityRepository";
+import {
+  LocalStorageIdentityRepository,
+  type LocalIdentityResult,
+} from "./LocalStorageIdentityRepository";
 
 export const MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS = 6;
 const MAXIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS = 1024;
@@ -23,108 +26,109 @@ export type LocalIdentityRecoveryFileResult = ResultType<
   CodedFailure<LocalIdentityRecoveryFileErrorCode>
 >;
 
-/**
- * Browser entry point for identities stored in localStorage. This class is safe to use in a React client component.
- */
-export class LocalIdentityController {
-  private repository: LocalStorageIdentityRepository;
+type LocalIdentityRepository = Pick<
+  LocalStorageIdentityRepository,
+  "list" | "read" | "remove" | "select" | "subscribe"
+>;
 
-  constructor() {
-    try {
-      this.repository = new LocalStorageIdentityRepository();
-    } catch {
-      LOGGER.error("identity.controller.failed", {
-        operation: "initialize",
-        code: "runtime_exception",
-      });
-      throw new Error("Local identity initialization unavailable.");
-    }
-  }
+export type LocalIdentityDependencies = {
+  createPubky: () => Pick<PubkySdkAdapter, "createRecoveryFile" | "dispose">;
+  repository: LocalIdentityRepository;
+  resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult>;
+};
 
-  /** Returns a list of all identities stored in localStorage without exposing secret key bytes. */
-  listIdentities(): LocalIdentityResult<LocalIdentityCatalog> {
-    return this.repository.list();
-  }
-
-  /** Makes an existing local identity active for Passport authorization. */
-  selectIdentity(publicKeyZ32: string): LocalIdentityResult<void> {
-    return this.repository.select(publicKeyZ32);
-  }
-
-  /**
-   * Removes one identity from this browser only.
-   *
-   * This does not delete Google Drive Passport files. Use the Google identity flow for
-   * detachment.
-   */
-  removeIdentity(publicKeyZ32: string): LocalIdentityResult<void> {
-    return this.repository.remove(publicKeyZ32);
-  }
-
-  resolveHomeserver = (
-    publicKeyZ32: string,
-  ): Promise<PubkyHomeserverResolutionResult> => resolvePubkyHomeserver(publicKeyZ32);
-
-  /** Creates a password-encrypted recovery file for the requested identity. */
-  createRecoveryFile = async (
+export type LocalIdentityService = {
+  createPubkyRingMigrationUrl: (publicKeyZ32: string) => LocalIdentityResult<string>;
+  createRecoveryFile: (
     publicKeyZ32: string,
     password: string,
-  ): Promise<LocalIdentityRecoveryFileResult> => {
-    if (password.length < MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS
-      || password.length > MAXIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS) {
-      return Result.err({ code: "invalid_password" });
-    }
+  ) => Promise<LocalIdentityRecoveryFileResult>;
+  listIdentities: () => LocalIdentityResult<LocalIdentityCatalog>;
+  removeIdentity: (publicKeyZ32: string) => LocalIdentityResult<void>;
+  resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult>;
+  selectIdentity: (publicKeyZ32: string) => LocalIdentityResult<void>;
+  subscribeToIdentityChanges: (listener: () => void) => () => void;
+};
 
-    const stored = this.repository.read(publicKeyZ32);
-    if (Result.isError(stored)) {
-      return Result.err({ code: "identity_unavailable", cause: stored.error });
-    }
+export function createLocalIdentityService(
+  dependencies: LocalIdentityDependencies = browserDependencies(),
+): LocalIdentityService {
+  const { repository } = dependencies;
+  return {
+    createPubkyRingMigrationUrl: (publicKeyZ32) => createMigrationUrl(repository, publicKeyZ32),
+    createRecoveryFile: (publicKeyZ32, password) => createRecoveryFile(
+      dependencies,
+      publicKeyZ32,
+      password,
+    ),
+    listIdentities: () => repository.list(),
+    removeIdentity: (publicKeyZ32) => repository.remove(publicKeyZ32),
+    resolveHomeserver: dependencies.resolveHomeserver,
+    selectIdentity: (publicKeyZ32) => repository.select(publicKeyZ32),
+    subscribeToIdentityChanges: (listener) => repository.subscribe(listener),
+  };
+}
 
-    let pubky: PubkySdkAdapter | undefined;
-    try {
-      pubky = new PubkySdkAdapter();
-      const recoveryFile = pubky.createRecoveryFile(stored.value.secretKey, password);
-      if (Result.isError(recoveryFile)) {
-        return Result.err({ code: "recovery_file_failed", cause: recoveryFile.error });
-      }
-      return Result.ok({
+async function createRecoveryFile(
+  dependencies: LocalIdentityDependencies,
+  publicKeyZ32: string,
+  password: string,
+): Promise<LocalIdentityRecoveryFileResult> {
+  if (password.length < MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS
+    || password.length > MAXIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS) {
+    return Result.err({ code: "invalid_password" });
+  }
+
+  const stored = dependencies.repository.read(publicKeyZ32);
+  if (Result.isError(stored)) {
+    return Result.err({ code: "identity_unavailable", cause: stored.error });
+  }
+
+  let pubky: ReturnType<LocalIdentityDependencies["createPubky"]> | undefined;
+  try {
+    pubky = dependencies.createPubky();
+    const recoveryFile = pubky.createRecoveryFile(stored.value.secretKey, password);
+    return Result.isError(recoveryFile)
+      ? Result.err({ code: "recovery_file_failed", cause: recoveryFile.error })
+      : Result.ok({
         bytes: recoveryFile.value,
         fileName: `pubky-${publicKeyZ32}.pkarr`,
       });
-    } catch (cause) {
-      LOGGER.warn("identity.controller.failed", {
-        operation: "create_recovery_file",
-        code: "recovery_file_failed",
-      });
-      return Result.err({ code: "recovery_file_failed", cause });
-    } finally {
-      stored.value.secretKey.bytes.fill(0);
-      try {
-        pubky?.dispose();
-      } catch {
-        LOGGER.warn("identity.recovery_file.cleanup.failed", { operation: "pubky_dispose" });
-      }
-    }
-  };
-
-  /**
-   * Creates a Pubky Ring migration URL for the requested identity.
-   *
-   * The explicit key binds the export to the identity shown by the caller. The
-   * active identity can change in another tab while a management flow is open.
-   */
-  createPubkyRingMigrationUrl(publicKeyZ32: string): LocalIdentityResult<string> {
-    const stored = this.repository.read(publicKeyZ32);
-    if (Result.isError(stored)) return Result.err(stored.error);
-
+  } catch (cause) {
+    LOGGER.warn("identity.controller.failed", {
+      operation: "create_recovery_file",
+      code: "recovery_file_failed",
+    });
+    return Result.err({ code: "recovery_file_failed", cause });
+  } finally {
+    stored.value.secretKey.bytes.fill(0);
     try {
-      const secretKey = Array.from(
-        stored.value.secretKey.bytes,
-        (byte) => byte.toString(16).padStart(2, "0"),
-      ).join("");
-      return Result.ok(`pubkyring://migrate?index=0&total=1&key=${secretKey}`);
-    } finally {
-      stored.value.secretKey.bytes.fill(0);
+      pubky?.dispose();
+    } catch {
+      LOGGER.warn("identity.recovery_file.cleanup.failed", { operation: "pubky_dispose" });
     }
   }
+}
+
+function createMigrationUrl(
+  repository: LocalIdentityRepository,
+  publicKeyZ32: string,
+): LocalIdentityResult<string> {
+  const stored = repository.read(publicKeyZ32);
+  if (Result.isError(stored)) return Result.err(stored.error);
+
+  try {
+    const url = createPubkyRingMigrationUrl(stored.value.secretKey.bytes);
+    return url ? Result.ok(url) : Result.err({ code: "invalid_secret_key" });
+  } finally {
+    stored.value.secretKey.bytes.fill(0);
+  }
+}
+
+function browserDependencies(): LocalIdentityDependencies {
+  return {
+    createPubky: () => new PubkySdkAdapter(),
+    repository: new LocalStorageIdentityRepository(),
+    resolveHomeserver: resolvePubkyHomeserver,
+  };
 }

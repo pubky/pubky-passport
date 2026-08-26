@@ -16,6 +16,7 @@ const MOCKS = vi.hoisted(() => ({
   authorizationState: undefined as PassportAuthorizationViewState | undefined,
   cancel: vi.fn(),
   catalog: undefined as LocalIdentityCatalog | undefined,
+  catalogListener: undefined as (() => void) | undefined,
   dispose: vi.fn(),
   select: vi.fn(),
   createAuthorizationController: vi.fn(),
@@ -43,19 +44,23 @@ vi.mock("../../logic/authorization/flow/PassportAuthorizationController", () => 
 }));
 
 vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
-  LocalIdentityController: class {
-    listIdentities = () => MOCKS.catalog
+  createLocalIdentityService: () => ({
+    listIdentities: () => MOCKS.catalog
       ? Result.ok(MOCKS.catalog)
-      : Result.err({ code: "storage_unavailable" as const });
-    selectIdentity = MOCKS.select;
-  },
+      : Result.err({ code: "storage_unavailable" as const }),
+    selectIdentity: MOCKS.select,
+    subscribeToIdentityChanges: (listener: () => void) => {
+      MOCKS.catalogListener = listener;
+      return () => { MOCKS.catalogListener = undefined; };
+    },
+  }),
 }));
 
 vi.mock("../onboarding/identityEstablishmentFlow", () => ({
   IdentityEstablishmentFlow: ({ onBack, onComplete }: { onBack?: () => void; onComplete: () => void }) => (
     <main>
       <h1>Add identity</h1>
-      <button onClick={onComplete} type="button">Complete identity setup</button>
+      <button onClick={() => { MOCKS.catalogListener?.(); onComplete(); }} type="button">Complete identity setup</button>
       {onBack ? <button onClick={onBack} type="button">Back</button> : null}
     </main>
   ),
@@ -71,11 +76,11 @@ const REVIEW = {
 } as const;
 
 const FIRST = {
-  publicIdentity: { publicKeyDisplay: "pubkyfirst", publicKeyZ32: "first-public-key" },
+  publicIdentity: { publicKeyZ32: "first-public-key" },
   googleAccount: { email: "first@example.com", googleSubject: "google-first", name: "First User", pictureUrl: null },
 };
 const SECOND = {
-  publicIdentity: { publicKeyDisplay: "pubkysecond", publicKeyZ32: "second-public-key" },
+  publicIdentity: { publicKeyZ32: "second-public-key" },
   googleAccount: { email: "second@example.com", googleSubject: "google-second", name: "Second User", pictureUrl: null },
 };
 
@@ -88,6 +93,7 @@ describe("AuthorizationFlow", () => {
     MOCKS.select.mockImplementation((publicKeyZ32: string) => {
       if (!MOCKS.catalog) return Result.err({ code: "storage_unavailable" as const });
       MOCKS.catalog = { ...MOCKS.catalog, activePublicKeyZ32: publicKeyZ32 };
+      MOCKS.catalogListener?.();
       return Result.ok();
     });
   });
@@ -97,6 +103,7 @@ describe("AuthorizationFlow", () => {
     await Promise.resolve();
     vi.clearAllMocks();
     MOCKS.authorizationListener = null;
+    MOCKS.catalogListener = undefined;
   });
 
   const renderFlow = () => render(<AuthorizationFlow />);

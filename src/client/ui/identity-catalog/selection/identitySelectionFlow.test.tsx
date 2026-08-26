@@ -18,8 +18,8 @@ vi.mock("../../onboarding/identityEstablishmentFlow", () => ({
 const CATALOG = {
   activePublicKeyZ32: "first",
   identities: [
-    { publicIdentity: { publicKeyDisplay: "pubkyfirst", publicKeyZ32: "first" } },
-    { publicIdentity: { publicKeyDisplay: "pubkysecond", publicKeyZ32: "second" } },
+    { publicIdentity: { publicKeyZ32: "first" } },
+    { publicIdentity: { publicKeyZ32: "second" } },
   ],
 };
 describe("IdentitySelectionFlow", () => {

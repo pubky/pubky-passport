@@ -125,6 +125,5 @@ function disposePubky(pubky: PubkySdkAdapter): void {
 }
 
 function isSamePublicIdentity(left: PubkyPublicIdentity, right: PubkyPublicIdentity): boolean {
-  return left.publicKeyZ32 === right.publicKeyZ32
-    && left.publicKeyDisplay === right.publicKeyDisplay;
+  return left.publicKeyZ32 === right.publicKeyZ32;
 }

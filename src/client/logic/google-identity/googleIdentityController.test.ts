@@ -45,7 +45,6 @@ const CREDENTIALS = {
 };
 const PUBLIC_IDENTITY = {
   publicKeyZ32: "public-key",
-  publicKeyDisplay: "pubky1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy",
 };
 
 describe("GoogleIdentityController", () => {

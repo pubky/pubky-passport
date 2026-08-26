@@ -1,6 +1,5 @@
 "use client";
 
-import { Result } from "better-result";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { preload } from "react-dom";
@@ -113,12 +112,12 @@ function AuthorizationWithIdentity({
         </PassportScreen>
       );
     case "ready": {
-      const { catalog, localIdentityController, refreshIdentityCatalog } = identityCatalog;
+      const { actions, catalog } = identityCatalog;
 
       if (catalog.identities.length === 0) {
         return <IdentityEstablishmentFlow
           onBack={() => { void passportAuthorizationController.cancel(); }}
-          onComplete={refreshIdentityCatalog}
+          onComplete={() => undefined}
         />;
       }
 
@@ -126,11 +125,8 @@ function AuthorizationWithIdentity({
         return <IdentitySelectionFlow
           catalog={catalog}
           onBack={() => setView("review")}
-          onIdentitySelected={() => {
-            refreshIdentityCatalog();
-            setView("review");
-          }}
-          selectIdentity={(publicKeyZ32) => Result.isOk(localIdentityController.selectIdentity(publicKeyZ32))}
+          onIdentitySelected={() => setView("review")}
+          selectIdentity={actions.selectIdentity}
         />;
       }
 

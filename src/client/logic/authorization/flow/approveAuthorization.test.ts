@@ -31,11 +31,9 @@ import { approveAuthorization } from "./approveAuthorization";
 const SELECTED_IDENTITY = "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo";
 const PUBLIC_IDENTITY = {
   publicKeyZ32: SELECTED_IDENTITY,
-  publicKeyDisplay: `pubky${SELECTED_IDENTITY}`,
 };
 const OTHER_PUBLIC_IDENTITY = {
   publicKeyZ32: "y".repeat(52),
-  publicKeyDisplay: `pubky${"y".repeat(52)}`,
 };
 const KEY_HANDLE = {};
 const SECRET = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";

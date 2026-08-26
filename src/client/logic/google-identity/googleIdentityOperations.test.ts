@@ -70,7 +70,6 @@ import { GoogleIdentityOperations, type GoogleIdentityProgress } from "./GoogleI
 
 const PUBLIC_IDENTITY = {
   publicKeyZ32: "public-identity",
-  publicKeyDisplay: "pubkypublic-identity",
 };
 const KEY_HANDLE = {};
 const IDENTITY = { keyHandle: KEY_HANDLE, publicIdentity: PUBLIC_IDENTITY };
@@ -549,7 +548,7 @@ describe("GoogleIdentityOperations", () => {
     MOCKS.signin
       .mockResolvedValueOnce(Result.err({ code: "signin_failed" }))
       .mockResolvedValue(Result.ok({
-        publicIdentity: { publicKeyZ32: "different", publicKeyDisplay: "pubkydifferent" },
+        publicIdentity: { publicKeyZ32: "different",},
       }));
 
     expectResultError(
@@ -628,7 +627,7 @@ describe("GoogleIdentityOperations", () => {
   it("rejects a mismatched sign-in identity before local persistence", async () => {
     foundPassportFile();
     MOCKS.signin.mockResolvedValue(Result.ok({
-      publicIdentity: { publicKeyZ32: "different", publicKeyDisplay: "pubkydifferent" },
+      publicIdentity: { publicKeyZ32: "different",},
     }));
 
     expectResultError(

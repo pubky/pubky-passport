@@ -151,7 +151,6 @@ function identity(publicKeyZ32: string): LocalIdentityMetadata {
   return {
     publicIdentity: {
       publicKeyZ32,
-      publicKeyDisplay: `pubky${publicKeyZ32}`,
     },
   };
 }

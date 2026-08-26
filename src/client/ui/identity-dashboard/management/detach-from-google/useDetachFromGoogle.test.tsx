@@ -27,7 +27,7 @@ vi.mock("../../../../logic/google-identity/GoogleIdentityController", () => ({
 
 function Probe() {
   const operation = useDetachFromGoogle(
-    { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" },
+    { publicKeyZ32: "identity",},
     "google-account",
   );
   return (
