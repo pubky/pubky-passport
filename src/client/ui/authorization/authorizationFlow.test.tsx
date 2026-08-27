@@ -134,18 +134,33 @@ describe("AuthorizationFlow", () => {
     expect(screen.getByText(/allow trusted\.example to read and update your data/u)).toBeInTheDocument();
   });
 
-  it("wraps a long callback host without changing its displayed value", async () => {
-    const callbackHost = "a-very-long-subdomain-that-must-wrap-without-being-truncated.requesting.example";
-    MOCKS.authorizationState = {
-      status: "review",
-      review: { ...REVIEW, callbackHost },
-    };
+  it("keeps a long callback host on one line and scales it to fit", async () => {
+    const callbackHost = "a-very-long-subdomain-that-must-fit-without-being-truncated.requesting.example";
+    const clientWidth = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function (this: HTMLElement) {
+      return this.tagName === "SPAN" && this.textContent === callbackHost ? 300 : 0;
+    });
+    const scrollWidth = vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (this: HTMLElement) {
+      return this.tagName === "BDI" && this.textContent === callbackHost ? 600 : 0;
+    });
+    const computedStyle = vi.spyOn(window, "getComputedStyle").mockReturnValue({ fontSize: "48px" } as CSSStyleDeclaration);
 
-    renderFlow();
+    try {
+      MOCKS.authorizationState = {
+        status: "review",
+        review: { ...REVIEW, callbackHost },
+      };
 
-    const domain = await screen.findByText(callbackHost);
-    expect(domain).toHaveClass("break-words");
-    expect(domain).toHaveTextContent(callbackHost);
+      renderFlow();
+
+      const domain = await screen.findByText(callbackHost);
+      expect(domain).toHaveClass("whitespace-nowrap");
+      expect(domain.style.fontSize).toBe("24px");
+      expect(domain).toHaveTextContent(callbackHost);
+    } finally {
+      clientWidth.mockRestore();
+      scrollWidth.mockRestore();
+      computedStyle.mockRestore();
+    }
   });
 
   it("warns when a request includes broad access", async () => {

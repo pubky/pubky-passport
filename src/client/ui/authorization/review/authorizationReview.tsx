@@ -1,3 +1,7 @@
+"use client";
+
+import { useLayoutEffect, useRef } from "react";
+
 import type { AuthorizationRequestReview } from "../../../logic/authorization/flow/PassportAuthorizationController";
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import { GoogleLogo } from "../../shared/brand/googleLogo";
@@ -25,7 +29,7 @@ function AuthorizationReview({ identity, onAuthorize, onCancel, onSwitch, phase,
   return (
     <PassportScreen>
       <div className="flex flex-1 flex-col gap-6">
-        <DisplayHeading accent={<bdi className="break-words">{requester}</bdi>} aria-label={`Sign in to ${requester}`}>Sign in to</DisplayHeading>
+        <DisplayHeading accent={<FittedRequester>{requester}</FittedRequester>} aria-label={`Sign in to ${requester}`}>Sign in to</DisplayHeading>
         {hasBroadAccess ? (
           <p className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm font-medium leading-5 text-foreground" role="alert">
             This request includes broad access that is not limited to one app namespace.
@@ -63,6 +67,53 @@ function AuthorizationReview({ identity, onAuthorize, onCancel, onSwitch, phase,
       </div>
     </PassportScreen>
   );
+}
+
+function FittedRequester({ children }: { children: string }) {
+  const requesterRef = useRef<HTMLElement>(null);
+
+  useLayoutEffect(() => {
+    const requester = requesterRef.current;
+    const container = requester?.parentElement;
+    if (!requester || !container) return;
+
+    let fittedContainerWidth = -1;
+    let active = true;
+    const fit = (force = false) => {
+      const availableWidth = container.clientWidth;
+      if (!force && availableWidth === fittedContainerWidth) return;
+      fittedContainerWidth = availableWidth;
+
+      requester.style.removeProperty("font-size");
+      const requiredWidth = requester.scrollWidth;
+      if (availableWidth <= 0 || requiredWidth <= availableWidth) return;
+
+      const baseFontSize = Number.parseFloat(window.getComputedStyle(requester).fontSize);
+      if (Number.isFinite(baseFontSize)) {
+        requester.style.fontSize = `${baseFontSize * availableWidth / requiredWidth}px`;
+      }
+    };
+
+    fit();
+
+    const resizeObserver = typeof ResizeObserver === "undefined"
+      ? undefined
+      : new ResizeObserver(() => fit());
+    resizeObserver?.observe(container);
+    const fitAfterWindowResize = () => fit();
+    window.addEventListener("resize", fitAfterWindowResize);
+    void document.fonts?.ready.then(() => {
+      if (active) fit(true);
+    });
+
+    return () => {
+      active = false;
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", fitAfterWindowResize);
+    };
+  }, [children]);
+
+  return <bdi className="block whitespace-nowrap" ref={requesterRef}>{children}</bdi>;
 }
 
 function authorizationButtonLabel(phase: "review" | "approving" | "completing"): string {
