@@ -42,6 +42,22 @@ function createLogger(): Logger {
 
 export const LOGGER = createLogger();
 
+const ERROR_DIAGNOSTIC_IDS = new WeakMap<object, string>();
+let nextFallbackDiagnosticId = 0;
+
+/**
+ * Returns correlation metadata that is safe to log for an arbitrary thrown value.
+ * Error messages and stacks are intentionally excluded because browser and SDK
+ * exceptions can contain authorization URLs, tokens, or persisted identity data.
+ */
+export function safeErrorLogFields(error: unknown): LogFields {
+  const target = diagnosticTarget(error);
+  return {
+    diagnosticId: diagnosticId(target),
+    errorName: safeErrorName(target),
+  };
+}
+
 function writeLog(level: LogLevel, event: string, fields: LogFields | undefined): void {
   try {
     CONSOLE_SINK[level](redactForLog(formatLogLine(level, event, fields)));
@@ -74,4 +90,57 @@ function formatLogValue(value: Exclude<LogFieldValue, undefined>): string {
   }
 
   return String(value);
+}
+
+function diagnosticTarget(error: unknown): unknown {
+  let current = error;
+  const visited = new Set<object>();
+  for (let depth = 0; depth < 8 && isObject(current) && !visited.has(current); depth += 1) {
+    visited.add(current);
+    try {
+      if (!("cause" in current) || current.cause === undefined) break;
+      current = current.cause;
+    } catch {
+      break;
+    }
+  }
+  return current;
+}
+
+function diagnosticId(error: unknown): string {
+  if (isObject(error)) {
+    const existing = ERROR_DIAGNOSTIC_IDS.get(error);
+    if (existing) return existing;
+    const created = createDiagnosticId();
+    ERROR_DIAGNOSTIC_IDS.set(error, created);
+    return created;
+  }
+  return createDiagnosticId();
+}
+
+function createDiagnosticId(): string {
+  try {
+    const randomUuid = globalThis.crypto?.randomUUID;
+    if (typeof randomUuid === "function") return randomUuid.call(globalThis.crypto);
+  } catch {
+    // Fall back to a process-local identifier below.
+  }
+  nextFallbackDiagnosticId += 1;
+  return `error-${Date.now().toString(36)}-${nextFallbackDiagnosticId.toString(36)}`;
+}
+
+function safeErrorName(error: unknown): string {
+  if (!isObject(error)) return typeof error;
+  try {
+    const name = "name" in error ? error.name : undefined;
+    return typeof name === "string" && /^[A-Za-z][A-Za-z0-9]{0,63}$/u.test(name)
+      ? name
+      : "ErrorLike";
+  } catch {
+    return "ErrorLike";
+  }
+}
+
+function isObject(value: unknown): value is Record<PropertyKey, unknown> {
+  return (typeof value === "object" && value !== null) || typeof value === "function";
 }

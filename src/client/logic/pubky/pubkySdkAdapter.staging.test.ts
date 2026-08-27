@@ -2,7 +2,7 @@ import { AuthFlowKind, Pubky, PublicKey, type Session } from "@synonymdev/pubky"
 import { Result, type Result as ResultType } from "better-result";
 import { expect, test } from "vitest";
 
-import { IssuedPubkyAuthRequest } from "../authorization/request/IssuedPubkyAuthRequest";
+import { ValidatedPubkyAuthRequest } from "../authorization/request/ValidatedPubkyAuthRequest";
 import { HomegateClient } from "../homegate/HomegateClient";
 import { PubkySdkAdapter } from "./PubkySdkAdapter";
 
@@ -12,9 +12,12 @@ const RESOLUTION_POLL_INTERVAL_MS = 2_000;
 
 test("completes signup, publication, signin, and both v0.10 authorization methods", async () => {
   const config = stagingConfig();
-  const homegate = new HomegateClient(config.homegateBaseUrl, globalThis.fetch);
+  const homegate = new HomegateClient(
+    config.homegateBaseUrl,
+    globalThis.fetch,
+  );
   const invitation = expectOk(
-    await homegate.requestGoogleHomeserverSignupInvitation(config.googleIdToken),
+    await homegate.requestGoogleSignupInvitation(config.googleIdToken),
     "Homegate did not issue a staging invitation",
   );
   const passport = new PubkySdkAdapter();
@@ -42,7 +45,7 @@ test("completes signup, publication, signin, and both v0.10 authorization method
     );
 
     const signin = expectOk(
-      await passport.signin(identity.keyHandle),
+      await passport.signin(identity.keyHandle, "normal"),
       "Passport could not sign in the restored identity",
     );
     expect(signin.publicIdentity).toEqual(identity.publicIdentity);
@@ -63,11 +66,13 @@ test("completes signup, publication, signin, and both v0.10 authorization method
     for (const flow of [cookieFlow, grantFlow]) {
       try {
         const request = expectOk(
-          IssuedPubkyAuthRequest.issue(encodeURIComponent(flow.authorizationUrl)),
+          ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(flow.authorizationUrl)),
           "Passport rejected the SDK-generated authorization request",
         );
 
-        const approval = passport.approveAuthRequest(identity.keyHandle, request);
+        const authorizationUrl = request.validatedUrlForApproval();
+        if (!authorizationUrl) throw new Error("Issued request was unexpectedly unavailable");
+        const approval = passport.approveAuthRequest(identity.keyHandle, authorizationUrl);
         const [approvedSession] = await Promise.all([
           flow.awaitApproval(),
           expectOkAsync(approval, "Passport could not approve the authorization request"),

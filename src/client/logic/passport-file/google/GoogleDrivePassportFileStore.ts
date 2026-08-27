@@ -8,7 +8,7 @@ import type { CodedFailure } from "../../../../libs/result";
 import {
   parsePassportFileContents,
   serializePassportFileEnvelope,
-  type PassportFileEnvelopeV1,
+  type PassportFileEnvelope,
 } from "../passportFileEnvelope";
 import {
   authorizationHeaders,
@@ -48,11 +48,11 @@ type PassportFileMetadataFailure =
   | CodedFailure<"exact_file_missing">;
 /** Result of looking up the sole operational Passport file in `appDataFolder`. */
 type PassportFileReadResult =
-  | { status: "found"; envelope: PassportFileEnvelopeV1; reference: DriveFileRevision }
+  | { status: "found"; envelope: PassportFileEnvelope; reference: DriveFileRevision }
   | { status: "missing" };
 type LocatedFile = { status: "missing" } | { status: "found"; reference: DriveFileRevision };
 type InspectedPassportFileMedia =
-  | { status: "valid"; envelope: PassportFileEnvelopeV1 }
+  | { status: "valid"; envelope: PassportFileEnvelope }
   | { status: "invalid" };
 type RequestLock = <LockResult>(name: string, callback: () => Promise<LockResult>) => Promise<LockResult>;
 
@@ -143,7 +143,7 @@ export class GoogleDrivePassportFileStore {
    * fields, rejects observed conflicts, and uses a Web Lock for same-origin
    * coordination when the browser provides one.
    */
-  async createPassportFile(envelope: PassportFileEnvelopeV1): Promise<StoreResult<void>> {
+  async createPassportFile(envelope: PassportFileEnvelope): Promise<StoreResult<void>> {
     const serializedEnvelope = serializePassportFileEnvelope(envelope);
     if (serializedEnvelope === null) {
       LOGGER.warn("identity.google.drive_store.failed", { operation: "serialize_envelope", code: "invalid_file" });

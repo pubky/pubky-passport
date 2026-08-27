@@ -1,5 +1,3 @@
-"use client";
-
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import { GoogleLogo } from "../../shared/brand/googleLogo";
 import { KeyRoundIcon, SettingsIcon, SquareUserRoundIcon } from "../../shared/actionIcons";

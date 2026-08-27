@@ -1,9 +1,9 @@
 import { ArrowLeftIcon } from "./actionIcons";
 import { Button } from "./primitives/button";
 
-function BackButton({ onClick }: { onClick: () => void }) {
+function BackButton({ disabled = false, onClick }: { disabled?: boolean; onClick: () => void }) {
   return (
-    <Button className="w-full" onClick={onClick} size="lg" type="button" variant="secondary">
+    <Button className="w-full" disabled={disabled} onClick={onClick} size="lg" type="button" variant="secondary">
       <ArrowLeftIcon />
       Back
     </Button>

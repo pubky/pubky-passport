@@ -1,5 +1,3 @@
-"use client";
-
 import { type ComponentPropsWithoutRef, useEffect, useRef } from "react";
 
 type DialogProps = Omit<ComponentPropsWithoutRef<"dialog">, "onCancel" | "open"> & {
@@ -14,12 +12,13 @@ function Dialog({ onOpenChange, open, ...props }: DialogProps) {
     const element = dialog.current;
     if (!element) return;
     if (open && !element.open) {
-      if (typeof element.showModal === "function") element.showModal();
-      else element.setAttribute("open", "");
+      element.showModal();
     } else if (!open && element.open) {
-      if (typeof element.close === "function") element.close();
-      else element.removeAttribute("open");
+      element.close();
     }
+    return () => {
+      if (element.open) element.close();
+    };
   }, [open]);
 
   return <dialog

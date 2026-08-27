@@ -1,9 +1,8 @@
-"use client";
-
 import { useState } from "react";
 import { preload } from "react-dom";
 
 import type { LocalIdentityRecoveryFileResult } from "../../../../logic/local-identity/LocalIdentityController";
+import type { LocalIdentityResult } from "../../../../logic/local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityMetadata } from "../../../../logic/local-identity/localIdentityModels";
 import { RecoveryFileDownload } from "../recovery-file/recoveryFileDownload";
 import { MigrateToPubkyRing } from "../migrate-to-pubky-ring/migrateToPubkyRing";
@@ -21,7 +20,7 @@ type DetachFromGoogleView =
 
 function DetachFromGoogleFlow({ createRecoveryFile, createMigrationUrl, googleSubject, identity, onBack, onDone }: {
   createRecoveryFile: (publicKeyZ32: string, password: string) => Promise<LocalIdentityRecoveryFileResult>;
-  createMigrationUrl: () => string | null;
+  createMigrationUrl: () => LocalIdentityResult<string>;
   googleSubject: string;
   identity: LocalIdentityMetadata;
   onBack: () => void;

@@ -7,7 +7,7 @@ Pubky identities, or activate homeserver sessions.
 ## Modules
 
 - [`passportFileEnvelope.ts`](./passportFileEnvelope.ts) defines and strictly parses
-  the v1 envelope.
+  the versioned envelope, including its public server-secret key ID.
 - [`PassportFileWebCrypto.ts`](./PassportFileWebCrypto.ts) encrypts and decrypts
   32-byte Pubky secret keys.
 - [`google/GoogleDrivePassportFileStore.ts`](./google/GoogleDrivePassportFileStore.ts) owns the authoritative
@@ -27,5 +27,5 @@ Pubky identities, or activate homeserver sessions.
 - Visible-copy failures do not block activation, but cleanup failures preserve the
   local identity for retry.
 
-`GoogleIdentityOperations` composes these adapters. End-to-end behavior is documented
-in [`FLOWS.md`](../../../../FLOWS.md).
+The screen-scoped Google identity context composes these adapters. End-to-end
+behavior is documented in [`FLOWS.md`](../../../../FLOWS.md).

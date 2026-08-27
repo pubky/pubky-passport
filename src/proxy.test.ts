@@ -13,7 +13,10 @@ describe("request CSP proxy", () => {
     vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
     vi.stubEnv("HOMEGATE_URL", "https://homegate.example/config/path");
     vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example");
-    vi.stubEnv("PASSPORT_SERVER_SECRET_BASE64", Buffer.alloc(32, 1).toString("base64"));
+    vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", "current");
+    vi.stubEnv("PASSPORT_SERVER_SECRET_KEYRING_JSON", JSON.stringify({
+      current: Buffer.alloc(32, 1).toString("base64"),
+    }));
     vi.stubEnv("NODE_ENV", "production");
   });
 
@@ -99,11 +102,13 @@ describe("request CSP proxy", () => {
 
     expect(() => proxy(new NextRequest("https://passport.example/")))
       .toThrow("Proxy configuration unavailable.");
-    expect(error).toHaveBeenCalledWith("proxy.bootstrap.failed", {
+    expect(error).toHaveBeenCalledWith("proxy.bootstrap.failed", expect.objectContaining({
       layer: "proxy",
       operation: "build_response_policy",
       code: "runtime_exception",
-    });
+      diagnosticId: expect.any(String),
+      errorName: expect.any(String),
+    }));
     expect(JSON.stringify(error.mock.calls)).not.toContain("https://*.example.com");
   });
 
@@ -122,11 +127,13 @@ describe("request CSP proxy", () => {
 
     expect(() => proxy(new NextRequest("https://passport.example/")))
       .toThrow("Proxy configuration unavailable.");
-    expect(error).toHaveBeenCalledWith("proxy.bootstrap.failed", {
+    expect(error).toHaveBeenCalledWith("proxy.bootstrap.failed", expect.objectContaining({
       layer: "proxy",
       operation: "build_response_policy",
       code: "runtime_exception",
-    });
+      diagnosticId: expect.any(String),
+      errorName: expect.any(String),
+    }));
     expect(JSON.stringify(error.mock.calls)).not.toContain(origins);
   });
 

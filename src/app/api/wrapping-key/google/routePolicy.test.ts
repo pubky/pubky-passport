@@ -12,7 +12,7 @@ describe("Google wrapping-key route policy", () => {
 
     expect(Result.isOk(result)).toBe(true);
     if (Result.isOk(result)) {
-      expect(result.value).toBe("id-token");
+      expect(result.value).toEqual({ googleIdToken: "id-token" });
     }
   });
 
@@ -22,6 +22,7 @@ describe("Google wrapping-key route policy", () => {
     ["application/json", { googleIdToken: 123 }],
     ["application/json", { googleIdToken: "   " }],
     ["application/json", { googleIdToken: "id-token", driveAccessToken: "token" }],
+    ["application/json", { googleIdToken: "id-token", keyId: "invalid key" }],
     ["application/json", ["id-token"]],
     ["application/json", null],
   ])("rejects invalid request shape", async (contentType, body) => {
@@ -29,6 +30,18 @@ describe("Google wrapping-key route policy", () => {
       parseGoogleIdTokenRequest(jsonRequest(body, contentType)),
       "invalid_request",
     );
+  });
+
+  it("accepts a public key ID for an existing file", async () => {
+    const result = await parseGoogleIdTokenRequest(jsonRequest({
+      googleIdToken: "id-token",
+      keyId: "2026-08",
+    }, "application/json"));
+
+    expect(Result.isOk(result) && result.value).toEqual({
+      googleIdToken: "id-token",
+      keyId: "2026-08",
+    });
   });
 
   it("rejects malformed JSON", async () => {

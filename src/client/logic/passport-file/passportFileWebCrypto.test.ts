@@ -16,9 +16,9 @@ const SECRET_KEY_BYTES = new Uint8Array(Array.from({ length: PUBKY_SECRET_KEY_BY
 
 const WRAPPING_KEY = encodeBase64Url(new Uint8Array(Array.from({ length: 32 }, (_, index) => index + 1)));
 const DIFFERENT_WRAPPING_KEY = encodeBase64Url(new Uint8Array(Array.from({ length: 32 }, (_, index) => 255 - index)));
-const COMPATIBILITY_IV = new Uint8Array(Array.from({ length: 12 }, (_, index) => index));
-const COMPATIBILITY_ENVELOPE = {
+const TEST_ENVELOPE = {
   v: 1 as const,
+  keyId: "current",
   iv: "AAECAwQFBgcICQoL",
   ct: "YZy1I_a6WzFnql8rW2A94EJrgz38Sqd1LV_KjVe2Qd2n1mvFMXg9qzRHwJ_WQvrm",
   url: "https://passport.pubky.app",
@@ -39,7 +39,7 @@ function encrypt(
   wrappingKey: string,
   passportOrigin: string,
 ) {
-  return crypto.encryptSecretKeyBytes(secretKeyBytes, wrappingKey, passportOrigin);
+  return crypto.encryptSecretKeyBytes(secretKeyBytes, wrappingKey, passportOrigin, "current");
 }
 
 function decrypt(
@@ -105,7 +105,7 @@ describe("PassportFileWebCrypto", () => {
     await expectAsyncResultError(
       decrypt(
         crypto,
-        COMPATIBILITY_ENVELOPE,
+        TEST_ENVELOPE,
         WRAPPING_KEY,
         "https://passport.pubky.app",
       ),
@@ -218,28 +218,24 @@ describe("PassportFileWebCrypto", () => {
     expectResultOk(parsePassportFileEnvelope(envelope));
   });
 
-  it("matches the frozen v1 compatibility vector", async () => {
-    vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementation((array) => {
-      if (array instanceof Uint8Array) array.set(COMPATIBILITY_IV);
-      return array;
-    });
-    const crypto = new PassportFileWebCrypto();
-
-    const envelope = expectResultOk(await encrypt(
-      crypto,
+  it("authenticates the envelope key ID", async () => {
+    const crypto = createCrypto();
+    const encrypted = expectResultOk(await crypto.encryptSecretKeyBytes(
       SECRET_KEY_BYTES,
       WRAPPING_KEY,
-      COMPATIBILITY_ENVELOPE.url,
+      "https://passport.pubky.app",
+      "2026-08",
     ));
-    expect(envelope).toEqual(COMPATIBILITY_ENVELOPE);
 
-    const secretKey = expectResultOk(await decrypt(
-      createCrypto(),
-      COMPATIBILITY_ENVELOPE,
+    expect(encrypted).toMatchObject({ v: 1, keyId: "2026-08" });
+    expectResultOk(await decrypt(crypto, encrypted, WRAPPING_KEY, "https://passport.pubky.app"));
+    const tampered = await decrypt(
+      crypto,
+      { ...encrypted, keyId: "2026-07" },
       WRAPPING_KEY,
-      COMPATIBILITY_ENVELOPE.url,
-    ));
-    expect(secretKey).toEqual(SECRET_KEY_BYTES);
+      "https://passport.pubky.app",
+    );
+    expect(Result.isError(tampered) && tampered.error.code).toBe("decrypt_failed");
   });
 
   it("round-trips encrypted Pubky secret key bytes", async () => {
@@ -400,7 +396,7 @@ describe("PassportFileWebCrypto", () => {
 
     expectResultError(decrypted, {
       code: "invalid_envelope",
-      cause: { code: "invalid_field", field: "iv" },
+      cause: { code: "invalid_file" },
     });
   });
 
@@ -426,6 +422,7 @@ describe("PassportFileWebCrypto", () => {
     const decrypted = await decrypt(createCrypto(),
       {
         v: 1,
+        keyId: "current",
         iv: encodeBase64Url(new Uint8Array(12)),
         ct: encodeBase64Url(new Uint8Array(PUBKY_SECRET_KEY_BYTES + 17)),
         url: "https://passport.pubky.app",
@@ -436,7 +433,7 @@ describe("PassportFileWebCrypto", () => {
 
     expectResultError(decrypted, {
       code: "invalid_envelope",
-      cause: { code: "invalid_field", field: "ct" },
+      cause: { code: "invalid_file" },
     });
   });
 
@@ -450,6 +447,7 @@ describe("PassportFileWebCrypto", () => {
         crypto,
         {
           v: 1,
+          keyId: "current",
           iv: encodeBase64Url(new Uint8Array(12)),
           ct: encodeBase64Url(new Uint8Array(PUBKY_SECRET_KEY_BYTES + 16)),
           url: "https://passport.pubky.app",
@@ -467,6 +465,7 @@ describe("PassportFileWebCrypto", () => {
     const decrypted = await decrypt(createCrypto(),
       {
         v: 1,
+        keyId: "current",
         iv: encodeBase64Url(new Uint8Array(12)),
         ct: "A".repeat(1024 * 1024),
         url: "https://passport.pubky.app",
@@ -477,7 +476,7 @@ describe("PassportFileWebCrypto", () => {
 
     expectResultError(decrypted, {
       code: "invalid_envelope",
-      cause: { code: "invalid_field", field: "ct" },
+      cause: { code: "invalid_file" },
     });
   });
 

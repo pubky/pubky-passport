@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LOGGER } from "./logger";
+import { LOGGER, safeErrorLogFields } from "./logger";
 
 describe("LOGGER", () => {
   afterEach(() => vi.restoreAllMocks());
@@ -90,5 +90,19 @@ describe("LOGGER", () => {
     vi.spyOn(console, "warn").mockImplementation(() => { throw new Error("sink failed"); });
 
     expect(() => LOGGER.warn("authorize.approval.failed")).not.toThrow();
+  });
+
+  it("correlates nested failures without exposing messages or stacks", () => {
+    const cause = new TypeError("sensitive token contents");
+    const wrapped = { code: "operation_failed", cause };
+
+    const first = safeErrorLogFields(wrapped);
+    const second = safeErrorLogFields(cause);
+
+    expect(first).toEqual(second);
+    expect(first.errorName).toBe("TypeError");
+    expect(first.diagnosticId).toEqual(expect.any(String));
+    expect(JSON.stringify(first)).not.toContain("sensitive token contents");
+    expect(JSON.stringify(first)).not.toContain("stack");
   });
 });

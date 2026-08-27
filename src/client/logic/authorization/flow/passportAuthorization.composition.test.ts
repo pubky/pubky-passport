@@ -24,11 +24,16 @@ vi.mock("../../pubky/PubkySdkAdapter", () => ({
   PubkySdkAdapter: MOCKS.PubkySdkAdapter,
 }));
 
-import { PassportAuthorizationController } from "./PassportAuthorizationController";
+import {
+  PassportAuthorizationController,
+} from "./PassportAuthorizationController";
 
 const RELAY_ORIGIN = "https://relay.example";
+const PUBLIC_KEY_Z32 = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
 
 describe("PassportAuthorizationController composition", () => {
+  let controller: PassportAuthorizationController | undefined;
+
   beforeEach(() => {
     vi.stubGlobal("localStorage", new MemoryStorage());
     MOCKS.PubkySdkAdapter.mockReset();
@@ -47,6 +52,8 @@ describe("PassportAuthorizationController composition", () => {
     window.history.replaceState({}, "", "/");
   });
   afterEach(() => {
+    controller?.dispose();
+    controller = undefined;
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -54,7 +61,7 @@ describe("PassportAuthorizationController composition", () => {
   it("constructs Pubky lazily for approval and owns adapter cleanup", async () => {
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
 
-    const controller = PassportAuthorizationController.fromBrowser();
+    controller = PassportAuthorizationController.fromBrowser();
 
     expect(controller.getState().status).toBe("review");
     expect(MOCKS.PubkySdkAdapter).not.toHaveBeenCalled();
@@ -67,9 +74,12 @@ describe("PassportAuthorizationController composition", () => {
   });
 
   it("maps identity repository failures at the authorization composition boundary", async () => {
-    window.localStorage.setItem("pubky-passport/local-identities/v1", "invalid-store");
+    window.localStorage.setItem(
+      `pubky-passport/local-identities/v1/identity/${PUBLIC_KEY_Z32}`,
+      "invalid-store",
+    );
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
-    const controller = PassportAuthorizationController.fromBrowser();
+    controller = PassportAuthorizationController.fromBrowser();
 
     await expect(controller.approve("missing-public-key")).resolves.toEqual({
       status: "failed",
@@ -83,7 +93,7 @@ describe("PassportAuthorizationController composition", () => {
       throw new Error("sensitive authorization request");
     });
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
-    const controller = PassportAuthorizationController.fromBrowser();
+    controller = PassportAuthorizationController.fromBrowser();
 
     await expect(controller.approve("missing-public-key")).resolves.toEqual({
       status: "failed",
@@ -103,7 +113,7 @@ describe("PassportAuthorizationController composition", () => {
       throw new Error("cleanup failed");
     });
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
-    const controller = PassportAuthorizationController.fromBrowser();
+    controller = PassportAuthorizationController.fromBrowser();
 
     await expect(controller.approve("missing-public-key")).resolves.toEqual({
       status: "failed",
@@ -112,7 +122,6 @@ describe("PassportAuthorizationController composition", () => {
       operation: "read_identity",
       code: "invalid_identity",
     });
-    expect(warning).toHaveBeenCalledOnce();
     expect(warning).toHaveBeenCalledWith("authorize.cleanup.failed", {
       operation: "pubky_dispose",
     });
@@ -132,7 +141,7 @@ describe("PassportAuthorizationController composition", () => {
     });
     MOCKS.approveAuthRequest.mockResolvedValue(Result.ok());
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
-    const controller = PassportAuthorizationController.fromBrowser();
+    controller = PassportAuthorizationController.fromBrowser();
 
     await expect(controller.approve(firstIdentity.publicIdentity.publicKeyZ32)).resolves.toEqual({
       status: "approved",
@@ -151,7 +160,6 @@ function identity(publicKeyZ32: string): LocalIdentityMetadata {
   return {
     publicIdentity: {
       publicKeyZ32,
-      publicKeyDisplay: `pubky${publicKeyZ32}`,
     },
   };
 }

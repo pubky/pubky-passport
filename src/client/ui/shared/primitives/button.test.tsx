@@ -15,6 +15,7 @@ describe("Button", () => {
 
     const button = screen.getByRole("button", { name: "Continue" });
     expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("type", "button");
     expect(ref.current).toBe(button);
   });
 

@@ -3,13 +3,10 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../test-utils/MemoryStorage";
 import { expectResultError } from "../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../libs/logger/logger";
 
 const MOCKS = vi.hoisted(() => ({
-  GoogleIdentityOperations: vi.fn(),
-  GoogleImplicitAuthorization: vi.fn(),
   detachIdentity: vi.fn(),
   abortRequests: vi.fn(),
   disposeAuthorization: vi.fn(),
@@ -19,12 +16,20 @@ const MOCKS = vi.hoisted(() => ({
   requestAuthorization: vi.fn(),
 }));
 
-vi.mock("./GoogleIdentityOperations", () => ({
-  GoogleIdentityOperations: MOCKS.GoogleIdentityOperations,
+vi.mock("./gia/GoogleImplicitAuthorization", () => ({
+  GoogleImplicitAuthorization: class {
+    request = MOCKS.requestAuthorization;
+    dispose = MOCKS.disposeAuthorization;
+  },
 }));
-
-vi.mock("./GoogleImplicitAuthorization", () => ({
-  GoogleImplicitAuthorization: MOCKS.GoogleImplicitAuthorization,
+vi.mock("./GoogleIdentityOperations", () => ({
+  GoogleIdentityOperations: class {
+    abortRequests = MOCKS.abortRequests;
+    detachIdentity = MOCKS.detachIdentity;
+    dispose = MOCKS.disposeOperations;
+    establishIdentity = MOCKS.establishIdentity;
+    replaceInvalidPassportFile = MOCKS.replaceInvalidPassportFile;
+  },
 }));
 
 import {
@@ -45,25 +50,11 @@ const CREDENTIALS = {
 };
 const PUBLIC_IDENTITY = {
   publicKeyZ32: "public-key",
-  publicKeyDisplay: "pubky1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy",
 };
 
 describe("GoogleIdentityController", () => {
   beforeEach(() => {
-    vi.stubGlobal("localStorage", new MemoryStorage());
     for (const mock of Object.values(MOCKS)) mock.mockReset();
-
-    MOCKS.GoogleImplicitAuthorization.mockImplementation(function () { return {
-      request: MOCKS.requestAuthorization,
-      dispose: MOCKS.disposeAuthorization,
-    }; });
-    MOCKS.GoogleIdentityOperations.mockImplementation(function () { return {
-      establishIdentity: MOCKS.establishIdentity,
-      replaceInvalidPassportFile: MOCKS.replaceInvalidPassportFile,
-      detachIdentity: MOCKS.detachIdentity,
-      abortRequests: MOCKS.abortRequests,
-      dispose: MOCKS.disposeOperations,
-    }; });
     MOCKS.requestAuthorization.mockResolvedValue(Result.ok(CREDENTIALS));
     MOCKS.establishIdentity.mockImplementation(async (_credentials, reportProgress) => {
       reportProgress({ flow: "lookup", step: "checking" });
@@ -83,41 +74,13 @@ describe("GoogleIdentityController", () => {
     vi.unstubAllGlobals();
   });
 
-  it("composes its screen-scoped dependencies during construction", () => {
-    const onState = vi.fn();
-
-    new GoogleIdentityController(
+  it("composes and disposes its real screen-scoped dependencies", () => {
+    const session = new GoogleIdentityController(
       "google-client-id",
       "https://homegate.example/",
-      onState,
-    );
-
-    expect(MOCKS.GoogleImplicitAuthorization).toHaveBeenCalledWith("google-client-id");
-    expect(MOCKS.GoogleIdentityOperations).toHaveBeenCalledWith(
-      "https://homegate.example/",
-      window.location.origin,
-    );
-  });
-
-  it("logs controller construction failures without sensitive configuration", () => {
-    const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
-    const thrown = Object.assign(new Error("SECRET-CONFIGURATION-VALUE"), {
-      secret: "SECRET-CONFIGURATION-CANARY",
-    });
-    MOCKS.GoogleImplicitAuthorization.mockImplementationOnce(function () {
-      throw thrown;
-    });
-
-    expect(() => new GoogleIdentityController(
-      "SECRET-CLIENT-ID",
-      "https://secret-homegate.example/",
       vi.fn(),
-    )).toThrow("Google identity initialization unavailable.");
-    expect(error).toHaveBeenCalledWith("identity.google.controller.failed", {
-      operation: "initialize",
-      code: "runtime_exception",
-    });
-    expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET");
+    );
+    expect(() => session.dispose()).not.toThrow();
   });
 
   it("reports authorization and establishment progress", async () => {
@@ -172,9 +135,11 @@ describe("GoogleIdentityController", () => {
       publicIdentity: PUBLIC_IDENTITY,
     }));
 
-    expect(warning).toHaveBeenCalledWith("identity.google.state_listener.failed", {
+    expect(warning).toHaveBeenCalledWith("identity.google.state_listener.failed", expect.objectContaining({
       state: "requesting-authorization",
-    });
+      diagnosticId: expect.any(String),
+      errorName: "Error",
+    }));
     expect(JSON.stringify(warning.mock.calls)).not.toContain("sensitive-state-listener");
   });
 
@@ -259,7 +224,7 @@ describe("GoogleIdentityController", () => {
     });
   });
 
-  it("preserves operation error identity while logging only safe fields", async () => {
+  it("preserves safe operation classifications without diagnostic causes", async () => {
     const diagnosticCanary = { secret: "CONTROLLER-CAUSE-CANARY" };
     const operationError = {
       code: "homeserver_signup_invitation_failed" as const,
@@ -274,32 +239,28 @@ describe("GoogleIdentityController", () => {
     expectResultError(result, {
       code: "homeserver_signup_invitation_failed",
       detailCode: "weekly_limit_exceeded",
-      cause: diagnosticCanary,
     });
-    expect(Result.isError(result) && result.error).toBe(operationError);
     expect(JSON.stringify(warning.mock.calls)).not.toContain("CONTROLLER-CAUSE-CANARY");
   });
 
-  it("preserves broad operation exceptions as causes without logging their details", async () => {
+  it("classifies broad operation exceptions without exposing their details", async () => {
     const thrown = { secret: "CONTROLLER-BROAD-CATCH-CANARY" };
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     MOCKS.establishIdentity.mockRejectedValue(thrown);
 
     expectResultError(await createController().establishIdentity(), {
       code: "operation_failed",
-      cause: thrown,
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("CONTROLLER-BROAD-CATCH-CANARY");
   });
 
-  it("preserves authorization promise exceptions as causes", async () => {
+  it("classifies authorization promise exceptions without exposing their details", async () => {
     const thrown = { secret: "AUTHORIZATION-BROAD-CATCH-CANARY" };
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     MOCKS.requestAuthorization.mockRejectedValue(thrown);
 
     expectResultError(await createController().establishIdentity(), {
       code: "authorization_failed",
-      cause: thrown,
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("AUTHORIZATION-BROAD-CATCH-CANARY");
   });

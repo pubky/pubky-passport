@@ -11,8 +11,8 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
-import { IssuedPubkyAuthRequest } from "../authorization/request/IssuedPubkyAuthRequest";
-import { PUBKY_AUTH_REQUEST_LIMITS } from "../authorization/request/pubkyAuthRequestLimits";
+import { ValidatedPubkyAuthRequest } from "../authorization/request/ValidatedPubkyAuthRequest";
+import { PUBKY_AUTH_CAPABILITY_LIMITS } from "../authorization/request/parser/pubkyAuthCapabilities";
 import { LOGGER } from "../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkyIdentityKeyHandle } from "./pubkyIdentityKey";
 import { PubkySdkAdapter } from "./PubkySdkAdapter";
@@ -34,8 +34,8 @@ describe("PubkySdkAdapter", () => {
     );
 
     try {
-      const cookie = IssuedPubkyAuthRequest.issue(encodeURIComponent(cookieFlow.authorizationUrl));
-      const grant = IssuedPubkyAuthRequest.issue(encodeURIComponent(grantFlow.authorizationUrl));
+      const cookie = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(cookieFlow.authorizationUrl));
+      const grant = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(grantFlow.authorizationUrl));
 
       expect(Result.isOk(cookie) && cookie.value.review.authenticationMethod).toBe("cookie");
       expect(Result.isOk(grant) && grant.value.review.authenticationMethod).toBe("grant");
@@ -48,16 +48,16 @@ describe("PubkySdkAdapter", () => {
   });
 
   it("keeps the capability path bound aligned with the SDK", () => {
-    const atLimit = capabilityPath(PUBKY_AUTH_REQUEST_LIMITS.maximumCapabilityPathUtf8Bytes);
-    const overLimit = capabilityPath(PUBKY_AUTH_REQUEST_LIMITS.maximumCapabilityPathUtf8Bytes + 1);
+    const atLimit = capabilityPath(PUBKY_AUTH_CAPABILITY_LIMITS.maximumCapabilityPathUtf8Bytes);
+    const overLimit = capabilityPath(PUBKY_AUTH_CAPABILITY_LIMITS.maximumCapabilityPathUtf8Bytes + 1);
 
     expect(() => validateCapabilities(`${atLimit}:r`)).not.toThrow();
     expect(() => validateCapabilities(`${overLimit}:r`)).toThrow();
 
-    const accepted = IssuedPubkyAuthRequest.issue(encodeURIComponent(
+    const accepted = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(
       authorizationRequest(atLimit),
     ));
-    const rejected = IssuedPubkyAuthRequest.issue(encodeURIComponent(
+    const rejected = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(
       authorizationRequest(overLimit),
     ));
     expect(Result.isOk(accepted)).toBe(true);
@@ -71,7 +71,6 @@ describe("PubkySdkAdapter", () => {
       const created = expectOk(await pubky.createIdentityKey());
 
       expect(created.publicIdentity.publicKeyZ32).toMatch(/^[13456789abcdefghijkmnopqrstuwxyz]+$/);
-      expect(created.publicIdentity.publicKeyDisplay).toBe(`pubky${created.publicIdentity.publicKeyZ32}`);
     } finally {
       pubky.dispose();
     }
@@ -483,7 +482,7 @@ describe("PubkySdkAdapter", () => {
 
     try {
       const created = expectOk(await pubky.createIdentityKey());
-      await expectError(pubky.signin(created.keyHandle), "signin_failed");
+      await expectError(pubky.signin(created.keyHandle, "normal"), "signin_failed");
       expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive homeserver response");
     } finally {
       pubky.dispose();
@@ -508,7 +507,7 @@ describe("PubkySdkAdapter", () => {
         free: vi.fn(),
       } as unknown as Session;
       signin.mockResolvedValue(session);
-      const result = expectOk(await pubky.signin(created.keyHandle));
+      const result = expectOk(await pubky.signin(created.keyHandle, "normal"));
 
       expect(result.publicIdentity).toEqual(created.publicIdentity);
       expect(signin).toHaveBeenCalledWith("passport.pubky.app");
@@ -528,9 +527,7 @@ describe("PubkySdkAdapter", () => {
 
     try {
       const created = expectOk(await pubky.createIdentityKey());
-      await expectError(pubky.signin(created.keyHandle, {
-        waitForPkdnsPublication: true,
-      }), "signin_failed");
+      await expectError(pubky.signin(created.keyHandle, "after-publication"), "signin_failed");
 
       expect(signinBlocking).toHaveBeenCalledWith("passport.pubky.app");
       expect(signin).not.toHaveBeenCalled();
@@ -539,22 +536,16 @@ describe("PubkySdkAdapter", () => {
     }
   });
 
-  it("rejects auth requests not issued by the parser before SDK approval", async () => {
+  it("rejects invalid auth request URLs before SDK approval", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const pubky = new PubkySdkAdapter();
 
     try {
-      const forgedRequests = [
-        Object.create(IssuedPubkyAuthRequest.prototype) as IssuedPubkyAuthRequest,
-        {
-          isLive: () => true,
-          validatedUrlForApproval: () => "pubkyauth://signin?secret=forged",
-        } as unknown as IssuedPubkyAuthRequest,
-      ];
-      for (const forgedRequest of forgedRequests) {
+      const invalidRequests = ["not a URL", "https://example.com/signin"];
+      for (const invalidRequest of invalidRequests) {
         const result = await pubky.approveAuthRequest(
           {} as PubkyIdentityKeyHandle,
-          forgedRequest,
+          invalidRequest,
         );
         expectErrorResult(result, "request_rejected");
       }
@@ -577,10 +568,12 @@ describe("PubkySdkAdapter", () => {
 
     try {
       const created = expectOk(await pubky.createIdentityKey());
-      const request = expectOk(IssuedPubkyAuthRequest.issue(encodeURIComponent(
+      const request = expectOk(ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(
         authorizationRequest("/pub/passport.test"),
       )));
-      const result = await pubky.approveAuthRequest(created.keyHandle, request);
+      const authorizationUrl = request.validatedUrlForApproval();
+      if (!authorizationUrl) throw new Error("Issued request was unexpectedly unavailable");
+      const result = await pubky.approveAuthRequest(created.keyHandle, authorizationUrl);
 
       expectErrorCause(result, "approval_failed", cause);
       expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
@@ -652,7 +645,7 @@ function capabilityPath(length: number): string {
   return `/${segments.join("/")}`;
 }
 
-async function expectError<Success>(result: Promise<ResultType<Success, { code: string }>>, code: string): Promise<void> {
+async function expectError<Success>(result: Promise<ResultType<Success, { code: string }>> | ResultType<Success, { code: string }>, code: string): Promise<void> {
   expectErrorResult(await result, code);
 }
 

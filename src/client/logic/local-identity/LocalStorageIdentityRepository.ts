@@ -3,10 +3,11 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "../../../libs/encoding/base64Url";
-import { LOGGER } from "../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
 import {
   isPubkyPublicIdentity,
+  isPubkyPublicKey,
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,
   type PubkySecretKeyMaterial,
@@ -17,14 +18,11 @@ import type {
   LocalIdentityMetadata,
 } from "./localIdentityModels";
 
-type StoredLocalIdentity = LocalIdentityMetadata & {
+type StoredLocalIdentity = {
+  v: 1;
+  publicKeyZ32: string;
+  googleAccount?: GoogleAccountProfile;
   secretKey: string;
-};
-
-type LocalIdentityStore = {
-  v: typeof LOCAL_IDENTITY_STORE_VERSION;
-  activePublicKeyZ32: string | null;
-  identities: StoredLocalIdentity[];
 };
 
 export type LocalIdentityErrorCode =
@@ -35,243 +33,259 @@ export type LocalIdentityErrorCode =
 
 export type LocalIdentityResult<Success> = ResultType<Success, CodedFailure<LocalIdentityErrorCode>>;
 
-const STORAGE_KEY = "pubky-passport/local-identities/v1";
-const LOCAL_IDENTITY_STORE_VERSION = 1;
+const STORAGE_ROOT = "pubky-passport/local-identities/v1";
+const IDENTITY_KEY_PREFIX = `${STORAGE_ROOT}/identity/`;
+const ACTIVE_IDENTITY_KEY = `${STORAGE_ROOT}/active`;
+const SAME_TAB_LISTENERS = new Set<() => void>();
 
-/**
- * Browser persistence boundary for local Pubky identities.
- *
- * Secret keys are stored unencrypted as canonical base64url. Only `read`
- * returns decoded key material.
- */
+/** Stores each identity independently so concurrent tabs cannot overwrite a shared array. */
 export class LocalStorageIdentityRepository {
-  private readonly storage = getLocalStorage();
-
-  /** Returns the identity catalog without secret-key material. */
   list(): LocalIdentityResult<LocalIdentityCatalog> {
-    const store = this.readStore();
-    if (Result.isError(store)) {
-      return Result.err(store.error);
+    const storage = getLocalStorage();
+    if (!storage) return storageUnavailable("read");
+
+    const identities = readAllIdentities(storage);
+    if (Result.isError(identities)) return Result.err(identities.error);
+    const active = readActiveIdentity(storage);
+    if (Result.isError(active)) return Result.err(active.error);
+
+    const activePublicKeyZ32 = identities.value.some(
+      (identity) => identity.publicKeyZ32 === active.value,
+    ) ? active.value : identities.value[0]?.publicKeyZ32 ?? null;
+    if (activePublicKeyZ32 !== active.value) {
+      const repaired = writeActiveIdentity(storage, activePublicKeyZ32);
+      if (Result.isError(repaired)) return Result.err(repaired.error);
     }
 
     return Result.ok({
-      activePublicKeyZ32: store.value.activePublicKeyZ32,
-      identities: store.value.identities.map(toMetadata),
+      activePublicKeyZ32,
+      identities: identities.value.map(toMetadata),
     });
   }
 
-  /** Creates or replaces an identity, persists declared fields, and makes it active. */
-  save(identity: LocalIdentityMetadata, secretKey: PubkySecretKeyMaterial): LocalIdentityResult<LocalIdentityMetadata> {
+  save(
+    identity: LocalIdentityMetadata,
+    secretKey: PubkySecretKeyMaterial,
+  ): LocalIdentityResult<LocalIdentityMetadata> {
     if (!isPubkyPublicIdentity(identity.publicIdentity)
       || (identity.googleAccount !== undefined && !isStoredGoogleAccountProfile(identity.googleAccount))) {
-      LOGGER.warn("identity.local_store.failed", { operation: "save", code: "invalid_identity" });
-      return Result.err({ code: "invalid_identity" });
+      return invalidIdentity("save");
     }
-    if (secretKey.format !== PUBKY_SECRET_KEY_FORMAT || secretKey.bytes.byteLength !== PUBKY_SECRET_KEY_BYTES) {
+    if (secretKey.format !== PUBKY_SECRET_KEY_FORMAT
+      || secretKey.bytes.byteLength !== PUBKY_SECRET_KEY_BYTES) {
       LOGGER.warn("identity.local_store.failed", { operation: "save", code: "invalid_secret_key" });
       return Result.err({ code: "invalid_secret_key" });
     }
 
-    const store = this.readStore();
-    if (Result.isError(store)) {
-      return Result.err(store.error);
-    }
-
-    const storedIdentity: StoredLocalIdentity = {
-      publicIdentity: {
-        publicKeyZ32: identity.publicIdentity.publicKeyZ32,
-        publicKeyDisplay: identity.publicIdentity.publicKeyDisplay,
-      },
-      ...(identity.googleAccount ? {
-        googleAccount: {
-          googleSubject: identity.googleAccount.googleSubject,
-          email: identity.googleAccount.email,
-          name: identity.googleAccount.name,
-          pictureUrl: identity.googleAccount.pictureUrl,
-        },
-      } : {}),
+    const storage = getLocalStorage();
+    if (!storage) return storageUnavailable("write");
+    const stored: StoredLocalIdentity = {
+      v: 1,
+      publicKeyZ32: identity.publicIdentity.publicKeyZ32,
+      ...(identity.googleAccount ? { googleAccount: { ...identity.googleAccount } } : {}),
       secretKey: encodeBase64Url(secretKey.bytes),
     };
-    const publicKeyZ32 = storedIdentity.publicIdentity.publicKeyZ32;
-    const existingIndex = store.value.identities.findIndex(
-      (candidate) => candidate.publicIdentity.publicKeyZ32 === publicKeyZ32,
-    );
-    const identities = [...store.value.identities];
-    if (existingIndex === -1) {
-      identities.push(storedIdentity);
-    } else {
-      identities[existingIndex] = storedIdentity;
-    }
 
-    const nextStore: LocalIdentityStore = {
-      v: LOCAL_IDENTITY_STORE_VERSION,
-      activePublicKeyZ32: publicKeyZ32,
-      identities,
-    };
-    const written = this.writeStore(nextStore);
-    if (Result.isError(written)) {
-      return Result.err(written.error);
-    }
+    const storedKey = identityStorageKey(stored.publicKeyZ32);
+    let previousIdentity: string | null | undefined;
+    let previousActive: string | null | undefined;
 
-    return Result.ok(toMetadata(storedIdentity));
+    try {
+      previousIdentity = storage.getItem(storedKey);
+      previousActive = storage.getItem(ACTIVE_IDENTITY_KEY);
+      storage.setItem(storedKey, JSON.stringify(stored));
+      storage.setItem(ACTIVE_IDENTITY_KEY, stored.publicKeyZ32);
+      notifySameTab();
+      return Result.ok(toMetadata(stored));
+    } catch (cause) {
+      if (previousIdentity !== undefined && previousActive !== undefined) {
+        restoreStorageValues(storage, [
+          [ACTIVE_IDENTITY_KEY, previousActive],
+          [storedKey, previousIdentity],
+        ], "save_rollback");
+        notifySameTab();
+      }
+      return storageUnavailable("write", cause);
+    }
   }
 
   select(publicKeyZ32: string): LocalIdentityResult<void> {
-    const store = this.readStore();
-    if (Result.isError(store)) {
-      return Result.err(store.error);
-    }
+    const storage = getLocalStorage();
+    if (!storage) return storageUnavailable("write");
+    const identity = readIdentity(storage, publicKeyZ32);
+    if (Result.isError(identity)) return Result.err(identity.error);
+    if (!identity.value) return invalidIdentity("select");
 
-    if (!store.value.identities.some((identity) => identity.publicIdentity.publicKeyZ32 === publicKeyZ32)) {
-      LOGGER.info("identity.local_store.failed", { operation: "select", code: "invalid_identity" });
-      return Result.err({ code: "invalid_identity" });
-    }
-
-    return this.writeStore({ ...store.value, activePublicKeyZ32: publicKeyZ32 });
+    const written = writeActiveIdentity(storage, publicKeyZ32);
+    if (Result.isOk(written)) notifySameTab();
+    return written;
   }
 
-  /** Removes an identity and selects the first remaining identity when needed. */
   remove(publicKeyZ32: string): LocalIdentityResult<void> {
-    const store = this.readStore();
-    if (Result.isError(store)) return Result.err(store.error);
-    if (!store.value.identities.some((identity) => identity.publicIdentity.publicKeyZ32 === publicKeyZ32)) {
-      LOGGER.info("identity.local_store.failed", { operation: "remove", code: "invalid_identity" });
-      return Result.err({ code: "invalid_identity" });
+    const storage = getLocalStorage();
+    if (!storage) return storageUnavailable("write");
+    const identity = readIdentity(storage, publicKeyZ32);
+    if (Result.isError(identity)) return Result.err(identity.error);
+    if (!identity.value) return invalidIdentity("remove");
+
+    const active = readActiveIdentity(storage);
+    if (Result.isError(active)) return Result.err(active.error);
+    let nextActive = active.value;
+    if (active.value === publicKeyZ32) {
+      const remaining = readAllIdentities(storage);
+      if (Result.isError(remaining)) return Result.err(remaining.error);
+      nextActive = remaining.value.find(
+        (candidate) => candidate.publicKeyZ32 !== publicKeyZ32,
+      )?.publicKeyZ32 ?? null;
     }
 
-    const identities = store.value.identities.filter(
-      (identity) => identity.publicIdentity.publicKeyZ32 !== publicKeyZ32,
-    );
-    const activePublicKeyZ32 = store.value.activePublicKeyZ32 === publicKeyZ32
-      ? identities[0]?.publicIdentity.publicKeyZ32 ?? null
-      : store.value.activePublicKeyZ32;
-    return this.writeStore({ ...store.value, activePublicKeyZ32, identities });
+    const storedKey = identityStorageKey(publicKeyZ32);
+    const previousIdentity = JSON.stringify(identity.value);
+
+    try {
+      if (active.value === publicKeyZ32) writeActiveIdentityOrThrow(storage, nextActive);
+      storage.removeItem(storedKey);
+      notifySameTab();
+      return Result.ok();
+    } catch (cause) {
+      restoreStorageValues(storage, [
+        [storedKey, previousIdentity],
+        [ACTIVE_IDENTITY_KEY, active.value],
+      ], "remove_rollback");
+      notifySameTab();
+      return storageUnavailable("write", cause);
+    }
   }
 
-  /** Returns an identity and a fresh secret-key buffer that the caller must clear. */
-  read(publicKeyZ32: string): LocalIdentityResult<{ identity: LocalIdentityMetadata; secretKey: PubkySecretKeyMaterial }> {
-    const store = this.readStore();
-    if (Result.isError(store)) return Result.err(store.error);
-    const storedIdentity = store.value.identities.find(
-      (candidate) => candidate.publicIdentity.publicKeyZ32 === publicKeyZ32,
-    );
-    if (!storedIdentity) {
-      LOGGER.info("identity.local_store.failed", { operation: "read_identity", code: "invalid_identity" });
-      return Result.err({ code: "invalid_identity" });
-    }
+  read(publicKeyZ32: string): LocalIdentityResult<{
+    identity: LocalIdentityMetadata;
+    secretKey: PubkySecretKeyMaterial;
+  }> {
+    const storage = getLocalStorage();
+    if (!storage) return storageUnavailable("read");
+    const stored = readIdentity(storage, publicKeyZ32);
+    if (Result.isError(stored)) return Result.err(stored.error);
+    if (!stored.value) return invalidIdentity("read_identity");
 
-    const secretKey = decodeStoredSecretKey(storedIdentity.secretKey);
-    if (!secretKey) {
-      LOGGER.warn("identity.local_store.failed", { operation: "read", code: "invalid_store" });
-      return Result.err({ code: "invalid_store" });
-    }
+    const secretKey = decodeStoredSecretKey(stored.value.secretKey);
+    if (!secretKey) return invalidStore();
     return Result.ok({
-      identity: toMetadata(storedIdentity),
+      identity: toMetadata(stored.value),
       secretKey: { bytes: secretKey, format: PUBKY_SECRET_KEY_FORMAT },
     });
   }
 
-  private readStore(): LocalIdentityResult<LocalIdentityStore> {
-    if (!this.storage) {
-      LOGGER.warn("identity.local_store.failed", { operation: "read", code: "storage_unavailable" });
-      return Result.err({ code: "storage_unavailable" });
-    }
-
-    let stored: string | null;
-    try {
-      stored = this.storage.getItem(STORAGE_KEY);
-    } catch (cause) {
-      LOGGER.warn("identity.local_store.failed", {
-        operation: "read",
-        code: "storage_unavailable",
-      });
-      return Result.err({ code: "storage_unavailable", cause });
-    }
-
-    if (stored === null) {
-      return Result.ok({ v: LOCAL_IDENTITY_STORE_VERSION, activePublicKeyZ32: null, identities: [] });
-    }
-
-    return parseStore(stored);
-  }
-
-  private writeStore(store: LocalIdentityStore): LocalIdentityResult<void> {
-    if (!this.storage) {
-      LOGGER.warn("identity.local_store.failed", { operation: "write", code: "storage_unavailable" });
-      return Result.err({ code: "storage_unavailable" });
-    }
-
-    try {
-      this.storage.setItem(STORAGE_KEY, JSON.stringify(store));
-      return Result.ok();
-    } catch (cause) {
-      LOGGER.warn("identity.local_store.failed", {
-        operation: "write",
-        code: "storage_unavailable",
-      });
-      return Result.err({ code: "storage_unavailable", cause });
-    }
+  subscribe(listener: () => void): () => void {
+    SAME_TAB_LISTENERS.add(listener);
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === null
+        || event.key.startsWith(`${STORAGE_ROOT}/`)) notifyListener(listener, "storage_event");
+    };
+    globalThis.window?.addEventListener("storage", onStorage);
+    return () => {
+      SAME_TAB_LISTENERS.delete(listener);
+      globalThis.window?.removeEventListener("storage", onStorage);
+    };
   }
 }
 
-function getLocalStorage(): Storage | null {
+function readAllIdentities(storage: Storage): LocalIdentityResult<StoredLocalIdentity[]> {
+  const identities: StoredLocalIdentity[] = [];
   try {
-    return globalThis.window?.localStorage ?? globalThis.localStorage;
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index);
+      if (!key?.startsWith(IDENTITY_KEY_PREFIX)) continue;
+      const value = storage.getItem(key);
+      if (value === null) continue;
+      const identity = parseStoredIdentity(value);
+      if (!identity || key !== identityStorageKey(identity.publicKeyZ32)) return invalidStore();
+      identities.push(identity);
+    }
+  } catch (cause) {
+    return storageUnavailable("read", cause);
+  }
+  return Result.ok(identities);
+}
+
+function readIdentity(
+  storage: Storage,
+  publicKeyZ32: string,
+): LocalIdentityResult<StoredLocalIdentity | null> {
+  if (!isPubkyPublicKey(publicKeyZ32)) return invalidIdentity("read_identity");
+  try {
+    const value = storage.getItem(identityStorageKey(publicKeyZ32));
+    if (value === null) return Result.ok(null);
+    const identity = parseStoredIdentity(value);
+    return identity ? Result.ok(identity) : invalidStore();
+  } catch (cause) {
+    return storageUnavailable("read", cause);
+  }
+}
+
+function readActiveIdentity(storage: Storage): LocalIdentityResult<string | null> {
+  try {
+    const value = storage.getItem(ACTIVE_IDENTITY_KEY);
+    return value === null || isPubkyPublicKey(value) ? Result.ok(value) : invalidStore();
+  } catch (cause) {
+    return storageUnavailable("read", cause);
+  }
+}
+
+function writeActiveIdentity(
+  storage: Storage,
+  publicKeyZ32: string | null,
+): LocalIdentityResult<void> {
+  try {
+    writeActiveIdentityOrThrow(storage, publicKeyZ32);
+    return Result.ok();
+  } catch (cause) {
+    return storageUnavailable("write", cause);
+  }
+}
+
+function writeActiveIdentityOrThrow(storage: Storage, publicKeyZ32: string | null): void {
+  if (publicKeyZ32 === null) storage.removeItem(ACTIVE_IDENTITY_KEY);
+  else storage.setItem(ACTIVE_IDENTITY_KEY, publicKeyZ32);
+}
+
+function parseStoredIdentity(value: string): StoredLocalIdentity | null {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return isStoredIdentity(parsed) ? parsed : null;
   } catch {
     return null;
   }
 }
 
-function parseStore(value: string): LocalIdentityResult<LocalIdentityStore> {
-  try {
-    const parsed: unknown = JSON.parse(value);
-    if (isStore(parsed)) return Result.ok(parsed);
-    LOGGER.warn("identity.local_store.failed", { operation: "read", code: "invalid_store" });
-    return Result.err({ code: "invalid_store" });
-  } catch {
-    LOGGER.warn("identity.local_store.failed", { operation: "read", code: "invalid_store" });
-    return Result.err({ code: "invalid_store" });
-  }
-}
-
-function isStore(value: unknown): value is LocalIdentityStore {
-  if (!isRecord(value) || !hasExactKeys(value, ["v", "activePublicKeyZ32", "identities"])) {
-    return false;
-  }
-
-  if (value.v !== LOCAL_IDENTITY_STORE_VERSION || !Array.isArray(value.identities)) {
-    return false;
-  }
-
-  if (!isActivePublicKeyZ32(value.activePublicKeyZ32) || !value.identities.every(isStoredIdentity)) {
-    return false;
-  }
-
-  const publicKeys = new Set(value.identities.map((identity) => identity.publicIdentity.publicKeyZ32));
-  return publicKeys.size === value.identities.length
-    && (value.activePublicKeyZ32 === null || publicKeys.has(value.activePublicKeyZ32));
-}
-
 function isStoredIdentity(value: unknown): value is StoredLocalIdentity {
-  if (!isRecord(value)
-    || !hasExactKeys(value, value.googleAccount === undefined
-      ? ["publicIdentity", "secretKey"]
-      : ["publicIdentity", "googleAccount", "secretKey"])
-    || !isPubkyPublicIdentity(value.publicIdentity)) {
-    return false;
-  }
-
-  return isEncodedSecretKey(value.secretKey)
+  return isRecord(value)
+    && hasExactKeys(value, value.googleAccount === undefined
+      ? ["v", "publicKeyZ32", "secretKey"]
+      : ["v", "publicKeyZ32", "googleAccount", "secretKey"])
+    && value.v === 1
+    && isPubkyPublicKey(value.publicKeyZ32)
+    && isEncodedSecretKey(value.secretKey)
     && (value.googleAccount === undefined || isStoredGoogleAccountProfile(value.googleAccount));
 }
 
 function isStoredGoogleAccountProfile(value: unknown): value is GoogleAccountProfile {
-  return isRecord(value)
-    && hasExactKeys(value, ["googleSubject", "email", "name", "pictureUrl"])
-    && isNonEmptyString(value.googleSubject)
-    && isNonEmptyString(value.email)
-    && isNonEmptyString(value.name)
-    && (value.pictureUrl === null || isLocalGoogleAvatar(value.pictureUrl));
+  if (!isRecord(value)
+    || !hasExactKeys(value, ["googleSubject", "email", "name", "pictureUrl"])
+    || !isNonEmptyString(value.googleSubject)
+    || !isNonEmptyString(value.email)
+    || !isNonEmptyString(value.name)) return false;
+  if (value.pictureUrl === null || isLocalGoogleAvatar(value.pictureUrl)) return true;
+  if (!isNonEmptyString(value.pictureUrl) || value.pictureUrl.length > 2_048) return false;
+  try {
+    const url = new URL(value.pictureUrl);
+    return url.protocol === "https:"
+      && url.hostname === "lh3.googleusercontent.com"
+      && !url.username
+      && !url.password
+      && !url.hash;
+  } catch {
+    return false;
+  }
 }
 
 function isLocalGoogleAvatar(value: unknown): value is string {
@@ -280,12 +294,86 @@ function isLocalGoogleAvatar(value: unknown): value is string {
     && /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/u.test(value);
 }
 
-function isActivePublicKeyZ32(value: unknown): value is string | null {
-  return value === null || typeof value === "string";
-}
-
 function isEncodedSecretKey(value: unknown): value is string {
   return typeof value === "string" && value.length === 43 && isCanonicalBase64Url(value);
+}
+
+function toMetadata(identity: StoredLocalIdentity): LocalIdentityMetadata {
+  return {
+    publicIdentity: { publicKeyZ32: identity.publicKeyZ32 },
+    ...(identity.googleAccount ? { googleAccount: identity.googleAccount } : {}),
+  };
+}
+
+function decodeStoredSecretKey(value: string): Uint8Array | undefined {
+  const decoded = decodeBase64Url(value);
+  return decoded?.byteLength === PUBKY_SECRET_KEY_BYTES ? decoded : undefined;
+}
+
+function identityStorageKey(publicKeyZ32: string): string {
+  return `${IDENTITY_KEY_PREFIX}${publicKeyZ32}`;
+}
+
+function notifySameTab(): void {
+  for (const listener of SAME_TAB_LISTENERS) notifyListener(listener, "same_tab");
+}
+
+function notifyListener(listener: () => void, source: "same_tab" | "storage_event"): void {
+  try {
+    listener();
+  } catch (cause) {
+    LOGGER.warn("identity.local_store.listener.failed", {
+      source,
+      ...safeErrorLogFields(cause),
+    });
+  }
+}
+
+function restoreStorageValues(
+  storage: Storage,
+  values: ReadonlyArray<readonly [key: string, value: string | null]>,
+  operation: "save_rollback" | "remove_rollback",
+): void {
+  for (const [key, value] of values) {
+    try {
+      if (value === null) storage.removeItem(key);
+      else storage.setItem(key, value);
+    } catch (cause) {
+      LOGGER.error("identity.local_store.rollback.failed", {
+        operation,
+        ...safeErrorLogFields(cause),
+      });
+    }
+  }
+}
+
+function invalidIdentity(operation: string): LocalIdentityResult<never> {
+  LOGGER.info("identity.local_store.failed", { operation, code: "invalid_identity" });
+  return Result.err({ code: "invalid_identity" });
+}
+
+function invalidStore(): LocalIdentityResult<never> {
+  LOGGER.warn("identity.local_store.failed", { operation: "read", code: "invalid_store" });
+  return Result.err({ code: "invalid_store" });
+}
+
+function storageUnavailable(operation: string, cause?: unknown): LocalIdentityResult<never> {
+  LOGGER.warn("identity.local_store.failed", {
+    operation,
+    code: "storage_unavailable",
+    ...(cause === undefined ? {} : safeErrorLogFields(cause)),
+  });
+  return Result.err(cause === undefined
+    ? { code: "storage_unavailable" }
+    : { code: "storage_unavailable", cause });
+}
+
+function getLocalStorage(): Storage | null {
+  try {
+    return globalThis.window?.localStorage ?? globalThis.localStorage;
+  } catch {
+    return null;
+  }
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -299,16 +387,4 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function hasExactKeys(value: Record<string, unknown>, expected: string[]): boolean {
   const keys = Object.keys(value);
   return keys.length === expected.length && expected.every((key) => Object.hasOwn(value, key));
-}
-
-function toMetadata(identity: StoredLocalIdentity): LocalIdentityMetadata {
-  return {
-    publicIdentity: identity.publicIdentity,
-    ...(identity.googleAccount ? { googleAccount: identity.googleAccount } : {}),
-  };
-}
-
-function decodeStoredSecretKey(value: string): Uint8Array | undefined {
-  const decoded = decodeBase64Url(value);
-  return decoded?.byteLength === PUBKY_SECRET_KEY_BYTES ? decoded : undefined;
 }

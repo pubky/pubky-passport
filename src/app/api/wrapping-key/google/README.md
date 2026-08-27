@@ -13,6 +13,6 @@ Passport file.
 
 ## Request Flow
 
-1. Accept only JSON shaped as `{ "googleIdToken": "..." }`, bounded to 16 KiB.
-2. Delegate verification, rate limiting, and HKDF derivation to [`src/server/wrapping-key/google/`](../../../../server/wrapping-key/google/).
-3. Return `{ "wrappingKey": "<32-byte-base64url>" }` or `{ "error": { "code": "..." } }`.
+1. Accept bounded JSON containing `googleIdToken` and an optional public `keyId`.
+2. Delegate verification, key selection, and HKDF derivation to [`src/server/wrapping-key/google/`](../../../../server/wrapping-key/google/).
+3. Return the wrapping key and selected key ID, or a safe typed error.

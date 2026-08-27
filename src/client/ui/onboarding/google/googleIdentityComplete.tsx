@@ -1,5 +1,3 @@
-"use client";
-
 import Image from "next/image";
 
 import type { GoogleAccountProfile } from "../../../logic/local-identity/localIdentityModels";
@@ -9,13 +7,18 @@ import { Button } from "../../shared/primitives/button";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
 import { GoogleAccountCard } from "./googleAccountCard";
 
-function GoogleIdentityComplete({ googleAccount, identity, mode, onContinue }: { googleAccount: GoogleAccountProfile; identity: PubkyPublicIdentity; mode: "created" | "restored"; onContinue: () => void }) {
+function GoogleIdentityComplete({ googleAccount, identity, mode, onContinue, visibleRecoveryCopyStatus }: { googleAccount: GoogleAccountProfile; identity: PubkyPublicIdentity; mode: "created" | "restored"; onContinue: () => void; visibleRecoveryCopyStatus: "created" | "unconfirmed" | null }) {
   const restored = mode === "restored";
   return (
     <PassportScreen className="gap-8">
       <div className="flex flex-col gap-6">
         <DisplayHeading accent="complete." aria-label={restored ? "Restore complete." : "Setup complete."}>{restored ? "Restore" : "Setup"}</DisplayHeading>
         <LeadText>{restored ? "Restored Passport file from Google Drive." : "Stored Passport file in Google Drive."}</LeadText>
+        {visibleRecoveryCopyStatus === "unconfirmed" ? (
+          <p className="rounded-xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm leading-5" role="status">
+            Your identity is ready, but Passport could not confirm the visible recovery copy in Google Drive. Download a recovery file from identity management.
+          </p>
+        ) : null}
         <GoogleAccountCard account={googleAccount} />
         <div className="rounded-xl border border-brand/30 p-4 shadow-xl">
           <p className="mb-2 text-xs font-medium uppercase tracking-[0.1em] text-brand">Your Pubky</p>

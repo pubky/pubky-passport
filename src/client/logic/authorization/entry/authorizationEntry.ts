@@ -7,13 +7,13 @@ import {
   type EarlyAuthorizationLocation,
 } from "../../../../libs/authorization/earlyAuthorizationLocation";
 import { LOGGER } from "../../../../libs/logger/logger";
-import { IssuedPubkyAuthRequest } from "../request/IssuedPubkyAuthRequest";
-import { PUBKY_AUTH_REQUEST_LIMITS } from "../request/pubkyAuthRequestLimits";
+import { ValidatedPubkyAuthRequest } from "../request/ValidatedPubkyAuthRequest";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "../request/parser/pubkyAuthRequestParser";
 
 export type AuthorizationEntry =
   | {
     status: "valid";
-    request: IssuedPubkyAuthRequest;
+    request: ValidatedPubkyAuthRequest;
   }
   | { status: "empty" }
   | { status: "expired" }
@@ -50,18 +50,18 @@ export function readAndScrubAuthorizationEntry(
   const rawD = rawSearch.length === 0
     ? extractAuthorizationFragmentValue(rawHash)
     : { valid: false as const };
-  const issued = IssuedPubkyAuthRequest.issue(rawD.valid ? rawD.value : undefined);
-  if (Result.isError(issued)) {
+  const validated = ValidatedPubkyAuthRequest.fromEncoded(rawD.valid ? rawD.value : undefined);
+  if (Result.isError(validated)) {
     LOGGER.info("authorize.parse.failed", {
       source: "fragment",
-      code: rawD.valid ? issued.error.code : "invalid_fragment_shape",
+      code: rawD.valid ? validated.error.code : "invalid_fragment_shape",
     });
   }
-  return Result.isError(issued)
+  return Result.isError(validated)
     ? { status: "invalid" }
     : {
       status: "valid",
-      request: issued.value,
+      request: validated.value,
     };
 }
 
@@ -168,6 +168,6 @@ function safeHistoryState(appWindow: Window): unknown {
 
 /** Invalidates private approval metadata when an entry must be abandoned. */
 export function invalidateAuthorizationEntry(entry: AuthorizationEntry): AuthorizationEntry {
-  if (entry.status === "valid") IssuedPubkyAuthRequest.release(entry.request);
+  if (entry.status === "valid") entry.request.release();
   return { status: "invalid" };
 }

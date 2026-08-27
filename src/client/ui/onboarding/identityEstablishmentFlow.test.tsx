@@ -22,12 +22,14 @@ const MOCKS = vi.hoisted(() => ({
 }));
 
 vi.mock("../../logic/google-identity/GoogleIdentityController", () => ({
-  GoogleIdentityController: function GoogleIdentityController(
-    googleClientId: string,
-    homegateBaseUrl: string,
-    onState: (state: GoogleIdentityViewState) => void,
-  ) {
-    return MOCKS.constructGoogleIdentityController(googleClientId, homegateBaseUrl, onState);
+  GoogleIdentityController: class {
+    constructor(
+      googleClientId: string,
+      homegateBaseUrl: string,
+      onState: (state: GoogleIdentityViewState) => void,
+    ) {
+      return MOCKS.constructGoogleIdentityController(googleClientId, homegateBaseUrl, onState);
+    }
   },
 }));
 
@@ -53,7 +55,7 @@ describe("IdentityEstablishmentFlow", () => {
     vi.clearAllMocks();
   });
 
-  it("keeps Google authorization disabled before the screen flow is mounted", () => {
+  it("renders without constructing browser dependencies on the server", () => {
     const markup = renderToStaticMarkup(
       <ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />,
     );
@@ -63,7 +65,7 @@ describe("IdentityEstablishmentFlow", () => {
       .find((button) => button.textContent?.includes("Continue with Google"));
 
     expect(within(shell).getByRole("heading", { name: "Quick & easy signing." })).toHaveTextContent("Quick & easy");
-    expect(googleButton).toBeDisabled();
+    expect(googleButton).toBeEnabled();
     expect(MOCKS.constructGoogleIdentityController).not.toHaveBeenCalled();
   });
 
@@ -162,7 +164,7 @@ describe("IdentityEstablishmentFlow", () => {
       establishIdentity: vi.fn(async () => Result.ok({
         establishmentMode: "restored" as const,
         googleAccount,
-        publicIdentity: { publicKeyZ32: "key", publicKeyDisplay: "pubkykey" },
+        publicIdentity: { publicKeyZ32: "key",},
       })),
     }));
     render(<ConfiguredIdentityEstablishmentFlow onComplete={onComplete} />);
@@ -194,7 +196,7 @@ describe("IdentityEstablishmentFlow", () => {
     const replaceInvalidPassportFile = vi.fn(async () => Result.ok({
       establishmentMode: "created" as const,
       googleAccount,
-      publicIdentity: { publicKeyZ32: "new-key", publicKeyDisplay: "pubkynew-key" },
+      publicIdentity: { publicKeyZ32: "new-key",},
       visibleRecoveryCopyStatus: "created" as const,
     }));
     useController(mockGoogleIdentityController({
@@ -248,12 +250,11 @@ describe("IdentityEstablishmentFlow", () => {
     expect(establishIdentity).toHaveBeenCalledTimes(2);
   });
 
-  it("renders the safe detail code without exposing the diagnostic cause", async () => {
+  it("renders the safe detail code returned by the controller", async () => {
     useController(mockGoogleIdentityController({
       establishIdentity: vi.fn(async () => Result.err({
         code: "homeserver_signup_invitation_failed" as const,
         detailCode: "weekly_limit_exceeded" as const,
-        cause: { secret: "DOM-CAUSE-CANARY" },
       })),
     }));
     render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
@@ -265,7 +266,6 @@ describe("IdentityEstablishmentFlow", () => {
     expect(errorDetails).not.toContainElement(screen.getByText("Error"));
     expect(within(errorDetails).getByText("homeserver_signup_invitation_failed")).toBeInTheDocument();
     expect(within(errorDetails).getByText("weekly_limit_exceeded")).toBeInTheDocument();
-    expect(document.body).not.toHaveTextContent("DOM-CAUSE-CANARY");
   });
 
   it("contains rejected operation details outside hook state and logs safe metadata", async () => {
@@ -292,9 +292,50 @@ describe("IdentityEstablishmentFlow", () => {
 
     render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent("ESTABLISHMENT-CONSTRUCTOR-CANARY");
     expect(JSON.stringify(warning.mock.calls)).not.toContain("ESTABLISHMENT-CONSTRUCTOR-CANARY");
+  });
+
+  it("retries controller construction when the user tries again", async () => {
+    const googleAccount = { googleSubject: "google-1", email: "user@example.com", name: "User", pictureUrl: null };
+    const recoveredController = mockGoogleIdentityController({
+      establishIdentity: vi.fn(async () => Result.ok({
+        establishmentMode: "created" as const,
+        googleAccount,
+        publicIdentity: { publicKeyZ32: "key",},
+        visibleRecoveryCopyStatus: "created" as const,
+      })),
+    });
+    MOCKS.constructGoogleIdentityController
+      .mockImplementationOnce(() => { throw new Error("temporarily unavailable"); })
+      .mockReturnValue(recoveredController);
+    render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByRole("heading", { name: "Setup complete." })).toBeInTheDocument();
+    expect(MOCKS.constructGoogleIdentityController).toHaveBeenCalledTimes(2);
+  });
+
+  it("warns when a visible recovery copy could not be confirmed", async () => {
+    useController(mockGoogleIdentityController({
+      establishIdentity: vi.fn(async () => Result.ok({
+        establishmentMode: "created" as const,
+        googleAccount: { googleSubject: "google-1", email: "user@example.com", name: "User", pictureUrl: null },
+        publicIdentity: { publicKeyZ32: "key",},
+        visibleRecoveryCopyStatus: "unconfirmed" as const,
+      })),
+    }));
+    render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
+
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Continue with Google" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Passport could not confirm the visible recovery copy",
+    );
   });
 
   it("describes a final PKDNS publication failure without stale resolution language", async () => {

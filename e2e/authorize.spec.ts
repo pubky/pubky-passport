@@ -13,19 +13,17 @@ const SENSITIVE_CANARIES = [
   GRANT_CLIENT_ID,
   GRANT_CLIENT_PUBLIC_KEY,
 ];
-const LOCAL_IDENTITY_STORAGE_KEY = "pubky-passport/local-identities/v1";
 const LOCAL_IDENTITY_PUBLIC_KEY = "tkrq8zmwb8a3m9k15csu3q17qmfgqnp9dskbrg9uq1rydpyxp7qy";
+const LOCAL_IDENTITY_STORAGE_KEY = `pubky-passport/local-identities/v1/identity/${LOCAL_IDENTITY_PUBLIC_KEY}`;
 const LOCAL_IDENTITY_STORAGE_VALUE = JSON.stringify({
   v: 1,
-  activePublicKeyZ32: LOCAL_IDENTITY_PUBLIC_KEY,
-  identities: [{
-    publicIdentity: {
-      publicKeyDisplay: `pubky${LOCAL_IDENTITY_PUBLIC_KEY}`,
-      publicKeyZ32: LOCAL_IDENTITY_PUBLIC_KEY,
-    },
-    secretKey: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
-  }],
+  publicKeyZ32: LOCAL_IDENTITY_PUBLIC_KEY,
+  secretKey: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
 });
+const LOCAL_IDENTITY_STORAGE = {
+  [LOCAL_IDENTITY_STORAGE_KEY]: LOCAL_IDENTITY_STORAGE_VALUE,
+  "pubky-passport/local-identities/v1/active": LOCAL_IDENTITY_PUBLIC_KEY,
+};
 
 test("shows manual authorization entry when no request was supplied", async ({ page }) => {
   await page.goto("/authorize");
@@ -72,9 +70,7 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   expect(await page.evaluate(() => window.location.hash)).toBe("");
   expect(await page.evaluate(() => (window as Window & { __passportHashAtFirstFrame?: string }).__passportHashAtFirstFrame)).toBe("");
   const authorizationPersistence = await browserPersistenceSnapshot(page);
-  expectAuthorizationPersistenceSafe(authorizationPersistence, {
-    [LOCAL_IDENTITY_STORAGE_KEY]: LOCAL_IDENTITY_STORAGE_VALUE,
-  });
+  expectAuthorizationPersistenceSafe(authorizationPersistence, LOCAL_IDENTITY_STORAGE);
 
   await page.goBack();
   await expect(page).toHaveURL(/\/$/u);
@@ -83,9 +79,7 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   expect(await page.evaluate(() => window.location.search)).toBe("");
   expect(await page.evaluate(() => window.location.hash)).toBe("");
   const restoredPersistence = await browserPersistenceSnapshot(page);
-  expectAuthorizationPersistenceSafe(restoredPersistence, {
-    [LOCAL_IDENTITY_STORAGE_KEY]: LOCAL_IDENTITY_STORAGE_VALUE,
-  });
+  expectAuthorizationPersistenceSafe(restoredPersistence, LOCAL_IDENTITY_STORAGE);
   await expectNoSensitiveBrowserLeaks(page, leakMonitor, [authorizationPersistence, restoredPersistence]);
 });
 
@@ -124,9 +118,7 @@ test("reviews and scrubs a v0.10 grant authorization request", async ({ page }) 
   expect(await page.evaluate(() => window.location.search)).toBe("");
   expect(await page.evaluate(() => window.location.hash)).toBe("");
   const persistence = await browserPersistenceSnapshot(page);
-  expectAuthorizationPersistenceSafe(persistence, {
-    [LOCAL_IDENTITY_STORAGE_KEY]: LOCAL_IDENTITY_STORAGE_VALUE,
-  });
+  expectAuthorizationPersistenceSafe(persistence, LOCAL_IDENTITY_STORAGE);
   await expectNoSensitiveBrowserLeaks(page, leakMonitor, [persistence]);
 });
 
@@ -148,10 +140,9 @@ test("falls back to the cancel callback when the opener does not acknowledge", a
     contentType: "text/html",
   }));
   await page.goto("/");
-  await page.evaluate(({ key, value }) => window.localStorage.setItem(key, value), {
-    key: LOCAL_IDENTITY_STORAGE_KEY,
-    value: LOCAL_IDENTITY_STORAGE_VALUE,
-  });
+  await page.evaluate((entries) => {
+    for (const [key, value] of entries) window.localStorage.setItem(key, value);
+  }, Object.entries(LOCAL_IDENTITY_STORAGE));
   const popupPromise = page.waitForEvent("popup");
   await page.evaluate((url) => { window.open(url, "pubky-passport", "popup,width=480,height=760"); }, authorizationUrl(
     authorizationRequest(`${RELAY_ORIGIN}/inbox`),
@@ -167,10 +158,9 @@ test("falls back to the cancel callback when the opener does not acknowledge", a
 test("notifies the callback-origin opener and closes after acknowledgement", async ({ page }) => {
   await page.goto("/");
   const passportOrigin = new URL(page.url()).origin;
-  await page.evaluate(({ key, value }) => window.localStorage.setItem(key, value), {
-    key: LOCAL_IDENTITY_STORAGE_KEY,
-    value: LOCAL_IDENTITY_STORAGE_VALUE,
-  });
+  await page.evaluate((entries) => {
+    for (const [key, value] of entries) window.localStorage.setItem(key, value);
+  }, Object.entries(LOCAL_IDENTITY_STORAGE));
   await page.context().route("https://client.example/**", (route) => route.fulfill({
     body: "<!doctype html><title>Client integration</title><h1>Client integration</h1>",
     contentType: "text/html",
@@ -320,9 +310,9 @@ function expectAuthorizationPersistenceSafe(
 }
 
 async function installLocalIdentityFixture(page: Page): Promise<void> {
-  await page.addInitScript(({ key, value }) => {
-    window.localStorage.setItem(key, value);
-  }, { key: LOCAL_IDENTITY_STORAGE_KEY, value: LOCAL_IDENTITY_STORAGE_VALUE });
+  await page.addInitScript((entries) => {
+    for (const [key, value] of entries) window.localStorage.setItem(key, value);
+  }, Object.entries(LOCAL_IDENTITY_STORAGE));
 }
 
 async function installPersistenceObserver(page: Page): Promise<void> {

@@ -1,5 +1,3 @@
-"use client";
-
 import { preload } from "react-dom";
 
 import { GoogleAccessScreen } from "./google/googleAccessScreen";
@@ -16,7 +14,7 @@ function IdentityEstablishmentFlow({ onBack, onComplete }: {
   onComplete: () => void;
 }) {
   const google = useGoogleIdentityEstablishment();
-  const view = google.state.view;
+  const view = google.view;
 
   if (view.status === "requesting-access" || view.status === "working") {
     preload("/illustrations/checkmark.png", { as: "image" });
@@ -28,6 +26,7 @@ function IdentityEstablishmentFlow({ onBack, onComplete }: {
         googleAccount={view.googleAccount}
         identity={view.identity}
         mode={view.mode}
+        visibleRecoveryCopyStatus={view.visibleRecoveryCopyStatus}
         onContinue={onComplete}
       />;
     case "requesting-access":
@@ -50,7 +49,6 @@ function IdentityEstablishmentFlow({ onBack, onComplete }: {
         <SignInPage>
           <ProviderSignInButton
             className="w-full"
-            disabled={!google.controllerReady}
             onClick={google.establishIdentity}
             provider="google"
           >Continue with Google</ProviderSignInButton>

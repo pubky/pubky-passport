@@ -10,7 +10,10 @@ describe("server instrumentation", () => {
     vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
     vi.stubEnv("HOMEGATE_URL", "https://homegate.example");
     vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example");
-    vi.stubEnv("PASSPORT_SERVER_SECRET_BASE64", Buffer.alloc(32, 1).toString("base64"));
+    vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", "current");
+    vi.stubEnv("PASSPORT_SERVER_SECRET_KEYRING_JSON", JSON.stringify({
+      current: Buffer.alloc(32, 1).toString("base64"),
+    }));
 
     await expect(register()).resolves.toBeUndefined();
   });
@@ -20,9 +23,10 @@ describe("server instrumentation", () => {
     vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
     vi.stubEnv("HOMEGATE_URL", "https://homegate.example");
     vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example");
-    vi.stubEnv("PASSPORT_SERVER_SECRET_BASE64", "invalid");
+    vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", "current");
+    vi.stubEnv("PASSPORT_SERVER_SECRET_KEYRING_JSON", JSON.stringify({ current: "invalid" }));
 
-    await expect(register()).rejects.toThrow("PASSPORT_SERVER_SECRET_BASE64 must be valid base64");
+    await expect(register()).rejects.toThrow("Passport server keyring contains an invalid secret");
   });
 
   it("does not load Node configuration in another runtime", async () => {

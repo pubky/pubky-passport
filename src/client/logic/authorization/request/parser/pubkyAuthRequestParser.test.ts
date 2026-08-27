@@ -1,9 +1,12 @@
-import { describe, expect, expectTypeOf, it } from "vitest";
 import { Result } from "better-result";
+import { describe, expect, it } from "vitest";
 
-import { parseEncodedPubkyAuthRequest, type PubkyAuthParseErrorCode } from "./pubkyAuthRequestParser";
-import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
-import type { PubkyAuthUrlValidationErrorCode } from "./pubkyAuthUrls";
+import {
+  parseEncodedPubkyAuthRequest,
+  PUBKY_AUTH_REQUEST_LIMITS,
+  validateEncodedPubkyAuthRequest,
+  type PubkyAuthParseError,
+} from "./pubkyAuthRequestParser";
 
 const VALID_REQUEST =
   "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-success=https://pubky.app/passport-success&x-error=https://pubky.app/passport-error&x-cancel=https://pubky.app/passport-cancel";
@@ -17,7 +20,7 @@ const PUBKY_SDK_V0_10_COMPATIBILITY_FIXTURES = [
     request: "pubkyauth://signin_grant?caps=/pub/passport.test/:rw&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&cid=passport.test&cpk=5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo",
   },
 ] as const;
-expectTypeOf<PubkyAuthUrlValidationErrorCode>().toMatchTypeOf<PubkyAuthParseErrorCode>();
+type PubkyAuthParseErrorCode = PubkyAuthParseError["code"];
 
 function encodeRequest(request: string): string {
   return encodeURIComponent(request);
@@ -98,19 +101,6 @@ describe("parseEncodedPubkyAuthRequest", () => {
     expect(result.value).not.toHaveProperty("clientId");
   });
 
-  it("accepts x-source without exposing untrusted metadata in review", () => {
-    const request = `${VALID_REQUEST}&x-source=Pubky%20App`;
-
-    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
-
-    expect(Result.isOk(result)).toBe(true);
-    if (Result.isError(result)) {
-      throw new Error(result.error.code);
-    }
-
-    expect(JSON.stringify(result.value)).not.toContain("Pubky App");
-  });
-
   it.each([
     `${VALID_REQUEST}&relay=https://other-relay.example/inbox`,
     `${VALID_REQUEST}&secret=other-secret`,
@@ -118,15 +108,17 @@ describe("parseEncodedPubkyAuthRequest", () => {
     `${VALID_REQUEST}&x-success=https://other.example/success`,
     `${VALID_REQUEST}&x-error=https://other.example/error`,
     `${VALID_REQUEST}&x-cancel=https://other.example/cancel`,
-    `${VALID_REQUEST}&x-source=one&x-source=two`,
     `${VALID_REQUEST}&callback=https://pubky.app/one&callback=https://pubky.app/two`,
   ])("rejects duplicate supported parameters", (request) => {
     expectError(encodeRequest(request), "duplicate_parameter");
   });
 
-  it("rejects unsupported parameters", () => {
-    expectError(encodeRequest(`${VALID_REQUEST}&x-unreviewed=true`), "unsupported_parameter");
-  });
+  it.each(["x-source=Pubky%20App", "x-unreviewed=true"])(
+    "rejects unsupported parameter %s",
+    (parameter) => {
+      expectError(encodeRequest(`${VALID_REQUEST}&${parameter}`), "unsupported_parameter");
+    },
+  );
 
   it("rejects missing and empty d values", () => {
     expectError(undefined, "missing_d");
@@ -252,6 +244,27 @@ describe("parseEncodedPubkyAuthRequest", () => {
 
     expect(Result.isOk(parseEncodedPubkyAuthRequest(encodeRequest(grantRequest(atLimit))))).toBe(true);
     expectError(encodeRequest(grantRequest(`${atLimit}a`)), "invalid_client_id");
+  });
+});
+
+describe("validateEncodedPubkyAuthRequest", () => {
+  it("returns only success without constructing request authority", () => {
+    const result = validateEncodedPubkyAuthRequest(encodeRequest(VALID_REQUEST));
+
+    expect(Result.isOk(result)).toBe(true);
+    expect(JSON.stringify(result)).not.toContain("kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8");
+  });
+
+  it("returns only a safe error code for invalid input", () => {
+    const secret = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
+    const result = validateEncodedPubkyAuthRequest(encodeRequest(
+      `pubkyauth://signin?secret=${secret}`,
+    ));
+
+    expect(Result.isError(result) && result.error).toEqual({ code: "missing_relay" });
+    if (Result.isOk(result)) throw new Error("Expected validation to fail");
+    expect(result.error).not.toHaveProperty("cause");
+    expect(JSON.stringify(result)).not.toContain(secret);
   });
 });
 

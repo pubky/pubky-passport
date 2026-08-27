@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Result } from "better-result";
 
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
 import {
   GoogleWrappingKeyIssuer,
   type GoogleWrappingKeyIssueErrorCode,
@@ -12,7 +12,7 @@ import {
 } from "./routePolicy";
 
 type GoogleWrappingKeyRouteBody =
-  | { wrappingKey: string }
+  | { wrappingKey: string; keyId: string }
   | {
     error: {
       code: GoogleWrappingKeyIssueErrorCode | "invalid_request" | "internal_error";
@@ -41,19 +41,23 @@ export async function googleWrappingKeyPost(
     operation = "compose";
     if (!activeIssuer) activeIssuer = GoogleWrappingKeyIssuer.fromEnvironment();
     operation = "execute";
-    const result = await activeIssuer.issueGoogleWrappingKey(body.value);
+    const result = await activeIssuer.issueGoogleWrappingKey(
+      body.value.googleIdToken,
+      body.value.keyId,
+    );
 
     if (Result.isError(result)) {
       return jsonResponse({ error: { code: result.error.code } }, statusForError(result.error.code));
     }
 
-    return jsonResponse({ wrappingKey: result.value }, 200);
-  } catch {
+    return jsonResponse(result.value, 200);
+  } catch (cause) {
     LOGGER.error("identity.google.wrapping_key.failed", {
       route: "api.wrapping_key.google",
       layer: "route",
       operation,
       code: "internal_error",
+      ...safeErrorLogFields(cause),
     });
     return jsonResponse({ error: { code: "internal_error" } }, 500);
   }
@@ -70,8 +74,8 @@ function statusForError(code: GoogleWrappingKeyIssueErrorCode): number {
   switch (code) {
     case "invalid_google_id_token":
       return 401;
-    case "rate_limited":
-      return 429;
+    case "key_unavailable":
+      return 409;
     case "dependency_unavailable":
       return 503;
   }

@@ -8,12 +8,14 @@ a Google account and derives the wrapping key for that account's Passport file.
 
 - [`GoogleWrappingKeyIssuer.ts`](./GoogleWrappingKeyIssuer.ts) owns flow order, safe errors, and configured construction.
 - [`GoogleIdTokenVerifier.ts`](./GoogleIdTokenVerifier.ts) verifies the Google token and defines the verified identity contract.
-- [`InMemoryGoogleWrappingKeyRateLimiter.ts`](./InMemoryGoogleWrappingKeyRateLimiter.ts) rate-limits a keyed hash of the verified identity.
 - [`GoogleWrappingKeyDeriver.ts`](./GoogleWrappingKeyDeriver.ts) derives the account key with the frozen HKDF contract.
 
 ## Request Flow
 
 1. Verify the Google ID token and normalize its issuer and Google subject.
-2. Rate-limit that verified identity.
-3. Use HKDF to derive a deterministic 32-byte wrapping key from the server secret and identity.
-4. Return the base64url key or a safe typed error.
+2. Select the requested keyring entry, or the configured current entry for a new file.
+3. Use HKDF to derive a deterministic 32-byte wrapping key from that secret and identity.
+4. Return the base64url key and its public key ID, or a safe typed error.
+
+Traffic controls belong at the shared deployment edge. A process-local limiter is
+not used because it would give misleading guarantees in multi-instance deployments.

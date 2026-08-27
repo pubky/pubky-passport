@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 
 import { EARLY_AUTHORIZATION_LOCATION_SCRIPT } from "./libs/authorization/earlyAuthorizationLocation";
 import { EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT } from "./libs/authorization/earlyGoogleImplicitResponse";
-import { LOGGER } from "./libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "./libs/logger/logger";
 import { getApplicationEnvironment } from "./server/config/applicationEnvironment";
 
 const EARLY_AUTHORIZATION_LOCATION_SCRIPT_SOURCE = `'sha256-${createHash("sha256")
@@ -33,13 +33,14 @@ export function proxy(request: NextRequest) {
     const response = NextResponse.next({ request: { headers: requestHeaders } });
     response.headers.set("Content-Security-Policy", contentSecurityPolicy);
     return response;
-  } catch {
+  } catch (cause) {
     LOGGER.error("proxy.bootstrap.failed", {
       layer: "proxy",
       operation: "build_response_policy",
       code: "runtime_exception",
+      ...safeErrorLogFields(cause),
     });
-    throw new Error("Proxy configuration unavailable.");
+    throw new Error("Proxy configuration unavailable.", { cause });
   }
 }
 
@@ -73,7 +74,7 @@ function createContentSecurityPolicy(input: {
       "https://pkarr.pubky.org",
       ...(input.allowPubkyAuthRelays ? ["https:"] : []),
     ].join(" "),
-    "img-src 'self' data:",
+    "img-src 'self' data: https://lh3.googleusercontent.com",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
     "frame-src 'none'",

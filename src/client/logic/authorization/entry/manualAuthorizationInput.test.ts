@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { PUBKY_AUTH_REQUEST_LIMITS } from "../request/pubkyAuthRequestLimits";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "../request/parser/pubkyAuthRequestParser";
 import { validateManualAuthorizationInput } from "./manualAuthorizationInput";
 
 describe("validateManualAuthorizationInput", () => {

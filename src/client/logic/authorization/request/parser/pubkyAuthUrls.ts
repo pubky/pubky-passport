@@ -2,9 +2,13 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
+/** Bounds enforced while validating authorization relay and callback URLs. */
+export const PUBKY_AUTH_URL_LIMITS = {
+  maximumRelayUrlCodeUnits: 2_048,
+  maximumCallbackUrlCodeUnits: 2_048,
+} as const;
 
-export type PubkyAuthUrlValidationErrorCode =
+type PubkyAuthUrlValidationErrorCode =
   | "missing_relay"
   | "invalid_relay"
   | "invalid_callback";
@@ -13,32 +17,27 @@ export type PubkyAuthUrlValidationError = {
   code: PubkyAuthUrlValidationErrorCode;
 };
 
-export type PubkyAuthUrlValidationResult = ResultType<
+type PubkyAuthUrlValidationResult = ResultType<
   ValidatedPubkyAuthCallbacks,
   PubkyAuthUrlValidationError
 >;
 
-export type PubkyAuthUrlParameterNames = Readonly<{
-  relay: string;
-  success: string;
-  error: string;
-  cancel: string;
-  legacySuccess: string;
-}>;
+const URL_PARAMETERS = {
+  relay: "relay",
+  success: "x-success",
+  error: "x-error",
+  cancel: "x-cancel",
+  legacySuccess: "callback",
+} as const;
 
-/** Validates the relay and callback URLs before review or signing is possible. */
-export function validatePubkyAuthUrls(
-  authUrl: URL,
-  parameterNames: PubkyAuthUrlParameterNames,
-): PubkyAuthUrlValidationResult {
-  const relay = validateRelayUrl(
-    authUrl.searchParams.get(parameterNames.relay),
-  );
+/** Validates bounded relay and callback URLs before review or signing is possible. */
+export function validatePubkyAuthUrls(authUrl: URL): PubkyAuthUrlValidationResult {
+  const relay = validateRelayUrl(authUrl.searchParams.get(URL_PARAMETERS.relay));
   if (Result.isError(relay)) {
     return Result.err(relay.error);
   }
 
-  return validateCallbacks(authUrl, parameterNames);
+  return validateCallbacks(authUrl);
 }
 
 /** Validates one exact CSP-safe HTTPS relay URL. */
@@ -49,7 +48,7 @@ function validateRelayUrl(
     return Result.err<never, PubkyAuthUrlValidationError>({ code: "missing_relay" });
   }
 
-  if (value.length > PUBKY_AUTH_REQUEST_LIMITS.maximumRelayUrlCodeUnits) {
+  if (value.length > PUBKY_AUTH_URL_LIMITS.maximumRelayUrlCodeUnits) {
     return Result.err<never, PubkyAuthUrlValidationError>({ code: "invalid_relay" });
   }
 
@@ -82,25 +81,24 @@ function isExactRelayHostname(hostname: string): boolean {
 
 function validateCallbacks(
   authUrl: URL,
-  parameterNames: PubkyAuthUrlParameterNames,
 ): ResultType<ValidatedPubkyAuthCallbacks, PubkyAuthUrlValidationError> {
-  const rawSuccess = rawQueryValue(authUrl, parameterNames.success);
+  const rawSuccess = rawQueryValue(authUrl, URL_PARAMETERS.success);
   const success = validateEncodedCallback(
-    rawSuccess ?? rawQueryValue(authUrl, parameterNames.legacySuccess),
+    rawSuccess ?? rawQueryValue(authUrl, URL_PARAMETERS.legacySuccess),
   );
   if (Result.isError(success)) {
     return Result.err(success.error);
   }
 
   const errorCallback = validateEncodedCallback(
-    rawQueryValue(authUrl, parameterNames.error),
+    rawQueryValue(authUrl, URL_PARAMETERS.error),
   );
   if (Result.isError(errorCallback)) {
     return Result.err(errorCallback.error);
   }
 
   const cancel = validateEncodedCallback(
-    rawQueryValue(authUrl, parameterNames.cancel),
+    rawQueryValue(authUrl, URL_PARAMETERS.cancel),
   );
   if (Result.isError(cancel)) {
     return Result.err(cancel.error);
@@ -169,7 +167,7 @@ function validateOptionalCallback(
     return Result.ok(undefined);
   }
 
-  if (value.length > PUBKY_AUTH_REQUEST_LIMITS.maximumCallbackUrlCodeUnits) {
+  if (value.length > PUBKY_AUTH_URL_LIMITS.maximumCallbackUrlCodeUnits) {
     return Result.err<never, PubkyAuthUrlValidationError>({ code: "invalid_callback" });
   }
 

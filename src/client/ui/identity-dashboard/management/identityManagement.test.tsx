@@ -13,9 +13,14 @@ const MOCKS = vi.hoisted(() => ({ showCopyConfirmation: vi.fn() }));
 vi.mock("../../shared/sonner", () => ({ showCopyConfirmation: MOCKS.showCopyConfirmation }));
 
 const identity = {
-  googleAccount: { email: "satoshi@gmail.com", name: "Satoshi Nakamoto" },
+  googleAccount: {
+    email: "satoshi@gmail.com",
+    googleSubject: "google-subject",
+    name: "Satoshi Nakamoto",
+    pictureUrl: null,
+  },
   publicIdentity: { publicKeyZ32: "x8jpihgjy51fdnaingcp8rum1omfzd6p8bhm7usune41grd97dho5cwy4mra" },
-} as LocalIdentityMetadata;
+} satisfies LocalIdentityMetadata;
 
 describe("IdentityManagement", () => {
   afterEach(() => {
@@ -28,7 +33,7 @@ describe("IdentityManagement", () => {
     const onBack = vi.fn();
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
 
-    render(<IdentityManagement identity={identity} onBack={onBack} onDetachFromGoogle={vi.fn()} onDownloadRecoveryFile={vi.fn()} onRemoveLocalIdentity={vi.fn()} onMigrateToKeychain={vi.fn()} resolveHomeserver={async () => Result.ok("homeserver-pubky")} />);
+    render(<IdentityManagement identity={identity} onBack={onBack} onDetachFromGoogle={vi.fn()} onDownloadRecoveryFile={vi.fn()} onRemoveLocalIdentity={() => Result.ok()} onMigrateToKeychain={vi.fn()} resolveHomeserver={async () => Result.ok("homeserver-pubky")} />);
     const back = screen.getByRole("button", { name: "Back" });
     fireEvent.click(back);
     expect(onBack).toHaveBeenCalledOnce();
@@ -47,25 +52,39 @@ describe("IdentityManagement", () => {
   it("does not confirm a failed copy", async () => {
     const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: vi.fn(() => Promise.reject(new Error("SECRET-COPY-CANARY"))) } });
-    render(<IdentityManagement identity={identity} onBack={vi.fn()} onDetachFromGoogle={vi.fn()} onDownloadRecoveryFile={vi.fn()} onRemoveLocalIdentity={vi.fn()} onMigrateToKeychain={vi.fn()} resolveHomeserver={async () => Result.ok("homeserver-pubky")} />);
+    render(<IdentityManagement identity={identity} onBack={vi.fn()} onDetachFromGoogle={vi.fn()} onDownloadRecoveryFile={vi.fn()} onRemoveLocalIdentity={() => Result.ok()} onMigrateToKeychain={vi.fn()} resolveHomeserver={async () => Result.ok("homeserver-pubky")} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Copy Pubky" }));
 
     await waitFor(() => expect(MOCKS.showCopyConfirmation).not.toHaveBeenCalled());
-    expect(info).toHaveBeenCalledWith("identity.management.failed", {
+    expect(info).toHaveBeenCalledWith("identity.management.failed", expect.objectContaining({
       operation: "copy",
-    });
+      diagnosticId: expect.any(String),
+      errorName: "Error",
+    }));
     expect(JSON.stringify(info.mock.calls)).not.toContain("SECRET-COPY-CANARY");
   });
 
   it("settles a rejected homeserver lookup as unavailable", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    render(<IdentityManagement identity={identity} onBack={vi.fn()} onDetachFromGoogle={vi.fn()} onDownloadRecoveryFile={vi.fn()} onRemoveLocalIdentity={vi.fn()} onMigrateToKeychain={vi.fn()} resolveHomeserver={async () => { throw new Error("SECRET-HOMESERVER-CANARY"); }} />);
+    render(<IdentityManagement identity={identity} onBack={vi.fn()} onDetachFromGoogle={vi.fn()} onDownloadRecoveryFile={vi.fn()} onRemoveLocalIdentity={() => Result.ok()} onMigrateToKeychain={vi.fn()} resolveHomeserver={async () => { throw new Error("SECRET-HOMESERVER-CANARY"); }} />);
 
     await waitFor(() => expect(screen.getByText("Unavailable")).toBeInTheDocument());
-    expect(warning).toHaveBeenCalledWith("identity.management.failed", {
+    expect(warning).toHaveBeenCalledWith("identity.management.failed", expect.objectContaining({
       operation: "resolve_homeserver",
-    });
+      diagnosticId: expect.any(String),
+      errorName: "Error",
+    }));
     expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-HOMESERVER-CANARY");
+  });
+
+  it("shows a retryable error when local logout fails", () => {
+    const onBack = vi.fn();
+    render(<IdentityManagement identity={identity} onBack={onBack} onDetachFromGoogle={vi.fn()} onDownloadRecoveryFile={vi.fn()} onRemoveLocalIdentity={() => Result.err({ code: "storage_unavailable" })} onMigrateToKeychain={vi.fn()} resolveHomeserver={async () => Result.ok(null)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Log out" }));
+
+    expect(screen.getByText("Could not log out. Please try again.")).toBeInTheDocument();
+    expect(onBack).not.toHaveBeenCalled();
   });
 });

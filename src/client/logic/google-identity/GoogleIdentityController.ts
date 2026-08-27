@@ -2,13 +2,13 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { LOGGER } from "../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
 import {
   GoogleImplicitAuthorization,
   type GoogleIdentityCredentials,
   type GoogleImplicitAuthorizationError,
-} from "./GoogleImplicitAuthorization";
+} from "./gia/GoogleImplicitAuthorization";
 import type { GoogleAccountProfile } from "../local-identity/localIdentityModels";
 import type { PubkyPublicIdentity } from "../pubky/pubkyIdentityKey";
 import {
@@ -61,10 +61,10 @@ export type GoogleIdentityViewError = {
 
 export type EstablishGoogleIdentityResult = ResultType<
   EstablishedGoogleIdentity,
-  GoogleIdentityError
+  GoogleIdentityViewError
 >;
 
-export type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityError>;
+export type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityViewError>;
 
 /**
  * Owns one screen's Google authorization and identity operation lifecycle.
@@ -94,12 +94,13 @@ export class GoogleIdentityController {
         homegateBaseUrl,
         globalThis.location.origin,
       );
-    } catch {
+    } catch (cause) {
       LOGGER.error("identity.google.controller.failed", {
         operation: "initialize",
         code: "runtime_exception",
+        ...safeErrorLogFields(cause),
       });
-      throw new Error("Google identity initialization unavailable.");
+      throw new Error("Google identity initialization unavailable.", { cause });
     }
   }
 
@@ -117,7 +118,7 @@ export class GoogleIdentityController {
     operation: "establish" | "replace_invalid_passport_file",
   ): Promise<EstablishGoogleIdentityResult> {
     const authorized = await this.requestGoogleCredentials();
-    if (Result.isError(authorized)) return Result.err(authorized.error);
+    if (Result.isError(authorized)) return Result.err(withoutCause(authorized.error));
     if (this.disposed) {
       this.finishOperation();
       return Result.err({ code: "cancelled" });
@@ -136,9 +137,10 @@ export class GoogleIdentityController {
         LOGGER.warn("identity.google.action.failed", {
           operation,
           code: established.error.code,
+          ...safeErrorLogFields(established.error),
         });
         if (this.disposed) return Result.err({ code: "cancelled" });
-        return Result.err(established.error);
+        return Result.err(withoutCause(established.error));
       }
       if (this.disposed) return Result.err({ code: "cancelled" });
 
@@ -158,14 +160,15 @@ export class GoogleIdentityController {
             publicIdentity: established.value.publicIdentity,
           });
       }
-    } catch (error) {
+    } catch (cause) {
       LOGGER.warn("identity.google.action.failed", {
         operation,
         code: "unexpected_failure",
+        ...safeErrorLogFields(cause),
       });
       return this.disposed
         ? Result.err({ code: "cancelled" })
-        : Result.err({ code: "operation_failed", cause: error });
+        : Result.err({ code: "operation_failed" });
     } finally {
       this.finishOperation();
     }
@@ -185,7 +188,7 @@ export class GoogleIdentityController {
     expectedGoogleSubject: string,
   ): Promise<DetachGoogleIdentityResult> {
     const authorized = await this.requestGoogleCredentials(expectedGoogleSubject);
-    if (Result.isError(authorized)) return Result.err(authorized.error);
+    if (Result.isError(authorized)) return Result.err(withoutCause(authorized.error));
     if (this.disposed) {
       this.finishOperation();
       return Result.err({ code: "cancelled" });
@@ -199,15 +202,24 @@ export class GoogleIdentityController {
         expectedGoogleSubject,
       );
       if (this.disposed) return Result.err({ code: "cancelled" });
-      return detached;
-    } catch (error) {
+      if (Result.isError(detached)) {
+        LOGGER.warn("identity.google.action.failed", {
+          operation: "detach",
+          code: detached.error.code,
+          ...safeErrorLogFields(detached.error),
+        });
+        return Result.err(withoutCause(detached.error));
+      }
+      return Result.ok();
+    } catch (cause) {
       LOGGER.warn("identity.google.action.failed", {
         operation: "detach",
         code: "unexpected_failure",
+        ...safeErrorLogFields(cause),
       });
       return this.disposed
         ? Result.err({ code: "cancelled" })
-        : Result.err({ code: "operation_failed", cause: error });
+        : Result.err({ code: "operation_failed" });
     } finally {
       this.finishOperation();
     }
@@ -220,9 +232,10 @@ export class GoogleIdentityController {
     this.googleSubject = undefined;
     try {
       this.googleAuthorization.dispose();
-    } catch {
+    } catch (cause) {
       LOGGER.warn("identity.google.cleanup.failed", {
         operation: "authorization_dispose",
+        ...safeErrorLogFields(cause),
       });
     } finally {
       this.operations.abortRequests();
@@ -257,7 +270,7 @@ export class GoogleIdentityController {
       }
       this.googleSubject ??= credentials.value.googleAccount.googleSubject;
       return Result.ok(credentials.value);
-    } catch (error) {
+    } catch (cause) {
       this.operationPending = false;
       if (this.disposed) {
         this.disposeOperationsOnce();
@@ -266,8 +279,9 @@ export class GoogleIdentityController {
       LOGGER.warn("identity.google.authorization.failed", {
         operation: "request_credentials",
         code: "authorization_failed",
+        ...safeErrorLogFields(cause),
       });
-      return Result.err({ code: "authorization_failed", cause: error });
+      return Result.err({ code: "authorization_failed" });
     }
   }
 
@@ -298,9 +312,10 @@ export class GoogleIdentityController {
     this.operationsDisposed = true;
     try {
       this.operations.dispose();
-    } catch {
+    } catch (cause) {
       LOGGER.warn("identity.google.cleanup.failed", {
         operation: "pubky_dispose",
+        ...safeErrorLogFields(cause),
       });
     }
   }
@@ -309,10 +324,22 @@ export class GoogleIdentityController {
     if (this.disposed) return;
     try {
       this.onState(state);
-    } catch {
+    } catch (cause) {
       LOGGER.warn("identity.google.state_listener.failed", {
         state: state.status,
+        ...safeErrorLogFields(cause),
       });
     }
+  }
+}
+
+function withoutCause(error: GoogleIdentityError): GoogleIdentityViewError {
+  switch (error.code) {
+    case "wrapping_key_failed":
+      return { code: error.code, detailCode: error.detailCode };
+    case "homeserver_signup_invitation_failed":
+      return { code: error.code, detailCode: error.detailCode };
+    default:
+      return { code: error.code };
   }
 }

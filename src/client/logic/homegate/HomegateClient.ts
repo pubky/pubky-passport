@@ -38,16 +38,16 @@ const INVITATION_SCHEMA = z.object({
 }).strict();
 
 export class HomegateClient {
-  private googleVerificationEndpoint: URL;
+  private readonly googleVerificationEndpoint: URL;
 
   constructor(
     homegateBaseUrl: string,
-    private fetch: typeof globalThis.fetch,
+    private readonly fetch: typeof globalThis.fetch,
   ) {
     this.googleVerificationEndpoint = new URL(GOOGLE_VERIFICATION_PATH, homegateBaseUrl);
   }
 
-  async requestGoogleHomeserverSignupInvitation(
+  async requestGoogleSignupInvitation(
     googleIdToken: string,
   ): Promise<Result<HomeserverSignupInvitation, CodedFailure<HomegateSignupInvitationErrorCode>>> {
     if (!isValidGoogleIdToken(googleIdToken)) {

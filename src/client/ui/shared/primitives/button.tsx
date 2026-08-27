@@ -1,5 +1,5 @@
 import { cva, type VariantProps } from "class-variance-authority";
-import { forwardRef, type ComponentPropsWithoutRef } from "react";
+import type { ComponentPropsWithRef } from "react";
 
 import { cn } from "../mergeClassNames";
 
@@ -28,30 +28,23 @@ const buttonVariants = cva(
   },
 );
 
-export type ButtonProps = ComponentPropsWithoutRef<"button">
+export type ButtonProps = ComponentPropsWithRef<"button">
   & VariantProps<typeof buttonVariants>;
 
-export type ButtonLinkProps = ComponentPropsWithoutRef<"a">
+export type ButtonLinkProps = ComponentPropsWithRef<"a">
   & VariantProps<typeof buttonVariants>;
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, size, variant, ...props }, ref) => (
-    <button
-      className={cn(buttonVariants({ className, size, variant }))}
-      ref={ref}
-      {...props}
-    />
-  ),
-);
-Button.displayName = "Button";
+export function Button({ className, size, type = "button", variant, ...props }: ButtonProps) {
+  return <button
+    className={cn(buttonVariants({ className, size, variant }))}
+    type={type}
+    {...props}
+  />;
+}
 
-export const ButtonLink = forwardRef<HTMLAnchorElement, ButtonLinkProps>(
-  ({ className, size, variant, ...props }, ref) => (
-    <a
-      className={cn(buttonVariants({ className, size, variant }))}
-      ref={ref}
-      {...props}
-    />
-  ),
-);
-ButtonLink.displayName = "ButtonLink";
+export function ButtonLink({ className, size, variant, ...props }: ButtonLinkProps) {
+  return <a
+    className={cn(buttonVariants({ className, size, variant }))}
+    {...props}
+  />;
+}

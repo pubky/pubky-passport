@@ -2,16 +2,16 @@ import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LOGGER } from "../../../../libs/logger/logger";
-import type { PassportFileEnvelopeV1 } from "../passportFileEnvelope";
+import type { PassportFileEnvelope } from "../passportFileEnvelope";
 import { GoogleDriveVisibleRecoveryCopies } from "./GoogleDriveVisibleRecoveryCopies";
 
 const ACCESS_TOKEN = "SECRET-DRIVE-TOKEN";
 const PUBLIC_KEY_Z32 = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
-const PUBLIC_KEY_DISPLAY = `pubky${PUBLIC_KEY_Z32}`;
-const PUBLIC_IDENTITY = { publicKeyZ32: PUBLIC_KEY_Z32, publicKeyDisplay: PUBLIC_KEY_DISPLAY };
-const VISIBLE_FILE_NAME = `${PUBLIC_KEY_DISPLAY}.json`;
-const ENVELOPE: PassportFileEnvelopeV1 = {
+const PUBLIC_IDENTITY = { publicKeyZ32: PUBLIC_KEY_Z32,};
+const VISIBLE_FILE_NAME = `${PUBLIC_KEY_Z32}.json`;
+const ENVELOPE: PassportFileEnvelope = {
   v: 1,
+  keyId: "current",
   iv: "AAECAwQFBgcICQoL",
   ct: "YZy1I_a6WzFnql8rW2A94EJrgz38Sqd1LV_KjVe2Qd2n1mvFMXg9qzRHwJ_WQvrm",
   url: "https://passport.pubky.app/",
@@ -118,12 +118,10 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
   });
 
   it.each([
-    ["missing prefix", { ...PUBLIC_IDENTITY, publicKeyDisplay: "y".repeat(52) }],
-    ["invalid alphabet", { ...PUBLIC_IDENTITY, publicKeyDisplay: `pubky${"0".repeat(52)}` }],
-    ["short key", { ...PUBLIC_IDENTITY, publicKeyDisplay: `pubky${"y".repeat(51)}` }],
-    ["long key", { ...PUBLIC_IDENTITY, publicKeyDisplay: `pubky${"y".repeat(53)}` }],
-    ["noncanonical suffix", { ...PUBLIC_IDENTITY, publicKeyDisplay: `${PUBLIC_KEY_DISPLAY.slice(0, -1)}n` }],
-    ["mismatched forms", { ...PUBLIC_IDENTITY, publicKeyDisplay: `pubky${"y".repeat(52)}` }],
+    ["invalid alphabet", { publicKeyZ32: "0".repeat(52) }],
+    ["short key", { publicKeyZ32: "y".repeat(51) }],
+    ["long key", { publicKeyZ32: "y".repeat(53) }],
+    ["noncanonical suffix", { publicKeyZ32: `${PUBLIC_KEY_Z32.slice(0, -1)}n` }],
   ])("rejects %s public identity filename input without accessing Drive", async (_case, publicIdentity) => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const calls: SanitizedCall[] = [];
@@ -339,9 +337,10 @@ function createVisibleCopies(
       createsExpectedFolder: body.includes('"name":"Pubky Passport"')
         && body.includes('"mimeType":"application/vnd.google-apps.folder"'),
       createsInRoot: body.includes('"parents":["root"]'),
-      visibleFileName: body.match(/"name":"(pubky[^"]+\.json)"/)?.[1] ?? null,
+      visibleFileName: body.match(/"name":"([13456789abcdefghijkmnopqrstuwxyz]{52}\.json)"/)?.[1] ?? null,
       hasExactEnvelope: body.includes(JSON.stringify({
         v: ENVELOPE.v,
+        keyId: ENVELOPE.keyId,
         iv: ENVELOPE.iv,
         ct: ENVELOPE.ct,
         url: "https://passport.pubky.app",
@@ -388,7 +387,7 @@ class StatefulVisibleDrive {
     const query = url.searchParams.get("q") ?? "";
     if (method === "POST") {
       const body = typeof init?.body === "string" ? init.body : "";
-      const name = body.match(/"name":"(pubky[^"]+\.json)"/)?.[1];
+      const name = body.match(/"name":"([13456789abcdefghijkmnopqrstuwxyz]{52}\.json)"/)?.[1];
       if (!name) throw new Error("Expected visible file upload");
       const file = {
         id: `file-${this.uploadedNames.length + 1}`,
