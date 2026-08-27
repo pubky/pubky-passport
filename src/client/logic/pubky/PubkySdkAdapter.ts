@@ -204,8 +204,7 @@ export class PubkySdkAdapter {
       homeserver = await this.pubky.getHomeserverOf(identity.value);
       return Result.ok(homeserver?.z32() ?? null);
     } catch (cause) {
-      logFailure("resolve_homeserver", "sdk_resolution", "resolution_failed", cause);
-      return Result.err({ code: "resolution_failed", cause });
+      return failure("resolve_homeserver", "sdk_resolution", "resolution_failed", cause);
     } finally {
       cleanup("resolve_homeserver", "homeserver_free", () => homeserver?.free());
       cleanup("resolve_homeserver", "public_key_free", () => identity.value.free());
@@ -436,16 +435,6 @@ function failure<Success, Code extends PubkyErrorCode>(
   code: Code,
   cause?: unknown,
 ): ResultType<Success, CodedFailure<Code>> {
-  logFailure(operation, stage, code, cause);
-  return Result.err(codedFailure(code, cause));
-}
-
-function logFailure(
-  operation: PubkyOperation,
-  stage: PubkyFailureStage,
-  code: PubkyErrorCode,
-  cause?: unknown,
-): void {
   const sdkErrorName = cause === undefined ? undefined : safePubkySdkErrorName(cause);
   LOGGER.warn("identity.pubky.operation.failed", {
     operation,
@@ -453,6 +442,7 @@ function logFailure(
     code,
     ...(sdkErrorName ? { sdkErrorName } : {}),
   });
+  return Result.err(codedFailure(code, cause));
 }
 
 function codedFailure<Code extends string>(code: Code, cause?: unknown): CodedFailure<Code> {
