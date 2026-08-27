@@ -152,9 +152,20 @@ describe("IdentityDashboard", () => {
     FLOW.catalog = { activePublicKeyZ32: "identity", identities: [{ publicIdentity: { publicKeyZ32: "identity",}, googleAccount: { googleSubject: "google-1", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: null } }] };
     renderDashboard();
     expect(await screen.findByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
-    expect(screen.getByText("Satoshi Nakamoto")).toBeInTheDocument();
+    const name = screen.getByText("Satoshi Nakamoto");
+    expect(name).toHaveClass("w-[276px]", "text-2xl", "leading-8");
+    expect(name.parentElement).toHaveClass("gap-0");
     expect(screen.getByText("identity")).toHaveClass("normal-case");
     expect(screen.getByText("identity")).not.toHaveClass("uppercase");
+    expect(screen.getByText("satoshi@gmail.com")).toHaveClass(
+      "w-[276px]",
+      "h-10",
+      "gap-2",
+      "py-2",
+      "font-bold",
+      "leading-5",
+    );
+    expect(screen.queryByRole("button", { name: "satoshi@gmail.com" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Quick & easy signing." })).not.toBeInTheDocument();
   });
 
