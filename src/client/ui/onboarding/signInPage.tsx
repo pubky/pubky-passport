@@ -20,7 +20,7 @@ function SignInPage({ children, signInTo }: { children: ReactNode; signInTo?: st
         </div>
       </section>
       <footer className="mt-auto flex flex-col gap-4 text-sm font-medium leading-5 text-muted-foreground/80 md:hidden">
-        <p>Pubky Passport is powered by <span className="text-brand">Pubky Core</span> and was built by Synonym Software, S.A. DE C.V. ©2025.</p>
+        <p>Pubky Passport is powered by the Pubky Protocol and was built by Synonym Software, S.A. DE C.V. ©2025.</p>
         <BrandEndorsement />
       </footer>
     </PassportScreen>
