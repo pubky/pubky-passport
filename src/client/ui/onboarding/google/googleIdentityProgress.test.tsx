@@ -12,7 +12,9 @@ describe("GoogleIdentityProgress", () => {
   it("presents Drive lookup without claiming setup or restore", () => {
     render(<GoogleIdentityProgress progress={{ flow: "lookup", step: "checking" }} />);
 
-    expect(screen.getByRole("heading", { name: "Looking for existing Pubky." })).toBeInTheDocument();
+    const heading = screen.getByRole("heading", { name: "Looking for existing Pubky." });
+    expect(heading.children[0]).toHaveTextContent("Looking for");
+    expect(screen.getByText("existing Pubky.")).toHaveClass("whitespace-nowrap");
     expect(screen.getByRole("status")).toHaveTextContent("Checking Google Drive");
   });
 

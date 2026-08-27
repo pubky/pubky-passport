@@ -48,6 +48,7 @@ function DetachFromGoogleFlow({ createRecoveryFile, createMigrationUrl, googleSu
     case "pubky-ring":
       return <MigrateToPubkyRing
         createMigrationUrl={createMigrationUrl}
+        navigationAction="continue"
         onBack={() => setState({ view: "recovery-options" })}
       />;
     case "review": {

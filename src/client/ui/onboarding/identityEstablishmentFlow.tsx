@@ -52,7 +52,7 @@ function IdentityEstablishmentFlow({ onBack, onComplete }: {
             onClick={google.establishIdentity}
             provider="google"
           >Continue with Google</ProviderSignInButton>
-          {onBack ? <BackButton onClick={onBack} /> : null}
+          {onBack ? <BackButton className="md:mt-auto" onClick={onBack} /> : null}
         </SignInPage>
       );
   }

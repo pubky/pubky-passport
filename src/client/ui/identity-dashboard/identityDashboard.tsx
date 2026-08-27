@@ -113,6 +113,7 @@ function ReadyIdentityDashboard({ actions, catalog }: {
         createMigrationUrl={() => {
           return actions.createMigrationUrl(state.publicKeyZ32);
         }}
+        navigationAction="back"
         onBack={() => setNavigation({ view: "manage-identity", publicKeyZ32: state.publicKeyZ32 })}
       />;
     case "detach-from-google":

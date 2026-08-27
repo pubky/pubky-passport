@@ -10,6 +10,7 @@ import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { IdentityEstablishmentFlow } from "../onboarding/identityEstablishmentFlow";
 import { ArrowRightIcon } from "../shared/actionIcons";
 import { BackButton } from "../shared/backButton";
+import { PassportNavigation } from "../shared/passportNavigation";
 import { PassportScreen } from "../shared/passportScreen";
 import { Button } from "../shared/primitives/button";
 import { Spinner } from "../shared/primitives/spinner";
@@ -40,7 +41,7 @@ function AuthorizationFlow() {
         <PassportScreen className="gap-6">
           <DisplayHeading accent="failed." aria-label="Authorization failed.">Authorization</DisplayHeading>
           <LeadText>Passport could not authorize this request with the selected identity.</LeadText>
-          <div className="mt-auto"><BackButton onClick={goHome} /></div>
+          <PassportNavigation back={<BackButton onClick={goHome} />} />
         </PassportScreen>
       );
     case "approved":
@@ -77,9 +78,7 @@ function AuthorizationWithIdentity({
             Identities
           </DisplayHeading>
           <LeadText>Passport could not read identities stored on this device.</LeadText>
-          <div className="mt-auto">
-            <BackButton onClick={() => { void passportAuthorizationController.cancel(); }} />
-          </div>
+          <PassportNavigation back={<BackButton onClick={() => { void passportAuthorizationController.cancel(); }} />} />
         </PassportScreen>
       );
     case "ready": {
@@ -138,14 +137,14 @@ function AuthorizationTerminal({ outcome }: { outcome: "approved" | "cancelled" 
       {approved ? (
         <Image alt="" aria-hidden="true" className="mx-auto size-[200px]" height={200} src="/illustrations/checkmark.png" unoptimized width={200} />
       ) : null}
-      <div className="mt-auto">
-        {approved ? (
+      {approved ? (
+        <PassportNavigation confirm={
           <Button className="w-full" onClick={goHome} size="lg" type="button">
             <ArrowRightIcon />
             Continue
           </Button>
-        ) : <BackButton onClick={goHome} />}
-      </div>
+        } />
+      ) : <PassportNavigation back={<BackButton onClick={goHome} />} />}
     </PassportScreen>
   );
 }

@@ -1,6 +1,7 @@
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import { UserRoundPlusIcon } from "../../shared/actionIcons";
 import { BackButton } from "../../shared/backButton";
+import { PassportNavigation } from "../../shared/passportNavigation";
 import { PassportScreen } from "../../shared/passportScreen";
 import { Button } from "../../shared/primitives/button";
 import { FieldMessage } from "../../shared/primitives/fieldMessage";
@@ -43,7 +44,7 @@ function IdentitySwitcher({ activePublicKeyZ32, identities, onAddIdentity, onBac
           ? <FieldMessage error>Could not switch identities. Please try again.</FieldMessage>
           : null}
       </section>
-      <div className="mt-auto"><BackButton onClick={onBack} /></div>
+      <PassportNavigation back={<BackButton onClick={onBack} />} />
     </PassportScreen>
   );
 }

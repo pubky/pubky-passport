@@ -17,15 +17,15 @@ function IdentityOverview({ identity, onManage, onSwitch }: {
   return (
     <PassportScreen className="gap-8">
       <DisplayHeading accent="pubky." aria-label="Your pubky." className="[&>span]:inline">Your </DisplayHeading>
-      <section className="flex w-full flex-col items-center gap-6 overflow-hidden rounded-2xl bg-card px-6 pb-6 pt-12">
+      <section className="flex w-full flex-col items-center gap-6 overflow-hidden rounded-2xl bg-card px-6 pb-6 pt-12 md:grid md:grid-cols-[96px_1fr] md:grid-rows-[104px_60px_40px] md:gap-x-6 md:gap-y-6 md:p-12">
         <Avatar fallback={name} size="lg" {...(account?.pictureUrl ? { src: account.pictureUrl } : {})} />
-        <div className="flex w-full flex-col items-center gap-3 text-center">
+        <div className="flex w-full flex-col items-center gap-3 text-center md:items-start md:gap-0 md:self-start md:text-left">
           <h2 className="text-2xl font-bold leading-8">{name}</h2>
-          <p className="w-full break-all text-xs font-medium normal-case leading-4 tracking-[0.1em] text-muted-foreground">{identity.publicIdentity.publicKeyZ32}</p>
+          <p className="w-[276px] max-w-full break-all text-xs font-medium normal-case leading-4 tracking-[0.1em] text-muted-foreground">{identity.publicIdentity.publicKeyZ32}</p>
           {account ? <p className="flex items-center justify-center gap-2 text-sm font-bold leading-5"><GoogleLogo />{account.email}</p> : null}
         </div>
-        <ButtonLink className="w-full" href="/authorize" size="lg" variant="secondary"><KeyRoundIcon />Authorize</ButtonLink>
-        <div className="flex w-full gap-3">
+        <ButtonLink className="w-full md:col-span-2" href="/authorize" size="lg" variant="secondary"><KeyRoundIcon />Authorize</ButtonLink>
+        <div className="flex w-full gap-3 md:col-span-2">
           <Button className="min-w-0 flex-1" onClick={onManage} variant="secondary"><SettingsIcon />Manage</Button>
           <Button className="min-w-0 flex-1" onClick={onSwitch} variant="secondary"><SquareUserRoundIcon />Switch</Button>
         </div>

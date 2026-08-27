@@ -10,6 +10,7 @@ import {
 } from "../../../../logic/local-identity/LocalIdentityController";
 import { DownloadRecoveryFileIcon } from "../../../shared/actionIcons";
 import { BackButton } from "../../../shared/backButton";
+import { PassportNavigation } from "../../../shared/passportNavigation";
 import { PassportScreen } from "../../../shared/passportScreen";
 import { Button } from "../../../shared/primitives/button";
 import { FieldMessage } from "../../../shared/primitives/fieldMessage";
@@ -67,11 +68,13 @@ function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
 
   return (
     <PassportScreen>
-      <form className="flex min-h-full flex-1 flex-col gap-6" onSubmit={submit}>
-        <DisplayHeading accent="backup." aria-label="Encrypted backup.">Encrypted</DisplayHeading>
-        <LeadText>Set a password, download the file, and keep both somewhere safe. You’ll need them to restore access.</LeadText>
+      <form className="flex min-h-full flex-1 flex-col gap-6 md:grid md:grid-cols-[307px_281px] md:grid-rows-[136px_224px_60px] md:gap-x-0 md:gap-y-8 md:pt-[34px]" onSubmit={submit}>
+        <div className="flex flex-col gap-6 md:col-span-2 md:gap-3">
+          <DisplayHeading accent="backup." aria-label="Encrypted backup.">Encrypted </DisplayHeading>
+          <LeadText>Set a password, download the file, and keep both somewhere safe. You’ll need them to restore access.</LeadText>
+        </div>
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 md:col-start-1 md:row-start-2">
           <Label htmlFor="recovery-file-password">Enter strong password</Label>
           <Input
             autoComplete="new-password"
@@ -87,15 +90,16 @@ function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
           {recoveryFileFailed ? <FieldMessage error>Could not create the recovery file. Please try again.</FieldMessage> : null}
         </div>
 
-        <Image alt="" aria-hidden="true" className="mx-auto size-[200px]" height={200} src="/illustrations/file.png" unoptimized width={200} />
+        <Image alt="" aria-hidden="true" className="mx-auto size-[200px] md:col-start-2 md:row-start-2 md:mt-3" height={200} src="/illustrations/file.png" unoptimized width={200} />
 
-        <div className="mt-auto flex flex-col gap-4 pt-4">
-          <BackButton disabled={pending} onClick={onBack} />
-          <Button disabled={!validPassword || pending} size="lg" type="submit">
+        <PassportNavigation
+          back={<BackButton disabled={pending} onClick={onBack} />}
+          className="md:col-span-2 md:row-start-3"
+          confirm={<Button className="w-full" disabled={!validPassword || pending} size="lg" type="submit">
             <DownloadRecoveryFileIcon />
             {pending ? "Encrypting…" : "Download backup"}
-          </Button>
-        </div>
+          </Button>}
+        />
       </form>
     </PassportScreen>
   );

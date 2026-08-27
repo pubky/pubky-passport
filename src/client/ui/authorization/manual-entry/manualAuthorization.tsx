@@ -4,6 +4,7 @@ import { LOGGER } from "../../../../libs/logger/logger";
 import { validateManualAuthorizationInput } from "../../../logic/authorization/entry/manualAuthorizationInput";
 import { ArrowRightIcon, ClipboardPasteIcon } from "../../shared/actionIcons";
 import { BackButton } from "../../shared/backButton";
+import { PassportNavigation } from "../../shared/passportNavigation";
 import { PassportScreen } from "../../shared/passportScreen";
 import { Button } from "../../shared/primitives/button";
 import { FieldMessage } from "../../shared/primitives/fieldMessage";
@@ -78,10 +79,11 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
             {error ? <FieldMessage error id="authorization-link-error" role="alert">{error}</FieldMessage> : null}
           </div>
         </div>
-        <div className="mt-auto flex flex-col gap-4 pt-6">
-          <BackButton onClick={onBack} />
-          <Button disabled={authorization.trim().length === 0} size="lg" type="submit"><ArrowRightIcon />Continue</Button>
-        </div>
+        <PassportNavigation
+          back={<BackButton onClick={onBack} />}
+          className="pt-6"
+          confirm={<Button className="w-full" disabled={authorization.trim().length === 0} size="lg" type="submit"><ArrowRightIcon />Continue</Button>}
+        />
       </form>
     </PassportScreen>
   );

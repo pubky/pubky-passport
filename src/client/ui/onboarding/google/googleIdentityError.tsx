@@ -23,11 +23,11 @@ function GoogleIdentityError({ error, onBack, onReplaceInvalidFile, onTryAgain }
 
   return (
     <>
-      <PassportScreen className="gap-6">
-        <div className="flex flex-col gap-6">
-          <DisplayHeading accent="interrupted." aria-label="Setup interrupted.">Setup</DisplayHeading>
+      <PassportScreen className="gap-6 md:max-w-[558px]">
+        <div className="flex flex-col gap-6 md:gap-3">
+          <DisplayHeading accent="interrupted." aria-label="Setup interrupted.">Setup </DisplayHeading>
           <LeadText>{errorMessage(error.code)}</LeadText>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 md:mt-5">
             <Label id="google-identity-error-label">Error</Label>
             <div
               aria-labelledby="google-identity-error-label"
@@ -42,16 +42,16 @@ function GoogleIdentityError({ error, onBack, onReplaceInvalidFile, onTryAgain }
           </div>
         </div>
 
-        <div className="mt-auto flex flex-col gap-3">
-          <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
+        <div className="grid w-full grid-cols-1 gap-3 md:mt-5 md:grid-cols-[120px_1fr_228px]">
+          <Button className="w-full md:col-start-3 md:row-start-1" onClick={onTryAgain} size="lg" type="button">
             <RotateCcwIcon />Try again
           </Button>
           {replaceInvalidFile ? (
-            <Button className="w-full" onClick={() => setConfirmationOpen(true)} size="lg" type="button" variant="destructive">
+            <Button className="w-full md:col-span-3 md:row-start-2" onClick={() => setConfirmationOpen(true)} size="lg" type="button" variant="destructive">
               <TrashIcon />Delete file and create new identity
             </Button>
           ) : null}
-          <BackButton onClick={onBack} />
+          <BackButton className="md:col-start-1 md:row-start-1" onClick={onBack} />
         </div>
       </PassportScreen>
 

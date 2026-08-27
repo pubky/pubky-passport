@@ -91,7 +91,9 @@ describe("IdentityEstablishmentFlow", () => {
     const onBack = vi.fn();
     const rendered = render(<ConfiguredIdentityEstablishmentFlow onBack={onBack} onComplete={vi.fn()} />);
 
-    await userEvent.setup().click(await screen.findByRole("button", { name: "Back" }));
+    const back = await screen.findByRole("button", { name: "Back" });
+    expect(back).toHaveClass("md:mt-auto");
+    await userEvent.setup().click(back);
     expect(onBack).toHaveBeenCalledOnce();
 
     rendered.rerender(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);

@@ -247,6 +247,8 @@ describe("IdentityDashboard", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Migrate to keychain" }));
 
     expect(screen.getByRole("heading", { name: "Migrate to keychain." })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continue" })).not.toBeInTheDocument();
     expect(FLOW.migrationExportKeys).toEqual([]);
     await userEvent.setup().click(screen.getByRole("button", { name: "Show QR" }));
     expect(screen.getByRole("dialog", { name: "Scan with Pubky Ring" })).toBeInTheDocument();
@@ -263,6 +265,8 @@ describe("IdentityDashboard", () => {
     expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Migrate to keychain" }));
     expect(screen.getByRole("heading", { name: "Migrate to keychain." })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument();
     expect(FLOW.migrationExportKeys).toEqual([]);
     await userEvent.setup().click(screen.getByRole("button", { name: "Show QR" }));
     expect(FLOW.migrationExportKeys).toEqual(["identity"]);
