@@ -11,7 +11,7 @@ function Avatar({ className, fallback, size = "md", src, style, ...props }: Avat
   return (
     <span className={cn("relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted font-bold text-muted-foreground", sizes[size], className)} style={style} {...props}>
       <span aria-hidden="true">{fallback.slice(0, 2).toUpperCase()}</span>
-      {src ? <Image alt="" className="object-cover" fill onError={(event) => { event.currentTarget.hidden = true; }} sizes="96px" src={src} unoptimized /> : null}
+      {src ? <Image alt="" className="object-cover" fill loading="eager" onError={(event) => { event.currentTarget.hidden = true; }} sizes="96px" src={src} unoptimized /> : null}
     </span>
   );
 }
