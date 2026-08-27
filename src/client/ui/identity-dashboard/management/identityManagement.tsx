@@ -8,6 +8,7 @@ import type { LocalIdentityMetadata } from "../../../logic/local-identity/localI
 import type { PubkyHomeserverResolutionResult } from "../../../logic/pubky/pubkyIdentityKey";
 import { CopyIcon, DownloadIcon, KeyRoundIcon, LinkOffIcon } from "../../shared/actionIcons";
 import { BackButton } from "../../shared/backButton";
+import { PassportNavigation } from "../../shared/passportNavigation";
 import { PassportScreen } from "../../shared/passportScreen";
 import { Avatar } from "../../shared/primitives/avatar";
 import { Button } from "../../shared/primitives/button";
@@ -48,27 +49,27 @@ function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadRe
   }, [identity.publicIdentity.publicKeyZ32, resolveHomeserver]);
 
   return (
-    <PassportScreen className="gap-6">
-      <Button className="absolute right-6 top-[22px] z-10" onClick={logout} variant="secondary">Log out</Button>
-      <header className="flex items-start gap-6">
+    <PassportScreen className="gap-6 md:gap-8">
+      <Button className="absolute right-6 top-[22px] z-10 md:right-10 md:top-12" onClick={logout} variant="secondary">Log out</Button>
+      <header className="flex items-start gap-6 md:items-center">
         <DisplayHeading accent="identity." aria-label="Manage identity.">Manage</DisplayHeading>
         <Avatar className="ml-auto" fallback={name} size="lg" {...(account?.pictureUrl ? { src: account.pictureUrl } : {})} />
       </header>
 
-      <section className="flex flex-col gap-6">
+      <section className="flex flex-col gap-6 md:grid md:grid-cols-2 md:gap-x-4 md:gap-y-6">
         <IdentityDetail label="User" value={name} />
         <IdentityDetail label="Google account" value={account?.email ?? "Not connected"} />
         <IdentityDetail copy label="Pubky" value={identity.publicIdentity.publicKeyZ32} />
         <IdentityDetail copy label="Homeserver" value={homeserver === undefined ? "Looking up…" : homeserver ?? "Unavailable"} />
       </section>
 
-      <div className="mt-auto flex flex-col gap-4 pt-6">
+      <div className="mt-auto flex flex-col gap-4 pt-6 md:mt-0 md:flex-row md:flex-wrap md:gap-3 md:pt-0">
         {logoutFailed ? <FieldMessage error>Could not log out. Please try again.</FieldMessage> : null}
         <ManagementButton icon={<KeyRoundIcon />} onClick={onMigrateToKeychain}>Migrate to keychain</ManagementButton>
         <ManagementButton icon={<DownloadIcon />} onClick={onDownloadRecoveryFile}>Download recovery file</ManagementButton>
         {account ? <ManagementButton icon={<LinkOffIcon />} onClick={onDetachFromGoogle}>Detach from Google</ManagementButton> : null}
-        <BackButton onClick={onBack} />
       </div>
+      <PassportNavigation back={<BackButton onClick={onBack} />} className="mt-0 pt-0 md:pt-1" />
     </PassportScreen>
   );
 }
@@ -104,7 +105,7 @@ function IdentityDetail({ copy = false, label, value }: { copy?: boolean; label:
 }
 
 function ManagementButton({ children, icon, onClick }: { children: string; icon: ReactNode; onClick?: () => void }) {
-  return <Button className="w-full" onClick={onClick} size="lg" variant="secondary">{icon}{children}</Button>;
+  return <Button className="w-full md:h-10 md:min-w-0 md:flex-1 md:px-4 md:py-2" onClick={onClick} size="lg" variant="secondary">{icon}{children}</Button>;
 }
 
 export { IdentityManagement };

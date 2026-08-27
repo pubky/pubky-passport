@@ -59,6 +59,12 @@
   --brand: #c8ff00;
 }
 
+@media (min-width: 48rem) {
+  :root {
+    --passport-header-height: 136px;
+  }
+}
+
 * {
   border-color: var(--border);
 }

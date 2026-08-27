@@ -1,6 +1,7 @@
 import Image from "next/image";
 
 import { CheckIcon } from "../../../shared/actionIcons";
+import { PassportNavigation } from "../../../shared/passportNavigation";
 import { PassportScreen } from "../../../shared/passportScreen";
 import { Button } from "../../../shared/primitives/button";
 import { DisplayHeading, LeadText } from "../../../shared/primitives/typography";
@@ -16,10 +17,12 @@ function GoogleDetachmentComplete({ onDone }: { onDone: () => void }) {
         </div>
       </div>
 
-      <Button className="mt-auto w-full" onClick={onDone} size="lg" type="button">
-        <CheckIcon />
-        Done
-      </Button>
+      <PassportNavigation confirm={
+        <Button className="w-full" onClick={onDone} size="lg" type="button">
+          <CheckIcon />
+          Done
+        </Button>
+      } />
     </PassportScreen>
   );
 }

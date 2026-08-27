@@ -2,6 +2,7 @@ import Image from "next/image";
 
 import type { GoogleAccountProfile } from "../../../logic/local-identity/localIdentityModels";
 import type { PubkyPublicIdentity } from "../../../logic/pubky/pubkyIdentityKey";
+import { PassportNavigation } from "../../shared/passportNavigation";
 import { PassportScreen } from "../../shared/passportScreen";
 import { Button } from "../../shared/primitives/button";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
@@ -26,7 +27,7 @@ function GoogleIdentityComplete({ googleAccount, identity, mode, onContinue, vis
         </div>
         <Image alt="" aria-hidden="true" className="mx-auto size-[200px]" height={200} src="/illustrations/checkmark.png" unoptimized width={200} />
       </div>
-      <Button className="mt-auto w-full" onClick={onContinue} size="lg"><ArrowRightIcon />Continue</Button>
+      <PassportNavigation confirm={<Button className="w-full" onClick={onContinue} size="lg"><ArrowRightIcon />Continue</Button>} />
     </PassportScreen>
   );
 }

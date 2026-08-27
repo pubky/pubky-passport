@@ -37,9 +37,9 @@ function GoogleIdentityProgress({ progress }: { progress: GoogleIdentityProgress
 function IdentityLookup() {
   return (
     <PassportScreen className="gap-6">
-      <DisplayHeading accent="existing Pubky." aria-label="Looking for existing Pubky.">Looking for</DisplayHeading>
+      <DisplayHeading accent={<span className="whitespace-nowrap">existing Pubky.</span>} aria-label="Looking for existing Pubky.">Looking for</DisplayHeading>
       <LeadText>Checking Google Drive for an encrypted Passport file.</LeadText>
-      <div className="flex items-center gap-3 py-3 text-muted-foreground" role="status">
+      <div className="flex items-center gap-3 py-3 text-muted-foreground md:w-fit" role="status">
         <Spinner aria-hidden="true" className="motion-reduce:animate-none" role="presentation" />
         Checking Google Drive…
       </div>

@@ -4,6 +4,7 @@ import type { AuthorizationRequestReview } from "../../../logic/authorization/fl
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import { GoogleLogo } from "../../shared/brand/googleLogo";
 import { CheckIcon, SquareUserRoundIcon, XIcon } from "../../shared/actionIcons";
+import { PassportNavigation } from "../../shared/passportNavigation";
 import { PassportScreen } from "../../shared/passportScreen";
 import { Avatar } from "../../shared/primitives/avatar";
 import { Button } from "../../shared/primitives/button";
@@ -58,10 +59,11 @@ function AuthorizationReview({ identity, onAuthorize, onCancel, onSwitch, phase,
         <p className="text-sm font-medium leading-5 text-muted-foreground opacity-80">
           Make sure you trust this service, browser, or device before authorizing with your pubky. <strong className="font-bold text-foreground">{describeAuthorizationEffect(review.capabilities, requester)}</strong>
         </p>
-        <div className="mt-auto flex flex-col gap-4 pt-6">
-          <Button disabled={busy} onClick={onCancel} size="lg" type="button" variant="outline"><XIcon />Cancel</Button>
-          <Button disabled={busy || !identity} onClick={onAuthorize} size="lg" type="button"><CheckIcon /><span aria-live="polite">{authorizationButtonLabel(phase)}</span></Button>
-        </div>
+        <PassportNavigation
+          back={<Button className="w-full" disabled={busy} onClick={onCancel} size="lg" type="button" variant="outline"><XIcon />Cancel</Button>}
+          className="pt-6"
+          confirm={<Button className="w-full" disabled={busy || !identity} onClick={onAuthorize} size="lg" type="button"><CheckIcon /><span aria-live="polite">{authorizationButtonLabel(phase)}</span></Button>}
+        />
       </div>
     </PassportScreen>
   );
@@ -108,7 +110,7 @@ function FittedRequester({ children }: { children: string }) {
     };
   }, [children]);
 
-  return <bdi className="block break-words" ref={requesterRef}>{children}</bdi>;
+  return <bdi className="block break-words md:inline" ref={requesterRef}>{children}</bdi>;
 }
 
 function authorizationButtonLabel(phase: "review" | "approving" | "completing"): string {
