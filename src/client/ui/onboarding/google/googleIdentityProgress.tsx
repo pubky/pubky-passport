@@ -2,6 +2,7 @@ import type { GoogleIdentityProgress as GoogleIdentityProgressState } from "../.
 import { PassportScreen } from "../../shared/passportScreen";
 import { Spinner } from "../../shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
+import { SignInContext } from "../../shared/signInContext";
 
 type StepState = "complete" | "active" | "pending";
 type SetupStep = { label: string; state: StepState };
@@ -11,9 +12,9 @@ type ProgressPresentation = {
   steps: SetupStep[];
 };
 
-function GoogleIdentityProgress({ progress }: { progress: GoogleIdentityProgressState }) {
+function GoogleIdentityProgress({ progress, signInTo }: { progress: GoogleIdentityProgressState; signInTo?: string }) {
   if (progress.flow === "lookup") {
-    return <IdentityLookup />;
+    return <IdentityLookup {...(signInTo ? { signInTo } : {})} />;
   }
 
   const presentation = progressPresentation(progress);
@@ -23,6 +24,7 @@ function GoogleIdentityProgress({ progress }: { progress: GoogleIdentityProgress
     <PassportScreen>
       <div className="flex flex-1 flex-col gap-6">
         <DisplayHeading accent="your pubky." aria-label={`${presentation.heading} your pubky.`}>{presentation.heading}</DisplayHeading>
+        {signInTo ? <SignInContext requester={signInTo} /> : null}
         <p aria-atomic="true" className="sr-only" role="status">
           {presentation.heading} your Pubky: {activeStep?.label}.
         </p>
@@ -34,10 +36,11 @@ function GoogleIdentityProgress({ progress }: { progress: GoogleIdentityProgress
   );
 }
 
-function IdentityLookup() {
+function IdentityLookup({ signInTo }: { signInTo?: string }) {
   return (
     <PassportScreen className="gap-6">
       <DisplayHeading accent={<span className="whitespace-nowrap">existing Pubky.</span>} aria-label="Looking for existing Pubky.">Looking for</DisplayHeading>
+      {signInTo ? <SignInContext requester={signInTo} /> : null}
       <LeadText>Checking Google Drive for an encrypted Passport file.</LeadText>
       <div className="flex items-center gap-3 py-3 text-muted-foreground md:w-fit" role="status">
         <Spinner aria-hidden="true" className="motion-reduce:animate-none" role="presentation" />

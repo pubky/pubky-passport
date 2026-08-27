@@ -8,8 +8,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { IdentitySelectionFlow } from "./identitySelectionFlow";
 
 vi.mock("../../onboarding/identityEstablishmentFlow", () => ({
-  IdentityEstablishmentFlow: ({ onBack, onComplete }: { onBack: () => void; onComplete: () => void }) => (
+  IdentityEstablishmentFlow: ({ onBack, onComplete, signInTo }: { onBack: () => void; onComplete: () => void; signInTo?: string }) => (
     <>
+      {signInTo ? <p>Signing in to {signInTo}</p> : null}
       <button onClick={onComplete} type="button">Complete identity setup</button>
       <button onClick={onBack} type="button">Cancel identity setup</button>
     </>
@@ -43,6 +44,14 @@ describe("IdentitySelectionFlow", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Add identity" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Complete identity setup" }));
     expect(onIdentitySelected).toHaveBeenCalledOnce();
+  });
+
+  it("keeps authorization context when adding an identity", async () => {
+    render(<IdentitySelectionFlow catalog={CATALOG} onBack={vi.fn()} onIdentitySelected={vi.fn()} selectIdentity={() => Result.ok()} signInTo="requesting.app" />);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Add identity" }));
+
+    expect(screen.getByText("Signing in to requesting.app")).toBeInTheDocument();
   });
 
   it("returns to identity selection when identity setup is cancelled", async () => {

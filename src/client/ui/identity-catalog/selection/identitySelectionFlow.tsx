@@ -6,11 +6,12 @@ import type { LocalIdentityCatalog } from "../../../logic/local-identity/localId
 import { IdentityEstablishmentFlow } from "../../onboarding/identityEstablishmentFlow";
 import { IdentitySwitcher } from "./identitySwitcher";
 
-function IdentitySelectionFlow({ catalog, onBack, onIdentitySelected, selectIdentity }: {
+function IdentitySelectionFlow({ catalog, onBack, onIdentitySelected, selectIdentity, signInTo }: {
   catalog: LocalIdentityCatalog;
   onBack: () => void;
   onIdentitySelected: () => void;
   selectIdentity: (publicKeyZ32: string) => LocalIdentityResult<void>;
+  signInTo?: string;
 }) {
   const [view, setView] = useState<"selection" | "add-identity">("selection");
   const [selectionFailed, setSelectionFailed] = useState(false);
@@ -19,6 +20,7 @@ function IdentitySelectionFlow({ catalog, onBack, onIdentitySelected, selectIden
     return <IdentityEstablishmentFlow
       onBack={() => setView("selection")}
       onComplete={onIdentitySelected}
+      {...(signInTo ? { signInTo } : {})}
     />;
   }
 

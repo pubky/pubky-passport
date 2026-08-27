@@ -6,14 +6,16 @@ import { PassportNavigation } from "../../shared/passportNavigation";
 import { PassportScreen } from "../../shared/passportScreen";
 import { Button } from "../../shared/primitives/button";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
+import { SignInContext } from "../../shared/signInContext";
 import { GoogleAccountCard } from "./googleAccountCard";
 
-function GoogleIdentityComplete({ googleAccount, identity, mode, onContinue, visibleRecoveryCopyStatus }: { googleAccount: GoogleAccountProfile; identity: PubkyPublicIdentity; mode: "created" | "restored"; onContinue: () => void; visibleRecoveryCopyStatus: "created" | "unconfirmed" | null }) {
+function GoogleIdentityComplete({ googleAccount, identity, mode, onContinue, signInTo, visibleRecoveryCopyStatus }: { googleAccount: GoogleAccountProfile; identity: PubkyPublicIdentity; mode: "created" | "restored"; onContinue: () => void; signInTo?: string; visibleRecoveryCopyStatus: "created" | "unconfirmed" | null }) {
   const restored = mode === "restored";
   return (
     <PassportScreen className="gap-8">
       <div className="flex flex-col gap-6">
         <DisplayHeading accent="complete." aria-label={restored ? "Restore complete." : "Setup complete."}>{restored ? "Restore" : "Setup"}</DisplayHeading>
+        {signInTo ? <SignInContext requester={signInTo} /> : null}
         <LeadText>{restored ? "Restored Passport file from Google Drive." : "Stored Passport file in Google Drive."}</LeadText>
         {visibleRecoveryCopyStatus === "unconfirmed" ? (
           <p className="rounded-xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm leading-5" role="status">

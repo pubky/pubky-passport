@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
+  EstablishGoogleIdentityResult,
   GoogleIdentityViewState,
 } from "../../logic/google-identity/GoogleIdentityController";
 import {
@@ -33,14 +34,16 @@ vi.mock("../../logic/google-identity/GoogleIdentityController", () => ({
   },
 }));
 
-function ConfiguredIdentityEstablishmentFlow({ onBack, onComplete }: {
+function ConfiguredIdentityEstablishmentFlow({ onBack, onComplete, signInTo }: {
   onBack?: () => void;
   onComplete: () => void;
+  signInTo?: string;
 }) {
   return withGoogleIdentityConfiguration(
     <IdentityEstablishmentFlow
       {...(onBack ? { onBack } : {})}
       onComplete={onComplete}
+      {...(signInTo ? { signInTo } : {})}
     />,
   );
 }
@@ -65,7 +68,9 @@ describe("IdentityEstablishmentFlow", () => {
       .find((button) => button.textContent?.includes("Continue with Google"));
 
     expect(within(shell).getByRole("heading", { name: "Quick & easy signing." })).toHaveTextContent("Quick & easy");
+    expect(within(shell).getByText("Pubky Passport is a browser-based signer", { exact: false })).toHaveClass("md:row-start-2");
     expect(googleButton).toBeEnabled();
+    expect(googleButton?.parentElement).toHaveClass("md:row-start-3");
     expect(MOCKS.constructGoogleIdentityController).not.toHaveBeenCalled();
   });
 
@@ -85,6 +90,47 @@ describe("IdentityEstablishmentFlow", () => {
     expect(waiting).toBeDisabled();
     expect(waiting).toHaveClass("w-full", "h-[60px]", "bg-secondary", "disabled:opacity-50");
     expect(within(screen.getByRole("status")).getByText("Waiting for Google...")).toBeInTheDocument();
+  });
+
+  it("keeps the requesting service visible throughout identity setup", async () => {
+    let finishSetup!: (result: EstablishGoogleIdentityResult) => void;
+    const controller = mockGoogleIdentityController({
+      establishIdentity: vi.fn(() => new Promise<EstablishGoogleIdentityResult>((resolve) => { finishSetup = resolve; })),
+    });
+    const emitState = captureControllerState(controller);
+    render(<ConfiguredIdentityEstablishmentFlow
+      onComplete={vi.fn()}
+      signInTo="pubky.app"
+    />);
+
+    const setupContext = () => screen.getByLabelText("Signing in to pubky.app");
+    expect(setupContext()).toBeInTheDocument();
+    expect(setupContext().querySelector("img")).toMatchObject({
+      height: 16,
+      width: 16,
+    });
+    expect(setupContext().querySelector("img")).toHaveAttribute("src", "/icons/log-in.svg");
+    expect(screen.getByRole("heading", { name: "Quick & easy signing." }).nextElementSibling).toBe(setupContext());
+    expect(setupContext().nextElementSibling).toHaveTextContent("Pubky Passport is a browser-based signer");
+    expect(setupContext().nextElementSibling).toHaveClass("md:row-start-3");
+    expect(screen.getByRole("button", { name: "Continue with Google" }).parentElement).toHaveClass("md:row-start-4");
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
+    expect(screen.getByRole("heading", { name: "Requesting Google access." })).toBeInTheDocument();
+    expect(setupContext()).toBeInTheDocument();
+
+    act(() => emitState.current?.({ status: "establishing", progress: { flow: "create", step: "creating" } }));
+    expect(screen.getByRole("heading", { name: "Setting up your pubky." })).toBeInTheDocument();
+    expect(setupContext()).toBeInTheDocument();
+
+    act(() => finishSetup(Result.ok({
+      establishmentMode: "created",
+      googleAccount: { googleSubject: "google-1", email: "user@example.com", name: "User", pictureUrl: null },
+      publicIdentity: { publicKeyZ32: "key" },
+      visibleRecoveryCopyStatus: "created",
+    })));
+    expect(await screen.findByRole("heading", { name: "Setup complete." })).toBeInTheDocument();
+    expect(setupContext()).toBeInTheDocument();
   });
 
   it("only shows contextual back navigation when supplied by its parent flow", async () => {
@@ -215,8 +261,12 @@ describe("IdentityEstablishmentFlow", () => {
     const tryAgain = screen.getByRole("button", { name: "Try again" });
     const deleteFile = screen.getByRole("button", { name: "Delete file and create new identity" });
     const back = screen.getByRole("button", { name: "Back" });
-    expect(within(deleteFile.parentElement!).getAllByRole("button")).toEqual([tryAgain, deleteFile, back]);
+    expect(deleteFile.parentElement).toHaveClass("md:grid-cols-[120px_1fr_300px]");
+    expect(within(deleteFile.parentElement!).getAllByRole("button")).toEqual([deleteFile, tryAgain, back]);
     expect(deleteFile).toHaveClass("bg-destructive-surface", "text-destructive-foreground");
+    expect(deleteFile).toHaveClass("md:col-start-3", "md:row-start-1");
+    expect(tryAgain).toHaveClass("md:col-start-3", "md:row-start-2");
+    expect(back).toHaveClass("md:col-start-1", "md:row-start-2");
     await user.click(deleteFile);
 
     const confirmation = screen.getByRole("textbox", { name: "Type DELETE to confirm" });

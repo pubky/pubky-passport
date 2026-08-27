@@ -54,9 +54,10 @@ vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
 }));
 
 vi.mock("../onboarding/identityEstablishmentFlow", () => ({
-  IdentityEstablishmentFlow: ({ onBack, onComplete }: { onBack?: () => void; onComplete: () => void }) => (
+  IdentityEstablishmentFlow: ({ onBack, onComplete, signInTo }: { onBack?: () => void; onComplete: () => void; signInTo?: string }) => (
     <main>
       <h1>Add identity</h1>
+      {signInTo ? <aside aria-label={`Signing in to ${signInTo}`}>Signing in to {signInTo}</aside> : null}
       <button onClick={() => { MOCKS.catalogListener?.(); onComplete(); }} type="button">Complete identity setup</button>
       {onBack ? <button onClick={onBack} type="button">Back</button> : null}
     </main>
@@ -330,9 +331,25 @@ describe("AuthorizationFlow", () => {
     renderFlow();
 
     expect(await screen.findByRole("heading", { name: "Add identity" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Signing in to requesting.app")).toBeInTheDocument();
     expect(screen.queryByText("No local identity available")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Switch" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Back" })).toBeInTheDocument();
+  });
+
+  it("uses a neutral setup cue when the request has no callback host", async () => {
+    MOCKS.authorizationState = {
+      status: "review",
+      review: {
+        authenticationMethod: REVIEW.authenticationMethod,
+        capabilities: REVIEW.capabilities,
+      },
+    };
+    MOCKS.catalog = { activePublicKeyZ32: null, identities: [] };
+
+    renderFlow();
+
+    expect(await screen.findByLabelText("Signing in to this service")).toBeInTheDocument();
   });
 
   it("waits for explicit completion after the first identity enters the catalog", async () => {

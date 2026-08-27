@@ -88,6 +88,7 @@ function AuthorizationWithIdentity({
         return <IdentityEstablishmentFlow
           onBack={() => { void passportAuthorizationController.cancel(); }}
           onComplete={() => undefined}
+          signInTo={authorization.review.callbackHost ?? "this service"}
         />;
       }
 
@@ -97,6 +98,7 @@ function AuthorizationWithIdentity({
           onBack={() => setView("review")}
           onIdentitySelected={() => setView("review")}
           selectIdentity={actions.selectIdentity}
+          signInTo={authorization.review.callbackHost ?? "this service"}
         />;
       }
 

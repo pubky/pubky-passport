@@ -9,9 +9,10 @@ import { BackButton } from "../shared/backButton";
 import { ProviderSignInButton } from "./providerSignInButton";
 import { SignInPage } from "./signInPage";
 
-function IdentityEstablishmentFlow({ onBack, onComplete }: {
+function IdentityEstablishmentFlow({ onBack, onComplete, signInTo }: {
   onBack?: () => void;
   onComplete: () => void;
+  signInTo?: string;
 }) {
   const google = useGoogleIdentityEstablishment();
   const view = google.view;
@@ -28,14 +29,16 @@ function IdentityEstablishmentFlow({ onBack, onComplete }: {
         mode={view.mode}
         visibleRecoveryCopyStatus={view.visibleRecoveryCopyStatus}
         onContinue={onComplete}
+        {...(signInTo ? { signInTo } : {})}
       />;
     case "requesting-access":
-      return <GoogleAccessScreen />;
+      return <GoogleAccessScreen {...(signInTo ? { signInTo } : {})} />;
     case "failed": {
       return <GoogleIdentityError
         error={view.error}
         onBack={google.back}
         onTryAgain={google.establishIdentity}
+        {...(signInTo ? { signInTo } : {})}
         {...(view.error.code === "invalid_passport_file"
           || view.error.code === "invalid_passport_file_delete_failed"
           ? { onReplaceInvalidFile: google.replaceInvalidPassportFile }
@@ -43,10 +46,10 @@ function IdentityEstablishmentFlow({ onBack, onComplete }: {
       />;
     }
     case "working":
-      return <GoogleIdentityProgress progress={view.progress} />;
+      return <GoogleIdentityProgress progress={view.progress} {...(signInTo ? { signInTo } : {})} />;
     case "idle":
       return (
-        <SignInPage>
+        <SignInPage {...(signInTo ? { signInTo } : {})}>
           <ProviderSignInButton
             className="w-full"
             onClick={google.establishIdentity}
