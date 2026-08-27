@@ -7,9 +7,8 @@ import { GoogleDriveVisibleRecoveryCopies } from "./GoogleDriveVisibleRecoveryCo
 
 const ACCESS_TOKEN = "SECRET-DRIVE-TOKEN";
 const PUBLIC_KEY_Z32 = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
-const PUBLIC_KEY_DISPLAY = `pubky${PUBLIC_KEY_Z32}`;
 const PUBLIC_IDENTITY = { publicKeyZ32: PUBLIC_KEY_Z32,};
-const VISIBLE_FILE_NAME = `${PUBLIC_KEY_DISPLAY}.json`;
+const VISIBLE_FILE_NAME = `${PUBLIC_KEY_Z32}.json`;
 const ENVELOPE: PassportFileEnvelope = {
   v: 1,
   keyId: "current",
@@ -338,7 +337,7 @@ function createVisibleCopies(
       createsExpectedFolder: body.includes('"name":"Pubky Passport"')
         && body.includes('"mimeType":"application/vnd.google-apps.folder"'),
       createsInRoot: body.includes('"parents":["root"]'),
-      visibleFileName: body.match(/"name":"(pubky[^"]+\.json)"/)?.[1] ?? null,
+      visibleFileName: body.match(/"name":"([13456789abcdefghijkmnopqrstuwxyz]{52}\.json)"/)?.[1] ?? null,
       hasExactEnvelope: body.includes(JSON.stringify({
         v: ENVELOPE.v,
         keyId: ENVELOPE.keyId,
@@ -388,7 +387,7 @@ class StatefulVisibleDrive {
     const query = url.searchParams.get("q") ?? "";
     if (method === "POST") {
       const body = typeof init?.body === "string" ? init.body : "";
-      const name = body.match(/"name":"(pubky[^"]+\.json)"/)?.[1];
+      const name = body.match(/"name":"([13456789abcdefghijkmnopqrstuwxyz]{52}\.json)"/)?.[1];
       if (!name) throw new Error("Expected visible file upload");
       const file = {
         id: `file-${this.uploadedNames.length + 1}`,

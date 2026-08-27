@@ -6,7 +6,6 @@ import { LOGGER } from "../../../../libs/logger/logger";
 import type { CodedFailure } from "../../../../libs/result";
 import {
   isPubkyPublicIdentity,
-  formatPubkyPublicKey,
   type PubkyPublicIdentity,
 } from "../../pubky/pubkyIdentityKey";
 import {
@@ -517,7 +516,7 @@ function folderQuery(): string {
 
 function visibleRecoveryFileName(publicIdentity: PubkyPublicIdentity): string | null {
   return isPubkyPublicIdentity(publicIdentity)
-    ? `${formatPubkyPublicKey(publicIdentity.publicKeyZ32)}.json`
+    ? `${publicIdentity.publicKeyZ32}.json`
     : null;
 }
 

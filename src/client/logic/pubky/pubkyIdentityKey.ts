@@ -33,10 +33,6 @@ export function isPubkyPublicKey(value: unknown): value is string {
   return isCanonicalPubkyPublicKey(value);
 }
 
-export function formatPubkyPublicKey(publicKeyZ32: string): string {
-  return `pubky${publicKeyZ32}`;
-}
-
 export type PubkyHomeserverResolutionResult = Result<
   string | null,
   CodedFailure<"invalid_pubky" | "resolution_failed">
