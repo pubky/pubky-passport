@@ -3,6 +3,29 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+function permissionsPolicy(cameraAllowlist) {
+  return [
+    "accelerometer=()",
+    "ambient-light-sensor=()",
+    "autoplay=()",
+    `camera=${cameraAllowlist}`,
+    "display-capture=()",
+    "encrypted-media=()",
+    "fullscreen=()",
+    "geolocation=()",
+    "gyroscope=()",
+    "magnetometer=()",
+    "microphone=()",
+    "midi=()",
+    "payment=()",
+    "picture-in-picture=()",
+    "publickey-credentials-get=()",
+    "serial=()",
+    "usb=()",
+    "xr-spatial-tracking=()",
+  ].join(", ");
+}
+
 const BASELINE_SECURITY_HEADERS = [
   {
     key: "X-Content-Type-Options",
@@ -10,26 +33,7 @@ const BASELINE_SECURITY_HEADERS = [
   },
   {
     key: "Permissions-Policy",
-    value: [
-      "accelerometer=()",
-      "ambient-light-sensor=()",
-      "autoplay=()",
-      "camera=()",
-      "display-capture=()",
-      "encrypted-media=()",
-      "fullscreen=()",
-      "geolocation=()",
-      "gyroscope=()",
-      "magnetometer=()",
-      "microphone=()",
-      "midi=()",
-      "payment=()",
-      "picture-in-picture=()",
-      "publickey-credentials-get=()",
-      "serial=()",
-      "usb=()",
-      "xr-spatial-tracking=()",
-    ].join(", "),
+    value: permissionsPolicy("()"),
   },
 ];
 
@@ -41,6 +45,14 @@ const AUTHORIZE_TRANSPORT_HEADERS = [
   {
     key: "Referrer-Policy",
     value: "no-referrer",
+  },
+];
+
+const AUTHORIZE_HEADERS = [
+  ...AUTHORIZE_TRANSPORT_HEADERS,
+  {
+    key: "Permissions-Policy",
+    value: permissionsPolicy("(self)"),
   },
 ];
 
@@ -60,11 +72,11 @@ const NEXT_CONFIG = {
       },
       {
         source: "/authorize",
-        headers: AUTHORIZE_TRANSPORT_HEADERS,
+        headers: AUTHORIZE_HEADERS,
       },
       {
         source: "/authorize/:path*",
-        headers: AUTHORIZE_TRANSPORT_HEADERS,
+        headers: AUTHORIZE_HEADERS,
       },
       {
         source: "/",

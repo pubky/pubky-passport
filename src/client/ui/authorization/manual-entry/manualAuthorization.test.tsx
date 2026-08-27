@@ -7,6 +7,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LOGGER } from "../../../../libs/logger/logger";
 import { ManualAuthorization } from "./manualAuthorization";
 
+vi.mock("./authorizationQrScanner", () => ({
+  AuthorizationQrScanner: ({ onClose, onScan }: {
+    onClose: () => void;
+    onScan: (value: string) => void;
+  }) => (
+    <div aria-label="Authorization QR scanner" role="dialog">
+      <button onClick={() => onScan(VALID_REQUEST)} type="button">Scan valid QR</button>
+      <button onClick={() => onScan("not-an-authorization-request")} type="button">Scan invalid QR</button>
+      <button onClick={onClose} type="button">Close scanner</button>
+    </div>
+  ),
+}));
+
 const VALID_REQUEST = "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
 describe("ManualAuthorization", () => {
@@ -29,12 +42,45 @@ describe("ManualAuthorization", () => {
     expect(input).toHaveValue("");
     expect(input).toHaveAttribute("placeholder", "pubkyauth://");
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+    const scanButton = screen.getByRole("button", { name: "Scan authorization QR code" });
+    expect(scanButton).toBeEnabled();
+    const cameraIcon = scanButton.querySelector('img[src="/icons/camera.svg"]');
+    expect(cameraIcon).toHaveAttribute("width", "21.5");
+    expect(cameraIcon).toHaveAttribute("height", "17.5");
+    expect(cameraIcon?.parentElement).toHaveClass("h-4", "w-5");
 
     await user.click(screen.getByRole("button", { name: "Paste authorization link" }));
 
     expect(readText).toHaveBeenCalledOnce();
     expect((input as HTMLInputElement).value).toContain("pubkyauth://signin");
     expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
+  });
+
+  it("opens the camera scanner and accepts a valid authorization QR code", async () => {
+    const user = userEvent.setup();
+    render(<ManualAuthorization onBack={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "Scan authorization QR code" }));
+    expect(screen.getByRole("dialog", { name: "Authorization QR scanner" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Scan valid QR" }));
+
+    expect(screen.queryByRole("dialog", { name: "Authorization QR scanner" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Authorization link")).toHaveValue(VALID_REQUEST);
+    expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
+  });
+
+  it("rejects a QR code that does not contain an authorization request", async () => {
+    const user = userEvent.setup();
+    render(<ManualAuthorization onBack={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "Scan authorization QR code" }));
+    await user.click(screen.getByRole("button", { name: "Scan invalid QR" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Scan a QR code containing a valid pubkyauth:// authorization link.",
+    );
+    expect(screen.getByLabelText("Authorization link")).toHaveValue("");
   });
 
   it("submits through the validated authorization entry", async () => {

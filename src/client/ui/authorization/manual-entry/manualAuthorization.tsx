@@ -1,8 +1,9 @@
-import { type SubmitEvent, useState } from "react";
+import dynamic from "next/dynamic";
+import { type SubmitEvent, useCallback, useState } from "react";
 
 import { LOGGER } from "../../../../libs/logger/logger";
 import { validateManualAuthorizationInput } from "../../../logic/authorization/entry/manualAuthorizationInput";
-import { ArrowRightIcon, ClipboardPasteIcon } from "../../shared/actionIcons";
+import { ArrowRightIcon, CameraIcon, ClipboardPasteIcon } from "../../shared/actionIcons";
 import { BackButton } from "../../shared/backButton";
 import { PassportNavigation } from "../../shared/passportNavigation";
 import { PassportScreen } from "../../shared/passportScreen";
@@ -13,9 +14,15 @@ import { Input } from "../../shared/primitives/input";
 import { Label } from "../../shared/primitives/label";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
 
+const AuthorizationQrScanner = dynamic(
+  () => import("./authorizationQrScanner").then((module) => module.AuthorizationQrScanner),
+  { ssr: false },
+);
+
 function ManualAuthorization({ onBack }: { onBack: () => void }) {
   const [authorization, setAuthorization] = useState("");
   const [error, setError] = useState<string>();
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   const submit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -52,16 +59,32 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
     }
   };
 
+  const scan = useCallback((value: string) => {
+    setScannerOpen(false);
+    const result = validateManualAuthorizationInput(value);
+    if (result.status === "invalid") {
+      setAuthorization("");
+      setError("Scan a QR code containing a valid pubkyauth:// authorization link.");
+      return;
+    }
+
+    setAuthorization(value.trim());
+    setError(undefined);
+  }, []);
+
   return (
     <PassportScreen>
       <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
         <div className="flex flex-col gap-6">
           <DisplayHeading accent="a service." aria-label="Authorize a service.">Authorize</DisplayHeading>
-          <LeadText>Paste the authorization link from the app you want to connect.</LeadText>
+          <LeadText>Paste or scan the authorization link from the app you want to connect.</LeadText>
           <div className="flex flex-col gap-2 pt-1">
             <Label htmlFor="authorization-link">Authorization link</Label>
             <Input
-              action={<IconButton aria-label="Paste authorization link" className="size-6 p-0" onClick={() => void paste()} type="button" variant="ghost"><ClipboardPasteIcon size={20} /></IconButton>}
+              action={<div className="flex items-center gap-1">
+                <IconButton aria-label="Scan authorization QR code" className="size-8 p-0" onClick={() => setScannerOpen(true)} type="button" variant="ghost"><CameraIcon /></IconButton>
+                <IconButton aria-label="Paste authorization link" className="size-8 p-0" onClick={() => void paste()} type="button" variant="ghost"><ClipboardPasteIcon size={20} /></IconButton>
+              </div>}
               aria-describedby={error ? "authorization-link-error" : undefined}
               aria-invalid={Boolean(error)}
               autoCapitalize="none"
@@ -85,6 +108,7 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
           confirm={<Button className="w-full" disabled={authorization.trim().length === 0} size="lg" type="submit"><ArrowRightIcon />Continue</Button>}
         />
       </form>
+      {scannerOpen ? <AuthorizationQrScanner onClose={() => setScannerOpen(false)} onScan={scan} /> : null}
     </PassportScreen>
   );
 }

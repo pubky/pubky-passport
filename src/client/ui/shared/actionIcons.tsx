@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { ReactNode } from "react";
 
 import { cn } from "./mergeClassNames";
@@ -27,6 +28,21 @@ function ArrowRightIcon(props: IconProps) {
 
 function CheckIcon(props: IconProps) {
   return <Glyph height={8.66333} viewBox="0 0 11.9967 8.66333" width={11.9967} {...props}><path d="m11.3317.665-7.33337 7.33333L.665 4.665" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.33" /></Glyph>;
+}
+
+function CameraIcon({ className }: Pick<IconProps, "className">) {
+  return (
+    <span aria-hidden="true" className={cn("relative inline-flex h-4 w-5 shrink-0", className)}>
+      <Image
+        alt=""
+        className="absolute -left-[0.75px] -top-[0.75px] max-w-none"
+        height={17.5}
+        src="/icons/camera.svg"
+        unoptimized
+        width={21.5}
+      />
+    </span>
+  );
 }
 
 function CopyIcon(props: IconProps) {
@@ -88,6 +104,7 @@ function XIcon(props: IconProps) {
 export {
   ArrowLeftIcon,
   ArrowRightIcon,
+  CameraIcon,
   CheckIcon,
   ClipboardPasteIcon,
   CopyIcon,

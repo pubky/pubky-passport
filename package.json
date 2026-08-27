@@ -25,6 +25,7 @@
     "@fontsource-variable/inter-tight": "^5.3.0",
     "@synonymdev/pubky": "0.11.0",
     "@tailwindcss/postcss": "^4.3.3",
+    "@zxing/browser": "0.2.1",
     "better-result": "3.0.1",
     "class-variance-authority": "0.7.1",
     "client-only": "0.0.1",
