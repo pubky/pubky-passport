@@ -4,7 +4,7 @@ import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LOGGER } from "../../../../libs/logger/logger";
-import { IssuedPubkyAuthRequest } from "../request/IssuedPubkyAuthRequest";
+import { ValidatedPubkyAuthRequest } from "../request/ValidatedPubkyAuthRequest";
 
 const MOCKS = vi.hoisted(() => ({
   approveAuthRequest: vi.fn(),
@@ -66,7 +66,7 @@ describe("approveAuthorization", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("approves with the selected identity and disposes key resources", async () => {
-    const request = issuedRequest();
+    const request = validatedRequest();
     const authorizationUrl = request.validatedUrlForApproval();
     if (!authorizationUrl) throw new Error("Issued request was unexpectedly unavailable");
 
@@ -88,7 +88,7 @@ describe("approveAuthorization", () => {
       secretKey,
     }));
 
-    const result = await approveAuthorization(issuedRequest(), SELECTED_IDENTITY);
+    const result = await approveAuthorization(validatedRequest(), SELECTED_IDENTITY);
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isOk(result)) throw new Error("Expected approval to fail");
@@ -104,7 +104,7 @@ describe("approveAuthorization", () => {
       publicIdentity: OTHER_PUBLIC_IDENTITY,
     }));
 
-    const result = await approveAuthorization(issuedRequest(), SELECTED_IDENTITY);
+    const result = await approveAuthorization(validatedRequest(), SELECTED_IDENTITY);
 
     expect(Result.isError(result)).toBe(true);
     expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
@@ -116,7 +116,7 @@ describe("approveAuthorization", () => {
     const approvalError = new Error(`approval exploded ${SECRET}`);
     MOCKS.approveAuthRequest.mockRejectedValueOnce(approvalError);
 
-    const result = await approveAuthorization(issuedRequest(), SELECTED_IDENTITY);
+    const result = await approveAuthorization(validatedRequest(), SELECTED_IDENTITY);
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isOk(result)) throw new Error("Expected approval to fail");
@@ -137,7 +137,7 @@ describe("approveAuthorization", () => {
       cause: new Error(`lower SDK failure ${SECRET}`),
     }));
 
-    const result = await approveAuthorization(issuedRequest(), SELECTED_IDENTITY);
+    const result = await approveAuthorization(validatedRequest(), SELECTED_IDENTITY);
 
     if (Result.isOk(result)) throw new Error("Expected approval to fail");
     expect(result.error).toEqual({ code: "approval_failed" });
@@ -155,7 +155,7 @@ describe("approveAuthorization", () => {
       cause: new Error(`restore SDK failure ${SECRET}`),
     }));
 
-    const result = await approveAuthorization(issuedRequest(), SELECTED_IDENTITY);
+    const result = await approveAuthorization(validatedRequest(), SELECTED_IDENTITY);
 
     if (Result.isOk(result)) throw new Error("Expected approval to fail");
     expect(result.error).toEqual({ code: "approval_failed" });
@@ -175,7 +175,7 @@ describe("approveAuthorization", () => {
       await restorationGate;
       return Result.ok({ keyHandle: KEY_HANDLE, publicIdentity: PUBLIC_IDENTITY });
     });
-    const approval = approveAuthorization(issuedRequest(), SELECTED_IDENTITY);
+    const approval = approveAuthorization(validatedRequest(), SELECTED_IDENTITY);
     await vi.waitFor(() => expect(MOCKS.restoreIdentityKey).toHaveBeenCalledOnce());
 
     continueRestoration();
@@ -186,10 +186,10 @@ describe("approveAuthorization", () => {
   });
 });
 
-function issuedRequest(): IssuedPubkyAuthRequest {
-  const issued = IssuedPubkyAuthRequest.issue(encodeURIComponent(
+function validatedRequest(): ValidatedPubkyAuthRequest {
+  const validated = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(
     `pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=${SECRET}`,
   ));
-  if (Result.isError(issued)) throw new Error(issued.error.code);
-  return issued.value;
+  if (Result.isError(validated)) throw new Error(validated.error.code);
+  return validated.value;
 }

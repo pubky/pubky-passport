@@ -1,8 +1,12 @@
-import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
+import { describe, expect, it } from "vitest";
 
-import { parseEncodedPubkyAuthRequest, type PubkyAuthParseError } from "./pubkyAuthRequestParser";
-import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
+import {
+  parseEncodedPubkyAuthRequest,
+  PUBKY_AUTH_REQUEST_LIMITS,
+  validateEncodedPubkyAuthRequest,
+  type PubkyAuthParseError,
+} from "./pubkyAuthRequestParser";
 
 const VALID_REQUEST =
   "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-success=https://pubky.app/passport-success&x-error=https://pubky.app/passport-error&x-cancel=https://pubky.app/passport-cancel";
@@ -240,6 +244,27 @@ describe("parseEncodedPubkyAuthRequest", () => {
 
     expect(Result.isOk(parseEncodedPubkyAuthRequest(encodeRequest(grantRequest(atLimit))))).toBe(true);
     expectError(encodeRequest(grantRequest(`${atLimit}a`)), "invalid_client_id");
+  });
+});
+
+describe("validateEncodedPubkyAuthRequest", () => {
+  it("returns only success without constructing request authority", () => {
+    const result = validateEncodedPubkyAuthRequest(encodeRequest(VALID_REQUEST));
+
+    expect(Result.isOk(result)).toBe(true);
+    expect(JSON.stringify(result)).not.toContain("kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8");
+  });
+
+  it("returns only a safe error code for invalid input", () => {
+    const secret = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
+    const result = validateEncodedPubkyAuthRequest(encodeRequest(
+      `pubkyauth://signin?secret=${secret}`,
+    ));
+
+    expect(Result.isError(result) && result.error).toEqual({ code: "missing_relay" });
+    if (Result.isOk(result)) throw new Error("Expected validation to fail");
+    expect(result.error).not.toHaveProperty("cause");
+    expect(JSON.stringify(result)).not.toContain(secret);
   });
 });
 

@@ -1,11 +1,11 @@
-import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
+import { describe, expect, it } from "vitest";
 
 import {
   parsePubkyAuthCapabilities,
+  PUBKY_AUTH_CAPABILITY_LIMITS,
   type PubkyAuthCapabilitiesParseError,
 } from "./pubkyAuthCapabilities";
-import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 
 type PubkyAuthCapabilitiesParseErrorCode = PubkyAuthCapabilitiesParseError["code"];
 
@@ -20,7 +20,7 @@ function expectCapabilities(input: string) {
   return result.value;
 }
 
-function expectError(input: string | null | undefined, code: PubkyAuthCapabilitiesParseErrorCode): void {
+function expectError(input: string, code: PubkyAuthCapabilitiesParseErrorCode): void {
   const result = parsePubkyAuthCapabilities(input);
 
   expect(Result.isError(result)).toBe(true);
@@ -64,18 +64,18 @@ describe("parsePubkyAuthCapabilities", () => {
 
   it("accepts the capability count limit and rejects limit plus one", () => {
     const capability = "/pub/app/:r";
-    expect(expectCapabilities(Array(PUBKY_AUTH_REQUEST_LIMITS.maximumCapabilityCount).fill(capability).join(","))).toHaveLength(
-      PUBKY_AUTH_REQUEST_LIMITS.maximumCapabilityCount,
+    expect(expectCapabilities(Array(PUBKY_AUTH_CAPABILITY_LIMITS.maximumCapabilityCount).fill(capability).join(","))).toHaveLength(
+      PUBKY_AUTH_CAPABILITY_LIMITS.maximumCapabilityCount,
     );
     expectError(
-      Array(PUBKY_AUTH_REQUEST_LIMITS.maximumCapabilityCount + 1).fill(capability).join(","),
+      Array(PUBKY_AUTH_CAPABILITY_LIMITS.maximumCapabilityCount + 1).fill(capability).join(","),
       "too_many_capabilities",
     );
   });
 
   it("accepts the capability string limit and rejects limit plus one", () => {
     const prefix = "/a:";
-    const atLimit = `${prefix}${"r".repeat(PUBKY_AUTH_REQUEST_LIMITS.maximumCapabilityCodeUnits - prefix.length)}`;
+    const atLimit = `${prefix}${"r".repeat(PUBKY_AUTH_CAPABILITY_LIMITS.maximumCapabilityCodeUnits - prefix.length)}`;
     const overLimit = `${atLimit}r`;
 
     expect(expectCapabilities(atLimit)).toHaveLength(1);
@@ -85,7 +85,7 @@ describe("parsePubkyAuthCapabilities", () => {
   it("accepts the capability path limit and rejects limit plus one", () => {
     const fullSegment = "a".repeat(255);
     const prefix = `/${fullSegment}/${fullSegment}/${fullSegment}/`;
-    const atLimit = `${prefix}${"a".repeat(PUBKY_AUTH_REQUEST_LIMITS.maximumCapabilityPathUtf8Bytes - prefix.length)}`;
+    const atLimit = `${prefix}${"a".repeat(PUBKY_AUTH_CAPABILITY_LIMITS.maximumCapabilityPathUtf8Bytes - prefix.length)}`;
     const overLimit = `${atLimit}a`;
 
     expect(expectCapabilities(`${atLimit}:r`)[0]?.path).toBe(atLimit);
@@ -124,9 +124,7 @@ describe("parsePubkyAuthCapabilities", () => {
     expectError(`${atLimit}a:r`, "capability_too_long");
   });
 
-  it("rejects missing capability strings", () => {
-    expectError(null, "missing_capabilities");
-    expectError(undefined, "missing_capabilities");
+  it("accepts an empty capability list and rejects whitespace", () => {
     expect(expectCapabilities("")).toEqual([]);
     expectError("   ", "invalid_capability_path");
   });

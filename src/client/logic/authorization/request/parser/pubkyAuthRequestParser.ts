@@ -5,21 +5,27 @@ import { Result, type Result as ResultType } from "better-result";
 import {
   parsePubkyAuthCapabilities,
   type PubkyAuthCapability,
-  type PubkyAuthCapabilitiesParseError,
 } from "./pubkyAuthCapabilities";
 import {
   validatePubkyAuthUrls,
   type ValidatedPubkyAuthCallbacks,
   type PubkyAuthUrlValidationError,
 } from "./pubkyAuthUrls";
-import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 import {
   isCanonicalPubkyAuthSecret,
   isCanonicalPubkyPublicKey,
   utf8Length,
-} from "../../pubky/pubkyProtocol";
+} from "../../../pubky/pubkyProtocol";
 
 export type PubkyAuthenticationMethod = "cookie" | "grant";
+
+/** Bounds enforced directly by the encoded authorization request parser. */
+export const PUBKY_AUTH_REQUEST_LIMITS = {
+  maximumEncodedDCodeUnits: 24_576,
+  maximumDecodedAuthUrlCodeUnits: 8_192,
+  maximumSecretCodeUnits: 1_024,
+  maximumClientIdUtf8Bytes: 253,
+} as const;
 
 const PUBKY_AUTH_REQUEST_PARAMETERS = {
   relay: "relay",
@@ -79,6 +85,7 @@ export type ParsedPubkyAuthRequest = {
 };
 
 export type PubkyAuthParseResult = ResultType<ParsedPubkyAuthRequest, PubkyAuthParseError>;
+export type ValidatePubkyAuthRequestResult = ResultType<void, PubkyAuthParseError>;
 
 type ParseValueResult<Value> = ResultType<Value, PubkyAuthParseError>;
 
@@ -87,7 +94,8 @@ const PUBKY_AUTH_PROTOCOL = "pubkyauth:";
 /**
  * Parses and bounds one encoded Pubky Auth URL without issuing signing
  * authority. The returned URL remains sensitive and must not enter UI state.
- * Callers must either issue it immediately or use the validation-only wrapper.
+ * Callers must either construct the validated request wrapper immediately or
+ * use the validation-only function.
  */
 export function parseEncodedPubkyAuthRequest(
   encodedRequest: unknown,
@@ -155,7 +163,7 @@ export function parseEncodedPubkyAuthRequest(
     return Result.err(grantParameters.error);
   }
 
-  const urls = validatePubkyAuthUrls(authUrl.value, PUBKY_AUTH_REQUEST_PARAMETERS);
+  const urls = validatePubkyAuthUrls(authUrl.value);
   if (Result.isError(urls)) {
     return Result.err(urls.error);
   }
@@ -167,7 +175,7 @@ export function parseEncodedPubkyAuthRequest(
 
   const capabilities = parsePubkyAuthCapabilities(requestedCapabilities);
   if (Result.isError(capabilities)) {
-    return Result.err<never, PubkyAuthParseError>({ code: mapCapabilitiesError(capabilities.error) });
+    return Result.err<never, PubkyAuthParseError>({ code: "invalid_capability" });
   }
 
   const normalizedCapabilities = requestedCapabilities.normalize("NFC");
@@ -181,6 +189,14 @@ export function parseEncodedPubkyAuthRequest(
     callbacks: Object.freeze({ ...urls.value }),
     sensitivePubkyAuthUrl,
   });
+}
+
+/** Validates encoded input without constructing an approval-capable request. */
+export function validateEncodedPubkyAuthRequest(
+  encodedRequest: unknown,
+): ValidatePubkyAuthRequestResult {
+  const parsed = parseEncodedPubkyAuthRequest(encodedRequest);
+  return Result.isError(parsed) ? Result.err(parsed.error) : Result.ok();
 }
 
 function replaceCapabilities(authUrl: URL, capabilities: string): string {
@@ -267,12 +283,4 @@ function validateGrantParameters(
   }
 
   return Result.ok();
-}
-
-function mapCapabilitiesError(
-  capabilitiesError: PubkyAuthCapabilitiesParseError,
-): "missing_capabilities" | "invalid_capability" {
-  return capabilitiesError.code === "missing_capabilities"
-    ? "missing_capabilities"
-    : "invalid_capability";
 }

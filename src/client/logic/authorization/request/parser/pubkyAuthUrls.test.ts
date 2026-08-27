@@ -1,28 +1,16 @@
-import { Result } from "better-result";
 import { describe, expect, it } from "vitest";
+import { Result } from "better-result";
 
 import {
-  validatePubkyAuthUrls as validateUrlValues,
+  validatePubkyAuthUrls,
+  PUBKY_AUTH_URL_LIMITS,
   type PubkyAuthUrlValidationError,
 } from "./pubkyAuthUrls";
-import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
 
 type PubkyAuthUrlValidationErrorCode = PubkyAuthUrlValidationError["code"];
 
-const PARAMETER_NAMES = {
-  relay: "relay",
-  success: "x-success",
-  error: "x-error",
-  cancel: "x-cancel",
-  legacySuccess: "callback",
-} as const;
-
 function authUrl(query: string): URL {
   return new URL(`pubkyauth://signin?${query}`);
-}
-
-function validatePubkyAuthUrls(url: URL) {
-  return validateUrlValues(url, PARAMETER_NAMES);
 }
 
 function validateRelay(relay: string | null) {
@@ -93,7 +81,7 @@ describe("validateRelayUrl", () => {
 
   it("accepts the relay URL length limit and rejects limit plus one", () => {
     const prefix = "https://httprelay.pubky.app/";
-    const atLimit = `${prefix}${"a".repeat(PUBKY_AUTH_REQUEST_LIMITS.maximumRelayUrlCodeUnits - prefix.length)}`;
+    const atLimit = `${prefix}${"a".repeat(PUBKY_AUTH_URL_LIMITS.maximumRelayUrlCodeUnits - prefix.length)}`;
 
     expect(Result.isOk(validateRelay(atLimit))).toBe(true);
     const overLimit = validateRelay(`${atLimit}a`);
@@ -141,7 +129,7 @@ describe("validatePubkyAuthUrls", () => {
 
   it("accepts the callback URL length limit and rejects limit plus one", () => {
     const prefix = "https://third.example/";
-    const atLimit = `${prefix}${"a".repeat(PUBKY_AUTH_REQUEST_LIMITS.maximumCallbackUrlCodeUnits - prefix.length)}`;
+    const atLimit = `${prefix}${"a".repeat(PUBKY_AUTH_URL_LIMITS.maximumCallbackUrlCodeUnits - prefix.length)}`;
     const accepted = validatePubkyAuthUrls(
       authUrl(`relay=https://httprelay.pubky.app/inbox&secret=secret-value&x-success=${atLimit}`),
     );

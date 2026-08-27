@@ -11,8 +11,8 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
-import { IssuedPubkyAuthRequest } from "../authorization/request/IssuedPubkyAuthRequest";
-import { PUBKY_AUTH_REQUEST_LIMITS } from "../authorization/request/pubkyAuthRequestLimits";
+import { ValidatedPubkyAuthRequest } from "../authorization/request/ValidatedPubkyAuthRequest";
+import { PUBKY_AUTH_CAPABILITY_LIMITS } from "../authorization/request/parser/pubkyAuthCapabilities";
 import { LOGGER } from "../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_BYTES, PUBKY_SECRET_KEY_FORMAT, type PubkyIdentityKeyHandle } from "./pubkyIdentityKey";
 import { PubkySdkAdapter } from "./PubkySdkAdapter";
@@ -34,8 +34,8 @@ describe("PubkySdkAdapter", () => {
     );
 
     try {
-      const cookie = IssuedPubkyAuthRequest.issue(encodeURIComponent(cookieFlow.authorizationUrl));
-      const grant = IssuedPubkyAuthRequest.issue(encodeURIComponent(grantFlow.authorizationUrl));
+      const cookie = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(cookieFlow.authorizationUrl));
+      const grant = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(grantFlow.authorizationUrl));
 
       expect(Result.isOk(cookie) && cookie.value.review.authenticationMethod).toBe("cookie");
       expect(Result.isOk(grant) && grant.value.review.authenticationMethod).toBe("grant");
@@ -48,16 +48,16 @@ describe("PubkySdkAdapter", () => {
   });
 
   it("keeps the capability path bound aligned with the SDK", () => {
-    const atLimit = capabilityPath(PUBKY_AUTH_REQUEST_LIMITS.maximumCapabilityPathUtf8Bytes);
-    const overLimit = capabilityPath(PUBKY_AUTH_REQUEST_LIMITS.maximumCapabilityPathUtf8Bytes + 1);
+    const atLimit = capabilityPath(PUBKY_AUTH_CAPABILITY_LIMITS.maximumCapabilityPathUtf8Bytes);
+    const overLimit = capabilityPath(PUBKY_AUTH_CAPABILITY_LIMITS.maximumCapabilityPathUtf8Bytes + 1);
 
     expect(() => validateCapabilities(`${atLimit}:r`)).not.toThrow();
     expect(() => validateCapabilities(`${overLimit}:r`)).toThrow();
 
-    const accepted = IssuedPubkyAuthRequest.issue(encodeURIComponent(
+    const accepted = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(
       authorizationRequest(atLimit),
     ));
-    const rejected = IssuedPubkyAuthRequest.issue(encodeURIComponent(
+    const rejected = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(
       authorizationRequest(overLimit),
     ));
     expect(Result.isOk(accepted)).toBe(true);
@@ -568,7 +568,7 @@ describe("PubkySdkAdapter", () => {
 
     try {
       const created = expectOk(await pubky.createIdentityKey());
-      const request = expectOk(IssuedPubkyAuthRequest.issue(encodeURIComponent(
+      const request = expectOk(ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(
         authorizationRequest("/pub/passport.test"),
       )));
       const authorizationUrl = request.validatedUrlForApproval();

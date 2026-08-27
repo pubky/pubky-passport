@@ -2,8 +2,15 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { PUBKY_AUTH_REQUEST_LIMITS } from "./pubkyAuthRequestLimits";
-import { isValidPubkyCapabilityPath, utf8Length } from "../../pubky/pubkyProtocol";
+import { isValidPubkyCapabilityPath, utf8Length } from "../../../pubky/pubkyProtocol";
+
+/** Bounds enforced while parsing the requested capability list. */
+export const PUBKY_AUTH_CAPABILITY_LIMITS = {
+  maximumCapabilityCount: 64,
+  maximumCapabilityCodeUnits: 1_024,
+  // Mirrors @synonymdev/pubky 0.10 storage-path validation; adapter tests guard drift.
+  maximumCapabilityPathUtf8Bytes: 972,
+} as const;
 
 export type PubkyAuthCapability = {
   path: string;
@@ -12,7 +19,6 @@ export type PubkyAuthCapability = {
 };
 
 type PubkyAuthCapabilitiesParseErrorCode =
-  | "missing_capabilities"
   | "too_many_capabilities"
   | "capability_too_long"
   | "empty_capability"
@@ -23,18 +29,14 @@ export type PubkyAuthCapabilitiesParseError = {
   code: PubkyAuthCapabilitiesParseErrorCode;
 };
 
-export type PubkyAuthCapabilitiesParseResult = ResultType<PubkyAuthCapability[], PubkyAuthCapabilitiesParseError>;
+type PubkyAuthCapabilitiesParseResult = ResultType<PubkyAuthCapability[], PubkyAuthCapabilitiesParseError>;
 
 /** Parses the bounded Pubky capability list used for authorization review. */
-export function parsePubkyAuthCapabilities(input: string | null | undefined): PubkyAuthCapabilitiesParseResult {
-  if (input === null || input === undefined) {
-    return Result.err<never, PubkyAuthCapabilitiesParseError>({ code: "missing_capabilities" });
-  }
-
+export function parsePubkyAuthCapabilities(input: string): PubkyAuthCapabilitiesParseResult {
   if (input.length === 0) return Result.ok([]);
 
   const rawCapabilities = input.split(",").map((capability) => capability.normalize("NFC"));
-  if (rawCapabilities.length > PUBKY_AUTH_REQUEST_LIMITS.maximumCapabilityCount) {
+  if (rawCapabilities.length > PUBKY_AUTH_CAPABILITY_LIMITS.maximumCapabilityCount) {
     return Result.err<never, PubkyAuthCapabilitiesParseError>({ code: "too_many_capabilities" });
   }
 
@@ -42,7 +44,7 @@ export function parsePubkyAuthCapabilities(input: string | null | undefined): Pu
     return Result.err<never, PubkyAuthCapabilitiesParseError>({ code: "empty_capability" });
   }
 
-  if (rawCapabilities.some((capability) => capability.length > PUBKY_AUTH_REQUEST_LIMITS.maximumCapabilityCodeUnits)) {
+  if (rawCapabilities.some((capability) => capability.length > PUBKY_AUTH_CAPABILITY_LIMITS.maximumCapabilityCodeUnits)) {
     return Result.err<never, PubkyAuthCapabilitiesParseError>({ code: "capability_too_long" });
   }
 
@@ -69,7 +71,7 @@ function parseCapability(input: string): CapabilityParseResult {
 
   const path = input.slice(0, actionsStart);
   const actions = input.slice(actionsStart + 1);
-  if (utf8Length(path) > PUBKY_AUTH_REQUEST_LIMITS.maximumCapabilityPathUtf8Bytes) {
+  if (utf8Length(path) > PUBKY_AUTH_CAPABILITY_LIMITS.maximumCapabilityPathUtf8Bytes) {
     return Result.err<never, PubkyAuthCapabilitiesParseError>({ code: "capability_too_long" });
   }
 

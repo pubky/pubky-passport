@@ -13,7 +13,7 @@ import type {
   PubkyPublicIdentity,
 } from "../../pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "../../pubky/PubkySdkAdapter";
-import type { IssuedPubkyAuthRequest } from "../request/IssuedPubkyAuthRequest";
+import type { ValidatedPubkyAuthRequest } from "../request/ValidatedPubkyAuthRequest";
 
 type ApproveAuthorizationResult = ResultType<
   void,
@@ -32,7 +32,7 @@ type RestoreLocalIdentityErrorCode =
 
 /** Approves one request with the exact local identity selected during review. */
 export async function approveAuthorization(
-  request: IssuedPubkyAuthRequest,
+  request: ValidatedPubkyAuthRequest,
   publicKeyZ32: string,
 ): Promise<ApproveAuthorizationResult> {
   let pubky: PubkySdkAdapter;

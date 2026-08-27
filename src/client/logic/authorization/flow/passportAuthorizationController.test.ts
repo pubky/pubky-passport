@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "v
 
 import { LOGGER } from "../../../../libs/logger/logger";
 import type { AuthorizationEntry } from "../entry/authorizationEntry";
-import { IssuedPubkyAuthRequest } from "../request/IssuedPubkyAuthRequest";
+import { ValidatedPubkyAuthRequest } from "../request/ValidatedPubkyAuthRequest";
 import type {
   AuthorizationHandoffStatus,
   AuthorizationOutcome,
@@ -77,7 +77,7 @@ describe("PassportAuthorizationController", () => {
 
   it("approves once with the reviewed identity and completes the success callback", async () => {
     let completeApproval: (() => void) | undefined;
-    let capturedRequest: IssuedPubkyAuthRequest | undefined;
+    let capturedRequest: ValidatedPubkyAuthRequest | undefined;
     MOCKS.approveAuthorization.mockImplementation((request) => {
       capturedRequest = request;
       return new Promise((resolve) => {
@@ -303,13 +303,13 @@ function createController(
 function createEntry(options: EntryOptions): AuthorizationEntry {
   switch (options.status ?? "valid") {
     case "valid": {
-      const issued = IssuedPubkyAuthRequest.issue(encodeURIComponent(
+      const validated = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(
         validRequest(options.callbacks),
       ));
-      if (Result.isError(issued)) throw new Error(issued.error.code);
+      if (Result.isError(validated)) throw new Error(validated.error.code);
       return {
         status: "valid",
-        request: issued.value,
+        request: validated.value,
       };
     }
     case "invalid":

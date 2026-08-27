@@ -10,8 +10,8 @@ import {
 import { takeInitialAuthorizationEntry } from "../../../../instrumentation-client";
 import {
   type AuthorizationRequestReview,
-  IssuedPubkyAuthRequest,
-} from "../request/IssuedPubkyAuthRequest";
+  ValidatedPubkyAuthRequest,
+} from "../request/ValidatedPubkyAuthRequest";
 import { approveAuthorization } from "./approveAuthorization";
 import {
   type AuthorizationOutcome,
@@ -35,7 +35,7 @@ type LocalTerminalState = Extract<
 >;
 
 type AuthorizationAction = Readonly<{
-  request: IssuedPubkyAuthRequest;
+  request: ValidatedPubkyAuthRequest;
   review: AuthorizationRequestReview;
 }>;
 
@@ -46,7 +46,7 @@ export class PassportAuthorizationController {
   private abortController = new AbortController();
   private disposed = false;
   private listeners = new Set<(state: PassportAuthorizationViewState) => void>();
-  private request: IssuedPubkyAuthRequest | undefined;
+  private request: ValidatedPubkyAuthRequest | undefined;
   private state: PassportAuthorizationViewState;
 
   /** Idempotently captures and owns the current authorization document. */
@@ -128,7 +128,7 @@ export class PassportAuthorizationController {
   }
 
   private async completeRequestOutcome(
-    request: IssuedPubkyAuthRequest,
+    request: ValidatedPubkyAuthRequest,
     outcome: AuthorizationOutcome,
     review: AuthorizationRequestReview,
   ): Promise<PassportAuthorizationViewState> {
@@ -192,4 +192,4 @@ function localStateForOutcome(outcome: AuthorizationOutcome): LocalTerminalState
   }
 }
 
-export type { AuthorizationRequestReview } from "../request/IssuedPubkyAuthRequest";
+export type { AuthorizationRequestReview } from "../request/ValidatedPubkyAuthRequest";

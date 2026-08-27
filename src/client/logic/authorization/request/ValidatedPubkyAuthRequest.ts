@@ -8,8 +8,8 @@ import {
   type ParsedPubkyAuthRequest,
   type PubkyAuthenticationMethod,
   type PubkyAuthParseError,
-} from "./pubkyAuthRequestParser";
-import type { ValidatedPubkyAuthCallbacks } from "./pubkyAuthUrls";
+} from "./parser/pubkyAuthRequestParser";
+import type { ValidatedPubkyAuthCallbacks } from "./parser/pubkyAuthUrls";
 
 /** One safe capability row rendered during authorization review. */
 export type AuthorizationCapability = Readonly<{
@@ -31,18 +31,16 @@ type ValidatedAuthorizationMetadata = Readonly<{
   sensitivePubkyAuthUrl: string;
 }>;
 
-export type IssuePubkyAuthRequestResult = ResultType<
-  IssuedPubkyAuthRequest,
+export type ValidatedPubkyAuthRequestResult = ResultType<
+  ValidatedPubkyAuthRequest,
   PubkyAuthParseError
 >;
-
-export type ValidatePubkyAuthRequestResult = ResultType<void, PubkyAuthParseError>;
 
 /**
  * A validated Pubky Auth request and the authority to approve that exact request.
  * Only the safe `review` property may be exposed to UI state.
  */
-export class IssuedPubkyAuthRequest {
+export class ValidatedPubkyAuthRequest {
   #metadata: ValidatedAuthorizationMetadata | undefined;
 
   private constructor(
@@ -52,25 +50,19 @@ export class IssuedPubkyAuthRequest {
     this.#metadata = metadata;
   }
 
-  /** Validates and issues one exact request for review and later approval. */
-  static issue(encodedRequest: unknown): IssuePubkyAuthRequestResult {
+  /** Creates one validated request for review and later approval. */
+  static fromEncoded(encodedRequest: unknown): ValidatedPubkyAuthRequestResult {
     const parsed = parseEncodedPubkyAuthRequest(encodedRequest);
     if (Result.isError(parsed)) return Result.err(parsed.error);
 
     const review = createAuthorizationReview(parsed.value);
-    const request = new IssuedPubkyAuthRequest(review, Object.freeze({
+    const request = new ValidatedPubkyAuthRequest(review, Object.freeze({
       callbacks: parsed.value.callbacks,
       sensitivePubkyAuthUrl: parsed.value.sensitivePubkyAuthUrl,
     }));
 
     Object.freeze(request);
     return Result.ok(request);
-  }
-
-  /** Validates manual input without issuing approval authority. */
-  static validate(encodedRequest: unknown): ValidatePubkyAuthRequestResult {
-    const parsed = parseEncodedPubkyAuthRequest(encodedRequest);
-    return Result.isError(parsed) ? Result.err(parsed.error) : Result.ok();
   }
 
   /** Returns the validated URL while this request remains live. */
