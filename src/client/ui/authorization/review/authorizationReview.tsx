@@ -1,5 +1,3 @@
-"use client";
-
 import { useLayoutEffect, useRef } from "react";
 
 import type { AuthorizationRequestReview } from "../../../logic/authorization/flow/PassportAuthorizationController";
@@ -69,6 +67,8 @@ function AuthorizationReview({ identity, onAuthorize, onCancel, onSwitch, phase,
   );
 }
 
+const MINIMUM_REQUESTER_FONT_SIZE_PX = 32;
+
 function FittedRequester({ children }: { children: string }) {
   const requesterRef = useRef<HTMLElement>(null);
 
@@ -77,43 +77,38 @@ function FittedRequester({ children }: { children: string }) {
     const container = requester?.parentElement;
     if (!requester || !container) return;
 
-    let fittedContainerWidth = -1;
-    let active = true;
-    const fit = (force = false) => {
-      const availableWidth = container.clientWidth;
-      if (!force && availableWidth === fittedContainerWidth) return;
-      fittedContainerWidth = availableWidth;
-
+    const fit = () => {
       requester.style.removeProperty("font-size");
+      requester.style.whiteSpace = "nowrap";
+
+      const availableWidth = container.clientWidth;
       const requiredWidth = requester.scrollWidth;
       if (availableWidth <= 0 || requiredWidth <= availableWidth) return;
 
       const baseFontSize = Number.parseFloat(window.getComputedStyle(requester).fontSize);
-      if (Number.isFinite(baseFontSize)) {
-        requester.style.fontSize = `${baseFontSize * availableWidth / requiredWidth}px`;
-      }
+      if (!Number.isFinite(baseFontSize)) return;
+
+      const fittedFontSize = baseFontSize * availableWidth / requiredWidth;
+      requester.style.fontSize = `${Math.max(MINIMUM_REQUESTER_FONT_SIZE_PX, fittedFontSize)}px`;
+      if (fittedFontSize < MINIMUM_REQUESTER_FONT_SIZE_PX) requester.style.whiteSpace = "normal";
     };
 
     fit();
 
-    const resizeObserver = typeof ResizeObserver === "undefined"
-      ? undefined
-      : new ResizeObserver(() => fit());
+    const resizeObserver = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(fit);
     resizeObserver?.observe(container);
-    const fitAfterWindowResize = () => fit();
-    window.addEventListener("resize", fitAfterWindowResize);
+    let active = true;
     void document.fonts?.ready.then(() => {
-      if (active) fit(true);
+      if (active) fit();
     });
 
     return () => {
       active = false;
       resizeObserver?.disconnect();
-      window.removeEventListener("resize", fitAfterWindowResize);
     };
   }, [children]);
 
-  return <bdi className="block whitespace-nowrap" ref={requesterRef}>{children}</bdi>;
+  return <bdi className="block break-words" ref={requesterRef}>{children}</bdi>;
 }
 
 function authorizationButtonLabel(phase: "review" | "approving" | "completing"): string {

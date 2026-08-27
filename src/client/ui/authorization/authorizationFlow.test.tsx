@@ -134,8 +134,37 @@ describe("AuthorizationFlow", () => {
     expect(screen.getByText(/allow trusted\.example to read and update your data/u)).toBeInTheDocument();
   });
 
-  it("keeps a long callback host on one line and scales it to fit", async () => {
-    const callbackHost = "a-very-long-subdomain-that-must-fit-without-being-truncated.requesting.example";
+  it("scales a callback host to the largest font size that fits", async () => {
+    const callbackHost = "gillohner.github.io";
+    const clientWidth = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function (this: HTMLElement) {
+      return this.tagName === "SPAN" && this.textContent === callbackHost ? 300 : 0;
+    });
+    const scrollWidth = vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (this: HTMLElement) {
+      return this.tagName === "BDI" && this.textContent === callbackHost ? 400 : 0;
+    });
+    const computedStyle = vi.spyOn(window, "getComputedStyle").mockReturnValue({ fontSize: "48px" } as CSSStyleDeclaration);
+
+    try {
+      MOCKS.authorizationState = {
+        status: "review",
+        review: { ...REVIEW, callbackHost },
+      };
+
+      renderFlow();
+
+      const domain = await screen.findByText(callbackHost);
+      expect(domain.style.fontSize).toBe("36px");
+      expect(domain.style.whiteSpace).toBe("nowrap");
+      expect(domain).toHaveTextContent(callbackHost);
+    } finally {
+      clientWidth.mockRestore();
+      scrollWidth.mockRestore();
+      computedStyle.mockRestore();
+    }
+  });
+
+  it("wraps rather than shrinking a callback host below the readable minimum", async () => {
+    const callbackHost = "an-extremely-long-callback-host-that-cannot-fit-at-a-readable-size.requesting.example";
     const clientWidth = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function (this: HTMLElement) {
       return this.tagName === "SPAN" && this.textContent === callbackHost ? 300 : 0;
     });
@@ -153,8 +182,9 @@ describe("AuthorizationFlow", () => {
       renderFlow();
 
       const domain = await screen.findByText(callbackHost);
-      expect(domain).toHaveClass("whitespace-nowrap");
-      expect(domain.style.fontSize).toBe("24px");
+      expect(domain).toHaveClass("break-words");
+      expect(domain.style.fontSize).toBe("32px");
+      expect(domain.style.whiteSpace).toBe("normal");
       expect(domain).toHaveTextContent(callbackHost);
     } finally {
       clientWidth.mockRestore();
