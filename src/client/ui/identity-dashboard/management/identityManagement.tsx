@@ -6,9 +6,8 @@ import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
 import type { LocalIdentityResult } from "../../../logic/local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import type { PubkyHomeserverResolutionResult } from "../../../logic/pubky/pubkyIdentityKey";
-import { CopyIcon, DownloadIcon, KeyRoundIcon, LinkOffIcon } from "../../shared/actionIcons";
+import { CopyIcon, DownloadIcon, KeyRoundIcon, LinkOffIcon, LogOutIcon } from "../../shared/actionIcons";
 import { BackButton } from "../../shared/backButton";
-import { PassportNavigation } from "../../shared/passportNavigation";
 import { PassportScreen } from "../../shared/passportScreen";
 import { Avatar } from "../../shared/primitives/avatar";
 import { Button } from "../../shared/primitives/button";
@@ -50,7 +49,6 @@ function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadRe
 
   return (
     <PassportScreen className="gap-6 md:gap-8">
-      <Button className="absolute right-6 top-[22px] z-10 md:right-10 md:top-12" onClick={logout} variant="secondary">Log out</Button>
       <header className="flex items-start gap-6 md:items-center">
         <DisplayHeading accent="identity." aria-label="Manage identity.">Manage</DisplayHeading>
         <Avatar className="ml-auto" fallback={name} size="lg" {...(account?.pictureUrl ? { src: account.pictureUrl } : {})} />
@@ -69,7 +67,14 @@ function IdentityManagement({ identity, onBack, onDetachFromGoogle, onDownloadRe
         <ManagementButton icon={<DownloadIcon />} onClick={onDownloadRecoveryFile}>Download recovery file</ManagementButton>
         {account ? <ManagementButton icon={<LinkOffIcon />} onClick={onDetachFromGoogle}>Detach from Google</ManagementButton> : null}
       </div>
-      <PassportNavigation back={<BackButton onClick={onBack} />} className="mt-0 pt-0 md:pt-1" />
+      <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-[120px_1fr_228px] md:items-center md:gap-0 md:pt-1">
+        <div className="w-full md:col-start-3 md:row-start-1">
+          <Button className="w-full" onClick={logout} size="lg" variant="destructive"><LogOutIcon />Log out</Button>
+        </div>
+        <div className="w-full md:col-start-1 md:row-start-1">
+          <BackButton onClick={onBack} />
+        </div>
+      </div>
     </PassportScreen>
   );
 }

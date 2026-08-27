@@ -87,4 +87,18 @@ describe("IdentityManagement", () => {
     expect(screen.getByText("Could not log out. Please try again.")).toBeInTheDocument();
     expect(onBack).not.toHaveBeenCalled();
   });
+
+  it("shows destructive logout above Back on mobile and on the right on desktop", () => {
+    render(<IdentityManagement identity={identity} onBack={vi.fn()} onDetachFromGoogle={vi.fn()} onDownloadRecoveryFile={vi.fn()} onRemoveLocalIdentity={() => Result.ok()} onMigrateToKeychain={vi.fn()} resolveHomeserver={async () => Result.ok(null)} />);
+
+    const logout = screen.getByRole("button", { name: "Log out" });
+    const back = screen.getByRole("button", { name: "Back" });
+    const navigation = logout.parentElement?.parentElement;
+
+    expect(logout).toHaveClass("bg-destructive-surface", "text-destructive-foreground", "h-[60px]");
+    expect(logout.querySelector("svg")).toBeInTheDocument();
+    expect(logout.parentElement).toHaveClass("md:col-start-3", "md:row-start-1");
+    expect(back.parentElement).toHaveClass("md:col-start-1", "md:row-start-1");
+    expect(Array.from(navigation?.querySelectorAll("button") ?? [])).toEqual([logout, back]);
+  });
 });
