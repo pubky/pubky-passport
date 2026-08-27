@@ -13,7 +13,7 @@ import { IdentityManagement } from "./management/identityManagement";
 import { DetachFromGoogleFlow } from "./management/detach-from-google/detachFromGoogleFlow";
 import { RecoveryFileDownload } from "./management/recovery-file/recoveryFileDownload";
 import { MigrateToPubkyRing } from "./management/migrate-to-pubky-ring/migrateToPubkyRing";
-import { IdentityOverview } from "./overview/identityOverview";
+import { IdentityOverview } from "./identityOverview";
 
 type IdentityDashboardView =
   | { view: "onboarding" }
