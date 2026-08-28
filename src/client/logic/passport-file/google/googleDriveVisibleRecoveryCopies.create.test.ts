@@ -23,7 +23,10 @@ const FOLDER = {
 };
 const SIGNAL = new AbortController().signal;
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("GoogleDriveVisibleRecoveryCopies creation", () => {
   it("creates the visible folder and identity-named encrypted copy", async () => {
@@ -85,18 +88,42 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
     expect(drive.uploadedNames).toEqual([VISIBLE_FILE_NAME, VISIBLE_FILE_NAME]);
   });
 
-  it("rejects duplicate visible folders instead of selecting an ambiguous path", async () => {
-    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const visibleCopies = createVisibleCopies([jsonResponse({ files: [FOLDER], nextPageToken: "more-folders" })]);
+  it("serializes folder selection under one same-origin browser lock", async () => {
+    const lockManager = new RecordingLockManager();
+    vi.stubGlobal("navigator", { locks: lockManager });
+    const createdFile = { id: "SECRET-CREATED-ID", name: VISIBLE_FILE_NAME, version: "1" };
+    const responses = () => [
+      jsonResponse({ files: [FOLDER] }),
+      jsonResponse(createdFile),
+      jsonResponse({ ...createdFile, trashed: false, parents: [FOLDER.id] }),
+    ];
+
+    const [first, second] = await Promise.all([
+      createVisibleCopies(responses()).createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, SIGNAL),
+      createVisibleCopies(responses()).createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, SIGNAL),
+    ]);
+
+    expect(Result.isOk(first)).toBe(true);
+    expect(Result.isOk(second)).toBe(true);
+    expect(lockManager.names).toHaveLength(2);
+    expect(new Set(lockManager.names).size).toBe(1);
+    expect(lockManager.maximumActive).toBe(1);
+  });
+
+  it("selects the same canonical folder when concurrent devices created duplicates", async () => {
+    const canonicalFolder = { ...FOLDER, id: "A-CANONICAL-FOLDER" };
+    const createdFile = { id: "SECRET-CREATED-ID", name: VISIBLE_FILE_NAME, version: "1" };
+    const calls: SanitizedCall[] = [];
+    const visibleCopies = createVisibleCopies([
+      jsonResponse({ files: [FOLDER, canonicalFolder] }),
+      jsonResponse(createdFile),
+      jsonResponse({ ...createdFile, trashed: false, parents: [canonicalFolder.id] }),
+    ], calls);
 
     const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, SIGNAL);
 
-    expect(Result.isError(result) && result.error).toEqual({ code: "invalid_response" });
-    expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {
-      operation: "parse_folder_list_response",
-      code: "invalid_response",
-    });
-    expect(warning).toHaveBeenCalledOnce();
+    expect(Result.isOk(result)).toBe(true);
+    expect(calls).toHaveLength(3);
   });
 
   it.each([
@@ -406,6 +433,31 @@ class StatefulVisibleDrive {
     const fileId = url.pathname.split("/").at(-1);
     return jsonResponse(fileId ? this.files.get(fileId) : undefined);
   }) as typeof fetch;
+}
+
+class RecordingLockManager {
+  names: string[] = [];
+  maximumActive = 0;
+  private active = 0;
+  private tail = Promise.resolve();
+
+  async request<LockResult>(name: string, callback: () => Promise<LockResult>): Promise<LockResult> {
+    this.names.push(name);
+    const previous = this.tail;
+    let release = (): void => undefined;
+    this.tail = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous;
+    this.active += 1;
+    this.maximumActive = Math.max(this.maximumActive, this.active);
+    try {
+      return await callback();
+    } finally {
+      this.active -= 1;
+      release();
+    }
+  }
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
