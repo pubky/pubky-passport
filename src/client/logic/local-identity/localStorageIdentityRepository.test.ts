@@ -116,7 +116,9 @@ describe("LocalStorageIdentityRepository", () => {
     const unsubscribe = repository.subscribe(listener);
 
     save(repository, FIRST_IDENTITY, 1);
-    window.dispatchEvent(new StorageEvent("storage", { key: `${IDENTITY_PREFIX}${SECOND_KEY}` }));
+    const storageEvent = new Event("storage");
+    Object.defineProperty(storageEvent, "key", { value: `${IDENTITY_PREFIX}${SECOND_KEY}` });
+    window.dispatchEvent(storageEvent);
     unsubscribe();
     save(repository, SECOND_IDENTITY, 2);
 
