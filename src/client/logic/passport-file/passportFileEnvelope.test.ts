@@ -6,18 +6,19 @@ import {
   normalizePassportFileOrigin,
   parsePassportFileContents,
   parsePassportFileEnvelope,
-  type PassportFileEnvelopeV1,
-  type PassportFileField,
-  type PassportFileParseErrorCode,
+  type PassportFileEnvelope,
 } from "./passportFileEnvelope";
 
 const VALID_ENVELOPE = {
   v: 1,
+  keyId: "2026-08",
   iv: "AAECAwQFBgcICQoL",
   ct: "YZy1I_a6WzFnql8rW2A94EJrgz38Sqd1LV_KjVe2Qd2n1mvFMXg9qzRHwJ_WQvrm",
   url: "https://passport.pubky.app",
-} satisfies PassportFileEnvelopeV1;
+} satisfies PassportFileEnvelope;
 
+type PassportFileField = keyof typeof VALID_ENVELOPE;
+type PassportFileParseErrorCode = "invalid_json" | "invalid_file" | "unsupported_version";
 const PASSPORT_FILE_FIELDS = Object.keys(VALID_ENVELOPE) as PassportFileField[];
 
 function stringifyEnvelope(overrides: Record<string, unknown> = {}): string {
@@ -29,11 +30,12 @@ function expectParseError(
   code: PassportFileParseErrorCode,
   field?: PassportFileField,
 ): void {
+  void field;
   const result = parsePassportFileContents(input);
 
   expect(Result.isError(result)).toBe(true);
   if (Result.isError(result)) {
-    expect(result.error).toEqual(field ? { code, field } : { code });
+    expect(result.error).toEqual({ code });
     expect(JSON.stringify(result.error)).not.toContain(VALID_ENVELOPE.iv);
     expect(JSON.stringify(result.error)).not.toContain(VALID_ENVELOPE.ct);
   }
@@ -52,7 +54,9 @@ describe("parsePassportFileContents", () => {
   });
 
   it("normalizes root-path urls to origin-only output", () => {
-    const result = parsePassportFileContents(stringifyEnvelope({ url: "https://passport.pubky.app/" }));
+    const result = parsePassportFileContents(
+      stringifyEnvelope({ url: "https://passport.pubky.app/" }),
+    );
 
     expect(Result.isOk(result)).toBe(true);
     if (Result.isError(result)) {
@@ -69,7 +73,7 @@ describe("parsePassportFileContents", () => {
 
   it("rejects non-object JSON shapes", () => {
     for (const input of ["null", "[]", '"passport"', "1", "true"]) {
-      expectParseError(input, "invalid_shape");
+      expectParseError(input, "invalid_file");
     }
   });
 
@@ -78,37 +82,37 @@ describe("parsePassportFileContents", () => {
       const envelope: Record<string, unknown> = { ...VALID_ENVELOPE };
       delete envelope[field];
 
-      expectParseError(JSON.stringify(envelope), "missing_field", field);
+      expectParseError(JSON.stringify(envelope), "invalid_file", field);
     }
   });
 
   it("rejects unknown top-level fields", () => {
-    expectParseError(stringifyEnvelope({ plaintext: "do-not-accept" }), "unknown_field");
+    expectParseError(stringifyEnvelope({ plaintext: "do-not-accept" }), "invalid_file");
   });
 
   it("rejects unsupported numeric versions", () => {
-    for (const version of [0, 2, 1.5]) {
+    for (const version of [0, 2, 3, 1.5]) {
       expectParseError(stringifyEnvelope({ v: version }), "unsupported_version", "v");
     }
   });
 
   it("detects unsupported versions before applying the strict v1 shape", () => {
-    expectParseError(
-      stringifyEnvelope({ v: 2, futureField: true }),
-      "unsupported_version",
-      "v",
-    );
+    expectParseError(stringifyEnvelope({ v: 3, futureField: true }), "unsupported_version", "v");
+  });
+
+  it.each(["", "spaces are invalid", "?", "x".repeat(33)])("rejects invalid key ID %s", (keyId) => {
+    expectParseError(stringifyEnvelope({ keyId }), "invalid_file", "keyId");
   });
 
   it("rejects invalid version field types", () => {
     for (const version of ["1", null, true]) {
-      expectParseError(stringifyEnvelope({ v: version }), "invalid_field", "v");
+      expectParseError(stringifyEnvelope({ v: version }), "invalid_file", "v");
     }
   });
 
   it("rejects empty and non-base64url iv values", () => {
     for (const iv of ["", "abc+123", "abc/123", "abc=", "abc 123", "AB", null]) {
-      expectParseError(stringifyEnvelope({ iv }), "invalid_field", "iv");
+      expectParseError(stringifyEnvelope({ iv }), "invalid_file", "iv");
     }
   });
 
@@ -116,7 +120,7 @@ describe("parsePassportFileContents", () => {
     for (const byteLength of [11, 13]) {
       expectParseError(
         stringifyEnvelope({ iv: encodeBase64Url(new Uint8Array(byteLength)) }),
-        "invalid_field",
+        "invalid_file",
         "iv",
       );
     }
@@ -124,7 +128,7 @@ describe("parsePassportFileContents", () => {
 
   it("rejects empty and non-base64url ciphertext values", () => {
     for (const ct of ["", "abc+123", "abc/123", "abc=", "abc 123", "AB", null]) {
-      expectParseError(stringifyEnvelope({ ct }), "invalid_field", "ct");
+      expectParseError(stringifyEnvelope({ ct }), "invalid_file", "ct");
     }
   });
 
@@ -132,7 +136,7 @@ describe("parsePassportFileContents", () => {
     for (const byteLength of [47, 49]) {
       expectParseError(
         stringifyEnvelope({ ct: encodeBase64Url(new Uint8Array(byteLength)) }),
-        "invalid_field",
+        "invalid_file",
         "ct",
       );
     }
@@ -153,16 +157,23 @@ describe("parsePassportFileContents", () => {
       " https://passport.pubky.app",
       null,
     ]) {
-      expectParseError(stringifyEnvelope({ url }), "invalid_field", "url");
+      expectParseError(stringifyEnvelope({ url }), "invalid_file", "url");
     }
   });
 
   it("rejects non-HTTPS urls", () => {
-    expectParseError(stringifyEnvelope({ url: "http://passport.pubky.app/" }), "invalid_field", "url");
+    expectParseError(
+      stringifyEnvelope({ url: "http://passport.pubky.app/" }),
+      "invalid_file",
+      "url",
+    );
   });
 
   it("parses already-decoded envelope objects", () => {
-    const result = parsePassportFileEnvelope({ ...VALID_ENVELOPE, url: "https://passport.pubky.app/" });
+    const result = parsePassportFileEnvelope({
+      ...VALID_ENVELOPE,
+      url: "https://passport.pubky.app/",
+    });
 
     expect(Result.isOk(result)).toBe(true);
     if (Result.isError(result)) {

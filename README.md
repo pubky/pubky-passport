@@ -1,43 +1,29 @@
 # Pubky Passport
 
-Pubky Passport is a browser-based Pubky identity and authorization app. It currently supports Google OAuth.
+Browser-based Pubky identity recovery and authorization, backed by Google Drive.
 
-## Local Development
+## Development
 
-Requirements: Node.js 24.18.0 LTS and Corepack.
+Requires Node 24.18 and Corepack.
 
 ```bash
 nvm use
 corepack enable
 pnpm install
 cp .env.example .env.local
+pnpm dev --experimental-https
 ```
 
-Configure `.env.local`:
-
-| Variable | Purpose |
-| --- | --- |
-| `GOOGLE_CLIENT_ID` | Google OAuth client passed to the browser and used as the server ID-token audience. |
-| `HOMEGATE_URL` | CSP-safe HTTPS Homegate base URL passed to the browser. |
-| `PUBKY_HOMESERVER_CONNECT_ORIGINS` | Up to 16 comma-separated exact HTTPS homeserver origins allowed by browser CSP. Include origins used by current and returning identities during migrations. This does not select a homeserver. |
-| `PASSPORT_SERVER_SECRET_BASE64` | Server secret with at least 32 decoded bytes. Generate one with `openssl rand -base64 32`. |
-
-Add `https://localhost:3000` as both an authorized JavaScript origin and an
-authorized redirect URI on the Google OAuth web client, then start Next.js with
-local HTTPS:
+Create a 32-byte server secret with `openssl rand -base64 32`. Set its public ID in
+`PASSPORT_SERVER_SECRET_CURRENT_KEY_ID` and add it to
+`PASSPORT_SERVER_SECRET_KEYRING_JSON`. Register `https://localhost:3000` with the
+Google OAuth client.
 
 ```bash
-pnpm run dev --experimental-https
+pnpm check           # format, lint, types, coverage, build
+pnpm test:e2e        # production build and browser tests
+pnpm check:critical  # dependency audit and every check
 ```
 
-Open <https://localhost:3000>. On first run, Next.js uses `mkcert` to create trusted,
-ignored certificates under `certificates/` and may ask for permission to trust its
-local certificate authority. HTTPS is required by the Google flow and Passport file
-origin binding.
-
-
-Run the full local validation suite with:
-
-```bash
-pnpm check
-```
+See [integration](docs/integration.md), [operations](docs/operations.md), and
+[security](docs/security.md).

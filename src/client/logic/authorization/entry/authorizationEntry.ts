@@ -7,14 +7,15 @@ import {
   type EarlyAuthorizationLocation,
 } from "../../../../libs/authorization/earlyAuthorizationLocation";
 import { LOGGER } from "../../../../libs/logger/logger";
-import { IssuedPubkyAuthRequest } from "../request/IssuedPubkyAuthRequest";
-import { PUBKY_AUTH_REQUEST_LIMITS } from "../request/pubkyAuthRequestLimits";
+import { AUTHORIZATION_CAPTURE_MAX_CHARACTERS } from "../../../../libs/passportPolicy";
+import { ValidatedPubkyAuthRequest } from "../request/ValidatedPubkyAuthRequest";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "../request/parser/pubkyAuthRequestParser";
 
 export type AuthorizationEntry =
   | {
-    status: "valid";
-    request: IssuedPubkyAuthRequest;
-  }
+      status: "valid";
+      request: ValidatedPubkyAuthRequest;
+    }
   | { status: "empty" }
   | { status: "expired" }
   | { status: "invalid" };
@@ -23,12 +24,11 @@ export type AuthorizationEntry =
  * Consumes the early authorization capture, scrubs the address bar, and returns
  * only a safe entry state for controller construction.
  */
-export function readAndScrubAuthorizationEntry(
-  appWindow: Window,
-): AuthorizationEntry {
+export function readAndScrubAuthorizationEntry(appWindow: Window): AuthorizationEntry {
   const earlyLocation = takeEarlyAuthorizationLocation(appWindow);
   const rawSearch = earlyLocation?.status === "captured" ? "" : appWindow.location.search;
-  const rawHash = earlyLocation?.status === "captured" ? earlyLocation.hash : appWindow.location.hash;
+  const rawHash =
+    earlyLocation?.status === "captured" ? earlyLocation.hash : appWindow.location.hash;
   if (!scrubAuthorizationLocation(appWindow)) return { status: "invalid" };
 
   if (earlyLocation?.status === "expired") {
@@ -47,42 +47,43 @@ export function readAndScrubAuthorizationEntry(
     return { status: "empty" };
   }
 
-  const rawD = rawSearch.length === 0
-    ? extractAuthorizationFragmentValue(rawHash)
-    : { valid: false as const };
-  const issued = IssuedPubkyAuthRequest.issue(rawD.valid ? rawD.value : undefined);
-  if (Result.isError(issued)) {
+  const rawD =
+    rawSearch.length === 0 ? extractAuthorizationFragmentValue(rawHash) : { valid: false as const };
+  const validated = ValidatedPubkyAuthRequest.fromEncoded(rawD.valid ? rawD.value : undefined);
+  if (Result.isError(validated)) {
     LOGGER.info("authorize.parse.failed", {
       source: "fragment",
-      code: rawD.valid ? issued.error.code : "invalid_fragment_shape",
+      code: rawD.valid ? validated.error.code : "invalid_fragment_shape",
     });
   }
-  return Result.isError(issued)
+  return Result.isError(validated)
     ? { status: "invalid" }
     : {
-      status: "valid",
-      request: issued.value,
-    };
+        status: "valid",
+        request: validated.value,
+      };
 }
 
 function takeEarlyAuthorizationLocation(appWindow: Window): EarlyAuthorizationLocation | undefined {
-  const take = (appWindow as Window & Record<string, unknown>)[EARLY_AUTHORIZATION_LOCATION_PROPERTY];
+  const take = (appWindow as Window & Record<string, unknown>)[
+    EARLY_AUTHORIZATION_LOCATION_PROPERTY
+  ];
   if (typeof take !== "function") return undefined;
   try {
     const value: unknown = take();
     if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
     const capture = value as Record<string, unknown>;
     if (
-      capture.status === "expired"
-      || capture.status === "too_large"
-      || capture.status === "invalid_search"
+      capture.status === "expired" ||
+      capture.status === "too_large" ||
+      capture.status === "invalid_search"
     ) {
       return { status: capture.status };
     }
-    return capture.status === "captured"
-      && typeof capture.hash === "string"
-      && typeof capture.expiresAt === "number"
-      && Number.isFinite(capture.expiresAt)
+    return capture.status === "captured" &&
+      typeof capture.hash === "string" &&
+      typeof capture.expiresAt === "number" &&
+      Number.isFinite(capture.expiresAt)
       ? { status: "captured", hash: capture.hash, expiresAt: capture.expiresAt }
       : undefined;
   } catch {
@@ -137,8 +138,14 @@ export function scrubAuthorizationLocation(
       operation: "scrub_fragment",
       code: "history_unavailable",
     });
-    try { appWindow.stop(); } catch { /* Loading may already have stopped. */ }
-    try { appWindow.location.replace(appWindow.location.pathname); } catch {
+    try {
+      appWindow.stop();
+    } catch {
+      /* Loading may already have stopped. */
+    }
+    try {
+      appWindow.location.replace(appWindow.location.pathname);
+    } catch {
       /* Clean navigation is best effort when both native location APIs fail. */
     }
     return false;
@@ -152,11 +159,11 @@ function safeHistoryState(appWindow: Window): unknown {
   try {
     const serialized = JSON.stringify(state);
     if (
-      serialized === undefined
-      || serialized.length > 32_768
-      || (appWindow.location.hash !== "" && serialized.includes(appWindow.location.hash))
-      || (appWindow.location.search !== "" && serialized.includes(appWindow.location.search))
-      || /pubkyauth(?::|%3a)|(?:#|%23|\?|%3f)d(?:=|%3d)/iu.test(serialized)
+      serialized === undefined ||
+      serialized.length > AUTHORIZATION_CAPTURE_MAX_CHARACTERS ||
+      (appWindow.location.hash !== "" && serialized.includes(appWindow.location.hash)) ||
+      (appWindow.location.search !== "" && serialized.includes(appWindow.location.search)) ||
+      /pubkyauth(?::|%3a)|(?:#|%23|\?|%3f)d(?:=|%3d)/iu.test(serialized)
     ) {
       return null;
     }
@@ -168,6 +175,6 @@ function safeHistoryState(appWindow: Window): unknown {
 
 /** Invalidates private approval metadata when an entry must be abandoned. */
 export function invalidateAuthorizationEntry(entry: AuthorizationEntry): AuthorizationEntry {
-  if (entry.status === "valid") IssuedPubkyAuthRequest.release(entry.request);
+  if (entry.status === "valid") entry.request.release();
   return { status: "invalid" };
 }

@@ -1,7 +1,18 @@
 import Image from "next/image";
 
-function PubkyRingLogo() {
-  return <Image alt="Pubky Ring" height={30} priority src="/brand/pubky-ring-logo.svg" width={137} />;
+import { cn } from "../mergeClassNames";
+
+function PubkyRingLogo({ className }: { className?: string }) {
+  return (
+    <Image
+      alt="Pubky Ring"
+      className={cn("h-[30px] w-[137px]", className)}
+      height={40}
+      priority
+      src="/brand/pubky-ring-logo.svg"
+      width={184}
+    />
+  );
 }
 
 export { PubkyRingLogo };

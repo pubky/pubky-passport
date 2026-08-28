@@ -1,9 +1,8 @@
-"use client";
-
 import type { GoogleIdentityProgress as GoogleIdentityProgressState } from "../../../logic/google-identity/GoogleIdentityController";
 import { PassportScreen } from "../../shared/passportScreen";
 import { Spinner } from "../../shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
+import { SignInContext } from "../../shared/signInContext";
 
 type StepState = "complete" | "active" | "pending";
 type SetupStep = { label: string; state: StepState };
@@ -13,9 +12,15 @@ type ProgressPresentation = {
   steps: SetupStep[];
 };
 
-function GoogleIdentityProgress({ progress }: { progress: GoogleIdentityProgressState }) {
+function GoogleIdentityProgress({
+  progress,
+  signInTo,
+}: {
+  progress: GoogleIdentityProgressState;
+  signInTo?: string;
+}) {
   if (progress.flow === "lookup") {
-    return <IdentityLookup />;
+    return <IdentityLookup {...(signInTo ? { signInTo } : {})} />;
   }
 
   const presentation = progressPresentation(progress);
@@ -24,24 +29,35 @@ function GoogleIdentityProgress({ progress }: { progress: GoogleIdentityProgress
   return (
     <PassportScreen>
       <div className="flex flex-1 flex-col gap-6">
-        <DisplayHeading accent="your pubky." aria-label={`${presentation.heading} your pubky.`}>{presentation.heading}</DisplayHeading>
+        <DisplayHeading accent="your pubky." aria-label={`${presentation.heading} your pubky.`}>
+          {presentation.heading}
+        </DisplayHeading>
+        {signInTo ? <SignInContext requester={signInTo} /> : null}
         <p aria-atomic="true" className="sr-only" role="status">
           {presentation.heading} your Pubky: {activeStep?.label}.
         </p>
         <ol aria-label={presentation.listLabel} className="flex flex-col gap-6 py-3">
-          {presentation.steps.map((step) => <ProgressStep key={step.label} step={step} />)}
+          {presentation.steps.map((step) => (
+            <ProgressStep key={step.label} step={step} />
+          ))}
         </ol>
       </div>
     </PassportScreen>
   );
 }
 
-function IdentityLookup() {
+function IdentityLookup({ signInTo }: { signInTo?: string }) {
   return (
     <PassportScreen className="gap-6">
-      <DisplayHeading accent="existing Pubky." aria-label="Looking for existing Pubky.">Looking for</DisplayHeading>
+      <DisplayHeading
+        accent={<span className="whitespace-nowrap">existing Pubky.</span>}
+        aria-label="Looking for existing Pubky."
+      >
+        Looking for
+      </DisplayHeading>
+      {signInTo ? <SignInContext requester={signInTo} /> : null}
       <LeadText>Checking Google Drive for an encrypted Passport file.</LeadText>
-      <div className="flex items-center gap-3 py-3 text-muted-foreground" role="status">
+      <div className="flex items-center gap-3 py-3 text-muted-foreground md:w-fit" role="status">
         <Spinner aria-hidden="true" className="motion-reduce:animate-none" role="presentation" />
         Checking Google Drive…
       </div>
@@ -51,15 +67,36 @@ function IdentityLookup() {
 
 function ProgressStep({ step }: { step: SetupStep }) {
   return (
-    <li aria-current={step.state === "active" ? "step" : undefined} className="flex items-center gap-2">
-      {step.state === "complete" ? <CompleteIcon /> : step.state === "active" ? <ActiveIcon /> : <PendingIcon />}
-      <strong className={step.state === "complete" ? "text-brand" : step.state === "pending" ? "text-muted-foreground" : "text-foreground"}>{step.label}</strong>
+    <li
+      aria-current={step.state === "active" ? "step" : undefined}
+      className="flex items-center gap-2"
+    >
+      {step.state === "complete" ? (
+        <CompleteIcon />
+      ) : step.state === "active" ? (
+        <ActiveIcon />
+      ) : (
+        <PendingIcon />
+      )}
+      <strong
+        className={
+          step.state === "complete"
+            ? "text-brand"
+            : step.state === "pending"
+              ? "text-muted-foreground"
+              : "text-foreground"
+        }
+      >
+        {step.label}
+      </strong>
       <span className="sr-only"> ({step.state})</span>
     </li>
   );
 }
 
-function progressPresentation(progress: Exclude<GoogleIdentityProgressState, { flow: "lookup" }>): ProgressPresentation {
+function progressPresentation(
+  progress: Exclude<GoogleIdentityProgressState, { flow: "lookup" }>,
+): ProgressPresentation {
   switch (progress.flow) {
     case "create":
       return setupPresentation(CREATE_STEP_INDEX[progress.step]);
@@ -102,7 +139,15 @@ function repairPresentation(activeIndex: number): ProgressPresentation {
   return {
     heading: "Repairing",
     listLabel: "Pubky identity repair progress",
-    steps: states(["Restore Passport file", "Repair homeserver access", "Publish PKDNS records", "Sign in to the homeserver"], activeIndex),
+    steps: states(
+      [
+        "Restore Passport file",
+        "Repair homeserver access",
+        "Publish PKDNS records",
+        "Sign in to the homeserver",
+      ],
+      activeIndex,
+    ),
   };
 }
 
@@ -110,24 +155,69 @@ function setupPresentation(activeIndex: number): ProgressPresentation {
   return {
     heading: "Setting up",
     listLabel: "Pubky identity setup progress",
-    steps: states(["Store Passport file", "Sign up to the homeserver", "Publish PKDNS records", "Activate identity"], activeIndex),
+    steps: states(
+      [
+        "Store Passport file",
+        "Sign up to the homeserver",
+        "Publish PKDNS records",
+        "Activate identity",
+      ],
+      activeIndex,
+    ),
   };
 }
 
 function states(labels: string[], activeIndex: number): SetupStep[] {
-  return labels.map((label, index) => ({ label, state: index < activeIndex ? "complete" : index === activeIndex ? "active" : "pending" }));
+  return labels.map((label, index) => ({
+    label,
+    state: index < activeIndex ? "complete" : index === activeIndex ? "active" : "pending",
+  }));
 }
 
 function CompleteIcon() {
-  return <svg aria-hidden="true" className="size-6 shrink-0 text-brand" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" stroke="currentColor" /><path d="m7.5 12 3 3 6-7" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" /></svg>;
+  return (
+    <svg aria-hidden="true" className="size-6 shrink-0 text-brand" fill="none" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9.5" stroke="currentColor" />
+      <path
+        d="m7.5 12 3 3 6-7"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
 }
 
 function ActiveIcon() {
-  return <svg aria-hidden="true" className="size-6 shrink-0 animate-spin text-foreground motion-reduce:animate-none" fill="none" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" /></svg>;
+  return (
+    <svg
+      aria-hidden="true"
+      className="size-6 shrink-0 animate-spin text-foreground motion-reduce:animate-none"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <path
+        d="M21 12a9 9 0 1 1-9-9"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
 }
 
 function PendingIcon() {
-  return <svg aria-hidden="true" className="size-6 shrink-0 text-muted-foreground" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" stroke="currentColor" /></svg>;
+  return (
+    <svg
+      aria-hidden="true"
+      className="size-6 shrink-0 text-muted-foreground"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <circle cx="12" cy="12" r="9.5" stroke="currentColor" />
+    </svg>
+  );
 }
 
 export { GoogleIdentityProgress };

@@ -2,12 +2,11 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { LOGGER } from "../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
+import { NETWORK_OPERATION_TIMEOUT_MS, REQUEST_TIMEOUT_MS } from "../../../libs/passportPolicy";
 import type { CodedFailure } from "../../../libs/result";
-import type {
-  GoogleAccountProfile,
-} from "../local-identity/localIdentityModels";
-import type { GoogleIdentityCredentials } from "./GoogleImplicitAuthorization";
+import type { GoogleAccountProfile } from "../local-identity/localIdentityModels";
+import type { GoogleIdentityCredentials } from "./gia/GoogleImplicitAuthorization";
 import {
   HomegateClient,
   type HomegateSignupInvitationErrorCode,
@@ -15,7 +14,7 @@ import {
 } from "../homegate/HomegateClient";
 import { GoogleDrivePassportFileStore } from "../passport-file/google/GoogleDrivePassportFileStore";
 import { GoogleDriveVisibleRecoveryCopies } from "../passport-file/google/GoogleDriveVisibleRecoveryCopies";
-import type { PassportFileEnvelopeV1 } from "../passport-file/passportFileEnvelope";
+import type { PassportFileEnvelope } from "../passport-file/passportFileEnvelope";
 import { PassportFileWebCrypto } from "../passport-file/PassportFileWebCrypto";
 import {
   PUBKY_SECRET_KEY_FORMAT,
@@ -33,55 +32,57 @@ import { LocalStorageIdentityRepository } from "../local-identity/LocalStorageId
 export type GoogleIdentityProgress =
   | { flow: "lookup"; step: "checking" }
   | {
-    flow: "create";
-    step: "preparing" | "creating" | "storing_passport_file" | "signing_up" | "publishing" | "activating";
-  }
+      flow: "create";
+      step:
+        | "preparing"
+        | "creating"
+        | "storing_passport_file"
+        | "signing_up"
+        | "publishing"
+        | "activating";
+    }
   | { flow: "restore"; step: "restoring" | "signing_in" }
   | { flow: "repair"; step: "signing_up" | "publishing" | "signing_in" };
 
-const VISIBLE_RECOVERY_COPY_TIMEOUT_MS = 10_000;
-const NETWORK_REQUEST_TIMEOUT_MS = 30_000;
-
 export type GoogleIdentityOperationValue =
   | {
-    establishmentMode: "created";
-    publicIdentity: PubkyPublicIdentity;
-    visibleRecoveryCopyStatus: "created" | "unconfirmed";
-  }
+      establishmentMode: "created";
+      publicIdentity: PubkyPublicIdentity;
+      visibleRecoveryCopyStatus: "created" | "unconfirmed";
+    }
   | {
-    establishmentMode: "restored";
-    publicIdentity: PubkyPublicIdentity;
-  };
-
-type GoogleIdentityFailureCode =
-  | "create_failed"
-  | "decrypt_failed"
-  | "publication_failed"
-  | "drive_create_conflict"
-  | "invalid_passport_file"
-  | "invalid_passport_file_delete_failed"
-  | "drive_read_failed"
-  | "drive_write_failed"
-  | "encrypt_failed"
-  | "identity_mismatch"
-  | "local_save_failed"
-  | "restore_failed"
-  | "signin_failed"
-  | "signup_failed"
-  | "unexpected_failure";
+      establishmentMode: "restored";
+      publicIdentity: PubkyPublicIdentity;
+    };
 
 type GoogleIdentityEstablishmentError =
   | {
-    code: "wrapping_key_failed";
-    detailCode: GoogleWrappingKeyErrorCode;
-    cause?: unknown;
-  }
+      code: "wrapping_key_failed";
+      detailCode: GoogleWrappingKeyErrorCode;
+      cause?: unknown;
+    }
   | {
-    code: "homeserver_signup_invitation_failed";
-    detailCode: HomegateSignupInvitationErrorCode;
-    cause?: unknown;
-  }
-  | CodedFailure<GoogleIdentityFailureCode>;
+      code: "homeserver_signup_invitation_failed";
+      detailCode: HomegateSignupInvitationErrorCode;
+      cause?: unknown;
+    }
+  | CodedFailure<
+      | "create_failed"
+      | "decrypt_failed"
+      | "publication_failed"
+      | "drive_create_conflict"
+      | "invalid_passport_file"
+      | "invalid_passport_file_delete_failed"
+      | "drive_read_failed"
+      | "drive_write_failed"
+      | "encrypt_failed"
+      | "identity_mismatch"
+      | "local_save_failed"
+      | "restore_failed"
+      | "signin_failed"
+      | "signup_failed"
+      | "unexpected_failure"
+    >;
 
 type GoogleIdentityOperationResult = ResultType<
   GoogleIdentityOperationValue,
@@ -93,25 +94,21 @@ type DetachGoogleIdentityError = CodedFailure<
 >;
 
 export type GoogleIdentityOperationError =
-  | GoogleIdentityEstablishmentError
-  | DetachGoogleIdentityError;
+  GoogleIdentityEstablishmentError | DetachGoogleIdentityError;
 
 type DetachGoogleIdentityResult = ResultType<void, DetachGoogleIdentityError>;
 
 type OperationResult<Success = void> = ResultType<Success, GoogleIdentityEstablishmentError>;
 
-/**
- * Manages the complete Google-backed Pubky identity lifecycle for one screen.
- */
 export class GoogleIdentityOperations {
-  private repository = new LocalStorageIdentityRepository();
-  private pubky: PubkySdkAdapter;
-  private wrappingKeys: GoogleWrappingKeyApiClient;
-  private homegate: HomegateClient;
-  private crypto: PassportFileWebCrypto;
-  private requests = new AbortController();
-  private fetch: typeof fetch = (request, init) => {
-    const signals = [this.requests.signal, AbortSignal.timeout(NETWORK_REQUEST_TIMEOUT_MS)];
+  private readonly repository = new LocalStorageIdentityRepository();
+  private readonly pubky: PubkySdkAdapter;
+  private readonly wrappingKeys: GoogleWrappingKeyApiClient;
+  private readonly homegate: HomegateClient;
+  private readonly crypto: PassportFileWebCrypto;
+  private readonly requests = new AbortController();
+  private readonly fetch: typeof fetch = (request, init) => {
+    const signals = [this.requests.signal, AbortSignal.timeout(NETWORK_OPERATION_TIMEOUT_MS)];
     if (init?.signal) signals.push(init.signal);
     return globalThis.fetch(request, { ...init, signal: AbortSignal.any(signals) });
   };
@@ -119,17 +116,16 @@ export class GoogleIdentityOperations {
 
   constructor(
     homegateBaseUrl: string,
-    private passportOrigin: string,
+    private readonly passportOrigin: string,
   ) {
-    const pubky = new PubkySdkAdapter();
-    this.pubky = pubky;
+    this.pubky = new PubkySdkAdapter();
     try {
       this.wrappingKeys = new GoogleWrappingKeyApiClient(this.fetch);
       this.homegate = new HomegateClient(homegateBaseUrl, this.fetch);
       this.crypto = new PassportFileWebCrypto();
     } catch (error) {
       try {
-        pubky.dispose();
+        this.pubky.dispose();
       } catch {
         LOGGER.warn("identity.google.cleanup.failed", {
           operation: "construction_pubky_dispose",
@@ -151,18 +147,27 @@ export class GoogleIdentityOperations {
       const storedFile = await store.readPassportFile();
       if (Result.isError(storedFile)) {
         return Result.err({
-          code: storedFile.error.code === "invalid_file"
-            ? "invalid_passport_file"
-            : "drive_read_failed",
+          code:
+            storedFile.error.code === "invalid_file"
+              ? "invalid_passport_file"
+              : "drive_read_failed",
           cause: storedFile.error,
         });
       }
 
       if (storedFile.value.status === "found") {
         LOGGER.info("identity.google.drive_read.completed", { status: "found" });
-        const wrappingKey = await this.requestWrappingKey(credentials.googleIdToken);
+        const wrappingKey = await this.requestWrappingKey(
+          credentials.googleIdToken,
+          storedFile.value.envelope,
+        );
         if (Result.isError(wrappingKey)) return Result.err(wrappingKey.error);
-        return this.restoreIdentity(credentials, storedFile.value.envelope, wrappingKey.value, report);
+        return this.restoreIdentity(
+          credentials,
+          storedFile.value.envelope,
+          wrappingKey.value.wrappingKey,
+          report,
+        );
       }
 
       LOGGER.info("identity.google.drive_read.completed", { status: "missing" });
@@ -180,16 +185,18 @@ export class GoogleIdentityOperations {
       return this.createIdentity(
         credentials.googleAccount,
         invitation.value,
-        wrappingKey.value,
+        wrappingKey.value.wrappingKey,
+        wrappingKey.value.keyId,
         report,
         store,
         visibleCopies,
       );
-    } catch (error) {
+    } catch (cause) {
       LOGGER.warn("identity.google.restore_or_create.failed", {
         code: "unexpected_failure",
+        ...safeErrorLogFields(cause),
       });
-      return Result.err({ code: "unexpected_failure", cause: error });
+      return Result.err({ code: "unexpected_failure", cause });
     }
   }
 
@@ -208,13 +215,14 @@ export class GoogleIdentityOperations {
         });
       }
       return this.establishIdentity(credentials, report);
-    } catch (error) {
+    } catch (cause) {
       LOGGER.warn("identity.google.invalid_passport_file_replacement.failed", {
         code: "unexpected_failure",
+        ...safeErrorLogFields(cause),
       });
       return Result.err({
         code: "invalid_passport_file_delete_failed",
-        cause: error,
+        cause,
       });
     }
   }
@@ -240,11 +248,12 @@ export class GoogleIdentityOperations {
       return Result.isError(removed)
         ? Result.err({ code: "local_remove_failed", cause: removed.error })
         : Result.ok();
-    } catch (error) {
+    } catch (cause) {
       LOGGER.warn("identity.google.detach.failed", {
         code: "unexpected_failure",
+        ...safeErrorLogFields(cause),
       });
-      return Result.err({ code: "unexpected_failure", cause: error });
+      return Result.err({ code: "unexpected_failure", cause });
     }
   }
 
@@ -269,6 +278,7 @@ export class GoogleIdentityOperations {
     googleAccount: GoogleAccountProfile,
     invitation: HomeserverSignupInvitation,
     wrappingKey: string,
+    keyId: string,
     report: (progress: GoogleIdentityProgress) => void,
     store: GoogleDrivePassportFileStore,
     visibleCopies: GoogleDriveVisibleRecoveryCopies,
@@ -290,13 +300,11 @@ export class GoogleIdentityOperations {
       let visibleRecoveryCopyStatus: "created" | "unconfirmed" = "created";
       report({ flow: "create", step: "storing_passport_file" });
       LOGGER.info("identity.google.encrypt.started");
-      const encrypted = await this.crypto.encryptSecretKeyBytes(
-        secretKey.value.bytes,
-        wrappingKey,
-        this.passportOrigin,
-      ).finally(() => {
-        secretKey.value.bytes.fill(0);
-      });
+      const encrypted = await this.crypto
+        .encryptSecretKeyBytes(secretKey.value.bytes, wrappingKey, this.passportOrigin, keyId)
+        .finally(() => {
+          secretKey.value.bytes.fill(0);
+        });
       if (Result.isError(encrypted)) {
         return Result.err({ code: "encrypt_failed", cause: encrypted.error });
       }
@@ -307,9 +315,10 @@ export class GoogleIdentityOperations {
       const written = await store.createPassportFile(envelope);
       if (Result.isError(written)) {
         return Result.err({
-          code: written.error.code === "create_conflict"
-            ? "drive_create_conflict"
-            : "drive_write_failed",
+          code:
+            written.error.code === "create_conflict"
+              ? "drive_create_conflict"
+              : "drive_write_failed",
           cause: written.error,
         });
       }
@@ -323,9 +332,13 @@ export class GoogleIdentityOperations {
       );
       if (!visibleCopyConfirmed) {
         visibleRecoveryCopyStatus = "unconfirmed";
-        LOGGER.warn("identity.google.visible_recovery_copy.unconfirmed", { activationContinues: true });
+        LOGGER.warn("identity.google.visible_recovery_copy.unconfirmed", {
+          activationContinues: true,
+        });
       }
-      LOGGER.info("identity.google.visible_recovery_copy.completed", { status: visibleRecoveryCopyStatus });
+      LOGGER.info("identity.google.visible_recovery_copy.completed", {
+        status: visibleRecoveryCopyStatus,
+      });
 
       const activated = await this.signupAndActivate(
         created.value,
@@ -352,7 +365,7 @@ export class GoogleIdentityOperations {
    */
   private async restoreIdentity(
     credentials: GoogleIdentityCredentials,
-    envelope: PassportFileEnvelopeV1,
+    envelope: PassportFileEnvelope,
     wrappingKey: string,
     report: (progress: GoogleIdentityProgress) => void,
   ): Promise<GoogleIdentityOperationResult> {
@@ -362,11 +375,15 @@ export class GoogleIdentityOperations {
 
     try {
       report({ flow: "restore", step: "signing_in" });
-      const signedIn = await this.pubky.signin(restored.value.keyHandle);
+      const signedIn = await this.pubky.signin(restored.value.keyHandle, "normal");
       if (!Result.isError(signedIn)) {
         const verified = this.verifySessionIdentity(restored.value, signedIn.value.publicIdentity);
         if (Result.isError(verified)) return Result.err(verified.error);
-        const saved = await this.saveIdentity(restored.value, credentials.googleAccount, "restored");
+        const saved = await this.saveIdentity(
+          restored.value,
+          credentials.googleAccount,
+          "restored",
+        );
         if (Result.isError(saved)) return Result.err(saved.error);
         return Result.ok({
           establishmentMode: "restored",
@@ -406,7 +423,7 @@ export class GoogleIdentityOperations {
 
   /** Decrypts exactly 32 secret bytes; the Pubky adapter consumes and clears them during restoration. */
   private async restoreKey(
-    envelope: PassportFileEnvelopeV1,
+    envelope: PassportFileEnvelope,
     wrappingKey: string,
   ): Promise<OperationResult<PubkyIdentityKey>> {
     LOGGER.info("identity.google.decrypt.started");
@@ -449,20 +466,24 @@ export class GoogleIdentityOperations {
       invitation.homeserverPubky,
       invitation.signupCode,
     );
-    if (Result.isError(signedUp)
-      && signedUp.error.code !== "account_exists"
-      && signedUp.error.code !== "signup_uncertain") {
+    if (
+      Result.isError(signedUp) &&
+      signedUp.error.code !== "account_exists" &&
+      signedUp.error.code !== "signup_uncertain"
+    ) {
       return Result.err({ code: "signup_failed", cause: signedUp.error });
     }
-    const signupWasUncertain = Result.isError(signedUp)
-      && signedUp.error.code === "signup_uncertain";
+    const signupWasUncertain =
+      Result.isError(signedUp) && signedUp.error.code === "signup_uncertain";
     LOGGER.info("identity.google.signup.completed", {
       status: Result.isError(signedUp) ? signedUp.error.code : "created",
     });
 
-    report(isReconciliation
-      ? { flow: "repair", step: "publishing" }
-      : { flow: "create", step: "publishing" });
+    report(
+      isReconciliation
+        ? { flow: "repair", step: "publishing" }
+        : { flow: "create", step: "publishing" },
+    );
     LOGGER.info("identity.google.publication.started");
     const published = await this.pubky.publishHomeserver(
       identity.keyHandle,
@@ -474,17 +495,19 @@ export class GoogleIdentityOperations {
     const publicationWasUncertain = Result.isError(published);
     if (!publicationWasUncertain) LOGGER.info("identity.google.publication.completed");
 
-    report(isReconciliation
-      ? { flow: "repair", step: "signing_in" }
-      : { flow: "create", step: "activating" });
-    const signedIn = await this.pubky.signin(identity.keyHandle, {
-      waitForPkdnsPublication: true,
-    });
+    report(
+      isReconciliation
+        ? { flow: "repair", step: "signing_in" }
+        : { flow: "create", step: "activating" },
+    );
+    const signedIn = await this.pubky.signin(identity.keyHandle, "after-publication");
     if (Result.isError(signedIn)) {
       return Result.err({
         code: signupWasUncertain
           ? "signup_failed"
-          : publicationWasUncertain ? "publication_failed" : "signin_failed",
+          : publicationWasUncertain
+            ? "publication_failed"
+            : "signin_failed",
         cause: signedIn.error,
       });
     }
@@ -515,10 +538,13 @@ export class GoogleIdentityOperations {
       return Result.err({ code: "local_save_failed", cause: secretKey.error });
     }
     try {
-      const saved = this.repository.save({
-        publicIdentity: identity.publicIdentity,
-        googleAccount,
-      }, secretKey.value);
+      const saved = this.repository.save(
+        {
+          publicIdentity: identity.publicIdentity,
+          googleAccount,
+        },
+        secretKey.value,
+      );
       if (Result.isError(saved)) {
         return Result.err({ code: "local_save_failed", cause: saved.error });
       }
@@ -533,7 +559,7 @@ export class GoogleIdentityOperations {
     googleIdToken: string,
   ): Promise<OperationResult<HomeserverSignupInvitation>> {
     LOGGER.info("identity.google.homeserver_signup_invitation.started");
-    const invitation = await this.homegate.requestGoogleHomeserverSignupInvitation(googleIdToken);
+    const invitation = await this.homegate.requestGoogleSignupInvitation(googleIdToken);
     if (Result.isError(invitation)) {
       return Result.err({
         code: "homeserver_signup_invitation_failed",
@@ -545,9 +571,15 @@ export class GoogleIdentityOperations {
     return Result.ok(invitation.value);
   }
 
-  private async requestWrappingKey(googleIdToken: string): Promise<OperationResult<string>> {
+  private async requestWrappingKey(
+    googleIdToken: string,
+    envelope?: PassportFileEnvelope,
+  ): Promise<OperationResult<{ wrappingKey: string; keyId: string }>> {
     LOGGER.info("identity.google.wrapping_key.started");
-    const wrappingKey = await this.wrappingKeys.requestGoogleWrappingKey(googleIdToken);
+    const wrappingKey = await this.wrappingKeys.requestGoogleWrappingKey(
+      googleIdToken,
+      envelope?.keyId,
+    );
     if (Result.isError(wrappingKey)) {
       return Result.err({
         code: "wrapping_key_failed",
@@ -570,11 +602,17 @@ export class GoogleIdentityOperations {
     }
 
     if (storedFile.value.status === "found") {
-      const wrappingKey = await this.wrappingKeys.requestGoogleWrappingKey(credentials.googleIdToken);
+      const wrappingKey = await this.wrappingKeys.requestGoogleWrappingKey(
+        credentials.googleIdToken,
+        storedFile.value.envelope.keyId,
+      );
       if (Result.isError(wrappingKey)) {
         return Result.err({ code: "google_drive_cleanup_failed", cause: wrappingKey.error });
       }
-      const restored = await this.restoreKey(storedFile.value.envelope, wrappingKey.value);
+      const restored = await this.restoreKey(
+        storedFile.value.envelope,
+        wrappingKey.value.wrappingKey,
+      );
       if (Result.isError(restored)) {
         return Result.err({ code: "google_drive_cleanup_failed", cause: restored.error });
       }
@@ -595,9 +633,7 @@ export class GoogleIdentityOperations {
       credentials.driveAccessToken,
       this.fetch,
     );
-    const deletedVisibleCopies = await visibleCopies.deleteVisibleRecoveryCopies(
-      publicIdentity,
-    );
+    const deletedVisibleCopies = await visibleCopies.deleteVisibleRecoveryCopies(publicIdentity);
     if (Result.isError(deletedVisibleCopies)) {
       return Result.err({ code: "google_drive_cleanup_failed", cause: deletedVisibleCopies.error });
     }
@@ -611,7 +647,7 @@ export class GoogleIdentityOperations {
 
   private async createVisibleRecoveryCopy(
     visibleCopies: GoogleDriveVisibleRecoveryCopies,
-    envelope: PassportFileEnvelopeV1,
+    envelope: PassportFileEnvelope,
     publicIdentity: PubkyPublicIdentity,
   ): Promise<boolean> {
     let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -624,15 +660,22 @@ export class GoogleIdentityOperations {
       timeout = setTimeout(() => {
         controller.abort();
         finishTimeout();
-      }, VISIBLE_RECOVERY_COPY_TIMEOUT_MS);
+      }, REQUEST_TIMEOUT_MS);
       const result = await Promise.race([
         visibleCopies.createVisibleRecoveryCopy(envelope, publicIdentity, controller.signal),
         deadline,
       ]);
-      return result !== undefined && Result.isOk(result);
-    } catch {
+      if (result === undefined || Result.isOk(result)) return result !== undefined;
       LOGGER.warn("identity.google.visible_recovery_copy.failed", {
         stage: "create",
+        code: result.error.code,
+        ...safeErrorLogFields(result.error),
+      });
+      return false;
+    } catch (cause) {
+      LOGGER.warn("identity.google.visible_recovery_copy.failed", {
+        stage: "create",
+        ...safeErrorLogFields(cause),
       });
       return false;
     } finally {

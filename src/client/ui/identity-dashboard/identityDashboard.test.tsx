@@ -1,89 +1,117 @@
 /** @vitest-environment jsdom */
 
 import { cleanup, render, screen } from "@testing-library/react";
+import { Keypair } from "@synonymdev/pubky";
 import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LocalIdentityController } from "../../logic/local-identity/LocalIdentityController";
 import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
 import type { PubkyPublicIdentity } from "../../logic/pubky/pubkyIdentityKey";
 import { withGoogleIdentityConfiguration } from "../../../../test-utils/googleIdentityConfiguration";
 import { mockGoogleIdentityController } from "../../../../test-utils/mockGoogleIdentityController";
+import { PubkyRingMigration } from "../../logic/pubky/PubkySdkAdapter";
 import { IdentityDashboard } from "./identityDashboard";
 
 const FLOW = vi.hoisted(() => ({
   catalog: { activePublicKeyZ32: null, identities: [] } as LocalIdentityCatalog,
+  catalogListener: undefined as (() => void) | undefined,
   establishIdentity: false,
   establishmentMode: "created" as "created" | "restored",
   migrationExportKeys: [] as string[],
-  migrationUrl: "pubkyring://migrate?index=0&total=1&key=active-secret",
   storageUnavailable: false,
 }));
 
-function mockLocalIdentityController(
-  overrides: Partial<LocalIdentityController> = {},
-): LocalIdentityController {
-  return {
-    listIdentities: vi.fn(() => Result.ok({ activePublicKeyZ32: null, identities: [] })),
-    selectIdentity: vi.fn(() => Result.ok()),
-    removeIdentity: vi.fn(() => Result.ok()),
-    resolveHomeserver: vi.fn(async () => Result.ok(null)),
-    createRecoveryFile: vi.fn(async () => Result.err({ code: "recovery_file_failed" as const })),
-    createPubkyRingMigrationUrl: vi.fn(() => Result.err({ code: "invalid_identity" as const })),
-    ...overrides,
-  } as unknown as LocalIdentityController;
-}
-
 vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
   MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS: 6,
-  LocalIdentityController: function LocalIdentityController() {
-    return mockLocalIdentityController({
-      createPubkyRingMigrationUrl: (publicKeyZ32: string) => {
-        FLOW.migrationExportKeys.push(publicKeyZ32);
-        return Result.ok(FLOW.migrationUrl);
-      },
-      listIdentities: () => FLOW.storageUnavailable
-        ? Result.err({ code: "storage_unavailable" as const })
-        : Result.ok(FLOW.catalog),
-      removeIdentity: (publicKeyZ32: string) => {
-        const identities = FLOW.catalog.identities.filter(
-          (identity) => identity.publicIdentity.publicKeyZ32 !== publicKeyZ32,
-        );
-        FLOW.catalog = { activePublicKeyZ32: identities[0]?.publicIdentity.publicKeyZ32 ?? null, identities };
-        return Result.ok();
-      },
-    });
+  LocalIdentityController: class {
+    constructor() {
+      return {
+        createPubkyRingMigration: (publicKeyZ32: string) => {
+          FLOW.migrationExportKeys.push(publicKeyZ32);
+          return Result.ok(
+            new PubkyRingMigration(
+              Keypair.fromSecret(Uint8Array.from({ length: 32 }, (_, index) => index)),
+            ),
+          );
+        },
+        listIdentities: () =>
+          FLOW.storageUnavailable
+            ? Result.err({ code: "storage_unavailable" as const })
+            : Result.ok(FLOW.catalog),
+        removeIdentity: (publicKeyZ32: string) => {
+          const identities = FLOW.catalog.identities.filter(
+            (identity) => identity.publicIdentity.publicKeyZ32 !== publicKeyZ32,
+          );
+          FLOW.catalog = {
+            activePublicKeyZ32: identities[0]?.publicIdentity.publicKeyZ32 ?? null,
+            identities,
+          };
+          FLOW.catalogListener?.();
+          return Result.ok();
+        },
+        selectIdentity: (publicKeyZ32: string) => {
+          FLOW.catalog = { ...FLOW.catalog, activePublicKeyZ32: publicKeyZ32 };
+          FLOW.catalogListener?.();
+          return Result.ok();
+        },
+        subscribeToIdentityChanges: (listener: () => void) => {
+          FLOW.catalogListener = listener;
+          return () => {
+            FLOW.catalogListener = undefined;
+          };
+        },
+        resolveHomeserver: vi.fn(async () => Result.ok(null)),
+        createRecoveryFile: vi.fn(async () =>
+          Result.err({ code: "recovery_file_failed" as const }),
+        ),
+      };
+    }
   },
 }));
 
 vi.mock("../../logic/google-identity/GoogleIdentityController", () => ({
-  GoogleIdentityController: function GoogleIdentityController() {
-    return mockGoogleIdentityController({
-      establishIdentity: async () => {
-        if (FLOW.establishIdentity) {
-          const identity = {
-            publicIdentity: { publicKeyZ32: "created", publicKeyDisplay: "pubkycreated" },
-            googleAccount: { googleSubject: "google-created", email: "created@gmail.com", name: "Created", pictureUrl: null },
+  GoogleIdentityController: class {
+    constructor() {
+      return mockGoogleIdentityController({
+        establishIdentity: async () => {
+          if (FLOW.establishIdentity) {
+            const identity = {
+              publicIdentity: { publicKeyZ32: "created" },
+              googleAccount: {
+                googleSubject: "google-created",
+                email: "created@gmail.com",
+                name: "Created",
+                pictureUrl: null,
+              },
+            };
+            FLOW.catalog = {
+              activePublicKeyZ32: identity.publicIdentity.publicKeyZ32,
+              identities: [identity],
+            };
+            FLOW.catalogListener?.();
+            return Result.ok({
+              establishmentMode: FLOW.establishmentMode,
+              googleAccount: identity.googleAccount,
+              publicIdentity: identity.publicIdentity,
+              visibleRecoveryCopyStatus: "created" as const,
+            });
+          }
+          return Result.err({ code: "authorization_failed" as const });
+        },
+        detachIdentity: async (publicIdentity: PubkyPublicIdentity) => {
+          const identities = FLOW.catalog.identities.filter(
+            (identity) => identity.publicIdentity.publicKeyZ32 !== publicIdentity.publicKeyZ32,
+          );
+          FLOW.catalog = {
+            activePublicKeyZ32: identities[0]?.publicIdentity.publicKeyZ32 ?? null,
+            identities,
           };
-          FLOW.catalog = { activePublicKeyZ32: identity.publicIdentity.publicKeyZ32, identities: [identity] };
-          return Result.ok({
-            establishmentMode: FLOW.establishmentMode,
-            googleAccount: identity.googleAccount,
-            publicIdentity: identity.publicIdentity,
-            visibleRecoveryCopyStatus: "created" as const,
-          });
-        }
-        return Result.err({ code: "authorization_failed" as const });
-      },
-      detachIdentity: async (publicIdentity: PubkyPublicIdentity) => {
-        const identities = FLOW.catalog.identities.filter(
-          (identity) => identity.publicIdentity.publicKeyZ32 !== publicIdentity.publicKeyZ32,
-        );
-        FLOW.catalog = { activePublicKeyZ32: identities[0]?.publicIdentity.publicKeyZ32 ?? null, identities };
-        return Result.ok();
-      },
-    });
+          FLOW.catalogListener?.();
+          return Result.ok();
+        },
+      });
+    }
   },
 }));
 
@@ -94,6 +122,7 @@ function renderDashboard() {
 describe("IdentityDashboard", () => {
   beforeEach(() => {
     FLOW.catalog = { activePublicKeyZ32: null, identities: [] };
+    FLOW.catalogListener = undefined;
     FLOW.establishIdentity = false;
     FLOW.establishmentMode = "created";
     FLOW.migrationExportKeys = [];
@@ -107,7 +136,9 @@ describe("IdentityDashboard", () => {
 
   it("shows the landing page when no local identity exists", async () => {
     renderDashboard();
-    expect(await screen.findByRole("heading", { name: "Quick & easy signing." })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Quick & easy signing." }),
+    ).toBeInTheDocument();
   });
 
   it("offers to reload when local identity storage is unavailable", async () => {
@@ -122,7 +153,9 @@ describe("IdentityDashboard", () => {
     FLOW.establishIdentity = true;
     renderDashboard();
 
-    await userEvent.setup().click(await screen.findByRole("button", { name: "Continue with Google" }));
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Continue with Google" }));
 
     expect(await screen.findByRole("heading", { name: "Setup complete." })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Your pubky." })).not.toBeInTheDocument();
@@ -135,7 +168,9 @@ describe("IdentityDashboard", () => {
     FLOW.establishmentMode = "restored";
     renderDashboard();
 
-    await userEvent.setup().click(await screen.findByRole("button", { name: "Continue with Google" }));
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Continue with Google" }));
 
     expect(await screen.findByRole("heading", { name: "Restore complete." })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Your pubky." })).not.toBeInTheDocument();
@@ -144,21 +179,55 @@ describe("IdentityDashboard", () => {
   });
 
   it("routes a stored identity to the signed-in home state", async () => {
-    FLOW.catalog = { activePublicKeyZ32: "identity", identities: [{ publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" }, googleAccount: { googleSubject: "google-1", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: null } }] };
+    FLOW.catalog = {
+      activePublicKeyZ32: "identity",
+      identities: [
+        {
+          publicIdentity: { publicKeyZ32: "identity" },
+          googleAccount: {
+            googleSubject: "google-1",
+            email: "satoshi@gmail.com",
+            name: "Satoshi Nakamoto",
+            pictureUrl: null,
+          },
+        },
+      ],
+    };
     renderDashboard();
     expect(await screen.findByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
-    expect(screen.getByText("Satoshi Nakamoto")).toBeInTheDocument();
+    const name = screen.getByText("Satoshi Nakamoto");
+    expect(name).toHaveClass("w-[276px]", "text-2xl", "leading-8");
+    expect(name.parentElement).toHaveClass("gap-0");
     expect(screen.getByText("identity")).toHaveClass("normal-case");
     expect(screen.getByText("identity")).not.toHaveClass("uppercase");
-    expect(screen.queryByRole("heading", { name: "Quick & easy signing." })).not.toBeInTheDocument();
+    expect(screen.getByText("satoshi@gmail.com")).toHaveClass(
+      "w-[276px]",
+      "h-10",
+      "gap-2",
+      "py-2",
+      "font-bold",
+      "leading-5",
+    );
+    expect(screen.queryByRole("button", { name: "satoshi@gmail.com" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Quick & easy signing." }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the active identity when several identities exist", async () => {
     FLOW.catalog = {
       activePublicKeyZ32: "second",
       identities: [
-        { publicIdentity: { publicKeyZ32: "first", publicKeyDisplay: "pubkyfirst" } },
-        { publicIdentity: { publicKeyZ32: "second", publicKeyDisplay: "pubkysecond" }, googleAccount: { googleSubject: "google-2", email: "active@gmail.com", name: "Active Account", pictureUrl: null } },
+        { publicIdentity: { publicKeyZ32: "first" } },
+        {
+          publicIdentity: { publicKeyZ32: "second" },
+          googleAccount: {
+            googleSubject: "google-2",
+            email: "active@gmail.com",
+            name: "Active Account",
+            pictureUrl: null,
+          },
+        },
       ],
     };
     renderDashboard();
@@ -169,27 +238,34 @@ describe("IdentityDashboard", () => {
   });
 
   it("opens the switcher and sends Add identity to the signing flow", async () => {
-    FLOW.catalog = { activePublicKeyZ32: "identity", identities: [{ publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" } }] };
+    FLOW.catalog = {
+      activePublicKeyZ32: "identity",
+      identities: [{ publicIdentity: { publicKeyZ32: "identity" } }],
+    };
     renderDashboard();
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Switch" }));
     expect(screen.getByRole("heading", { name: "Switch identity." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Add identity" }));
 
-    expect(await screen.findByRole("heading", { name: "Quick & easy signing." })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Quick & easy signing." }),
+    ).toBeInTheDocument();
   });
 
   it("gates a newly added identity behind setup completion", async () => {
     FLOW.establishIdentity = true;
     FLOW.catalog = {
       activePublicKeyZ32: "existing",
-      identities: [{ publicIdentity: { publicKeyZ32: "existing", publicKeyDisplay: "pubkyexisting" } }],
+      identities: [{ publicIdentity: { publicKeyZ32: "existing" } }],
     };
     renderDashboard();
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Switch" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Add identity" }));
-    await userEvent.setup().click(await screen.findByRole("button", { name: "Continue with Google" }));
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Continue with Google" }));
 
     expect(await screen.findByRole("heading", { name: "Setup complete." })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Your pubky." })).not.toBeInTheDocument();
@@ -202,8 +278,24 @@ describe("IdentityDashboard", () => {
     FLOW.catalog = {
       activePublicKeyZ32: "first",
       identities: [
-        { publicIdentity: { publicKeyZ32: "first", publicKeyDisplay: "pubkyfirst" }, googleAccount: { googleSubject: "google-1", email: "first@gmail.com", name: "First", pictureUrl: null } },
-        { publicIdentity: { publicKeyZ32: "second", publicKeyDisplay: "pubkysecond" }, googleAccount: { googleSubject: "google-2", email: "second@gmail.com", name: "Second", pictureUrl: null } },
+        {
+          publicIdentity: { publicKeyZ32: "first" },
+          googleAccount: {
+            googleSubject: "google-1",
+            email: "first@gmail.com",
+            name: "First",
+            pictureUrl: null,
+          },
+        },
+        {
+          publicIdentity: { publicKeyZ32: "second" },
+          googleAccount: {
+            googleSubject: "google-2",
+            email: "second@gmail.com",
+            name: "Second",
+            pictureUrl: null,
+          },
+        },
       ],
     };
     renderDashboard();
@@ -216,7 +308,10 @@ describe("IdentityDashboard", () => {
   });
 
   it("opens recovery-file download from identity management", async () => {
-    FLOW.catalog = { activePublicKeyZ32: "identity", identities: [{ publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" } }] };
+    FLOW.catalog = {
+      activePublicKeyZ32: "identity",
+      identities: [{ publicIdentity: { publicKeyZ32: "identity" } }],
+    };
     renderDashboard();
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
@@ -232,8 +327,8 @@ describe("IdentityDashboard", () => {
     FLOW.catalog = {
       activePublicKeyZ32: "active",
       identities: [
-        { publicIdentity: { publicKeyZ32: "inactive", publicKeyDisplay: "pubkyinactive" } },
-        { publicIdentity: { publicKeyZ32: "active", publicKeyDisplay: "pubkyactive" } },
+        { publicIdentity: { publicKeyZ32: "inactive" } },
+        { publicIdentity: { publicKeyZ32: "active" } },
       ],
     };
     renderDashboard();
@@ -242,6 +337,8 @@ describe("IdentityDashboard", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Migrate to keychain" }));
 
     expect(screen.getByRole("heading", { name: "Migrate to keychain." })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continue" })).not.toBeInTheDocument();
     expect(FLOW.migrationExportKeys).toEqual([]);
     await userEvent.setup().click(screen.getByRole("button", { name: "Show QR" }));
     expect(screen.getByRole("dialog", { name: "Scan with Pubky Ring" })).toBeInTheDocument();
@@ -249,7 +346,20 @@ describe("IdentityDashboard", () => {
   });
 
   it("secures recovery, confirms detachment, clears the local identity, and shows completion", async () => {
-    FLOW.catalog = { activePublicKeyZ32: "identity", identities: [{ publicIdentity: { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" }, googleAccount: { googleSubject: "google", email: "user@gmail.com", name: "User", pictureUrl: null } }] };
+    FLOW.catalog = {
+      activePublicKeyZ32: "identity",
+      identities: [
+        {
+          publicIdentity: { publicKeyZ32: "identity" },
+          googleAccount: {
+            googleSubject: "google",
+            email: "user@gmail.com",
+            name: "User",
+            pictureUrl: null,
+          },
+        },
+      ],
+    };
     renderDashboard();
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
@@ -258,13 +368,17 @@ describe("IdentityDashboard", () => {
     expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Migrate to keychain" }));
     expect(screen.getByRole("heading", { name: "Migrate to keychain." })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument();
     expect(FLOW.migrationExportKeys).toEqual([]);
     await userEvent.setup().click(screen.getByRole("button", { name: "Show QR" }));
     expect(FLOW.migrationExportKeys).toEqual(["identity"]);
     await userEvent.setup().click(screen.getByRole("button", { name: "Close" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole("button", { name: "Download encrypted backup" }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Download encrypted backup" }));
     expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
@@ -279,19 +393,28 @@ describe("IdentityDashboard", () => {
     expect(confirm).toBeEnabled();
     await userEvent.setup().click(confirm);
 
-    expect(await screen.findByRole("heading", { name: "Detached from Google." })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Detached from Google." }),
+    ).toBeInTheDocument();
     expect(FLOW.catalog.identities).toEqual([]);
     await userEvent.setup().click(screen.getByRole("button", { name: "Done" }));
-    expect(await screen.findByRole("heading", { name: "Quick & easy signing." })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Quick & easy signing." }),
+    ).toBeInTheDocument();
   });
 
   it("returns to signed out when the last identity logs out", async () => {
-    FLOW.catalog = { activePublicKeyZ32: "only", identities: [{ publicIdentity: { publicKeyZ32: "only", publicKeyDisplay: "pubkyonly" } }] };
+    FLOW.catalog = {
+      activePublicKeyZ32: "only",
+      identities: [{ publicIdentity: { publicKeyZ32: "only" } }],
+    };
     renderDashboard();
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Log out" }));
 
-    expect(await screen.findByRole("heading", { name: "Quick & easy signing." })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Quick & easy signing." }),
+    ).toBeInTheDocument();
   });
 });

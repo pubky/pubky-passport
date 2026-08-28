@@ -9,7 +9,9 @@ describe("Input", () => {
   afterEach(cleanup);
 
   it("applies native and container classes to their respective elements", () => {
-    render(<Input aria-label="Identity" className="input-class" containerClassName="container-class" />);
+    render(
+      <Input aria-label="Identity" className="input-class" containerClassName="container-class" />,
+    );
 
     const input = screen.getByRole("textbox", { name: "Identity" });
     expect(input).toHaveClass("input-class");

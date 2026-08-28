@@ -11,7 +11,18 @@ describe("ConfirmGoogleDetachment", () => {
 
   it("requires the exact DELETE confirmation before detaching", async () => {
     const onConfirm = vi.fn();
-    render(<ConfirmGoogleDetachment canConfirm canRetryAuthorization={false} error={null} onCancel={vi.fn()} onConfirm={onConfirm} onRetryAuthorization={vi.fn()} open pending={false} />);
+    render(
+      <ConfirmGoogleDetachment
+        canConfirm
+        canRetryAuthorization={false}
+        error={null}
+        onCancel={vi.fn()}
+        onConfirm={onConfirm}
+        onRetryAuthorization={vi.fn()}
+        open
+        pending={false}
+      />,
+    );
 
     const heading = await screen.findByRole("heading", { name: "Remove Google Access" });
     expect(heading).toBeInTheDocument();
@@ -28,7 +39,18 @@ describe("ConfirmGoogleDetachment", () => {
 
   it("can be cancelled from either close control", async () => {
     const onCancel = vi.fn();
-    render(<ConfirmGoogleDetachment canConfirm canRetryAuthorization={false} error={null} onCancel={onCancel} onConfirm={vi.fn()} onRetryAuthorization={vi.fn()} open pending={false} />);
+    render(
+      <ConfirmGoogleDetachment
+        canConfirm
+        canRetryAuthorization={false}
+        error={null}
+        onCancel={onCancel}
+        onConfirm={vi.fn()}
+        onRetryAuthorization={vi.fn()}
+        open
+        pending={false}
+      />,
+    );
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Close" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Cancel" }));
@@ -37,7 +59,18 @@ describe("ConfirmGoogleDetachment", () => {
 
   it("retries Google initialization without closing the dialog", async () => {
     const onRetryAuthorization = vi.fn();
-    render(<ConfirmGoogleDetachment canConfirm={false} canRetryAuthorization error="authorization_failed" onCancel={vi.fn()} onConfirm={vi.fn()} onRetryAuthorization={onRetryAuthorization} open pending={false} />);
+    render(
+      <ConfirmGoogleDetachment
+        canConfirm={false}
+        canRetryAuthorization
+        error="authorization_failed"
+        onCancel={vi.fn()}
+        onConfirm={vi.fn()}
+        onRetryAuthorization={onRetryAuthorization}
+        open
+        pending={false}
+      />,
+    );
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Try again" }));
 
@@ -49,7 +82,18 @@ describe("ConfirmGoogleDetachment", () => {
   });
 
   it("shows the safe detachment error code", async () => {
-    render(<ConfirmGoogleDetachment canConfirm canRetryAuthorization={false} error="google_drive_cleanup_failed" onCancel={vi.fn()} onConfirm={vi.fn()} onRetryAuthorization={vi.fn()} open pending={false} />);
+    render(
+      <ConfirmGoogleDetachment
+        canConfirm
+        canRetryAuthorization={false}
+        error="google_drive_cleanup_failed"
+        onCancel={vi.fn()}
+        onConfirm={vi.fn()}
+        onRetryAuthorization={vi.fn()}
+        open
+        pending={false}
+      />,
+    );
 
     expect(await screen.findByRole("alert")).toHaveTextContent("google_drive_cleanup_failed");
   });

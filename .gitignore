@@ -35,7 +35,6 @@ docs/vendor/pubky/SOURCE.md
 
 # Local Plans
 plan/*
-docs/*
 scripts/fetch-pubky-docs.sh
 opencode.json
 

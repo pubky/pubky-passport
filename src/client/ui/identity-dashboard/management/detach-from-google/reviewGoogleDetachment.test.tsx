@@ -12,11 +12,14 @@ describe("ReviewGoogleDetachment", () => {
   it("shows the warning and gates confirmation behind Remove Google Access", async () => {
     const onBack = vi.fn();
     const onRemove = vi.fn();
-    render(<ReviewGoogleDetachment onBack={onBack} onRemove={onRemove} />);
+    const { container } = render(<ReviewGoogleDetachment onBack={onBack} onRemove={onRemove} />);
 
     expect(screen.getByRole("heading", { name: "Detach from Google." })).toBeInTheDocument();
-    expect(screen.getByText("You are about to remove Google as a way to access your pubky identity.")).toBeInTheDocument();
+    expect(
+      screen.getByText("You are about to remove Google as a way to access your pubky identity."),
+    ).toBeInTheDocument();
     expect(screen.getByText(/This can’t be undone/)).toBeInTheDocument();
+    expect(container.querySelector('img[src$="red-line.svg"]')).toHaveClass("h-auto");
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Remove Google Access" }));
     expect(onRemove).toHaveBeenCalledOnce();
