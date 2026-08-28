@@ -54,12 +54,12 @@ describe("LocalIdentityController", () => {
     expect(remove).toHaveBeenCalledWith(PUBLIC_KEY);
   });
 
-  it("creates an owned Ring migration and clears the repository secret bytes", () => {
+  it("creates an owned Ring migration and clears the repository secret bytes", async () => {
     const bytes = Uint8Array.from({ length: 32 }, (_, index) => index);
     const read = mockStoredIdentity(bytes);
     const controller = new LocalIdentityController();
 
-    const migration = expectResultOk(controller.createPubkyRingMigration(PUBLIC_KEY));
+    const migration = expectResultOk(await controller.createPubkyRingMigration(PUBLIC_KEY));
     expect(migration.url).toBe(
       "pubkyring://000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
     );

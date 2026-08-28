@@ -1,4 +1,4 @@
-import { PubkyRingMigration } from "../../../../logic/pubky/PubkySdkAdapter";
+import type { PubkyRingMigration } from "../../../../logic/pubky/PubkySdkAdapter";
 import { Button } from "../../../shared/primitives/button";
 import { Dialog } from "../../../shared/primitives/dialog";
 import { PubkyRingQrCode } from "./pubkyRingQrCode";

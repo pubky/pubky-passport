@@ -25,7 +25,7 @@ describe("MigrateToPubkyRing", () => {
   });
 
   it("renders the pixel-accurate desktop card with a live migration QR", async () => {
-    const createMigration = vi.fn(() => Result.ok(createMigrationHandle()));
+    const createMigration = vi.fn(async () => Result.ok(createMigrationHandle()));
     vi.stubGlobal("matchMedia", vi.fn(() => ({
       addEventListener: vi.fn(),
       matches: true,
@@ -56,7 +56,7 @@ describe("MigrateToPubkyRing", () => {
   it("generates the URL on confirmation and unmounts the QR on close", async () => {
     const handle = createMigrationHandle();
     const dispose = vi.spyOn(handle, "dispose");
-    const createMigration = vi.fn(() => Result.ok(handle));
+    const createMigration = vi.fn(async () => Result.ok(handle));
     render(<MigrateToPubkyRing createMigration={createMigration} navigationAction="back" onBack={vi.fn()} />);
 
     const showQr = screen.getByRole("button", { name: "Show QR" });
@@ -84,7 +84,7 @@ describe("MigrateToPubkyRing", () => {
       get matches() { return desktop; },
       removeEventListener: vi.fn(),
     })));
-    render(<MigrateToPubkyRing createMigration={() => Result.ok(createMigrationHandle())} navigationAction="back" onBack={vi.fn()} />);
+    render(<MigrateToPubkyRing createMigration={async () => Result.ok(createMigrationHandle())} navigationAction="back" onBack={vi.fn()} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Show QR" }));
     expect(screen.getByRole("dialog", { name: "Scan with Pubky Ring" })).toBeInTheDocument();
@@ -93,12 +93,12 @@ describe("MigrateToPubkyRing", () => {
     act(() => breakpointListener?.());
 
     expect(screen.queryByRole("dialog", { name: "Scan with Pubky Ring" })).not.toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "Pubky Ring migration QR code" })).toBeInTheDocument();
+    expect(await screen.findByRole("img", { name: "Pubky Ring migration QR code" })).toBeInTheDocument();
   });
 
   it("shows Back for identity management and clears the QR URL when leaving", () => {
     const onBack = vi.fn();
-    render(<MigrateToPubkyRing createMigration={() => Result.ok(createMigrationHandle())} navigationAction="back" onBack={onBack} />);
+    render(<MigrateToPubkyRing createMigration={async () => Result.ok(createMigrationHandle())} navigationAction="back" onBack={onBack} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Show QR" }));
     expect(screen.queryByRole("button", { name: "Continue" })).not.toBeInTheDocument();
@@ -110,7 +110,7 @@ describe("MigrateToPubkyRing", () => {
 
   it("shows Continue for the Google detachment recovery flow", () => {
     const onBack = vi.fn();
-    render(<MigrateToPubkyRing createMigration={() => Result.ok(createMigrationHandle())} navigationAction="continue" onBack={onBack} />);
+    render(<MigrateToPubkyRing createMigration={async () => Result.ok(createMigrationHandle())} navigationAction="continue" onBack={onBack} />);
 
     expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
@@ -121,7 +121,7 @@ describe("MigrateToPubkyRing", () => {
     const assign = vi.fn();
     const handle = createMigrationHandle();
     const navigate = vi.spyOn(handle, "navigate");
-    const createMigration = vi.fn(() => Result.ok(handle));
+    const createMigration = vi.fn(async () => Result.ok(handle));
     vi.stubGlobal("location", { assign, href: "http://localhost/" });
     render(<MigrateToPubkyRing createMigration={createMigration} navigationAction="back" onBack={vi.fn()} />);
 
@@ -134,7 +134,7 @@ describe("MigrateToPubkyRing", () => {
   });
 
   it("shows an export failure from the structured result", async () => {
-    render(<MigrateToPubkyRing createMigration={() => Result.err({ code: "storage_unavailable" })} navigationAction="back" onBack={vi.fn()} />);
+    render(<MigrateToPubkyRing createMigration={async () => Result.err({ code: "storage_unavailable" })} navigationAction="back" onBack={vi.fn()} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Show QR" }));
 

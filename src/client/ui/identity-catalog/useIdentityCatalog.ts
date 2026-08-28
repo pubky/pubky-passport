@@ -8,10 +8,10 @@ import {
 import type { LocalIdentityResult } from "../../logic/local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
 import type { PubkyHomeserverResolutionResult } from "../../logic/pubky/pubkyIdentityKey";
-import { PubkyRingMigration } from "../../logic/pubky/PubkySdkAdapter";
+import type { PubkyRingMigration } from "../../logic/pubky/PubkySdkAdapter";
 
 type IdentityCatalogActions = {
-  createMigration: (publicKeyZ32: string) => LocalIdentityResult<PubkyRingMigration>;
+  createMigration: (publicKeyZ32: string) => Promise<LocalIdentityResult<PubkyRingMigration>>;
   createRecoveryFile: (
     publicKeyZ32: string,
     password: string,
@@ -42,7 +42,7 @@ class IdentityCatalogStore {
       this.controller = null;
     }
     this.actions = {
-      createMigration: (publicKeyZ32) => this.controller
+      createMigration: async (publicKeyZ32) => this.controller
         ? this.controller.createPubkyRingMigration(publicKeyZ32)
         : Result.err({ code: "storage_unavailable" }),
       createRecoveryFile: async (publicKeyZ32, password) => this.controller

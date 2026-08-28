@@ -5,11 +5,7 @@ import { Result, type Result as ResultType } from "better-result";
 import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
 import type { PubkyHomeserverResolutionResult } from "../pubky/pubkyIdentityKey";
-import {
-  PubkySdkAdapter,
-  PubkyRingMigration,
-  resolvePubkyHomeserver,
-} from "../pubky/PubkySdkAdapter";
+import type { PubkyRingMigration, PubkySdkAdapter } from "../pubky/PubkySdkAdapter";
 import type { LocalIdentityCatalog } from "./localIdentityModels";
 import {
   LocalStorageIdentityRepository,
@@ -62,10 +58,15 @@ export class LocalIdentityController {
     return this.repository.subscribe(listener);
   }
 
-  resolveHomeserver(
+  async resolveHomeserver(
     publicKeyZ32: string,
   ): Promise<PubkyHomeserverResolutionResult> {
-    return resolvePubkyHomeserver(publicKeyZ32);
+    try {
+      const { resolvePubkyHomeserver } = await import("../pubky/PubkySdkAdapter");
+      return resolvePubkyHomeserver(publicKeyZ32);
+    } catch (cause) {
+      return Result.err({ code: "resolution_failed", cause });
+    }
   }
 
   async createRecoveryFile(
@@ -84,6 +85,7 @@ export class LocalIdentityController {
 
     let pubky: PubkySdkAdapter | undefined;
     try {
+      const { PubkySdkAdapter } = await import("../pubky/PubkySdkAdapter");
       pubky = new PubkySdkAdapter();
       const recoveryFile = pubky.createRecoveryFile(
         stored.value.secretKey,
@@ -113,16 +115,25 @@ export class LocalIdentityController {
     }
   }
 
-  createPubkyRingMigration(publicKeyZ32: string): LocalIdentityResult<PubkyRingMigration> {
+  async createPubkyRingMigration(
+    publicKeyZ32: string,
+  ): Promise<LocalIdentityResult<PubkyRingMigration>> {
     const stored = this.repository.read(publicKeyZ32);
     if (Result.isError(stored)) return Result.err(stored.error);
 
-    const migration = PubkySdkAdapter.createPubkyRingMigration(
-      stored.value.secretKey,
-      publicKeyZ32,
-    );
-    return Result.isOk(migration)
-      ? Result.ok(migration.value)
-      : Result.err({ code: "invalid_secret_key", cause: migration.error });
+    try {
+      const { PubkySdkAdapter } = await import("../pubky/PubkySdkAdapter");
+      const migration = PubkySdkAdapter.createPubkyRingMigration(
+        stored.value.secretKey,
+        publicKeyZ32,
+      );
+      return Result.isOk(migration)
+        ? Result.ok(migration.value)
+        : Result.err({ code: "invalid_secret_key", cause: migration.error });
+    } catch (cause) {
+      return Result.err({ code: "invalid_secret_key", cause });
+    } finally {
+      stored.value.secretKey.bytes.fill(0);
+    }
   }
 }

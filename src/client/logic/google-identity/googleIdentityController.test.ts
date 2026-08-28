@@ -323,6 +323,7 @@ describe("GoogleIdentityController", () => {
     const controller = createController();
     const pending = controller.establishIdentity();
 
+    await vi.waitFor(() => expect(MOCKS.requestAuthorization).toHaveBeenCalledOnce());
     authorize();
     queueMicrotask(() => controller.dispose());
 

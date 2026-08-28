@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { QRCodeSVG } from "qrcode.react";
 
-import { PubkyRingMigration } from "../../../../logic/pubky/PubkySdkAdapter";
+import type { PubkyRingMigration } from "../../../../logic/pubky/PubkySdkAdapter";
 import { cn } from "../../../shared/mergeClassNames";
 
 function PubkyRingQrCode({ className, migration }: {
