@@ -75,11 +75,14 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   expect(renderedReview).not.toContain("authorization-success");
   expect(await page.evaluate(() => window.location.search)).toBe("");
   expect(await page.evaluate(() => window.location.hash)).toBe("");
-  expect(
-    await page.evaluate(
-      () => (window as Window & { __passportHashAtFirstFrame?: string }).__passportHashAtFirstFrame,
-    ),
-  ).toBe("");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as Window & { __passportHashAtFirstFrame?: string }).__passportHashAtFirstFrame,
+      ),
+    )
+    .toBe("");
   const authorizationPersistence = await browserPersistenceSnapshot(page);
   expectAuthorizationPersistenceSafe(authorizationPersistence, LOCAL_IDENTITY_STORAGE);
 
