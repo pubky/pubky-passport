@@ -188,6 +188,25 @@ describe("AuthorizationFlow", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows x-source as the app name while retaining the callback domain", async () => {
+    MOCKS.authorizationState = {
+      status: "review",
+      review: {
+        ...REVIEW,
+        requesterName: "Example App",
+        callbackHost: "login.example",
+      },
+    };
+
+    renderFlow();
+
+    expect(
+      await screen.findByRole("heading", { name: "Sign in to Example App" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/returns to/iu)).toHaveTextContent("Returns to login.example");
+    expect(screen.getByText(/allow Example App to read and update your data/u)).toBeInTheDocument();
+  });
+
   it("scales a callback host to the largest font size that fits", async () => {
     const callbackHost = "gillohner.github.io";
     const clientWidth = vi
@@ -416,6 +435,18 @@ describe("AuthorizationFlow", () => {
     expect(screen.queryByText("No local identity available")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Switch" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Back" })).toBeInTheDocument();
+  });
+
+  it("uses x-source as the app cue during identity setup", async () => {
+    MOCKS.authorizationState = {
+      status: "review",
+      review: { ...REVIEW, requesterName: "Example App" },
+    };
+    MOCKS.catalog = { activePublicKeyZ32: null, identities: [] };
+
+    renderFlow();
+
+    expect(await screen.findByLabelText("Signing in to Example App")).toBeInTheDocument();
   });
 
   it("uses a neutral setup cue when the request has no callback host", async () => {

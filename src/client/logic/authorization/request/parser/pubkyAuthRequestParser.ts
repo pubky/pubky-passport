@@ -21,6 +21,7 @@ export const PUBKY_AUTH_REQUEST_LIMITS = {
   maximumEncodedDCodeUnits: 24_576,
   maximumDecodedAuthUrlCodeUnits: 8_192,
   maximumSecretCodeUnits: 1_024,
+  maximumSourceCodeUnits: 128,
   maximumClientIdUtf8Bytes: 253,
 } as const;
 
@@ -31,6 +32,7 @@ const PUBKY_AUTH_REQUEST_PARAMETERS = {
   success: "x-success",
   error: "x-error",
   cancel: "x-cancel",
+  source: "x-source",
   legacySuccess: "callback",
   clientId: "cid",
   clientPublicKey: "cpk",
@@ -43,6 +45,7 @@ const COMMON_PARAMETERS = new Set<string>([
   PUBKY_AUTH_REQUEST_PARAMETERS.success,
   PUBKY_AUTH_REQUEST_PARAMETERS.error,
   PUBKY_AUTH_REQUEST_PARAMETERS.cancel,
+  PUBKY_AUTH_REQUEST_PARAMETERS.source,
   PUBKY_AUTH_REQUEST_PARAMETERS.legacySuccess,
 ]);
 const GRANT_PARAMETERS = new Set<string>([
@@ -60,6 +63,7 @@ type PubkyAuthParseErrorCode =
   | "invalid_auth_request_path"
   | "missing_secret"
   | "invalid_secret"
+  | "invalid_source"
   | "missing_client_id"
   | "invalid_client_id"
   | "missing_client_public_key"
@@ -78,6 +82,7 @@ export type ParsedPubkyAuthRequest = {
   authenticationMethod: PubkyAuthenticationMethod;
   capabilities: PubkyAuthCapability[];
   callbacks: Readonly<ValidatedPubkyAuthCallbacks>;
+  source?: string;
   sensitivePubkyAuthUrl: string;
 };
 
@@ -160,6 +165,11 @@ export function parseEncodedPubkyAuthRequest(encodedRequest: unknown): PubkyAuth
     return Result.err(urls.error);
   }
 
+  const source = parseSource(authUrl.value.searchParams);
+  if (Result.isError(source)) {
+    return Result.err(source.error);
+  }
+
   const requestedCapabilities = authUrl.value.searchParams.get(
     PUBKY_AUTH_REQUEST_PARAMETERS.capabilities,
   );
@@ -182,6 +192,7 @@ export function parseEncodedPubkyAuthRequest(encodedRequest: unknown): PubkyAuth
     authenticationMethod: authenticationMethod.value,
     capabilities: capabilities.value,
     callbacks: Object.freeze({ ...urls.value }),
+    ...(source.value ? { source: source.value } : {}),
     sensitivePubkyAuthUrl,
   });
 }
@@ -229,6 +240,23 @@ function parseAuthenticationMethod(url: URL): ParseValueResult<PubkyAuthenticati
   }
 
   return Result.err<never, PubkyAuthParseError>({ code: "invalid_auth_request_path" });
+}
+
+const UNSAFE_SOURCE_CHARACTERS =
+  /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u200b\u200e\u200f\u202a-\u202e\u2060\u2066-\u2069\ufeff]/u;
+
+function parseSource(searchParams: URLSearchParams): ParseValueResult<string | undefined> {
+  const value = searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.source)?.trim();
+  if (!value) return Result.ok(undefined);
+
+  if (
+    value.length > PUBKY_AUTH_REQUEST_LIMITS.maximumSourceCodeUnits ||
+    UNSAFE_SOURCE_CHARACTERS.test(value)
+  ) {
+    return Result.err<never, PubkyAuthParseError>({ code: "invalid_source" });
+  }
+
+  return Result.ok(value.normalize("NFC"));
 }
 
 function validatePubkyAuthRequestParameters(

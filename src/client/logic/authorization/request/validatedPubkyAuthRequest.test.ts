@@ -5,7 +5,7 @@ import { LOGGER } from "../../../../libs/logger/logger";
 import { ValidatedPubkyAuthRequest } from "./ValidatedPubkyAuthRequest";
 
 const REQUEST =
-  "pubkyauth://signin?caps=/pub/pubky.app/:rw,/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-success=https://pubky.app/success?token=private&x-error=https://pubky.app/error&x-cancel=https://pubky.app/cancel";
+  "pubkyauth://signin?caps=/pub/pubky.app/:rw,/:r&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-source=Pubky%20App&x-success=https://pubky.app/success?token=private&x-error=https://pubky.app/error&x-cancel=https://pubky.app/cancel";
 const SECRET = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
 describe("ValidatedPubkyAuthRequest", () => {
@@ -21,6 +21,7 @@ describe("ValidatedPubkyAuthRequest", () => {
         { path: "/pub/pubky.app/", read: true, write: true, scope: "specific" },
         { path: "/", read: true, write: false, scope: "broad" },
       ],
+      requesterName: "Pubky App",
       callbackHost: "pubky.app",
     });
     expect(JSON.stringify(validated.value)).not.toContain("token=private");

@@ -23,6 +23,7 @@ export type AuthorizationCapability = Readonly<{
 export type AuthorizationRequestReview = Readonly<{
   authenticationMethod: PubkyAuthenticationMethod;
   capabilities: readonly AuthorizationCapability[];
+  requesterName?: string;
   callbackHost?: string;
 }>;
 
@@ -98,7 +99,10 @@ export class ValidatedPubkyAuthRequest {
 }
 
 function createAuthorizationReview(
-  parsed: Pick<ParsedPubkyAuthRequest, "authenticationMethod" | "capabilities" | "callbacks">,
+  parsed: Pick<
+    ParsedPubkyAuthRequest,
+    "authenticationMethod" | "capabilities" | "callbacks" | "source"
+  >,
 ): AuthorizationRequestReview {
   const capabilities = Object.freeze(
     parsed.capabilities.map((capability) =>
@@ -113,6 +117,7 @@ function createAuthorizationReview(
   return Object.freeze({
     authenticationMethod: parsed.authenticationMethod,
     capabilities,
+    ...(parsed.source ? { requesterName: parsed.source } : {}),
     ...(callbackHost ? { callbackHost } : {}),
   });
 }

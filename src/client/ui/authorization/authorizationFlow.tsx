@@ -111,7 +111,11 @@ function AuthorizationWithIdentity({
               void passportAuthorizationController.cancel();
             }}
             onComplete={() => undefined}
-            signInTo={authorization.review.callbackHost ?? "this service"}
+            signInTo={
+              authorization.review.requesterName ??
+              authorization.review.callbackHost ??
+              "this service"
+            }
           />
         );
       }
@@ -123,7 +127,11 @@ function AuthorizationWithIdentity({
             onBack={() => setView("review")}
             onIdentitySelected={() => setView("review")}
             selectIdentity={actions.selectIdentity}
-            signInTo={authorization.review.callbackHost ?? "this service"}
+            signInTo={
+              authorization.review.requesterName ??
+              authorization.review.callbackHost ??
+              "this service"
+            }
           />
         );
       }

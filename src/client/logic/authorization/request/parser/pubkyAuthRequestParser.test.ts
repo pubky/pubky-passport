@@ -73,6 +73,15 @@ describe("parseEncodedPubkyAuthRequest", () => {
     });
   });
 
+  it("parses a bounded human-readable x-source", () => {
+    const request = `${VALID_REQUEST}&x-source=Pubky%20App`;
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
+
+    if (Result.isError(result)) throw new Error(result.error.code);
+    expect(result.value.source).toBe("Pubky App");
+    expect(result.value.sensitivePubkyAuthUrl).toBe(request);
+  });
+
   it("parses the documented pubkyauth:/// form", () => {
     const request =
       "pubkyauth:///?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
@@ -108,17 +117,28 @@ describe("parseEncodedPubkyAuthRequest", () => {
     `${VALID_REQUEST}&x-success=https://other.example/success`,
     `${VALID_REQUEST}&x-error=https://other.example/error`,
     `${VALID_REQUEST}&x-cancel=https://other.example/cancel`,
+    `${VALID_REQUEST}&x-source=One&x-source=Two`,
     `${VALID_REQUEST}&callback=https://pubky.app/one&callback=https://pubky.app/two`,
   ])("rejects duplicate supported parameters", (request) => {
     expectError(encodeRequest(request), "duplicate_parameter");
   });
 
-  it.each(["x-source=Pubky%20App", "x-unreviewed=true"])(
-    "rejects unsupported parameter %s",
-    (parameter) => {
-      expectError(encodeRequest(`${VALID_REQUEST}&${parameter}`), "unsupported_parameter");
-    },
-  );
+  it("rejects unsupported parameters", () => {
+    expectError(encodeRequest(`${VALID_REQUEST}&x-unreviewed=true`), "unsupported_parameter");
+  });
+
+  it("rejects oversized or directionally misleading x-source values", () => {
+    expectError(
+      encodeRequest(
+        `${VALID_REQUEST}&x-source=${"a".repeat(PUBKY_AUTH_REQUEST_LIMITS.maximumSourceCodeUnits + 1)}`,
+      ),
+      "invalid_source",
+    );
+    expectError(
+      encodeRequest(`${VALID_REQUEST}&x-source=${encodeURIComponent("Trusted\u202eApp")}`),
+      "invalid_source",
+    );
+  });
 
   it("rejects missing and empty d values", () => {
     expectError(undefined, "missing_d");
