@@ -12,7 +12,7 @@ import {
   type LocalIdentityResult,
 } from "./LocalStorageIdentityRepository";
 
-export const MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS = 6;
+export const MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS = 12;
 const MAXIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS = 1024;
 
 export type LocalIdentityRecoveryFile = { bytes: Uint8Array; fileName: string };

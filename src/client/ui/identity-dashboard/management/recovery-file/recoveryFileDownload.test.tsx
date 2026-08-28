@@ -10,6 +10,7 @@ import { LOGGER } from "../../../../../libs/logger/logger";
 import { RecoveryFileDownload } from "./recoveryFileDownload";
 
 const MOCKS = vi.hoisted(() => ({ showDownloadConfirmation: vi.fn() }));
+const RECOVERY_PASSWORD = "correct horse";
 
 vi.mock("../../../shared/sonner", () => ({ showDownloadConfirmation: MOCKS.showDownloadConfirmation }));
 
@@ -38,14 +39,14 @@ describe("RecoveryFileDownload", () => {
     );
 
     const download = screen.getByRole("button", { name: "Download backup" });
-    const password = screen.getByLabelText("Enter strong password");
+    const password = screen.getByLabelText("Recovery password");
     expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
-    expect(password).toHaveAttribute("minlength", "6");
+    expect(password).toHaveAttribute("minlength", "12");
     expect(download).toBeDisabled();
-    await userEvent.setup().type(password, "123456");
+    await userEvent.setup().type(password, RECOVERY_PASSWORD);
     await userEvent.setup().click(download);
 
-    expect(createRecoveryFile).toHaveBeenCalledWith("identity", "123456");
+    expect(createRecoveryFile).toHaveBeenCalledWith("identity", RECOVERY_PASSWORD);
     expect(createObjectURL).toHaveBeenCalledOnce();
     expect(click).toHaveBeenCalledOnce();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:backup");
@@ -68,7 +69,7 @@ describe("RecoveryFileDownload", () => {
     const onBack = vi.fn();
     render(<RecoveryFileDownload createRecoveryFile={createRecoveryFile} publicKeyZ32="identity" onBack={onBack} />);
 
-    await userEvent.setup().type(screen.getByLabelText("Enter strong password"), "123456");
+    await userEvent.setup().type(screen.getByLabelText("Recovery password"), RECOVERY_PASSWORD);
     await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not create the recovery file");
@@ -97,8 +98,8 @@ describe("RecoveryFileDownload", () => {
       code: "recovery_file_failed",
       cause: new Error(secret),
     })} publicKeyZ32="identity" onBack={onBack} />);
-    const password = screen.getByLabelText("Enter strong password");
-    await userEvent.setup().type(password, "123456");
+    const password = screen.getByLabelText("Recovery password");
+    await userEvent.setup().type(password, RECOVERY_PASSWORD);
     await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not create the recovery file");
@@ -121,8 +122,8 @@ describe("RecoveryFileDownload", () => {
       onBack={vi.fn()}
     />);
 
-    const password = screen.getByLabelText("Enter strong password");
-    await userEvent.setup().type(password, "123456");
+    const password = screen.getByLabelText("Recovery password");
+    await userEvent.setup().type(password, RECOVERY_PASSWORD);
     await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not create the recovery file");
@@ -147,7 +148,7 @@ describe("RecoveryFileDownload", () => {
       publicKeyZ32="identity"
       onBack={onBack}
     />);
-    await userEvent.setup().type(screen.getByLabelText("Enter strong password"), "123456");
+    await userEvent.setup().type(screen.getByLabelText("Recovery password"), RECOVERY_PASSWORD);
     await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
 
     expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();

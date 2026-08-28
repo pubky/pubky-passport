@@ -84,7 +84,7 @@ function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
         </div>
 
         <div className="flex flex-col gap-2 md:col-start-1 md:row-start-2">
-          <Label htmlFor="recovery-file-password">Enter strong password</Label>
+          <Label htmlFor="recovery-file-password">Recovery password</Label>
           <Input
             autoComplete="new-password"
             containerClassName="border-dashed"
