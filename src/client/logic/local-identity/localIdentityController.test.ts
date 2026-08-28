@@ -16,8 +16,8 @@ vi.mock("../pubky/PubkySdkAdapter", async (importOriginal) => {
   return {
     ...original,
     PubkySdkAdapter: class {
-      static createPubkyRingMigration(secretKey: PubkySecretKeyMaterial) {
-        return original.PubkySdkAdapter.createPubkyRingMigration(secretKey);
+      static createPubkyRingMigration(secretKey: PubkySecretKeyMaterial, publicKeyZ32: string) {
+        return original.PubkySdkAdapter.createPubkyRingMigration(secretKey, publicKeyZ32);
       }
       createRecoveryFile = MOCKS.createRecoveryFile;
       dispose = MOCKS.dispose;
@@ -27,7 +27,7 @@ vi.mock("../pubky/PubkySdkAdapter", async (importOriginal) => {
 
 import { LocalIdentityController } from "./LocalIdentityController";
 
-const PUBLIC_KEY = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
+const PUBLIC_KEY = "yqooxx9u3aemh8mo5wcqq16yufu6jitouq1o4za751dger1igghy";
 
 beforeEach(() => {
   MOCKS.createRecoveryFile.mockReset();
@@ -90,6 +90,11 @@ describe("LocalIdentityController", () => {
       .createRecoveryFile(PUBLIC_KEY, "a strong recovery password"));
 
     expect(recoveryFile).toEqual({ bytes: recoveryBytes, fileName: `pubky-${PUBLIC_KEY}.pkarr` });
+    expect(MOCKS.createRecoveryFile).toHaveBeenCalledWith(
+      expect.objectContaining({ bytes: secretBytes }),
+      PUBLIC_KEY,
+      "a strong recovery password",
+    );
     expect(secretBytes).toEqual(new Uint8Array(32));
     expect(MOCKS.dispose).toHaveBeenCalledOnce();
   });

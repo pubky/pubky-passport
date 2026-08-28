@@ -85,7 +85,11 @@ export class LocalIdentityController {
     let pubky: PubkySdkAdapter | undefined;
     try {
       pubky = new PubkySdkAdapter();
-      const recoveryFile = pubky.createRecoveryFile(stored.value.secretKey, password);
+      const recoveryFile = pubky.createRecoveryFile(
+        stored.value.secretKey,
+        publicKeyZ32,
+        password,
+      );
       return Result.isError(recoveryFile)
         ? Result.err({ code: "recovery_file_failed", cause: recoveryFile.error })
         : Result.ok({
@@ -113,7 +117,10 @@ export class LocalIdentityController {
     const stored = this.repository.read(publicKeyZ32);
     if (Result.isError(stored)) return Result.err(stored.error);
 
-    const migration = PubkySdkAdapter.createPubkyRingMigration(stored.value.secretKey);
+    const migration = PubkySdkAdapter.createPubkyRingMigration(
+      stored.value.secretKey,
+      publicKeyZ32,
+    );
     return Result.isOk(migration)
       ? Result.ok(migration.value)
       : Result.err({ code: "invalid_secret_key", cause: migration.error });

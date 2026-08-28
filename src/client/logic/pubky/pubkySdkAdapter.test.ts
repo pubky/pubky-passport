@@ -81,7 +81,7 @@ describe("PubkySdkAdapter", () => {
     const migration = expectOk(PubkySdkAdapter.createPubkyRingMigration({
       bytes,
       format: PUBKY_SECRET_KEY_FORMAT,
-    }));
+    }, "yqooxx9u3aemh8mo5wcqq16yufu6jitouq1o4za751dger1igghy"));
 
     expect(migration.url).toBe(
       "pubkyring://000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
@@ -98,10 +98,22 @@ describe("PubkySdkAdapter", () => {
     const result = PubkySdkAdapter.createPubkyRingMigration({
       bytes,
       format: PUBKY_SECRET_KEY_FORMAT,
-    });
+    }, "y".repeat(52));
 
     expect(Result.isError(result) && result.error.code).toBe("invalid_secret_key");
     expect(bytes).toEqual(new Uint8Array(PUBKY_SECRET_KEY_BYTES - 1));
+  });
+
+  it("rejects a Ring export when the secret derives to another identity", () => {
+    const bytes = Uint8Array.from({ length: PUBKY_SECRET_KEY_BYTES }, (_, index) => index);
+
+    const result = PubkySdkAdapter.createPubkyRingMigration({
+      bytes,
+      format: PUBKY_SECRET_KEY_FORMAT,
+    }, "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy");
+
+    expect(Result.isError(result) && result.error.code).toBe("invalid_secret_key");
+    expect(bytes).toEqual(new Uint8Array(PUBKY_SECRET_KEY_BYTES));
   });
 
   it("contains SDK Ring export failures without logging secret material", () => {
@@ -113,7 +125,7 @@ describe("PubkySdkAdapter", () => {
     const result = PubkySdkAdapter.createPubkyRingMigration({
       bytes,
       format: PUBKY_SECRET_KEY_FORMAT,
-    });
+    }, "y".repeat(52));
 
     expect(Result.isError(result) && result.error.code).toBe("export_failed");
     expect(bytes).toEqual(new Uint8Array(PUBKY_SECRET_KEY_BYTES));
@@ -198,7 +210,11 @@ describe("PubkySdkAdapter", () => {
     try {
       const created = expectOk(await pubky.createIdentityKey());
       const secretKey = expectOk(await pubky.exportSecretKey(created.keyHandle));
-      const recoveryFile = expectOk(pubky.createRecoveryFile(secretKey, "a strong backup password"));
+      const recoveryFile = expectOk(pubky.createRecoveryFile(
+        secretKey,
+        created.publicIdentity.publicKeyZ32,
+        "a strong backup password",
+      ));
       restored = Keypair.fromRecoveryFile(recoveryFile, "a strong backup password");
       const restoredPublicKey = restored.publicKey;
       try {
@@ -227,7 +243,11 @@ describe("PubkySdkAdapter", () => {
       });
 
       expectErrorCause(
-        pubky.createRecoveryFile(secretKey, "SECRET-RECOVERY-PASSPHRASE"),
+        pubky.createRecoveryFile(
+          secretKey,
+          created.publicIdentity.publicKeyZ32,
+          "SECRET-RECOVERY-PASSPHRASE",
+        ),
         "recovery_file_failed",
         cause,
       );
@@ -238,6 +258,25 @@ describe("PubkySdkAdapter", () => {
         code: "recovery_file_failed",
       });
       expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-RECOVERY-PASSPHRASE");
+    } finally {
+      pubky.dispose();
+    }
+  });
+
+  it("rejects a recovery file when the secret derives to another identity", async () => {
+    const pubky = new PubkySdkAdapter();
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      const secretKey = expectOk(await pubky.exportSecretKey(created.keyHandle));
+      const result = pubky.createRecoveryFile(
+        secretKey,
+        "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy",
+        "a strong backup password",
+      );
+
+      expect(Result.isError(result) && result.error.code).toBe("invalid_secret_key");
+      expect(secretKey.bytes).toEqual(new Uint8Array(PUBKY_SECRET_KEY_BYTES));
     } finally {
       pubky.dispose();
     }
@@ -561,6 +600,56 @@ describe("PubkySdkAdapter", () => {
       expect(result.publicIdentity).toEqual(created.publicIdentity);
       expect(signin).toHaveBeenCalledWith("passport.pubky.app");
       expect(signinBlocking).not.toHaveBeenCalled();
+    } finally {
+      pubky.dispose();
+    }
+  });
+
+  it.each([
+    ["session info", "session_info", false, false],
+    ["session public key", "public_key", true, false],
+    ["public key encoding", "z32", true, true],
+  ] as const)("signs out when the %s getter fails", async (
+    _label,
+    fault,
+    expectsInfoCleanup,
+    expectsPublicKeyCleanup,
+  ) => {
+    const infoFree = vi.fn();
+    const publicKeyFree = vi.fn();
+    const signout = vi.fn().mockResolvedValue(undefined);
+    const sessionFree = vi.fn();
+    const session = {
+      get info() {
+        if (fault === "session_info") throw new Error("session info failed");
+        return {
+          get publicKey() {
+            if (fault === "public_key") throw new Error("public key failed");
+            return {
+              z32: () => {
+                if (fault === "z32") throw new Error("z32 failed");
+                return "y".repeat(52);
+              },
+              free: publicKeyFree,
+            };
+          },
+          free: infoFree,
+        };
+      },
+      signout,
+      free: sessionFree,
+    } as unknown as Session;
+    vi.spyOn(Signer.prototype, "signin").mockResolvedValue(session);
+    const pubky = new PubkySdkAdapter();
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      await expectError(pubky.signin(created.keyHandle, "normal"), "signin_failed");
+
+      expect(signout).toHaveBeenCalledOnce();
+      expect(sessionFree).toHaveBeenCalledOnce();
+      expect(infoFree).toHaveBeenCalledTimes(expectsInfoCleanup ? 1 : 0);
+      expect(publicKeyFree).toHaveBeenCalledTimes(expectsPublicKeyCleanup ? 1 : 0);
     } finally {
       pubky.dispose();
     }
