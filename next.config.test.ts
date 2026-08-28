@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import NEXT_CONFIG from "./next.config.mjs";
+import NEXT_CONFIG from "./next.config";
 
 describe("next config headers", () => {
   it("does not print secret-bearing request URLs through Next logging", () => {
