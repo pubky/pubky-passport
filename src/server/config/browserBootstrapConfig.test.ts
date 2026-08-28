@@ -31,6 +31,17 @@ describe("browser bootstrap config", () => {
     });
   });
 
+  it("does not require or parse server-secret configuration", () => {
+    vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", undefined);
+    vi.stubEnv("PASSPORT_SERVER_SECRET_KEYRING_JSON", "not-json");
+
+    expect(getBrowserBootstrapConfig()).toEqual({
+      googleClientId: "google-client-id",
+      homegateBaseUrl: "https://homegate.example/api/",
+      homegateOrigin: "https://homegate.example",
+    });
+  });
+
   it("requires the Google client ID", () => {
     vi.stubEnv("GOOGLE_CLIENT_ID", undefined);
 

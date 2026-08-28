@@ -4,7 +4,8 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
-import { getApplicationEnvironment } from "../../config/applicationEnvironment";
+import { getPublicApplicationEnvironment } from "../../config/publicApplicationEnvironment";
+import { getServerSecretEnvironment } from "../../config/serverSecretEnvironment";
 import {
   GoogleIdTokenVerifier,
   type GoogleIdTokenVerificationResult,
@@ -29,7 +30,8 @@ export class GoogleWrappingKeyIssuer {
   ) {}
 
   static fromEnvironment(): GoogleWrappingKeyIssuer {
-    const { googleClientId, serverSecretCurrentKeyId, serverSecrets } = getApplicationEnvironment();
+    const { googleClientId } = getPublicApplicationEnvironment();
+    const { serverSecretCurrentKeyId, serverSecrets } = getServerSecretEnvironment();
     const verifier = new GoogleIdTokenVerifier(googleClientId);
     return new GoogleWrappingKeyIssuer(
       (token) => verifier.verifyGoogleIdToken(token),

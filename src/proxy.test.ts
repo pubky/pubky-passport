@@ -75,6 +75,13 @@ describe("request CSP proxy", () => {
     expect(connectSources).not.toContain("*");
   });
 
+  it("builds CSP without reading server-secret configuration", () => {
+    vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", undefined);
+    vi.stubEnv("PASSPORT_SERVER_SECRET_KEYRING_JSON", "not-json");
+
+    expect(() => proxy(new NextRequest("https://passport.example/"))).not.toThrow();
+  });
+
   it("adds unsafe-eval only for React development tooling", () => {
     vi.stubEnv("NODE_ENV", "development");
 
