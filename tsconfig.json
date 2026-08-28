@@ -28,7 +28,7 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "allowJs": true
+    "allowJs": false
   },
   "include": [
     "next-env.d.ts",
@@ -39,8 +39,8 @@
     "*.config.ts",
     "*.config.mts",
     "*.test.ts",
+    // Next 16 maintains both paths to avoid dev/build config churn and filters dev types in builds.
     ".next/types/**/*.ts",
-    "**/*.mts",
     ".next/dev/types/**/*.ts"
   ],
   "exclude": ["node_modules"]
