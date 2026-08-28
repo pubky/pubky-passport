@@ -4,27 +4,31 @@ import { Result, type Result as ResultType } from "better-result";
 import { z } from "zod";
 
 import { readBoundedText } from "../../../../libs/http/boundedBody";
+import { MAXIMUM_JSON_BODY_BYTES } from "../../../../libs/passportPolicy";
 import type { CodedFailure } from "../../../../libs/result";
 
-const MAXIMUM_JSON_RESPONSE_BYTES = 16 * 1024;
 const MULTIPART_BOUNDARY = "pubky-passport-drive-boundary-v1";
 
 export const DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files";
 export const DRIVE_UPLOAD_FILES_URL = "https://www.googleapis.com/upload/drive/v3/files";
 export const DRIVE_MULTIPART_CONTENT_TYPE = `multipart/related; boundary=${MULTIPART_BOUNDARY}`;
 
-const DRIVE_FILE_SCHEMA = z.object({
-  id: z.unknown().optional(),
-  mimeType: z.unknown().optional(),
-  name: z.unknown().optional(),
-  parents: z.unknown().optional(),
-  trashed: z.unknown().optional(),
-  version: z.unknown().optional(),
-}).strict();
-const DRIVE_FILE_LIST_SCHEMA = z.object({
-  files: z.array(DRIVE_FILE_SCHEMA),
-  nextPageToken: z.string().optional(),
-}).strict();
+const DRIVE_FILE_SCHEMA = z
+  .object({
+    id: z.unknown().optional(),
+    mimeType: z.unknown().optional(),
+    name: z.unknown().optional(),
+    parents: z.unknown().optional(),
+    trashed: z.unknown().optional(),
+    version: z.unknown().optional(),
+  })
+  .strict();
+const DRIVE_FILE_LIST_SCHEMA = z
+  .object({
+    files: z.array(DRIVE_FILE_SCHEMA),
+    nextPageToken: z.string().optional(),
+  })
+  .strict();
 
 export type DriveFile = z.infer<typeof DRIVE_FILE_SCHEMA>;
 export type DriveFileList = z.infer<typeof DRIVE_FILE_LIST_SCHEMA>;
@@ -41,13 +45,15 @@ export async function fetchDrive(
   init: RequestInit,
 ): Promise<DriveFetchResult> {
   try {
-    return Result.ok(await fetchImpl(input, {
-      ...init,
-      cache: "no-store",
-      credentials: "omit",
-      redirect: "error",
-      referrerPolicy: "no-referrer",
-    }));
+    return Result.ok(
+      await fetchImpl(input, {
+        ...init,
+        cache: "no-store",
+        credentials: "omit",
+        redirect: "error",
+        referrerPolicy: "no-referrer",
+      }),
+    );
   } catch (cause) {
     return Result.err({ code: "network_failed", cause });
   }
@@ -58,7 +64,7 @@ export async function fetchDrive(
  * Returns `null` for oversized, unreadable, or malformed response bodies.
  */
 export async function readDriveJson(response: Response): Promise<unknown | null> {
-  const contents = await readBoundedText(response, MAXIMUM_JSON_RESPONSE_BYTES);
+  const contents = await readBoundedText(response, MAXIMUM_JSON_BODY_BYTES);
   if (contents === null || contents === "too_large") return null;
   try {
     return JSON.parse(contents);

@@ -19,16 +19,23 @@ import { Label } from "../../../shared/primitives/label";
 import { DisplayHeading, LeadText } from "../../../shared/primitives/typography";
 import { showDownloadConfirmation } from "../../../shared/sonner";
 
-function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
-  createRecoveryFile: (publicKeyZ32: string, password: string) => Promise<LocalIdentityRecoveryFileResult>;
+function RecoveryFileDownload({
+  createRecoveryFile,
+  publicKeyZ32,
+  onBack,
+}: {
+  createRecoveryFile: (
+    publicKeyZ32: string,
+    password: string,
+  ) => Promise<LocalIdentityRecoveryFileResult>;
   publicKeyZ32: string;
   onBack: () => void;
 }) {
-  const [password, setPassword] = useState("");
+  const passwordInputRef = useRef<HTMLInputElement>(null);
+  const [validPassword, setValidPassword] = useState(false);
   const [pending, setPending] = useState(false);
   const [recoveryFileFailed, setRecoveryFileFailed] = useState(false);
   const activeRef = useRef(true);
-  const validPassword = password.length >= MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS;
 
   useEffect(() => {
     activeRef.current = true;
@@ -39,17 +46,27 @@ function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!validPassword || pending) return;
+    const passwordInput = passwordInputRef.current;
+    if (!passwordInput || !validPassword || pending) return;
+    let password = passwordInput.value;
+    passwordInput.value = "";
+    setValidPassword(false);
     setPending(true);
     setRecoveryFileFailed(false);
     let downloaded = false;
     try {
-      const recoveryFile = await createRecoveryFile(publicKeyZ32, password);
+      let recoveryFilePromise: ReturnType<typeof createRecoveryFile>;
+      try {
+        recoveryFilePromise = createRecoveryFile(publicKeyZ32, password);
+      } finally {
+        password = "";
+      }
+      const recoveryFile = await recoveryFilePromise;
       if (!activeRef.current) return;
-      if (Result.isError(recoveryFile) || !downloadFile(recoveryFile.value)) setRecoveryFileFailed(true);
+      if (Result.isError(recoveryFile) || !downloadFile(recoveryFile.value))
+        setRecoveryFileFailed(true);
       else {
         downloaded = true;
-        setPassword("");
       }
     } catch (cause) {
       LOGGER.warn("identity.recovery_file.ui.failed", {
@@ -68,37 +85,60 @@ function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
 
   return (
     <PassportScreen>
-      <form className="flex min-h-full flex-1 flex-col gap-6 md:grid md:grid-cols-[307px_281px] md:grid-rows-[136px_224px_60px] md:gap-x-0 md:gap-y-8 md:pt-[34px]" onSubmit={submit}>
+      <form
+        className="flex min-h-full flex-1 flex-col gap-6 md:grid md:grid-cols-[307px_281px] md:grid-rows-[136px_224px_60px] md:gap-x-0 md:gap-y-8 md:pt-[34px]"
+        onSubmit={submit}
+      >
         <div className="flex flex-col gap-6 md:col-span-2 md:gap-3">
-          <DisplayHeading accent="backup." aria-label="Encrypted backup.">Encrypted </DisplayHeading>
-          <LeadText>Set a password, download the file, and keep both somewhere safe. You’ll need them to restore access.</LeadText>
+          <DisplayHeading accent="backup." aria-label="Encrypted backup.">
+            Encrypted{" "}
+          </DisplayHeading>
+          <LeadText>
+            Set a password, download the file, and keep both somewhere safe. You’ll need them to
+            restore access.
+          </LeadText>
         </div>
 
         <div className="flex flex-col gap-2 md:col-start-1 md:row-start-2">
-          <Label htmlFor="recovery-file-password">Enter strong password</Label>
+          <Label htmlFor="recovery-file-password">Recovery password</Label>
           <Input
             autoComplete="new-password"
             containerClassName="border-dashed"
             id="recovery-file-password"
             maxLength={1024}
             minLength={MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS}
-            onChange={(event) => setPassword(event.target.value)}
+            onInput={(event) =>
+              setValidPassword(
+                event.currentTarget.value.length >= MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS,
+              )
+            }
+            ref={passwordInputRef}
             required
             type="password"
-            value={password}
           />
-          {recoveryFileFailed ? <FieldMessage error>Could not create the recovery file. Please try again.</FieldMessage> : null}
+          {recoveryFileFailed ? (
+            <FieldMessage error>Could not create the recovery file. Please try again.</FieldMessage>
+          ) : null}
         </div>
 
-        <Image alt="" aria-hidden="true" className="mx-auto size-[200px] md:col-start-2 md:row-start-2 md:mt-3" height={200} src="/illustrations/file.png" unoptimized width={200} />
+        <Image
+          alt=""
+          aria-hidden="true"
+          className="mx-auto size-[200px] md:col-start-2 md:row-start-2 md:mt-3"
+          height={200}
+          src="/illustrations/file.png"
+          width={200}
+        />
 
         <PassportNavigation
           back={<BackButton disabled={pending} onClick={onBack} />}
           className="md:col-span-2 md:row-start-3"
-          confirm={<Button className="w-full" disabled={!validPassword || pending} size="lg" type="submit">
-            <DownloadRecoveryFileIcon />
-            {pending ? "Encrypting…" : "Download backup"}
-          </Button>}
+          confirm={
+            <Button className="w-full" disabled={!validPassword || pending} size="lg" type="submit">
+              <DownloadRecoveryFileIcon />
+              {pending ? "Encrypting…" : "Download backup"}
+            </Button>
+          }
         />
       </form>
     </PassportScreen>

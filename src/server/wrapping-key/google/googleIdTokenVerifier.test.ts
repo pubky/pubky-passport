@@ -31,10 +31,12 @@ describe("Google ID token verifier", () => {
   it("normalizes accepted Google issuers to the canonical issuer", async () => {
     const verifier = createVerifierWithPayload({ ...validPayload(), iss: "accounts.google.com" });
 
-    await expect(verifier.verifyGoogleIdToken(TOKEN)).resolves.toEqual(Result.ok({
-      issuer: "https://accounts.google.com",
-      googleSubject: "google-subject",
-    }));
+    await expect(verifier.verifyGoogleIdToken(TOKEN)).resolves.toEqual(
+      Result.ok({
+        issuer: "https://accounts.google.com",
+        googleSubject: "google-subject",
+      }),
+    );
   });
 
   it("passes Passport's client ID to the Google verifier", async () => {
@@ -68,7 +70,9 @@ describe("Google ID token verifier", () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const verifier = createVerifierWithPayload(payload);
 
-    await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
+    await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), {
+      code: "invalid_google_id_token",
+    });
     expect(warning).toHaveBeenCalledWith("identity.google.id_token_verification.failed", {
       operation: "validate_claims",
       code: "invalid_claims",
@@ -80,24 +84,35 @@ describe("Google ID token verifier", () => {
   it("requires the authorized party for multiple audiences", async () => {
     const verifier = new GoogleIdTokenVerifier(
       AUDIENCE,
-      googleVerifier(vi.fn()
-        .mockResolvedValueOnce(googleLoginTicketFixture(() => ({
-          ...validPayload(),
-          aud: ["other-client-id", AUDIENCE],
-          azp: AUDIENCE,
-        })))
-        .mockResolvedValueOnce(googleLoginTicketFixture(() => ({
-          ...validPayload(),
-          aud: ["other-client-id", AUDIENCE],
-          azp: "other-client-id",
-        })))),
+      googleVerifier(
+        vi
+          .fn()
+          .mockResolvedValueOnce(
+            googleLoginTicketFixture(() => ({
+              ...validPayload(),
+              aud: ["other-client-id", AUDIENCE],
+              azp: AUDIENCE,
+            })),
+          )
+          .mockResolvedValueOnce(
+            googleLoginTicketFixture(() => ({
+              ...validPayload(),
+              aud: ["other-client-id", AUDIENCE],
+              azp: "other-client-id",
+            })),
+          ),
+      ),
     );
 
-    await expect(verifier.verifyGoogleIdToken(TOKEN)).resolves.toEqual(Result.ok({
-      issuer: "https://accounts.google.com",
-      googleSubject: "google-subject",
-    }));
-    await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
+    await expect(verifier.verifyGoogleIdToken(TOKEN)).resolves.toEqual(
+      Result.ok({
+        issuer: "https://accounts.google.com",
+        googleSubject: "google-subject",
+      }),
+    );
+    await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), {
+      code: "invalid_google_id_token",
+    });
   });
 
   it.each(["expired", "audience recipient", "invalid"])(
@@ -135,7 +150,9 @@ describe("Google ID token verifier", () => {
       googleVerifier(async () => googleLoginTicketFixture(() => undefined)),
     );
 
-    await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), { code: "invalid_google_id_token" });
+    await expectAsyncResultError(verifier.verifyGoogleIdToken(TOKEN), {
+      code: "invalid_google_id_token",
+    });
     expect(warning).toHaveBeenCalledOnce();
     expect(warning).toHaveBeenCalledWith("identity.google.id_token_verification.failed", {
       code: "missing_payload",
@@ -147,9 +164,11 @@ describe("Google ID token verifier", () => {
     const cause = new Error(`payload failed for ${TOKEN}`);
     const verifier = new GoogleIdTokenVerifier(
       AUDIENCE,
-      googleVerifier(async () => googleLoginTicketFixture(() => {
-        throw cause;
-      })),
+      googleVerifier(async () =>
+        googleLoginTicketFixture(() => {
+          throw cause;
+        }),
+      ),
     );
 
     const result = await verifier.verifyGoogleIdToken(TOKEN);
@@ -189,6 +208,8 @@ function googleVerifier(
   return { verifyIdToken };
 }
 
-function googleLoginTicketFixture(getPayload: () => TestGoogleIdTokenPayload | undefined): LoginTicket {
+function googleLoginTicketFixture(
+  getPayload: () => TestGoogleIdTokenPayload | undefined,
+): LoginTicket {
   return { getPayload } as LoginTicket;
 }

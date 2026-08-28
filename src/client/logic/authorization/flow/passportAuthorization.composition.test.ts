@@ -7,10 +7,7 @@ import { MemoryStorage } from "../../../../../test-utils/MemoryStorage";
 import { LOGGER } from "../../../../libs/logger/logger";
 import { LocalStorageIdentityRepository } from "../../local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityMetadata } from "../../local-identity/localIdentityModels";
-import {
-  PUBKY_SECRET_KEY_FORMAT,
-  type PubkySecretKeyMaterial,
-} from "../../pubky/pubkyIdentityKey";
+import { PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";
 
 const MOCKS = vi.hoisted(() => ({
   PubkySdkAdapter: vi.fn(),
@@ -24,9 +21,7 @@ vi.mock("../../pubky/PubkySdkAdapter", () => ({
   PubkySdkAdapter: MOCKS.PubkySdkAdapter,
 }));
 
-import {
-  PassportAuthorizationController,
-} from "./PassportAuthorizationController";
+import { PassportAuthorizationController } from "./PassportAuthorizationController";
 
 const RELAY_ORIGIN = "https://relay.example";
 const PUBLIC_KEY_Z32 = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";

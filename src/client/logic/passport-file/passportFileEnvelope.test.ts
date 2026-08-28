@@ -54,7 +54,9 @@ describe("parsePassportFileContents", () => {
   });
 
   it("normalizes root-path urls to origin-only output", () => {
-    const result = parsePassportFileContents(stringifyEnvelope({ url: "https://passport.pubky.app/" }));
+    const result = parsePassportFileContents(
+      stringifyEnvelope({ url: "https://passport.pubky.app/" }),
+    );
 
     expect(Result.isOk(result)).toBe(true);
     if (Result.isError(result)) {
@@ -95,11 +97,7 @@ describe("parsePassportFileContents", () => {
   });
 
   it("detects unsupported versions before applying the strict v1 shape", () => {
-    expectParseError(
-      stringifyEnvelope({ v: 3, futureField: true }),
-      "unsupported_version",
-      "v",
-    );
+    expectParseError(stringifyEnvelope({ v: 3, futureField: true }), "unsupported_version", "v");
   });
 
   it.each(["", "spaces are invalid", "?", "x".repeat(33)])("rejects invalid key ID %s", (keyId) => {
@@ -164,11 +162,18 @@ describe("parsePassportFileContents", () => {
   });
 
   it("rejects non-HTTPS urls", () => {
-    expectParseError(stringifyEnvelope({ url: "http://passport.pubky.app/" }), "invalid_file", "url");
+    expectParseError(
+      stringifyEnvelope({ url: "http://passport.pubky.app/" }),
+      "invalid_file",
+      "url",
+    );
   });
 
   it("parses already-decoded envelope objects", () => {
-    const result = parsePassportFileEnvelope({ ...VALID_ENVELOPE, url: "https://passport.pubky.app/" });
+    const result = parsePassportFileEnvelope({
+      ...VALID_ENVELOPE,
+      url: "https://passport.pubky.app/",
+    });
 
     expect(Result.isOk(result)).toBe(true);
     if (Result.isError(result)) {

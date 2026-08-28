@@ -44,8 +44,8 @@ class BrowserAuthorizationStore {
 
   getSnapshot = (): PassportAuthorizationViewState | undefined => this.getController()?.getState();
 
-  subscribe = (listener: () => void): (() => void) => this.getController()
-    ?.subscribe(() => listener()) ?? (() => undefined);
+  subscribe = (listener: () => void): (() => void) =>
+    this.getController()?.subscribe(() => listener()) ?? (() => undefined);
 }
 
 const browserAuthorizationStore = new BrowserAuthorizationStore();

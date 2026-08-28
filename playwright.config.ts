@@ -10,9 +10,7 @@ export default defineConfig({
   failOnFlakyTests: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   ...(process.env.CI ? { workers: 1 } : {}),
-  reporter: process.env.CI
-    ? [["github"], ["html", { open: "never" }]]
-    : "line",
+  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "line",
   use: {
     baseURL: BASE_URL,
     trace: "on-first-retry",
@@ -21,6 +19,18 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "firefox",
+      use: { ...devices["Desktop Firefox"] },
+    },
+    {
+      name: "webkit",
+      use: { ...devices["Desktop Safari"] },
+    },
+    {
+      name: "mobile-chromium",
+      use: { ...devices["Pixel 7"] },
     },
   ],
   webServer: {

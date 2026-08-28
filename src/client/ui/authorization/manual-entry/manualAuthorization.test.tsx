@@ -8,19 +8,29 @@ import { LOGGER } from "../../../../libs/logger/logger";
 import { ManualAuthorization } from "./manualAuthorization";
 
 vi.mock("./authorizationQrScanner", () => ({
-  AuthorizationQrScanner: ({ onClose, onScan }: {
+  AuthorizationQrScanner: ({
+    onClose,
+    onScan,
+  }: {
     onClose: () => void;
     onScan: (value: string) => void;
   }) => (
     <div aria-label="Authorization QR scanner" role="dialog">
-      <button onClick={() => onScan(VALID_REQUEST)} type="button">Scan valid QR</button>
-      <button onClick={() => onScan("not-an-authorization-request")} type="button">Scan invalid QR</button>
-      <button onClick={onClose} type="button">Close scanner</button>
+      <button onClick={() => onScan(VALID_REQUEST)} type="button">
+        Scan valid QR
+      </button>
+      <button onClick={() => onScan("not-an-authorization-request")} type="button">
+        Scan invalid QR
+      </button>
+      <button onClick={onClose} type="button">
+        Close scanner
+      </button>
     </div>
   ),
 }));
 
-const VALID_REQUEST = "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
+const VALID_REQUEST =
+  "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
 describe("ManualAuthorization", () => {
   afterEach(() => {
@@ -35,7 +45,11 @@ describe("ManualAuthorization", () => {
 
   it("starts with an empty input and pastes from the clipboard", async () => {
     const user = userEvent.setup();
-    const readText = vi.spyOn(navigator.clipboard, "readText").mockResolvedValue("pubkyauth://signin?caps=/pub/example.app/:rw&relay=https%3A%2F%2Frelay.example%2Finbox&secret=test");
+    const readText = vi
+      .spyOn(navigator.clipboard, "readText")
+      .mockResolvedValue(
+        "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https%3A%2F%2Frelay.example%2Finbox&secret=test",
+      );
     render(<ManualAuthorization onBack={vi.fn()} />);
 
     const input = screen.getByLabelText("Authorization link");
@@ -65,7 +79,9 @@ describe("ManualAuthorization", () => {
 
     await user.click(screen.getByRole("button", { name: "Scan valid QR" }));
 
-    expect(screen.queryByRole("dialog", { name: "Authorization QR scanner" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("dialog", { name: "Authorization QR scanner" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByLabelText("Authorization link")).toHaveValue(VALID_REQUEST);
     expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
   });
@@ -92,8 +108,9 @@ describe("ManualAuthorization", () => {
     expect(screen.getByLabelText("Authorization link")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     expect(window.location.pathname).toBe("/authorize");
-    expect(decodeURIComponent(new URLSearchParams(window.location.hash.slice(1)).get("d") ?? ""))
-      .toBe(VALID_REQUEST);
+    expect(
+      decodeURIComponent(new URLSearchParams(window.location.hash.slice(1)).get("d") ?? ""),
+    ).toBe(VALID_REQUEST);
   });
 
   it("shows a validation error", async () => {
@@ -102,7 +119,9 @@ describe("ManualAuthorization", () => {
     await userEvent.setup().type(screen.getByLabelText("Authorization link"), "invalid request");
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Enter a valid pubkyauth:// authorization link.");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Enter a valid pubkyauth:// authorization link.",
+    );
     expect(screen.getByLabelText("Authorization link")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText("Authorization link")).toHaveValue("");
   });
@@ -117,7 +136,9 @@ describe("ManualAuthorization", () => {
     await userEvent.setup().type(screen.getByLabelText("Authorization link"), VALID_REQUEST);
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Could not open the authorization request. Try again.");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Could not open the authorization request. Try again.",
+    );
     expect(screen.getByLabelText("Authorization link")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText("Authorization link")).toHaveValue("");
     expect(info).toHaveBeenCalledWith("authorize.manual_entry.failed", {
@@ -130,15 +151,16 @@ describe("ManualAuthorization", () => {
 
   it("shows and safely logs a clipboard failure", async () => {
     const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
-    vi.spyOn(navigator.clipboard, "readText").mockRejectedValueOnce(new DOMException(
-      "SECRET-CLIPBOARD-CANARY",
-      "NotAllowedError",
-    ));
+    vi.spyOn(navigator.clipboard, "readText").mockRejectedValueOnce(
+      new DOMException("SECRET-CLIPBOARD-CANARY", "NotAllowedError"),
+    );
     render(<ManualAuthorization onBack={vi.fn()} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Paste authorization link" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Clipboard access was blocked. Paste the link manually.");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Clipboard access was blocked. Paste the link manually.",
+    );
     expect(info).toHaveBeenCalledWith("authorize.manual_entry.failed", {
       operation: "read_clipboard",
       code: "clipboard_unavailable",

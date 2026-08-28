@@ -33,7 +33,9 @@ vi.mock("../../logic/authorization/flow/PassportAuthorizationController", () => 
         getState: () => MOCKS.authorizationState,
         subscribe: (listener: () => void) => {
           MOCKS.authorizationListener = listener;
-          return () => { MOCKS.authorizationListener = null; };
+          return () => {
+            MOCKS.authorizationListener = null;
+          };
         },
       };
     }
@@ -42,24 +44,49 @@ vi.mock("../../logic/authorization/flow/PassportAuthorizationController", () => 
 
 vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
   LocalIdentityController: class {
-    listIdentities = () => MOCKS.catalog
-      ? Result.ok(MOCKS.catalog)
-      : Result.err({ code: "storage_unavailable" as const });
+    listIdentities = () =>
+      MOCKS.catalog
+        ? Result.ok(MOCKS.catalog)
+        : Result.err({ code: "storage_unavailable" as const });
     selectIdentity = MOCKS.select;
     subscribeToIdentityChanges = (listener: () => void) => {
       MOCKS.catalogListener = listener;
-      return () => { MOCKS.catalogListener = undefined; };
+      return () => {
+        MOCKS.catalogListener = undefined;
+      };
     };
   },
 }));
 
 vi.mock("../onboarding/identityEstablishmentFlow", () => ({
-  IdentityEstablishmentFlow: ({ onBack, onComplete, signInTo }: { onBack?: () => void; onComplete: () => void; signInTo?: string }) => (
+  IdentityEstablishmentFlow: ({
+    onBack,
+    onComplete,
+    signInTo,
+  }: {
+    onBack?: () => void;
+    onComplete: () => void;
+    signInTo?: string;
+  }) => (
     <main>
       <h1>Add identity</h1>
-      {signInTo ? <aside aria-label={`Signing in to ${signInTo}`}>Signing in to {signInTo}</aside> : null}
-      <button onClick={() => { MOCKS.catalogListener?.(); onComplete(); }} type="button">Complete identity setup</button>
-      {onBack ? <button onClick={onBack} type="button">Back</button> : null}
+      {signInTo ? (
+        <aside aria-label={`Signing in to ${signInTo}`}>Signing in to {signInTo}</aside>
+      ) : null}
+      <button
+        onClick={() => {
+          MOCKS.catalogListener?.();
+          onComplete();
+        }}
+        type="button"
+      >
+        Complete identity setup
+      </button>
+      {onBack ? (
+        <button onClick={onBack} type="button">
+          Back
+        </button>
+      ) : null}
     </main>
   ),
 }));
@@ -75,18 +102,31 @@ const REVIEW = {
 
 const FIRST = {
   publicIdentity: { publicKeyZ32: "first-public-key" },
-  googleAccount: { email: "first@example.com", googleSubject: "google-first", name: "First User", pictureUrl: null },
+  googleAccount: {
+    email: "first@example.com",
+    googleSubject: "google-first",
+    name: "First User",
+    pictureUrl: null,
+  },
 };
 const SECOND = {
   publicIdentity: { publicKeyZ32: "second-public-key" },
-  googleAccount: { email: "second@example.com", googleSubject: "google-second", name: "Second User", pictureUrl: null },
+  googleAccount: {
+    email: "second@example.com",
+    googleSubject: "google-second",
+    name: "Second User",
+    pictureUrl: null,
+  },
 };
 
 describe("AuthorizationFlow", () => {
   beforeEach(() => {
     MOCKS.authorizationState = { status: "review", review: REVIEW };
-    MOCKS.catalog = { activePublicKeyZ32: FIRST.publicIdentity.publicKeyZ32, identities: [FIRST, SECOND] };
-    MOCKS.approve.mockResolvedValue({ status: "approving", review: REVIEW });
+    MOCKS.catalog = {
+      activePublicKeyZ32: FIRST.publicIdentity.publicKeyZ32,
+      identities: [FIRST, SECOND],
+    };
+    MOCKS.approve.mockResolvedValue({ status: "granting", review: REVIEW });
     MOCKS.cancel.mockResolvedValue({ status: "cancelled" });
     MOCKS.select.mockImplementation((publicKeyZ32: string) => {
       if (!MOCKS.catalog) return Result.err({ code: "storage_unavailable" as const });
@@ -110,12 +150,21 @@ describe("AuthorizationFlow", () => {
   it("shows the requested permissions and active identity", async () => {
     renderFlow();
 
-    expect(await screen.findByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Sign in to requesting.app" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("/pub/requesting.app/")).toBeInTheDocument();
     expect(screen.getByText("Read & write")).toBeInTheDocument();
     expect(screen.getByText("First User")).toBeInTheDocument();
-    expect(screen.getByText("Make sure you trust this service, browser, or device before authorizing with your pubky.", { exact: false })).toBeInTheDocument();
-    expect(screen.getByText(/allow requesting\.app to read and update your data/u)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Make sure you trust this service, browser, or device before authorizing with your pubky.",
+        { exact: false },
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/allow requesting\.app to read and update your data/u),
+    ).toBeInTheDocument();
     expect(MOCKS.createAuthorizationController).toHaveBeenCalledWith();
   });
 
@@ -131,19 +180,29 @@ describe("AuthorizationFlow", () => {
 
     renderFlow();
 
-    expect(await screen.findByRole("heading", { name: "Sign in to trusted.example" })).toBeInTheDocument();
-    expect(screen.getByText(/allow trusted\.example to read and update your data/u)).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Sign in to trusted.example" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/allow trusted\.example to read and update your data/u),
+    ).toBeInTheDocument();
   });
 
   it("scales a callback host to the largest font size that fits", async () => {
     const callbackHost = "gillohner.github.io";
-    const clientWidth = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function (this: HTMLElement) {
-      return this.tagName === "SPAN" && this.textContent === callbackHost ? 300 : 0;
-    });
-    const scrollWidth = vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (this: HTMLElement) {
-      return this.tagName === "BDI" && this.textContent === callbackHost ? 400 : 0;
-    });
-    const computedStyle = vi.spyOn(window, "getComputedStyle").mockReturnValue({ fontSize: "48px" } as CSSStyleDeclaration);
+    const clientWidth = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.tagName === "SPAN" && this.textContent === callbackHost ? 300 : 0;
+      });
+    const scrollWidth = vi
+      .spyOn(HTMLElement.prototype, "scrollWidth", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.tagName === "BDI" && this.textContent === callbackHost ? 400 : 0;
+      });
+    const computedStyle = vi
+      .spyOn(window, "getComputedStyle")
+      .mockReturnValue({ fontSize: "48px" } as CSSStyleDeclaration);
 
     try {
       MOCKS.authorizationState = {
@@ -165,14 +224,21 @@ describe("AuthorizationFlow", () => {
   });
 
   it("wraps rather than shrinking a callback host below the readable minimum", async () => {
-    const callbackHost = "an-extremely-long-callback-host-that-cannot-fit-at-a-readable-size.requesting.example";
-    const clientWidth = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function (this: HTMLElement) {
-      return this.tagName === "SPAN" && this.textContent === callbackHost ? 300 : 0;
-    });
-    const scrollWidth = vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (this: HTMLElement) {
-      return this.tagName === "BDI" && this.textContent === callbackHost ? 600 : 0;
-    });
-    const computedStyle = vi.spyOn(window, "getComputedStyle").mockReturnValue({ fontSize: "48px" } as CSSStyleDeclaration);
+    const callbackHost =
+      "an-extremely-long-callback-host-that-cannot-fit-at-a-readable-size.requesting.example";
+    const clientWidth = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.tagName === "SPAN" && this.textContent === callbackHost ? 300 : 0;
+      });
+    const scrollWidth = vi
+      .spyOn(HTMLElement.prototype, "scrollWidth", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.tagName === "BDI" && this.textContent === callbackHost ? 600 : 0;
+      });
+    const computedStyle = vi
+      .spyOn(window, "getComputedStyle")
+      .mockReturnValue({ fontSize: "48px" } as CSSStyleDeclaration);
 
     try {
       MOCKS.authorizationState = {
@@ -224,18 +290,23 @@ describe("AuthorizationFlow", () => {
 
     renderFlow();
 
-    const permissionSection = (await screen.findByRole("heading", { name: "Requested permissions" })).closest("section");
-    expect(Array.from(permissionSection?.querySelectorAll("bdi") ?? [], (path) => path.textContent)).toEqual([
-      "/pub/ordinary.app/",
-      "/pub/",
-      "/priv/vault/",
-      "/",
-    ]);
+    const permissionSection = (
+      await screen.findByRole("heading", { name: "Requested permissions" })
+    ).closest("section");
+    expect(
+      Array.from(permissionSection?.querySelectorAll("bdi") ?? [], (path) => path.textContent),
+    ).toEqual(["/pub/ordinary.app/", "/pub/", "/priv/vault/", "/"]);
   });
 
   it.each([
-    [{ path: "/pub/app/", read: true, write: false, scope: "specific" as const }, /allow requesting\.app to read your data/u],
-    [{ path: "/pub/app/", read: false, write: true, scope: "specific" as const }, /allow requesting\.app to update your data/u],
+    [
+      { path: "/pub/app/", read: true, write: false, scope: "specific" as const },
+      /allow requesting\.app to read your data/u,
+    ],
+    [
+      { path: "/pub/app/", read: false, write: true, scope: "specific" as const },
+      /allow requesting\.app to update your data/u,
+    ],
   ])("describes the requested actions accurately", async (capability, expectedText) => {
     MOCKS.authorizationState = {
       status: "review",
@@ -268,8 +339,12 @@ describe("AuthorizationFlow", () => {
 
     renderFlow();
 
-    expect(await screen.findByRole("heading", { name: "Sign in to this service" })).toBeInTheDocument();
-    expect(screen.getByText(/allow this service to read and update your data/u)).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Sign in to this service" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/allow this service to read and update your data/u),
+    ).toBeInTheDocument();
   });
 
   it("uses a neutral progress label while completing the callback", async () => {
@@ -284,15 +359,21 @@ describe("AuthorizationFlow", () => {
     MOCKS.authorizationState = { status: "manual-entry" };
     renderFlow();
 
-    expect(await screen.findByRole("heading", { name: "Authorize a service." })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Invalid authorization request" })).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Authorize a service." }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Invalid authorization request" }),
+    ).not.toBeInTheDocument();
   });
 
   it("does not silently turn a malformed authorization request into manual entry", async () => {
     MOCKS.authorizationState = { status: "invalid" };
     renderFlow();
 
-    expect(await screen.findByRole("heading", { name: "Invalid authorization request" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Invalid authorization request" }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Authorize a service." })).not.toBeInTheDocument();
   });
 
@@ -361,7 +442,9 @@ describe("AuthorizationFlow", () => {
     MOCKS.catalog = { activePublicKeyZ32: FIRST.publicIdentity.publicKeyZ32, identities: [FIRST] };
 
     expect(screen.getByRole("heading", { name: "Add identity" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Sign in to requesting.app" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Sign in to requesting.app" }),
+    ).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Complete identity setup" }));
     expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
@@ -416,15 +499,28 @@ describe("AuthorizationFlow", () => {
   });
 
   it.each([
-    ["approved", "Authorization complete.", "Continue", "You can return to the app or device where you started."],
+    [
+      "approved",
+      "Authorization complete.",
+      "Continue",
+      "You can return to the app or device where you started.",
+    ],
     ["cancelled", "Authorization cancelled.", "Back", "No authorization was granted."],
-    ["failed", "Authorization failed.", "Back", "Passport could not authorize this request with the selected identity."],
-  ] as const)("renders the safe local %s terminal state", async (status, heading, action, message) => {
-    MOCKS.authorizationState = { status };
-    renderFlow();
+    [
+      "failed",
+      "Authorization failed.",
+      "Back",
+      "Passport could not authorize this request with the selected identity.",
+    ],
+  ] as const)(
+    "renders the safe local %s terminal state",
+    async (status, heading, action, message) => {
+      MOCKS.authorizationState = { status };
+      renderFlow();
 
-    expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
-    expect(screen.getByText(message)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: action })).toBeInTheDocument();
-  });
+      expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
+      expect(screen.getByText(message)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: action })).toBeInTheDocument();
+    },
+  );
 });

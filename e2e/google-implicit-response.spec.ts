@@ -7,12 +7,14 @@ test("scrubs implicit OAuth credentials before callback hydration", async ({ pag
   const consoleLines: string[] = [];
   page.on("console", (message) => consoleLines.push(message.text()));
 
-  await page.goto(`/#${new URLSearchParams({
-    access_token: ACCESS_TOKEN,
-    id_token: ID_TOKEN,
-    scope: "openid",
-    state: "state-canary",
-  })}`);
+  await page.goto(
+    `/#${new URLSearchParams({
+      access_token: ACCESS_TOKEN,
+      id_token: ID_TOKEN,
+      scope: "openid",
+      state: "state-canary",
+    })}`,
+  );
 
   await expect(page).toHaveURL(/\/$/u);
   expect(await page.evaluate(() => location.hash)).toBe("");

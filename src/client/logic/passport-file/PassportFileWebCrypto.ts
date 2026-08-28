@@ -63,24 +63,36 @@ export class PassportFileWebCrypto {
     }
     const { crypto, subtle } = browserCrypto.value;
     if (typeof crypto.getRandomValues !== "function") {
-      LOGGER.warn("passport_file.crypto.failed", { operation: "encrypt", code: "unsupported_browser_crypto" });
+      LOGGER.warn("passport_file.crypto.failed", {
+        operation: "encrypt",
+        code: "unsupported_browser_crypto",
+      });
       return Result.err({ code: "unsupported_browser_crypto" });
     }
 
     if (!isValidSecretKeyBytes(secretKeyBytes)) {
-      LOGGER.warn("passport_file.crypto.failed", { operation: "encrypt", code: "invalid_plaintext" });
+      LOGGER.warn("passport_file.crypto.failed", {
+        operation: "encrypt",
+        code: "invalid_plaintext",
+      });
       return Result.err({ code: "invalid_plaintext" });
     }
 
     const origin = normalizePassportFileOrigin(passportOrigin);
     if (Result.isError(origin)) {
-      LOGGER.warn("passport_file.crypto.failed", { operation: "encrypt", code: "invalid_envelope" });
+      LOGGER.warn("passport_file.crypto.failed", {
+        operation: "encrypt",
+        code: "invalid_envelope",
+      });
       return Result.err({ code: "invalid_envelope", cause: origin.error });
     }
 
     const wrappingMaterial = decodeFixedLengthBase64Url(wrappingKey, WRAPPING_KEY_BYTES);
     if (!wrappingMaterial) {
-      LOGGER.warn("passport_file.crypto.failed", { operation: "encrypt", code: "invalid_wrapping_key" });
+      LOGGER.warn("passport_file.crypto.failed", {
+        operation: "encrypt",
+        code: "invalid_wrapping_key",
+      });
       return Result.err({ code: "invalid_wrapping_key" });
     }
 
@@ -149,36 +161,54 @@ export class PassportFileWebCrypto {
 
     const parsed = parsePassportFileEnvelope(envelope);
     if (Result.isError(parsed)) {
-      LOGGER.warn("passport_file.crypto.failed", { operation: "decrypt", code: "invalid_envelope" });
+      LOGGER.warn("passport_file.crypto.failed", {
+        operation: "decrypt",
+        code: "invalid_envelope",
+      });
       return Result.err({ code: "invalid_envelope", cause: parsed.error });
     }
     const parsedEnvelope = parsed.value;
 
     const expectedOrigin = normalizePassportFileOrigin(passportOrigin);
     if (Result.isError(expectedOrigin)) {
-      LOGGER.warn("passport_file.crypto.failed", { operation: "decrypt", code: "invalid_envelope" });
+      LOGGER.warn("passport_file.crypto.failed", {
+        operation: "decrypt",
+        code: "invalid_envelope",
+      });
       return Result.err({ code: "invalid_envelope", cause: expectedOrigin.error });
     }
     if (expectedOrigin.value !== parsedEnvelope.url) {
-      LOGGER.warn("passport_file.crypto.failed", { operation: "decrypt", code: "invalid_envelope" });
+      LOGGER.warn("passport_file.crypto.failed", {
+        operation: "decrypt",
+        code: "invalid_envelope",
+      });
       return Result.err({ code: "invalid_envelope" });
     }
 
     const iv = decodeFixedLengthBase64Url(parsedEnvelope.iv, AES_GCM_IV_BYTES);
     if (!iv) {
-      LOGGER.warn("passport_file.crypto.failed", { operation: "decrypt", code: "invalid_envelope" });
+      LOGGER.warn("passport_file.crypto.failed", {
+        operation: "decrypt",
+        code: "invalid_envelope",
+      });
       return Result.err({ code: "invalid_envelope" });
     }
 
     const ciphertext = decodeFixedLengthBase64Url(parsedEnvelope.ct, AES_GCM_CIPHERTEXT_BYTES);
     if (!ciphertext) {
-      LOGGER.warn("passport_file.crypto.failed", { operation: "decrypt", code: "invalid_envelope" });
+      LOGGER.warn("passport_file.crypto.failed", {
+        operation: "decrypt",
+        code: "invalid_envelope",
+      });
       return Result.err({ code: "invalid_envelope" });
     }
 
     const wrappingMaterial = decodeFixedLengthBase64Url(wrappingKey, WRAPPING_KEY_BYTES);
     if (!wrappingMaterial) {
-      LOGGER.warn("passport_file.crypto.failed", { operation: "decrypt", code: "invalid_wrapping_key" });
+      LOGGER.warn("passport_file.crypto.failed", {
+        operation: "decrypt",
+        code: "invalid_wrapping_key",
+      });
       return Result.err({ code: "invalid_wrapping_key" });
     }
 
@@ -206,7 +236,10 @@ export class PassportFileWebCrypto {
       const secretKeyBytes = new Uint8Array(plaintext);
       if (!isValidSecretKeyBytes(secretKeyBytes)) {
         secretKeyBytes.fill(0);
-        LOGGER.warn("passport_file.crypto.failed", { operation: "decrypt", code: "invalid_plaintext" });
+        LOGGER.warn("passport_file.crypto.failed", {
+          operation: "decrypt",
+          code: "invalid_plaintext",
+        });
         return Result.err({ code: "invalid_plaintext" });
       }
 
@@ -230,18 +263,20 @@ export class PassportFileWebCrypto {
     try {
       const hkdfKey = await subtle.importKey("raw", wrappingMaterial, "HKDF", false, ["deriveKey"]);
 
-      return Result.ok(await subtle.deriveKey(
-        {
-          name: "HKDF",
-          hash: "SHA-256",
-          salt: copyToArrayBuffer(AES_GCM_DERIVATION_SALT),
-          info: copyToArrayBuffer(AES_GCM_DERIVATION_INFO),
-        },
-        hkdfKey,
-        { name: "AES-GCM", length: 256 },
-        false,
-        ["encrypt", "decrypt"],
-      ));
+      return Result.ok(
+        await subtle.deriveKey(
+          {
+            name: "HKDF",
+            hash: "SHA-256",
+            salt: copyToArrayBuffer(AES_GCM_DERIVATION_SALT),
+            info: copyToArrayBuffer(AES_GCM_DERIVATION_INFO),
+          },
+          hkdfKey,
+          { name: "AES-GCM", length: 256 },
+          false,
+          ["encrypt", "decrypt"],
+        ),
+      );
     } catch (cause) {
       return Result.err({ code: "unsupported_browser_crypto", cause });
     } finally {
@@ -263,7 +298,9 @@ function getBrowserCrypto(): BrowserCryptoResult {
 }
 
 function isValidSecretKeyBytes(secretKeyBytes: Uint8Array): boolean {
-  return secretKeyBytes instanceof Uint8Array && secretKeyBytes.byteLength === PUBKY_SECRET_KEY_BYTES;
+  return (
+    secretKeyBytes instanceof Uint8Array && secretKeyBytes.byteLength === PUBKY_SECRET_KEY_BYTES
+  );
 }
 
 function decodeFixedLengthBase64Url(value: string, expectedByteLength: number): Uint8Array | null {
@@ -278,9 +315,9 @@ function base64UrlLength(byteLength: number): number {
 }
 
 function createEnvelopeAdditionalData(keyId: string, url: string): ArrayBuffer {
-  return copyToArrayBuffer(TEXT_ENCODER.encode(
-    `pubky-passport/passport-file/v1\n${url}\n${keyId}`,
-  ));
+  return copyToArrayBuffer(
+    TEXT_ENCODER.encode(`pubky-passport/passport-file/v1\n${url}\n${keyId}`),
+  );
 }
 
 function copyToArrayBuffer(bytes: Uint8Array): ArrayBuffer {

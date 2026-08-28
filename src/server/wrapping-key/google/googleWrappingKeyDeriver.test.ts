@@ -14,17 +14,24 @@ const IDENTITY = {
 
 describe("Google wrapping-key derivation", () => {
   it("preserves the frozen Google HKDF fixture", () => {
-    expect(deriveGoogleWrappingKey(SERVER_SECRET, IDENTITY)).toBe("0Rvmd96LjmVRcQ7WjvQBSUKwlI1YHO_4xmqDELjAGOE");
+    expect(deriveGoogleWrappingKey(SERVER_SECRET, IDENTITY)).toBe(
+      "0Rvmd96LjmVRcQ7WjvQBSUKwlI1YHO_4xmqDELjAGOE",
+    );
   });
 
   it("derives distinct material for distinct subjects", () => {
     const first = deriveGoogleWrappingKey(SERVER_SECRET, IDENTITY);
-    const second = deriveGoogleWrappingKey(SERVER_SECRET, { ...IDENTITY, googleSubject: "other-google-subject" });
+    const second = deriveGoogleWrappingKey(SERVER_SECRET, {
+      ...IDENTITY,
+      googleSubject: "other-google-subject",
+    });
 
     expect(first).not.toBe(second);
   });
 
   it("rejects invalid verified identity input", () => {
-    expect(() => deriveGoogleWrappingKey(SERVER_SECRET, { ...IDENTITY, googleSubject: "" })).toThrow("Invalid wrapping key identity.");
+    expect(() =>
+      deriveGoogleWrappingKey(SERVER_SECRET, { ...IDENTITY, googleSubject: "" }),
+    ).toThrow("Invalid wrapping key identity.");
   });
 });

@@ -2,10 +2,7 @@ import "server-only";
 
 import { hkdfSync } from "node:crypto";
 
-import {
-  CANONICAL_GOOGLE_ISSUER,
-  type VerifiedGoogleIdentity,
-} from "./GoogleIdTokenVerifier";
+import { CANONICAL_GOOGLE_ISSUER, type VerifiedGoogleIdentity } from "./GoogleIdTokenVerifier";
 
 const WRAPPING_KEY_BYTES = 32;
 const GOOGLE_WRAPPING_KEY_HKDF_SALT = Buffer.from("pubky-passport/wrapping-key/salt/v1", "utf8");
@@ -23,13 +20,16 @@ export function deriveGoogleWrappingKey(
     `${GOOGLE_WRAPPING_KEY_HKDF_INFO_PREFIX}${identity.issuer}\n${identity.googleSubject}`,
     "utf8",
   );
-  const derivedKey = Buffer.from(hkdfSync(
-    "sha256",
-    Buffer.from(serverSecret),
-    GOOGLE_WRAPPING_KEY_HKDF_SALT,
-    info,
-    WRAPPING_KEY_BYTES,
-  ));
-
-  return derivedKey.toString("base64url");
+  const serverSecretCopy = Buffer.from(serverSecret);
+  let derivedKey: Buffer | undefined;
+  try {
+    derivedKey = Buffer.from(
+      hkdfSync("sha256", serverSecretCopy, GOOGLE_WRAPPING_KEY_HKDF_SALT, info, WRAPPING_KEY_BYTES),
+    );
+    return derivedKey.toString("base64url");
+  } finally {
+    serverSecretCopy.fill(0);
+    derivedKey?.fill(0);
+    info.fill(0);
+  }
 }

@@ -16,6 +16,9 @@ vi.mock("../pubky/PubkySdkAdapter", async (importOriginal) => {
   return {
     ...original,
     PubkySdkAdapter: class {
+      static createPubkyRingMigration(secretKey: PubkySecretKeyMaterial, publicKeyZ32: string) {
+        return original.PubkySdkAdapter.createPubkyRingMigration(secretKey, publicKeyZ32);
+      }
       createRecoveryFile = MOCKS.createRecoveryFile;
       dispose = MOCKS.dispose;
     },
@@ -24,7 +27,7 @@ vi.mock("../pubky/PubkySdkAdapter", async (importOriginal) => {
 
 import { LocalIdentityController } from "./LocalIdentityController";
 
-const PUBLIC_KEY = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
+const PUBLIC_KEY = "yqooxx9u3aemh8mo5wcqq16yufu6jitouq1o4za751dger1igghy";
 
 beforeEach(() => {
   MOCKS.createRecoveryFile.mockReset();
@@ -35,15 +38,20 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("LocalIdentityController", () => {
   it("delegates catalog actions to its concrete repository", () => {
-    const list = vi.spyOn(LocalStorageIdentityRepository.prototype, "list")
+    const list = vi
+      .spyOn(LocalStorageIdentityRepository.prototype, "list")
       .mockReturnValue(Result.ok({ activePublicKeyZ32: null, identities: [] }));
-    const select = vi.spyOn(LocalStorageIdentityRepository.prototype, "select")
+    const select = vi
+      .spyOn(LocalStorageIdentityRepository.prototype, "select")
       .mockReturnValue(Result.ok());
-    const remove = vi.spyOn(LocalStorageIdentityRepository.prototype, "remove")
+    const remove = vi
+      .spyOn(LocalStorageIdentityRepository.prototype, "remove")
       .mockReturnValue(Result.ok());
     const controller = new LocalIdentityController();
 
-    expect(controller.listIdentities()).toEqual(Result.ok({ activePublicKeyZ32: null, identities: [] }));
+    expect(controller.listIdentities()).toEqual(
+      Result.ok({ activePublicKeyZ32: null, identities: [] }),
+    );
     expect(controller.selectIdentity(PUBLIC_KEY)).toEqual(Result.ok());
     expect(controller.removeIdentity(PUBLIC_KEY)).toEqual(Result.ok());
     expect(list).toHaveBeenCalledOnce();
@@ -51,16 +59,20 @@ describe("LocalIdentityController", () => {
     expect(remove).toHaveBeenCalledWith(PUBLIC_KEY);
   });
 
-  it("creates a Ring migration URL for the requested identity and clears secret bytes", () => {
+  it("creates an owned Ring migration and clears the repository secret bytes", async () => {
     const bytes = Uint8Array.from({ length: 32 }, (_, index) => index);
     const read = mockStoredIdentity(bytes);
     const controller = new LocalIdentityController();
 
-    expect(controller.createPubkyRingMigrationUrl(PUBLIC_KEY)).toEqual(Result.ok(
-      "pubkyring://migrate?index=0&total=1&key=000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
-    ));
+    const migration = expectResultOk(await controller.createPubkyRingMigration(PUBLIC_KEY));
+    expect(migration.url).toBe(
+      "pubkyring://000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    );
     expect(read).toHaveBeenCalledWith(PUBLIC_KEY);
     expect(bytes).toEqual(new Uint8Array(32));
+
+    migration.dispose();
+    expect(migration.url).toBeNull();
   });
 
   it("rejects weak recovery passwords before reading storage or creating the SDK", async () => {
@@ -79,10 +91,19 @@ describe("LocalIdentityController", () => {
     mockStoredIdentity(secretBytes);
     MOCKS.createRecoveryFile.mockReturnValue(Result.ok(recoveryBytes));
 
-    const recoveryFile = expectResultOk(await new LocalIdentityController()
-      .createRecoveryFile(PUBLIC_KEY, "a strong recovery password"));
+    const recoveryFile = expectResultOk(
+      await new LocalIdentityController().createRecoveryFile(
+        PUBLIC_KEY,
+        "a strong recovery password",
+      ),
+    );
 
     expect(recoveryFile).toEqual({ bytes: recoveryBytes, fileName: `pubky-${PUBLIC_KEY}.pkarr` });
+    expect(MOCKS.createRecoveryFile).toHaveBeenCalledWith(
+      expect.objectContaining({ bytes: secretBytes }),
+      PUBLIC_KEY,
+      "a strong recovery password",
+    );
     expect(secretBytes).toEqual(new Uint8Array(32));
     expect(MOCKS.dispose).toHaveBeenCalledOnce();
   });
@@ -98,8 +119,10 @@ describe("LocalIdentityController", () => {
         return Result.err({ code: "recovery_file_failed" as const });
       });
 
-      const result = await new LocalIdentityController()
-        .createRecoveryFile(PUBLIC_KEY, "a strong recovery password");
+      const result = await new LocalIdentityController().createRecoveryFile(
+        PUBLIC_KEY,
+        "a strong recovery password",
+      );
 
       expect(Result.isError(result) && result.error.code).toBe("recovery_file_failed");
       expect(secretBytes).toEqual(new Uint8Array(32));
@@ -112,10 +135,16 @@ describe("LocalIdentityController", () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     mockStoredIdentity(new Uint8Array(32).fill(1));
     MOCKS.createRecoveryFile.mockReturnValue(Result.ok(new Uint8Array(64)));
-    MOCKS.dispose.mockImplementation(() => { throw new Error("cleanup failed"); });
+    MOCKS.dispose.mockImplementation(() => {
+      throw new Error("cleanup failed");
+    });
 
-    expectResultOk(await new LocalIdentityController()
-      .createRecoveryFile(PUBLIC_KEY, "a strong recovery password"));
+    expectResultOk(
+      await new LocalIdentityController().createRecoveryFile(
+        PUBLIC_KEY,
+        "a strong recovery password",
+      ),
+    );
     expect(warning).toHaveBeenCalledWith("identity.recovery_file.cleanup.failed", {
       operation: "pubky_dispose",
     });
@@ -123,11 +152,13 @@ describe("LocalIdentityController", () => {
 });
 
 function mockStoredIdentity(secretBytes: Uint8Array) {
-  return vi.spyOn(LocalStorageIdentityRepository.prototype, "read").mockReturnValue(Result.ok({
-    identity: { publicIdentity: { publicKeyZ32: PUBLIC_KEY } },
-    secretKey: {
-      bytes: secretBytes,
-      format: PUBKY_SECRET_KEY_FORMAT,
-    } satisfies PubkySecretKeyMaterial,
-  }));
+  return vi.spyOn(LocalStorageIdentityRepository.prototype, "read").mockReturnValue(
+    Result.ok({
+      identity: { publicIdentity: { publicKeyZ32: PUBLIC_KEY } },
+      secretKey: {
+        bytes: secretBytes,
+        format: PUBKY_SECRET_KEY_FORMAT,
+      } satisfies PubkySecretKeyMaterial,
+    }),
+  );
 }

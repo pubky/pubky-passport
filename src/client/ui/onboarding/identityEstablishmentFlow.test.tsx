@@ -34,7 +34,11 @@ vi.mock("../../logic/google-identity/GoogleIdentityController", () => ({
   },
 }));
 
-function ConfiguredIdentityEstablishmentFlow({ onBack, onComplete, signInTo }: {
+function ConfiguredIdentityEstablishmentFlow({
+  onBack,
+  onComplete,
+  signInTo,
+}: {
   onBack?: () => void;
   onComplete: () => void;
   signInTo?: string;
@@ -50,7 +54,9 @@ function ConfiguredIdentityEstablishmentFlow({ onBack, onComplete, signInTo }: {
 
 describe("IdentityEstablishmentFlow", () => {
   beforeEach(() => {
-    MOCKS.constructGoogleIdentityController.mockImplementation(() => mockGoogleIdentityController());
+    MOCKS.constructGoogleIdentityController.mockImplementation(() =>
+      mockGoogleIdentityController(),
+    );
   });
 
   afterEach(() => {
@@ -64,11 +70,16 @@ describe("IdentityEstablishmentFlow", () => {
     );
     const shell = document.createElement("div");
     shell.innerHTML = markup;
-    const googleButton = [...shell.querySelectorAll("button")]
-      .find((button) => button.textContent?.includes("Continue with Google"));
+    const googleButton = [...shell.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("Continue with Google"),
+    );
 
-    expect(within(shell).getByRole("heading", { name: "Quick & easy signing." })).toHaveTextContent("Quick & easy");
-    expect(within(shell).getByText("Pubky Passport is a browser-based signer", { exact: false })).toHaveClass("md:row-start-2");
+    expect(within(shell).getByRole("heading", { name: "Quick & easy signing." })).toHaveTextContent(
+      "Quick & easy",
+    );
+    expect(
+      within(shell).getByText("Pubky Passport is a browser-based signer", { exact: false }),
+    ).toHaveClass("md:row-start-2");
     expect(googleButton).toBeEnabled();
     expect(googleButton?.parentElement).toHaveClass("md:row-start-3");
     expect(MOCKS.constructGoogleIdentityController).not.toHaveBeenCalled();
@@ -89,19 +100,23 @@ describe("IdentityEstablishmentFlow", () => {
     const waiting = screen.getByRole("button", { name: "Waiting for Google..." });
     expect(waiting).toBeDisabled();
     expect(waiting).toHaveClass("w-full", "h-[60px]", "bg-secondary", "disabled:opacity-50");
-    expect(within(screen.getByRole("status")).getByText("Waiting for Google...")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("status")).getByText("Waiting for Google..."),
+    ).toBeInTheDocument();
   });
 
   it("keeps the requesting service visible throughout identity setup", async () => {
     let finishSetup!: (result: EstablishGoogleIdentityResult) => void;
     const controller = mockGoogleIdentityController({
-      establishIdentity: vi.fn(() => new Promise<EstablishGoogleIdentityResult>((resolve) => { finishSetup = resolve; })),
+      establishIdentity: vi.fn(
+        () =>
+          new Promise<EstablishGoogleIdentityResult>((resolve) => {
+            finishSetup = resolve;
+          }),
+      ),
     });
     const emitState = captureControllerState(controller);
-    render(<ConfiguredIdentityEstablishmentFlow
-      onComplete={vi.fn()}
-      signInTo="pubky.app"
-    />);
+    render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} signInTo="pubky.app" />);
 
     const setupContext = () => screen.getByLabelText("Signing in to pubky.app");
     expect(setupContext()).toBeInTheDocument();
@@ -110,32 +125,54 @@ describe("IdentityEstablishmentFlow", () => {
       width: 16,
     });
     expect(setupContext().querySelector("img")).toHaveAttribute("src", "/icons/log-in.svg");
-    expect(screen.getByRole("heading", { name: "Quick & easy signing." }).nextElementSibling).toBe(setupContext());
-    expect(setupContext().nextElementSibling).toHaveTextContent("Pubky Passport is a browser-based signer");
+    expect(screen.getByRole("heading", { name: "Quick & easy signing." }).nextElementSibling).toBe(
+      setupContext(),
+    );
+    expect(setupContext().nextElementSibling).toHaveTextContent(
+      "Pubky Passport is a browser-based signer",
+    );
     expect(setupContext().nextElementSibling).toHaveClass("md:row-start-3");
-    expect(screen.getByRole("button", { name: "Continue with Google" }).parentElement).toHaveClass("md:row-start-4");
+    expect(screen.getByRole("button", { name: "Continue with Google" }).parentElement).toHaveClass(
+      "md:row-start-4",
+    );
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(screen.getByRole("heading", { name: "Requesting Google access." })).toBeInTheDocument();
     expect(setupContext()).toBeInTheDocument();
 
-    act(() => emitState.current?.({ status: "establishing", progress: { flow: "create", step: "creating" } }));
+    act(() =>
+      emitState.current?.({
+        status: "establishing",
+        progress: { flow: "create", step: "creating" },
+      }),
+    );
     expect(screen.getByRole("heading", { name: "Setting up your pubky." })).toBeInTheDocument();
     expect(setupContext()).toBeInTheDocument();
 
-    act(() => finishSetup(Result.ok({
-      establishmentMode: "created",
-      googleAccount: { googleSubject: "google-1", email: "user@example.com", name: "User", pictureUrl: null },
-      publicIdentity: { publicKeyZ32: "key" },
-      visibleRecoveryCopyStatus: "created",
-    })));
+    act(() =>
+      finishSetup(
+        Result.ok({
+          establishmentMode: "created",
+          googleAccount: {
+            googleSubject: "google-1",
+            email: "user@example.com",
+            name: "User",
+            pictureUrl: null,
+          },
+          publicIdentity: { publicKeyZ32: "key" },
+          visibleRecoveryCopyStatus: "created",
+        }),
+      ),
+    );
     expect(await screen.findByRole("heading", { name: "Setup complete." })).toBeInTheDocument();
     expect(setupContext()).toBeInTheDocument();
   });
 
   it("only shows contextual back navigation when supplied by its parent flow", async () => {
     const onBack = vi.fn();
-    const rendered = render(<ConfiguredIdentityEstablishmentFlow onBack={onBack} onComplete={vi.fn()} />);
+    const rendered = render(
+      <ConfiguredIdentityEstablishmentFlow onBack={onBack} onComplete={vi.fn()} />,
+    );
 
     const back = await screen.findByRole("button", { name: "Back" });
     expect(back).toHaveClass("md:mt-auto");
@@ -147,49 +184,95 @@ describe("IdentityEstablishmentFlow", () => {
   });
 
   it("shows the restore branch reported by the flow", async () => {
-    const emitState = captureControllerState(mockGoogleIdentityController({
-      establishIdentity: vi.fn(() => new Promise<never>(() => undefined)),
-    }));
+    const emitState = captureControllerState(
+      mockGoogleIdentityController({
+        establishIdentity: vi.fn(() => new Promise<never>(() => undefined)),
+      }),
+    );
     render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
-    act(() => emitState.current?.({ status: "establishing", progress: { flow: "restore", step: "restoring" } }));
+    act(() =>
+      emitState.current?.({
+        status: "establishing",
+        progress: { flow: "restore", step: "restoring" },
+      }),
+    );
 
-    expect(await screen.findByRole("heading", { name: "Restoring your pubky." })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Setting up your pubky." })).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Restoring your pubky." }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Setting up your pubky." }),
+    ).not.toBeInTheDocument();
     const restoreProgress = screen.getByRole("list", { name: "Pubky identity restore progress" });
-    expect(within(restoreProgress).getByText("Restore Passport file").closest("li")).toHaveAttribute("aria-current", "step");
-    expect(within(restoreProgress).getByText("Sign in to the homeserver").closest("li")).toHaveTextContent("Sign in to the homeserver (pending)");
-    expect(screen.getByRole("status")).toHaveTextContent("Restoring your Pubky: Restore Passport file.");
+    expect(
+      within(restoreProgress).getByText("Restore Passport file").closest("li"),
+    ).toHaveAttribute("aria-current", "step");
+    expect(
+      within(restoreProgress).getByText("Sign in to the homeserver").closest("li"),
+    ).toHaveTextContent("Sign in to the homeserver (pending)");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Restoring your Pubky: Restore Passport file.",
+    );
     expect(screen.queryByText("Republish PKDNS records")).not.toBeInTheDocument();
 
-    act(() => emitState.current?.({ status: "establishing", progress: { flow: "repair", step: "signing_up" } }));
+    act(() =>
+      emitState.current?.({
+        status: "establishing",
+        progress: { flow: "repair", step: "signing_up" },
+      }),
+    );
     expect(screen.getByRole("heading", { name: "Repairing your pubky." })).toBeInTheDocument();
     const repairProgress = screen.getByRole("list", { name: "Pubky identity repair progress" });
-    expect(within(repairProgress).getByText("Restore Passport file").closest("li")).toHaveTextContent("Restore Passport file (complete)");
-    expect(within(repairProgress).getByText("Repair homeserver access").closest("li")).toHaveAttribute("aria-current", "step");
-    expect(screen.getByRole("status")).toHaveTextContent("Repairing your Pubky: Repair homeserver access.");
+    expect(
+      within(repairProgress).getByText("Restore Passport file").closest("li"),
+    ).toHaveTextContent("Restore Passport file (complete)");
+    expect(
+      within(repairProgress).getByText("Repair homeserver access").closest("li"),
+    ).toHaveAttribute("aria-current", "step");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Repairing your Pubky: Repair homeserver access.",
+    );
   });
 
   it("does not claim setup or restore before checking Google Drive", async () => {
-    const emitState = captureControllerState(mockGoogleIdentityController({
-      establishIdentity: vi.fn(() => new Promise<never>(() => undefined)),
-    }));
+    const emitState = captureControllerState(
+      mockGoogleIdentityController({
+        establishIdentity: vi.fn(() => new Promise<never>(() => undefined)),
+      }),
+    );
     render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
-    act(() => emitState.current?.({ status: "establishing", progress: { flow: "lookup", step: "checking" } }));
+    act(() =>
+      emitState.current?.({
+        status: "establishing",
+        progress: { flow: "lookup", step: "checking" },
+      }),
+    );
 
-    expect(await screen.findByRole("heading", { name: "Looking for existing Pubky." })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Setting up your pubky." })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Restoring your pubky." })).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Looking for existing Pubky." }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Setting up your pubky." }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Restoring your pubky." }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows setup interrupted after Google access is rejected", async () => {
     let deny!: () => void;
-    const establishIdentity = vi.fn(() => new Promise<Awaited<ReturnType<MockGoogleIdentityController["establishIdentity"]>>>((resolve) => {
-      deny = () => resolve(Result.err({ code: "google_authorization_denied" }));
-    }));
+    const establishIdentity = vi.fn(
+      () =>
+        new Promise<Awaited<ReturnType<MockGoogleIdentityController["establishIdentity"]>>>(
+          (resolve) => {
+            deny = () => resolve(Result.err({ code: "google_authorization_denied" }));
+          },
+        ),
+    );
     useController(mockGoogleIdentityController({ establishIdentity }));
     render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
@@ -198,8 +281,14 @@ describe("IdentityEstablishmentFlow", () => {
     act(deny);
 
     expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
-    expect(screen.getByText("Google access was denied. Passport needs Google Drive access to create or restore your Pubky.")).toBeInTheDocument();
-    expect(within(screen.getByRole("group", { name: "Error" })).getByText("google_authorization_denied")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Google access was denied. Passport needs Google Drive access to create or restore your Pubky.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("group", { name: "Error" })).getByText("google_authorization_denied"),
+    ).toBeInTheDocument();
     const tryAgain = screen.getByRole("button", { name: "Try again" });
     await userEvent.setup().click(tryAgain);
     expect(establishIdentity).toHaveBeenCalledTimes(2);
@@ -207,14 +296,23 @@ describe("IdentityEstablishmentFlow", () => {
 
   it("preserves restored mode through completion", async () => {
     const onComplete = vi.fn();
-    const googleAccount = { googleSubject: "google-1", email: "satoshi@gmail.com", name: "Satoshi Nakamoto", pictureUrl: null };
-    useController(mockGoogleIdentityController({
-      establishIdentity: vi.fn(async () => Result.ok({
-        establishmentMode: "restored" as const,
-        googleAccount,
-        publicIdentity: { publicKeyZ32: "key",},
-      })),
-    }));
+    const googleAccount = {
+      googleSubject: "google-1",
+      email: "satoshi@gmail.com",
+      name: "Satoshi Nakamoto",
+      pictureUrl: null,
+    };
+    useController(
+      mockGoogleIdentityController({
+        establishIdentity: vi.fn(async () =>
+          Result.ok({
+            establishmentMode: "restored" as const,
+            googleAccount,
+            publicIdentity: { publicKeyZ32: "key" },
+          }),
+        ),
+      }),
+    );
     render(<ConfiguredIdentityEstablishmentFlow onComplete={onComplete} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
@@ -227,7 +325,8 @@ describe("IdentityEstablishmentFlow", () => {
   });
 
   it("shows the setup error and retries automatic reconciliation", async () => {
-    const establishIdentity = vi.fn()
+    const establishIdentity = vi
+      .fn()
       .mockResolvedValueOnce(Result.err({ code: "signin_failed" as const }))
       .mockResolvedValueOnce(Result.err({ code: "operation_failed" as const }));
     useController(mockGoogleIdentityController({ establishIdentity }));
@@ -240,29 +339,46 @@ describe("IdentityEstablishmentFlow", () => {
   });
 
   it("confirms permanent invalid-file deletion and automatically creates a new identity", async () => {
-    const googleAccount = { googleSubject: "google-1", email: "user@example.com", name: "User", pictureUrl: null };
-    const replaceInvalidPassportFile = vi.fn(async () => Result.ok({
-      establishmentMode: "created" as const,
-      googleAccount,
-      publicIdentity: { publicKeyZ32: "new-key",},
-      visibleRecoveryCopyStatus: "created" as const,
-    }));
-    useController(mockGoogleIdentityController({
-      establishIdentity: vi.fn(async () => Result.err({ code: "invalid_passport_file" as const })),
-      replaceInvalidPassportFile,
-    }));
+    const googleAccount = {
+      googleSubject: "google-1",
+      email: "user@example.com",
+      name: "User",
+      pictureUrl: null,
+    };
+    const replaceInvalidPassportFile = vi.fn(async () =>
+      Result.ok({
+        establishmentMode: "created" as const,
+        googleAccount,
+        publicIdentity: { publicKeyZ32: "new-key" },
+        visibleRecoveryCopyStatus: "created" as const,
+      }),
+    );
+    useController(
+      mockGoogleIdentityController({
+        establishIdentity: vi.fn(async () =>
+          Result.err({ code: "invalid_passport_file" as const }),
+        ),
+        replaceInvalidPassportFile,
+      }),
+    );
     render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole("button", { name: "Continue with Google" }));
 
     expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
-    expect(within(screen.getByRole("group", { name: "Error" })).getByText("invalid_passport_file")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("group", { name: "Error" })).getByText("invalid_passport_file"),
+    ).toBeInTheDocument();
     const tryAgain = screen.getByRole("button", { name: "Try again" });
     const deleteFile = screen.getByRole("button", { name: "Delete file and create new identity" });
     const back = screen.getByRole("button", { name: "Back" });
     expect(deleteFile.parentElement).toHaveClass("md:grid-cols-[120px_1fr_300px]");
-    expect(within(deleteFile.parentElement!).getAllByRole("button")).toEqual([deleteFile, tryAgain, back]);
+    expect(within(deleteFile.parentElement!).getAllByRole("button")).toEqual([
+      deleteFile,
+      tryAgain,
+      back,
+    ]);
     expect(deleteFile).toHaveClass("bg-destructive-surface", "text-destructive-foreground");
     expect(deleteFile).toHaveClass("md:col-start-3", "md:row-start-1");
     expect(tryAgain).toHaveClass("md:col-start-3", "md:row-start-2");
@@ -283,16 +399,21 @@ describe("IdentityEstablishmentFlow", () => {
 
   it("clears the pinned Google account when returning from an establishment failure", async () => {
     const clearPinnedGoogleSubject = vi.fn();
-    const establishIdentity = vi.fn()
+    const establishIdentity = vi
+      .fn()
       .mockResolvedValueOnce(Result.err({ code: "signin_failed" as const }))
       .mockImplementationOnce(() => new Promise<never>(() => undefined));
-    useController(mockGoogleIdentityController({
-      clearPinnedGoogleSubject,
-      establishIdentity,
-    }));
+    useController(
+      mockGoogleIdentityController({
+        clearPinnedGoogleSubject,
+        establishIdentity,
+      }),
+    );
     render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
-    await userEvent.setup().click(await screen.findByRole("button", { name: "Continue with Google" }));
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Continue with Google" }));
     expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
 
@@ -303,32 +424,44 @@ describe("IdentityEstablishmentFlow", () => {
   });
 
   it("renders the safe detail code returned by the controller", async () => {
-    useController(mockGoogleIdentityController({
-      establishIdentity: vi.fn(async () => Result.err({
-        code: "homeserver_signup_invitation_failed" as const,
-        detailCode: "weekly_limit_exceeded" as const,
-      })),
-    }));
+    useController(
+      mockGoogleIdentityController({
+        establishIdentity: vi.fn(async () =>
+          Result.err({
+            code: "homeserver_signup_invitation_failed" as const,
+            detailCode: "weekly_limit_exceeded" as const,
+          }),
+        ),
+      }),
+    );
     render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
-    expect(await screen.findByText("Passport could not obtain a homeserver signup invitation.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Passport could not obtain a homeserver signup invitation."),
+    ).toBeInTheDocument();
     const errorDetails = screen.getByRole("group", { name: "Error" });
     expect(errorDetails).toHaveClass("border-dashed", "border-input", "min-h-[60px]");
     expect(errorDetails).not.toContainElement(screen.getByText("Error"));
-    expect(within(errorDetails).getByText("homeserver_signup_invitation_failed")).toBeInTheDocument();
+    expect(
+      within(errorDetails).getByText("homeserver_signup_invitation_failed"),
+    ).toBeInTheDocument();
     expect(within(errorDetails).getByText("weekly_limit_exceeded")).toBeInTheDocument();
   });
 
   it("contains rejected operation details outside hook state and logs safe metadata", async () => {
     const thrown = { secret: "ESTABLISHMENT-HOOK-CANARY" };
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    useController(mockGoogleIdentityController({
-      establishIdentity: vi.fn().mockRejectedValue(thrown),
-    }));
+    useController(
+      mockGoogleIdentityController({
+        establishIdentity: vi.fn().mockRejectedValue(thrown),
+      }),
+    );
     render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
-    await userEvent.setup().click(await screen.findByRole("button", { name: "Continue with Google" }));
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Continue with Google" }));
 
     expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent("ESTABLISHMENT-HOOK-CANARY");
@@ -351,17 +484,26 @@ describe("IdentityEstablishmentFlow", () => {
   });
 
   it("retries controller construction when the user tries again", async () => {
-    const googleAccount = { googleSubject: "google-1", email: "user@example.com", name: "User", pictureUrl: null };
+    const googleAccount = {
+      googleSubject: "google-1",
+      email: "user@example.com",
+      name: "User",
+      pictureUrl: null,
+    };
     const recoveredController = mockGoogleIdentityController({
-      establishIdentity: vi.fn(async () => Result.ok({
-        establishmentMode: "created" as const,
-        googleAccount,
-        publicIdentity: { publicKeyZ32: "key",},
-        visibleRecoveryCopyStatus: "created" as const,
-      })),
+      establishIdentity: vi.fn(async () =>
+        Result.ok({
+          establishmentMode: "created" as const,
+          googleAccount,
+          publicIdentity: { publicKeyZ32: "key" },
+          visibleRecoveryCopyStatus: "created" as const,
+        }),
+      ),
     });
     MOCKS.constructGoogleIdentityController
-      .mockImplementationOnce(() => { throw new Error("temporarily unavailable"); })
+      .mockImplementationOnce(() => {
+        throw new Error("temporarily unavailable");
+      })
       .mockReturnValue(recoveredController);
     render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
@@ -373,17 +515,28 @@ describe("IdentityEstablishmentFlow", () => {
   });
 
   it("warns when a visible recovery copy could not be confirmed", async () => {
-    useController(mockGoogleIdentityController({
-      establishIdentity: vi.fn(async () => Result.ok({
-        establishmentMode: "created" as const,
-        googleAccount: { googleSubject: "google-1", email: "user@example.com", name: "User", pictureUrl: null },
-        publicIdentity: { publicKeyZ32: "key",},
-        visibleRecoveryCopyStatus: "unconfirmed" as const,
-      })),
-    }));
+    useController(
+      mockGoogleIdentityController({
+        establishIdentity: vi.fn(async () =>
+          Result.ok({
+            establishmentMode: "created" as const,
+            googleAccount: {
+              googleSubject: "google-1",
+              email: "user@example.com",
+              name: "User",
+              pictureUrl: null,
+            },
+            publicIdentity: { publicKeyZ32: "key" },
+            visibleRecoveryCopyStatus: "unconfirmed" as const,
+          }),
+        ),
+      }),
+    );
     render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
-    await userEvent.setup().click(await screen.findByRole("button", { name: "Continue with Google" }));
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Continue with Google" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Passport could not confirm the visible recovery copy",
@@ -391,14 +544,18 @@ describe("IdentityEstablishmentFlow", () => {
   });
 
   it("describes a final PKDNS publication failure without stale resolution language", async () => {
-    useController(mockGoogleIdentityController({
-      establishIdentity: vi.fn(async () => Result.err({ code: "publication_failed" as const })),
-    }));
+    useController(
+      mockGoogleIdentityController({
+        establishIdentity: vi.fn(async () => Result.err({ code: "publication_failed" as const })),
+      }),
+    );
     render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
 
-    expect(await screen.findByText("Passport could not publish your identity's PKDNS records.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Passport could not publish your identity's PKDNS records."),
+    ).toBeInTheDocument();
   });
 });
 
@@ -406,7 +563,9 @@ function useController(controller: MockGoogleIdentityController): void {
   MOCKS.constructGoogleIdentityController.mockReturnValue(controller);
 }
 
-function captureControllerState(controller: MockGoogleIdentityController): { current?: (state: GoogleIdentityViewState) => void } {
+function captureControllerState(controller: MockGoogleIdentityController): {
+  current?: (state: GoogleIdentityViewState) => void;
+} {
   const capture: { current?: (state: GoogleIdentityViewState) => void } = {};
   MOCKS.constructGoogleIdentityController.mockImplementation((_, __, onState) => {
     capture.current = onState;

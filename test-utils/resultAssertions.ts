@@ -10,13 +10,19 @@ export function expectResultOk<Success, Failure>(result: ResultType<Success, Fai
   return result.value;
 }
 
-export function expectResultError<Success, Failure>(result: ResultType<Success, Failure>, error: Failure): void {
+export function expectResultError<Success, Failure>(
+  result: ResultType<Success, Failure>,
+  error: Failure,
+): void {
   expect(Result.isError(result)).toBe(true);
   if (Result.isError(result)) {
     expect(result.error).toEqual(error);
   }
 }
 
-export async function expectAsyncResultError<Success, Failure>(result: Promise<ResultType<Success, Failure>>, error: Failure): Promise<void> {
+export async function expectAsyncResultError<Success, Failure>(
+  result: Promise<ResultType<Success, Failure>>,
+  error: Failure,
+): Promise<void> {
   expectResultError(await result, error);
 }

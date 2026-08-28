@@ -9,8 +9,10 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "border-brand bg-brand/16 text-brand hover:bg-brand/30",
-        destructive: "border-transparent bg-destructive-surface text-destructive-foreground hover:bg-destructive",
-        ghost: "border-0 bg-transparent text-foreground shadow-none hover:bg-accent active:scale-95 active:bg-accent/80 focus-visible:border-0",
+        destructive:
+          "border-transparent bg-destructive-surface text-destructive-foreground hover:bg-destructive",
+        ghost:
+          "border-0 bg-transparent text-foreground shadow-none hover:bg-accent active:scale-95 active:bg-accent/80 focus-visible:border-0",
         outline: "border-border bg-input-surface text-foreground hover:bg-accent",
         secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-accent",
       },
@@ -28,23 +30,16 @@ const buttonVariants = cva(
   },
 );
 
-export type ButtonProps = ComponentPropsWithRef<"button">
-  & VariantProps<typeof buttonVariants>;
+export type ButtonProps = ComponentPropsWithRef<"button"> & VariantProps<typeof buttonVariants>;
 
-export type ButtonLinkProps = ComponentPropsWithRef<"a">
-  & VariantProps<typeof buttonVariants>;
+export type ButtonLinkProps = ComponentPropsWithRef<"a"> & VariantProps<typeof buttonVariants>;
 
 export function Button({ className, size, type = "button", variant, ...props }: ButtonProps) {
-  return <button
-    className={cn(buttonVariants({ className, size, variant }))}
-    type={type}
-    {...props}
-  />;
+  return (
+    <button className={cn(buttonVariants({ className, size, variant }))} type={type} {...props} />
+  );
 }
 
 export function ButtonLink({ className, size, variant, ...props }: ButtonLinkProps) {
-  return <a
-    className={cn(buttonVariants({ className, size, variant }))}
-    {...props}
-  />;
+  return <a className={cn(buttonVariants({ className, size, variant }))} {...props} />;
 }

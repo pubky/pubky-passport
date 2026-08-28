@@ -4,6 +4,7 @@ import { Result, type Result as ResultType } from "better-result";
 import { z } from "zod";
 
 import { decodeBase64Url } from "../../../libs/encoding/base64Url";
+import { passportKeyIdSchema } from "../../../libs/passportPolicy";
 import { PUBKY_SECRET_KEY_BYTES } from "../pubky/pubkyIdentityKey";
 
 export type PassportFileEnvelope = {
@@ -39,7 +40,7 @@ const CRYPTO_FIELDS = {
 const PASSPORT_FILE_ENVELOPE_SCHEMA = z
   .object({
     v: z.literal(1),
-    keyId: z.string().regex(/^[A-Za-z0-9._-]{1,32}$/),
+    keyId: passportKeyIdSchema,
     ...CRYPTO_FIELDS,
   })
   .strict();
@@ -147,7 +148,9 @@ function parseUrl(value: string): URL | null {
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype;
+  return (
+    Boolean(value) && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype
+  );
 }
 
 function isFixedLengthBase64Url(value: string, expectedByteLength: number): boolean {

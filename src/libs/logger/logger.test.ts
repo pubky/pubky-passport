@@ -23,21 +23,27 @@ describe("LOGGER", () => {
 
   it("redacts Pubky authorization URLs before writing to the sink", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const authUrl = "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=auth-secret";
+    const authUrl =
+      "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=auth-secret";
 
     LOGGER.warn("authorize.received", { authUrl });
 
-    expect(warn).toHaveBeenCalledWith('level=warn event="authorize.received" authUrl="[REDACTED_AUTHORIZATION_URL]"');
+    expect(warn).toHaveBeenCalledWith(
+      'level=warn event="authorize.received" authUrl="[REDACTED_AUTHORIZATION_URL]"',
+    );
     expect(warn.mock.calls[0]?.[0]).not.toContain("auth-secret");
   });
 
   it("redacts Passport authorize route URLs before writing to the sink", () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
-    const requestUrl = "https://passport.pubky.app/authorize?d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dauth-secret";
+    const requestUrl =
+      "https://passport.pubky.app/authorize?d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dauth-secret";
 
     LOGGER.info("authorize.request", { requestUrl });
 
-    expect(info).toHaveBeenCalledWith('level=info event="authorize.request" requestUrl="[REDACTED_AUTHORIZATION_URL]"');
+    expect(info).toHaveBeenCalledWith(
+      'level=info event="authorize.request" requestUrl="[REDACTED_AUTHORIZATION_URL]"',
+    );
     expect(info.mock.calls[0]?.[0]).not.toContain("auth-secret");
   });
 
@@ -45,7 +51,8 @@ describe("LOGGER", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     LOGGER.error("authorize.callback.failed", {
-      callbackUrl: "https://app.example/passport-success?code=callback-secret&state=private#fragment-secret",
+      callbackUrl:
+        "https://app.example/passport-success?code=callback-secret&state=private#fragment-secret",
     });
 
     expect(error).toHaveBeenCalledWith(
@@ -87,7 +94,9 @@ describe("LOGGER", () => {
   });
 
   it("does not let sink failures alter application control flow", () => {
-    vi.spyOn(console, "warn").mockImplementation(() => { throw new Error("sink failed"); });
+    vi.spyOn(console, "warn").mockImplementation(() => {
+      throw new Error("sink failed");
+    });
 
     expect(() => LOGGER.warn("authorize.approval.failed")).not.toThrow();
   });

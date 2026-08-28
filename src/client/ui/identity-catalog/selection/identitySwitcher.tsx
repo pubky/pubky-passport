@@ -8,9 +8,16 @@ import { FieldMessage } from "../../shared/primitives/fieldMessage";
 import { DisplayHeading } from "../../shared/primitives/typography";
 import { IdentityRow } from "./identityRow";
 
-function IdentitySwitcher({ activePublicKeyZ32, identities, onAddIdentity, onBack, onSelect, selectionFailed = false }: {
+function IdentitySwitcher({
+  activePublicKeyZ32,
+  identities,
+  onAddIdentity,
+  onBack,
+  onSelect,
+  selectionFailed = false,
+}: {
   activePublicKeyZ32: string | null;
-  identities: LocalIdentityMetadata[];
+  identities: readonly LocalIdentityMetadata[];
   onAddIdentity: () => void;
   onBack: () => void;
   onSelect: (publicKeyZ32: string) => void;
@@ -18,9 +25,13 @@ function IdentitySwitcher({ activePublicKeyZ32, identities, onAddIdentity, onBac
 }) {
   return (
     <PassportScreen className="gap-8">
-      <DisplayHeading accent="identity." aria-label="Switch identity.">Switch</DisplayHeading>
+      <DisplayHeading accent="identity." aria-label="Switch identity.">
+        Switch
+      </DisplayHeading>
       <section className="flex flex-col gap-3">
-        <p className="text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">Select a Pubky</p>
+        <p className="text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">
+          Select a Pubky
+        </p>
         {identities.map((identity) => {
           const account = identity.googleAccount;
           const publicKeyZ32 = identity.publicIdentity.publicKeyZ32;
@@ -40,9 +51,9 @@ function IdentitySwitcher({ activePublicKeyZ32, identities, onAddIdentity, onBac
           <UserRoundPlusIcon />
           Add identity
         </Button>
-        {selectionFailed
-          ? <FieldMessage error>Could not switch identities. Please try again.</FieldMessage>
-          : null}
+        {selectionFailed ? (
+          <FieldMessage error>Could not switch identities. Please try again.</FieldMessage>
+        ) : null}
       </section>
       <PassportNavigation back={<BackButton onClick={onBack} />} />
     </PassportScreen>

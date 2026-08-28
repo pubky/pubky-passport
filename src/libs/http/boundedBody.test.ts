@@ -7,17 +7,21 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("readBoundedBytes", () => {
   it("returns bounded response bytes", async () => {
-    await expect(readBoundedBytes({ body: textStream(["pubky"]), headers: new Headers() }, 5))
-      .resolves.toEqual(new TextEncoder().encode("pubky"));
+    await expect(
+      readBoundedBytes({ body: textStream(["pubky"]), headers: new Headers() }, 5),
+    ).resolves.toEqual(new TextEncoder().encode("pubky"));
   });
 });
 
 describe("readBoundedText", () => {
   it("reads a UTF-8 body within the configured limit", async () => {
-    const result = await readBoundedText({
-      body: textStream(["pubky", " passport"]),
-      headers: new Headers(),
-    }, 32);
+    const result = await readBoundedText(
+      {
+        body: textStream(["pubky", " passport"]),
+        headers: new Headers(),
+      },
+      32,
+    );
 
     expect(result).toBe("pubky passport");
   });
@@ -30,10 +34,13 @@ describe("readBoundedText", () => {
       },
     });
 
-    const result = await readBoundedText({
-      body,
-      headers: new Headers({ "Content-Length": "33" }),
-    }, 32);
+    const result = await readBoundedText(
+      {
+        body,
+        headers: new Headers({ "Content-Length": "33" }),
+      },
+      32,
+    );
 
     expect(result).toBe("too_large");
     expect(cancelled).toBe(true);
@@ -70,10 +77,15 @@ describe("readBoundedText", () => {
       },
     });
 
-    await expect(readBoundedText({
-      body,
-      headers: new Headers({ "X-Response-Value": "SECRET-RESPONSE-VALUE" }),
-    }, 32)).resolves.toBeNull();
+    await expect(
+      readBoundedText(
+        {
+          body,
+          headers: new Headers({ "X-Response-Value": "SECRET-RESPONSE-VALUE" }),
+        },
+        32,
+      ),
+    ).resolves.toBeNull();
     expect(warning).toHaveBeenCalledWith("http.body_read.failed", {
       operation: "read",
       code: "body_unavailable",
@@ -104,8 +116,9 @@ describe("readBoundedText", () => {
       throw new TypeError("SECRET-RELEASE-CANARY");
     });
 
-    await expect(readBoundedText({ body: textStream(["pubky"]), headers: new Headers() }, 32))
-      .resolves.toBe("pubky");
+    await expect(
+      readBoundedText({ body: textStream(["pubky"]), headers: new Headers() }, 32),
+    ).resolves.toBe("pubky");
     expect(warning).toHaveBeenCalledWith("http.body_read.failed", {
       operation: "release",
       code: "body_unavailable",

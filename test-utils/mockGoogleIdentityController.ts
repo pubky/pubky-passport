@@ -5,7 +5,11 @@ import type { GoogleIdentityController } from "../src/client/logic/google-identi
 
 export type MockGoogleIdentityController = Pick<
   GoogleIdentityController,
-  "clearPinnedGoogleSubject" | "detachIdentity" | "dispose" | "establishIdentity" | "replaceInvalidPassportFile"
+  | "clearPinnedGoogleSubject"
+  | "detachIdentity"
+  | "dispose"
+  | "establishIdentity"
+  | "replaceInvalidPassportFile"
 >;
 
 export function mockGoogleIdentityController(
@@ -13,12 +17,15 @@ export function mockGoogleIdentityController(
 ): MockGoogleIdentityController {
   return {
     clearPinnedGoogleSubject: overrides.clearPinnedGoogleSubject ?? vi.fn(),
-    establishIdentity: overrides.establishIdentity
-      ?? vi.fn(async () => Result.err({ code: "authorization_failed" as const })),
-    replaceInvalidPassportFile: overrides.replaceInvalidPassportFile
-      ?? vi.fn(async () => Result.err({ code: "authorization_failed" as const })),
-    detachIdentity: overrides.detachIdentity
-      ?? vi.fn(async () => Result.err({ code: "authorization_failed" as const })),
+    establishIdentity:
+      overrides.establishIdentity ??
+      vi.fn(async () => Result.err({ code: "authorization_failed" as const })),
+    replaceInvalidPassportFile:
+      overrides.replaceInvalidPassportFile ??
+      vi.fn(async () => Result.err({ code: "authorization_failed" as const })),
+    detachIdentity:
+      overrides.detachIdentity ??
+      vi.fn(async () => Result.err({ code: "authorization_failed" as const })),
     dispose: overrides.dispose ?? vi.fn(),
   };
 }

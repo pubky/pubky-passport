@@ -17,13 +17,30 @@ describe("browser bootstrap config", () => {
     vi.stubEnv("GOOGLE_CLIENT_ID", VALID_CONFIG.GOOGLE_CLIENT_ID);
     vi.stubEnv("HOMEGATE_URL", VALID_CONFIG.HOMEGATE_URL);
     vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", VALID_CONFIG.PUBKY_HOMESERVER_CONNECT_ORIGINS);
-    vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", VALID_CONFIG.PASSPORT_SERVER_SECRET_CURRENT_KEY_ID);
-    vi.stubEnv("PASSPORT_SERVER_SECRET_KEYRING_JSON", VALID_CONFIG.PASSPORT_SERVER_SECRET_KEYRING_JSON);
+    vi.stubEnv(
+      "PASSPORT_SERVER_SECRET_CURRENT_KEY_ID",
+      VALID_CONFIG.PASSPORT_SERVER_SECRET_CURRENT_KEY_ID,
+    );
+    vi.stubEnv(
+      "PASSPORT_SERVER_SECRET_KEYRING_JSON",
+      VALID_CONFIG.PASSPORT_SERVER_SECRET_KEYRING_JSON,
+    );
   });
 
   afterEach(() => vi.unstubAllEnvs());
 
   it("normalizes public browser values", () => {
+    expect(getBrowserBootstrapConfig()).toEqual({
+      googleClientId: "google-client-id",
+      homegateBaseUrl: "https://homegate.example/api/",
+      homegateOrigin: "https://homegate.example",
+    });
+  });
+
+  it("does not require or parse server-secret configuration", () => {
+    vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", undefined);
+    vi.stubEnv("PASSPORT_SERVER_SECRET_KEYRING_JSON", "not-json");
+
     expect(getBrowserBootstrapConfig()).toEqual({
       googleClientId: "google-client-id",
       homegateBaseUrl: "https://homegate.example/api/",

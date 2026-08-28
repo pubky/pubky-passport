@@ -7,7 +7,7 @@ import { GoogleDriveVisibleRecoveryCopies } from "./GoogleDriveVisibleRecoveryCo
 
 const ACCESS_TOKEN = "SECRET-DRIVE-TOKEN";
 const PUBLIC_KEY_Z32 = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
-const PUBLIC_IDENTITY = { publicKeyZ32: PUBLIC_KEY_Z32,};
+const PUBLIC_IDENTITY = { publicKeyZ32: PUBLIC_KEY_Z32 };
 const VISIBLE_FILE_NAME = `${PUBLIC_KEY_Z32}.json`;
 const ENVELOPE: PassportFileEnvelope = {
   v: 1,
@@ -23,20 +23,30 @@ const FOLDER = {
 };
 const SIGNAL = new AbortController().signal;
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("GoogleDriveVisibleRecoveryCopies creation", () => {
   it("creates the visible folder and identity-named encrypted copy", async () => {
     const calls: SanitizedCall[] = [];
     const createdFolder = { ...FOLDER, trashed: false };
-    const createdFile = { id: "SECRET-CREATED-ID", name: VISIBLE_FILE_NAME, version: "SECRET-REVISION" };
-    const visibleCopies = createVisibleCopies([
-      jsonResponse({ files: [] }),
-      jsonResponse(createdFolder),
-      jsonResponse({ files: [FOLDER] }),
-      jsonResponse(createdFile),
-      jsonResponse({ ...createdFile, trashed: false, parents: [FOLDER.id] }),
-    ], calls);
+    const createdFile = {
+      id: "SECRET-CREATED-ID",
+      name: VISIBLE_FILE_NAME,
+      version: "SECRET-REVISION",
+    };
+    const visibleCopies = createVisibleCopies(
+      [
+        jsonResponse({ files: [] }),
+        jsonResponse(createdFolder),
+        jsonResponse({ files: [FOLDER] }),
+        jsonResponse(createdFile),
+        jsonResponse({ ...createdFile, trashed: false, parents: [FOLDER.id] }),
+      ],
+      calls,
+    );
 
     const result = await visibleCopies.createVisibleRecoveryCopy(
       ENVELOPE,
@@ -46,7 +56,11 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
 
     expect(Result.isOk(result)).toBe(true);
     expect(calls.map((call) => call.method)).toEqual(["GET", "POST", "GET", "POST", "GET"]);
-    expect(calls[0]).toMatchObject({ endpoint: "drive_files", spaces: "drive", isFolderLookup: true });
+    expect(calls[0]).toMatchObject({
+      endpoint: "drive_files",
+      spaces: "drive",
+      isFolderLookup: true,
+    });
     expect(calls[1]).toMatchObject({
       endpoint: "drive_files",
       createsExpectedFolder: true,
@@ -64,7 +78,9 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
       metadataFields: "id,name,version,trashed,parents",
     });
     expect(calls.every((call) => call.method !== "PATCH" && call.method !== "DELETE")).toBe(true);
-    expect(calls.every((call) => !call.readsMedia && call.hasSignal && call.hasExpectedBearerToken)).toBe(true);
+    expect(
+      calls.every((call) => !call.readsMedia && call.hasSignal && call.hasExpectedBearerToken),
+    ).toBe(true);
     expect(JSON.stringify(calls)).not.toContain(ACCESS_TOKEN);
     expect(JSON.stringify(calls)).not.toContain(ENVELOPE.iv);
     expect(JSON.stringify(calls)).not.toContain(ENVELOPE.ct);
@@ -73,7 +89,8 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
 
   it("allows concurrent repeated identity-named copies", async () => {
     const drive = new StatefulVisibleDrive();
-    const createVisibleCopies = () => new GoogleDriveVisibleRecoveryCopies(ACCESS_TOKEN, drive.fetch);
+    const createVisibleCopies = () =>
+      new GoogleDriveVisibleRecoveryCopies(ACCESS_TOKEN, drive.fetch);
 
     const [first, second] = await Promise.all([
       createVisibleCopies().createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, SIGNAL),
@@ -85,18 +102,45 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
     expect(drive.uploadedNames).toEqual([VISIBLE_FILE_NAME, VISIBLE_FILE_NAME]);
   });
 
-  it("rejects duplicate visible folders instead of selecting an ambiguous path", async () => {
-    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const visibleCopies = createVisibleCopies([jsonResponse({ files: [FOLDER], nextPageToken: "more-folders" })]);
+  it("serializes folder selection under one same-origin browser lock", async () => {
+    const lockManager = new RecordingLockManager();
+    vi.stubGlobal("navigator", { locks: lockManager });
+    const createdFile = { id: "SECRET-CREATED-ID", name: VISIBLE_FILE_NAME, version: "1" };
+    const responses = () => [
+      jsonResponse({ files: [FOLDER] }),
+      jsonResponse(createdFile),
+      jsonResponse({ ...createdFile, trashed: false, parents: [FOLDER.id] }),
+    ];
+
+    const [first, second] = await Promise.all([
+      createVisibleCopies(responses()).createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, SIGNAL),
+      createVisibleCopies(responses()).createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, SIGNAL),
+    ]);
+
+    expect(Result.isOk(first)).toBe(true);
+    expect(Result.isOk(second)).toBe(true);
+    expect(lockManager.names).toHaveLength(2);
+    expect(new Set(lockManager.names).size).toBe(1);
+    expect(lockManager.maximumActive).toBe(1);
+  });
+
+  it("selects the same canonical folder when concurrent devices created duplicates", async () => {
+    const canonicalFolder = { ...FOLDER, id: "A-CANONICAL-FOLDER" };
+    const createdFile = { id: "SECRET-CREATED-ID", name: VISIBLE_FILE_NAME, version: "1" };
+    const calls: SanitizedCall[] = [];
+    const visibleCopies = createVisibleCopies(
+      [
+        jsonResponse({ files: [FOLDER, canonicalFolder] }),
+        jsonResponse(createdFile),
+        jsonResponse({ ...createdFile, trashed: false, parents: [canonicalFolder.id] }),
+      ],
+      calls,
+    );
 
     const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, SIGNAL);
 
-    expect(Result.isError(result) && result.error).toEqual({ code: "invalid_response" });
-    expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {
-      operation: "parse_folder_list_response",
-      code: "invalid_response",
-    });
-    expect(warning).toHaveBeenCalledOnce();
+    expect(Result.isOk(result)).toBe(true);
+    expect(calls).toHaveLength(3);
   });
 
   it.each([
@@ -105,7 +149,10 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
     ["true", { ...FOLDER, trashed: true }],
   ])("rejects a created folder with %s trashed metadata", async (_case, createdFolder) => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const visibleCopies = createVisibleCopies([jsonResponse({ files: [] }), jsonResponse(createdFolder)]);
+    const visibleCopies = createVisibleCopies([
+      jsonResponse({ files: [] }),
+      jsonResponse(createdFolder),
+    ]);
 
     const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, SIGNAL);
 
@@ -122,20 +169,27 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
     ["short key", { publicKeyZ32: "y".repeat(51) }],
     ["long key", { publicKeyZ32: "y".repeat(53) }],
     ["noncanonical suffix", { publicKeyZ32: `${PUBLIC_KEY_Z32.slice(0, -1)}n` }],
-  ])("rejects %s public identity filename input without accessing Drive", async (_case, publicIdentity) => {
-    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const calls: SanitizedCall[] = [];
-    const visibleCopies = createVisibleCopies([], calls);
+  ])(
+    "rejects %s public identity filename input without accessing Drive",
+    async (_case, publicIdentity) => {
+      const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+      const calls: SanitizedCall[] = [];
+      const visibleCopies = createVisibleCopies([], calls);
 
-    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, publicIdentity, SIGNAL);
+      const result = await visibleCopies.createVisibleRecoveryCopy(
+        ENVELOPE,
+        publicIdentity,
+        SIGNAL,
+      );
 
-    expect(Result.isError(result) && result.error).toEqual({ code: "invalid_file" });
-    expect(calls).toEqual([]);
-    expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {
-      operation: "visible_file_name",
-      code: "invalid_file",
-    });
-  });
+      expect(Result.isError(result) && result.error).toEqual({ code: "invalid_file" });
+      expect(calls).toEqual([]);
+      expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {
+        operation: "visible_file_name",
+        code: "invalid_file",
+      });
+    },
+  );
 
   it("logs malformed valid JSON response shape once without response contents", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
@@ -154,9 +208,10 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
 
   it("rejects an oversized Drive response before issuing a later request", async () => {
     const calls: SanitizedCall[] = [];
-    const visibleCopies = createVisibleCopies([
-      new Response("{}", { headers: { "Content-Length": String(16 * 1024 + 1) } }),
-    ], calls);
+    const visibleCopies = createVisibleCopies(
+      [new Response("{}", { headers: { "Content-Length": String(16 * 1024 + 1) } })],
+      calls,
+    );
 
     const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, SIGNAL);
 
@@ -166,7 +221,9 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
 
   it("owns a sanitized low-level permission failure log", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const visibleCopies = createVisibleCopies([jsonResponse({ error: "SECRET-UPSTREAM-BODY" }, 403)]);
+    const visibleCopies = createVisibleCopies([
+      jsonResponse({ error: "SECRET-UPSTREAM-BODY" }, 403),
+    ]);
 
     const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, SIGNAL);
 
@@ -188,7 +245,11 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
     controller.abort();
     const visibleCopies = createVisibleCopies([], calls);
 
-    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, controller.signal);
+    const result = await visibleCopies.createVisibleRecoveryCopy(
+      ENVELOPE,
+      PUBLIC_IDENTITY,
+      controller.signal,
+    );
 
     expect(Result.isError(result) && result.error).toEqual({ code: "network_failed" });
     expect(calls).toEqual([]);
@@ -210,7 +271,11 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
     }) as typeof fetch;
     const visibleCopies = new GoogleDriveVisibleRecoveryCopies(ACCESS_TOKEN, fetchMock);
 
-    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, controller.signal);
+    const result = await visibleCopies.createVisibleRecoveryCopy(
+      ENVELOPE,
+      PUBLIC_IDENTITY,
+      controller.signal,
+    );
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) {
@@ -227,10 +292,7 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
   it("does not verify metadata after the visible upload response is lost", async () => {
     const calls: SanitizedCall[] = [];
     const cause = new Error("SECRET-LOST-UPLOAD-RESPONSE");
-    const visibleCopies = createVisibleCopies([
-      jsonResponse({ files: [FOLDER] }),
-      cause,
-    ], calls);
+    const visibleCopies = createVisibleCopies([jsonResponse({ files: [FOLDER] }), cause], calls);
 
     const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, SIGNAL);
 
@@ -245,7 +307,11 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
 
   it("rejects created-file metadata that does not match the exact upload", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const created = { id: "SECRET-CREATED-ID", name: VISIBLE_FILE_NAME, version: "SECRET-REVISION" };
+    const created = {
+      id: "SECRET-CREATED-ID",
+      name: VISIBLE_FILE_NAME,
+      version: "SECRET-REVISION",
+    };
     const visibleCopies = createVisibleCopies([
       jsonResponse({ files: [FOLDER] }),
       jsonResponse(created),
@@ -312,21 +378,19 @@ type SanitizedCall = {
   hasSignal: boolean;
 };
 
-function createVisibleCopies(
-  responses: Array<Response | Error>,
-  calls: SanitizedCall[] = [],
-) {
+function createVisibleCopies(responses: Array<Response | Error>, calls: SanitizedCall[] = []) {
   const fetchMock = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input));
     const body = typeof init?.body === "string" ? init.body : "";
     const authorization = new Headers(init?.headers).get("Authorization");
-    const endpoint = url.origin === "https://www.googleapis.com" && url.pathname === "/drive/v3/files"
-      ? "drive_files"
-      : url.origin === "https://www.googleapis.com" && url.pathname.startsWith("/drive/v3/files/")
-        ? "drive_file_metadata"
-        : url.origin === "https://www.googleapis.com" && url.pathname === "/upload/drive/v3/files"
-          ? "drive_upload"
-          : "unexpected";
+    const endpoint =
+      url.origin === "https://www.googleapis.com" && url.pathname === "/drive/v3/files"
+        ? "drive_files"
+        : url.origin === "https://www.googleapis.com" && url.pathname.startsWith("/drive/v3/files/")
+          ? "drive_file_metadata"
+          : url.origin === "https://www.googleapis.com" && url.pathname === "/upload/drive/v3/files"
+            ? "drive_upload"
+            : "unexpected";
     calls.push({
       endpoint,
       method: init?.method ?? "GET",
@@ -334,17 +398,21 @@ function createVisibleCopies(
       uploadType: url.searchParams.get("uploadType"),
       metadataFields: url.searchParams.get("fields"),
       isFolderLookup: url.searchParams.get("q")?.includes("name = 'Pubky Passport'") === true,
-      createsExpectedFolder: body.includes('"name":"Pubky Passport"')
-        && body.includes('"mimeType":"application/vnd.google-apps.folder"'),
+      createsExpectedFolder:
+        body.includes('"name":"Pubky Passport"') &&
+        body.includes('"mimeType":"application/vnd.google-apps.folder"'),
       createsInRoot: body.includes('"parents":["root"]'),
-      visibleFileName: body.match(/"name":"([13456789abcdefghijkmnopqrstuwxyz]{52}\.json)"/)?.[1] ?? null,
-      hasExactEnvelope: body.includes(JSON.stringify({
-        v: ENVELOPE.v,
-        keyId: ENVELOPE.keyId,
-        iv: ENVELOPE.iv,
-        ct: ENVELOPE.ct,
-        url: "https://passport.pubky.app",
-      })),
+      visibleFileName:
+        body.match(/"name":"([13456789abcdefghijkmnopqrstuwxyz]{52}\.json)"/)?.[1] ?? null,
+      hasExactEnvelope: body.includes(
+        JSON.stringify({
+          v: ENVELOPE.v,
+          keyId: ENVELOPE.keyId,
+          iv: ENVELOPE.iv,
+          ct: ENVELOPE.ct,
+          url: "https://passport.pubky.app",
+        }),
+      ),
       hasExpectedFolderParent: body.includes(`"parents":["${FOLDER.id}"]`),
       hasExpectedBearerToken: authorization === `Bearer ${ACCESS_TOKEN}`,
       readsMedia: url.searchParams.get("alt") === "media",
@@ -371,7 +439,8 @@ function sanitizedAbortCall(init?: RequestInit): SanitizedCall {
     visibleFileName: null,
     hasExactEnvelope: false,
     hasExpectedFolderParent: false,
-    hasExpectedBearerToken: new Headers(init?.headers).get("Authorization") === `Bearer ${ACCESS_TOKEN}`,
+    hasExpectedBearerToken:
+      new Headers(init?.headers).get("Authorization") === `Bearer ${ACCESS_TOKEN}`,
     readsMedia: false,
     hasSignal: init?.signal instanceof AbortSignal,
   };
@@ -379,7 +448,10 @@ function sanitizedAbortCall(init?: RequestInit): SanitizedCall {
 
 class StatefulVisibleDrive {
   uploadedNames: string[] = [];
-  private files = new Map<string, { id: string; name: string; version: string; trashed: false; parents: string[] }>();
+  private files = new Map<
+    string,
+    { id: string; name: string; version: string; trashed: false; parents: string[] }
+  >();
 
   fetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = new URL(String(input));
@@ -406,6 +478,34 @@ class StatefulVisibleDrive {
     const fileId = url.pathname.split("/").at(-1);
     return jsonResponse(fileId ? this.files.get(fileId) : undefined);
   }) as typeof fetch;
+}
+
+class RecordingLockManager {
+  names: string[] = [];
+  maximumActive = 0;
+  private active = 0;
+  private tail = Promise.resolve();
+
+  async request<LockResult>(
+    name: string,
+    callback: () => Promise<LockResult>,
+  ): Promise<LockResult> {
+    this.names.push(name);
+    const previous = this.tail;
+    let release = (): void => undefined;
+    this.tail = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous;
+    this.active += 1;
+    this.maximumActive = Math.max(this.maximumActive, this.active);
+    try {
+      return await callback();
+    } finally {
+      this.active -= 1;
+      release();
+    }
+  }
 }
 
 function jsonResponse(body: unknown, status = 200): Response {

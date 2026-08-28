@@ -1,5 +1,5 @@
 import dynamic from "next/dynamic";
-import { type SubmitEvent, useCallback, useState } from "react";
+import { type SubmitEvent, useCallback, useRef, useState } from "react";
 
 import { LOGGER } from "../../../../libs/logger/logger";
 import { validateManualAuthorizationInput } from "../../../logic/authorization/entry/manualAuthorizationInput";
@@ -20,13 +20,16 @@ const AuthorizationQrScanner = dynamic(
 );
 
 function ManualAuthorization({ onBack }: { onBack: () => void }) {
-  const [authorization, setAuthorization] = useState("");
+  const authorizationInputRef = useRef<HTMLInputElement>(null);
+  const [hasAuthorization, setHasAuthorization] = useState(false);
   const [error, setError] = useState<string>();
   const [scannerOpen, setScannerOpen] = useState(false);
 
   const submit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setAuthorization("");
+    const authorization = authorizationInputRef.current?.value ?? "";
+    if (authorizationInputRef.current) authorizationInputRef.current.value = "";
+    setHasAuthorization(false);
     const result = validateManualAuthorizationInput(authorization);
     if (result.status === "invalid") {
       setError("Enter a valid pubkyauth:// authorization link.");
@@ -48,7 +51,9 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
   const paste = async () => {
     try {
       const value = await navigator.clipboard.readText();
-      setAuthorization(value);
+      if (!authorizationInputRef.current) return;
+      authorizationInputRef.current.value = value;
+      setHasAuthorization(value.trim().length > 0);
       setError(undefined);
     } catch {
       LOGGER.info("authorize.manual_entry.failed", {
@@ -63,12 +68,14 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
     setScannerOpen(false);
     const result = validateManualAuthorizationInput(value);
     if (result.status === "invalid") {
-      setAuthorization("");
+      if (authorizationInputRef.current) authorizationInputRef.current.value = "";
+      setHasAuthorization(false);
       setError("Scan a QR code containing a valid pubkyauth:// authorization link.");
       return;
     }
 
-    setAuthorization(value.trim());
+    if (authorizationInputRef.current) authorizationInputRef.current.value = value.trim();
+    setHasAuthorization(true);
     setError(undefined);
   }, []);
 
@@ -76,39 +83,72 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
     <PassportScreen>
       <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
         <div className="flex flex-col gap-6">
-          <DisplayHeading accent="a service." aria-label="Authorize a service.">Authorize</DisplayHeading>
-          <LeadText>Paste or scan the authorization link from the app you want to connect.</LeadText>
+          <DisplayHeading accent="a service." aria-label="Authorize a service.">
+            Authorize
+          </DisplayHeading>
+          <LeadText>
+            Paste or scan the authorization link from the app you want to connect.
+          </LeadText>
           <div className="flex flex-col gap-2 pt-1">
             <Label htmlFor="authorization-link">Authorization link</Label>
             <Input
-              action={<div className="flex items-center gap-1">
-                <IconButton aria-label="Scan authorization QR code" className="size-8 p-0" onClick={() => setScannerOpen(true)} type="button" variant="ghost"><CameraIcon /></IconButton>
-                <IconButton aria-label="Paste authorization link" className="size-8 p-0" onClick={() => void paste()} type="button" variant="ghost"><ClipboardPasteIcon size={20} /></IconButton>
-              </div>}
+              action={
+                <div className="flex items-center gap-1">
+                  <IconButton
+                    aria-label="Scan authorization QR code"
+                    className="size-8 p-0"
+                    onClick={() => setScannerOpen(true)}
+                    type="button"
+                    variant="ghost"
+                  >
+                    <CameraIcon />
+                  </IconButton>
+                  <IconButton
+                    aria-label="Paste authorization link"
+                    className="size-8 p-0"
+                    onClick={() => void paste()}
+                    type="button"
+                    variant="ghost"
+                  >
+                    <ClipboardPasteIcon size={20} />
+                  </IconButton>
+                </div>
+              }
               aria-describedby={error ? "authorization-link-error" : undefined}
               aria-invalid={Boolean(error)}
               autoCapitalize="none"
               autoComplete="off"
               containerClassName="border-dashed bg-transparent"
               id="authorization-link"
-              onChange={(event) => {
-                setAuthorization(event.target.value);
+              onInput={(event) => {
+                setHasAuthorization(event.currentTarget.value.trim().length > 0);
                 setError(undefined);
               }}
               placeholder="pubkyauth://"
+              ref={authorizationInputRef}
               spellCheck={false}
-              value={authorization}
             />
-            {error ? <FieldMessage error id="authorization-link-error" role="alert">{error}</FieldMessage> : null}
+            {error ? (
+              <FieldMessage error id="authorization-link-error" role="alert">
+                {error}
+              </FieldMessage>
+            ) : null}
           </div>
         </div>
         <PassportNavigation
           back={<BackButton onClick={onBack} />}
           className="pt-6"
-          confirm={<Button className="w-full" disabled={authorization.trim().length === 0} size="lg" type="submit"><ArrowRightIcon />Continue</Button>}
+          confirm={
+            <Button className="w-full" disabled={!hasAuthorization} size="lg" type="submit">
+              <ArrowRightIcon />
+              Continue
+            </Button>
+          }
         />
       </form>
-      {scannerOpen ? <AuthorizationQrScanner onClose={() => setScannerOpen(false)} onScan={scan} /> : null}
+      {scannerOpen ? (
+        <AuthorizationQrScanner onClose={() => setScannerOpen(false)} onScan={scan} />
+      ) : null}
     </PassportScreen>
   );
 }

@@ -39,14 +39,16 @@ describe("AuthorizationQrScanner", () => {
   it("prefers the rear camera, scans once, and stops the camera", async () => {
     const controls: ScannerControls = { stop: vi.fn() };
     let callback: ScanCallback | undefined;
-    MOCKS.decodeFromConstraints.mockImplementation((
-      _constraints: MediaStreamConstraints,
-      _preview: HTMLVideoElement,
-      nextCallback: ScanCallback,
-    ) => {
-      callback = nextCallback;
-      return Promise.resolve(controls);
-    });
+    MOCKS.decodeFromConstraints.mockImplementation(
+      (
+        _constraints: MediaStreamConstraints,
+        _preview: HTMLVideoElement,
+        nextCallback: ScanCallback,
+      ) => {
+        callback = nextCallback;
+        return Promise.resolve(controls);
+      },
+    );
     const onScan = vi.fn();
     render(<AuthorizationQrScanner onClose={vi.fn()} onScan={onScan} />);
 
@@ -67,10 +69,9 @@ describe("AuthorizationQrScanner", () => {
 
   it("shows a safe error when camera access is unavailable", async () => {
     const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
-    MOCKS.decodeFromConstraints.mockRejectedValue(new DOMException(
-      "SENSITIVE-CAMERA-DETAIL",
-      "NotAllowedError",
-    ));
+    MOCKS.decodeFromConstraints.mockRejectedValue(
+      new DOMException("SENSITIVE-CAMERA-DETAIL", "NotAllowedError"),
+    );
     render(<AuthorizationQrScanner onClose={vi.fn()} onScan={vi.fn()} />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(

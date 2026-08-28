@@ -3,13 +3,20 @@ import type { ComponentPropsWithoutRef } from "react";
 
 import { cn } from "./mergeClassNames";
 
-function SignInContext({ className, requester, ...props }: ComponentPropsWithoutRef<"aside"> & {
+function SignInContext({
+  className,
+  requester,
+  ...props
+}: ComponentPropsWithoutRef<"aside"> & {
   requester: string;
 }) {
   return (
     <aside
       aria-label={`Signing in to ${requester}`}
-      className={cn("flex w-fit max-w-full items-center gap-2 self-start rounded-full border border-border bg-card/80 px-3 py-2 text-xs leading-4 shadow-xs", className)}
+      className={cn(
+        "flex w-fit max-w-full items-center gap-2 self-start rounded-full border border-border bg-card/80 px-3 py-2 text-xs leading-4 shadow-xs",
+        className,
+      )}
       {...props}
     >
       <Image

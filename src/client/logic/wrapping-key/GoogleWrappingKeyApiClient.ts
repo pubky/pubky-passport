@@ -6,6 +6,7 @@ import { z } from "zod";
 import { isCanonicalBase64Url } from "../../../libs/encoding/base64Url";
 import { LOGGER } from "../../../libs/logger/logger";
 import { readBoundedText } from "../../../libs/http/boundedBody";
+import { MAXIMUM_JSON_BODY_BYTES, passportKeyIdSchema } from "../../../libs/passportPolicy";
 import type { CodedFailure } from "../../../libs/result";
 
 const ERROR_CODES = [
@@ -15,26 +16,25 @@ const ERROR_CODES = [
   "dependency_unavailable",
   "internal_error",
 ] as const;
-const KEY_ID_SCHEMA = z.string().regex(/^[A-Za-z0-9._-]{1,32}$/);
-const SUCCESS_SCHEMA = z.object({
-  wrappingKey: z.string().length(43).refine(isCanonicalBase64Url),
-  keyId: KEY_ID_SCHEMA,
-}).strict();
-const ERROR_SCHEMA = z.object({
-  error: z.object({ code: z.enum(ERROR_CODES) }).strict(),
-}).strict();
+const SUCCESS_SCHEMA = z
+  .object({
+    wrappingKey: z.string().length(43).refine(isCanonicalBase64Url),
+    keyId: passportKeyIdSchema,
+  })
+  .strict();
+const ERROR_SCHEMA = z
+  .object({
+    error: z.object({ code: z.enum(ERROR_CODES) }).strict(),
+  })
+  .strict();
 
 export type GoogleWrappingKeyErrorCode =
-  | (typeof ERROR_CODES)[number]
-  | "invalid_response"
-  | "network_failed";
+  (typeof ERROR_CODES)[number] | "invalid_response" | "network_failed";
 
 export type GoogleWrappingKeyResult = Result<
   { wrappingKey: string; keyId: string },
   CodedFailure<GoogleWrappingKeyErrorCode>
 >;
-
-const MAXIMUM_RESPONSE_BYTES = 16 * 1024;
 
 export class GoogleWrappingKeyApiClient {
   constructor(private readonly fetch: typeof globalThis.fetch) {}
@@ -64,7 +64,7 @@ export class GoogleWrappingKeyApiClient {
       return Result.err({ code: "network_failed", cause });
     }
 
-    const contents = await readBoundedText(response, MAXIMUM_RESPONSE_BYTES);
+    const contents = await readBoundedText(response, MAXIMUM_JSON_BODY_BYTES);
     if (contents === null || contents === "too_large") {
       LOGGER.warn("identity.google.wrapping_key.failed", {
         operation: "request_google_wrapping_key",

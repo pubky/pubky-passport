@@ -10,15 +10,17 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:staging:pubky": "vitest run --config vitest.staging.config.ts",
+    "test:staging:pubky": "vitest run --config vitest.staging.config.mts",
     "test:e2e": "pnpm build && pnpm test:e2e:run",
     "test:e2e:run": "playwright test",
-    "check": "pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build",
     "check:critical": "pnpm audit --prod && pnpm check && pnpm test:e2e:run"
   },
   "dependencies": {
@@ -41,22 +43,21 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.3.6",
+    "@axe-core/playwright": "4.13.0",
     "@playwright/test": "^1.62.1",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.6",
-    "@types/node": "26",
+    "@types/node": "^24.13.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitest/coverage-v8": "^4.1.11",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.3.2",
     "jsdom": "^30.0.1",
-    "msw": "^2.15.0",
+    "prettier": "3.9.6",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
-    "vite": "^8.2.2",
     "vitest": "^4.1.11"
   }
 }

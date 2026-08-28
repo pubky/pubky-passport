@@ -4,10 +4,7 @@ import { LOGGER } from "../../../../libs/logger/logger";
 
 export type AuthorizationOutcome = "success" | "error" | "cancel";
 export type AuthorizationHandoffStatus =
-  | "aborted"
-  | "acknowledged-and-closed"
-  | "navigated"
-  | "unavailable";
+  "aborted" | "acknowledged-and-closed" | "navigated" | "unavailable";
 
 const MESSAGE_TYPE = "pubky-passport.authorization-outcome";
 const ACKNOWLEDGEMENT_TYPE = "pubky-passport.authorization-outcome-ack";
@@ -39,12 +36,15 @@ export async function handoffAuthorizationOutcome(
   );
 
   try {
-    opener.postMessage(Object.freeze({
-      type: MESSAGE_TYPE,
-      version: MESSAGE_VERSION,
-      outcome,
-      messageId,
-    }), targetOrigin);
+    opener.postMessage(
+      Object.freeze({
+        type: MESSAGE_TYPE,
+        version: MESSAGE_VERSION,
+        outcome,
+        messageId,
+      }),
+      targetOrigin,
+    );
   } catch {
     logHandoffFailure("post_message");
     acknowledgement.cancel();
@@ -66,7 +66,9 @@ function waitForAcknowledgement(
   signal: AbortSignal,
 ): { result: Promise<boolean>; cancel: () => void } {
   let finish!: (acknowledged: boolean) => void;
-  const result = new Promise<boolean>((resolve) => { finish = resolve; });
+  const result = new Promise<boolean>((resolve) => {
+    finish = resolve;
+  });
   let settled = false;
   let timeoutId: number | undefined;
 
@@ -94,9 +96,12 @@ function waitForAcknowledgement(
     finish(acknowledged);
   };
   const onMessage = (event: MessageEvent) => {
-    if (event.source === opener
-      && event.origin === targetOrigin
-      && isAcknowledgement(event.data, messageId)) settle(true);
+    if (
+      event.source === opener &&
+      event.origin === targetOrigin &&
+      isAcknowledgement(event.data, messageId)
+    )
+      settle(true);
   };
   const onAbort = () => settle(false);
 
@@ -148,9 +153,11 @@ function closeWindow(appWindow: Window): boolean {
 function isAcknowledgement(value: unknown, messageId: string): boolean {
   if (typeof value !== "object" || value === null) return false;
   const acknowledgement = value as Record<string, unknown>;
-  return acknowledgement.type === ACKNOWLEDGEMENT_TYPE
-    && acknowledgement.version === MESSAGE_VERSION
-    && acknowledgement.messageId === messageId;
+  return (
+    acknowledgement.type === ACKNOWLEDGEMENT_TYPE &&
+    acknowledgement.version === MESSAGE_VERSION &&
+    acknowledgement.messageId === messageId
+  );
 }
 
 function navigationStatus(appWindow: Window, callback: string): AuthorizationHandoffStatus {

@@ -21,14 +21,16 @@ function Dialog({ onOpenChange, open, ...props }: DialogProps) {
     };
   }, [open]);
 
-  return <dialog
-    onCancel={(event) => {
-      event.preventDefault();
-      onOpenChange(false);
-    }}
-    ref={dialog}
-    {...props}
-  />;
+  return (
+    <dialog
+      onCancel={(event) => {
+        event.preventDefault();
+        onOpenChange(false);
+      }}
+      ref={dialog}
+      {...props}
+    />
+  );
 }
 
 export { Dialog, type DialogProps };

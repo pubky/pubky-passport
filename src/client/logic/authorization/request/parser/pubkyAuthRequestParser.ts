@@ -2,10 +2,7 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import {
-  parsePubkyAuthCapabilities,
-  type PubkyAuthCapability,
-} from "./pubkyAuthCapabilities";
+import { parsePubkyAuthCapabilities, type PubkyAuthCapability } from "./pubkyAuthCapabilities";
 import {
   validatePubkyAuthUrls,
   type ValidatedPubkyAuthCallbacks,
@@ -97,9 +94,7 @@ const PUBKY_AUTH_PROTOCOL = "pubkyauth:";
  * Callers must either construct the validated request wrapper immediately or
  * use the validation-only function.
  */
-export function parseEncodedPubkyAuthRequest(
-  encodedRequest: unknown,
-): PubkyAuthParseResult {
+export function parseEncodedPubkyAuthRequest(encodedRequest: unknown): PubkyAuthParseResult {
   if (typeof encodedRequest !== "string" || encodedRequest.length === 0) {
     return Result.err<never, PubkyAuthParseError>({ code: "missing_d" });
   }
@@ -155,10 +150,7 @@ export function parseEncodedPubkyAuthRequest(
     return Result.err(parameters.error);
   }
 
-  const grantParameters = validateGrantParameters(
-    authUrl.value,
-    authenticationMethod.value,
-  );
+  const grantParameters = validateGrantParameters(authUrl.value, authenticationMethod.value);
   if (Result.isError(grantParameters)) {
     return Result.err(grantParameters.error);
   }
@@ -168,7 +160,9 @@ export function parseEncodedPubkyAuthRequest(
     return Result.err(urls.error);
   }
 
-  const requestedCapabilities = authUrl.value.searchParams.get(PUBKY_AUTH_REQUEST_PARAMETERS.capabilities);
+  const requestedCapabilities = authUrl.value.searchParams.get(
+    PUBKY_AUTH_REQUEST_PARAMETERS.capabilities,
+  );
   if (requestedCapabilities === null) {
     return Result.err<never, PubkyAuthParseError>({ code: "missing_capabilities" });
   }
@@ -179,9 +173,10 @@ export function parseEncodedPubkyAuthRequest(
   }
 
   const normalizedCapabilities = requestedCapabilities.normalize("NFC");
-  const sensitivePubkyAuthUrl = normalizedCapabilities === requestedCapabilities
-    ? decoded.value
-    : replaceCapabilities(authUrl.value, normalizedCapabilities);
+  const sensitivePubkyAuthUrl =
+    normalizedCapabilities === requestedCapabilities
+      ? decoded.value
+      : replaceCapabilities(authUrl.value, normalizedCapabilities);
 
   return Result.ok({
     authenticationMethod: authenticationMethod.value,
@@ -241,9 +236,8 @@ function validatePubkyAuthRequestParameters(
   authenticationMethod: PubkyAuthenticationMethod,
 ): ParseValueResult<void> {
   const seen = new Set<string>();
-  const supportedParameters = authenticationMethod === "grant"
-    ? GRANT_PARAMETERS
-    : COMMON_PARAMETERS;
+  const supportedParameters =
+    authenticationMethod === "grant" ? GRANT_PARAMETERS : COMMON_PARAMETERS;
 
   for (const [name] of searchParams) {
     if (!supportedParameters.has(name)) {

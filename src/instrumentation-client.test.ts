@@ -2,9 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  EARLY_AUTHORIZATION_LOCATION_PROPERTY,
-} from "./libs/authorization/earlyAuthorizationLocation";
+import { EARLY_AUTHORIZATION_LOCATION_PROPERTY } from "./libs/authorization/earlyAuthorizationLocation";
 
 const SECRET = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
@@ -17,18 +15,14 @@ describe("instrumentation-client authorization entry", () => {
 
   it("retains a parsed request without a review deadline", async () => {
     vi.useFakeTimers();
-    window.history.replaceState(
-      {},
-      "",
-      `/authorize#d=${encodeURIComponent(validRequest())}`,
-    );
+    window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
     const bootstrap = await import("./instrumentation-client");
 
     vi.advanceTimersByTime(24 * 60 * 60_000);
 
     const entry = bootstrap.takeInitialAuthorizationEntry();
     expect(entry?.status).toBe("valid");
-      if (entry?.status === "valid") entry.request.release();
+    if (entry?.status === "valid") entry.request.release();
     expect(window.location.hash).toBe("");
   });
 
@@ -49,7 +43,7 @@ describe("instrumentation-client authorization entry", () => {
 
     const entry = bootstrap.takeInitialAuthorizationEntry();
     expect(entry?.status).toBe("valid");
-      if (entry?.status === "valid") entry.request.release();
+    if (entry?.status === "valid") entry.request.release();
   });
 
   it("rejects an early capture whose short deadline already passed", async () => {

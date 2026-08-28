@@ -4,7 +4,8 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
-import { getApplicationEnvironment } from "../../config/applicationEnvironment";
+import { getPublicApplicationEnvironment } from "../../config/publicApplicationEnvironment";
+import { getServerSecretEnvironment } from "../../config/serverSecretEnvironment";
 import {
   GoogleIdTokenVerifier,
   type GoogleIdTokenVerificationResult,
@@ -12,9 +13,7 @@ import {
 import { deriveGoogleWrappingKey } from "./GoogleWrappingKeyDeriver";
 
 export type GoogleWrappingKeyIssueErrorCode =
-  | "invalid_google_id_token"
-  | "key_unavailable"
-  | "dependency_unavailable";
+  "invalid_google_id_token" | "key_unavailable" | "dependency_unavailable";
 
 export type GoogleWrappingKeyIssueResult = ResultType<
   { wrappingKey: string; keyId: string },
@@ -23,13 +22,16 @@ export type GoogleWrappingKeyIssueResult = ResultType<
 
 export class GoogleWrappingKeyIssuer {
   constructor(
-    private readonly verifyGoogleIdToken: (token: string) => Promise<GoogleIdTokenVerificationResult>,
+    private readonly verifyGoogleIdToken: (
+      token: string,
+    ) => Promise<GoogleIdTokenVerificationResult>,
     private readonly currentKeyId: string,
     private readonly secrets: ReadonlyMap<string, Buffer>,
   ) {}
 
   static fromEnvironment(): GoogleWrappingKeyIssuer {
-    const { googleClientId, serverSecretCurrentKeyId, serverSecrets } = getApplicationEnvironment();
+    const { googleClientId } = getPublicApplicationEnvironment();
+    const { serverSecretCurrentKeyId, serverSecrets } = getServerSecretEnvironment();
     const verifier = new GoogleIdTokenVerifier(googleClientId);
     return new GoogleWrappingKeyIssuer(
       (token) => verifier.verifyGoogleIdToken(token),

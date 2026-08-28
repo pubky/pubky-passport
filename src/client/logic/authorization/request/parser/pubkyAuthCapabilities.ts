@@ -29,7 +29,10 @@ export type PubkyAuthCapabilitiesParseError = {
   code: PubkyAuthCapabilitiesParseErrorCode;
 };
 
-type PubkyAuthCapabilitiesParseResult = ResultType<PubkyAuthCapability[], PubkyAuthCapabilitiesParseError>;
+type PubkyAuthCapabilitiesParseResult = ResultType<
+  PubkyAuthCapability[],
+  PubkyAuthCapabilitiesParseError
+>;
 
 /** Parses the bounded Pubky capability list used for authorization review. */
 export function parsePubkyAuthCapabilities(input: string): PubkyAuthCapabilitiesParseResult {
@@ -44,7 +47,11 @@ export function parsePubkyAuthCapabilities(input: string): PubkyAuthCapabilities
     return Result.err<never, PubkyAuthCapabilitiesParseError>({ code: "empty_capability" });
   }
 
-  if (rawCapabilities.some((capability) => capability.length > PUBKY_AUTH_CAPABILITY_LIMITS.maximumCapabilityCodeUnits)) {
+  if (
+    rawCapabilities.some(
+      (capability) => capability.length > PUBKY_AUTH_CAPABILITY_LIMITS.maximumCapabilityCodeUnits,
+    )
+  ) {
     return Result.err<never, PubkyAuthCapabilitiesParseError>({ code: "capability_too_long" });
   }
 
@@ -80,7 +87,9 @@ function parseCapability(input: string): CapabilityParseResult {
   }
 
   if (!isValidCapabilityActions(actions)) {
-    return Result.err<never, PubkyAuthCapabilitiesParseError>({ code: "unsupported_capability_actions" });
+    return Result.err<never, PubkyAuthCapabilitiesParseError>({
+      code: "unsupported_capability_actions",
+    });
   }
 
   return Result.ok({

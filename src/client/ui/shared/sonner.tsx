@@ -8,8 +8,26 @@ function Sonner() {
     <Toaster
       duration={3000}
       icons={{
-        info: <Image alt="" aria-hidden="true" height={20} src="/icons/sonner-info.svg" unoptimized width={20} />,
-        success: <Image alt="" aria-hidden="true" height={20} src="/icons/sonner-success.svg" unoptimized width={20} />,
+        info: (
+          <Image
+            alt=""
+            aria-hidden="true"
+            height={20}
+            src="/icons/sonner-info.svg"
+            unoptimized
+            width={20}
+          />
+        ),
+        success: (
+          <Image
+            alt=""
+            aria-hidden="true"
+            height={20}
+            src="/icons/sonner-success.svg"
+            unoptimized
+            width={20}
+          />
+        ),
       }}
       mobileOffset={{ left: 15, right: 15, top: 5 }}
       offset={{ top: 5 }}
@@ -24,7 +42,8 @@ function Sonner() {
           info: "!border-[#303034] bg-[linear-gradient(rgba(5,5,10,0.6),rgba(5,5,10,0.6)),linear-gradient(#454549,#454549)]",
           success: "!border-brand/50 bg-brand/25",
           title: "w-full text-sm font-bold leading-5 text-popover-foreground",
-          toast: "pointer-events-auto flex w-full items-center gap-2 rounded-lg border border-solid p-6 shadow-[0_10px_15px_rgba(5,5,10,0.5)] backdrop-blur-[10px]",
+          toast:
+            "pointer-events-auto flex w-full items-center gap-2 rounded-lg border border-solid p-6 shadow-[0_10px_15px_rgba(5,5,10,0.5)] backdrop-blur-[10px]",
         },
       }}
     />

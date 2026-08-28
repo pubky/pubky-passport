@@ -2,9 +2,15 @@
 
 import { useState } from "react";
 
-import type { LocalIdentityCatalog, LocalIdentityMetadata } from "../../logic/local-identity/localIdentityModels";
+import type {
+  LocalIdentityCatalog,
+  LocalIdentityMetadata,
+} from "../../logic/local-identity/localIdentityModels";
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
-import { useIdentityCatalog, type IdentityCatalogActions } from "../identity-catalog/useIdentityCatalog";
+import {
+  useIdentityCatalog,
+  type IdentityCatalogActions,
+} from "../identity-catalog/useIdentityCatalog";
 import { IdentityEstablishmentFlow } from "../onboarding/identityEstablishmentFlow";
 import { RotateCcwIcon } from "../shared/actionIcons";
 import { ButtonLink } from "../shared/primitives/button";
@@ -29,31 +35,46 @@ function IdentityDashboard() {
 
   switch (identityCatalogState.status) {
     case "loading":
-      return <main aria-label="Checking login state" className="grid min-h-[calc(100svh-var(--passport-header-height))] place-items-center"><Spinner /></main>;
+      return (
+        <main
+          aria-label="Checking login state"
+          className="grid min-h-[calc(100svh-var(--passport-header-height))] place-items-center"
+        >
+          <Spinner />
+        </main>
+      );
     case "unavailable":
       return (
         <main className="grid min-h-[calc(100svh-var(--passport-header-height))] place-items-center px-6 text-center text-muted-foreground">
           <div className="flex flex-col items-center gap-6">
             <p>Local identity storage is unavailable.</p>
-            <ButtonLink href="/" size="lg"><RotateCcwIcon />Reload page</ButtonLink>
+            <ButtonLink href="/" size="lg">
+              <RotateCcwIcon />
+              Reload page
+            </ButtonLink>
           </div>
         </main>
       );
     case "ready":
-      return <ReadyIdentityDashboard
-        catalog={identityCatalogState.catalog}
-        actions={identityCatalogState.actions}
-      />;
+      return (
+        <ReadyIdentityDashboard
+          catalog={identityCatalogState.catalog}
+          actions={identityCatalogState.actions}
+        />
+      );
   }
 }
 
-function ReadyIdentityDashboard({ actions, catalog }: {
+function ReadyIdentityDashboard({
+  actions,
+  catalog,
+}: {
   actions: IdentityCatalogActions;
   catalog: LocalIdentityCatalog;
 }) {
-  const [navigation, setNavigation] = useState<IdentityDashboardView>(() => (
-    catalog.identities.length === 0 ? { view: "onboarding" } : { view: "overview" }
-  ));
+  const [navigation, setNavigation] = useState<IdentityDashboardView>(() =>
+    catalog.identities.length === 0 ? { view: "onboarding" } : { view: "overview" },
+  );
   const state = resolveIdentityDashboardView(navigation, catalog);
   const activeIdentity = catalog.identities.find(
     (identity) => identity.publicIdentity.publicKeyZ32 === catalog.activePublicKeyZ32,
@@ -61,94 +82,116 @@ function ReadyIdentityDashboard({ actions, catalog }: {
 
   switch (state.view) {
     case "onboarding":
-      return <IdentityEstablishmentFlow
-        onComplete={() => {
-          setNavigation({ view: "overview" });
-        }}
-      />;
+      return (
+        <IdentityEstablishmentFlow
+          onComplete={() => {
+            setNavigation({ view: "overview" });
+          }}
+        />
+      );
     case "select-identity":
-      return <IdentitySelectionFlow
-        catalog={catalog}
-        onBack={() => setNavigation({ view: "overview" })}
-        onIdentitySelected={() => setNavigation({ view: "overview" })}
-        selectIdentity={actions.selectIdentity}
-      />;
+      return (
+        <IdentitySelectionFlow
+          catalog={catalog}
+          onBack={() => setNavigation({ view: "overview" })}
+          onIdentitySelected={() => setNavigation({ view: "overview" })}
+          selectIdentity={actions.selectIdentity}
+        />
+      );
     case "manage-identity": {
       const identity = catalog.identities.find(
         (candidate) => candidate.publicIdentity.publicKeyZ32 === state.publicKeyZ32,
       );
       if (!identity) return null;
       const publicKeyZ32 = identity.publicIdentity.publicKeyZ32;
-      return <IdentityManagement
-        identity={identity}
-        onBack={() => setNavigation({ view: "overview" })}
-        onDetachFromGoogle={() => {
-          if (identity.googleAccount) {
+      return (
+        <IdentityManagement
+          identity={identity}
+          onBack={() => setNavigation({ view: "overview" })}
+          onDetachFromGoogle={() => {
+            if (identity.googleAccount) {
+              setNavigation({
+                view: "detach-from-google",
+                googleSubject: identity.googleAccount.googleSubject,
+                identity,
+              });
+            }
+          }}
+          onDownloadRecoveryFile={() => setNavigation({ view: "recovery-file", publicKeyZ32 })}
+          onRemoveLocalIdentity={() => actions.removeIdentity(publicKeyZ32)}
+          onMigrateToKeychain={() => {
             setNavigation({
-              view: "detach-from-google",
-              googleSubject: identity.googleAccount.googleSubject,
-              identity,
+              view: "migrate-to-pubky-ring",
+              publicKeyZ32,
             });
-          }
-        }}
-        onDownloadRecoveryFile={() => setNavigation({ view: "recovery-file", publicKeyZ32 })}
-        onRemoveLocalIdentity={() => actions.removeIdentity(publicKeyZ32)}
-        onMigrateToKeychain={() => {
-          setNavigation({
-            view: "migrate-to-pubky-ring",
-            publicKeyZ32,
-          });
-        }}
-        resolveHomeserver={actions.resolveHomeserver}
-      />;
+          }}
+          resolveHomeserver={actions.resolveHomeserver}
+        />
+      );
     }
     case "recovery-file":
-      return <RecoveryFileDownload
-        createRecoveryFile={actions.createRecoveryFile}
-        publicKeyZ32={state.publicKeyZ32}
-        onBack={() => setNavigation({ view: "manage-identity", publicKeyZ32: state.publicKeyZ32 })}
-      />;
+      return (
+        <RecoveryFileDownload
+          createRecoveryFile={actions.createRecoveryFile}
+          publicKeyZ32={state.publicKeyZ32}
+          onBack={() =>
+            setNavigation({ view: "manage-identity", publicKeyZ32: state.publicKeyZ32 })
+          }
+        />
+      );
     case "migrate-to-pubky-ring":
-      return <MigrateToPubkyRing
-        createMigrationUrl={() => {
-          return actions.createMigrationUrl(state.publicKeyZ32);
-        }}
-        navigationAction="back"
-        onBack={() => setNavigation({ view: "manage-identity", publicKeyZ32: state.publicKeyZ32 })}
-      />;
+      return (
+        <MigrateToPubkyRing
+          createMigration={() => {
+            return actions.createMigration(state.publicKeyZ32);
+          }}
+          navigationAction="back"
+          onBack={() =>
+            setNavigation({ view: "manage-identity", publicKeyZ32: state.publicKeyZ32 })
+          }
+        />
+      );
     case "detach-from-google":
-      return <DetachFromGoogleFlow
-        createRecoveryFile={actions.createRecoveryFile}
-        createMigrationUrl={() => {
-          // Detachment must back up the same identity that it will remove.
-          return actions.createMigrationUrl(state.identity.publicIdentity.publicKeyZ32);
-        }}
-        googleSubject={state.googleSubject}
-        identity={state.identity}
-        onBack={() => setNavigation({
-          view: "manage-identity",
-          publicKeyZ32: state.identity.publicIdentity.publicKeyZ32,
-        })}
-        onDone={() => {
-          setNavigation({ view: "overview" });
-        }}
-      />;
+      return (
+        <DetachFromGoogleFlow
+          createRecoveryFile={actions.createRecoveryFile}
+          createMigration={() => {
+            // Detachment must back up the same identity that it will remove.
+            return actions.createMigration(state.identity.publicIdentity.publicKeyZ32);
+          }}
+          googleSubject={state.googleSubject}
+          identity={state.identity}
+          onBack={() =>
+            setNavigation({
+              view: "manage-identity",
+              publicKeyZ32: state.identity.publicIdentity.publicKeyZ32,
+            })
+          }
+          onDone={() => {
+            setNavigation({ view: "overview" });
+          }}
+        />
+      );
     case "overview":
-      return activeIdentity
-        ? <IdentityOverview
+      return activeIdentity ? (
+        <IdentityOverview
           identity={activeIdentity}
-          onManage={() => setNavigation({
-            view: "manage-identity",
-            publicKeyZ32: activeIdentity.publicIdentity.publicKeyZ32,
-          })}
+          onManage={() =>
+            setNavigation({
+              view: "manage-identity",
+              publicKeyZ32: activeIdentity.publicIdentity.publicKeyZ32,
+            })
+          }
           onSwitch={() => setNavigation({ view: "select-identity" })}
         />
-        : <IdentitySelectionFlow
+      ) : (
+        <IdentitySelectionFlow
           catalog={catalog}
           onBack={() => setNavigation({ view: "overview" })}
           onIdentitySelected={() => setNavigation({ view: "overview" })}
           selectIdentity={actions.selectIdentity}
-        />;
+        />
+      );
   }
 }
 
@@ -158,8 +201,12 @@ function resolveIdentityDashboardView(
 ): IdentityDashboardView {
   if (state.view === "detach-from-google" || state.view === "onboarding") return state;
   if (catalog.identities.length === 0) return { view: "onboarding" };
-  if ("publicKeyZ32" in state
-    && !catalog.identities.some((identity) => identity.publicIdentity.publicKeyZ32 === state.publicKeyZ32)) {
+  if (
+    "publicKeyZ32" in state &&
+    !catalog.identities.some(
+      (identity) => identity.publicIdentity.publicKeyZ32 === state.publicKeyZ32,
+    )
+  ) {
     return { view: "overview" };
   }
   return state;

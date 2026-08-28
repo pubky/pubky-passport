@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import NEXT_CONFIG from "./next.config.mjs";
+import NEXT_CONFIG from "./next.config";
 
 describe("next config headers", () => {
   it("does not print secret-bearing request URLs through Next logging", () => {
@@ -52,7 +52,6 @@ describe("next config headers", () => {
     expect(headerValue(authorizeHeaders, "Permissions-Policy")).toContain("camera=(self)");
     expect(headerValue(authorizeHeaders, "Permissions-Policy")).toContain("microphone=()");
   });
-
 });
 
 function headerValue(headers: Array<{ key: string; value: string }>, key: string): string {

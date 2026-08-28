@@ -64,11 +64,15 @@ describe("parsePubkyAuthCapabilities", () => {
 
   it("accepts the capability count limit and rejects limit plus one", () => {
     const capability = "/pub/app/:r";
-    expect(expectCapabilities(Array(PUBKY_AUTH_CAPABILITY_LIMITS.maximumCapabilityCount).fill(capability).join(","))).toHaveLength(
-      PUBKY_AUTH_CAPABILITY_LIMITS.maximumCapabilityCount,
-    );
+    expect(
+      expectCapabilities(
+        Array(PUBKY_AUTH_CAPABILITY_LIMITS.maximumCapabilityCount).fill(capability).join(","),
+      ),
+    ).toHaveLength(PUBKY_AUTH_CAPABILITY_LIMITS.maximumCapabilityCount);
     expectError(
-      Array(PUBKY_AUTH_CAPABILITY_LIMITS.maximumCapabilityCount + 1).fill(capability).join(","),
+      Array(PUBKY_AUTH_CAPABILITY_LIMITS.maximumCapabilityCount + 1)
+        .fill(capability)
+        .join(","),
       "too_many_capabilities",
     );
   });

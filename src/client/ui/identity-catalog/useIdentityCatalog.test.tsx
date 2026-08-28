@@ -20,17 +20,20 @@ vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
     constructor() {
       MOCKS.create();
       return {
-        createPubkyRingMigrationUrl: () => Result.err({ code: "invalid_identity" as const }),
+        createPubkyRingMigration: () => Result.err({ code: "invalid_identity" as const }),
         createRecoveryFile: async () => Result.err({ code: "identity_unavailable" as const }),
-        listIdentities: () => MOCKS.unavailable
-          ? Result.err({ code: "storage_unavailable" as const })
-          : Result.ok(MOCKS.catalog),
+        listIdentities: () =>
+          MOCKS.unavailable
+            ? Result.err({ code: "storage_unavailable" as const })
+            : Result.ok(MOCKS.catalog),
         removeIdentity: () => Result.ok(),
         resolveHomeserver: async () => Result.ok(null),
         selectIdentity: () => Result.ok(),
         subscribeToIdentityChanges: (listener: () => void) => {
           MOCKS.listener = listener;
-          return () => { MOCKS.listener = undefined; };
+          return () => {
+            MOCKS.listener = undefined;
+          };
         },
       };
     }
@@ -39,7 +42,9 @@ vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
 
 function IdentityCatalogProbe() {
   const state = useIdentityCatalog();
-  return <p>{state.status === "ready" ? `ready:${state.catalog.identities.length}` : state.status}</p>;
+  return (
+    <p>{state.status === "ready" ? `ready:${state.catalog.identities.length}` : state.status}</p>
+  );
 }
 
 describe("useIdentityCatalog", () => {
@@ -73,7 +78,11 @@ describe("useIdentityCatalog", () => {
   });
 
   it("keeps one live subscription under Strict Mode", async () => {
-    render(<StrictMode><IdentityCatalogProbe /></StrictMode>);
+    render(
+      <StrictMode>
+        <IdentityCatalogProbe />
+      </StrictMode>,
+    );
     expect(await screen.findByText("ready:0")).toBeInTheDocument();
     expect(MOCKS.listener).toEqual(expect.any(Function));
   });

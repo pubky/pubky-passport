@@ -12,10 +12,7 @@ const RESOLUTION_POLL_INTERVAL_MS = 2_000;
 
 test("completes signup, publication, signin, and both v0.10 authorization methods", async () => {
   const config = stagingConfig();
-  const homegate = new HomegateClient(
-    config.homegateBaseUrl,
-    globalThis.fetch,
-  );
+  const homegate = new HomegateClient(config.homegateBaseUrl, globalThis.fetch);
   const invitation = expectOk(
     await homegate.requestGoogleSignupInvitation(config.googleIdToken),
     "Homegate did not issue a staging invitation",
@@ -25,19 +22,21 @@ test("completes signup, publication, signin, and both v0.10 authorization method
 
   const approvedSessions: Session[] = [];
   try {
-    const identity = expectOk(await passport.createIdentityKey(), "Passport could not create an identity");
+    const identity = expectOk(
+      await passport.createIdentityKey(),
+      "Passport could not create an identity",
+    );
 
-    const signup = expectOk(await passport.signup(
-      identity.keyHandle,
-      invitation.homeserverPubky,
-      invitation.signupCode,
-    ), "Passport could not sign up with the staging invitation");
+    const signup = expectOk(
+      await passport.signup(identity.keyHandle, invitation.homeserverPubky, invitation.signupCode),
+      "Passport could not sign up with the staging invitation",
+    );
     expect(signup.publicIdentity).toEqual(identity.publicIdentity);
 
-    expectOk(await passport.publishHomeserver(
-      identity.keyHandle,
-      invitation.homeserverPubky,
-    ), "Passport could not publish the homeserver record");
+    expectOk(
+      await passport.publishHomeserver(identity.keyHandle, invitation.homeserverPubky),
+      "Passport could not publish the homeserver record",
+    );
     await expectHomeserverResolution(
       relyingParty,
       identity.publicIdentity.publicKeyZ32,
@@ -55,14 +54,10 @@ test("completes signup, publication, signin, and both v0.10 authorization method
       AuthFlowKind.signin(),
       config.relayUrl,
     );
-    const grantFlow = await relyingParty.startGrantAuthFlow(
-      CAPABILITIES,
-      AuthFlowKind.signin(),
-      {
-        clientId: "passport-staging.pubky.app",
-        ...(config.relayUrl ? { relay: config.relayUrl } : {}),
-      },
-    );
+    const grantFlow = await relyingParty.startGrantAuthFlow(CAPABILITIES, AuthFlowKind.signin(), {
+      clientId: "passport-staging.pubky.app",
+      ...(config.relayUrl ? { relay: config.relayUrl } : {}),
+    });
     for (const flow of [cookieFlow, grantFlow]) {
       try {
         const request = expectOk(
@@ -152,11 +147,17 @@ function requiredEnvironmentVariable(name: string): string {
   return value;
 }
 
-async function expectOkAsync<Success, Failure>(result: Promise<ResultType<Success, Failure>>, message: string): Promise<Success> {
+async function expectOkAsync<Success, Failure>(
+  result: Promise<ResultType<Success, Failure>>,
+  message: string,
+): Promise<Success> {
   return expectOk(await result, message);
 }
 
-function expectOk<Success, Failure>(result: ResultType<Success, Failure>, message: string): Success {
+function expectOk<Success, Failure>(
+  result: ResultType<Success, Failure>,
+  message: string,
+): Success {
   if (Result.isError(result)) throw new Error(message);
   return result.value;
 }

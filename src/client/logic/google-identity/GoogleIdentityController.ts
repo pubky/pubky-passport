@@ -4,17 +4,17 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
-import {
+import type {
   GoogleImplicitAuthorization,
-  type GoogleIdentityCredentials,
-  type GoogleImplicitAuthorizationError,
+  GoogleIdentityCredentials,
+  GoogleImplicitAuthorizationError,
 } from "./gia/GoogleImplicitAuthorization";
 import type { GoogleAccountProfile } from "../local-identity/localIdentityModels";
 import type { PubkyPublicIdentity } from "../pubky/pubkyIdentityKey";
-import {
+import type {
   GoogleIdentityOperations,
-  type GoogleIdentityOperationError,
-  type GoogleIdentityProgress,
+  GoogleIdentityOperationError,
+  GoogleIdentityProgress,
 } from "./GoogleIdentityOperations";
 
 export type { GoogleIdentityProgress } from "./GoogleIdentityOperations";
@@ -26,27 +26,23 @@ export type GoogleIdentityViewState =
   | { status: "detaching" };
 
 /** Safe setup or restore details returned after the identity is active locally. */
-export type EstablishedGoogleIdentity = |
-  {
-    establishmentMode: "created";
-    googleAccount: GoogleAccountProfile;
-    publicIdentity: PubkyPublicIdentity;
-    visibleRecoveryCopyStatus: "created" | "unconfirmed";
-  } |
-  {
-    establishmentMode: "restored";
-    googleAccount: GoogleAccountProfile;
-    publicIdentity: PubkyPublicIdentity;
-  };
+export type EstablishedGoogleIdentity =
+  | {
+      establishmentMode: "created";
+      googleAccount: GoogleAccountProfile;
+      publicIdentity: PubkyPublicIdentity;
+      visibleRecoveryCopyStatus: "created" | "unconfirmed";
+    }
+  | {
+      establishmentMode: "restored";
+      googleAccount: GoogleAccountProfile;
+      publicIdentity: PubkyPublicIdentity;
+    };
 
 export type GoogleIdentityError =
   | GoogleIdentityOperationError
   | GoogleImplicitAuthorizationError
-  | CodedFailure<
-    | "authorization_failed"
-    | "cancelled"
-    | "operation_failed"
-  >;
+  | CodedFailure<"authorization_failed" | "cancelled" | "operation_failed">;
 
 export type GoogleIdentityErrorDetailCode = Extract<
   GoogleIdentityOperationError,
@@ -76,33 +72,18 @@ export type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityViewErro
  * updates while allowing already-started cleanup to finish safely.
  */
 export class GoogleIdentityController {
-  private readonly googleAuthorization: GoogleImplicitAuthorization;
-  private readonly operations: GoogleIdentityOperations;
+  private googleAuthorization: GoogleImplicitAuthorization | undefined;
+  private operations: GoogleIdentityOperations | undefined;
   private operationsDisposed = false;
   private operationPending = false;
   private googleSubject: string | undefined;
   private disposed = false;
 
   constructor(
-    googleClientId: string,
-    homegateBaseUrl: string,
+    private readonly googleClientId: string,
+    private readonly homegateBaseUrl: string,
     private readonly onState: (state: GoogleIdentityViewState) => void,
-  ) {
-    try {
-      this.googleAuthorization = new GoogleImplicitAuthorization(googleClientId);
-      this.operations = new GoogleIdentityOperations(
-        homegateBaseUrl,
-        globalThis.location.origin,
-      );
-    } catch (cause) {
-      LOGGER.error("identity.google.controller.failed", {
-        operation: "initialize",
-        code: "runtime_exception",
-        ...safeErrorLogFields(cause),
-      });
-      throw new Error("Google identity initialization unavailable.", { cause });
-    }
-  }
+  ) {}
 
   /** Restores or creates and activates an identity. */
   async establishIdentity(): Promise<EstablishGoogleIdentityResult> {
@@ -125,10 +106,13 @@ export class GoogleIdentityController {
     }
 
     try {
+      const operations = this.operations;
+      if (!operations) return Result.err({ code: "operation_failed" });
       const progress = this.createProgressReporter();
-      const establishment = operation === "establish"
-        ? this.operations.establishIdentity(authorized.value, progress.report)
-        : this.operations.replaceInvalidPassportFile(authorized.value, progress.report);
+      const establishment =
+        operation === "establish"
+          ? operations.establishIdentity(authorized.value, progress.report)
+          : operations.replaceInvalidPassportFile(authorized.value, progress.report);
       const established = await establishment.finally(() => {
         progress.stop();
       });
@@ -195,8 +179,10 @@ export class GoogleIdentityController {
     }
 
     try {
+      const operations = this.operations;
+      if (!operations) return Result.err({ code: "operation_failed" });
       this.setViewState({ status: "detaching" });
-      const detached = await this.operations.detachIdentity(
+      const detached = await operations.detachIdentity(
         authorized.value,
         publicIdentity,
         expectedGoogleSubject,
@@ -231,14 +217,14 @@ export class GoogleIdentityController {
     this.disposed = true;
     this.googleSubject = undefined;
     try {
-      this.googleAuthorization.dispose();
+      this.googleAuthorization?.dispose();
     } catch (cause) {
       LOGGER.warn("identity.google.cleanup.failed", {
         operation: "authorization_dispose",
         ...safeErrorLogFields(cause),
       });
     } finally {
-      this.operations.abortRequests();
+      this.operations?.abortRequests();
       if (!this.operationPending) this.disposeOperationsOnce();
     }
   }
@@ -253,8 +239,28 @@ export class GoogleIdentityController {
     this.setViewState({ status: "requesting-authorization" });
 
     try {
+      if (!(await this.initializeDependencies())) {
+        this.operationPending = false;
+        return Result.err({ code: "cancelled" });
+      }
+    } catch (cause) {
+      this.operationPending = false;
+      LOGGER.error("identity.google.controller.failed", {
+        operation: "initialize",
+        code: "runtime_exception",
+        ...safeErrorLogFields(cause),
+      });
+      return Result.err({ code: "operation_failed" });
+    }
+
+    try {
+      const googleAuthorization = this.googleAuthorization;
+      if (!googleAuthorization) {
+        this.operationPending = false;
+        return Result.err({ code: "operation_failed" });
+      }
       const googleSubject = expectedGoogleSubject ?? this.googleSubject;
-      const credentials = await this.googleAuthorization.request(googleSubject);
+      const credentials = await googleAuthorization.request(googleSubject);
       if (this.disposed) {
         this.operationPending = false;
         this.disposeOperationsOnce();
@@ -264,7 +270,10 @@ export class GoogleIdentityController {
         this.operationPending = false;
         return Result.err(credentials.error);
       }
-      if (googleSubject !== undefined && credentials.value.googleAccount.googleSubject !== googleSubject) {
+      if (
+        googleSubject !== undefined &&
+        credentials.value.googleAccount.googleSubject !== googleSubject
+      ) {
         this.operationPending = false;
         return Result.err({ code: "authorization_failed" });
       }
@@ -311,7 +320,7 @@ export class GoogleIdentityController {
     if (this.operationsDisposed) return;
     this.operationsDisposed = true;
     try {
-      this.operations.dispose();
+      this.operations?.dispose();
     } catch (cause) {
       LOGGER.warn("identity.google.cleanup.failed", {
         operation: "pubky_dispose",
@@ -329,6 +338,35 @@ export class GoogleIdentityController {
         state: state.status,
         ...safeErrorLogFields(cause),
       });
+    }
+  }
+
+  private async initializeDependencies(): Promise<boolean> {
+    if (this.googleAuthorization && this.operations) return true;
+    const [authorizationModule, operationsModule] = await Promise.all([
+      import("./gia/GoogleImplicitAuthorization"),
+      import("./GoogleIdentityOperations"),
+    ]);
+    if (this.disposed) return false;
+
+    const authorization = new authorizationModule.GoogleImplicitAuthorization(this.googleClientId);
+    try {
+      const operations = new operationsModule.GoogleIdentityOperations(
+        this.homegateBaseUrl,
+        globalThis.location.origin,
+      );
+      this.googleAuthorization = authorization;
+      this.operations = operations;
+      return true;
+    } catch (cause) {
+      try {
+        authorization.dispose();
+      } catch {
+        LOGGER.warn("identity.google.cleanup.failed", {
+          operation: "construction_authorization_dispose",
+        });
+      }
+      throw cause;
     }
   }
 }

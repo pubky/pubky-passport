@@ -41,8 +41,5 @@ export function utf8Length(value: string): number {
 
 function isControlCharacter(character: string): boolean {
   const codePoint = character.codePointAt(0);
-  return codePoint !== undefined && (
-    codePoint <= 0x1f
-    || (codePoint >= 0x7f && codePoint <= 0x9f)
-  );
+  return codePoint !== undefined && (codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f));
 }

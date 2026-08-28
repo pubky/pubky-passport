@@ -8,7 +8,9 @@ import { showCopyConfirmation, showDownloadConfirmation, Sonner } from "./sonner
 
 describe("Sonner", () => {
   afterEach(() => {
-    act(() => { toast.dismiss(); });
+    act(() => {
+      toast.dismiss();
+    });
     cleanup();
   });
 
@@ -16,7 +18,9 @@ describe("Sonner", () => {
     render(<Sonner />);
 
     const pubky = "x8jpihgjy51fdnaingcp8rum1omfzd6p8bhm7usune41grd97dho5cwy4mra";
-    act(() => { showCopyConfirmation("Pubky", pubky); });
+    act(() => {
+      showCopyConfirmation("Pubky", pubky);
+    });
 
     const message = await screen.findByText("Pubky copied to clipboard");
     expect(screen.getByText("x8jp...4mra")).toBeInTheDocument();
@@ -27,7 +31,9 @@ describe("Sonner", () => {
   it("renders the copied homeserver below its confirmation title", async () => {
     render(<Sonner />);
 
-    act(() => { showCopyConfirmation("Homeserver", "homeserver-pubky"); });
+    act(() => {
+      showCopyConfirmation("Homeserver", "homeserver-pubky");
+    });
 
     expect(await screen.findByText("Homeserver copied to clipboard")).toBeInTheDocument();
     expect(screen.getByText("home...ubky")).toBeInTheDocument();
@@ -37,7 +43,9 @@ describe("Sonner", () => {
   it("renders a recovery-file download confirmation", async () => {
     render(<Sonner />);
 
-    act(() => { showDownloadConfirmation(); });
+    act(() => {
+      showDownloadConfirmation();
+    });
 
     expect(await screen.findByText("File downloaded")).toBeInTheDocument();
   });
