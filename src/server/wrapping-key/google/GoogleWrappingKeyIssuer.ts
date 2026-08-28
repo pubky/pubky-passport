@@ -13,9 +13,7 @@ import {
 import { deriveGoogleWrappingKey } from "./GoogleWrappingKeyDeriver";
 
 export type GoogleWrappingKeyIssueErrorCode =
-  | "invalid_google_id_token"
-  | "key_unavailable"
-  | "dependency_unavailable";
+  "invalid_google_id_token" | "key_unavailable" | "dependency_unavailable";
 
 export type GoogleWrappingKeyIssueResult = ResultType<
   { wrappingKey: string; keyId: string },
@@ -24,7 +22,9 @@ export type GoogleWrappingKeyIssueResult = ResultType<
 
 export class GoogleWrappingKeyIssuer {
   constructor(
-    private readonly verifyGoogleIdToken: (token: string) => Promise<GoogleIdTokenVerificationResult>,
+    private readonly verifyGoogleIdToken: (
+      token: string,
+    ) => Promise<GoogleIdTokenVerificationResult>,
     private readonly currentKeyId: string,
     private readonly secrets: ReadonlyMap<string, Buffer>,
   ) {}

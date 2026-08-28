@@ -13,11 +13,13 @@ const VALID_REQUEST =
 const PUBKY_SDK_V0_10_COMPATIBILITY_FIXTURES = [
   {
     authenticationMethod: "cookie",
-    request: "pubkyauth://signin?caps=/pub/passport.test/:rw&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8",
+    request:
+      "pubkyauth://signin?caps=/pub/passport.test/:rw&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8",
   },
   {
     authenticationMethod: "grant",
-    request: "pubkyauth://signin_grant?caps=/pub/passport.test/:rw&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&cid=passport.test&cpk=5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo",
+    request:
+      "pubkyauth://signin_grant?caps=/pub/passport.test/:rw&relay=https://relay.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&cid=passport.test&cpk=5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo",
   },
 ] as const;
 type PubkyAuthParseErrorCode = PubkyAuthParseError["code"];
@@ -86,12 +88,10 @@ describe("parseEncodedPubkyAuthRequest", () => {
   });
 
   it("parses the v0.10 grant signin intent and required PoP parameters", () => {
-    const request = VALID_REQUEST
-      .replace("pubkyauth://signin", "pubkyauth://signin_grant")
-      .replace(
-        "&x-success=",
-        "&cid=pubky.app&cpk=5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo&x-success=",
-      );
+    const request = VALID_REQUEST.replace("pubkyauth://signin", "pubkyauth://signin_grant").replace(
+      "&x-success=",
+      "&cid=pubky.app&cpk=5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo&x-success=",
+    );
 
     const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
 
@@ -154,13 +154,25 @@ describe("parseEncodedPubkyAuthRequest", () => {
   });
 
   it("rejects non-pubkyauth schemes", () => {
-    expectError(encodeRequest(VALID_REQUEST.replace("pubkyauth://", "https://")), "unsupported_scheme");
-    expectError(encodeRequest(VALID_REQUEST.replace("pubkyauth://", "http://")), "unsupported_scheme");
-    expectError(encodeRequest(VALID_REQUEST.replace("pubkyauth://", "pubky://")), "unsupported_scheme");
+    expectError(
+      encodeRequest(VALID_REQUEST.replace("pubkyauth://", "https://")),
+      "unsupported_scheme",
+    );
+    expectError(
+      encodeRequest(VALID_REQUEST.replace("pubkyauth://", "http://")),
+      "unsupported_scheme",
+    );
+    expectError(
+      encodeRequest(VALID_REQUEST.replace("pubkyauth://", "pubky://")),
+      "unsupported_scheme",
+    );
   });
 
   it("rejects unsupported auth request paths", () => {
-    expectError(encodeRequest(VALID_REQUEST.replace("pubkyauth://signin", "pubkyauth://signup")), "invalid_auth_request_path");
+    expectError(
+      encodeRequest(VALID_REQUEST.replace("pubkyauth://signin", "pubkyauth://signup")),
+      "invalid_auth_request_path",
+    );
   });
 
   it("rejects missing relay", () => {
@@ -182,11 +194,20 @@ describe("parseEncodedPubkyAuthRequest", () => {
   });
 
   it("requires the canonical unpadded base64url encoding of a 32-byte secret", () => {
-    const request = "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=";
+    const request =
+      "pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=";
 
     expectError(encodeRequest(`${request}short`), "invalid_secret");
-    expectError(encodeRequest(`${request}${"s".repeat(PUBKY_AUTH_REQUEST_LIMITS.maximumSecretCodeUnits + 1)}`), "invalid_secret");
-    expectError(encodeRequest(`${request}kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse9`), "invalid_secret");
+    expectError(
+      encodeRequest(
+        `${request}${"s".repeat(PUBKY_AUTH_REQUEST_LIMITS.maximumSecretCodeUnits + 1)}`,
+      ),
+      "invalid_secret",
+    );
+    expectError(
+      encodeRequest(`${request}kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse9`),
+      "invalid_secret",
+    );
   });
 
   it("rejects missing capabilities", () => {
@@ -199,7 +220,10 @@ describe("parseEncodedPubkyAuthRequest", () => {
   });
 
   it("maps capability validation failures to one safe parser error", () => {
-    expectError(encodeRequest(VALID_REQUEST.replace("/pub/pubky.app/:rw", "/pub/pubky.app/:admin")), "invalid_capability");
+    expectError(
+      encodeRequest(VALID_REQUEST.replace("/pub/pubky.app/:rw", "/pub/pubky.app/:admin")),
+      "invalid_capability",
+    );
   });
 
   it("allows missing callbacks", () => {
@@ -218,7 +242,8 @@ describe("parseEncodedPubkyAuthRequest", () => {
   });
 
   it("accepts an explicit empty capability list", () => {
-    const request = "pubkyauth://signin?caps=&relay=https://httprelay.pubky.app/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
+    const request =
+      "pubkyauth://signin?caps=&relay=https://httprelay.pubky.app/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 
     const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
 
@@ -232,9 +257,10 @@ describe("parseEncodedPubkyAuthRequest", () => {
     ["&cid=pubky.app", "missing_client_public_key"],
     ["&cid=pubky.app&cpk=not-a-public-key", "invalid_client_public_key"],
   ] as const)("rejects invalid grant parameters", (grantParameters, code) => {
-    const request = VALID_REQUEST
-      .replace("pubkyauth://signin", "pubkyauth://signin_grant")
-      .replace("&x-success=", `${grantParameters}&x-success=`);
+    const request = VALID_REQUEST.replace("pubkyauth://signin", "pubkyauth://signin_grant").replace(
+      "&x-success=",
+      `${grantParameters}&x-success=`,
+    );
 
     expectError(encodeRequest(request), code);
   });
@@ -242,7 +268,9 @@ describe("parseEncodedPubkyAuthRequest", () => {
   it("bounds grant client IDs by UTF-8 length", () => {
     const atLimit = `${"ü".repeat(126)}a`;
 
-    expect(Result.isOk(parseEncodedPubkyAuthRequest(encodeRequest(grantRequest(atLimit))))).toBe(true);
+    expect(Result.isOk(parseEncodedPubkyAuthRequest(encodeRequest(grantRequest(atLimit))))).toBe(
+      true,
+    );
     expectError(encodeRequest(grantRequest(`${atLimit}a`)), "invalid_client_id");
   });
 });
@@ -257,9 +285,9 @@ describe("validateEncodedPubkyAuthRequest", () => {
 
   it("returns only a safe error code for invalid input", () => {
     const secret = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
-    const result = validateEncodedPubkyAuthRequest(encodeRequest(
-      `pubkyauth://signin?secret=${secret}`,
-    ));
+    const result = validateEncodedPubkyAuthRequest(
+      encodeRequest(`pubkyauth://signin?secret=${secret}`),
+    );
 
     expect(Result.isError(result) && result.error).toEqual({ code: "missing_relay" });
     if (Result.isOk(result)) throw new Error("Expected validation to fail");
@@ -269,10 +297,8 @@ describe("validateEncodedPubkyAuthRequest", () => {
 });
 
 function grantRequest(clientId: string): string {
-  return VALID_REQUEST
-    .replace("pubkyauth://signin", "pubkyauth://signin_grant")
-    .replace(
-      "&x-success=",
-      `&cid=${encodeURIComponent(clientId)}&cpk=5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo&x-success=`,
-    );
+  return VALID_REQUEST.replace("pubkyauth://signin", "pubkyauth://signin_grant").replace(
+    "&x-success=",
+    `&cid=${encodeURIComponent(clientId)}&cpk=5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo&x-success=`,
+  );
 }

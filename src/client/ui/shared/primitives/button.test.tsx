@@ -11,7 +11,11 @@ describe("Button", () => {
 
   it("renders a native button and forwards its ref", () => {
     const ref = createRef<HTMLButtonElement>();
-    render(<Button disabled ref={ref}>Continue</Button>);
+    render(
+      <Button disabled ref={ref}>
+        Continue
+      </Button>,
+    );
 
     const button = screen.getByRole("button", { name: "Continue" });
     expect(button).toBeDisabled();
@@ -21,7 +25,11 @@ describe("Button", () => {
 
   it("renders an anchor and forwards its anchor ref", () => {
     const ref = createRef<HTMLAnchorElement>();
-    render(<ButtonLink href="/authorize" ref={ref}>Authorize</ButtonLink>);
+    render(
+      <ButtonLink href="/authorize" ref={ref}>
+        Authorize
+      </ButtonLink>,
+    );
 
     const link = screen.getByRole("link", { name: "Authorize" });
     expect(link).toHaveAttribute("href", "/authorize");

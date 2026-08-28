@@ -22,9 +22,7 @@ export function proxy(request: NextRequest) {
       development: process.env.NODE_ENV === "development",
       homegateOrigin: environment.homegateOrigin,
       homeserverConnectOrigins: environment.homeserverConnectOrigins,
-      ...(request.nextUrl.pathname === "/authorize"
-        ? { allowPubkyAuthRelays: true }
-        : {}),
+      ...(request.nextUrl.pathname === "/authorize" ? { allowPubkyAuthRelays: true } : {}),
     });
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set("x-nonce", nonce);
@@ -87,11 +85,13 @@ function createContentSecurityPolicy(input: {
 }
 
 export const config = {
-  matcher: [{
-    source: "/((?!api|_next/static|_next/image|favicon.ico).*)",
-    missing: [
-      { type: "header", key: "next-router-prefetch" },
-      { type: "header", key: "purpose", value: "prefetch" },
-    ],
-  }],
+  matcher: [
+    {
+      source: "/((?!api|_next/static|_next/image|favicon.ico).*)",
+      missing: [
+        { type: "header", key: "next-router-prefetch" },
+        { type: "header", key: "purpose", value: "prefetch" },
+      ],
+    },
+  ],
 };

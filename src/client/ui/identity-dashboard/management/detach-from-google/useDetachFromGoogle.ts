@@ -17,10 +17,7 @@ type DetachFromGoogleOperationState =
   | { status: "operation-failed"; error: GoogleIdentityViewError }
   | { status: "complete" };
 
-function useDetachFromGoogle(
-  publicIdentity: PubkyPublicIdentity,
-  expectedGoogleSubject: string,
-) {
+function useDetachFromGoogle(publicIdentity: PubkyPublicIdentity, expectedGoogleSubject: string) {
   const { googleClientId, homegateBaseUrl } = useGoogleIdentityConfiguration();
   const controllerRef = useRef<GoogleIdentityController | null>(null);
   const operationPendingRef = useRef(false);
@@ -31,14 +28,18 @@ function useDetachFromGoogle(
     if (controllerRef.current) return controllerRef.current;
 
     try {
-      const controller = new GoogleIdentityController(googleClientId, homegateBaseUrl, (nextState) => {
-        if (controllerRef.current !== controller) return;
-        if (nextState.status === "requesting-authorization") {
-          setState({ status: "requesting-authorization" });
-        } else if (nextState.status === "detaching") {
-          setState({ status: "detaching" });
-        }
-      });
+      const controller = new GoogleIdentityController(
+        googleClientId,
+        homegateBaseUrl,
+        (nextState) => {
+          if (controllerRef.current !== controller) return;
+          if (nextState.status === "requesting-authorization") {
+            setState({ status: "requesting-authorization" });
+          } else if (nextState.status === "detaching") {
+            setState({ status: "detaching" });
+          }
+        },
+      );
       controllerRef.current = controller;
       return controller;
     } catch {
@@ -48,10 +49,13 @@ function useDetachFromGoogle(
   }, [googleClientId, homegateBaseUrl]);
 
   const detach = useCallback(() => {
-    if ((state.status !== "ready"
-      && state.status !== "authorization-failed"
-      && state.status !== "operation-failed")
-      || operationPendingRef.current) return;
+    if (
+      (state.status !== "ready" &&
+        state.status !== "authorization-failed" &&
+        state.status !== "operation-failed") ||
+      operationPendingRef.current
+    )
+      return;
     if (!expectedGoogleSubject.trim()) {
       setState({ status: "operation-failed", error: { code: "operation_failed" } });
       return;
@@ -63,31 +67,37 @@ function useDetachFromGoogle(
     const operationId = ++operationIdRef.current;
     setState({ status: "requesting-authorization" });
 
-    void controller.detachIdentity(publicIdentity, expectedGoogleSubject).then((completed) => {
-      if (controllerRef.current !== controller || operationIdRef.current !== operationId) return;
-      if (Result.isError(completed)) {
-        if (completed.error.code === "cancelled") return;
-        setState(completed.error.code === "authorization_failed"
-          ? { status: "authorization-failed" }
-          : {
-            status: "operation-failed",
-            error: completed.error,
-          });
-        return;
-      }
-      setState({ status: "complete" });
-    }).catch((cause: unknown) => {
-      LOGGER.warn("identity.google.detachment_ui.failed", {
-        operation: "detach",
-        stage: "operation_promise",
-        ...safeErrorLogFields(cause),
+    void controller
+      .detachIdentity(publicIdentity, expectedGoogleSubject)
+      .then((completed) => {
+        if (controllerRef.current !== controller || operationIdRef.current !== operationId) return;
+        if (Result.isError(completed)) {
+          if (completed.error.code === "cancelled") return;
+          setState(
+            completed.error.code === "authorization_failed"
+              ? { status: "authorization-failed" }
+              : {
+                  status: "operation-failed",
+                  error: completed.error,
+                },
+          );
+          return;
+        }
+        setState({ status: "complete" });
+      })
+      .catch((cause: unknown) => {
+        LOGGER.warn("identity.google.detachment_ui.failed", {
+          operation: "detach",
+          stage: "operation_promise",
+          ...safeErrorLogFields(cause),
+        });
+        if (controllerRef.current === controller && operationIdRef.current === operationId) {
+          setState({ status: "operation-failed", error: { code: "operation_failed" } });
+        }
+      })
+      .finally(() => {
+        if (operationIdRef.current === operationId) operationPendingRef.current = false;
       });
-      if (controllerRef.current === controller && operationIdRef.current === operationId) {
-        setState({ status: "operation-failed", error: { code: "operation_failed" } });
-      }
-    }).finally(() => {
-      if (operationIdRef.current === operationId) operationPendingRef.current = false;
-    });
   }, [ensureController, expectedGoogleSubject, publicIdentity, state.status]);
 
   useEffect(() => {

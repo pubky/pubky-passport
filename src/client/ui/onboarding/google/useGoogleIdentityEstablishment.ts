@@ -17,12 +17,12 @@ type GoogleIdentityEstablishmentView =
   | { status: "failed"; error: GoogleIdentityViewError }
   | { status: "working"; progress: GoogleIdentityProgress }
   | {
-    status: "complete";
-    googleAccount: GoogleAccountProfile;
-    identity: PubkyPublicIdentity;
-    mode: "created" | "restored";
-    visibleRecoveryCopyStatus: "created" | "unconfirmed" | null;
-  };
+      status: "complete";
+      googleAccount: GoogleAccountProfile;
+      identity: PubkyPublicIdentity;
+      mode: "created" | "restored";
+      visibleRecoveryCopyStatus: "created" | "unconfirmed" | null;
+    };
 
 function useGoogleIdentityEstablishment() {
   const { googleClientId, homegateBaseUrl } = useGoogleIdentityConfiguration();
@@ -55,49 +55,58 @@ function useGoogleIdentityEstablishment() {
     }
   }, [googleClientId, homegateBaseUrl]);
 
-  const startIdentityOperation = useCallback((operation: "establish" | "replace-invalid-file") => {
-    if (operationPendingRef.current) return;
-    const controller = ensureController();
-    if (!controller) return;
+  const startIdentityOperation = useCallback(
+    (operation: "establish" | "replace-invalid-file") => {
+      if (operationPendingRef.current) return;
+      const controller = ensureController();
+      if (!controller) return;
 
-    operationPendingRef.current = true;
-    const operationId = ++operationIdRef.current;
-    setView({ status: "requesting-access" });
-    const pending = operation === "establish"
-      ? controller.establishIdentity()
-      : controller.replaceInvalidPassportFile();
+      operationPendingRef.current = true;
+      const operationId = ++operationIdRef.current;
+      setView({ status: "requesting-access" });
+      const pending =
+        operation === "establish"
+          ? controller.establishIdentity()
+          : controller.replaceInvalidPassportFile();
 
-    void pending.then((result) => {
-      if (controllerRef.current !== controller || operationIdRef.current !== operationId) return;
-      if (Result.isError(result)) {
-        if (result.error.code !== "cancelled") {
-          setView({ status: "failed", error: result.error });
-        }
-        return;
-      }
+      void pending
+        .then((result) => {
+          if (controllerRef.current !== controller || operationIdRef.current !== operationId)
+            return;
+          if (Result.isError(result)) {
+            if (result.error.code !== "cancelled") {
+              setView({ status: "failed", error: result.error });
+            }
+            return;
+          }
 
-      setView({
-        status: "complete",
-        googleAccount: result.value.googleAccount,
-        identity: result.value.publicIdentity,
-        mode: result.value.establishmentMode,
-        visibleRecoveryCopyStatus: result.value.establishmentMode === "created"
-          ? result.value.visibleRecoveryCopyStatus
-          : null,
-      });
-    }).catch((cause: unknown) => {
-      LOGGER.warn("identity.google.establishment_ui.failed", {
-        operation,
-        stage: "operation_promise",
-        ...safeErrorLogFields(cause),
-      });
-      if (controllerRef.current === controller && operationIdRef.current === operationId) {
-        setView({ status: "failed", error: { code: "operation_failed" } });
-      }
-    }).finally(() => {
-      if (operationIdRef.current === operationId) operationPendingRef.current = false;
-    });
-  }, [ensureController]);
+          setView({
+            status: "complete",
+            googleAccount: result.value.googleAccount,
+            identity: result.value.publicIdentity,
+            mode: result.value.establishmentMode,
+            visibleRecoveryCopyStatus:
+              result.value.establishmentMode === "created"
+                ? result.value.visibleRecoveryCopyStatus
+                : null,
+          });
+        })
+        .catch((cause: unknown) => {
+          LOGGER.warn("identity.google.establishment_ui.failed", {
+            operation,
+            stage: "operation_promise",
+            ...safeErrorLogFields(cause),
+          });
+          if (controllerRef.current === controller && operationIdRef.current === operationId) {
+            setView({ status: "failed", error: { code: "operation_failed" } });
+          }
+        })
+        .finally(() => {
+          if (operationIdRef.current === operationId) operationPendingRef.current = false;
+        });
+    },
+    [ensureController],
+  );
 
   const back = useCallback(() => {
     operationIdRef.current += 1;

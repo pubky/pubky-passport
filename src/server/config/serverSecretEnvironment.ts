@@ -20,17 +20,19 @@ const SERVER_SECRET_ENVIRONMENT_SCHEMA = z.object({
 export type ServerSecretEnvironment = {
   serverSecretCurrentKeyId: string;
   serverSecrets: ReadonlyMap<string, Buffer>;
-}
+};
 
 type ServerSecretEnvironmentSources = readonly [
   currentKeyId: string | undefined,
   keyringJson: string | undefined,
 ];
 
-let cachedEnvironment: {
-  sources: ServerSecretEnvironmentSources;
-  value: ServerSecretEnvironment;
-} | undefined;
+let cachedEnvironment:
+  | {
+      sources: ServerSecretEnvironmentSources;
+      value: ServerSecretEnvironment;
+    }
+  | undefined;
 
 export function getServerSecretEnvironment(): ServerSecretEnvironment {
   const sources: ServerSecretEnvironmentSources = [
@@ -107,13 +109,17 @@ function decodeServerSecret(value: string): Buffer | null {
     return null;
   }
   const secret = Buffer.from(value, "base64");
-  return secret.byteLength >= MINIMUM_SERVER_SECRET_BYTES
-    && secret.byteLength <= MAXIMUM_SERVER_SECRET_BYTES
+  return secret.byteLength >= MINIMUM_SERVER_SECRET_BYTES &&
+    secret.byteLength <= MAXIMUM_SERVER_SECRET_BYTES
     ? secret
     : null;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
-    && Object.getPrototypeOf(value) === Object.prototype;
+  return (
+    Boolean(value) &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype
+  );
 }

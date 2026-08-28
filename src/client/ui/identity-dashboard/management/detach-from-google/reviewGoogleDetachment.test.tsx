@@ -15,7 +15,9 @@ describe("ReviewGoogleDetachment", () => {
     render(<ReviewGoogleDetachment onBack={onBack} onRemove={onRemove} />);
 
     expect(screen.getByRole("heading", { name: "Detach from Google." })).toBeInTheDocument();
-    expect(screen.getByText("You are about to remove Google as a way to access your pubky identity.")).toBeInTheDocument();
+    expect(
+      screen.getByText("You are about to remove Google as a way to access your pubky identity."),
+    ).toBeInTheDocument();
     expect(screen.getByText(/This can’t be undone/)).toBeInTheDocument();
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Remove Google Access" }));

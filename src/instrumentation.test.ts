@@ -11,9 +11,12 @@ describe("server instrumentation", () => {
     vi.stubEnv("HOMEGATE_URL", "https://homegate.example");
     vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example");
     vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", "current");
-    vi.stubEnv("PASSPORT_SERVER_SECRET_KEYRING_JSON", JSON.stringify({
-      current: Buffer.alloc(32, 1).toString("base64"),
-    }));
+    vi.stubEnv(
+      "PASSPORT_SERVER_SECRET_KEYRING_JSON",
+      JSON.stringify({
+        current: Buffer.alloc(32, 1).toString("base64"),
+      }),
+    );
 
     await expect(register()).resolves.toBeUndefined();
   });
@@ -35,9 +38,12 @@ describe("server instrumentation", () => {
     vi.stubEnv("HOMEGATE_URL", "https://homegate.example");
     vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example");
     vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", "current");
-    vi.stubEnv("PASSPORT_SERVER_SECRET_KEYRING_JSON", JSON.stringify({
-      current: Buffer.alloc(32, 1).toString("base64"),
-    }));
+    vi.stubEnv(
+      "PASSPORT_SERVER_SECRET_KEYRING_JSON",
+      JSON.stringify({
+        current: Buffer.alloc(32, 1).toString("base64"),
+      }),
+    );
 
     await expect(register()).rejects.toThrow();
   });

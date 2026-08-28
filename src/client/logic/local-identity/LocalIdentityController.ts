@@ -17,9 +17,7 @@ const MAXIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS = 1024;
 
 export type LocalIdentityRecoveryFile = { bytes: Uint8Array; fileName: string };
 export type LocalIdentityRecoveryFileErrorCode =
-  | "recovery_file_failed"
-  | "identity_unavailable"
-  | "invalid_password";
+  "recovery_file_failed" | "identity_unavailable" | "invalid_password";
 export type LocalIdentityRecoveryFileResult = ResultType<
   LocalIdentityRecoveryFile,
   CodedFailure<LocalIdentityRecoveryFileErrorCode>
@@ -58,9 +56,7 @@ export class LocalIdentityController {
     return this.repository.subscribe(listener);
   }
 
-  async resolveHomeserver(
-    publicKeyZ32: string,
-  ): Promise<PubkyHomeserverResolutionResult> {
+  async resolveHomeserver(publicKeyZ32: string): Promise<PubkyHomeserverResolutionResult> {
     try {
       const { resolvePubkyHomeserver } = await import("../pubky/PubkySdkAdapter");
       return resolvePubkyHomeserver(publicKeyZ32);
@@ -73,8 +69,10 @@ export class LocalIdentityController {
     publicKeyZ32: string,
     password: string,
   ): Promise<LocalIdentityRecoveryFileResult> {
-    if (password.length < MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS
-      || password.length > MAXIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS) {
+    if (
+      password.length < MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS ||
+      password.length > MAXIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS
+    ) {
       return Result.err({ code: "invalid_password" });
     }
 
@@ -87,17 +85,13 @@ export class LocalIdentityController {
     try {
       const { PubkySdkAdapter } = await import("../pubky/PubkySdkAdapter");
       pubky = new PubkySdkAdapter();
-      const recoveryFile = pubky.createRecoveryFile(
-        stored.value.secretKey,
-        publicKeyZ32,
-        password,
-      );
+      const recoveryFile = pubky.createRecoveryFile(stored.value.secretKey, publicKeyZ32, password);
       return Result.isError(recoveryFile)
         ? Result.err({ code: "recovery_file_failed", cause: recoveryFile.error })
         : Result.ok({
-          bytes: recoveryFile.value,
-          fileName: `pubky-${publicKeyZ32}.pkarr`,
-        });
+            bytes: recoveryFile.value,
+            fileName: `pubky-${publicKeyZ32}.pkarr`,
+          });
     } catch (cause) {
       LOGGER.warn("identity.controller.failed", {
         operation: "create_recovery_file",

@@ -19,7 +19,13 @@ describe("early Google implicit response bootstrap", () => {
     const context: Record<string, unknown> = {
       location,
       history: {},
-      History: { prototype: { replaceState() { location.hash = ""; } } },
+      History: {
+        prototype: {
+          replaceState() {
+            location.hash = "";
+          },
+        },
+      },
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
       opener: { postMessage },
@@ -29,41 +35,53 @@ describe("early Google implicit response bootstrap", () => {
     runInNewContext(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT, context);
 
     expect(location.hash).toBe("");
-    expect(postMessage).toHaveBeenCalledWith({
-      type: GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE,
-      status: "captured",
-      hash: "#access_token=credential-canary&state=state-canary",
-    }, "https://passport.example");
+    expect(postMessage).toHaveBeenCalledWith(
+      {
+        type: GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE,
+        status: "captured",
+        hash: "#access_token=credential-canary&state=state-canary",
+      },
+      "https://passport.example",
+    );
     expect(location.hash).not.toContain("credential-canary");
   });
 
-  it.each([
-    "#access_token=access-canary",
-    "#id_token=id-canary&state=state-canary",
-  ])("scrubs a malformed sensitive fragment before the app loads", (hash) => {
-    const postMessage = vi.fn();
-    const location = {
-      pathname: "/",
-      hash,
-      origin: "https://passport.example",
-    };
-    const context: Record<string, unknown> = {
-      location,
-      history: {},
-      History: { prototype: { replaceState() { location.hash = ""; } } },
-      opener: { postMessage },
-    };
-    context.window = context;
+  it.each(["#access_token=access-canary", "#id_token=id-canary&state=state-canary"])(
+    "scrubs a malformed sensitive fragment before the app loads",
+    (hash) => {
+      const postMessage = vi.fn();
+      const location = {
+        pathname: "/",
+        hash,
+        origin: "https://passport.example",
+      };
+      const context: Record<string, unknown> = {
+        location,
+        history: {},
+        History: {
+          prototype: {
+            replaceState() {
+              location.hash = "";
+            },
+          },
+        },
+        opener: { postMessage },
+      };
+      context.window = context;
 
-    runInNewContext(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT, context);
+      runInNewContext(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT, context);
 
-    expect(location.hash).toBe("");
-    expect(postMessage).toHaveBeenCalledWith({
-      type: GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE,
-      status: "captured",
-      hash,
-    }, "https://passport.example");
-  });
+      expect(location.hash).toBe("");
+      expect(postMessage).toHaveBeenCalledWith(
+        {
+          type: GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE,
+          status: "captured",
+          hash,
+        },
+        "https://passport.example",
+      );
+    },
+  );
 
   it.each([
     [EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS, "captured"],
@@ -76,7 +94,13 @@ describe("early Google implicit response bootstrap", () => {
     const context: Record<string, unknown> = {
       location,
       history: {},
-      History: { prototype: { replaceState() { location.hash = ""; } } },
+      History: {
+        prototype: {
+          replaceState() {
+            location.hash = "";
+          },
+        },
+      },
       opener: { postMessage },
     };
     context.window = context;
@@ -88,9 +112,11 @@ describe("early Google implicit response bootstrap", () => {
       "https://passport.example",
     );
     const response = postMessage.mock.calls[0]?.[0];
-    expect(response).toEqual(status === "captured"
-      ? { type: GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE, status, hash }
-      : { type: GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE, status });
+    expect(response).toEqual(
+      status === "captured"
+        ? { type: GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE, status, hash }
+        : { type: GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE, status },
+    );
   });
 
   it("stops loading and navigates to a clean URL when native scrubbing fails", () => {
@@ -100,12 +126,20 @@ describe("early Google implicit response bootstrap", () => {
       pathname: "/",
       hash: "#access_token=credential-canary&state=state-canary",
       origin: "https://passport.example",
-      replace: vi.fn(() => { location.hash = ""; }),
+      replace: vi.fn(() => {
+        location.hash = "";
+      }),
     };
     const context: Record<string, unknown> = {
       location,
       history: {},
-      History: { prototype: { replaceState() { throw new Error("unavailable"); } } },
+      History: {
+        prototype: {
+          replaceState() {
+            throw new Error("unavailable");
+          },
+        },
+      },
       opener: { postMessage },
       stop,
     };

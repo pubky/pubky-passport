@@ -56,10 +56,13 @@ export class ValidatedPubkyAuthRequest {
     if (Result.isError(parsed)) return Result.err(parsed.error);
 
     const review = createAuthorizationReview(parsed.value);
-    const request = new ValidatedPubkyAuthRequest(review, Object.freeze({
-      callbacks: parsed.value.callbacks,
-      sensitivePubkyAuthUrl: parsed.value.sensitivePubkyAuthUrl,
-    }));
+    const request = new ValidatedPubkyAuthRequest(
+      review,
+      Object.freeze({
+        callbacks: parsed.value.callbacks,
+        sensitivePubkyAuthUrl: parsed.value.sensitivePubkyAuthUrl,
+      }),
+    );
 
     Object.freeze(request);
     return Result.ok(request);
@@ -75,9 +78,7 @@ export class ValidatedPubkyAuthRequest {
   }
 
   /** Takes one validated callback and releases all remaining private metadata. */
-  takeOutcomeCallback(
-    outcome: keyof ValidatedPubkyAuthCallbacks,
-  ): string | undefined {
+  takeOutcomeCallback(outcome: keyof ValidatedPubkyAuthCallbacks): string | undefined {
     try {
       return this.#metadata?.callbacks[outcome];
     } catch {
@@ -97,15 +98,16 @@ export class ValidatedPubkyAuthRequest {
 }
 
 function createAuthorizationReview(
-  parsed: Pick<
-    ParsedPubkyAuthRequest,
-    "authenticationMethod" | "capabilities" | "callbacks"
-  >,
+  parsed: Pick<ParsedPubkyAuthRequest, "authenticationMethod" | "capabilities" | "callbacks">,
 ): AuthorizationRequestReview {
-  const capabilities = Object.freeze(parsed.capabilities.map((capability) => Object.freeze({
-    ...capability,
-    scope: getCapabilityScope(capability.path),
-  })));
+  const capabilities = Object.freeze(
+    parsed.capabilities.map((capability) =>
+      Object.freeze({
+        ...capability,
+        scope: getCapabilityScope(capability.path),
+      }),
+    ),
+  );
   const callbackHost = getCallbackHost(parsed.callbacks);
 
   return Object.freeze({
@@ -116,14 +118,10 @@ function createAuthorizationReview(
 }
 
 function getCapabilityScope(path: string): AuthorizationCapability["scope"] {
-  return path === "/" || path === "/pub/" || path === "/priv/"
-    ? "broad"
-    : "specific";
+  return path === "/" || path === "/pub/" || path === "/priv/" ? "broad" : "specific";
 }
 
-function getCallbackHost(
-  callbacks: Readonly<ValidatedPubkyAuthCallbacks>,
-): string | undefined {
+function getCallbackHost(callbacks: Readonly<ValidatedPubkyAuthCallbacks>): string | undefined {
   const displayCallback = callbacks.success ?? callbacks.error ?? callbacks.cancel;
   if (!displayCallback) return undefined;
 

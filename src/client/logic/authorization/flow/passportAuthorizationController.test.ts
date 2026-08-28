@@ -25,7 +25,7 @@ vi.mock("./approveAuthorization", () => ({
 }));
 
 vi.mock("./authorizationOutcomeHandoff", async (importOriginal) => ({
-  ...await importOriginal<typeof import("./authorizationOutcomeHandoff")>(),
+  ...(await importOriginal<typeof import("./authorizationOutcomeHandoff")>()),
   handoffAuthorizationOutcome: MOCKS.handoffAuthorizationOutcome,
 }));
 
@@ -138,35 +138,36 @@ describe("PassportAuthorizationController", () => {
     ["success", false, "approved", "approve"],
     ["error", true, "failed", "approve"],
     ["cancel", false, "cancelled", "cancel"],
-  ] as const)("falls back to a local %s outcome when callback completion fails", async (
-    outcome,
-    approvalFails,
-    status,
-    intent,
-  ) => {
-    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    if (approvalFails) {
-      MOCKS.approveAuthorization.mockResolvedValueOnce(Result.err({ code: "approval_failed" }));
-    }
-    const { controller } = createController({ handoffOutcome: async () => "unavailable" });
+  ] as const)(
+    "falls back to a local %s outcome when callback completion fails",
+    async (outcome, approvalFails, status, intent) => {
+      const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+      if (approvalFails) {
+        MOCKS.approveAuthorization.mockResolvedValueOnce(Result.err({ code: "approval_failed" }));
+      }
+      const { controller } = createController({ handoffOutcome: async () => "unavailable" });
 
-    const state = intent === "approve"
-      ? await controller.approve(SELECTED_IDENTITY)
-      : await controller.cancel();
+      const state =
+        intent === "approve"
+          ? await controller.approve(SELECTED_IDENTITY)
+          : await controller.cancel();
 
-    expect(state.status).toBe(status);
-    expect(warning).toHaveBeenCalledOnce();
-    expect(warning).toHaveBeenCalledWith("authorize.callback.failed", {
-      outcome,
-      operation: "complete",
-    });
-  });
+      expect(state.status).toBe(status);
+      expect(warning).toHaveBeenCalledOnce();
+      expect(warning).toHaveBeenCalledWith("authorize.callback.failed", {
+        outcome,
+        operation: "complete",
+      });
+    },
+  );
 
   it("uses one render state for approval failure", async () => {
-    MOCKS.approveAuthorization.mockResolvedValueOnce(Result.err({
-      code: "approval_failed",
-      cause: new Error(SECRET),
-    }));
+    MOCKS.approveAuthorization.mockResolvedValueOnce(
+      Result.err({
+        code: "approval_failed",
+        cause: new Error(SECRET),
+      }),
+    );
     const { controller } = createController({}, { callbacks: false });
 
     const state = await controller.approve(SELECTED_IDENTITY);
@@ -180,7 +181,9 @@ describe("PassportAuthorizationController", () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const handoffError = new TypeError(`handoff failed ${SECRET} ${SUCCESS_CALLBACK}`);
     const { controller } = createController({
-      handoffOutcome: async () => { throw handoffError; },
+      handoffOutcome: async () => {
+        throw handoffError;
+      },
     });
 
     const state = await controller.approve(SELECTED_IDENTITY);
@@ -198,7 +201,9 @@ describe("PassportAuthorizationController", () => {
   it("makes state listeners exception-total", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const { controller } = createController({}, { callbacks: false });
-    controller.subscribe(() => { throw new Error("listener exploded"); });
+    controller.subscribe(() => {
+      throw new Error("listener exploded");
+    });
 
     await expect(controller.cancel()).resolves.toEqual({ status: "cancelled" });
     expect(warning).toHaveBeenCalledOnce();
@@ -211,11 +216,9 @@ describe("PassportAuthorizationController", () => {
     let completeApproval: (() => void) | undefined;
     MOCKS.approveAuthorization.mockImplementationOnce((_request, _publicKey, _signal, onCommit) => {
       onCommit();
-      return (
-      new Promise((resolve) => {
+      return new Promise((resolve) => {
         completeApproval = () => resolve(Result.ok());
-      })
-      );
+      });
     });
     const handoffOutcome = vi.fn(async () => "navigated" as const);
     const { controller, entry } = createController({ handoffOutcome });
@@ -236,9 +239,7 @@ describe("PassportAuthorizationController", () => {
 
   it("aborts callback completion when the controller is abandoned", async () => {
     let completionSignal: AbortSignal | undefined;
-    const handoffOutcome = vi.fn((
-      ...args: [Window, string, AuthorizationOutcome, AbortSignal]
-    ) => {
+    const handoffOutcome = vi.fn((...args: [Window, string, AuthorizationOutcome, AbortSignal]) => {
       completionSignal = args[3];
       return new Promise<AuthorizationHandoffStatus>((resolve) => {
         completionSignal?.addEventListener("abort", () => resolve("aborted"), { once: true });
@@ -256,10 +257,7 @@ describe("PassportAuthorizationController", () => {
 
   it("never approves or completes an invalid request", async () => {
     const handoffOutcome = vi.fn(async () => "navigated" as const);
-    const { controller } = createController(
-      { handoffOutcome },
-      { status: "invalid" },
-    );
+    const { controller } = createController({ handoffOutcome }, { status: "invalid" });
 
     await expect(controller.approve(SELECTED_IDENTITY)).resolves.toEqual({ status: "invalid" });
     await expect(controller.cancel()).resolves.toEqual({ status: "invalid" });
@@ -309,9 +307,9 @@ function createController(
 function createEntry(options: EntryOptions): AuthorizationEntry {
   switch (options.status ?? "valid") {
     case "valid": {
-      const validated = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(
-        validRequest(options.callbacks),
-      ));
+      const validated = ValidatedPubkyAuthRequest.fromEncoded(
+        encodeURIComponent(validRequest(options.callbacks)),
+      );
       if (Result.isError(validated)) throw new Error(validated.error.code);
       return {
         status: "valid",
@@ -328,8 +326,9 @@ function createEntry(options: EntryOptions): AuthorizationEntry {
 }
 
 function validRequest(callbacksEnabled = true): string {
-  const callbacks = callbacksEnabled === false
-    ? ""
-    : `&x-success=${encodeURIComponent(SUCCESS_CALLBACK)}&x-error=${encodeURIComponent(ERROR_CALLBACK)}&x-cancel=${encodeURIComponent(CANCEL_CALLBACK)}`;
+  const callbacks =
+    callbacksEnabled === false
+      ? ""
+      : `&x-success=${encodeURIComponent(SUCCESS_CALLBACK)}&x-error=${encodeURIComponent(ERROR_CALLBACK)}&x-cancel=${encodeURIComponent(CANCEL_CALLBACK)}`;
   return `pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=${SECRET}${callbacks}`;
 }

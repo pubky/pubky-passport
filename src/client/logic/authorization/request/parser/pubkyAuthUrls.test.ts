@@ -142,7 +142,9 @@ describe("validatePubkyAuthUrls", () => {
   });
 
   it("allows missing callbacks", () => {
-    const result = validatePubkyAuthUrls(authUrl("relay=https://httprelay.pubky.app/inbox&secret=secret-value"));
+    const result = validatePubkyAuthUrls(
+      authUrl("relay=https://httprelay.pubky.app/inbox&secret=secret-value"),
+    );
 
     expect(Result.isOk(result)).toBe(true);
     if (Result.isError(result)) {
@@ -153,14 +155,19 @@ describe("validatePubkyAuthUrls", () => {
   });
 
   it("uses legacy callback only when x-success is absent", () => {
-    const legacy = validatePubkyAuthUrls(authUrl(
-      `relay=https://httprelay.pubky.app/inbox&callback=${encodeURIComponent("https://third.example/success?nonce=legacy")}`,
-    ));
-    const canonical = validatePubkyAuthUrls(authUrl(
-      `relay=https://httprelay.pubky.app/inbox&x-success=&callback=${encodeURIComponent("https://third.example/legacy")}`,
-    ));
+    const legacy = validatePubkyAuthUrls(
+      authUrl(
+        `relay=https://httprelay.pubky.app/inbox&callback=${encodeURIComponent("https://third.example/success?nonce=legacy")}`,
+      ),
+    );
+    const canonical = validatePubkyAuthUrls(
+      authUrl(
+        `relay=https://httprelay.pubky.app/inbox&x-success=&callback=${encodeURIComponent("https://third.example/legacy")}`,
+      ),
+    );
 
-    if (Result.isError(legacy) || Result.isError(canonical)) throw new Error("callbacks must parse");
+    if (Result.isError(legacy) || Result.isError(canonical))
+      throw new Error("callbacks must parse");
     expect(legacy.value.success).toBe("https://third.example/success?nonce=legacy");
     expect(canonical.value.success).toBeUndefined();
   });
@@ -168,9 +175,9 @@ describe("validatePubkyAuthUrls", () => {
   it("decodes callbacks exactly once and preserves literal plus signs", () => {
     const callback = "https%3A%2F%2Fthird.example%2Fsuccess%3Fnonce%3Da+b%26nested%3D%252Fvalue";
 
-    const result = validatePubkyAuthUrls(authUrl(
-      `relay=https://httprelay.pubky.app/inbox&x-success=${callback}`,
-    ));
+    const result = validatePubkyAuthUrls(
+      authUrl(`relay=https://httprelay.pubky.app/inbox&x-success=${callback}`),
+    );
 
     if (Result.isError(result)) throw new Error(result.error.code);
     expect(result.value.success).toBe("https://third.example/success?nonce=a+b&nested=%2Fvalue");
@@ -205,12 +212,11 @@ describe("validatePubkyAuthUrls", () => {
   });
 
   it("rejects other non-HTTPS callback schemes by default", () => {
-    for (const callback of [
-      "http://third.example/success",
-      "pubky://third.example/success",
-    ]) {
+    for (const callback of ["http://third.example/success", "pubky://third.example/success"]) {
       expectUrlError(
-        authUrl(`relay=https://httprelay.pubky.app/inbox&secret=secret-value&x-success=${callback}`),
+        authUrl(
+          `relay=https://httprelay.pubky.app/inbox&secret=secret-value&x-success=${callback}`,
+        ),
         "invalid_callback",
       );
     }

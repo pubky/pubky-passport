@@ -8,17 +8,11 @@ import {
   LocalStorageIdentityRepository,
   type LocalIdentityErrorCode,
 } from "../../local-identity/LocalStorageIdentityRepository";
-import type {
-  PubkyIdentityKey,
-  PubkyPublicIdentity,
-} from "../../pubky/pubkyIdentityKey";
+import type { PubkyIdentityKey, PubkyPublicIdentity } from "../../pubky/pubkyIdentityKey";
 import type { PubkySdkAdapter } from "../../pubky/PubkySdkAdapter";
 import type { ValidatedPubkyAuthRequest } from "../request/ValidatedPubkyAuthRequest";
 
-type ApproveAuthorizationResult = ResultType<
-  void,
-  CodedFailure<"approval_failed" | "cancelled">
->;
+type ApproveAuthorizationResult = ResultType<void, CodedFailure<"approval_failed" | "cancelled">>;
 
 type RestoreLocalIdentityResult = ResultType<
   PubkyIdentityKey,
@@ -26,9 +20,7 @@ type RestoreLocalIdentityResult = ResultType<
 >;
 
 type RestoreLocalIdentityErrorCode =
-  | LocalIdentityErrorCode
-  | "identity_mismatch"
-  | "restore_failed";
+  LocalIdentityErrorCode | "identity_mismatch" | "restore_failed";
 
 /** Approves one request with the exact local identity selected during review. */
 export async function approveAuthorization(
@@ -115,7 +107,9 @@ async function restoreLocalIdentity(
       return Result.err({ code: "restore_failed", cause: restored.error });
     }
 
-    if (!isSamePublicIdentity(restored.value.publicIdentity, stored.value.identity.publicIdentity)) {
+    if (
+      !isSamePublicIdentity(restored.value.publicIdentity, stored.value.identity.publicIdentity)
+    ) {
       disposeIdentityKey(pubky, restored.value.keyHandle);
       LOGGER.warn("identity.local_restore.failed", { code: "identity_mismatch" });
       return Result.err({ code: "identity_mismatch" });

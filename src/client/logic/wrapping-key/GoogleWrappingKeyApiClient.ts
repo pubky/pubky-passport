@@ -16,18 +16,20 @@ const ERROR_CODES = [
   "dependency_unavailable",
   "internal_error",
 ] as const;
-const SUCCESS_SCHEMA = z.object({
-  wrappingKey: z.string().length(43).refine(isCanonicalBase64Url),
-  keyId: passportKeyIdSchema,
-}).strict();
-const ERROR_SCHEMA = z.object({
-  error: z.object({ code: z.enum(ERROR_CODES) }).strict(),
-}).strict();
+const SUCCESS_SCHEMA = z
+  .object({
+    wrappingKey: z.string().length(43).refine(isCanonicalBase64Url),
+    keyId: passportKeyIdSchema,
+  })
+  .strict();
+const ERROR_SCHEMA = z
+  .object({
+    error: z.object({ code: z.enum(ERROR_CODES) }).strict(),
+  })
+  .strict();
 
 export type GoogleWrappingKeyErrorCode =
-  | (typeof ERROR_CODES)[number]
-  | "invalid_response"
-  | "network_failed";
+  (typeof ERROR_CODES)[number] | "invalid_response" | "network_failed";
 
 export type GoogleWrappingKeyResult = Result<
   { wrappingKey: string; keyId: string },

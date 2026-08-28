@@ -11,7 +11,10 @@ const MAXIMUM_HOMESERVER_ORIGINS = 16;
 
 const PUBLIC_APPLICATION_ENVIRONMENT_SCHEMA = z.object({
   GOOGLE_CLIENT_ID: z.string().trim().min(1, "GOOGLE_CLIENT_ID is required"),
-  HOMEGATE_URL: z.string().trim().min(1, "HOMEGATE_URL is required")
+  HOMEGATE_URL: z
+    .string()
+    .trim()
+    .min(1, "HOMEGATE_URL is required")
     .transform((value, context) => {
       const homegate = parseHomegateUrl(value);
       if (homegate) return homegate;
@@ -22,7 +25,9 @@ const PUBLIC_APPLICATION_ENVIRONMENT_SCHEMA = z.object({
       });
       return z.NEVER;
     }),
-  PUBKY_HOMESERVER_CONNECT_ORIGINS: z.string().trim()
+  PUBKY_HOMESERVER_CONNECT_ORIGINS: z
+    .string()
+    .trim()
     .min(1, "PUBKY_HOMESERVER_CONNECT_ORIGINS is required")
     .transform((value, context) => {
       const origins = parseHomeserverConnectOrigins(value);
@@ -41,7 +46,7 @@ export type PublicApplicationEnvironment = {
   homegateBaseUrl: string;
   homegateOrigin: string;
   homeserverConnectOrigins: readonly string[];
-}
+};
 
 type PublicEnvironmentSources = readonly [
   googleClientId: string | undefined,
@@ -49,10 +54,12 @@ type PublicEnvironmentSources = readonly [
   homeserverConnectOrigins: string | undefined,
 ];
 
-let cachedEnvironment: {
-  sources: PublicEnvironmentSources;
-  value: PublicApplicationEnvironment;
-} | undefined;
+let cachedEnvironment:
+  | {
+      sources: PublicEnvironmentSources;
+      value: PublicApplicationEnvironment;
+    }
+  | undefined;
 
 export function getPublicApplicationEnvironment(): PublicApplicationEnvironment {
   const sources: PublicEnvironmentSources = [
@@ -79,7 +86,10 @@ export function getPublicApplicationEnvironment(): PublicApplicationEnvironment 
   return value;
 }
 
-function sourcesEqual(cached: PublicEnvironmentSources, current: PublicEnvironmentSources): boolean {
+function sourcesEqual(
+  cached: PublicEnvironmentSources,
+  current: PublicEnvironmentSources,
+): boolean {
   return cached.every((value, index) => value === current[index]);
 }
 
@@ -94,12 +104,12 @@ function parseHomegateUrl(value: string): { baseUrl: string; origin: string } | 
   }
 
   if (
-    url.protocol !== "https:"
-    || url.username
-    || url.password
-    || url.search
-    || url.hash
-    || !isCspSafeHostname(url.hostname)
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    !isCspSafeHostname(url.hostname)
   ) {
     return null;
   }
@@ -112,10 +122,7 @@ function parseHomegateUrl(value: string): { baseUrl: string; origin: string } | 
 function parseHomeserverConnectOrigins(value: string): string[] | null {
   if (value.length > MAXIMUM_HOMESERVER_ORIGINS_CHARACTERS) return null;
   const values = value.split(",").map((entry) => entry.trim());
-  if (
-    values.length > MAXIMUM_HOMESERVER_ORIGINS
-    || values.some((entry) => entry.length === 0)
-  ) {
+  if (values.length > MAXIMUM_HOMESERVER_ORIGINS || values.some((entry) => entry.length === 0)) {
     return null;
   }
 
@@ -137,13 +144,13 @@ function parseCspSafeHttpsOrigin(value: string): string | null {
     return null;
   }
   if (
-    url.protocol !== "https:"
-    || url.username
-    || url.password
-    || url.pathname !== "/"
-    || url.search
-    || url.hash
-    || !isCspSafeHostname(url.hostname)
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password ||
+    url.pathname !== "/" ||
+    url.search ||
+    url.hash ||
+    !isCspSafeHostname(url.hostname)
   ) {
     return null;
   }

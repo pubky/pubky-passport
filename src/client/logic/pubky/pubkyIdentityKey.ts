@@ -60,4 +60,7 @@ export type PubkyIdentityKeysErrorCode =
   | "public_identity_failed"
   | "restore_failed";
 
-export type PubkyIdentityKeysResult<Success> = Result<Success, CodedFailure<PubkyIdentityKeysErrorCode>>;
+export type PubkyIdentityKeysResult<Success> = Result<
+  Success,
+  CodedFailure<PubkyIdentityKeysErrorCode>
+>;

@@ -38,15 +38,20 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("LocalIdentityController", () => {
   it("delegates catalog actions to its concrete repository", () => {
-    const list = vi.spyOn(LocalStorageIdentityRepository.prototype, "list")
+    const list = vi
+      .spyOn(LocalStorageIdentityRepository.prototype, "list")
       .mockReturnValue(Result.ok({ activePublicKeyZ32: null, identities: [] }));
-    const select = vi.spyOn(LocalStorageIdentityRepository.prototype, "select")
+    const select = vi
+      .spyOn(LocalStorageIdentityRepository.prototype, "select")
       .mockReturnValue(Result.ok());
-    const remove = vi.spyOn(LocalStorageIdentityRepository.prototype, "remove")
+    const remove = vi
+      .spyOn(LocalStorageIdentityRepository.prototype, "remove")
       .mockReturnValue(Result.ok());
     const controller = new LocalIdentityController();
 
-    expect(controller.listIdentities()).toEqual(Result.ok({ activePublicKeyZ32: null, identities: [] }));
+    expect(controller.listIdentities()).toEqual(
+      Result.ok({ activePublicKeyZ32: null, identities: [] }),
+    );
     expect(controller.selectIdentity(PUBLIC_KEY)).toEqual(Result.ok());
     expect(controller.removeIdentity(PUBLIC_KEY)).toEqual(Result.ok());
     expect(list).toHaveBeenCalledOnce();
@@ -86,8 +91,12 @@ describe("LocalIdentityController", () => {
     mockStoredIdentity(secretBytes);
     MOCKS.createRecoveryFile.mockReturnValue(Result.ok(recoveryBytes));
 
-    const recoveryFile = expectResultOk(await new LocalIdentityController()
-      .createRecoveryFile(PUBLIC_KEY, "a strong recovery password"));
+    const recoveryFile = expectResultOk(
+      await new LocalIdentityController().createRecoveryFile(
+        PUBLIC_KEY,
+        "a strong recovery password",
+      ),
+    );
 
     expect(recoveryFile).toEqual({ bytes: recoveryBytes, fileName: `pubky-${PUBLIC_KEY}.pkarr` });
     expect(MOCKS.createRecoveryFile).toHaveBeenCalledWith(
@@ -110,8 +119,10 @@ describe("LocalIdentityController", () => {
         return Result.err({ code: "recovery_file_failed" as const });
       });
 
-      const result = await new LocalIdentityController()
-        .createRecoveryFile(PUBLIC_KEY, "a strong recovery password");
+      const result = await new LocalIdentityController().createRecoveryFile(
+        PUBLIC_KEY,
+        "a strong recovery password",
+      );
 
       expect(Result.isError(result) && result.error.code).toBe("recovery_file_failed");
       expect(secretBytes).toEqual(new Uint8Array(32));
@@ -124,10 +135,16 @@ describe("LocalIdentityController", () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     mockStoredIdentity(new Uint8Array(32).fill(1));
     MOCKS.createRecoveryFile.mockReturnValue(Result.ok(new Uint8Array(64)));
-    MOCKS.dispose.mockImplementation(() => { throw new Error("cleanup failed"); });
+    MOCKS.dispose.mockImplementation(() => {
+      throw new Error("cleanup failed");
+    });
 
-    expectResultOk(await new LocalIdentityController()
-      .createRecoveryFile(PUBLIC_KEY, "a strong recovery password"));
+    expectResultOk(
+      await new LocalIdentityController().createRecoveryFile(
+        PUBLIC_KEY,
+        "a strong recovery password",
+      ),
+    );
     expect(warning).toHaveBeenCalledWith("identity.recovery_file.cleanup.failed", {
       operation: "pubky_dispose",
     });
@@ -135,11 +152,13 @@ describe("LocalIdentityController", () => {
 });
 
 function mockStoredIdentity(secretBytes: Uint8Array) {
-  return vi.spyOn(LocalStorageIdentityRepository.prototype, "read").mockReturnValue(Result.ok({
-    identity: { publicIdentity: { publicKeyZ32: PUBLIC_KEY } },
-    secretKey: {
-      bytes: secretBytes,
-      format: PUBKY_SECRET_KEY_FORMAT,
-    } satisfies PubkySecretKeyMaterial,
-  }));
+  return vi.spyOn(LocalStorageIdentityRepository.prototype, "read").mockReturnValue(
+    Result.ok({
+      identity: { publicIdentity: { publicKeyZ32: PUBLIC_KEY } },
+      secretKey: {
+        bytes: secretBytes,
+        format: PUBKY_SECRET_KEY_FORMAT,
+      } satisfies PubkySecretKeyMaterial,
+    }),
+  );
 }

@@ -26,27 +26,23 @@ export type GoogleIdentityViewState =
   | { status: "detaching" };
 
 /** Safe setup or restore details returned after the identity is active locally. */
-export type EstablishedGoogleIdentity = |
-  {
-    establishmentMode: "created";
-    googleAccount: GoogleAccountProfile;
-    publicIdentity: PubkyPublicIdentity;
-    visibleRecoveryCopyStatus: "created" | "unconfirmed";
-  } |
-  {
-    establishmentMode: "restored";
-    googleAccount: GoogleAccountProfile;
-    publicIdentity: PubkyPublicIdentity;
-  };
+export type EstablishedGoogleIdentity =
+  | {
+      establishmentMode: "created";
+      googleAccount: GoogleAccountProfile;
+      publicIdentity: PubkyPublicIdentity;
+      visibleRecoveryCopyStatus: "created" | "unconfirmed";
+    }
+  | {
+      establishmentMode: "restored";
+      googleAccount: GoogleAccountProfile;
+      publicIdentity: PubkyPublicIdentity;
+    };
 
 export type GoogleIdentityError =
   | GoogleIdentityOperationError
   | GoogleImplicitAuthorizationError
-  | CodedFailure<
-    | "authorization_failed"
-    | "cancelled"
-    | "operation_failed"
-  >;
+  | CodedFailure<"authorization_failed" | "cancelled" | "operation_failed">;
 
 export type GoogleIdentityErrorDetailCode = Extract<
   GoogleIdentityOperationError,
@@ -113,9 +109,10 @@ export class GoogleIdentityController {
       const operations = this.operations;
       if (!operations) return Result.err({ code: "operation_failed" });
       const progress = this.createProgressReporter();
-      const establishment = operation === "establish"
-        ? operations.establishIdentity(authorized.value, progress.report)
-        : operations.replaceInvalidPassportFile(authorized.value, progress.report);
+      const establishment =
+        operation === "establish"
+          ? operations.establishIdentity(authorized.value, progress.report)
+          : operations.replaceInvalidPassportFile(authorized.value, progress.report);
       const established = await establishment.finally(() => {
         progress.stop();
       });
@@ -242,7 +239,7 @@ export class GoogleIdentityController {
     this.setViewState({ status: "requesting-authorization" });
 
     try {
-      if (!await this.initializeDependencies()) {
+      if (!(await this.initializeDependencies())) {
         this.operationPending = false;
         return Result.err({ code: "cancelled" });
       }
@@ -273,7 +270,10 @@ export class GoogleIdentityController {
         this.operationPending = false;
         return Result.err(credentials.error);
       }
-      if (googleSubject !== undefined && credentials.value.googleAccount.googleSubject !== googleSubject) {
+      if (
+        googleSubject !== undefined &&
+        credentials.value.googleAccount.googleSubject !== googleSubject
+      ) {
         this.operationPending = false;
         return Result.err({ code: "authorization_failed" });
       }

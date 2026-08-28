@@ -16,7 +16,11 @@ import { DisplayHeading, LeadText } from "../../../shared/primitives/typography"
 import { PubkyRingQrCode } from "./pubkyRingQrCode";
 import { PubkyRingQrDialog } from "./pubkyRingQrDialog";
 
-function MigrateToPubkyRing({ createMigration, navigationAction, onBack }: {
+function MigrateToPubkyRing({
+  createMigration,
+  navigationAction,
+  onBack,
+}: {
   createMigration: () => Promise<LocalIdentityResult<PubkyRingMigration>>;
   navigationAction: "back" | "continue";
   onBack: () => void;
@@ -36,26 +40,27 @@ function MigrateToPubkyRing({ createMigration, navigationAction, onBack }: {
     migrationModeRef.current = null;
   }, []);
 
-  const loadMigration = useCallback(async (
-    mode: "desktop" | "dialog",
-  ): Promise<PubkyRingMigration | null> => {
-    const request = ++migrationRequestRef.current;
-    releaseMigration();
-    setMigration(null);
-    setPending(true);
-    const result = await createMigration();
-    if (request !== migrationRequestRef.current) {
-      if (Result.isOk(result)) result.value.dispose();
-      return null;
-    }
-    setPending(false);
-    setExportFailed(Result.isError(result));
-    if (Result.isError(result)) return null;
-    migrationRef.current = result.value;
-    migrationModeRef.current = mode;
-    setMigration(result.value);
-    return result.value;
-  }, [createMigration, releaseMigration]);
+  const loadMigration = useCallback(
+    async (mode: "desktop" | "dialog"): Promise<PubkyRingMigration | null> => {
+      const request = ++migrationRequestRef.current;
+      releaseMigration();
+      setMigration(null);
+      setPending(true);
+      const result = await createMigration();
+      if (request !== migrationRequestRef.current) {
+        if (Result.isOk(result)) result.value.dispose();
+        return null;
+      }
+      setPending(false);
+      setExportFailed(Result.isError(result));
+      if (Result.isError(result)) return null;
+      migrationRef.current = result.value;
+      migrationModeRef.current = mode;
+      setMigration(result.value);
+      return result.value;
+    },
+    [createMigration, releaseMigration],
+  );
 
   useEffect(() => {
     if (typeof globalThis.matchMedia !== "function") return releaseMigration;
@@ -73,7 +78,9 @@ function MigrateToPubkyRing({ createMigration, navigationAction, onBack }: {
     }
 
     void syncDesktop();
-    const onChange = () => { void syncDesktop(); };
+    const onChange = () => {
+      void syncDesktop();
+    };
     media.addEventListener("change", onChange);
     return () => {
       migrationRequestRef.current += 1;
@@ -89,7 +96,7 @@ function MigrateToPubkyRing({ createMigration, navigationAction, onBack }: {
   }
 
   async function showQr() {
-    if (!await loadMigration("dialog")) return;
+    if (!(await loadMigration("dialog"))) return;
     setQrDialogOpen(true);
   }
 
@@ -111,31 +118,56 @@ function MigrateToPubkyRing({ createMigration, navigationAction, onBack }: {
 
   return (
     <PassportScreen className="gap-6">
-      <DisplayHeading accent="keychain." aria-label="Migrate to keychain.">Migrate to</DisplayHeading>
+      <DisplayHeading accent="keychain." aria-label="Migrate to keychain.">
+        Migrate to
+      </DisplayHeading>
       <LeadText>Install a supported keychain app to self-manage your pubky identity.</LeadText>
 
       <section className="flex w-full flex-col gap-6 rounded-2xl bg-card p-6 md:flex-row md:p-12">
         <div className="flex min-w-0 flex-1 flex-col gap-6 md:justify-center">
-          <div className="flex justify-center md:justify-start"><PubkyRingLogo /></div>
+          <div className="flex justify-center md:justify-start">
+            <PubkyRingLogo />
+          </div>
           <PubkyRingStoreBadges />
           <p className="hidden text-sm font-medium leading-5 text-muted-foreground md:block">
             Scan this QR with Pubky Ring to import and self-manage your pubky identity.
           </p>
 
-          {exportFailed ? <p className="text-center text-sm text-muted-foreground md:text-left">The active Pubky could not be exported.</p> : null}
+          {exportFailed ? (
+            <p className="text-center text-sm text-muted-foreground md:text-left">
+              The active Pubky could not be exported.
+            </p>
+          ) : null}
 
           <div className="flex flex-col gap-3 md:hidden">
-            <Button disabled={pending} onClick={() => { void showQr(); }} size="lg" type="button" variant="secondary">
+            <Button
+              disabled={pending}
+              onClick={() => {
+                void showQr();
+              }}
+              size="lg"
+              type="button"
+              variant="secondary"
+            >
               <ScanIcon />
               Show QR
             </Button>
-            <Button disabled={pending} onClick={() => { void importPubky(); }} size="lg" type="button">
+            <Button
+              disabled={pending}
+              onClick={() => {
+                void importPubky();
+              }}
+              size="lg"
+              type="button"
+            >
               <PubkyBrandIcon />
               Import pubky
             </Button>
           </div>
         </div>
-        {desktop && migration ? <PubkyRingQrCode className="size-48 shrink-0" migration={migration} /> : null}
+        {desktop && migration ? (
+          <PubkyRingQrCode className="size-48 shrink-0" migration={migration} />
+        ) : null}
       </section>
 
       <Image
@@ -146,10 +178,21 @@ function MigrateToPubkyRing({ createMigration, navigationAction, onBack }: {
         width={200}
       />
 
-      {navigationAction === "back"
-        ? <PassportNavigation back={<BackButton onClick={back} />} />
-        : <PassportNavigation confirm={<Button className="w-full" onClick={back} size="lg" type="button"><CheckIcon />Continue</Button>} />}
-      {qrDialogOpen && migration ? <PubkyRingQrDialog migration={migration} onClose={closeQrDialog} /> : null}
+      {navigationAction === "back" ? (
+        <PassportNavigation back={<BackButton onClick={back} />} />
+      ) : (
+        <PassportNavigation
+          confirm={
+            <Button className="w-full" onClick={back} size="lg" type="button">
+              <CheckIcon />
+              Continue
+            </Button>
+          }
+        />
+      )}
+      {qrDialogOpen && migration ? (
+        <PubkyRingQrDialog migration={migration} onClose={closeQrDialog} />
+      ) : null}
     </PassportScreen>
   );
 }

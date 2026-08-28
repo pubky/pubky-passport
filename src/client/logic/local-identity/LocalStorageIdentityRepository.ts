@@ -2,7 +2,11 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "../../../libs/encoding/base64Url";
+import {
+  decodeBase64Url,
+  encodeBase64Url,
+  isCanonicalBase64Url,
+} from "../../../libs/encoding/base64Url";
 import { isGoogleAccountProfile } from "../../../libs/googleAccountProfile";
 import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
@@ -27,12 +31,12 @@ type StoredLocalIdentity = {
 };
 
 export type LocalIdentityErrorCode =
-  | "invalid_identity"
-  | "invalid_secret_key"
-  | "invalid_store"
-  | "storage_unavailable";
+  "invalid_identity" | "invalid_secret_key" | "invalid_store" | "storage_unavailable";
 
-export type LocalIdentityResult<Success> = ResultType<Success, CodedFailure<LocalIdentityErrorCode>>;
+export type LocalIdentityResult<Success> = ResultType<
+  Success,
+  CodedFailure<LocalIdentityErrorCode>
+>;
 
 const STORAGE_ROOT = "pubky-passport/local-identities/v1";
 const IDENTITY_KEY_PREFIX = `${STORAGE_ROOT}/identity/`;
@@ -52,28 +56,36 @@ export class LocalStorageIdentityRepository {
 
     const activePublicKeyZ32 = identities.value.some(
       (identity) => identity.publicKeyZ32 === active.value,
-    ) ? active.value : identities.value[0]?.publicKeyZ32 ?? null;
+    )
+      ? active.value
+      : (identities.value[0]?.publicKeyZ32 ?? null);
     if (activePublicKeyZ32 !== active.value) {
       const repaired = writeActiveIdentity(storage, activePublicKeyZ32);
       if (Result.isError(repaired)) return Result.err(repaired.error);
     }
 
-    return Result.ok(Object.freeze({
-      activePublicKeyZ32,
-      identities: Object.freeze(identities.value.map(toMetadata)),
-    }));
+    return Result.ok(
+      Object.freeze({
+        activePublicKeyZ32,
+        identities: Object.freeze(identities.value.map(toMetadata)),
+      }),
+    );
   }
 
   save(
     identity: LocalIdentityMetadata,
     secretKey: PubkySecretKeyMaterial,
   ): LocalIdentityResult<LocalIdentityMetadata> {
-    if (!isPubkyPublicIdentity(identity.publicIdentity)
-      || (identity.googleAccount !== undefined && !isGoogleAccountProfile(identity.googleAccount))) {
+    if (
+      !isPubkyPublicIdentity(identity.publicIdentity) ||
+      (identity.googleAccount !== undefined && !isGoogleAccountProfile(identity.googleAccount))
+    ) {
       return invalidIdentity("save");
     }
-    if (secretKey.format !== PUBKY_SECRET_KEY_FORMAT
-      || secretKey.bytes.byteLength !== PUBKY_SECRET_KEY_BYTES) {
+    if (
+      secretKey.format !== PUBKY_SECRET_KEY_FORMAT ||
+      secretKey.bytes.byteLength !== PUBKY_SECRET_KEY_BYTES
+    ) {
       LOGGER.warn("identity.local_store.failed", { operation: "save", code: "invalid_secret_key" });
       return Result.err({ code: "invalid_secret_key" });
     }
@@ -100,10 +112,14 @@ export class LocalStorageIdentityRepository {
       return Result.ok(toMetadata(stored));
     } catch (cause) {
       if (previousIdentity !== undefined && previousActive !== undefined) {
-        restoreStorageValues(storage, [
-          [ACTIVE_IDENTITY_KEY, previousActive],
-          [storedKey, previousIdentity],
-        ], "save_rollback");
+        restoreStorageValues(
+          storage,
+          [
+            [ACTIVE_IDENTITY_KEY, previousActive],
+            [storedKey, previousIdentity],
+          ],
+          "save_rollback",
+        );
         notifySameTab();
       }
       return storageUnavailable("write", cause);
@@ -135,9 +151,9 @@ export class LocalStorageIdentityRepository {
     if (active.value === publicKeyZ32) {
       const remaining = readAllIdentities(storage);
       if (Result.isError(remaining)) return Result.err(remaining.error);
-      nextActive = remaining.value.find(
-        (candidate) => candidate.publicKeyZ32 !== publicKeyZ32,
-      )?.publicKeyZ32 ?? null;
+      nextActive =
+        remaining.value.find((candidate) => candidate.publicKeyZ32 !== publicKeyZ32)
+          ?.publicKeyZ32 ?? null;
     }
 
     const storedKey = identityStorageKey(publicKeyZ32);
@@ -149,10 +165,14 @@ export class LocalStorageIdentityRepository {
       notifySameTab();
       return Result.ok();
     } catch (cause) {
-      restoreStorageValues(storage, [
-        [storedKey, previousIdentity],
-        [ACTIVE_IDENTITY_KEY, active.value],
-      ], "remove_rollback");
+      restoreStorageValues(
+        storage,
+        [
+          [storedKey, previousIdentity],
+          [ACTIVE_IDENTITY_KEY, active.value],
+        ],
+        "remove_rollback",
+      );
       notifySameTab();
       return storageUnavailable("write", cause);
     }
@@ -179,8 +199,8 @@ export class LocalStorageIdentityRepository {
   subscribe(listener: () => void): () => void {
     SAME_TAB_LISTENERS.add(listener);
     const onStorage = (event: StorageEvent) => {
-      if (event.key === null
-        || event.key.startsWith(`${STORAGE_ROOT}/`)) notifyListener(listener, "storage_event");
+      if (event.key === null || event.key.startsWith(`${STORAGE_ROOT}/`))
+        notifyListener(listener, "storage_event");
     };
     globalThis.window?.addEventListener("storage", onStorage);
     return () => {
@@ -259,14 +279,19 @@ function parseStoredIdentity(value: string): StoredLocalIdentity | null {
 }
 
 function isStoredIdentity(value: unknown): value is StoredLocalIdentity {
-  return isRecord(value)
-    && hasExactKeys(value, value.googleAccount === undefined
-      ? ["v", "publicKeyZ32", "secretKey"]
-      : ["v", "publicKeyZ32", "googleAccount", "secretKey"])
-    && value.v === 1
-    && isPubkyPublicKey(value.publicKeyZ32)
-    && isEncodedSecretKey(value.secretKey)
-    && (value.googleAccount === undefined || isGoogleAccountProfile(value.googleAccount));
+  return (
+    isRecord(value) &&
+    hasExactKeys(
+      value,
+      value.googleAccount === undefined
+        ? ["v", "publicKeyZ32", "secretKey"]
+        : ["v", "publicKeyZ32", "googleAccount", "secretKey"],
+    ) &&
+    value.v === 1 &&
+    isPubkyPublicKey(value.publicKeyZ32) &&
+    isEncodedSecretKey(value.secretKey) &&
+    (value.googleAccount === undefined || isGoogleAccountProfile(value.googleAccount))
+  );
 }
 
 function isEncodedSecretKey(value: unknown): value is string {
@@ -340,9 +365,9 @@ function storageUnavailable(operation: string, cause?: unknown): LocalIdentityRe
     code: "storage_unavailable",
     ...(cause === undefined ? {} : safeErrorLogFields(cause)),
   });
-  return Result.err(cause === undefined
-    ? { code: "storage_unavailable" }
-    : { code: "storage_unavailable", cause });
+  return Result.err(
+    cause === undefined ? { code: "storage_unavailable" } : { code: "storage_unavailable", cause },
+  );
 }
 
 function getLocalStorage(): Storage | null {

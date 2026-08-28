@@ -9,8 +9,7 @@ import {
 } from "../request/parser/pubkyAuthRequestParser";
 
 export type ManualAuthorizationInputValidationResult =
-  | { status: "invalid" }
-  | { status: "valid"; destination: string };
+  { status: "invalid" } | { status: "valid"; destination: string };
 
 /** Validates a pasted request and returns its browser-entry destination. */
 export function validateManualAuthorizationInput(

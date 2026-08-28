@@ -52,7 +52,9 @@ export class GoogleImplicitAuthorization {
 
   constructor(private readonly clientId: string) {}
 
-  request(loginHint?: string): Promise<GoogleImplicitAuthorizationResult<GoogleIdentityCredentials>> {
+  request(
+    loginHint?: string,
+  ): Promise<GoogleImplicitAuthorizationResult<GoogleIdentityCredentials>> {
     if (this.activeAttempt) {
       LOGGER.warn("identity.google.implicit_authorization.failed", {
         operation: "authorize",
@@ -106,12 +108,15 @@ export class GoogleImplicitAuthorization {
         this.activeAttempt = attempt;
         attempt.messageListener = (event) => {
           try {
-            if (event.origin !== origin
-              || event.source !== openedPopup
-              || this.activeAttempt !== attempt
-              || attempt.responseReceived
-              || !isRecord(event.data)
-              || event.data.type !== GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE) return;
+            if (
+              event.origin !== origin ||
+              event.source !== openedPopup ||
+              this.activeAttempt !== attempt ||
+              attempt.responseReceived ||
+              !isRecord(event.data) ||
+              event.data.type !== GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE
+            )
+              return;
             attempt.responseReceived = true;
             clearInterval(attempt.poll);
             closePopup(attempt.popup);
@@ -164,7 +169,10 @@ export class GoogleImplicitAuthorization {
     }
   }
 
-  private async handleResponseMessage(attempt: AuthorizationAttempt, capture: unknown): Promise<void> {
+  private async handleResponseMessage(
+    attempt: AuthorizationAttempt,
+    capture: unknown,
+  ): Promise<void> {
     const result = await this.parseReturn(attempt, capture);
     if (this.activeAttempt === attempt) this.finish(attempt, result);
   }
@@ -193,7 +201,10 @@ export class GoogleImplicitAuthorization {
         stage: account.error.stage,
         code: account.error.code,
       });
-      return Result.err({ code: account.error.code, ...(account.error.cause ? { cause: account.error.cause } : {}) });
+      return Result.err({
+        code: account.error.code,
+        ...(account.error.cause ? { cause: account.error.cause } : {}),
+      });
     }
     return Result.ok({
       googleIdToken: parsed.value.googleIdToken,
@@ -245,7 +256,9 @@ function cleanupAuthorizationAttempt(operation: string, cleanup: () => void): vo
 function closePopup(popup: Window): void {
   try {
     if (!popup.closed) popup.close();
-  } catch { /* Cross-origin popup cleanup is best effort. */ }
+  } catch {
+    /* Cross-origin popup cleanup is best effort. */
+  }
 }
 
 function randomBase64Url(byteLength: number): string {

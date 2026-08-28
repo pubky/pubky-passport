@@ -108,7 +108,8 @@ describe("authorizationEntry", () => {
 
   it.each([
     () => `d=${validRequest()}`,
-    () => `d=${"%41".repeat(Math.ceil(PUBKY_AUTH_REQUEST_LIMITS.maximumEncodedDCodeUnits / 3) + 1)}`,
+    () =>
+      `d=${"%41".repeat(Math.ceil(PUBKY_AUTH_REQUEST_LIMITS.maximumEncodedDCodeUnits / 3) + 1)}`,
     () => `d=${encodeURIComponent(validRequest())}&d=${encodeURIComponent(validRequest())}`,
     () => "d=%E0%A4%A",
     () => `d=${encodeURIComponent(validRequest())}&unexpected=value`,
@@ -142,7 +143,9 @@ describe("authorizationEntry", () => {
   });
 
   it("rejects an oversized fragment before detailed parsing", () => {
-    setRawAuthorizationFragment(`unexpected=${"a".repeat(PUBKY_AUTH_REQUEST_LIMITS.maximumEncodedDCodeUnits + 1)}`);
+    setRawAuthorizationFragment(
+      `unexpected=${"a".repeat(PUBKY_AUTH_REQUEST_LIMITS.maximumEncodedDCodeUnits + 1)}`,
+    );
 
     expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "invalid" });
     expect(window.location.hash).toBe("");
@@ -150,11 +153,7 @@ describe("authorizationEntry", () => {
 
   it("preserves safe framework history state during a repeated hydration scrub", () => {
     const frameworkState = { __NA: true, tree: ["", { children: ["authorize"] }] };
-    window.history.replaceState(
-      frameworkState,
-      "",
-      "/authorize#d=encoded-request",
-    );
+    window.history.replaceState(frameworkState, "", "/authorize#d=encoded-request");
 
     scrubAuthorizationLocation(window, { preserveSanitizedHistoryState: true });
 
@@ -177,7 +176,13 @@ describe("authorizationEntry", () => {
     const stop = vi.fn();
     const replace = vi.fn();
     const appWindow = {
-      History: { prototype: { replaceState() { throw new Error(`unavailable ${SECRET}`); } } },
+      History: {
+        prototype: {
+          replaceState() {
+            throw new Error(`unavailable ${SECRET}`);
+          },
+        },
+      },
       history: {},
       location: {
         hash: `#d=${encodeURIComponent(validRequest())}`,
@@ -203,7 +208,9 @@ describe("authorizationEntry", () => {
     window.history.replaceState({}, "", "/authorize");
     Object.defineProperty(window, EARLY_AUTHORIZATION_LOCATION_PROPERTY, {
       configurable: true,
-      value: () => { throw new TypeError(`capture failed ${SECRET}`); },
+      value: () => {
+        throw new TypeError(`capture failed ${SECRET}`);
+      },
     });
 
     expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "empty" });
@@ -213,7 +220,6 @@ describe("authorizationEntry", () => {
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain(SECRET);
   });
-
 });
 
 function setAuthorizationUrl(request: string): void {

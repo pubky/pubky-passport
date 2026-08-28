@@ -6,10 +6,12 @@ import { z } from "zod";
 import { readBoundedText } from "../../../../libs/http/boundedBody";
 import { MAXIMUM_JSON_BODY_BYTES, passportKeyIdSchema } from "../../../../libs/passportPolicy";
 
-const REQUEST_SCHEMA = z.object({
-  googleIdToken: z.string().trim().min(1),
-  keyId: passportKeyIdSchema.optional(),
-}).strict();
+const REQUEST_SCHEMA = z
+  .object({
+    googleIdToken: z.string().trim().min(1),
+    keyId: passportKeyIdSchema.optional(),
+  })
+  .strict();
 
 export const GOOGLE_WRAPPING_KEY_RESPONSE_HEADERS = {
   "Cache-Control": "no-store",

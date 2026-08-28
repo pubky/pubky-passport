@@ -30,12 +30,17 @@ test("shows manual authorization entry when no request was supplied", async ({ p
 
   await expect(page.getByRole("heading", { name: "Authorize a service." })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Authorization link" })).toHaveValue("");
-  await expect(page.getByRole("textbox", { name: "Authorization link" })).toHaveAttribute("placeholder", "pubkyauth://");
+  await expect(page.getByRole("textbox", { name: "Authorization link" })).toHaveAttribute(
+    "placeholder",
+    "pubkyauth://",
+  );
   await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
 });
 
 test("scrubs a valid request and renders only safe review data", async ({ page, request }) => {
-  const url = authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}?region=eu`));
+  const url = authorizationUrl(
+    authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}?region=eu`),
+  );
   await installLocalIdentityFixture(page);
   const leakMonitor = await installAuthorizationLeakMonitor(page);
   const baselineResponse = await request.get("/");
@@ -51,7 +56,9 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   expect(headers["referrer-policy"]).toBe("no-referrer");
 
   const policy = headers["content-security-policy"] ?? "";
-  const baselineSources = new Set(cspSources(baselineResponse.headers()["content-security-policy"] ?? "", "connect-src"));
+  const baselineSources = new Set(
+    cspSources(baselineResponse.headers()["content-security-policy"] ?? "", "connect-src"),
+  );
   const authorizationSources = cspSources(policy, "connect-src");
   expect(baselineSources).toContain("https://homeserver.example");
   expect(authorizationSources.filter((source) => !baselineSources.has(source))).toEqual(["https:"]);
@@ -68,7 +75,11 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   expect(renderedReview).not.toContain("authorization-success");
   expect(await page.evaluate(() => window.location.search)).toBe("");
   expect(await page.evaluate(() => window.location.hash)).toBe("");
-  expect(await page.evaluate(() => (window as Window & { __passportHashAtFirstFrame?: string }).__passportHashAtFirstFrame)).toBe("");
+  expect(
+    await page.evaluate(
+      () => (window as Window & { __passportHashAtFirstFrame?: string }).__passportHashAtFirstFrame,
+    ),
+  ).toBe("");
   const authorizationPersistence = await browserPersistenceSnapshot(page);
   expectAuthorizationPersistenceSafe(authorizationPersistence, LOCAL_IDENTITY_STORAGE);
 
@@ -80,7 +91,10 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   expect(await page.evaluate(() => window.location.hash)).toBe("");
   const restoredPersistence = await browserPersistenceSnapshot(page);
   expectAuthorizationPersistenceSafe(restoredPersistence, LOCAL_IDENTITY_STORAGE);
-  await expectNoSensitiveBrowserLeaks(page, leakMonitor, [authorizationPersistence, restoredPersistence]);
+  await expectNoSensitiveBrowserLeaks(page, leakMonitor, [
+    authorizationPersistence,
+    restoredPersistence,
+  ]);
 });
 
 test("rejects an unsafe relay without adding it to CSP", async ({ page }) => {
@@ -105,7 +119,9 @@ test("rejects an unsafe relay without adding it to CSP", async ({ page }) => {
 });
 
 test("reviews and scrubs a v0.10 grant authorization request", async ({ page }) => {
-  const url = authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}`, "grant"));
+  const url = authorizationUrl(
+    authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}`, "grant"),
+  );
   await installLocalIdentityFixture(page);
   const leakMonitor = await installAuthorizationLeakMonitor(page);
 
@@ -126,7 +142,9 @@ test("manual entry reloads into fragment-backed capability review", async ({ pag
   await installLocalIdentityFixture(page);
   await page.goto("/authorize");
 
-  await page.getByRole("textbox", { name: "Authorization link" }).fill(authorizationRequest(`${RELAY_ORIGIN}/inbox`));
+  await page
+    .getByRole("textbox", { name: "Authorization link" })
+    .fill(authorizationRequest(`${RELAY_ORIGIN}/inbox`));
   await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page.getByRole("heading", { name: "Sign in to client.example" })).toBeVisible();
@@ -135,18 +153,23 @@ test("manual entry reloads into fragment-backed capability review", async ({ pag
 });
 
 test("falls back to the cancel callback when the opener does not acknowledge", async ({ page }) => {
-  await page.context().route("https://client.example/**", (route) => route.fulfill({
-    body: "<!doctype html><title>Returned</title><h1>Returned to app</h1>",
-    contentType: "text/html",
-  }));
+  await page.context().route("https://client.example/**", (route) =>
+    route.fulfill({
+      body: "<!doctype html><title>Returned</title><h1>Returned to app</h1>",
+      contentType: "text/html",
+    }),
+  );
   await page.goto("/");
   await page.evaluate((entries) => {
     for (const [key, value] of entries) window.localStorage.setItem(key, value);
   }, Object.entries(LOCAL_IDENTITY_STORAGE));
   const popupPromise = page.waitForEvent("popup");
-  await page.evaluate((url) => { window.open(url, "pubky-passport", "popup,width=480,height=760"); }, authorizationUrl(
-    authorizationRequest(`${RELAY_ORIGIN}/inbox`),
-  ));
+  await page.evaluate(
+    (url) => {
+      window.open(url, "pubky-passport", "popup,width=480,height=760");
+    },
+    authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`)),
+  );
   const popup = await popupPromise;
 
   await popup.getByRole("button", { name: "Cancel" }).click();
@@ -161,46 +184,61 @@ test("notifies the callback-origin opener and closes after acknowledgement", asy
   await page.evaluate((entries) => {
     for (const [key, value] of entries) window.localStorage.setItem(key, value);
   }, Object.entries(LOCAL_IDENTITY_STORAGE));
-  await page.context().route("https://client.example/**", (route) => route.fulfill({
-    body: "<!doctype html><title>Client integration</title><h1>Client integration</h1>",
-    contentType: "text/html",
-  }));
+  await page.context().route("https://client.example/**", (route) =>
+    route.fulfill({
+      body: "<!doctype html><title>Client integration</title><h1>Client integration</h1>",
+      contentType: "text/html",
+    }),
+  );
   await page.goto("https://client.example/integration");
   await page.evaluate((trustedPassportOrigin) => {
     window.addEventListener("message", (event) => {
       const message = event.data as Record<string, unknown>;
       if (
-        event.origin !== trustedPassportOrigin
-        || message.type !== "pubky-passport.authorization-outcome"
-        || message.version !== 1
-        || typeof message.messageId !== "string"
-      ) return;
-      (event.source as Window | null)?.postMessage({
-        type: "pubky-passport.authorization-outcome-ack",
-        version: 1,
-        messageId: message.messageId,
-      }, trustedPassportOrigin);
+        event.origin !== trustedPassportOrigin ||
+        message.type !== "pubky-passport.authorization-outcome" ||
+        message.version !== 1 ||
+        typeof message.messageId !== "string"
+      )
+        return;
+      (event.source as Window | null)?.postMessage(
+        {
+          type: "pubky-passport.authorization-outcome-ack",
+          version: 1,
+          messageId: message.messageId,
+        },
+        trustedPassportOrigin,
+      );
       Object.defineProperty(window, "__passportOutcome", { value: message.outcome });
     });
   }, passportOrigin);
   const popupPromise = page.waitForEvent("popup");
-  const popupUrl = new URL(authorizationUrl(
-    authorizationRequest(`${RELAY_ORIGIN}/inbox`),
-  ), passportOrigin).href;
-  await page.evaluate((url) => { window.open(url, "pubky-passport-ack", "popup,width=480,height=760"); }, popupUrl);
+  const popupUrl = new URL(
+    authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`)),
+    passportOrigin,
+  ).href;
+  await page.evaluate((url) => {
+    window.open(url, "pubky-passport-ack", "popup,width=480,height=760");
+  }, popupUrl);
   const popup = await popupPromise;
 
   await popup.getByRole("button", { name: "Cancel" }).click();
 
   await expect.poll(() => popup.isClosed()).toBe(true);
-  expect(await page.evaluate(() => (window as Window & { __passportOutcome?: string }).__passportOutcome)).toBe("cancel");
+  expect(
+    await page.evaluate(
+      () => (window as Window & { __passportOutcome?: string }).__passportOutcome,
+    ),
+  ).toBe("cancel");
 });
 
 test("uses the cancel callback for direct navigation without an opener", async ({ page }) => {
-  await page.route("https://client.example/**", (route) => route.fulfill({
-    body: "<!doctype html><title>Returned</title><h1>Returned to app</h1>",
-    contentType: "text/html",
-  }));
+  await page.route("https://client.example/**", (route) =>
+    route.fulfill({
+      body: "<!doctype html><title>Returned</title><h1>Returned to app</h1>",
+      contentType: "text/html",
+    }),
+  );
   await installLocalIdentityFixture(page);
   await page.goto(authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`)));
 
@@ -210,8 +248,13 @@ test("uses the cancel callback for direct navigation without an opener", async (
   await expect(page.getByRole("heading", { name: "Returned to app" })).toBeVisible();
 });
 
-function authorizationRequest(relay: string, authenticationMethod: "cookie" | "grant" = "cookie"): string {
-  const request = new URL(`pubkyauth://${authenticationMethod === "grant" ? "signin_grant" : "signin"}`);
+function authorizationRequest(
+  relay: string,
+  authenticationMethod: "cookie" | "grant" = "cookie",
+): string {
+  const request = new URL(
+    `pubkyauth://${authenticationMethod === "grant" ? "signin_grant" : "signin"}`,
+  );
   request.searchParams.set("caps", "/pub/example.app/:rw");
   request.searchParams.set("relay", relay);
   request.searchParams.set("secret", SENSITIVE_SECRET);
@@ -219,9 +262,18 @@ function authorizationRequest(relay: string, authenticationMethod: "cookie" | "g
     request.searchParams.set("cid", GRANT_CLIENT_ID);
     request.searchParams.set("cpk", GRANT_CLIENT_PUBLIC_KEY);
   }
-  request.searchParams.set("x-success", `https://client.example/authorization-success?${CALLBACK_QUERY_CANARY}`);
-  request.searchParams.set("x-error", `https://client.example/authorization-error?${CALLBACK_QUERY_CANARY}`);
-  request.searchParams.set("x-cancel", `https://client.example/authorization-cancel?${CALLBACK_QUERY_CANARY}`);
+  request.searchParams.set(
+    "x-success",
+    `https://client.example/authorization-success?${CALLBACK_QUERY_CANARY}`,
+  );
+  request.searchParams.set(
+    "x-error",
+    `https://client.example/authorization-error?${CALLBACK_QUERY_CANARY}`,
+  );
+  request.searchParams.set(
+    "x-cancel",
+    `https://client.example/authorization-cancel?${CALLBACK_QUERY_CANARY}`,
+  );
   return request.href;
 }
 
@@ -238,20 +290,23 @@ function cspSources(policy: string, directiveName: string): string[] {
 
 async function browserPersistenceSnapshot(page: Page) {
   return page.evaluate(async () => {
-    const storageEntries = (storage: Storage) => Array.from(
-      { length: storage.length },
-      (_, index) => storage.key(index),
-    ).filter((key): key is string => key !== null).map((key) => [key, storage.getItem(key)]);
+    const storageEntries = (storage: Storage) =>
+      Array.from({ length: storage.length }, (_, index) => storage.key(index))
+        .filter((key): key is string => key !== null)
+        .map((key) => [key, storage.getItem(key)]);
 
     return {
       localStorage: Object.fromEntries(storageEntries(window.localStorage)),
       sessionStorage: Object.fromEntries(storageEntries(window.sessionStorage)),
       cookies: document.cookie,
       historyState: window.history.state,
-      writes: (window as Window & { __passportPersistenceWrites?: string[] }).__passportPersistenceWrites ?? [],
-      indexedDatabases: typeof indexedDB.databases === "function"
-        ? (await indexedDB.databases()).map(({ name, version }) => ({ name, version }))
-        : [],
+      writes:
+        (window as Window & { __passportPersistenceWrites?: string[] })
+          .__passportPersistenceWrites ?? [],
+      indexedDatabases:
+        typeof indexedDB.databases === "function"
+          ? (await indexedDB.databases()).map(({ name, version }) => ({ name, version }))
+          : [],
       caches: "caches" in window ? await caches.keys() : [],
     };
   });
@@ -276,7 +331,9 @@ async function installAuthorizationLeakMonitor(page: Page): Promise<Authorizatio
   });
   page.on("console", (message) => browserLeaks.push(message.text()));
   page.on("request", (outgoing) => {
-    browserLeaks.push(`${outgoing.url()}\n${outgoing.postData() ?? ""}\n${outgoing.headers().referer ?? ""}`);
+    browserLeaks.push(
+      `${outgoing.url()}\n${outgoing.postData() ?? ""}\n${outgoing.headers().referer ?? ""}`,
+    );
   });
   return { browserLeaks };
 }
@@ -344,24 +401,24 @@ async function installPersistenceObserver(page: Page): Promise<void> {
     }) as IDBFactory["open"];
 
     const addRecord = IDBObjectStore.prototype.add;
-    IDBObjectStore.prototype.add = (function observedAdd(
+    IDBObjectStore.prototype.add = function observedAdd(
       this: IDBObjectStore,
       value: unknown,
       key?: IDBValidKey,
     ) {
       writes.push(`indexedDB-add:${serialize(value)}:${serialize(key)}`);
       return key === undefined ? addRecord.call(this, value) : addRecord.call(this, value, key);
-    }) as IDBObjectStore["add"];
+    } as IDBObjectStore["add"];
 
     const putRecord = IDBObjectStore.prototype.put;
-    IDBObjectStore.prototype.put = (function observedPut(
+    IDBObjectStore.prototype.put = function observedPut(
       this: IDBObjectStore,
       value: unknown,
       key?: IDBValidKey,
     ) {
       writes.push(`indexedDB-put:${serialize(value)}:${serialize(key)}`);
       return key === undefined ? putRecord.call(this, value) : putRecord.call(this, value, key);
-    }) as IDBObjectStore["put"];
+    } as IDBObjectStore["put"];
 
     if ("caches" in window) {
       const cacheStorage = caches as CacheStorage & { open: CacheStorage["open"] };
@@ -374,34 +431,34 @@ async function installPersistenceObserver(page: Page): Promise<void> {
       const requestLabel = (request: RequestInfo | URL): string =>
         request instanceof Request ? request.url : String(request);
       const addToCache = Cache.prototype.add;
-      Cache.prototype.add = (function observedCacheAdd(
-        this: Cache,
-        request: RequestInfo | URL,
-      ) {
+      Cache.prototype.add = function observedCacheAdd(this: Cache, request: RequestInfo | URL) {
         writes.push(`cache-add:${requestLabel(request)}`);
         return addToCache.call(this, request);
-      }) as Cache["add"];
+      } as Cache["add"];
 
       const addAllToCache = Cache.prototype.addAll;
-      Cache.prototype.addAll = (function observedCacheAddAll(
+      Cache.prototype.addAll = function observedCacheAddAll(
         this: Cache,
         requests: Iterable<RequestInfo>,
       ) {
         const requestList = Array.from(requests);
         writes.push(`cache-add-all:${requestList.map(requestLabel).join(",")}`);
         return addAllToCache.call(this, requestList);
-      }) as Cache["addAll"];
+      } as Cache["addAll"];
 
       const putInCache = Cache.prototype.put;
-      Cache.prototype.put = (function observedCachePut(
+      Cache.prototype.put = function observedCachePut(
         this: Cache,
         request: RequestInfo | URL,
         response: Response,
       ) {
         writes.push(`cache-put:${requestLabel(request)}`);
-        void response.clone().text().then((body) => writes.push(`cache-response:${body}`));
+        void response
+          .clone()
+          .text()
+          .then((body) => writes.push(`cache-response:${body}`));
         return putInCache.call(this, request, response);
-      }) as Cache["put"];
+      } as Cache["put"];
     }
   });
 }

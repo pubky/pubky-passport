@@ -20,7 +20,7 @@ vi.mock("../../pubky/PubkySdkAdapter", () => ({
 }));
 
 vi.mock("../../local-identity/LocalStorageIdentityRepository", async (importOriginal) => ({
-  ...await importOriginal<typeof import("../../local-identity/LocalStorageIdentityRepository")>(),
+  ...(await importOriginal<typeof import("../../local-identity/LocalStorageIdentityRepository")>()),
   LocalStorageIdentityRepository: class {
     read = MOCKS.readIdentity;
   },
@@ -52,14 +52,18 @@ describe("approveAuthorization", () => {
         restoreIdentityKey: MOCKS.restoreIdentityKey,
       };
     });
-    MOCKS.readIdentity.mockReturnValue(Result.ok({
-      identity: { publicIdentity: PUBLIC_IDENTITY },
-      secretKey,
-    }));
-    MOCKS.restoreIdentityKey.mockResolvedValue(Result.ok({
-      keyHandle: KEY_HANDLE,
-      publicIdentity: PUBLIC_IDENTITY,
-    }));
+    MOCKS.readIdentity.mockReturnValue(
+      Result.ok({
+        identity: { publicIdentity: PUBLIC_IDENTITY },
+        secretKey,
+      }),
+    );
+    MOCKS.restoreIdentityKey.mockResolvedValue(
+      Result.ok({
+        keyHandle: KEY_HANDLE,
+        publicIdentity: PUBLIC_IDENTITY,
+      }),
+    );
     MOCKS.approveAuthRequest.mockResolvedValue(Result.ok());
   });
 
@@ -93,10 +97,12 @@ describe("approveAuthorization", () => {
 
   it("rejects stored metadata for a different identity before restoration", async () => {
     vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    MOCKS.readIdentity.mockReturnValue(Result.ok({
-      identity: { publicIdentity: OTHER_PUBLIC_IDENTITY },
-      secretKey,
-    }));
+    MOCKS.readIdentity.mockReturnValue(
+      Result.ok({
+        identity: { publicIdentity: OTHER_PUBLIC_IDENTITY },
+        secretKey,
+      }),
+    );
 
     const result = await approveAuthorization(validatedRequest(), SELECTED_IDENTITY);
 
@@ -109,10 +115,12 @@ describe("approveAuthorization", () => {
 
   it("disposes a restored key that does not match stored identity metadata", async () => {
     vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    MOCKS.restoreIdentityKey.mockResolvedValueOnce(Result.ok({
-      keyHandle: KEY_HANDLE,
-      publicIdentity: OTHER_PUBLIC_IDENTITY,
-    }));
+    MOCKS.restoreIdentityKey.mockResolvedValueOnce(
+      Result.ok({
+        keyHandle: KEY_HANDLE,
+        publicIdentity: OTHER_PUBLIC_IDENTITY,
+      }),
+    );
 
     const result = await approveAuthorization(validatedRequest(), SELECTED_IDENTITY);
 
@@ -142,10 +150,12 @@ describe("approveAuthorization", () => {
 
   it("classifies expected SDK approval failures without exposing their cause", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    MOCKS.approveAuthRequest.mockResolvedValueOnce(Result.err({
-      code: "approval_failed",
-      cause: new Error(`lower SDK failure ${SECRET}`),
-    }));
+    MOCKS.approveAuthRequest.mockResolvedValueOnce(
+      Result.err({
+        code: "approval_failed",
+        cause: new Error(`lower SDK failure ${SECRET}`),
+      }),
+    );
 
     const result = await approveAuthorization(validatedRequest(), SELECTED_IDENTITY);
 
@@ -160,10 +170,12 @@ describe("approveAuthorization", () => {
 
   it("classifies expected restoration failures without exposing their cause", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    MOCKS.restoreIdentityKey.mockResolvedValueOnce(Result.err({
-      code: "restore_failed",
-      cause: new Error(`restore SDK failure ${SECRET}`),
-    }));
+    MOCKS.restoreIdentityKey.mockResolvedValueOnce(
+      Result.err({
+        code: "restore_failed",
+        cause: new Error(`restore SDK failure ${SECRET}`),
+      }),
+    );
 
     const result = await approveAuthorization(validatedRequest(), SELECTED_IDENTITY);
 
@@ -227,9 +239,11 @@ describe("approveAuthorization", () => {
 });
 
 function validatedRequest(): ValidatedPubkyAuthRequest {
-  const validated = ValidatedPubkyAuthRequest.fromEncoded(encodeURIComponent(
-    `pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=${SECRET}`,
-  ));
+  const validated = ValidatedPubkyAuthRequest.fromEncoded(
+    encodeURIComponent(
+      `pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=${SECRET}`,
+    ),
+  );
   if (Result.isError(validated)) throw new Error(validated.error.code);
   return validated.value;
 }

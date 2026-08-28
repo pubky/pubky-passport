@@ -42,21 +42,28 @@ describe("LocalStorageIdentityRepository", () => {
     save(new LocalStorageIdentityRepository(), FIRST_IDENTITY, 1);
     save(new LocalStorageIdentityRepository(), SECOND_IDENTITY, 2);
 
-    expect(expectResultOk(new LocalStorageIdentityRepository().list()).identities)
-      .toEqual([{ publicIdentity: FIRST_IDENTITY }, { publicIdentity: SECOND_IDENTITY }]);
+    expect(expectResultOk(new LocalStorageIdentityRepository().list()).identities).toEqual([
+      { publicIdentity: FIRST_IDENTITY },
+      { publicIdentity: SECOND_IDENTITY },
+    ]);
   });
 
   it("returns deeply immutable identity snapshots", () => {
     const repository = new LocalStorageIdentityRepository();
-    expectResultOk(repository.save({
-      publicIdentity: FIRST_IDENTITY,
-      googleAccount: {
-        googleSubject: "google-subject",
-        email: "person@example.com",
-        name: "Person",
-        pictureUrl: null,
-      },
-    }, secret(1)));
+    expectResultOk(
+      repository.save(
+        {
+          publicIdentity: FIRST_IDENTITY,
+          googleAccount: {
+            googleSubject: "google-subject",
+            email: "person@example.com",
+            name: "Person",
+            pictureUrl: null,
+          },
+        },
+        secret(1),
+      ),
+    );
 
     const catalog = expectResultOk(repository.list());
     const identity = catalog.identities[0];
@@ -78,8 +85,9 @@ describe("LocalStorageIdentityRepository", () => {
 
     expect(localStorage.getItem(`${IDENTITY_PREFIX}${SECOND_KEY}`)).toBe(secondRecord);
     expect(expectResultOk(repository.list()).activePublicKeyZ32).toBe(FIRST_KEY);
-    expect(expectResultOk(repository.read(FIRST_KEY)).secretKey.bytes)
-      .toEqual(new Uint8Array(32).fill(3));
+    expect(expectResultOk(repository.read(FIRST_KEY)).secretKey.bytes).toEqual(
+      new Uint8Array(32).fill(3),
+    );
   });
 
   it("repairs a stale active key and never returns a dead-end catalog", () => {
@@ -119,18 +127,23 @@ describe("LocalStorageIdentityRepository", () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const repository = new LocalStorageIdentityRepository();
     const healthyListener = vi.fn();
-    const unsubscribeThrowing = repository.subscribe(() => { throw new TypeError("listener failed"); });
+    const unsubscribeThrowing = repository.subscribe(() => {
+      throw new TypeError("listener failed");
+    });
     const unsubscribeHealthy = repository.subscribe(healthyListener);
 
     expectResultOk(repository.save({ publicIdentity: FIRST_IDENTITY }, secret(1)));
     expectResultOk(repository.select(FIRST_KEY));
 
     expect(healthyListener).toHaveBeenCalledTimes(2);
-    expect(warning).toHaveBeenCalledWith("identity.local_store.listener.failed", expect.objectContaining({
-      source: "same_tab",
-      diagnosticId: expect.any(String),
-      errorName: "TypeError",
-    }));
+    expect(warning).toHaveBeenCalledWith(
+      "identity.local_store.listener.failed",
+      expect.objectContaining({
+        source: "same_tab",
+        diagnosticId: expect.any(String),
+        errorName: "TypeError",
+      }),
+    );
     unsubscribeThrowing();
     unsubscribeHealthy();
   });
@@ -241,28 +254,39 @@ describe("LocalStorageIdentityRepository", () => {
   });
 
   it("rejects incompatible records and invalid input metadata", () => {
-    localStorage.setItem(`${IDENTITY_PREFIX}${FIRST_KEY}`, JSON.stringify({
-      v: 2,
-      publicKeyZ32: FIRST_KEY,
-      secretKey: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
-    }));
+    localStorage.setItem(
+      `${IDENTITY_PREFIX}${FIRST_KEY}`,
+      JSON.stringify({
+        v: 2,
+        publicKeyZ32: FIRST_KEY,
+        secretKey: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+      }),
+    );
     expectResultError(new LocalStorageIdentityRepository().list(), { code: "invalid_store" });
 
     localStorage.clear();
-    expectResultError(new LocalStorageIdentityRepository().save(
-      { publicIdentity: { publicKeyZ32: "not-a-pubky" } },
-      secret(1),
-    ), { code: "invalid_identity" });
-    expectResultError(new LocalStorageIdentityRepository().save(
-      { publicIdentity: FIRST_IDENTITY },
-      { ...secret(1), bytes: new Uint8Array(31) },
-    ), { code: "invalid_secret_key" });
+    expectResultError(
+      new LocalStorageIdentityRepository().save(
+        { publicIdentity: { publicKeyZ32: "not-a-pubky" } },
+        secret(1),
+      ),
+      { code: "invalid_identity" },
+    );
+    expectResultError(
+      new LocalStorageIdentityRepository().save(
+        { publicIdentity: FIRST_IDENTITY },
+        { ...secret(1), bytes: new Uint8Array(31) },
+      ),
+      { code: "invalid_secret_key" },
+    );
   });
 
   it("maps storage exceptions without logging their contents", () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const cause = new TypeError("sensitive persisted contents");
-    vi.spyOn(localStorage, "getItem").mockImplementation(() => { throw cause; });
+    vi.spyOn(localStorage, "getItem").mockImplementation(() => {
+      throw cause;
+    });
 
     const result = new LocalStorageIdentityRepository().list();
 

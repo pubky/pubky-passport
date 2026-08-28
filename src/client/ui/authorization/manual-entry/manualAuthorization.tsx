@@ -83,15 +83,37 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
     <PassportScreen>
       <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
         <div className="flex flex-col gap-6">
-          <DisplayHeading accent="a service." aria-label="Authorize a service.">Authorize</DisplayHeading>
-          <LeadText>Paste or scan the authorization link from the app you want to connect.</LeadText>
+          <DisplayHeading accent="a service." aria-label="Authorize a service.">
+            Authorize
+          </DisplayHeading>
+          <LeadText>
+            Paste or scan the authorization link from the app you want to connect.
+          </LeadText>
           <div className="flex flex-col gap-2 pt-1">
             <Label htmlFor="authorization-link">Authorization link</Label>
             <Input
-              action={<div className="flex items-center gap-1">
-                <IconButton aria-label="Scan authorization QR code" className="size-8 p-0" onClick={() => setScannerOpen(true)} type="button" variant="ghost"><CameraIcon /></IconButton>
-                <IconButton aria-label="Paste authorization link" className="size-8 p-0" onClick={() => void paste()} type="button" variant="ghost"><ClipboardPasteIcon size={20} /></IconButton>
-              </div>}
+              action={
+                <div className="flex items-center gap-1">
+                  <IconButton
+                    aria-label="Scan authorization QR code"
+                    className="size-8 p-0"
+                    onClick={() => setScannerOpen(true)}
+                    type="button"
+                    variant="ghost"
+                  >
+                    <CameraIcon />
+                  </IconButton>
+                  <IconButton
+                    aria-label="Paste authorization link"
+                    className="size-8 p-0"
+                    onClick={() => void paste()}
+                    type="button"
+                    variant="ghost"
+                  >
+                    <ClipboardPasteIcon size={20} />
+                  </IconButton>
+                </div>
+              }
               aria-describedby={error ? "authorization-link-error" : undefined}
               aria-invalid={Boolean(error)}
               autoCapitalize="none"
@@ -106,16 +128,27 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
               ref={authorizationInputRef}
               spellCheck={false}
             />
-            {error ? <FieldMessage error id="authorization-link-error" role="alert">{error}</FieldMessage> : null}
+            {error ? (
+              <FieldMessage error id="authorization-link-error" role="alert">
+                {error}
+              </FieldMessage>
+            ) : null}
           </div>
         </div>
         <PassportNavigation
           back={<BackButton onClick={onBack} />}
           className="pt-6"
-          confirm={<Button className="w-full" disabled={!hasAuthorization} size="lg" type="submit"><ArrowRightIcon />Continue</Button>}
+          confirm={
+            <Button className="w-full" disabled={!hasAuthorization} size="lg" type="submit">
+              <ArrowRightIcon />
+              Continue
+            </Button>
+          }
         />
       </form>
-      {scannerOpen ? <AuthorizationQrScanner onClose={() => setScannerOpen(false)} onScan={scan} /> : null}
+      {scannerOpen ? (
+        <AuthorizationQrScanner onClose={() => setScannerOpen(false)} onScan={scan} />
+      ) : null}
     </PassportScreen>
   );
 }

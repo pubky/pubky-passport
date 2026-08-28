@@ -7,7 +7,11 @@ const GoogleIdentityConfigurationContext = createContext<{
   homegateBaseUrl: string;
 } | null>(null);
 
-function GoogleIdentityConfigurationProvider({ children, googleClientId, homegateBaseUrl }: {
+function GoogleIdentityConfigurationProvider({
+  children,
+  googleClientId,
+  homegateBaseUrl,
+}: {
   children: ReactNode;
   googleClientId: string;
   homegateBaseUrl: string;

@@ -47,12 +47,14 @@ export function parseGoogleAuthorizationResponse(
   expectedState: string,
   expectedNonce: string,
 ): ResultType<ParsedGoogleAuthorizationResponse, GoogleAuthorizationResponseError> {
-  if (!isRecord(capture)
-    || capture.type !== GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE
-    || capture.status !== "captured"
-    || typeof capture.hash !== "string"
-    || capture.hash.length === 0
-    || capture.hash.length > EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS) {
+  if (
+    !isRecord(capture) ||
+    capture.type !== GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE ||
+    capture.status !== "captured" ||
+    typeof capture.hash !== "string" ||
+    capture.hash.length === 0 ||
+    capture.hash.length > EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS
+  ) {
     return Result.err({ code: "google_authorization_failed" });
   }
 
@@ -61,19 +63,22 @@ export function parseGoogleAuthorizationResponse(
   if (params.has("error")) {
     if (state !== expectedState) return Result.err({ code: "google_authorization_failed" });
     return Result.err({
-      code: oneValue(params, "error") === "access_denied"
-        ? "google_authorization_denied"
-        : "google_authorization_failed",
+      code:
+        oneValue(params, "error") === "access_denied"
+          ? "google_authorization_denied"
+          : "google_authorization_failed",
     });
   }
 
   const googleIdToken = oneValue(params, "id_token");
   const accessToken = oneValue(params, "access_token");
   const scope = oneValue(params, "scope");
-  if (state !== expectedState
-    || !boundedToken(googleIdToken)
-    || !boundedToken(accessToken)
-    || !hasAllowedScopes(scope)) {
+  if (
+    state !== expectedState ||
+    !boundedToken(googleIdToken) ||
+    !boundedToken(accessToken) ||
+    !hasAllowedScopes(scope)
+  ) {
     return Result.err({ code: "google_authorization_failed" });
   }
 
@@ -90,11 +95,11 @@ function readIdTokenSubject(token: string, expectedNonce: string): string | null
   if (!bytes || bytes.byteLength > 8 * 1024) return null;
   try {
     const value: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
-    return isRecord(value)
-      && typeof value.sub === "string"
-      && value.sub.length > 0
-      && value.sub.length <= 255
-      && value.nonce === expectedNonce
+    return isRecord(value) &&
+      typeof value.sub === "string" &&
+      value.sub.length > 0 &&
+      value.sub.length <= 255 &&
+      value.nonce === expectedNonce
       ? value.sub
       : null;
   } catch {
@@ -109,13 +114,15 @@ function boundedToken(value: string | null): value is string {
 function hasAllowedScopes(value: string | null): boolean {
   if (!value) return false;
   const scopes = value.split(/\s+/u).filter(Boolean);
-  return scopes.includes(GOOGLE_DRIVE_APP_DATA_SCOPE)
-    && scopes.every((scope) => ALLOWED_SCOPES.has(scope));
+  return (
+    scopes.includes(GOOGLE_DRIVE_APP_DATA_SCOPE) &&
+    scopes.every((scope) => ALLOWED_SCOPES.has(scope))
+  );
 }
 
 function oneValue(params: URLSearchParams, name: string): string | null {
   const values = params.getAll(name);
-  return values.length === 1 ? values[0] ?? null : null;
+  return values.length === 1 ? (values[0] ?? null) : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -19,11 +19,7 @@ describe("Google wrapping-key issuer", () => {
   });
 
   it("uses the current secret when no key ID is requested", async () => {
-    const issuer = new GoogleWrappingKeyIssuer(
-      async () => Result.ok(IDENTITY),
-      "current",
-      SECRETS,
-    );
+    const issuer = new GoogleWrappingKeyIssuer(async () => Result.ok(IDENTITY), "current", SECRETS);
 
     const result = await issuer.issueGoogleWrappingKey("id-token");
 
@@ -45,18 +41,18 @@ describe("Google wrapping-key issuer", () => {
 
     expect(Result.isOk(current) && current.value).toMatchObject({ keyId: "current" });
     expect(Result.isOk(old) && old.value).toMatchObject({ keyId: "old" });
-    expect(Result.isOk(current) && Result.isOk(old) && current.value.wrappingKey)
-      .not.toBe(Result.isOk(old) && old.value.wrappingKey);
+    expect(Result.isOk(current) && Result.isOk(old) && current.value.wrappingKey).not.toBe(
+      Result.isOk(old) && old.value.wrappingKey,
+    );
   });
 
   it("rejects a key ID that is no longer retained", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const issuer = new GoogleWrappingKeyIssuer(async () => Result.ok(IDENTITY), "current", SECRETS);
 
-    await expectAsyncResultError(
-      issuer.issueGoogleWrappingKey("id-token", "removed"),
-      { code: "key_unavailable" },
-    );
+    await expectAsyncResultError(issuer.issueGoogleWrappingKey("id-token", "removed"), {
+      code: "key_unavailable",
+    });
     expect(warning).toHaveBeenCalledWith("identity.google.wrapping_key.failed", {
       layer: "server",
       operation: "select_key",
@@ -71,16 +67,17 @@ describe("Google wrapping-key issuer", () => {
       SECRETS,
     );
 
-    await expectAsyncResultError(
-      issuer.issueGoogleWrappingKey("SECRET-GOOGLE-ID-TOKEN"),
-      { code: "invalid_google_id_token" },
-    );
+    await expectAsyncResultError(issuer.issueGoogleWrappingKey("SECRET-GOOGLE-ID-TOKEN"), {
+      code: "invalid_google_id_token",
+    });
   });
 
   it("maps verifier exceptions to a safe dependency failure", async () => {
     const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
     const issuer = new GoogleWrappingKeyIssuer(
-      async () => { throw new Error("SECRET-GOOGLE-ID-TOKEN"); },
+      async () => {
+        throw new Error("SECRET-GOOGLE-ID-TOKEN");
+      },
       "current",
       SECRETS,
     );
@@ -95,11 +92,15 @@ describe("Google wrapping-key issuer", () => {
     vi.stubEnv("HOMEGATE_URL", "https://homegate.example/");
     vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example");
     vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", "current");
-    vi.stubEnv("PASSPORT_SERVER_SECRET_KEYRING_JSON", JSON.stringify({
-      current: CURRENT_SECRET.toString("base64"),
-    }));
+    vi.stubEnv(
+      "PASSPORT_SERVER_SECRET_KEYRING_JSON",
+      JSON.stringify({
+        current: CURRENT_SECRET.toString("base64"),
+      }),
+    );
 
-    expect(GoogleWrappingKeyIssuer.fromEnvironment().issueGoogleWrappingKey)
-      .toEqual(expect.any(Function));
+    expect(GoogleWrappingKeyIssuer.fromEnvironment().issueGoogleWrappingKey).toEqual(
+      expect.any(Function),
+    );
   });
 });

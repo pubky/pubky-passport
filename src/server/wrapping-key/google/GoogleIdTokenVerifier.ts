@@ -85,9 +85,9 @@ function validatePayload(
 
   const nowSeconds = Math.floor(Date.now() / 1000);
   if (
-    typeof payload.exp !== "number"
-    || !Number.isFinite(payload.exp)
-    || payload.exp <= nowSeconds
+    typeof payload.exp !== "number" ||
+    !Number.isFinite(payload.exp) ||
+    payload.exp <= nowSeconds
   ) {
     return Result.err({ code: "invalid_google_id_token" });
   }
@@ -96,10 +96,12 @@ function validatePayload(
     return Result.err({ code: "invalid_google_id_token" });
   }
 
-  return Result.ok(Object.freeze({
-    issuer: CANONICAL_GOOGLE_ISSUER,
-    googleSubject: payload.sub,
-  }));
+  return Result.ok(
+    Object.freeze({
+      issuer: CANONICAL_GOOGLE_ISSUER,
+      googleSubject: payload.sub,
+    }),
+  );
 }
 
 function audienceMatches(
@@ -108,7 +110,10 @@ function audienceMatches(
   expectedAudience: string,
 ): boolean {
   if (Array.isArray(audience)) {
-    return audience.includes(expectedAudience) && (audience.length === 1 || authorizedParty === expectedAudience);
+    return (
+      audience.includes(expectedAudience) &&
+      (audience.length === 1 || authorizedParty === expectedAudience)
+    );
   }
 
   return audience === expectedAudience;

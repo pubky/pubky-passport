@@ -8,10 +8,7 @@ export const PUBKY_AUTH_URL_LIMITS = {
   maximumCallbackUrlCodeUnits: 2_048,
 } as const;
 
-type PubkyAuthUrlValidationErrorCode =
-  | "missing_relay"
-  | "invalid_relay"
-  | "invalid_callback";
+type PubkyAuthUrlValidationErrorCode = "missing_relay" | "invalid_relay" | "invalid_callback";
 
 export type PubkyAuthUrlValidationError = {
   code: PubkyAuthUrlValidationErrorCode;
@@ -41,9 +38,7 @@ export function validatePubkyAuthUrls(authUrl: URL): PubkyAuthUrlValidationResul
 }
 
 /** Validates one exact CSP-safe HTTPS relay URL. */
-function validateRelayUrl(
-  value: string | null,
-): ResultType<void, PubkyAuthUrlValidationError> {
+function validateRelayUrl(value: string | null): ResultType<void, PubkyAuthUrlValidationError> {
   if (!value) {
     return Result.err<never, PubkyAuthUrlValidationError>({ code: "missing_relay" });
   }
@@ -74,9 +69,9 @@ function isExactRelayHostname(hostname: string): boolean {
   const normalized = hostname.endsWith(".") ? hostname.slice(0, -1) : hostname;
   if (normalized.length === 0 || normalized.length > 253) return false;
 
-  return normalized.split(".").every((label) =>
-    /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label)
-  );
+  return normalized
+    .split(".")
+    .every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label));
 }
 
 function validateCallbacks(
@@ -90,16 +85,12 @@ function validateCallbacks(
     return Result.err(success.error);
   }
 
-  const errorCallback = validateEncodedCallback(
-    rawQueryValue(authUrl, URL_PARAMETERS.error),
-  );
+  const errorCallback = validateEncodedCallback(rawQueryValue(authUrl, URL_PARAMETERS.error));
   if (Result.isError(errorCallback)) {
     return Result.err(errorCallback.error);
   }
 
-  const cancel = validateEncodedCallback(
-    rawQueryValue(authUrl, URL_PARAMETERS.cancel),
-  );
+  const cancel = validateEncodedCallback(rawQueryValue(authUrl, URL_PARAMETERS.cancel));
   if (Result.isError(cancel)) {
     return Result.err(cancel.error);
   }

@@ -4,13 +4,15 @@ import { redactForLog } from "./redaction";
 
 describe("redactForLog authorization URLs", () => {
   it("redacts raw Pubky authorization URLs", () => {
-    const value = "auth=pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=secret-value";
+    const value =
+      "auth=pubkyauth://signin?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=secret-value";
 
     expect(redactForLog(value)).toBe("auth=[REDACTED_AUTHORIZATION_URL]");
   });
 
   it("redacts HTTPS Passport authorization URLs", () => {
-    const value = "GET https://passport.pubky.app/authorize#d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value";
+    const value =
+      "GET https://passport.pubky.app/authorize#d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value";
 
     expect(redactForLog(value)).toBe("GET [REDACTED_AUTHORIZATION_URL]");
   });
@@ -28,7 +30,8 @@ describe("redactForLog authorization URLs", () => {
   });
 
   it("redacts rejected relative fragments when d is not the first parameter", () => {
-    const value = "GET /authorize#unexpected=value&d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value";
+    const value =
+      "GET /authorize#unexpected=value&d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value";
 
     expect(redactForLog(value)).toBe("GET [REDACTED_AUTHORIZATION_URL]");
   });
@@ -40,7 +43,8 @@ describe("redactForLog authorization URLs", () => {
   });
 
   it("redacts authorization URLs containing sensitive requests", () => {
-    const value = "GET https://passport.pubky.app/authorize#d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value";
+    const value =
+      "GET https://passport.pubky.app/authorize#d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value";
 
     expect(redactForLog(value)).toBe("GET [REDACTED_AUTHORIZATION_URL]");
   });
@@ -56,19 +60,25 @@ describe("redactForLog HTTP URL parameters", () => {
   it("redacts callback URL query parameters", () => {
     const value = "callback=https://app.example/passport-success?code=secret&state=private";
 
-    expect(redactForLog(value)).toBe("callback=https://app.example/passport-success?[REDACTED_URL_PARAMS]");
+    expect(redactForLog(value)).toBe(
+      "callback=https://app.example/passport-success?[REDACTED_URL_PARAMS]",
+    );
   });
 
   it("drops fragments when query parameters are redacted", () => {
     const value = "callback=https://app.example/passport-success?code=secret#fragment-secret";
 
-    expect(redactForLog(value)).toBe("callback=https://app.example/passport-success?[REDACTED_URL_PARAMS]");
+    expect(redactForLog(value)).toBe(
+      "callback=https://app.example/passport-success?[REDACTED_URL_PARAMS]",
+    );
   });
 
   it("redacts callback URL fragments without query parameters", () => {
     const value = "callback=https://app.example/passport-success#token=fragment-secret";
 
-    expect(redactForLog(value)).toBe("callback=https://app.example/passport-success?[REDACTED_URL_PARAMS]");
+    expect(redactForLog(value)).toBe(
+      "callback=https://app.example/passport-success?[REDACTED_URL_PARAMS]",
+    );
   });
 
   it("leaves callback URLs without query parameters unchanged", () => {
@@ -98,7 +108,8 @@ describe("redactForLog sensitive and opaque values", () => {
   });
 
   it("redacts sensitive key value pairs with equals and colon separators", () => {
-    const value = "id_token=abc access_token:def token=ghi secret=jkl wrapping_key=mno credential=pqr";
+    const value =
+      "id_token=abc access_token:def token=ghi secret=jkl wrapping_key=mno credential=pqr";
 
     expect(redactForLog(value)).toBe(
       "id_token=[REDACTED_TOKEN] access_token=[REDACTED_TOKEN] token=[REDACTED_TOKEN] secret=[REDACTED_TOKEN] wrapping_key=[REDACTED_TOKEN] credential=[REDACTED_TOKEN]",
@@ -108,7 +119,9 @@ describe("redactForLog sensitive and opaque values", () => {
   it("redacts quoted JSON-style token values", () => {
     const value = '{"access_token":"secret-value","id_token":"another-secret"}';
 
-    expect(redactForLog(value)).toBe('{"access_token":"[REDACTED_TOKEN]","id_token":"[REDACTED_TOKEN]"}');
+    expect(redactForLog(value)).toBe(
+      '{"access_token":"[REDACTED_TOKEN]","id_token":"[REDACTED_TOKEN]"}',
+    );
   });
 
   it("redacts sensitive query-like pairs", () => {
@@ -137,7 +150,9 @@ describe("redactForLog sensitive and opaque values", () => {
     expect(Buffer.from(serverSecret, "base64")).toHaveLength(32);
 
     expect(redactForLog(`derived ${serverSecret} value`)).toBe("derived [REDACTED_TOKEN] value");
-    expect(redactForLog(`serverSecretBase64=${serverSecret}`)).toBe("serverSecretBase64=[REDACTED_TOKEN]");
+    expect(redactForLog(`serverSecretBase64=${serverSecret}`)).toBe(
+      "serverSecretBase64=[REDACTED_TOKEN]",
+    );
   });
 
   it("intentionally redacts z32 public keys under the fail-closed opaque-value rule", () => {
@@ -157,7 +172,8 @@ describe("redactForLog sensitive and opaque values", () => {
 
 describe("redactForLog", () => {
   it("applies authorization URL, callback URL, and token redaction together", () => {
-    const value = "authorize=https://passport.pubky.app/authorize?d=secret callback=https://app.example/cb?token=secret Authorization: Bearer secret-token";
+    const value =
+      "authorize=https://passport.pubky.app/authorize?d=secret callback=https://app.example/cb?token=secret Authorization: Bearer secret-token";
 
     expect(redactForLog(value)).toBe(
       "authorize=[REDACTED_AUTHORIZATION_URL] callback=https://app.example/cb?[REDACTED_URL_PARAMS] Authorization: Bearer [REDACTED_TOKEN]",
@@ -171,10 +187,11 @@ describe("redactForLog", () => {
   });
 
   it("does not leave representative raw secrets in redacted output", () => {
-    const value = "pubkyauth://signin?secret=auth-secret callback=https://app.example/cb?code=callback-secret token=token-secret";
+    const value =
+      "pubkyauth://signin?secret=auth-secret callback=https://app.example/cb?code=callback-secret token=token-secret";
 
     const redacted = redactForLog(value);
- 
+
     expect(redacted).not.toContain("auth-secret");
     expect(redacted).not.toContain("callback-secret");
     expect(redacted).not.toContain("token-secret");
@@ -196,7 +213,8 @@ describe("redactForLog", () => {
   });
 
   it("is deterministic for the same input", () => {
-    const value = "Authorization: Bearer deterministic-token callback=https://app.example/cb?secret=value";
+    const value =
+      "Authorization: Bearer deterministic-token callback=https://app.example/cb?secret=value";
 
     expect(redactForLog(value)).toBe(redactForLog(value));
   });

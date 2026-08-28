@@ -54,8 +54,7 @@ export class PassportAuthorizationController {
   static fromBrowser(): PassportAuthorizationController {
     if (browserController) return browserController;
     const appWindow = window;
-    const entry = takeInitialAuthorizationEntry()
-      ?? readAndScrubAuthorizationEntry(appWindow);
+    const entry = takeInitialAuthorizationEntry() ?? readAndScrubAuthorizationEntry(appWindow);
     browserController = new PassportAuthorizationController(appWindow, entry);
     return browserController;
   }

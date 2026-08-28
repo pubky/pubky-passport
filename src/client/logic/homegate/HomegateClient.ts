@@ -28,12 +28,17 @@ export type HomegateSignupInvitationErrorCode =
 const MAX_ERROR_RESPONSE_BYTES = 256;
 const MAX_SIGNUP_CODE_LENGTH = 1024;
 const GOOGLE_VERIFICATION_PATH = "google_verification";
-const SIGNUP_CODE_SCHEMA = z.string().min(1).max(MAX_SIGNUP_CODE_LENGTH)
+const SIGNUP_CODE_SCHEMA = z
+  .string()
+  .min(1)
+  .max(MAX_SIGNUP_CODE_LENGTH)
   .refine((value) => value.trim().length > 0);
-const INVITATION_SCHEMA = z.object({
-  signupCode: SIGNUP_CODE_SCHEMA,
-  homeserverPubky: z.string().refine(isPubkyPublicKey),
-}).strict();
+const INVITATION_SCHEMA = z
+  .object({
+    signupCode: SIGNUP_CODE_SCHEMA,
+    homeserverPubky: z.string().refine(isPubkyPublicKey),
+  })
+  .strict();
 
 export class HomegateClient {
   private readonly googleVerificationEndpoint: URL;
@@ -157,6 +162,5 @@ function mapHomegateError(body: string): HomegateSignupInvitationErrorCode {
 }
 
 function isValidGoogleIdToken(value: string): boolean {
-  return value.length <= MAXIMUM_JSON_BODY_BYTES
-    && value.trim().length > 0;
+  return value.length <= MAXIMUM_JSON_BODY_BYTES && value.trim().length > 0;
 }

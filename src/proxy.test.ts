@@ -14,9 +14,12 @@ describe("request CSP proxy", () => {
     vi.stubEnv("HOMEGATE_URL", "https://homegate.example/config/path");
     vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example");
     vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", "current");
-    vi.stubEnv("PASSPORT_SERVER_SECRET_KEYRING_JSON", JSON.stringify({
-      current: Buffer.alloc(32, 1).toString("base64"),
-    }));
+    vi.stubEnv(
+      "PASSPORT_SERVER_SECRET_KEYRING_JSON",
+      JSON.stringify({
+        current: Buffer.alloc(32, 1).toString("base64"),
+      }),
+    );
     vi.stubEnv("NODE_ENV", "production");
   });
 
@@ -27,8 +30,12 @@ describe("request CSP proxy", () => {
 
   it("uses the configured matcher to exclude API and framework asset requests", () => {
     expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/authorize" })).toBe(true);
-    expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/api/wrapping-key/google" })).toBe(false);
-    expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/_next/static/app.js" })).toBe(false);
+    expect(
+      unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/api/wrapping-key/google" }),
+    ).toBe(false);
+    expect(
+      unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/_next/static/app.js" }),
+    ).toBe(false);
   });
 
   it("allows SDK-selected HTTPS relays only on authorization documents", () => {
@@ -67,9 +74,14 @@ describe("request CSP proxy", () => {
     );
 
     const response = proxy(new NextRequest("https://passport.example/"));
-    const connectSources = cspSources(response.headers.get("Content-Security-Policy"), "connect-src");
+    const connectSources = cspSources(
+      response.headers.get("Content-Security-Policy"),
+      "connect-src",
+    );
 
-    expect(connectSources.filter((source) => source === "https://homeserver.example")).toHaveLength(1);
+    expect(connectSources.filter((source) => source === "https://homeserver.example")).toHaveLength(
+      1,
+    );
     expect(connectSources).toContain("https://migrated.example");
     expect(connectSources).not.toContain("https:");
     expect(connectSources).not.toContain("*");
@@ -97,9 +109,15 @@ describe("request CSP proxy", () => {
     const otherRoute = proxy(new NextRequest(`https://passport.example/?d=${request}`));
     const authorization = proxy(new NextRequest(`https://passport.example/authorize?d=${request}`));
 
-    expect(cspSources(otherRoute.headers.get("Content-Security-Policy"), "connect-src")).not.toContain("https:");
-    expect(cspSources(authorization.headers.get("Content-Security-Policy"), "connect-src")).toContain("https:");
-    expect(authorization.headers.get("Content-Security-Policy")).not.toContain("https://attacker.example");
+    expect(
+      cspSources(otherRoute.headers.get("Content-Security-Policy"), "connect-src"),
+    ).not.toContain("https:");
+    expect(
+      cspSources(authorization.headers.get("Content-Security-Policy"), "connect-src"),
+    ).toContain("https:");
+    expect(authorization.headers.get("Content-Security-Policy")).not.toContain(
+      "https://attacker.example",
+    );
     expect(authorization.headers.get("Content-Security-Policy")).not.toContain("sensitive-secret");
   });
 
@@ -107,15 +125,19 @@ describe("request CSP proxy", () => {
     const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
     vi.stubEnv("HOMEGATE_URL", "https://*.example.com");
 
-    expect(() => proxy(new NextRequest("https://passport.example/")))
-      .toThrow("Proxy configuration unavailable.");
-    expect(error).toHaveBeenCalledWith("proxy.bootstrap.failed", expect.objectContaining({
-      layer: "proxy",
-      operation: "build_response_policy",
-      code: "runtime_exception",
-      diagnosticId: expect.any(String),
-      errorName: expect.any(String),
-    }));
+    expect(() => proxy(new NextRequest("https://passport.example/"))).toThrow(
+      "Proxy configuration unavailable.",
+    );
+    expect(error).toHaveBeenCalledWith(
+      "proxy.bootstrap.failed",
+      expect.objectContaining({
+        layer: "proxy",
+        operation: "build_response_policy",
+        code: "runtime_exception",
+        diagnosticId: expect.any(String),
+        errorName: expect.any(String),
+      }),
+    );
     expect(JSON.stringify(error.mock.calls)).not.toContain("https://*.example.com");
   });
 
@@ -132,18 +154,21 @@ describe("request CSP proxy", () => {
     const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
     vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", origins);
 
-    expect(() => proxy(new NextRequest("https://passport.example/")))
-      .toThrow("Proxy configuration unavailable.");
-    expect(error).toHaveBeenCalledWith("proxy.bootstrap.failed", expect.objectContaining({
-      layer: "proxy",
-      operation: "build_response_policy",
-      code: "runtime_exception",
-      diagnosticId: expect.any(String),
-      errorName: expect.any(String),
-    }));
+    expect(() => proxy(new NextRequest("https://passport.example/"))).toThrow(
+      "Proxy configuration unavailable.",
+    );
+    expect(error).toHaveBeenCalledWith(
+      "proxy.bootstrap.failed",
+      expect.objectContaining({
+        layer: "proxy",
+        operation: "build_response_policy",
+        code: "runtime_exception",
+        diagnosticId: expect.any(String),
+        errorName: expect.any(String),
+      }),
+    );
     expect(JSON.stringify(error.mock.calls)).not.toContain(origins);
   });
-
 });
 
 function authorizationRequest(relay: string): string {
@@ -151,6 +176,8 @@ function authorizationRequest(relay: string): string {
 }
 
 function cspSources(policy: string | null, name: string): string[] {
-  const directive = policy?.split(";").find((candidate) => candidate.trimStart().startsWith(`${name} `));
+  const directive = policy
+    ?.split(";")
+    .find((candidate) => candidate.trimStart().startsWith(`${name} `));
   return directive?.trim().split(/\s+/).slice(1) ?? [];
 }

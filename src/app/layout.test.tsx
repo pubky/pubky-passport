@@ -15,9 +15,12 @@ describe("RootLayout bootstrap", () => {
     vi.stubEnv("HOMEGATE_URL", "https://homegate.example/api");
     vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example");
     vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", "current");
-    vi.stubEnv("PASSPORT_SERVER_SECRET_KEYRING_JSON", JSON.stringify({
-      current: Buffer.alloc(32, 1).toString("base64"),
-    }));
+    vi.stubEnv(
+      "PASSPORT_SERVER_SECRET_KEYRING_JSON",
+      JSON.stringify({
+        current: Buffer.alloc(32, 1).toString("base64"),
+      }),
+    );
   });
 
   afterEach(() => {
@@ -33,14 +36,17 @@ describe("RootLayout bootstrap", () => {
     await expect(RootLayout({ children: null })).rejects.toThrow(
       "Application configuration unavailable.",
     );
-    expect(error).toHaveBeenCalledWith("layout.bootstrap.failed", expect.objectContaining({
-      layer: "layout",
-      operation: "bootstrap",
-      stage: "configuration",
-      code: "invalid_configuration",
-      diagnosticId: expect.any(String),
-      errorName: expect.any(String),
-    }));
+    expect(error).toHaveBeenCalledWith(
+      "layout.bootstrap.failed",
+      expect.objectContaining({
+        layer: "layout",
+        operation: "bootstrap",
+        stage: "configuration",
+        code: "invalid_configuration",
+        diagnosticId: expect.any(String),
+        errorName: expect.any(String),
+      }),
+    );
     expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET-GOOGLE-CLIENT-ID");
     expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET-HOMEGATE-URL");
   });

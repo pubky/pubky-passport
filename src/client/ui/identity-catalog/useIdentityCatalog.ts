@@ -42,28 +42,34 @@ class IdentityCatalogStore {
       this.controller = null;
     }
     this.actions = {
-      createMigration: async (publicKeyZ32) => this.controller
-        ? this.controller.createPubkyRingMigration(publicKeyZ32)
-        : Result.err({ code: "storage_unavailable" }),
-      createRecoveryFile: async (publicKeyZ32, password) => this.controller
-        ? this.controller.createRecoveryFile(publicKeyZ32, password)
-        : Result.err({ code: "identity_unavailable" }),
-      removeIdentity: (publicKeyZ32) => this.controller?.removeIdentity(publicKeyZ32)
-        ?? Result.err({ code: "storage_unavailable" }),
-      resolveHomeserver: async (publicKeyZ32) => this.controller
-        ? this.controller.resolveHomeserver(publicKeyZ32)
-        : Result.err({ code: "resolution_failed" }),
-      selectIdentity: (publicKeyZ32) => this.controller?.selectIdentity(publicKeyZ32)
-        ?? Result.err({ code: "storage_unavailable" }),
+      createMigration: async (publicKeyZ32) =>
+        this.controller
+          ? this.controller.createPubkyRingMigration(publicKeyZ32)
+          : Result.err({ code: "storage_unavailable" }),
+      createRecoveryFile: async (publicKeyZ32, password) =>
+        this.controller
+          ? this.controller.createRecoveryFile(publicKeyZ32, password)
+          : Result.err({ code: "identity_unavailable" }),
+      removeIdentity: (publicKeyZ32) =>
+        this.controller?.removeIdentity(publicKeyZ32) ??
+        Result.err({ code: "storage_unavailable" }),
+      resolveHomeserver: async (publicKeyZ32) =>
+        this.controller
+          ? this.controller.resolveHomeserver(publicKeyZ32)
+          : Result.err({ code: "resolution_failed" }),
+      selectIdentity: (publicKeyZ32) =>
+        this.controller?.selectIdentity(publicKeyZ32) ??
+        Result.err({ code: "storage_unavailable" }),
     };
   }
 
   getSnapshot = (): IdentityCatalogState => {
     if (!this.dirty && this.snapshot) return this.snapshot;
     const catalog = this.controller?.listIdentities();
-    this.snapshot = catalog && Result.isOk(catalog)
-      ? { status: "ready", catalog: catalog.value, actions: this.actions }
-      : { status: "unavailable" };
+    this.snapshot =
+      catalog && Result.isOk(catalog)
+        ? { status: "ready", catalog: catalog.value, actions: this.actions }
+        : { status: "unavailable" };
     this.dirty = false;
     return this.snapshot;
   };
@@ -82,8 +88,4 @@ function useIdentityCatalog(): IdentityCatalogState {
   return useSyncExternalStore(store.subscribe, store.getSnapshot, () => SERVER_SNAPSHOT);
 }
 
-export {
-  useIdentityCatalog,
-  type IdentityCatalogActions,
-  type IdentityCatalogState,
-};
+export { useIdentityCatalog, type IdentityCatalogActions, type IdentityCatalogState };

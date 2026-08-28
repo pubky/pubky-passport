@@ -13,18 +13,22 @@ export const DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files";
 export const DRIVE_UPLOAD_FILES_URL = "https://www.googleapis.com/upload/drive/v3/files";
 export const DRIVE_MULTIPART_CONTENT_TYPE = `multipart/related; boundary=${MULTIPART_BOUNDARY}`;
 
-const DRIVE_FILE_SCHEMA = z.object({
-  id: z.unknown().optional(),
-  mimeType: z.unknown().optional(),
-  name: z.unknown().optional(),
-  parents: z.unknown().optional(),
-  trashed: z.unknown().optional(),
-  version: z.unknown().optional(),
-}).strict();
-const DRIVE_FILE_LIST_SCHEMA = z.object({
-  files: z.array(DRIVE_FILE_SCHEMA),
-  nextPageToken: z.string().optional(),
-}).strict();
+const DRIVE_FILE_SCHEMA = z
+  .object({
+    id: z.unknown().optional(),
+    mimeType: z.unknown().optional(),
+    name: z.unknown().optional(),
+    parents: z.unknown().optional(),
+    trashed: z.unknown().optional(),
+    version: z.unknown().optional(),
+  })
+  .strict();
+const DRIVE_FILE_LIST_SCHEMA = z
+  .object({
+    files: z.array(DRIVE_FILE_SCHEMA),
+    nextPageToken: z.string().optional(),
+  })
+  .strict();
 
 export type DriveFile = z.infer<typeof DRIVE_FILE_SCHEMA>;
 export type DriveFileList = z.infer<typeof DRIVE_FILE_LIST_SCHEMA>;
@@ -41,13 +45,15 @@ export async function fetchDrive(
   init: RequestInit,
 ): Promise<DriveFetchResult> {
   try {
-    return Result.ok(await fetchImpl(input, {
-      ...init,
-      cache: "no-store",
-      credentials: "omit",
-      redirect: "error",
-      referrerPolicy: "no-referrer",
-    }));
+    return Result.ok(
+      await fetchImpl(input, {
+        ...init,
+        cache: "no-store",
+        credentials: "omit",
+        redirect: "error",
+        referrerPolicy: "no-referrer",
+      }),
+    );
   } catch (cause) {
     return Result.err({ code: "network_failed", cause });
   }

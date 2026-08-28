@@ -148,7 +148,9 @@ function parseUrl(value: string): URL | null {
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype;
+  return (
+    Boolean(value) && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype
+  );
 }
 
 function isFixedLengthBase64Url(value: string, expectedByteLength: number): boolean {

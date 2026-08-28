@@ -73,11 +73,15 @@ function AuthorizationQrScanner({ onClose, onScan }: AuthorizationQrScannerProps
       aria-describedby="authorization-qr-description"
       aria-labelledby="authorization-qr-title"
       className="m-auto w-[calc(100%-3rem)] max-w-md rounded-2xl border border-border bg-card p-0 text-foreground backdrop:bg-black/75"
-      onOpenChange={(open) => { if (!open) onClose(); }}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
       open
     >
       <header className="space-y-2 p-6 pb-4 text-center">
-        <h2 className="text-lg font-semibold leading-none" id="authorization-qr-title">Scan QR code</h2>
+        <h2 className="text-lg font-semibold leading-none" id="authorization-qr-title">
+          Scan QR code
+        </h2>
         <p className="text-sm leading-5 text-muted-foreground" id="authorization-qr-description">
           Point your camera at the authorization QR code.
         </p>
@@ -91,18 +95,28 @@ function AuthorizationQrScanner({ onClose, onScan }: AuthorizationQrScannerProps
           playsInline
           ref={video}
         />
-        <div aria-hidden="true" className="pointer-events-none absolute inset-[12%] rounded-2xl border-2 border-brand shadow-[0_0_0_999px_rgb(0_0_0/0.35)]" />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-[12%] rounded-2xl border-2 border-brand shadow-[0_0_0_999px_rgb(0_0_0/0.35)]"
+        />
         {status === "starting" ? (
-          <p className="absolute inset-0 grid place-items-center bg-black/50 text-sm font-semibold">Starting camera…</p>
+          <p className="absolute inset-0 grid place-items-center bg-black/50 text-sm font-semibold">
+            Starting camera…
+          </p>
         ) : null}
         {status === "unavailable" ? (
-          <p className="absolute inset-0 grid place-items-center bg-black/75 px-8 text-center text-sm leading-5" role="alert">
+          <p
+            className="absolute inset-0 grid place-items-center bg-black/75 px-8 text-center text-sm leading-5"
+            role="alert"
+          >
             Camera access is unavailable. Allow camera access or paste the link instead.
           </p>
         ) : null}
       </div>
       <footer className="p-6">
-        <Button className="w-full" onClick={onClose} size="lg" type="button" variant="secondary">Close</Button>
+        <Button className="w-full" onClick={onClose} size="lg" type="button" variant="secondary">
+          Close
+        </Button>
       </footer>
     </Dialog>
   );

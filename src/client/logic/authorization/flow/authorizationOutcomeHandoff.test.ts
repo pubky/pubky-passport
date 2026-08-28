@@ -12,12 +12,15 @@ describe("handoffAuthorizationOutcome", () => {
     const harness = windowHarness({ opener: true, closeSucceeds: true });
 
     const completion = complete(harness, "success");
-    expect(harness.postMessage).toHaveBeenCalledWith({
-      type: "pubky-passport.authorization-outcome",
-      version: 1,
-      outcome: "success",
-      messageId: "outcome-message-id",
-    }, "https://app.example");
+    expect(harness.postMessage).toHaveBeenCalledWith(
+      {
+        type: "pubky-passport.authorization-outcome",
+        version: 1,
+        outcome: "success",
+        messageId: "outcome-message-id",
+      },
+      "https://app.example",
+    );
     expect(harness.close).not.toHaveBeenCalled();
 
     harness.dispatchAcknowledgement({
@@ -112,24 +115,25 @@ describe("handoffAuthorizationOutcome", () => {
     expect(harness.navigate).toHaveBeenCalledWith(CALLBACK);
   });
 
-  it.each([
-    "removeEventListener",
-    "clearTimeout",
-  ] as const)("settles an acknowledgement when %s cleanup fails", async (failure) => {
-    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const harness = windowHarness({ opener: true, closeSucceeds: true, cleanupFailure: failure });
-    const completion = complete(harness, "success");
+  it.each(["removeEventListener", "clearTimeout"] as const)(
+    "settles an acknowledgement when %s cleanup fails",
+    async (failure) => {
+      const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+      const harness = windowHarness({ opener: true, closeSucceeds: true, cleanupFailure: failure });
+      const completion = complete(harness, "success");
 
-    harness.dispatchAcknowledgement();
+      harness.dispatchAcknowledgement();
 
-    await expect(completion).resolves.toBe("acknowledged-and-closed");
-    expect(harness.close).toHaveBeenCalledOnce();
-    expect(warning).toHaveBeenCalledWith("authorize.callback_handoff.failed", {
-      operation: failure === "removeEventListener"
-        ? "remove_message_listener"
-        : "clear_acknowledgement_timeout",
-    });
-  });
+      await expect(completion).resolves.toBe("acknowledged-and-closed");
+      expect(harness.close).toHaveBeenCalledOnce();
+      expect(warning).toHaveBeenCalledWith("authorize.callback_handoff.failed", {
+        operation:
+          failure === "removeEventListener"
+            ? "remove_message_listener"
+            : "clear_acknowledgement_timeout",
+      });
+    },
+  );
 
   it("reports unavailable when direct callback navigation fails", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
@@ -162,31 +166,28 @@ describe("handoffAuthorizationOutcome", () => {
     const abortController = new AbortController();
     abortController.abort();
 
-    await expect(complete(
-      harness,
-      "success",
-      abortController.signal,
-    )).resolves.toBe("aborted");
+    await expect(complete(harness, "success", abortController.signal)).resolves.toBe("aborted");
     expect(harness.postMessage).not.toHaveBeenCalled();
     expect(harness.navigate).not.toHaveBeenCalled();
   });
 
-  it.each([
-    "http://app.example/callback",
-    "javascript:alert(1)",
-    "not a URL",
-  ])("rejects an unvalidated callback: %s", async (callback) => {
-    const harness = windowHarness({ opener: false });
+  it.each(["http://app.example/callback", "javascript:alert(1)", "not a URL"])(
+    "rejects an unvalidated callback: %s",
+    async (callback) => {
+      const harness = windowHarness({ opener: false });
 
-    await expect(handoffAuthorizationOutcome(
-      harness.window,
-      callback,
-      "success",
-      new AbortController().signal,
-    )).resolves.toBe("unavailable");
-    expect(harness.navigate).not.toHaveBeenCalled();
-    expect(harness.postMessage).not.toHaveBeenCalled();
-  });
+      await expect(
+        handoffAuthorizationOutcome(
+          harness.window,
+          callback,
+          "success",
+          new AbortController().signal,
+        ),
+      ).resolves.toBe("unavailable");
+      expect(harness.navigate).not.toHaveBeenCalled();
+      expect(harness.postMessage).not.toHaveBeenCalled();
+    },
+  );
 
   it("reports unavailable when messaging and callback navigation both fail", async () => {
     const harness = windowHarness({
@@ -241,7 +242,7 @@ function windowHarness(input: {
   const postMessage = vi.fn(() => {
     if (input.postMessageFails) throw new Error("messaging failed");
   });
-  const opener = input.opener ? { closed: false, postMessage } as unknown as Window : null;
+  const opener = input.opener ? ({ closed: false, postMessage } as unknown as Window) : null;
   const close = vi.fn(() => {
     if (input.closeSucceeds) state.closed = true;
   });

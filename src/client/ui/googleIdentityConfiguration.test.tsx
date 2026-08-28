@@ -10,7 +10,11 @@ import {
 
 function ConfigurationProbe() {
   const configuration = useGoogleIdentityConfiguration();
-  return <output>{configuration.googleClientId}|{configuration.homegateBaseUrl}</output>;
+  return (
+    <output>
+      {configuration.googleClientId}|{configuration.homegateBaseUrl}
+    </output>
+  );
 }
 
 describe("GoogleIdentityConfigurationProvider", () => {

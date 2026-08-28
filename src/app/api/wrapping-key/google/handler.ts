@@ -6,18 +6,15 @@ import {
   GoogleWrappingKeyIssuer,
   type GoogleWrappingKeyIssueErrorCode,
 } from "../../../../server/wrapping-key/google/GoogleWrappingKeyIssuer";
-import {
-  GOOGLE_WRAPPING_KEY_RESPONSE_HEADERS,
-  parseGoogleIdTokenRequest,
-} from "./routePolicy";
+import { GOOGLE_WRAPPING_KEY_RESPONSE_HEADERS, parseGoogleIdTokenRequest } from "./routePolicy";
 
 type GoogleWrappingKeyRouteBody =
   | { wrappingKey: string; keyId: string }
   | {
-    error: {
-      code: GoogleWrappingKeyIssueErrorCode | "invalid_request" | "internal_error";
+      error: {
+        code: GoogleWrappingKeyIssueErrorCode | "invalid_request" | "internal_error";
+      };
     };
-  };
 
 let activeIssuer: GoogleWrappingKeyIssuer | undefined;
 
@@ -47,7 +44,10 @@ export async function googleWrappingKeyPost(
     );
 
     if (Result.isError(result)) {
-      return jsonResponse({ error: { code: result.error.code } }, statusForError(result.error.code));
+      return jsonResponse(
+        { error: { code: result.error.code } },
+        statusForError(result.error.code),
+      );
     }
 
     return jsonResponse(result.value, 200);

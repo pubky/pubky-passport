@@ -32,10 +32,7 @@ vi.mock("./GoogleIdentityOperations", () => ({
   },
 }));
 
-import {
-  GoogleIdentityController,
-  type GoogleIdentityViewState,
-} from "./GoogleIdentityController";
+import { GoogleIdentityController, type GoogleIdentityViewState } from "./GoogleIdentityController";
 
 const GOOGLE_ACCOUNT = {
   googleSubject: "google-account-id",
@@ -62,11 +59,13 @@ describe("GoogleIdentityController", () => {
       return Result.ok({ establishmentMode: "restored" as const, publicIdentity: PUBLIC_IDENTITY });
     });
     MOCKS.detachIdentity.mockResolvedValue(Result.ok());
-    MOCKS.replaceInvalidPassportFile.mockResolvedValue(Result.ok({
-      establishmentMode: "created" as const,
-      publicIdentity: PUBLIC_IDENTITY,
-      visibleRecoveryCopyStatus: "created" as const,
-    }));
+    MOCKS.replaceInvalidPassportFile.mockResolvedValue(
+      Result.ok({
+        establishmentMode: "created" as const,
+        publicIdentity: PUBLIC_IDENTITY,
+        visibleRecoveryCopyStatus: "created" as const,
+      }),
+    );
   });
 
   afterEach(() => {
@@ -87,11 +86,13 @@ describe("GoogleIdentityController", () => {
     const states: GoogleIdentityViewState[] = [];
     const controller = createController((state) => states.push(state));
 
-    await expect(controller.establishIdentity()).resolves.toEqual(Result.ok({
-      establishmentMode: "restored",
-      googleAccount: GOOGLE_ACCOUNT,
-      publicIdentity: PUBLIC_IDENTITY,
-    }));
+    await expect(controller.establishIdentity()).resolves.toEqual(
+      Result.ok({
+        establishmentMode: "restored",
+        googleAccount: GOOGLE_ACCOUNT,
+        publicIdentity: PUBLIC_IDENTITY,
+      }),
+    );
 
     expect(states).toEqual([
       { status: "requesting-authorization" },
@@ -129,35 +130,46 @@ describe("GoogleIdentityController", () => {
       throw listenerError;
     });
 
-    await expect(controller.establishIdentity()).resolves.toEqual(Result.ok({
-      establishmentMode: "restored",
-      googleAccount: GOOGLE_ACCOUNT,
-      publicIdentity: PUBLIC_IDENTITY,
-    }));
+    await expect(controller.establishIdentity()).resolves.toEqual(
+      Result.ok({
+        establishmentMode: "restored",
+        googleAccount: GOOGLE_ACCOUNT,
+        publicIdentity: PUBLIC_IDENTITY,
+      }),
+    );
 
-    expect(warning).toHaveBeenCalledWith("identity.google.state_listener.failed", expect.objectContaining({
-      state: "requesting-authorization",
-      diagnosticId: expect.any(String),
-      errorName: "Error",
-    }));
+    expect(warning).toHaveBeenCalledWith(
+      "identity.google.state_listener.failed",
+      expect.objectContaining({
+        state: "requesting-authorization",
+        diagnosticId: expect.any(String),
+        errorName: "Error",
+      }),
+    );
     expect(JSON.stringify(warning.mock.calls)).not.toContain("sensitive-state-listener");
   });
 
   it("returns a direct authorization error without invoking identity operations", async () => {
-    MOCKS.requestAuthorization.mockResolvedValue(Result.err({
-      code: "google_authorization_popup_closed" as const,
-    }));
+    MOCKS.requestAuthorization.mockResolvedValue(
+      Result.err({
+        code: "google_authorization_popup_closed" as const,
+      }),
+    );
     const controller = createController();
 
-    expectResultError(await controller.establishIdentity(), { code: "google_authorization_popup_closed" });
+    expectResultError(await controller.establishIdentity(), {
+      code: "google_authorization_popup_closed",
+    });
     expect(MOCKS.establishIdentity).not.toHaveBeenCalled();
   });
 
   it("rejects a different Google account before delegation", async () => {
-    MOCKS.requestAuthorization.mockResolvedValue(Result.ok({
-      ...CREDENTIALS,
-      googleAccount: { ...GOOGLE_ACCOUNT, googleSubject: "different-account" },
-    }));
+    MOCKS.requestAuthorization.mockResolvedValue(
+      Result.ok({
+        ...CREDENTIALS,
+        googleAccount: { ...GOOGLE_ACCOUNT, googleSubject: "different-account" },
+      }),
+    );
     const controller = createController();
 
     expectResultError(
@@ -170,10 +182,12 @@ describe("GoogleIdentityController", () => {
   it("pins establishment retries to the first authorized Google account", async () => {
     const controller = createController();
     await controller.establishIdentity();
-    MOCKS.requestAuthorization.mockResolvedValueOnce(Result.ok({
-      ...CREDENTIALS,
-      googleAccount: { ...GOOGLE_ACCOUNT, googleSubject: "different-account" },
-    }));
+    MOCKS.requestAuthorization.mockResolvedValueOnce(
+      Result.ok({
+        ...CREDENTIALS,
+        googleAccount: { ...GOOGLE_ACCOUNT, googleSubject: "different-account" },
+      }),
+    );
 
     expectResultError(await controller.establishIdentity(), { code: "authorization_failed" });
 
@@ -196,17 +210,23 @@ describe("GoogleIdentityController", () => {
   it("delegates detachment behavior", async () => {
     const controller = createController();
 
-    await expect(controller.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.googleSubject)).resolves.toEqual(
-      Result.ok(),
-    );
+    await expect(
+      controller.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.googleSubject),
+    ).resolves.toEqual(Result.ok());
 
-    expect(MOCKS.detachIdentity).toHaveBeenCalledWith(CREDENTIALS, PUBLIC_IDENTITY, GOOGLE_ACCOUNT.googleSubject);
+    expect(MOCKS.detachIdentity).toHaveBeenCalledWith(
+      CREDENTIALS,
+      PUBLIC_IDENTITY,
+      GOOGLE_ACCOUNT.googleSubject,
+    );
   });
 
   it("preserves safe typed detachment errors for the UI", async () => {
-    MOCKS.detachIdentity.mockResolvedValue(Result.err({
-      code: "google_drive_cleanup_failed" as const,
-    }));
+    MOCKS.detachIdentity.mockResolvedValue(
+      Result.err({
+        code: "google_drive_cleanup_failed" as const,
+      }),
+    );
 
     expectResultError(
       await createController().detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.googleSubject),
@@ -215,9 +235,11 @@ describe("GoogleIdentityController", () => {
   });
 
   it("returns a safe sign-in error without identity recovery metadata", async () => {
-    MOCKS.establishIdentity.mockResolvedValue(Result.err({
-      code: "signin_failed" as const,
-    }));
+    MOCKS.establishIdentity.mockResolvedValue(
+      Result.err({
+        code: "signin_failed" as const,
+      }),
+    );
 
     expectResultError(await createController().establishIdentity(), {
       code: "signin_failed",
@@ -267,41 +289,60 @@ describe("GoogleIdentityController", () => {
 
   it("replaces an invalid file with the pinned Google account and returns the created identity", async () => {
     const controller = createController();
-    MOCKS.establishIdentity.mockResolvedValueOnce(Result.err({ code: "invalid_passport_file" as const }));
+    MOCKS.establishIdentity.mockResolvedValueOnce(
+      Result.err({ code: "invalid_passport_file" as const }),
+    );
     await controller.establishIdentity();
 
-    await expect(controller.replaceInvalidPassportFile()).resolves.toEqual(Result.ok({
-      establishmentMode: "created",
-      googleAccount: GOOGLE_ACCOUNT,
-      publicIdentity: PUBLIC_IDENTITY,
-      visibleRecoveryCopyStatus: "created",
-    }));
+    await expect(controller.replaceInvalidPassportFile()).resolves.toEqual(
+      Result.ok({
+        establishmentMode: "created",
+        googleAccount: GOOGLE_ACCOUNT,
+        publicIdentity: PUBLIC_IDENTITY,
+        visibleRecoveryCopyStatus: "created",
+      }),
+    );
 
     expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(2, GOOGLE_ACCOUNT.googleSubject);
-    expect(MOCKS.replaceInvalidPassportFile).toHaveBeenCalledWith(CREDENTIALS, expect.any(Function));
+    expect(MOCKS.replaceInvalidPassportFile).toHaveBeenCalledWith(
+      CREDENTIALS,
+      expect.any(Function),
+    );
   });
 
   it("rejects a different Google account before invalid-file replacement", async () => {
     const controller = createController();
-    MOCKS.establishIdentity.mockResolvedValueOnce(Result.err({ code: "invalid_passport_file" as const }));
+    MOCKS.establishIdentity.mockResolvedValueOnce(
+      Result.err({ code: "invalid_passport_file" as const }),
+    );
     await controller.establishIdentity();
-    MOCKS.requestAuthorization.mockResolvedValueOnce(Result.ok({
-      ...CREDENTIALS,
-      googleAccount: { ...GOOGLE_ACCOUNT, googleSubject: "different-account" },
-    }));
+    MOCKS.requestAuthorization.mockResolvedValueOnce(
+      Result.ok({
+        ...CREDENTIALS,
+        googleAccount: { ...GOOGLE_ACCOUNT, googleSubject: "different-account" },
+      }),
+    );
 
-    expectResultError(await controller.replaceInvalidPassportFile(), { code: "authorization_failed" });
+    expectResultError(await controller.replaceInvalidPassportFile(), {
+      code: "authorization_failed",
+    });
     expect(MOCKS.replaceInvalidPassportFile).not.toHaveBeenCalled();
   });
 
   it("defers operation cleanup until in-flight work settles", async () => {
     let finish!: () => void;
-    MOCKS.establishIdentity.mockImplementation(() => new Promise((resolve) => {
-      finish = () => resolve(Result.ok({
-        establishmentMode: "restored" as const,
-        publicIdentity: PUBLIC_IDENTITY,
-      }));
-    }));
+    MOCKS.establishIdentity.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = () =>
+            resolve(
+              Result.ok({
+                establishmentMode: "restored" as const,
+                publicIdentity: PUBLIC_IDENTITY,
+              }),
+            );
+        }),
+    );
     const controller = createController();
 
     const pending = controller.establishIdentity();
@@ -317,9 +358,12 @@ describe("GoogleIdentityController", () => {
 
   it("does not start identity operations when disposed as authorization settles", async () => {
     let authorize!: () => void;
-    MOCKS.requestAuthorization.mockImplementation(() => new Promise((resolve) => {
-      authorize = () => resolve(Result.ok(CREDENTIALS));
-    }));
+    MOCKS.requestAuthorization.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          authorize = () => resolve(Result.ok(CREDENTIALS));
+        }),
+    );
     const controller = createController();
     const pending = controller.establishIdentity();
 
@@ -334,12 +378,18 @@ describe("GoogleIdentityController", () => {
 
   it("rejects a concurrent operation without another authorization", async () => {
     let finish!: () => void;
-    MOCKS.establishIdentity.mockImplementation(() => new Promise((resolve) => {
-      finish = () => resolve(Result.ok({
-        establishmentMode: "restored" as const,
-        publicIdentity: PUBLIC_IDENTITY,
-      }));
-    }));
+    MOCKS.establishIdentity.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = () =>
+            resolve(
+              Result.ok({
+                establishmentMode: "restored" as const,
+                publicIdentity: PUBLIC_IDENTITY,
+              }),
+            );
+        }),
+    );
     const controller = createController();
 
     const first = controller.establishIdentity();
@@ -357,9 +407,5 @@ describe("GoogleIdentityController", () => {
 function createController(
   onState: (state: GoogleIdentityViewState) => void = vi.fn(),
 ): GoogleIdentityController {
-  return new GoogleIdentityController(
-    "google-client-id",
-    "https://homegate.example/",
-    onState,
-  );
+  return new GoogleIdentityController("google-client-id", "https://homegate.example/", onState);
 }
