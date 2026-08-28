@@ -70,12 +70,22 @@ describe("approveAuthorization", () => {
     const authorizationUrl = request.validatedUrlForApproval();
     if (!authorizationUrl) throw new Error("Issued request was unexpectedly unavailable");
 
-    const result = await approveAuthorization(request, SELECTED_IDENTITY);
+    const onCommit = vi.fn();
+    const result = await approveAuthorization(
+      request,
+      SELECTED_IDENTITY,
+      new AbortController().signal,
+      onCommit,
+    );
 
     expect(Result.isOk(result)).toBe(true);
     expect(MOCKS.readIdentity).toHaveBeenCalledWith(SELECTED_IDENTITY);
     expect(MOCKS.restoreIdentityKey).toHaveBeenCalledWith(secretKey);
     expect(MOCKS.approveAuthRequest).toHaveBeenCalledWith(KEY_HANDLE, authorizationUrl);
+    expect(onCommit).toHaveBeenCalledOnce();
+    expect(onCommit.mock.invocationCallOrder[0]).toBeLessThan(
+      MOCKS.approveAuthRequest.mock.invocationCallOrder[0] ?? Infinity,
+    );
     expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
     expect(MOCKS.dispose).toHaveBeenCalledOnce();
     expect(secretKey.bytes).toEqual(new Uint8Array(32));
@@ -183,6 +193,36 @@ describe("approveAuthorization", () => {
     expect(Result.isOk(await approval)).toBe(true);
     expect(MOCKS.approveAuthRequest).toHaveBeenCalledWith(KEY_HANDLE, expect.anything());
     expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
+  });
+
+  it("aborts before the irreversible SDK grant commit", async () => {
+    let continueRestoration = (): void => undefined;
+    const restorationGate = new Promise<void>((resolve) => {
+      continueRestoration = resolve;
+    });
+    MOCKS.restoreIdentityKey.mockImplementationOnce(async () => {
+      await restorationGate;
+      return Result.ok({ keyHandle: KEY_HANDLE, publicIdentity: PUBLIC_IDENTITY });
+    });
+    const controller = new AbortController();
+    const onCommit = vi.fn();
+    const approval = approveAuthorization(
+      validatedRequest(),
+      SELECTED_IDENTITY,
+      controller.signal,
+      onCommit,
+    );
+    await vi.waitFor(() => expect(MOCKS.restoreIdentityKey).toHaveBeenCalledOnce());
+
+    controller.abort();
+    continueRestoration();
+
+    const result = await approval;
+    expect(Result.isError(result) && result.error).toEqual({ code: "cancelled" });
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(MOCKS.approveAuthRequest).not.toHaveBeenCalled();
+    expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
+    expect(MOCKS.dispose).toHaveBeenCalledOnce();
   });
 });
 

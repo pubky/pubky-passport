@@ -49,7 +49,8 @@ function AuthorizationFlow() {
     case "cancelled":
       return <AuthorizationTerminal outcome="cancelled" />;
     case "review":
-    case "approving":
+    case "preparing":
+    case "granting":
     case "completing":
       return <AuthorizationWithIdentity
         authorization={authorization}
@@ -62,7 +63,7 @@ function AuthorizationWithIdentity({
   authorization,
   passportAuthorizationController,
 }: {
-  authorization: Extract<PassportAuthorizationViewState, { status: "review" | "approving" | "completing" }>;
+  authorization: Extract<PassportAuthorizationViewState, { status: "review" | "preparing" | "granting" | "completing" }>;
   passportAuthorizationController: PassportAuthorizationController;
 }) {
   const identityCatalog = useIdentityCatalog();

@@ -23,7 +23,8 @@ export type PassportAuthorizationViewState =
   | { status: "manual-entry" }
   | { status: "invalid" }
   | { status: "review"; review: AuthorizationRequestReview }
-  | { status: "approving"; review: AuthorizationRequestReview }
+  | { status: "preparing"; review: AuthorizationRequestReview }
+  | { status: "granting"; review: AuthorizationRequestReview }
   | { status: "completing"; review: AuthorizationRequestReview }
   | { status: "approved" }
   | { status: "cancelled" }
@@ -82,7 +83,7 @@ export class PassportAuthorizationController {
     return () => this.listeners.delete(listener);
   }
 
-  /** Releases an abandoned review and suppresses completion of in-flight work. */
+  /** Releases an abandoned review and aborts approval until its irreversible SDK commit. */
   dispose(): void {
     if (this.disposed) return;
 
@@ -99,10 +100,14 @@ export class PassportAuthorizationController {
     if (!action) return this.state;
 
     const review = action.review;
-    this.update({ status: "approving", review });
+    this.update({ status: "preparing", review });
     const result = await approveAuthorization(
       action.request,
       publicKeyZ32,
+      this.abortController.signal,
+      () => {
+        if (!this.disposed) this.update({ status: "granting", review });
+      },
     );
     return this.completeRequestOutcome(
       action.request,

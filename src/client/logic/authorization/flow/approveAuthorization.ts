@@ -12,12 +12,12 @@ import type {
   PubkyIdentityKey,
   PubkyPublicIdentity,
 } from "../../pubky/pubkyIdentityKey";
-import { PubkySdkAdapter } from "../../pubky/PubkySdkAdapter";
+import type { PubkySdkAdapter } from "../../pubky/PubkySdkAdapter";
 import type { ValidatedPubkyAuthRequest } from "../request/ValidatedPubkyAuthRequest";
 
 type ApproveAuthorizationResult = ResultType<
   void,
-  CodedFailure<"approval_failed">
+  CodedFailure<"approval_failed" | "cancelled">
 >;
 
 type RestoreLocalIdentityResult = ResultType<
@@ -34,9 +34,14 @@ type RestoreLocalIdentityErrorCode =
 export async function approveAuthorization(
   request: ValidatedPubkyAuthRequest,
   publicKeyZ32: string,
+  signal?: AbortSignal,
+  onCommit?: () => void,
 ): Promise<ApproveAuthorizationResult> {
+  if (signal?.aborted) return Result.err({ code: "cancelled" });
   let pubky: PubkySdkAdapter;
   try {
+    const { PubkySdkAdapter } = await import("../../pubky/PubkySdkAdapter");
+    if (signal?.aborted) return Result.err({ code: "cancelled" });
     pubky = new PubkySdkAdapter();
   } catch {
     LOGGER.warn("authorize.approval.failed", {
@@ -68,6 +73,8 @@ export async function approveAuthorization(
 
     keyHandle = restored.value.keyHandle;
     stage = "sdk_approve";
+    if (signal?.aborted) return Result.err({ code: "cancelled" });
+    onCommit?.();
     const approved = await pubky.approveAuthRequest(keyHandle, authRequestUrl);
     if (Result.isError(approved)) {
       LOGGER.warn("authorize.approval.failed", {

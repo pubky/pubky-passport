@@ -16,7 +16,7 @@ function AuthorizationReview({ identity, onAuthorize, onCancel, onSwitch, phase,
   onAuthorize: () => void;
   onCancel: () => void;
   onSwitch: () => void;
-  phase: "review" | "approving" | "completing";
+  phase: "review" | "preparing" | "granting" | "completing";
   review: AuthorizationRequestReview;
 }) {
   const busy = phase !== "review";
@@ -59,6 +59,11 @@ function AuthorizationReview({ identity, onAuthorize, onCancel, onSwitch, phase,
         <p className="text-sm font-medium leading-5 text-muted-foreground opacity-80">
           Make sure you trust this service, browser, or device before authorizing with your pubky. <strong className="font-bold text-foreground">{describeAuthorizationEffect(review.capabilities, requester)}</strong>
         </p>
+        {phase === "granting" ? (
+          <p aria-live="polite" className="text-sm font-medium leading-5 text-muted-foreground">
+            The grant is being committed and can no longer be cancelled.
+          </p>
+        ) : null}
         <PassportNavigation
           back={<Button className="w-full" disabled={busy} onClick={onCancel} size="lg" type="button" variant="outline"><XIcon />Cancel</Button>}
           className="pt-6"
@@ -113,8 +118,9 @@ function FittedRequester({ children }: { children: string }) {
   return <bdi className="block break-words md:inline" ref={requesterRef}>{children}</bdi>;
 }
 
-function authorizationButtonLabel(phase: "review" | "approving" | "completing"): string {
-  if (phase === "approving") return "Authorizing…";
+function authorizationButtonLabel(phase: "review" | "preparing" | "granting" | "completing"): string {
+  if (phase === "preparing") return "Preparing…";
+  if (phase === "granting") return "Granting access…";
   if (phase === "completing") return "Completing…";
   return "Authorize";
 }

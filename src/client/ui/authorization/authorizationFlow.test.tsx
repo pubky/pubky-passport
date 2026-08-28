@@ -86,7 +86,7 @@ describe("AuthorizationFlow", () => {
   beforeEach(() => {
     MOCKS.authorizationState = { status: "review", review: REVIEW };
     MOCKS.catalog = { activePublicKeyZ32: FIRST.publicIdentity.publicKeyZ32, identities: [FIRST, SECOND] };
-    MOCKS.approve.mockResolvedValue({ status: "approving", review: REVIEW });
+    MOCKS.approve.mockResolvedValue({ status: "granting", review: REVIEW });
     MOCKS.cancel.mockResolvedValue({ status: "cancelled" });
     MOCKS.select.mockImplementation((publicKeyZ32: string) => {
       if (!MOCKS.catalog) return Result.err({ code: "storage_unavailable" as const });
