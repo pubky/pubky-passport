@@ -46,6 +46,7 @@ const AUTHORIZE_TRANSPORT_HEADERS = [
 
 /** @type {import('next').NextConfig} */
 const NEXT_CONFIG = {
+  output: "standalone",
   devIndicators: false,
   logging: {
     incomingRequests: false,
