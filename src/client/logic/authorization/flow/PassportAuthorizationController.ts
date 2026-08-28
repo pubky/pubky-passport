@@ -61,7 +61,7 @@ export class PassportAuthorizationController {
   }
 
   constructor(
-    private appWindow: Window,
+    private readonly appWindow: Window,
     entry: AuthorizationEntry,
   ) {
     if (entry.status !== "valid") {

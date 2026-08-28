@@ -46,6 +46,27 @@ describe("LocalStorageIdentityRepository", () => {
       .toEqual([{ publicIdentity: FIRST_IDENTITY }, { publicIdentity: SECOND_IDENTITY }]);
   });
 
+  it("returns deeply immutable identity snapshots", () => {
+    const repository = new LocalStorageIdentityRepository();
+    expectResultOk(repository.save({
+      publicIdentity: FIRST_IDENTITY,
+      googleAccount: {
+        googleSubject: "google-subject",
+        email: "person@example.com",
+        name: "Person",
+        pictureUrl: null,
+      },
+    }, secret(1)));
+
+    const catalog = expectResultOk(repository.list());
+    const identity = catalog.identities[0];
+    expect(Object.isFrozen(catalog)).toBe(true);
+    expect(Object.isFrozen(catalog.identities)).toBe(true);
+    expect(Object.isFrozen(identity)).toBe(true);
+    expect(Object.isFrozen(identity?.publicIdentity)).toBe(true);
+    expect(Object.isFrozen(identity?.googleAccount)).toBe(true);
+  });
+
   it("selects, replaces, and reads one identity without rewriting the others", () => {
     const repository = new LocalStorageIdentityRepository();
     save(repository, FIRST_IDENTITY, 1);

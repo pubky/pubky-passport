@@ -4,6 +4,7 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { encodeBase64Url } from "../../../../libs/encoding/base64Url";
 import { LOGGER } from "../../../../libs/logger/logger";
+import { AUTHORIZATION_TIMEOUT_MS } from "../../../../libs/passportPolicy";
 import type { CodedFailure } from "../../../../libs/result";
 import { GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE } from "../../../../libs/authorization/earlyGoogleImplicitResponse";
 import type { GoogleAccountProfile } from "../../local-identity/localIdentityModels";
@@ -33,7 +34,6 @@ export type GoogleImplicitAuthorizationResult<Success> = ResultType<
 
 const GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const POPUP_POLL_MS = 200;
-const AUTHORIZATION_TIMEOUT_MS = 5 * 60_000;
 
 type AuthorizationAttempt = {
   nonce: string;
@@ -50,7 +50,7 @@ type AuthorizationAttempt = {
 export class GoogleImplicitAuthorization {
   private activeAttempt: AuthorizationAttempt | null = null;
 
-  constructor(private clientId: string) {}
+  constructor(private readonly clientId: string) {}
 
   request(loginHint?: string): Promise<GoogleImplicitAuthorizationResult<GoogleIdentityCredentials>> {
     if (this.activeAttempt) {

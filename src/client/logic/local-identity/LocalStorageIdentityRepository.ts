@@ -3,6 +3,7 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "../../../libs/encoding/base64Url";
+import { isGoogleAccountProfile } from "../../../libs/googleAccountProfile";
 import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
 import {
@@ -57,10 +58,10 @@ export class LocalStorageIdentityRepository {
       if (Result.isError(repaired)) return Result.err(repaired.error);
     }
 
-    return Result.ok({
+    return Result.ok(Object.freeze({
       activePublicKeyZ32,
-      identities: identities.value.map(toMetadata),
-    });
+      identities: Object.freeze(identities.value.map(toMetadata)),
+    }));
   }
 
   save(
@@ -68,7 +69,7 @@ export class LocalStorageIdentityRepository {
     secretKey: PubkySecretKeyMaterial,
   ): LocalIdentityResult<LocalIdentityMetadata> {
     if (!isPubkyPublicIdentity(identity.publicIdentity)
-      || (identity.googleAccount !== undefined && !isStoredGoogleAccountProfile(identity.googleAccount))) {
+      || (identity.googleAccount !== undefined && !isGoogleAccountProfile(identity.googleAccount))) {
       return invalidIdentity("save");
     }
     if (secretKey.format !== PUBKY_SECRET_KEY_FORMAT
@@ -265,33 +266,7 @@ function isStoredIdentity(value: unknown): value is StoredLocalIdentity {
     && value.v === 1
     && isPubkyPublicKey(value.publicKeyZ32)
     && isEncodedSecretKey(value.secretKey)
-    && (value.googleAccount === undefined || isStoredGoogleAccountProfile(value.googleAccount));
-}
-
-function isStoredGoogleAccountProfile(value: unknown): value is GoogleAccountProfile {
-  if (!isRecord(value)
-    || !hasExactKeys(value, ["googleSubject", "email", "name", "pictureUrl"])
-    || !isNonEmptyString(value.googleSubject)
-    || !isNonEmptyString(value.email)
-    || !isNonEmptyString(value.name)) return false;
-  if (value.pictureUrl === null || isLocalGoogleAvatar(value.pictureUrl)) return true;
-  if (!isNonEmptyString(value.pictureUrl) || value.pictureUrl.length > 2_048) return false;
-  try {
-    const url = new URL(value.pictureUrl);
-    return url.protocol === "https:"
-      && url.hostname === "lh3.googleusercontent.com"
-      && !url.username
-      && !url.password
-      && !url.hash;
-  } catch {
-    return false;
-  }
-}
-
-function isLocalGoogleAvatar(value: unknown): value is string {
-  return typeof value === "string"
-    && value.length <= 512 * 1024
-    && /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/u.test(value);
+    && (value.googleAccount === undefined || isGoogleAccountProfile(value.googleAccount));
 }
 
 function isEncodedSecretKey(value: unknown): value is string {
@@ -299,10 +274,12 @@ function isEncodedSecretKey(value: unknown): value is string {
 }
 
 function toMetadata(identity: StoredLocalIdentity): LocalIdentityMetadata {
-  return {
-    publicIdentity: { publicKeyZ32: identity.publicKeyZ32 },
-    ...(identity.googleAccount ? { googleAccount: identity.googleAccount } : {}),
-  };
+  return Object.freeze({
+    publicIdentity: Object.freeze({ publicKeyZ32: identity.publicKeyZ32 }),
+    ...(identity.googleAccount
+      ? { googleAccount: Object.freeze({ ...identity.googleAccount }) }
+      : {}),
+  });
 }
 
 function decodeStoredSecretKey(value: string): Uint8Array | undefined {
@@ -374,10 +351,6 @@ function getLocalStorage(): Storage | null {
   } catch {
     return null;
   }
-}
-
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

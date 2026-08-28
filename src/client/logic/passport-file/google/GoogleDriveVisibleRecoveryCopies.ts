@@ -63,8 +63,8 @@ const CREATE_VISIBLE_FOLDER_LOCK_NAME = "pubky-passport:google-drive:visible-fol
  */
 export class GoogleDriveVisibleRecoveryCopies {
   constructor(
-    private accessToken: string,
-    private fetchImpl: typeof fetch,
+    private readonly accessToken: string,
+    private readonly fetchImpl: typeof fetch,
   ) {}
 
   /**

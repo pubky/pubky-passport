@@ -4,11 +4,11 @@ import { Result, type Result as ResultType } from "better-result";
 import { z } from "zod";
 
 import { readBoundedText } from "../../../../libs/http/boundedBody";
+import { MAXIMUM_JSON_BODY_BYTES, passportKeyIdSchema } from "../../../../libs/passportPolicy";
 
-const MAXIMUM_GOOGLE_ID_TOKEN_REQUEST_BYTES = 16 * 1024;
 const REQUEST_SCHEMA = z.object({
   googleIdToken: z.string().trim().min(1),
-  keyId: z.string().regex(/^[A-Za-z0-9._-]{1,32}$/).optional(),
+  keyId: passportKeyIdSchema.optional(),
 }).strict();
 
 export const GOOGLE_WRAPPING_KEY_RESPONSE_HEADERS = {
@@ -23,7 +23,7 @@ export async function parseGoogleIdTokenRequest(
     return Result.err("invalid_request");
   }
 
-  const text = await readBoundedText(request, MAXIMUM_GOOGLE_ID_TOKEN_REQUEST_BYTES);
+  const text = await readBoundedText(request, MAXIMUM_JSON_BODY_BYTES);
   if (text === null || text === "too_large") {
     return Result.err("invalid_request");
   }

@@ -2,11 +2,12 @@ import "server-only";
 
 import { z } from "zod";
 
+import { MAXIMUM_URL_CHARACTERS } from "../../libs/passportPolicy";
+
 import { isCspSafeHostname } from "../../libs/http/cspSafeHostname";
 
 const MAXIMUM_HOMESERVER_ORIGINS_CHARACTERS = 8_192;
 const MAXIMUM_HOMESERVER_ORIGINS = 16;
-const MAXIMUM_URL_CHARACTERS = 2_048;
 
 const PUBLIC_APPLICATION_ENVIRONMENT_SCHEMA = z.object({
   GOOGLE_CLIENT_ID: z.string().trim().min(1, "GOOGLE_CLIENT_ID is required"),

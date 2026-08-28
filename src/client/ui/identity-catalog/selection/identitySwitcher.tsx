@@ -10,7 +10,7 @@ import { IdentityRow } from "./identityRow";
 
 function IdentitySwitcher({ activePublicKeyZ32, identities, onAddIdentity, onBack, onSelect, selectionFailed = false }: {
   activePublicKeyZ32: string | null;
-  identities: LocalIdentityMetadata[];
+  identities: readonly LocalIdentityMetadata[];
   onAddIdentity: () => void;
   onBack: () => void;
   onSelect: (publicKeyZ32: string) => void;

@@ -1,6 +1,7 @@
+import { AUTHORIZATION_CAPTURE_MAX_CHARACTERS } from "../passportPolicy";
+
 export const EARLY_AUTHORIZATION_LOCATION_PROPERTY = "__takePassportAuthorizationLocation";
 const EARLY_AUTHORIZATION_LOCATION_LIFETIME_MS = 60_000;
-const EARLY_AUTHORIZATION_LOCATION_MAX_CHARACTERS = 32_768;
 
 export const EARLY_AUTHORIZATION_LOCATION_SCRIPT = `(() => {
   if (location.pathname !== "/authorize") return;
@@ -11,7 +12,7 @@ export const EARLY_AUTHORIZATION_LOCATION_SCRIPT = `(() => {
   } else {
     const hash = location.hash;
     if (hash === "") return;
-    capture = hash.length > ${EARLY_AUTHORIZATION_LOCATION_MAX_CHARACTERS}
+    capture = hash.length > ${AUTHORIZATION_CAPTURE_MAX_CHARACTERS}
       ? { status: "too_large" }
       : {
         status: "captured",

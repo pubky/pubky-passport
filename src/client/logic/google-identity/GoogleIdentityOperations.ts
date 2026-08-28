@@ -3,6 +3,7 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
+import { NETWORK_OPERATION_TIMEOUT_MS, REQUEST_TIMEOUT_MS } from "../../../libs/passportPolicy";
 import type { CodedFailure } from "../../../libs/result";
 import type {
   GoogleAccountProfile,
@@ -39,8 +40,6 @@ export type GoogleIdentityProgress =
   | { flow: "restore"; step: "restoring" | "signing_in" }
   | { flow: "repair"; step: "signing_up" | "publishing" | "signing_in" };
 
-const VISIBLE_RECOVERY_COPY_TIMEOUT_MS = 10_000;
-const NETWORK_REQUEST_TIMEOUT_MS = 30_000;
 
 export type GoogleIdentityOperationValue =
   | {
@@ -107,7 +106,7 @@ export class GoogleIdentityOperations {
   private readonly crypto: PassportFileWebCrypto;
   private readonly requests = new AbortController();
   private readonly fetch: typeof fetch = (request, init) => {
-    const signals = [this.requests.signal, AbortSignal.timeout(NETWORK_REQUEST_TIMEOUT_MS)];
+    const signals = [this.requests.signal, AbortSignal.timeout(NETWORK_OPERATION_TIMEOUT_MS)];
     if (init?.signal) signals.push(init.signal);
     return globalThis.fetch(request, { ...init, signal: AbortSignal.any(signals) });
   };
@@ -643,7 +642,7 @@ export class GoogleIdentityOperations {
       timeout = setTimeout(() => {
         controller.abort();
         finishTimeout();
-      }, VISIBLE_RECOVERY_COPY_TIMEOUT_MS);
+      }, REQUEST_TIMEOUT_MS);
       const result = await Promise.race([
         visibleCopies.createVisibleRecoveryCopy(envelope, publicIdentity, controller.signal),
         deadline,

@@ -11,9 +11,9 @@ export const PUBKY_SECRET_KEY_BYTES = 32;
 export const PUBKY_SECRET_KEY_FORMAT = "pubky-secret-key";
 
 /** Public metadata derived from a browser-owned Pubky keypair. */
-export type PubkyPublicIdentity = {
+export type PubkyPublicIdentity = Readonly<{
   publicKeyZ32: string;
-};
+}>;
 
 /** Validates the one canonical public-key value stored by the application. */
 export function isPubkyPublicIdentity(value: unknown): value is PubkyPublicIdentity {
@@ -42,10 +42,10 @@ export type PubkyIdentityKeyHandle = {
   readonly [pubkyIdentityKeyHandleBrand]: "PubkyIdentityKeyHandle";
 };
 
-export type PubkyIdentityKey = {
+export type PubkyIdentityKey = Readonly<{
   keyHandle: PubkyIdentityKeyHandle;
   publicIdentity: PubkyPublicIdentity;
-};
+}>;
 
 export type PubkySecretKeyMaterial = {
   bytes: Uint8Array;

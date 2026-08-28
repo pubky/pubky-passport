@@ -2,18 +2,18 @@ import "server-only";
 
 import { z } from "zod";
 
+import { PASSPORT_KEY_ID_PATTERN, passportKeyIdSchema } from "../../libs/passportPolicy";
+
 const MINIMUM_SERVER_SECRET_BYTES = 32;
 const MAXIMUM_SERVER_SECRET_BYTES = 64;
 const MAXIMUM_SERVER_SECRET_KEYRING_BYTES = 512;
 const MAXIMUM_SERVER_SECRETS = 16;
 const MAXIMUM_ENCODED_SERVER_SECRET_CHARACTERS = Math.ceil(MAXIMUM_SERVER_SECRET_BYTES / 3) * 4;
 const MAXIMUM_SERVER_SECRET_KEYRING_JSON_CHARACTERS = 2_048;
-const SERVER_SECRET_KEY_ID_PATTERN = /^[A-Za-z0-9._-]{1,32}$/;
 const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 const SERVER_SECRET_ENVIRONMENT_SCHEMA = z.object({
-  PASSPORT_SERVER_SECRET_CURRENT_KEY_ID: z.string().trim()
-    .regex(SERVER_SECRET_KEY_ID_PATTERN, "PASSPORT_SERVER_SECRET_CURRENT_KEY_ID is invalid"),
+  PASSPORT_SERVER_SECRET_CURRENT_KEY_ID: passportKeyIdSchema,
   PASSPORT_SERVER_SECRET_KEYRING_JSON: z.string().trim().min(1),
 });
 
@@ -84,7 +84,7 @@ function parseServerSecrets(
   let totalSecretBytes = 0;
   const secrets = new Map<string, Buffer>();
   for (const [keyId, encodedSecret] of Object.entries(rawKeyring)) {
-    if (!SERVER_SECRET_KEY_ID_PATTERN.test(keyId) || typeof encodedSecret !== "string") {
+    if (!PASSPORT_KEY_ID_PATTERN.test(keyId) || typeof encodedSecret !== "string") {
       throw new Error("Passport server keyring contains an invalid entry.");
     }
     const secret = decodeServerSecret(encodedSecret);

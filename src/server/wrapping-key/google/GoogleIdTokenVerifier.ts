@@ -28,8 +28,8 @@ export type GoogleIdTokenVerificationResult = Result<
 
 export class GoogleIdTokenVerifier {
   constructor(
-    private audience: string,
-    private verifier: Pick<OAuth2Client, "verifyIdToken"> = new OAuth2Client(),
+    private readonly audience: string,
+    private readonly verifier: Pick<OAuth2Client, "verifyIdToken"> = new OAuth2Client(),
   ) {}
 
   async verifyGoogleIdToken(idToken: string): Promise<GoogleIdTokenVerificationResult> {
@@ -96,7 +96,10 @@ function validatePayload(
     return Result.err({ code: "invalid_google_id_token" });
   }
 
-  return Result.ok({ issuer: CANONICAL_GOOGLE_ISSUER, googleSubject: payload.sub });
+  return Result.ok(Object.freeze({
+    issuer: CANONICAL_GOOGLE_ISSUER,
+    googleSubject: payload.sub,
+  }));
 }
 
 function audienceMatches(

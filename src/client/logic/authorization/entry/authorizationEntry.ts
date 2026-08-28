@@ -7,6 +7,7 @@ import {
   type EarlyAuthorizationLocation,
 } from "../../../../libs/authorization/earlyAuthorizationLocation";
 import { LOGGER } from "../../../../libs/logger/logger";
+import { AUTHORIZATION_CAPTURE_MAX_CHARACTERS } from "../../../../libs/passportPolicy";
 import { ValidatedPubkyAuthRequest } from "../request/ValidatedPubkyAuthRequest";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "../request/parser/pubkyAuthRequestParser";
 
@@ -153,7 +154,7 @@ function safeHistoryState(appWindow: Window): unknown {
     const serialized = JSON.stringify(state);
     if (
       serialized === undefined
-      || serialized.length > 32_768
+      || serialized.length > AUTHORIZATION_CAPTURE_MAX_CHARACTERS
       || (appWindow.location.hash !== "" && serialized.includes(appWindow.location.hash))
       || (appWindow.location.search !== "" && serialized.includes(appWindow.location.search))
       || /pubkyauth(?::|%3a)|(?:#|%23|\?|%3f)d(?:=|%3d)/iu.test(serialized)

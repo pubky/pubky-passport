@@ -94,7 +94,7 @@ export class PubkyRingMigration {
  */
 export class PubkySdkAdapter {
   private readonly pubky = new Pubky();
-  private keypairs = new Map<PubkyIdentityKeyHandle, Keypair>();
+  private readonly keypairs = new Map<PubkyIdentityKeyHandle, Keypair>();
   private disposed = false;
 
   static createPubkyRingMigration(
@@ -353,7 +353,7 @@ export class PubkySdkAdapter {
     const keyHandle = {} as PubkyIdentityKeyHandle;
     this.keypairs.set(keyHandle, keypair);
 
-    return Result.ok({ keyHandle, publicIdentity: identity.value });
+    return Result.ok(Object.freeze({ keyHandle, publicIdentity: identity.value }));
   }
 
   async publishHomeserver(
@@ -419,9 +419,9 @@ function publicIdentity(operation: PubkyOperation, keypair: Keypair): PubkyIdent
   try {
     const publicKey = keypair.publicKey;
     try {
-      return Result.ok({
+      return Result.ok(Object.freeze({
         publicKeyZ32: publicKey.z32(),
-      });
+      }));
     } finally {
       cleanup(operation, "public_key_free", () => publicKey.free());
     }
@@ -464,11 +464,11 @@ function authenticatedIdentityFromSession(operation: "signup" | "signin", sessio
   try {
     const publicKey = info.publicKey;
     try {
-      return {
-        publicIdentity: {
+      return Object.freeze({
+        publicIdentity: Object.freeze({
           publicKeyZ32: publicKey.z32(),
-        },
-      };
+        }),
+      });
     } finally {
       cleanup(operation, "session_public_key_free", () => publicKey.free());
     }

@@ -4,6 +4,7 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { readBoundedText } from "../../../../libs/http/boundedBody";
 import { LOGGER } from "../../../../libs/logger/logger";
+import { MAXIMUM_JSON_BODY_BYTES } from "../../../../libs/passportPolicy";
 import type { CodedFailure } from "../../../../libs/result";
 import {
   parsePassportFileContents,
@@ -57,7 +58,6 @@ type InspectedPassportFileMedia =
 type RequestLock = <LockResult>(name: string, callback: () => Promise<LockResult>) => Promise<LockResult>;
 
 const PASSPORT_FILE_NAME = "passport.json";
-const MAXIMUM_PASSPORT_FILE_BYTES = 16 * 1024;
 const CREATE_PASSPORT_FILE_LOCK_NAME = "pubky-passport:google-drive:passport-file:create:v1";
 
 /**
@@ -70,8 +70,8 @@ const CREATE_PASSPORT_FILE_LOCK_NAME = "pubky-passport:google-drive:passport-fil
  */
 export class GoogleDrivePassportFileStore {
   constructor(
-    private accessToken: string,
-    private fetchImpl: typeof fetch,
+    private readonly accessToken: string,
+    private readonly fetchImpl: typeof fetch,
   ) {}
 
   /**
@@ -332,7 +332,7 @@ export class GoogleDrivePassportFileStore {
       return Result.err({ code });
     }
 
-    const contents = await readBoundedText(response.value, MAXIMUM_PASSPORT_FILE_BYTES);
+    const contents = await readBoundedText(response.value, MAXIMUM_JSON_BODY_BYTES);
     if (contents === "too_large") {
       LOGGER.warn("identity.google.drive_store.failed", { operation: "read_media", code: "unsupported_file" });
       return Result.err({ code: "unsupported_file" });
