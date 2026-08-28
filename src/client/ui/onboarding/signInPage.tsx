@@ -14,7 +14,7 @@ function SignInPage({ children, signInTo }: { children: ReactNode; signInTo?: st
         <DisplayHeading accent="signing." aria-label="Quick & easy signing." className="md:col-span-2 md:row-start-1">Quick &amp; easy </DisplayHeading>
         {signInTo ? <SignInContext className="md:col-span-2 md:row-start-2" requester={signInTo} /> : null}
         <LeadText className={cn("md:col-span-2", signInTo ? "md:row-start-3" : "md:row-start-2")}>Pubky Passport is a browser-based signer for the Pubky ecosystem. No seed phrase, no app, no hassle.</LeadText>
-        <Image alt="" aria-hidden="true" className={cn("mx-auto size-[200px] md:col-start-2 md:mt-[42px]", signInTo ? "md:row-start-4" : "md:row-start-3")} height={200} priority src="/illustrations/cloud.png" unoptimized width={200} />
+        <Image alt="" aria-hidden="true" className={cn("mx-auto size-[200px] md:col-start-2 md:mt-[42px]", signInTo ? "md:row-start-4" : "md:row-start-3")} height={200} priority src="/illustrations/cloud.png" width={200} />
         <div className={cn("flex flex-col gap-3 md:col-start-1 md:mt-14", signInTo ? "md:row-start-4" : "md:row-start-3")}>
           {children}
         </div>

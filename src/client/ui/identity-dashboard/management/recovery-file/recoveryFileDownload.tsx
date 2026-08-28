@@ -101,7 +101,7 @@ function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
           {recoveryFileFailed ? <FieldMessage error>Could not create the recovery file. Please try again.</FieldMessage> : null}
         </div>
 
-        <Image alt="" aria-hidden="true" className="mx-auto size-[200px] md:col-start-2 md:row-start-2 md:mt-3" height={200} src="/illustrations/file.png" unoptimized width={200} />
+        <Image alt="" aria-hidden="true" className="mx-auto size-[200px] md:col-start-2 md:row-start-2 md:mt-3" height={200} src="/illustrations/file.png" width={200} />
 
         <PassportNavigation
           back={<BackButton disabled={pending} onClick={onBack} />}

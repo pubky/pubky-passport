@@ -27,7 +27,7 @@ function GoogleIdentityComplete({ googleAccount, identity, mode, onContinue, sig
           <p className="mb-2 text-xs font-medium uppercase tracking-[0.1em] text-brand">Your Pubky</p>
           <p className="break-all font-medium leading-6 text-secondary-foreground">{identity.publicKeyZ32}</p>
         </div>
-        <Image alt="" aria-hidden="true" className="mx-auto size-[200px]" height={200} src="/illustrations/checkmark.png" unoptimized width={200} />
+        <Image alt="" aria-hidden="true" className="mx-auto size-[200px]" height={200} src="/illustrations/checkmark.png" width={200} />
       </div>
       <PassportNavigation confirm={<Button className="w-full" onClick={onContinue} size="lg"><ArrowRightIcon />Continue</Button>} />
     </PassportScreen>

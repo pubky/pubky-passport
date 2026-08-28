@@ -13,7 +13,7 @@ function GoogleDetachmentComplete({ onDone }: { onDone: () => void }) {
         <DisplayHeading accent="from Google." aria-label="Detached from Google.">Detached</DisplayHeading>
         <LeadText>Google access has been removed. Your identity is self-managed and recoverable only through your chosen recovery method.</LeadText>
         <div className="flex justify-center py-12">
-          <Image alt="" aria-hidden="true" className="size-[200px]" height={200} src="/illustrations/checkmark.png" unoptimized width={200} />
+          <Image alt="" aria-hidden="true" className="size-[200px]" height={200} src="/illustrations/checkmark.png" width={200} />
         </div>
       </div>
 

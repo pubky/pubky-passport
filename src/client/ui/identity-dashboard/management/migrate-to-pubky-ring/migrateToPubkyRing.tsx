@@ -143,7 +143,6 @@ function MigrateToPubkyRing({ createMigration, navigationAction, onBack }: {
         className="mx-auto size-[200px] md:hidden"
         height={200}
         src="/illustrations/keychain.png"
-        unoptimized
         width={200}
       />
 
