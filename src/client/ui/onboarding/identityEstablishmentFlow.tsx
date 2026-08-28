@@ -1,5 +1,3 @@
-"use client";
-
 import { preload } from "react-dom";
 
 import { GoogleAccessScreen } from "./google/googleAccessScreen";
@@ -11,12 +9,17 @@ import { BackButton } from "../shared/backButton";
 import { ProviderSignInButton } from "./providerSignInButton";
 import { SignInPage } from "./signInPage";
 
-function IdentityEstablishmentFlow({ onBack, onComplete }: {
+function IdentityEstablishmentFlow({
+  onBack,
+  onComplete,
+  signInTo,
+}: {
   onBack?: () => void;
   onComplete: () => void;
+  signInTo?: string;
 }) {
   const google = useGoogleIdentityEstablishment();
-  const view = google.state.view;
+  const view = google.view;
 
   if (view.status === "requesting-access" || view.status === "working") {
     preload("/illustrations/checkmark.png", { as: "image" });
@@ -24,37 +27,47 @@ function IdentityEstablishmentFlow({ onBack, onComplete }: {
 
   switch (view.status) {
     case "complete":
-      return <GoogleIdentityComplete
-        googleAccount={view.googleAccount}
-        identity={view.identity}
-        mode={view.mode}
-        onContinue={onComplete}
-      />;
+      return (
+        <GoogleIdentityComplete
+          googleAccount={view.googleAccount}
+          identity={view.identity}
+          mode={view.mode}
+          visibleRecoveryCopyStatus={view.visibleRecoveryCopyStatus}
+          onContinue={onComplete}
+          {...(signInTo ? { signInTo } : {})}
+        />
+      );
     case "requesting-access":
-      return <GoogleAccessScreen />;
+      return <GoogleAccessScreen {...(signInTo ? { signInTo } : {})} />;
     case "failed": {
-      return <GoogleIdentityError
-        error={view.error}
-        onBack={google.back}
-        onTryAgain={google.establishIdentity}
-        {...(view.error.code === "invalid_passport_file"
-          || view.error.code === "invalid_passport_file_delete_failed"
-          ? { onReplaceInvalidFile: google.replaceInvalidPassportFile }
-          : {})}
-      />;
+      return (
+        <GoogleIdentityError
+          error={view.error}
+          onBack={google.back}
+          onTryAgain={google.establishIdentity}
+          {...(signInTo ? { signInTo } : {})}
+          {...(view.error.code === "invalid_passport_file" ||
+          view.error.code === "invalid_passport_file_delete_failed"
+            ? { onReplaceInvalidFile: google.replaceInvalidPassportFile }
+            : {})}
+        />
+      );
     }
     case "working":
-      return <GoogleIdentityProgress progress={view.progress} />;
+      return (
+        <GoogleIdentityProgress progress={view.progress} {...(signInTo ? { signInTo } : {})} />
+      );
     case "idle":
       return (
-        <SignInPage>
+        <SignInPage {...(signInTo ? { signInTo } : {})}>
           <ProviderSignInButton
             className="w-full"
-            disabled={!google.controllerReady}
             onClick={google.establishIdentity}
             provider="google"
-          >Continue with Google</ProviderSignInButton>
-          {onBack ? <BackButton onClick={onBack} /> : null}
+          >
+            Continue with Google
+          </ProviderSignInButton>
+          {onBack ? <BackButton className="md:mt-auto" onClick={onBack} /> : null}
         </SignInPage>
       );
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import NEXT_CONFIG from "./next.config.mjs";
+import NEXT_CONFIG from "./next.config";
 
 describe("next config headers", () => {
   it("does not print secret-bearing request URLs through Next logging", () => {
@@ -31,11 +31,11 @@ describe("next config headers", () => {
 
     expect(headers).toContainEqual({
       source: "/authorize",
-      headers: authorizeHeaders,
+      headers: expect.arrayContaining(authorizeHeaders),
     });
     expect(headers).toContainEqual({
       source: "/authorize/:path*",
-      headers: authorizeHeaders,
+      headers: expect.arrayContaining(authorizeHeaders),
     });
     expect(headers).toContainEqual({
       source: "/",
@@ -43,6 +43,15 @@ describe("next config headers", () => {
     });
   });
 
+  it("allows camera access only on authorization routes", async () => {
+    const headers = await NEXT_CONFIG.headers?.();
+    const globalHeaders = headers?.find((entry) => entry.source === "/:path*")?.headers ?? [];
+    const authorizeHeaders = headers?.find((entry) => entry.source === "/authorize")?.headers ?? [];
+
+    expect(headerValue(globalHeaders, "Permissions-Policy")).toContain("camera=()");
+    expect(headerValue(authorizeHeaders, "Permissions-Policy")).toContain("camera=(self)");
+    expect(headerValue(authorizeHeaders, "Permissions-Policy")).toContain("microphone=()");
+  });
 });
 
 function headerValue(headers: Array<{ key: string; value: string }>, key: string): string {

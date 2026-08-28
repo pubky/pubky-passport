@@ -75,12 +75,20 @@ describe("early authorization location bootstrap", () => {
       pathname: "/authorize",
       search: "",
       hash: "#d=sensitive",
-      replace: vi.fn(() => { location.hash = ""; }),
+      replace: vi.fn(() => {
+        location.hash = "";
+      }),
     };
     const context: Record<string, unknown> = {
       location,
       history: {},
-      History: { prototype: { replaceState() { throw new Error("unavailable"); } } },
+      History: {
+        prototype: {
+          replaceState() {
+            throw new Error("unavailable");
+          },
+        },
+      },
       stop,
     };
     context.window = context;
@@ -94,14 +102,24 @@ describe("early authorization location bootstrap", () => {
   });
 });
 
-function createContext(search: string, hash: string): Record<string, unknown> & {
+function createContext(
+  search: string,
+  hash: string,
+): Record<string, unknown> & {
   location: { pathname: string; search: string; hash: string };
 } {
   const location = { pathname: "/authorize", search, hash };
   const context: Record<string, unknown> & { location: typeof location } = {
     location,
     history: {},
-    History: { prototype: { replaceState() { location.search = ""; location.hash = ""; } } },
+    History: {
+      prototype: {
+        replaceState() {
+          location.search = "";
+          location.hash = "";
+        },
+      },
+    },
     setTimeout,
     clearTimeout,
     addEventListener: vi.fn(),

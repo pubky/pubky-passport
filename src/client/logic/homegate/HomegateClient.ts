@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { readBoundedText } from "../../../libs/http/boundedBody";
 import { LOGGER } from "../../../libs/logger/logger";
+import { MAXIMUM_JSON_BODY_BYTES, REQUEST_TIMEOUT_MS } from "../../../libs/passportPolicy";
 import type { CodedFailure } from "../../../libs/result";
 import { isPubkyPublicKey } from "../pubky/pubkyIdentityKey";
 
@@ -24,30 +25,32 @@ export type HomegateSignupInvitationErrorCode =
   | "malformed_homegate_response"
   | "network_failed";
 
-const MAX_SUCCESS_RESPONSE_BYTES = 16 * 1024;
 const MAX_ERROR_RESPONSE_BYTES = 256;
 const MAX_SIGNUP_CODE_LENGTH = 1024;
-const MAX_GOOGLE_ID_TOKEN_LENGTH = 16 * 1024;
-const REQUEST_TIMEOUT_MS = 10_000;
 const GOOGLE_VERIFICATION_PATH = "google_verification";
-const SIGNUP_CODE_SCHEMA = z.string().min(1).max(MAX_SIGNUP_CODE_LENGTH)
+const SIGNUP_CODE_SCHEMA = z
+  .string()
+  .min(1)
+  .max(MAX_SIGNUP_CODE_LENGTH)
   .refine((value) => value.trim().length > 0);
-const INVITATION_SCHEMA = z.object({
-  signupCode: SIGNUP_CODE_SCHEMA,
-  homeserverPubky: z.string().refine(isPubkyPublicKey),
-}).strict();
+const INVITATION_SCHEMA = z
+  .object({
+    signupCode: SIGNUP_CODE_SCHEMA,
+    homeserverPubky: z.string().refine(isPubkyPublicKey),
+  })
+  .strict();
 
 export class HomegateClient {
-  private googleVerificationEndpoint: URL;
+  private readonly googleVerificationEndpoint: URL;
 
   constructor(
     homegateBaseUrl: string,
-    private fetch: typeof globalThis.fetch,
+    private readonly fetch: typeof globalThis.fetch,
   ) {
     this.googleVerificationEndpoint = new URL(GOOGLE_VERIFICATION_PATH, homegateBaseUrl);
   }
 
-  async requestGoogleHomeserverSignupInvitation(
+  async requestGoogleSignupInvitation(
     googleIdToken: string,
   ): Promise<Result<HomeserverSignupInvitation, CodedFailure<HomegateSignupInvitationErrorCode>>> {
     if (!isValidGoogleIdToken(googleIdToken)) {
@@ -84,7 +87,7 @@ export class HomegateClient {
 
     const responseText = await readBoundedText(
       response,
-      response.ok ? MAX_SUCCESS_RESPONSE_BYTES : MAX_ERROR_RESPONSE_BYTES,
+      response.ok ? MAXIMUM_JSON_BODY_BYTES : MAX_ERROR_RESPONSE_BYTES,
     );
     if (responseText === null && signal.aborted) {
       LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
@@ -159,6 +162,5 @@ function mapHomegateError(body: string): HomegateSignupInvitationErrorCode {
 }
 
 function isValidGoogleIdToken(value: string): boolean {
-  return value.length <= MAX_GOOGLE_ID_TOKEN_LENGTH
-    && value.trim().length > 0;
+  return value.length <= MAXIMUM_JSON_BODY_BYTES && value.trim().length > 0;
 }

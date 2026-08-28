@@ -2,6 +2,26 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
+const sourceFiles = "**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}";
+const testFiles = "**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}";
+const sdkImport = {
+  regex: "^@synonymdev/pubky$",
+  message: "The Pubky SDK is confined to PubkySdkAdapter and intentional tests.",
+};
+const serverImport = {
+  regex: "^(?:server-only$|@/server(?:/|$)|(?:\\.\\./)+server(?:/|$))",
+  message: "Client modules must not import server runtime code.",
+};
+const clientImport = {
+  regex: "^(?:client-only$|@/client(?:/|$)|(?:\\.\\./)+client(?:/|$))",
+  message: "Server modules must not import client runtime code.",
+};
+const serverConfigImport = {
+  regex: "^(?:@/server/config(?:/|$)|(?:\\.\\./)+(?:server/)?config(?:/|$))",
+  message: "Environment-backed configuration is confined to approved bootstrap modules.",
+};
+const restrictedImports = (...patterns) => ["error", { patterns }];
+
 const ESLINT_CONFIG = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -11,80 +31,59 @@ const ESLINT_CONFIG = defineConfig([
     "out/**",
     "build/**",
     "coverage/**",
-    "next-env.d.ts"
+    "next-env.d.ts",
   ]),
   {
-    files: ["**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    files: [sourceFiles],
     ignores: ["src/libs/logger/logger.ts"],
-    rules: {
-      "no-console": "error"
-    }
+    rules: { "no-console": "error" },
   },
   {
-    files: ["src/client/logic/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
-    ignores: ["src/client/logic/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [{
-            regex: "^(?:server-only$|@/server(?:/|$)|(?:\\.\\./)+server(?:/|$))",
-            message: "Client logic modules must not import server runtime code."
-          }]
-        }
-      ]
-    }
+    files: [`src/client/${sourceFiles}`],
+    ignores: [`src/client/${testFiles}`, "src/client/logic/pubky/PubkySdkAdapter.ts"],
+    rules: { "no-restricted-imports": restrictedImports(serverImport, sdkImport) },
   },
   {
-    files: ["src/server/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
-    ignores: ["src/server/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [{
-            regex: "^(?:client-only$|@/(?:client/logic|libs/env)(?:/|$)|(?:\\.\\./)+(?:client/logic|libs/env)(?:/|$))",
-            message: "Server modules must not import client logic or public environment code."
-          }]
-        }
-      ]
-    }
+    files: ["src/client/logic/pubky/PubkySdkAdapter.ts"],
+    rules: { "no-restricted-imports": restrictedImports(serverImport) },
   },
   {
-    files: ["src/server/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    files: [`src/server/${sourceFiles}`],
     ignores: [
-      "src/server/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
-      "src/server/wrapping-key/google/GoogleWrappingKeyIssuer.ts"
+      `src/server/${testFiles}`,
+      "src/server/wrapping-key/google/GoogleWrappingKeyIssuer.ts",
     ],
     rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [{
-            regex: "^(?:@/server/config(?:/|$)|(?:\\.\\./)+config(?:/|$))",
-            message: "Environment-backed configuration is confined to approved bootstrap modules."
-          }]
-        }
-      ]
-    }
+      "no-restricted-imports": restrictedImports(clientImport, serverConfigImport, sdkImport),
+    },
   },
   {
-    files: ["src/app/**/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
-    ignores: [
-      "src/app/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}",
-      "src/app/layout.tsx"
-    ],
+    files: ["src/server/wrapping-key/google/GoogleWrappingKeyIssuer.ts"],
+    rules: { "no-restricted-imports": restrictedImports(clientImport, sdkImport) },
+  },
+  {
+    files: [`src/libs/${sourceFiles}`],
+    ignores: [`src/libs/${testFiles}`],
     rules: {
-      "no-restricted-imports": [
-        "error",
+      "no-restricted-imports": restrictedImports(
         {
-          patterns: [{
-            regex: "^(?:@/server/config(?:/|$)|(?:\\.\\./)+server/config(?:/|$))",
-            message: "Environment-backed client bootstrap configuration is confined to approved app entries."
-          }]
-        }
-      ]
-    }
+          regex:
+            "^(?:client-only$|server-only$|@/(?:client|server)(?:/|$)|(?:\\.\\./)+(?:client|server)(?:/|$))",
+          message: "Shared modules must remain independent from client and server runtimes.",
+        },
+        sdkImport,
+      ),
+    },
+  },
+  {
+    files: [`src/app/${sourceFiles}`],
+    ignores: [`src/app/${testFiles}`, "src/app/layout.tsx"],
+    rules: { "no-restricted-imports": restrictedImports(serverConfigImport, sdkImport) },
+  },
+  {
+    files: ["src/app/layout.tsx", "src/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    ignores: ["src/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
+    rules: { "no-restricted-imports": restrictedImports(sdkImport) },
   },
 ]);
 

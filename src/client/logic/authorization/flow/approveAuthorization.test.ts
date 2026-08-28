@@ -4,7 +4,7 @@ import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LOGGER } from "../../../../libs/logger/logger";
-import { IssuedPubkyAuthRequest } from "../request/IssuedPubkyAuthRequest";
+import { ValidatedPubkyAuthRequest } from "../request/ValidatedPubkyAuthRequest";
 
 const MOCKS = vi.hoisted(() => ({
   approveAuthRequest: vi.fn(),
@@ -20,7 +20,7 @@ vi.mock("../../pubky/PubkySdkAdapter", () => ({
 }));
 
 vi.mock("../../local-identity/LocalStorageIdentityRepository", async (importOriginal) => ({
-  ...await importOriginal<typeof import("../../local-identity/LocalStorageIdentityRepository")>(),
+  ...(await importOriginal<typeof import("../../local-identity/LocalStorageIdentityRepository")>()),
   LocalStorageIdentityRepository: class {
     read = MOCKS.readIdentity;
   },
@@ -31,11 +31,9 @@ import { approveAuthorization } from "./approveAuthorization";
 const SELECTED_IDENTITY = "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo";
 const PUBLIC_IDENTITY = {
   publicKeyZ32: SELECTED_IDENTITY,
-  publicKeyDisplay: `pubky${SELECTED_IDENTITY}`,
 };
 const OTHER_PUBLIC_IDENTITY = {
   publicKeyZ32: "y".repeat(52),
-  publicKeyDisplay: `pubky${"y".repeat(52)}`,
 };
 const KEY_HANDLE = {};
 const SECRET = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
@@ -54,28 +52,44 @@ describe("approveAuthorization", () => {
         restoreIdentityKey: MOCKS.restoreIdentityKey,
       };
     });
-    MOCKS.readIdentity.mockReturnValue(Result.ok({
-      identity: { publicIdentity: PUBLIC_IDENTITY },
-      secretKey,
-    }));
-    MOCKS.restoreIdentityKey.mockResolvedValue(Result.ok({
-      keyHandle: KEY_HANDLE,
-      publicIdentity: PUBLIC_IDENTITY,
-    }));
+    MOCKS.readIdentity.mockReturnValue(
+      Result.ok({
+        identity: { publicIdentity: PUBLIC_IDENTITY },
+        secretKey,
+      }),
+    );
+    MOCKS.restoreIdentityKey.mockResolvedValue(
+      Result.ok({
+        keyHandle: KEY_HANDLE,
+        publicIdentity: PUBLIC_IDENTITY,
+      }),
+    );
     MOCKS.approveAuthRequest.mockResolvedValue(Result.ok());
   });
 
   afterEach(() => vi.restoreAllMocks());
 
   it("approves with the selected identity and disposes key resources", async () => {
-    const request = issuedRequest();
+    const request = validatedRequest();
+    const authorizationUrl = request.validatedUrlForApproval();
+    if (!authorizationUrl) throw new Error("Issued request was unexpectedly unavailable");
 
-    const result = await approveAuthorization(request, SELECTED_IDENTITY);
+    const onCommit = vi.fn();
+    const result = await approveAuthorization(
+      request,
+      SELECTED_IDENTITY,
+      new AbortController().signal,
+      onCommit,
+    );
 
     expect(Result.isOk(result)).toBe(true);
     expect(MOCKS.readIdentity).toHaveBeenCalledWith(SELECTED_IDENTITY);
     expect(MOCKS.restoreIdentityKey).toHaveBeenCalledWith(secretKey);
-    expect(MOCKS.approveAuthRequest).toHaveBeenCalledWith(KEY_HANDLE, request);
+    expect(MOCKS.approveAuthRequest).toHaveBeenCalledWith(KEY_HANDLE, authorizationUrl);
+    expect(onCommit).toHaveBeenCalledOnce();
+    expect(onCommit.mock.invocationCallOrder[0]).toBeLessThan(
+      MOCKS.approveAuthRequest.mock.invocationCallOrder[0] ?? Infinity,
+    );
     expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
     expect(MOCKS.dispose).toHaveBeenCalledOnce();
     expect(secretKey.bytes).toEqual(new Uint8Array(32));
@@ -83,32 +97,32 @@ describe("approveAuthorization", () => {
 
   it("rejects stored metadata for a different identity before restoration", async () => {
     vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    MOCKS.readIdentity.mockReturnValue(Result.ok({
-      identity: { publicIdentity: OTHER_PUBLIC_IDENTITY },
-      secretKey,
-    }));
+    MOCKS.readIdentity.mockReturnValue(
+      Result.ok({
+        identity: { publicIdentity: OTHER_PUBLIC_IDENTITY },
+        secretKey,
+      }),
+    );
 
-    const result = await approveAuthorization(issuedRequest(), SELECTED_IDENTITY);
+    const result = await approveAuthorization(validatedRequest(), SELECTED_IDENTITY);
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isOk(result)) throw new Error("Expected approval to fail");
-    expect(result.error).toEqual({
-      code: "approval_failed",
-      cause: { code: "identity_mismatch" },
-    });
-    expect(result.error.cause).not.toHaveProperty("cause");
+    expect(result.error).toEqual({ code: "approval_failed" });
     expect(MOCKS.restoreIdentityKey).not.toHaveBeenCalled();
     expect(secretKey.bytes).toEqual(new Uint8Array(32));
   });
 
   it("disposes a restored key that does not match stored identity metadata", async () => {
     vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    MOCKS.restoreIdentityKey.mockResolvedValueOnce(Result.ok({
-      keyHandle: KEY_HANDLE,
-      publicIdentity: OTHER_PUBLIC_IDENTITY,
-    }));
+    MOCKS.restoreIdentityKey.mockResolvedValueOnce(
+      Result.ok({
+        keyHandle: KEY_HANDLE,
+        publicIdentity: OTHER_PUBLIC_IDENTITY,
+      }),
+    );
 
-    const result = await approveAuthorization(issuedRequest(), SELECTED_IDENTITY);
+    const result = await approveAuthorization(validatedRequest(), SELECTED_IDENTITY);
 
     expect(Result.isError(result)).toBe(true);
     expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
@@ -120,11 +134,11 @@ describe("approveAuthorization", () => {
     const approvalError = new Error(`approval exploded ${SECRET}`);
     MOCKS.approveAuthRequest.mockRejectedValueOnce(approvalError);
 
-    const result = await approveAuthorization(issuedRequest(), SELECTED_IDENTITY);
+    const result = await approveAuthorization(validatedRequest(), SELECTED_IDENTITY);
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isOk(result)) throw new Error("Expected approval to fail");
-    expect(result.error.cause).toBe(approvalError);
+    expect(result.error).toEqual({ code: "approval_failed" });
     expect(warning).toHaveBeenCalledWith("authorize.approval.failed", {
       stage: "sdk_approve",
       code: "unexpected_failure",
@@ -134,32 +148,44 @@ describe("approveAuthorization", () => {
     expect(MOCKS.dispose).toHaveBeenCalledOnce();
   });
 
-  it("preserves the entire lower approval error as the cause", async () => {
-    const sdkCause = new Error(`lower SDK failure ${SECRET}`);
-    const lowerError = { code: "relay_failed" as const, cause: sdkCause };
-    MOCKS.approveAuthRequest.mockResolvedValueOnce(Result.err(lowerError));
+  it("classifies expected SDK approval failures without exposing their cause", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    MOCKS.approveAuthRequest.mockResolvedValueOnce(
+      Result.err({
+        code: "approval_failed",
+        cause: new Error(`lower SDK failure ${SECRET}`),
+      }),
+    );
 
-    const result = await approveAuthorization(issuedRequest(), SELECTED_IDENTITY);
+    const result = await approveAuthorization(validatedRequest(), SELECTED_IDENTITY);
 
     if (Result.isOk(result)) throw new Error("Expected approval to fail");
-    expect(result.error).toEqual({ code: "approval_failed", cause: lowerError });
-    expect(result.error.cause).toBe(lowerError);
+    expect(result.error).toEqual({ code: "approval_failed" });
+    expect(warning).toHaveBeenCalledWith("authorize.approval.failed", {
+      stage: "sdk_approve",
+      code: "approval_failed",
+    });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(SECRET);
   });
 
-  it("preserves nested restoration failures without flattening their cause", async () => {
-    const sdkCause = new Error(`restore SDK failure ${SECRET}`);
-    const lowerError = { code: "restore_failed" as const, cause: sdkCause };
-    MOCKS.restoreIdentityKey.mockResolvedValueOnce(Result.err(lowerError));
+  it("classifies expected restoration failures without exposing their cause", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    MOCKS.restoreIdentityKey.mockResolvedValueOnce(
+      Result.err({
+        code: "restore_failed",
+        cause: new Error(`restore SDK failure ${SECRET}`),
+      }),
+    );
 
-    const result = await approveAuthorization(issuedRequest(), SELECTED_IDENTITY);
+    const result = await approveAuthorization(validatedRequest(), SELECTED_IDENTITY);
 
     if (Result.isOk(result)) throw new Error("Expected approval to fail");
-    expect(result.error.code).toBe("approval_failed");
-    expect(result.error.cause).toEqual({
+    expect(result.error).toEqual({ code: "approval_failed" });
+    expect(warning).toHaveBeenCalledWith("authorize.approval.failed", {
+      stage: "identity_restore",
       code: "restore_failed",
-      cause: lowerError,
     });
-    expect((result.error.cause as { cause?: unknown }).cause).toBe(lowerError);
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(SECRET);
   });
 
   it("allows identity restoration to take as long as the user needs", async () => {
@@ -171,7 +197,7 @@ describe("approveAuthorization", () => {
       await restorationGate;
       return Result.ok({ keyHandle: KEY_HANDLE, publicIdentity: PUBLIC_IDENTITY });
     });
-    const approval = approveAuthorization(issuedRequest(), SELECTED_IDENTITY);
+    const approval = approveAuthorization(validatedRequest(), SELECTED_IDENTITY);
     await vi.waitFor(() => expect(MOCKS.restoreIdentityKey).toHaveBeenCalledOnce());
 
     continueRestoration();
@@ -180,12 +206,44 @@ describe("approveAuthorization", () => {
     expect(MOCKS.approveAuthRequest).toHaveBeenCalledWith(KEY_HANDLE, expect.anything());
     expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
   });
+
+  it("aborts before the irreversible SDK grant commit", async () => {
+    let continueRestoration = (): void => undefined;
+    const restorationGate = new Promise<void>((resolve) => {
+      continueRestoration = resolve;
+    });
+    MOCKS.restoreIdentityKey.mockImplementationOnce(async () => {
+      await restorationGate;
+      return Result.ok({ keyHandle: KEY_HANDLE, publicIdentity: PUBLIC_IDENTITY });
+    });
+    const controller = new AbortController();
+    const onCommit = vi.fn();
+    const approval = approveAuthorization(
+      validatedRequest(),
+      SELECTED_IDENTITY,
+      controller.signal,
+      onCommit,
+    );
+    await vi.waitFor(() => expect(MOCKS.restoreIdentityKey).toHaveBeenCalledOnce());
+
+    controller.abort();
+    continueRestoration();
+
+    const result = await approval;
+    expect(Result.isError(result) && result.error).toEqual({ code: "cancelled" });
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(MOCKS.approveAuthRequest).not.toHaveBeenCalled();
+    expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
+    expect(MOCKS.dispose).toHaveBeenCalledOnce();
+  });
 });
 
-function issuedRequest(): IssuedPubkyAuthRequest {
-  const issued = IssuedPubkyAuthRequest.issue(encodeURIComponent(
-    `pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=${SECRET}`,
-  ));
-  if (Result.isError(issued)) throw new Error(issued.error.code);
-  return issued.value;
+function validatedRequest(): ValidatedPubkyAuthRequest {
+  const validated = ValidatedPubkyAuthRequest.fromEncoded(
+    encodeURIComponent(
+      `pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/inbox&secret=${SECRET}`,
+    ),
+  );
+  if (Result.isError(validated)) throw new Error(validated.error.code);
+  return validated.value;
 }

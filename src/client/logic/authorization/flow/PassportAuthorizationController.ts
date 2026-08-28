@@ -10,8 +10,8 @@ import {
 import { takeInitialAuthorizationEntry } from "../../../../instrumentation-client";
 import {
   type AuthorizationRequestReview,
-  IssuedPubkyAuthRequest,
-} from "../request/IssuedPubkyAuthRequest";
+  ValidatedPubkyAuthRequest,
+} from "../request/ValidatedPubkyAuthRequest";
 import { approveAuthorization } from "./approveAuthorization";
 import {
   type AuthorizationOutcome,
@@ -23,7 +23,8 @@ export type PassportAuthorizationViewState =
   | { status: "manual-entry" }
   | { status: "invalid" }
   | { status: "review"; review: AuthorizationRequestReview }
-  | { status: "approving"; review: AuthorizationRequestReview }
+  | { status: "preparing"; review: AuthorizationRequestReview }
+  | { status: "granting"; review: AuthorizationRequestReview }
   | { status: "completing"; review: AuthorizationRequestReview }
   | { status: "approved" }
   | { status: "cancelled" }
@@ -35,27 +36,31 @@ type LocalTerminalState = Extract<
 >;
 
 type AuthorizationAction = Readonly<{
-  request: IssuedPubkyAuthRequest;
+  request: ValidatedPubkyAuthRequest;
   review: AuthorizationRequestReview;
 }>;
+
+let browserController: PassportAuthorizationController | undefined;
 
 /** Coordinates one reviewed request from browser entry to a terminal outcome. */
 export class PassportAuthorizationController {
   private abortController = new AbortController();
   private disposed = false;
   private listeners = new Set<(state: PassportAuthorizationViewState) => void>();
-  private request: IssuedPubkyAuthRequest | undefined;
+  private request: ValidatedPubkyAuthRequest | undefined;
   private state: PassportAuthorizationViewState;
 
+  /** Idempotently captures and owns the current authorization document. */
   static fromBrowser(): PassportAuthorizationController {
+    if (browserController) return browserController;
     const appWindow = window;
-    const entry = takeInitialAuthorizationEntry()
-      ?? readAndScrubAuthorizationEntry(appWindow);
-    return new PassportAuthorizationController(appWindow, entry);
+    const entry = takeInitialAuthorizationEntry() ?? readAndScrubAuthorizationEntry(appWindow);
+    browserController = new PassportAuthorizationController(appWindow, entry);
+    return browserController;
   }
 
   constructor(
-    private appWindow: Window,
+    private readonly appWindow: Window,
     entry: AuthorizationEntry,
   ) {
     if (entry.status !== "valid") {
@@ -77,15 +82,16 @@ export class PassportAuthorizationController {
     return () => this.listeners.delete(listener);
   }
 
-  /** Releases an abandoned review and suppresses completion of in-flight work. */
+  /** Releases an abandoned review and aborts approval until its irreversible SDK commit. */
   dispose(): void {
     if (this.disposed) return;
 
     this.disposed = true;
     this.abortController.abort();
-    if (this.request) IssuedPubkyAuthRequest.release(this.request);
+    this.request?.release();
     this.request = undefined;
     this.listeners.clear();
+    if (browserController === this) browserController = undefined;
   }
 
   async approve(publicKeyZ32: string): Promise<PassportAuthorizationViewState> {
@@ -93,10 +99,14 @@ export class PassportAuthorizationController {
     if (!action) return this.state;
 
     const review = action.review;
-    this.update({ status: "approving", review });
+    this.update({ status: "preparing", review });
     const result = await approveAuthorization(
       action.request,
       publicKeyZ32,
+      this.abortController.signal,
+      () => {
+        if (!this.disposed) this.update({ status: "granting", review });
+      },
     );
     return this.completeRequestOutcome(
       action.request,
@@ -122,23 +132,23 @@ export class PassportAuthorizationController {
   }
 
   private async completeRequestOutcome(
-    request: IssuedPubkyAuthRequest,
+    request: ValidatedPubkyAuthRequest,
     outcome: AuthorizationOutcome,
     review: AuthorizationRequestReview,
   ): Promise<PassportAuthorizationViewState> {
     if (this.disposed) {
-      IssuedPubkyAuthRequest.release(request);
+      request.release();
       return this.state;
     }
 
     this.request = undefined;
-    const callback = IssuedPubkyAuthRequest.takeOutcomeCallback(request, outcome);
+    const callback = request.takeOutcomeCallback(outcome);
     if (!callback) return this.update(localStateForOutcome(outcome));
 
     this.update({ status: "completing", review });
-    let completed = false;
+    let handoffStatus: Awaited<ReturnType<typeof handoffAuthorizationOutcome>>;
     try {
-      completed = await handoffAuthorizationOutcome(
+      handoffStatus = await handoffAuthorizationOutcome(
         this.appWindow,
         callback,
         outcome,
@@ -151,7 +161,7 @@ export class PassportAuthorizationController {
       });
       return this.update(localStateForOutcome(outcome));
     }
-    if (completed) return this.state;
+    if (handoffStatus !== "unavailable") return this.state;
 
     LOGGER.warn("authorize.callback.failed", {
       outcome,
@@ -186,4 +196,4 @@ function localStateForOutcome(outcome: AuthorizationOutcome): LocalTerminalState
   }
 }
 
-export type { AuthorizationRequestReview } from "../request/IssuedPubkyAuthRequest";
+export type { AuthorizationRequestReview } from "../request/ValidatedPubkyAuthRequest";

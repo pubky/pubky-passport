@@ -10,9 +10,7 @@ export default defineConfig({
   failOnFlakyTests: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   ...(process.env.CI ? { workers: 1 } : {}),
-  reporter: process.env.CI
-    ? [["github"], ["html", { open: "never" }]]
-    : "line",
+  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "line",
   use: {
     baseURL: BASE_URL,
     trace: "on-first-retry",
@@ -22,6 +20,18 @@ export default defineConfig({
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
     },
+    {
+      name: "firefox",
+      use: { ...devices["Desktop Firefox"] },
+    },
+    {
+      name: "webkit",
+      use: { ...devices["Desktop Safari"] },
+    },
+    {
+      name: "mobile-chromium",
+      use: { ...devices["Pixel 7"] },
+    },
   ],
   webServer: {
     command: `pnpm start --port ${PORT}`,
@@ -29,7 +39,10 @@ export default defineConfig({
       GOOGLE_CLIENT_ID: "e2e-google-client-id",
       HOMEGATE_URL: "https://homegate.example/",
       PUBKY_HOMESERVER_CONNECT_ORIGINS: "https://homeserver.example",
-      PASSPORT_SERVER_SECRET_BASE64: Buffer.alloc(32, 1).toString("base64"),
+      PASSPORT_SERVER_SECRET_CURRENT_KEY_ID: "e2e",
+      PASSPORT_SERVER_SECRET_KEYRING_JSON: JSON.stringify({
+        e2e: Buffer.alloc(32, 1).toString("base64"),
+      }),
     },
     url: BASE_URL,
     reuseExistingServer: false,

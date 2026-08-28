@@ -33,6 +33,7 @@
 
 :root {
   color-scheme: dark;
+  --passport-header-height: 84px;
   --radius: 0.625rem;
   --background: oklch(0.118 0.014 284.115);
   --foreground: oklch(1 0 0);
@@ -56,6 +57,12 @@
   --input-surface: #ffffff0b;
   --ring: oklch(0.55 0.008 286.145);
   --brand: #c8ff00;
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --passport-header-height: 136px;
+  }
 }
 
 * {

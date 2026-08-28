@@ -1,9 +1,9 @@
 import "server-only";
 
-import { getApplicationEnvironment } from "./applicationEnvironment";
+import { getPublicApplicationEnvironment } from "./publicApplicationEnvironment";
 
 export function getBrowserBootstrapConfig() {
-  const environment = getApplicationEnvironment();
+  const environment = getPublicApplicationEnvironment();
 
   return {
     googleClientId: environment.googleClientId,

@@ -1,10 +1,8 @@
-"use client";
-
 import { Result } from "better-result";
 import Image from "next/image";
-import { type SubmitEvent, useState } from "react";
+import { type SubmitEvent, useEffect, useRef, useState } from "react";
 
-import { LOGGER } from "../../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../../../libs/logger/logger";
 import {
   MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS,
   type LocalIdentityRecoveryFile,
@@ -12,6 +10,7 @@ import {
 } from "../../../../logic/local-identity/LocalIdentityController";
 import { DownloadRecoveryFileIcon } from "../../../shared/actionIcons";
 import { BackButton } from "../../../shared/backButton";
+import { PassportNavigation } from "../../../shared/passportNavigation";
 import { PassportScreen } from "../../../shared/passportScreen";
 import { Button } from "../../../shared/primitives/button";
 import { FieldMessage } from "../../../shared/primitives/fieldMessage";
@@ -20,38 +19,65 @@ import { Label } from "../../../shared/primitives/label";
 import { DisplayHeading, LeadText } from "../../../shared/primitives/typography";
 import { showDownloadConfirmation } from "../../../shared/sonner";
 
-function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
-  createRecoveryFile: (publicKeyZ32: string, password: string) => Promise<LocalIdentityRecoveryFileResult>;
+function RecoveryFileDownload({
+  createRecoveryFile,
+  publicKeyZ32,
+  onBack,
+}: {
+  createRecoveryFile: (
+    publicKeyZ32: string,
+    password: string,
+  ) => Promise<LocalIdentityRecoveryFileResult>;
   publicKeyZ32: string;
   onBack: () => void;
 }) {
-  const [password, setPassword] = useState("");
+  const passwordInputRef = useRef<HTMLInputElement>(null);
+  const [validPassword, setValidPassword] = useState(false);
   const [pending, setPending] = useState(false);
   const [recoveryFileFailed, setRecoveryFileFailed] = useState(false);
-  const validPassword = password.length >= MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS;
+  const activeRef = useRef(true);
+
+  useEffect(() => {
+    activeRef.current = true;
+    return () => {
+      activeRef.current = false;
+    };
+  }, []);
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!validPassword || pending) return;
+    const passwordInput = passwordInputRef.current;
+    if (!passwordInput || !validPassword || pending) return;
+    let password = passwordInput.value;
+    passwordInput.value = "";
+    setValidPassword(false);
     setPending(true);
     setRecoveryFileFailed(false);
     let downloaded = false;
     try {
-      const recoveryFile = await createRecoveryFile(publicKeyZ32, password);
-      if (Result.isError(recoveryFile) || !downloadFile(recoveryFile.value)) setRecoveryFileFailed(true);
+      let recoveryFilePromise: ReturnType<typeof createRecoveryFile>;
+      try {
+        recoveryFilePromise = createRecoveryFile(publicKeyZ32, password);
+      } finally {
+        password = "";
+      }
+      const recoveryFile = await recoveryFilePromise;
+      if (!activeRef.current) return;
+      if (Result.isError(recoveryFile) || !downloadFile(recoveryFile.value))
+        setRecoveryFileFailed(true);
       else {
         downloaded = true;
-        setPassword("");
       }
-    } catch {
+    } catch (cause) {
       LOGGER.warn("identity.recovery_file.ui.failed", {
         operation: "create_and_download",
+        ...safeErrorLogFields(cause),
       });
-      setRecoveryFileFailed(true);
+      if (activeRef.current) setRecoveryFileFailed(true);
     } finally {
-      setPending(false);
+      if (activeRef.current) setPending(false);
     }
-    if (downloaded) {
+    if (downloaded && activeRef.current) {
       showDownloadConfirmation();
       onBack();
     }
@@ -59,35 +85,61 @@ function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
 
   return (
     <PassportScreen>
-      <form className="flex min-h-full flex-1 flex-col gap-6" onSubmit={submit}>
-        <DisplayHeading accent="backup." aria-label="Encrypted backup.">Encrypted</DisplayHeading>
-        <LeadText>Set a password, download the file, and keep both somewhere safe. You’ll need them to restore access.</LeadText>
+      <form
+        className="flex min-h-full flex-1 flex-col gap-6 md:grid md:grid-cols-[307px_281px] md:grid-rows-[136px_224px_60px] md:gap-x-0 md:gap-y-8 md:pt-[34px]"
+        onSubmit={submit}
+      >
+        <div className="flex flex-col gap-6 md:col-span-2 md:gap-3">
+          <DisplayHeading accent="backup." aria-label="Encrypted backup.">
+            Encrypted{" "}
+          </DisplayHeading>
+          <LeadText>
+            Set a password, download the file, and keep both somewhere safe. You’ll need them to
+            restore access.
+          </LeadText>
+        </div>
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="recovery-file-password">Enter strong password</Label>
+        <div className="flex flex-col gap-2 md:col-start-1 md:row-start-2">
+          <Label htmlFor="recovery-file-password">Recovery password</Label>
           <Input
             autoComplete="new-password"
             containerClassName="border-dashed"
             id="recovery-file-password"
             maxLength={1024}
             minLength={MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS}
-            onChange={(event) => setPassword(event.target.value)}
+            onInput={(event) =>
+              setValidPassword(
+                event.currentTarget.value.length >= MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS,
+              )
+            }
+            ref={passwordInputRef}
             required
             type="password"
-            value={password}
           />
-          {recoveryFileFailed ? <FieldMessage error>Could not create the recovery file. Please try again.</FieldMessage> : null}
+          {recoveryFileFailed ? (
+            <FieldMessage error>Could not create the recovery file. Please try again.</FieldMessage>
+          ) : null}
         </div>
 
-        <Image alt="" aria-hidden="true" className="mx-auto size-[200px]" height={200} src="/illustrations/file.png" unoptimized width={200} />
+        <Image
+          alt=""
+          aria-hidden="true"
+          className="mx-auto size-[200px] md:col-start-2 md:row-start-2 md:mt-3"
+          height={200}
+          src="/illustrations/file.png"
+          width={200}
+        />
 
-        <div className="mt-auto flex flex-col gap-4 pt-4">
-          <BackButton onClick={onBack} />
-          <Button disabled={!validPassword || pending} size="lg" type="submit">
-            <DownloadRecoveryFileIcon />
-            {pending ? "Encrypting…" : "Download backup"}
-          </Button>
-        </div>
+        <PassportNavigation
+          back={<BackButton disabled={pending} onClick={onBack} />}
+          className="md:col-span-2 md:row-start-3"
+          confirm={
+            <Button className="w-full" disabled={!validPassword || pending} size="lg" type="submit">
+              <DownloadRecoveryFileIcon />
+              {pending ? "Encrypting…" : "Download backup"}
+            </Button>
+          }
+        />
       </form>
     </PassportScreen>
   );
@@ -106,9 +158,10 @@ function downloadFile(file: LocalIdentityRecoveryFile): boolean {
     } finally {
       URL.revokeObjectURL(url);
     }
-  } catch {
+  } catch (cause) {
     LOGGER.warn("identity.recovery_file.ui.failed", {
       operation: "download",
+      ...safeErrorLogFields(cause),
     });
     return false;
   }

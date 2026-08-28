@@ -81,5 +81,7 @@ export async function readBoundedText(
 }
 
 function contentLengthExceeds(contentLength: string | null, maximumBytes: number): boolean {
-  return contentLength !== null && /^\d+$/.test(contentLength) && Number(contentLength) > maximumBytes;
+  return (
+    contentLength !== null && /^\d+$/.test(contentLength) && Number(contentLength) > maximumBytes
+  );
 }

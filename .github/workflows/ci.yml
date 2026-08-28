@@ -35,6 +35,9 @@ jobs:
       - name: Audit production dependencies
         run: pnpm audit --prod
 
+      - name: Check formatting
+        run: pnpm format:check
+
       - name: Lint
         run: pnpm lint
 
@@ -50,7 +53,8 @@ jobs:
       GOOGLE_CLIENT_ID: "e2e-google-client-id"
       HOMEGATE_URL: "https://homegate.example/"
       PUBKY_HOMESERVER_CONNECT_ORIGINS: "https://homeserver.example"
-      PASSPORT_SERVER_SECRET_BASE64: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
+      PASSPORT_SERVER_SECRET_CURRENT_KEY_ID: "ci"
+      PASSPORT_SERVER_SECRET_KEYRING_JSON: '{"ci":"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="}'
 
     steps:
       - name: Checkout
@@ -73,8 +77,8 @@ jobs:
       - name: Production build
         run: pnpm build
 
-      - name: Install Playwright browser
-        run: pnpm exec playwright install --with-deps chromium
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium firefox webkit
 
       - name: End-to-end tests
         run: pnpm test:e2e:run

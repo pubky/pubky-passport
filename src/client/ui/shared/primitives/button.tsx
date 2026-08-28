@@ -1,5 +1,5 @@
 import { cva, type VariantProps } from "class-variance-authority";
-import { forwardRef, type ComponentPropsWithoutRef } from "react";
+import type { ComponentPropsWithRef } from "react";
 
 import { cn } from "../mergeClassNames";
 
@@ -9,8 +9,10 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "border-brand bg-brand/16 text-brand hover:bg-brand/30",
-        destructive: "border-transparent bg-destructive-surface text-destructive-foreground hover:bg-destructive",
-        ghost: "border-0 bg-transparent text-foreground shadow-none hover:bg-accent active:scale-95 active:bg-accent/80 focus-visible:border-0",
+        destructive:
+          "border-transparent bg-destructive-surface text-destructive-foreground hover:bg-destructive",
+        ghost:
+          "border-0 bg-transparent text-foreground shadow-none hover:bg-accent active:scale-95 active:bg-accent/80 focus-visible:border-0",
         outline: "border-border bg-input-surface text-foreground hover:bg-accent",
         secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-accent",
       },
@@ -28,30 +30,16 @@ const buttonVariants = cva(
   },
 );
 
-export type ButtonProps = ComponentPropsWithoutRef<"button">
-  & VariantProps<typeof buttonVariants>;
+export type ButtonProps = ComponentPropsWithRef<"button"> & VariantProps<typeof buttonVariants>;
 
-export type ButtonLinkProps = ComponentPropsWithoutRef<"a">
-  & VariantProps<typeof buttonVariants>;
+export type ButtonLinkProps = ComponentPropsWithRef<"a"> & VariantProps<typeof buttonVariants>;
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, size, variant, ...props }, ref) => (
-    <button
-      className={cn(buttonVariants({ className, size, variant }))}
-      ref={ref}
-      {...props}
-    />
-  ),
-);
-Button.displayName = "Button";
+export function Button({ className, size, type = "button", variant, ...props }: ButtonProps) {
+  return (
+    <button className={cn(buttonVariants({ className, size, variant }))} type={type} {...props} />
+  );
+}
 
-export const ButtonLink = forwardRef<HTMLAnchorElement, ButtonLinkProps>(
-  ({ className, size, variant, ...props }, ref) => (
-    <a
-      className={cn(buttonVariants({ className, size, variant }))}
-      ref={ref}
-      {...props}
-    />
-  ),
-);
-ButtonLink.displayName = "ButtonLink";
+export function ButtonLink({ className, size, variant, ...props }: ButtonLinkProps) {
+  return <a className={cn(buttonVariants({ className, size, variant }))} {...props} />;
+}

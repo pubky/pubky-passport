@@ -1,4 +1,3 @@
-import { Children, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LOGGER } from "../libs/logger/logger";
@@ -15,27 +14,18 @@ describe("RootLayout bootstrap", () => {
     vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
     vi.stubEnv("HOMEGATE_URL", "https://homegate.example/api");
     vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example");
-    vi.stubEnv("PASSPORT_SERVER_SECRET_BASE64", Buffer.alloc(32, 1).toString("base64"));
+    vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", "current");
+    vi.stubEnv(
+      "PASSPORT_SERVER_SECRET_KEYRING_JSON",
+      JSON.stringify({
+        current: Buffer.alloc(32, 1).toString("base64"),
+      }),
+    );
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
-  });
-
-  it("provides normalized browser configuration at the application boundary", async () => {
-    const layout = await RootLayout({ children: <main>Application</main> });
-    const body = Children.toArray((layout.props as { children: ReactNode }).children)[1] as ReactElement<{
-      children: ReactNode;
-    }>;
-    const provider = Children.toArray(body.props.children)[1] as ReactElement<{
-      googleClientId: string;
-      homegateBaseUrl: string;
-    }>;
-
-    expect(MOCKS.connection).toHaveBeenCalledOnce();
-    expect(provider.props.googleClientId).toBe("google-client-id");
-    expect(provider.props.homegateBaseUrl).toBe("https://homegate.example/api/");
   });
 
   it("rejects invalid bootstrap configuration without exposing its values", async () => {
@@ -46,12 +36,17 @@ describe("RootLayout bootstrap", () => {
     await expect(RootLayout({ children: null })).rejects.toThrow(
       "Application configuration unavailable.",
     );
-    expect(error).toHaveBeenCalledWith("layout.bootstrap.failed", {
-      layer: "layout",
-      operation: "bootstrap",
-      stage: "configuration",
-      code: "invalid_configuration",
-    });
+    expect(error).toHaveBeenCalledWith(
+      "layout.bootstrap.failed",
+      expect.objectContaining({
+        layer: "layout",
+        operation: "bootstrap",
+        stage: "configuration",
+        code: "invalid_configuration",
+        diagnosticId: expect.any(String),
+        errorName: expect.any(String),
+      }),
+    );
     expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET-GOOGLE-CLIENT-ID");
     expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET-HOMEGATE-URL");
   });

@@ -4,12 +4,14 @@ import { Result, type Result as ResultType } from "better-result";
 import { z } from "zod";
 
 import { decodeBase64Url } from "../../../libs/encoding/base64Url";
+import { passportKeyIdSchema } from "../../../libs/passportPolicy";
 import { PUBKY_SECRET_KEY_BYTES } from "../pubky/pubkyIdentityKey";
 
-/** Strict encrypted envelope persisted as Passport file format version 1. */
-export type PassportFileEnvelopeV1 = {
+export type PassportFileEnvelope = {
   /** Numeric storage format version. */
   v: 1;
+  /** Public identifier for the server secret used to derive the wrapping key. */
+  keyId: string;
   /** Unpadded base64url AES-GCM initialization vector. */
   iv: string;
   /** Unpadded base64url ciphertext including the AES-GCM authentication tag. */
@@ -18,42 +20,33 @@ export type PassportFileEnvelopeV1 = {
   url: string;
 };
 
-/** Field names accepted by the strict v1 envelope schema. */
-export type PassportFileField = keyof PassportFileEnvelopeV1;
-
-/** Safe parser failure codes that never include envelope contents. */
-export type PassportFileParseErrorCode =
-  | "invalid_json"
-  | "invalid_shape"
-  | "unsupported_version"
-  | "missing_field"
-  | "invalid_field"
-  | "unknown_field";
-
-/** Safe envelope parse failure with optional field attribution. */
+/** Only distinctions that change production behavior are exposed. */
 export type PassportFileParseError = {
-  code: PassportFileParseErrorCode;
-  field?: PassportFileField;
+  code: "invalid_json" | "invalid_file" | "unsupported_version";
 };
 
-type PassportFileParseResult = ResultType<PassportFileEnvelopeV1, PassportFileParseError>;
+type PassportFileParseResult = ResultType<PassportFileEnvelope, PassportFileParseError>;
 
 type PassportFileOriginResult = ResultType<string, { code: "invalid_field"; field: "url" }>;
 
 const AES_GCM_IV_BYTES = 12;
 const AES_GCM_TAG_BYTES = 16;
 const AES_GCM_CIPHERTEXT_BYTES = PUBKY_SECRET_KEY_BYTES + AES_GCM_TAG_BYTES;
+const CRYPTO_FIELDS = {
+  iv: z.string().refine((value) => isFixedLengthBase64Url(value, AES_GCM_IV_BYTES)),
+  ct: z.string().refine((value) => isFixedLengthBase64Url(value, AES_GCM_CIPHERTEXT_BYTES)),
+  url: z.string(),
+};
 const PASSPORT_FILE_ENVELOPE_SCHEMA = z
   .object({
-    v: z.number(),
-    iv: z.string().refine((value) => isFixedLengthBase64Url(value, AES_GCM_IV_BYTES)),
-    ct: z.string().refine((value) => isFixedLengthBase64Url(value, AES_GCM_CIPHERTEXT_BYTES)),
-    url: z.string(),
+    v: z.literal(1),
+    keyId: passportKeyIdSchema,
+    ...CRYPTO_FIELDS,
   })
   .strict();
 
 /**
- * Parses serialized Passport file contents into a validated v1 envelope.
+ * Parses serialized Passport file contents into a validated envelope.
  *
  * JSON syntax, object shape, accepted fields, version, cryptographic field
  * encoding and lengths, and origin are validated. Authentication is left to
@@ -81,45 +74,25 @@ export function parsePassportFileContents(input: unknown): PassportFileParseResu
  */
 export function parsePassportFileEnvelope(input: unknown): PassportFileParseResult {
   if (!isPlainObject(input)) {
-    return Result.err<never, PassportFileParseError>({ code: "invalid_shape" });
+    return Result.err<never, PassportFileParseError>({ code: "invalid_file" });
   }
 
   if (typeof input.v === "number" && input.v !== 1) {
-    return Result.err<never, PassportFileParseError>({ code: "unsupported_version", field: "v" });
+    return Result.err<never, PassportFileParseError>({ code: "unsupported_version" });
   }
 
   const parsed = PASSPORT_FILE_ENVELOPE_SCHEMA.safeParse(input);
   if (!parsed.success) {
-    if (parsed.error.issues.some((issue) => issue.code === "unrecognized_keys")) {
-      return Result.err<never, PassportFileParseError>({ code: "unknown_field" });
-    }
-
-    const field = parsed.error.issues
-      .map((issue) => issue.path[0])
-      .find(
-        (value): value is PassportFileField =>
-          typeof value === "string" && Object.hasOwn(PASSPORT_FILE_ENVELOPE_SCHEMA.shape, value),
-      );
-    if (!field) {
-      return Result.err<never, PassportFileParseError>({ code: "invalid_shape" });
-    }
-
-    return Result.err<never, PassportFileParseError>({
-      code: Object.hasOwn(input, field) ? "invalid_field" : "missing_field",
-      field,
-    });
+    return Result.err<never, PassportFileParseError>({ code: "invalid_file" });
   }
 
   const origin = normalizePassportFileOrigin(parsed.data.url);
   if (Result.isError(origin)) {
-    return Result.err<never, PassportFileParseError>({
-      code: origin.error.code,
-      field: origin.error.field,
-    });
+    return Result.err<never, PassportFileParseError>({ code: "invalid_file" });
   }
 
   return Result.ok({
-    v: 1,
+    ...parsed.data,
     iv: parsed.data.iv,
     ct: parsed.data.ct,
     url: origin.value,
@@ -127,14 +100,15 @@ export function parsePassportFileEnvelope(input: unknown): PassportFileParseResu
 }
 
 /**
- * Serializes only the validated v1 envelope fields in their canonical order.
+ * Serializes only validated envelope fields in their canonical order.
  * Returns `null` when the input is not a valid envelope.
  */
 export function serializePassportFileEnvelope(input: unknown): string | null {
   const parsed = parsePassportFileEnvelope(input);
   if (Result.isError(parsed)) return null;
   return JSON.stringify({
-    v: parsed.value.v,
+    v: 1,
+    keyId: parsed.value.keyId,
     iv: parsed.value.iv,
     ct: parsed.value.ct,
     url: parsed.value.url,
@@ -174,7 +148,9 @@ function parseUrl(value: string): URL | null {
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype;
+  return (
+    Boolean(value) && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype
+  );
 }
 
 function isFixedLengthBase64Url(value: string, expectedByteLength: number): boolean {

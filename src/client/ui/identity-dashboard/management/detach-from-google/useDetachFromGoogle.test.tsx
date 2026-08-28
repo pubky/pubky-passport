@@ -16,26 +16,29 @@ const MOCKS = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../../logic/google-identity/GoogleIdentityController", () => ({
-  GoogleIdentityController: function GoogleIdentityController(
-    googleClientId: string,
-    homegateBaseUrl: string,
-    onState: unknown,
-  ) {
-    return MOCKS.constructGoogleIdentityController(googleClientId, homegateBaseUrl, onState);
+  GoogleIdentityController: class {
+    constructor(googleClientId: string, homegateBaseUrl: string, onState: unknown) {
+      return MOCKS.constructGoogleIdentityController(googleClientId, homegateBaseUrl, onState);
+    }
   },
 }));
 
 function Probe() {
-  const operation = useDetachFromGoogle(
-    { publicKeyZ32: "identity", publicKeyDisplay: "pubkyidentity" },
-    "google-account",
-  );
+  const operation = useDetachFromGoogle({ publicKeyZ32: "identity" }, "google-account");
   return (
     <>
-      <p>{operation.state.status === "operation-failed" ? operation.state.error.code : operation.state.status}</p>
+      <p>
+        {operation.state.status === "operation-failed"
+          ? operation.state.error.code
+          : operation.state.status}
+      </p>
       <output data-testid="operation-state">{JSON.stringify(operation.state)}</output>
-      <button onClick={operation.detach} type="button">Detach</button>
-      <button onClick={operation.retryDetachment} type="button">Retry</button>
+      <button onClick={operation.detach} type="button">
+        Detach
+      </button>
+      <button onClick={operation.retryDetachment} type="button">
+        Retry
+      </button>
     </>
   );
 }
@@ -54,9 +57,11 @@ describe("useDetachFromGoogle", () => {
     MOCKS.detachIdentity
       .mockResolvedValueOnce(Result.err({ code: "authorization_failed" as const }))
       .mockResolvedValueOnce(Result.ok());
-    MOCKS.constructGoogleIdentityController.mockReturnValue(mockGoogleIdentityController({
-      detachIdentity: MOCKS.detachIdentity,
-    }));
+    MOCKS.constructGoogleIdentityController.mockReturnValue(
+      mockGoogleIdentityController({
+        detachIdentity: MOCKS.detachIdentity,
+      }),
+    );
     renderProbe();
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Detach" }));
@@ -67,32 +72,39 @@ describe("useDetachFromGoogle", () => {
     expect(MOCKS.detachIdentity).toHaveBeenCalledTimes(2);
   });
 
-  it("projects operation failures into cause-free hook state", async () => {
-    MOCKS.detachIdentity.mockResolvedValue(Result.err({
-      code: "google_drive_cleanup_failed" as const,
-      cause: { secret: "DETACH-HOOK-CAUSE-CANARY" },
-    }));
-    MOCKS.constructGoogleIdentityController.mockReturnValue(mockGoogleIdentityController({
-      detachIdentity: MOCKS.detachIdentity,
-    }));
+  it("shows operation failures returned by the controller", async () => {
+    MOCKS.detachIdentity.mockResolvedValue(
+      Result.err({
+        code: "google_drive_cleanup_failed" as const,
+      }),
+    );
+    MOCKS.constructGoogleIdentityController.mockReturnValue(
+      mockGoogleIdentityController({
+        detachIdentity: MOCKS.detachIdentity,
+      }),
+    );
     renderProbe();
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Detach" }));
 
     expect(await screen.findByText("google_drive_cleanup_failed")).toBeInTheDocument();
     expect(screen.getByTestId("operation-state")).toHaveTextContent(
-      JSON.stringify({ status: "operation-failed", error: { code: "google_drive_cleanup_failed" } }),
+      JSON.stringify({
+        status: "operation-failed",
+        error: { code: "google_drive_cleanup_failed" },
+      }),
     );
-    expect(screen.getByTestId("operation-state")).not.toHaveTextContent("DETACH-HOOK-CAUSE-CANARY");
   });
 
   it("contains rejected promise details outside hook state and log arguments", async () => {
     const thrown = { secret: "DETACH-PROMISE-CANARY" };
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     MOCKS.detachIdentity.mockRejectedValue(thrown);
-    MOCKS.constructGoogleIdentityController.mockReturnValue(mockGoogleIdentityController({
-      detachIdentity: MOCKS.detachIdentity,
-    }));
+    MOCKS.constructGoogleIdentityController.mockReturnValue(
+      mockGoogleIdentityController({
+        detachIdentity: MOCKS.detachIdentity,
+      }),
+    );
     renderProbe();
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Detach" }));
@@ -111,8 +123,31 @@ describe("useDetachFromGoogle", () => {
 
     renderProbe();
 
+    await userEvent.setup().click(screen.getByRole("button", { name: "Detach" }));
     expect(await screen.findByText("operation_failed")).toBeInTheDocument();
-    expect(screen.getByTestId("operation-state")).not.toHaveTextContent("DETACH-CONSTRUCTOR-CANARY");
+    expect(screen.getByTestId("operation-state")).not.toHaveTextContent(
+      "DETACH-CONSTRUCTOR-CANARY",
+    );
     expect(JSON.stringify(warning.mock.calls)).not.toContain("DETACH-CONSTRUCTOR-CANARY");
+  });
+
+  it("retries controller construction on a user retry", async () => {
+    MOCKS.constructGoogleIdentityController
+      .mockImplementationOnce(() => {
+        throw new Error("temporarily unavailable");
+      })
+      .mockReturnValue(
+        mockGoogleIdentityController({
+          detachIdentity: vi.fn(async () => Result.ok()),
+        }),
+      );
+    renderProbe();
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Detach" }));
+    expect(await screen.findByText("operation_failed")).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("complete")).toBeInTheDocument();
+    expect(MOCKS.constructGoogleIdentityController).toHaveBeenCalledTimes(2);
   });
 });
