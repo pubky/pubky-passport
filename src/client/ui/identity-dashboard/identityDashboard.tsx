@@ -110,8 +110,8 @@ function ReadyIdentityDashboard({ actions, catalog }: {
       />;
     case "migrate-to-pubky-ring":
       return <MigrateToPubkyRing
-        createMigrationUrl={() => {
-          return actions.createMigrationUrl(state.publicKeyZ32);
+        createMigration={() => {
+          return actions.createMigration(state.publicKeyZ32);
         }}
         navigationAction="back"
         onBack={() => setNavigation({ view: "manage-identity", publicKeyZ32: state.publicKeyZ32 })}
@@ -119,9 +119,9 @@ function ReadyIdentityDashboard({ actions, catalog }: {
     case "detach-from-google":
       return <DetachFromGoogleFlow
         createRecoveryFile={actions.createRecoveryFile}
-        createMigrationUrl={() => {
+        createMigration={() => {
           // Detachment must back up the same identity that it will remove.
-          return actions.createMigrationUrl(state.identity.publicIdentity.publicKeyZ32);
+          return actions.createMigration(state.identity.publicIdentity.publicKeyZ32);
         }}
         googleSubject={state.googleSubject}
         identity={state.identity}

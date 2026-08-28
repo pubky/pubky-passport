@@ -76,6 +76,55 @@ describe("PubkySdkAdapter", () => {
     }
   });
 
+  it("creates the SDK single-identity Ring export and clears input bytes", () => {
+    const bytes = Uint8Array.from({ length: PUBKY_SECRET_KEY_BYTES }, (_, index) => index);
+    const migration = expectOk(PubkySdkAdapter.createPubkyRingMigration({
+      bytes,
+      format: PUBKY_SECRET_KEY_FORMAT,
+    }));
+
+    expect(migration.url).toBe(
+      "pubkyring://000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    );
+    expect(bytes).toEqual(new Uint8Array(PUBKY_SECRET_KEY_BYTES));
+    migration.dispose();
+    migration.dispose();
+    expect(migration.url).toBeNull();
+    expect(migration.navigate()).toBe(false);
+  });
+
+  it("rejects invalid Ring export material and still clears it", () => {
+    const bytes = new Uint8Array(PUBKY_SECRET_KEY_BYTES - 1).fill(7);
+    const result = PubkySdkAdapter.createPubkyRingMigration({
+      bytes,
+      format: PUBKY_SECRET_KEY_FORMAT,
+    });
+
+    expect(Result.isError(result) && result.error.code).toBe("invalid_secret_key");
+    expect(bytes).toEqual(new Uint8Array(PUBKY_SECRET_KEY_BYTES - 1));
+  });
+
+  it("contains SDK Ring export failures without logging secret material", () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const secret = "SECRET-SEED-EXPORT-FAILURE";
+    vi.spyOn(Keypair, "fromSecret").mockImplementation(() => { throw new Error(secret); });
+    const bytes = new Uint8Array(PUBKY_SECRET_KEY_BYTES).fill(9);
+
+    const result = PubkySdkAdapter.createPubkyRingMigration({
+      bytes,
+      format: PUBKY_SECRET_KEY_FORMAT,
+    });
+
+    expect(Result.isError(result) && result.error.code).toBe("export_failed");
+    expect(bytes).toEqual(new Uint8Array(PUBKY_SECRET_KEY_BYTES));
+    expect(warning).toHaveBeenCalledWith("identity.pubky.operation.failed", {
+      operation: "create_pubky_ring_migration",
+      stage: "sdk_export",
+      code: "export_failed",
+    });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(secret);
+  });
+
   it("returns the exact SDK cause when key creation throws without logging its value", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const cause = "SECRET-KEY-CREATION-VALUE";

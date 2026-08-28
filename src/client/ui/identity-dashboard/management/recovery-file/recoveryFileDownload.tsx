@@ -24,11 +24,11 @@ function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
   publicKeyZ32: string;
   onBack: () => void;
 }) {
-  const [password, setPassword] = useState("");
+  const passwordInputRef = useRef<HTMLInputElement>(null);
+  const [validPassword, setValidPassword] = useState(false);
   const [pending, setPending] = useState(false);
   const [recoveryFileFailed, setRecoveryFileFailed] = useState(false);
   const activeRef = useRef(true);
-  const validPassword = password.length >= MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS;
 
   useEffect(() => {
     activeRef.current = true;
@@ -39,17 +39,26 @@ function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!validPassword || pending) return;
+    const passwordInput = passwordInputRef.current;
+    if (!passwordInput || !validPassword || pending) return;
+    let password = passwordInput.value;
+    passwordInput.value = "";
+    setValidPassword(false);
     setPending(true);
     setRecoveryFileFailed(false);
     let downloaded = false;
     try {
-      const recoveryFile = await createRecoveryFile(publicKeyZ32, password);
+      let recoveryFilePromise: ReturnType<typeof createRecoveryFile>;
+      try {
+        recoveryFilePromise = createRecoveryFile(publicKeyZ32, password);
+      } finally {
+        password = "";
+      }
+      const recoveryFile = await recoveryFilePromise;
       if (!activeRef.current) return;
       if (Result.isError(recoveryFile) || !downloadFile(recoveryFile.value)) setRecoveryFileFailed(true);
       else {
         downloaded = true;
-        setPassword("");
       }
     } catch (cause) {
       LOGGER.warn("identity.recovery_file.ui.failed", {
@@ -82,10 +91,12 @@ function RecoveryFileDownload({ createRecoveryFile, publicKeyZ32, onBack }: {
             id="recovery-file-password"
             maxLength={1024}
             minLength={MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS}
-            onChange={(event) => setPassword(event.target.value)}
+            onInput={(event) => setValidPassword(
+              event.currentTarget.value.length >= MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS,
+            )}
+            ref={passwordInputRef}
             required
             type="password"
-            value={password}
           />
           {recoveryFileFailed ? <FieldMessage error>Could not create the recovery file. Please try again.</FieldMessage> : null}
         </div>

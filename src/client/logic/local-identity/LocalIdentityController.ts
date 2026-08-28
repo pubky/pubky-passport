@@ -5,8 +5,11 @@ import { Result, type Result as ResultType } from "better-result";
 import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
 import type { PubkyHomeserverResolutionResult } from "../pubky/pubkyIdentityKey";
-import { PubkySdkAdapter, resolvePubkyHomeserver } from "../pubky/PubkySdkAdapter";
-import { createPubkyRingMigrationUrl } from "../pubky/pubkyRingMigration";
+import {
+  PubkySdkAdapter,
+  PubkyRingMigration,
+  resolvePubkyHomeserver,
+} from "../pubky/PubkySdkAdapter";
 import type { LocalIdentityCatalog } from "./localIdentityModels";
 import {
   LocalStorageIdentityRepository,
@@ -106,15 +109,13 @@ export class LocalIdentityController {
     }
   }
 
-  createPubkyRingMigrationUrl(publicKeyZ32: string): LocalIdentityResult<string> {
+  createPubkyRingMigration(publicKeyZ32: string): LocalIdentityResult<PubkyRingMigration> {
     const stored = this.repository.read(publicKeyZ32);
     if (Result.isError(stored)) return Result.err(stored.error);
 
-    try {
-      const url = createPubkyRingMigrationUrl(stored.value.secretKey.bytes);
-      return url ? Result.ok(url) : Result.err({ code: "invalid_secret_key" });
-    } finally {
-      stored.value.secretKey.bytes.fill(0);
-    }
+    const migration = PubkySdkAdapter.createPubkyRingMigration(stored.value.secretKey);
+    return Result.isOk(migration)
+      ? Result.ok(migration.value)
+      : Result.err({ code: "invalid_secret_key", cause: migration.error });
   }
 }

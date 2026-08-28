@@ -4,6 +4,7 @@ import { preload } from "react-dom";
 import type { LocalIdentityRecoveryFileResult } from "../../../../logic/local-identity/LocalIdentityController";
 import type { LocalIdentityResult } from "../../../../logic/local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityMetadata } from "../../../../logic/local-identity/localIdentityModels";
+import { PubkyRingMigration } from "../../../../logic/pubky/PubkySdkAdapter";
 import { RecoveryFileDownload } from "../recovery-file/recoveryFileDownload";
 import { MigrateToPubkyRing } from "../migrate-to-pubky-ring/migrateToPubkyRing";
 import { RecoveryBeforeDetaching } from "./recoveryBeforeDetaching";
@@ -18,9 +19,9 @@ type DetachFromGoogleView =
   | { view: "pubky-ring" }
   | { view: "review"; confirmation: "closed" | "open" };
 
-function DetachFromGoogleFlow({ createRecoveryFile, createMigrationUrl, googleSubject, identity, onBack, onDone }: {
+function DetachFromGoogleFlow({ createRecoveryFile, createMigration, googleSubject, identity, onBack, onDone }: {
   createRecoveryFile: (publicKeyZ32: string, password: string) => Promise<LocalIdentityRecoveryFileResult>;
-  createMigrationUrl: () => LocalIdentityResult<string>;
+  createMigration: () => LocalIdentityResult<PubkyRingMigration>;
   googleSubject: string;
   identity: LocalIdentityMetadata;
   onBack: () => void;
@@ -47,7 +48,7 @@ function DetachFromGoogleFlow({ createRecoveryFile, createMigrationUrl, googleSu
       />;
     case "pubky-ring":
       return <MigrateToPubkyRing
-        createMigrationUrl={createMigrationUrl}
+        createMigration={createMigration}
         navigationAction="continue"
         onBack={() => setState({ view: "recovery-options" })}
       />;

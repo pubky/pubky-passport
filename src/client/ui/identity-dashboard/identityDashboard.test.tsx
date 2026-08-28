@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { cleanup, render, screen } from "@testing-library/react";
+import { Keypair } from "@synonymdev/pubky";
 import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +10,7 @@ import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdent
 import type { PubkyPublicIdentity } from "../../logic/pubky/pubkyIdentityKey";
 import { withGoogleIdentityConfiguration } from "../../../../test-utils/googleIdentityConfiguration";
 import { mockGoogleIdentityController } from "../../../../test-utils/mockGoogleIdentityController";
+import { PubkyRingMigration } from "../../logic/pubky/PubkySdkAdapter";
 import { IdentityDashboard } from "./identityDashboard";
 
 const FLOW = vi.hoisted(() => ({
@@ -17,7 +19,6 @@ const FLOW = vi.hoisted(() => ({
   establishIdentity: false,
   establishmentMode: "created" as "created" | "restored",
   migrationExportKeys: [] as string[],
-  migrationUrl: "pubkyring://migrate?index=0&total=1&key=active-secret",
   storageUnavailable: false,
 }));
 
@@ -26,9 +27,11 @@ vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
   LocalIdentityController: class {
     constructor() {
       return {
-        createPubkyRingMigrationUrl: (publicKeyZ32: string) => {
+        createPubkyRingMigration: (publicKeyZ32: string) => {
           FLOW.migrationExportKeys.push(publicKeyZ32);
-          return Result.ok(FLOW.migrationUrl);
+          return Result.ok(new PubkyRingMigration(Keypair.fromSecret(
+            Uint8Array.from({ length: 32 }, (_, index) => index),
+          )));
         },
         listIdentities: () => FLOW.storageUnavailable
           ? Result.err({ code: "storage_unavailable" as const })

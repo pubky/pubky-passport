@@ -126,7 +126,7 @@ describe("RecoveryFileDownload", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not create the recovery file");
-    expect(password).toHaveValue("123456");
+    expect(password).toHaveValue("");
     expect(warning).toHaveBeenCalledWith("identity.recovery_file.ui.failed", expect.objectContaining({
       operation: "create_and_download",
       diagnosticId: expect.any(String),

@@ -1,6 +1,12 @@
 import "client-only";
 
-import { Keypair, Pubky, PublicKey, type PubkyError, type Session } from "@synonymdev/pubky";
+import {
+  Keypair,
+  Pubky,
+  PublicKey,
+  type PubkyError,
+  type Session,
+} from "@synonymdev/pubky";
 import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER } from "../../../libs/logger/logger";
@@ -40,6 +46,48 @@ type Signer = ReturnType<Pubky["signer"]>;
 type PublicKeyParseResult<ErrorCode extends string> = ResultType<PublicKey, CodedFailure<ErrorCode>>;
 const PASSPORT_CLIENT_ID = "passport.pubky.app";
 
+/** SDK-owned single-identity export for Pubky Ring. */
+export class PubkyRingMigration {
+  private keypair: Keypair | null;
+
+  constructor(keypair: Keypair) {
+    this.keypair = keypair;
+  }
+
+  dispose(): void {
+    const keypair = this.keypair;
+    if (!keypair) return;
+    this.keypair = null;
+    cleanup("create_pubky_ring_migration", "keypair_free", () => keypair.free());
+  }
+
+  navigate(): boolean {
+    const migrationUrl = this.url;
+    if (!migrationUrl) return false;
+    try {
+      globalThis.location.assign(migrationUrl);
+      return true;
+    } finally {
+      this.dispose();
+    }
+  }
+
+  get url(): string | null {
+    if (!this.keypair) return null;
+    const exportedSecret = this.keypair.secret();
+    try {
+      // Ring strips its scheme before routing this SDK secret to normal single-identity import.
+      const secretKeyHex = Array.from(
+        exportedSecret,
+        (byte) => byte.toString(16).padStart(2, "0"),
+      ).join("");
+      return `pubkyring://${secretKeyHex}`;
+    } finally {
+      exportedSecret.fill(0);
+    }
+  }
+}
+
 /**
  * Browser-local Pubky adapter. Opaque handles keep SDK keypairs out of application and
  * UI state while this adapter owns all SDK resource cleanup.
@@ -48,6 +96,28 @@ export class PubkySdkAdapter {
   private readonly pubky = new Pubky();
   private keypairs = new Map<PubkyIdentityKeyHandle, Keypair>();
   private disposed = false;
+
+  static createPubkyRingMigration(
+    secretKey: PubkySecretKeyMaterial,
+  ): PubkyIdentityKeysResult<PubkyRingMigration> {
+    if (!(secretKey.bytes instanceof Uint8Array) || secretKey.bytes.byteLength !== PUBKY_SECRET_KEY_BYTES) {
+      clearSecretKey(secretKey, "create_pubky_ring_migration");
+      return failure("create_pubky_ring_migration", "input_validation", "invalid_secret_key");
+    }
+
+    let keypair: Keypair | undefined;
+    try {
+      keypair = Keypair.fromSecret(secretKey.bytes);
+      const migration = new PubkyRingMigration(keypair);
+      keypair = undefined;
+      return Result.ok(migration);
+    } catch (cause) {
+      cleanup("create_pubky_ring_migration", "keypair_free", () => keypair?.free());
+      return failure("create_pubky_ring_migration", "sdk_export", "export_failed", cause);
+    } finally {
+      clearSecretKey(secretKey, "create_pubky_ring_migration");
+    }
+  }
 
   createIdentityKey(): PubkyIdentityKeysResult<PubkyIdentityKey> {
     if (this.disposed) {
@@ -381,6 +451,7 @@ function authenticatedIdentityFromSession(operation: "signup" | "signin", sessio
 type PubkyOperation =
   | "approve_auth_request"
   | "create_identity_key"
+  | "create_pubky_ring_migration"
   | "create_recovery_file"
   | "dispose_adapter"
   | "dispose_identity_key"
@@ -507,6 +578,9 @@ function cleanup(operation: PubkyOperation, stage: PubkyCleanupStage, action: ()
   }
 }
 
-function clearSecretKey(secretKey: PubkySecretKeyMaterial, operation: "create_recovery_file" | "restore_identity_key" = "restore_identity_key"): void {
+function clearSecretKey(
+  secretKey: PubkySecretKeyMaterial,
+  operation: "create_pubky_ring_migration" | "create_recovery_file" | "restore_identity_key" = "restore_identity_key",
+): void {
   cleanup(operation, "secret_key_clear", () => secretKey.bytes.fill(0));
 }

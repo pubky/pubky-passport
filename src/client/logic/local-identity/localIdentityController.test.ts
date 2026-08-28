@@ -16,6 +16,9 @@ vi.mock("../pubky/PubkySdkAdapter", async (importOriginal) => {
   return {
     ...original,
     PubkySdkAdapter: class {
+      static createPubkyRingMigration(secretKey: PubkySecretKeyMaterial) {
+        return original.PubkySdkAdapter.createPubkyRingMigration(secretKey);
+      }
       createRecoveryFile = MOCKS.createRecoveryFile;
       dispose = MOCKS.dispose;
     },
@@ -51,16 +54,20 @@ describe("LocalIdentityController", () => {
     expect(remove).toHaveBeenCalledWith(PUBLIC_KEY);
   });
 
-  it("creates a Ring migration URL for the requested identity and clears secret bytes", () => {
+  it("creates an owned Ring migration and clears the repository secret bytes", () => {
     const bytes = Uint8Array.from({ length: 32 }, (_, index) => index);
     const read = mockStoredIdentity(bytes);
     const controller = new LocalIdentityController();
 
-    expect(controller.createPubkyRingMigrationUrl(PUBLIC_KEY)).toEqual(Result.ok(
-      "pubkyring://migrate?index=0&total=1&key=000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
-    ));
+    const migration = expectResultOk(controller.createPubkyRingMigration(PUBLIC_KEY));
+    expect(migration.url).toBe(
+      "pubkyring://000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    );
     expect(read).toHaveBeenCalledWith(PUBLIC_KEY);
     expect(bytes).toEqual(new Uint8Array(32));
+
+    migration.dispose();
+    expect(migration.url).toBeNull();
   });
 
   it("rejects weak recovery passwords before reading storage or creating the SDK", async () => {

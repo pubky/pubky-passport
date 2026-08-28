@@ -20,7 +20,7 @@ vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
     constructor() {
       MOCKS.create();
       return {
-        createPubkyRingMigrationUrl: () => Result.err({ code: "invalid_identity" as const }),
+        createPubkyRingMigration: () => Result.err({ code: "invalid_identity" as const }),
         createRecoveryFile: async () => Result.err({ code: "identity_unavailable" as const }),
         listIdentities: () => MOCKS.unavailable
           ? Result.err({ code: "storage_unavailable" as const })

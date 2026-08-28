@@ -1,8 +1,12 @@
+import { PubkyRingMigration } from "../../../../logic/pubky/PubkySdkAdapter";
 import { Button } from "../../../shared/primitives/button";
 import { Dialog } from "../../../shared/primitives/dialog";
 import { PubkyRingQrCode } from "./pubkyRingQrCode";
 
-function PubkyRingQrDialog({ onClose, value }: { onClose: () => void; value: string }) {
+function PubkyRingQrDialog({ migration, onClose }: {
+  migration: PubkyRingMigration;
+  onClose: () => void;
+}) {
   return (
     <Dialog
       aria-labelledby="pubky-ring-qr-title"
@@ -17,7 +21,7 @@ function PubkyRingQrDialog({ onClose, value }: { onClose: () => void; value: str
         <h2 className="w-full text-center text-lg font-semibold leading-none" id="pubky-ring-qr-title">Scan with Pubky Ring</h2>
       </header>
       <div className="w-full px-6 pt-6">
-        <PubkyRingQrCode className="w-full" value={value} />
+        <PubkyRingQrCode className="w-full" migration={migration} />
       </div>
       <footer className="w-full p-6">
         <Button className="w-full" onClick={onClose} size="lg" type="button" variant="secondary">Close</Button>

@@ -1,13 +1,19 @@
 import Image from "next/image";
 import { QRCodeSVG } from "qrcode.react";
 
+import { PubkyRingMigration } from "../../../../logic/pubky/PubkySdkAdapter";
 import { cn } from "../../../shared/mergeClassNames";
 
-function PubkyRingQrCode({ className, value }: { className?: string; value: string }) {
+function PubkyRingQrCode({ className, migration }: {
+  className?: string;
+  migration: PubkyRingMigration;
+}) {
+  const migrationUrl = migration.url;
+
   return (
     <div className={cn("relative aspect-square overflow-hidden rounded-lg bg-white", className)}>
       <div className="absolute inset-[4.66%]">
-        <QRCodeSVG
+        {migrationUrl ? <QRCodeSVG
           aria-label="Pubky Ring migration QR code"
           bgColor="#ffffff"
           className="block size-full"
@@ -16,8 +22,8 @@ function PubkyRingQrCode({ className, value }: { className?: string; value: stri
           role="img"
           size={192}
           title="Pubky Ring migration QR code"
-          value={value}
-        />
+          value={migrationUrl}
+        /> : null}
       </div>
       <div aria-hidden="true" className="absolute left-[calc(50%-1px)] top-[calc(50%+1px)] size-[43px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-background" />
       <Image
