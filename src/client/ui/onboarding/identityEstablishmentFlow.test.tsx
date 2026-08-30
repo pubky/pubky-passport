@@ -78,10 +78,10 @@ describe("IdentityEstablishmentFlow", () => {
       "Quick & easy",
     );
     expect(
-      within(shell).getByText("Pubky Passport is a browser-based signer", { exact: false }),
-    ).toHaveClass("md:row-start-2");
+      within(shell).getByRole("heading", { name: "Quick & easy signing." }).lastElementChild,
+    ).toHaveClass("md:block");
     expect(googleButton).toBeEnabled();
-    expect(googleButton?.parentElement).toHaveClass("md:row-start-3");
+    expect(googleButton?.parentElement).toHaveClass("md:col-start-1", "md:row-start-1");
     expect(MOCKS.constructGoogleIdentityController).not.toHaveBeenCalled();
   });
 
@@ -96,7 +96,9 @@ describe("IdentityEstablishmentFlow", () => {
 
     expect(establishIdentity).toHaveBeenCalledWith();
     expect(screen.queryByRole("button", { name: "Continue with Apple" })).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Requesting Google access." })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Requesting Google Drive access." }),
+    ).toBeInTheDocument();
     const waiting = screen.getByRole("button", { name: "Waiting for Google..." });
     expect(waiting).toBeDisabled();
     expect(waiting).toHaveClass("w-full", "h-[60px]", "bg-secondary", "disabled:opacity-50");
@@ -131,13 +133,15 @@ describe("IdentityEstablishmentFlow", () => {
     expect(setupContext().nextElementSibling).toHaveTextContent(
       "Pubky Passport is a browser-based signer",
     );
-    expect(setupContext().nextElementSibling).toHaveClass("md:row-start-3");
     expect(screen.getByRole("button", { name: "Continue with Google" }).parentElement).toHaveClass(
-      "md:row-start-4",
+      "md:col-start-1",
+      "md:row-start-1",
     );
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
-    expect(screen.getByRole("heading", { name: "Requesting Google access." })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Requesting Google Drive access." }),
+    ).toBeInTheDocument();
     expect(setupContext()).toBeInTheDocument();
 
     act(() =>
@@ -207,13 +211,13 @@ describe("IdentityEstablishmentFlow", () => {
     ).not.toBeInTheDocument();
     const restoreProgress = screen.getByRole("list", { name: "Pubky identity restore progress" });
     expect(
-      within(restoreProgress).getByText("Restore Passport file").closest("li"),
+      within(restoreProgress).getByText("Restore encrypted backup").closest("li"),
     ).toHaveAttribute("aria-current", "step");
     expect(
       within(restoreProgress).getByText("Sign in to the homeserver").closest("li"),
     ).toHaveTextContent("Sign in to the homeserver (pending)");
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Restoring your Pubky: Restore Passport file.",
+      "Restoring your Pubky: Restore encrypted backup.",
     );
     expect(screen.queryByText("Republish PKDNS records")).not.toBeInTheDocument();
 
@@ -226,8 +230,8 @@ describe("IdentityEstablishmentFlow", () => {
     expect(screen.getByRole("heading", { name: "Repairing your pubky." })).toBeInTheDocument();
     const repairProgress = screen.getByRole("list", { name: "Pubky identity repair progress" });
     expect(
-      within(repairProgress).getByText("Restore Passport file").closest("li"),
-    ).toHaveTextContent("Restore Passport file (complete)");
+      within(repairProgress).getByText("Restore encrypted backup").closest("li"),
+    ).toHaveTextContent("Restore encrypted backup (complete)");
     expect(
       within(repairProgress).getByText("Repair homeserver access").closest("li"),
     ).toHaveAttribute("aria-current", "step");
@@ -277,18 +281,20 @@ describe("IdentityEstablishmentFlow", () => {
     render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
-    expect(screen.getByRole("heading", { name: "Requesting Google access." })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Requesting Google Drive access." }),
+    ).toBeInTheDocument();
     act(deny);
 
-    expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Google Drive access denied." }),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Google access was denied. Passport needs Google Drive access to create or restore your Pubky.",
+        "Passport needs access to your Google Drive to create or restore your Pubky.",
       ),
     ).toBeInTheDocument();
-    expect(
-      within(screen.getByRole("group", { name: "Error" })).getByText("google_authorization_denied"),
-    ).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Error" })).not.toBeInTheDocument();
     const tryAgain = screen.getByRole("button", { name: "Try again" });
     await userEvent.setup().click(tryAgain);
     expect(establishIdentity).toHaveBeenCalledTimes(2);
@@ -318,8 +324,7 @@ describe("IdentityEstablishmentFlow", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(await screen.findByRole("heading", { name: "Restore complete." })).toBeInTheDocument();
     expect(screen.getByText("Satoshi Nakamoto")).toBeInTheDocument();
-    expect(screen.getByText("satoshi@gmail.com")).toHaveClass("normal-case");
-    expect(screen.getByText("satoshi@gmail.com")).not.toHaveClass("uppercase");
+    expect(screen.getByText("satoshi@gmail.com")).toHaveClass("uppercase");
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
     expect(onComplete).toHaveBeenCalledOnce();
   });
@@ -373,15 +378,15 @@ describe("IdentityEstablishmentFlow", () => {
     const tryAgain = screen.getByRole("button", { name: "Try again" });
     const deleteFile = screen.getByRole("button", { name: "Delete file and create new identity" });
     const back = screen.getByRole("button", { name: "Back" });
-    expect(deleteFile.parentElement).toHaveClass("md:grid-cols-[120px_1fr_300px]");
+    expect(deleteFile.parentElement).toHaveClass("md:grid-cols-[1fr_148px]", "md:gap-x-6");
     expect(within(deleteFile.parentElement!).getAllByRole("button")).toEqual([
       deleteFile,
       tryAgain,
       back,
     ]);
     expect(deleteFile).toHaveClass("bg-destructive-surface", "text-destructive-foreground");
-    expect(deleteFile).toHaveClass("md:col-start-3", "md:row-start-1");
-    expect(tryAgain).toHaveClass("md:col-start-3", "md:row-start-2");
+    expect(deleteFile).toHaveClass("md:col-start-1", "md:row-start-1");
+    expect(tryAgain).toHaveClass("md:col-start-2", "md:row-start-1");
     expect(back).toHaveClass("md:col-start-1", "md:row-start-2");
     await user.click(deleteFile);
 
@@ -438,15 +443,19 @@ describe("IdentityEstablishmentFlow", () => {
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(
-      await screen.findByText("Passport could not obtain a homeserver signup invitation."),
+      await screen.findByText("Passport could not obtain a homeserver invitation."),
     ).toBeInTheDocument();
     const errorDetails = screen.getByRole("group", { name: "Error" });
-    expect(errorDetails).toHaveClass("border-dashed", "border-input", "min-h-[60px]");
+    expect(errorDetails).toHaveClass("border-dashed", "border-input", "min-h-14");
     expect(errorDetails).not.toContainElement(screen.getByText("Error"));
     expect(
       within(errorDetails).getByText("homeserver_signup_invitation_failed"),
     ).toBeInTheDocument();
     expect(within(errorDetails).getByText("weekly_limit_exceeded")).toBeInTheDocument();
+    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([
+      "Back",
+      "Try again",
+    ]);
   });
 
   it("contains rejected operation details outside hook state and logs safe metadata", async () => {
