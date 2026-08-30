@@ -26,7 +26,7 @@ function GoogleIdentityComplete({
   const restored = mode === "restored";
   return (
     <PassportScreen className="gap-0 md:pb-0">
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-6 md:gap-3">
         <DisplayHeading
           accent="complete."
           aria-label={restored ? "Restore complete." : "Setup complete."}
@@ -38,7 +38,7 @@ function GoogleIdentityComplete({
           {restored ? "Restored backup from Google Drive." : "Stored backup in Google Drive."}
         </LeadText>
       </div>
-      <div className="mt-8 flex flex-col">
+      <div className="mt-6 flex min-h-0 flex-1 flex-col md:mt-8">
         {visibleRecoveryCopyStatus === "unconfirmed" ? (
           <p
             className="mb-6 rounded-xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm leading-5"
@@ -65,7 +65,7 @@ function GoogleIdentityComplete({
           src="/illustrations/checkmark.png"
           width={200}
         />
-        <Button className="mt-8 w-full md:order-3 md:mt-6" onClick={onContinue} size="lg">
+        <Button className="mt-auto w-full md:order-3 md:mt-6" onClick={onContinue} size="lg">
           <ArrowRightIcon />
           Continue
         </Button>
