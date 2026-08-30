@@ -31,7 +31,7 @@ function GoogleIdentityProgress({
 
   return (
     <PassportScreen>
-      <div className="flex flex-1 flex-col gap-8">
+      <div className="flex flex-1 flex-col gap-6 md:gap-8">
         <DisplayHeading
           accent="your pubky."
           aria-label={`${presentation.heading} your pubky.`}
@@ -47,7 +47,7 @@ function GoogleIdentityProgress({
           aria-label={presentation.listLabel}
           className={cn(
             "flex flex-col gap-6 py-3",
-            presentation.bordered && "rounded-lg border border-card",
+            presentation.bordered && "md:rounded-lg md:border md:border-card",
           )}
         >
           {presentation.steps.map((step) => (
@@ -61,10 +61,10 @@ function GoogleIdentityProgress({
 
 function IdentityLookup({ signInTo }: { signInTo?: string }) {
   return (
-    <PassportScreen className="gap-8">
-      <div className="flex flex-col gap-3">
+    <PassportScreen className="gap-6 md:gap-8">
+      <div className="flex flex-col gap-6 md:gap-3">
         <DisplayHeading
-          accent={<span className="whitespace-nowrap">existing Pubky.</span>}
+          accent={<span className="md:whitespace-nowrap">existing Pubky.</span>}
           aria-label="Looking for existing Pubky."
         >
           Looking for
