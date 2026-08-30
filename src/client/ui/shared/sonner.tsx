@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Toaster, toast } from "sonner";
+import { Toaster } from "sonner";
 
 function Sonner() {
   return (
@@ -51,21 +51,4 @@ function Sonner() {
   );
 }
 
-function showCopyConfirmation(label: string, value: string) {
-  if (label === "Homeserver") {
-    toast("Homeserver copied");
-    return;
-  }
-
-  toast(`${label} copied to clipboard`, { description: shortCopiedValue(value) });
-}
-
-function shortCopiedValue(value: string): string {
-  return value.length > 32 ? `${value.slice(0, 32)}...` : value;
-}
-
-function showDownloadConfirmation() {
-  toast.success("File downloaded");
-}
-
-export { showCopyConfirmation, showDownloadConfirmation, Sonner };
+export { Sonner };

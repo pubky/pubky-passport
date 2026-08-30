@@ -8,9 +8,15 @@ import { LOGGER } from "../../../../libs/logger/logger";
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import { IdentityManagement } from "./identityManagement";
 
-const MOCKS = vi.hoisted(() => ({ showCopyConfirmation: vi.fn() }));
+const MOCKS = vi.hoisted(() => ({
+  showHomeserverCopied: vi.fn(),
+  showPubkyCopied: vi.fn(),
+}));
 
-vi.mock("../../shared/sonner", () => ({ showCopyConfirmation: MOCKS.showCopyConfirmation }));
+vi.mock("../../shared/feedbackNotifications", () => ({
+  showHomeserverCopied: MOCKS.showHomeserverCopied,
+  showPubkyCopied: MOCKS.showPubkyCopied,
+}));
 
 const identity = {
   googleAccount: {
@@ -53,15 +59,12 @@ describe("IdentityManagement", () => {
     await waitFor(() =>
       expect(writeText).toHaveBeenCalledWith(identity.publicIdentity.publicKeyZ32),
     );
-    expect(MOCKS.showCopyConfirmation).toHaveBeenCalledWith(
-      "Pubky",
-      identity.publicIdentity.publicKeyZ32,
-    );
+    expect(MOCKS.showPubkyCopied).toHaveBeenCalledWith(identity.publicIdentity.publicKeyZ32);
     const homeserverButton = screen.getByRole("button", { name: "Copy Homeserver" });
     await waitFor(() => expect(homeserverButton).toBeEnabled());
     fireEvent.click(homeserverButton);
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("homeserver-pubky"));
-    expect(MOCKS.showCopyConfirmation).toHaveBeenCalledWith("Homeserver", "homeserver-pubky");
+    expect(MOCKS.showHomeserverCopied).toHaveBeenCalledOnce();
   });
 
   it("does not confirm a failed copy", async () => {
@@ -84,7 +87,10 @@ describe("IdentityManagement", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Copy Pubky" }));
 
-    await waitFor(() => expect(MOCKS.showCopyConfirmation).not.toHaveBeenCalled());
+    await waitFor(() => {
+      expect(MOCKS.showPubkyCopied).not.toHaveBeenCalled();
+      expect(MOCKS.showHomeserverCopied).not.toHaveBeenCalled();
+    });
     expect(info).toHaveBeenCalledWith(
       "identity.management.failed",
       expect.objectContaining({

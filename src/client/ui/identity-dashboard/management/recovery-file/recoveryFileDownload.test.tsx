@@ -9,11 +9,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { LOGGER } from "../../../../../libs/logger/logger";
 import { RecoveryFileDownload } from "./recoveryFileDownload";
 
-const MOCKS = vi.hoisted(() => ({ showDownloadConfirmation: vi.fn() }));
+const MOCKS = vi.hoisted(() => ({ showFileDownloaded: vi.fn() }));
 const RECOVERY_PASSWORD = "correct horse";
 
-vi.mock("../../../shared/sonner", () => ({
-  showDownloadConfirmation: MOCKS.showDownloadConfirmation,
+vi.mock("../../../shared/feedbackNotifications", () => ({
+  showFileDownloaded: MOCKS.showFileDownloaded,
 }));
 
 describe("RecoveryFileDownload", () => {
@@ -57,7 +57,7 @@ describe("RecoveryFileDownload", () => {
     expect(click).toHaveBeenCalledOnce();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:backup");
     expect(bytes).toEqual(new Uint8Array([1, 2, 3]));
-    expect(MOCKS.showDownloadConfirmation).toHaveBeenCalledOnce();
+    expect(MOCKS.showFileDownloaded).toHaveBeenCalledOnce();
     expect(onBack).toHaveBeenCalledOnce();
   });
 
@@ -98,7 +98,7 @@ describe("RecoveryFileDownload", () => {
         errorName: "Error",
       }),
     );
-    expect(MOCKS.showDownloadConfirmation).not.toHaveBeenCalled();
+    expect(MOCKS.showFileDownloaded).not.toHaveBeenCalled();
     expect(onBack).not.toHaveBeenCalled();
   });
 
@@ -158,7 +158,7 @@ describe("RecoveryFileDownload", () => {
       "Could not create the recovery file",
     );
     expect(password).not.toHaveAttribute("aria-invalid");
-    expect(MOCKS.showDownloadConfirmation).not.toHaveBeenCalled();
+    expect(MOCKS.showFileDownloaded).not.toHaveBeenCalled();
     expect(onBack).not.toHaveBeenCalled();
     expect(screen.getByRole("alert")).not.toHaveTextContent(secret);
     expect(warning).not.toHaveBeenCalled();
@@ -228,7 +228,7 @@ describe("RecoveryFileDownload", () => {
     );
 
     expect(createObjectURL).not.toHaveBeenCalled();
-    expect(MOCKS.showDownloadConfirmation).not.toHaveBeenCalled();
+    expect(MOCKS.showFileDownloaded).not.toHaveBeenCalled();
     expect(onBack).not.toHaveBeenCalled();
   });
 });

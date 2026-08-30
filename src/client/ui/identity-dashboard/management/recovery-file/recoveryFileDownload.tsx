@@ -10,6 +10,7 @@ import {
 } from "../../../../logic/local-identity/LocalIdentityController";
 import { DownloadRecoveryFileIcon } from "../../../shared/actionIcons";
 import { BackButton } from "../../../shared/backButton";
+import { showFileDownloaded } from "../../../shared/feedbackNotifications";
 import { PassportNavigation } from "../../../shared/passportNavigation";
 import { PassportScreen } from "../../../shared/passportScreen";
 import { Button } from "../../../shared/primitives/button";
@@ -17,7 +18,6 @@ import { FieldMessage } from "../../../shared/primitives/fieldMessage";
 import { Input } from "../../../shared/primitives/input";
 import { Label } from "../../../shared/primitives/label";
 import { DisplayHeading, LeadText } from "../../../shared/primitives/typography";
-import { showDownloadConfirmation } from "../../../shared/sonner";
 
 function RecoveryFileDownload({
   createRecoveryFile,
@@ -78,7 +78,7 @@ function RecoveryFileDownload({
       if (activeRef.current) setPending(false);
     }
     if (downloaded && activeRef.current) {
-      showDownloadConfirmation();
+      showFileDownloaded();
       onBack();
     }
   }
