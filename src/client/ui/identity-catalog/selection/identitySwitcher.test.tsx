@@ -28,7 +28,10 @@ const IDENTITIES = [
 ];
 
 describe("IdentitySwitcher", () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
 
   it("marks the active identity and selects another identity", async () => {
     const onSelect = vi.fn();
@@ -45,19 +48,59 @@ describe("IdentitySwitcher", () => {
 
     const activeRow = screen.getByRole("button", { name: /Active Account/ });
     expect(activeRow).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText("active@gmail.com")).toHaveClass("normal-case");
-    expect(screen.getByText("active@gmail.com")).not.toHaveClass("uppercase");
-    expect(activeRow).not.toHaveTextContent("seco...5678");
+    expect(
+      screen.getAllByRole("button").filter((button) => button.hasAttribute("aria-pressed"))[0],
+    ).toBe(activeRow);
+    expect(screen.getByText("seco...5678")).toHaveClass("uppercase");
+    expect(activeRow).not.toHaveTextContent("active@gmail.com");
     const otherRow = screen.getByRole("button", { name: /Other Account/ });
-    expect(otherRow).toHaveTextContent("other@gmail.com");
+    expect(otherRow).toHaveTextContent("firs...1234");
+    expect(otherRow).not.toHaveTextContent("other@gmail.com");
     await userEvent.setup().click(otherRow);
     expect(onSelect).toHaveBeenCalledWith("firstidentity1234");
     const back = screen.getByRole("button", { name: "Back" });
+    const addIdentity = screen.getByRole("button", { name: "Add identity" });
+    expect([back, addIdentity]).toEqual(
+      screen
+        .getAllByRole("button")
+        .filter((button) => ["Back", "Add identity"].includes(button.textContent ?? "")),
+    );
+    expect(back.parentElement).toHaveClass("mt-auto", "md:mt-0");
     await userEvent.setup().click(back);
     expect(onBack).toHaveBeenCalledOnce();
   });
 
-  it("falls back to the shortened Pubky when an identity has no email", () => {
+  it("keeps mobile focus order aligned with the visual action order", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(
+        () =>
+          ({
+            matches: false,
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+          }) as unknown as MediaQueryList,
+      ),
+    );
+    render(
+      <IdentitySwitcher
+        activePublicKeyZ32="secondidentity5678"
+        identities={IDENTITIES}
+        onAddIdentity={vi.fn()}
+        onBack={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen
+        .getAllByRole("button")
+        .filter((button) => ["Back", "Add identity"].includes(button.textContent ?? ""))
+        .map((button) => button.textContent),
+    ).toEqual(["Add identity", "Back"]);
+  });
+
+  it("shows the shortened Pubky when an identity has no Google account", () => {
     render(
       <IdentitySwitcher
         activePublicKeyZ32="localidentity1234"

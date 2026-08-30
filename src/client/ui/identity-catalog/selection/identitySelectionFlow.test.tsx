@@ -83,7 +83,7 @@ describe("IdentitySelectionFlow", () => {
       />,
     );
 
-    await userEvent.setup().click(screen.getByRole("button", { name: "Add identity" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Use other identity" }));
 
     expect(screen.getByText("Signing in to requesting.app")).toBeInTheDocument();
   });

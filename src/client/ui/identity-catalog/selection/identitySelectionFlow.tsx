@@ -35,6 +35,7 @@ function IdentitySelectionFlow({
   return (
     <IdentitySwitcher
       activePublicKeyZ32={catalog.activePublicKeyZ32}
+      addIdentityLabel={signInTo ? "Use other identity" : "Add identity"}
       identities={catalog.identities}
       onAddIdentity={() => setView("add-identity")}
       onBack={onBack}

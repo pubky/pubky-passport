@@ -84,14 +84,14 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
   return (
     <PassportScreen>
       <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
-        <div className="flex flex-col gap-6">
-          <DisplayHeading accent="a service." aria-label="Authorize a service.">
-            Authorize
-          </DisplayHeading>
-          <LeadText>
-            Paste or scan the authorization link from the app you want to connect.
-          </LeadText>
-          <div className="flex flex-col gap-2 pt-1">
+        <div className="flex flex-col gap-8">
+          <div className="flex flex-col gap-3">
+            <DisplayHeading accent="a service." aria-label="Authorize a service.">
+              Authorize
+            </DisplayHeading>
+            <LeadText>Paste the authorization link from the app you want to connect.</LeadText>
+          </div>
+          <div className="flex flex-col gap-2">
             <Label htmlFor="authorization-link">Authorization link</Label>
             <Input
               action={
