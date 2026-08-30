@@ -3,8 +3,10 @@ import { Result } from "better-result";
 
 import { LOGGER } from "../../../libs/logger/logger";
 import { expectAsyncResultError } from "../../../../test-utils/resultAssertions";
+import { GoogleIdTokenVerifier } from "./GoogleIdTokenVerifier";
 import { GoogleWrappingKeyIssuer } from "./GoogleWrappingKeyIssuer";
 
+const GOOGLE_CLIENT_ID = "google-client-id";
 const IDENTITY = {
   issuer: "https://accounts.google.com" as const,
   googleSubject: "google-subject",
@@ -19,7 +21,10 @@ describe("Google wrapping-key issuer", () => {
   });
 
   it("uses the current secret when no key ID is requested", async () => {
-    const issuer = new GoogleWrappingKeyIssuer(async () => Result.ok(IDENTITY), "current", SECRETS);
+    vi.spyOn(GoogleIdTokenVerifier.prototype, "verifyGoogleIdToken").mockResolvedValue(
+      Result.ok(IDENTITY),
+    );
+    const issuer = new GoogleWrappingKeyIssuer(GOOGLE_CLIENT_ID, "current", SECRETS);
 
     const result = await issuer.issueGoogleWrappingKey("id-token");
 
@@ -27,8 +32,11 @@ describe("Google wrapping-key issuer", () => {
   });
 
   it("returns the current key ID for new files and retained keys for existing files", async () => {
+    vi.spyOn(GoogleIdTokenVerifier.prototype, "verifyGoogleIdToken").mockResolvedValue(
+      Result.ok(IDENTITY),
+    );
     const issuer = new GoogleWrappingKeyIssuer(
-      async () => Result.ok(IDENTITY),
+      GOOGLE_CLIENT_ID,
       "current",
       new Map([
         ["old", Buffer.alloc(32, 3)],
@@ -48,7 +56,10 @@ describe("Google wrapping-key issuer", () => {
 
   it("rejects a key ID that is no longer retained", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const issuer = new GoogleWrappingKeyIssuer(async () => Result.ok(IDENTITY), "current", SECRETS);
+    vi.spyOn(GoogleIdTokenVerifier.prototype, "verifyGoogleIdToken").mockResolvedValue(
+      Result.ok(IDENTITY),
+    );
+    const issuer = new GoogleWrappingKeyIssuer(GOOGLE_CLIENT_ID, "current", SECRETS);
 
     await expectAsyncResultError(issuer.issueGoogleWrappingKey("id-token", "removed"), {
       code: "key_unavailable",
@@ -61,11 +72,10 @@ describe("Google wrapping-key issuer", () => {
   });
 
   it("does not derive material for rejected tokens", async () => {
-    const issuer = new GoogleWrappingKeyIssuer(
-      async () => Result.err({ code: "invalid_google_id_token" as const }),
-      "current",
-      SECRETS,
+    vi.spyOn(GoogleIdTokenVerifier.prototype, "verifyGoogleIdToken").mockResolvedValue(
+      Result.err({ code: "invalid_google_id_token" }),
     );
+    const issuer = new GoogleWrappingKeyIssuer(GOOGLE_CLIENT_ID, "current", SECRETS);
 
     await expectAsyncResultError(issuer.issueGoogleWrappingKey("SECRET-GOOGLE-ID-TOKEN"), {
       code: "invalid_google_id_token",
@@ -74,13 +84,10 @@ describe("Google wrapping-key issuer", () => {
 
   it("maps verifier exceptions to a safe dependency failure", async () => {
     const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
-    const issuer = new GoogleWrappingKeyIssuer(
-      async () => {
-        throw new Error("SECRET-GOOGLE-ID-TOKEN");
-      },
-      "current",
-      SECRETS,
+    vi.spyOn(GoogleIdTokenVerifier.prototype, "verifyGoogleIdToken").mockRejectedValue(
+      new Error("SECRET-GOOGLE-ID-TOKEN"),
     );
+    const issuer = new GoogleWrappingKeyIssuer(GOOGLE_CLIENT_ID, "current", SECRETS);
 
     const result = await issuer.issueGoogleWrappingKey("id-token");
     expect(Result.isError(result) && result.error.code).toBe("dependency_unavailable");
@@ -88,7 +95,7 @@ describe("Google wrapping-key issuer", () => {
   });
 
   it("constructs the configured server flow", () => {
-    vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
+    vi.stubEnv("GOOGLE_CLIENT_ID", GOOGLE_CLIENT_ID);
     vi.stubEnv("HOMEGATE_URL", "https://homegate.example/");
     vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example");
     vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", "current");
