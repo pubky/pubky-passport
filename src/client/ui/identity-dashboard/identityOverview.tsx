@@ -19,7 +19,7 @@ function IdentityOverview({
   const name = account?.name ?? "Your Pubky";
 
   return (
-    <PassportScreen className="gap-8">
+    <PassportScreen className="gap-6 md:gap-8">
       <DisplayHeading accent="pubky." aria-label="Your pubky." className="[&>span]:inline">
         Your{" "}
       </DisplayHeading>
@@ -29,9 +29,9 @@ function IdentityOverview({
           size="lg"
           {...(account?.pictureUrl ? { src: account.pictureUrl } : {})}
         />
-        <div className="flex w-full flex-col items-center gap-0 text-center md:items-start md:self-start md:text-left">
+        <div className="flex w-full flex-col items-center gap-3 text-center md:items-start md:self-start md:gap-0 md:text-left">
           <h2 className="w-[276px] max-w-full text-2xl font-bold leading-8">{name}</h2>
-          <p className="w-[276px] max-w-full break-all text-xs font-medium normal-case leading-4 tracking-[0.1em] text-muted-foreground">
+          <p className="w-[276px] max-w-full break-all text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">
             {identity.publicIdentity.publicKeyZ32}
           </p>
           {account ? (

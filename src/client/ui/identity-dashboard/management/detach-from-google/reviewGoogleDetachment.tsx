@@ -49,6 +49,7 @@ function ReviewGoogleDetachment({
 
       <PassportNavigation
         back={<BackButton onClick={onBack} />}
+        className="-mt-6 md:mt-0"
         confirm={
           <Button
             className="w-full"

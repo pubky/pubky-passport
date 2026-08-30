@@ -11,15 +11,21 @@ describe("GoogleDetachmentComplete", () => {
 
   it("matches the detached completion state and finishes the flow", async () => {
     const onDone = vi.fn();
-    render(<GoogleDetachmentComplete onDone={onDone} />);
+    const { container } = render(<GoogleDetachmentComplete onDone={onDone} />);
 
-    expect(screen.getByRole("heading", { name: "Detached from Google." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Detach from Google." })).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Google access has been removed. Your identity is self-managed and recoverable only through your chosen recovery method.",
+        "Google access has been removed. Your identity is self-managed, and recoverable only with your backup.",
       ),
     ).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole("button", { name: "Done" }));
+    expect(container.querySelector('img[src*="checkmark.png"]')?.parentElement).toHaveClass(
+      "h-[296px]",
+      "md:h-56",
+    );
+    const done = screen.getByRole("button", { name: "Done" });
+    expect(done).toHaveClass("mt-auto", "md:mt-0");
+    await userEvent.setup().click(done);
     expect(onDone).toHaveBeenCalledOnce();
   });
 });

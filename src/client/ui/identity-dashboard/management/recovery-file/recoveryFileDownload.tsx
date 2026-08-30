@@ -100,7 +100,7 @@ function RecoveryFileDownload({
         </div>
 
         <div className="flex flex-col gap-2 md:col-start-1 md:row-start-2">
-          <Label htmlFor="recovery-file-password">Recovery password</Label>
+          <Label htmlFor="recovery-file-password">Enter strong password</Label>
           <Input
             autoComplete="new-password"
             containerClassName="border-dashed"
@@ -119,6 +119,15 @@ function RecoveryFileDownload({
           {recoveryFileFailed ? (
             <FieldMessage error>Could not create the recovery file. Please try again.</FieldMessage>
           ) : null}
+          <Button
+            className="mt-4 w-full"
+            disabled={!validPassword || pending}
+            size="lg"
+            type="submit"
+          >
+            <DownloadRecoveryFileIcon />
+            {pending ? "Encrypting…" : "Download backup"}
+          </Button>
         </div>
 
         <Image
@@ -133,12 +142,6 @@ function RecoveryFileDownload({
         <PassportNavigation
           back={<BackButton disabled={pending} onClick={onBack} />}
           className="md:col-span-2 md:row-start-3"
-          confirm={
-            <Button className="w-full" disabled={!validPassword || pending} size="lg" type="submit">
-              <DownloadRecoveryFileIcon />
-              {pending ? "Encrypting…" : "Download backup"}
-            </Button>
-          }
         />
       </form>
     </PassportScreen>

@@ -45,7 +45,7 @@ describe("RecoveryFileDownload", () => {
     );
 
     const download = screen.getByRole("button", { name: "Download backup" });
-    const password = screen.getByLabelText("Recovery password");
+    const password = screen.getByLabelText("Enter strong password");
     expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
     expect(password).toHaveAttribute("minlength", "12");
     expect(download).toBeDisabled();
@@ -83,7 +83,7 @@ describe("RecoveryFileDownload", () => {
       />,
     );
 
-    await userEvent.setup().type(screen.getByLabelText("Recovery password"), RECOVERY_PASSWORD);
+    await userEvent.setup().type(screen.getByLabelText("Enter strong password"), RECOVERY_PASSWORD);
     await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -127,7 +127,7 @@ describe("RecoveryFileDownload", () => {
         onBack={onBack}
       />,
     );
-    const password = screen.getByLabelText("Recovery password");
+    const password = screen.getByLabelText("Enter strong password");
     await userEvent.setup().type(password, RECOVERY_PASSWORD);
     await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
 
@@ -155,7 +155,7 @@ describe("RecoveryFileDownload", () => {
       />,
     );
 
-    const password = screen.getByLabelText("Recovery password");
+    const password = screen.getByLabelText("Enter strong password");
     await userEvent.setup().type(password, RECOVERY_PASSWORD);
     await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
 
@@ -195,7 +195,7 @@ describe("RecoveryFileDownload", () => {
         onBack={onBack}
       />,
     );
-    await userEvent.setup().type(screen.getByLabelText("Recovery password"), RECOVERY_PASSWORD);
+    await userEvent.setup().type(screen.getByLabelText("Enter strong password"), RECOVERY_PASSWORD);
     await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
 
     expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
