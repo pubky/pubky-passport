@@ -43,7 +43,7 @@ function ReviewGoogleDetachment({
           className="absolute left-1/2 top-1/2 h-auto -translate-x-1/2 -translate-y-1/2 -rotate-[45.14deg]"
           height={8}
           src="/illustrations/red-line.svg"
-          width={282.137}
+          width={282}
         />
       </div>
 
