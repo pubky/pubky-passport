@@ -3,7 +3,7 @@ import { type SubmitEvent, useCallback, useRef, useState } from "react";
 
 import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
 import { validateManualAuthorizationInput } from "../../../logic/authorization/entry/manualAuthorizationInput";
-import { ArrowRightIcon, CameraIcon, ClipboardPasteIcon } from "../../shared/actionIcons";
+import { ArrowRightIcon, CameraIcon, ClipboardPasteIcon, ScanIcon } from "../../shared/actionIcons";
 import { BackButton } from "../../shared/backButton";
 import { PassportNavigation } from "../../shared/passportNavigation";
 import { PassportScreen } from "../../shared/passportScreen";
@@ -84,21 +84,23 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
   return (
     <PassportScreen>
       <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
-        <div className="flex flex-col gap-6">
-          <DisplayHeading accent="a service." aria-label="Authorize a service.">
-            Authorize
-          </DisplayHeading>
-          <LeadText>
-            Paste or scan the authorization link from the app you want to connect.
-          </LeadText>
-          <div className="flex flex-col gap-2 pt-1">
-            <Label htmlFor="authorization-link">Authorization link</Label>
+        <div className="flex flex-col gap-6 md:gap-8">
+          <div className="flex flex-col gap-6 md:gap-3">
+            <DisplayHeading accent="a service." aria-label="Authorize a service.">
+              Authorize
+            </DisplayHeading>
+            <LeadText>Paste the authorization link from the app you want to connect.</LeadText>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label className="leading-5 md:leading-4" htmlFor="authorization-link">
+              Authorization link
+            </Label>
             <Input
               action={
                 <div className="flex items-center gap-1">
                   <IconButton
                     aria-label="Scan authorization QR code"
-                    className="size-8 p-0"
+                    className="hidden size-8 p-0 md:inline-flex"
                     onClick={() => setScannerOpen(true)}
                     type="button"
                     variant="ghost"
@@ -107,7 +109,7 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
                   </IconButton>
                   <IconButton
                     aria-label="Paste authorization link"
-                    className="size-8 p-0"
+                    className="size-6 p-0 md:size-8"
                     onClick={() => void paste()}
                     type="button"
                     variant="ghost"
@@ -120,7 +122,7 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
               aria-invalid={Boolean(error)}
               autoCapitalize="none"
               autoComplete="off"
-              containerClassName="border-dashed bg-transparent"
+              containerClassName="h-14 border-dashed bg-transparent md:h-[60px]"
               id="authorization-link"
               onInput={(event) => {
                 setHasAuthorization(event.currentTarget.value.trim().length > 0);
@@ -139,12 +141,24 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
         </div>
         <PassportNavigation
           back={<BackButton onClick={onBack} />}
-          className="pt-6"
+          className="mt-auto md:mt-0 md:pt-6"
           confirm={
-            <Button className="w-full" disabled={!hasAuthorization} size="lg" type="submit">
-              <ArrowRightIcon />
-              Continue
-            </Button>
+            <div className="flex flex-col gap-4">
+              <Button
+                className="w-full md:hidden"
+                onClick={() => setScannerOpen(true)}
+                size="lg"
+                type="button"
+                variant="secondary"
+              >
+                <ScanIcon />
+                Scan QR
+              </Button>
+              <Button className="w-full" disabled={!hasAuthorization} size="lg" type="submit">
+                <ArrowRightIcon />
+                Continue
+              </Button>
+            </div>
           }
         />
       </form>

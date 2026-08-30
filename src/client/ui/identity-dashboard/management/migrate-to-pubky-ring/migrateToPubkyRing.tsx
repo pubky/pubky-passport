@@ -117,11 +117,13 @@ function MigrateToPubkyRing({
   }
 
   return (
-    <PassportScreen className="gap-6">
-      <DisplayHeading accent="keychain." aria-label="Migrate to keychain.">
-        Migrate to
-      </DisplayHeading>
-      <LeadText>Install a supported keychain app to self-manage your pubky identity.</LeadText>
+    <PassportScreen className="gap-6 md:gap-8">
+      <div className="flex flex-col gap-6 md:gap-3">
+        <DisplayHeading accent="keychain." aria-label="Migrate to keychain.">
+          Migrate to
+        </DisplayHeading>
+        <LeadText>Install a supported keychain app to self-manage your pubky identity.</LeadText>
+      </div>
 
       <section className="flex w-full flex-col gap-6 rounded-2xl bg-card p-6 md:flex-row md:p-12">
         <div className="flex min-w-0 flex-1 flex-col gap-6 md:justify-center">

@@ -26,15 +26,16 @@ function RecoveryBeforeDetaching({
           className="text-5xl font-bold leading-none md:text-6xl"
         >
           <span className="block md:inline">Backup your </span>
-          <span className="text-brand">pubky</span> first.
+          <span className="text-brand">pubky</span>
+          <br className="hidden md:block" /> first.
         </h1>
         <LeadText>
           If you remove Google as a way to access your pubky identity, you need a backup to restore
           account access.
         </LeadText>
-        <section className="flex flex-col gap-3 rounded-2xl bg-card p-6 md:mt-5 md:rounded-none md:bg-transparent md:p-0">
+        <section className="flex flex-col gap-3 pt-6 md:mt-5 md:pt-0">
           <p className="text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">
-            Choose recovery method
+            Choose backup method
           </p>
           <RecoveryMethodButton icon={<KeyRoundIcon />} onClick={onMigrateToKeychain}>
             Migrate to keychain
@@ -47,6 +48,7 @@ function RecoveryBeforeDetaching({
 
       <PassportNavigation
         back={<BackButton onClick={onBack} />}
+        className="mt-auto md:mt-0"
         confirm={
           <Button className="w-full" onClick={onRecoveryConfirmed} size="lg" type="button">
             <CheckIcon />I backed up my pubky
@@ -67,12 +69,7 @@ function RecoveryMethodButton({
   onClick?: () => void;
 }) {
   return (
-    <Button
-      className="w-full md:h-[60px] md:px-8 md:py-5"
-      onClick={onClick}
-      type="button"
-      variant="secondary"
-    >
+    <Button className="w-full" onClick={onClick} size="lg" type="button" variant="secondary">
       {icon}
       {children}
     </Button>

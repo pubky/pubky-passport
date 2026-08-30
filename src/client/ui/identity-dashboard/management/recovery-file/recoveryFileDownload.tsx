@@ -1,6 +1,7 @@
 import { Result } from "better-result";
 import Image from "next/image";
 import { type SubmitEvent, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { LOGGER, safeErrorLogFields } from "../../../../../libs/logger/logger";
 import {
@@ -17,7 +18,6 @@ import { FieldMessage } from "../../../shared/primitives/fieldMessage";
 import { Input } from "../../../shared/primitives/input";
 import { Label } from "../../../shared/primitives/label";
 import { DisplayHeading, LeadText } from "../../../shared/primitives/typography";
-import { showDownloadConfirmation } from "../../../shared/sonner";
 
 function RecoveryFileDownload({
   createRecoveryFile,
@@ -78,7 +78,7 @@ function RecoveryFileDownload({
       if (activeRef.current) setPending(false);
     }
     if (downloaded && activeRef.current) {
-      showDownloadConfirmation();
+      toast.success("File downloaded");
       onBack();
     }
   }
@@ -99,32 +99,47 @@ function RecoveryFileDownload({
           </LeadText>
         </div>
 
-        <div className="flex flex-col gap-2 md:col-start-1 md:row-start-2">
-          <Label htmlFor="recovery-file-password">Recovery password</Label>
-          <Input
-            autoComplete="new-password"
-            containerClassName="border-dashed"
-            id="recovery-file-password"
-            maxLength={1024}
-            minLength={MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS}
-            onInput={(event) =>
-              setValidPassword(
-                event.currentTarget.value.length >= MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS,
-              )
-            }
-            ref={passwordInputRef}
-            required
-            type="password"
-          />
-          {recoveryFileFailed ? (
-            <FieldMessage error>Could not create the recovery file. Please try again.</FieldMessage>
-          ) : null}
+        <div className="contents md:col-start-1 md:row-start-2 md:flex md:flex-col md:gap-2">
+          <div className="order-2 flex flex-col gap-2 md:contents">
+            <Label className="leading-5 md:leading-4" htmlFor="recovery-file-password">
+              Enter strong password
+            </Label>
+            <Input
+              autoComplete="new-password"
+              containerClassName="h-14 border-dashed md:h-[60px]"
+              id="recovery-file-password"
+              maxLength={1024}
+              minLength={MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS}
+              onInput={(event) =>
+                setValidPassword(
+                  event.currentTarget.value.length >= MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS,
+                )
+              }
+              ref={passwordInputRef}
+              required
+              type="password"
+            />
+            {recoveryFileFailed ? (
+              <FieldMessage error>
+                Could not create the recovery file. Please try again.
+              </FieldMessage>
+            ) : null}
+          </div>
+          <Button
+            className="order-5 -mt-2 w-full md:order-[0] md:mt-4"
+            disabled={!validPassword || pending}
+            size="lg"
+            type="submit"
+          >
+            <DownloadRecoveryFileIcon />
+            {pending ? "Encrypting…" : "Download backup"}
+          </Button>
         </div>
 
         <Image
           alt=""
           aria-hidden="true"
-          className="mx-auto size-[200px] md:col-start-2 md:row-start-2 md:mt-3"
+          className="order-3 mx-auto size-[200px] md:order-[0] md:col-start-2 md:row-start-2 md:mt-3"
           height={200}
           src="/illustrations/file.png"
           width={200}
@@ -132,13 +147,7 @@ function RecoveryFileDownload({
 
         <PassportNavigation
           back={<BackButton disabled={pending} onClick={onBack} />}
-          className="md:col-span-2 md:row-start-3"
-          confirm={
-            <Button className="w-full" disabled={!validPassword || pending} size="lg" type="submit">
-              <DownloadRecoveryFileIcon />
-              {pending ? "Encrypting…" : "Download backup"}
-            </Button>
-          }
+          className="order-4 -mt-1 md:order-[0] md:col-span-2 md:row-start-3 md:mt-0"
         />
       </form>
     </PassportScreen>

@@ -43,6 +43,9 @@ describe("MigrateToPubkyRing", () => {
       />,
     );
 
+    const heading = screen.getByRole("heading", { name: "Migrate to keychain." });
+    expect(heading.parentElement).toHaveClass("gap-6", "md:gap-3");
+    expect(heading.closest("main")).toHaveClass("gap-6", "md:gap-8");
     expect(
       screen.getByRole("link", { name: "Download Pubky Ring on the App Store" }),
     ).toHaveAttribute("href", "https://apps.apple.com/us/app/pubky-ring/id6739356756");
