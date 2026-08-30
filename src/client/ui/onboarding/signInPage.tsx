@@ -1,7 +1,7 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 
-import { BrandEndorsement } from "../shared/brand/brandEndorsement";
+import { MobilePassportFooter } from "../shared/mobilePassportFooter";
 import { PassportScreen } from "../shared/passportScreen";
 import { DisplayHeading, LeadText } from "../shared/primitives/typography";
 import { SignInContext } from "../shared/signInContext";
@@ -37,13 +37,7 @@ function SignInPage({ children, signInTo }: { children: ReactNode; signInTo?: st
           <div className="flex flex-col gap-3 md:col-start-1 md:row-start-1">{children}</div>
         </div>
       </section>
-      <footer className="mt-auto flex flex-col gap-4 text-sm font-medium leading-5 text-muted-foreground md:hidden">
-        <p>
-          Pubky Passport is powered by the Pubky Protocol and was built by Synonym Software, S.A. DE
-          C.V. ©2025.
-        </p>
-        <BrandEndorsement />
-      </footer>
+      <MobilePassportFooter />
     </PassportScreen>
   );
 }
