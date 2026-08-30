@@ -2,10 +2,12 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { googleAccountProfileFromUserInfo } from "../../../../libs/googleAccountProfile";
+import {
+  googleAccountProfileFromUserInfo,
+  type GoogleAccountProfile,
+} from "../../../../libs/googleAccountProfile";
 import { readBoundedText } from "../../../../libs/http/boundedBody";
 import { MAXIMUM_JSON_BODY_BYTES, REQUEST_TIMEOUT_MS } from "../../../../libs/passportPolicy";
-import type { GoogleAccountProfile } from "../../local-identity/localIdentityModels";
 
 const GOOGLE_USER_INFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 
