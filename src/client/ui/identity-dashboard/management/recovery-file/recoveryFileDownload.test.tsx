@@ -111,6 +111,29 @@ describe("RecoveryFileDownload", () => {
     expect(onBack).toHaveBeenCalledOnce();
   });
 
+  it("relocates the download action only in the mobile layout", () => {
+    render(
+      <RecoveryFileDownload
+        createRecoveryFile={vi.fn()}
+        publicKeyZ32="identity"
+        onBack={vi.fn()}
+      />,
+    );
+
+    const label = screen.getByText("Enter strong password");
+    const password = screen.getByLabelText("Enter strong password");
+    const download = screen.getByRole("button", { name: "Download backup" });
+    const back = screen.getByRole("button", { name: "Back" });
+    const illustration = document.querySelector("img");
+    const navigation = back.parentElement?.parentElement;
+
+    expect(label).toHaveClass("leading-5", "md:leading-4");
+    expect(password.parentElement).toHaveClass("h-14", "md:h-[60px]");
+    expect(illustration).toHaveClass("order-3", "md:order-[0]");
+    expect(navigation).toHaveClass("order-4", "-mt-1", "md:order-[0]", "md:mt-0");
+    expect(download).toHaveClass("order-5", "-mt-2", "md:order-[0]", "md:mt-4");
+  });
+
   it("announces recovery-file failures without marking a valid password invalid", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const secret = "sensitive recovery cause";
