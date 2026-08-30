@@ -35,7 +35,7 @@ function IdentityOverview({
             {identity.publicIdentity.publicKeyZ32}
           </p>
           {account ? (
-            <p className="flex h-10 w-[276px] max-w-full items-center gap-2 py-2 text-sm font-bold leading-5 normal-case">
+            <p className="flex h-10 w-full max-w-full items-center justify-center gap-2 px-4 py-2 text-sm font-bold leading-5 normal-case md:w-[276px] md:justify-start md:px-0">
               <GoogleLogo />
               {account.email}
             </p>

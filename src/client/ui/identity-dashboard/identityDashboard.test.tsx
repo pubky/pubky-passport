@@ -200,12 +200,17 @@ describe("IdentityDashboard", () => {
     expect(name.parentElement).toHaveClass("gap-3", "md:gap-0");
     expect(screen.getByText("identity")).toHaveClass("uppercase");
     expect(screen.getByText("satoshi@gmail.com")).toHaveClass(
-      "w-[276px]",
+      "w-full",
       "h-10",
+      "justify-center",
       "gap-2",
+      "px-4",
       "py-2",
       "font-bold",
       "leading-5",
+      "md:w-[276px]",
+      "md:justify-start",
+      "md:px-0",
     );
     expect(screen.queryByRole("button", { name: "satoshi@gmail.com" })).not.toBeInTheDocument();
     expect(
