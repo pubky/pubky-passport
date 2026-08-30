@@ -1,5 +1,11 @@
 import { AUTHORIZATION_CAPTURE_MAX_CHARACTERS } from "../passportPolicy";
 
+export type EarlyAuthorizationLocation =
+  | { status: "captured"; hash: string; expiresAt: number }
+  | { status: "expired" }
+  | { status: "invalid_search" }
+  | { status: "too_large" };
+
 export const EARLY_AUTHORIZATION_LOCATION_PROPERTY = "__takePassportAuthorizationLocation";
 const EARLY_AUTHORIZATION_LOCATION_LIFETIME_MS = 60_000;
 
@@ -52,9 +58,3 @@ export const EARLY_AUTHORIZATION_LOCATION_SCRIPT = `(() => {
     },
   });
 })();`;
-
-export type EarlyAuthorizationLocation =
-  | { status: "captured"; hash: string; expiresAt: number }
-  | { status: "expired" }
-  | { status: "invalid_search" }
-  | { status: "too_large" };

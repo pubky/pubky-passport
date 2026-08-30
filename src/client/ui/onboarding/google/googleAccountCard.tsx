@@ -1,6 +1,6 @@
 import type { ComponentPropsWithoutRef } from "react";
 
-import type { GoogleAccountProfile } from "../../../logic/local-identity/localIdentityModels";
+import type { GoogleAccountProfile } from "../../../../libs/googleAccountProfile";
 import { GoogleLogo } from "../../shared/brand/googleLogo";
 import { cn } from "../../shared/mergeClassNames";
 import { Avatar } from "../../shared/primitives/avatar";

@@ -14,6 +14,13 @@ export type PubkyAuthUrlValidationError = {
   code: PubkyAuthUrlValidationErrorCode;
 };
 
+/** Canonical callbacks retained outside renderable authorization state. */
+export type ValidatedPubkyAuthCallbacks = {
+  success?: string;
+  error?: string;
+  cancel?: string;
+};
+
 type PubkyAuthUrlValidationResult = ResultType<
   ValidatedPubkyAuthCallbacks,
   PubkyAuthUrlValidationError
@@ -143,13 +150,6 @@ function validateEncodedCallback(
     return Result.err<never, PubkyAuthUrlValidationError>({ code: "invalid_callback" });
   }
 }
-
-/** Canonical callbacks retained outside renderable authorization state. */
-export type ValidatedPubkyAuthCallbacks = {
-  success?: string;
-  error?: string;
-  cancel?: string;
-};
 
 function validateOptionalCallback(
   value: string | null,

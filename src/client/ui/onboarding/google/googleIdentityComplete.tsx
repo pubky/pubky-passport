@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-import type { GoogleAccountProfile } from "../../../logic/local-identity/localIdentityModels";
+import type { GoogleAccountProfile } from "../../../../libs/googleAccountProfile";
 import type { PubkyPublicIdentity } from "../../../logic/pubky/pubkyIdentityKey";
 import { PassportNavigation } from "../../shared/passportNavigation";
 import { PassportScreen } from "../../shared/passportScreen";
