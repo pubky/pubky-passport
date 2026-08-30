@@ -19,7 +19,9 @@ describe("ReviewGoogleDetachment", () => {
       screen.getByText("You are about to remove Google as a way to access your pubky identity."),
     ).toBeInTheDocument();
     expect(screen.getByText(/This can’t be undone/)).toBeInTheDocument();
-    expect(container.querySelector('img[src$="red-line.svg"]')).toHaveClass("h-auto");
+    const redLine = container.querySelector('img[src$="red-line.svg"]');
+    expect(redLine).toHaveClass("h-auto");
+    expect(redLine).toHaveAttribute("width", "282");
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Remove Google Access" }));
     expect(onRemove).toHaveBeenCalledOnce();
