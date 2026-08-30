@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
 import type { CodedFailure } from "../../../../libs/result";
 import { isPubkyPublicIdentity, type PubkyPublicIdentity } from "../../pubky/pubkyIdentityKey";
 import { serializePassportFileEnvelope, type PassportFileEnvelope } from "../passportFileEnvelope";
@@ -193,6 +193,7 @@ export class GoogleDriveVisibleRecoveryCopies {
       LOGGER.warn("identity.google.visible_recovery_copies.failed", {
         operation: "delete_visible_copies",
         code: "network_failed",
+        ...safeErrorLogFields(cause),
       });
       return Result.err({ code: "network_failed", cause });
     }
@@ -220,6 +221,7 @@ export class GoogleDriveVisibleRecoveryCopies {
       LOGGER.warn("identity.google.visible_recovery_copies.failed", {
         operation: "create_folder_lock",
         code: "write_failed",
+        ...safeErrorLogFields(cause),
       });
       return Result.err({ code: "write_failed", cause });
     }
@@ -495,6 +497,7 @@ export class GoogleDriveVisibleRecoveryCopies {
     LOGGER.warn("identity.google.visible_recovery_copies.failed", {
       operation,
       code: "network_failed",
+      ...(response.error.cause === undefined ? {} : safeErrorLogFields(response.error.cause)),
     });
     return Result.err(response.error);
   }

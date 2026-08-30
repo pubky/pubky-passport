@@ -3,7 +3,7 @@ import "client-only";
 import { Keypair, Pubky, PublicKey, type PubkyError, type Session } from "@synonymdev/pubky";
 import { Result, type Result as ResultType } from "better-result";
 
-import { LOGGER } from "../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
 import {
   PUBKY_SECRET_KEY_BYTES,
@@ -579,12 +579,9 @@ function failure<Success, Code extends PubkyErrorCode>(
     stage,
     code,
     ...(sdkErrorName ? { sdkErrorName } : {}),
+    ...(cause === undefined ? {} : safeErrorLogFields(cause)),
   });
-  return Result.err(codedFailure(code, cause));
-}
-
-function codedFailure<Code extends string>(code: Code, cause?: unknown): CodedFailure<Code> {
-  return cause === undefined ? { code } : { code, cause };
+  return Result.err(cause === undefined ? { code } : { code, cause });
 }
 
 function safePubkySdkErrorName(error: unknown): string | undefined {
@@ -642,11 +639,12 @@ function isDefinitiveSignupRejection(error: unknown, status: number | undefined)
 function cleanup(operation: PubkyOperation, stage: PubkyCleanupStage, action: () => void): void {
   try {
     action();
-  } catch {
+  } catch (cause) {
     LOGGER.warn("identity.pubky.cleanup.failed", {
       operation,
       stage,
       code: "cleanup_failed",
+      ...safeErrorLogFields(cause),
     });
   }
 }

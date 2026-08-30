@@ -1,13 +1,13 @@
 import { Result } from "better-result";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import type { GoogleAccountProfile } from "../../../../libs/googleAccountProfile";
 import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
 import {
   GoogleIdentityController,
   type GoogleIdentityProgress,
   type GoogleIdentityViewError,
 } from "../../../logic/google-identity/GoogleIdentityController";
-import type { GoogleAccountProfile } from "../../../logic/local-identity/localIdentityModels";
 import type { PubkyPublicIdentity } from "../../../logic/pubky/pubkyIdentityKey";
 import { useGoogleIdentityConfiguration } from "../../googleIdentityConfiguration";
 
@@ -49,7 +49,11 @@ function useGoogleIdentityEstablishment() {
       );
       controllerRef.current = controller;
       return controller;
-    } catch {
+    } catch (cause) {
+      LOGGER.warn("identity.google.establishment_ui.failed", {
+        operation: "construct_controller",
+        ...safeErrorLogFields(cause),
+      });
       setView({ status: "failed", error: { code: "operation_failed" } });
       return null;
     }

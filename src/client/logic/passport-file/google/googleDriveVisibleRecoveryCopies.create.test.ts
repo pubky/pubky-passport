@@ -124,6 +124,40 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
     expect(lockManager.maximumActive).toBe(1);
   });
 
+  it("returns and safely correlates a browser lock failure", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const cause = {
+      name: "SECRET-VISIBLE-LOCK-NAME",
+      token: ACCESS_TOKEN,
+      envelope: ENVELOPE,
+    };
+    vi.stubGlobal("navigator", {
+      locks: {
+        request: async () => {
+          throw cause;
+        },
+      },
+    });
+    const visibleCopies = createVisibleCopies([]);
+
+    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, SIGNAL);
+
+    expect(Result.isError(result)).toBe(true);
+    if (!Result.isError(result)) throw new Error("Expected the browser lock request to fail.");
+    expect(result.error).toEqual({ code: "write_failed", cause });
+    expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {
+      operation: "create_folder_lock",
+      code: "write_failed",
+      diagnosticId: expect.any(String),
+      errorName: "ErrorLike",
+    });
+    const logged = JSON.stringify(warning.mock.calls);
+    expect(logged).not.toContain(cause.name);
+    expect(logged).not.toContain(ACCESS_TOKEN);
+    expect(logged).not.toContain(ENVELOPE.iv);
+    expect(logged).not.toContain(ENVELOPE.ct);
+  });
+
   it("selects the same canonical folder when concurrent devices created duplicates", async () => {
     const canonicalFolder = { ...FOLDER, id: "A-CANONICAL-FOLDER" };
     const createdFile = { id: "SECRET-CREATED-ID", name: VISIBLE_FILE_NAME, version: "1" };
@@ -286,6 +320,8 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
     expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {
       operation: "list_folder",
       code: "network_failed",
+      diagnosticId: expect.any(String),
+      errorName: "AbortError",
     });
   });
 

@@ -295,6 +295,25 @@ describe("LocalStorageIdentityRepository", () => {
     expect(Result.isError(result) && result.error.code).toBe("storage_unavailable");
     expect(JSON.stringify(warning.mock.calls)).not.toContain("sensitive persisted contents");
   });
+
+  it("preserves exceptions raised while accessing browser storage", () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const cause = new DOMException("sensitive browser policy details", "SecurityError");
+    vi.spyOn(window, "localStorage", "get").mockImplementation(() => {
+      throw cause;
+    });
+
+    const result = new LocalStorageIdentityRepository().list();
+
+    expectResultError(result, { code: "storage_unavailable", cause });
+    expect(warning).toHaveBeenCalledWith("identity.local_store.failed", {
+      operation: "read",
+      code: "storage_unavailable",
+      diagnosticId: expect.any(String),
+      errorName: "SecurityError",
+    });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("sensitive browser policy details");
+  });
 });
 
 function save(

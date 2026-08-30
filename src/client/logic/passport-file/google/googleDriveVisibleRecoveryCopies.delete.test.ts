@@ -197,6 +197,8 @@ describe("GoogleDriveVisibleRecoveryCopies deletion", () => {
     expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {
       operation: "delete_visible_copies",
       code: "network_failed",
+      diagnosticId: expect.any(String),
+      errorName: "ErrorLike",
     });
     expect(warning).toHaveBeenCalledOnce();
     expect(warning.mock.calls[0]?.[1]).not.toHaveProperty("cause");

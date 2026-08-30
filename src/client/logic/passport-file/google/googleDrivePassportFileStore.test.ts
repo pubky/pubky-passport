@@ -409,6 +409,8 @@ describe("GoogleDrivePassportFileStore", () => {
     expect(warning).toHaveBeenCalledWith("identity.google.drive_store.failed", {
       operation: "list",
       code: "network_failed",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("secret details");
     expect(JSON.stringify(warning.mock.calls)).not.toContain(ACCESS_TOKEN);
@@ -630,6 +632,8 @@ describe("GoogleDrivePassportFileStore", () => {
     expect(warning).toHaveBeenCalledWith("identity.google.drive_store.failed", {
       operation: "create_lock",
       code: "write_failed",
+      diagnosticId: expect.any(String),
+      errorName: "ErrorLike",
     });
     expect(warning).toHaveBeenCalledOnce();
     expect(warning.mock.calls[0]?.[1]).not.toHaveProperty("cause");

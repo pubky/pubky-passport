@@ -23,27 +23,69 @@ const CONSOLE_SINK: Record<LogLevel, (message: string) => void> = {
   },
 };
 
-function createLogger(): Logger {
-  return {
-    debug(event, fields) {
-      writeLog("debug", event, fields);
-    },
-    info(event, fields) {
-      writeLog("info", event, fields);
-    },
-    warn(event, fields) {
-      writeLog("warn", event, fields);
-    },
-    error(event, fields) {
-      writeLog("error", event, fields);
-    },
-  };
-}
-
-export const LOGGER = createLogger();
+export const LOGGER: Logger = {
+  debug(event, fields) {
+    writeLog("debug", event, fields);
+  },
+  info(event, fields) {
+    writeLog("info", event, fields);
+  },
+  warn(event, fields) {
+    writeLog("warn", event, fields);
+  },
+  error(event, fields) {
+    writeLog("error", event, fields);
+  },
+};
 
 const ERROR_DIAGNOSTIC_IDS = new WeakMap<object, string>();
 let nextFallbackDiagnosticId = 0;
+
+const SAFE_ERROR_NAMES: ReadonlySet<string> = new Set([
+  "AbortError",
+  "AggregateError",
+  "CompileError",
+  "ConstraintError",
+  "DataCloneError",
+  "DataError",
+  "EncodingError",
+  "Error",
+  "EvalError",
+  "HierarchyRequestError",
+  "IndexSizeError",
+  "InvalidAccessError",
+  "InvalidCharacterError",
+  "InvalidModificationError",
+  "InvalidNodeTypeError",
+  "InvalidStateError",
+  "InUseAttributeError",
+  "LinkError",
+  "NamespaceError",
+  "NetworkError",
+  "NoModificationAllowedError",
+  "NotAllowedError",
+  "NotFoundError",
+  "NotReadableError",
+  "NotSupportedError",
+  "OperationError",
+  "QuotaExceededError",
+  "RangeError",
+  "ReadOnlyError",
+  "ReferenceError",
+  "RuntimeError",
+  "SecurityError",
+  "SuppressedError",
+  "SyntaxError",
+  "TimeoutError",
+  "TransactionInactiveError",
+  "TypeError",
+  "TypeMismatchError",
+  "URIError",
+  "URLMismatchError",
+  "UnknownError",
+  "VersionError",
+  "WrongDocumentError",
+]);
 
 /**
  * Returns correlation metadata that is safe to log for an arbitrary thrown value.
@@ -133,9 +175,7 @@ function safeErrorName(error: unknown): string {
   if (!isObject(error)) return typeof error;
   try {
     const name = "name" in error ? error.name : undefined;
-    return typeof name === "string" && /^[A-Za-z][A-Za-z0-9]{0,63}$/u.test(name)
-      ? name
-      : "ErrorLike";
+    return typeof name === "string" && SAFE_ERROR_NAMES.has(name) ? name : "ErrorLike";
   } catch {
     return "ErrorLike";
   }

@@ -1,4 +1,4 @@
-import { LOGGER } from "../logger/logger";
+import { LOGGER, safeErrorLogFields } from "../logger/logger";
 
 export type BoundedBody = {
   body: ReadableStream<Uint8Array> | null;
@@ -54,19 +54,21 @@ export async function readBoundedBytes(
     }
 
     return bytes;
-  } catch {
+  } catch (cause) {
     LOGGER.warn("http.body_read.failed", {
       operation: "read",
       code: "body_unavailable",
+      ...safeErrorLogFields(cause),
     });
     return null;
   } finally {
     try {
       reader?.releaseLock();
-    } catch {
+    } catch (cause) {
       LOGGER.warn("http.body_read.failed", {
         operation: "release",
         code: "body_unavailable",
+        ...safeErrorLogFields(cause),
       });
     }
   }

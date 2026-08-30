@@ -166,6 +166,8 @@ describe("PubkySdkAdapter", () => {
       operation: "create_pubky_ring_migration",
       stage: "sdk_export",
       code: "export_failed",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain(secret);
   });
@@ -184,6 +186,8 @@ describe("PubkySdkAdapter", () => {
         operation: "create_identity_key",
         stage: "sdk_create",
         code: "create_failed",
+        diagnosticId: expect.any(String),
+        errorName: "string",
       });
       expect(JSON.stringify(warn.mock.calls)).not.toContain(cause);
     } finally {
@@ -209,6 +213,8 @@ describe("PubkySdkAdapter", () => {
         operation: "create_identity_key",
         stage: "sdk_public_identity",
         code: "public_identity_failed",
+        diagnosticId: expect.any(String),
+        errorName: "Error",
       });
       expect(warn).toHaveBeenCalledOnce();
       expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-PUBLIC-KEY-MATERIAL");
@@ -291,6 +297,8 @@ describe("PubkySdkAdapter", () => {
         operation: "create_recovery_file",
         stage: "sdk_recovery_file",
         code: "recovery_file_failed",
+        diagnosticId: expect.any(String),
+        errorName: "RangeError",
       });
       expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-RECOVERY-PASSPHRASE");
     } finally {
@@ -347,6 +355,8 @@ describe("PubkySdkAdapter", () => {
         operation: "restore_identity_key",
         stage: "secret_key_clear",
         code: "cleanup_failed",
+        diagnosticId: expect.any(String),
+        errorName: "TypeError",
       });
     } finally {
       pubky.dispose();
@@ -390,6 +400,8 @@ describe("PubkySdkAdapter", () => {
         operation: "resolve_homeserver",
         stage: "sdk_resolution",
         code: "resolution_failed",
+        diagnosticId: expect.any(String),
+        errorName: "TypeError",
       });
       expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-HOMESERVER-URL");
     } finally {
@@ -457,6 +469,8 @@ describe("PubkySdkAdapter", () => {
         stage: "sdk_publish",
         code: "publish_failed",
         sdkErrorName: "PkarrError",
+        diagnosticId: expect.any(String),
+        errorName: "ErrorLike",
       });
       expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive PKARR transport details");
     } finally {
@@ -490,6 +504,8 @@ describe("PubkySdkAdapter", () => {
         stage: "sdk_signup",
         code: "signup_failed",
         sdkErrorName: "AuthenticationError",
+        diagnosticId: expect.any(String),
+        errorName: "ErrorLike",
       });
       expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive-signup-code");
       expect(JSON.stringify(warn.mock.calls)).not.toContain("signup token and request URL");
@@ -531,6 +547,8 @@ describe("PubkySdkAdapter", () => {
         operation: "signup",
         stage: "sdk_signup",
         code: "signup_uncertain",
+        diagnosticId: expect.any(String),
+        errorName: "ErrorLike",
       });
       const logged = JSON.stringify(warn.mock.calls);
       expect(logged).not.toContain("SECRET-ERROR-NAME");
@@ -760,6 +778,8 @@ describe("PubkySdkAdapter", () => {
         operation: "approve_auth_request",
         stage: "sdk_approval",
         code: "approval_failed",
+        diagnosticId: expect.any(String),
+        errorName: "Error",
       });
       expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-AUTHORIZATION-URL");
     } finally {
@@ -801,11 +821,15 @@ describe("PubkySdkAdapter", () => {
       operation: "dispose_identity_key",
       stage: "keypair_free",
       code: "cleanup_failed",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(warn).toHaveBeenCalledWith("identity.pubky.cleanup.failed", {
       operation: "dispose_adapter",
       stage: "keypair_free",
       code: "cleanup_failed",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-KEY-CANARY");
     await expectError(pubky.exportSecretKey(firstBulkHandle), "key_unavailable");

@@ -711,12 +711,19 @@ describe("Google identity use cases", () => {
   });
 
   it("preserves success when key cleanup throws", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
     MOCKS.disposeIdentityKey.mockImplementationOnce(() => {
-      throw new Error("cleanup details");
+      throw new Error("SECRET-KEY-CLEANUP-CANARY");
     });
 
     expectResultOk(await createSubject().establishIdentity(CREDENTIALS, () => undefined));
+    expect(warning).toHaveBeenCalledWith("identity.google.cleanup.failed", {
+      operation: "created_key_dispose",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
+    });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-KEY-CLEANUP-CANARY");
   });
 
   it("verifies Google Drive files before deleting them and removes the local identity last", async () => {
