@@ -4,7 +4,6 @@ import type { GoogleIdentityViewError } from "../../../logic/google-identity/Goo
 import { RotateCcwIcon, TrashIcon } from "../../shared/actionIcons";
 import { BackButton } from "../../shared/backButton";
 import { ConfirmDeletionDialog } from "../../shared/confirmDeletionDialog";
-import { cn } from "../../shared/mergeClassNames";
 import { PassportScreen } from "../../shared/passportScreen";
 import { Button } from "../../shared/primitives/button";
 import { Label } from "../../shared/primitives/label";
@@ -30,20 +29,48 @@ function GoogleIdentityError({
       ? onReplaceInvalidFile
       : undefined;
 
+  if (error.code === "google_authorization_denied") {
+    return (
+      <GoogleAccessDenied
+        onBack={onBack}
+        onTryAgain={onTryAgain}
+        {...(signInTo ? { signInTo } : {})}
+      />
+    );
+  }
+
   return (
     <>
-      <PassportScreen className="gap-6 md:max-w-[680px]">
+      <PassportScreen className="gap-6 md:max-w-[558px] md:gap-8">
         <div className="flex flex-col gap-6 md:gap-3">
           <DisplayHeading accent="interrupted." aria-label="Setup interrupted.">
-            Setup{" "}
+            Setup
           </DisplayHeading>
           {signInTo ? <SignInContext requester={signInTo} /> : null}
-          <LeadText>{errorMessage(error.code)}</LeadText>
-          <div className="flex flex-col gap-2 md:mt-5">
-            <Label id="google-identity-error-label">Error</Label>
+          <LeadText>
+            {error.code === "homeserver_signup_invitation_failed" ? (
+              <>
+                <span className="md:hidden">
+                  Passport could not obtain a homeserver signup invitation.
+                </span>
+                <span className="hidden md:inline">
+                  Passport could not obtain a homeserver invitation.
+                </span>
+              </>
+            ) : (
+              errorMessage(error.code)
+            )}
+          </LeadText>
+        </div>
+
+        <div className="flex min-h-0 flex-1 flex-col gap-6">
+          <div className="flex flex-col gap-2">
+            <Label className="leading-5" id="google-identity-error-label">
+              Error
+            </Label>
             <div
               aria-labelledby="google-identity-error-label"
-              className="flex min-h-[60px] flex-col justify-center gap-1 rounded-lg border border-dashed border-input bg-black/10 py-4 pl-6 pr-5 shadow-xs"
+              className="flex min-h-14 flex-col justify-center gap-0 rounded-lg border border-dashed border-input bg-black/10 py-[15px] pl-[23px] pr-[19px] shadow-xs"
               role="group"
             >
               <p className="break-all text-base font-medium leading-6 text-foreground">
@@ -56,40 +83,87 @@ function GoogleIdentityError({
               ) : null}
             </div>
           </div>
-        </div>
-
-        <div className="grid w-full grid-cols-1 gap-3 md:mt-5 md:grid-cols-[120px_1fr_300px]">
           {replaceInvalidFile ? (
-            <Button
-              className="w-full md:col-start-3 md:row-start-1"
-              onClick={() => setConfirmationOpen(true)}
-              size="lg"
-              type="button"
-              variant="destructive"
-            >
-              <TrashIcon />
-              Delete file and create new identity
-            </Button>
-          ) : null}
-          <Button
-            className={cn(
-              "w-full md:col-start-3",
-              replaceInvalidFile ? "md:row-start-2" : "md:row-start-1",
-            )}
-            onClick={onTryAgain}
-            size="lg"
-            type="button"
-          >
-            <RotateCcwIcon />
-            Try again
-          </Button>
-          <BackButton
-            className={cn(
-              "md:col-start-1",
-              replaceInvalidFile ? "md:row-start-2" : "md:row-start-1",
-            )}
-            onClick={onBack}
-          />
+            <>
+              <div
+                aria-label="Mobile error actions"
+                className="mt-auto grid w-full grid-cols-1 gap-3 md:hidden"
+                role="group"
+              >
+                <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
+                  <RotateCcwIcon />
+                  Try again
+                </Button>
+                <Button
+                  className="w-full"
+                  onClick={() => setConfirmationOpen(true)}
+                  size="lg"
+                  type="button"
+                  variant="destructive"
+                >
+                  <TrashIcon />
+                  Delete backup &amp; create new pubky
+                </Button>
+                <BackButton onClick={onBack} />
+              </div>
+              <div
+                aria-label="Desktop error actions"
+                className="hidden w-full grid-cols-[1fr_148px] gap-3 md:grid md:gap-x-6"
+                role="group"
+              >
+                <Button
+                  className="w-full md:col-start-1 md:row-start-1"
+                  onClick={() => setConfirmationOpen(true)}
+                  size="lg"
+                  type="button"
+                  variant="destructive"
+                >
+                  <TrashIcon />
+                  Delete file and create new identity
+                </Button>
+                <Button
+                  className="w-full md:col-start-2 md:row-start-1"
+                  onClick={onTryAgain}
+                  size="lg"
+                  type="button"
+                >
+                  <RotateCcwIcon />
+                  Try again
+                </Button>
+                <BackButton className="md:col-start-1 md:row-start-2" onClick={onBack} />
+              </div>
+            </>
+          ) : (
+            <>
+              <div
+                aria-label="Mobile error actions"
+                className="mt-auto grid w-full grid-cols-1 gap-3 md:hidden"
+                role="group"
+              >
+                <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
+                  <RotateCcwIcon />
+                  Try again
+                </Button>
+                <BackButton onClick={onBack} />
+              </div>
+              <div
+                aria-label="Desktop error actions"
+                className="hidden w-full grid-cols-[120px_1fr_148px] gap-3 md:grid md:gap-x-0"
+                role="group"
+              >
+                <BackButton className="md:col-start-1 md:row-start-1" onClick={onBack} />
+                <Button
+                  className="w-full md:col-start-3 md:row-start-1"
+                  onClick={onTryAgain}
+                  size="lg"
+                  type="button"
+                >
+                  <RotateCcwIcon />
+                  Try again
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </PassportScreen>
 
@@ -110,6 +184,60 @@ function GoogleIdentityError({
         />
       ) : null}
     </>
+  );
+}
+
+function GoogleAccessDenied({
+  onBack,
+  onTryAgain,
+  signInTo,
+}: {
+  onBack: () => void;
+  onTryAgain: () => void;
+  signInTo?: string;
+}) {
+  return (
+    <PassportScreen className="gap-6 md:gap-8">
+      <div className="flex flex-col gap-6 md:gap-3">
+        <DisplayHeading accent="denied." desktopAccentOnNewLine>
+          Google <span className="hidden md:inline">Drive</span> access
+        </DisplayHeading>
+        {signInTo ? <SignInContext requester={signInTo} /> : null}
+        <LeadText className="md:hidden">
+          Passport needs Google Drive access to create or restore your Pubky.
+        </LeadText>
+        <LeadText className="hidden md:block">
+          Passport needs access to your Google Drive to create or restore your Pubky.
+        </LeadText>
+      </div>
+      <div
+        aria-label="Mobile error actions"
+        className="mt-auto grid w-full grid-cols-1 gap-3 md:hidden"
+        role="group"
+      >
+        <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
+          <RotateCcwIcon />
+          Try again
+        </Button>
+        <BackButton onClick={onBack} />
+      </div>
+      <div
+        aria-label="Desktop error actions"
+        className="hidden w-full grid-cols-[120px_1fr_148px] items-center gap-0 md:grid"
+        role="group"
+      >
+        <BackButton className="md:col-start-1 md:row-start-1" onClick={onBack} />
+        <Button
+          className="w-full md:col-start-3 md:row-start-1"
+          onClick={onTryAgain}
+          size="lg"
+          type="button"
+        >
+          <RotateCcwIcon />
+          Try again
+        </Button>
+      </div>
+    </PassportScreen>
   );
 }
 
@@ -142,19 +270,19 @@ function errorMessage(code: GoogleIdentityViewError["code"]): string {
     case "wrapping_key_failed":
       return "Passport could not unlock your encrypted identity with this Google account.";
     case "homeserver_signup_invitation_failed":
-      return "Passport could not obtain a homeserver signup invitation.";
+      return "Passport could not obtain a homeserver invitation.";
     case "invalid_passport_file":
       return "Passport found your encrypted identity file in Google Drive, but it is damaged and cannot be restored.";
     case "invalid_passport_file_delete_failed":
       return "Passport could not delete the invalid identity file from Google Drive. You can try deleting it again.";
     case "google_authorization_denied":
-      return "Google access was denied. Passport needs Google Drive access to create or restore your Pubky.";
+      return "Passport needs access to your Google Drive to create or restore your Pubky.";
     case "google_authorization_popup_closed":
       return "The Google authorization window was closed before access was granted.";
     case "google_authorization_popup_failed_to_open":
       return "Passport could not open the Google authorization window. Check your popup settings and try again.";
     case "google_authorization_failed":
-      return "Google authorization did not complete successfully.";
+      return "Google authorization did not complete successfully";
     default:
       return "Passport could not finish creating or restoring your Pubky.";
   }

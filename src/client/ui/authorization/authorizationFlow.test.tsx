@@ -154,7 +154,7 @@ describe("AuthorizationFlow", () => {
       await screen.findByRole("heading", { name: "Sign in to requesting.app" }),
     ).toBeInTheDocument();
     expect(screen.getByText("/pub/requesting.app/")).toBeInTheDocument();
-    expect(screen.getByText("Read & write")).toBeInTheDocument();
+    expect(screen.getByText("Read,write").parentElement).toHaveClass("min-h-5", "items-center");
     expect(screen.getByText("First User")).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -166,6 +166,10 @@ describe("AuthorizationFlow", () => {
       screen.getByText(/allow requesting\.app to read and update your data/u),
     ).toBeInTheDocument();
     expect(MOCKS.createAuthorizationController).toHaveBeenCalledWith();
+    expect(screen.getByRole("button", { name: "Cancel" }).closest(".grid")).toHaveClass(
+      "mt-auto",
+      "md:mt-0",
+    );
   });
 
   it("shows the validated callback host for a grant request", async () => {
@@ -309,9 +313,12 @@ describe("AuthorizationFlow", () => {
 
     renderFlow();
 
-    const permissionSection = (
-      await screen.findByRole("heading", { name: "Requested permissions" })
-    ).closest("section");
+    const permissionHeading = await screen.findByRole("heading", {
+      name: "Requested permissions",
+    });
+    const permissionSection = permissionHeading.closest("section");
+    expect(permissionHeading).toHaveClass("leading-5");
+    expect(permissionSection).toHaveClass("p-[15px]");
     expect(
       Array.from(permissionSection?.querySelectorAll("bdi") ?? [], (path) => path.textContent),
     ).toEqual(["/pub/ordinary.app/", "/pub/", "/priv/vault/", "/"]);
@@ -403,14 +410,13 @@ describe("AuthorizationFlow", () => {
 
     await user.click(screen.getByRole("button", { name: "Switch" }));
     expect(screen.getByRole("heading", { name: "Switch identity." })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /add identity/iu })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /use other identity/iu })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /Second User/iu }));
 
     await waitFor(() => expect(screen.getByText("Second User")).toBeInTheDocument());
     expect(MOCKS.select).toHaveBeenCalledWith(SECOND.publicIdentity.publicKeyZ32);
     expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
-    expect(screen.getByText("seco...-key")).toHaveClass("normal-case");
-    expect(screen.getByText("seco...-key")).not.toHaveClass("uppercase");
+    expect(screen.getByText("seco...-key")).toHaveClass("uppercase");
   });
 
   it("adds an identity through the normal sign-in flow without losing the review", async () => {
@@ -419,7 +425,7 @@ describe("AuthorizationFlow", () => {
     await screen.findByRole("heading", { name: "Sign in to requesting.app" });
 
     await user.click(screen.getByRole("button", { name: "Switch" }));
-    await user.click(screen.getByRole("button", { name: /add identity/iu }));
+    await user.click(screen.getByRole("button", { name: /use other identity/iu }));
 
     expect(screen.getByRole("heading", { name: "Add identity" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Complete identity setup" }));

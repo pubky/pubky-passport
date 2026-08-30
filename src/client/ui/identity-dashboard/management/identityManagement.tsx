@@ -1,6 +1,7 @@
 import { Result } from "better-result";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
 import type { LocalIdentityResult } from "../../../logic/local-identity/LocalStorageIdentityRepository";
@@ -14,13 +15,13 @@ import {
   LogOutIcon,
 } from "../../shared/actionIcons";
 import { BackButton } from "../../shared/backButton";
+import { cn } from "../../shared/mergeClassNames";
 import { PassportScreen } from "../../shared/passportScreen";
 import { Avatar } from "../../shared/primitives/avatar";
 import { Button } from "../../shared/primitives/button";
 import { IconButton } from "../../shared/primitives/iconButton";
 import { FieldMessage } from "../../shared/primitives/fieldMessage";
 import { DisplayHeading } from "../../shared/primitives/typography";
-import { showCopyConfirmation } from "../../shared/sonner";
 
 function IdentityManagement({
   identity,
@@ -88,10 +89,18 @@ function IdentityManagement({
       <section className="flex flex-col gap-6 md:grid md:grid-cols-2 md:gap-x-4 md:gap-y-6">
         <IdentityDetail label="User" value={name} />
         <IdentityDetail label="Google account" value={account?.email ?? "Not connected"} />
-        <IdentityDetail copy label="Pubky" value={identity.publicIdentity.publicKeyZ32} />
         <IdentityDetail
-          copy
+          label="Pubky"
+          onCopied={() =>
+            toast("Pubky copied to clipboard", {
+              description: shortCopiedValue(identity.publicIdentity.publicKeyZ32),
+            })
+          }
+          value={identity.publicIdentity.publicKeyZ32}
+        />
+        <IdentityDetail
           label="Homeserver"
+          onCopied={() => toast("Homeserver copied")}
           value={homeserver === undefined ? "Looking up…" : (homeserver ?? "Unavailable")}
         />
       </section>
@@ -104,7 +113,7 @@ function IdentityManagement({
           Migrate to keychain
         </ManagementButton>
         <ManagementButton icon={<DownloadIcon />} onClick={onDownloadRecoveryFile}>
-          Download recovery file
+          Download backup
         </ManagementButton>
         {account ? (
           <ManagementButton icon={<LinkOffIcon />} onClick={onDetachFromGoogle}>
@@ -128,20 +137,20 @@ function IdentityManagement({
 }
 
 function IdentityDetail({
-  copy = false,
   label,
+  onCopied,
   value,
 }: {
-  copy?: boolean;
   label: string;
+  onCopied?: () => void;
   value: string;
 }) {
-  const isCopyable = copy && value !== "Unavailable" && value !== "Looking up…";
+  const isCopyable = onCopied !== undefined && value !== "Unavailable" && value !== "Looking up…";
 
   async function copyValue() {
     try {
       await navigator.clipboard.writeText(value);
-      showCopyConfirmation(label, value);
+      onCopied?.();
     } catch (cause) {
       LOGGER.info("identity.management.failed", {
         operation: "copy",
@@ -156,9 +165,11 @@ function IdentityDetail({
         <p className="mb-1 text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">
           {label}
         </p>
-        <p className="break-all font-medium leading-6">{value}</p>
+        <p className={cn("break-all font-medium leading-6", onCopied && "md:text-sm md:leading-5")}>
+          {value}
+        </p>
       </div>
-      {copy ? (
+      {onCopied ? (
         <IconButton
           aria-label={`Copy ${label}`}
           className="size-9 p-1"
@@ -173,6 +184,10 @@ function IdentityDetail({
       ) : null}
     </div>
   );
+}
+
+function shortCopiedValue(value: string): string {
+  return value.length > 32 ? `${value.slice(0, 32)}...` : value;
 }
 
 function ManagementButton({

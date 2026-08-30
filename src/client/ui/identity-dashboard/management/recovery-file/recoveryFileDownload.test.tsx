@@ -9,12 +9,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { LOGGER } from "../../../../../libs/logger/logger";
 import { RecoveryFileDownload } from "./recoveryFileDownload";
 
-const MOCKS = vi.hoisted(() => ({ showDownloadConfirmation: vi.fn() }));
+const MOCKS = vi.hoisted(() => ({ toastSuccess: vi.fn() }));
 const RECOVERY_PASSWORD = "correct horse";
 
-vi.mock("../../../shared/sonner", () => ({
-  showDownloadConfirmation: MOCKS.showDownloadConfirmation,
-}));
+vi.mock("sonner", () => ({ toast: { success: MOCKS.toastSuccess } }));
 
 describe("RecoveryFileDownload", () => {
   afterEach(() => {
@@ -45,7 +43,7 @@ describe("RecoveryFileDownload", () => {
     );
 
     const download = screen.getByRole("button", { name: "Download backup" });
-    const password = screen.getByLabelText("Recovery password");
+    const password = screen.getByLabelText("Enter strong password");
     expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
     expect(password).toHaveAttribute("minlength", "12");
     expect(download).toBeDisabled();
@@ -57,7 +55,7 @@ describe("RecoveryFileDownload", () => {
     expect(click).toHaveBeenCalledOnce();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:backup");
     expect(bytes).toEqual(new Uint8Array([1, 2, 3]));
-    expect(MOCKS.showDownloadConfirmation).toHaveBeenCalledOnce();
+    expect(MOCKS.toastSuccess).toHaveBeenCalledWith("File downloaded");
     expect(onBack).toHaveBeenCalledOnce();
   });
 
@@ -83,7 +81,7 @@ describe("RecoveryFileDownload", () => {
       />,
     );
 
-    await userEvent.setup().type(screen.getByLabelText("Recovery password"), RECOVERY_PASSWORD);
+    await userEvent.setup().type(screen.getByLabelText("Enter strong password"), RECOVERY_PASSWORD);
     await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -98,7 +96,7 @@ describe("RecoveryFileDownload", () => {
         errorName: "Error",
       }),
     );
-    expect(MOCKS.showDownloadConfirmation).not.toHaveBeenCalled();
+    expect(MOCKS.toastSuccess).not.toHaveBeenCalled();
     expect(onBack).not.toHaveBeenCalled();
   });
 
@@ -109,6 +107,29 @@ describe("RecoveryFileDownload", () => {
     );
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(onBack).toHaveBeenCalledOnce();
+  });
+
+  it("relocates the download action only in the mobile layout", () => {
+    render(
+      <RecoveryFileDownload
+        createRecoveryFile={vi.fn()}
+        publicKeyZ32="identity"
+        onBack={vi.fn()}
+      />,
+    );
+
+    const label = screen.getByText("Enter strong password");
+    const password = screen.getByLabelText("Enter strong password");
+    const download = screen.getByRole("button", { name: "Download backup" });
+    const back = screen.getByRole("button", { name: "Back" });
+    const illustration = document.querySelector("img");
+    const navigation = back.parentElement?.parentElement;
+
+    expect(label).toHaveClass("leading-5", "md:leading-4");
+    expect(password.parentElement).toHaveClass("h-14", "md:h-[60px]");
+    expect(illustration).toHaveClass("order-3", "md:order-[0]");
+    expect(navigation).toHaveClass("order-4", "-mt-1", "md:order-[0]", "md:mt-0");
+    expect(download).toHaveClass("order-5", "-mt-2", "md:order-[0]", "md:mt-4");
   });
 
   it("announces recovery-file failures without marking a valid password invalid", async () => {
@@ -127,7 +148,7 @@ describe("RecoveryFileDownload", () => {
         onBack={onBack}
       />,
     );
-    const password = screen.getByLabelText("Recovery password");
+    const password = screen.getByLabelText("Enter strong password");
     await userEvent.setup().type(password, RECOVERY_PASSWORD);
     await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
 
@@ -135,7 +156,7 @@ describe("RecoveryFileDownload", () => {
       "Could not create the recovery file",
     );
     expect(password).not.toHaveAttribute("aria-invalid");
-    expect(MOCKS.showDownloadConfirmation).not.toHaveBeenCalled();
+    expect(MOCKS.toastSuccess).not.toHaveBeenCalled();
     expect(onBack).not.toHaveBeenCalled();
     expect(screen.getByRole("alert")).not.toHaveTextContent(secret);
     expect(warning).not.toHaveBeenCalled();
@@ -155,7 +176,7 @@ describe("RecoveryFileDownload", () => {
       />,
     );
 
-    const password = screen.getByLabelText("Recovery password");
+    const password = screen.getByLabelText("Enter strong password");
     await userEvent.setup().type(password, RECOVERY_PASSWORD);
     await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
 
@@ -195,7 +216,7 @@ describe("RecoveryFileDownload", () => {
         onBack={onBack}
       />,
     );
-    await userEvent.setup().type(screen.getByLabelText("Recovery password"), RECOVERY_PASSWORD);
+    await userEvent.setup().type(screen.getByLabelText("Enter strong password"), RECOVERY_PASSWORD);
     await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
 
     expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
@@ -205,7 +226,7 @@ describe("RecoveryFileDownload", () => {
     );
 
     expect(createObjectURL).not.toHaveBeenCalled();
-    expect(MOCKS.showDownloadConfirmation).not.toHaveBeenCalled();
+    expect(MOCKS.toastSuccess).not.toHaveBeenCalled();
     expect(onBack).not.toHaveBeenCalled();
   });
 });

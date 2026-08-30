@@ -88,7 +88,7 @@ function AuthorizationReview({
                 ) : null}
                 <span className="min-w-0 flex-1">
                   <strong className="block truncate leading-6">{identityName}</strong>
-                  <span className="block truncate text-xs font-medium normal-case tracking-[0.1em] text-muted-foreground">
+                  <span className="block truncate text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
                     {shortPublicKey(identity.publicIdentity.publicKeyZ32)}
                   </span>
                 </span>
@@ -129,7 +129,7 @@ function AuthorizationReview({
               Cancel
             </Button>
           }
-          className="pt-6"
+          className="mt-auto md:mt-0"
           confirm={
             <Button
               className="w-full"
@@ -222,7 +222,7 @@ function describeAuthorizationEffect(
 }
 
 function formatAccess(capability: AuthorizationRequestReview["capabilities"][number]): string {
-  if (capability.read && capability.write) return "Read & write";
+  if (capability.read && capability.write) return "Read,write";
   if (capability.write) return "Write";
   return "Read";
 }

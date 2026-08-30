@@ -1,5 +1,7 @@
 import type { GoogleIdentityProgress as GoogleIdentityProgressState } from "../../../logic/google-identity/GoogleIdentityController";
+import { cn } from "../../shared/mergeClassNames";
 import { PassportScreen } from "../../shared/passportScreen";
+import { Button } from "../../shared/primitives/button";
 import { Spinner } from "../../shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
 import { SignInContext } from "../../shared/signInContext";
@@ -7,6 +9,7 @@ import { SignInContext } from "../../shared/signInContext";
 type StepState = "complete" | "active" | "pending";
 type SetupStep = { label: string; state: StepState };
 type ProgressPresentation = {
+  bordered: boolean;
   heading: "Setting up" | "Restoring" | "Repairing";
   listLabel: string;
   steps: SetupStep[];
@@ -28,15 +31,25 @@ function GoogleIdentityProgress({
 
   return (
     <PassportScreen>
-      <div className="flex flex-1 flex-col gap-6">
-        <DisplayHeading accent="your pubky." aria-label={`${presentation.heading} your pubky.`}>
+      <div className="flex flex-1 flex-col gap-6 md:gap-8">
+        <DisplayHeading
+          accent="your pubky."
+          aria-label={`${presentation.heading} your pubky.`}
+          desktopAccentOnNewLine
+        >
           {presentation.heading}
         </DisplayHeading>
         {signInTo ? <SignInContext requester={signInTo} /> : null}
         <p aria-atomic="true" className="sr-only" role="status">
           {presentation.heading} your Pubky: {activeStep?.label}.
         </p>
-        <ol aria-label={presentation.listLabel} className="flex flex-col gap-6 py-3">
+        <ol
+          aria-label={presentation.listLabel}
+          className={cn(
+            "flex flex-col gap-6 py-3",
+            presentation.bordered && "md:rounded-lg md:border md:border-card",
+          )}
+        >
           {presentation.steps.map((step) => (
             <ProgressStep key={step.label} step={step} />
           ))}
@@ -48,18 +61,32 @@ function GoogleIdentityProgress({
 
 function IdentityLookup({ signInTo }: { signInTo?: string }) {
   return (
-    <PassportScreen className="gap-6">
-      <DisplayHeading
-        accent={<span className="whitespace-nowrap">existing Pubky.</span>}
-        aria-label="Looking for existing Pubky."
-      >
-        Looking for
-      </DisplayHeading>
-      {signInTo ? <SignInContext requester={signInTo} /> : null}
-      <LeadText>Checking Google Drive for an encrypted Passport file.</LeadText>
-      <div className="flex items-center gap-3 py-3 text-muted-foreground md:w-fit" role="status">
-        <Spinner aria-hidden="true" className="motion-reduce:animate-none" role="presentation" />
-        Checking Google Drive…
+    <PassportScreen className="gap-6 md:gap-8">
+      <div className="flex flex-col gap-6 md:gap-3">
+        <DisplayHeading
+          accent={<span className="md:whitespace-nowrap">existing Pubky.</span>}
+          aria-label="Looking for existing Pubky."
+        >
+          Looking for
+        </DisplayHeading>
+        {signInTo ? <SignInContext requester={signInTo} /> : null}
+        <LeadText>Checking Google Drive for an encrypted Passport file.</LeadText>
+      </div>
+      <div role="status">
+        <Button
+          className="w-full md:w-[249px]"
+          disabled
+          size="lg"
+          type="button"
+          variant="secondary"
+        >
+          <Spinner
+            aria-hidden="true"
+            className="size-4 motion-reduce:animate-none"
+            role="presentation"
+          />
+          Checking Google Drive...
+        </Button>
       </div>
     </PassportScreen>
   );
@@ -129,19 +156,21 @@ const REPAIR_STEP_INDEX = {
 
 function restorePresentation(activeIndex: number): ProgressPresentation {
   return {
+    bordered: false,
     heading: "Restoring",
     listLabel: "Pubky identity restore progress",
-    steps: states(["Restore Passport file", "Sign in to the homeserver"], activeIndex),
+    steps: states(["Restore encrypted backup", "Sign in to the homeserver"], activeIndex),
   };
 }
 
 function repairPresentation(activeIndex: number): ProgressPresentation {
   return {
+    bordered: false,
     heading: "Repairing",
     listLabel: "Pubky identity repair progress",
     steps: states(
       [
-        "Restore Passport file",
+        "Restore encrypted backup",
         "Repair homeserver access",
         "Publish PKDNS records",
         "Sign in to the homeserver",
@@ -153,11 +182,12 @@ function repairPresentation(activeIndex: number): ProgressPresentation {
 
 function setupPresentation(activeIndex: number): ProgressPresentation {
   return {
+    bordered: true,
     heading: "Setting up",
     listLabel: "Pubky identity setup progress",
     steps: states(
       [
-        "Store Passport file",
+        "Store encrypted backup",
         "Sign up to the homeserver",
         "Publish PKDNS records",
         "Activate identity",

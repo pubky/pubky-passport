@@ -38,7 +38,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <ParserTimeScripts />
       </head>
       <body>
-        <header className="flex h-[var(--passport-header-height)] w-full items-center justify-between bg-[linear-gradient(180deg,rgba(5,5,10,0.96),rgba(5,5,10,0))] px-6 md:px-10">
+        <header className="flex h-[var(--passport-header-height)] min-h-[var(--passport-header-height)] w-full shrink-0 items-center justify-between bg-[linear-gradient(180deg,rgba(5,5,10,0.96),rgba(5,5,10,0))] px-6 md:px-10">
           <PassportLogo />
         </header>
         <GoogleIdentityConfigurationProvider
@@ -47,7 +47,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         >
           {children}
         </GoogleIdentityConfigurationProvider>
-        <footer className="fixed inset-x-0 bottom-0 z-10 hidden h-[72px] items-center px-10 md:flex">
+        <footer className="passport-footer pointer-events-none fixed inset-x-0 bottom-0 z-10 hidden h-[72px] items-center px-10 md:flex">
           <BrandEndorsement />
         </footer>
         <Sonner />

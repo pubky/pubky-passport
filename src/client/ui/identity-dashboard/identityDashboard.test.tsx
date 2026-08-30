@@ -197,16 +197,20 @@ describe("IdentityDashboard", () => {
     expect(await screen.findByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
     const name = screen.getByText("Satoshi Nakamoto");
     expect(name).toHaveClass("w-[276px]", "text-2xl", "leading-8");
-    expect(name.parentElement).toHaveClass("gap-0");
-    expect(screen.getByText("identity")).toHaveClass("normal-case");
-    expect(screen.getByText("identity")).not.toHaveClass("uppercase");
+    expect(name.parentElement).toHaveClass("gap-3", "md:gap-0");
+    expect(screen.getByText("identity")).toHaveClass("uppercase");
     expect(screen.getByText("satoshi@gmail.com")).toHaveClass(
-      "w-[276px]",
+      "w-full",
       "h-10",
+      "justify-center",
       "gap-2",
+      "px-4",
       "py-2",
       "font-bold",
       "leading-5",
+      "md:w-[276px]",
+      "md:justify-start",
+      "md:px-0",
     );
     expect(screen.queryByRole("button", { name: "satoshi@gmail.com" })).not.toBeInTheDocument();
     expect(
@@ -316,7 +320,7 @@ describe("IdentityDashboard", () => {
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
     expect(screen.queryByRole("button", { name: "Detach from Google" })).not.toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole("button", { name: "Download recovery file" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
 
     expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
@@ -393,9 +397,7 @@ describe("IdentityDashboard", () => {
     expect(confirm).toBeEnabled();
     await userEvent.setup().click(confirm);
 
-    expect(
-      await screen.findByRole("heading", { name: "Detached from Google." }),
-    ).toBeInTheDocument();
+    expect((await screen.findByText("Detached")).closest("h1")).toBeInTheDocument();
     expect(FLOW.catalog.identities).toEqual([]);
     await userEvent.setup().click(screen.getByRole("button", { name: "Done" }));
     expect(
