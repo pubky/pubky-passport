@@ -13,8 +13,8 @@ describe("GoogleDetachmentComplete", () => {
     const onDone = vi.fn();
     const { container } = render(<GoogleDetachmentComplete onDone={onDone} />);
 
-    const heading = screen.getByRole("heading", { name: "Detached from Google." });
-    expect(heading).toBeInTheDocument();
+    const heading = screen.getByRole("heading");
+    expect(heading).not.toHaveAttribute("aria-label");
     expect(heading.querySelector(".md\\:hidden")).toHaveTextContent("Detached");
     expect(heading.querySelector(".hidden.md\\:inline")).toHaveTextContent("Detach");
     expect(

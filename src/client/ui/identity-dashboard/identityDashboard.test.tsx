@@ -397,7 +397,7 @@ describe("IdentityDashboard", () => {
     expect(confirm).toBeEnabled();
     await userEvent.setup().click(confirm);
 
-    expect(await screen.findByRole("heading", { name: "Detach from Google." })).toBeInTheDocument();
+    expect((await screen.findByText("Detached")).closest("h1")).toBeInTheDocument();
     expect(FLOW.catalog.identities).toEqual([]);
     await userEvent.setup().click(screen.getByRole("button", { name: "Done" }));
     expect(
