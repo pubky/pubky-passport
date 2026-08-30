@@ -1,6 +1,7 @@
 import { Result } from "better-result";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
 import type { LocalIdentityResult } from "../../../logic/local-identity/LocalStorageIdentityRepository";
@@ -14,7 +15,6 @@ import {
   LogOutIcon,
 } from "../../shared/actionIcons";
 import { BackButton } from "../../shared/backButton";
-import { showHomeserverCopied, showPubkyCopied } from "../../shared/feedbackNotifications";
 import { cn } from "../../shared/mergeClassNames";
 import { PassportScreen } from "../../shared/passportScreen";
 import { Avatar } from "../../shared/primitives/avatar";
@@ -91,12 +91,16 @@ function IdentityManagement({
         <IdentityDetail label="Google account" value={account?.email ?? "Not connected"} />
         <IdentityDetail
           label="Pubky"
-          onCopied={() => showPubkyCopied(identity.publicIdentity.publicKeyZ32)}
+          onCopied={() =>
+            toast("Pubky copied to clipboard", {
+              description: shortCopiedValue(identity.publicIdentity.publicKeyZ32),
+            })
+          }
           value={identity.publicIdentity.publicKeyZ32}
         />
         <IdentityDetail
           label="Homeserver"
-          onCopied={showHomeserverCopied}
+          onCopied={() => toast("Homeserver copied")}
           value={homeserver === undefined ? "Looking up…" : (homeserver ?? "Unavailable")}
         />
       </section>
@@ -180,6 +184,10 @@ function IdentityDetail({
       ) : null}
     </div>
   );
+}
+
+function shortCopiedValue(value: string): string {
+  return value.length > 32 ? `${value.slice(0, 32)}...` : value;
 }
 
 function ManagementButton({

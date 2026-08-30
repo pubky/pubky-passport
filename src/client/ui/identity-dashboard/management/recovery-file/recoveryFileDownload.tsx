@@ -1,6 +1,7 @@
 import { Result } from "better-result";
 import Image from "next/image";
 import { type SubmitEvent, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { LOGGER, safeErrorLogFields } from "../../../../../libs/logger/logger";
 import {
@@ -10,7 +11,6 @@ import {
 } from "../../../../logic/local-identity/LocalIdentityController";
 import { DownloadRecoveryFileIcon } from "../../../shared/actionIcons";
 import { BackButton } from "../../../shared/backButton";
-import { showFileDownloaded } from "../../../shared/feedbackNotifications";
 import { PassportNavigation } from "../../../shared/passportNavigation";
 import { PassportScreen } from "../../../shared/passportScreen";
 import { Button } from "../../../shared/primitives/button";
@@ -78,7 +78,7 @@ function RecoveryFileDownload({
       if (activeRef.current) setPending(false);
     }
     if (downloaded && activeRef.current) {
-      showFileDownloaded();
+      toast.success("File downloaded");
       onBack();
     }
   }

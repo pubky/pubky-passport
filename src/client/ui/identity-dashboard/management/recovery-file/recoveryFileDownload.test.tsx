@@ -9,12 +9,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { LOGGER } from "../../../../../libs/logger/logger";
 import { RecoveryFileDownload } from "./recoveryFileDownload";
 
-const MOCKS = vi.hoisted(() => ({ showFileDownloaded: vi.fn() }));
+const MOCKS = vi.hoisted(() => ({ toastSuccess: vi.fn() }));
 const RECOVERY_PASSWORD = "correct horse";
 
-vi.mock("../../../shared/feedbackNotifications", () => ({
-  showFileDownloaded: MOCKS.showFileDownloaded,
-}));
+vi.mock("sonner", () => ({ toast: { success: MOCKS.toastSuccess } }));
 
 describe("RecoveryFileDownload", () => {
   afterEach(() => {
@@ -57,7 +55,7 @@ describe("RecoveryFileDownload", () => {
     expect(click).toHaveBeenCalledOnce();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:backup");
     expect(bytes).toEqual(new Uint8Array([1, 2, 3]));
-    expect(MOCKS.showFileDownloaded).toHaveBeenCalledOnce();
+    expect(MOCKS.toastSuccess).toHaveBeenCalledWith("File downloaded");
     expect(onBack).toHaveBeenCalledOnce();
   });
 
@@ -98,7 +96,7 @@ describe("RecoveryFileDownload", () => {
         errorName: "Error",
       }),
     );
-    expect(MOCKS.showFileDownloaded).not.toHaveBeenCalled();
+    expect(MOCKS.toastSuccess).not.toHaveBeenCalled();
     expect(onBack).not.toHaveBeenCalled();
   });
 
@@ -158,7 +156,7 @@ describe("RecoveryFileDownload", () => {
       "Could not create the recovery file",
     );
     expect(password).not.toHaveAttribute("aria-invalid");
-    expect(MOCKS.showFileDownloaded).not.toHaveBeenCalled();
+    expect(MOCKS.toastSuccess).not.toHaveBeenCalled();
     expect(onBack).not.toHaveBeenCalled();
     expect(screen.getByRole("alert")).not.toHaveTextContent(secret);
     expect(warning).not.toHaveBeenCalled();
@@ -228,7 +226,7 @@ describe("RecoveryFileDownload", () => {
     );
 
     expect(createObjectURL).not.toHaveBeenCalled();
-    expect(MOCKS.showFileDownloaded).not.toHaveBeenCalled();
+    expect(MOCKS.toastSuccess).not.toHaveBeenCalled();
     expect(onBack).not.toHaveBeenCalled();
   });
 });

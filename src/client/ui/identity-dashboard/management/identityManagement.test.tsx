@@ -8,15 +8,9 @@ import { LOGGER } from "../../../../libs/logger/logger";
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import { IdentityManagement } from "./identityManagement";
 
-const MOCKS = vi.hoisted(() => ({
-  showHomeserverCopied: vi.fn(),
-  showPubkyCopied: vi.fn(),
-}));
+const MOCKS = vi.hoisted(() => ({ toast: vi.fn() }));
 
-vi.mock("../../shared/feedbackNotifications", () => ({
-  showHomeserverCopied: MOCKS.showHomeserverCopied,
-  showPubkyCopied: MOCKS.showPubkyCopied,
-}));
+vi.mock("sonner", () => ({ toast: MOCKS.toast }));
 
 const identity = {
   googleAccount: {
@@ -59,12 +53,14 @@ describe("IdentityManagement", () => {
     await waitFor(() =>
       expect(writeText).toHaveBeenCalledWith(identity.publicIdentity.publicKeyZ32),
     );
-    expect(MOCKS.showPubkyCopied).toHaveBeenCalledWith(identity.publicIdentity.publicKeyZ32);
+    expect(MOCKS.toast).toHaveBeenCalledWith("Pubky copied to clipboard", {
+      description: `${identity.publicIdentity.publicKeyZ32.slice(0, 32)}...`,
+    });
     const homeserverButton = screen.getByRole("button", { name: "Copy Homeserver" });
     await waitFor(() => expect(homeserverButton).toBeEnabled());
     fireEvent.click(homeserverButton);
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("homeserver-pubky"));
-    expect(MOCKS.showHomeserverCopied).toHaveBeenCalledOnce();
+    expect(MOCKS.toast).toHaveBeenCalledWith("Homeserver copied");
   });
 
   it("does not confirm a failed copy", async () => {
@@ -88,8 +84,7 @@ describe("IdentityManagement", () => {
     fireEvent.click(screen.getByRole("button", { name: "Copy Pubky" }));
 
     await waitFor(() => {
-      expect(MOCKS.showPubkyCopied).not.toHaveBeenCalled();
-      expect(MOCKS.showHomeserverCopied).not.toHaveBeenCalled();
+      expect(MOCKS.toast).not.toHaveBeenCalled();
     });
     expect(info).toHaveBeenCalledWith(
       "identity.management.failed",
