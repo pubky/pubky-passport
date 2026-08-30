@@ -80,6 +80,8 @@ describe("AuthorizationQrScanner", () => {
     expect(info).toHaveBeenCalledWith("authorize.manual_entry.failed", {
       operation: "scan_qr",
       code: "camera_unavailable",
+      diagnosticId: expect.any(String),
+      errorName: "NotAllowedError",
     });
     expect(JSON.stringify(info.mock.calls)).not.toContain("SENSITIVE-CAMERA-DETAIL");
   });

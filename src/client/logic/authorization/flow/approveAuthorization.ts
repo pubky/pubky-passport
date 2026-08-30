@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
 import type { CodedFailure } from "../../../../libs/result";
 import {
   LocalStorageIdentityRepository,
@@ -35,12 +35,13 @@ export async function approveAuthorization(
     const { PubkySdkAdapter } = await import("../../pubky/PubkySdkAdapter");
     if (signal?.aborted) return Result.err({ code: "cancelled" });
     pubky = new PubkySdkAdapter();
-  } catch {
+  } catch (cause) {
     LOGGER.warn("authorize.approval.failed", {
       stage: "sdk_initialize",
       code: "unexpected_failure",
+      ...safeErrorLogFields(cause),
     });
-    return Result.err({ code: "approval_failed" });
+    return Result.err({ code: "approval_failed", cause });
   }
 
   let keyHandle: PubkyIdentityKey["keyHandle"] | undefined;
@@ -59,8 +60,9 @@ export async function approveAuthorization(
       LOGGER.warn("authorize.approval.failed", {
         stage: "identity_restore",
         code: restored.error.code,
+        ...safeErrorLogFields(restored.error),
       });
-      return Result.err({ code: "approval_failed" });
+      return Result.err({ code: "approval_failed", cause: restored.error });
     }
 
     keyHandle = restored.value.keyHandle;
@@ -72,16 +74,18 @@ export async function approveAuthorization(
       LOGGER.warn("authorize.approval.failed", {
         stage: "sdk_approve",
         code: approved.error.code,
+        ...safeErrorLogFields(approved.error),
       });
-      return Result.err({ code: "approval_failed" });
+      return Result.err({ code: "approval_failed", cause: approved.error });
     }
     return Result.ok();
-  } catch {
+  } catch (cause) {
     LOGGER.warn("authorize.approval.failed", {
       stage,
       code: "unexpected_failure",
+      ...safeErrorLogFields(cause),
     });
-    return Result.err({ code: "approval_failed" });
+    return Result.err({ code: "approval_failed", cause });
   } finally {
     disposeIdentityKey(pubky, keyHandle);
     disposePubky(pubky);
@@ -129,16 +133,22 @@ function disposeIdentityKey(
 
   try {
     pubky.disposeIdentityKey(keyHandle);
-  } catch {
-    LOGGER.warn("authorize.cleanup.failed", { operation: "identity_key_dispose" });
+  } catch (cause) {
+    LOGGER.warn("authorize.cleanup.failed", {
+      operation: "identity_key_dispose",
+      ...safeErrorLogFields(cause),
+    });
   }
 }
 
 function disposePubky(pubky: PubkySdkAdapter): void {
   try {
     pubky.dispose();
-  } catch {
-    LOGGER.warn("authorize.cleanup.failed", { operation: "pubky_dispose" });
+  } catch (cause) {
+    LOGGER.warn("authorize.cleanup.failed", {
+      operation: "pubky_dispose",
+      ...safeErrorLogFields(cause),
+    });
   }
 }
 

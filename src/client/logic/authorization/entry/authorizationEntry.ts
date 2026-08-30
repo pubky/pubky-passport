@@ -6,7 +6,7 @@ import {
   EARLY_AUTHORIZATION_LOCATION_PROPERTY,
   type EarlyAuthorizationLocation,
 } from "../../../../libs/authorization/earlyAuthorizationLocation";
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
 import { AUTHORIZATION_CAPTURE_MAX_CHARACTERS } from "../../../../libs/passportPolicy";
 import { ValidatedPubkyAuthRequest } from "../request/ValidatedPubkyAuthRequest";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "../request/parser/pubkyAuthRequestParser";
@@ -86,10 +86,11 @@ function takeEarlyAuthorizationLocation(appWindow: Window): EarlyAuthorizationLo
       Number.isFinite(capture.expiresAt)
       ? { status: "captured", hash: capture.hash, expiresAt: capture.expiresAt }
       : undefined;
-  } catch {
+  } catch (cause) {
     LOGGER.warn("authorize.entry.failed", {
       operation: "take_early_capture",
       code: "capture_unavailable",
+      ...safeErrorLogFields(cause),
     });
     return undefined;
   }
@@ -133,10 +134,11 @@ export function scrubAuthorizationLocation(
       appWindow.location.pathname,
     );
     return true;
-  } catch {
+  } catch (cause) {
     LOGGER.warn("authorize.entry.failed", {
       operation: "scrub_fragment",
       code: "history_unavailable",
+      ...safeErrorLogFields(cause),
     });
     try {
       appWindow.stop();

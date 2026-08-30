@@ -97,6 +97,8 @@ describe("PassportAuthorizationController composition", () => {
     expect(warning).toHaveBeenCalledWith("authorize.approval.failed", {
       stage: "sdk_initialize",
       code: "unexpected_failure",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("sensitive authorization request");
   });
@@ -119,6 +121,8 @@ describe("PassportAuthorizationController composition", () => {
     });
     expect(warning).toHaveBeenCalledWith("authorize.cleanup.failed", {
       operation: "pubky_dispose",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
   });
 

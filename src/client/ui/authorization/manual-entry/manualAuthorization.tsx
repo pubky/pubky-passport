@@ -1,7 +1,7 @@
 import dynamic from "next/dynamic";
 import { type SubmitEvent, useCallback, useRef, useState } from "react";
 
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
 import { validateManualAuthorizationInput } from "../../../logic/authorization/entry/manualAuthorizationInput";
 import { ArrowRightIcon, CameraIcon, ClipboardPasteIcon } from "../../shared/actionIcons";
 import { BackButton } from "../../shared/backButton";
@@ -39,10 +39,11 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
     try {
       History.prototype.replaceState.call(window.history, null, "", result.destination);
       window.location.reload();
-    } catch {
+    } catch (cause) {
       LOGGER.info("authorize.manual_entry.failed", {
         operation: "enter_authorization",
         code: "navigation_failed",
+        ...safeErrorLogFields(cause),
       });
       setError("Could not open the authorization request. Try again.");
     }
@@ -55,10 +56,11 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
       authorizationInputRef.current.value = value;
       setHasAuthorization(value.trim().length > 0);
       setError(undefined);
-    } catch {
+    } catch (cause) {
       LOGGER.info("authorize.manual_entry.failed", {
         operation: "read_clipboard",
         code: "clipboard_unavailable",
+        ...safeErrorLogFields(cause),
       });
       setError("Clipboard access was blocked. Paste the link manually.");
     }

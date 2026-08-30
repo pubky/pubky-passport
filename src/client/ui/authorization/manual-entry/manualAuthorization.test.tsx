@@ -144,6 +144,8 @@ describe("ManualAuthorization", () => {
     expect(info).toHaveBeenCalledWith("authorize.manual_entry.failed", {
       operation: "enter_authorization",
       code: "navigation_failed",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(info).toHaveBeenCalledOnce();
     expect(JSON.stringify(info.mock.calls)).not.toContain("secret-canary");
@@ -164,6 +166,8 @@ describe("ManualAuthorization", () => {
     expect(info).toHaveBeenCalledWith("authorize.manual_entry.failed", {
       operation: "read_clipboard",
       code: "clipboard_unavailable",
+      diagnosticId: expect.any(String),
+      errorName: "NotAllowedError",
     });
     expect(JSON.stringify(info.mock.calls)).not.toContain("SECRET-CLIPBOARD-CANARY");
   });
