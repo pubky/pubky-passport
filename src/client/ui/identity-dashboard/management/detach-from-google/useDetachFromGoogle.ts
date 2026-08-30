@@ -42,7 +42,11 @@ function useDetachFromGoogle(publicIdentity: PubkyPublicIdentity, expectedGoogle
       );
       controllerRef.current = controller;
       return controller;
-    } catch {
+    } catch (cause) {
+      LOGGER.warn("identity.google.detachment_ui.failed", {
+        operation: "construct_controller",
+        ...safeErrorLogFields(cause),
+      });
       setState({ status: "operation-failed", error: { code: "operation_failed" } });
       return null;
     }

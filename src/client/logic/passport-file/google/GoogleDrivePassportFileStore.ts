@@ -3,7 +3,7 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import { readBoundedText } from "../../../../libs/http/boundedBody";
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
 import { MAXIMUM_JSON_BODY_BYTES } from "../../../../libs/passportPolicy";
 import type { CodedFailure } from "../../../../libs/result";
 import {
@@ -188,6 +188,7 @@ export class GoogleDrivePassportFileStore {
       LOGGER.warn("identity.google.drive_store.failed", {
         operation: "create_lock",
         code: "write_failed",
+        ...safeErrorLogFields(cause),
       });
       return Result.err({ code: "write_failed", cause });
     }
@@ -485,7 +486,11 @@ export class GoogleDrivePassportFileStore {
   ): Promise<StoreResult<Response>> {
     const response = await fetchDrive(this.fetchImpl, input, init);
     if (!Result.isError(response)) return Result.ok(response.value);
-    LOGGER.warn("identity.google.drive_store.failed", { operation, code: "network_failed" });
+    LOGGER.warn("identity.google.drive_store.failed", {
+      operation,
+      code: "network_failed",
+      ...(response.error.cause === undefined ? {} : safeErrorLogFields(response.error.cause)),
+    });
     return Result.err(response.error);
   }
 }

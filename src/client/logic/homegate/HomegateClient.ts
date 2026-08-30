@@ -4,7 +4,7 @@ import { Result } from "better-result";
 import { z } from "zod";
 
 import { readBoundedText } from "../../../libs/http/boundedBody";
-import { LOGGER } from "../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import { MAXIMUM_JSON_BODY_BYTES, REQUEST_TIMEOUT_MS } from "../../../libs/passportPolicy";
 import type { CodedFailure } from "../../../libs/result";
 import { isPubkyPublicKey } from "../pubky/pubkyIdentityKey";
@@ -81,6 +81,7 @@ export class HomegateClient {
         operation: "request_google_invitation",
         stage: "request",
         code: "network_failed",
+        ...safeErrorLogFields(cause),
       });
       return Result.err({ code: "network_failed", cause });
     }

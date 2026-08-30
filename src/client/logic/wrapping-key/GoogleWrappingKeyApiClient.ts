@@ -4,7 +4,7 @@ import { Result } from "better-result";
 import { z } from "zod";
 
 import { isCanonicalBase64Url } from "../../../libs/encoding/base64Url";
-import { LOGGER } from "../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import { readBoundedText } from "../../../libs/http/boundedBody";
 import { MAXIMUM_JSON_BODY_BYTES, passportKeyIdSchema } from "../../../libs/passportPolicy";
 import type { CodedFailure } from "../../../libs/result";
@@ -60,6 +60,7 @@ export class GoogleWrappingKeyApiClient {
         operation: "request_google_wrapping_key",
         stage: "request",
         code: "network_failed",
+        ...safeErrorLogFields(cause),
       });
       return Result.err({ code: "network_failed", cause });
     }

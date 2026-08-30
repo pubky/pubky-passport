@@ -2,6 +2,7 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
+import type { GoogleAccountProfile } from "../../../libs/googleAccountProfile";
 import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
 import type {
@@ -9,7 +10,6 @@ import type {
   GoogleIdentityCredentials,
   GoogleImplicitAuthorizationError,
 } from "./gia/GoogleImplicitAuthorization";
-import type { GoogleAccountProfile } from "../local-identity/localIdentityModels";
 import type { PubkyPublicIdentity } from "../pubky/pubkyIdentityKey";
 import type {
   GoogleIdentityOperations,
@@ -361,9 +361,10 @@ export class GoogleIdentityController {
     } catch (cause) {
       try {
         authorization.dispose();
-      } catch {
+      } catch (cleanupCause) {
         LOGGER.warn("identity.google.cleanup.failed", {
           operation: "construction_authorization_dispose",
+          ...safeErrorLogFields(cleanupCause),
         });
       }
       throw cause;

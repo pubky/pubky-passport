@@ -140,6 +140,8 @@ describe("PassportFileWebCrypto", () => {
     expect(warning).toHaveBeenCalledWith("passport_file.crypto.failed", {
       operation: "encrypt",
       code: "unsupported_browser_crypto",
+      diagnosticId: expect.any(String),
+      errorName: "SecurityError",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-CRYPTO-PROVIDER");
   });
@@ -158,6 +160,8 @@ describe("PassportFileWebCrypto", () => {
     expect(warning).toHaveBeenCalledWith("passport_file.crypto.failed", {
       operation: "encrypt",
       code: "unsupported_browser_crypto",
+      diagnosticId: expect.any(String),
+      errorName: "TypeError",
     });
     expect(warning).toHaveBeenCalledOnce();
     const logged = JSON.stringify(warning.mock.calls);
@@ -185,6 +189,8 @@ describe("PassportFileWebCrypto", () => {
     expect(warning).toHaveBeenCalledWith("passport_file.crypto.failed", {
       operation: "encrypt",
       code: "encrypt_failed",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(warning).toHaveBeenCalledOnce();
     const logged = JSON.stringify(warning.mock.calls);
@@ -320,6 +326,8 @@ describe("PassportFileWebCrypto", () => {
     expect(warning).toHaveBeenCalledWith("passport_file.crypto.failed", {
       operation: "decrypt",
       code: "decrypt_failed",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(warning).toHaveBeenCalledOnce();
     const logged = JSON.stringify(warning.mock.calls);
@@ -351,6 +359,8 @@ describe("PassportFileWebCrypto", () => {
     expect(warning).toHaveBeenCalledWith("passport_file.crypto.failed", {
       operation: "decrypt",
       code: "decrypt_failed",
+      diagnosticId: expect.any(String),
+      errorName: "RangeError",
     });
     expect(warning).toHaveBeenCalledOnce();
     const logged = JSON.stringify(warning.mock.calls);

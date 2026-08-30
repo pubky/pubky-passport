@@ -225,6 +225,8 @@ describe("HomegateClient", () => {
       operation: "request_google_invitation",
       stage: "request",
       code: "network_failed",
+      diagnosticId: expect.any(String),
+      errorName: "TypeError",
     });
     expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-GOOGLE-ID-TOKEN");
     expect(JSON.stringify(fetch)).not.toContain("SECRET-GOOGLE-ID-TOKEN");
@@ -250,6 +252,8 @@ describe("HomegateClient", () => {
       operation: "request_google_invitation",
       stage: "request",
       code: "network_failed",
+      diagnosticId: expect.any(String),
+      errorName: "NotSupportedError",
     });
     expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-HOMEGATE-URL");
   });

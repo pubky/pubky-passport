@@ -3,7 +3,7 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import { decodeBase64Url, encodeBase64Url } from "../../../libs/encoding/base64Url";
-import { LOGGER } from "../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
 import { PUBKY_SECRET_KEY_BYTES } from "../pubky/pubkyIdentityKey";
 import {
@@ -58,6 +58,9 @@ export class PassportFileWebCrypto {
       LOGGER.warn("passport_file.crypto.failed", {
         operation: "encrypt",
         code: "unsupported_browser_crypto",
+        ...(browserCrypto.error.cause === undefined
+          ? {}
+          : safeErrorLogFields(browserCrypto.error.cause)),
       });
       return Result.err(browserCrypto.error);
     }
@@ -103,6 +106,7 @@ export class PassportFileWebCrypto {
         LOGGER.warn("passport_file.crypto.failed", {
           operation: "encrypt",
           code: "unsupported_browser_crypto",
+          ...(key.error.cause === undefined ? {} : safeErrorLogFields(key.error.cause)),
         });
         return Result.err(key.error);
       }
@@ -131,6 +135,7 @@ export class PassportFileWebCrypto {
       LOGGER.warn("passport_file.crypto.failed", {
         operation: "encrypt",
         code: "encrypt_failed",
+        ...safeErrorLogFields(cause),
       });
       return Result.err({ code: "encrypt_failed", cause });
     } finally {
@@ -154,6 +159,9 @@ export class PassportFileWebCrypto {
       LOGGER.warn("passport_file.crypto.failed", {
         operation: "decrypt",
         code: "unsupported_browser_crypto",
+        ...(browserCrypto.error.cause === undefined
+          ? {}
+          : safeErrorLogFields(browserCrypto.error.cause)),
       });
       return Result.err(browserCrypto.error);
     }
@@ -218,6 +226,7 @@ export class PassportFileWebCrypto {
         LOGGER.warn("passport_file.crypto.failed", {
           operation: "decrypt",
           code: "unsupported_browser_crypto",
+          ...(key.error.cause === undefined ? {} : safeErrorLogFields(key.error.cause)),
         });
         return Result.err(key.error);
       }
@@ -248,6 +257,7 @@ export class PassportFileWebCrypto {
       LOGGER.warn("passport_file.crypto.failed", {
         operation: "decrypt",
         code: "decrypt_failed",
+        ...safeErrorLogFields(cause),
       });
       return Result.err({ code: "decrypt_failed", cause });
     } finally {

@@ -89,6 +89,8 @@ describe("readBoundedText", () => {
     expect(warning).toHaveBeenCalledWith("http.body_read.failed", {
       operation: "read",
       code: "body_unavailable",
+      diagnosticId: expect.any(String),
+      errorName: "TypeError",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-BODY-READ-FAILURE");
     expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-RESPONSE-VALUE");
@@ -106,6 +108,8 @@ describe("readBoundedText", () => {
     expect(warning).toHaveBeenCalledWith("http.body_read.failed", {
       operation: "read",
       code: "body_unavailable",
+      diagnosticId: expect.any(String),
+      errorName: "TypeError",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-HEADER-CANARY");
   });
@@ -122,6 +126,8 @@ describe("readBoundedText", () => {
     expect(warning).toHaveBeenCalledWith("http.body_read.failed", {
       operation: "release",
       code: "body_unavailable",
+      diagnosticId: expect.any(String),
+      errorName: "TypeError",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-RELEASE-CANARY");
   });

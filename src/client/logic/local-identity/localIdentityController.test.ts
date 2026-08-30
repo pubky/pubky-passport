@@ -136,7 +136,7 @@ describe("LocalIdentityController", () => {
     mockStoredIdentity(new Uint8Array(32).fill(1));
     MOCKS.createRecoveryFile.mockReturnValue(Result.ok(new Uint8Array(64)));
     MOCKS.dispose.mockImplementation(() => {
-      throw new Error("cleanup failed");
+      throw new Error("SECRET-RECOVERY-CLEANUP-CANARY");
     });
 
     expectResultOk(
@@ -147,7 +147,10 @@ describe("LocalIdentityController", () => {
     );
     expect(warning).toHaveBeenCalledWith("identity.recovery_file.cleanup.failed", {
       operation: "pubky_dispose",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-RECOVERY-CLEANUP-CANARY");
   });
 });
 

@@ -2,10 +2,10 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
+import type { GoogleAccountProfile } from "../../../libs/googleAccountProfile";
 import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import { NETWORK_OPERATION_TIMEOUT_MS, REQUEST_TIMEOUT_MS } from "../../../libs/passportPolicy";
 import type { CodedFailure } from "../../../libs/result";
-import type { GoogleAccountProfile } from "../local-identity/localIdentityModels";
 import type { GoogleIdentityCredentials } from "./gia/GoogleImplicitAuthorization";
 import {
   HomegateClient,
@@ -126,9 +126,10 @@ export class GoogleIdentityOperations {
     } catch (error) {
       try {
         this.pubky.dispose();
-      } catch {
+      } catch (cleanupCause) {
         LOGGER.warn("identity.google.cleanup.failed", {
           operation: "construction_pubky_dispose",
+          ...safeErrorLogFields(cleanupCause),
         });
       }
       throw error;
@@ -665,7 +666,8 @@ export class GoogleIdentityOperations {
         visibleCopies.createVisibleRecoveryCopy(envelope, publicIdentity, controller.signal),
         deadline,
       ]);
-      if (result === undefined || Result.isOk(result)) return result !== undefined;
+      if (result === undefined) return false;
+      if (Result.isOk(result)) return true;
       LOGGER.warn("identity.google.visible_recovery_copy.failed", {
         stage: "create",
         code: result.error.code,
@@ -689,9 +691,10 @@ export class GoogleIdentityOperations {
   ): void {
     try {
       this.pubky.disposeIdentityKey(identity.keyHandle);
-    } catch {
+    } catch (cause) {
       LOGGER.warn("identity.google.cleanup.failed", {
         operation,
+        ...safeErrorLogFields(cause),
       });
     }
   }

@@ -178,6 +178,8 @@ describe("GoogleWrappingKeyApiClient", () => {
       operation: "request_google_wrapping_key",
       stage: "request",
       code: "network_failed",
+      diagnosticId: expect.any(String),
+      errorName: "TypeError",
     });
     expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-GOOGLE-ID-TOKEN");
   });

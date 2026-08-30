@@ -7,7 +7,10 @@ import {
   encodeBase64Url,
   isCanonicalBase64Url,
 } from "../../../libs/encoding/base64Url";
-import { isGoogleAccountProfile } from "../../../libs/googleAccountProfile";
+import {
+  isGoogleAccountProfile,
+  type GoogleAccountProfile,
+} from "../../../libs/googleAccountProfile";
 import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
 import {
@@ -17,11 +20,7 @@ import {
   PUBKY_SECRET_KEY_FORMAT,
   type PubkySecretKeyMaterial,
 } from "../pubky/pubkyIdentityKey";
-import type {
-  GoogleAccountProfile,
-  LocalIdentityCatalog,
-  LocalIdentityMetadata,
-} from "./localIdentityModels";
+import type { LocalIdentityCatalog, LocalIdentityMetadata } from "./localIdentityModels";
 
 type StoredLocalIdentity = {
   v: 1;
@@ -46,8 +45,9 @@ const SAME_TAB_LISTENERS = new Set<() => void>();
 /** Stores each identity independently so concurrent tabs cannot overwrite a shared array. */
 export class LocalStorageIdentityRepository {
   list(): LocalIdentityResult<LocalIdentityCatalog> {
-    const storage = getLocalStorage();
-    if (!storage) return storageUnavailable("read");
+    const storageResult = getLocalStorage("read");
+    if (Result.isError(storageResult)) return Result.err(storageResult.error);
+    const storage = storageResult.value;
 
     const identities = readAllIdentities(storage);
     if (Result.isError(identities)) return Result.err(identities.error);
@@ -90,8 +90,9 @@ export class LocalStorageIdentityRepository {
       return Result.err({ code: "invalid_secret_key" });
     }
 
-    const storage = getLocalStorage();
-    if (!storage) return storageUnavailable("write");
+    const storageResult = getLocalStorage("write");
+    if (Result.isError(storageResult)) return Result.err(storageResult.error);
+    const storage = storageResult.value;
     const stored: StoredLocalIdentity = {
       v: 1,
       publicKeyZ32: identity.publicIdentity.publicKeyZ32,
@@ -127,8 +128,9 @@ export class LocalStorageIdentityRepository {
   }
 
   select(publicKeyZ32: string): LocalIdentityResult<void> {
-    const storage = getLocalStorage();
-    if (!storage) return storageUnavailable("write");
+    const storageResult = getLocalStorage("write");
+    if (Result.isError(storageResult)) return Result.err(storageResult.error);
+    const storage = storageResult.value;
     const identity = readIdentity(storage, publicKeyZ32);
     if (Result.isError(identity)) return Result.err(identity.error);
     if (!identity.value) return invalidIdentity("select");
@@ -139,8 +141,9 @@ export class LocalStorageIdentityRepository {
   }
 
   remove(publicKeyZ32: string): LocalIdentityResult<void> {
-    const storage = getLocalStorage();
-    if (!storage) return storageUnavailable("write");
+    const storageResult = getLocalStorage("write");
+    if (Result.isError(storageResult)) return Result.err(storageResult.error);
+    const storage = storageResult.value;
     const identity = readIdentity(storage, publicKeyZ32);
     if (Result.isError(identity)) return Result.err(identity.error);
     if (!identity.value) return invalidIdentity("remove");
@@ -182,8 +185,9 @@ export class LocalStorageIdentityRepository {
     identity: LocalIdentityMetadata;
     secretKey: PubkySecretKeyMaterial;
   }> {
-    const storage = getLocalStorage();
-    if (!storage) return storageUnavailable("read");
+    const storageResult = getLocalStorage("read");
+    if (Result.isError(storageResult)) return Result.err(storageResult.error);
+    const storage = storageResult.value;
     const stored = readIdentity(storage, publicKeyZ32);
     if (Result.isError(stored)) return Result.err(stored.error);
     if (!stored.value) return invalidIdentity("read_identity");
@@ -370,11 +374,12 @@ function storageUnavailable(operation: string, cause?: unknown): LocalIdentityRe
   );
 }
 
-function getLocalStorage(): Storage | null {
+function getLocalStorage(operation: "read" | "write"): LocalIdentityResult<Storage> {
   try {
-    return globalThis.window?.localStorage ?? globalThis.localStorage;
-  } catch {
-    return null;
+    const storage = globalThis.window?.localStorage ?? globalThis.localStorage;
+    return storage ? Result.ok(storage) : storageUnavailable(operation);
+  } catch (cause) {
+    return storageUnavailable(operation, cause);
   }
 }
 

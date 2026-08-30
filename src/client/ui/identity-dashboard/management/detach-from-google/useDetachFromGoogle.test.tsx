@@ -128,6 +128,11 @@ describe("useDetachFromGoogle", () => {
     expect(screen.getByTestId("operation-state")).not.toHaveTextContent(
       "DETACH-CONSTRUCTOR-CANARY",
     );
+    expect(warning).toHaveBeenCalledWith("identity.google.detachment_ui.failed", {
+      operation: "construct_controller",
+      diagnosticId: expect.any(String),
+      errorName: "ErrorLike",
+    });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("DETACH-CONSTRUCTOR-CANARY");
   });
 

@@ -103,8 +103,11 @@ export class LocalIdentityController {
       stored.value.secretKey.bytes.fill(0);
       try {
         pubky?.dispose();
-      } catch {
-        LOGGER.warn("identity.recovery_file.cleanup.failed", { operation: "pubky_dispose" });
+      } catch (cleanupCause) {
+        LOGGER.warn("identity.recovery_file.cleanup.failed", {
+          operation: "pubky_dispose",
+          ...safeErrorLogFields(cleanupCause),
+        });
       }
     }
   }
