@@ -117,8 +117,8 @@ function MigrateToPubkyRing({
   }
 
   return (
-    <PassportScreen className="gap-8">
-      <div className="flex flex-col gap-3">
+    <PassportScreen className="gap-6 md:gap-8">
+      <div className="flex flex-col gap-6 md:gap-3">
         <DisplayHeading accent="keychain." aria-label="Migrate to keychain.">
           Migrate to
         </DisplayHeading>
