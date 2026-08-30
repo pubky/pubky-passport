@@ -3,7 +3,7 @@ import "server-only";
 import { OAuth2Client, type LoginTicket } from "google-auth-library";
 import { Result } from "better-result";
 
-import { LOGGER } from "../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
 
 export const CANONICAL_GOOGLE_ISSUER = "https://accounts.google.com";
@@ -27,10 +27,9 @@ export type GoogleIdTokenVerificationResult = Result<
 >;
 
 export class GoogleIdTokenVerifier {
-  constructor(
-    private readonly audience: string,
-    private readonly verifier: Pick<OAuth2Client, "verifyIdToken"> = new OAuth2Client(),
-  ) {}
+  private readonly verifier = new OAuth2Client();
+
+  constructor(private readonly audience: string) {}
 
   async verifyGoogleIdToken(idToken: string): Promise<GoogleIdTokenVerificationResult> {
     let ticket: LoginTicket;
@@ -39,6 +38,7 @@ export class GoogleIdTokenVerifier {
     } catch (cause) {
       LOGGER.warn("identity.google.id_token_verification.failed", {
         code: "google_verifier_rejected",
+        ...safeErrorLogFields(cause),
       });
       return Result.err({ code: "invalid_google_id_token", cause });
     }
@@ -49,6 +49,7 @@ export class GoogleIdTokenVerifier {
     } catch (cause) {
       LOGGER.warn("identity.google.id_token_verification.failed", {
         code: "payload_access_failed",
+        ...safeErrorLogFields(cause),
       });
       return Result.err({ code: "invalid_google_id_token", cause });
     }

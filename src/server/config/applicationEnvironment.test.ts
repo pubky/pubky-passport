@@ -118,6 +118,19 @@ describe("application environment", () => {
     expect(() => getServerSecretEnvironment()).toThrow();
   });
 
+  it.each([
+    ["a 31-byte", Buffer.alloc(31, 1).toString("base64")],
+    ["a one-character", "a"],
+    ["a malformed", "not-base64!"],
+    ["a URL-safe/non-standard base64", Buffer.alloc(32, 255).toString("base64url")],
+  ])("rejects %s server secret", (_description, encodedSecret) => {
+    vi.stubEnv("PASSPORT_SERVER_SECRET_KEYRING_JSON", JSON.stringify({ current: encodedSecret }));
+
+    expect(() => getServerSecretEnvironment()).toThrow(
+      "Passport server keyring contains an invalid secret",
+    );
+  });
+
   it("rejects a decoded secret larger than the per-secret limit", () => {
     vi.stubEnv(
       "PASSPORT_SERVER_SECRET_KEYRING_JSON",

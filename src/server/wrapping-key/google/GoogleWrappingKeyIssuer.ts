@@ -21,23 +21,20 @@ export type GoogleWrappingKeyIssueResult = ResultType<
 >;
 
 export class GoogleWrappingKeyIssuer {
+  private readonly googleIdTokenVerifier: GoogleIdTokenVerifier;
+
   constructor(
-    private readonly verifyGoogleIdToken: (
-      token: string,
-    ) => Promise<GoogleIdTokenVerificationResult>,
+    googleClientId: string,
     private readonly currentKeyId: string,
     private readonly secrets: ReadonlyMap<string, Buffer>,
-  ) {}
+  ) {
+    this.googleIdTokenVerifier = new GoogleIdTokenVerifier(googleClientId);
+  }
 
   static fromEnvironment(): GoogleWrappingKeyIssuer {
     const { googleClientId } = getPublicApplicationEnvironment();
     const { serverSecretCurrentKeyId, serverSecrets } = getServerSecretEnvironment();
-    const verifier = new GoogleIdTokenVerifier(googleClientId);
-    return new GoogleWrappingKeyIssuer(
-      (token) => verifier.verifyGoogleIdToken(token),
-      serverSecretCurrentKeyId,
-      serverSecrets,
-    );
+    return new GoogleWrappingKeyIssuer(googleClientId, serverSecretCurrentKeyId, serverSecrets);
   }
 
   async issueGoogleWrappingKey(
@@ -46,7 +43,7 @@ export class GoogleWrappingKeyIssuer {
   ): Promise<GoogleWrappingKeyIssueResult> {
     let identity: GoogleIdTokenVerificationResult;
     try {
-      identity = await this.verifyGoogleIdToken(googleIdToken);
+      identity = await this.googleIdTokenVerifier.verifyGoogleIdToken(googleIdToken);
     } catch (cause) {
       LOGGER.error("identity.google.wrapping_key.failed", {
         layer: "server",
