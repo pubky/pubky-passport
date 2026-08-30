@@ -108,7 +108,10 @@ describe("approveAuthorization", () => {
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isOk(result)) throw new Error("Expected approval to fail");
-    expect(result.error).toEqual({ code: "approval_failed" });
+    expect(result.error).toEqual({
+      code: "approval_failed",
+      cause: { code: "identity_mismatch" },
+    });
     expect(MOCKS.restoreIdentityKey).not.toHaveBeenCalled();
     expect(secretKey.bytes).toEqual(new Uint8Array(32));
   });
@@ -138,52 +141,62 @@ describe("approveAuthorization", () => {
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isOk(result)) throw new Error("Expected approval to fail");
-    expect(result.error).toEqual({ code: "approval_failed" });
+    expect(result.error).toEqual({ code: "approval_failed", cause: approvalError });
     expect(warning).toHaveBeenCalledWith("authorize.approval.failed", {
       stage: "sdk_approve",
       code: "unexpected_failure",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain(SECRET);
     expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
     expect(MOCKS.dispose).toHaveBeenCalledOnce();
   });
 
-  it("classifies expected SDK approval failures without exposing their cause", async () => {
+  it("preserves expected SDK approval failures without logging their details", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    MOCKS.approveAuthRequest.mockResolvedValueOnce(
-      Result.err({
-        code: "approval_failed",
-        cause: new Error(`lower SDK failure ${SECRET}`),
-      }),
-    );
+    const sdkCause = new Error(`lower SDK failure ${SECRET}`);
+    const sdkFailure = {
+      code: "approval_failed" as const,
+      cause: sdkCause,
+    };
+    MOCKS.approveAuthRequest.mockResolvedValueOnce(Result.err(sdkFailure));
 
     const result = await approveAuthorization(validatedRequest(), SELECTED_IDENTITY);
 
     if (Result.isOk(result)) throw new Error("Expected approval to fail");
-    expect(result.error).toEqual({ code: "approval_failed" });
+    expect(result.error).toEqual({ code: "approval_failed", cause: sdkFailure });
+    expect(result.error.cause).toBe(sdkFailure);
     expect(warning).toHaveBeenCalledWith("authorize.approval.failed", {
       stage: "sdk_approve",
       code: "approval_failed",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain(SECRET);
   });
 
-  it("classifies expected restoration failures without exposing their cause", async () => {
+  it("preserves expected restoration failures without logging their details", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    MOCKS.restoreIdentityKey.mockResolvedValueOnce(
-      Result.err({
-        code: "restore_failed",
-        cause: new Error(`restore SDK failure ${SECRET}`),
-      }),
-    );
+    const sdkCause = new Error(`restore SDK failure ${SECRET}`);
+    const restoreFailure = {
+      code: "restore_failed" as const,
+      cause: sdkCause,
+    };
+    MOCKS.restoreIdentityKey.mockResolvedValueOnce(Result.err(restoreFailure));
 
     const result = await approveAuthorization(validatedRequest(), SELECTED_IDENTITY);
 
     if (Result.isOk(result)) throw new Error("Expected approval to fail");
-    expect(result.error).toEqual({ code: "approval_failed" });
+    expect(result.error).toEqual({
+      code: "approval_failed",
+      cause: { code: "restore_failed", cause: restoreFailure },
+    });
     expect(warning).toHaveBeenCalledWith("authorize.approval.failed", {
       stage: "identity_restore",
       code: "restore_failed",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain(SECRET);
   });

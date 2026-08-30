@@ -2,12 +2,12 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
+import type { GoogleAccountProfile } from "../../../../libs/googleAccountProfile";
 import { encodeBase64Url } from "../../../../libs/encoding/base64Url";
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
 import { AUTHORIZATION_TIMEOUT_MS } from "../../../../libs/passportPolicy";
 import type { CodedFailure } from "../../../../libs/result";
 import { GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE } from "../../../../libs/authorization/earlyGoogleImplicitResponse";
-import type { GoogleAccountProfile } from "../../local-identity/localIdentityModels";
 import {
   GOOGLE_AUTHORIZATION_SCOPE,
   parseGoogleAuthorizationResponse,
@@ -40,11 +40,11 @@ type AuthorizationAttempt = {
   abortController: AbortController;
   messageListener(event: MessageEvent): void;
   popup: Window;
-  poll: ReturnType<typeof setInterval>;
+  poll?: ReturnType<typeof setInterval>;
   responseReceived: boolean;
   resolve(result: GoogleImplicitAuthorizationResult<GoogleIdentityCredentials>): void;
   state: string;
-  timeout: ReturnType<typeof setTimeout>;
+  timeout?: ReturnType<typeof setTimeout>;
 };
 
 export class GoogleImplicitAuthorization {
@@ -99,11 +99,9 @@ export class GoogleImplicitAuthorization {
           abortController,
           messageListener: () => undefined,
           popup: openedPopup,
-          poll: 0 as unknown as ReturnType<typeof setInterval>,
           responseReceived: false,
           resolve,
           state,
-          timeout: 0 as unknown as ReturnType<typeof setTimeout>,
         };
         this.activeAttempt = attempt;
         attempt.messageListener = (event) => {
@@ -118,7 +116,7 @@ export class GoogleImplicitAuthorization {
             )
               return;
             attempt.responseReceived = true;
-            clearInterval(attempt.poll);
+            if (attempt.poll !== undefined) clearInterval(attempt.poll);
             closePopup(attempt.popup);
             void this.handleResponseMessage(attempt, event.data).catch((error: unknown) => {
               this.failAttempt(attempt, "response_handler", error);
@@ -148,6 +146,7 @@ export class GoogleImplicitAuthorization {
         operation: "authorize",
         stage: "request_setup",
         code: "google_authorization_failed",
+        ...safeErrorLogFields(error),
       });
       return Promise.resolve(Result.err({ code: "google_authorization_failed", cause: error }));
     }
@@ -200,10 +199,11 @@ export class GoogleImplicitAuthorization {
         operation: "authorize",
         stage: account.error.stage,
         code: account.error.code,
+        ...(account.error.cause === undefined ? {} : safeErrorLogFields(account.error.cause)),
       });
       return Result.err({
         code: account.error.code,
-        ...(account.error.cause ? { cause: account.error.cause } : {}),
+        ...(account.error.cause === undefined ? {} : { cause: account.error.cause }),
       });
     }
     return Result.ok({
@@ -222,6 +222,7 @@ export class GoogleImplicitAuthorization {
       operation: "authorize",
       stage,
       code: "google_authorization_failed",
+      ...safeErrorLogFields(error),
     });
     if (this.activeAttempt === attempt) {
       this.finish(attempt, Result.err({ code: "google_authorization_failed", cause: error }));
@@ -234,8 +235,12 @@ export class GoogleImplicitAuthorization {
   ): void {
     if (this.activeAttempt !== attempt) return;
     this.activeAttempt = null;
-    cleanupAuthorizationAttempt("clear_poll", () => clearInterval(attempt.poll));
-    cleanupAuthorizationAttempt("clear_timeout", () => clearTimeout(attempt.timeout));
+    if (attempt.poll !== undefined) {
+      cleanupAuthorizationAttempt("clear_poll", () => clearInterval(attempt.poll));
+    }
+    if (attempt.timeout !== undefined) {
+      cleanupAuthorizationAttempt("clear_timeout", () => clearTimeout(attempt.timeout));
+    }
     cleanupAuthorizationAttempt("remove_message_listener", () => {
       globalThis.window.removeEventListener("message", attempt.messageListener);
     });
@@ -248,8 +253,11 @@ export class GoogleImplicitAuthorization {
 function cleanupAuthorizationAttempt(operation: string, cleanup: () => void): void {
   try {
     cleanup();
-  } catch {
-    LOGGER.warn("identity.google.implicit_authorization.cleanup_failed", { operation });
+  } catch (cause) {
+    LOGGER.warn("identity.google.implicit_authorization.cleanup_failed", {
+      operation,
+      ...safeErrorLogFields(cause),
+    });
   }
 }
 

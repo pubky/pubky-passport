@@ -1,6 +1,6 @@
 import "client-only";
 
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
 
 export type AuthorizationOutcome = "success" | "error" | "cancel";
 export type AuthorizationHandoffStatus =
@@ -45,8 +45,8 @@ export async function handoffAuthorizationOutcome(
       }),
       targetOrigin,
     );
-  } catch {
-    logHandoffFailure("post_message");
+  } catch (cause) {
+    logHandoffFailure("post_message", cause);
     acknowledgement.cancel();
     return navigationStatus(appWindow, callback);
   }
@@ -75,18 +75,18 @@ function waitForAcknowledgement(
   const cleanup = () => {
     try {
       appWindow.removeEventListener("message", onMessage);
-    } catch {
-      logHandoffFailure("remove_message_listener");
+    } catch (cause) {
+      logHandoffFailure("remove_message_listener", cause);
     }
     try {
       signal.removeEventListener("abort", onAbort);
-    } catch {
-      logHandoffFailure("remove_abort_listener");
+    } catch (cause) {
+      logHandoffFailure("remove_abort_listener", cause);
     }
     try {
       if (timeoutId !== undefined) appWindow.clearTimeout(timeoutId);
-    } catch {
-      logHandoffFailure("clear_acknowledgement_timeout");
+    } catch (cause) {
+      logHandoffFailure("clear_acknowledgement_timeout", cause);
     }
   };
   const settle = (acknowledged: boolean) => {
@@ -164,12 +164,15 @@ function navigationStatus(appWindow: Window, callback: string): AuthorizationHan
   try {
     appWindow.location.replace(callback);
     return "navigated";
-  } catch {
-    logHandoffFailure("navigate");
+  } catch (cause) {
+    logHandoffFailure("navigate", cause);
     return "unavailable";
   }
 }
 
-function logHandoffFailure(operation: string): void {
-  LOGGER.warn("authorize.callback_handoff.failed", { operation });
+function logHandoffFailure(operation: string, cause: unknown): void {
+  LOGGER.warn("authorize.callback_handoff.failed", {
+    operation,
+    ...safeErrorLogFields(cause),
+  });
 }

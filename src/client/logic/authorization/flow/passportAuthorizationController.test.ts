@@ -193,6 +193,8 @@ describe("PassportAuthorizationController", () => {
     expect(warning).toHaveBeenCalledWith("authorize.callback.failed", {
       outcome: "success",
       operation: "complete",
+      diagnosticId: expect.any(String),
+      errorName: "TypeError",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain(SECRET);
     expect(JSON.stringify(warning.mock.calls)).not.toContain(SUCCESS_CALLBACK);
@@ -209,6 +211,8 @@ describe("PassportAuthorizationController", () => {
     expect(warning).toHaveBeenCalledOnce();
     expect(warning).toHaveBeenCalledWith("authorize.state_listener.failed", {
       state: "cancelled",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
   });
 

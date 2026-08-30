@@ -199,6 +199,8 @@ describe("authorizationEntry", () => {
     expect(warning).toHaveBeenCalledWith("authorize.entry.failed", {
       operation: "scrub_fragment",
       code: "history_unavailable",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain(SECRET);
   });
@@ -217,6 +219,8 @@ describe("authorizationEntry", () => {
     expect(warning).toHaveBeenCalledWith("authorize.entry.failed", {
       operation: "take_early_capture",
       code: "capture_unavailable",
+      diagnosticId: expect.any(String),
+      errorName: "TypeError",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain(SECRET);
   });

@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
 
-import type { AuthorizationRequestReview } from "../../../logic/authorization/flow/PassportAuthorizationController";
+import type { AuthorizationRequestReview } from "../../../logic/authorization/request/ValidatedPubkyAuthRequest";
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import { GoogleLogo } from "../../shared/brand/googleLogo";
 import { CheckIcon, SquareUserRoundIcon, XIcon } from "../../shared/actionIcons";

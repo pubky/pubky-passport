@@ -262,6 +262,33 @@ describe("GoogleImplicitAuthorization", () => {
     expect(JSON.stringify(warning.mock.calls)).not.toContain("USERINFO-FAILURE-CANARY");
   });
 
+  it.each([null, false, 0, ""] as const)(
+    "preserves a falsey user-info exception (%j)",
+    async (thrown) => {
+      const popup = createPopup();
+      const open = vi.fn<typeof window.open>(() => popup.window);
+      vi.stubGlobal("open", open);
+      vi.stubGlobal("fetch", vi.fn<typeof globalThis.fetch>().mockRejectedValue(thrown));
+      const authorization = new GoogleImplicitAuthorization("client-id");
+      const request = authorization.request();
+      const authorizeUrl = new URL(String(open.mock.calls[0]?.[0]));
+      popup.returnTo(
+        `${ORIGIN}/#${new URLSearchParams({
+          access_token: ACCESS_TOKEN,
+          id_token: jwt({ sub: SUBJECT, nonce: authorizeUrl.searchParams.get("nonce") }),
+          scope: APP_DATA_SCOPE,
+          state: authorizeUrl.searchParams.get("state") ?? "",
+        })}`,
+      );
+
+      const result = await request;
+
+      expect(Result.isError(result)).toBe(true);
+      if (!Result.isError(result)) return;
+      expect(result.error).toHaveProperty("cause", thrown);
+    },
+  );
+
   it("reports popup closure from the popup handle", async () => {
     vi.useFakeTimers();
     const popup = createPopup();
@@ -459,6 +486,13 @@ describe("GoogleImplicitAuthorization", () => {
       expect(result.error.code).toBe("google_authorization_failed");
       expect(result.error.cause).toBe(thrown);
     }
+    expect(warning).toHaveBeenCalledWith("identity.google.implicit_authorization.failed", {
+      operation: "authorize",
+      stage: "request_setup",
+      code: "google_authorization_failed",
+      diagnosticId: expect.any(String),
+      errorName: "ErrorLike",
+    });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("AUTHORIZATION-SETUP-CANARY");
   });
 
@@ -502,6 +536,8 @@ describe("GoogleImplicitAuthorization", () => {
     expect(popup.close).toHaveBeenCalledOnce();
     expect(warning).toHaveBeenCalledWith("identity.google.implicit_authorization.cleanup_failed", {
       operation: "remove_message_listener",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-CLEANUP-CANARY");
   });

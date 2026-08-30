@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
 import {
   readAndScrubAuthorizationEntry,
   type AuthorizationEntry,
@@ -154,10 +154,11 @@ export class PassportAuthorizationController {
         outcome,
         this.abortController.signal,
       );
-    } catch {
+    } catch (cause) {
       LOGGER.warn("authorize.callback.failed", {
         outcome,
         operation: "complete",
+        ...safeErrorLogFields(cause),
       });
       return this.update(localStateForOutcome(outcome));
     }
@@ -175,9 +176,10 @@ export class PassportAuthorizationController {
     for (const listener of this.listeners) {
       try {
         listener(state);
-      } catch {
+      } catch (cause) {
         LOGGER.warn("authorize.state_listener.failed", {
           state: state.status,
+          ...safeErrorLogFields(cause),
         });
       }
     }
@@ -195,5 +197,3 @@ function localStateForOutcome(outcome: AuthorizationOutcome): LocalTerminalState
       return { status: "cancelled" };
   }
 }
-
-export type { AuthorizationRequestReview } from "../request/ValidatedPubkyAuthRequest";
