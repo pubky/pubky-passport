@@ -23,20 +23,19 @@ describe("Sonner", () => {
     });
 
     const message = await screen.findByText("Pubky copied to clipboard");
-    expect(screen.getByText("x8jp...4mra")).toBeInTheDocument();
+    expect(screen.getByText("x8jpihgjy51fdnaingcp8rum1omfzd6p...")).toBeInTheDocument();
     expect(screen.queryByText(pubky)).not.toBeInTheDocument();
     expect(message).toBeInTheDocument();
   });
 
-  it("renders the copied homeserver below its confirmation title", async () => {
+  it("renders the compact homeserver confirmation", async () => {
     render(<Sonner />);
 
     act(() => {
       showCopyConfirmation("Homeserver", "homeserver-pubky");
     });
 
-    expect(await screen.findByText("Homeserver copied to clipboard")).toBeInTheDocument();
-    expect(screen.getByText("home...ubky")).toBeInTheDocument();
+    expect(await screen.findByText("Homeserver copied")).toBeInTheDocument();
     expect(screen.queryByText("homeserver-pubky")).not.toBeInTheDocument();
   });
 
