@@ -4,8 +4,6 @@ import type { GoogleIdentityViewError } from "../../../logic/google-identity/Goo
 import { RotateCcwIcon, TrashIcon } from "../../shared/actionIcons";
 import { BackButton } from "../../shared/backButton";
 import { ConfirmDeletionDialog } from "../../shared/confirmDeletionDialog";
-import { cn } from "../../shared/mergeClassNames";
-import { PassportNavigation } from "../../shared/passportNavigation";
 import { PassportScreen } from "../../shared/passportScreen";
 import { Button } from "../../shared/primitives/button";
 import { Label } from "../../shared/primitives/label";
@@ -43,16 +41,29 @@ function GoogleIdentityError({
 
   return (
     <>
-      <PassportScreen className="gap-8 md:max-w-[558px]">
-        <div className="flex flex-col gap-3">
+      <PassportScreen className="gap-6 md:max-w-[558px] md:gap-8">
+        <div className="flex flex-col gap-6 md:gap-3">
           <DisplayHeading accent="interrupted." aria-label="Setup interrupted.">
             Setup
           </DisplayHeading>
           {signInTo ? <SignInContext requester={signInTo} /> : null}
-          <LeadText>{errorMessage(error.code)}</LeadText>
+          <LeadText>
+            {error.code === "homeserver_signup_invitation_failed" ? (
+              <>
+                <span className="md:hidden">
+                  Passport could not obtain a homeserver signup invitation.
+                </span>
+                <span className="hidden md:inline">
+                  Passport could not obtain a homeserver invitation.
+                </span>
+              </>
+            ) : (
+              errorMessage(error.code)
+            )}
+          </LeadText>
         </div>
 
-        <div className="flex flex-col gap-6">
+        <div className="flex min-h-0 flex-1 flex-col gap-6">
           <div className="flex flex-col gap-2">
             <Label className="leading-5" id="google-identity-error-label">
               Error
@@ -72,47 +83,87 @@ function GoogleIdentityError({
               ) : null}
             </div>
           </div>
-          <div
-            className={cn(
-              "grid w-full grid-cols-1 gap-3",
-              replaceInvalidFile
-                ? "md:grid-cols-[1fr_148px] md:gap-x-6"
-                : "md:grid-cols-[120px_1fr_148px] md:gap-x-0",
-            )}
-          >
-            {!replaceInvalidFile ? (
-              <BackButton className="md:col-start-1 md:row-start-1" onClick={onBack} />
-            ) : null}
-            {replaceInvalidFile ? (
-              <Button
-                className="w-full md:col-start-1 md:row-start-1"
-                onClick={() => setConfirmationOpen(true)}
-                size="lg"
-                type="button"
-                variant="destructive"
+          {replaceInvalidFile ? (
+            <>
+              <div
+                aria-label="Mobile error actions"
+                className="mt-auto grid w-full grid-cols-1 gap-3 md:hidden"
+                role="group"
               >
-                <TrashIcon />
-                Delete file and create new identity
-              </Button>
-            ) : null}
-            <Button
-              className={cn(
-                "w-full",
-                replaceInvalidFile
-                  ? "md:col-start-2 md:row-start-1"
-                  : "md:col-start-3 md:row-start-1",
-              )}
-              onClick={onTryAgain}
-              size="lg"
-              type="button"
-            >
-              <RotateCcwIcon />
-              Try again
-            </Button>
-            {replaceInvalidFile ? (
-              <BackButton className="md:col-start-1 md:row-start-2" onClick={onBack} />
-            ) : null}
-          </div>
+                <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
+                  <RotateCcwIcon />
+                  Try again
+                </Button>
+                <Button
+                  className="w-full"
+                  onClick={() => setConfirmationOpen(true)}
+                  size="lg"
+                  type="button"
+                  variant="destructive"
+                >
+                  <TrashIcon />
+                  Delete backup &amp; create new pubky
+                </Button>
+                <BackButton onClick={onBack} />
+              </div>
+              <div
+                aria-label="Desktop error actions"
+                className="hidden w-full grid-cols-[1fr_148px] gap-3 md:grid md:gap-x-6"
+                role="group"
+              >
+                <Button
+                  className="w-full md:col-start-1 md:row-start-1"
+                  onClick={() => setConfirmationOpen(true)}
+                  size="lg"
+                  type="button"
+                  variant="destructive"
+                >
+                  <TrashIcon />
+                  Delete file and create new identity
+                </Button>
+                <Button
+                  className="w-full md:col-start-2 md:row-start-1"
+                  onClick={onTryAgain}
+                  size="lg"
+                  type="button"
+                >
+                  <RotateCcwIcon />
+                  Try again
+                </Button>
+                <BackButton className="md:col-start-1 md:row-start-2" onClick={onBack} />
+              </div>
+            </>
+          ) : (
+            <>
+              <div
+                aria-label="Mobile error actions"
+                className="mt-auto grid w-full grid-cols-1 gap-3 md:hidden"
+                role="group"
+              >
+                <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
+                  <RotateCcwIcon />
+                  Try again
+                </Button>
+                <BackButton onClick={onBack} />
+              </div>
+              <div
+                aria-label="Desktop error actions"
+                className="hidden w-full grid-cols-[120px_1fr_148px] gap-3 md:grid md:gap-x-0"
+                role="group"
+              >
+                <BackButton className="md:col-start-1 md:row-start-1" onClick={onBack} />
+                <Button
+                  className="w-full md:col-start-3 md:row-start-1"
+                  onClick={onTryAgain}
+                  size="lg"
+                  type="button"
+                >
+                  <RotateCcwIcon />
+                  Try again
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </PassportScreen>
 
@@ -146,29 +197,46 @@ function GoogleAccessDenied({
   signInTo?: string;
 }) {
   return (
-    <PassportScreen className="gap-8">
-      <div className="flex flex-col gap-3">
-        <DisplayHeading
-          accent="denied."
-          aria-label="Google Drive access denied."
-          desktopAccentOnNewLine
-        >
-          Google Drive access
+    <PassportScreen className="gap-6 md:gap-8">
+      <div className="flex flex-col gap-6 md:gap-3">
+        <DisplayHeading accent="denied." desktopAccentOnNewLine>
+          Google <span className="hidden md:inline">Drive</span> access
         </DisplayHeading>
         {signInTo ? <SignInContext requester={signInTo} /> : null}
-        <LeadText>
+        <LeadText className="md:hidden">
+          Passport needs Google Drive access to create or restore your Pubky.
+        </LeadText>
+        <LeadText className="hidden md:block">
           Passport needs access to your Google Drive to create or restore your Pubky.
         </LeadText>
       </div>
-      <PassportNavigation
-        back={<BackButton onClick={onBack} />}
-        confirm={
-          <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
-            <RotateCcwIcon />
-            Try again
-          </Button>
-        }
-      />
+      <div
+        aria-label="Mobile error actions"
+        className="mt-auto grid w-full grid-cols-1 gap-3 md:hidden"
+        role="group"
+      >
+        <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
+          <RotateCcwIcon />
+          Try again
+        </Button>
+        <BackButton onClick={onBack} />
+      </div>
+      <div
+        aria-label="Desktop error actions"
+        className="hidden w-full grid-cols-[120px_1fr_148px] items-center gap-0 md:grid"
+        role="group"
+      >
+        <BackButton className="md:col-start-1 md:row-start-1" onClick={onBack} />
+        <Button
+          className="w-full md:col-start-3 md:row-start-1"
+          onClick={onTryAgain}
+          size="lg"
+          type="button"
+        >
+          <RotateCcwIcon />
+          Try again
+        </Button>
+      </div>
     </PassportScreen>
   );
 }
