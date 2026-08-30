@@ -16,6 +16,75 @@ test("primary screens have no automated accessibility violations", async ({ page
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
+test("the sign-in title keeps its designed line break and accent color", async ({ page }) => {
+  for (const viewport of [
+    { width: 1280, height: 720 },
+    { width: 375, height: 812 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/");
+
+    const heading = page.getByRole("heading", { name: "Quick & easy signing." });
+    await expect(heading).toBeVisible();
+    const headingColor = await heading.evaluate((element) => getComputedStyle(element).color);
+    const [titleBox, accentBox] = await heading.locator("span").evaluateAll((spans) =>
+      spans.map((span) => {
+        const bounds = span.getBoundingClientRect();
+        return {
+          color: getComputedStyle(span).color,
+          display: getComputedStyle(span).display,
+          left: bounds.left,
+          top: bounds.top,
+        };
+      }),
+    );
+
+    expect(titleBox).toBeDefined();
+    expect(accentBox).toBeDefined();
+    expect(titleBox?.color).toBe(headingColor);
+    expect(accentBox?.display).toBe("block");
+    expect(accentBox?.color).toBe("rgb(200, 255, 0)");
+    expect(accentBox?.top).toBeGreaterThan(titleBox?.top ?? 0);
+    expect(Math.abs((accentBox?.left ?? 0) - (titleBox?.left ?? 0))).toBeLessThanOrEqual(1);
+  }
+});
+
+test("the passport chrome does not overlap content in a short viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 400 });
+  await page.goto("/");
+
+  const logo = page.getByRole("img", { name: "Pubky Passport" });
+  const heading = page.getByRole("heading", { name: "Quick & easy signing." });
+  const footer = page.locator("body > footer");
+  const main = page.locator("main");
+  await expect(heading).toBeVisible();
+
+  const [logoBox, headingBox, mainBox, footerBox] = await Promise.all([
+    logo.boundingBox(),
+    heading.boundingBox(),
+    main.boundingBox(),
+    footer.boundingBox(),
+  ]);
+
+  expect(logoBox).not.toBeNull();
+  expect(headingBox).not.toBeNull();
+  expect(mainBox).not.toBeNull();
+  expect(footerBox).not.toBeNull();
+  expect((logoBox?.y ?? 0) + (logoBox?.height ?? 0)).toBeLessThanOrEqual(headingBox?.y ?? 0);
+  expect(await footer.evaluate((element) => getComputedStyle(element).position)).toBe("static");
+  expect(footerBox?.y).toBeGreaterThanOrEqual((mainBox?.y ?? 0) + (mainBox?.height ?? 0) - 1);
+});
+
+test("brand border utilities override the neutral base border", async ({ page }) => {
+  await page.goto("/authorize");
+
+  const continueButton = page.getByRole("button", { name: "Continue" });
+  await expect(continueButton).toBeVisible();
+  expect(await continueButton.evaluate((element) => getComputedStyle(element).borderColor)).toBe(
+    "rgb(200, 255, 0)",
+  );
+});
+
 test("camera denial is contained in an accessible dialog", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "mediaDevices", {
