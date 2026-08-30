@@ -147,7 +147,7 @@ test("camera denial is contained in an accessible dialog", async ({ page }) => {
     });
   });
   await page.goto("/authorize");
-  await page.getByRole("button", { name: "Scan authorization QR code" }).click();
+  await page.getByRole("button", { name: /^Scan (?:authorization QR code|QR)$/ }).click();
 
   const dialog = page.getByRole("dialog", { name: "Scan QR code" });
   await expect(dialog).toBeVisible();
@@ -225,12 +225,14 @@ test("the signed-in Google account row stays centered on mobile and left-aligned
   expect(desktop.contentCenter).toBeLessThan(desktop.rowCenter);
 });
 
-test("copying the Pubky shows the iconless brand toast at the mobile inset", async ({
-  context,
-  page,
-}) => {
+test("copying the Pubky shows the iconless brand toast at the mobile inset", async ({ page }) => {
   await seedLocalIdentity(page);
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: async () => undefined },
+    });
+  });
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/");
   await page.getByRole("button", { name: "Manage" }).click();
