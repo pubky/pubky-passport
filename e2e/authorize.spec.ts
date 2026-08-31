@@ -4,6 +4,7 @@ const SENSITIVE_SECRET = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 const RELAY_ORIGIN = "https://relay.client.example";
 const RELAY_PATH_CANARY = "private-inbox";
 const CALLBACK_QUERY_CANARY = "session=sensitive";
+const SOURCE_NAME = "Client App";
 const GRANT_CLIENT_ID = "grant-client.example";
 const GRANT_CLIENT_PUBLIC_KEY = "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo";
 const SENSITIVE_CANARIES = [
@@ -45,7 +46,7 @@ test("shows identity setup context as the designed full-width accent band", asyn
     await page.setViewportSize(viewport);
     await page.goto(authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`)));
 
-    const band = page.getByLabel("Signing in to client.example");
+    const band = page.getByLabel(`Signing in to ${SOURCE_NAME}`);
     const logo = page.getByRole("img", { name: "Pubky Passport" });
     const main = page.locator("main");
     await expect(band).toBeVisible();
@@ -74,6 +75,14 @@ test("shows identity setup context as the designed full-width accent band", asyn
       viewport.width,
     );
   }
+});
+
+test("falls back to the callback domain when x-source is absent", async ({ page }) => {
+  await installLocalIdentityFixture(page);
+  await page.goto(authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`, "cookie", null)));
+
+  await expect(page.getByRole("heading", { name: "Sign in to client.example" })).toBeVisible();
+  await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
 });
 
 test("scrubs a valid request and renders only safe review data", async ({ page, request }) => {
@@ -106,7 +115,8 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   expect(policy).not.toContain(SENSITIVE_SECRET);
 
   await expect(page).toHaveURL(/\/authorize$/u);
-  await expect(page.getByRole("heading", { name: "Sign in to client.example" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: `Sign in to ${SOURCE_NAME}` })).toBeVisible();
+  await expect(page.getByLabel(`Signing in to ${SOURCE_NAME}`)).toBeVisible();
   await expect(page.getByText("/pub/example.app/", { exact: true })).toBeVisible();
 
   const renderedReview = await page.locator("main").innerHTML();
@@ -171,7 +181,7 @@ test("reviews and scrubs a v0.10 grant authorization request", async ({ page }) 
 
   expect(response?.ok()).toBe(true);
   await expect(page).toHaveURL(/\/authorize$/u);
-  await expect(page.getByRole("heading", { name: "Sign in to client.example" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: `Sign in to ${SOURCE_NAME}` })).toBeVisible();
   expect(await page.locator("main").innerHTML()).not.toContain(GRANT_CLIENT_PUBLIC_KEY);
   expect(await page.evaluate(() => window.location.search)).toBe("");
   expect(await page.evaluate(() => window.location.hash)).toBe("");
@@ -189,7 +199,7 @@ test("manual entry reloads into fragment-backed capability review", async ({ pag
     .fill(authorizationRequest(`${RELAY_ORIGIN}/inbox`));
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await expect(page.getByRole("heading", { name: "Sign in to client.example" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: `Sign in to ${SOURCE_NAME}` })).toBeVisible();
   await expect(page).toHaveURL(/\/authorize$/u);
   expect(await page.evaluate(() => window.location.hash)).toBe("");
 });
@@ -293,6 +303,7 @@ test("uses the cancel callback for direct navigation without an opener", async (
 function authorizationRequest(
   relay: string,
   authenticationMethod: "cookie" | "grant" = "cookie",
+  source: string | null = SOURCE_NAME,
 ): string {
   const request = new URL(
     `pubkyauth://${authenticationMethod === "grant" ? "signin_grant" : "signin"}`,
@@ -316,7 +327,7 @@ function authorizationRequest(
     "x-cancel",
     `https://client.example/authorization-cancel?${CALLBACK_QUERY_CANARY}`,
   );
-  return request.href;
+  return source === null ? request.href : `${request.href}&x-source=${encodeURIComponent(source)}`;
 }
 
 function authorizationUrl(request: string): string {

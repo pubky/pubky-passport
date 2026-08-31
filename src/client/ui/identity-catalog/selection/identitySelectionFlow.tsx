@@ -8,16 +8,16 @@ import { IdentitySwitcher } from "./identitySwitcher";
 
 function IdentitySelectionFlow({
   catalog,
+  forAuthorization = false,
   onBack,
   onIdentitySelected,
   selectIdentity,
-  signInTo,
 }: {
   catalog: LocalIdentityCatalog;
+  forAuthorization?: boolean;
   onBack: () => void;
   onIdentitySelected: () => void;
   selectIdentity: (publicKeyZ32: string) => LocalIdentityResult<void>;
-  signInTo?: string;
 }) {
   const [view, setView] = useState<"selection" | "add-identity">("selection");
   const [selectionFailed, setSelectionFailed] = useState(false);
@@ -25,9 +25,9 @@ function IdentitySelectionFlow({
   if (view === "add-identity") {
     return (
       <IdentityEstablishmentFlow
+        forAuthorization={forAuthorization}
         onBack={() => setView("selection")}
         onComplete={onIdentitySelected}
-        {...(signInTo ? { signInTo } : {})}
       />
     );
   }
@@ -35,7 +35,7 @@ function IdentitySelectionFlow({
   return (
     <IdentitySwitcher
       activePublicKeyZ32={catalog.activePublicKeyZ32}
-      addIdentityLabel={signInTo ? "Use other identity" : "Add identity"}
+      addIdentityLabel={forAuthorization ? "Use other identity" : "Add identity"}
       identities={catalog.identities}
       onAddIdentity={() => setView("add-identity")}
       onBack={onBack}

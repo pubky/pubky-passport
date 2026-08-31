@@ -26,20 +26,23 @@ afterEach(() => vi.restoreAllMocks());
 describe("PubkySdkAdapter", () => {
   it("accepts SDK-generated cookie and grant links with x-callback metadata", async () => {
     const relyingParty = new Pubky();
-    const xCallback = {
-      xSource: "Passport Test",
-      xSuccess: "https://passport.test/auth/success",
-    };
     const cookieFlow = relyingParty.startCookieAuthFlow(
       "/pub/passport.test/:rw",
       AuthFlowKind.signin(),
       "https://relay.example/inbox",
-      xCallback,
+      { xSource: "Passport Test", xSuccess: "https://passport.test/success" },
     );
     const grantFlow = await relyingParty.startGrantAuthFlow(
       "/pub/passport.test/:rw",
       AuthFlowKind.signin(),
-      { clientId: "passport.test", relay: "https://relay.example/inbox", xCallback },
+      {
+        clientId: "passport.test",
+        relay: "https://relay.example/inbox",
+        xCallback: {
+          xSource: "Passport Grant Test",
+          xSuccess: "https://grant.passport.test/success",
+        },
+      },
     );
 
     try {
@@ -51,10 +54,11 @@ describe("PubkySdkAdapter", () => {
       );
 
       expect(Result.isOk(cookie) && cookie.value.review.authenticationMethod).toBe("cookie");
-      expect(Result.isOk(grant) && grant.value.review.authenticationMethod).toBe("grant");
       expect(Result.isOk(cookie) && cookie.value.review.requesterName).toBe("Passport Test");
-      expect(Result.isOk(grant) && grant.value.review.requesterName).toBe("Passport Test");
-      expect(Result.isOk(grant) && grant.value.review.callbackHost).toBe("passport.test");
+      expect(Result.isOk(cookie) && cookie.value.review.callbackHost).toBe("passport.test");
+      expect(Result.isOk(grant) && grant.value.review.authenticationMethod).toBe("grant");
+      expect(Result.isOk(grant) && grant.value.review.requesterName).toBe("Passport Grant Test");
+      expect(Result.isOk(grant) && grant.value.review.callbackHost).toBe("grant.passport.test");
     } finally {
       cookieFlow.free();
       grantFlow.free();

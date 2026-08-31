@@ -41,11 +41,6 @@ function AuthorizationReview({
         >
           Sign in to
         </DisplayHeading>
-        {review.requesterName && review.callbackHost ? (
-          <p className="-mt-4 text-sm font-medium text-muted-foreground">
-            Returns to <bdi className="font-bold text-foreground">{review.callbackHost}</bdi>
-          </p>
-        ) : null}
         {hasBroadAccess ? (
           <p
             className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm font-medium leading-5 text-foreground"

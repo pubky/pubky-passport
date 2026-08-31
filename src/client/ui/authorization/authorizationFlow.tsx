@@ -18,6 +18,7 @@ import { PassportScreen } from "../shared/passportScreen";
 import { Button } from "../shared/primitives/button";
 import { Spinner } from "../shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "../shared/primitives/typography";
+import { SignInBand } from "./signInBand";
 import { AuthorizationReview } from "./review/authorizationReview";
 import { InvalidAuthorization } from "./invalidAuthorization";
 import { ManualAuthorization } from "./manual-entry/manualAuthorization";
@@ -59,10 +60,17 @@ function AuthorizationFlow() {
     case "granting":
     case "completing":
       return (
-        <AuthorizationWithIdentity
-          authorization={authorization}
-          passportAuthorizationController={passportAuthorizationController}
-        />
+        <>
+          {authorization.review.callbackHost ? (
+            <SignInBand
+              requester={authorization.review.requesterName ?? authorization.review.callbackHost}
+            />
+          ) : null}
+          <AuthorizationWithIdentity
+            authorization={authorization}
+            passportAuthorizationController={passportAuthorizationController}
+          />
+        </>
       );
   }
 }
@@ -107,15 +115,11 @@ function AuthorizationWithIdentity({
       if (catalog.identities.length === 0) {
         return (
           <IdentityEstablishmentFlow
+            forAuthorization
             onBack={() => {
               void passportAuthorizationController.cancel();
             }}
             onComplete={() => undefined}
-            signInTo={
-              authorization.review.requesterName ??
-              authorization.review.callbackHost ??
-              "this service"
-            }
           />
         );
       }
@@ -124,14 +128,10 @@ function AuthorizationWithIdentity({
         return (
           <IdentitySelectionFlow
             catalog={catalog}
+            forAuthorization
             onBack={() => setView("review")}
             onIdentitySelected={() => setView("review")}
             selectIdentity={actions.selectIdentity}
-            signInTo={
-              authorization.review.requesterName ??
-              authorization.review.callbackHost ??
-              "this service"
-            }
           />
         );
       }
@@ -206,7 +206,7 @@ function AuthorizationLoading({ label }: { label: string }) {
   return (
     <main
       aria-label={label}
-      className="grid min-h-[calc(100svh-var(--passport-header-height))] place-items-center"
+      className="grid min-h-[calc(100svh-var(--passport-header-height)-var(--passport-context-band-height))] place-items-center"
     >
       <Spinner />
     </main>
