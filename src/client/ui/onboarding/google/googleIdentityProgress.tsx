@@ -1,5 +1,4 @@
 import type { GoogleIdentityProgress as GoogleIdentityProgressState } from "../../../logic/google-identity/GoogleIdentityController";
-import { cn } from "../../shared/mergeClassNames";
 import { PassportScreen } from "../../shared/passportScreen";
 import { Button } from "../../shared/primitives/button";
 import { Spinner } from "../../shared/primitives/spinner";
@@ -9,7 +8,6 @@ import { SignInContext } from "../../shared/signInContext";
 type StepState = "complete" | "active" | "pending";
 type SetupStep = { label: string; state: StepState };
 type ProgressPresentation = {
-  bordered: boolean;
   heading: "Setting up" | "Restoring" | "Repairing";
   listLabel: string;
   steps: SetupStep[];
@@ -43,13 +41,7 @@ function GoogleIdentityProgress({
         <p aria-atomic="true" className="sr-only" role="status">
           {presentation.heading} your Pubky: {activeStep?.label}.
         </p>
-        <ol
-          aria-label={presentation.listLabel}
-          className={cn(
-            "flex flex-col gap-6 py-3",
-            presentation.bordered && "md:rounded-lg md:border md:border-card",
-          )}
-        >
+        <ol aria-label={presentation.listLabel} className="flex flex-col gap-6 py-3">
           {presentation.steps.map((step) => (
             <ProgressStep key={step.label} step={step} />
           ))}
@@ -156,7 +148,6 @@ const REPAIR_STEP_INDEX = {
 
 function restorePresentation(activeIndex: number): ProgressPresentation {
   return {
-    bordered: false,
     heading: "Restoring",
     listLabel: "Pubky identity restore progress",
     steps: states(["Restore encrypted backup", "Sign in to the homeserver"], activeIndex),
@@ -165,7 +156,6 @@ function restorePresentation(activeIndex: number): ProgressPresentation {
 
 function repairPresentation(activeIndex: number): ProgressPresentation {
   return {
-    bordered: false,
     heading: "Repairing",
     listLabel: "Pubky identity repair progress",
     steps: states(
@@ -182,7 +172,6 @@ function repairPresentation(activeIndex: number): ProgressPresentation {
 
 function setupPresentation(activeIndex: number): ProgressPresentation {
   return {
-    bordered: true,
     heading: "Setting up",
     listLabel: "Pubky identity setup progress",
     steps: states(
