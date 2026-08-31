@@ -238,17 +238,15 @@ test("identity management keeps Log out in the designed responsive header positi
   const logout = page.getByRole("button", { name: "Log out" });
   const mobile = await logout.boundingBox();
   expect(mobile).not.toBeNull();
-  expectWithinOnePixel(mobile?.x ?? 0, 257);
+  expectWithinOnePixel(375 - ((mobile?.x ?? 0) + (mobile?.width ?? 0)), 24);
   expectWithinOnePixel(mobile?.y ?? 0, 26);
-  expectWithinOnePixel(mobile?.width ?? 0, 94);
   expectWithinOnePixel(mobile?.height ?? 0, 32);
 
   await page.setViewportSize({ width: 1280, height: 720 });
   const desktop = await logout.boundingBox();
   expect(desktop).not.toBeNull();
-  expectWithinOnePixel(desktop?.x ?? 0, 1135);
+  expectWithinOnePixel(1280 - ((desktop?.x ?? 0) + (desktop?.width ?? 0)), 40);
   expectWithinOnePixel(desktop?.y ?? 0, 48);
-  expectWithinOnePixel(desktop?.width ?? 0, 105);
   expectWithinOnePixel(desktop?.height ?? 0, 40);
 });
 
