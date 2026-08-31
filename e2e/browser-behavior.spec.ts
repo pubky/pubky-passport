@@ -271,6 +271,33 @@ test("backup password guidance enforces the six-character minimum responsively",
   }
 });
 
+test("identity management keeps Log out in the designed responsive header position", async ({
+  page,
+}) => {
+  await seedLocalIdentity(page);
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Manage" }).click();
+  await expect(page.getByRole("heading", { name: "Manage identity." })).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+
+  const logout = page.getByRole("button", { name: "Log out" });
+  const mobile = await logout.boundingBox();
+  expect(mobile).not.toBeNull();
+  expectWithinOnePixel(mobile?.x ?? 0, 257);
+  expectWithinOnePixel(mobile?.y ?? 0, 26);
+  expectWithinOnePixel(mobile?.width ?? 0, 94);
+  expectWithinOnePixel(mobile?.height ?? 0, 32);
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const desktop = await logout.boundingBox();
+  expect(desktop).not.toBeNull();
+  expectWithinOnePixel(desktop?.x ?? 0, 1135);
+  expectWithinOnePixel(desktop?.y ?? 0, 48);
+  expectWithinOnePixel(desktop?.width ?? 0, 105);
+  expectWithinOnePixel(desktop?.height ?? 0, 40);
+});
+
 test("copying the Pubky shows the iconless brand toast at the mobile inset", async ({ page }) => {
   await seedLocalIdentity(page);
   await page.addInitScript(() => {
