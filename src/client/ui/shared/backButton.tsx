@@ -1,4 +1,4 @@
-import { ArrowLeftIcon } from "./actionIcons";
+import { ArrowLeftIcon } from "./icons";
 import { cn } from "./mergeClassNames";
 import { Button } from "./primitives/button";
 

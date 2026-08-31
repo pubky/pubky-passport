@@ -7,7 +7,7 @@ import type { PubkyRingMigration } from "../../../../logic/pubky/PubkySdkAdapter
 import { PubkyBrandIcon } from "../../../shared/brand/pubkyBrandIcon";
 import { PubkyRingLogo } from "../../../shared/brand/pubkyRingLogo";
 import { PubkyRingStoreBadges } from "../../../shared/brand/pubkyRingStoreBadges";
-import { CheckIcon, ScanIcon } from "../../../shared/actionIcons";
+import { CheckIcon, ScanIcon } from "../../../shared/icons";
 import { BackButton } from "../../../shared/backButton";
 import { PassportNavigation } from "../../../shared/passportNavigation";
 import { PassportScreen } from "../../../shared/passportScreen";

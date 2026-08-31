@@ -4,9 +4,8 @@ import type { ReactNode } from "react";
 import { MobilePassportFooter } from "../shared/mobilePassportFooter";
 import { PassportScreen } from "../shared/passportScreen";
 import { DisplayHeading, LeadText } from "../shared/primitives/typography";
-import { SignInContext } from "../shared/signInContext";
 
-function SignInPage({ children, signInTo }: { children: ReactNode; signInTo?: string }) {
+function SignInPage({ children }: { children: ReactNode }) {
   return (
     <PassportScreen className="gap-6 md:gap-8">
       <section className="flex flex-col gap-6 md:gap-8">
@@ -18,7 +17,6 @@ function SignInPage({ children, signInTo }: { children: ReactNode; signInTo?: st
           >
             Quick &amp; easy
           </DisplayHeading>
-          {signInTo ? <SignInContext requester={signInTo} /> : null}
           <LeadText>
             Pubky Passport is a browser-based signer for the Pubky ecosystem. No seed phrase, no
             app, no hassle.

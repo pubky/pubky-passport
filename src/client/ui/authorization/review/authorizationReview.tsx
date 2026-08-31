@@ -3,7 +3,7 @@ import { useLayoutEffect, useRef } from "react";
 import type { AuthorizationRequestReview } from "../../../logic/authorization/request/ValidatedPubkyAuthRequest";
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import { GoogleLogo } from "../../shared/brand/googleLogo";
-import { CheckIcon, SquareUserRoundIcon, XIcon } from "../../shared/actionIcons";
+import { CheckIcon, SquareUserRoundIcon, XIcon } from "../../shared/icons";
 import { PassportNavigation } from "../../shared/passportNavigation";
 import { PassportScreen } from "../../shared/passportScreen";
 import { Avatar } from "../../shared/primitives/avatar";

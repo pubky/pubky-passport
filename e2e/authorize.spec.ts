@@ -37,6 +37,45 @@ test("shows manual authorization entry when no request was supplied", async ({ p
   await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
 });
 
+test("shows identity setup context as the designed full-width accent band", async ({ page }) => {
+  for (const viewport of [
+    { width: 375, height: 812 },
+    { width: 1280, height: 720 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`)));
+
+    const band = page.getByLabel("Signing in to client.example");
+    const logo = page.getByRole("img", { name: "Pubky Passport" });
+    const main = page.locator("main");
+    await expect(band).toBeVisible();
+    await expect(band.locator("svg")).toHaveAttribute("viewBox", "0 0 24 24");
+    await page.evaluate(async () => document.fonts.ready);
+
+    const [bandBox, logoBox, mainBox] = await Promise.all([
+      band.boundingBox(),
+      logo.boundingBox(),
+      main.boundingBox(),
+    ]);
+    expect(bandBox).not.toBeNull();
+    expect(logoBox).not.toBeNull();
+    expect(mainBox).not.toBeNull();
+    expectWithinOnePixel(bandBox?.x ?? -1, 0);
+    expectWithinOnePixel(bandBox?.y ?? -1, 0);
+    expectWithinOnePixel(bandBox?.width ?? -1, viewport.width);
+    expectWithinOnePixel(bandBox?.height ?? -1, 34);
+    expect(logoBox?.y).toBeGreaterThanOrEqual((bandBox?.y ?? 0) + (bandBox?.height ?? 0));
+    expect(mainBox?.y).toBeGreaterThanOrEqual((logoBox?.y ?? 0) + (logoBox?.height ?? 0));
+    expect(await band.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("0px");
+    expect(await band.evaluate((element) => getComputedStyle(element).color)).toBe(
+      "rgb(200, 255, 0)",
+    );
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      viewport.width,
+    );
+  }
+});
+
 test("scrubs a valid request and renders only safe review data", async ({ page, request }) => {
   const url = authorizationUrl(
     authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}?region=eu`),
@@ -282,6 +321,10 @@ function authorizationRequest(
 
 function authorizationUrl(request: string): string {
   return `/authorize#d=${encodeURIComponent(request)}`;
+}
+
+function expectWithinOnePixel(actual: number, expected: number) {
+  expect(Math.abs(actual - expected)).toBeLessThanOrEqual(1);
 }
 
 function cspSources(policy: string, directiveName: string): string[] {

@@ -1,4 +1,3 @@
-import Image from "next/image";
 import type { ReactNode } from "react";
 
 import { cn } from "./mergeClassNames";
@@ -79,15 +78,61 @@ function CheckIcon(props: IconProps) {
 function CameraIcon({ className }: Pick<IconProps, "className">) {
   return (
     <span aria-hidden="true" className={cn("relative inline-flex h-4 w-5 shrink-0", className)}>
-      <Image
-        alt=""
+      <svg
         className="absolute -left-[0.75px] -top-[0.75px] max-w-none"
+        fill="none"
         height={17.5}
-        src="/icons/camera.svg"
-        unoptimized
+        viewBox="0 0 21.5 17.5"
         width={21.5}
-      />
+      >
+        <path
+          d="M13.25.75h-5l-2.5 3h-3a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-3l-2.5-3Z"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.5"
+        />
+        <circle
+          cx="10.75"
+          cy="9.75"
+          r="3"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.5"
+        />
+      </svg>
     </span>
+  );
+}
+
+function CircleCheckIcon(props: IconProps) {
+  const size = props.size ?? 20;
+
+  return (
+    <Glyph height={size} size={size} viewBox="0 0 20 20" width={size} {...props}>
+      <path
+        clipRule="evenodd"
+        d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882L9.16 12.099l-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z"
+        fill="currentColor"
+        fillRule="evenodd"
+      />
+    </Glyph>
+  );
+}
+
+function CircleInfoIcon(props: IconProps) {
+  const size = props.size ?? 20;
+
+  return (
+    <Glyph height={size} size={size} viewBox="0 0 20 20" width={size} {...props}>
+      <path
+        clipRule="evenodd"
+        d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0ZM11 6a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z"
+        fill="currentColor"
+        fillRule="evenodd"
+      />
+    </Glyph>
   );
 }
 
@@ -188,6 +233,20 @@ function LinkOffIcon(props: IconProps) {
     <Glyph height={16} viewBox="0 0 21.5 21.5" width={16} {...props}>
       <path
         d="M7.75 15.75h-2a5 5 0 0 1 0-10m8 0h2a5 5 0 0 1 4 8m-13-3h4m-10-10 20 20"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </Glyph>
+  );
+}
+
+function LockIcon(props: IconProps) {
+  return (
+    <Glyph height={16} viewBox="0 0 24 24" width={16} {...props}>
+      <path
+        d="M7 11V7C7 5.67392 7.52678 4.40215 8.46447 3.46447C9.40215 2.52678 10.6739 2 12 2C13.3261 2 14.5979 2.52678 15.5355 3.46447C16.4732 4.40215 17 5.67392 17 7V11M5 11H19C20.1046 11 21 11.8954 21 13V20C21 21.1046 20.1046 22 19 22H5C3.89543 22 3 21.1046 3 20V13C3 11.8954 3.89543 11 5 11Z"
         stroke="currentColor"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -315,6 +374,8 @@ export {
   ArrowRightIcon,
   CameraIcon,
   CheckIcon,
+  CircleCheckIcon,
+  CircleInfoIcon,
   ClipboardPasteIcon,
   CopyIcon,
   DownloadRecoveryFileIcon,
@@ -322,6 +383,7 @@ export {
   FolderIcon,
   KeyRoundIcon,
   LinkOffIcon,
+  LockIcon,
   LogOutIcon,
   RotateCcwIcon,
   ScanIcon,

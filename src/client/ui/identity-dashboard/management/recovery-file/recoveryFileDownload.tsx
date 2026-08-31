@@ -9,7 +9,7 @@ import {
   type LocalIdentityRecoveryFile,
   type LocalIdentityRecoveryFileResult,
 } from "../../../../logic/local-identity/LocalIdentityController";
-import { DownloadRecoveryFileIcon } from "../../../shared/actionIcons";
+import { DownloadRecoveryFileIcon } from "../../../shared/icons";
 import { BackButton } from "../../../shared/backButton";
 import { PassportNavigation } from "../../../shared/passportNavigation";
 import { PassportScreen } from "../../../shared/passportScreen";

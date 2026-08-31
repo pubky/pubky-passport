@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { CheckIcon, DownloadIcon, KeyRoundIcon } from "../../../shared/actionIcons";
+import { CheckIcon, DownloadIcon, KeyRoundIcon } from "../../../shared/icons";
 import { BackButton } from "../../../shared/backButton";
 import { PassportNavigation } from "../../../shared/passportNavigation";
 import { PassportScreen } from "../../../shared/passportScreen";

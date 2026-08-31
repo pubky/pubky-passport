@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { FolderIcon } from "../../shared/actionIcons";
+import { FolderIcon } from "../../shared/icons";
 
 function PermissionList({ children }: { children: ReactNode }) {
   return (

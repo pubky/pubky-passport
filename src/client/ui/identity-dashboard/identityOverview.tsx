@@ -1,6 +1,6 @@
 import type { LocalIdentityMetadata } from "../../logic/local-identity/localIdentityModels";
 import { GoogleLogo } from "../shared/brand/googleLogo";
-import { KeyRoundIcon, SettingsIcon, SquareUserRoundIcon } from "../shared/actionIcons";
+import { KeyRoundIcon, SettingsIcon, SquareUserRoundIcon } from "../shared/icons";
 import { PassportScreen } from "../shared/passportScreen";
 import { Avatar } from "../shared/primitives/avatar";
 import { Button, ButtonLink } from "../shared/primitives/button";

@@ -1,6 +1,6 @@
 import { type ReactNode, type SubmitEvent, useEffect, useRef, useState } from "react";
 
-import { XIcon } from "./actionIcons";
+import { XIcon } from "./icons";
 import { Button } from "./primitives/button";
 import { Dialog } from "./primitives/dialog";
 import { FieldMessage } from "./primitives/fieldMessage";
