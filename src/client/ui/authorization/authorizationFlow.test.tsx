@@ -162,7 +162,12 @@ describe("AuthorizationFlow", () => {
       "bg-brand/10",
       "text-brand",
     );
-    expect(band.querySelector("svg")).toHaveAttribute("viewBox", "0 0 24 24");
+    const signInIcon = band.querySelector("svg");
+    expect(signInIcon).toHaveAttribute("viewBox", "0 0 24 24");
+    expect(signInIcon?.querySelector("path")).toHaveAttribute(
+      "d",
+      "M15 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H15M10 7L15 12L10 17M15 12H3",
+    );
     expect(screen.getAllByLabelText("Signing in to requesting.app")).toHaveLength(1);
     expect(screen.getByText("/pub/requesting.app/")).toBeInTheDocument();
     expect(screen.getByText("Read,write").parentElement).toHaveClass("min-h-5", "items-center");

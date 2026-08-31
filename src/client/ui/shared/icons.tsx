@@ -242,11 +242,11 @@ function LinkOffIcon(props: IconProps) {
   );
 }
 
-function LockIcon(props: IconProps) {
+function LogInIcon(props: IconProps) {
   return (
     <Glyph height={16} viewBox="0 0 24 24" width={16} {...props}>
       <path
-        d="M7 11V7C7 5.67392 7.52678 4.40215 8.46447 3.46447C9.40215 2.52678 10.6739 2 12 2C13.3261 2 14.5979 2.52678 15.5355 3.46447C16.4732 4.40215 17 5.67392 17 7V11M5 11H19C20.1046 11 21 11.8954 21 13V20C21 21.1046 20.1046 22 19 22H5C3.89543 22 3 21.1046 3 20V13C3 11.8954 3.89543 11 5 11Z"
+        d="M15 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H15M10 7L15 12L10 17M15 12H3"
         stroke="currentColor"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -383,7 +383,7 @@ export {
   FolderIcon,
   KeyRoundIcon,
   LinkOffIcon,
-  LockIcon,
+  LogInIcon,
   LogOutIcon,
   RotateCcwIcon,
   ScanIcon,
