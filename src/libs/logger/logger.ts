@@ -2,7 +2,7 @@ import { redactForLog } from "./redaction";
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 
-export type LogFieldValue = string | number | boolean | null | undefined;
+type LogFieldValue = string | number | boolean | null | undefined;
 
 export type LogFields = Record<string, LogFieldValue>;
 

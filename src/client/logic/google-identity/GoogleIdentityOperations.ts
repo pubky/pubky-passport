@@ -44,7 +44,7 @@ export type GoogleIdentityProgress =
   | { flow: "restore"; step: "restoring" | "signing_in" }
   | { flow: "repair"; step: "signing_up" | "publishing" | "signing_in" };
 
-export type GoogleIdentityOperationValue =
+type GoogleIdentityOperationValue =
   | {
       establishmentMode: "created";
       publicIdentity: PubkyPublicIdentity;

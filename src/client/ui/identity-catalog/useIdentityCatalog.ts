@@ -88,4 +88,4 @@ function useIdentityCatalog(): IdentityCatalogState {
   return useSyncExternalStore(store.subscribe, store.getSnapshot, () => SERVER_SNAPSHOT);
 }
 
-export { useIdentityCatalog, type IdentityCatalogActions, type IdentityCatalogState };
+export { useIdentityCatalog, type IdentityCatalogActions };

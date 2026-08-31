@@ -26,7 +26,7 @@ export type GoogleIdentityViewState =
   | { status: "detaching" };
 
 /** Safe setup or restore details returned after the identity is active locally. */
-export type EstablishedGoogleIdentity =
+type EstablishedGoogleIdentity =
   | {
       establishmentMode: "created";
       googleAccount: GoogleAccountProfile;
@@ -44,7 +44,7 @@ export type GoogleIdentityError =
   | GoogleImplicitAuthorizationError
   | CodedFailure<"authorization_failed" | "cancelled" | "operation_failed">;
 
-export type GoogleIdentityErrorDetailCode = Extract<
+type GoogleIdentityErrorDetailCode = Extract<
   GoogleIdentityOperationError,
   { detailCode: string }
 >["detailCode"];

@@ -21,7 +21,7 @@ export type PassportFileEnvelope = {
 };
 
 /** Only distinctions that change production behavior are exposed. */
-export type PassportFileParseError = {
+type PassportFileParseError = {
   code: "invalid_json" | "invalid_file" | "unsupported_version";
 };
 
