@@ -3,7 +3,7 @@
 | Variable                                | Value                                                  |
 | --------------------------------------- | ------------------------------------------------------ |
 | `GOOGLE_CLIENT_ID`                      | Google OAuth web client ID                             |
-| `HOMEGATE_URL`                          | HTTPS Homegate base URL                                |
+| `HOMEGATE_URL`                          | HTTPS Homegate origin                                  |
 | `PUBKY_HOMESERVER_CONNECT_ORIGINS`      | Comma-separated HTTPS origins allowed by CSP           |
 | `PASSPORT_SERVER_SECRET_CURRENT_KEY_ID` | Key ID used for new recovery envelopes                 |
 | `PASSPORT_SERVER_SECRET_KEYRING_JSON`   | JSON map of IDs to base64 secrets of at least 32 bytes |
