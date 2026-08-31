@@ -40,8 +40,14 @@ describe("GoogleIdentityProgress", () => {
       const setupProgress = screen.getByRole("list", {
         name: "Pubky identity setup progress",
       });
-      expect(setupProgress).toHaveClass("md:rounded-lg", "md:border", "md:border-card");
-      expect(setupProgress).not.toHaveClass("rounded-lg", "border", "border-card");
+      expect(setupProgress).not.toHaveClass(
+        "rounded-lg",
+        "border",
+        "border-card",
+        "md:rounded-lg",
+        "md:border",
+        "md:border-card",
+      );
       expect(screen.getByText(activeLabel).closest("li")).toHaveAttribute("aria-current", "step");
     },
   );
@@ -58,9 +64,10 @@ describe("GoogleIdentityProgress", () => {
       render(<GoogleIdentityProgress progress={progress} />);
 
       expect(screen.getByRole("heading", { name: `${heading} your pubky.` })).toBeInTheDocument();
-      expect(
-        screen.getByRole("list", { name: `Pubky identity ${branch} progress` }),
-      ).toBeInTheDocument();
+      const progressList = screen.getByRole("list", {
+        name: `Pubky identity ${branch} progress`,
+      });
+      expect(progressList).not.toHaveClass("border", "md:border");
       expect(screen.getByText(activeLabel).closest("li")).toHaveAttribute("aria-current", "step");
       expect(screen.getByRole("status")).toHaveTextContent(
         `${heading} your Pubky: ${activeLabel}.`,
