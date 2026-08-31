@@ -4,8 +4,7 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
-import { getPublicApplicationEnvironment } from "../../config/publicApplicationEnvironment";
-import { getServerSecretEnvironment } from "../../config/serverSecretEnvironment";
+import { getPublicEnvironment, getServerEnvironment } from "../../environment";
 import {
   GoogleIdTokenVerifier,
   type GoogleIdTokenVerificationResult,
@@ -32,9 +31,9 @@ export class GoogleWrappingKeyIssuer {
   }
 
   static fromEnvironment(): GoogleWrappingKeyIssuer {
-    const { googleClientId } = getPublicApplicationEnvironment();
-    const { serverSecretCurrentKeyId, serverSecrets } = getServerSecretEnvironment();
-    return new GoogleWrappingKeyIssuer(googleClientId, serverSecretCurrentKeyId, serverSecrets);
+    const { googleClientId } = getPublicEnvironment();
+    const { currentKeyId, secrets } = getServerEnvironment();
+    return new GoogleWrappingKeyIssuer(googleClientId, currentKeyId, secrets);
   }
 
   async issueGoogleWrappingKey(
