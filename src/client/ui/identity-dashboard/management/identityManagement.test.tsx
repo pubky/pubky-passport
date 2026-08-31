@@ -8,9 +8,9 @@ import { LOGGER } from "../../../../libs/logger/logger";
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import { IdentityManagement } from "./identityManagement";
 
-const MOCKS = vi.hoisted(() => ({ toast: vi.fn() }));
+const MOCKS = vi.hoisted(() => ({ toastInfo: vi.fn() }));
 
-vi.mock("sonner", () => ({ toast: MOCKS.toast }));
+vi.mock("sonner", () => ({ toast: { info: MOCKS.toastInfo } }));
 
 const identity = {
   googleAccount: {
@@ -53,14 +53,14 @@ describe("IdentityManagement", () => {
     await waitFor(() =>
       expect(writeText).toHaveBeenCalledWith(identity.publicIdentity.publicKeyZ32),
     );
-    expect(MOCKS.toast).toHaveBeenCalledWith("Pubky copied to clipboard", {
+    expect(MOCKS.toastInfo).toHaveBeenCalledWith("Pubky copied to clipboard", {
       description: `${identity.publicIdentity.publicKeyZ32.slice(0, 32)}...`,
     });
     const homeserverButton = screen.getByRole("button", { name: "Copy Homeserver" });
     await waitFor(() => expect(homeserverButton).toBeEnabled());
     fireEvent.click(homeserverButton);
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("homeserver-pubky"));
-    expect(MOCKS.toast).toHaveBeenCalledWith("Homeserver copied");
+    expect(MOCKS.toastInfo).toHaveBeenCalledWith("Homeserver copied");
   });
 
   it("does not confirm a failed copy", async () => {
@@ -84,7 +84,7 @@ describe("IdentityManagement", () => {
     fireEvent.click(screen.getByRole("button", { name: "Copy Pubky" }));
 
     await waitFor(() => {
-      expect(MOCKS.toast).not.toHaveBeenCalled();
+      expect(MOCKS.toastInfo).not.toHaveBeenCalled();
     });
     expect(info).toHaveBeenCalledWith(
       "identity.management.failed",
