@@ -14,24 +14,36 @@ describe("Sonner", () => {
     cleanup();
   });
 
-  it("renders a default notification with a description", async () => {
+  it("renders a gray info notification with its icon and description", async () => {
     render(<Sonner />);
 
     act(() => {
-      toast("Copied", { description: "Copied value" });
+      toast.info("Copied", { description: "Copied value" });
     });
 
-    expect(await screen.findByText("Copied")).toBeInTheDocument();
+    const title = await screen.findByText("Copied");
+    const notification = title.closest("[data-sonner-toast]");
+    expect(notification).toHaveAttribute("data-type", "info");
+    expect(notification).toHaveClass("!border-[#303034]");
+    expect(
+      notification?.querySelector('[data-icon] img[src="/icons/sonner-info.svg"]'),
+    ).not.toBeNull();
     expect(screen.getByText("Copied value")).toBeInTheDocument();
   });
 
-  it("renders a success notification", async () => {
+  it("renders a green success notification with its checkmark", async () => {
     render(<Sonner />);
 
     act(() => {
       toast.success("Saved");
     });
 
-    expect(await screen.findByText("Saved")).toBeInTheDocument();
+    const title = await screen.findByText("Saved");
+    const notification = title.closest("[data-sonner-toast]");
+    expect(notification).toHaveAttribute("data-type", "success");
+    expect(notification).toHaveClass("!border-brand/50", "bg-brand/25");
+    expect(
+      notification?.querySelector('[data-icon] img[src="/icons/sonner-success.svg"]'),
+    ).not.toBeNull();
   });
 });

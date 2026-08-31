@@ -103,7 +103,7 @@ function IdentityManagement({
         <IdentityDetail
           label="Pubky"
           onCopied={() =>
-            toast("Pubky copied to clipboard", {
+            toast.info("Pubky copied to clipboard", {
               description: shortCopiedValue(identity.publicIdentity.publicKeyZ32),
             })
           }
@@ -111,7 +111,7 @@ function IdentityManagement({
         />
         <IdentityDetail
           label="Homeserver"
-          onCopied={() => toast("Homeserver copied")}
+          onCopied={() => toast.info("Homeserver copied")}
           value={homeserver === undefined ? "Looking up…" : (homeserver ?? "Unavailable")}
         />
       </section>

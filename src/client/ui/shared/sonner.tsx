@@ -37,7 +37,6 @@ function Sonner() {
         unstyled: true,
         classNames: {
           content: "flex min-w-0 flex-1 flex-col gap-0.5 break-words",
-          default: "!border-brand/50 bg-brand/25",
           description: "w-full text-sm font-normal leading-5 text-secondary-foreground",
           icon: "flex size-5 shrink-0 items-center justify-center",
           info: "!border-[#303034] bg-[linear-gradient(rgba(5,5,10,0.6),rgba(5,5,10,0.6)),linear-gradient(#454549,#454549)]",

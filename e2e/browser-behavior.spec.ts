@@ -298,7 +298,7 @@ test("identity management keeps Log out in the designed responsive header positi
   expectWithinOnePixel(desktop?.height ?? 0, 40);
 });
 
-test("copying the Pubky shows the iconless brand toast at the mobile inset", async ({ page }) => {
+test("copying the Pubky shows the gray info toast at the mobile inset", async ({ page }) => {
   await seedLocalIdentity(page);
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "clipboard", {
@@ -317,9 +317,10 @@ test("copying the Pubky shows the iconless brand toast at the mobile inset", asy
     .filter({ hasText: "Pubky copied to clipboard" });
   await expect(toast).toBeVisible();
   await expect(toast).toHaveAttribute("data-mounted", "true");
+  await expect(toast).toHaveAttribute("data-type", "info");
   await expect(toast.locator("[data-title]")).toHaveText("Pubky copied to clipboard");
   await expect(toast.locator("[data-description]")).toHaveText(`${FIRST_KEY.slice(0, 32)}...`);
-  await expect(toast.locator("[data-icon]")).toHaveCount(0);
+  await expect(toast.locator('[data-icon] img[src="/icons/sonner-info.svg"]')).toHaveCount(1);
 
   await expect
     .poll(
