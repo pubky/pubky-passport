@@ -16,6 +16,7 @@ import {
 } from "../../shared/actionIcons";
 import { BackButton } from "../../shared/backButton";
 import { cn } from "../../shared/mergeClassNames";
+import { PassportNavigation } from "../../shared/passportNavigation";
 import { PassportScreen } from "../../shared/passportScreen";
 import { Avatar } from "../../shared/primitives/avatar";
 import { Button } from "../../shared/primitives/button";
@@ -74,6 +75,16 @@ function IdentityManagement({
 
   return (
     <PassportScreen className="gap-6 md:gap-8">
+      <Button
+        className="absolute right-6 top-[26px] z-10 md:right-10 md:top-12 md:h-10 md:px-4 md:py-2 md:text-sm md:leading-5"
+        onClick={logout}
+        size="sm"
+        variant="secondary"
+      >
+        <LogOutIcon />
+        Log out
+      </Button>
+
       <header className="flex items-start gap-6 md:items-center">
         <DisplayHeading accent="identity." aria-label="Manage identity.">
           Manage
@@ -121,17 +132,7 @@ function IdentityManagement({
           </ManagementButton>
         ) : null}
       </div>
-      <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-[120px_1fr_228px] md:items-center md:gap-0 md:pt-1">
-        <div className="w-full md:col-start-3 md:row-start-1">
-          <Button className="w-full" onClick={logout} size="lg" variant="destructive">
-            <LogOutIcon />
-            Log out
-          </Button>
-        </div>
-        <div className="w-full md:col-start-1 md:row-start-1">
-          <BackButton onClick={onBack} />
-        </div>
-      </div>
+      <PassportNavigation back={<BackButton onClick={onBack} />} className="mt-0 pt-0 md:pt-1" />
     </PassportScreen>
   );
 }

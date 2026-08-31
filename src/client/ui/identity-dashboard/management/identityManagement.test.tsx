@@ -145,7 +145,7 @@ describe("IdentityManagement", () => {
     expect(onBack).not.toHaveBeenCalled();
   });
 
-  it("shows destructive logout above Back on mobile and on the right on desktop", () => {
+  it("shows secondary logout in the header at the responsive design sizes", () => {
     render(
       <IdentityManagement
         identity={identity}
@@ -160,12 +160,19 @@ describe("IdentityManagement", () => {
 
     const logout = screen.getByRole("button", { name: "Log out" });
     const back = screen.getByRole("button", { name: "Back" });
-    const navigation = logout.parentElement?.parentElement;
 
-    expect(logout).toHaveClass("bg-destructive-surface", "text-destructive-foreground", "h-[60px]");
+    expect(logout).toHaveClass(
+      "absolute",
+      "right-6",
+      "top-[26px]",
+      "md:right-10",
+      "md:top-12",
+      "bg-secondary",
+      "h-8",
+      "md:h-10",
+    );
     expect(logout.querySelector("svg")).toBeInTheDocument();
-    expect(logout.parentElement).toHaveClass("md:col-start-3", "md:row-start-1");
-    expect(back.parentElement).toHaveClass("md:col-start-1", "md:row-start-1");
-    expect(Array.from(navigation?.querySelectorAll("button") ?? [])).toEqual([logout, back]);
+    expect(logout).not.toHaveClass("bg-destructive-surface", "h-[60px]");
+    expect(back.parentElement?.parentElement).toHaveClass("grid", "md:grid-cols-[120px_1fr_228px]");
   });
 });
