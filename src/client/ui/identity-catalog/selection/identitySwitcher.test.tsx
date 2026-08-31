@@ -51,11 +51,11 @@ describe("IdentitySwitcher", () => {
     expect(
       screen.getAllByRole("button").filter((button) => button.hasAttribute("aria-pressed"))[0],
     ).toBe(activeRow);
-    expect(screen.getByText("seco...5678")).toHaveClass("uppercase");
-    expect(activeRow).not.toHaveTextContent("active@gmail.com");
+    expect(screen.getByText("active@gmail.com")).toHaveClass("lowercase");
+    expect(activeRow).not.toHaveTextContent("seco...5678");
     const otherRow = screen.getByRole("button", { name: /Other Account/ });
-    expect(otherRow).toHaveTextContent("firs...1234");
-    expect(otherRow).not.toHaveTextContent("other@gmail.com");
+    expect(otherRow).toHaveTextContent("other@gmail.com");
+    expect(otherRow).not.toHaveTextContent("firs...1234");
     await userEvent.setup().click(otherRow);
     expect(onSelect).toHaveBeenCalledWith("firstidentity1234");
     const back = screen.getByRole("button", { name: "Back" });
@@ -111,6 +111,8 @@ describe("IdentitySwitcher", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: /Your Pubky/ })).toHaveTextContent("loca...1234");
+    const localKey = screen.getByText("loca...1234");
+    expect(localKey).toHaveClass("lowercase");
+    expect(screen.getByRole("button", { name: /Your Pubky/ })).toContainElement(localKey);
   });
 });

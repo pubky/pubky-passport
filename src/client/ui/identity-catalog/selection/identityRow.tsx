@@ -44,7 +44,7 @@ function IdentityRow({
       ) : null}
       <span className="min-w-0 flex-1">
         <strong className="block truncate leading-6">{name}</strong>
-        <span className="block truncate text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+        <span className="block truncate text-xs font-medium lowercase tracking-[0.1em] text-muted-foreground">
           {detail}
         </span>
       </span>
