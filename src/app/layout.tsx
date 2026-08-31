@@ -8,7 +8,7 @@ import { BrandEndorsement } from "../client/ui/shared/brand/brandEndorsement";
 import { PassportLogo } from "../client/ui/shared/brand/passportLogo";
 import { Sonner } from "../client/ui/shared/sonner";
 import { LOGGER, safeErrorLogFields } from "../libs/logger/logger";
-import { getBrowserBootstrapConfig } from "../server/config/browserBootstrapConfig";
+import { getPublicEnvironment } from "../server/environment";
 import { ParserTimeScripts } from "./parserTimeScripts";
 
 export const metadata: Metadata = {
@@ -18,9 +18,9 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   await connection();
-  let config: ReturnType<typeof getBrowserBootstrapConfig>;
+  let config: ReturnType<typeof getPublicEnvironment>;
   try {
-    config = getBrowserBootstrapConfig();
+    config = getPublicEnvironment();
   } catch (cause) {
     LOGGER.error("layout.bootstrap.failed", {
       layer: "layout",

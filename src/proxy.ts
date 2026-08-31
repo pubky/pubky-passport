@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { EARLY_AUTHORIZATION_LOCATION_SCRIPT } from "./libs/authorization/earlyAuthorizationLocation";
 import { EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT } from "./libs/authorization/earlyGoogleImplicitResponse";
 import { LOGGER, safeErrorLogFields } from "./libs/logger/logger";
-import { getPublicApplicationEnvironment } from "./server/config/publicApplicationEnvironment";
+import { getPublicEnvironment } from "./server/environment";
 
 const EARLY_AUTHORIZATION_LOCATION_SCRIPT_SOURCE = `'sha256-${createHash("sha256")
   .update(EARLY_AUTHORIZATION_LOCATION_SCRIPT)
@@ -15,7 +15,7 @@ const EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT_SOURCE = `'sha256-${createHash("sha2
 
 export function proxy(request: NextRequest) {
   try {
-    const environment = getPublicApplicationEnvironment();
+    const environment = getPublicEnvironment();
     const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
     const contentSecurityPolicy = createContentSecurityPolicy({
       nonce,
