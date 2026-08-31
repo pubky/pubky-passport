@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-import { TrashIcon } from "../../../shared/actionIcons";
+import { TrashIcon } from "../../../shared/icons";
 import { BackButton } from "../../../shared/backButton";
 import { PassportNavigation } from "../../../shared/passportNavigation";
 import { PassportScreen } from "../../../shared/passportScreen";

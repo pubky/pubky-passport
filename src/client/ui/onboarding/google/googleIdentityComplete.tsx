@@ -5,7 +5,6 @@ import type { PubkyPublicIdentity } from "../../../logic/pubky/pubkyIdentityKey"
 import { PassportScreen } from "../../shared/passportScreen";
 import { Button } from "../../shared/primitives/button";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
-import { SignInContext } from "../../shared/signInContext";
 import { GoogleAccountCard } from "./googleAccountCard";
 
 function GoogleIdentityComplete({
@@ -13,14 +12,12 @@ function GoogleIdentityComplete({
   identity,
   mode,
   onContinue,
-  signInTo,
   visibleRecoveryCopyStatus,
 }: {
   googleAccount: GoogleAccountProfile;
   identity: PubkyPublicIdentity;
   mode: "created" | "restored";
   onContinue: () => void;
-  signInTo?: string;
   visibleRecoveryCopyStatus: "created" | "unconfirmed" | null;
 }) {
   const restored = mode === "restored";
@@ -33,7 +30,6 @@ function GoogleIdentityComplete({
         >
           {restored ? "Restore" : "Setup"}
         </DisplayHeading>
-        {signInTo ? <SignInContext requester={signInTo} /> : null}
         <LeadText>
           {restored ? "Restored backup from Google Drive." : "Stored backup in Google Drive."}
         </LeadText>

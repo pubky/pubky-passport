@@ -63,7 +63,8 @@ describe("ManualAuthorization", () => {
     expect(scanButton).toHaveClass("w-full", "md:hidden");
     const cameraButton = screen.getByRole("button", { name: "Scan authorization QR code" });
     expect(cameraButton).toHaveClass("hidden", "md:inline-flex");
-    const cameraIcon = cameraButton.querySelector('img[src="/icons/camera.svg"]');
+    const cameraIcon = cameraButton.querySelector("svg");
+    expect(cameraIcon).toHaveAttribute("viewBox", "0 0 21.5 17.5");
     expect(cameraIcon).toHaveAttribute("width", "21.5");
     expect(cameraIcon).toHaveAttribute("height", "17.5");
     expect(cameraIcon?.parentElement).toHaveClass("h-4", "w-5");

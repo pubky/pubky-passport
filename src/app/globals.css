@@ -33,6 +33,7 @@
 
 :root {
   color-scheme: dark;
+  --passport-context-band-height: 0px;
   --passport-header-height: 84px;
   --radius: 0.625rem;
   --background: oklch(0.118 0.014 284.115);
@@ -76,6 +77,10 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+body:has([data-passport-context-band]) {
+  --passport-context-band-height: 34px;
 }
 
 @media (min-width: 48rem) and (max-height: 44.999rem) {

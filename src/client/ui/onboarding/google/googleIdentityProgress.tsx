@@ -3,7 +3,6 @@ import { PassportScreen } from "../../shared/passportScreen";
 import { Button } from "../../shared/primitives/button";
 import { Spinner } from "../../shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
-import { SignInContext } from "../../shared/signInContext";
 
 type StepState = "complete" | "active" | "pending";
 type SetupStep = { label: string; state: StepState };
@@ -13,15 +12,9 @@ type ProgressPresentation = {
   steps: SetupStep[];
 };
 
-function GoogleIdentityProgress({
-  progress,
-  signInTo,
-}: {
-  progress: GoogleIdentityProgressState;
-  signInTo?: string;
-}) {
+function GoogleIdentityProgress({ progress }: { progress: GoogleIdentityProgressState }) {
   if (progress.flow === "lookup") {
-    return <IdentityLookup {...(signInTo ? { signInTo } : {})} />;
+    return <IdentityLookup />;
   }
 
   const presentation = progressPresentation(progress);
@@ -37,7 +30,6 @@ function GoogleIdentityProgress({
         >
           {presentation.heading}
         </DisplayHeading>
-        {signInTo ? <SignInContext requester={signInTo} /> : null}
         <p aria-atomic="true" className="sr-only" role="status">
           {presentation.heading} your Pubky: {activeStep?.label}.
         </p>
@@ -51,7 +43,7 @@ function GoogleIdentityProgress({
   );
 }
 
-function IdentityLookup({ signInTo }: { signInTo?: string }) {
+function IdentityLookup() {
   return (
     <PassportScreen className="gap-6 md:gap-8">
       <div className="flex flex-col gap-6 md:gap-3">
@@ -61,7 +53,6 @@ function IdentityLookup({ signInTo }: { signInTo?: string }) {
         >
           Looking for
         </DisplayHeading>
-        {signInTo ? <SignInContext requester={signInTo} /> : null}
         <LeadText>Checking Google Drive for an encrypted Passport file.</LeadText>
       </div>
       <div role="status">

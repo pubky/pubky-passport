@@ -11,7 +11,7 @@ import type {
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { IdentityEstablishmentFlow } from "../onboarding/identityEstablishmentFlow";
-import { ArrowRightIcon } from "../shared/actionIcons";
+import { ArrowRightIcon } from "../shared/icons";
 import { BackButton } from "../shared/backButton";
 import { PassportNavigation } from "../shared/passportNavigation";
 import { PassportScreen } from "../shared/passportScreen";

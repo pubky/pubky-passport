@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import { preload } from "react-dom";
 
 import { GoogleAccessScreen } from "./google/googleAccessScreen";
@@ -7,6 +8,7 @@ import { GoogleIdentityProgress } from "./google/googleIdentityProgress";
 import { useGoogleIdentityEstablishment } from "./google/useGoogleIdentityEstablishment";
 import { BackButton } from "../shared/backButton";
 import { ProviderSignInButton } from "./providerSignInButton";
+import { SignInBand } from "./signInBand";
 import { SignInPage } from "./signInPage";
 
 function IdentityEstablishmentFlow({
@@ -25,41 +27,42 @@ function IdentityEstablishmentFlow({
     preload("/illustrations/checkmark.png", { as: "image" });
   }
 
+  let screen: ReactElement;
   switch (view.status) {
     case "complete":
-      return (
+      screen = (
         <GoogleIdentityComplete
           googleAccount={view.googleAccount}
           identity={view.identity}
           mode={view.mode}
           visibleRecoveryCopyStatus={view.visibleRecoveryCopyStatus}
           onContinue={onComplete}
-          {...(signInTo ? { signInTo } : {})}
         />
       );
+      break;
     case "requesting-access":
-      return <GoogleAccessScreen {...(signInTo ? { signInTo } : {})} />;
+      screen = <GoogleAccessScreen fullWidthAction={Boolean(signInTo)} />;
+      break;
     case "failed": {
-      return (
+      screen = (
         <GoogleIdentityError
           error={view.error}
           onBack={google.back}
           onTryAgain={google.establishIdentity}
-          {...(signInTo ? { signInTo } : {})}
           {...(view.error.code === "invalid_passport_file" ||
           view.error.code === "invalid_passport_file_delete_failed"
             ? { onReplaceInvalidFile: google.replaceInvalidPassportFile }
             : {})}
         />
       );
+      break;
     }
     case "working":
-      return (
-        <GoogleIdentityProgress progress={view.progress} {...(signInTo ? { signInTo } : {})} />
-      );
+      screen = <GoogleIdentityProgress progress={view.progress} />;
+      break;
     case "idle":
-      return (
-        <SignInPage {...(signInTo ? { signInTo } : {})}>
+      screen = (
+        <SignInPage>
           <ProviderSignInButton
             className="w-full"
             onClick={google.establishIdentity}
@@ -70,7 +73,15 @@ function IdentityEstablishmentFlow({
           {onBack ? <BackButton className="md:mt-auto" onClick={onBack} /> : null}
         </SignInPage>
       );
+      break;
   }
+
+  return (
+    <>
+      {signInTo ? <SignInBand requester={signInTo} /> : null}
+      {screen}
+    </>
+  );
 }
 
 export { IdentityEstablishmentFlow };

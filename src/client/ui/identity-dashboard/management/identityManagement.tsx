@@ -7,13 +7,7 @@ import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
 import type { LocalIdentityResult } from "../../../logic/local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import type { PubkyHomeserverResolutionResult } from "../../../logic/pubky/pubkyIdentityKey";
-import {
-  CopyIcon,
-  DownloadIcon,
-  KeyRoundIcon,
-  LinkOffIcon,
-  LogOutIcon,
-} from "../../shared/actionIcons";
+import { CopyIcon, DownloadIcon, KeyRoundIcon, LinkOffIcon, LogOutIcon } from "../../shared/icons";
 import { BackButton } from "../../shared/backButton";
 import { cn } from "../../shared/mergeClassNames";
 import { PassportNavigation } from "../../shared/passportNavigation";

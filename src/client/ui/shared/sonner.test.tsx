@@ -25,9 +25,10 @@ describe("Sonner", () => {
     const notification = title.closest("[data-sonner-toast]");
     expect(notification).toHaveAttribute("data-type", "info");
     expect(notification).toHaveClass("!border-[#303034]");
-    expect(
-      notification?.querySelector('[data-icon] img[src="/icons/sonner-info.svg"]'),
-    ).not.toBeNull();
+    const icon = notification?.querySelector("[data-icon] svg");
+    expect(icon).not.toBeNull();
+    expect(icon).toHaveAttribute("viewBox", "0 0 20 20");
+    expect(icon?.parentElement).toHaveClass("text-[#89898F]");
     expect(screen.getByText("Copied value")).toBeInTheDocument();
   });
 
@@ -42,8 +43,9 @@ describe("Sonner", () => {
     const notification = title.closest("[data-sonner-toast]");
     expect(notification).toHaveAttribute("data-type", "success");
     expect(notification).toHaveClass("!border-brand/50", "bg-brand/25");
-    expect(
-      notification?.querySelector('[data-icon] img[src="/icons/sonner-success.svg"]'),
-    ).not.toBeNull();
+    const icon = notification?.querySelector("[data-icon] svg");
+    expect(icon).not.toBeNull();
+    expect(icon).toHaveAttribute("viewBox", "0 0 20 20");
+    expect(icon?.parentElement).toHaveClass("text-brand");
   });
 });

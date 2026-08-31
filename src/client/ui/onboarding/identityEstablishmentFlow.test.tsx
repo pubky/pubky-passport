@@ -137,17 +137,28 @@ describe("IdentityEstablishmentFlow", () => {
 
     const setupContext = () => screen.getByLabelText("Signing in to pubky.app");
     expect(setupContext()).toBeInTheDocument();
-    expect(setupContext().querySelector("img")).toMatchObject({
-      height: 16,
-      width: 16,
-    });
-    expect(setupContext().querySelector("img")).toHaveAttribute("src", "/icons/log-in.svg");
-    expect(screen.getByRole("heading", { name: "Quick & easy signing." }).nextElementSibling).toBe(
-      setupContext(),
+    expect(setupContext()).toHaveAttribute("data-passport-context-band", "");
+    expect(setupContext()).toHaveClass(
+      "absolute",
+      "inset-x-0",
+      "top-0",
+      "h-[var(--passport-context-band-height)]",
+      "border-brand/20",
+      "bg-brand/10",
+      "text-brand",
     );
-    expect(setupContext().nextElementSibling).toHaveTextContent(
-      "Pubky Passport is a browser-based signer",
+    const lock = setupContext().querySelector("svg");
+    expect(lock).toHaveAttribute("viewBox", "0 0 24 24");
+    expect(lock?.parentElement).toHaveClass("size-4");
+    expect(lock?.querySelector("path")).toHaveAttribute(
+      "d",
+      "M7 11V7C7 5.67392 7.52678 4.40215 8.46447 3.46447C9.40215 2.52678 10.6739 2 12 2C13.3261 2 14.5979 2.52678 15.5355 3.46447C16.4732 4.40215 17 5.67392 17 7V11M5 11H19C20.1046 11 21 11.8954 21 13V20C21 21.1046 20.1046 22 19 22H5C3.89543 22 3 21.1046 3 20V13C3 11.8954 3.89543 11 5 11Z",
     );
+    expect(setupContext().querySelector("bdi")).toHaveTextContent("pubky.app");
+    expect(setupContext().nextElementSibling).toBe(
+      screen.getByRole("heading", { name: "Quick & easy signing." }).closest("main"),
+    );
+    expect(screen.getAllByLabelText("Signing in to pubky.app")).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Continue with Google" }).parentElement).toHaveClass(
       "md:col-start-1",
       "md:row-start-1",
@@ -158,6 +169,8 @@ describe("IdentityEstablishmentFlow", () => {
       screen.getByRole("heading", { name: "Requesting Google Drive access." }),
     ).toBeInTheDocument();
     expect(setupContext()).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Signing in to pubky.app")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Waiting for Google..." })).toHaveClass("w-full");
 
     act(() =>
       emitState.current?.({
@@ -167,6 +180,7 @@ describe("IdentityEstablishmentFlow", () => {
     );
     expect(screen.getByRole("heading", { name: "Setting up your pubky." })).toBeInTheDocument();
     expect(setupContext()).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Signing in to pubky.app")).toHaveLength(1);
 
     act(() =>
       finishSetup(
@@ -185,6 +199,7 @@ describe("IdentityEstablishmentFlow", () => {
     );
     expect(await screen.findByRole("heading", { name: "Setup complete." })).toBeInTheDocument();
     expect(setupContext()).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Signing in to pubky.app")).toHaveLength(1);
     const illustration = document.querySelector<HTMLImageElement>('img[src*="checkmark"]');
     const continueButton = screen.getByRole("button", { name: "Continue" });
     expect(illustration).toHaveClass("size-[200px]", "md:order-4");

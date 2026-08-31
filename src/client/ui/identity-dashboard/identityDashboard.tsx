@@ -12,7 +12,7 @@ import {
   type IdentityCatalogActions,
 } from "../identity-catalog/useIdentityCatalog";
 import { IdentityEstablishmentFlow } from "../onboarding/identityEstablishmentFlow";
-import { RotateCcwIcon } from "../shared/actionIcons";
+import { RotateCcwIcon } from "../shared/icons";
 import { ButtonLink } from "../shared/primitives/button";
 import { Spinner } from "../shared/primitives/spinner";
 import { IdentityManagement } from "./management/identityManagement";

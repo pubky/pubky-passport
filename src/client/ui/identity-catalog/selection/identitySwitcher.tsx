@@ -1,6 +1,6 @@
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import { useSyncExternalStore } from "react";
-import { UserRoundPlusIcon } from "../../shared/actionIcons";
+import { UserRoundPlusIcon } from "../../shared/icons";
 import { BackButton } from "../../shared/backButton";
 import { PassportScreen } from "../../shared/passportScreen";
 import { Button } from "../../shared/primitives/button";

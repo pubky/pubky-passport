@@ -38,7 +38,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <ParserTimeScripts />
       </head>
       <body>
-        <header className="flex h-[var(--passport-header-height)] min-h-[var(--passport-header-height)] w-full shrink-0 items-center justify-between bg-[linear-gradient(180deg,rgba(5,5,10,0.96),rgba(5,5,10,0))] px-6 md:px-10">
+        <header className="flex h-[calc(var(--passport-header-height)+var(--passport-context-band-height))] min-h-[calc(var(--passport-header-height)+var(--passport-context-band-height))] w-full shrink-0 items-center justify-between bg-[linear-gradient(180deg,rgba(5,5,10,0.96),rgba(5,5,10,0))] px-6 pt-[var(--passport-context-band-height)] md:px-10">
           <PassportLogo />
         </header>
         <GoogleIdentityConfigurationProvider

@@ -318,7 +318,9 @@ test("copying the Pubky shows the gray info toast at the mobile inset", async ({
   await expect(toast).toHaveAttribute("data-type", "info");
   await expect(toast.locator("[data-title]")).toHaveText("Pubky copied to clipboard");
   await expect(toast.locator("[data-description]")).toHaveText(`${FIRST_KEY.slice(0, 32)}...`);
-  await expect(toast.locator('[data-icon] img[src="/icons/sonner-info.svg"]')).toHaveCount(1);
+  const icon = toast.locator("[data-icon] svg");
+  await expect(icon).toHaveCount(1);
+  await expect(icon).toHaveAttribute("viewBox", "0 0 20 20");
 
   await expect
     .poll(

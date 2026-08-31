@@ -1,33 +1,16 @@
 "use client";
 
-import Image from "next/image";
 import { Toaster } from "sonner";
+
+import { CircleCheckIcon, CircleInfoIcon } from "./icons";
 
 function Sonner() {
   return (
     <Toaster
       duration={3000}
       icons={{
-        info: (
-          <Image
-            alt=""
-            aria-hidden="true"
-            height={20}
-            src="/icons/sonner-info.svg"
-            unoptimized
-            width={20}
-          />
-        ),
-        success: (
-          <Image
-            alt=""
-            aria-hidden="true"
-            height={20}
-            src="/icons/sonner-success.svg"
-            unoptimized
-            width={20}
-          />
-        ),
+        info: <CircleInfoIcon className="text-[#89898F]" size={20} />,
+        success: <CircleCheckIcon className="text-brand" size={20} />,
       }}
       mobileOffset={{ left: 24, right: 24, top: 24 }}
       offset={{ top: 24 }}

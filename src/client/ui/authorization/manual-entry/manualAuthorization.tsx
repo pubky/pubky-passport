@@ -3,7 +3,7 @@ import { type SubmitEvent, useCallback, useRef, useState } from "react";
 
 import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
 import { validateManualAuthorizationInput } from "../../../logic/authorization/entry/manualAuthorizationInput";
-import { ArrowRightIcon, CameraIcon, ClipboardPasteIcon, ScanIcon } from "../../shared/actionIcons";
+import { ArrowRightIcon, CameraIcon, ClipboardPasteIcon, ScanIcon } from "../../shared/icons";
 import { BackButton } from "../../shared/backButton";
 import { PassportNavigation } from "../../shared/passportNavigation";
 import { PassportScreen } from "../../shared/passportScreen";

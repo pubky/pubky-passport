@@ -1,27 +1,24 @@
 import { useState } from "react";
 
 import type { GoogleIdentityViewError } from "../../../logic/google-identity/GoogleIdentityController";
-import { RotateCcwIcon, TrashIcon } from "../../shared/actionIcons";
+import { RotateCcwIcon, TrashIcon } from "../../shared/icons";
 import { BackButton } from "../../shared/backButton";
 import { ConfirmDeletionDialog } from "../../shared/confirmDeletionDialog";
 import { PassportScreen } from "../../shared/passportScreen";
 import { Button } from "../../shared/primitives/button";
 import { Label } from "../../shared/primitives/label";
 import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
-import { SignInContext } from "../../shared/signInContext";
 
 function GoogleIdentityError({
   error,
   onBack,
   onReplaceInvalidFile,
   onTryAgain,
-  signInTo,
 }: {
   error: GoogleIdentityViewError;
   onBack: () => void;
   onReplaceInvalidFile?: () => void;
   onTryAgain: () => void;
-  signInTo?: string;
 }) {
   const [confirmationOpen, setConfirmationOpen] = useState(false);
   const replaceInvalidFile =
@@ -30,13 +27,7 @@ function GoogleIdentityError({
       : undefined;
 
   if (error.code === "google_authorization_denied") {
-    return (
-      <GoogleAccessDenied
-        onBack={onBack}
-        onTryAgain={onTryAgain}
-        {...(signInTo ? { signInTo } : {})}
-      />
-    );
+    return <GoogleAccessDenied onBack={onBack} onTryAgain={onTryAgain} />;
   }
 
   return (
@@ -46,7 +37,6 @@ function GoogleIdentityError({
           <DisplayHeading accent="interrupted." aria-label="Setup interrupted.">
             Setup
           </DisplayHeading>
-          {signInTo ? <SignInContext requester={signInTo} /> : null}
           <LeadText>
             {error.code === "homeserver_signup_invitation_failed" ? (
               <>
@@ -190,11 +180,9 @@ function GoogleIdentityError({
 function GoogleAccessDenied({
   onBack,
   onTryAgain,
-  signInTo,
 }: {
   onBack: () => void;
   onTryAgain: () => void;
-  signInTo?: string;
 }) {
   return (
     <PassportScreen className="gap-6 md:gap-8">
@@ -202,7 +190,6 @@ function GoogleAccessDenied({
         <DisplayHeading accent="denied." desktopAccentOnNewLine>
           Google <span className="hidden md:inline">Drive</span> access
         </DisplayHeading>
-        {signInTo ? <SignInContext requester={signInTo} /> : null}
         <LeadText className="md:hidden">
           Passport needs Google Drive access to create or restore your Pubky.
         </LeadText>
