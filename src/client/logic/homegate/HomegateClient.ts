@@ -27,7 +27,7 @@ export type HomegateSignupInvitationErrorCode =
 
 const MAX_ERROR_RESPONSE_BYTES = 256;
 const MAX_SIGNUP_CODE_LENGTH = 1024;
-const GOOGLE_VERIFICATION_PATH = "google_verification";
+const GOOGLE_VERIFICATION_PATH = "/google_verification";
 const SIGNUP_CODE_SCHEMA = z
   .string()
   .min(1)

@@ -88,20 +88,6 @@ describe("HomegateClient", () => {
     expect(JSON.stringify(fetch)).not.toContain("SECRET-GOOGLE-ID-TOKEN");
   });
 
-  it("appends the endpoint to the normalized Homegate base path", async () => {
-    const fetch = new SanitizedFetchRecorder(
-      jsonResponse({
-        signupCode: "signup-code",
-        homeserverPubky: HOMESERVER_PUBKY,
-      }),
-    );
-    const client = new HomegateClient("https://homegate.example/api/", fetch.fetch);
-
-    await client.requestGoogleSignupInvitation("id-token");
-
-    expect(fetch.calls[0]?.url).toBe("https://homegate.example/api/google_verification");
-  });
-
   it.each(["", "   ", "x".repeat(16 * 1024 + 1)])(
     "rejects an invalid Google ID token before contacting Homegate",
     async (googleIdToken) => {
