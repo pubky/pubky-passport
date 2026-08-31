@@ -11,25 +11,30 @@ const GOOGLE_NAME_CHARACTERS = 512;
 const GOOGLE_PICTURE_URL_CHARACTERS = 2_048;
 const LOCAL_AVATAR_CHARACTERS = 512 * 1024;
 
+/**
+ * Converts an untrusted Google UserInfo response into the profile stored by Passport.
+ * Returns null when its fields are invalid or its subject does not match the ID-token subject.
+ */
 export function googleAccountProfileFromUserInfo(
-  value: unknown,
+  userInfo: unknown,
   expectedGoogleSubject: string,
 ): GoogleAccountProfile | null {
   if (
-    !isRecord(value) ||
-    !boundedString(value.sub, GOOGLE_SUBJECT_CHARACTERS) ||
-    value.sub !== expectedGoogleSubject ||
-    !boundedString(value.email, GOOGLE_EMAIL_CHARACTERS) ||
-    !boundedString(value.name, GOOGLE_NAME_CHARACTERS) ||
-    (value.picture !== undefined && !boundedString(value.picture, GOOGLE_PICTURE_URL_CHARACTERS))
+    !isRecord(userInfo) ||
+    !boundedString(userInfo.sub, GOOGLE_SUBJECT_CHARACTERS) ||
+    userInfo.sub !== expectedGoogleSubject ||
+    !boundedString(userInfo.email, GOOGLE_EMAIL_CHARACTERS) ||
+    !boundedString(userInfo.name, GOOGLE_NAME_CHARACTERS) ||
+    (userInfo.picture !== undefined &&
+      !boundedString(userInfo.picture, GOOGLE_PICTURE_URL_CHARACTERS))
   )
     return null;
 
   return Object.freeze({
-    googleSubject: value.sub,
-    email: value.email,
-    name: value.name,
-    pictureUrl: externalGooglePictureUrl(value.picture),
+    googleSubject: userInfo.sub,
+    email: userInfo.email,
+    name: userInfo.name,
+    pictureUrl: externalGooglePictureUrl(userInfo.picture),
   });
 }
 

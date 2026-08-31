@@ -36,8 +36,8 @@ export async function fetchGoogleAccountProfile(
     if (!text || text === "too_large") {
       return Result.err({ code: "google_authorization_failed", stage: "userinfo" });
     }
-    const value: unknown = JSON.parse(text);
-    const profile = googleAccountProfileFromUserInfo(value, expectedGoogleSubject);
+    const userInfo: unknown = JSON.parse(text);
+    const profile = googleAccountProfileFromUserInfo(userInfo, expectedGoogleSubject);
     if (!profile) {
       return Result.err({ code: "google_authorization_failed", stage: "account_binding" });
     }
