@@ -1,4 +1,3 @@
-import type { ReactElement } from "react";
 import { preload } from "react-dom";
 
 import { GoogleAccessScreen } from "./google/googleAccessScreen";
@@ -8,17 +7,16 @@ import { GoogleIdentityProgress } from "./google/googleIdentityProgress";
 import { useGoogleIdentityEstablishment } from "./google/useGoogleIdentityEstablishment";
 import { BackButton } from "../shared/backButton";
 import { ProviderSignInButton } from "./providerSignInButton";
-import { SignInBand } from "./signInBand";
 import { SignInPage } from "./signInPage";
 
 function IdentityEstablishmentFlow({
+  forAuthorization = false,
   onBack,
   onComplete,
-  signInTo,
 }: {
+  forAuthorization?: boolean;
   onBack?: () => void;
   onComplete: () => void;
-  signInTo?: string;
 }) {
   const google = useGoogleIdentityEstablishment();
   const view = google.view;
@@ -27,10 +25,9 @@ function IdentityEstablishmentFlow({
     preload("/illustrations/checkmark.png", { as: "image" });
   }
 
-  let screen: ReactElement;
   switch (view.status) {
     case "complete":
-      screen = (
+      return (
         <GoogleIdentityComplete
           googleAccount={view.googleAccount}
           identity={view.identity}
@@ -39,12 +36,10 @@ function IdentityEstablishmentFlow({
           onContinue={onComplete}
         />
       );
-      break;
     case "requesting-access":
-      screen = <GoogleAccessScreen fullWidthAction={Boolean(signInTo)} />;
-      break;
+      return <GoogleAccessScreen fullWidthAction={forAuthorization} />;
     case "failed": {
-      screen = (
+      return (
         <GoogleIdentityError
           error={view.error}
           onBack={google.back}
@@ -55,13 +50,11 @@ function IdentityEstablishmentFlow({
             : {})}
         />
       );
-      break;
     }
     case "working":
-      screen = <GoogleIdentityProgress progress={view.progress} />;
-      break;
+      return <GoogleIdentityProgress progress={view.progress} />;
     case "idle":
-      screen = (
+      return (
         <SignInPage>
           <ProviderSignInButton
             className="w-full"
@@ -73,15 +66,7 @@ function IdentityEstablishmentFlow({
           {onBack ? <BackButton className="md:mt-auto" onClick={onBack} /> : null}
         </SignInPage>
       );
-      break;
   }
-
-  return (
-    <>
-      {signInTo ? <SignInBand requester={signInTo} /> : null}
-      {screen}
-    </>
-  );
 }
 
 export { IdentityEstablishmentFlow };

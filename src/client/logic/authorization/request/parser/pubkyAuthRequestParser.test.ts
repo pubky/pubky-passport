@@ -73,6 +73,35 @@ describe("parseEncodedPubkyAuthRequest", () => {
     });
   });
 
+  it("parses and normalizes the SDK x-source name", () => {
+    const request = `${VALID_REQUEST}&x-source=${encodeURIComponent("  Cafe\u0301 + App  ")}`;
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
+
+    if (Result.isError(result)) throw new Error(result.error.code);
+    expect(result.value.source).toBe("Café + App");
+    expect(result.value.sensitivePubkyAuthUrl).toBe(request);
+  });
+
+  it("preserves a literal plus while decoding an x-source percent-encoded space", () => {
+    const request = `${VALID_REQUEST}&x-source=Bitkit+Wallet%20Mobile`;
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
+
+    if (Result.isError(result)) throw new Error(result.error.code);
+    expect(result.value.source).toBe("Bitkit+Wallet Mobile");
+  });
+
+  it.each(["Trusted%0AApp", "Trusted%E2%80%AEApp"])(
+    "ignores an unsafe x-source display name: %s",
+    (source) => {
+      const result = parseEncodedPubkyAuthRequest(
+        encodeRequest(`${VALID_REQUEST}&x-source=${source}`),
+      );
+
+      if (Result.isError(result)) throw new Error(result.error.code);
+      expect(result.value.source).toBeUndefined();
+    },
+  );
+
   it("parses the documented pubkyauth:/// form", () => {
     const request =
       "pubkyauth:///?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
@@ -108,17 +137,15 @@ describe("parseEncodedPubkyAuthRequest", () => {
     `${VALID_REQUEST}&x-success=https://other.example/success`,
     `${VALID_REQUEST}&x-error=https://other.example/error`,
     `${VALID_REQUEST}&x-cancel=https://other.example/cancel`,
+    `${VALID_REQUEST}&x-source=One&x-source=Two`,
     `${VALID_REQUEST}&callback=https://pubky.app/one&callback=https://pubky.app/two`,
   ])("rejects duplicate supported parameters", (request) => {
     expectError(encodeRequest(request), "duplicate_parameter");
   });
 
-  it.each(["x-source=Pubky%20App", "x-unreviewed=true"])(
-    "rejects unsupported parameter %s",
-    (parameter) => {
-      expectError(encodeRequest(`${VALID_REQUEST}&${parameter}`), "unsupported_parameter");
-    },
-  );
+  it("rejects unsupported parameters", () => {
+    expectError(encodeRequest(`${VALID_REQUEST}&x-unreviewed=true`), "unsupported_parameter");
+  });
 
   it("rejects missing and empty d values", () => {
     expectError(undefined, "missing_d");

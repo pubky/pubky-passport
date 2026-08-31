@@ -84,20 +84,20 @@ function isExactRelayHostname(hostname: string): boolean {
 function validateCallbacks(
   authUrl: URL,
 ): ResultType<ValidatedPubkyAuthCallbacks, PubkyAuthUrlValidationError> {
-  const rawSuccess = rawQueryValue(authUrl, URL_PARAMETERS.success);
+  const rawSuccess = getRawQueryValue(authUrl, URL_PARAMETERS.success);
   const success = validateEncodedCallback(
-    rawSuccess ?? rawQueryValue(authUrl, URL_PARAMETERS.legacySuccess),
+    rawSuccess ?? getRawQueryValue(authUrl, URL_PARAMETERS.legacySuccess),
   );
   if (Result.isError(success)) {
     return Result.err(success.error);
   }
 
-  const errorCallback = validateEncodedCallback(rawQueryValue(authUrl, URL_PARAMETERS.error));
+  const errorCallback = validateEncodedCallback(getRawQueryValue(authUrl, URL_PARAMETERS.error));
   if (Result.isError(errorCallback)) {
     return Result.err(errorCallback.error);
   }
 
-  const cancel = validateEncodedCallback(rawQueryValue(authUrl, URL_PARAMETERS.cancel));
+  const cancel = validateEncodedCallback(getRawQueryValue(authUrl, URL_PARAMETERS.cancel));
   if (Result.isError(cancel)) {
     return Result.err(cancel.error);
   }
@@ -127,7 +127,7 @@ function validateCallbacks(
   return Result.ok(callbacks);
 }
 
-function rawQueryValue(url: URL, key: string): string | undefined {
+export function getRawQueryValue(url: URL, key: string): string | undefined {
   const query = url.search.startsWith("?") ? url.search.slice(1) : url.search;
   for (const pair of query.split("&")) {
     const separator = pair.indexOf("=");

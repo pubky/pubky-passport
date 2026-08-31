@@ -30,7 +30,7 @@ function AuthorizationReview({
   const hasBroadAccess = review.capabilities.some((capability) => capability.scope === "broad");
   const account = identity?.googleAccount;
   const identityName = account?.name ?? "Your Pubky";
-  const requester = review.callbackHost ?? "this service";
+  const requester = review.source ?? review.callbackHost ?? "this service";
 
   return (
     <PassportScreen>

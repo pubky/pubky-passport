@@ -4,6 +4,7 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { parsePubkyAuthCapabilities, type PubkyAuthCapability } from "./pubkyAuthCapabilities";
 import {
+  getRawQueryValue,
   validatePubkyAuthUrls,
   type ValidatedPubkyAuthCallbacks,
   type PubkyAuthUrlValidationError,
@@ -28,6 +29,7 @@ const PUBKY_AUTH_REQUEST_PARAMETERS = {
   relay: "relay",
   secret: "secret",
   capabilities: "caps",
+  source: "x-source",
   success: "x-success",
   error: "x-error",
   cancel: "x-cancel",
@@ -40,6 +42,7 @@ const COMMON_PARAMETERS = new Set<string>([
   PUBKY_AUTH_REQUEST_PARAMETERS.relay,
   PUBKY_AUTH_REQUEST_PARAMETERS.secret,
   PUBKY_AUTH_REQUEST_PARAMETERS.capabilities,
+  PUBKY_AUTH_REQUEST_PARAMETERS.source,
   PUBKY_AUTH_REQUEST_PARAMETERS.success,
   PUBKY_AUTH_REQUEST_PARAMETERS.error,
   PUBKY_AUTH_REQUEST_PARAMETERS.cancel,
@@ -78,6 +81,7 @@ export type ParsedPubkyAuthRequest = {
   authenticationMethod: PubkyAuthenticationMethod;
   capabilities: PubkyAuthCapability[];
   callbacks: Readonly<ValidatedPubkyAuthCallbacks>;
+  source?: string;
   sensitivePubkyAuthUrl: string;
 };
 
@@ -87,6 +91,8 @@ export type ValidatePubkyAuthRequestResult = ResultType<void, PubkyAuthParseErro
 type ParseValueResult<Value> = ResultType<Value, PubkyAuthParseError>;
 
 const PUBKY_AUTH_PROTOCOL = "pubkyauth:";
+const UNSAFE_SOURCE_CHARACTERS =
+  /[\p{Cc}\p{Zl}\p{Zp}\u061c\u200b\u200e\u200f\u202a-\u202e\u2060\u2066-\u2069\ufeff]/u;
 
 /**
  * Parses and bounds one encoded Pubky Auth URL without issuing signing
@@ -160,6 +166,8 @@ export function parseEncodedPubkyAuthRequest(encodedRequest: unknown): PubkyAuth
     return Result.err(urls.error);
   }
 
+  const source = getSource(authUrl.value);
+
   const requestedCapabilities = authUrl.value.searchParams.get(
     PUBKY_AUTH_REQUEST_PARAMETERS.capabilities,
   );
@@ -182,6 +190,7 @@ export function parseEncodedPubkyAuthRequest(encodedRequest: unknown): PubkyAuth
     authenticationMethod: authenticationMethod.value,
     capabilities: capabilities.value,
     callbacks: Object.freeze({ ...urls.value }),
+    ...(source ? { source } : {}),
     sensitivePubkyAuthUrl,
   });
 }
@@ -229,6 +238,21 @@ function parseAuthenticationMethod(url: URL): ParseValueResult<PubkyAuthenticati
   }
 
   return Result.err<never, PubkyAuthParseError>({ code: "invalid_auth_request_path" });
+}
+
+function getSource(authUrl: URL): string | undefined {
+  const encodedSource = getRawQueryValue(authUrl, PUBKY_AUTH_REQUEST_PARAMETERS.source);
+  if (encodedSource === undefined) return undefined;
+
+  let decodedSource = encodedSource;
+  try {
+    decodedSource = decodeURIComponent(encodedSource);
+  } catch {
+    // Match the SDK by leaving malformed percent encoding unchanged.
+  }
+
+  const source = decodedSource.trim().normalize("NFC");
+  return source && !UNSAFE_SOURCE_CHARACTERS.test(source) ? source : undefined;
 }
 
 function validatePubkyAuthRequestParameters(
