@@ -411,6 +411,7 @@ describe("AuthorizationFlow", () => {
     await user.click(screen.getByRole("button", { name: "Switch" }));
     expect(screen.getByRole("heading", { name: "Switch identity." })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /use other identity/iu })).toBeInTheDocument();
+    expect(screen.getByText("second@example.com")).toHaveClass("lowercase");
     await user.click(screen.getByRole("button", { name: /Second User/iu }));
 
     await waitFor(() => expect(screen.getByText("Second User")).toBeInTheDocument());
