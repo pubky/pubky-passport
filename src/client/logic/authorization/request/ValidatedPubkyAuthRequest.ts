@@ -12,7 +12,7 @@ import {
 import type { ValidatedPubkyAuthCallbacks } from "./parser/pubkyAuthUrls";
 
 /** One safe capability row rendered during authorization review. */
-export type AuthorizationCapability = Readonly<{
+type AuthorizationCapability = Readonly<{
   path: string;
   read: boolean;
   write: boolean;

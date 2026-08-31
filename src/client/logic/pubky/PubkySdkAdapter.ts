@@ -21,7 +21,7 @@ export type PubkyAuthenticatedIdentity = {
   publicIdentity: PubkyPublicIdentity;
 };
 
-export type PubkySessionAccessErrorCode =
+type PubkySessionAccessErrorCode =
   | "account_exists"
   | "invalid_homeserver_pubky"
   | "key_unavailable"
@@ -32,16 +32,15 @@ export type PubkySessionAccessResult<Success> = ResultType<
   Success,
   CodedFailure<PubkySessionAccessErrorCode>
 >;
-export type PubkyPublicationErrorCode =
-  "invalid_homeserver_pubky" | "key_unavailable" | "publish_failed";
+type PubkyPublicationErrorCode = "invalid_homeserver_pubky" | "key_unavailable" | "publish_failed";
 export type PubkyPublicationResult = ResultType<void, CodedFailure<PubkyPublicationErrorCode>>;
-export type PubkyRecoveryFileErrorCode =
+type PubkyRecoveryFileErrorCode =
   "invalid_passphrase" | "invalid_secret_key" | "key_unavailable" | "recovery_file_failed";
 export type PubkyRecoveryFileResult = ResultType<
   Uint8Array,
   CodedFailure<PubkyRecoveryFileErrorCode>
 >;
-export type PubkyAuthApprovalErrorCode = "approval_failed" | "key_unavailable" | "request_rejected";
+type PubkyAuthApprovalErrorCode = "approval_failed" | "key_unavailable" | "request_rejected";
 export type PubkyAuthApprovalResult = ResultType<void, CodedFailure<PubkyAuthApprovalErrorCode>>;
 
 type Signer = ReturnType<Pubky["signer"]>;

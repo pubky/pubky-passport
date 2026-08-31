@@ -16,7 +16,7 @@ export const MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS = 6;
 const MAXIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS = 1024;
 
 export type LocalIdentityRecoveryFile = { bytes: Uint8Array; fileName: string };
-export type LocalIdentityRecoveryFileErrorCode =
+type LocalIdentityRecoveryFileErrorCode =
   "recovery_file_failed" | "identity_unavailable" | "invalid_password";
 export type LocalIdentityRecoveryFileResult = ResultType<
   LocalIdentityRecoveryFile,

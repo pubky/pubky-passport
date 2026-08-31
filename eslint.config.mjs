@@ -16,8 +16,8 @@ const clientImport = {
   regex: "^(?:client-only$|@/client(?:/|$)|(?:\\.\\./)+client(?:/|$))",
   message: "Server modules must not import client runtime code.",
 };
-const serverConfigImport = {
-  regex: "^(?:@/server/config(?:/|$)|(?:\\.\\./)+(?:server/)?config(?:/|$))",
+const serverEnvironmentImport = {
+  regex: "^(?:@/server/environment$|(?:\\.\\.?/)+(?:server/)?environment$)",
   message: "Environment-backed configuration is confined to approved bootstrap modules.",
 };
 const restrictedImports = (...patterns) => ["error", { patterns }];
@@ -54,7 +54,7 @@ const ESLINT_CONFIG = defineConfig([
       "src/server/wrapping-key/google/GoogleWrappingKeyIssuer.ts",
     ],
     rules: {
-      "no-restricted-imports": restrictedImports(clientImport, serverConfigImport, sdkImport),
+      "no-restricted-imports": restrictedImports(clientImport, serverEnvironmentImport, sdkImport),
     },
   },
   {
@@ -78,7 +78,7 @@ const ESLINT_CONFIG = defineConfig([
   {
     files: [`src/app/${sourceFiles}`],
     ignores: [`src/app/${testFiles}`, "src/app/layout.tsx"],
-    rules: { "no-restricted-imports": restrictedImports(serverConfigImport, sdkImport) },
+    rules: { "no-restricted-imports": restrictedImports(serverEnvironmentImport, sdkImport) },
   },
   {
     files: ["src/app/layout.tsx", "src/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
