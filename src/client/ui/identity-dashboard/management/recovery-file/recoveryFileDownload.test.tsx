@@ -45,7 +45,7 @@ describe("RecoveryFileDownload", () => {
     const download = screen.getByRole("button", { name: "Download backup" });
     const password = screen.getByLabelText("Enter strong password");
     expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
-    expect(password).toHaveAttribute("minlength", "12");
+    expect(password).toHaveAttribute("minlength", "6");
     expect(download).toBeDisabled();
     await userEvent.setup().type(password, RECOVERY_PASSWORD);
     await userEvent.setup().click(download);
@@ -57,6 +57,34 @@ describe("RecoveryFileDownload", () => {
     expect(bytes).toEqual(new Uint8Array([1, 2, 3]));
     expect(MOCKS.toastSuccess).toHaveBeenCalledWith("File downloaded");
     expect(onBack).toHaveBeenCalledOnce();
+  });
+
+  it("explains and enforces the six-character password minimum", async () => {
+    render(
+      <RecoveryFileDownload
+        createRecoveryFile={vi.fn()}
+        publicKeyZ32="identity"
+        onBack={vi.fn()}
+      />,
+    );
+    const user = userEvent.setup();
+    const password = screen.getByLabelText("Enter strong password");
+    const requirement = screen.getByText("Minimum 6 characters.");
+    const download = screen.getByRole("button", { name: "Download backup" });
+
+    expect(password).toHaveAttribute("aria-describedby", requirement.id);
+    expect(password).not.toHaveAttribute("aria-invalid");
+    expect(requirement).not.toHaveAttribute("role");
+
+    await user.type(password, "12345");
+    expect(password).toHaveAttribute("aria-invalid", "true");
+    expect(requirement).toHaveAttribute("role", "alert");
+    expect(download).toBeDisabled();
+
+    await user.type(password, "6");
+    expect(password).not.toHaveAttribute("aria-invalid");
+    expect(requirement).not.toHaveAttribute("role");
+    expect(download).toBeEnabled();
   });
 
   it("revokes the recovery-file URL when clicking the download link throws", async () => {

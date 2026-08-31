@@ -32,10 +32,12 @@ function RecoveryFileDownload({
   onBack: () => void;
 }) {
   const passwordInputRef = useRef<HTMLInputElement>(null);
-  const [validPassword, setValidPassword] = useState(false);
+  const [passwordLength, setPasswordLength] = useState(0);
   const [pending, setPending] = useState(false);
   const [recoveryFileFailed, setRecoveryFileFailed] = useState(false);
   const activeRef = useRef(true);
+  const validPassword = passwordLength >= MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS;
+  const passwordTooShort = passwordLength > 0 && !validPassword;
 
   useEffect(() => {
     activeRef.current = true;
@@ -50,7 +52,7 @@ function RecoveryFileDownload({
     if (!passwordInput || !validPassword || pending) return;
     let password = passwordInput.value;
     passwordInput.value = "";
-    setValidPassword(false);
+    setPasswordLength(0);
     setPending(true);
     setRecoveryFileFailed(false);
     let downloaded = false;
@@ -105,25 +107,29 @@ function RecoveryFileDownload({
               Enter strong password
             </Label>
             <Input
+              aria-describedby="recovery-file-password-requirement"
+              aria-invalid={passwordTooShort || undefined}
               autoComplete="new-password"
               containerClassName="h-14 border-dashed md:h-[60px]"
               id="recovery-file-password"
               maxLength={1024}
               minLength={MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS}
-              onInput={(event) =>
-                setValidPassword(
-                  event.currentTarget.value.length >= MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS,
-                )
-              }
+              onInput={(event) => {
+                setPasswordLength(event.currentTarget.value.length);
+                setRecoveryFileFailed(false);
+              }}
               ref={passwordInputRef}
               required
               type="password"
             />
-            {recoveryFileFailed ? (
-              <FieldMessage error>
-                Could not create the recovery file. Please try again.
-              </FieldMessage>
-            ) : null}
+            <FieldMessage
+              error={passwordTooShort || recoveryFileFailed}
+              id="recovery-file-password-requirement"
+            >
+              {recoveryFileFailed
+                ? "Could not create the recovery file. Please try again."
+                : `Minimum ${MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS} characters.`}
+            </FieldMessage>
           </div>
           <Button
             className="order-5 -mt-2 w-full md:order-[0] md:mt-4"

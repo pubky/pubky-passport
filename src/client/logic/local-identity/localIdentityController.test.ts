@@ -88,21 +88,19 @@ describe("LocalIdentityController", () => {
   it("creates a named recovery file and releases sensitive resources", async () => {
     const secretBytes = new Uint8Array(32).fill(7);
     const recoveryBytes = new Uint8Array(64).fill(9);
+    const password = "sixsix";
     mockStoredIdentity(secretBytes);
     MOCKS.createRecoveryFile.mockReturnValue(Result.ok(recoveryBytes));
 
     const recoveryFile = expectResultOk(
-      await new LocalIdentityController().createRecoveryFile(
-        PUBLIC_KEY,
-        "a strong recovery password",
-      ),
+      await new LocalIdentityController().createRecoveryFile(PUBLIC_KEY, password),
     );
 
     expect(recoveryFile).toEqual({ bytes: recoveryBytes, fileName: `pubky-${PUBLIC_KEY}.pkarr` });
     expect(MOCKS.createRecoveryFile).toHaveBeenCalledWith(
       expect.objectContaining({ bytes: secretBytes }),
       PUBLIC_KEY,
-      "a strong recovery password",
+      password,
     );
     expect(secretBytes).toEqual(new Uint8Array(32));
     expect(MOCKS.dispose).toHaveBeenCalledOnce();
