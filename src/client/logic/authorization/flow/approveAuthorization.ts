@@ -22,7 +22,11 @@ type RestoreLocalIdentityResult = ResultType<
 type RestoreLocalIdentityErrorCode =
   LocalIdentityErrorCode | "identity_mismatch" | "restore_failed";
 
-/** Approves one request with the exact local identity selected during review. */
+/**
+ * Approves one request with the exact local identity selected during review.
+ * SDK, storage, callback, and cleanup failures settle as a Result; the promise
+ * does not intentionally reject.
+ */
 export async function approveAuthorization(
   request: ValidatedPubkyAuthRequest,
   publicKeyZ32: string,

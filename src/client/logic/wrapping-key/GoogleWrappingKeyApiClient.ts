@@ -39,11 +39,14 @@ export type GoogleWrappingKeyResult = Result<
 
 /** Requests account-bound Passport wrapping keys from the same-origin server endpoint. */
 export class GoogleWrappingKeyApiClient {
+  /** @param fetch Same-origin transport used to call the Passport server endpoint. */
   constructor(private readonly fetch: typeof globalThis.fetch) {}
 
   /**
    * Requests a wrapping key without exposing the Google token to failure details.
    *
+   * @param googleIdToken Google credential verified by the server before key derivation.
+   * @param keyId Key ID from an existing envelope; omit it to request the current server key.
    * The promise settles with a Result for request and response failures. It does not
    * intentionally reject.
    */

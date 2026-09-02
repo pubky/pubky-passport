@@ -11,7 +11,12 @@ const ACKNOWLEDGEMENT_TYPE = "pubky-passport.authorization-outcome-ack";
 const MESSAGE_VERSION = 1;
 const ACKNOWLEDGEMENT_TIMEOUT_MS = 3_000;
 
-/** Uses an acknowledged opener message when possible, then falls back to navigation. */
+/**
+ * Uses an acknowledged opener message when possible, then falls back to navigation.
+ *
+ * @throws {Error} when acknowledgement listener or timer setup fails; controller
+ * callers contain that exceptional browser-runtime path.
+ */
 export async function handoffAuthorizationOutcome(
   appWindow: Window,
   callback: string,
