@@ -41,13 +41,13 @@ class IdentityCatalogStore {
     try {
       this.controller = new LocalIdentityController();
       this.initializationCause = undefined;
-    } catch (cause) {
+    } catch (e) {
       this.controller = null;
-      this.initializationCause = cause;
+      this.initializationCause = e;
       LOGGER.error("identity.catalog.failed", {
         operation: "initialize",
         code: "controller_unavailable",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
     }
     this.actions = {

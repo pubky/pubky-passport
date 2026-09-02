@@ -152,11 +152,11 @@ export class GoogleImplicitAuthorization {
             attempt.responseReceived = true;
             if (attempt.poll !== undefined) clearInterval(attempt.poll);
             closePopup(attempt.popup);
-            void this.handleResponseMessage(attempt, event.data).catch((error: unknown) => {
-              this.failAttempt(attempt, "response_handler", error);
+            void this.handleResponseMessage(attempt, event.data).catch((e: unknown) => {
+              this.failAttempt(attempt, "response_handler", e);
             });
-          } catch (error) {
-            this.failAttempt(attempt, "message_listener", error);
+          } catch (e) {
+            this.failAttempt(attempt, "message_listener", e);
           }
         };
         try {
@@ -177,19 +177,19 @@ export class GoogleImplicitAuthorization {
               }),
             );
           }, AUTHORIZATION_TIMEOUT_MS);
-        } catch (error) {
-          this.failAttempt(attempt, "attempt_setup", error);
+        } catch (e) {
+          this.failAttempt(attempt, "attempt_setup", e);
         }
       });
-    } catch (error) {
+    } catch (e) {
       if (popup) closePopup(popup);
       LOGGER.warn("identity.google.implicit_authorization.failed", {
         operation: "authorize",
         stage: "request_setup",
         code: "google_authorization_failed",
-        ...safeErrorLogFields(error),
+        ...safeErrorLogFields(e),
       });
-      return Promise.resolve(Result.err({ code: "google_authorization_failed", cause: error }));
+      return Promise.resolve(Result.err({ code: "google_authorization_failed", cause: e }));
     }
   }
 
@@ -213,8 +213,8 @@ export class GoogleImplicitAuthorization {
       if (attempt.popup.closed) {
         this.finish(attempt, Result.err({ code: "google_authorization_popup_closed" }));
       }
-    } catch (error) {
-      this.failAttempt(attempt, "popup_poll", error);
+    } catch (e) {
+      this.failAttempt(attempt, "popup_poll", e);
     }
   }
 
@@ -304,10 +304,10 @@ export class GoogleImplicitAuthorization {
 function cleanupAuthorizationAttempt(operation: string, cleanup: () => void): void {
   try {
     cleanup();
-  } catch (cause) {
+  } catch (e) {
     LOGGER.warn("identity.google.implicit_authorization.cleanup_failed", {
       operation,
-      ...safeErrorLogFields(cause),
+      ...safeErrorLogFields(e),
     });
   }
 }

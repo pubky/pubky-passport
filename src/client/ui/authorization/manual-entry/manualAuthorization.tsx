@@ -39,11 +39,11 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
     try {
       History.prototype.replaceState.call(window.history, null, "", result.destination);
       window.location.reload();
-    } catch (cause) {
+    } catch (e) {
       LOGGER.info("authorize.manual_entry.failed", {
         operation: "enter_authorization",
         code: "navigation_failed",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
       setError("Could not open the authorization request. Try again.");
     }
@@ -56,11 +56,11 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
       authorizationInputRef.current.value = value;
       setHasAuthorization(value.trim().length > 0);
       setError(undefined);
-    } catch (cause) {
+    } catch (e) {
       LOGGER.info("authorize.manual_entry.failed", {
         operation: "read_clipboard",
         code: "clipboard_unavailable",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
       setError("Clipboard access was blocked. Paste the link manually.");
     }
