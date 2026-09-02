@@ -20,16 +20,7 @@ export function deriveGoogleWrappingKey(
     `${GOOGLE_WRAPPING_KEY_HKDF_INFO_PREFIX}${identity.issuer}\n${identity.googleSubject}`,
     "utf8",
   );
-  const serverSecretCopy = Buffer.from(serverSecret);
-  let derivedKey: Buffer | undefined;
-  try {
-    derivedKey = Buffer.from(
-      hkdfSync("sha256", serverSecretCopy, GOOGLE_WRAPPING_KEY_HKDF_SALT, info, WRAPPING_KEY_BYTES),
-    );
-    return derivedKey.toString("base64url");
-  } finally {
-    serverSecretCopy.fill(0);
-    derivedKey?.fill(0);
-    info.fill(0);
-  }
+  return Buffer.from(
+    hkdfSync("sha256", serverSecret, GOOGLE_WRAPPING_KEY_HKDF_SALT, info, WRAPPING_KEY_BYTES),
+  ).toString("base64url");
 }
