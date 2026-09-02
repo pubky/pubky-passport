@@ -22,9 +22,15 @@ export type GoogleWrappingKeyIssueResult = ResultType<
   CodedFailure<GoogleWrappingKeyIssueErrorCode>
 >;
 
+/** Verifies Google identities and derives wrapping keys from versioned server secrets. */
 export class GoogleWrappingKeyIssuer {
   private readonly googleIdTokenVerifier: GoogleIdTokenVerifier;
 
+  /**
+   * @param googleClientId Audience required in every accepted Google ID token.
+   * @param currentKeyId Key ID used when creating a new Passport file.
+   * @param secrets Server secrets indexed by the public key IDs stored in Passport envelopes.
+   */
   constructor(
     googleClientId: string,
     private readonly currentKeyId: string,
@@ -41,8 +47,12 @@ export class GoogleWrappingKeyIssuer {
   }
 
   /**
-   * Issues a wrapping key and settles with a Result for verification and derivation failures.
-   * It does not intentionally reject.
+   * Verifies the Google ID token and derives its deterministic wrapping key.
+   *
+   * @param requestedKeyId Key ID from an existing Passport envelope. Omit it to
+   * use the current key for a new envelope; an unknown ID returns `key_unavailable`.
+   * @returns Verification, selection, and derivation failures as a Result. The
+   * promise does not intentionally reject.
    */
   async issueGoogleWrappingKey(
     googleIdToken: string,

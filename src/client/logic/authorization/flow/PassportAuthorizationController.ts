@@ -59,6 +59,10 @@ export class PassportAuthorizationController {
     return browserController;
   }
 
+  /**
+   * @param appWindow Window used for callback handoff and lifecycle operations.
+   * @param entry Scrubbed entry whose private request metadata becomes controller-owned.
+   */
   constructor(
     private readonly appWindow: Window,
     entry: AuthorizationEntry,
@@ -76,6 +80,10 @@ export class PassportAuthorizationController {
     return this.state;
   }
 
+  /**
+   * Subscribes to state transitions. Listener exceptions are contained so they
+   * cannot interrupt an authorization flow.
+   */
   subscribe(listener: (state: PassportAuthorizationViewState) => void): () => void {
     if (this.disposed) return () => undefined;
     this.listeners.add(listener);

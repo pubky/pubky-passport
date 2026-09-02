@@ -26,13 +26,16 @@ export type GoogleIdTokenVerificationResult = Result<
   CodedFailure<"google_verifier_unavailable" | "invalid_google_id_token">
 >;
 
+/** Verifies Google ID-token signatures, audience binding, expiry, issuer, and subject claims. */
 export class GoogleIdTokenVerifier {
   private readonly verifier = new OAuth2Client();
 
+  /** @param audience Google OAuth client ID that every accepted token must target. */
   constructor(private readonly audience: string) {}
 
   /**
    * Verifies the token and settles with a Result for verifier and claims failures.
+   * The promise does not intentionally reject.
    */
   async verifyGoogleIdToken(idToken: string): Promise<GoogleIdTokenVerificationResult> {
     let certificates: Certificates;
