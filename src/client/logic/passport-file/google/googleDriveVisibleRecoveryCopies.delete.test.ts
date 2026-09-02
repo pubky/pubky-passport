@@ -118,7 +118,10 @@ describe("GoogleDriveVisibleRecoveryCopies deletion", () => {
 
     const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_IDENTITY);
 
-    expect(Result.isError(result) && result.error).toEqual({ code: "invalid_response" });
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error).toMatchObject({ code: "invalid_response", cause: expect.any(Error) });
+    }
     expect(calls).toHaveLength(1);
   });
 

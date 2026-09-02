@@ -4,6 +4,7 @@ import { Result } from "better-result";
 import { z } from "zod";
 
 import { readBoundedText } from "../../../libs/http/boundedBody";
+import { HttpResponseError } from "../../../libs/http/HttpResponseError";
 import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import { MAXIMUM_JSON_BODY_BYTES, REQUEST_TIMEOUT_MS } from "../../../libs/passportPolicy";
 import type { CodedFailure } from "../../../libs/result";
@@ -43,6 +44,7 @@ const INVITATION_SCHEMA = z
 export class HomegateClient {
   private readonly googleVerificationEndpoint: URL;
 
+  /** @throws {TypeError} when the Homegate base URL is invalid. */
   constructor(
     homegateBaseUrl: string,
     private readonly fetch: typeof globalThis.fetch,
@@ -50,9 +52,20 @@ export class HomegateClient {
     this.googleVerificationEndpoint = new URL(GOOGLE_VERIFICATION_PATH, homegateBaseUrl);
   }
 
+  /**
+   * Exchanges a Google ID token for a Homegate invitation.
+   *
+   * The promise settles with a Result for request and response failures. It does not
+   * intentionally reject.
+   */
   async requestGoogleSignupInvitation(
     googleIdToken: string,
-  ): Promise<Result<HomeserverSignupInvitation, CodedFailure<HomegateSignupInvitationErrorCode>>> {
+  ): Promise<
+    Result<
+      HomeserverSignupInvitation,
+      CodedFailure<HomegateSignupInvitationErrorCode> & { httpStatus?: number }
+    >
+  > {
     if (!isValidGoogleIdToken(googleIdToken)) {
       LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
         operation: "request_google_invitation",
@@ -90,54 +103,78 @@ export class HomegateClient {
       response,
       response.ok ? MAXIMUM_JSON_BODY_BYTES : MAX_ERROR_RESPONSE_BYTES,
     );
-    if (responseText === null && signal.aborted) {
+    if (Result.isError(responseText) && signal.aborted) {
       LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
         operation: "request_google_invitation",
         stage: "response_read",
         code: "network_failed",
+        httpStatus: response.status,
+        ...safeErrorLogFields(responseText.error.cause),
       });
-      return Result.err({ code: "network_failed" });
+      return Result.err({
+        code: "network_failed",
+        httpStatus: response.status,
+        cause: responseText.error.cause,
+      });
     }
-    if (responseText === null || responseText === "too_large") {
+    if (Result.isError(responseText)) {
       const code = response.ok ? "malformed_homegate_response" : "homegate_unavailable";
       LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
         operation: "request_google_invitation",
         stage: "response_read",
         code,
+        httpStatus: response.status,
+        ...safeErrorLogFields(responseText.error.cause),
       });
-      return Result.err({ code });
+      return Result.err({ code, httpStatus: response.status, cause: responseText.error.cause });
     }
 
     if (!response.ok) {
-      const code = mapHomegateError(responseText);
+      const code = mapHomegateError(responseText.value);
+      const cause = new HttpResponseError(response.status, response.statusText, responseText.value);
       LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
         operation: "request_google_invitation",
         stage: "error_response",
         code,
+        httpStatus: response.status,
+        ...safeErrorLogFields(cause),
       });
-      return Result.err({ code });
+      return Result.err({ code, httpStatus: response.status, cause });
     }
 
     let responseJson: unknown;
     try {
-      responseJson = JSON.parse(responseText);
-    } catch {
+      responseJson = JSON.parse(responseText.value);
+    } catch (cause) {
+      const responseError = new Error("Homegate response must be valid JSON.", { cause });
       LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
         operation: "request_google_invitation",
         stage: "response_parse",
         code: "malformed_homegate_response",
+        httpStatus: response.status,
+        ...safeErrorLogFields(responseError),
       });
-      return Result.err({ code: "malformed_homegate_response" });
+      return Result.err({
+        code: "malformed_homegate_response",
+        httpStatus: response.status,
+        cause: responseError,
+      });
     }
 
     const invitation = INVITATION_SCHEMA.safeParse(responseJson);
     if (invitation.success) return Result.ok(invitation.data);
+    // Zod issues may echo the signup code, so retain only a fixed diagnostic cause.
     LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
       operation: "request_google_invitation",
       stage: "response_validation",
       code: "malformed_homegate_response",
+      httpStatus: response.status,
     });
-    return Result.err({ code: "malformed_homegate_response" });
+    return Result.err({
+      code: "malformed_homegate_response",
+      httpStatus: response.status,
+      cause: new Error("Homegate response does not match the invitation schema."),
+    });
   }
 }
 

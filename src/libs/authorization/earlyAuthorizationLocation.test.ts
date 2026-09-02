@@ -100,6 +100,38 @@ describe("early authorization location bootstrap", () => {
     expect(location.hash).toBe("");
     expect(context[EARLY_AUTHORIZATION_LOCATION_PROPERTY]).toBeUndefined();
   });
+
+  it("still navigates to a clean URL when stopping the page throws", () => {
+    const location = {
+      pathname: "/authorize",
+      search: "",
+      hash: "#d=sensitive",
+      replace: vi.fn(() => {
+        location.hash = "";
+      }),
+    };
+    const context: Record<string, unknown> = {
+      location,
+      history: {},
+      History: {
+        prototype: {
+          replaceState() {
+            throw new Error("unavailable");
+          },
+        },
+      },
+      stop() {
+        throw new Error("unavailable");
+      },
+    };
+    context.window = context;
+
+    runInNewContext(EARLY_AUTHORIZATION_LOCATION_SCRIPT, context);
+
+    expect(location.replace).toHaveBeenCalledWith("/authorize");
+    expect(location.hash).toBe("");
+    expect(context[EARLY_AUTHORIZATION_LOCATION_PROPERTY]).toBeUndefined();
+  });
 });
 
 function createContext(

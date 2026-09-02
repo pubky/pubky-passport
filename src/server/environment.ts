@@ -5,6 +5,7 @@ import { PASSPORT_KEY_ID_PATTERN } from "../libs/passportPolicy";
 
 const MINIMUM_SERVER_SECRET_BYTES = 32;
 
+/** @throws {Error} when required public configuration is missing or invalid. */
 export function getPublicEnvironment() {
   const googleClientId = required("GOOGLE_CLIENT_ID");
   const homegate = httpsOrigin(required("HOMEGATE_URL"), "HOMEGATE_URL");
@@ -28,6 +29,7 @@ export function getPublicEnvironment() {
   };
 }
 
+/** @throws {Error} when the server keyring configuration is missing or invalid. */
 export function getServerEnvironment() {
   const currentKeyId = required("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID");
   if (!PASSPORT_KEY_ID_PATTERN.test(currentKeyId)) {
@@ -39,6 +41,7 @@ export function getServerEnvironment() {
   try {
     keyring = JSON.parse(keyringJson);
   } catch {
+    // Parser messages may echo the secret-bearing keyring, so do not retain the cause.
     throw new Error("PASSPORT_SERVER_SECRET_KEYRING_JSON must be valid JSON.");
   }
   if (keyring === null || typeof keyring !== "object" || Array.isArray(keyring)) {
@@ -73,8 +76,8 @@ function httpsOrigin(value: string, name: string): URL {
   let url: URL;
   try {
     url = new URL(value);
-  } catch {
-    throw new Error(`${name} must be a valid HTTPS origin.`);
+  } catch (cause) {
+    throw new Error(`${name} must be a valid HTTPS origin.`, { cause });
   }
 
   if (

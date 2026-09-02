@@ -10,10 +10,10 @@ export const EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT = `(() => {
   try {
     History.prototype.replaceState.call(history, null, "", location.pathname);
   } catch {
-    try {
-      stop();
-      location.replace(location.pathname);
-    } catch {}
+    try { stop(); } catch { /* Loading may already have stopped. */ }
+    try { location.replace(location.pathname); } catch {
+      /* Credential scrubbing is best effort when both native location APIs fail. */
+    }
     return;
   }
   if (!opener) return;

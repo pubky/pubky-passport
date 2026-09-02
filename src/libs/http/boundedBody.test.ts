@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Result } from "better-result";
 
 import { LOGGER } from "../logger/logger";
 import { readBoundedBytes, readBoundedText } from "./boundedBody";
@@ -7,9 +8,11 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("readBoundedBytes", () => {
   it("returns bounded response bytes", async () => {
-    await expect(
-      readBoundedBytes({ body: textStream(["pubky"]), headers: new Headers() }, 5),
-    ).resolves.toEqual(new TextEncoder().encode("pubky"));
+    const result = await readBoundedBytes(
+      { body: textStream(["pubky"]), headers: new Headers() },
+      5,
+    );
+    expect(Result.isOk(result) && result.value).toEqual(new TextEncoder().encode("pubky"));
   });
 });
 
@@ -23,7 +26,7 @@ describe("readBoundedText", () => {
       32,
     );
 
-    expect(result).toBe("pubky passport");
+    expect(Result.isOk(result) && result.value).toBe("pubky passport");
   });
 
   it("rejects oversized declared content before reading", async () => {
@@ -42,7 +45,11 @@ describe("readBoundedText", () => {
       32,
     );
 
-    expect(result).toBe("too_large");
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error).toMatchObject({ code: "body_too_large" });
+      expect(result.error.cause).toBeInstanceOf(Error);
+    }
     expect(cancelled).toBe(true);
   });
 
@@ -60,15 +67,24 @@ describe("readBoundedText", () => {
 
     const result = await readBoundedText({ body, headers: new Headers() }, 8);
 
-    expect(result).toBe("too_large");
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error).toMatchObject({ code: "body_too_large" });
+      expect(result.error.cause).toBeInstanceOf(Error);
+    }
     expect(cancelled).toBe(true);
   });
 
-  it("returns null for an absent body", async () => {
-    await expect(readBoundedText({ body: null, headers: new Headers() }, 32)).resolves.toBeNull();
+  it("returns an error for an absent body", async () => {
+    const result = await readBoundedText({ body: null, headers: new Headers() }, 32);
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error).toMatchObject({ code: "body_unavailable" });
+      expect(result.error.cause).toBeInstanceOf(Error);
+    }
   });
 
-  it("safely logs body read failures", async () => {
+  it("preserves body read failures without logging their details", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const cause = new TypeError("SECRET-BODY-READ-FAILURE");
     const body = new ReadableStream<Uint8Array>({
@@ -77,21 +93,19 @@ describe("readBoundedText", () => {
       },
     });
 
-    await expect(
-      readBoundedText(
-        {
-          body,
-          headers: new Headers({ "X-Response-Value": "SECRET-RESPONSE-VALUE" }),
-        },
-        32,
-      ),
-    ).resolves.toBeNull();
-    expect(warning).toHaveBeenCalledWith("http.body_read.failed", {
-      operation: "read",
-      code: "body_unavailable",
-      diagnosticId: expect.any(String),
-      errorName: "TypeError",
-    });
+    const result = await readBoundedText(
+      {
+        body,
+        headers: new Headers({ "X-Response-Value": "SECRET-RESPONSE-VALUE" }),
+      },
+      32,
+    );
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error).toMatchObject({ code: "body_unavailable", cause: expect.any(Error) });
+      expect(result.error.cause.cause).toBe(cause);
+    }
+    expect(warning).not.toHaveBeenCalled();
     expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-BODY-READ-FAILURE");
     expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-RESPONSE-VALUE");
   });
@@ -104,13 +118,13 @@ describe("readBoundedText", () => {
       },
     } as unknown as Headers;
 
-    await expect(readBoundedText({ body: null, headers }, 32)).resolves.toBeNull();
-    expect(warning).toHaveBeenCalledWith("http.body_read.failed", {
-      operation: "read",
-      code: "body_unavailable",
-      diagnosticId: expect.any(String),
-      errorName: "TypeError",
-    });
+    const result = await readBoundedText({ body: null, headers }, 32);
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error).toMatchObject({ code: "body_unavailable" });
+      expect(result.error.cause.cause).toBeInstanceOf(TypeError);
+    }
+    expect(warning).not.toHaveBeenCalled();
     expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-HEADER-CANARY");
   });
 
@@ -120,9 +134,11 @@ describe("readBoundedText", () => {
       throw new TypeError("SECRET-RELEASE-CANARY");
     });
 
-    await expect(
-      readBoundedText({ body: textStream(["pubky"]), headers: new Headers() }, 32),
-    ).resolves.toBe("pubky");
+    const result = await readBoundedText(
+      { body: textStream(["pubky"]), headers: new Headers() },
+      32,
+    );
+    expect(Result.isOk(result) && result.value).toBe("pubky");
     expect(warning).toHaveBeenCalledWith("http.body_read.failed", {
       operation: "release",
       code: "body_unavailable",

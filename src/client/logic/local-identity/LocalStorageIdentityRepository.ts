@@ -278,6 +278,7 @@ function parseStoredIdentity(value: string): StoredLocalIdentity | null {
     const parsed: unknown = JSON.parse(value);
     return isStoredIdentity(parsed) ? parsed : null;
   } catch {
+    // Parser messages may echo the stored secret key, so treat malformed records as invalid.
     return null;
   }
 }

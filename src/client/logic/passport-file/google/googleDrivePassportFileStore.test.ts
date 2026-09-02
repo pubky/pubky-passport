@@ -213,10 +213,19 @@ async function expectSuccess<Success>(
 }
 
 async function expectFailure(
-  result: Promise<ResultType<unknown, { code: string }>>,
+  result: Promise<ResultType<unknown, { code: string; cause?: unknown }>>,
   code: string,
+  withCause = false,
 ): Promise<void> {
-  await expectAsyncResultError(result, { code });
+  if (!withCause) {
+    await expectAsyncResultError(result, { code });
+    return;
+  }
+  const resolved = await result;
+  expect(Result.isError(resolved)).toBe(true);
+  if (Result.isError(resolved)) {
+    expect(resolved.error).toMatchObject({ code, cause: expect.any(Error) });
+  }
 }
 
 describe("GoogleDrivePassportFileStore", () => {
@@ -349,7 +358,7 @@ describe("GoogleDrivePassportFileStore", () => {
     const cancel = vi.fn();
     const { store } = createStore([oversizedMediaResponse(cancel)]);
 
-    await expectFailure(store.readPassportFile(), "invalid_response");
+    await expectFailure(store.readPassportFile(), "invalid_response", true);
     expect(cancel).toHaveBeenCalledOnce();
   });
 
@@ -359,7 +368,7 @@ describe("GoogleDrivePassportFileStore", () => {
       streamResponse([new Uint8Array(16 * 1024), new Uint8Array(1)], cancel),
     ]);
 
-    await expectFailure(store.readPassportFile(), "invalid_response");
+    await expectFailure(store.readPassportFile(), "invalid_response", true);
     expect(cancel).toHaveBeenCalledOnce();
   });
 
@@ -420,11 +429,13 @@ describe("GoogleDrivePassportFileStore", () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const { store } = createStore([textResponse("SECRET-MALFORMED-DRIVE-RESPONSE")]);
 
-    await expectFailure(store.readPassportFile(), "invalid_response");
+    await expectFailure(store.readPassportFile(), "invalid_response", true);
 
     expect(warning).toHaveBeenCalledWith("identity.google.drive_store.failed", {
       operation: "parse_list_response",
       code: "invalid_response",
+      diagnosticId: expect.any(String),
+      errorName: "SyntaxError",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-MALFORMED-DRIVE-RESPONSE");
     expect(JSON.stringify(warning.mock.calls)).not.toContain(ACCESS_TOKEN);

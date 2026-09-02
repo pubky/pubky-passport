@@ -23,7 +23,10 @@ export type LocalIdentityRecoveryFileResult = ResultType<
   CodedFailure<LocalIdentityRecoveryFileErrorCode>
 >;
 
-/** Browser entry point for identities stored in localStorage. */
+/**
+ * Browser entry point for identities stored in localStorage.
+ * @throws {Error} when its storage repository cannot be initialized.
+ */
 export class LocalIdentityController {
   private readonly repository: LocalStorageIdentityRepository;
 
