@@ -46,7 +46,7 @@ test("shows identity setup context as the designed full-width accent band", asyn
     await page.setViewportSize(viewport);
     await page.goto(authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`)));
 
-    const band = page.getByLabel(`Signing in to ${SOURCE_NAME}`);
+    const band = page.getByLabel("Signing in to client.example");
     const logo = page.getByRole("img", { name: "Pubky Passport" });
     const main = page.locator("main");
     await expect(band).toBeVisible();
@@ -120,7 +120,7 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
 
   await expect(page).toHaveURL(/\/authorize$/u);
   await expect(page.getByRole("heading", { name: `Sign in to ${SOURCE_NAME}` })).toBeVisible();
-  await expect(page.getByLabel(`Signing in to ${SOURCE_NAME}`)).toBeVisible();
+  await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
   await expect(page.getByText("/pub/example.app/", { exact: true })).toBeVisible();
 
   const renderedReview = await page.locator("main").innerHTML();
