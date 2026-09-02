@@ -41,6 +41,12 @@ type GoogleAuthorizationResponseError = {
   code: "google_authorization_denied" | "google_authorization_failed";
 };
 
+type CapturedGoogleImplicitResponse = {
+  hash: string;
+  status: "captured";
+  type: typeof GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE;
+};
+
 /**
  * Validates the captured OAuth fragment and its state, scope, and ID-token bindings.
  *
@@ -52,14 +58,7 @@ export function parseGoogleAuthorizationResponse(
   expectedState: string,
   expectedNonce: string,
 ): ResultType<ParsedGoogleAuthorizationResponse, GoogleAuthorizationResponseError> {
-  if (
-    !isRecord(capture) ||
-    capture.type !== GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE ||
-    capture.status !== "captured" ||
-    typeof capture.hash !== "string" ||
-    capture.hash.length === 0 ||
-    capture.hash.length > EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS
-  ) {
+  if (!isCapturedGoogleImplicitResponse(capture)) {
     return Result.err({ code: "google_authorization_failed" });
   }
 
@@ -77,12 +76,10 @@ export function parseGoogleAuthorizationResponse(
   const googleIdToken = oneValue(params, "id_token");
   const accessToken = oneValue(params, "access_token");
   const scope = oneValue(params, "scope");
-  if (
-    state !== expectedState ||
-    !boundedToken(googleIdToken) ||
-    !boundedToken(accessToken) ||
-    !hasAllowedScopes(scope)
-  ) {
+  const hasExpectedState = state === expectedState;
+  const hasRequiredTokens = boundedToken(googleIdToken) && boundedToken(accessToken);
+  const hasExpectedScopes = hasAllowedScopes(scope);
+  if (!hasExpectedState || !hasRequiredTokens || !hasExpectedScopes) {
     return Result.err({ code: "google_authorization_failed" });
   }
 
@@ -99,17 +96,30 @@ function readIdTokenSubject(token: string, expectedNonce: string): string | null
   if (!bytes || bytes.byteLength > 8 * 1024) return null;
   try {
     const value: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
-    return isRecord(value) &&
-      typeof value.sub === "string" &&
-      value.sub.length > 0 &&
-      value.sub.length <= 255 &&
-      value.nonce === expectedNonce
-      ? value.sub
-      : null;
+    if (!isRecord(value)) return null;
+
+    const googleSubject = value.sub;
+    if (typeof googleSubject !== "string") return null;
+
+    const hasValidSubjectLength = googleSubject.length > 0 && googleSubject.length <= 255;
+    const hasExpectedNonce = value.nonce === expectedNonce;
+    return hasValidSubjectLength && hasExpectedNonce ? googleSubject : null;
   } catch {
     // Decoding errors may echo token claims, so treat them as invalid without retaining a cause.
     return null;
   }
+}
+
+function isCapturedGoogleImplicitResponse(value: unknown): value is CapturedGoogleImplicitResponse {
+  if (!isRecord(value)) return false;
+
+  const isCapturedResponse =
+    value.type === GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE && value.status === "captured";
+  const hasBoundedHash =
+    typeof value.hash === "string" &&
+    value.hash.length > 0 &&
+    value.hash.length <= EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS;
+  return isCapturedResponse && hasBoundedHash;
 }
 
 function boundedToken(value: string | null): value is string {

@@ -160,13 +160,18 @@ function safeHistoryState(appWindow: Window): unknown {
 
   try {
     const serialized = JSON.stringify(state);
-    if (
-      serialized === undefined ||
-      serialized.length > AUTHORIZATION_CAPTURE_MAX_CHARACTERS ||
-      (appWindow.location.hash !== "" && serialized.includes(appWindow.location.hash)) ||
-      (appWindow.location.search !== "" && serialized.includes(appWindow.location.search)) ||
-      /pubkyauth(?::|%3a)|(?:#|%23|\?|%3f)d(?:=|%3d)/iu.test(serialized)
-    ) {
+    if (serialized === undefined || serialized.length > AUTHORIZATION_CAPTURE_MAX_CHARACTERS) {
+      return null;
+    }
+
+    const containsCurrentFragment =
+      appWindow.location.hash !== "" && serialized.includes(appWindow.location.hash);
+    const containsCurrentQuery =
+      appWindow.location.search !== "" && serialized.includes(appWindow.location.search);
+    const containsAuthorizationData = /pubkyauth(?::|%3a)|(?:#|%23|\?|%3f)d(?:=|%3d)/iu.test(
+      serialized,
+    );
+    if (containsCurrentFragment || containsCurrentQuery || containsAuthorizationData) {
       return null;
     }
     return state;
