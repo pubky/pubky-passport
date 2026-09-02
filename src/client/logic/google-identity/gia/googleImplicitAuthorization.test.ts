@@ -323,10 +323,7 @@ describe("GoogleImplicitAuthorization", () => {
     const result = await request;
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) {
-      expect(result.error).toMatchObject({ code: expectedCode });
-      if (expectedCode === "google_authorization_failed") {
-        expect(result.error.cause).toBeInstanceOf(Error);
-      }
+      expect(result.error).toEqual({ code: expectedCode });
     }
   });
 
@@ -350,8 +347,7 @@ describe("GoogleImplicitAuthorization", () => {
     const result = await request;
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) {
-      expect(result.error).toMatchObject({ code: "google_authorization_failed" });
-      expect(result.error.cause).toBeInstanceOf(Error);
+      expect(result.error).toEqual({ code: "google_authorization_failed" });
     }
   });
 
@@ -368,16 +364,14 @@ describe("GoogleImplicitAuthorization", () => {
     const concurrent = await authorization.request();
     expect(Result.isError(concurrent)).toBe(true);
     if (Result.isError(concurrent)) {
-      expect(concurrent.error).toMatchObject({ code: "google_authorization_failed" });
-      expect(concurrent.error.cause).toBeInstanceOf(Error);
+      expect(concurrent.error).toEqual({ code: "google_authorization_failed" });
     }
     await vi.advanceTimersByTimeAsync(5 * 60_000);
 
     const timedOut = await active;
     expect(Result.isError(timedOut)).toBe(true);
     if (Result.isError(timedOut)) {
-      expect(timedOut.error).toMatchObject({ code: "google_authorization_failed" });
-      expect(timedOut.error.cause).toBeInstanceOf(Error);
+      expect(timedOut.error).toEqual({ code: "google_authorization_failed" });
     }
     expect(popup.close).toHaveBeenCalledOnce();
   });
