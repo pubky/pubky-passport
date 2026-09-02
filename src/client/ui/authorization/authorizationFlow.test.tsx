@@ -208,7 +208,7 @@ describe("AuthorizationFlow", () => {
     ).toBeInTheDocument();
   });
 
-  it("uses x-source for the title and context band", async () => {
+  it("uses x-source for the title and the validated callback host for the context band", async () => {
     MOCKS.authorizationState = {
       status: "review",
       review: {
@@ -223,9 +223,9 @@ describe("AuthorizationFlow", () => {
     expect(
       await screen.findByRole("heading", { name: "Sign in to Trusted App" }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Signing in to Trusted App")).toBeInTheDocument();
+    expect(screen.getByLabelText("Signing in to trusted.example")).toBeInTheDocument();
     expect(screen.getByText(/allow Trusted App to read and update your data/u)).toBeInTheDocument();
-    expect(screen.queryByLabelText("Signing in to trusted.example")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Signing in to Trusted App")).not.toBeInTheDocument();
   });
 
   it("scales a callback host to the largest font size that fits", () => {

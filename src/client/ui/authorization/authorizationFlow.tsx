@@ -62,9 +62,7 @@ function AuthorizationFlow() {
       return (
         <>
           {authorization.review.callbackHost ? (
-            <SignInBand
-              requester={authorization.review.requesterName ?? authorization.review.callbackHost}
-            />
+            <SignInBand requester={authorization.review.callbackHost} />
           ) : null}
           <AuthorizationWithIdentity
             authorization={authorization}
