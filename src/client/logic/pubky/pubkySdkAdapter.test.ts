@@ -446,7 +446,7 @@ describe("PubkySdkAdapter", () => {
     expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-SDK-INITIALIZATION-DETAILS");
   });
 
-  it("maps invalid homeserver values without exposing signup codes", async () => {
+  it("maps invalid homeserver values without exposing signup tokens", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const pubky = new PubkySdkAdapter();
 
@@ -455,13 +455,13 @@ describe("PubkySdkAdapter", () => {
       const signup = await pubky.signup(
         created.keyHandle,
         "not a public key",
-        "sensitive-signup-code",
+        "sensitive-signup-token",
       );
       const publication = await pubky.publishHomeserver(created.keyHandle, "not a public key");
 
       expectErrorResult(signup, "invalid_homeserver_pubky");
       expectErrorResult(publication, "invalid_homeserver_pubky");
-      expect(JSON.stringify(signup)).not.toContain("sensitive-signup-code");
+      expect(JSON.stringify(signup)).not.toContain("sensitive-signup-token");
       expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
         operation: "signup",
         stage: "homeserver_parse",
@@ -472,7 +472,7 @@ describe("PubkySdkAdapter", () => {
         stage: "homeserver_parse",
         code: "invalid_homeserver_pubky",
       });
-      expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive-signup-code");
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive-signup-token");
     } finally {
       pubky.dispose();
     }
@@ -532,7 +532,7 @@ describe("PubkySdkAdapter", () => {
       const result = await pubky.signup(
         created.keyHandle,
         homeserverPublicKey.z32(),
-        "sensitive-signup-code",
+        "sensitive-signup-token",
       );
 
       expectErrorCause(result, "signup_failed", cause);
@@ -544,7 +544,7 @@ describe("PubkySdkAdapter", () => {
         diagnosticId: expect.any(String),
         errorName: "ErrorLike",
       });
-      expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive-signup-code");
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive-signup-token");
       expect(JSON.stringify(warn.mock.calls)).not.toContain("signup token and request URL");
     } finally {
       homeserverPublicKey.free();
@@ -576,7 +576,7 @@ describe("PubkySdkAdapter", () => {
       const result = await pubky.signup(
         created.keyHandle,
         homeserverPublicKey.z32(),
-        "SECRET-SIGNUP-CODE",
+        "SECRET-SIGNUP-TOKEN",
       );
 
       expectErrorCause(result, "signup_uncertain", cause);
@@ -589,7 +589,7 @@ describe("PubkySdkAdapter", () => {
       });
       const logged = JSON.stringify(warn.mock.calls);
       expect(logged).not.toContain("SECRET-ERROR-NAME");
-      expect(logged).not.toContain("SECRET-SIGNUP-CODE");
+      expect(logged).not.toContain("SECRET-SIGNUP-TOKEN");
     } finally {
       homeserverPublicKey.free();
       homeserver.free();
@@ -622,7 +622,7 @@ describe("PubkySdkAdapter", () => {
     try {
       const created = expectOk(await pubky.createIdentityKey());
       await expectError(
-        pubky.signup(created.keyHandle, homeserverPublicKey.z32(), "sensitive-signup-code"),
+        pubky.signup(created.keyHandle, homeserverPublicKey.z32(), "sensitive-signup-token"),
         expectedCode,
       );
     } finally {
@@ -647,7 +647,7 @@ describe("PubkySdkAdapter", () => {
     try {
       const created = expectOk(await pubky.createIdentityKey());
       await expectError(
-        pubky.signup(created.keyHandle, homeserverPublicKey.z32(), "sensitive-signup-code"),
+        pubky.signup(created.keyHandle, homeserverPublicKey.z32(), "sensitive-signup-token"),
         expectedCode,
       );
     } finally {
