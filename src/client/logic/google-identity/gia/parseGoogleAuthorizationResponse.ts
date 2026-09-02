@@ -96,13 +96,14 @@ function readIdTokenSubject(token: string, expectedNonce: string): string | null
   if (!bytes || bytes.byteLength > 8 * 1024) return null;
   try {
     const value: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
-    if (!isRecord(value)) return null;
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
 
-    const googleSubject = value.sub;
+    const claims = value as Record<string, unknown>;
+    const googleSubject = claims.sub;
     if (typeof googleSubject !== "string") return null;
 
     const hasValidSubjectLength = googleSubject.length > 0 && googleSubject.length <= 255;
-    const hasExpectedNonce = value.nonce === expectedNonce;
+    const hasExpectedNonce = claims.nonce === expectedNonce;
     return hasValidSubjectLength && hasExpectedNonce ? googleSubject : null;
   } catch {
     // Decoding errors may echo token claims, so treat them as invalid without retaining a cause.
@@ -111,14 +112,15 @@ function readIdTokenSubject(token: string, expectedNonce: string): string | null
 }
 
 function isCapturedGoogleImplicitResponse(value: unknown): value is CapturedGoogleImplicitResponse {
-  if (!isRecord(value)) return false;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 
+  const capture = value as Record<string, unknown>;
   const isCapturedResponse =
-    value.type === GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE && value.status === "captured";
+    capture.type === GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE && capture.status === "captured";
   const hasBoundedHash =
-    typeof value.hash === "string" &&
-    value.hash.length > 0 &&
-    value.hash.length <= EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS;
+    typeof capture.hash === "string" &&
+    capture.hash.length > 0 &&
+    capture.hash.length <= EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS;
   return isCapturedResponse && hasBoundedHash;
 }
 
@@ -138,8 +140,4 @@ function hasAllowedScopes(value: string | null): boolean {
 function oneValue(params: URLSearchParams, name: string): string | null {
   const values = params.getAll(name);
   return values.length === 1 ? (values[0] ?? null) : null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
