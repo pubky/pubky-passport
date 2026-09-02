@@ -76,7 +76,9 @@ function statusForError(code: GoogleWrappingKeyIssueErrorCode): number {
       return 401;
     case "key_unavailable":
       return 409;
-    case "dependency_unavailable":
+    case "google_verifier_unavailable":
       return 503;
+    case "key_derivation_failed":
+      return 500;
   }
 }

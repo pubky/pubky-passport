@@ -5,7 +5,6 @@ import { z } from "zod";
 
 import { readBoundedText } from "../../../../libs/http/boundedBody";
 import { MAXIMUM_JSON_BODY_BYTES } from "../../../../libs/passportPolicy";
-import type { CodedFailure } from "../../../../libs/result";
 
 const MULTIPART_BOUNDARY = "pubky-passport-drive-boundary-v1";
 
@@ -33,7 +32,11 @@ const DRIVE_FILE_LIST_SCHEMA = z
 export type DriveFile = z.infer<typeof DRIVE_FILE_SCHEMA>;
 export type DriveFileList = z.infer<typeof DRIVE_FILE_LIST_SCHEMA>;
 export type DriveFileRevision = Readonly<{ storageId: string; revision: string }>;
-type DriveFetchResult = ResultType<Response, CodedFailure<"network_failed">>;
+type DriveFetchResult = ResultType<Response, { code: "network_failed"; cause: unknown }>;
+export type DriveJsonResult = ResultType<
+  unknown,
+  { code: "body_too_large" | "body_unavailable" | "invalid_json"; cause: Error }
+>;
 
 /**
  * Executes an isolated, non-cacheable Drive request without leaking transport
@@ -61,15 +64,18 @@ export async function fetchDrive(
 
 /**
  * Reads and parses a size-bounded Drive JSON response.
- * Returns `null` for oversized, unreadable, or malformed response bodies.
+ * The promise settles with a Result and preserves body-read and JSON parse causes.
  */
-export async function readDriveJson(response: Response): Promise<unknown | null> {
+export async function readDriveJson(response: Response): Promise<DriveJsonResult> {
   const contents = await readBoundedText(response, MAXIMUM_JSON_BODY_BYTES);
-  if (contents === null || contents === "too_large") return null;
+  if (Result.isError(contents)) return Result.err(contents.error);
   try {
-    return JSON.parse(contents);
-  } catch {
-    return null;
+    return Result.ok(JSON.parse(contents.value));
+  } catch (cause) {
+    return Result.err({
+      code: "invalid_json",
+      cause: new Error("Google Drive response must be valid JSON.", { cause }),
+    });
   }
 }
 

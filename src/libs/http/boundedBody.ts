@@ -1,3 +1,5 @@
+import { Result, type Result as ResultType } from "better-result";
+
 import { LOGGER, safeErrorLogFields } from "../logger/logger";
 
 export type BoundedBody = {
@@ -5,10 +7,16 @@ export type BoundedBody = {
   headers: Headers;
 };
 
+export type BoundedBodyReadFailure = {
+  code: "body_too_large" | "body_unavailable";
+  cause: Error;
+};
+
+/** Reads bounded bytes and preserves operational read failures for the caller. */
 export async function readBoundedBytes(
   source: BoundedBody,
   maximumBytes: number,
-): Promise<Uint8Array | "too_large" | null> {
+): Promise<ResultType<Uint8Array, BoundedBodyReadFailure>> {
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   try {
     if (contentLengthExceeds(source.headers.get("Content-Length"), maximumBytes)) {
@@ -17,12 +25,18 @@ export async function readBoundedBytes(
       } catch {
         // The oversized response is already rejected; cancellation is best effort.
       }
-      return "too_large";
+      return Result.err({
+        code: "body_too_large",
+        cause: new Error(`Response body exceeds the ${maximumBytes}-byte limit.`),
+      });
     }
 
     reader = source.body?.getReader();
     if (!reader) {
-      return null;
+      return Result.err({
+        code: "body_unavailable",
+        cause: new Error("Response body is unavailable."),
+      });
     }
 
     const chunks: Uint8Array[] = [];
@@ -40,7 +54,10 @@ export async function readBoundedBytes(
         } catch {
           // The oversized response is already rejected; cancellation is best effort.
         }
-        return "too_large";
+        return Result.err({
+          code: "body_too_large",
+          cause: new Error(`Response body exceeds the ${maximumBytes}-byte limit.`),
+        });
       }
 
       chunks.push(value);
@@ -53,14 +70,12 @@ export async function readBoundedBytes(
       offset += chunk.byteLength;
     }
 
-    return bytes;
+    return Result.ok(bytes);
   } catch (cause) {
-    LOGGER.warn("http.body_read.failed", {
-      operation: "read",
+    return Result.err({
       code: "body_unavailable",
-      ...safeErrorLogFields(cause),
+      cause: new Error("Failed to read response body.", { cause }),
     });
-    return null;
   } finally {
     try {
       reader?.releaseLock();
@@ -77,9 +92,11 @@ export async function readBoundedBytes(
 export async function readBoundedText(
   source: BoundedBody,
   maximumBytes: number,
-): Promise<string | "too_large" | null> {
+): Promise<ResultType<string, BoundedBodyReadFailure>> {
   const bytes = await readBoundedBytes(source, maximumBytes);
-  return bytes instanceof Uint8Array ? new TextDecoder().decode(bytes) : bytes;
+  return Result.isError(bytes)
+    ? Result.err(bytes.error)
+    : Result.ok(new TextDecoder().decode(bytes.value));
 }
 
 function contentLengthExceeds(contentLength: string | null, maximumBytes: number): boolean {

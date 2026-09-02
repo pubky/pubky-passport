@@ -10,6 +10,11 @@ const AUDIENCE = "google-client-id";
 const TOKEN = "header.payload.signature";
 const NOW = new Date("2026-01-01T00:00:00.000Z");
 const FUTURE_EXPIRATION = Math.floor(new Date("2026-01-01T01:00:00.000Z").getTime() / 1000);
+const CERTIFICATES = { "key-id": "certificate" };
+const CERTIFICATE_RESPONSE = {
+  certs: CERTIFICATES,
+  format: "PEM",
+} as Awaited<ReturnType<OAuth2Client["getFederatedSignonCertsAsync"]>>;
 
 type TestGoogleIdTokenPayload = {
   iss?: string;
@@ -22,6 +27,9 @@ type TestGoogleIdTokenPayload = {
 describe("Google ID token verifier", () => {
   beforeEach(() => {
     vi.spyOn(Date, "now").mockReturnValue(NOW.getTime());
+    vi.spyOn(OAuth2Client.prototype, "getFederatedSignonCertsAsync").mockResolvedValue(
+      CERTIFICATE_RESPONSE,
+    );
   });
 
   afterEach(() => {
@@ -40,13 +48,15 @@ describe("Google ID token verifier", () => {
   });
 
   it("passes Passport's client ID to the Google verifier", async () => {
-    const calls: Array<{ tokenPresent: boolean; audience: string }> = [];
-    vi.spyOn(OAuth2Client.prototype, "verifyIdToken").mockImplementation(
-      async ({ idToken, audience: verifierAudience }) => {
+    const calls: Array<{ tokenPresent: boolean; audience: string; issuers: string[] }> = [];
+    vi.spyOn(OAuth2Client.prototype, "verifySignedJwtWithCertsAsync").mockImplementation(
+      async (idToken, certificates, verifierAudience, issuers) => {
         calls.push({
           tokenPresent: idToken.length > 0,
           audience: typeof verifierAudience === "string" ? verifierAudience : "",
+          issuers: issuers ?? [],
         });
+        expect(certificates).toBe(CERTIFICATES);
         return googleLoginTicketFixture(validPayload);
       },
     );
@@ -54,8 +64,34 @@ describe("Google ID token verifier", () => {
 
     await verifier.verifyGoogleIdToken(TOKEN);
 
-    expect(calls).toEqual([{ tokenPresent: true, audience: AUDIENCE }]);
+    expect(calls).toEqual([
+      {
+        tokenPresent: true,
+        audience: AUDIENCE,
+        issuers: ["accounts.google.com", "https://accounts.google.com"],
+      },
+    ]);
     expect(JSON.stringify(calls)).not.toContain(TOKEN);
+  });
+
+  it("maps signing-certificate fetch failures to verifier unavailability", async () => {
+    const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
+    const cause = new Error(`certificate fetch failed for ${TOKEN}`);
+    vi.spyOn(OAuth2Client.prototype, "getFederatedSignonCertsAsync").mockRejectedValueOnce(cause);
+    const verifier = new GoogleIdTokenVerifier(AUDIENCE);
+
+    const result = await verifier.verifyGoogleIdToken(TOKEN);
+
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error).toEqual({ code: "google_verifier_unavailable", cause });
+    }
+    expect(error).toHaveBeenCalledWith("identity.google.id_token_verification.failed", {
+      code: "google_verifier_unavailable",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
+    });
+    expect(JSON.stringify(error.mock.calls)).not.toContain(TOKEN);
   });
 
   it.each([
@@ -82,7 +118,7 @@ describe("Google ID token verifier", () => {
   });
 
   it("requires the authorized party for multiple audiences", async () => {
-    vi.spyOn(OAuth2Client.prototype, "verifyIdToken")
+    vi.spyOn(OAuth2Client.prototype, "verifySignedJwtWithCertsAsync")
       .mockImplementationOnce(async () =>
         googleLoginTicketFixture(() => ({
           ...validPayload(),
@@ -115,9 +151,11 @@ describe("Google ID token verifier", () => {
     async (message) => {
       const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
       const cause = new Error(`${message} token ${TOKEN}: {"sub":"google-subject"}`);
-      vi.spyOn(OAuth2Client.prototype, "verifyIdToken").mockImplementation(async () => {
-        throw cause;
-      });
+      vi.spyOn(OAuth2Client.prototype, "verifySignedJwtWithCertsAsync").mockImplementation(
+        async () => {
+          throw cause;
+        },
+      );
       const verifier = new GoogleIdTokenVerifier(AUDIENCE);
 
       const result = await verifier.verifyGoogleIdToken(TOKEN);
@@ -140,7 +178,7 @@ describe("Google ID token verifier", () => {
 
   it("logs a safe failure when Google returns a ticket without a payload", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    vi.spyOn(OAuth2Client.prototype, "verifyIdToken").mockImplementation(async () =>
+    vi.spyOn(OAuth2Client.prototype, "verifySignedJwtWithCertsAsync").mockImplementation(async () =>
       googleLoginTicketFixture(() => undefined),
     );
     const verifier = new GoogleIdTokenVerifier(AUDIENCE);
@@ -157,7 +195,7 @@ describe("Google ID token verifier", () => {
   it("maps payload access exceptions without logging their details", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const cause = new Error(`payload failed for ${TOKEN}`);
-    vi.spyOn(OAuth2Client.prototype, "verifyIdToken").mockImplementation(async () =>
+    vi.spyOn(OAuth2Client.prototype, "verifySignedJwtWithCertsAsync").mockImplementation(async () =>
       googleLoginTicketFixture(() => {
         throw cause;
       }),
@@ -182,7 +220,7 @@ describe("Google ID token verifier", () => {
 });
 
 function createVerifierWithPayload(payload: TestGoogleIdTokenPayload) {
-  vi.spyOn(OAuth2Client.prototype, "verifyIdToken").mockImplementation(async () =>
+  vi.spyOn(OAuth2Client.prototype, "verifySignedJwtWithCertsAsync").mockImplementation(async () =>
     googleLoginTicketFixture(() => payload),
   );
   return new GoogleIdTokenVerifier(AUDIENCE);

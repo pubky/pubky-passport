@@ -322,7 +322,12 @@ describe("GoogleImplicitAuthorization", () => {
 
     const result = await request;
     expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) expect(result.error).toEqual({ code: expectedCode });
+    if (Result.isError(result)) {
+      expect(result.error).toMatchObject({ code: expectedCode });
+      if (expectedCode === "google_authorization_failed") {
+        expect(result.error.cause).toBeInstanceOf(Error);
+      }
+    }
   });
 
   it.each([
@@ -343,7 +348,11 @@ describe("GoogleImplicitAuthorization", () => {
     popup.returnTo(`${ORIGIN}/#${params}`);
 
     const result = await request;
-    expect(Result.isError(result) && result.error).toEqual({ code: "google_authorization_failed" });
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error).toMatchObject({ code: "google_authorization_failed" });
+      expect(result.error.cause).toBeInstanceOf(Error);
+    }
   });
 
   it("rejects concurrent requests and times out the active request", async () => {
@@ -357,15 +366,19 @@ describe("GoogleImplicitAuthorization", () => {
     const active = authorization.request();
 
     const concurrent = await authorization.request();
-    expect(Result.isError(concurrent) && concurrent.error).toEqual({
-      code: "google_authorization_failed",
-    });
+    expect(Result.isError(concurrent)).toBe(true);
+    if (Result.isError(concurrent)) {
+      expect(concurrent.error).toMatchObject({ code: "google_authorization_failed" });
+      expect(concurrent.error.cause).toBeInstanceOf(Error);
+    }
     await vi.advanceTimersByTimeAsync(5 * 60_000);
 
     const timedOut = await active;
-    expect(Result.isError(timedOut) && timedOut.error).toEqual({
-      code: "google_authorization_failed",
-    });
+    expect(Result.isError(timedOut)).toBe(true);
+    if (Result.isError(timedOut)) {
+      expect(timedOut.error).toMatchObject({ code: "google_authorization_failed" });
+      expect(timedOut.error.cause).toBeInstanceOf(Error);
+    }
     expect(popup.close).toHaveBeenCalledOnce();
   });
 

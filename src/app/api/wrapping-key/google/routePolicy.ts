@@ -26,14 +26,15 @@ export async function parseGoogleIdTokenRequest(
   }
 
   const text = await readBoundedText(request, MAXIMUM_JSON_BODY_BYTES);
-  if (text === null || text === "too_large") {
+  if (Result.isError(text)) {
     return Result.err("invalid_request");
   }
 
   let body: unknown;
   try {
-    body = JSON.parse(text);
+    body = JSON.parse(text.value);
   } catch {
+    // Parser messages may echo the Google ID token, so collapse them to a fixed public failure.
     return Result.err("invalid_request");
   }
 

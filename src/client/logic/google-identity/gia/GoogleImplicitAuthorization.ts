@@ -52,16 +52,24 @@ export class GoogleImplicitAuthorization {
 
   constructor(private readonly clientId: string) {}
 
+  /**
+   * Runs one Google authorization attempt.
+   *
+   * The promise settles with a Result for setup, popup, provider-response, and UserInfo
+   * failures. It does not intentionally reject.
+   */
   request(
     loginHint?: string,
   ): Promise<GoogleImplicitAuthorizationResult<GoogleIdentityCredentials>> {
     if (this.activeAttempt) {
+      const cause = new Error("Google implicit authorization is already in progress.");
       LOGGER.warn("identity.google.implicit_authorization.failed", {
         operation: "authorize",
         stage: "request",
         code: "google_authorization_failed",
+        ...safeErrorLogFields(cause),
       });
-      return Promise.resolve(Result.err({ code: "google_authorization_failed" }));
+      return Promise.resolve(Result.err({ code: "google_authorization_failed", cause }));
     }
     let popup: Window | null = null;
     try {
@@ -129,12 +137,14 @@ export class GoogleImplicitAuthorization {
           globalThis.window.addEventListener("message", attempt.messageListener);
           attempt.poll = setInterval(() => this.inspectPopup(attempt), POPUP_POLL_MS);
           attempt.timeout = setTimeout(() => {
+            const cause = new Error("Google implicit authorization timed out.");
             LOGGER.warn("identity.google.implicit_authorization.failed", {
               operation: "authorize",
               stage: "timeout",
               code: "google_authorization_failed",
+              ...safeErrorLogFields(cause),
             });
-            this.finish(attempt, Result.err({ code: "google_authorization_failed" }));
+            this.finish(attempt, Result.err({ code: "google_authorization_failed", cause }));
           }, AUTHORIZATION_TIMEOUT_MS);
         } catch (error) {
           this.failAttempt(attempt, "attempt_setup", error);
@@ -154,7 +164,15 @@ export class GoogleImplicitAuthorization {
 
   dispose(): void {
     const attempt = this.activeAttempt;
-    if (attempt) this.finish(attempt, Result.err({ code: "google_authorization_failed" }));
+    if (attempt) {
+      this.finish(
+        attempt,
+        Result.err({
+          code: "google_authorization_failed",
+          cause: new Error("Google implicit authorization was disposed."),
+        }),
+      );
+    }
   }
 
   private inspectPopup(attempt: AuthorizationAttempt): void {
@@ -186,6 +204,7 @@ export class GoogleImplicitAuthorization {
         operation: "authorize",
         stage: "response",
         code: parsed.error.code,
+        ...(parsed.error.cause === undefined ? {} : safeErrorLogFields(parsed.error.cause)),
       });
       return Result.err(parsed.error);
     }
@@ -199,6 +218,7 @@ export class GoogleImplicitAuthorization {
         operation: "authorize",
         stage: account.error.stage,
         code: account.error.code,
+        ...(account.error.httpStatus === undefined ? {} : { httpStatus: account.error.httpStatus }),
         ...(account.error.cause === undefined ? {} : safeErrorLogFields(account.error.cause)),
       });
       return Result.err({

@@ -107,7 +107,14 @@ export class GoogleIdentityController {
 
     try {
       const operations = this.operations;
-      if (!operations) return Result.err({ code: "operation_failed" });
+      if (!operations) {
+        return Result.err(
+          unexpectedOperationFailure(
+            operation,
+            new Error("Google identity operations are unavailable."),
+          ),
+        );
+      }
       const progress = this.createProgressReporter();
       const establishment =
         operation === "establish"
@@ -145,14 +152,8 @@ export class GoogleIdentityController {
           });
       }
     } catch (cause) {
-      LOGGER.warn("identity.google.action.failed", {
-        operation,
-        code: "unexpected_failure",
-        ...safeErrorLogFields(cause),
-      });
-      return this.disposed
-        ? Result.err({ code: "cancelled" })
-        : Result.err({ code: "operation_failed" });
+      const failure = unexpectedOperationFailure(operation, cause);
+      return this.disposed ? Result.err({ code: "cancelled" }) : Result.err(failure);
     } finally {
       this.finishOperation();
     }
@@ -180,7 +181,14 @@ export class GoogleIdentityController {
 
     try {
       const operations = this.operations;
-      if (!operations) return Result.err({ code: "operation_failed" });
+      if (!operations) {
+        return Result.err(
+          unexpectedOperationFailure(
+            "detach",
+            new Error("Google identity operations are unavailable."),
+          ),
+        );
+      }
       this.setViewState({ status: "detaching" });
       const detached = await operations.detachIdentity(
         authorized.value,
@@ -198,14 +206,8 @@ export class GoogleIdentityController {
       }
       return Result.ok();
     } catch (cause) {
-      LOGGER.warn("identity.google.action.failed", {
-        operation: "detach",
-        code: "unexpected_failure",
-        ...safeErrorLogFields(cause),
-      });
-      return this.disposed
-        ? Result.err({ code: "cancelled" })
-        : Result.err({ code: "operation_failed" });
+      const failure = unexpectedOperationFailure("detach", cause);
+      return this.disposed ? Result.err({ code: "cancelled" }) : Result.err(failure);
     } finally {
       this.finishOperation();
     }
@@ -250,14 +252,17 @@ export class GoogleIdentityController {
         code: "runtime_exception",
         ...safeErrorLogFields(cause),
       });
-      return Result.err({ code: "operation_failed" });
+      return Result.err({ code: "operation_failed", cause });
     }
 
     try {
       const googleAuthorization = this.googleAuthorization;
       if (!googleAuthorization) {
         this.operationPending = false;
-        return Result.err({ code: "operation_failed" });
+        return Result.err({
+          code: "operation_failed",
+          cause: new Error("Google authorization dependency is unavailable."),
+        });
       }
       const googleSubject = expectedGoogleSubject ?? this.googleSubject;
       const credentials = await googleAuthorization.request(googleSubject);
@@ -275,7 +280,10 @@ export class GoogleIdentityController {
         credentials.value.googleAccount.googleSubject !== googleSubject
       ) {
         this.operationPending = false;
-        return Result.err({ code: "authorization_failed" });
+        return Result.err({
+          code: "authorization_failed",
+          cause: new Error("Authorized Google account does not match the expected account."),
+        });
       }
       this.googleSubject ??= credentials.value.googleAccount.googleSubject;
       return Result.ok(credentials.value);
@@ -290,7 +298,7 @@ export class GoogleIdentityController {
         code: "authorization_failed",
         ...safeErrorLogFields(cause),
       });
-      return Result.err({ code: "authorization_failed" });
+      return Result.err({ code: "authorization_failed", cause });
     }
   }
 
@@ -381,4 +389,16 @@ function withoutCause(error: GoogleIdentityError): GoogleIdentityViewError {
     default:
       return { code: error.code };
   }
+}
+
+function unexpectedOperationFailure(
+  operation: "detach" | "establish" | "replace_invalid_passport_file",
+  cause: unknown,
+): GoogleIdentityViewError {
+  LOGGER.warn("identity.google.action.failed", {
+    operation,
+    code: "unexpected_failure",
+    ...safeErrorLogFields(cause),
+  });
+  return { code: "operation_failed" };
 }

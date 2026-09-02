@@ -60,7 +60,8 @@ describe("POST /api/wrapping-key/google", () => {
   it.each([
     ["invalid_google_id_token", 401],
     ["key_unavailable", 409],
-    ["dependency_unavailable", 503],
+    ["google_verifier_unavailable", 503],
+    ["key_derivation_failed", 500],
   ] as const)("maps %s failures to HTTP %i", async (code, status) => {
     const post = await postHandler(async () => Result.err({ code }));
 
@@ -69,17 +70,20 @@ describe("POST /api/wrapping-key/google", () => {
     ).resolves.toEqual({ status, body: { error: { code } } });
   });
 
-  it("never serializes an internal failure cause", async () => {
+  it.each([
+    ["google_verifier_unavailable", 503],
+    ["key_derivation_failed", 500],
+  ] as const)("never serializes an internal %s cause", async (code, status) => {
     const post = await postHandler(async () =>
       Result.err({
-        code: "dependency_unavailable" as const,
+        code,
         cause: new Error("SECRET-GOOGLE-ID-TOKEN"),
       }),
     );
 
     const response = await post(jsonRequest({ googleIdToken: "id-token" }));
     const responseText = await response.text();
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(status);
     expect(responseText).not.toContain("cause");
     expect(responseText).not.toContain("SECRET-GOOGLE-ID-TOKEN");
   });
