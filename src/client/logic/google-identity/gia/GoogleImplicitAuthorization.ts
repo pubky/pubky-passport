@@ -111,7 +111,9 @@ export class GoogleImplicitAuthorization {
               event.source !== openedPopup ||
               this.activeAttempt !== attempt ||
               attempt.responseReceived ||
-              !isRecord(event.data) ||
+              typeof event.data !== "object" ||
+              event.data === null ||
+              Array.isArray(event.data) ||
               event.data.type !== GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE
             )
               return;
@@ -271,8 +273,4 @@ function closePopup(popup: Window): void {
 
 function randomBase64Url(byteLength: number): string {
   return encodeBase64Url(globalThis.crypto.getRandomValues(new Uint8Array(byteLength)));
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
