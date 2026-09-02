@@ -12,12 +12,12 @@ import type {
 } from "./gia/GoogleImplicitAuthorization";
 import type { PubkyPublicIdentity } from "../pubky/pubkyIdentityKey";
 import type {
-  GoogleIdentityOperations,
-  GoogleIdentityOperationError,
+  GoogleIdentityLifecycle,
+  GoogleIdentityLifecycleError,
   GoogleIdentityProgress,
-} from "./GoogleIdentityOperations";
+} from "./GoogleIdentityLifecycle";
 
-export type { GoogleIdentityProgress } from "./GoogleIdentityOperations";
+export type { GoogleIdentityProgress } from "./GoogleIdentityLifecycle";
 
 /** Safe progress emitted while Passport creates or restores a Google-backed identity. */
 export type GoogleIdentityViewState =
@@ -40,12 +40,12 @@ type EstablishedGoogleIdentity =
     };
 
 export type GoogleIdentityError =
-  | GoogleIdentityOperationError
+  | GoogleIdentityLifecycleError
   | GoogleImplicitAuthorizationError
   | CodedFailure<"authorization_failed" | "cancelled" | "operation_failed">;
 
 type GoogleIdentityErrorDetailCode = Extract<
-  GoogleIdentityOperationError,
+  GoogleIdentityLifecycleError,
   { detailCode: string }
 >["detailCode"];
 
@@ -63,7 +63,7 @@ export type EstablishGoogleIdentityResult = ResultType<
 export type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityViewError>;
 
 /**
- * Owns one screen's Google authorization and identity operation lifecycle.
+ * Presentation-facing controller for one screen's Google authorization and identity flow.
  *
  * Each public operation first obtains fresh short-lived Google credentials. The
  * credentials stay in this browser object, are passed directly to the concrete
@@ -75,8 +75,8 @@ export type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityViewErro
  */
 export class GoogleIdentityController {
   private googleAuthorization: GoogleImplicitAuthorization | undefined;
-  private operations: GoogleIdentityOperations | undefined;
-  private operationsDisposed = false;
+  private lifecycle: GoogleIdentityLifecycle | undefined;
+  private lifecycleDisposed = false;
   private operationPending = false;
   private googleSubject: string | undefined;
   private disposed = false;
@@ -119,19 +119,19 @@ export class GoogleIdentityController {
     }
 
     try {
-      const operations = this.operations;
-      if (!operations) {
+      const lifecycle = this.lifecycle;
+      if (!lifecycle) {
         LOGGER.warn("identity.google.action.failed", {
           operation,
-          code: "operations_unavailable",
+          code: "lifecycle_unavailable",
         });
         return Result.err({ code: "operation_failed" });
       }
       const progress = this.createProgressReporter();
       const establishment =
         operation === "establish"
-          ? operations.establishIdentity(authorized.value, progress.report)
-          : operations.replaceInvalidPassportFile(authorized.value, progress.report);
+          ? lifecycle.establishIdentity(authorized.value, progress.report)
+          : lifecycle.replaceInvalidPassportFile(authorized.value, progress.report);
       const established = await establishment.finally(() => {
         progress.stop();
       });
@@ -199,16 +199,16 @@ export class GoogleIdentityController {
     }
 
     try {
-      const operations = this.operations;
-      if (!operations) {
+      const lifecycle = this.lifecycle;
+      if (!lifecycle) {
         LOGGER.warn("identity.google.action.failed", {
           operation: "detach",
-          code: "operations_unavailable",
+          code: "lifecycle_unavailable",
         });
         return Result.err({ code: "operation_failed" });
       }
       this.setViewState({ status: "detaching" });
-      const detached = await operations.detachIdentity(
+      const detached = await lifecycle.detachIdentity(
         authorized.value,
         publicIdentity,
         expectedGoogleSubject,
@@ -250,8 +250,8 @@ export class GoogleIdentityController {
         ...safeErrorLogFields(e),
       });
     } finally {
-      this.operations?.abortRequests();
-      if (!this.operationPending) this.disposeOperationsOnce();
+      this.lifecycle?.abortRequests();
+      if (!this.operationPending) this.disposeLifecycleOnce();
     }
   }
 
@@ -293,7 +293,7 @@ export class GoogleIdentityController {
       const credentials = await googleAuthorization.request(googleSubject);
       if (this.disposed) {
         this.operationPending = false;
-        this.disposeOperationsOnce();
+        this.disposeLifecycleOnce();
         return Result.err({ code: "cancelled" });
       }
       if (Result.isError(credentials)) {
@@ -316,7 +316,7 @@ export class GoogleIdentityController {
     } catch (e) {
       this.operationPending = false;
       if (this.disposed) {
-        this.disposeOperationsOnce();
+        this.disposeLifecycleOnce();
         return Result.err({ code: "cancelled" });
       }
       LOGGER.warn("identity.google.authorization.failed", {
@@ -347,14 +347,14 @@ export class GoogleIdentityController {
 
   private finishOperation(): void {
     this.operationPending = false;
-    if (this.disposed) this.disposeOperationsOnce();
+    if (this.disposed) this.disposeLifecycleOnce();
   }
 
-  private disposeOperationsOnce(): void {
-    if (this.operationsDisposed) return;
-    this.operationsDisposed = true;
+  private disposeLifecycleOnce(): void {
+    if (this.lifecycleDisposed) return;
+    this.lifecycleDisposed = true;
     try {
-      this.operations?.dispose();
+      this.lifecycle?.dispose();
     } catch (e) {
       LOGGER.warn("identity.google.cleanup.failed", {
         operation: "pubky_dispose",
@@ -376,21 +376,21 @@ export class GoogleIdentityController {
   }
 
   private async initializeDependencies(): Promise<boolean> {
-    if (this.googleAuthorization && this.operations) return true;
-    const [authorizationModule, operationsModule] = await Promise.all([
+    if (this.googleAuthorization && this.lifecycle) return true;
+    const [authorizationModule, lifecycleModule] = await Promise.all([
       import("./gia/GoogleImplicitAuthorization"),
-      import("./GoogleIdentityOperations"),
+      import("./GoogleIdentityLifecycle"),
     ]);
     if (this.disposed) return false;
 
     const authorization = new authorizationModule.GoogleImplicitAuthorization(this.googleClientId);
     try {
-      const operations = new operationsModule.GoogleIdentityOperations(
+      const lifecycle = new lifecycleModule.GoogleIdentityLifecycle(
         this.homegateBaseUrl,
         globalThis.location.origin,
       );
       this.googleAuthorization = authorization;
-      this.operations = operations;
+      this.lifecycle = lifecycle;
       return true;
     } catch (e) {
       try {
