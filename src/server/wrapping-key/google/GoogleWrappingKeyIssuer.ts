@@ -9,7 +9,7 @@ import {
   GoogleIdTokenVerifier,
   type GoogleIdTokenVerificationResult,
 } from "./GoogleIdTokenVerifier";
-import { deriveGoogleWrappingKey } from "./GoogleWrappingKeyDeriver";
+import { deriveGoogleWrappingKey } from "./deriveGoogleWrappingKey";
 
 export type GoogleWrappingKeyIssueErrorCode =
   | "google_verifier_unavailable"

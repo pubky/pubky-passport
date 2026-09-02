@@ -2,7 +2,7 @@ import "server-only";
 
 import { hkdfSync } from "node:crypto";
 
-import { CANONICAL_GOOGLE_ISSUER, type VerifiedGoogleIdentity } from "./GoogleIdTokenVerifier";
+import type { VerifiedGoogleIdentity } from "./GoogleIdTokenVerifier";
 
 const WRAPPING_KEY_BYTES = 32;
 const GOOGLE_WRAPPING_KEY_HKDF_SALT = Buffer.from("pubky-passport/wrapping-key/salt/v1", "utf8");
@@ -12,7 +12,7 @@ export function deriveGoogleWrappingKey(
   serverSecret: Uint8Array,
   identity: VerifiedGoogleIdentity,
 ): string {
-  if (identity.issuer !== CANONICAL_GOOGLE_ISSUER || !identity.googleSubject.trim()) {
+  if (!identity.googleSubject.trim()) {
     throw new Error("Invalid wrapping key identity.");
   }
 
