@@ -1,17 +1,24 @@
-# Integrating Pubky Passport
+# Integrating with Pubky Passport
 
-Passport is a signer UI for Pubky authorization requests. Your app starts an authorization flow
-with the Pubky SDK, opens Passport in a popup, and waits for the SDK to receive the result through
-the relay.
+Pubky Passport approves authorization requests created by the Pubky SDK. Your app creates a
+request, opens Passport, and waits for the SDK to receive the approval through the relay.
 
-The important rule is:
+> Authenticate the user only after the Pubky SDK returns a `Session`. Passport callbacks and
+> messages describe the UI outcome; they are not credentials.
 
-> Only the `Session` returned by the Pubky SDK authenticates the user. Passport messages and
-> callbacks are UI signals, not credentials.
+Grant auth is recommended for new integrations.
 
-Passport supports grant and cookie sign-in requests. Grant auth is recommended for new apps.
+## Flow
 
-## Client integration
+1. Your app starts a Pubky auth flow.
+2. Your app opens Passport with the flow's authorization URL.
+3. The user approves or rejects the request in Passport.
+4. The SDK verifies the relay response and returns a `Session`.
+
+The authorization URL contains secrets. Keep it in the browser, encode it exactly once, and never
+log it or send it to analytics.
+
+## Popup example
 
 Install the SDK:
 
@@ -19,118 +26,50 @@ Install the SDK:
 pnpm add @synonymdev/pubky
 ```
 
-The example below includes popup blocking, outcome acknowledgement, callback fallback, manual
-popup closure, relay polling, timeout, and session persistence.
+Call `signInWithPassport()` directly from a click or tap handler. The popup must open before the
+first `await`, otherwise the browser may block it.
 
 ```ts
-import { AuthFlowKind, Pubky, type GrantAuthFlow, type Session } from "@synonymdev/pubky";
+import { AuthFlowKind, Pubky, type Session } from "@synonymdev/pubky";
 
 const PASSPORT_ORIGIN = "https://passport.pubky.app";
 const CALLBACK_PATH = "/auth/passport/return";
-const CALLBACK_MESSAGE = "example-app.passport-return";
-const TIMEOUT_MS = 5 * 60_000;
-
 const pubky = new Pubky();
 
 type Outcome = "success" | "error" | "cancel";
 
 export async function signInWithPassport(): Promise<Session> {
-  const attemptId = crypto.randomUUID();
-
-  // Open synchronously from the click handler. Awaiting first may trigger popup blocking.
   const popup = window.open(
     "about:blank",
-    `pubky-passport-${attemptId}`,
+    `pubky-passport-${crypto.randomUUID()}`,
     "popup,width=520,height=760",
   );
   if (!popup) throw new Error("Passport popup was blocked");
 
-  let outcome: Outcome | undefined;
-  let flow: GrantAuthFlow | undefined;
-
-  const onMessage = (event: MessageEvent<unknown>) => {
-    if (event.source !== popup || !isRecord(event.data)) return;
-
-    if (
-      event.origin === PASSPORT_ORIGIN &&
-      event.data.type === "pubky-passport.authorization-outcome" &&
-      event.data.version === 1 &&
-      isOutcome(event.data.outcome) &&
-      typeof event.data.messageId === "string"
-    ) {
-      // Acknowledge immediately so Passport can close instead of navigating to the callback.
-      popup.postMessage(
-        {
-          type: "pubky-passport.authorization-outcome-ack",
-          version: 1,
-          messageId: event.data.messageId,
-        },
-        PASSPORT_ORIGIN,
-      );
-      outcome = event.data.outcome;
-      return;
-    }
-
-    // The client callback page uses this path if Passport could not complete postMessage.
-    if (
-      event.origin === window.location.origin &&
-      event.data.type === CALLBACK_MESSAGE &&
-      event.data.attemptId === attemptId &&
-      isOutcome(event.data.outcome)
-    ) {
-      outcome = event.data.outcome;
-    }
-  };
-
-  window.addEventListener("message", onMessage);
-
   try {
-    const callback = (nextOutcome: Outcome) => {
+    const callbackUrl = (outcome: Outcome) => {
       const url = new URL(CALLBACK_PATH, window.location.origin);
-      url.searchParams.set("attempt", attemptId);
-      url.searchParams.set("outcome", nextOutcome);
+      url.searchParams.set("outcome", outcome);
       return url.href;
     };
 
-    flow = await pubky.startGrantAuthFlow("/pub/example.app/:rw", AuthFlowKind.signin(), {
+    const flow = await pubky.startGrantAuthFlow("/pub/example.app/:rw", AuthFlowKind.signin(), {
       clientId: "example.app",
       xCallback: {
         xSource: "Example App",
-        xSuccess: callback("success"),
-        xError: callback("error"),
-        xCancel: callback("cancel"),
+        xSuccess: callbackUrl("success"),
+        xError: callbackUrl("error"),
+        xCancel: callbackUrl("cancel"),
       },
     });
 
-    const passportUrl = new URL("/authorize", PASSPORT_ORIGIN);
-    passportUrl.hash = `d=${encodeURIComponent(flow.authorizationUrl)}`;
-    popup.location.replace(passportUrl.href);
-
-    const deadline = Date.now() + TIMEOUT_MS;
-    while (Date.now() < deadline) {
-      if (outcome === "cancel") throw new Error("Passport authorization was cancelled");
-      if (outcome === "error") throw new Error("Passport could not approve the request");
-      if (popup.closed && outcome !== "success") throw new Error("Passport popup was closed");
-
-      // This relay result, not outcome === "success", completes authentication.
-      const session = await flow.tryPollOnce();
-      if (session) {
-        const store = pubky.browserSessionStore;
-        try {
-          await store.save(session);
-        } finally {
-          store.free();
-        }
-        return session;
-      }
-
-      await new Promise((resolve) => window.setTimeout(resolve, 250));
+    try {
+      popup.location.replace(passportUrl(flow.authorizationUrl));
+      return await flow.awaitApproval();
+    } finally {
+      flow.free();
     }
-
-    throw new Error("Passport authorization timed out");
   } finally {
-    window.removeEventListener("message", onMessage);
-    flow?.free();
     try {
       if (!popup.closed) popup.close();
     } catch {
@@ -139,112 +78,75 @@ export async function signInWithPassport(): Promise<Session> {
   }
 }
 
-function isOutcome(value: unknown): value is Outcome {
-  return value === "success" || value === "error" || value === "cancel";
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+function passportUrl(authorizationUrl: string): string {
+  return `${PASSPORT_ORIGIN}/authorize#d=${encodeURIComponent(authorizationUrl)}`;
 }
 ```
 
-Call `signInWithPassport()` directly from a click or tap handler. Replace the example capability
-and `clientId` with values belonging to your app. Request only the access you need.
+Replace the capability and `clientId` with values belonging to your app. Request only the access
+you need. Save the returned session with `pubky.browserSessionStore.save(session)` if it must
+survive a page reload. `flow.awaitApproval()` has no built-in timeout, so ensure your app-level
+timeout also ends the wait and frees the flow. Create a fresh flow after a failure or expiry.
 
-## Callback page
+## Callbacks
 
-Use one HTTPS callback route for all outcomes. It is a fallback for missing openers, failed
-messaging, missing acknowledgements, or a popup that cannot close.
+Provide HTTPS callbacks for success, error, and cancellation. They may use different paths or query
+strings, but must share one origin. A callback is a navigation fallback and may display the UI
+outcome; it must not sign the user in. Older links may use `callback` as the success fallback.
+
+Always render a visible return link on the callback page. Treat its URL as untrusted input. If the
+page needs authenticated state, resume the SDK flow and wait for a `Session`.
+
+When Passport has access to the popup's opener, it first sends:
 
 ```ts
-const CALLBACK_MESSAGE = "example-app.passport-return";
-const params = new URLSearchParams(window.location.search);
-const attemptId = params.get("attempt");
-const value = params.get("outcome");
-const outcome = value === "success" || value === "error" || value === "cancel" ? value : null;
-
-if (attemptId && outcome && window.opener && !window.opener.closed) {
-  window.opener.postMessage({ type: CALLBACK_MESSAGE, attemptId, outcome }, window.location.origin);
-  window.close();
-}
+type PassportOutcomeMessage = {
+  type: "pubky-passport.authorization-outcome";
+  version: 1;
+  outcome: "success" | "error" | "cancel";
+  messageId: string;
+};
 ```
 
-Always render a visible return link because the callback may be opened without an opener. Callback
-query parameters are untrusted and must not sign the user in.
-
-## Message contract
-
-Passport sends this message to the origin of the callback matching the outcome:
+For opener messaging, the callbacks must use the same origin as the page that opened the popup. If
+your app listens for this optional message, verify the exact Passport origin, confirm `event.source`
+is the popup for the current attempt, and validate every field. Then acknowledge the same
+`messageId` within three seconds:
 
 ```ts
-{
-  type: "pubky-passport.authorization-outcome",
-  version: 1,
-  outcome: "success" | "error" | "cancel",
-  messageId: string
-}
-```
-
-Verify both `event.origin === PASSPORT_ORIGIN` and `event.source === popup`, then respond within
-three seconds:
-
-```ts
-{
-  type: "pubky-passport.authorization-outcome-ack",
-  version: 1,
-  messageId: receivedMessageId
+function acknowledgePassport(popup: Window, message: PassportOutcomeMessage): void {
+  popup.postMessage(
+    {
+      type: "pubky-passport.authorization-outcome-ack",
+      version: 1,
+      messageId: message.messageId,
+    },
+    PASSPORT_ORIGIN,
+  );
 }
 ```
 
 Use the exact Passport origin as `targetOrigin`, never `"*"`. Without a valid acknowledgement,
-Passport navigates the popup to the matching callback.
+Passport navigates to the matching callback.
 
-## Required configuration
+A `success` message means approval was submitted; keep waiting for `flow.awaitApproval()`. Error
+and cancellation messages may end the UI attempt early, but none of these messages authenticate
+the user.
 
-- Construct the Passport URL as `/authorize#d=${encodeURIComponent(flow.authorizationUrl)}`.
-  Encode exactly once and do not put `d` in the query string.
-- All callbacks must use HTTPS and share one origin. Their paths and query strings may differ.
-- Provide success, error, and cancel callbacks. `callback` is accepted only as a legacy success
-  fallback.
-- Set SDK `xSource` to a short, human-readable app name. Passport shows it as a friendly label and
-  separately shows the HTTPS callback domain; `xSource` is not a verified identity or domain.
-- Do not use `noopener` or `noreferrer` if direct popup messaging is expected.
-- `Cross-Origin-Opener-Policy: same-origin` may break `window.opener`. Use
-  `same-origin-allow-popups` where appropriate, or rely on callback navigation.
-- Add the selected HTTP relay to the client CSP `connect-src` if your CSP restricts connections.
+## Browser requirements
+
+- Build the Passport URL as `/authorize#d=<encoded-request>`. Do not put `d` in the query string.
+- Set `xSource` to a short display name. Passport separately shows the callback domain because
+  `xSource` is not a verified identity.
+- Do not use `noopener` or `noreferrer` when opener messaging is expected.
+- `Cross-Origin-Opener-Policy: same-origin` can sever `window.opener`; use
+  `same-origin-allow-popups` where appropriate or rely on callback navigation.
+- Add the selected HTTP relay to CSP `connect-src` when your app restricts network destinations.
 - Do not embed Passport in an iframe.
 
-## Handling outcomes
+## Same-tab navigation
 
-| Result                          | Meaning                                              |
-| ------------------------------- | ---------------------------------------------------- |
-| SDK returns `Session`           | Authentication succeeded                             |
-| Passport `success`              | Approval was submitted; continue waiting for the SDK |
-| Passport `error`                | Passport could not approve the request               |
-| Passport `cancel`               | The user cancelled                                   |
-| Popup closes without an outcome | The attempt was interrupted                          |
-| SDK throws                      | Relay, network, or approval failure                  |
-| No result before the deadline   | Discard the flow and retry with a new one            |
-
-Never edit and reuse a rejected authorization URL. Start a fresh SDK flow with a fresh relay secret.
-
-## Direct navigation
-
-If you navigate the current tab to Passport instead of opening a popup, save resumable flow state
-in `sessionStorage` first:
-
-- grant: `flow.saveLocal()` and `pubky.resumeGrantAuthFlow(savedState)`;
-- delegated grant: `flow.saveDelegated()` and `pubky.resumeDelegatedGrantAuthFlow(savedState)`;
-- cookie: save `flow.authorizationUrl` and use `pubky.resumeCookieAuthFlow(url)`.
-
-Delete pending state after completion, failure, cancellation, or timeout. It contains sensitive
-relay and Proof-of-Possession material.
-
-## Security and test checklist
-
-- Only an SDK `Session` or verified SDK token creates authenticated state.
-- Never log, persist, or send the Passport URL or pending flow state to analytics.
-- Validate exact message origin, popup source, type, version, outcome, and `messageId`.
-- Correlate callback messages with an unpredictable per-attempt ID.
-- Test approval, UI success without relay success, error, cancel, popup close, popup blocking,
-  callback fallback, wrong-origin messages, timeout, and concurrent attempts.
+Before replacing the current page with Passport, save local grant state with `flow.saveLocal()` in
+`sessionStorage`. On the callback route, restore it with `pubky.resumeGrantAuthFlow(savedState)` and
+delete it as soon as the flow completes or is abandoned. Never use `localStorage`: resumable state
+contains the relay secret and Proof-of-Possession key material.
