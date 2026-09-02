@@ -7,15 +7,15 @@ const MINIMUM_SERVER_SECRET_BYTES = 32;
 
 /** @throws {Error} when required public configuration is missing or invalid. */
 export function getPublicEnvironment() {
-  const googleClientId = required("GOOGLE_CLIENT_ID");
-  const homegate = httpsOrigin(required("HOMEGATE_URL"), "HOMEGATE_URL");
+  const googleClientId = requireEnvironmentVariable("GOOGLE_CLIENT_ID");
+  const homegate = parseHttpsOrigin(requireEnvironmentVariable("HOMEGATE_URL"), "HOMEGATE_URL");
 
   const homeserverConnectOrigins = [
     ...new Set(
-      required("PUBKY_HOMESERVER_CONNECT_ORIGINS")
+      requireEnvironmentVariable("PUBKY_HOMESERVER_CONNECT_ORIGINS")
         .split(",")
         .map((value) => {
-          const origin = httpsOrigin(value.trim(), "PUBKY_HOMESERVER_CONNECT_ORIGINS");
+          const origin = parseHttpsOrigin(value.trim(), "PUBKY_HOMESERVER_CONNECT_ORIGINS");
           return origin.origin;
         }),
     ),
@@ -31,12 +31,12 @@ export function getPublicEnvironment() {
 
 /** @throws {Error} when the server keyring configuration is missing or invalid. */
 export function getServerEnvironment() {
-  const currentKeyId = required("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID");
+  const currentKeyId = requireEnvironmentVariable("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID");
   if (!PASSPORT_KEY_ID_PATTERN.test(currentKeyId)) {
     throw new Error("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID is invalid.");
   }
 
-  const keyringJson = required("PASSPORT_SERVER_SECRET_KEYRING_JSON");
+  const keyringJson = requireEnvironmentVariable("PASSPORT_SERVER_SECRET_KEYRING_JSON");
   let keyring: unknown;
   try {
     keyring = JSON.parse(keyringJson);
@@ -53,8 +53,8 @@ export function getServerEnvironment() {
     if (!PASSPORT_KEY_ID_PATTERN.test(keyId) || typeof encoded !== "string") {
       throw new Error("Passport server keyring contains an invalid entry.");
     }
-    const secret = Buffer.from(encoded, "base64");
-    if (secret.byteLength < MINIMUM_SERVER_SECRET_BYTES || secret.toString("base64") !== encoded) {
+    const secret = decodeCanonicalBase64(encoded);
+    if (secret === null || secret.byteLength < MINIMUM_SERVER_SECRET_BYTES) {
       throw new Error("Passport server keyring contains an invalid secret.");
     }
     secrets.set(keyId, secret);
@@ -66,13 +66,18 @@ export function getServerEnvironment() {
   return { currentKeyId, secrets };
 }
 
-function required(name: string): string {
+function requireEnvironmentVariable(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name} is required.`);
   return value;
 }
 
-function httpsOrigin(value: string, name: string): URL {
+function decodeCanonicalBase64(value: string): Buffer | null {
+  const decoded = Buffer.from(value, "base64");
+  return decoded.toString("base64") === value ? decoded : null;
+}
+
+function parseHttpsOrigin(value: string, name: string): URL {
   let url: URL;
   try {
     url = new URL(value);
