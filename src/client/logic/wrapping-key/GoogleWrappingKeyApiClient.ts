@@ -62,14 +62,14 @@ export class GoogleWrappingKeyApiClient {
         redirect: "error",
         referrerPolicy: "no-referrer",
       });
-    } catch (cause) {
+    } catch (e) {
       LOGGER.warn("identity.google.wrapping_key.failed", {
         operation: "request_google_wrapping_key",
         stage: "request",
         code: "network_failed",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
-      return Result.err({ code: "network_failed", cause });
+      return Result.err({ code: "network_failed", cause: e });
     }
 
     const contents = await readBoundedText(response, MAXIMUM_JSON_BODY_BYTES);
@@ -94,8 +94,8 @@ export class GoogleWrappingKeyApiClient {
       let parseCause: unknown;
       try {
         body = JSON.parse(responseText);
-      } catch (cause) {
-        parseCause = cause;
+      } catch (e) {
+        parseCause = e;
       }
       const parsed = ERROR_SCHEMA.safeParse(body);
       const code = parsed.success ? parsed.data.error.code : "invalid_response";
@@ -115,8 +115,8 @@ export class GoogleWrappingKeyApiClient {
     let body: unknown;
     try {
       body = JSON.parse(responseText);
-    } catch (cause) {
-      const responseError = new Error("Wrapping-key response must be valid JSON.", { cause });
+    } catch (e) {
+      const responseError = new Error("Wrapping-key response must be valid JSON.", { cause: e });
       LOGGER.warn("identity.google.wrapping_key.failed", {
         operation: "request_google_wrapping_key",
         stage: "response_parse",

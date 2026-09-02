@@ -21,15 +21,15 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   let config: ReturnType<typeof getPublicEnvironment>;
   try {
     config = getPublicEnvironment();
-  } catch (cause) {
+  } catch (e) {
     LOGGER.error("layout.bootstrap.failed", {
       layer: "layout",
       operation: "bootstrap",
       stage: "configuration",
       code: "invalid_configuration",
-      ...safeErrorLogFields(cause),
+      ...safeErrorLogFields(e),
     });
-    throw new Error("Application configuration unavailable.", { cause });
+    throw new Error("Application configuration unavailable.", { cause: e });
   }
 
   return (

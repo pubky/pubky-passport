@@ -127,9 +127,9 @@ export class PubkySdkAdapter {
       const migration = new PubkyRingMigration(keypair);
       keypair = undefined;
       return Result.ok(migration);
-    } catch (cause) {
+    } catch (e) {
       cleanup("create_pubky_ring_migration", "keypair_free", () => keypair?.free());
-      return failure("create_pubky_ring_migration", "sdk_export", "export_failed", cause);
+      return failure("create_pubky_ring_migration", "sdk_export", "export_failed", e);
     } finally {
       clearSecretKey(secretKey, "create_pubky_ring_migration");
     }
@@ -142,8 +142,8 @@ export class PubkySdkAdapter {
 
     try {
       return this.registerKeypair("create_identity_key", Keypair.random());
-    } catch (cause) {
-      return failure("create_identity_key", "sdk_create", "create_failed", cause);
+    } catch (e) {
+      return failure("create_identity_key", "sdk_create", "create_failed", e);
     }
   }
 
@@ -163,8 +163,8 @@ export class PubkySdkAdapter {
 
     try {
       return this.registerKeypair("restore_identity_key", Keypair.fromSecret(secretKey.bytes));
-    } catch (cause) {
-      return failure("restore_identity_key", "sdk_restore", "restore_failed", cause);
+    } catch (e) {
+      return failure("restore_identity_key", "sdk_restore", "restore_failed", e);
     } finally {
       clearSecretKey(secretKey);
     }
@@ -204,8 +204,8 @@ export class PubkySdkAdapter {
         );
       }
       return Result.ok(keypair.createRecoveryFile(passphrase));
-    } catch (cause) {
-      return failure("create_recovery_file", "sdk_recovery_file", "recovery_file_failed", cause);
+    } catch (e) {
+      return failure("create_recovery_file", "sdk_recovery_file", "recovery_file_failed", e);
     } finally {
       clearSecretKey(secretKey, "create_recovery_file");
       cleanup("create_recovery_file", "keypair_free", () => keypair?.free());
@@ -232,8 +232,8 @@ export class PubkySdkAdapter {
         bytes: keypair.secret(),
         format: PUBKY_SECRET_KEY_FORMAT,
       });
-    } catch (cause) {
-      return failure("export_secret_key", "sdk_export", "export_failed", cause);
+    } catch (e) {
+      return failure("export_secret_key", "sdk_export", "export_failed", e);
     }
   }
 
@@ -262,17 +262,17 @@ export class PubkySdkAdapter {
       }
 
       return Result.ok({ publicIdentity: identity.value });
-    } catch (error) {
-      const status = requestStatus(error);
+    } catch (e) {
+      const status = requestStatus(e);
       return failure(
         "signup",
         "sdk_signup",
         status === 409
           ? "account_exists"
-          : isDefinitiveSignupRejection(error, status)
+          : isDefinitiveSignupRejection(e, status)
             ? "signup_failed"
             : "signup_uncertain",
-        error,
+        e,
       );
     } finally {
       cleanup("signup", "homeserver_free", () => homeserver.value.free());
@@ -300,8 +300,8 @@ export class PubkySdkAdapter {
       } finally {
         await session.signout();
       }
-    } catch (error) {
-      return failure("signin", "sdk_signin", "signin_failed", error);
+    } catch (e) {
+      return failure("signin", "sdk_signin", "signin_failed", e);
     } finally {
       cleanup("signin", "session_free", () => session?.free());
     }
@@ -315,8 +315,8 @@ export class PubkySdkAdapter {
     try {
       homeserver = await this.pubky.getHomeserverOf(identity.value);
       return Result.ok(homeserver?.z32() ?? null);
-    } catch (cause) {
-      return failure("resolve_homeserver", "sdk_resolution", "resolution_failed", cause);
+    } catch (e) {
+      return failure("resolve_homeserver", "sdk_resolution", "resolution_failed", e);
     } finally {
       cleanup("resolve_homeserver", "homeserver_free", () => homeserver?.free());
       cleanup("resolve_homeserver", "public_key_free", () => identity.value.free());
@@ -342,8 +342,8 @@ export class PubkySdkAdapter {
       );
 
       return Result.ok();
-    } catch (cause) {
-      return failure("approve_auth_request", "sdk_approval", "approval_failed", cause);
+    } catch (e) {
+      return failure("approve_auth_request", "sdk_approval", "approval_failed", e);
     }
   }
 
@@ -404,8 +404,8 @@ export class PubkySdkAdapter {
       });
 
       return Result.ok();
-    } catch (error) {
-      return failure("publish_homeserver", "sdk_publish", "publish_failed", error);
+    } catch (e) {
+      return failure("publish_homeserver", "sdk_publish", "publish_failed", e);
     } finally {
       if (!transferredToSdk) {
         cleanup("publish_homeserver", "homeserver_free", () => homeserver.value?.free());
@@ -457,8 +457,8 @@ function publicIdentity(
     } finally {
       cleanup(operation, "public_key_free", () => publicKey.free());
     }
-  } catch (cause) {
-    return Result.err({ code: "public_identity_failed", cause });
+  } catch (e) {
+    return Result.err({ code: "public_identity_failed", cause: e });
   }
 }
 
@@ -638,12 +638,12 @@ function isDefinitiveSignupRejection(error: unknown, status: number | undefined)
 function cleanup(operation: PubkyOperation, stage: PubkyCleanupStage, action: () => void): void {
   try {
     action();
-  } catch (cause) {
+  } catch (e) {
     LOGGER.warn("identity.pubky.cleanup.failed", {
       operation,
       stage,
       code: "cleanup_failed",
-      ...safeErrorLogFields(cause),
+      ...safeErrorLogFields(e),
     });
   }
 }

@@ -154,11 +154,11 @@ export class PassportAuthorizationController {
         outcome,
         this.abortController.signal,
       );
-    } catch (cause) {
+    } catch (e) {
       LOGGER.warn("authorize.callback.failed", {
         outcome,
         operation: "complete",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
       return this.update(localStateForOutcome(outcome));
     }
@@ -176,10 +176,10 @@ export class PassportAuthorizationController {
     for (const listener of this.listeners) {
       try {
         listener(state);
-      } catch (cause) {
+      } catch (e) {
         LOGGER.warn("authorize.state_listener.failed", {
           state: state.status,
-          ...safeErrorLogFields(cause),
+          ...safeErrorLogFields(e),
         });
       }
     }

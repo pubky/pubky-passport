@@ -51,13 +51,13 @@ export async function googleWrappingKeyPost(
     }
 
     return jsonResponse(result.value, 200);
-  } catch (cause) {
+  } catch (e) {
     LOGGER.error("identity.google.wrapping_key.failed", {
       route: "api.wrapping_key.google",
       layer: "route",
       operation,
       code: "internal_error",
-      ...safeErrorLogFields(cause),
+      ...safeErrorLogFields(e),
     });
     return jsonResponse({ error: { code: "internal_error" } }, 500);
   }

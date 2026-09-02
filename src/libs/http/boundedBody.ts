@@ -71,19 +71,19 @@ export async function readBoundedBytes(
     }
 
     return Result.ok(bytes);
-  } catch (cause) {
+  } catch (e) {
     return Result.err({
       code: "body_unavailable",
-      cause: new Error("Failed to read response body.", { cause }),
+      cause: new Error("Failed to read response body.", { cause: e }),
     });
   } finally {
     try {
       reader?.releaseLock();
-    } catch (cause) {
+    } catch (e) {
       LOGGER.warn("http.body_read.failed", {
         operation: "release",
         code: "body_unavailable",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
     }
   }

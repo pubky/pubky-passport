@@ -57,8 +57,8 @@ export async function fetchDrive(
         referrerPolicy: "no-referrer",
       }),
     );
-  } catch (cause) {
-    return Result.err({ code: "network_failed", cause });
+  } catch (e) {
+    return Result.err({ code: "network_failed", cause: e });
   }
 }
 
@@ -71,10 +71,10 @@ export async function readDriveJson(response: Response): Promise<DriveJsonResult
   if (Result.isError(contents)) return Result.err(contents.error);
   try {
     return Result.ok(JSON.parse(contents.value));
-  } catch (cause) {
+  } catch (e) {
     return Result.err({
       code: "invalid_json",
-      cause: new Error("Google Drive response must be valid JSON.", { cause }),
+      cause: new Error("Google Drive response must be valid JSON.", { cause: e }),
     });
   }
 }

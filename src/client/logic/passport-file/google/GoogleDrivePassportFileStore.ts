@@ -184,13 +184,13 @@ export class GoogleDrivePassportFileStore {
     if (requestLock === null) return create();
     try {
       return await requestLock(CREATE_PASSPORT_FILE_LOCK_NAME, create);
-    } catch (cause) {
+    } catch (e) {
       LOGGER.warn("identity.google.drive_store.failed", {
         operation: "create_lock",
         code: "write_failed",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
-      return Result.err({ code: "write_failed", cause });
+      return Result.err({ code: "write_failed", cause: e });
     }
   }
 

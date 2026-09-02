@@ -31,14 +31,14 @@ export function proxy(request: NextRequest) {
     const response = NextResponse.next({ request: { headers: requestHeaders } });
     response.headers.set("Content-Security-Policy", contentSecurityPolicy);
     return response;
-  } catch (cause) {
+  } catch (e) {
     LOGGER.error("proxy.bootstrap.failed", {
       layer: "proxy",
       operation: "build_response_policy",
       code: "runtime_exception",
-      ...safeErrorLogFields(cause),
+      ...safeErrorLogFields(e),
     });
-    throw new Error("Proxy configuration unavailable.", { cause });
+    throw new Error("Proxy configuration unavailable.", { cause: e });
   }
 }
 

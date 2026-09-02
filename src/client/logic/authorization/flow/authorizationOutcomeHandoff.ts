@@ -45,8 +45,8 @@ export async function handoffAuthorizationOutcome(
       }),
       targetOrigin,
     );
-  } catch (cause) {
-    logHandoffFailure("post_message", cause);
+  } catch (e) {
+    logHandoffFailure("post_message", e);
     acknowledgement.cancel();
     return navigationStatus(appWindow, callback);
   }
@@ -75,18 +75,18 @@ function waitForAcknowledgement(
   const cleanup = () => {
     try {
       appWindow.removeEventListener("message", onMessage);
-    } catch (cause) {
-      logHandoffFailure("remove_message_listener", cause);
+    } catch (e) {
+      logHandoffFailure("remove_message_listener", e);
     }
     try {
       signal.removeEventListener("abort", onAbort);
-    } catch (cause) {
-      logHandoffFailure("remove_abort_listener", cause);
+    } catch (e) {
+      logHandoffFailure("remove_abort_listener", e);
     }
     try {
       if (timeoutId !== undefined) appWindow.clearTimeout(timeoutId);
-    } catch (cause) {
-      logHandoffFailure("clear_acknowledgement_timeout", cause);
+    } catch (e) {
+      logHandoffFailure("clear_acknowledgement_timeout", e);
     }
   };
   const settle = (acknowledged: boolean) => {
@@ -164,8 +164,8 @@ function navigationStatus(appWindow: Window, callback: string): AuthorizationHan
   try {
     appWindow.location.replace(callback);
     return "navigated";
-  } catch (cause) {
-    logHandoffFailure("navigate", cause);
+  } catch (e) {
+    logHandoffFailure("navigate", e);
     return "unavailable";
   }
 }

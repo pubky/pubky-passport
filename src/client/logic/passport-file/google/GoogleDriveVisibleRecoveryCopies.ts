@@ -189,13 +189,13 @@ export class GoogleDriveVisibleRecoveryCopies {
       }
 
       return Result.ok();
-    } catch (cause) {
+    } catch (e) {
       LOGGER.warn("identity.google.visible_recovery_copies.failed", {
         operation: "delete_visible_copies",
         code: "network_failed",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
-      return Result.err({ code: "network_failed", cause });
+      return Result.err({ code: "network_failed", cause: e });
     }
   }
 
@@ -217,13 +217,13 @@ export class GoogleDriveVisibleRecoveryCopies {
     if (requestLock === null) return create();
     try {
       return await requestLock(CREATE_VISIBLE_FOLDER_LOCK_NAME, create);
-    } catch (cause) {
+    } catch (e) {
       LOGGER.warn("identity.google.visible_recovery_copies.failed", {
         operation: "create_folder_lock",
         code: "write_failed",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
-      return Result.err({ code: "write_failed", cause });
+      return Result.err({ code: "write_failed", cause: e });
     }
   }
 
