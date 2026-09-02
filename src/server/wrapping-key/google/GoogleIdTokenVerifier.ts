@@ -9,7 +9,7 @@ import type { CodedFailure } from "../../../libs/result";
 export const CANONICAL_GOOGLE_ISSUER = "https://accounts.google.com";
 
 export type VerifiedGoogleIdentity = {
-  issuer: typeof CANONICAL_GOOGLE_ISSUER;
+  issuer: "https://accounts.google.com";
   googleSubject: string;
 };
 
@@ -83,7 +83,7 @@ export class GoogleIdTokenVerifier {
       return Result.err({ code: "invalid_google_id_token" });
     }
 
-    const result = validatePayload(payload, this.audience);
+    const result = this.validatePayload(payload);
     if (Result.isError(result)) {
       LOGGER.warn("identity.google.id_token_verification.failed", {
         operation: "validate_claims",
@@ -92,39 +92,36 @@ export class GoogleIdTokenVerifier {
     }
     return result;
   }
-}
 
-function validatePayload(
-  payload: GoogleIdTokenPayload,
-  expectedAudience: string,
-): GoogleIdTokenVerificationResult {
-  if (payload.iss !== "accounts.google.com" && payload.iss !== CANONICAL_GOOGLE_ISSUER) {
-    return Result.err({ code: "invalid_google_id_token" });
+  private validatePayload(payload: GoogleIdTokenPayload): GoogleIdTokenVerificationResult {
+    if (payload.iss !== "accounts.google.com" && payload.iss !== CANONICAL_GOOGLE_ISSUER) {
+      return Result.err({ code: "invalid_google_id_token" });
+    }
+
+    if (!audienceMatches(payload.aud, payload.azp, this.audience)) {
+      return Result.err({ code: "invalid_google_id_token" });
+    }
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (
+      typeof payload.exp !== "number" ||
+      !Number.isFinite(payload.exp) ||
+      payload.exp <= nowSeconds
+    ) {
+      return Result.err({ code: "invalid_google_id_token" });
+    }
+
+    if (!payload.sub?.trim()) {
+      return Result.err({ code: "invalid_google_id_token" });
+    }
+
+    return Result.ok(
+      Object.freeze({
+        issuer: CANONICAL_GOOGLE_ISSUER,
+        googleSubject: payload.sub,
+      }),
+    );
   }
-
-  if (!audienceMatches(payload.aud, payload.azp, expectedAudience)) {
-    return Result.err({ code: "invalid_google_id_token" });
-  }
-
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  if (
-    typeof payload.exp !== "number" ||
-    !Number.isFinite(payload.exp) ||
-    payload.exp <= nowSeconds
-  ) {
-    return Result.err({ code: "invalid_google_id_token" });
-  }
-
-  if (!payload.sub?.trim()) {
-    return Result.err({ code: "invalid_google_id_token" });
-  }
-
-  return Result.ok(
-    Object.freeze({
-      issuer: CANONICAL_GOOGLE_ISSUER,
-      googleSubject: payload.sub,
-    }),
-  );
 }
 
 function audienceMatches(
