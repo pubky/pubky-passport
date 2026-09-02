@@ -49,10 +49,10 @@ function useGoogleIdentityEstablishment() {
       );
       controllerRef.current = controller;
       return controller;
-    } catch (cause) {
+    } catch (e) {
       LOGGER.warn("identity.google.establishment_ui.failed", {
         operation: "construct_controller",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
       setView({ status: "failed", error: { code: "operation_failed" } });
       return null;
@@ -95,11 +95,11 @@ function useGoogleIdentityEstablishment() {
                 : null,
           });
         })
-        .catch((cause: unknown) => {
+        .catch((e: unknown) => {
           LOGGER.warn("identity.google.establishment_ui.failed", {
             operation,
             stage: "operation_promise",
-            ...safeErrorLogFields(cause),
+            ...safeErrorLogFields(e),
           });
           if (controllerRef.current === controller && operationIdRef.current === operationId) {
             setView({ status: "failed", error: { code: "operation_failed" } });
@@ -128,10 +128,10 @@ function useGoogleIdentityEstablishment() {
       controllerRef.current = null;
       try {
         controller.dispose();
-      } catch (cause) {
+      } catch (e) {
         LOGGER.warn("identity.google.cleanup.failed", {
           operation: "establishment_controller_dispose",
-          ...safeErrorLogFields(cause),
+          ...safeErrorLogFields(e),
         });
       }
     };

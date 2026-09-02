@@ -50,12 +50,12 @@ function AuthorizationQrScanner({ onClose, onScan }: AuthorizationQrScannerProps
         }
         controls = activeControls;
         setStatus("scanning");
-      } catch (cause) {
+      } catch (e) {
         if (disposed) return;
         LOGGER.info("authorize.manual_entry.failed", {
           operation: "scan_qr",
           code: "camera_unavailable",
-          ...safeErrorLogFields(cause),
+          ...safeErrorLogFields(e),
         });
         setStatus("unavailable");
       }

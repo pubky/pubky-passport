@@ -131,13 +131,13 @@ export class PassportFileWebCrypto {
         ct: encodeBase64Url(new Uint8Array(ciphertext)),
         url: origin.value,
       });
-    } catch (cause) {
+    } catch (e) {
       LOGGER.warn("passport_file.crypto.failed", {
         operation: "encrypt",
         code: "encrypt_failed",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
-      return Result.err({ code: "encrypt_failed", cause });
+      return Result.err({ code: "encrypt_failed", cause: e });
     } finally {
       clearArrayBuffer(plaintext);
       wrappingMaterial.fill(0);
@@ -253,13 +253,13 @@ export class PassportFileWebCrypto {
       }
 
       return Result.ok(secretKeyBytes);
-    } catch (cause) {
+    } catch (e) {
       LOGGER.warn("passport_file.crypto.failed", {
         operation: "decrypt",
         code: "decrypt_failed",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
-      return Result.err({ code: "decrypt_failed", cause });
+      return Result.err({ code: "decrypt_failed", cause: e });
     } finally {
       wrappingMaterial.fill(0);
     }
@@ -287,8 +287,8 @@ export class PassportFileWebCrypto {
           ["encrypt", "decrypt"],
         ),
       );
-    } catch (cause) {
-      return Result.err({ code: "unsupported_browser_crypto", cause });
+    } catch (e) {
+      return Result.err({ code: "unsupported_browser_crypto", cause: e });
     } finally {
       clearArrayBuffer(wrappingMaterial);
     }
@@ -302,8 +302,8 @@ function getBrowserCrypto(): BrowserCryptoResult {
     return crypto && subtle
       ? Result.ok({ crypto, subtle })
       : Result.err({ code: "unsupported_browser_crypto" });
-  } catch (cause) {
-    return Result.err({ code: "unsupported_browser_crypto", cause });
+  } catch (e) {
+    return Result.err({ code: "unsupported_browser_crypto", cause: e });
   }
 }
 
