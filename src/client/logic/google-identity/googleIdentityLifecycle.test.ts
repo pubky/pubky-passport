@@ -88,7 +88,7 @@ vi.mock("../passport-file/google/GoogleDriveVisibleRecoveryCopies", () => ({
   },
 }));
 
-import { GoogleIdentityOperations, type GoogleIdentityProgress } from "./GoogleIdentityOperations";
+import { GoogleIdentityLifecycle, type GoogleIdentityProgress } from "./GoogleIdentityLifecycle";
 
 const PUBLIC_IDENTITY = {
   publicKeyZ32: "public-identity",
@@ -840,8 +840,8 @@ describe("Google identity use cases", () => {
   });
 });
 
-function createSubject(): GoogleIdentityOperations {
-  return new GoogleIdentityOperations("https://homegate.example/", "https://passport.pubky.app");
+function createSubject(): GoogleIdentityLifecycle {
+  return new GoogleIdentityLifecycle("https://homegate.example/", "https://passport.pubky.app");
 }
 
 function foundPassportFile(): void {
