@@ -13,7 +13,7 @@ import { ParserTimeScripts } from "./parserTimeScripts";
 
 export const metadata: Metadata = {
   title: "Pubky Passport",
-  description: "Google-backed Pubky Passport authorization app.",
+  description: "Your keychain for the web.",
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
