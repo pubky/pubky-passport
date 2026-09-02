@@ -438,7 +438,7 @@ describe("IdentityEstablishmentFlow", () => {
       mockGoogleIdentityController({
         establishIdentity: vi.fn(async () =>
           Result.err({
-            code: "homeserver_signup_invitation_failed" as const,
+            code: "homeserver_signup_token_failed" as const,
             detailCode: "weekly_limit_exceeded" as const,
           }),
         ),
@@ -448,17 +448,12 @@ describe("IdentityEstablishmentFlow", () => {
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(
-      await screen.findByText("Passport could not obtain a homeserver invitation."),
-    ).toHaveClass("hidden", "md:inline");
-    expect(
-      screen.getByText("Passport could not obtain a homeserver signup invitation."),
-    ).toHaveClass("md:hidden");
+      await screen.findByText("Passport could not obtain a homeserver signup token."),
+    ).toBeInTheDocument();
     const errorDetails = screen.getByRole("group", { name: "Error" });
     expect(errorDetails).toHaveClass("border-dashed", "border-input", "min-h-14");
     expect(errorDetails).not.toContainElement(screen.getByText("Error"));
-    expect(
-      within(errorDetails).getByText("homeserver_signup_invitation_failed"),
-    ).toBeInTheDocument();
+    expect(within(errorDetails).getByText("homeserver_signup_token_failed")).toBeInTheDocument();
     expect(within(errorDetails).getByText("weekly_limit_exceeded")).toBeInTheDocument();
     const mobileActions = screen.getByRole("group", { name: "Mobile error actions" });
     const desktopActions = screen.getByRole("group", { name: "Desktop error actions" });

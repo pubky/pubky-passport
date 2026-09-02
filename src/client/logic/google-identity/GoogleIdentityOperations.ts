@@ -9,8 +9,8 @@ import type { CodedFailure } from "../../../libs/result";
 import type { GoogleIdentityCredentials } from "./gia/GoogleImplicitAuthorization";
 import {
   HomegateClient,
-  type HomegateSignupInvitationErrorCode,
-  type HomeserverSignupInvitation,
+  type HomegateSignupTokenErrorCode,
+  type HomeserverSignupDetails,
 } from "../homegate/HomegateClient";
 import { GoogleDrivePassportFileStore } from "../passport-file/google/GoogleDrivePassportFileStore";
 import { GoogleDriveVisibleRecoveryCopies } from "../passport-file/google/GoogleDriveVisibleRecoveryCopies";
@@ -62,8 +62,8 @@ type GoogleIdentityEstablishmentError =
       cause?: unknown;
     }
   | {
-      code: "homeserver_signup_invitation_failed";
-      detailCode: HomegateSignupInvitationErrorCode;
+      code: "homeserver_signup_token_failed";
+      detailCode: HomegateSignupTokenErrorCode;
       cause?: unknown;
     }
   | CodedFailure<
@@ -186,8 +186,8 @@ export class GoogleIdentityOperations {
       report({ flow: "create", step: "preparing" });
       const wrappingKey = await this.requestWrappingKey(credentials.googleIdToken);
       if (Result.isError(wrappingKey)) return Result.err(wrappingKey.error);
-      const invitation = await this.requestSignupInvitation(credentials.googleIdToken);
-      if (Result.isError(invitation)) return Result.err(invitation.error);
+      const signupDetails = await this.requestSignupToken(credentials.googleIdToken);
+      if (Result.isError(signupDetails)) return Result.err(signupDetails.error);
 
       report({ flow: "create", step: "creating" });
       const visibleCopies = new GoogleDriveVisibleRecoveryCopies(
@@ -196,7 +196,7 @@ export class GoogleIdentityOperations {
       );
       return this.createIdentity(
         credentials.googleAccount,
-        invitation.value,
+        signupDetails.value,
         wrappingKey.value.wrappingKey,
         wrappingKey.value.keyId,
         report,
@@ -292,7 +292,7 @@ export class GoogleIdentityOperations {
    */
   private async createIdentity(
     googleAccount: GoogleAccountProfile,
-    invitation: HomeserverSignupInvitation,
+    signupDetails: HomeserverSignupDetails,
     wrappingKey: string,
     keyId: string,
     report: (progress: GoogleIdentityProgress) => void,
@@ -358,7 +358,7 @@ export class GoogleIdentityOperations {
 
       const activated = await this.signupAndActivate(
         created.value,
-        invitation,
+        signupDetails,
         googleAccount,
         report,
       );
@@ -418,11 +418,11 @@ export class GoogleIdentityOperations {
       }
 
       report({ flow: "repair", step: "signing_up" });
-      const invitation = await this.requestSignupInvitation(credentials.googleIdToken);
-      if (Result.isError(invitation)) return Result.err(invitation.error);
+      const signupDetails = await this.requestSignupToken(credentials.googleIdToken);
+      if (Result.isError(signupDetails)) return Result.err(signupDetails.error);
       const activated = await this.signupAndActivate(
         restored.value,
-        invitation.value,
+        signupDetails.value,
         credentials.googleAccount,
         report,
         true,
@@ -470,7 +470,7 @@ export class GoogleIdentityOperations {
    */
   private async signupAndActivate(
     identity: PubkyIdentityKey,
-    invitation: HomeserverSignupInvitation,
+    signupDetails: HomeserverSignupDetails,
     googleAccount: GoogleAccountProfile,
     report: (progress: GoogleIdentityProgress) => void,
     isReconciliation = false,
@@ -479,8 +479,8 @@ export class GoogleIdentityOperations {
     LOGGER.info("identity.google.signup.started");
     const signedUp = await this.pubky.signup(
       identity.keyHandle,
-      invitation.homeserverPubky,
-      invitation.signupCode,
+      signupDetails.homeserverPubky,
+      signupDetails.signupToken,
     );
     if (
       Result.isError(signedUp) &&
@@ -503,7 +503,7 @@ export class GoogleIdentityOperations {
     LOGGER.info("identity.google.publication.started");
     const published = await this.pubky.publishHomeserver(
       identity.keyHandle,
-      invitation.homeserverPubky,
+      signupDetails.homeserverPubky,
     );
     if (Result.isError(published) && published.error.code !== "publish_failed") {
       return Result.err({ code: "publication_failed", cause: published.error });
@@ -571,20 +571,20 @@ export class GoogleIdentityOperations {
     }
   }
 
-  private async requestSignupInvitation(
+  private async requestSignupToken(
     googleIdToken: string,
-  ): Promise<OperationResult<HomeserverSignupInvitation>> {
-    LOGGER.info("identity.google.homeserver_signup_invitation.started");
-    const invitation = await this.homegate.requestGoogleSignupInvitation(googleIdToken);
-    if (Result.isError(invitation)) {
+  ): Promise<OperationResult<HomeserverSignupDetails>> {
+    LOGGER.info("identity.google.homeserver_signup_token.started");
+    const signupDetails = await this.homegate.requestGoogleSignupToken(googleIdToken);
+    if (Result.isError(signupDetails)) {
       return Result.err({
-        code: "homeserver_signup_invitation_failed",
-        detailCode: invitation.error.code,
-        cause: invitation.error,
+        code: "homeserver_signup_token_failed",
+        detailCode: signupDetails.error.code,
+        cause: signupDetails.error,
       });
     }
-    LOGGER.info("identity.google.homeserver_signup_invitation.completed");
-    return Result.ok(invitation.value);
+    LOGGER.info("identity.google.homeserver_signup_token.completed");
+    return Result.ok(signupDetails.value);
   }
 
   private async requestWrappingKey(

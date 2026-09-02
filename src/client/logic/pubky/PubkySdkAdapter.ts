@@ -240,7 +240,7 @@ export class PubkySdkAdapter {
   async signup(
     keyHandle: PubkyIdentityKeyHandle,
     homeserverPubky: string,
-    signupCode?: string | null,
+    signupToken?: string | null,
   ): Promise<PubkySessionAccessResult<PubkyAuthenticatedIdentity>> {
     const keypair = this.keypairFor(keyHandle);
     if (!keypair) {
@@ -254,7 +254,7 @@ export class PubkySdkAdapter {
 
     try {
       await this.withSigner("signup", keypair, (signer) =>
-        signer.signup(homeserver.value, signupCode ?? null),
+        signer.signup(homeserver.value, signupToken ?? null),
       );
       const identity = publicIdentity("signup", keypair);
       if (Result.isError(identity)) {

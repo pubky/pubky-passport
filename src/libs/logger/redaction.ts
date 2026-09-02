@@ -32,6 +32,7 @@ const SENSITIVE_TOKEN_KEYS = [
   "serverSecretBase64",
   "PASSPORT_SERVER_SECRET_KEYRING_JSON",
   "signupCode",
+  "signupToken",
   "secretKey",
   "privateKey",
   "keyMaterial",
