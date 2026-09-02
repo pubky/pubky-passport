@@ -8,7 +8,6 @@ import {
 } from "../../../../libs/authorization/earlyGoogleImplicitResponse";
 import { decodeBase64Url } from "../../../../libs/encoding/base64Url";
 import { MAXIMUM_JSON_BODY_BYTES } from "../../../../libs/passportPolicy";
-import type { CodedFailure } from "../../../../libs/result";
 
 const GOOGLE_DRIVE_APP_DATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
 const GOOGLE_DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
@@ -38,9 +37,9 @@ type ParsedGoogleAuthorizationResponse = {
   googleSubject: string;
 };
 
-type GoogleAuthorizationResponseError = CodedFailure<
-  "google_authorization_denied" | "google_authorization_failed"
->;
+type GoogleAuthorizationResponseError = {
+  code: "google_authorization_denied" | "google_authorization_failed";
+};
 
 /** Pure validation of the captured OAuth fragment and ID-token binding fields. */
 export function parseGoogleAuthorizationResponse(
@@ -56,18 +55,18 @@ export function parseGoogleAuthorizationResponse(
     capture.hash.length === 0 ||
     capture.hash.length > EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS
   ) {
-    return authorizationFailure("Google authorization response capture is invalid.");
+    return Result.err({ code: "google_authorization_failed" });
   }
 
   const params = new URLSearchParams(capture.hash.slice(1));
   const state = oneValue(params, "state");
   if (params.has("error")) {
     if (state !== expectedState) {
-      return authorizationFailure("Google authorization response state does not match.");
+      return Result.err({ code: "google_authorization_failed" });
     }
     return oneValue(params, "error") === "access_denied"
       ? Result.err({ code: "google_authorization_denied" })
-      : authorizationFailure("Google authorization provider returned an OAuth error.");
+      : Result.err({ code: "google_authorization_failed" });
   }
 
   const googleIdToken = oneValue(params, "id_token");
@@ -79,20 +78,15 @@ export function parseGoogleAuthorizationResponse(
     !boundedToken(accessToken) ||
     !hasAllowedScopes(scope)
   ) {
-    return authorizationFailure("Google authorization response fields are invalid.");
+    return Result.err({ code: "google_authorization_failed" });
   }
 
   const googleSubject = readIdTokenSubject(googleIdToken, expectedNonce);
   return googleSubject
     ? Result.ok({ accessToken, googleIdToken, googleSubject })
-    : authorizationFailure("Google ID token binding fields are invalid.");
+    : Result.err({ code: "google_authorization_failed" });
 }
 
-function authorizationFailure(
-  message: string,
-): ResultType<never, GoogleAuthorizationResponseError> {
-  return Result.err({ code: "google_authorization_failed", cause: new Error(message) });
-}
 function readIdTokenSubject(token: string, expectedNonce: string): string | null {
   const segments = token.split(".");
   if (segments.length !== 3 || !segments[1]) return null;
