@@ -37,6 +37,7 @@ export type GoogleWrappingKeyResult = Result<
   { code: GoogleWrappingKeyErrorCode; cause: unknown; httpStatus?: number }
 >;
 
+/** Requests account-bound Passport wrapping keys from the same-origin server endpoint. */
 export class GoogleWrappingKeyApiClient {
   constructor(private readonly fetch: typeof globalThis.fetch) {}
 

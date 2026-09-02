@@ -41,7 +41,12 @@ type GoogleAuthorizationResponseError = {
   code: "google_authorization_denied" | "google_authorization_failed";
 };
 
-/** Pure validation of the captured OAuth fragment and ID-token binding fields. */
+/**
+ * Validates the captured OAuth fragment and its state, scope, and ID-token bindings.
+ *
+ * Invalid or malformed input is returned as a failure Result. This function does not
+ * intentionally throw.
+ */
 export function parseGoogleAuthorizationResponse(
   capture: unknown,
   expectedState: string,

@@ -11,8 +11,8 @@ import { GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE } from "../../../../libs/authoriz
 import {
   GOOGLE_AUTHORIZATION_SCOPE,
   parseGoogleAuthorizationResponse,
-} from "./googleAuthorizationResponse";
-import { fetchGoogleAccountProfile } from "./googleProfileFetcher";
+} from "./parseGoogleAuthorizationResponse";
+import { fetchGoogleAccountProfile } from "./fetchGoogleAccountProfile";
 
 /** Short-lived credentials produced by one complete Google authorization. */
 export type GoogleIdentityCredentials = {
@@ -47,6 +47,17 @@ type AuthorizationAttempt = {
   timeout?: ReturnType<typeof setTimeout>;
 };
 
+/**
+ * Coordinates Passport's browser-based Google OAuth 2.0 implicit authorization flow.
+ *
+ * In this flow Google returns an ID token and access token directly in the redirect fragment,
+ * without a separate authorization-code exchange. Each request opens a Google consent popup,
+ * validates the same-origin relayed fragment against its state and nonce, and binds the returned
+ * credentials to Google UserInfo. Only one authorization attempt may be active at a time.
+ *
+ * Call {@link dispose} to settle an active request and release its popup, listeners, timers, and
+ * in-flight profile request.
+ */
 export class GoogleImplicitAuthorization {
   private activeAttempt: AuthorizationAttempt | null = null;
 
@@ -56,7 +67,8 @@ export class GoogleImplicitAuthorization {
    * Runs one Google authorization attempt.
    *
    * The promise settles with a Result for setup, popup, provider-response, and UserInfo
-   * failures. It does not intentionally reject.
+   * failures. It does not intentionally reject. Passing a login hint asks Google to select that
+   * account but does not replace the ID-token and UserInfo account-binding checks.
    */
   request(
     loginHint?: string,
@@ -160,6 +172,7 @@ export class GoogleImplicitAuthorization {
     }
   }
 
+  /** Settles any active request as failed and releases all resources owned by the attempt. */
   dispose(): void {
     const attempt = this.activeAttempt;
     if (attempt) {

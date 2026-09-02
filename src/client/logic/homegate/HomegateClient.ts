@@ -41,6 +41,7 @@ const INVITATION_SCHEMA = z
   })
   .strict();
 
+/** Exchanges Google identity assertions for homeserver signup invitations through Homegate. */
 export class HomegateClient {
   private readonly googleVerificationEndpoint: URL;
 

@@ -70,6 +70,8 @@ export type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityViewErro
  * Google-backed operation, and never enter UI state. Only one operation may run at
  * a time. Calling {@link dispose} cancels authorization and suppresses later UI
  * updates while allowing already-started cleanup to finish safely.
+ *
+ * Public asynchronous operations settle with a Result and do not intentionally reject.
  */
 export class GoogleIdentityController {
   private googleAuthorization: GoogleImplicitAuthorization | undefined;
@@ -85,12 +87,18 @@ export class GoogleIdentityController {
     private readonly onState: (state: GoogleIdentityViewState) => void,
   ) {}
 
-  /** Restores or creates and activates an identity. */
+  /**
+   * Restores or creates and activates an identity.
+   * The promise settles with a Result and does not intentionally reject.
+   */
   async establishIdentity(): Promise<EstablishGoogleIdentityResult> {
     return this.runIdentityEstablishment("establish");
   }
 
-  /** Permanently removes a malformed Drive file and immediately creates a replacement identity. */
+  /**
+   * Permanently removes a malformed Drive file and immediately creates a replacement identity.
+   * The promise settles with a Result and does not intentionally reject.
+   */
   async replaceInvalidPassportFile(): Promise<EstablishGoogleIdentityResult> {
     return this.runIdentityEstablishment("replace_invalid_passport_file");
   }
@@ -172,6 +180,7 @@ export class GoogleIdentityController {
   /**
    * Deletes the Google Drive Passport files first, then removes the local identity.
    * A Google Drive failure leaves the local identity untouched.
+   * The promise settles with a Result and does not intentionally reject.
    */
   async detachIdentity(
     publicIdentity: PubkyPublicIdentity,

@@ -2,7 +2,7 @@ import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { HttpResponseError } from "../../../../libs/http/HttpResponseError";
-import { fetchGoogleAccountProfile } from "./googleProfileFetcher";
+import { fetchGoogleAccountProfile } from "./fetchGoogleAccountProfile";
 
 describe("fetchGoogleAccountProfile", () => {
   afterEach(() => vi.unstubAllGlobals());

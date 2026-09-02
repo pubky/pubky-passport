@@ -22,8 +22,8 @@ type GoogleProfileFailure = {
 /**
  * Fetches and binds Google UserInfo without downloading optional avatar bytes.
  *
- * The promise settles with a Result for every anticipated request, response, parsing, and
- * binding failure. It does not intentionally reject.
+ * The promise settles with a Result for request, response, parsing, and binding failures. It
+ * does not intentionally reject.
  */
 export async function fetchGoogleAccountProfile(
   accessToken: string,

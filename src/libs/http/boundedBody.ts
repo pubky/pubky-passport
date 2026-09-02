@@ -12,7 +12,12 @@ export type BoundedBodyReadFailure = {
   cause: Error;
 };
 
-/** Reads bounded bytes and preserves operational read failures for the caller. */
+/**
+ * Reads at most `maximumBytes` and preserves operational read failures for the caller.
+ *
+ * The promise settles with a Result for unavailable, oversized, or unreadable bodies. It does
+ * not intentionally reject.
+ */
 export async function readBoundedBytes(
   source: BoundedBody,
   maximumBytes: number,
@@ -89,6 +94,12 @@ export async function readBoundedBytes(
   }
 }
 
+/**
+ * Reads a bounded response body and decodes it as UTF-8 text.
+ *
+ * The promise settles with the same failure Result as {@link readBoundedBytes}. It does not
+ * intentionally reject.
+ */
 export async function readBoundedText(
   source: BoundedBody,
   maximumBytes: number,
