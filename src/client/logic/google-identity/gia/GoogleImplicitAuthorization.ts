@@ -244,11 +244,11 @@ export class GoogleImplicitAuthorization {
     attempt: AuthorizationAttempt,
     capture: unknown,
   ): Promise<void> {
-    const result = await this.parseReturn(attempt, capture);
+    const result = await this.resolveCredentialsFromResponse(attempt, capture);
     if (this.activeAttempt === attempt) this.finish(attempt, result);
   }
 
-  private async parseReturn(
+  private async resolveCredentialsFromResponse(
     attempt: AuthorizationAttempt,
     capture: unknown,
   ): Promise<GoogleImplicitAuthorizationResult<GoogleIdentityCredentials>> {
