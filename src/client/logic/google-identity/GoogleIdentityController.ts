@@ -280,7 +280,7 @@ export class GoogleIdentityController {
         this.operationPending = false;
         LOGGER.warn("identity.google.authorization.failed", {
           operation: "request_credentials",
-          code: "dependency_unavailable",
+          code: "authorization_unavailable",
         });
         return Result.err({ code: "operation_failed" });
       }

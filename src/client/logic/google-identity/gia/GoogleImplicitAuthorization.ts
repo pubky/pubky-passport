@@ -26,7 +26,15 @@ type GoogleImplicitAuthorizationErrorCode =
   | "google_authorization_failed"
   | "google_authorization_popup_closed"
   | "google_authorization_popup_failed_to_open";
-export type GoogleImplicitAuthorizationError = CodedFailure<GoogleImplicitAuthorizationErrorCode>;
+type GoogleAuthorizationFailureReason =
+  "authorization_disposed" | "authorization_in_progress" | "authorization_timed_out";
+type GoogleAuthorizationFailure = CodedFailure<"google_authorization_failed"> & {
+  /** Safe state-only context for generic authorization failures without a thrown cause. */
+  reason?: GoogleAuthorizationFailureReason;
+};
+export type GoogleImplicitAuthorizationError =
+  | GoogleAuthorizationFailure
+  | CodedFailure<Exclude<GoogleImplicitAuthorizationErrorCode, "google_authorization_failed">>;
 export type GoogleImplicitAuthorizationResult<Success> = ResultType<
   Success,
   GoogleImplicitAuthorizationError
@@ -78,8 +86,14 @@ export class GoogleImplicitAuthorization {
         operation: "authorize",
         stage: "request",
         code: "google_authorization_failed",
+        reason: "authorization_in_progress",
       });
-      return Promise.resolve(Result.err({ code: "google_authorization_failed" }));
+      return Promise.resolve(
+        Result.err({
+          code: "google_authorization_failed",
+          reason: "authorization_in_progress",
+        }),
+      );
     }
     let popup: Window | null = null;
     try {
@@ -153,8 +167,15 @@ export class GoogleImplicitAuthorization {
               operation: "authorize",
               stage: "timeout",
               code: "google_authorization_failed",
+              reason: "authorization_timed_out",
             });
-            this.finish(attempt, Result.err({ code: "google_authorization_failed" }));
+            this.finish(
+              attempt,
+              Result.err({
+                code: "google_authorization_failed",
+                reason: "authorization_timed_out",
+              }),
+            );
           }, AUTHORIZATION_TIMEOUT_MS);
         } catch (error) {
           this.failAttempt(attempt, "attempt_setup", error);
@@ -176,7 +197,13 @@ export class GoogleImplicitAuthorization {
   dispose(): void {
     const attempt = this.activeAttempt;
     if (attempt) {
-      this.finish(attempt, Result.err({ code: "google_authorization_failed" }));
+      this.finish(
+        attempt,
+        Result.err({
+          code: "google_authorization_failed",
+          reason: "authorization_disposed",
+        }),
+      );
     }
   }
 
