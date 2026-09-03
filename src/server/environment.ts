@@ -74,6 +74,8 @@ function requireEnvironmentVariable(name: string): string {
 
 function decodeCanonicalBase64(value: string): Buffer | null {
   const decoded = Buffer.from(value, "base64");
+  // Node's decoder accepts URL-safe, unpadded, and whitespace-normalized aliases. The round trip
+  // permits only the single canonical standard-Base64 representation for each configured secret.
   return decoded.toString("base64") === value ? decoded : null;
 }
 
