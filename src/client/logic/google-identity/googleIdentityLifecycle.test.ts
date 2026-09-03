@@ -794,6 +794,7 @@ describe("Google identity use cases", () => {
   });
 
   it("does not access Drive when detachment authorizes a different Google account", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const remove = MOCKS.repositoryRemove;
 
     expectResultError(
@@ -802,8 +803,12 @@ describe("Google identity use cases", () => {
         PUBLIC_IDENTITY,
         "different-google-account",
       ),
-      { code: "google_drive_cleanup_failed" },
+      { code: "google_account_mismatch" },
     );
+    expect(warning).toHaveBeenCalledWith("identity.google.detach.failed", {
+      stage: "account_binding",
+      code: "google_account_mismatch",
+    });
     expect(MOCKS.readPassportFile).not.toHaveBeenCalled();
     expect(remove).not.toHaveBeenCalled();
   });

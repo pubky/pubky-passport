@@ -90,7 +90,10 @@ type GoogleIdentityEstablishmentResult = ResultType<
 >;
 
 type DetachGoogleIdentityError = CodedFailure<
-  "google_drive_cleanup_failed" | "local_remove_failed" | "unexpected_failure"
+  | "google_account_mismatch"
+  | "google_drive_cleanup_failed"
+  | "local_remove_failed"
+  | "unexpected_failure"
 >;
 
 export type GoogleIdentityLifecycleError =
@@ -261,7 +264,11 @@ export class GoogleIdentityLifecycle {
     expectedGoogleSubject: string,
   ): Promise<DetachGoogleIdentityResult> {
     if (credentials.googleAccount.googleSubject !== expectedGoogleSubject) {
-      return Result.err({ code: "google_drive_cleanup_failed" });
+      LOGGER.warn("identity.google.detach.failed", {
+        stage: "account_binding",
+        code: "google_account_mismatch",
+      });
+      return Result.err({ code: "google_account_mismatch" });
     }
 
     try {
