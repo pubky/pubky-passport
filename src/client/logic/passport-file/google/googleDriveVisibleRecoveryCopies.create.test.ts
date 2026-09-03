@@ -1,6 +1,7 @@
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { HttpResponseError } from "../../../../libs/http/HttpResponseError";
 import { LOGGER } from "../../../../libs/logger/logger";
 import type { PassportFileEnvelope } from "../passportFileEnvelope";
 import { GoogleDriveVisibleRecoveryCopies } from "./GoogleDriveVisibleRecoveryCopies";
@@ -264,11 +265,25 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
 
     const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, SIGNAL);
 
-    expect(Result.isError(result) && result.error).toEqual({ code: "forbidden" });
+    expect(Result.isError(result)).toBe(true);
+    if (!Result.isError(result)) throw new Error("Expected the Drive request to fail.");
+    expect(result.error).toMatchObject({
+      code: "forbidden",
+      httpStatus: 403,
+      cause: expect.any(HttpResponseError),
+    });
+    expect(result.error.cause).toMatchObject({
+      status: 403,
+      responseBody: JSON.stringify({ error: "SECRET-UPSTREAM-BODY" }),
+    });
     expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {
       operation: "list_folder",
       code: "forbidden",
+      httpStatus: 403,
+      diagnosticId: expect.any(String),
+      errorName: "HttpResponseError",
     });
+    expect(JSON.stringify(result)).not.toContain("SECRET-UPSTREAM-BODY");
     const logged = JSON.stringify(warning.mock.calls);
     expect(logged).not.toContain("SECRET-UPSTREAM-BODY");
     expect(logged).not.toContain(ACCESS_TOKEN);

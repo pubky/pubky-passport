@@ -4,6 +4,7 @@ import { Result, type Result as ResultType } from "better-result";
 import { z } from "zod";
 
 import { readBoundedText } from "../../../../libs/http/boundedBody";
+import { HttpResponseError } from "../../../../libs/http/HttpResponseError";
 import { MAXIMUM_JSON_BODY_BYTES } from "../../../../libs/passportPolicy";
 
 const MULTIPART_BOUNDARY = "pubky-passport-drive-boundary-v1";
@@ -33,6 +34,11 @@ export type DriveFile = z.infer<typeof DRIVE_FILE_SCHEMA>;
 export type DriveFileList = z.infer<typeof DRIVE_FILE_LIST_SCHEMA>;
 export type DriveFileRevision = Readonly<{ storageId: string; revision: string }>;
 type DriveFetchResult = ResultType<Response, { code: "network_failed"; cause: unknown }>;
+export type DriveHttpResponseFailure<Code extends string> = {
+  code: Code;
+  httpStatus: number;
+  cause: HttpResponseError;
+};
 export type DriveJsonResult = ResultType<
   unknown,
   { code: "body_too_large" | "body_unavailable" | "invalid_json"; cause: Error }
@@ -77,6 +83,34 @@ export async function readDriveJson(response: Response): Promise<DriveJsonResult
       cause: new Error("Google Drive response must be valid JSON.", { cause }),
     });
   }
+}
+
+/**
+ * Retains bounded diagnostics for an unsuccessful Drive response.
+ *
+ * The response body remains non-enumerable inside {@link HttpResponseError} and
+ * must not be copied into logs or caller-visible messages.
+ */
+export async function createDriveHttpResponseFailure<Code extends string>(
+  response: Response,
+  code: Code,
+): Promise<DriveHttpResponseFailure<Code>> {
+  const contents = await readBoundedText(response, MAXIMUM_JSON_BODY_BYTES);
+  const responseBody = Result.isOk(contents)
+    ? contents.value
+    : contents.error.code === "body_too_large"
+      ? "too_large"
+      : null;
+  const cause = new HttpResponseError(
+    response.status,
+    response.statusText,
+    responseBody,
+    Result.isError(contents) && contents.error.code === "body_unavailable"
+      ? { cause: contents.error.cause }
+      : undefined,
+  );
+
+  return { code, httpStatus: response.status, cause };
 }
 
 export function parseDriveFileList(value: unknown): DriveFileList | null {

@@ -8,6 +8,7 @@ import { isPubkyPublicIdentity, type PubkyPublicIdentity } from "../../pubky/pub
 import { serializePassportFileEnvelope, type PassportFileEnvelope } from "../passportFileEnvelope";
 import {
   authorizationHeaders,
+  createDriveHttpResponseFailure,
   DRIVE_FILES_URL,
   DRIVE_MULTIPART_CONTENT_TYPE,
   DRIVE_UPLOAD_FILES_URL,
@@ -36,7 +37,8 @@ type VisibleCopiesErrorCode =
   | "write_failed"
   | "delete_failed";
 
-type VisibleCopiesResult<Success> = ResultType<Success, CodedFailure<VisibleCopiesErrorCode>>;
+type VisibleCopiesFailure = CodedFailure<VisibleCopiesErrorCode> & { httpStatus?: number };
+type VisibleCopiesResult<Success> = ResultType<Success, VisibleCopiesFailure>;
 type VisibleFolder = DriveFile & { id: string };
 type VisibleFile = DriveFile & { id: string };
 type RequestLock = <LockResult>(
@@ -126,12 +128,11 @@ export class GoogleDriveVisibleRecoveryCopies {
     });
     if (Result.isError(response)) return Result.err(response.error);
     if (!response.value.ok) {
-      const code = mapDriveStatus(response.value.status, "write_failed");
-      LOGGER.warn("identity.google.visible_recovery_copies.failed", {
-        operation: "create_visible_copy",
-        code,
-      });
-      return Result.err({ code });
+      return this.httpResponseFailure(
+        response.value,
+        "create_visible_copy",
+        mapDriveStatus(response.value.status, "write_failed"),
+      );
     }
 
     const created = await this.parseFileResponse(
@@ -250,12 +251,11 @@ export class GoogleDriveVisibleRecoveryCopies {
     });
     if (Result.isError(response)) return Result.err(response.error);
     if (!response.value.ok) {
-      const code = mapDriveStatus(response.value.status, "write_failed");
-      LOGGER.warn("identity.google.visible_recovery_copies.failed", {
-        operation: "create_folder",
-        code,
-      });
-      return Result.err({ code });
+      return this.httpResponseFailure(
+        response.value,
+        "create_folder",
+        mapDriveStatus(response.value.status, "write_failed"),
+      );
     }
 
     const created = await this.parseFolderResponse(response.value);
@@ -288,12 +288,11 @@ export class GoogleDriveVisibleRecoveryCopies {
       });
       if (Result.isError(response)) return Result.err(response.error);
       if (!response.value.ok) {
-        const code = mapDriveStatus(response.value.status, "invalid_response");
-        LOGGER.warn("identity.google.visible_recovery_copies.failed", {
-          operation: "list_folder",
-          code,
-        });
-        return Result.err({ code });
+        return this.httpResponseFailure(
+          response.value,
+          "list_folder",
+          mapDriveStatus(response.value.status, "invalid_response"),
+        );
       }
 
       const list = await this.parseListResponse(response.value, "parse_folder_list_response");
@@ -392,12 +391,11 @@ export class GoogleDriveVisibleRecoveryCopies {
     );
     if (Result.isError(response)) return Result.err(response.error);
     if (!response.value.ok) {
-      const code = mapDriveStatus(response.value.status, "invalid_response");
-      LOGGER.warn("identity.google.visible_recovery_copies.failed", {
-        operation: "verify_copy",
-        code,
-      });
-      return Result.err({ code });
+      return this.httpResponseFailure(
+        response.value,
+        "verify_copy",
+        mapDriveStatus(response.value.status, "invalid_response"),
+      );
     }
 
     const file = await readDriveJson(response.value);
@@ -461,7 +459,13 @@ export class GoogleDriveVisibleRecoveryCopies {
         headers: authorizationHeaders(token),
       });
       if (Result.isError(response)) return Result.err(response.error);
-      if (!response.value.ok) return deletionFailure(response.value.status, operation);
+      if (!response.value.ok) {
+        return this.httpResponseFailure(
+          response.value,
+          operation,
+          mapDeletionStatus(response.value.status),
+        );
+      }
 
       const list = await this.parseListResponse(response.value, operation);
       if (Result.isError(list)) return Result.err(list.error);
@@ -495,7 +499,11 @@ export class GoogleDriveVisibleRecoveryCopies {
     });
     if (Result.isError(response)) return Result.err(response.error);
     if (response.value.status === 404 || response.value.ok) return Result.ok();
-    return deletionFailure(response.value.status, "delete_file");
+    return this.httpResponseFailure(
+      response.value,
+      "delete_file",
+      mapDeletionStatus(response.value.status),
+    );
   }
 
   private async parseListResponse(
@@ -533,6 +541,21 @@ export class GoogleDriveVisibleRecoveryCopies {
       ...safeErrorLogFields(response.error.cause),
     });
     return Result.err(response.error);
+  }
+
+  private async httpResponseFailure<Success>(
+    response: Response,
+    operation: VisibleCopiesOperation,
+    code: VisibleCopiesErrorCode,
+  ): Promise<VisibleCopiesResult<Success>> {
+    const failure = await createDriveHttpResponseFailure(response, code);
+    LOGGER.warn("identity.google.visible_recovery_copies.failed", {
+      operation,
+      code,
+      httpStatus: failure.httpStatus,
+      ...safeErrorLogFields(failure.cause),
+    });
+    return Result.err(failure);
   }
 }
 
@@ -641,20 +664,14 @@ function isExpectedFile(file: DriveFile, folderId: string, fileName: string): fi
   );
 }
 
-function deletionFailure<Success>(
-  status: number,
-  operation: VisibleCopiesOperation,
-): VisibleCopiesResult<Success> {
-  const code =
-    status === 401
-      ? "unauthorized"
-      : status === 403
-        ? "forbidden"
-        : status >= 500
-          ? "network_failed"
-          : "delete_failed";
-  LOGGER.warn("identity.google.visible_recovery_copies.failed", { operation, code });
-  return Result.err({ code });
+function mapDeletionStatus(status: number): VisibleCopiesErrorCode {
+  return status === 401
+    ? "unauthorized"
+    : status === 403
+      ? "forbidden"
+      : status >= 500
+        ? "network_failed"
+        : "delete_failed";
 }
 
 type VisibleCopiesOperation =

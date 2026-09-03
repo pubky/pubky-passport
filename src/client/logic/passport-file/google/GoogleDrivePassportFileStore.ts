@@ -13,6 +13,7 @@ import {
 } from "../passportFileEnvelope";
 import {
   authorizationHeaders,
+  createDriveHttpResponseFailure,
   DRIVE_FILES_URL,
   DRIVE_MULTIPART_CONTENT_TYPE,
   DRIVE_UPLOAD_FILES_URL,
@@ -43,9 +44,9 @@ type StoreErrorCode =
   | "write_failed"
   | "delete_failed";
 
-type StoreResult<Success> = ResultType<Success, CodedFailure<StoreErrorCode>>;
-type PassportFileMetadataFailure =
-  CodedFailure<StoreErrorCode> | CodedFailure<"exact_file_missing">;
+type StoreFailure = CodedFailure<StoreErrorCode> & { httpStatus?: number };
+type StoreResult<Success> = ResultType<Success, StoreFailure>;
+type PassportFileMetadataFailure = StoreFailure | CodedFailure<"exact_file_missing">;
 /** Result of looking up the sole operational Passport file in `appDataFolder`. */
 type PassportFileReadResult =
   | { status: "found"; envelope: PassportFileEnvelope; reference: DriveFileRevision }
@@ -222,9 +223,11 @@ export class GoogleDrivePassportFileStore {
     });
     if (Result.isError(response)) return Result.err(response.error);
     if (response.value.status === 404 || response.value.ok) return Result.ok();
-    const code = mapDriveStatus(response.value.status, "delete_failed");
-    LOGGER.warn("identity.google.drive_store.failed", { operation: "delete", code });
-    return Result.err({ code });
+    return this.httpResponseFailure(
+      response.value,
+      "delete",
+      mapDriveStatus(response.value.status, "delete_failed"),
+    );
   }
 
   private getAccessToken(): StoreResult<string> {
@@ -263,9 +266,11 @@ export class GoogleDrivePassportFileStore {
     });
     if (Result.isError(response)) return Result.err(response.error);
     if (!response.value.ok) {
-      const code = mapDriveStatus(response.value.status, "write_failed");
-      LOGGER.warn("identity.google.drive_store.failed", { operation: "create", code });
-      return Result.err({ code });
+      return this.httpResponseFailure(
+        response.value,
+        "create",
+        mapDriveStatus(response.value.status, "write_failed"),
+      );
     }
 
     const created = await this.parseCreatedFileReference(response.value);
@@ -305,9 +310,11 @@ export class GoogleDrivePassportFileStore {
     });
     if (Result.isError(response)) return Result.err(response.error);
     if (!response.value.ok) {
-      const code = mapDriveStatus(response.value.status, "invalid_response");
-      LOGGER.warn("identity.google.drive_store.failed", { operation: "list", code });
-      return Result.err({ code });
+      return this.httpResponseFailure(
+        response.value,
+        "list",
+        mapDriveStatus(response.value.status, "invalid_response"),
+      );
     }
 
     const parsed = await readDriveJson(response.value);
@@ -372,9 +379,11 @@ export class GoogleDrivePassportFileStore {
     if (Result.isError(response)) return Result.err(response.error);
     if (response.value.status === 404) return Result.err({ code: "exact_file_missing" });
     if (!response.value.ok) {
-      const code = mapDriveStatus(response.value.status, "invalid_response");
-      LOGGER.warn("identity.google.drive_store.failed", { operation: "read_metadata", code });
-      return Result.err({ code });
+      return this.httpResponseFailure(
+        response.value,
+        "read_metadata",
+        mapDriveStatus(response.value.status, "invalid_response"),
+      );
     }
 
     return this.parseCurrentFileReference(response.value);
@@ -396,9 +405,11 @@ export class GoogleDrivePassportFileStore {
       return Result.err({ code: "stale_file" });
     }
     if (!response.value.ok) {
-      const code = mapDriveStatus(response.value.status, "invalid_response");
-      LOGGER.warn("identity.google.drive_store.failed", { operation: "read_media", code });
-      return Result.err({ code });
+      return this.httpResponseFailure(
+        response.value,
+        "read_media",
+        mapDriveStatus(response.value.status, "invalid_response"),
+      );
     }
 
     const contents = await readBoundedText(response.value, MAXIMUM_JSON_BODY_BYTES);
@@ -520,6 +531,21 @@ export class GoogleDrivePassportFileStore {
       ...safeErrorLogFields(response.error.cause),
     });
     return Result.err(response.error);
+  }
+
+  private async httpResponseFailure<Success>(
+    response: Response,
+    operation: StoreOperation,
+    code: StoreErrorCode,
+  ): Promise<StoreResult<Success>> {
+    const failure = await createDriveHttpResponseFailure(response, code);
+    LOGGER.warn("identity.google.drive_store.failed", {
+      operation,
+      code,
+      httpStatus: failure.httpStatus,
+      ...safeErrorLogFields(failure.cause),
+    });
+    return Result.err(failure);
   }
 }
 
