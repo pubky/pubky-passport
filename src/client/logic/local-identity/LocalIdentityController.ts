@@ -8,9 +8,9 @@ import type { PubkyHomeserverResolutionResult } from "../pubky/pubkyIdentityKey"
 import type { PubkyRingMigration, PubkySdkAdapter } from "../pubky/PubkySdkAdapter";
 import type { LocalIdentityCatalog } from "./localIdentityModels";
 import {
-  LocalStorageIdentityRepository,
+  IndexedDbIdentityRepository,
   type LocalIdentityResult,
-} from "./LocalStorageIdentityRepository";
+} from "./IndexedDbIdentityRepository";
 
 export const MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS = 6;
 const MAXIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS = 1024;
@@ -23,35 +23,19 @@ export type LocalIdentityRecoveryFileResult = ResultType<
   CodedFailure<LocalIdentityRecoveryFileErrorCode>
 >;
 
-/**
- * Browser entry point for identities stored in localStorage.
- * @throws {Error} when its storage repository cannot be initialized.
- */
+/** Browser entry point for identities stored asynchronously in IndexedDB. */
 export class LocalIdentityController {
-  private readonly repository: LocalStorageIdentityRepository;
+  private readonly repository = new IndexedDbIdentityRepository();
 
-  constructor() {
-    try {
-      this.repository = new LocalStorageIdentityRepository();
-    } catch (e) {
-      LOGGER.error("identity.controller.failed", {
-        operation: "initialize",
-        code: "runtime_exception",
-        ...safeErrorLogFields(e),
-      });
-      throw new Error("Local identity initialization unavailable.", { cause: e });
-    }
-  }
-
-  listIdentities(): LocalIdentityResult<LocalIdentityCatalog> {
+  listIdentities(): Promise<LocalIdentityResult<LocalIdentityCatalog>> {
     return this.repository.list();
   }
 
-  selectIdentity(publicKeyZ32: string): LocalIdentityResult<void> {
+  selectIdentity(publicKeyZ32: string): Promise<LocalIdentityResult<void>> {
     return this.repository.select(publicKeyZ32);
   }
 
-  removeIdentity(publicKeyZ32: string): LocalIdentityResult<void> {
+  removeIdentity(publicKeyZ32: string): Promise<LocalIdentityResult<void>> {
     return this.repository.remove(publicKeyZ32);
   }
 
@@ -79,7 +63,7 @@ export class LocalIdentityController {
       return Result.err({ code: "invalid_password" });
     }
 
-    const stored = this.repository.read(publicKeyZ32);
+    const stored = await this.repository.read(publicKeyZ32);
     if (Result.isError(stored)) {
       return Result.err({ code: "identity_unavailable", cause: stored.error });
     }
@@ -118,7 +102,7 @@ export class LocalIdentityController {
   async createPubkyRingMigration(
     publicKeyZ32: string,
   ): Promise<LocalIdentityResult<PubkyRingMigration>> {
-    const stored = this.repository.read(publicKeyZ32);
+    const stored = await this.repository.read(publicKeyZ32);
     if (Result.isError(stored)) return Result.err(stored.error);
 
     try {

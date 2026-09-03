@@ -41,7 +41,7 @@ describe("IdentitySelectionFlow", () => {
 
   it("selects an existing identity and finishes", async () => {
     const onIdentitySelected = vi.fn();
-    const selectIdentity = vi.fn(() => Result.ok());
+    const selectIdentity = vi.fn(async () => Result.ok());
     render(
       <IdentitySelectionFlow
         catalog={CATALOG}
@@ -63,7 +63,7 @@ describe("IdentitySelectionFlow", () => {
         catalog={CATALOG}
         onBack={vi.fn()}
         onIdentitySelected={onIdentitySelected}
-        selectIdentity={() => Result.ok()}
+        selectIdentity={async () => Result.ok()}
       />,
     );
 
@@ -78,7 +78,7 @@ describe("IdentitySelectionFlow", () => {
         catalog={CATALOG}
         onBack={vi.fn()}
         onIdentitySelected={vi.fn()}
-        selectIdentity={() => Result.ok()}
+        selectIdentity={async () => Result.ok()}
         forAuthorization
       />,
     );
@@ -94,7 +94,7 @@ describe("IdentitySelectionFlow", () => {
         catalog={CATALOG}
         onBack={vi.fn()}
         onIdentitySelected={vi.fn()}
-        selectIdentity={() => Result.ok()}
+        selectIdentity={async () => Result.ok()}
       />,
     );
 
@@ -111,7 +111,7 @@ describe("IdentitySelectionFlow", () => {
         catalog={CATALOG}
         onBack={vi.fn()}
         onIdentitySelected={onIdentitySelected}
-        selectIdentity={() => Result.err({ code: "storage_unavailable" })}
+        selectIdentity={async () => Result.err({ code: "storage_unavailable" })}
       />,
     );
 

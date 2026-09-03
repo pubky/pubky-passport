@@ -44,7 +44,7 @@ vi.mock("../../logic/authorization/flow/PassportAuthorizationController", () => 
 
 vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
   LocalIdentityController: class {
-    listIdentities = () =>
+    listIdentities = async () =>
       MOCKS.catalog
         ? Result.ok(MOCKS.catalog)
         : Result.err({ code: "storage_unavailable" as const });
@@ -126,7 +126,7 @@ describe("AuthorizationFlow", () => {
     };
     MOCKS.approve.mockResolvedValue({ status: "granting", review: REVIEW });
     MOCKS.cancel.mockResolvedValue({ status: "cancelled" });
-    MOCKS.select.mockImplementation((publicKeyZ32: string) => {
+    MOCKS.select.mockImplementation(async (publicKeyZ32: string) => {
       if (!MOCKS.catalog) return Result.err({ code: "storage_unavailable" as const });
       MOCKS.catalog = { ...MOCKS.catalog, activePublicKeyZ32: publicKeyZ32 };
       MOCKS.catalogListener?.();
@@ -228,7 +228,7 @@ describe("AuthorizationFlow", () => {
     expect(screen.queryByLabelText("Signing in to Trusted App")).not.toBeInTheDocument();
   });
 
-  it("scales a callback host to the largest font size that fits", () => {
+  it("scales a callback host to the largest font size that fits", async () => {
     const callbackHost = "gillohner.github.io";
     const clientWidth = vi
       .spyOn(HTMLElement.prototype, "clientWidth", "get")
@@ -252,6 +252,7 @@ describe("AuthorizationFlow", () => {
 
       renderFlow();
 
+      await waitFor(() => expect(document.querySelector("h1 bdi")).not.toBeNull());
       const domain = document.querySelector<HTMLElement>("h1 bdi");
       expect(domain).not.toBeNull();
       if (!domain) throw new Error("Missing fitted requester");
@@ -265,7 +266,7 @@ describe("AuthorizationFlow", () => {
     }
   });
 
-  it("wraps rather than shrinking a callback host below the readable minimum", () => {
+  it("wraps rather than shrinking a callback host below the readable minimum", async () => {
     const callbackHost =
       "an-extremely-long-callback-host-that-cannot-fit-at-a-readable-size.requesting.example";
     const clientWidth = vi
@@ -290,6 +291,7 @@ describe("AuthorizationFlow", () => {
 
       renderFlow();
 
+      await waitFor(() => expect(document.querySelector("h1 bdi")).not.toBeNull());
       const domain = document.querySelector<HTMLElement>("h1 bdi");
       expect(domain).not.toBeNull();
       if (!domain) throw new Error("Missing fitted requester");

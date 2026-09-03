@@ -16,14 +16,16 @@ function IdentitySwitcher({
   onBack,
   onSelect,
   selectionFailed = false,
+  selectionPending = false,
 }: {
   activePublicKeyZ32: string | null;
   addIdentityLabel?: "Add identity" | "Use other identity";
   identities: readonly LocalIdentityMetadata[];
   onAddIdentity: () => void;
   onBack: () => void;
-  onSelect: (publicKeyZ32: string) => void;
+  onSelect: (publicKeyZ32: string) => Promise<void> | void;
   selectionFailed?: boolean;
+  selectionPending?: boolean;
 }) {
   const desktopViewport = useSyncExternalStore(
     subscribeToDesktopViewport,
@@ -57,9 +59,12 @@ function IdentitySwitcher({
             <IdentityRow
               {...(account?.pictureUrl ? { avatarSrc: account.pictureUrl } : {})}
               detail={account?.email ?? shortPublicKey(publicKeyZ32)}
+              disabled={selectionPending}
               key={publicKeyZ32}
               name={account?.name ?? "Your Pubky"}
-              onClick={() => onSelect(publicKeyZ32)}
+              onClick={() => {
+                void onSelect(publicKeyZ32);
+              }}
               {...(account ? { provider: "google" } : {})}
               selected={publicKeyZ32 === activePublicKeyZ32}
             />

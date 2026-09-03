@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
-import type { LocalIdentityResult } from "../../../logic/local-identity/LocalStorageIdentityRepository";
+import type { LocalIdentityResult } from "../../../logic/local-identity/IndexedDbIdentityRepository";
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
 import type { PubkyHomeserverResolutionResult } from "../../../logic/pubky/pubkyIdentityKey";
 import { CopyIcon, DownloadIcon, KeyRoundIcon, LinkOffIcon, LogOutIcon } from "../../shared/icons";
@@ -31,7 +31,7 @@ function IdentityManagement({
   onBack: () => void;
   onDetachFromGoogle: () => void;
   onDownloadRecoveryFile: () => void;
-  onRemoveLocalIdentity: () => LocalIdentityResult<void>;
+  onRemoveLocalIdentity: () => Promise<LocalIdentityResult<void>>;
   onMigrateToKeychain: () => void;
   resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult>;
 }) {
@@ -39,9 +39,12 @@ function IdentityManagement({
   const name = account?.name ?? "Your Pubky";
   const [homeserver, setHomeserver] = useState<string | null | undefined>();
   const [logoutFailed, setLogoutFailed] = useState(false);
+  const [logoutPending, setLogoutPending] = useState(false);
 
-  function logout(): void {
-    const removed = onRemoveLocalIdentity();
+  async function logout(): Promise<void> {
+    setLogoutPending(true);
+    const removed = await onRemoveLocalIdentity();
+    setLogoutPending(false);
     if (Result.isError(removed)) {
       setLogoutFailed(true);
       return;
@@ -71,7 +74,10 @@ function IdentityManagement({
     <PassportScreen className="gap-6 md:gap-8">
       <Button
         className="absolute right-6 top-[26px] z-10 md:right-10 md:top-12 md:h-10 md:px-4 md:py-2 md:text-sm md:leading-5"
-        onClick={logout}
+        disabled={logoutPending}
+        onClick={() => {
+          void logout();
+        }}
         size="sm"
         variant="secondary"
       >

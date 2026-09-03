@@ -19,9 +19,9 @@ vi.mock("../../pubky/PubkySdkAdapter", () => ({
   PubkySdkAdapter: MOCKS.PubkySdkAdapter,
 }));
 
-vi.mock("../../local-identity/LocalStorageIdentityRepository", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../local-identity/LocalStorageIdentityRepository")>()),
-  LocalStorageIdentityRepository: class {
+vi.mock("../../local-identity/IndexedDbIdentityRepository", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../local-identity/IndexedDbIdentityRepository")>()),
+  IndexedDbIdentityRepository: class {
     read = MOCKS.readIdentity;
   },
 }));
@@ -52,7 +52,7 @@ describe("approveAuthorization", () => {
         restoreIdentityKey: MOCKS.restoreIdentityKey,
       };
     });
-    MOCKS.readIdentity.mockReturnValue(
+    MOCKS.readIdentity.mockResolvedValue(
       Result.ok({
         identity: { publicIdentity: PUBLIC_IDENTITY },
         secretKey,
@@ -97,7 +97,7 @@ describe("approveAuthorization", () => {
 
   it("rejects stored metadata for a different identity before restoration", async () => {
     vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    MOCKS.readIdentity.mockReturnValue(
+    MOCKS.readIdentity.mockResolvedValue(
       Result.ok({
         identity: { publicIdentity: OTHER_PUBLIC_IDENTITY },
         secretKey,

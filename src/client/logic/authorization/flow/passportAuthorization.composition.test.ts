@@ -1,11 +1,11 @@
 /** @vitest-environment jsdom */
 
 import { Result } from "better-result";
+import { IDBFactory } from "fake-indexeddb";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../../test-utils/MemoryStorage";
 import { LOGGER } from "../../../../libs/logger/logger";
-import { LocalStorageIdentityRepository } from "../../local-identity/LocalStorageIdentityRepository";
+import { IndexedDbIdentityRepository } from "../../local-identity/IndexedDbIdentityRepository";
 import type { LocalIdentityMetadata } from "../../local-identity/localIdentityModels";
 import { PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";
 
@@ -24,13 +24,11 @@ vi.mock("../../pubky/PubkySdkAdapter", () => ({
 import { PassportAuthorizationController } from "./PassportAuthorizationController";
 
 const RELAY_ORIGIN = "https://relay.example";
-const PUBLIC_KEY_Z32 = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
-
 describe("PassportAuthorizationController composition", () => {
   let controller: PassportAuthorizationController | undefined;
 
   beforeEach(() => {
-    vi.stubGlobal("localStorage", new MemoryStorage());
+    vi.stubGlobal("indexedDB", new IDBFactory());
     MOCKS.PubkySdkAdapter.mockReset();
     MOCKS.dispose.mockReset();
     MOCKS.restoreIdentityKey.mockReset();
@@ -69,9 +67,8 @@ describe("PassportAuthorizationController composition", () => {
   });
 
   it("maps identity repository failures at the authorization composition boundary", async () => {
-    window.localStorage.setItem(
-      `pubky-passport/local-identities/v1/identity/${PUBLIC_KEY_Z32}`,
-      "invalid-store",
+    vi.spyOn(IndexedDbIdentityRepository.prototype, "read").mockResolvedValue(
+      Result.err({ code: "invalid_store" }),
     );
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
     controller = PassportAuthorizationController.fromBrowser();
@@ -115,8 +112,8 @@ describe("PassportAuthorizationController composition", () => {
     await expect(controller.approve("missing-public-key")).resolves.toEqual({
       status: "failed",
     });
-    expect(info).toHaveBeenCalledWith("identity.local_store.failed", {
-      operation: "read_identity",
+    expect(info).toHaveBeenCalledWith("identity.indexed_db.failed", {
+      operation: "read",
       code: "invalid_identity",
     });
     expect(warning).toHaveBeenCalledWith("authorize.cleanup.failed", {
@@ -129,9 +126,9 @@ describe("PassportAuthorizationController composition", () => {
   it("approves with the reviewed identity after another identity becomes active", async () => {
     const firstIdentity = identity("5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo");
     const secondIdentity = identity("y".repeat(52));
-    const repository = new LocalStorageIdentityRepository();
-    expect(Result.isOk(repository.save(firstIdentity, secretKey(1)))).toBe(true);
-    expect(Result.isOk(repository.save(secondIdentity, secretKey(2)))).toBe(true);
+    const repository = new IndexedDbIdentityRepository();
+    expect(Result.isOk(await repository.save(firstIdentity, secretKey(1)))).toBe(true);
+    expect(Result.isOk(await repository.save(secondIdentity, secretKey(2)))).toBe(true);
     let restoredSecretByte: number | undefined;
     MOCKS.restoreIdentityKey.mockImplementation(async (secretKey) => {
       restoredSecretByte = secretKey.bytes[0];

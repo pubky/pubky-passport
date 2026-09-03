@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectResultOk } from "../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../libs/logger/logger";
 import { PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../pubky/pubkyIdentityKey";
-import { LocalStorageIdentityRepository } from "./LocalStorageIdentityRepository";
+import { IndexedDbIdentityRepository } from "./IndexedDbIdentityRepository";
 
 const MOCKS = vi.hoisted(() => ({
   createRecoveryFile: vi.fn(),
@@ -37,23 +37,23 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("LocalIdentityController", () => {
-  it("delegates catalog actions to its concrete repository", () => {
+  it("delegates catalog actions to its concrete repository", async () => {
     const list = vi
-      .spyOn(LocalStorageIdentityRepository.prototype, "list")
-      .mockReturnValue(Result.ok({ activePublicKeyZ32: null, identities: [] }));
+      .spyOn(IndexedDbIdentityRepository.prototype, "list")
+      .mockResolvedValue(Result.ok({ activePublicKeyZ32: null, identities: [] }));
     const select = vi
-      .spyOn(LocalStorageIdentityRepository.prototype, "select")
-      .mockReturnValue(Result.ok());
+      .spyOn(IndexedDbIdentityRepository.prototype, "select")
+      .mockResolvedValue(Result.ok());
     const remove = vi
-      .spyOn(LocalStorageIdentityRepository.prototype, "remove")
-      .mockReturnValue(Result.ok());
+      .spyOn(IndexedDbIdentityRepository.prototype, "remove")
+      .mockResolvedValue(Result.ok());
     const controller = new LocalIdentityController();
 
-    expect(controller.listIdentities()).toEqual(
+    expect(await controller.listIdentities()).toEqual(
       Result.ok({ activePublicKeyZ32: null, identities: [] }),
     );
-    expect(controller.selectIdentity(PUBLIC_KEY)).toEqual(Result.ok());
-    expect(controller.removeIdentity(PUBLIC_KEY)).toEqual(Result.ok());
+    expect(await controller.selectIdentity(PUBLIC_KEY)).toEqual(Result.ok());
+    expect(await controller.removeIdentity(PUBLIC_KEY)).toEqual(Result.ok());
     expect(list).toHaveBeenCalledOnce();
     expect(select).toHaveBeenCalledWith(PUBLIC_KEY);
     expect(remove).toHaveBeenCalledWith(PUBLIC_KEY);
@@ -76,7 +76,7 @@ describe("LocalIdentityController", () => {
   });
 
   it("rejects weak recovery passwords before reading storage or creating the SDK", async () => {
-    const read = vi.spyOn(LocalStorageIdentityRepository.prototype, "read");
+    const read = vi.spyOn(IndexedDbIdentityRepository.prototype, "read");
     const controller = new LocalIdentityController();
 
     const result = await controller.createRecoveryFile(PUBLIC_KEY, "short");
@@ -153,7 +153,7 @@ describe("LocalIdentityController", () => {
 });
 
 function mockStoredIdentity(secretBytes: Uint8Array) {
-  return vi.spyOn(LocalStorageIdentityRepository.prototype, "read").mockReturnValue(
+  return vi.spyOn(IndexedDbIdentityRepository.prototype, "read").mockResolvedValue(
     Result.ok({
       identity: { publicIdentity: { publicKeyZ32: PUBLIC_KEY } },
       secretKey: {

@@ -3,10 +3,9 @@
 import { Result, type Result as ResultType } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../test-utils/MemoryStorage";
 import { expectResultOk } from "../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../libs/logger/logger";
-import { LocalStorageIdentityRepository } from "../local-identity/LocalStorageIdentityRepository";
+import { IndexedDbIdentityRepository } from "../local-identity/IndexedDbIdentityRepository";
 
 const MOCKS = vi.hoisted(() => ({
   createIdentityKey: vi.fn(),
@@ -123,7 +122,6 @@ describe("Google identity use cases", () => {
     vi.clearAllMocks();
     MOCKS.driveStoreConstructions.count = 0;
     MOCKS.visibleCopiesConstructions.count = 0;
-    vi.stubGlobal("localStorage", new MemoryStorage());
     MOCKS.contextFetch.current = undefined;
     MOCKS.requestWrappingKey.mockResolvedValue(
       Result.ok({
@@ -154,16 +152,16 @@ describe("Google identity use cases", () => {
     MOCKS.createVisibleRecoveryCopy.mockResolvedValue(Result.ok());
     MOCKS.deletePassportFile.mockResolvedValue(Result.ok());
     MOCKS.deleteVisibleRecoveryCopies.mockResolvedValue(Result.ok());
-    MOCKS.repositorySave.mockReturnValue(
+    MOCKS.repositorySave.mockResolvedValue(
       Result.ok({
         publicIdentity: PUBLIC_IDENTITY,
       }),
     );
-    MOCKS.repositoryRemove.mockReturnValue(Result.ok());
-    vi.spyOn(LocalStorageIdentityRepository.prototype, "save").mockImplementation(
+    MOCKS.repositoryRemove.mockResolvedValue(Result.ok());
+    vi.spyOn(IndexedDbIdentityRepository.prototype, "save").mockImplementation(
       MOCKS.repositorySave,
     );
-    vi.spyOn(LocalStorageIdentityRepository.prototype, "remove").mockImplementation(
+    vi.spyOn(IndexedDbIdentityRepository.prototype, "remove").mockImplementation(
       MOCKS.repositoryRemove,
     );
   });
@@ -613,7 +611,7 @@ describe("Google identity use cases", () => {
     } else if (stage === "signin") {
       MOCKS.signin.mockResolvedValue(Result.err({ code: "signin_failed" }));
     } else {
-      MOCKS.repositorySave.mockReturnValue(Result.err({ code: "storage_unavailable" }));
+      MOCKS.repositorySave.mockResolvedValue(Result.err({ code: "storage_unavailable" }));
     }
 
     expectResultError(await createSubject().establishIdentity(CREDENTIALS, () => undefined), {
@@ -734,7 +732,7 @@ describe("Google identity use cases", () => {
     foundPassportFile();
     record(MOCKS.deleteVisibleRecoveryCopies, "visible-delete", events);
     record(MOCKS.deletePassportFile, "app-data-delete", events);
-    MOCKS.repositoryRemove.mockImplementation(() => {
+    MOCKS.repositoryRemove.mockImplementation(async () => {
       events.push("local-remove");
       return Result.ok();
     });

@@ -15,15 +15,11 @@ const SENSITIVE_CANARIES = [
   GRANT_CLIENT_PUBLIC_KEY,
 ];
 const LOCAL_IDENTITY_PUBLIC_KEY = "tkrq8zmwb8a3m9k15csu3q17qmfgqnp9dskbrg9uq1rydpyxp7qy";
-const LOCAL_IDENTITY_STORAGE_KEY = `pubky-passport/local-identities/v1/identity/${LOCAL_IDENTITY_PUBLIC_KEY}`;
-const LOCAL_IDENTITY_STORAGE_VALUE = JSON.stringify({
+const LOCAL_IDENTITY_DATABASE = "pubky-passport/local-identities";
+const LOCAL_IDENTITY_RECORD = {
   v: 1,
   publicKeyZ32: LOCAL_IDENTITY_PUBLIC_KEY,
-  secretKey: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
-});
-const LOCAL_IDENTITY_STORAGE = {
-  [LOCAL_IDENTITY_STORAGE_KEY]: LOCAL_IDENTITY_STORAGE_VALUE,
-  "pubky-passport/local-identities/v1/active": LOCAL_IDENTITY_PUBLIC_KEY,
+  secretByte: 1,
 };
 
 test("shows manual authorization entry when no request was supplied", async ({ page }) => {
@@ -137,7 +133,7 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
     )
     .toBe("");
   const authorizationPersistence = await browserPersistenceSnapshot(page);
-  expectAuthorizationPersistenceSafe(authorizationPersistence, LOCAL_IDENTITY_STORAGE);
+  expectAuthorizationPersistenceSafe(authorizationPersistence, true);
 
   await page.goBack();
   await expect(page).toHaveURL(/\/$/u);
@@ -146,7 +142,7 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   expect(await page.evaluate(() => window.location.search)).toBe("");
   expect(await page.evaluate(() => window.location.hash)).toBe("");
   const restoredPersistence = await browserPersistenceSnapshot(page);
-  expectAuthorizationPersistenceSafe(restoredPersistence, LOCAL_IDENTITY_STORAGE);
+  expectAuthorizationPersistenceSafe(restoredPersistence, true);
   await expectNoSensitiveBrowserLeaks(page, leakMonitor, [
     authorizationPersistence,
     restoredPersistence,
@@ -190,7 +186,7 @@ test("reviews and scrubs a v0.10 grant authorization request", async ({ page }) 
   expect(await page.evaluate(() => window.location.search)).toBe("");
   expect(await page.evaluate(() => window.location.hash)).toBe("");
   const persistence = await browserPersistenceSnapshot(page);
-  expectAuthorizationPersistenceSafe(persistence, LOCAL_IDENTITY_STORAGE);
+  expectAuthorizationPersistenceSafe(persistence, true);
   await expectNoSensitiveBrowserLeaks(page, leakMonitor, [persistence]);
 });
 
@@ -215,10 +211,7 @@ test("falls back to the cancel callback when the opener does not acknowledge", a
       contentType: "text/html",
     }),
   );
-  await page.goto("/");
-  await page.evaluate((entries) => {
-    for (const [key, value] of entries) window.localStorage.setItem(key, value);
-  }, Object.entries(LOCAL_IDENTITY_STORAGE));
+  await installLocalIdentityFixture(page);
   const popupPromise = page.waitForEvent("popup");
   await page.evaluate(
     (url) => {
@@ -235,11 +228,8 @@ test("falls back to the cancel callback when the opener does not acknowledge", a
 });
 
 test("notifies the callback-origin opener and closes after acknowledgement", async ({ page }) => {
-  await page.goto("/");
+  await installLocalIdentityFixture(page);
   const passportOrigin = new URL(page.url()).origin;
-  await page.evaluate((entries) => {
-    for (const [key, value] of entries) window.localStorage.setItem(key, value);
-  }, Object.entries(LOCAL_IDENTITY_STORAGE));
   await page.context().route("https://client.example/**", (route) =>
     route.fulfill({
       body: "<!doctype html><title>Client integration</title><h1>Client integration</h1>",
@@ -414,23 +404,60 @@ async function expectNoSensitiveBrowserLeaks(
 
 function expectAuthorizationPersistenceSafe(
   snapshot: BrowserPersistenceSnapshot,
-  expectedLocalStorage: Record<string, string> = {},
+  hasLocalIdentity = false,
 ): void {
-  expect(snapshot.localStorage).toEqual(expectedLocalStorage);
+  expect(snapshot.localStorage).toEqual({});
   expect(snapshot.sessionStorage).toEqual({});
   expect(snapshot.cookies).toBe("");
   for (const canary of SENSITIVE_CANARIES) {
     expect(JSON.stringify(snapshot.historyState)).not.toContain(canary);
   }
-  expect(snapshot.writes).toEqual([]);
-  expect(snapshot.indexedDatabases).toEqual([]);
+  expect(
+    snapshot.writes.filter(
+      (write) => !(hasLocalIdentity && write === `indexedDB:${LOCAL_IDENTITY_DATABASE}:1`),
+    ),
+  ).toEqual([]);
+  expect(snapshot.indexedDatabases).toEqual(
+    hasLocalIdentity ? [{ name: LOCAL_IDENTITY_DATABASE, version: 1 }] : [],
+  );
   expect(snapshot.caches).toEqual([]);
 }
 
 async function installLocalIdentityFixture(page: Page): Promise<void> {
-  await page.addInitScript((entries) => {
-    for (const [key, value] of entries) window.localStorage.setItem(key, value);
-  }, Object.entries(LOCAL_IDENTITY_STORAGE));
+  await page.goto("/");
+  await page.evaluate(
+    async ({ databaseName, identity }) =>
+      new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open(databaseName, 1);
+        request.onupgradeneeded = () => {
+          request.result.createObjectStore("identities", { keyPath: "publicKeyZ32" });
+          request.result.createObjectStore("settings", { keyPath: "key" });
+        };
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const database = request.result;
+          const transaction = database.transaction(["identities", "settings"], "readwrite");
+          transaction.objectStore("identities").put({
+            v: identity.v,
+            publicKeyZ32: identity.publicKeyZ32,
+            secretKey: new Uint8Array(32).fill(identity.secretByte),
+          });
+          transaction.objectStore("settings").put({
+            key: "activePublicKeyZ32",
+            value: identity.publicKeyZ32,
+          });
+          transaction.oncomplete = () => {
+            database.close();
+            resolve();
+          };
+          transaction.onabort = () => {
+            database.close();
+            reject(transaction.error);
+          };
+        };
+      }),
+    { databaseName: LOCAL_IDENTITY_DATABASE, identity: LOCAL_IDENTITY_RECORD },
+  );
 }
 
 async function installPersistenceObserver(page: Page): Promise<void> {

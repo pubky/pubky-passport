@@ -6,7 +6,7 @@ import {
   LocalIdentityController,
   type LocalIdentityRecoveryFileResult,
 } from "../../logic/local-identity/LocalIdentityController";
-import type { LocalIdentityResult } from "../../logic/local-identity/LocalStorageIdentityRepository";
+import type { LocalIdentityResult } from "../../logic/local-identity/IndexedDbIdentityRepository";
 import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
 import type { PubkyHomeserverResolutionResult } from "../../logic/pubky/pubkyIdentityKey";
 import type { PubkyRingMigration } from "../../logic/pubky/PubkySdkAdapter";
@@ -17,9 +17,9 @@ type IdentityCatalogActions = {
     publicKeyZ32: string,
     password: string,
   ) => Promise<LocalIdentityRecoveryFileResult>;
-  removeIdentity: (publicKeyZ32: string) => LocalIdentityResult<void>;
+  removeIdentity: (publicKeyZ32: string) => Promise<LocalIdentityResult<void>>;
   resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult>;
-  selectIdentity: (publicKeyZ32: string) => LocalIdentityResult<void>;
+  selectIdentity: (publicKeyZ32: string) => Promise<LocalIdentityResult<void>>;
 };
 
 type IdentityCatalogState =
@@ -30,66 +30,65 @@ type IdentityCatalogState =
 const SERVER_SNAPSHOT: IdentityCatalogState = { status: "loading" };
 
 class IdentityCatalogStore {
-  private readonly controller: LocalIdentityController | null;
-  private readonly initializationCause: unknown;
-  private dirty = true;
-  private snapshot: IdentityCatalogState | undefined;
+  private readonly controller = new LocalIdentityController();
+  private readonly listeners = new Set<() => void>();
+  private snapshot: IdentityCatalogState = { status: "loading" };
+  private refreshRequest = 0;
+  private unsubscribeFromIdentityChanges: (() => void) | undefined;
 
   readonly actions: IdentityCatalogActions;
 
   constructor() {
-    try {
-      this.controller = new LocalIdentityController();
-      this.initializationCause = undefined;
-    } catch (e) {
-      this.controller = null;
-      this.initializationCause = e;
-      LOGGER.error("identity.catalog.failed", {
-        operation: "initialize",
-        code: "controller_unavailable",
-        ...safeErrorLogFields(e),
-      });
-    }
     this.actions = {
-      createMigration: async (publicKeyZ32) =>
-        this.controller
-          ? this.controller.createPubkyRingMigration(publicKeyZ32)
-          : Result.err({ code: "storage_unavailable", cause: this.initializationCause }),
-      createRecoveryFile: async (publicKeyZ32, password) =>
-        this.controller
-          ? this.controller.createRecoveryFile(publicKeyZ32, password)
-          : Result.err({ code: "identity_unavailable", cause: this.initializationCause }),
-      removeIdentity: (publicKeyZ32) =>
-        this.controller?.removeIdentity(publicKeyZ32) ??
-        Result.err({ code: "storage_unavailable", cause: this.initializationCause }),
-      resolveHomeserver: async (publicKeyZ32) =>
-        this.controller
-          ? this.controller.resolveHomeserver(publicKeyZ32)
-          : Result.err({ code: "resolution_failed", cause: this.initializationCause }),
-      selectIdentity: (publicKeyZ32) =>
-        this.controller?.selectIdentity(publicKeyZ32) ??
-        Result.err({ code: "storage_unavailable", cause: this.initializationCause }),
+      createMigration: (publicKeyZ32) => this.controller.createPubkyRingMigration(publicKeyZ32),
+      createRecoveryFile: (publicKeyZ32, password) =>
+        this.controller.createRecoveryFile(publicKeyZ32, password),
+      removeIdentity: (publicKeyZ32) => this.controller.removeIdentity(publicKeyZ32),
+      resolveHomeserver: (publicKeyZ32) => this.controller.resolveHomeserver(publicKeyZ32),
+      selectIdentity: (publicKeyZ32) => this.controller.selectIdentity(publicKeyZ32),
     };
   }
 
-  getSnapshot = (): IdentityCatalogState => {
-    if (!this.dirty && this.snapshot) return this.snapshot;
-    const catalog = this.controller?.listIdentities();
-    this.snapshot =
-      catalog && Result.isOk(catalog)
-        ? { status: "ready", catalog: catalog.value, actions: this.actions }
-        : { status: "unavailable" };
-    this.dirty = false;
-    return this.snapshot;
-  };
+  getSnapshot = (): IdentityCatalogState => this.snapshot;
 
   subscribe = (listener: () => void): (() => void) => {
-    if (!this.controller) return () => undefined;
-    return this.controller.subscribeToIdentityChanges(() => {
-      this.dirty = true;
-      listener();
-    });
+    this.listeners.add(listener);
+    if (this.listeners.size === 1) {
+      this.unsubscribeFromIdentityChanges = this.controller.subscribeToIdentityChanges(() => {
+        void this.refresh();
+      });
+      void this.refresh();
+    }
+    return () => {
+      this.listeners.delete(listener);
+      if (this.listeners.size > 0) return;
+      this.refreshRequest += 1;
+      this.unsubscribeFromIdentityChanges?.();
+      this.unsubscribeFromIdentityChanges = undefined;
+    };
   };
+
+  private async refresh(): Promise<void> {
+    const request = ++this.refreshRequest;
+    let snapshot: IdentityCatalogState;
+    try {
+      const catalog = await this.controller.listIdentities();
+      snapshot = Result.isOk(catalog)
+        ? { status: "ready", catalog: catalog.value, actions: this.actions }
+        : { status: "unavailable" };
+    } catch (e) {
+      // Storage exceptions may include record data, so only redacted diagnostics are logged.
+      LOGGER.error("identity.catalog.failed", {
+        operation: "refresh",
+        code: "unexpected_failure",
+        ...safeErrorLogFields(e),
+      });
+      snapshot = { status: "unavailable" };
+    }
+    if (request !== this.refreshRequest) return;
+    this.snapshot = snapshot;
+    for (const listener of this.listeners) listener();
+  }
 }
 
 function useIdentityCatalog(): IdentityCatalogState {

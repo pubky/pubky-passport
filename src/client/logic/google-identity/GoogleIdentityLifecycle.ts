@@ -26,7 +26,7 @@ import {
   GoogleWrappingKeyApiClient,
   type GoogleWrappingKeyErrorCode,
 } from "../wrapping-key/GoogleWrappingKeyApiClient";
-import { LocalStorageIdentityRepository } from "../local-identity/LocalStorageIdentityRepository";
+import { IndexedDbIdentityRepository } from "../local-identity/IndexedDbIdentityRepository";
 
 /** Safe setup or restore progress emitted while establishing an identity. */
 export type GoogleIdentityProgress =
@@ -119,7 +119,7 @@ type EstablishmentStepResult<Success = void> = ResultType<
  * configured endpoint cannot be initialized.
  */
 export class GoogleIdentityLifecycle {
-  private readonly repository = new LocalStorageIdentityRepository();
+  private readonly repository = new IndexedDbIdentityRepository();
   private readonly pubky: PubkySdkAdapter;
   private readonly wrappingKeys: GoogleWrappingKeyApiClient;
   private readonly homegate: HomegateClient;
@@ -275,7 +275,7 @@ export class GoogleIdentityLifecycle {
       const deleted = await this.deleteVerifiedGoogleDriveFiles(credentials, publicIdentity);
       if (Result.isError(deleted)) return Result.err(deleted.error);
 
-      const removed = this.repository.remove(publicIdentity.publicKeyZ32);
+      const removed = await this.repository.remove(publicIdentity.publicKeyZ32);
       return Result.isError(removed)
         ? Result.err({ code: "local_remove_failed", cause: removed.error })
         : Result.ok();
@@ -569,7 +569,7 @@ export class GoogleIdentityLifecycle {
       return Result.err({ code: "local_save_failed", cause: secretKey.error });
     }
     try {
-      const saved = this.repository.save(
+      const saved = await this.repository.save(
         {
           publicIdentity: identity.publicIdentity,
           googleAccount,

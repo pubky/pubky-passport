@@ -39,7 +39,7 @@ describe("IdentityManagement", () => {
         onBack={onBack}
         onDetachFromGoogle={vi.fn()}
         onDownloadRecoveryFile={vi.fn()}
-        onRemoveLocalIdentity={() => Result.ok()}
+        onRemoveLocalIdentity={async () => Result.ok()}
         onMigrateToKeychain={vi.fn()}
         resolveHomeserver={async () => Result.ok("homeserver-pubky")}
       />,
@@ -75,7 +75,7 @@ describe("IdentityManagement", () => {
         onBack={vi.fn()}
         onDetachFromGoogle={vi.fn()}
         onDownloadRecoveryFile={vi.fn()}
-        onRemoveLocalIdentity={() => Result.ok()}
+        onRemoveLocalIdentity={async () => Result.ok()}
         onMigrateToKeychain={vi.fn()}
         resolveHomeserver={async () => Result.ok("homeserver-pubky")}
       />,
@@ -105,7 +105,7 @@ describe("IdentityManagement", () => {
         onBack={vi.fn()}
         onDetachFromGoogle={vi.fn()}
         onDownloadRecoveryFile={vi.fn()}
-        onRemoveLocalIdentity={() => Result.ok()}
+        onRemoveLocalIdentity={async () => Result.ok()}
         onMigrateToKeychain={vi.fn()}
         resolveHomeserver={async () => {
           throw new Error("SECRET-HOMESERVER-CANARY");
@@ -125,7 +125,7 @@ describe("IdentityManagement", () => {
     expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-HOMESERVER-CANARY");
   });
 
-  it("shows a retryable error when local logout fails", () => {
+  it("shows a retryable error when local logout fails", async () => {
     const onBack = vi.fn();
     render(
       <IdentityManagement
@@ -133,7 +133,7 @@ describe("IdentityManagement", () => {
         onBack={onBack}
         onDetachFromGoogle={vi.fn()}
         onDownloadRecoveryFile={vi.fn()}
-        onRemoveLocalIdentity={() => Result.err({ code: "storage_unavailable" })}
+        onRemoveLocalIdentity={async () => Result.err({ code: "storage_unavailable" })}
         onMigrateToKeychain={vi.fn()}
         resolveHomeserver={async () => Result.ok(null)}
       />,
@@ -141,7 +141,7 @@ describe("IdentityManagement", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Log out" }));
 
-    expect(screen.getByText("Could not log out. Please try again.")).toBeInTheDocument();
+    expect(await screen.findByText("Could not log out. Please try again.")).toBeInTheDocument();
     expect(onBack).not.toHaveBeenCalled();
   });
 
@@ -152,7 +152,7 @@ describe("IdentityManagement", () => {
         onBack={vi.fn()}
         onDetachFromGoogle={vi.fn()}
         onDownloadRecoveryFile={vi.fn()}
-        onRemoveLocalIdentity={() => Result.ok()}
+        onRemoveLocalIdentity={async () => Result.ok()}
         onMigrateToKeychain={vi.fn()}
         resolveHomeserver={async () => Result.ok(null)}
       />,

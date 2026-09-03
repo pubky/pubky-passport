@@ -22,13 +22,13 @@ vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
       return {
         createPubkyRingMigration: () => Result.err({ code: "invalid_identity" as const }),
         createRecoveryFile: async () => Result.err({ code: "identity_unavailable" as const }),
-        listIdentities: () =>
+        listIdentities: async () =>
           MOCKS.unavailable
             ? Result.err({ code: "storage_unavailable" as const })
             : Result.ok(MOCKS.catalog),
-        removeIdentity: () => Result.ok(),
+        removeIdentity: async () => Result.ok(),
         resolveHomeserver: async () => Result.ok(null),
-        selectIdentity: () => Result.ok(),
+        selectIdentity: async () => Result.ok(),
         subscribeToIdentityChanges: (listener: () => void) => {
           MOCKS.listener = listener;
           return () => {

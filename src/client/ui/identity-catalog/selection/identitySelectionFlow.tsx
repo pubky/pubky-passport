@@ -1,7 +1,7 @@
 import { Result } from "better-result";
 import { useState } from "react";
 
-import type { LocalIdentityResult } from "../../../logic/local-identity/LocalStorageIdentityRepository";
+import type { LocalIdentityResult } from "../../../logic/local-identity/IndexedDbIdentityRepository";
 import type { LocalIdentityCatalog } from "../../../logic/local-identity/localIdentityModels";
 import { IdentityEstablishmentFlow } from "../../onboarding/identityEstablishmentFlow";
 import { IdentitySwitcher } from "./identitySwitcher";
@@ -17,10 +17,11 @@ function IdentitySelectionFlow({
   forAuthorization?: boolean;
   onBack: () => void;
   onIdentitySelected: () => void;
-  selectIdentity: (publicKeyZ32: string) => LocalIdentityResult<void>;
+  selectIdentity: (publicKeyZ32: string) => Promise<LocalIdentityResult<void>>;
 }) {
   const [view, setView] = useState<"selection" | "add-identity">("selection");
   const [selectionFailed, setSelectionFailed] = useState(false);
+  const [selectionPending, setSelectionPending] = useState(false);
 
   if (view === "add-identity") {
     return (
@@ -39,12 +40,15 @@ function IdentitySelectionFlow({
       identities={catalog.identities}
       onAddIdentity={() => setView("add-identity")}
       onBack={onBack}
-      onSelect={(publicKeyZ32) => {
-        const selected = selectIdentity(publicKeyZ32);
+      onSelect={async (publicKeyZ32) => {
+        setSelectionPending(true);
+        const selected = await selectIdentity(publicKeyZ32);
+        setSelectionPending(false);
         setSelectionFailed(Result.isError(selected));
         if (Result.isOk(selected)) onIdentitySelected();
       }}
       selectionFailed={selectionFailed}
+      selectionPending={selectionPending}
     />
   );
 }
