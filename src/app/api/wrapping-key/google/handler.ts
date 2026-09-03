@@ -31,6 +31,7 @@ export async function googleWrappingKeyPost(
         layer: "route",
         operation,
         code: "invalid_request",
+        ...(body.error.cause === undefined ? {} : safeErrorLogFields(body.error.cause)),
       });
       return jsonResponse({ error: { code: "invalid_request" } }, 400);
     }
@@ -76,7 +77,9 @@ function statusForError(code: GoogleWrappingKeyIssueErrorCode): number {
       return 401;
     case "key_unavailable":
       return 409;
-    case "dependency_unavailable":
+    case "google_verifier_unavailable":
       return 503;
+    case "key_derivation_failed":
+      return 500;
   }
 }

@@ -11,8 +11,8 @@ import { GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE } from "../../../../libs/authoriz
 import {
   GOOGLE_AUTHORIZATION_SCOPE,
   parseGoogleAuthorizationResponse,
-} from "./googleAuthorizationResponse";
-import { fetchGoogleAccountProfile } from "./googleProfileFetcher";
+} from "./parseGoogleAuthorizationResponse";
+import { fetchGoogleAccountProfile } from "./fetchGoogleAccountProfile";
 
 /** Short-lived credentials produced by one complete Google authorization. */
 export type GoogleIdentityCredentials = {
@@ -26,7 +26,15 @@ type GoogleImplicitAuthorizationErrorCode =
   | "google_authorization_failed"
   | "google_authorization_popup_closed"
   | "google_authorization_popup_failed_to_open";
-export type GoogleImplicitAuthorizationError = CodedFailure<GoogleImplicitAuthorizationErrorCode>;
+type GoogleAuthorizationFailureReason =
+  "authorization_disposed" | "authorization_in_progress" | "authorization_timed_out";
+type GoogleAuthorizationFailure = CodedFailure<"google_authorization_failed"> & {
+  /** Safe state-only context for generic authorization failures without a thrown cause. */
+  reason?: GoogleAuthorizationFailureReason;
+};
+export type GoogleImplicitAuthorizationError =
+  | GoogleAuthorizationFailure
+  | CodedFailure<Exclude<GoogleImplicitAuthorizationErrorCode, "google_authorization_failed">>;
 export type GoogleImplicitAuthorizationResult<Success> = ResultType<
   Success,
   GoogleImplicitAuthorizationError
@@ -47,11 +55,29 @@ type AuthorizationAttempt = {
   timeout?: ReturnType<typeof setTimeout>;
 };
 
+/**
+ * Coordinates Passport's browser-based Google OAuth 2.0 implicit authorization flow.
+ *
+ * In this flow Google returns an ID token and access token directly in the redirect fragment,
+ * without a separate authorization-code exchange. Each request opens a Google consent popup,
+ * validates the same-origin relayed fragment against its state and nonce, and binds the returned
+ * credentials to Google UserInfo. Only one authorization attempt may be active at a time.
+ *
+ * Call {@link dispose} to settle an active request and release its popup, listeners, timers, and
+ * in-flight profile request.
+ */
 export class GoogleImplicitAuthorization {
   private activeAttempt: AuthorizationAttempt | null = null;
 
   constructor(private readonly clientId: string) {}
 
+  /**
+   * Runs one Google authorization attempt.
+   *
+   * The promise settles with a Result for setup, popup, provider-response, and UserInfo
+   * failures. It does not intentionally reject. Passing a login hint asks Google to select that
+   * account but does not replace the ID-token and UserInfo account-binding checks.
+   */
   request(
     loginHint?: string,
   ): Promise<GoogleImplicitAuthorizationResult<GoogleIdentityCredentials>> {
@@ -60,8 +86,14 @@ export class GoogleImplicitAuthorization {
         operation: "authorize",
         stage: "request",
         code: "google_authorization_failed",
+        reason: "authorization_in_progress",
       });
-      return Promise.resolve(Result.err({ code: "google_authorization_failed" }));
+      return Promise.resolve(
+        Result.err({
+          code: "google_authorization_failed",
+          reason: "authorization_in_progress",
+        }),
+      );
     }
     let popup: Window | null = null;
     try {
@@ -135,8 +167,15 @@ export class GoogleImplicitAuthorization {
               operation: "authorize",
               stage: "timeout",
               code: "google_authorization_failed",
+              reason: "authorization_timed_out",
             });
-            this.finish(attempt, Result.err({ code: "google_authorization_failed" }));
+            this.finish(
+              attempt,
+              Result.err({
+                code: "google_authorization_failed",
+                reason: "authorization_timed_out",
+              }),
+            );
           }, AUTHORIZATION_TIMEOUT_MS);
         } catch (error) {
           this.failAttempt(attempt, "attempt_setup", error);
@@ -154,9 +193,18 @@ export class GoogleImplicitAuthorization {
     }
   }
 
+  /** Settles any active request as failed and releases all resources owned by the attempt. */
   dispose(): void {
     const attempt = this.activeAttempt;
-    if (attempt) this.finish(attempt, Result.err({ code: "google_authorization_failed" }));
+    if (attempt) {
+      this.finish(
+        attempt,
+        Result.err({
+          code: "google_authorization_failed",
+          reason: "authorization_disposed",
+        }),
+      );
+    }
   }
 
   private inspectPopup(attempt: AuthorizationAttempt): void {
@@ -201,6 +249,7 @@ export class GoogleImplicitAuthorization {
         operation: "authorize",
         stage: account.error.stage,
         code: account.error.code,
+        ...(account.error.httpStatus === undefined ? {} : { httpStatus: account.error.httpStatus }),
         ...(account.error.cause === undefined ? {} : safeErrorLogFields(account.error.cause)),
       });
       return Result.err({

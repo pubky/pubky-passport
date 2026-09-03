@@ -52,6 +52,7 @@ const SAFE_ERROR_NAMES: ReadonlySet<string> = new Set([
   "Error",
   "EvalError",
   "HierarchyRequestError",
+  "HttpResponseError",
   "IndexSizeError",
   "InvalidAccessError",
   "InvalidCharacterError",
@@ -89,8 +90,8 @@ const SAFE_ERROR_NAMES: ReadonlySet<string> = new Set([
 
 /**
  * Returns correlation metadata that is safe to log for an arbitrary thrown value.
- * Error messages and stacks are intentionally excluded because browser and SDK
- * exceptions can contain authorization URLs, tokens, or persisted identity data.
+ * Messages and stacks are omitted because exception text is untrusted and may
+ * echo sensitive inputs; stacks also commonly repeat the message.
  */
 export function safeErrorLogFields(error: unknown): LogFields {
   const target = diagnosticTarget(error);

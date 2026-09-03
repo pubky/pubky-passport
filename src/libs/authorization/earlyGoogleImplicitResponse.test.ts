@@ -152,4 +152,38 @@ describe("early Google implicit response bootstrap", () => {
     expect(location.hash).toBe("");
     expect(postMessage).not.toHaveBeenCalled();
   });
+
+  it("still navigates to a clean URL when stopping the page throws", () => {
+    const postMessage = vi.fn();
+    const location = {
+      pathname: "/",
+      hash: "#id_token=credential-canary&state=state-canary",
+      origin: "https://passport.example",
+      replace: vi.fn(() => {
+        location.hash = "";
+      }),
+    };
+    const context: Record<string, unknown> = {
+      location,
+      history: {},
+      History: {
+        prototype: {
+          replaceState() {
+            throw new Error("unavailable");
+          },
+        },
+      },
+      opener: { postMessage },
+      stop() {
+        throw new Error("unavailable");
+      },
+    };
+    context.window = context;
+
+    runInNewContext(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT, context);
+
+    expect(location.replace).toHaveBeenCalledWith("/");
+    expect(location.hash).toBe("");
+    expect(postMessage).not.toHaveBeenCalled();
+  });
 });

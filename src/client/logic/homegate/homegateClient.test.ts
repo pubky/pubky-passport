@@ -1,6 +1,7 @@
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { HttpResponseError } from "../../../libs/http/HttpResponseError";
 import { LOGGER } from "../../../libs/logger/logger";
 import { HomegateClient, type HomegateSignupInvitationErrorCode } from "./HomegateClient";
 
@@ -115,7 +116,11 @@ describe("HomegateClient", () => {
 
       expect(Result.isError(result)).toBe(true);
       if (!Result.isError(result)) throw new Error("Expected malformed Homegate response failure.");
-      expect(result.error).toEqual({ code: "malformed_homegate_response" });
+      expect(result.error).toMatchObject({
+        code: "malformed_homegate_response",
+        httpStatus: 200,
+        cause: expect.any(Error),
+      });
     },
   );
 
@@ -140,7 +145,11 @@ describe("HomegateClient", () => {
     expect(requestController.signal.aborted).toBe(false);
     expect(Result.isError(result)).toBe(true);
     if (!Result.isError(result)) throw new Error("Expected unavailable Homegate failure.");
-    expect(result.error).toEqual({ code: "homegate_unavailable" });
+    expect(result.error).toMatchObject({
+      code: "homegate_unavailable",
+      httpStatus: 500,
+      cause: expect.any(Error),
+    });
   });
 
   it.each(HOMEGATE_ERROR_CASES)(
@@ -155,7 +164,11 @@ describe("HomegateClient", () => {
 
       expect(Result.isError(result)).toBe(true);
       if (!Result.isError(result)) throw new Error("Expected mapped Homegate failure.");
-      expect(result.error).toEqual({ code: expectedCode });
+      expect(result.error).toMatchObject({
+        code: expectedCode,
+        httpStatus: 500,
+        cause: expect.any(HttpResponseError),
+      });
     },
   );
 
@@ -173,6 +186,9 @@ describe("HomegateClient", () => {
       operation: "request_google_invitation",
       stage: "error_response",
       code: "malformed_homegate_response",
+      httpStatus: 500,
+      diagnosticId: expect.any(String),
+      errorName: "HttpResponseError",
     });
     expect(JSON.stringify(warn.mock.calls)).not.toContain("HOMEGATE-BODY-CANARY");
   });
@@ -191,7 +207,11 @@ describe("HomegateClient", () => {
 
       expect(Result.isError(result)).toBe(true);
       if (!Result.isError(result)) throw new Error("Expected unavailable Homegate failure.");
-      expect(result.error).toEqual({ code: "homegate_unavailable" });
+      expect(result.error).toMatchObject({
+        code: "homegate_unavailable",
+        httpStatus: 500,
+        cause: expect.any(Error),
+      });
     }
   });
 
@@ -265,7 +285,11 @@ describe("HomegateClient", () => {
     const result = await resultPromise;
     expect(Result.isError(result)).toBe(true);
     if (!Result.isError(result)) throw new Error("Expected Homegate timeout failure.");
-    expect(result.error).toEqual({ code: "network_failed" });
+    expect(result.error).toMatchObject({
+      code: "network_failed",
+      httpStatus: 200,
+      cause: expect.any(Error),
+    });
   });
 });
 

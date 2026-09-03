@@ -70,6 +70,8 @@ export type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityViewErro
  * Google-backed operation, and never enter UI state. Only one operation may run at
  * a time. Calling {@link dispose} cancels authorization and suppresses later UI
  * updates while allowing already-started cleanup to finish safely.
+ *
+ * Public asynchronous operations settle with a Result and do not intentionally reject.
  */
 export class GoogleIdentityController {
   private googleAuthorization: GoogleImplicitAuthorization | undefined;
@@ -85,12 +87,18 @@ export class GoogleIdentityController {
     private readonly onState: (state: GoogleIdentityViewState) => void,
   ) {}
 
-  /** Restores or creates and activates an identity. */
+  /**
+   * Restores or creates and activates an identity.
+   * The promise settles with a Result and does not intentionally reject.
+   */
   async establishIdentity(): Promise<EstablishGoogleIdentityResult> {
     return this.runIdentityEstablishment("establish");
   }
 
-  /** Permanently removes a malformed Drive file and immediately creates a replacement identity. */
+  /**
+   * Permanently removes a malformed Drive file and immediately creates a replacement identity.
+   * The promise settles with a Result and does not intentionally reject.
+   */
   async replaceInvalidPassportFile(): Promise<EstablishGoogleIdentityResult> {
     return this.runIdentityEstablishment("replace_invalid_passport_file");
   }
@@ -107,7 +115,13 @@ export class GoogleIdentityController {
 
     try {
       const operations = this.operations;
-      if (!operations) return Result.err({ code: "operation_failed" });
+      if (!operations) {
+        LOGGER.warn("identity.google.action.failed", {
+          operation,
+          code: "operations_unavailable",
+        });
+        return Result.err({ code: "operation_failed" });
+      }
       const progress = this.createProgressReporter();
       const establishment =
         operation === "establish"
@@ -166,6 +180,7 @@ export class GoogleIdentityController {
   /**
    * Deletes the Google Drive Passport files first, then removes the local identity.
    * A Google Drive failure leaves the local identity untouched.
+   * The promise settles with a Result and does not intentionally reject.
    */
   async detachIdentity(
     publicIdentity: PubkyPublicIdentity,
@@ -180,7 +195,13 @@ export class GoogleIdentityController {
 
     try {
       const operations = this.operations;
-      if (!operations) return Result.err({ code: "operation_failed" });
+      if (!operations) {
+        LOGGER.warn("identity.google.action.failed", {
+          operation: "detach",
+          code: "operations_unavailable",
+        });
+        return Result.err({ code: "operation_failed" });
+      }
       this.setViewState({ status: "detaching" });
       const detached = await operations.detachIdentity(
         authorized.value,
@@ -250,13 +271,17 @@ export class GoogleIdentityController {
         code: "runtime_exception",
         ...safeErrorLogFields(cause),
       });
-      return Result.err({ code: "operation_failed" });
+      return Result.err({ code: "operation_failed", cause });
     }
 
     try {
       const googleAuthorization = this.googleAuthorization;
       if (!googleAuthorization) {
         this.operationPending = false;
+        LOGGER.warn("identity.google.authorization.failed", {
+          operation: "request_credentials",
+          code: "authorization_unavailable",
+        });
         return Result.err({ code: "operation_failed" });
       }
       const googleSubject = expectedGoogleSubject ?? this.googleSubject;
@@ -275,6 +300,10 @@ export class GoogleIdentityController {
         credentials.value.googleAccount.googleSubject !== googleSubject
       ) {
         this.operationPending = false;
+        LOGGER.warn("identity.google.authorization.failed", {
+          operation: "request_credentials",
+          code: "account_mismatch",
+        });
         return Result.err({ code: "authorization_failed" });
       }
       this.googleSubject ??= credentials.value.googleAccount.googleSubject;
@@ -290,7 +319,7 @@ export class GoogleIdentityController {
         code: "authorization_failed",
         ...safeErrorLogFields(cause),
       });
-      return Result.err({ code: "authorization_failed" });
+      return Result.err({ code: "authorization_failed", cause });
     }
   }
 

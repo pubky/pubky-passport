@@ -21,7 +21,10 @@ import {
 } from "./pubkyIdentityKey";
 import { PubkySdkAdapter } from "./PubkySdkAdapter";
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.doUnmock("@synonymdev/pubky");
+  vi.restoreAllMocks();
+});
 
 describe("PubkySdkAdapter", () => {
   it("accepts SDK-generated cookie and grant links with x-callback metadata", async () => {
@@ -411,6 +414,36 @@ describe("PubkySdkAdapter", () => {
     } finally {
       pubky.dispose();
     }
+  });
+
+  it("contains SDK construction failures in the homeserver-resolution Result", async () => {
+    const cause = new TypeError("SECRET-SDK-INITIALIZATION-DETAILS");
+    vi.resetModules();
+    vi.doMock("@synonymdev/pubky", async () => ({
+      ...(await vi.importActual<typeof import("@synonymdev/pubky")>("@synonymdev/pubky")),
+      Pubky: class {
+        constructor() {
+          throw cause;
+        }
+      },
+    }));
+    const { resolvePubkyHomeserver } = await import("./PubkySdkAdapter");
+    const { LOGGER: currentLogger } = await import("../../../libs/logger/logger");
+    const warn = vi.spyOn(currentLogger, "warn").mockImplementation(() => undefined);
+
+    const result = await resolvePubkyHomeserver(
+      "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo",
+    );
+
+    expectErrorCause(result, "resolution_failed", cause);
+    expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
+      operation: "resolve_homeserver",
+      stage: "sdk_initialize",
+      code: "resolution_failed",
+      diagnosticId: expect.any(String),
+      errorName: "TypeError",
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-SDK-INITIALIZATION-DETAILS");
   });
 
   it("maps invalid homeserver values without exposing signup codes", async () => {
