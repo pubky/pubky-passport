@@ -50,7 +50,14 @@ type PublicKeyParseResult<ErrorCode extends string> = ResultType<
 >;
 const PASSPORT_CLIENT_ID = "passport.pubky.app";
 
-/** SDK-owned single-identity export for Pubky Ring. */
+/**
+ * Owns one SDK keypair while handing an identity to Pubky Ring.
+ *
+ * The {@link url} embeds the full exported secret key. Treat it as secret material: never log,
+ * persist, or place it in application state. {@link navigate} disposes the handle after attempting
+ * the browser handoff; callers that only inspect the URL or abandon the handoff must call
+ * {@link dispose} themselves.
+ */
 export class PubkyRingMigration {
   private keypair: Keypair | null;
 
@@ -58,6 +65,7 @@ export class PubkyRingMigration {
     this.keypair = keypair;
   }
 
+  /** Idempotently releases the SDK keypair owned by this migration. */
   dispose(): void {
     const keypair = this.keypair;
     if (!keypair) return;
@@ -65,6 +73,7 @@ export class PubkyRingMigration {
     cleanup("create_pubky_ring_migration", "keypair_free", () => keypair.free());
   }
 
+  /** Attempts the Pubky Ring handoff and consumes the migration after a navigation attempt. */
   navigate(): boolean {
     const migrationUrl = this.url;
     if (!migrationUrl) return false;
@@ -76,6 +85,7 @@ export class PubkyRingMigration {
     }
   }
 
+  /** Returns the secret-bearing handoff URL, or `null` after the migration is disposed. */
   get url(): string | null {
     if (!this.keypair) return null;
     const exportedSecret = this.keypair.secret();
@@ -431,6 +441,11 @@ export class PubkySdkAdapter {
   }
 }
 
+/**
+ * Resolves one identity without retaining an SDK adapter.
+ * SDK initialization and resolution failures settle as a Result; the promise does not
+ * intentionally reject.
+ */
 export async function resolvePubkyHomeserver(
   publicKeyZ32: string,
 ): Promise<PubkyHomeserverResolutionResult> {
