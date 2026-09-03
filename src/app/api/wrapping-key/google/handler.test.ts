@@ -57,6 +57,34 @@ describe("POST /api/wrapping-key/google", () => {
     expect(factory).not.toHaveBeenCalled();
   });
 
+  it("logs request-stream failures without exposing their contents", async () => {
+    const streamFailure = new TypeError("SECRET-GOOGLE-ID-TOKEN");
+    const factory = vi.fn(() =>
+      issuer(async () => Result.ok({ wrappingKey: "opaque-key", keyId: "current" })),
+    );
+    const post = await handlerWithFactory(factory);
+    const { LOGGER } = await import("../../../../libs/logger/logger");
+    const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+
+    const response = await post(requestWithFailingBody(streamFailure));
+    const responseText = await response.text();
+
+    expect(response.status).toBe(400);
+    expect(responseText).toBe('{"error":{"code":"invalid_request"}}');
+    expect(factory).not.toHaveBeenCalled();
+    expect(info).toHaveBeenCalledWith(
+      "identity.google.wrapping_key.failed",
+      expect.objectContaining({
+        operation: "parse",
+        code: "invalid_request",
+        errorName: "TypeError",
+        diagnosticId: expect.any(String),
+      }),
+    );
+    expect(JSON.stringify(info.mock.calls)).not.toContain("SECRET-GOOGLE-ID-TOKEN");
+    expect(responseText).not.toContain("SECRET-GOOGLE-ID-TOKEN");
+  });
+
   it.each([
     ["invalid_google_id_token", 401],
     ["key_unavailable", 409],
@@ -177,6 +205,20 @@ function jsonRequest(body: unknown): Request {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+}
+
+function requestWithFailingBody(error: Error): Request {
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      controller.error(error);
+    },
+  });
+  return new Request("https://passport.pubky.app/api/wrapping-key/google", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+    duplex: "half",
+  } as RequestInit);
 }
 
 async function responseSummary(response: Response): Promise<{ status: number; body: unknown }> {

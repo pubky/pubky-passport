@@ -31,6 +31,7 @@ export async function googleWrappingKeyPost(
         layer: "route",
         operation,
         code: "invalid_request",
+        ...(body.error.cause === undefined ? {} : safeErrorLogFields(body.error.cause)),
       });
       return jsonResponse({ error: { code: "invalid_request" } }, 400);
     }
