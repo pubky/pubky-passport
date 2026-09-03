@@ -53,13 +53,13 @@ function useDetachFromGoogle(publicIdentity: PubkyPublicIdentity, expectedGoogle
   }, [googleClientId, homegateBaseUrl]);
 
   const detach = useCallback(() => {
-    if (
-      (state.status !== "ready" &&
-        state.status !== "authorization-failed" &&
-        state.status !== "operation-failed") ||
-      operationPendingRef.current
-    )
+    const canStartDetachment =
+      state.status === "ready" ||
+      state.status === "authorization-failed" ||
+      state.status === "operation-failed";
+    if (!canStartDetachment || operationPendingRef.current) {
       return;
+    }
     if (!expectedGoogleSubject.trim()) {
       setState({ status: "operation-failed", error: { code: "operation_failed" } });
       return;
