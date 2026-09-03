@@ -44,7 +44,7 @@ export type GoogleIdentityProgress =
   | { flow: "restore"; step: "restoring" | "signing_in" }
   | { flow: "repair"; step: "signing_up" | "publishing" | "signing_in" };
 
-type GoogleIdentityOperationValue =
+type GoogleIdentityEstablishmentValue =
   | {
       establishmentMode: "created";
       publicIdentity: PubkyPublicIdentity;
@@ -84,30 +84,41 @@ type GoogleIdentityEstablishmentError =
       | "unexpected_failure"
     >;
 
-type GoogleIdentityOperationResult = ResultType<
-  GoogleIdentityOperationValue,
+type GoogleIdentityEstablishmentResult = ResultType<
+  GoogleIdentityEstablishmentValue,
   GoogleIdentityEstablishmentError
 >;
 
 type DetachGoogleIdentityError = CodedFailure<
-  "google_drive_cleanup_failed" | "local_remove_failed" | "unexpected_failure"
+  | "google_account_mismatch"
+  | "google_drive_cleanup_failed"
+  | "local_remove_failed"
+  | "unexpected_failure"
 >;
 
-export type GoogleIdentityOperationError =
+export type GoogleIdentityLifecycleError =
   GoogleIdentityEstablishmentError | DetachGoogleIdentityError;
 
 type DetachGoogleIdentityResult = ResultType<void, DetachGoogleIdentityError>;
 
-type OperationResult<Success = void> = ResultType<Success, GoogleIdentityEstablishmentError>;
+type EstablishmentStepResult<Success = void> = ResultType<
+  Success,
+  GoogleIdentityEstablishmentError
+>;
 
 /**
- * Coordinates Google Drive persistence, Homegate signup, and Pubky identity activation.
+ * Executes Google-backed identity establishment, repair, and detachment.
+ *
+ * Unlike `GoogleIdentityController`, this class does not request authorization or own
+ * presentation state. It receives fresh credentials from the controller and coordinates Google
+ * Drive persistence, wrapping-key retrieval, Homegate signup, cryptography, local storage, and
+ * Pubky activation.
  *
  * Public asynchronous operations settle with a Result for operational and unexpected failures;
  * they do not intentionally reject. Construction can throw when a required browser dependency or
  * configured endpoint cannot be initialized.
  */
-export class GoogleIdentityOperations {
+export class GoogleIdentityLifecycle {
   private readonly repository = new LocalStorageIdentityRepository();
   private readonly pubky: PubkySdkAdapter;
   private readonly wrappingKeys: GoogleWrappingKeyApiClient;
@@ -151,7 +162,7 @@ export class GoogleIdentityOperations {
   async establishIdentity(
     credentials: GoogleIdentityCredentials,
     report: (progress: GoogleIdentityProgress) => void,
-  ): Promise<GoogleIdentityOperationResult> {
+  ): Promise<GoogleIdentityEstablishmentResult> {
     try {
       report({ flow: "lookup", step: "checking" });
       const store = new GoogleDrivePassportFileStore(credentials.driveAccessToken, this.fetch);
@@ -219,7 +230,7 @@ export class GoogleIdentityOperations {
   async replaceInvalidPassportFile(
     credentials: GoogleIdentityCredentials,
     report: (progress: GoogleIdentityProgress) => void,
-  ): Promise<GoogleIdentityOperationResult> {
+  ): Promise<GoogleIdentityEstablishmentResult> {
     try {
       const store = new GoogleDrivePassportFileStore(credentials.driveAccessToken, this.fetch);
       const deleted = await store.deleteInvalidPassportFile();
@@ -253,7 +264,11 @@ export class GoogleIdentityOperations {
     expectedGoogleSubject: string,
   ): Promise<DetachGoogleIdentityResult> {
     if (credentials.googleAccount.googleSubject !== expectedGoogleSubject) {
-      return Result.err({ code: "google_drive_cleanup_failed" });
+      LOGGER.warn("identity.google.detach.failed", {
+        stage: "account_binding",
+        code: "google_account_mismatch",
+      });
+      return Result.err({ code: "google_account_mismatch" });
     }
 
     try {
@@ -298,7 +313,7 @@ export class GoogleIdentityOperations {
     report: (progress: GoogleIdentityProgress) => void,
     store: GoogleDrivePassportFileStore,
     visibleCopies: GoogleDriveVisibleRecoveryCopies,
-  ): Promise<GoogleIdentityOperationResult> {
+  ): Promise<GoogleIdentityEstablishmentResult> {
     LOGGER.info("identity.google.create.started");
     LOGGER.info("identity.google.create_key.started");
     const created = await this.pubky.createIdentityKey();
@@ -384,7 +399,7 @@ export class GoogleIdentityOperations {
     envelope: PassportFileEnvelope,
     wrappingKey: string,
     report: (progress: GoogleIdentityProgress) => void,
-  ): Promise<GoogleIdentityOperationResult> {
+  ): Promise<GoogleIdentityEstablishmentResult> {
     report({ flow: "restore", step: "restoring" });
     const restored = await this.restoreKey(envelope, wrappingKey);
     if (Result.isError(restored)) return Result.err(restored.error);
@@ -441,7 +456,7 @@ export class GoogleIdentityOperations {
   private async restoreKey(
     envelope: PassportFileEnvelope,
     wrappingKey: string,
-  ): Promise<OperationResult<PubkyIdentityKey>> {
+  ): Promise<EstablishmentStepResult<PubkyIdentityKey>> {
     LOGGER.info("identity.google.decrypt.started");
     const secretKey = await this.crypto.decryptSecretKeyBytes(
       envelope,
@@ -474,7 +489,7 @@ export class GoogleIdentityOperations {
     googleAccount: GoogleAccountProfile,
     report: (progress: GoogleIdentityProgress) => void,
     isReconciliation = false,
-  ): Promise<OperationResult> {
+  ): Promise<EstablishmentStepResult> {
     if (!isReconciliation) report({ flow: "create", step: "signing_up" });
     LOGGER.info("identity.google.signup.started");
     const signedUp = await this.pubky.signup(
@@ -535,7 +550,7 @@ export class GoogleIdentityOperations {
   private verifySessionIdentity(
     identity: PubkyIdentityKey,
     sessionIdentity: PubkyPublicIdentity,
-  ): OperationResult {
+  ): EstablishmentStepResult {
     if (sessionIdentity.publicKeyZ32 === identity.publicIdentity.publicKeyZ32) {
       return Result.ok();
     }
@@ -547,7 +562,7 @@ export class GoogleIdentityOperations {
     identity: PubkyIdentityKey,
     googleAccount: GoogleAccountProfile,
     activation: "homeserver_signup" | "restored",
-  ): Promise<OperationResult> {
+  ): Promise<EstablishmentStepResult> {
     LOGGER.info("identity.local_save.started", { activation });
     const secretKey = await this.pubky.exportSecretKey(identity.keyHandle);
     if (Result.isError(secretKey)) {
@@ -573,7 +588,7 @@ export class GoogleIdentityOperations {
 
   private async requestSignupToken(
     googleIdToken: string,
-  ): Promise<OperationResult<HomeserverSignupDetails>> {
+  ): Promise<EstablishmentStepResult<HomeserverSignupDetails>> {
     LOGGER.info("identity.google.homeserver_signup_token.started");
     const signupDetails = await this.homegate.requestGoogleSignupToken(googleIdToken);
     if (Result.isError(signupDetails)) {
@@ -590,7 +605,7 @@ export class GoogleIdentityOperations {
   private async requestWrappingKey(
     googleIdToken: string,
     envelope?: PassportFileEnvelope,
-  ): Promise<OperationResult<{ wrappingKey: string; keyId: string }>> {
+  ): Promise<EstablishmentStepResult<{ wrappingKey: string; keyId: string }>> {
     LOGGER.info("identity.google.wrapping_key.started");
     const wrappingKey = await this.wrappingKeys.requestGoogleWrappingKey(
       googleIdToken,
