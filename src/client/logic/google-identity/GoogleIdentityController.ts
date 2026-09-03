@@ -81,6 +81,11 @@ export class GoogleIdentityController {
   private googleSubject: string | undefined;
   private disposed = false;
 
+  /**
+   * @param googleClientId OAuth client ID used by the Google authorization popup.
+   * @param homegateBaseUrl Trusted Homegate endpoint used to obtain homeserver signup tokens.
+   * @param onState Listener for render-safe progress updates; listener exceptions are contained.
+   */
   constructor(
     private readonly googleClientId: string,
     private readonly homegateBaseUrl: string,

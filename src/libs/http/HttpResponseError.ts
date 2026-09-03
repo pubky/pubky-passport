@@ -9,6 +9,11 @@ export class HttpResponseError extends Error {
   readonly statusText!: string;
   readonly responseBody!: string | "too_large" | null;
 
+  /**
+   * @param responseBody Bounded raw body, `too_large` when it exceeded policy,
+   * or `null` when no diagnostic body could be retained.
+   * @param options Standard error options used to preserve an underlying read or parse cause.
+   */
   constructor(
     status: number,
     statusText: string,
