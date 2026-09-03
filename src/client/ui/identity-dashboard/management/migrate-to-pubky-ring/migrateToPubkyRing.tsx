@@ -2,7 +2,7 @@ import Image from "next/image";
 import { Result } from "better-result";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { LocalIdentityResult } from "../../../../logic/local-identity/LocalStorageIdentityRepository";
+import type { LocalIdentityResult } from "../../../../logic/local-identity/IndexedDbIdentityRepository";
 import type { PubkyRingMigration } from "../../../../logic/pubky/PubkySdkAdapter";
 import { PubkyBrandIcon } from "../../../shared/brand/pubkyBrandIcon";
 import { PubkyRingLogo } from "../../../shared/brand/pubkyRingLogo";

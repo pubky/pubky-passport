@@ -5,9 +5,9 @@ import { Result, type Result as ResultType } from "better-result";
 import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
 import type { CodedFailure } from "../../../../libs/result";
 import {
-  LocalStorageIdentityRepository,
+  IndexedDbIdentityRepository,
   type LocalIdentityErrorCode,
-} from "../../local-identity/LocalStorageIdentityRepository";
+} from "../../local-identity/IndexedDbIdentityRepository";
 import type { PubkyIdentityKey, PubkyPublicIdentity } from "../../pubky/pubkyIdentityKey";
 import type { PubkySdkAdapter } from "../../pubky/PubkySdkAdapter";
 import type { ValidatedPubkyAuthRequest } from "../request/ValidatedPubkyAuthRequest";
@@ -101,7 +101,7 @@ async function restoreLocalIdentity(
   pubky: PubkySdkAdapter,
   publicKeyZ32: string,
 ): Promise<RestoreLocalIdentityResult> {
-  const stored = new LocalStorageIdentityRepository().read(publicKeyZ32);
+  const stored = await new IndexedDbIdentityRepository().read(publicKeyZ32);
   if (Result.isError(stored)) return Result.err(stored.error);
 
   try {
