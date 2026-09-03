@@ -86,11 +86,11 @@ function takeEarlyAuthorizationLocation(appWindow: Window): EarlyAuthorizationLo
       Number.isFinite(capture.expiresAt)
       ? { status: "captured", hash: capture.hash, expiresAt: capture.expiresAt }
       : undefined;
-  } catch (cause) {
+  } catch (e) {
     LOGGER.warn("authorize.entry.failed", {
       operation: "take_early_capture",
       code: "capture_unavailable",
-      ...safeErrorLogFields(cause),
+      ...safeErrorLogFields(e),
     });
     return undefined;
   }
@@ -134,11 +134,11 @@ export function scrubAuthorizationLocation(
       appWindow.location.pathname,
     );
     return true;
-  } catch (cause) {
+  } catch (e) {
     LOGGER.warn("authorize.entry.failed", {
       operation: "scrub_fragment",
       code: "history_unavailable",
-      ...safeErrorLogFields(cause),
+      ...safeErrorLogFields(e),
     });
     try {
       appWindow.stop();

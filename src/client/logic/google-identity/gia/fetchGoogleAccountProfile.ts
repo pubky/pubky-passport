@@ -75,11 +75,11 @@ export async function fetchGoogleAccountProfile(
     let userInfo: unknown;
     try {
       userInfo = JSON.parse(contents.value);
-    } catch (cause) {
+    } catch (e) {
       return Result.err({
         code: "google_authorization_failed",
         stage,
-        cause: new Error("Google UserInfo response must be valid JSON.", { cause }),
+        cause: new Error("Google UserInfo response must be valid JSON.", { cause: e }),
       });
     }
     stage = "account_binding";
@@ -92,7 +92,7 @@ export async function fetchGoogleAccountProfile(
       });
     }
     return Result.ok(profile);
-  } catch (cause) {
-    return Result.err({ code: "google_authorization_failed", stage, cause });
+  } catch (e) {
+    return Result.err({ code: "google_authorization_failed", stage, cause: e });
   }
 }

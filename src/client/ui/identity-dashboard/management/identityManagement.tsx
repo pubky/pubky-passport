@@ -55,10 +55,10 @@ function IdentityManagement({
       .then((result) => {
         if (!cancelled) setHomeserver(Result.isError(result) ? null : result.value);
       })
-      .catch((cause: unknown) => {
+      .catch((e: unknown) => {
         LOGGER.warn("identity.management.failed", {
           operation: "resolve_homeserver",
-          ...safeErrorLogFields(cause),
+          ...safeErrorLogFields(e),
         });
         if (!cancelled) setHomeserver(null);
       });
@@ -146,10 +146,10 @@ function IdentityDetail({
     try {
       await navigator.clipboard.writeText(value);
       onCopied?.();
-    } catch (cause) {
+    } catch (e) {
       LOGGER.info("identity.management.failed", {
         operation: "copy",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
     }
   }

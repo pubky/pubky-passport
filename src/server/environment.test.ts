@@ -87,13 +87,11 @@ describe("environment", () => {
     try {
       getServerEnvironment();
       throw new Error("Expected malformed keyring failure.");
-    } catch (error) {
-      expect(error).toBeInstanceOf(Error);
-      expect((error as Error).message).toBe(
-        "PASSPORT_SERVER_SECRET_KEYRING_JSON must be valid JSON.",
-      );
-      expect(error).not.toHaveProperty("cause");
-      expect(String(error)).not.toContain(secretFragment);
+    } catch (e) {
+      expect(e).toBeInstanceOf(Error);
+      expect((e as Error).message).toBe("PASSPORT_SERVER_SECRET_KEYRING_JSON must be valid JSON.");
+      expect(e).not.toHaveProperty("cause");
+      expect(String(e)).not.toContain(secretFragment);
     }
   });
 

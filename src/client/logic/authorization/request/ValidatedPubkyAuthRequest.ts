@@ -82,10 +82,10 @@ export class ValidatedPubkyAuthRequest {
   takeOutcomeCallback(outcome: keyof ValidatedPubkyAuthCallbacks): string | undefined {
     try {
       return this.#metadata?.callbacks[outcome];
-    } catch (cause) {
+    } catch (e) {
       LOGGER.warn("authorize.request_metadata.failed", {
         operation: "take_outcome_callback",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
       return undefined;
     } finally {

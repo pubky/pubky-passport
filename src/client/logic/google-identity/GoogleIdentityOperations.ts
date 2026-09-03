@@ -131,16 +131,16 @@ export class GoogleIdentityOperations {
       this.wrappingKeys = new GoogleWrappingKeyApiClient(this.fetch);
       this.homegate = new HomegateClient(homegateBaseUrl, this.fetch);
       this.crypto = new PassportFileWebCrypto();
-    } catch (error) {
+    } catch (e) {
       try {
         this.pubky.dispose();
-      } catch (cleanupCause) {
+      } catch (e) {
         LOGGER.warn("identity.google.cleanup.failed", {
           operation: "construction_pubky_dispose",
-          ...safeErrorLogFields(cleanupCause),
+          ...safeErrorLogFields(e),
         });
       }
-      throw error;
+      throw e;
     }
   }
 
@@ -203,12 +203,12 @@ export class GoogleIdentityOperations {
         store,
         visibleCopies,
       );
-    } catch (cause) {
+    } catch (e) {
       LOGGER.warn("identity.google.restore_or_create.failed", {
         code: "unexpected_failure",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
-      return Result.err({ code: "unexpected_failure", cause });
+      return Result.err({ code: "unexpected_failure", cause: e });
     }
   }
 
@@ -230,14 +230,14 @@ export class GoogleIdentityOperations {
         });
       }
       return this.establishIdentity(credentials, report);
-    } catch (cause) {
+    } catch (e) {
       LOGGER.warn("identity.google.invalid_passport_file_replacement.failed", {
         code: "unexpected_failure",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
       return Result.err({
         code: "invalid_passport_file_delete_failed",
-        cause,
+        cause: e,
       });
     }
   }
@@ -264,12 +264,12 @@ export class GoogleIdentityOperations {
       return Result.isError(removed)
         ? Result.err({ code: "local_remove_failed", cause: removed.error })
         : Result.ok();
-    } catch (cause) {
+    } catch (e) {
       LOGGER.warn("identity.google.detach.failed", {
         code: "unexpected_failure",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
-      return Result.err({ code: "unexpected_failure", cause });
+      return Result.err({ code: "unexpected_failure", cause: e });
     }
   }
 
@@ -689,10 +689,10 @@ export class GoogleIdentityOperations {
         ...safeErrorLogFields(result.error),
       });
       return false;
-    } catch (cause) {
+    } catch (e) {
       LOGGER.warn("identity.google.visible_recovery_copy.failed", {
         stage: "create",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
       return false;
     } finally {
@@ -706,10 +706,10 @@ export class GoogleIdentityOperations {
   ): void {
     try {
       this.pubky.disposeIdentityKey(identity.keyHandle);
-    } catch (cause) {
+    } catch (e) {
       LOGGER.warn("identity.google.cleanup.failed", {
         operation,
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
     }
   }

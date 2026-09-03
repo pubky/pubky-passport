@@ -38,12 +38,12 @@ export class GoogleIdTokenVerifier {
     let certificates: Certificates;
     try {
       ({ certs: certificates } = await this.verifier.getFederatedSignonCertsAsync());
-    } catch (cause) {
+    } catch (e) {
       LOGGER.error("identity.google.id_token_verification.failed", {
         code: "google_verifier_unavailable",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
-      return Result.err({ code: "google_verifier_unavailable", cause });
+      return Result.err({ code: "google_verifier_unavailable", cause: e });
     }
 
     let ticket: LoginTicket;
@@ -54,23 +54,23 @@ export class GoogleIdTokenVerifier {
         this.audience,
         ["accounts.google.com", CANONICAL_GOOGLE_ISSUER],
       );
-    } catch (cause) {
+    } catch (e) {
       LOGGER.warn("identity.google.id_token_verification.failed", {
         code: "google_verifier_rejected",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
-      return Result.err({ code: "invalid_google_id_token", cause });
+      return Result.err({ code: "invalid_google_id_token", cause: e });
     }
 
     let payload: GoogleIdTokenPayload | undefined;
     try {
       payload = ticket.getPayload();
-    } catch (cause) {
+    } catch (e) {
       LOGGER.warn("identity.google.id_token_verification.failed", {
         code: "payload_access_failed",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
-      return Result.err({ code: "invalid_google_id_token", cause });
+      return Result.err({ code: "invalid_google_id_token", cause: e });
     }
 
     if (!payload) {

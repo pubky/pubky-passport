@@ -51,14 +51,14 @@ export class GoogleWrappingKeyIssuer {
     let identity: GoogleIdTokenVerificationResult;
     try {
       identity = await this.googleIdTokenVerifier.verifyGoogleIdToken(googleIdToken);
-    } catch (cause) {
+    } catch (e) {
       LOGGER.error("identity.google.wrapping_key.failed", {
         layer: "server",
         operation: "verify",
         code: "google_verifier_unavailable",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
-      return Result.err({ code: "google_verifier_unavailable", cause });
+      return Result.err({ code: "google_verifier_unavailable", cause: e });
     }
 
     if (Result.isError(identity)) return Result.err(identity.error);
@@ -77,14 +77,14 @@ export class GoogleWrappingKeyIssuer {
     try {
       const wrappingKey = deriveGoogleWrappingKey(secret, identity.value);
       return Result.ok({ wrappingKey, keyId });
-    } catch (cause) {
+    } catch (e) {
       LOGGER.error("identity.google.wrapping_key.failed", {
         layer: "server",
         operation: "derive",
         code: "key_derivation_failed",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
-      return Result.err({ code: "key_derivation_failed", cause });
+      return Result.err({ code: "key_derivation_failed", cause: e });
     }
   }
 }

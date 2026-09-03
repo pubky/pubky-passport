@@ -70,10 +70,10 @@ function RecoveryFileDownload({
       else {
         downloaded = true;
       }
-    } catch (cause) {
+    } catch (e) {
       LOGGER.warn("identity.recovery_file.ui.failed", {
         operation: "create_and_download",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
       if (activeRef.current) setRecoveryFileFailed(true);
     } finally {
@@ -173,10 +173,10 @@ function downloadFile(file: LocalIdentityRecoveryFile): boolean {
     } finally {
       URL.revokeObjectURL(url);
     }
-  } catch (cause) {
+  } catch (e) {
     LOGGER.warn("identity.recovery_file.ui.failed", {
       operation: "download",
-      ...safeErrorLogFields(cause),
+      ...safeErrorLogFields(e),
     });
     return false;
   }
