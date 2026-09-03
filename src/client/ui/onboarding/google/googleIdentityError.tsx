@@ -37,20 +37,7 @@ function GoogleIdentityError({
           <DisplayHeading accent="interrupted." aria-label="Setup interrupted.">
             Setup
           </DisplayHeading>
-          <LeadText>
-            {error.code === "homeserver_signup_invitation_failed" ? (
-              <>
-                <span className="md:hidden">
-                  Passport could not obtain a homeserver signup invitation.
-                </span>
-                <span className="hidden md:inline">
-                  Passport could not obtain a homeserver invitation.
-                </span>
-              </>
-            ) : (
-              errorMessage(error.code)
-            )}
-          </LeadText>
+          <LeadText>{errorMessage(error.code)}</LeadText>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-6">
@@ -256,8 +243,8 @@ function errorMessage(code: GoogleIdentityViewError["code"]): string {
       return "Your identity was activated, but could not be saved in this browser.";
     case "wrapping_key_failed":
       return "Passport could not unlock your encrypted identity with this Google account.";
-    case "homeserver_signup_invitation_failed":
-      return "Passport could not obtain a homeserver invitation.";
+    case "homeserver_signup_token_failed":
+      return "Passport could not obtain a homeserver signup token.";
     case "invalid_passport_file":
       return "Passport found your encrypted identity file in Google Drive, but it is damaged and cannot be restored.";
     case "invalid_passport_file_delete_failed":

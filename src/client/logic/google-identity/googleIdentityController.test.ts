@@ -249,7 +249,7 @@ describe("GoogleIdentityController", () => {
   it("preserves safe operation classifications without diagnostic causes", async () => {
     const diagnosticCanary = { secret: "CONTROLLER-CAUSE-CANARY" };
     const operationError = {
-      code: "homeserver_signup_invitation_failed" as const,
+      code: "homeserver_signup_token_failed" as const,
       detailCode: "weekly_limit_exceeded" as const,
       cause: diagnosticCanary,
     };
@@ -259,7 +259,7 @@ describe("GoogleIdentityController", () => {
     const result = await createController().establishIdentity();
 
     expectResultError(result, {
-      code: "homeserver_signup_invitation_failed",
+      code: "homeserver_signup_token_failed",
       detailCode: "weekly_limit_exceeded",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("CONTROLLER-CAUSE-CANARY");

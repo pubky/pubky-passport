@@ -10,12 +10,12 @@ import { MAXIMUM_JSON_BODY_BYTES, REQUEST_TIMEOUT_MS } from "../../../libs/passp
 import type { CodedFailure } from "../../../libs/result";
 import { isPubkyPublicKey } from "../pubky/pubkyIdentityKey";
 
-export type HomeserverSignupInvitation = {
-  signupCode: string;
+export type HomeserverSignupDetails = {
+  signupToken: string;
   homeserverPubky: string;
 };
 
-export type HomegateSignupInvitationErrorCode =
+export type HomegateSignupTokenErrorCode =
   | "invalid_google_id_token"
   | "weekly_limit_exceeded"
   | "annual_limit_exceeded"
@@ -27,19 +27,21 @@ export type HomegateSignupInvitationErrorCode =
   | "network_failed";
 
 const MAX_ERROR_RESPONSE_BYTES = 256;
-const MAX_SIGNUP_CODE_LENGTH = 1024;
+const MAX_SIGNUP_TOKEN_LENGTH = 1024;
 const GOOGLE_VERIFICATION_PATH = "/google_verification";
-const SIGNUP_CODE_SCHEMA = z
+const SIGNUP_TOKEN_SCHEMA = z
   .string()
   .min(1)
-  .max(MAX_SIGNUP_CODE_LENGTH)
+  .max(MAX_SIGNUP_TOKEN_LENGTH)
   .refine((value) => value.trim().length > 0);
-const INVITATION_SCHEMA = z
+const SIGNUP_TOKEN_RESPONSE_SCHEMA = z
   .object({
-    signupCode: SIGNUP_CODE_SCHEMA,
+    // Homegate's wire format calls this signupCode; the Pubky SDK calls it a signup token.
+    signupCode: SIGNUP_TOKEN_SCHEMA,
     homeserverPubky: z.string().refine(isPubkyPublicKey),
   })
-  .strict();
+  .strict()
+  .transform(({ signupCode, homeserverPubky }) => ({ signupToken: signupCode, homeserverPubky }));
 
 /** Exchanges Google identity assertions for homeserver signup invitations through Homegate. */
 export class HomegateClient {
@@ -54,22 +56,22 @@ export class HomegateClient {
   }
 
   /**
-   * Exchanges a Google ID token for a Homegate invitation.
+   * Exchanges a Google ID token for a homeserver signup token from Homegate.
    *
    * The promise settles with a Result for request and response failures. It does not
    * intentionally reject.
    */
-  async requestGoogleSignupInvitation(
+  async requestGoogleSignupToken(
     googleIdToken: string,
   ): Promise<
     Result<
-      HomeserverSignupInvitation,
-      CodedFailure<HomegateSignupInvitationErrorCode> & { httpStatus?: number }
+      HomeserverSignupDetails,
+      CodedFailure<HomegateSignupTokenErrorCode> & { httpStatus?: number }
     >
   > {
     if (!isValidGoogleIdToken(googleIdToken)) {
-      LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
-        operation: "request_google_invitation",
+      LOGGER.warn("identity.google.homeserver_signup_token.failed", {
+        operation: "request_google_signup_token",
         stage: "input_validation",
         code: "homegate_invalid_request",
       });
@@ -91,8 +93,8 @@ export class HomegateClient {
         signal,
       });
     } catch (cause) {
-      LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
-        operation: "request_google_invitation",
+      LOGGER.warn("identity.google.homeserver_signup_token.failed", {
+        operation: "request_google_signup_token",
         stage: "request",
         code: "network_failed",
         ...safeErrorLogFields(cause),
@@ -105,8 +107,8 @@ export class HomegateClient {
       response.ok ? MAXIMUM_JSON_BODY_BYTES : MAX_ERROR_RESPONSE_BYTES,
     );
     if (Result.isError(responseText) && signal.aborted) {
-      LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
-        operation: "request_google_invitation",
+      LOGGER.warn("identity.google.homeserver_signup_token.failed", {
+        operation: "request_google_signup_token",
         stage: "response_read",
         code: "network_failed",
         httpStatus: response.status,
@@ -120,8 +122,8 @@ export class HomegateClient {
     }
     if (Result.isError(responseText)) {
       const code = response.ok ? "malformed_homegate_response" : "homegate_unavailable";
-      LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
-        operation: "request_google_invitation",
+      LOGGER.warn("identity.google.homeserver_signup_token.failed", {
+        operation: "request_google_signup_token",
         stage: "response_read",
         code,
         httpStatus: response.status,
@@ -133,8 +135,8 @@ export class HomegateClient {
     if (!response.ok) {
       const code = mapHomegateError(responseText.value);
       const cause = new HttpResponseError(response.status, response.statusText, responseText.value);
-      LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
-        operation: "request_google_invitation",
+      LOGGER.warn("identity.google.homeserver_signup_token.failed", {
+        operation: "request_google_signup_token",
         stage: "error_response",
         code,
         httpStatus: response.status,
@@ -148,8 +150,8 @@ export class HomegateClient {
       responseJson = JSON.parse(responseText.value);
     } catch (cause) {
       const responseError = new Error("Homegate response must be valid JSON.", { cause });
-      LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
-        operation: "request_google_invitation",
+      LOGGER.warn("identity.google.homeserver_signup_token.failed", {
+        operation: "request_google_signup_token",
         stage: "response_parse",
         code: "malformed_homegate_response",
         httpStatus: response.status,
@@ -162,11 +164,11 @@ export class HomegateClient {
       });
     }
 
-    const invitation = INVITATION_SCHEMA.safeParse(responseJson);
-    if (invitation.success) return Result.ok(invitation.data);
-    // Zod issues may echo the signup code, so retain only a fixed diagnostic cause.
-    LOGGER.warn("identity.google.homeserver_signup_invitation.failed", {
-      operation: "request_google_invitation",
+    const signupToken = SIGNUP_TOKEN_RESPONSE_SCHEMA.safeParse(responseJson);
+    if (signupToken.success) return Result.ok(signupToken.data);
+    // Zod issues may echo the signup token, so retain only a fixed diagnostic cause.
+    LOGGER.warn("identity.google.homeserver_signup_token.failed", {
+      operation: "request_google_signup_token",
       stage: "response_validation",
       code: "malformed_homegate_response",
       httpStatus: response.status,
@@ -174,12 +176,12 @@ export class HomegateClient {
     return Result.err({
       code: "malformed_homegate_response",
       httpStatus: response.status,
-      cause: new Error("Homegate response does not match the invitation schema."),
+      cause: new Error("Homegate response does not match the signup-token schema."),
     });
   }
 }
 
-function mapHomegateError(body: string): HomegateSignupInvitationErrorCode {
+function mapHomegateError(body: string): HomegateSignupTokenErrorCode {
   switch (body.trim()) {
     case "invalid_request":
       return "homegate_invalid_request";
