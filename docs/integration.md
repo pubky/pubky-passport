@@ -6,19 +6,45 @@ request, opens Passport, and waits for the SDK to receive the approval through t
 > Authenticate the user only after the Pubky SDK returns a `Session`. Passport callbacks and
 > messages describe the UI outcome; they are not credentials.
 
-Grant auth is recommended for new integrations.
+## Choosing a flow
 
-## Flow
+Passport supports two auth flows. Both deliver approval to your app through the same relay, and
+both work with the popup and same-tab delivery paths described below.
 
-1. Your app starts a Pubky auth flow.
-2. Your app opens Passport with the flow's authorization URL.
-3. The user approves or rejects the request in Passport.
-4. The SDK verifies the relay response and returns a `Session`.
+| | Grant auth | Cookie auth |
+|---|---|---|
+| SDK entry point | `pubky.startGrantAuthFlow(...)` | `pubky.startCookieAuthFlow(...)` |
+| Result | Grant-backed `Session` (self-refreshing) | Cookie-backed `Session` |
+| Persistence | Opt-in via `pubky.browserSessionStore.save(session)` | HTTP-only cookie in the browser jar |
+| Status | Recommended for new integrations | Supported for existing integrations and legacy clients |
 
-The authorization URL contains secrets. Keep it in the browser, encode it exactly once, and never
-log it or send it to analytics.
+**Grant + popup is the default recommendation for web apps.** Grant sessions are self-refreshing
+and not tied to third-party cookie behavior; the popup delivery path keeps the user on your page.
 
-## Popup example
+```ts
+// Grant auth (recommended)
+const flow = await pubky.startGrantAuthFlow(capabilities, AuthFlowKind.signin(), {
+  clientId: "example.app",
+  xCallback: { /* optional */ },
+});
+
+// Cookie auth (legacy)
+const flow = pubky.startCookieAuthFlow(capabilities, AuthFlowKind.signin());
+```
+
+## Delivery: popup or same-tab
+
+Once a flow is started, your app hands Passport the flow's `authorizationUrl`. Two delivery
+options exist; both are available for grant and cookie auth.
+
+| | Popup | Same-tab navigation |
+|---|---|---|
+| How | `window.open()` from a click handler, then navigate the popup to Passport | Replace the current page with Passport; the user returns via callback |
+| Best for | Web apps with the app UI still visible | Mobile browsers or embedded contexts where popups are blocked |
+| Return path | `postMessage` outcome (preferred) or callback navigation | Callback navigation only |
+| Complexity | Lower: your page stays alive, `flow.awaitApproval()` keeps running | Higher: you must save and resume flow state across navigation |
+
+### Popup example
 
 Install the SDK:
 
@@ -88,6 +114,10 @@ you need. Save the returned session with `pubky.browserSessionStore.save(session
 survive a page reload. `flow.awaitApproval()` has no built-in timeout, so ensure your app-level
 timeout also ends the wait and frees the flow. Create a fresh flow after a failure or expiry.
 
+For cookie auth, substitute `pubky.startCookieAuthFlow("/pub/example.app/:rw",
+AuthFlowKind.signin(), undefined, xCallback)` and await it the same way. The callback, opener
+messaging, and cleanup behavior are identical.
+
 ## Callbacks
 
 Provide HTTPS callbacks for success, error, and cancellation. They may use different paths or query
@@ -142,6 +172,8 @@ the user.
 - `Cross-Origin-Opener-Policy: same-origin` can sever `window.opener`; use
   `same-origin-allow-popups` where appropriate or rely on callback navigation.
 - Add the selected HTTP relay to CSP `connect-src` when your app restricts network destinations.
+  Note that CSP's `https:` scheme source matches the HTTPS relays but does not match `wss:`;
+  same-origin WebSocket connections remain covered by `'self'`.
 - Do not embed Passport in an iframe.
 
 ## Same-tab navigation
@@ -150,3 +182,8 @@ Before replacing the current page with Passport, save local grant state with `fl
 `sessionStorage`. On the callback route, restore it with `pubky.resumeGrantAuthFlow(savedState)` and
 delete it as soon as the flow completes or is abandoned. Never use `localStorage`: resumable state
 contains the relay secret and Proof-of-Possession key material.
+
+For cookie auth, save `flow.authorizationUrl` in `sessionStorage` instead and restore it with
+`pubky.resumeCookieAuthFlow(savedUrl)` on the callback route. The `authorizationUrl` contains the
+relay `client_secret` in plaintext, so the same storage rules apply: `sessionStorage` only, and
+delete it as soon as the flow completes or is abandoned.
