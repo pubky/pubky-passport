@@ -23,25 +23,9 @@ export type LocalIdentityRecoveryFileResult = ResultType<
   CodedFailure<LocalIdentityRecoveryFileErrorCode>
 >;
 
-/**
- * Browser entry point for identities stored in localStorage.
- * @throws {Error} when its storage repository cannot be initialized.
- */
+/** Browser entry point for identities stored in localStorage. */
 export class LocalIdentityController {
-  private readonly repository: LocalStorageIdentityRepository;
-
-  constructor() {
-    try {
-      this.repository = new LocalStorageIdentityRepository();
-    } catch (e) {
-      LOGGER.error("identity.controller.failed", {
-        operation: "initialize",
-        code: "runtime_exception",
-        ...safeErrorLogFields(e),
-      });
-      throw new Error("Local identity initialization unavailable.", { cause: e });
-    }
-  }
+  private readonly repository = new LocalStorageIdentityRepository();
 
   listIdentities(): LocalIdentityResult<LocalIdentityCatalog> {
     return this.repository.list();
