@@ -672,6 +672,38 @@ describe("Google identity use cases", () => {
     expect(JSON.stringify(warning.mock.calls)).not.toContain("VISIBLE-COPY-CAUSE-CANARY");
   });
 
+  it.each(["create", "restore"] as const)(
+    "contains a progress listener exception during %s and releases the identity key",
+    async (flow) => {
+      const cause = new Error("PROGRESS-LISTENER-CANARY");
+      const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+      MOCKS.readPassportFile.mockResolvedValue(
+        Result.ok(
+          flow === "create"
+            ? { status: "missing" }
+            : { status: "found", envelope: ENVELOPE, reference: REFERENCE },
+        ),
+      );
+
+      const result = await createSubject().establishIdentity(CREDENTIALS, (progress) => {
+        if (
+          (progress.flow === "create" && progress.step === "signing_up") ||
+          (progress.flow === "restore" && progress.step === "signing_in")
+        ) {
+          throw cause;
+        }
+      });
+
+      expect(Result.isError(result) && result.error).toEqual({
+        code: "unexpected_failure",
+        cause,
+      });
+      expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
+      expect(MOCKS.repositorySave).not.toHaveBeenCalled();
+      expect(JSON.stringify(warning.mock.calls)).not.toContain("PROGRESS-LISTENER-CANARY");
+    },
+  );
+
   it("keeps visible-copy timer setup failures nonfatal and safely logged", async () => {
     const cause = { secret: "VISIBLE-COPY-SETUP-CANARY" };
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
