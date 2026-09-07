@@ -138,10 +138,10 @@ export class PubkySdkAdapter {
       keypair = undefined;
       return Result.ok(migration);
     } catch (e) {
-      cleanup("create_pubky_ring_migration", "keypair_free", () => keypair?.free());
       return failure("create_pubky_ring_migration", "sdk_export", "export_failed", e);
     } finally {
       clearSecretKey(secretKey, "create_pubky_ring_migration");
+      cleanup("create_pubky_ring_migration", "keypair_free", () => keypair?.free());
     }
   }
 

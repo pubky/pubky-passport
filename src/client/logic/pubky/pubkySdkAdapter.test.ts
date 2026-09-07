@@ -138,6 +138,7 @@ describe("PubkySdkAdapter", () => {
 
   it("rejects a Ring export when the secret derives to another identity", () => {
     const bytes = Uint8Array.from({ length: PUBKY_SECRET_KEY_BYTES }, (_, index) => index);
+    const free = vi.spyOn(Keypair.prototype, "free");
 
     const result = PubkySdkAdapter.createPubkyRingMigration(
       {
@@ -149,6 +150,7 @@ describe("PubkySdkAdapter", () => {
 
     expect(Result.isError(result) && result.error.code).toBe("invalid_secret_key");
     expect(bytes).toEqual(new Uint8Array(PUBKY_SECRET_KEY_BYTES));
+    expect(free).toHaveBeenCalledOnce();
   });
 
   it("contains SDK Ring export failures without logging secret material", () => {
