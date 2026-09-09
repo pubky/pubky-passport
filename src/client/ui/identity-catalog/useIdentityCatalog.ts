@@ -34,19 +34,14 @@ class IdentityCatalogStore {
   private dirty = true;
   private snapshot: IdentityCatalogState | undefined;
 
-  readonly actions: IdentityCatalogActions;
-
-  constructor() {
-    this.actions = {
-      createMigration: async (publicKeyZ32) =>
-        this.controller.createPubkyRingMigration(publicKeyZ32),
-      createRecoveryFile: async (publicKeyZ32, password) =>
-        this.controller.createRecoveryFile(publicKeyZ32, password),
-      removeIdentity: (publicKeyZ32) => this.controller.removeIdentity(publicKeyZ32),
-      resolveHomeserver: async (publicKeyZ32) => this.controller.resolveHomeserver(publicKeyZ32),
-      selectIdentity: (publicKeyZ32) => this.controller.selectIdentity(publicKeyZ32),
-    };
-  }
+  readonly actions: IdentityCatalogActions = {
+    createMigration: async (publicKeyZ32) => this.controller.createPubkyRingMigration(publicKeyZ32),
+    createRecoveryFile: async (publicKeyZ32, password) =>
+      this.controller.createRecoveryFile(publicKeyZ32, password),
+    removeIdentity: (publicKeyZ32) => this.controller.removeIdentity(publicKeyZ32),
+    resolveHomeserver: async (publicKeyZ32) => this.controller.resolveHomeserver(publicKeyZ32),
+    selectIdentity: (publicKeyZ32) => this.controller.selectIdentity(publicKeyZ32),
+  };
 
   getSnapshot = (): IdentityCatalogState => {
     if (!this.dirty && this.snapshot) return this.snapshot;
