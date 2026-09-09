@@ -244,7 +244,7 @@ function errorMessage(code: GoogleIdentityViewError["code"]): string {
     case "wrapping_key_failed":
       return "Passport could not unlock your encrypted identity with this Google account.";
     case "homeserver_signup_token_failed":
-      return "Passport could not obtain a homeserver signup token.";
+      return "Passport could not obtain a homeserver invitation.";
     case "invalid_passport_file":
       return "Passport found your encrypted identity file in Google Drive, but it is damaged and cannot be restored.";
     case "invalid_passport_file_delete_failed":
