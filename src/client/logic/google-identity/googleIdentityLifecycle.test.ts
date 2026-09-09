@@ -340,6 +340,22 @@ describe("Google identity use cases", () => {
     },
   );
 
+  it("contains a rejected establishment after invalid-file deletion", async () => {
+    const thrown = new Error("REPLACEMENT-REJECTION-CANARY");
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const subject = createSubject();
+    MOCKS.deleteInvalidPassportFile.mockResolvedValue(Result.ok("deleted"));
+    vi.spyOn(subject, "establishIdentity").mockRejectedValue(thrown);
+
+    const failure = expectResultError(
+      await subject.replaceInvalidPassportFile(CREDENTIALS, () => undefined),
+      { code: "invalid_passport_file_delete_failed" },
+    );
+
+    expect(failure.cause).toBe(thrown);
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("REPLACEMENT-REJECTION-CANARY");
+  });
+
   it("does not create an identity when invalid-file deletion fails", async () => {
     MOCKS.deleteInvalidPassportFile.mockResolvedValue(Result.err({ code: "delete_failed" }));
 

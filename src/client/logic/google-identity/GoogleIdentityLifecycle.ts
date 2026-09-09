@@ -240,7 +240,7 @@ export class GoogleIdentityLifecycle {
           cause: deleted.error,
         });
       }
-      return this.establishIdentity(credentials, report);
+      return await this.establishIdentity(credentials, report);
     } catch (e) {
       LOGGER.warn("identity.google.invalid_passport_file_replacement.failed", {
         code: "unexpected_failure",
