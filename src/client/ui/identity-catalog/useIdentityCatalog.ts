@@ -1,7 +1,6 @@
 import { Result } from "better-result";
 import { useState, useSyncExternalStore } from "react";
 
-import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import {
   LocalIdentityController,
   type LocalIdentityRecoveryFileResult,
