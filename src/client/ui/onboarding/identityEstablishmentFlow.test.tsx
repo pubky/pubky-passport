@@ -448,7 +448,7 @@ describe("IdentityEstablishmentFlow", () => {
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(
-      await screen.findByText("Passport could not obtain a homeserver signup token."),
+      await screen.findByText("Passport could not obtain a homeserver invitation."),
     ).toBeInTheDocument();
     const errorDetails = screen.getByRole("group", { name: "Error" });
     expect(errorDetails).toHaveClass("border-dashed", "border-input", "min-h-14");
