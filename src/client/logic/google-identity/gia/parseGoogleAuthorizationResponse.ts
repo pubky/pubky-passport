@@ -7,6 +7,7 @@ import {
   GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE,
 } from "../../../../libs/authorization/earlyGoogleImplicitResponse";
 import { decodeBase64Url } from "../../../../libs/encoding/base64Url";
+import { isRecord } from "../../../../libs/isRecord";
 import { MAXIMUM_JSON_BODY_BYTES } from "../../../../libs/passportPolicy";
 
 const GOOGLE_DRIVE_APP_DATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
@@ -95,10 +96,8 @@ function readIdTokenSubject(token: string, expectedNonce: string): string | null
   const bytes = decodeBase64Url(segments[1]);
   if (!bytes || bytes.byteLength > 8 * 1024) return null;
   try {
-    const value: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
-    if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
-
-    const claims = value as Record<string, unknown>;
+    const claims: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+    if (!isRecord(claims)) return null;
     const googleSubject = claims.sub;
     if (typeof googleSubject !== "string") return null;
 
@@ -111,10 +110,10 @@ function readIdTokenSubject(token: string, expectedNonce: string): string | null
   }
 }
 
-function isCapturedGoogleImplicitResponse(value: unknown): value is CapturedGoogleImplicitResponse {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-
-  const capture = value as Record<string, unknown>;
+function isCapturedGoogleImplicitResponse(
+  capture: unknown,
+): capture is CapturedGoogleImplicitResponse {
+  if (!isRecord(capture)) return false;
   const isCapturedResponse =
     capture.type === GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE && capture.status === "captured";
   const hasBoundedHash =

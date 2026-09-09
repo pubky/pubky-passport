@@ -1,3 +1,5 @@
+import { isRecord } from "./isRecord";
+
 export type GoogleAccountProfile = Readonly<{
   googleSubject: string;
   email: string;
@@ -99,10 +101,6 @@ function isLocalGoogleAvatar(value: unknown): value is string {
 
 function boundedString(value: unknown, maximum: number): value is string {
   return typeof value === "string" && value.trim().length > 0 && value.length <= maximum;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function hasExactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
