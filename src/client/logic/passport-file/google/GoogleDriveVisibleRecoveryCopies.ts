@@ -325,19 +325,14 @@ export class GoogleDriveVisibleRecoveryCopies {
       });
       return Result.err({ code: "invalid_response", cause: folder.error.cause });
     }
-    if (!isDriveFile(folder.value)) {
-      LOGGER.warn("identity.google.visible_recovery_copies.failed", {
-        operation: "parse_folder_response",
-        code: "invalid_response",
-      });
-      return Result.err({ code: "invalid_response" });
-    }
-
-    const folderId = folder.value.id;
+    const metadata = folder.value;
+    const isFile = isDriveFile(metadata);
+    const folderId = isFile ? metadata.id : undefined;
     const hasExpectedMetadata =
-      folder.value.name === VISIBLE_RECOVERY_FOLDER_NAME &&
-      folder.value.mimeType === DRIVE_FOLDER_MIME_TYPE &&
-      folder.value.trashed === false;
+      isFile &&
+      metadata.name === VISIBLE_RECOVERY_FOLDER_NAME &&
+      metadata.mimeType === DRIVE_FOLDER_MIME_TYPE &&
+      metadata.trashed === false;
     if (!isNonEmptyString(folderId) || !hasExpectedMetadata) {
       LOGGER.warn("identity.google.visible_recovery_copies.failed", {
         operation: "parse_folder_response",
