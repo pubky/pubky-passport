@@ -60,10 +60,10 @@ function validateRelayUrl(value: string | null): ResultType<void, PubkyAuthUrlVa
   }
 
   const usesHttps = parsed.protocol === "https:";
-  const hasNoCredentials = parsed.username === "" && parsed.password === "";
-  const hasNoFragmentOrPort = parsed.hash === "" && parsed.port === "";
+  const hasCredentials = parsed.username !== "" || parsed.password !== "";
+  const hasFragmentOrPort = parsed.hash !== "" || parsed.port !== "";
   const hasValidHostname = isExactRelayHostname(parsed.hostname);
-  if (!usesHttps || !hasNoCredentials || !hasNoFragmentOrPort || !hasValidHostname) {
+  if (!usesHttps || hasCredentials || hasFragmentOrPort || !hasValidHostname) {
     return Result.err<never, PubkyAuthUrlValidationError>({ code: "invalid_relay" });
   }
 
