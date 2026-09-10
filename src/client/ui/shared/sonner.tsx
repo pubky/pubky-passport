@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { Toaster } from "sonner";
 
 import { CircleCheckIcon, CircleInfoIcon } from "./icons";
@@ -15,7 +16,7 @@ function Sonner() {
       mobileOffset={{ left: 24, right: 24, top: 24 }}
       offset={{ top: 24 }}
       position="top-center"
-      style={{ "--width": "392px" } as React.CSSProperties}
+      style={{ "--width": "392px" } as CSSProperties}
       toastOptions={{
         unstyled: true,
         classNames: {
