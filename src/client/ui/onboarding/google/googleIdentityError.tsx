@@ -17,7 +17,8 @@ function GoogleIdentityError({
 }: {
   error: GoogleIdentityViewError;
   onBack: () => void;
-  onReplaceInvalidFile?: () => void;
+  /** Deletes the invalid Drive file and starts over; only offered for invalid-file errors. */
+  onReplaceInvalidFile: () => void;
   onTryAgain: () => void;
 }) {
   const [confirmationOpen, setConfirmationOpen] = useState(false);
