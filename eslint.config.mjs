@@ -34,6 +34,13 @@ const ESLINT_CONFIG = defineConfig([
     "next-env.d.ts",
   ]),
   {
+    files: ["**/*.{ts,tsx,mts,cts}"],
+    languageOptions: {
+      parserOptions: { project: true, tsconfigRootDir: import.meta.dirname },
+    },
+    rules: { "@typescript-eslint/return-await": ["error", "in-try-catch"] },
+  },
+  {
     files: [sourceFiles],
     ignores: ["src/libs/logger/logger.ts"],
     rules: { "no-console": "error" },

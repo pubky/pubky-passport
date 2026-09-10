@@ -340,6 +340,22 @@ describe("Google identity use cases", () => {
     },
   );
 
+  it("contains a rejected establishment after invalid-file deletion", async () => {
+    const thrown = new Error("REPLACEMENT-REJECTION-CANARY");
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const subject = createSubject();
+    MOCKS.deleteInvalidPassportFile.mockResolvedValue(Result.ok("deleted"));
+    vi.spyOn(subject, "establishIdentity").mockRejectedValue(thrown);
+
+    const failure = expectResultError(
+      await subject.replaceInvalidPassportFile(CREDENTIALS, () => undefined),
+      { code: "invalid_passport_file_delete_failed" },
+    );
+
+    expect(failure.cause).toBe(thrown);
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("REPLACEMENT-REJECTION-CANARY");
+  });
+
   it("does not create an identity when invalid-file deletion fails", async () => {
     MOCKS.deleteInvalidPassportFile.mockResolvedValue(Result.err({ code: "delete_failed" }));
 
@@ -671,6 +687,38 @@ describe("Google identity use cases", () => {
     expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
     expect(JSON.stringify(warning.mock.calls)).not.toContain("VISIBLE-COPY-CAUSE-CANARY");
   });
+
+  it.each(["create", "restore"] as const)(
+    "contains a progress listener exception during %s and releases the identity key",
+    async (flow) => {
+      const cause = new Error("PROGRESS-LISTENER-CANARY");
+      const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+      MOCKS.readPassportFile.mockResolvedValue(
+        Result.ok(
+          flow === "create"
+            ? { status: "missing" }
+            : { status: "found", envelope: ENVELOPE, reference: REFERENCE },
+        ),
+      );
+
+      const result = await createSubject().establishIdentity(CREDENTIALS, (progress) => {
+        if (
+          (progress.flow === "create" && progress.step === "signing_up") ||
+          (progress.flow === "restore" && progress.step === "signing_in")
+        ) {
+          throw cause;
+        }
+      });
+
+      expect(Result.isError(result) && result.error).toEqual({
+        code: "unexpected_failure",
+        cause,
+      });
+      expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
+      expect(MOCKS.repositorySave).not.toHaveBeenCalled();
+      expect(JSON.stringify(warning.mock.calls)).not.toContain("PROGRESS-LISTENER-CANARY");
+    },
+  );
 
   it("keeps visible-copy timer setup failures nonfatal and safely logged", async () => {
     const cause = { secret: "VISIBLE-COPY-SETUP-CANARY" };

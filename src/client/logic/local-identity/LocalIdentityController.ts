@@ -62,7 +62,7 @@ export class LocalIdentityController {
   async resolveHomeserver(publicKeyZ32: string): Promise<PubkyHomeserverResolutionResult> {
     try {
       const { resolvePubkyHomeserver } = await import("../pubky/PubkySdkAdapter");
-      return resolvePubkyHomeserver(publicKeyZ32);
+      return await resolvePubkyHomeserver(publicKeyZ32);
     } catch (e) {
       return Result.err({ code: "resolution_failed", cause: e });
     }

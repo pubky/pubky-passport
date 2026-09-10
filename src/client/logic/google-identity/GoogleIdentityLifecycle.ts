@@ -185,7 +185,7 @@ export class GoogleIdentityLifecycle {
           storedFile.value.envelope,
         );
         if (Result.isError(wrappingKey)) return Result.err(wrappingKey.error);
-        return this.restoreIdentity(
+        return await this.restoreIdentity(
           credentials,
           storedFile.value.envelope,
           wrappingKey.value.wrappingKey,
@@ -205,7 +205,7 @@ export class GoogleIdentityLifecycle {
         credentials.driveAccessToken,
         this.fetch,
       );
-      return this.createIdentity(
+      return await this.createIdentity(
         credentials.googleAccount,
         signupDetails.value,
         wrappingKey.value.wrappingKey,
@@ -240,7 +240,7 @@ export class GoogleIdentityLifecycle {
           cause: deleted.error,
         });
       }
-      return this.establishIdentity(credentials, report);
+      return await this.establishIdentity(credentials, report);
     } catch (e) {
       LOGGER.warn("identity.google.invalid_passport_file_replacement.failed", {
         code: "unexpected_failure",
