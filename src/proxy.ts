@@ -12,6 +12,11 @@ const EARLY_AUTHORIZATION_LOCATION_SCRIPT_SOURCE = `'sha256-${createHash("sha256
 const EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT_SOURCE = `'sha256-${createHash("sha256")
   .update(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT)
   .digest("base64")}'`;
+/**
+ * Allows user-selected HTTPS relays without allowing arbitrary cross-origin WebSockets.
+ * CSP's `https:` scheme source does not match `wss:`; `'self'` still covers same-origin WSS.
+ */
+const AUTHORIZATION_RELAY_CONNECT_SOURCE = "https:";
 
 export function proxy(request: NextRequest) {
   try {
@@ -70,7 +75,7 @@ function createContentSecurityPolicy(input: {
       ...input.homeserverConnectOrigins,
       "https://pkarr.pubky.app",
       "https://pkarr.pubky.org",
-      ...(input.allowPubkyAuthRelays ? ["https:"] : []),
+      ...(input.allowPubkyAuthRelays ? [AUTHORIZATION_RELAY_CONNECT_SOURCE] : []),
     ].join(" "),
     "img-src 'self' data: https://lh3.googleusercontent.com",
     "style-src 'self' 'unsafe-inline'",

@@ -38,7 +38,7 @@ describe("request CSP proxy", () => {
     ).toBe(false);
   });
 
-  it("allows SDK-selected HTTPS relays only on authorization documents", () => {
+  it("allows HTTPS relays without adding cross-origin WebSocket schemes", () => {
     const response = proxy(new NextRequest("https://passport.example/authorize"));
     const policy = response.headers.get("Content-Security-Policy") ?? "";
 
@@ -52,7 +52,10 @@ describe("request CSP proxy", () => {
     ]);
     expect(cspSources(policy, "script-src")).not.toContain("'unsafe-inline'");
     expect(cspSources(policy, "script-src")).not.toContain("'unsafe-eval'");
+    expect(cspSources(policy, "connect-src")).toContain("'self'");
     expect(cspSources(policy, "connect-src")).toContain("https:");
+    expect(cspSources(policy, "connect-src")).not.toContain("ws:");
+    expect(cspSources(policy, "connect-src")).not.toContain("wss:");
     expect(cspSources(policy, "connect-src")).toContain("https://lh3.googleusercontent.com");
     expect(cspSources(policy, "connect-src")).not.toContain("https://accounts.google.com");
     expect(cspSources(policy, "style-src")).toEqual(["'self'", "'unsafe-inline'"]);
