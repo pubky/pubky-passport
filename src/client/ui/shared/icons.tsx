@@ -106,9 +106,7 @@ function CameraIcon({ className }: Pick<IconProps, "className">) {
   );
 }
 
-function CircleCheckIcon(props: IconProps) {
-  const size = props.size ?? 20;
-
+function CircleCheckIcon({ size = 20, ...props }: IconProps) {
   return (
     <Glyph height={size} size={size} viewBox="0 0 20 20" width={size} {...props}>
       <path
@@ -121,9 +119,7 @@ function CircleCheckIcon(props: IconProps) {
   );
 }
 
-function CircleInfoIcon(props: IconProps) {
-  const size = props.size ?? 20;
-
+function CircleInfoIcon({ size = 20, ...props }: IconProps) {
   return (
     <Glyph height={size} size={size} viewBox="0 0 20 20" width={size} {...props}>
       <path
@@ -136,9 +132,9 @@ function CircleInfoIcon(props: IconProps) {
   );
 }
 
-function CopyIcon(props: IconProps) {
+function CopyIcon({ size = 16, ...props }: IconProps) {
   return (
-    <Glyph height={props.size ?? 16} viewBox="0 0 21.5 21.5" width={props.size ?? 16} {...props}>
+    <Glyph height={size} size={size} viewBox="0 0 21.5 21.5" width={size} {...props}>
       <path
         d="M2.75 14.75a2 2 0 0 1-2-2v-10a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2m-6 4h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-10a2 2 0 0 1-2-2v-10a2 2 0 0 1 2-2Z"
         stroke="currentColor"
