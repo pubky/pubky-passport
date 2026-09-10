@@ -322,7 +322,9 @@ describe("GoogleImplicitAuthorization", () => {
 
     const result = await request;
     expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) expect(result.error).toEqual({ code: expectedCode });
+    if (Result.isError(result)) {
+      expect(result.error).toEqual({ code: expectedCode });
+    }
   });
 
   it.each([
@@ -343,7 +345,10 @@ describe("GoogleImplicitAuthorization", () => {
     popup.returnTo(`${ORIGIN}/#${params}`);
 
     const result = await request;
-    expect(Result.isError(result) && result.error).toEqual({ code: "google_authorization_failed" });
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error).toEqual({ code: "google_authorization_failed" });
+    }
   });
 
   it("rejects concurrent requests and times out the active request", async () => {
@@ -357,15 +362,23 @@ describe("GoogleImplicitAuthorization", () => {
     const active = authorization.request();
 
     const concurrent = await authorization.request();
-    expect(Result.isError(concurrent) && concurrent.error).toEqual({
-      code: "google_authorization_failed",
-    });
+    expect(Result.isError(concurrent)).toBe(true);
+    if (Result.isError(concurrent)) {
+      expect(concurrent.error).toEqual({
+        code: "google_authorization_failed",
+        reason: "authorization_in_progress",
+      });
+    }
     await vi.advanceTimersByTimeAsync(5 * 60_000);
 
     const timedOut = await active;
-    expect(Result.isError(timedOut) && timedOut.error).toEqual({
-      code: "google_authorization_failed",
-    });
+    expect(Result.isError(timedOut)).toBe(true);
+    if (Result.isError(timedOut)) {
+      expect(timedOut.error).toEqual({
+        code: "google_authorization_failed",
+        reason: "authorization_timed_out",
+      });
+    }
     expect(popup.close).toHaveBeenCalledOnce();
   });
 
@@ -532,7 +545,12 @@ describe("GoogleImplicitAuthorization", () => {
     const result = await request;
 
     expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) expect(result.error.code).toBe("google_authorization_failed");
+    if (Result.isError(result)) {
+      expect(result.error).toEqual({
+        code: "google_authorization_failed",
+        reason: "authorization_disposed",
+      });
+    }
     expect(popup.close).toHaveBeenCalledOnce();
     expect(warning).toHaveBeenCalledWith("identity.google.implicit_authorization.cleanup_failed", {
       operation: "remove_message_listener",

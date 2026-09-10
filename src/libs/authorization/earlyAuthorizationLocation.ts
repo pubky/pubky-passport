@@ -30,8 +30,10 @@ export const EARLY_AUTHORIZATION_LOCATION_SCRIPT = `(() => {
   try {
     History.prototype.replaceState.call(history, null, "", location.pathname);
   } catch {
-    try { stop(); } catch {}
-    try { location.replace(location.pathname); } catch {}
+    try { stop(); } catch { /* Loading may already have stopped. */ }
+    try { location.replace(location.pathname); } catch {
+      /* Authorization-data scrubbing is best effort when native location APIs fail. */
+    }
     return;
   }
 

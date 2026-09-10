@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
+import { OAuth2Client } from "google-auth-library";
 
 import { LOGGER } from "../../../libs/logger/logger";
 import { expectAsyncResultError } from "../../../../test-utils/resultAssertions";
@@ -90,8 +91,30 @@ describe("Google wrapping-key issuer", () => {
     const issuer = new GoogleWrappingKeyIssuer(GOOGLE_CLIENT_ID, "current", SECRETS);
 
     const result = await issuer.issueGoogleWrappingKey("id-token");
-    expect(Result.isError(result) && result.error.code).toBe("dependency_unavailable");
+    expect(Result.isError(result)).toBe(true);
+    if (!Result.isError(result)) throw new Error("Expected verifier failure.");
+    expect(result.error.code).toBe("google_verifier_unavailable");
+    expect(result.error.cause).toBeInstanceOf(Error);
     expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET-GOOGLE-ID-TOKEN");
+  });
+
+  it("propagates signing-certificate outages as verifier unavailability", async () => {
+    const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
+    const cause = new Error("SECRET-GOOGLE-CERTIFICATE-FAILURE");
+    vi.spyOn(OAuth2Client.prototype, "getFederatedSignonCertsAsync").mockRejectedValue(cause);
+    const issuer = new GoogleWrappingKeyIssuer(GOOGLE_CLIENT_ID, "current", SECRETS);
+
+    const result = await issuer.issueGoogleWrappingKey("id-token");
+
+    expect(Result.isError(result)).toBe(true);
+    if (!Result.isError(result)) throw new Error("Expected verifier failure.");
+    expect(result.error).toEqual({ code: "google_verifier_unavailable", cause });
+    expect(error).toHaveBeenCalledWith("identity.google.id_token_verification.failed", {
+      code: "google_verifier_unavailable",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
+    });
+    expect(JSON.stringify(error.mock.calls)).not.toContain("SECRET-GOOGLE-CERTIFICATE-FAILURE");
   });
 
   it("constructs the configured server flow", () => {

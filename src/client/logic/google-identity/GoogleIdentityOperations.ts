@@ -100,6 +100,13 @@ type DetachGoogleIdentityResult = ResultType<void, DetachGoogleIdentityError>;
 
 type OperationResult<Success = void> = ResultType<Success, GoogleIdentityEstablishmentError>;
 
+/**
+ * Coordinates Google Drive persistence, Homegate signup, and Pubky identity activation.
+ *
+ * Public asynchronous operations settle with a Result for operational and unexpected failures;
+ * they do not intentionally reject. Construction can throw when a required browser dependency or
+ * configured endpoint cannot be initialized.
+ */
 export class GoogleIdentityOperations {
   private readonly repository = new LocalStorageIdentityRepository();
   private readonly pubky: PubkySdkAdapter;
@@ -114,6 +121,7 @@ export class GoogleIdentityOperations {
   };
   private disposed = false;
 
+  /** @throws {Error} when a required dependency or configured endpoint cannot be initialized. */
   constructor(
     homegateBaseUrl: string,
     private readonly passportOrigin: string,
@@ -136,7 +144,10 @@ export class GoogleIdentityOperations {
     }
   }
 
-  /** Restores the Drive identity when present, otherwise creates and activates one. */
+  /**
+   * Restores the Drive identity when present, otherwise creates and activates one.
+   * The promise settles with a Result and does not intentionally reject.
+   */
   async establishIdentity(
     credentials: GoogleIdentityCredentials,
     report: (progress: GoogleIdentityProgress) => void,
@@ -201,7 +212,10 @@ export class GoogleIdentityOperations {
     }
   }
 
-  /** Deletes a confirmed malformed Drive file, then creates or restores current state. */
+  /**
+   * Deletes a confirmed malformed Drive file, then creates or restores current state.
+   * The promise settles with a Result and does not intentionally reject.
+   */
   async replaceInvalidPassportFile(
     credentials: GoogleIdentityCredentials,
     report: (progress: GoogleIdentityProgress) => void,
@@ -231,6 +245,7 @@ export class GoogleIdentityOperations {
   /**
    * Deletes Google Drive Passport files belonging to the selected identity, then removes
    * the local identity. Any Google Drive failure preserves the local copy.
+   * The promise settles with a Result and does not intentionally reject.
    */
   async detachIdentity(
     credentials: GoogleIdentityCredentials,

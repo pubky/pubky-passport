@@ -1,6 +1,7 @@
 import { Result } from "better-result";
 import { useState, useSyncExternalStore } from "react";
 
+import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import {
   LocalIdentityController,
   type LocalIdentityRecoveryFileResult,
@@ -30,6 +31,7 @@ const SERVER_SNAPSHOT: IdentityCatalogState = { status: "loading" };
 
 class IdentityCatalogStore {
   private readonly controller: LocalIdentityController | null;
+  private readonly initializationCause: unknown;
   private dirty = true;
   private snapshot: IdentityCatalogState | undefined;
 
@@ -38,28 +40,35 @@ class IdentityCatalogStore {
   constructor() {
     try {
       this.controller = new LocalIdentityController();
-    } catch {
+      this.initializationCause = undefined;
+    } catch (cause) {
       this.controller = null;
+      this.initializationCause = cause;
+      LOGGER.error("identity.catalog.failed", {
+        operation: "initialize",
+        code: "controller_unavailable",
+        ...safeErrorLogFields(cause),
+      });
     }
     this.actions = {
       createMigration: async (publicKeyZ32) =>
         this.controller
           ? this.controller.createPubkyRingMigration(publicKeyZ32)
-          : Result.err({ code: "storage_unavailable" }),
+          : Result.err({ code: "storage_unavailable", cause: this.initializationCause }),
       createRecoveryFile: async (publicKeyZ32, password) =>
         this.controller
           ? this.controller.createRecoveryFile(publicKeyZ32, password)
-          : Result.err({ code: "identity_unavailable" }),
+          : Result.err({ code: "identity_unavailable", cause: this.initializationCause }),
       removeIdentity: (publicKeyZ32) =>
         this.controller?.removeIdentity(publicKeyZ32) ??
-        Result.err({ code: "storage_unavailable" }),
+        Result.err({ code: "storage_unavailable", cause: this.initializationCause }),
       resolveHomeserver: async (publicKeyZ32) =>
         this.controller
           ? this.controller.resolveHomeserver(publicKeyZ32)
-          : Result.err({ code: "resolution_failed" }),
+          : Result.err({ code: "resolution_failed", cause: this.initializationCause }),
       selectIdentity: (publicKeyZ32) =>
         this.controller?.selectIdentity(publicKeyZ32) ??
-        Result.err({ code: "storage_unavailable" }),
+        Result.err({ code: "storage_unavailable", cause: this.initializationCause }),
     };
   }
 

@@ -434,9 +434,17 @@ export class PubkySdkAdapter {
 export async function resolvePubkyHomeserver(
   publicKeyZ32: string,
 ): Promise<PubkyHomeserverResolutionResult> {
-  const pubky = new PubkySdkAdapter();
+  let pubky: PubkySdkAdapter;
+  try {
+    pubky = new PubkySdkAdapter();
+  } catch (e) {
+    return failure("resolve_homeserver", "sdk_initialize", "resolution_failed", e);
+  }
+
   try {
     return await pubky.resolveHomeserver(publicKeyZ32);
+  } catch (e) {
+    return failure("resolve_homeserver", "sdk_resolution", "resolution_failed", e);
   } finally {
     pubky.dispose();
   }
@@ -537,6 +545,7 @@ type PubkyFailureStage =
   | "sdk_approval"
   | "sdk_create"
   | "sdk_export"
+  | "sdk_initialize"
   | "sdk_public_identity"
   | "sdk_recovery_file"
   | "sdk_publish"

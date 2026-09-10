@@ -12,7 +12,10 @@ import {
 import { deriveGoogleWrappingKey } from "./GoogleWrappingKeyDeriver";
 
 export type GoogleWrappingKeyIssueErrorCode =
-  "invalid_google_id_token" | "key_unavailable" | "dependency_unavailable";
+  | "google_verifier_unavailable"
+  | "invalid_google_id_token"
+  | "key_derivation_failed"
+  | "key_unavailable";
 
 export type GoogleWrappingKeyIssueResult = ResultType<
   { wrappingKey: string; keyId: string },
@@ -30,12 +33,17 @@ export class GoogleWrappingKeyIssuer {
     this.googleIdTokenVerifier = new GoogleIdTokenVerifier(googleClientId);
   }
 
+  /** @throws {Error} when required server configuration is missing or invalid. */
   static fromEnvironment(): GoogleWrappingKeyIssuer {
     const { googleClientId } = getPublicEnvironment();
     const { currentKeyId, secrets } = getServerEnvironment();
     return new GoogleWrappingKeyIssuer(googleClientId, currentKeyId, secrets);
   }
 
+  /**
+   * Issues a wrapping key and settles with a Result for verification and derivation failures.
+   * It does not intentionally reject.
+   */
   async issueGoogleWrappingKey(
     googleIdToken: string,
     requestedKeyId?: string,
@@ -47,10 +55,10 @@ export class GoogleWrappingKeyIssuer {
       LOGGER.error("identity.google.wrapping_key.failed", {
         layer: "server",
         operation: "verify",
-        code: "dependency_unavailable",
+        code: "google_verifier_unavailable",
         ...safeErrorLogFields(cause),
       });
-      return Result.err({ code: "dependency_unavailable", cause });
+      return Result.err({ code: "google_verifier_unavailable", cause });
     }
 
     if (Result.isError(identity)) return Result.err(identity.error);
@@ -73,10 +81,10 @@ export class GoogleWrappingKeyIssuer {
       LOGGER.error("identity.google.wrapping_key.failed", {
         layer: "server",
         operation: "derive",
-        code: "dependency_unavailable",
+        code: "key_derivation_failed",
         ...safeErrorLogFields(cause),
       });
-      return Result.err({ code: "dependency_unavailable", cause });
+      return Result.err({ code: "key_derivation_failed", cause });
     }
   }
 }

@@ -2,6 +2,7 @@ import { Result, type Result as ResultType } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAsyncResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
+import { HttpResponseError } from "../../../../libs/http/HttpResponseError";
 import { LOGGER } from "../../../../libs/logger/logger";
 import type { PassportFileEnvelope } from "../passportFileEnvelope";
 import { GoogleDrivePassportFileStore } from "./GoogleDrivePassportFileStore";
@@ -213,10 +214,19 @@ async function expectSuccess<Success>(
 }
 
 async function expectFailure(
-  result: Promise<ResultType<unknown, { code: string }>>,
+  result: Promise<ResultType<unknown, { code: string; cause?: unknown }>>,
   code: string,
+  withCause = false,
 ): Promise<void> {
-  await expectAsyncResultError(result, { code });
+  if (!withCause) {
+    await expectAsyncResultError(result, { code });
+    return;
+  }
+  const resolved = await result;
+  expect(Result.isError(resolved)).toBe(true);
+  if (Result.isError(resolved)) {
+    expect(resolved.error).toMatchObject({ code, cause: expect.any(Error) });
+  }
 }
 
 describe("GoogleDrivePassportFileStore", () => {
@@ -349,7 +359,7 @@ describe("GoogleDrivePassportFileStore", () => {
     const cancel = vi.fn();
     const { store } = createStore([oversizedMediaResponse(cancel)]);
 
-    await expectFailure(store.readPassportFile(), "invalid_response");
+    await expectFailure(store.readPassportFile(), "invalid_response", true);
     expect(cancel).toHaveBeenCalledOnce();
   });
 
@@ -359,7 +369,7 @@ describe("GoogleDrivePassportFileStore", () => {
       streamResponse([new Uint8Array(16 * 1024), new Uint8Array(1)], cancel),
     ]);
 
-    await expectFailure(store.readPassportFile(), "invalid_response");
+    await expectFailure(store.readPassportFile(), "invalid_response", true);
     expect(cancel).toHaveBeenCalledOnce();
   });
 
@@ -378,11 +388,13 @@ describe("GoogleDrivePassportFileStore", () => {
     await expectFailure(
       createStore([jsonResponse({ error: "token" }, 401)]).store.readPassportFile(),
       "unauthorized",
+      true,
     );
 
     await expectFailure(
       createStore([jsonResponse({ error: "scope" }, 403)]).store.readPassportFile(),
       "forbidden",
+      true,
     );
   });
 
@@ -420,11 +432,13 @@ describe("GoogleDrivePassportFileStore", () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const { store } = createStore([textResponse("SECRET-MALFORMED-DRIVE-RESPONSE")]);
 
-    await expectFailure(store.readPassportFile(), "invalid_response");
+    await expectFailure(store.readPassportFile(), "invalid_response", true);
 
     expect(warning).toHaveBeenCalledWith("identity.google.drive_store.failed", {
       operation: "parse_list_response",
       code: "invalid_response",
+      diagnosticId: expect.any(String),
+      errorName: "SyntaxError",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-MALFORMED-DRIVE-RESPONSE");
     expect(JSON.stringify(warning.mock.calls)).not.toContain(ACCESS_TOKEN);
@@ -779,18 +793,38 @@ describe("GoogleDrivePassportFileStore", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it("maps Drive write failures without exposing response bodies", async () => {
+  it("retains bounded Drive write diagnostics without exposing them in logs", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const responseBody = '{"error":"SECRET-UPSTREAM-DRIVE-DIAGNOSTIC"}';
     const { store } = createStore([
       jsonResponse({ files: [] }),
-      jsonResponse({ error: "google raw error with token-ish details" }, 500),
+      new Response(responseBody, { status: 500, statusText: "Internal Server Error" }),
     ]);
 
     const result = await store.createPassportFile(ENVELOPE);
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isError(result)) {
-      expect(result.error).toEqual({ code: "write_failed" });
+      expect(result.error).toMatchObject({
+        code: "write_failed",
+        httpStatus: 500,
+        cause: expect.any(HttpResponseError),
+      });
+      expect(result.error.cause).toMatchObject({
+        status: 500,
+        statusText: "Internal Server Error",
+        responseBody,
+      });
     }
-    expect(JSON.stringify(result)).not.toContain("google raw error");
+    expect(warning).toHaveBeenCalledWith("identity.google.drive_store.failed", {
+      operation: "create",
+      code: "write_failed",
+      httpStatus: 500,
+      diagnosticId: expect.any(String),
+      errorName: "HttpResponseError",
+    });
+    expect(JSON.stringify(result)).not.toContain("SECRET-UPSTREAM-DRIVE-DIAGNOSTIC");
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-UPSTREAM-DRIVE-DIAGNOSTIC");
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(ACCESS_TOKEN);
   });
 });

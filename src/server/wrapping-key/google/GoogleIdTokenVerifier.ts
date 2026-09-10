@@ -1,6 +1,6 @@
 import "server-only";
 
-import { OAuth2Client, type LoginTicket } from "google-auth-library";
+import { OAuth2Client, type Certificates, type LoginTicket } from "google-auth-library";
 import { Result } from "better-result";
 
 import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
@@ -23,7 +23,7 @@ type GoogleIdTokenPayload = {
 
 export type GoogleIdTokenVerificationResult = Result<
   VerifiedGoogleIdentity,
-  CodedFailure<"invalid_google_id_token">
+  CodedFailure<"google_verifier_unavailable" | "invalid_google_id_token">
 >;
 
 export class GoogleIdTokenVerifier {
@@ -31,10 +31,29 @@ export class GoogleIdTokenVerifier {
 
   constructor(private readonly audience: string) {}
 
+  /**
+   * Verifies the token and settles with a Result for verifier and claims failures.
+   */
   async verifyGoogleIdToken(idToken: string): Promise<GoogleIdTokenVerificationResult> {
+    let certificates: Certificates;
+    try {
+      ({ certs: certificates } = await this.verifier.getFederatedSignonCertsAsync());
+    } catch (cause) {
+      LOGGER.error("identity.google.id_token_verification.failed", {
+        code: "google_verifier_unavailable",
+        ...safeErrorLogFields(cause),
+      });
+      return Result.err({ code: "google_verifier_unavailable", cause });
+    }
+
     let ticket: LoginTicket;
     try {
-      ticket = await this.verifier.verifyIdToken({ idToken, audience: this.audience });
+      ticket = await this.verifier.verifySignedJwtWithCertsAsync(
+        idToken,
+        certificates,
+        this.audience,
+        ["accounts.google.com", CANONICAL_GOOGLE_ISSUER],
+      );
     } catch (cause) {
       LOGGER.warn("identity.google.id_token_verification.failed", {
         code: "google_verifier_rejected",

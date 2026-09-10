@@ -41,7 +41,12 @@ type GoogleAuthorizationResponseError = {
   code: "google_authorization_denied" | "google_authorization_failed";
 };
 
-/** Pure validation of the captured OAuth fragment and ID-token binding fields. */
+/**
+ * Validates the captured OAuth fragment and its state, scope, and ID-token bindings.
+ *
+ * Invalid or malformed input is returned as a failure Result. This function does not
+ * intentionally throw.
+ */
 export function parseGoogleAuthorizationResponse(
   capture: unknown,
   expectedState: string,
@@ -61,13 +66,12 @@ export function parseGoogleAuthorizationResponse(
   const params = new URLSearchParams(capture.hash.slice(1));
   const state = oneValue(params, "state");
   if (params.has("error")) {
-    if (state !== expectedState) return Result.err({ code: "google_authorization_failed" });
-    return Result.err({
-      code:
-        oneValue(params, "error") === "access_denied"
-          ? "google_authorization_denied"
-          : "google_authorization_failed",
-    });
+    if (state !== expectedState) {
+      return Result.err({ code: "google_authorization_failed" });
+    }
+    return oneValue(params, "error") === "access_denied"
+      ? Result.err({ code: "google_authorization_denied" })
+      : Result.err({ code: "google_authorization_failed" });
   }
 
   const googleIdToken = oneValue(params, "id_token");
@@ -103,6 +107,7 @@ function readIdTokenSubject(token: string, expectedNonce: string): string | null
       ? value.sub
       : null;
   } catch {
+    // Decoding errors may echo token claims, so treat them as invalid without retaining a cause.
     return null;
   }
 }

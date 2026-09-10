@@ -81,7 +81,23 @@ describe("environment", () => {
     expect(() => getPublicEnvironment()).toThrow();
   });
 
-  it.each(["not-json", "null", "[]"])("rejects an invalid keyring: %s", (keyring) => {
+  it("does not expose the JSON parser error for a malformed keyring", () => {
+    const secretFragment = "server-secret-material";
+    vi.stubEnv("PASSPORT_SERVER_SECRET_KEYRING_JSON", `not-json-${secretFragment}`);
+    try {
+      getServerEnvironment();
+      throw new Error("Expected malformed keyring failure.");
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe(
+        "PASSPORT_SERVER_SECRET_KEYRING_JSON must be valid JSON.",
+      );
+      expect(error).not.toHaveProperty("cause");
+      expect(String(error)).not.toContain(secretFragment);
+    }
+  });
+
+  it.each(["null", "[]"])("rejects an invalid keyring: %s", (keyring) => {
     vi.stubEnv("PASSPORT_SERVER_SECRET_KEYRING_JSON", keyring);
     expect(() => getServerEnvironment()).toThrow();
   });
