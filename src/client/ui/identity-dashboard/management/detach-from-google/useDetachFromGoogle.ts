@@ -66,7 +66,7 @@ function useDetachFromGoogle(publicIdentity: PubkyPublicIdentity, expectedGoogle
     });
   };
 
-  return { detach, retryDetachment: detach, state };
+  return { detach, state };
 }
 
 export { useDetachFromGoogle };

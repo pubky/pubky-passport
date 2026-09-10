@@ -87,7 +87,7 @@ function DetachFromGoogleFlow({
             }
             onCancel={() => setState({ view: "review", confirmation: "closed" })}
             onConfirm={operation.detach}
-            onRetryAuthorization={operation.retryDetachment}
+            onRetryAuthorization={operation.detach}
             open={state.confirmation === "open"}
             pending={pending}
           />

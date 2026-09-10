@@ -36,7 +36,7 @@ function Probe() {
       <button onClick={operation.detach} type="button">
         Detach
       </button>
-      <button onClick={operation.retryDetachment} type="button">
+      <button onClick={operation.detach} type="button">
         Retry
       </button>
     </>
