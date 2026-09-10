@@ -13,6 +13,7 @@ import { PassportNavigation } from "../../../shared/passportNavigation";
 import { PassportScreen } from "../../../shared/passportScreen";
 import { Button } from "../../../shared/primitives/button";
 import { DisplayHeading, LeadText } from "../../../shared/primitives/typography";
+import { DESKTOP_VIEWPORT_QUERY } from "../../../shared/useDesktopViewport";
 import { PubkyRingQrCode } from "./pubkyRingQrCode";
 import { PubkyRingQrDialog } from "./pubkyRingQrDialog";
 
@@ -64,7 +65,7 @@ function MigrateToPubkyRing({
 
   useEffect(() => {
     if (typeof globalThis.matchMedia !== "function") return releaseMigration;
-    const media = globalThis.matchMedia("(min-width: 48rem)");
+    const media = globalThis.matchMedia(DESKTOP_VIEWPORT_QUERY);
 
     async function syncDesktop() {
       const nextDesktop = media.matches;

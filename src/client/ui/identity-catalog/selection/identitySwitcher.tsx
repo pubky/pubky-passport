@@ -1,5 +1,4 @@
 import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
-import { useSyncExternalStore } from "react";
 import { UserRoundPlusIcon } from "../../shared/icons";
 import { BackButton } from "../../shared/backButton";
 import { PassportScreen } from "../../shared/passportScreen";
@@ -7,6 +6,7 @@ import { Button } from "../../shared/primitives/button";
 import { FieldMessage } from "../../shared/primitives/fieldMessage";
 import { DisplayHeading } from "../../shared/primitives/typography";
 import { shortPublicKey } from "../../shared/shortPublicKey";
+import { useDesktopViewport } from "../../shared/useDesktopViewport";
 import { IdentityRow } from "./identityRow";
 
 function IdentitySwitcher({
@@ -26,11 +26,7 @@ function IdentitySwitcher({
   onSelect: (publicKeyZ32: string) => void;
   selectionFailed?: boolean;
 }) {
-  const desktopViewport = useSyncExternalStore(
-    subscribeToDesktopViewport,
-    getDesktopViewport,
-    getServerDesktopViewport,
-  );
+  const desktopViewport = useDesktopViewport();
   const orderedIdentities = activePublicKeyZ32
     ? [
         ...identities.filter(
@@ -97,26 +93,6 @@ function IdentitySwitcher({
       </section>
     </PassportScreen>
   );
-}
-
-const DESKTOP_VIEWPORT_QUERY = "(min-width: 48rem)";
-
-function subscribeToDesktopViewport(onChange: () => void): () => void {
-  if (typeof globalThis.matchMedia !== "function") return () => undefined;
-  const query = globalThis.matchMedia(DESKTOP_VIEWPORT_QUERY);
-  query.addEventListener("change", onChange);
-  return () => query.removeEventListener("change", onChange);
-}
-
-function getDesktopViewport(): boolean {
-  return (
-    typeof globalThis.matchMedia !== "function" ||
-    globalThis.matchMedia(DESKTOP_VIEWPORT_QUERY).matches
-  );
-}
-
-function getServerDesktopViewport(): boolean {
-  return true;
 }
 
 export { IdentitySwitcher };
