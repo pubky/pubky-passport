@@ -22,11 +22,6 @@ type GoogleIdentityEstablishmentView =
       visibleRecoveryCopyStatus: "created" | "unconfirmed" | null;
     };
 
-const OPERATION_FAILED: GoogleIdentityEstablishmentView = {
-  status: "failed",
-  error: { code: "operation_failed" },
-};
-
 function useGoogleIdentityEstablishment() {
   const [view, setView] = useState<GoogleIdentityEstablishmentView>({ status: "idle" });
   const controller = useGoogleIdentityController({
@@ -39,7 +34,7 @@ function useGoogleIdentityEstablishment() {
         setView({ status: "working", progress: nextState.progress });
       }
     },
-    onUnavailable: () => setView(OPERATION_FAILED),
+    onUnavailable: () => setView({ status: "failed", error: { code: "operation_failed" } }),
   });
 
   const startIdentityOperation = (operation: "establish" | "replace-invalid-file") => {
@@ -70,7 +65,7 @@ function useGoogleIdentityEstablishment() {
               : null,
         });
       },
-      onRejected: () => setView(OPERATION_FAILED),
+      onRejected: () => setView({ status: "failed", error: { code: "operation_failed" } }),
     });
   };
 

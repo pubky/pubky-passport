@@ -13,11 +13,6 @@ type DetachFromGoogleOperationState =
   | { status: "operation-failed"; error: GoogleIdentityViewError }
   | { status: "complete" };
 
-const OPERATION_FAILED: DetachFromGoogleOperationState = {
-  status: "operation-failed",
-  error: { code: "operation_failed" },
-};
-
 function useDetachFromGoogle(publicIdentity: PubkyPublicIdentity, expectedGoogleSubject: string) {
   const [state, setState] = useState<DetachFromGoogleOperationState>({ status: "ready" });
   const controller = useGoogleIdentityController({
@@ -30,7 +25,8 @@ function useDetachFromGoogle(publicIdentity: PubkyPublicIdentity, expectedGoogle
         setState({ status: "detaching" });
       }
     },
-    onUnavailable: () => setState(OPERATION_FAILED),
+    onUnavailable: () =>
+      setState({ status: "operation-failed", error: { code: "operation_failed" } }),
   });
 
   const detach = () => {
@@ -40,7 +36,7 @@ function useDetachFromGoogle(publicIdentity: PubkyPublicIdentity, expectedGoogle
       state.status === "operation-failed";
     if (!canStartDetachment) return;
     if (!expectedGoogleSubject.trim()) {
-      setState(OPERATION_FAILED);
+      setState({ status: "operation-failed", error: { code: "operation_failed" } });
       return;
     }
 
@@ -62,7 +58,8 @@ function useDetachFromGoogle(publicIdentity: PubkyPublicIdentity, expectedGoogle
         }
         setState({ status: "complete" });
       },
-      onRejected: () => setState(OPERATION_FAILED),
+      onRejected: () =>
+        setState({ status: "operation-failed", error: { code: "operation_failed" } }),
     });
   };
 
