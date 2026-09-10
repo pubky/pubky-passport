@@ -80,15 +80,11 @@ function httpsOrigin(value: string, name: string): URL {
     throw new Error(`${name} must be a valid HTTPS origin.`, { cause: e });
   }
 
-  if (
-    url.protocol !== "https:" ||
-    url.username ||
-    url.password ||
-    url.pathname !== "/" ||
-    url.search ||
-    url.hash ||
-    !isCspSafeHostname(url.hostname)
-  ) {
+  const usesHttps = url.protocol === "https:";
+  const hasCredentials = url.username !== "" || url.password !== "";
+  const containsOnlyOrigin = url.pathname === "/" && url.search === "" && url.hash === "";
+  const hasSafeHostname = isCspSafeHostname(url.hostname);
+  if (!usesHttps || hasCredentials || !containsOnlyOrigin || !hasSafeHostname) {
     throw new Error(`${name} must be a valid HTTPS origin.`);
   }
   return url;

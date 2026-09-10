@@ -138,21 +138,23 @@ export class GoogleImplicitAuthorization {
         this.activeAttempt = attempt;
         attempt.messageListener = (event) => {
           try {
-            if (
-              event.origin !== origin ||
-              event.source !== openedPopup ||
-              this.activeAttempt !== attempt ||
-              attempt.responseReceived ||
-              typeof event.data !== "object" ||
-              event.data === null ||
-              Array.isArray(event.data) ||
-              event.data.type !== GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE
-            )
+            const isFromExpectedPopup = event.origin === origin && event.source === openedPopup;
+            const isActiveAttempt = this.activeAttempt === attempt && !attempt.responseReceived;
+            const message = event.data as unknown;
+            const isExpectedMessage =
+              typeof message === "object" &&
+              message !== null &&
+              !Array.isArray(message) &&
+              "type" in message &&
+              message.type === GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE;
+
+            if (!isFromExpectedPopup || !isActiveAttempt || !isExpectedMessage) {
               return;
+            }
             attempt.responseReceived = true;
             if (attempt.poll !== undefined) clearInterval(attempt.poll);
             closePopup(attempt.popup);
-            void this.handleResponseMessage(attempt, event.data).catch((e: unknown) => {
+            void this.handleResponseMessage(attempt, message).catch((e: unknown) => {
               this.failAttempt(attempt, "response_handler", e);
             });
           } catch (e) {

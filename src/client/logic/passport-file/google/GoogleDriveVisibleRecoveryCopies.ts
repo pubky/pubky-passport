@@ -325,20 +325,22 @@ export class GoogleDriveVisibleRecoveryCopies {
       });
       return Result.err({ code: "invalid_response", cause: folder.error.cause });
     }
-    if (
-      !isDriveFile(folder.value) ||
-      !isNonEmptyString(folder.value.id) ||
-      folder.value.name !== VISIBLE_RECOVERY_FOLDER_NAME ||
-      folder.value.mimeType !== DRIVE_FOLDER_MIME_TYPE ||
-      folder.value.trashed !== false
-    ) {
+    const metadata = folder.value;
+    const isFile = isDriveFile(metadata);
+    const folderId = isFile ? metadata.id : undefined;
+    const hasExpectedMetadata =
+      isFile &&
+      metadata.name === VISIBLE_RECOVERY_FOLDER_NAME &&
+      metadata.mimeType === DRIVE_FOLDER_MIME_TYPE &&
+      metadata.trashed === false;
+    if (!isNonEmptyString(folderId) || !hasExpectedMetadata) {
       LOGGER.warn("identity.google.visible_recovery_copies.failed", {
         operation: "parse_folder_response",
         code: "invalid_response",
       });
       return Result.err({ code: "invalid_response" });
     }
-    return Result.ok(folder.value.id);
+    return Result.ok(folderId);
   }
 
   private async parseFileResponse(
@@ -416,15 +418,15 @@ export class GoogleDriveVisibleRecoveryCopies {
     }
 
     const reference = parseDriveFileRevision(file.value);
-    if (
-      reference === null ||
-      file.value.name !== fileName ||
-      file.value.trashed !== false ||
-      !Array.isArray(file.value.parents) ||
-      file.value.parents.length !== 1 ||
-      file.value.parents[0] !== folderId ||
-      !sameDriveFileIdentity(reference, expectedReference)
-    ) {
+    const hasExpectedMetadata =
+      file.value.name === fileName &&
+      file.value.trashed === false &&
+      Array.isArray(file.value.parents) &&
+      file.value.parents.length === 1 &&
+      file.value.parents[0] === folderId;
+    const hasExpectedIdentity =
+      reference !== null && sameDriveFileIdentity(reference, expectedReference);
+    if (!hasExpectedMetadata || !hasExpectedIdentity) {
       LOGGER.warn("identity.google.visible_recovery_copies.failed", {
         operation: "parse_copy_verification_response",
         code: "invalid_response",
