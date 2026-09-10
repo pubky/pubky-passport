@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes } from "react";
 
 import { GoogleLogo } from "../../shared/brand/googleLogo";
 import { cn } from "../../shared/mergeClassNames";
@@ -8,7 +8,7 @@ type IdentityRowProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   avatarSrc?: string;
   detail: string;
   name: string;
-  provider?: ReactNode;
+  provider?: "google";
   selected?: boolean;
 };
 
@@ -22,9 +22,6 @@ function IdentityRow({
   style,
   ...props
 }: IdentityRowProps) {
-  const googleProvider = provider === "google";
-  const providerMark = googleProvider ? <GoogleLogo /> : provider;
-
   return (
     <button
       aria-pressed={selected}
@@ -37,9 +34,9 @@ function IdentityRow({
       {...props}
     >
       <Avatar fallback={name} size="sm" {...(avatarSrc ? { src: avatarSrc } : {})} />
-      {googleProvider ? (
+      {provider === "google" ? (
         <span className="absolute left-[39px] top-[39px] flex size-4 items-center justify-center drop-shadow-xl">
-          {providerMark}
+          <GoogleLogo />
         </span>
       ) : null}
       <span className="min-w-0 flex-1">
@@ -48,11 +45,7 @@ function IdentityRow({
           {detail}
         </span>
       </span>
-      {selected ? (
-        <CheckIcon />
-      ) : !googleProvider && providerMark ? (
-        <span className="flex size-4 shrink-0 items-center justify-center">{providerMark}</span>
-      ) : null}
+      {selected ? <CheckIcon /> : null}
     </button>
   );
 }

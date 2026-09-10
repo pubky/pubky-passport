@@ -6,7 +6,7 @@ import { GoogleIdentityError } from "./google/googleIdentityError";
 import { GoogleIdentityProgress } from "./google/googleIdentityProgress";
 import { useGoogleIdentityEstablishment } from "./google/useGoogleIdentityEstablishment";
 import { BackButton } from "../shared/backButton";
-import { ProviderSignInButton } from "./providerSignInButton";
+import { GoogleSignInButton } from "./googleSignInButton";
 import { SignInPage } from "./signInPage";
 
 function IdentityEstablishmentFlow({
@@ -56,13 +56,9 @@ function IdentityEstablishmentFlow({
     case "idle":
       return (
         <SignInPage>
-          <ProviderSignInButton
-            className="w-full"
-            onClick={google.establishIdentity}
-            provider="google"
-          >
+          <GoogleSignInButton className="w-full" onClick={google.establishIdentity}>
             Continue with Google
-          </ProviderSignInButton>
+          </GoogleSignInButton>
           {onBack ? <BackButton className="md:mt-auto" onClick={onBack} /> : null}
         </SignInPage>
       );

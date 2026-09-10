@@ -1,23 +1,16 @@
 import type { ButtonProps } from "../shared/primitives/button";
 import { Button } from "../shared/primitives/button";
-import { AppleLogo } from "../shared/brand/appleLogo";
 import { GoogleLogo } from "../shared/brand/googleLogo";
 
-const providerMark = { apple: <AppleLogo />, google: <GoogleLogo />, ring: "P" };
-
-function ProviderSignInButton({
-  children,
-  provider,
-  ...props
-}: ButtonProps & { provider: keyof typeof providerMark }) {
+function GoogleSignInButton({ children, ...props }: ButtonProps) {
   return (
     <Button size="lg" variant="secondary" {...props}>
       <span aria-hidden="true" className="flex size-5 items-center justify-center font-bold">
-        {providerMark[provider]}
+        <GoogleLogo />
       </span>
       {children}
     </Button>
   );
 }
 
-export { ProviderSignInButton };
+export { GoogleSignInButton };
