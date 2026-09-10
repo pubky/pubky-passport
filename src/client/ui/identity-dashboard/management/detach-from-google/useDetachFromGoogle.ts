@@ -1,13 +1,9 @@
 import { Result } from "better-result";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
-import { LOGGER, safeErrorLogFields } from "../../../../../libs/logger/logger";
-import {
-  GoogleIdentityController,
-  type GoogleIdentityViewError,
-} from "../../../../logic/google-identity/GoogleIdentityController";
+import type { GoogleIdentityViewError } from "../../../../logic/google-identity/GoogleIdentityController";
 import type { PubkyPublicIdentity } from "../../../../logic/pubky/pubkyIdentityKey";
-import { useGoogleIdentityConfiguration } from "../../../googleIdentityConfiguration";
+import { useGoogleIdentityController } from "../../../useGoogleIdentityController";
 
 type DetachFromGoogleOperationState =
   | { status: "ready" }
@@ -17,110 +13,58 @@ type DetachFromGoogleOperationState =
   | { status: "operation-failed"; error: GoogleIdentityViewError }
   | { status: "complete" };
 
+const OPERATION_FAILED: DetachFromGoogleOperationState = {
+  status: "operation-failed",
+  error: { code: "operation_failed" },
+};
+
 function useDetachFromGoogle(publicIdentity: PubkyPublicIdentity, expectedGoogleSubject: string) {
-  const { googleClientId, homegateBaseUrl } = useGoogleIdentityConfiguration();
-  const controllerRef = useRef<GoogleIdentityController | null>(null);
-  const operationPendingRef = useRef(false);
-  const operationIdRef = useRef(0);
   const [state, setState] = useState<DetachFromGoogleOperationState>({ status: "ready" });
+  const controller = useGoogleIdentityController({
+    disposeOperation: "detachment_controller_dispose",
+    failureEvent: "identity.google.detachment_ui.failed",
+    onControllerState: (nextState) => {
+      if (nextState.status === "requesting-authorization") {
+        setState({ status: "requesting-authorization" });
+      } else if (nextState.status === "detaching") {
+        setState({ status: "detaching" });
+      }
+    },
+    onUnavailable: () => setState(OPERATION_FAILED),
+  });
 
-  const ensureController = useCallback((): GoogleIdentityController | null => {
-    if (controllerRef.current) return controllerRef.current;
-
-    try {
-      const controller = new GoogleIdentityController(
-        googleClientId,
-        homegateBaseUrl,
-        (nextState) => {
-          if (controllerRef.current !== controller) return;
-          if (nextState.status === "requesting-authorization") {
-            setState({ status: "requesting-authorization" });
-          } else if (nextState.status === "detaching") {
-            setState({ status: "detaching" });
-          }
-        },
-      );
-      controllerRef.current = controller;
-      return controller;
-    } catch (e) {
-      LOGGER.warn("identity.google.detachment_ui.failed", {
-        operation: "construct_controller",
-        ...safeErrorLogFields(e),
-      });
-      setState({ status: "operation-failed", error: { code: "operation_failed" } });
-      return null;
-    }
-  }, [googleClientId, homegateBaseUrl]);
-
-  const detach = useCallback(() => {
+  const detach = () => {
     const canStartDetachment =
       state.status === "ready" ||
       state.status === "authorization-failed" ||
       state.status === "operation-failed";
-    if (!canStartDetachment || operationPendingRef.current) {
-      return;
-    }
+    if (!canStartDetachment) return;
     if (!expectedGoogleSubject.trim()) {
-      setState({ status: "operation-failed", error: { code: "operation_failed" } });
+      setState(OPERATION_FAILED);
       return;
     }
 
-    const controller = ensureController();
-    if (!controller) return;
-    operationPendingRef.current = true;
-    const operationId = ++operationIdRef.current;
-    setState({ status: "requesting-authorization" });
-
-    void controller
-      .detachIdentity(publicIdentity, expectedGoogleSubject)
-      .then((completed) => {
-        if (controllerRef.current !== controller || operationIdRef.current !== operationId) return;
+    controller.startOperation({
+      operation: "detach",
+      start: (googleIdentity) => {
+        setState({ status: "requesting-authorization" });
+        return googleIdentity.detachIdentity(publicIdentity, expectedGoogleSubject);
+      },
+      onSettled: (completed) => {
         if (Result.isError(completed)) {
           if (completed.error.code === "cancelled") return;
           setState(
             completed.error.code === "authorization_failed"
               ? { status: "authorization-failed" }
-              : {
-                  status: "operation-failed",
-                  error: completed.error,
-                },
+              : { status: "operation-failed", error: completed.error },
           );
           return;
         }
         setState({ status: "complete" });
-      })
-      .catch((e: unknown) => {
-        LOGGER.warn("identity.google.detachment_ui.failed", {
-          operation: "detach",
-          stage: "operation_promise",
-          ...safeErrorLogFields(e),
-        });
-        if (controllerRef.current === controller && operationIdRef.current === operationId) {
-          setState({ status: "operation-failed", error: { code: "operation_failed" } });
-        }
-      })
-      .finally(() => {
-        if (operationIdRef.current === operationId) operationPendingRef.current = false;
-      });
-  }, [ensureController, expectedGoogleSubject, publicIdentity, state.status]);
-
-  useEffect(() => {
-    return () => {
-      operationIdRef.current += 1;
-      operationPendingRef.current = false;
-      const controller = controllerRef.current;
-      if (!controller) return;
-      controllerRef.current = null;
-      try {
-        controller.dispose();
-      } catch (e) {
-        LOGGER.warn("identity.google.cleanup.failed", {
-          operation: "detachment_controller_dispose",
-          ...safeErrorLogFields(e),
-        });
-      }
-    };
-  }, [ensureController]);
+      },
+      onRejected: () => setState(OPERATION_FAILED),
+    });
+  };
 
   return { detach, retryDetachment: detach, state };
 }

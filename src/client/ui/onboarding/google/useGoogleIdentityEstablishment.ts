@@ -1,15 +1,13 @@
 import { Result } from "better-result";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import type { GoogleAccountProfile } from "../../../../libs/googleAccountProfile";
-import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
-import {
-  GoogleIdentityController,
-  type GoogleIdentityProgress,
-  type GoogleIdentityViewError,
+import type {
+  GoogleIdentityProgress,
+  GoogleIdentityViewError,
 } from "../../../logic/google-identity/GoogleIdentityController";
 import type { PubkyPublicIdentity } from "../../../logic/pubky/pubkyIdentityKey";
-import { useGoogleIdentityConfiguration } from "../../googleIdentityConfiguration";
+import { useGoogleIdentityController } from "../../useGoogleIdentityController";
 
 type GoogleIdentityEstablishmentView =
   | { status: "idle" }
@@ -24,118 +22,63 @@ type GoogleIdentityEstablishmentView =
       visibleRecoveryCopyStatus: "created" | "unconfirmed" | null;
     };
 
+const OPERATION_FAILED: GoogleIdentityEstablishmentView = {
+  status: "failed",
+  error: { code: "operation_failed" },
+};
+
 function useGoogleIdentityEstablishment() {
-  const { googleClientId, homegateBaseUrl } = useGoogleIdentityConfiguration();
-  const controllerRef = useRef<GoogleIdentityController | null>(null);
-  const operationPendingRef = useRef(false);
-  const operationIdRef = useRef(0);
   const [view, setView] = useState<GoogleIdentityEstablishmentView>({ status: "idle" });
-
-  const ensureController = useCallback((): GoogleIdentityController | null => {
-    if (controllerRef.current) return controllerRef.current;
-
-    try {
-      const controller = new GoogleIdentityController(
-        googleClientId,
-        homegateBaseUrl,
-        (nextState) => {
-          if (controllerRef.current !== controller) return;
-          if (nextState.status === "requesting-authorization") {
-            setView({ status: "requesting-access" });
-          } else if (nextState.status === "establishing") {
-            setView({ status: "working", progress: nextState.progress });
-          }
-        },
-      );
-      controllerRef.current = controller;
-      return controller;
-    } catch (e) {
-      LOGGER.warn("identity.google.establishment_ui.failed", {
-        operation: "construct_controller",
-        ...safeErrorLogFields(e),
-      });
-      setView({ status: "failed", error: { code: "operation_failed" } });
-      return null;
-    }
-  }, [googleClientId, homegateBaseUrl]);
-
-  const startIdentityOperation = useCallback(
-    (operation: "establish" | "replace-invalid-file") => {
-      if (operationPendingRef.current) return;
-      const controller = ensureController();
-      if (!controller) return;
-
-      operationPendingRef.current = true;
-      const operationId = ++operationIdRef.current;
-      setView({ status: "requesting-access" });
-      const pending =
-        operation === "establish"
-          ? controller.establishIdentity()
-          : controller.replaceInvalidPassportFile();
-
-      void pending
-        .then((result) => {
-          if (controllerRef.current !== controller || operationIdRef.current !== operationId)
-            return;
-          if (Result.isError(result)) {
-            if (result.error.code !== "cancelled") {
-              setView({ status: "failed", error: result.error });
-            }
-            return;
-          }
-
-          setView({
-            status: "complete",
-            googleAccount: result.value.googleAccount,
-            identity: result.value.publicIdentity,
-            mode: result.value.establishmentMode,
-            visibleRecoveryCopyStatus:
-              result.value.establishmentMode === "created"
-                ? result.value.visibleRecoveryCopyStatus
-                : null,
-          });
-        })
-        .catch((e: unknown) => {
-          LOGGER.warn("identity.google.establishment_ui.failed", {
-            operation,
-            stage: "operation_promise",
-            ...safeErrorLogFields(e),
-          });
-          if (controllerRef.current === controller && operationIdRef.current === operationId) {
-            setView({ status: "failed", error: { code: "operation_failed" } });
-          }
-        })
-        .finally(() => {
-          if (operationIdRef.current === operationId) operationPendingRef.current = false;
-        });
-    },
-    [ensureController],
-  );
-
-  const back = useCallback(() => {
-    operationIdRef.current += 1;
-    operationPendingRef.current = false;
-    controllerRef.current?.clearPinnedGoogleSubject();
-    setView({ status: "idle" });
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      operationIdRef.current += 1;
-      operationPendingRef.current = false;
-      const controller = controllerRef.current;
-      if (!controller) return;
-      controllerRef.current = null;
-      try {
-        controller.dispose();
-      } catch (e) {
-        LOGGER.warn("identity.google.cleanup.failed", {
-          operation: "establishment_controller_dispose",
-          ...safeErrorLogFields(e),
-        });
+  const controller = useGoogleIdentityController({
+    disposeOperation: "establishment_controller_dispose",
+    failureEvent: "identity.google.establishment_ui.failed",
+    onControllerState: (nextState) => {
+      if (nextState.status === "requesting-authorization") {
+        setView({ status: "requesting-access" });
+      } else if (nextState.status === "establishing") {
+        setView({ status: "working", progress: nextState.progress });
       }
-    };
-  }, [ensureController]);
+    },
+    onUnavailable: () => setView(OPERATION_FAILED),
+  });
+
+  const startIdentityOperation = (operation: "establish" | "replace-invalid-file") => {
+    controller.startOperation({
+      operation,
+      start: (googleIdentity) => {
+        setView({ status: "requesting-access" });
+        return operation === "establish"
+          ? googleIdentity.establishIdentity()
+          : googleIdentity.replaceInvalidPassportFile();
+      },
+      onSettled: (result) => {
+        if (Result.isError(result)) {
+          if (result.error.code !== "cancelled") {
+            setView({ status: "failed", error: result.error });
+          }
+          return;
+        }
+
+        setView({
+          status: "complete",
+          googleAccount: result.value.googleAccount,
+          identity: result.value.publicIdentity,
+          mode: result.value.establishmentMode,
+          visibleRecoveryCopyStatus:
+            result.value.establishmentMode === "created"
+              ? result.value.visibleRecoveryCopyStatus
+              : null,
+        });
+      },
+      onRejected: () => setView(OPERATION_FAILED),
+    });
+  };
+
+  const back = () => {
+    controller.abandonOperation();
+    controller.getController()?.clearPinnedGoogleSubject();
+    setView({ status: "idle" });
+  };
 
   return {
     back,
