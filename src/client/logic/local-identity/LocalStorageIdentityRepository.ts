@@ -111,7 +111,7 @@ export class LocalStorageIdentityRepository {
       storage.setItem(ACTIVE_IDENTITY_KEY, stored.publicKeyZ32);
       notifySameTab();
       return Result.ok(toMetadata(stored));
-    } catch (cause) {
+    } catch (e) {
       if (previousIdentity !== undefined && previousActive !== undefined) {
         restoreStorageValues(
           storage,
@@ -123,7 +123,7 @@ export class LocalStorageIdentityRepository {
         );
         notifySameTab();
       }
-      return storageUnavailable("write", cause);
+      return storageUnavailable("write", e);
     }
   }
 
@@ -167,7 +167,7 @@ export class LocalStorageIdentityRepository {
       storage.removeItem(storedKey);
       notifySameTab();
       return Result.ok();
-    } catch (cause) {
+    } catch (e) {
       restoreStorageValues(
         storage,
         [
@@ -177,7 +177,7 @@ export class LocalStorageIdentityRepository {
         "remove_rollback",
       );
       notifySameTab();
-      return storageUnavailable("write", cause);
+      return storageUnavailable("write", e);
     }
   }
 
@@ -226,8 +226,8 @@ function readAllIdentities(storage: Storage): LocalIdentityResult<StoredLocalIde
       if (!identity || key !== identityStorageKey(identity.publicKeyZ32)) return invalidStore();
       identities.push(identity);
     }
-  } catch (cause) {
-    return storageUnavailable("read", cause);
+  } catch (e) {
+    return storageUnavailable("read", e);
   }
   return Result.ok(identities);
 }
@@ -242,8 +242,8 @@ function readIdentity(
     if (value === null) return Result.ok(null);
     const identity = parseStoredIdentity(value);
     return identity ? Result.ok(identity) : invalidStore();
-  } catch (cause) {
-    return storageUnavailable("read", cause);
+  } catch (e) {
+    return storageUnavailable("read", e);
   }
 }
 
@@ -251,8 +251,8 @@ function readActiveIdentity(storage: Storage): LocalIdentityResult<string | null
   try {
     const value = storage.getItem(ACTIVE_IDENTITY_KEY);
     return value === null || isPubkyPublicKey(value) ? Result.ok(value) : invalidStore();
-  } catch (cause) {
-    return storageUnavailable("read", cause);
+  } catch (e) {
+    return storageUnavailable("read", e);
   }
 }
 
@@ -263,8 +263,8 @@ function writeActiveIdentity(
   try {
     writeActiveIdentityOrThrow(storage, publicKeyZ32);
     return Result.ok();
-  } catch (cause) {
-    return storageUnavailable("write", cause);
+  } catch (e) {
+    return storageUnavailable("write", e);
   }
 }
 
@@ -328,10 +328,10 @@ function notifySameTab(): void {
 function notifyListener(listener: () => void, source: "same_tab" | "storage_event"): void {
   try {
     listener();
-  } catch (cause) {
+  } catch (e) {
     LOGGER.warn("identity.local_store.listener.failed", {
       source,
-      ...safeErrorLogFields(cause),
+      ...safeErrorLogFields(e),
     });
   }
 }
@@ -345,10 +345,10 @@ function restoreStorageValues(
     try {
       if (value === null) storage.removeItem(key);
       else storage.setItem(key, value);
-    } catch (cause) {
+    } catch (e) {
       LOGGER.error("identity.local_store.rollback.failed", {
         operation,
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
     }
   }
@@ -379,8 +379,8 @@ function getLocalStorage(operation: "read" | "write"): LocalIdentityResult<Stora
   try {
     const storage = globalThis.window?.localStorage ?? globalThis.localStorage;
     return storage ? Result.ok(storage) : storageUnavailable(operation);
-  } catch (cause) {
-    return storageUnavailable(operation, cause);
+  } catch (e) {
+    return storageUnavailable(operation, e);
   }
 }
 

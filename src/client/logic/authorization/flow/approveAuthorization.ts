@@ -35,13 +35,13 @@ export async function approveAuthorization(
     const { PubkySdkAdapter } = await import("../../pubky/PubkySdkAdapter");
     if (signal?.aborted) return Result.err({ code: "cancelled" });
     pubky = new PubkySdkAdapter();
-  } catch (cause) {
+  } catch (e) {
     LOGGER.warn("authorize.approval.failed", {
       stage: "sdk_initialize",
       code: "unexpected_failure",
-      ...safeErrorLogFields(cause),
+      ...safeErrorLogFields(e),
     });
-    return Result.err({ code: "approval_failed", cause });
+    return Result.err({ code: "approval_failed", cause: e });
   }
 
   let keyHandle: PubkyIdentityKey["keyHandle"] | undefined;
@@ -79,13 +79,13 @@ export async function approveAuthorization(
       return Result.err({ code: "approval_failed", cause: approved.error });
     }
     return Result.ok();
-  } catch (cause) {
+  } catch (e) {
     LOGGER.warn("authorize.approval.failed", {
       stage,
       code: "unexpected_failure",
-      ...safeErrorLogFields(cause),
+      ...safeErrorLogFields(e),
     });
-    return Result.err({ code: "approval_failed", cause });
+    return Result.err({ code: "approval_failed", cause: e });
   } finally {
     disposeIdentityKey(pubky, keyHandle);
     disposePubky(pubky);
@@ -133,10 +133,10 @@ function disposeIdentityKey(
 
   try {
     pubky.disposeIdentityKey(keyHandle);
-  } catch (cause) {
+  } catch (e) {
     LOGGER.warn("authorize.cleanup.failed", {
       operation: "identity_key_dispose",
-      ...safeErrorLogFields(cause),
+      ...safeErrorLogFields(e),
     });
   }
 }
@@ -144,10 +144,10 @@ function disposeIdentityKey(
 function disposePubky(pubky: PubkySdkAdapter): void {
   try {
     pubky.dispose();
-  } catch (cause) {
+  } catch (e) {
     LOGGER.warn("authorize.cleanup.failed", {
       operation: "pubky_dispose",
-      ...safeErrorLogFields(cause),
+      ...safeErrorLogFields(e),
     });
   }
 }

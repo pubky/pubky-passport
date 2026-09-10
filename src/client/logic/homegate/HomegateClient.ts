@@ -92,14 +92,14 @@ export class HomegateClient {
         referrerPolicy: "no-referrer",
         signal,
       });
-    } catch (cause) {
+    } catch (e) {
       LOGGER.warn("identity.google.homeserver_signup_token.failed", {
         operation: "request_google_signup_token",
         stage: "request",
         code: "network_failed",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
-      return Result.err({ code: "network_failed", cause });
+      return Result.err({ code: "network_failed", cause: e });
     }
 
     const responseText = await readBoundedText(
@@ -148,8 +148,8 @@ export class HomegateClient {
     let responseJson: unknown;
     try {
       responseJson = JSON.parse(responseText.value);
-    } catch (cause) {
-      const responseError = new Error("Homegate response must be valid JSON.", { cause });
+    } catch (e) {
+      const responseError = new Error("Homegate response must be valid JSON.", { cause: e });
       LOGGER.warn("identity.google.homeserver_signup_token.failed", {
         operation: "request_google_signup_token",
         stage: "response_parse",

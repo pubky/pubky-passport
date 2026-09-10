@@ -76,8 +76,8 @@ function httpsOrigin(value: string, name: string): URL {
   let url: URL;
   try {
     url = new URL(value);
-  } catch (cause) {
-    throw new Error(`${name} must be a valid HTTPS origin.`, { cause });
+  } catch (e) {
+    throw new Error(`${name} must be a valid HTTPS origin.`, { cause: e });
   }
 
   if (

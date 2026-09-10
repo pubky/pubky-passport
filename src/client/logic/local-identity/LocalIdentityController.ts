@@ -33,13 +33,13 @@ export class LocalIdentityController {
   constructor() {
     try {
       this.repository = new LocalStorageIdentityRepository();
-    } catch (cause) {
+    } catch (e) {
       LOGGER.error("identity.controller.failed", {
         operation: "initialize",
         code: "runtime_exception",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
-      throw new Error("Local identity initialization unavailable.", { cause });
+      throw new Error("Local identity initialization unavailable.", { cause: e });
     }
   }
 
@@ -63,8 +63,8 @@ export class LocalIdentityController {
     try {
       const { resolvePubkyHomeserver } = await import("../pubky/PubkySdkAdapter");
       return resolvePubkyHomeserver(publicKeyZ32);
-    } catch (cause) {
-      return Result.err({ code: "resolution_failed", cause });
+    } catch (e) {
+      return Result.err({ code: "resolution_failed", cause: e });
     }
   }
 
@@ -95,21 +95,21 @@ export class LocalIdentityController {
             bytes: recoveryFile.value,
             fileName: `pubky-${publicKeyZ32}.pkarr`,
           });
-    } catch (cause) {
+    } catch (e) {
       LOGGER.warn("identity.controller.failed", {
         operation: "create_recovery_file",
         code: "recovery_file_failed",
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
-      return Result.err({ code: "recovery_file_failed", cause });
+      return Result.err({ code: "recovery_file_failed", cause: e });
     } finally {
       stored.value.secretKey.bytes.fill(0);
       try {
         pubky?.dispose();
-      } catch (cleanupCause) {
+      } catch (e) {
         LOGGER.warn("identity.recovery_file.cleanup.failed", {
           operation: "pubky_dispose",
-          ...safeErrorLogFields(cleanupCause),
+          ...safeErrorLogFields(e),
         });
       }
     }
@@ -130,8 +130,8 @@ export class LocalIdentityController {
       return Result.isOk(migration)
         ? Result.ok(migration.value)
         : Result.err({ code: "invalid_secret_key", cause: migration.error });
-    } catch (cause) {
-      return Result.err({ code: "invalid_secret_key", cause });
+    } catch (e) {
+      return Result.err({ code: "invalid_secret_key", cause: e });
     } finally {
       stored.value.secretKey.bytes.fill(0);
     }
