@@ -19,7 +19,7 @@ import { Button } from "../shared/primitives/button";
 import { Spinner } from "../shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "../shared/primitives/typography";
 import { SignInBand } from "./signInBand";
-import { AuthorizationReview } from "./review/authorizationReview";
+import { type AuthorizationPhase, AuthorizationReview } from "./review/authorizationReview";
 import { InvalidAuthorization } from "./invalidAuthorization";
 import { ManualAuthorization } from "./manual-entry/manualAuthorization";
 import { usePassportAuthorization } from "./usePassportAuthorization";
@@ -77,10 +77,7 @@ function AuthorizationWithIdentity({
   authorization,
   passportAuthorizationController,
 }: {
-  authorization: Extract<
-    PassportAuthorizationViewState,
-    { status: "review" | "preparing" | "granting" | "completing" }
-  >;
+  authorization: Extract<PassportAuthorizationViewState, { status: AuthorizationPhase }>;
   passportAuthorizationController: PassportAuthorizationController;
 }) {
   const identityCatalog = useIdentityCatalog();

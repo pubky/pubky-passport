@@ -12,6 +12,9 @@ import { DisplayHeading } from "../../shared/primitives/typography";
 import { shortPublicKey } from "../../shared/shortPublicKey";
 import { PermissionList, PermissionRow } from "./permissionList";
 
+/** Authorization statuses during which the review screen is shown. */
+type AuthorizationPhase = "review" | "preparing" | "granting" | "completing";
+
 function AuthorizationReview({
   identity,
   onAuthorize,
@@ -24,7 +27,7 @@ function AuthorizationReview({
   onAuthorize: () => void;
   onCancel: () => void;
   onSwitch: () => void;
-  phase: "review" | "preparing" | "granting" | "completing";
+  phase: AuthorizationPhase;
   review: AuthorizationRequestReview;
 }) {
   const busy = phase !== "review";
@@ -193,9 +196,7 @@ function FittedRequester({ children }: { children: string }) {
   );
 }
 
-function authorizationButtonLabel(
-  phase: "review" | "preparing" | "granting" | "completing",
-): string {
+function authorizationButtonLabel(phase: AuthorizationPhase): string {
   if (phase === "preparing") return "Preparing…";
   if (phase === "granting") return "Granting access…";
   if (phase === "completing") return "Completing…";
@@ -223,4 +224,4 @@ function formatAccess(capability: AuthorizationRequestReview["capabilities"][num
   return "Read";
 }
 
-export { AuthorizationReview };
+export { AuthorizationReview, type AuthorizationPhase };
