@@ -10,7 +10,7 @@ const MOCKS = vi.hoisted(() => ({
   detachIdentity: vi.fn(),
   abortRequests: vi.fn(),
   disposeAuthorization: vi.fn(),
-  disposeOperations: vi.fn(),
+  disposeLifecycle: vi.fn(),
   establishIdentity: vi.fn(),
   replaceInvalidPassportFile: vi.fn(),
   requestAuthorization: vi.fn(),
@@ -22,11 +22,11 @@ vi.mock("./gia/GoogleImplicitAuthorization", () => ({
     dispose = MOCKS.disposeAuthorization;
   },
 }));
-vi.mock("./GoogleIdentityOperations", () => ({
-  GoogleIdentityOperations: class {
+vi.mock("./GoogleIdentityLifecycle", () => ({
+  GoogleIdentityLifecycle: class {
     abortRequests = MOCKS.abortRequests;
     detachIdentity = MOCKS.detachIdentity;
-    dispose = MOCKS.disposeOperations;
+    dispose = MOCKS.disposeLifecycle;
     establishIdentity = MOCKS.establishIdentity;
     replaceInvalidPassportFile = MOCKS.replaceInvalidPassportFile;
   },
@@ -149,7 +149,7 @@ describe("GoogleIdentityController", () => {
     expect(JSON.stringify(warning.mock.calls)).not.toContain("sensitive-state-listener");
   });
 
-  it("returns a direct authorization error without invoking identity operations", async () => {
+  it("returns a direct authorization error without invoking the identity lifecycle", async () => {
     MOCKS.requestAuthorization.mockResolvedValue(
       Result.err({
         code: "google_authorization_popup_closed" as const,
@@ -349,14 +349,14 @@ describe("GoogleIdentityController", () => {
     await vi.waitFor(() => expect(MOCKS.establishIdentity).toHaveBeenCalledOnce());
     controller.dispose();
     expect(MOCKS.abortRequests).toHaveBeenCalledOnce();
-    expect(MOCKS.disposeOperations).not.toHaveBeenCalled();
+    expect(MOCKS.disposeLifecycle).not.toHaveBeenCalled();
     finish();
 
     expectResultError(await pending, { code: "cancelled" });
-    expect(MOCKS.disposeOperations).toHaveBeenCalledOnce();
+    expect(MOCKS.disposeLifecycle).toHaveBeenCalledOnce();
   });
 
-  it("does not start identity operations when disposed as authorization settles", async () => {
+  it("does not start the identity lifecycle when disposed as authorization settles", async () => {
     let authorize!: () => void;
     MOCKS.requestAuthorization.mockImplementation(
       () =>
@@ -373,7 +373,7 @@ describe("GoogleIdentityController", () => {
 
     expectResultError(await pending, { code: "cancelled" });
     expect(MOCKS.establishIdentity).not.toHaveBeenCalled();
-    expect(MOCKS.disposeOperations).toHaveBeenCalledOnce();
+    expect(MOCKS.disposeLifecycle).toHaveBeenCalledOnce();
   });
 
   it("rejects a concurrent operation without another authorization", async () => {
