@@ -11,6 +11,7 @@ import {
   isGoogleAccountProfile,
   type GoogleAccountProfile,
 } from "../../../libs/googleAccountProfile";
+import { isRecord } from "../../../libs/isRecord";
 import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
 import type { CodedFailure } from "../../../libs/result";
 import {
@@ -382,10 +383,6 @@ function getLocalStorage(operation: "read" | "write"): LocalIdentityResult<Stora
   } catch (e) {
     return storageUnavailable(operation, e);
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function hasExactKeys(value: Record<string, unknown>, expected: string[]): boolean {

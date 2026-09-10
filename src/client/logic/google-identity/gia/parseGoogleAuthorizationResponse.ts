@@ -7,6 +7,7 @@ import {
   GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE,
 } from "../../../../libs/authorization/earlyGoogleImplicitResponse";
 import { decodeBase64Url } from "../../../../libs/encoding/base64Url";
+import { isRecord } from "../../../../libs/isRecord";
 import { MAXIMUM_JSON_BODY_BYTES } from "../../../../libs/passportPolicy";
 
 const GOOGLE_DRIVE_APP_DATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
@@ -95,14 +96,13 @@ function readIdTokenSubject(token: string, expectedNonce: string): string | null
   const bytes = decodeBase64Url(segments[1]);
   if (!bytes || bytes.byteLength > 8 * 1024) return null;
   try {
-    const value: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
-    if (!isRecord(value)) return null;
-
-    const googleSubject = value.sub;
+    const claims: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+    if (!isRecord(claims)) return null;
+    const googleSubject = claims.sub;
     if (typeof googleSubject !== "string") return null;
 
     const hasValidSubjectLength = googleSubject.length > 0 && googleSubject.length <= 255;
-    const hasExpectedNonce = value.nonce === expectedNonce;
+    const hasExpectedNonce = claims.nonce === expectedNonce;
     return hasValidSubjectLength && hasExpectedNonce ? googleSubject : null;
   } catch {
     // Decoding errors may echo token claims, so treat them as invalid without retaining a cause.
@@ -110,15 +110,16 @@ function readIdTokenSubject(token: string, expectedNonce: string): string | null
   }
 }
 
-function isCapturedGoogleImplicitResponse(value: unknown): value is CapturedGoogleImplicitResponse {
-  if (!isRecord(value)) return false;
-
+function isCapturedGoogleImplicitResponse(
+  capture: unknown,
+): capture is CapturedGoogleImplicitResponse {
+  if (!isRecord(capture)) return false;
   const isCapturedResponse =
-    value.type === GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE && value.status === "captured";
+    capture.type === GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE && capture.status === "captured";
   const hasBoundedHash =
-    typeof value.hash === "string" &&
-    value.hash.length > 0 &&
-    value.hash.length <= EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS;
+    typeof capture.hash === "string" &&
+    capture.hash.length > 0 &&
+    capture.hash.length <= EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS;
   return isCapturedResponse && hasBoundedHash;
 }
 
@@ -138,8 +139,4 @@ function hasAllowedScopes(value: string | null): boolean {
 function oneValue(params: URLSearchParams, name: string): string | null {
   const values = params.getAll(name);
   return values.length === 1 ? (values[0] ?? null) : null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
