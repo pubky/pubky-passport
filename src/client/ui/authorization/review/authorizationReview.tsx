@@ -9,6 +9,7 @@ import { PassportScreen } from "../../shared/passportScreen";
 import { Avatar } from "../../shared/primitives/avatar";
 import { Button } from "../../shared/primitives/button";
 import { DisplayHeading } from "../../shared/primitives/typography";
+import { shortPublicKey } from "../../shared/shortPublicKey";
 import { PermissionList, PermissionRow } from "./permissionList";
 
 function AuthorizationReview({
@@ -220,10 +221,6 @@ function formatAccess(capability: AuthorizationRequestReview["capabilities"][num
   if (capability.read && capability.write) return "Read,write";
   if (capability.write) return "Write";
   return "Read";
-}
-
-function shortPublicKey(publicKey: string): string {
-  return publicKey.length > 12 ? `${publicKey.slice(0, 4)}...${publicKey.slice(-4)}` : publicKey;
 }
 
 export { AuthorizationReview };

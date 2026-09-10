@@ -6,6 +6,7 @@ import { PassportScreen } from "../../shared/passportScreen";
 import { Button } from "../../shared/primitives/button";
 import { FieldMessage } from "../../shared/primitives/fieldMessage";
 import { DisplayHeading } from "../../shared/primitives/typography";
+import { shortPublicKey } from "../../shared/shortPublicKey";
 import { IdentityRow } from "./identityRow";
 
 function IdentitySwitcher({
@@ -116,10 +117,6 @@ function getDesktopViewport(): boolean {
 
 function getServerDesktopViewport(): boolean {
   return true;
-}
-
-function shortPublicKey(publicKey: string): string {
-  return publicKey.length > 12 ? `${publicKey.slice(0, 4)}...${publicKey.slice(-4)}` : publicKey;
 }
 
 export { IdentitySwitcher };
