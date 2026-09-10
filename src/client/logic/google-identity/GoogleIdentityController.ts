@@ -405,7 +405,7 @@ function withoutCause(error: GoogleIdentityError): GoogleIdentityViewError {
   switch (error.code) {
     case "wrapping_key_failed":
       return { code: error.code, detailCode: error.detailCode };
-    case "homeserver_signup_invitation_failed":
+    case "homeserver_signup_token_failed":
       return { code: error.code, detailCode: error.detailCode };
     default:
       return { code: error.code };

@@ -19,7 +19,7 @@ const MOCKS = vi.hoisted(() => ({
   disposeIdentityKey: vi.fn(),
   disposePubky: vi.fn(),
   requestWrappingKey: vi.fn(),
-  requestInvitation: vi.fn(),
+  requestSignupToken: vi.fn(),
   encryptSecretKeyBytes: vi.fn(),
   decryptSecretKeyBytes: vi.fn(),
   repositorySave: vi.fn(),
@@ -55,7 +55,7 @@ vi.mock("../wrapping-key/GoogleWrappingKeyApiClient", () => ({
 }));
 vi.mock("../homegate/HomegateClient", () => ({
   HomegateClient: class {
-    requestGoogleSignupInvitation = MOCKS.requestInvitation;
+    requestGoogleSignupToken = MOCKS.requestSignupToken;
   },
 }));
 vi.mock("../passport-file/PassportFileWebCrypto", () => ({
@@ -113,9 +113,9 @@ const CREDENTIALS = {
     pictureUrl: null,
   },
 };
-const INVITATION = {
+const SIGNUP_DETAILS = {
   homeserverPubky: "homeserver-pubky",
-  signupCode: "signup-code",
+  signupToken: "signup-token",
 };
 
 describe("Google identity use cases", () => {
@@ -131,7 +131,7 @@ describe("Google identity use cases", () => {
         keyId: "current",
       }),
     );
-    MOCKS.requestInvitation.mockResolvedValue(Result.ok(INVITATION));
+    MOCKS.requestSignupToken.mockResolvedValue(Result.ok(SIGNUP_DETAILS));
     MOCKS.createIdentityKey.mockResolvedValue(Result.ok(IDENTITY));
     MOCKS.exportSecretKey.mockImplementation(async () =>
       Result.ok({
@@ -177,7 +177,7 @@ describe("Google identity use cases", () => {
   it("creates, stores, signs up, publishes, verifies, and saves a missing identity in order", async () => {
     const events: string[] = [];
     MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
-    record(MOCKS.requestInvitation, "homegate", events);
+    record(MOCKS.requestSignupToken, "homegate", events);
     record(MOCKS.createIdentityKey, "create-key", events);
     record(MOCKS.createPassportFile, "drive-create", events);
     record(MOCKS.createVisibleRecoveryCopy, "visible-copy", events);
@@ -277,7 +277,7 @@ describe("Google identity use cases", () => {
     );
     expect(MOCKS.repositorySave).not.toHaveBeenCalled();
     if (stage === "drive-read") expect(MOCKS.requestWrappingKey).not.toHaveBeenCalled();
-    if (stage === "wrapping-key") expect(MOCKS.requestInvitation).not.toHaveBeenCalled();
+    if (stage === "wrapping-key") expect(MOCKS.requestSignupToken).not.toHaveBeenCalled();
   });
 
   it("translates lower failures while retaining internal diagnostic causes", async () => {
@@ -382,7 +382,7 @@ describe("Google identity use cases", () => {
       establishmentMode: "restored",
       publicIdentity: PUBLIC_IDENTITY,
     });
-    expect(MOCKS.requestInvitation).not.toHaveBeenCalled();
+    expect(MOCKS.requestSignupToken).not.toHaveBeenCalled();
     expect(MOCKS.signup).not.toHaveBeenCalled();
     expect(MOCKS.publishHomeserver).not.toHaveBeenCalled();
     expect(MOCKS.signin).toHaveBeenCalledWith(KEY_HANDLE, "normal");
@@ -396,7 +396,7 @@ describe("Google identity use cases", () => {
     ]);
   });
 
-  it("does not request another invitation when an established identity sign-in fails", async () => {
+  it("does not request another signup token when an established identity sign-in fails", async () => {
     foundPassportFile();
     MOCKS.signin.mockResolvedValue(Result.err({ code: "signin_failed" }));
     MOCKS.resolveHomeserver.mockResolvedValue(Result.ok("existing-homeserver"));
@@ -406,12 +406,12 @@ describe("Google identity use cases", () => {
     });
 
     expect(MOCKS.resolveHomeserver).toHaveBeenCalledWith(PUBLIC_IDENTITY.publicKeyZ32);
-    expect(MOCKS.requestInvitation).not.toHaveBeenCalled();
+    expect(MOCKS.requestSignupToken).not.toHaveBeenCalled();
     expect(MOCKS.signup).not.toHaveBeenCalled();
     expect(MOCKS.publishHomeserver).not.toHaveBeenCalled();
   });
 
-  it("does not request an invitation when homeserver resolution is uncertain", async () => {
+  it("does not request a signup token when homeserver resolution is uncertain", async () => {
     foundPassportFile();
     MOCKS.signin.mockResolvedValue(Result.err({ code: "signin_failed" }));
     MOCKS.resolveHomeserver.mockResolvedValue(Result.err({ code: "resolution_failed" }));
@@ -420,7 +420,7 @@ describe("Google identity use cases", () => {
       code: "signin_failed",
     });
 
-    expect(MOCKS.requestInvitation).not.toHaveBeenCalled();
+    expect(MOCKS.requestSignupToken).not.toHaveBeenCalled();
     expect(MOCKS.signup).not.toHaveBeenCalled();
     expect(MOCKS.publishHomeserver).not.toHaveBeenCalled();
   });
@@ -440,7 +440,7 @@ describe("Google identity use cases", () => {
       events.push("publish-if-stale");
       return Result.err({ code: "publish_failed" });
     });
-    record(MOCKS.requestInvitation, "homegate", events);
+    record(MOCKS.requestSignupToken, "homegate", events);
     record(MOCKS.signup, "signup", events);
     record(MOCKS.repositorySave, "save", events);
     const progress: GoogleIdentityProgress[] = [];
@@ -449,15 +449,18 @@ describe("Google identity use cases", () => {
       await createSubject().establishIdentity(CREDENTIALS, (phase) => progress.push(phase)),
     );
 
-    expect(MOCKS.requestInvitation).toHaveBeenCalledWith(CREDENTIALS.googleIdToken);
+    expect(MOCKS.requestSignupToken).toHaveBeenCalledWith(CREDENTIALS.googleIdToken);
     expect(MOCKS.resolveHomeserver).toHaveBeenCalledWith(PUBLIC_IDENTITY.publicKeyZ32);
     expect(events).toEqual(["signin", "homegate", "signup", "publish-if-stale", "signin", "save"]);
     expect(MOCKS.signup).toHaveBeenCalledWith(
       KEY_HANDLE,
-      INVITATION.homeserverPubky,
-      INVITATION.signupCode,
+      SIGNUP_DETAILS.homeserverPubky,
+      SIGNUP_DETAILS.signupToken,
     );
-    expect(MOCKS.publishHomeserver).toHaveBeenCalledWith(KEY_HANDLE, INVITATION.homeserverPubky);
+    expect(MOCKS.publishHomeserver).toHaveBeenCalledWith(
+      KEY_HANDLE,
+      SIGNUP_DETAILS.homeserverPubky,
+    );
     expect(MOCKS.signin).toHaveBeenCalledWith(KEY_HANDLE, "normal");
     expect(MOCKS.signin).toHaveBeenCalledWith(KEY_HANDLE, "after-publication");
     expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
@@ -484,18 +487,18 @@ describe("Google identity use cases", () => {
     expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
   });
 
-  it("reports repair before requesting a replacement homeserver invitation", async () => {
+  it("reports repair before requesting a replacement homeserver signup token", async () => {
     foundPassportFile();
     MOCKS.signin.mockResolvedValueOnce(Result.err({ code: "signin_failed" }));
     const events: Array<string | GoogleIdentityProgress> = [];
-    MOCKS.requestInvitation.mockImplementation(async () => {
+    MOCKS.requestSignupToken.mockImplementation(async () => {
       events.push("homegate");
       return Result.err({ code: "network_failed" });
     });
 
     expectResultError(
       await createSubject().establishIdentity(CREDENTIALS, (phase) => events.push(phase)),
-      { code: "homeserver_signup_invitation_failed", detailCode: "network_failed" },
+      { code: "homeserver_signup_token_failed", detailCode: "network_failed" },
     );
 
     expect(events.slice(-2)).toEqual([{ flow: "repair", step: "signing_up" }, "homegate"]);
