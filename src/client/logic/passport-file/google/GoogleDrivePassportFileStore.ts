@@ -65,8 +65,8 @@ const CREATE_PASSPORT_FILE_LOCK_NAME = "pubky-passport:google-drive:passport-fil
 /**
  * Owns the authoritative `appDataFolder/passport.json` Drive operations.
  *
- * The access token is operation-scoped and never returned or persisted. Reads,
- * Reads and deletes verify exact Drive revisions. Creates verify the stable file
+ * The access token is operation-scoped and never returned or persisted. Reads and
+ * deletes verify exact Drive revisions. Creates verify the stable file
  * ID and uniqueness because Drive may advance `version` for invisible server-side
  * changes immediately after upload.
  */
