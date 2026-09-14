@@ -13,8 +13,8 @@ import {
 } from "@/client/ui/identity-catalog/useIdentityCatalog";
 import { IdentityEstablishmentFlow } from "@/client/ui/onboarding/identityEstablishmentFlow";
 import { RotateCcwIcon } from "@/client/ui/shared/icons";
+import { LoadingScreen } from "@/client/ui/shared/loadingScreen";
 import { ButtonLink } from "@/client/ui/shared/primitives/button";
-import { Spinner } from "@/client/ui/shared/primitives/spinner";
 import { IdentityManagement } from "./management/identityManagement";
 import { DetachFromGoogleFlow } from "./management/detach-from-google/detachFromGoogleFlow";
 import { RecoveryFileDownload } from "./management/recovery-file/recoveryFileDownload";
@@ -36,12 +36,10 @@ function IdentityDashboard() {
   switch (identityCatalogState.status) {
     case "loading":
       return (
-        <main
-          aria-label="Checking login state"
+        <LoadingScreen
           className="grid min-h-[calc(100svh-var(--passport-header-height))] place-items-center"
-        >
-          <Spinner />
-        </main>
+          label="Checking login state"
+        />
       );
     case "unavailable":
       return (

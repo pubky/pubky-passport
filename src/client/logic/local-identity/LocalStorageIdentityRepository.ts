@@ -4,7 +4,7 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "@/libs/encoding/base64Url";
 import { isGoogleAccountProfile, type GoogleAccountProfile } from "@/libs/googleAccountProfile";
-import { isRecord } from "@/libs/isRecord";
+import { isRecord } from "@/libs/typeGuards";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import type { CodedFailure } from "@/libs/result";
 import {

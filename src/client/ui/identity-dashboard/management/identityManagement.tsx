@@ -14,6 +14,7 @@ import {
   LinkOffIcon,
   LogOutIcon,
 } from "@/client/ui/shared/icons";
+import { shortCopiedValue } from "@/client/ui/shared/formatPublicKey";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { cn } from "@/client/ui/shared/mergeClassNames";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
@@ -185,10 +186,6 @@ function IdentityDetail({
       ) : null}
     </div>
   );
-}
-
-function shortCopiedValue(value: string): string {
-  return value.length > 32 ? `${value.slice(0, 32)}...` : value;
 }
 
 function ManagementButton({

@@ -175,3 +175,19 @@ export function multipartBody(contents: string, metadata: Record<string, unknown
 export function driveFileUrl(fileId: string): string {
   return `${DRIVE_FILES_URL}/${encodeURIComponent(fileId)}`;
 }
+
+export type RequestLock = <LockResult>(
+  name: string,
+  callback: () => Promise<LockResult>,
+) => Promise<LockResult>;
+
+export function browserRequestLock(): RequestLock | null {
+  if (typeof navigator === "undefined" || navigator.locks === undefined) return null;
+  return <LockResult>(name: string, callback: () => Promise<LockResult>) =>
+    navigator.locks.request(name, callback);
+}
+
+export function getAccessToken(accessToken: string): ResultType<string, { code: "unauthorized" }> {
+  if (accessToken.length > 0) return Result.ok(accessToken);
+  return Result.err({ code: "unauthorized" });
+}

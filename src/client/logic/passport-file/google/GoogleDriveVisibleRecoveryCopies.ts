@@ -15,12 +15,14 @@ import {
 } from "@/client/logic/passport-file/passportFileEnvelope";
 import {
   authorizationHeaders,
+  browserRequestLock,
   createDriveHttpResponseFailure,
   DRIVE_FILES_URL,
   DRIVE_MULTIPART_CONTENT_TYPE,
   DRIVE_UPLOAD_FILES_URL,
   driveFileUrl,
   fetchDrive,
+  getAccessToken,
   isDriveFile,
   isNonEmptyString,
   mapDriveStatus,
@@ -48,11 +50,6 @@ type VisibleCopiesFailure = CodedFailure<VisibleCopiesErrorCode> & { httpStatus?
 type VisibleCopiesResult<Success> = ResultType<Success, VisibleCopiesFailure>;
 type VisibleFolder = DriveFile & { id: string };
 type VisibleFile = DriveFile & { id: string };
-type RequestLock = <LockResult>(
-  name: string,
-  callback: () => Promise<LockResult>,
-) => Promise<LockResult>;
-
 const failure = createFailure<VisibleCopiesErrorCode>(
   "identity.google.visible_recovery_copies.failed",
 );
@@ -108,7 +105,7 @@ export class GoogleDriveVisibleRecoveryCopies {
       });
     }
 
-    const token = this.getAccessToken();
+    const token = this.readAccessToken();
     if (Result.isError(token)) return Result.err(token.error);
     if (signal.aborted) {
       return failure({
@@ -167,7 +164,7 @@ export class GoogleDriveVisibleRecoveryCopies {
       });
     }
 
-    const token = this.getAccessToken();
+    const token = this.readAccessToken();
     if (Result.isError(token)) return Result.err(token.error);
 
     try {
@@ -207,8 +204,9 @@ export class GoogleDriveVisibleRecoveryCopies {
     }
   }
 
-  private getAccessToken(): VisibleCopiesResult<string> {
-    if (this.accessToken.length > 0) return Result.ok(this.accessToken);
+  private readAccessToken(): VisibleCopiesResult<string> {
+    const token = getAccessToken(this.accessToken);
+    if (Result.isOk(token)) return token;
     return failure({
       operation: "access_token",
       code: "unauthorized",
@@ -634,12 +632,6 @@ function folderQuery(): string {
 
 function visibleRecoveryFileName(publicIdentity: PubkyPublicIdentity): string | null {
   return isPubkyPublicIdentity(publicIdentity) ? `${publicIdentity.publicKeyZ32}.json` : null;
-}
-
-function browserRequestLock(): RequestLock | null {
-  if (typeof navigator === "undefined" || navigator.locks === undefined) return null;
-  return <LockResult>(name: string, callback: () => Promise<LockResult>) =>
-    navigator.locks.request(name, callback);
 }
 
 function invalidFolderList(): VisibleCopiesResult<never> {

@@ -1,4 +1,4 @@
-import { isRecord } from "./isRecord";
+import { isRecord } from "./typeGuards";
 
 export type GoogleAccountProfile = Readonly<{
   googleSubject: string;

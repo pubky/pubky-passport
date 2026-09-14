@@ -3,6 +3,7 @@ import Image from "next/image";
 import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
 import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { ArrowRightIcon } from "@/client/ui/shared/icons";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 import { GoogleAccountCard } from "./googleAccountCard";
@@ -67,20 +68,6 @@ function GoogleIdentityComplete({
         </Button>
       </div>
     </PassportScreen>
-  );
-}
-
-function ArrowRightIcon() {
-  return (
-    <svg aria-hidden="true" fill="none" viewBox="0 0 16 16">
-      <path
-        d="M3.33 8h9.34M8.67 4l4 4-4 4"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.3"
-      />
-    </svg>
   );
 }
 

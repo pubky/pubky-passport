@@ -1,5 +1,6 @@
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { useSyncExternalStore } from "react";
+import { shortPublicKey } from "@/client/ui/shared/formatPublicKey";
 import { UserRoundPlusIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
@@ -116,10 +117,6 @@ function getDesktopViewport(): boolean {
 
 function getServerDesktopViewport(): boolean {
   return true;
-}
-
-function shortPublicKey(publicKey: string): string {
-  return publicKey.length > 12 ? `${publicKey.slice(0, 4)}...${publicKey.slice(-4)}` : publicKey;
 }
 
 export { IdentitySwitcher };

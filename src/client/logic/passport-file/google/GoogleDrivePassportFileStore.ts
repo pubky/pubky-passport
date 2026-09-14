@@ -14,12 +14,14 @@ import {
 } from "@/client/logic/passport-file/passportFileEnvelope";
 import {
   authorizationHeaders,
+  browserRequestLock,
   createDriveHttpResponseFailure,
   DRIVE_FILES_URL,
   DRIVE_MULTIPART_CONTENT_TYPE,
   DRIVE_UPLOAD_FILES_URL,
   driveFileUrl,
   fetchDrive,
+  getAccessToken,
   isDriveFile,
   mapDriveStatus,
   multipartBody,
@@ -55,11 +57,6 @@ type PassportFileReadResult =
 type LocatedFile = { status: "missing" } | { status: "found"; reference: DriveFileRevision };
 type InspectedPassportFileMedia =
   { status: "valid"; envelope: PassportFileEnvelope } | { status: "invalid" };
-type RequestLock = <LockResult>(
-  name: string,
-  callback: () => Promise<LockResult>,
-) => Promise<LockResult>;
-
 const failure = createFailure<StoreErrorCode>("identity.google.drive_store.failed");
 const PASSPORT_FILE_NAME = "passport.json";
 const CREATE_PASSPORT_FILE_LOCK_NAME = "pubky-passport:google-drive:passport-file:create:v1";
@@ -86,7 +83,7 @@ export class GoogleDrivePassportFileStore {
    * it is returned.
    */
   async readPassportFile(): Promise<StoreResult<PassportFileReadResult>> {
-    const token = this.getAccessToken();
+    const token = this.readAccessToken();
     if (Result.isError(token)) return Result.err(token.error);
 
     const located = await this.locatePassportFile(token.value);
@@ -137,7 +134,7 @@ export class GoogleDrivePassportFileStore {
 
   /** Deletes the sole file only after confirming its current media is malformed. */
   async deleteInvalidPassportFile(): Promise<StoreResult<"deleted" | "missing">> {
-    const token = this.getAccessToken();
+    const token = this.readAccessToken();
     if (Result.isError(token)) return Result.err(token.error);
 
     const located = await this.locatePassportFile(token.value);
@@ -176,7 +173,7 @@ export class GoogleDrivePassportFileStore {
       });
     }
 
-    const token = this.getAccessToken();
+    const token = this.readAccessToken();
     if (Result.isError(token)) return Result.err(token.error);
 
     const create = () => this.createMissingPassportFile(token.value, serializedEnvelope);
@@ -203,7 +200,7 @@ export class GoogleDrivePassportFileStore {
    * idempotent success.
    */
   async deletePassportFile(reference: DriveFileRevision): Promise<StoreResult<void>> {
-    const token = this.getAccessToken();
+    const token = this.readAccessToken();
     if (Result.isError(token)) return Result.err(token.error);
 
     const current = await this.readPassportFileMetadata(token.value, reference.storageId);
@@ -231,8 +228,9 @@ export class GoogleDrivePassportFileStore {
     );
   }
 
-  private getAccessToken(): StoreResult<string> {
-    if (this.accessToken.length > 0) return Result.ok(this.accessToken);
+  private readAccessToken(): StoreResult<string> {
+    const token = getAccessToken(this.accessToken);
+    if (Result.isOk(token)) return token;
     return failure({
       operation: "access_token",
       code: "unauthorized",
@@ -550,12 +548,6 @@ export class GoogleDrivePassportFileStore {
       responseFailure,
     );
   }
-}
-
-function browserRequestLock(): RequestLock | null {
-  if (typeof navigator === "undefined" || navigator.locks === undefined) return null;
-  return <LockResult>(name: string, callback: () => Promise<LockResult>) =>
-    navigator.locks.request(name, callback);
 }
 
 function passportFileListUrl(): string {
