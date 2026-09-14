@@ -17,7 +17,7 @@ function GoogleIdentityError({
 }: {
   error: GoogleIdentityViewError;
   onBack: () => void;
-  onReplaceInvalidFile?: () => void;
+  onReplaceInvalidFile?: (() => void) | undefined;
   onTryAgain: () => void;
 }) {
   const [confirmationOpen, setConfirmationOpen] = useState(false);

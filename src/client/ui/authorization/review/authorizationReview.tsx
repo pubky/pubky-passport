@@ -19,7 +19,7 @@ function AuthorizationReview({
   phase,
   review,
 }: {
-  identity?: LocalIdentityMetadata;
+  identity?: LocalIdentityMetadata | undefined;
   onAuthorize: () => void;
   onCancel: () => void;
   onSwitch: () => void;

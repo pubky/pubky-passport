@@ -43,11 +43,8 @@ function IdentityEstablishmentFlow({
         <GoogleIdentityError
           error={view.error}
           onBack={google.back}
+          onReplaceInvalidFile={google.replaceInvalidPassportFile}
           onTryAgain={google.establishIdentity}
-          {...(view.error.code === "invalid_passport_file" ||
-          view.error.code === "invalid_passport_file_delete_failed"
-            ? { onReplaceInvalidFile: google.replaceInvalidPassportFile }
-            : {})}
         />
       );
     }
