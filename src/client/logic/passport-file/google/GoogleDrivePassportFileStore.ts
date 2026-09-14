@@ -4,6 +4,7 @@ import { Result, type Result as ResultType } from "better-result";
 
 import { readBoundedText } from "@/libs/http/boundedBody";
 import { createFailure } from "@/libs/logger/createFailure";
+import { isNonEmptyString } from "@/libs/typeGuards";
 import { safeErrorLogFields } from "@/libs/logger/logger";
 import { MAXIMUM_JSON_BODY_BYTES } from "@/libs/passportPolicy";
 import type { CodedFailure } from "@/libs/result";
@@ -21,7 +22,6 @@ import {
   DRIVE_UPLOAD_FILES_URL,
   driveFileUrl,
   fetchDrive,
-  getAccessToken,
   isDriveFile,
   mapDriveStatus,
   multipartBody,
@@ -229,12 +229,8 @@ export class GoogleDrivePassportFileStore {
   }
 
   private readAccessToken(): StoreResult<string> {
-    const token = getAccessToken(this.accessToken);
-    if (Result.isOk(token)) return token;
-    return failure({
-      operation: "access_token",
-      code: "unauthorized",
-    });
+    if (isNonEmptyString(this.accessToken)) return Result.ok(this.accessToken);
+    return failure({ operation: "access_token", code: "unauthorized" });
   }
 
   private async createMissingPassportFile(

@@ -37,7 +37,7 @@ function IdentityDashboard() {
     case "loading":
       return (
         <LoadingScreen
-          className="grid min-h-[calc(100svh-var(--passport-header-height))] place-items-center"
+          className="min-h-[calc(100svh-var(--passport-header-height))]"
           label="Checking login state"
         />
       );

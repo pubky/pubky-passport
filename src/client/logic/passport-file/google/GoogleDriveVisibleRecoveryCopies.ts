@@ -3,6 +3,7 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import { createFailure } from "@/libs/logger/createFailure";
+import { isNonEmptyString } from "@/libs/typeGuards";
 import { safeErrorLogFields } from "@/libs/logger/logger";
 import type { CodedFailure } from "@/libs/result";
 import {
@@ -22,9 +23,7 @@ import {
   DRIVE_UPLOAD_FILES_URL,
   driveFileUrl,
   fetchDrive,
-  getAccessToken,
   isDriveFile,
-  isNonEmptyString,
   mapDriveStatus,
   multipartBody,
   parseDriveFileRevision,
@@ -205,12 +204,8 @@ export class GoogleDriveVisibleRecoveryCopies {
   }
 
   private readAccessToken(): VisibleCopiesResult<string> {
-    const token = getAccessToken(this.accessToken);
-    if (Result.isOk(token)) return token;
-    return failure({
-      operation: "access_token",
-      code: "unauthorized",
-    });
+    if (isNonEmptyString(this.accessToken)) return Result.ok(this.accessToken);
+    return failure({ operation: "access_token", code: "unauthorized" });
   }
 
   private async findOrCreateFolderWithLock(

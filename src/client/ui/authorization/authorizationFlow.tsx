@@ -22,17 +22,15 @@ import { InvalidAuthorization } from "./invalidAuthorization";
 import { ManualAuthorization } from "./manual-entry/manualAuthorization";
 import { usePassportAuthorization, type AuthorizationController } from "./usePassportAuthorization";
 
+const AUTHORIZATION_LOADING_HEIGHT =
+  "min-h-[calc(100svh-var(--passport-header-height)-var(--passport-context-band-height))]";
+
 function AuthorizationFlow() {
   const { controller: passportAuthorizationController, state: authorization } =
     usePassportAuthorization();
 
   if (!passportAuthorizationController || !authorization) {
-    return (
-      <LoadingScreen
-        className="grid min-h-[calc(100svh-var(--passport-header-height)-var(--passport-context-band-height))] place-items-center"
-        label="Loading authorization"
-      />
-    );
+    return <LoadingScreen className={AUTHORIZATION_LOADING_HEIGHT} label="Loading authorization" />;
   }
 
   if (authorization.status === "completing") {
@@ -93,12 +91,7 @@ function AuthorizationWithIdentity({
 
   switch (identityCatalog.status) {
     case "loading":
-      return (
-        <LoadingScreen
-          className="grid min-h-[calc(100svh-var(--passport-header-height)-var(--passport-context-band-height))] place-items-center"
-          label="Loading identities"
-        />
-      );
+      return <LoadingScreen className={AUTHORIZATION_LOADING_HEIGHT} label="Loading identities" />;
     case "unavailable":
       return (
         <PassportScreen className="gap-6">

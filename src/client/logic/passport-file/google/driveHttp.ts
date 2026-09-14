@@ -6,6 +6,7 @@ import { z } from "zod";
 import { readBoundedText } from "@/libs/http/boundedBody";
 import { HttpResponseError } from "@/libs/http/HttpResponseError";
 import { MAXIMUM_JSON_BODY_BYTES } from "@/libs/passportPolicy";
+import { isNonEmptyString } from "@/libs/typeGuards";
 
 const MULTIPART_BOUNDARY = "pubky-passport-drive-boundary-v1";
 
@@ -122,10 +123,6 @@ export function isDriveFile(value: unknown): value is DriveFile {
   return DRIVE_FILE_SCHEMA.safeParse(value).success;
 }
 
-export function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0;
-}
-
 export function parseDriveFileRevision(file: DriveFile): DriveFileRevision | null {
   return isNonEmptyString(file.id) && isNonEmptyString(file.version)
     ? { storageId: file.id, revision: file.version }
@@ -181,13 +178,12 @@ export type RequestLock = <LockResult>(
   callback: () => Promise<LockResult>,
 ) => Promise<LockResult>;
 
+/**
+ * Web Locks-backed request lock, or `null` when `navigator.locks` is unavailable (server
+ * rendering, unsupported browsers); callers then run the critical section unguarded.
+ */
 export function browserRequestLock(): RequestLock | null {
   if (typeof navigator === "undefined" || navigator.locks === undefined) return null;
   return <LockResult>(name: string, callback: () => Promise<LockResult>) =>
     navigator.locks.request(name, callback);
-}
-
-export function getAccessToken(accessToken: string): ResultType<string, { code: "unauthorized" }> {
-  if (accessToken.length > 0) return Result.ok(accessToken);
-  return Result.err({ code: "unauthorized" });
 }
