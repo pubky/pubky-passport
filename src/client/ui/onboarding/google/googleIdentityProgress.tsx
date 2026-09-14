@@ -1,8 +1,8 @@
-import type { GoogleIdentityProgress as GoogleIdentityProgressState } from "../../../logic/google-identity/GoogleIdentityController";
-import { PassportScreen } from "../../shared/passportScreen";
-import { Button } from "../../shared/primitives/button";
-import { Spinner } from "../../shared/primitives/spinner";
-import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
+import type { GoogleIdentityProgress as GoogleIdentityProgressState } from "@/client/logic/google-identity/GoogleIdentityController";
+import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { Button } from "@/client/ui/shared/primitives/button";
+import { Spinner } from "@/client/ui/shared/primitives/spinner";
+import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 
 type StepState = "complete" | "active" | "pending";
 type SetupStep = { label: string; state: StepState };

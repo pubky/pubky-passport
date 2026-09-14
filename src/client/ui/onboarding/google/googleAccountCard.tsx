@@ -1,9 +1,9 @@
 import type { ComponentPropsWithoutRef } from "react";
 
-import type { GoogleAccountProfile } from "../../../../libs/googleAccountProfile";
-import { GoogleLogo } from "../../shared/brand/googleLogo";
-import { cn } from "../../shared/mergeClassNames";
-import { Avatar } from "../../shared/primitives/avatar";
+import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
+import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
+import { cn } from "@/client/ui/shared/mergeClassNames";
+import { Avatar } from "@/client/ui/shared/primitives/avatar";
 
 type GoogleAccountCardProps = ComponentPropsWithoutRef<"div"> & {
   account: GoogleAccountProfile;

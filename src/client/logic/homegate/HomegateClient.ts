@@ -3,12 +3,12 @@ import "client-only";
 import { Result } from "better-result";
 import { z } from "zod";
 
-import { readBoundedText } from "../../../libs/http/boundedBody";
-import { HttpResponseError } from "../../../libs/http/HttpResponseError";
-import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
-import { MAXIMUM_JSON_BODY_BYTES, REQUEST_TIMEOUT_MS } from "../../../libs/passportPolicy";
-import type { CodedFailure } from "../../../libs/result";
-import { isPubkyPublicKey } from "../pubky/pubkyIdentityKey";
+import { readBoundedText } from "@/libs/http/boundedBody";
+import { HttpResponseError } from "@/libs/http/HttpResponseError";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import { MAXIMUM_JSON_BODY_BYTES, REQUEST_TIMEOUT_MS } from "@/libs/passportPolicy";
+import type { CodedFailure } from "@/libs/result";
+import { isPubkyPublicKey } from "@/client/logic/pubky/pubkyIdentityKey";
 
 export type HomeserverSignupDetails = {
   signupToken: string;

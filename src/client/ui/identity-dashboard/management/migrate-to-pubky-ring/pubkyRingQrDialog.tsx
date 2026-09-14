@@ -1,6 +1,6 @@
-import type { PubkyRingMigration } from "../../../../logic/pubky/PubkySdkAdapter";
-import { Button } from "../../../shared/primitives/button";
-import { Dialog } from "../../../shared/primitives/dialog";
+import type { PubkyRingMigration } from "@/client/logic/pubky/PubkySdkAdapter";
+import { Button } from "@/client/ui/shared/primitives/button";
+import { Dialog } from "@/client/ui/shared/primitives/dialog";
 import { PubkyRingQrCode } from "./pubkyRingQrCode";
 
 function PubkyRingQrDialog({

@@ -2,10 +2,16 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
-import type { CodedFailure } from "../../../../libs/result";
-import { isPubkyPublicIdentity, type PubkyPublicIdentity } from "../../pubky/pubkyIdentityKey";
-import { serializePassportFileEnvelope, type PassportFileEnvelope } from "../passportFileEnvelope";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import type { CodedFailure } from "@/libs/result";
+import {
+  isPubkyPublicIdentity,
+  type PubkyPublicIdentity,
+} from "@/client/logic/pubky/pubkyIdentityKey";
+import {
+  serializePassportFileEnvelope,
+  type PassportFileEnvelope,
+} from "@/client/logic/passport-file/passportFileEnvelope";
 import {
   authorizationHeaders,
   createDriveHttpResponseFailure,

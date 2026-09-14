@@ -2,16 +2,16 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import {
   readAndScrubAuthorizationEntry,
   type AuthorizationEntry,
-} from "../entry/authorizationEntry";
-import { takeInitialAuthorizationEntry } from "../../../../instrumentation-client";
+} from "@/client/logic/authorization/entry/authorizationEntry";
+import { takeInitialAuthorizationEntry } from "@/instrumentation-client";
 import {
   type AuthorizationRequestReview,
   ValidatedPubkyAuthRequest,
-} from "../request/ValidatedPubkyAuthRequest";
+} from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 import { approveAuthorization } from "./approveAuthorization";
 import {
   type AuthorizationOutcome,

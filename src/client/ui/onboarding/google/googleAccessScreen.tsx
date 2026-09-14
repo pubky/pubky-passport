@@ -1,8 +1,8 @@
-import { MobilePassportFooter } from "../../shared/mobilePassportFooter";
-import { PassportScreen } from "../../shared/passportScreen";
-import { Button } from "../../shared/primitives/button";
-import { Spinner } from "../../shared/primitives/spinner";
-import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
+import { MobilePassportFooter } from "@/client/ui/shared/mobilePassportFooter";
+import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { Button } from "@/client/ui/shared/primitives/button";
+import { Spinner } from "@/client/ui/shared/primitives/spinner";
+import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 
 function GoogleAccessScreen({ fullWidthAction = false }: { fullWidthAction?: boolean }) {
   return (

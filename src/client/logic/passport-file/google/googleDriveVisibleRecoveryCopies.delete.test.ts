@@ -1,8 +1,8 @@
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { HttpResponseError } from "../../../../libs/http/HttpResponseError";
-import { LOGGER } from "../../../../libs/logger/logger";
+import { HttpResponseError } from "@/libs/http/HttpResponseError";
+import { LOGGER } from "@/libs/logger/logger";
 import { GoogleDriveVisibleRecoveryCopies } from "./GoogleDriveVisibleRecoveryCopies";
 
 const TOKEN = "SECRET-DRIVE-TOKEN";

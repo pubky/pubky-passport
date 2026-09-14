@@ -2,9 +2,9 @@ import { Result, type Result as ResultType } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAsyncResultError, expectResultOk } from "../../../../../test-utils/resultAssertions";
-import { HttpResponseError } from "../../../../libs/http/HttpResponseError";
-import { LOGGER } from "../../../../libs/logger/logger";
-import type { PassportFileEnvelope } from "../passportFileEnvelope";
+import { HttpResponseError } from "@/libs/http/HttpResponseError";
+import { LOGGER } from "@/libs/logger/logger";
+import type { PassportFileEnvelope } from "@/client/logic/passport-file/passportFileEnvelope";
 import { GoogleDrivePassportFileStore } from "./GoogleDrivePassportFileStore";
 
 const ACCESS_TOKEN = "test-drive-access-token";

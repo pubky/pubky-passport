@@ -5,8 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MemoryStorage } from "../../../../test-utils/MemoryStorage";
 import { expectResultError, expectResultOk } from "../../../../test-utils/resultAssertions";
-import { LOGGER } from "../../../libs/logger/logger";
-import { PUBKY_SECRET_KEY_FORMAT, type PubkyPublicIdentity } from "../pubky/pubkyIdentityKey";
+import { LOGGER } from "@/libs/logger/logger";
+import {
+  PUBKY_SECRET_KEY_FORMAT,
+  type PubkyPublicIdentity,
+} from "@/client/logic/pubky/pubkyIdentityKey";
 import { LocalStorageIdentityRepository } from "./LocalStorageIdentityRepository";
 
 const FIRST_KEY = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";

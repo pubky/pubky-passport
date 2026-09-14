@@ -1,13 +1,13 @@
 import { useState } from "react";
 
-import type { GoogleIdentityViewError } from "../../../logic/google-identity/GoogleIdentityController";
-import { RotateCcwIcon, TrashIcon } from "../../shared/icons";
-import { BackButton } from "../../shared/backButton";
-import { ConfirmDeletionDialog } from "../../shared/confirmDeletionDialog";
-import { PassportScreen } from "../../shared/passportScreen";
-import { Button } from "../../shared/primitives/button";
-import { Label } from "../../shared/primitives/label";
-import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
+import type { GoogleIdentityViewError } from "@/client/logic/google-identity/GoogleIdentityController";
+import { RotateCcwIcon, TrashIcon } from "@/client/ui/shared/icons";
+import { BackButton } from "@/client/ui/shared/backButton";
+import { ConfirmDeletionDialog } from "@/client/ui/shared/confirmDeletionDialog";
+import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { Button } from "@/client/ui/shared/primitives/button";
+import { Label } from "@/client/ui/shared/primitives/label";
+import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 
 function GoogleIdentityError({
   error,

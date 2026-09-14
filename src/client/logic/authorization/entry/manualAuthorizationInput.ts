@@ -2,11 +2,11 @@ import "client-only";
 
 import { Result } from "better-result";
 
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER } from "@/libs/logger/logger";
 import {
   PUBKY_AUTH_REQUEST_LIMITS,
   validateEncodedPubkyAuthRequest,
-} from "../request/parser/pubkyAuthRequestParser";
+} from "@/client/logic/authorization/request/parser/pubkyAuthRequestParser";
 
 export type ManualAuthorizationInputValidationResult =
   { status: "invalid" } | { status: "valid"; destination: string };

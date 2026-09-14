@@ -4,8 +4,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LOGGER } from "../../../../libs/logger/logger";
-import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
+import { LOGGER } from "@/libs/logger/logger";
+import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { IdentityManagement } from "./identityManagement";
 
 const MOCKS = vi.hoisted(() => ({ toastInfo: vi.fn() }));

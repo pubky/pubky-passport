@@ -2,17 +2,17 @@ import Image from "next/image";
 import { Result } from "better-result";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { LocalIdentityResult } from "../../../../logic/local-identity/LocalStorageIdentityRepository";
-import type { PubkyRingMigration } from "../../../../logic/pubky/PubkySdkAdapter";
-import { PubkyBrandIcon } from "../../../shared/brand/pubkyBrandIcon";
-import { PubkyRingLogo } from "../../../shared/brand/pubkyRingLogo";
-import { PubkyRingStoreBadges } from "../../../shared/brand/pubkyRingStoreBadges";
-import { CheckIcon, ScanIcon } from "../../../shared/icons";
-import { BackButton } from "../../../shared/backButton";
-import { PassportNavigation } from "../../../shared/passportNavigation";
-import { PassportScreen } from "../../../shared/passportScreen";
-import { Button } from "../../../shared/primitives/button";
-import { DisplayHeading, LeadText } from "../../../shared/primitives/typography";
+import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
+import type { PubkyRingMigration } from "@/client/logic/pubky/PubkySdkAdapter";
+import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
+import { PubkyRingLogo } from "@/client/ui/shared/brand/pubkyRingLogo";
+import { PubkyRingStoreBadges } from "@/client/ui/shared/brand/pubkyRingStoreBadges";
+import { CheckIcon, ScanIcon } from "@/client/ui/shared/icons";
+import { BackButton } from "@/client/ui/shared/backButton";
+import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
+import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { Button } from "@/client/ui/shared/primitives/button";
+import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 import { PubkyRingQrCode } from "./pubkyRingQrCode";
 import { PubkyRingQrDialog } from "./pubkyRingQrDialog";
 

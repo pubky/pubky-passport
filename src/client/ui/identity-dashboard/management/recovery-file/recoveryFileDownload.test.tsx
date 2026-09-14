@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LOGGER } from "../../../../../libs/logger/logger";
+import { LOGGER } from "@/libs/logger/logger";
 import { RecoveryFileDownload } from "./recoveryFileDownload";
 
 const MOCKS = vi.hoisted(() => ({ toastSuccess: vi.fn() }));

@@ -2,16 +2,19 @@ import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectResultOk } from "../../../../test-utils/resultAssertions";
-import { LOGGER } from "../../../libs/logger/logger";
-import { PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../pubky/pubkyIdentityKey";
+import { LOGGER } from "@/libs/logger/logger";
+import {
+  PUBKY_SECRET_KEY_FORMAT,
+  type PubkySecretKeyMaterial,
+} from "@/client/logic/pubky/pubkyIdentityKey";
 
 const MOCKS = vi.hoisted(() => ({
   createRecoveryFile: vi.fn(),
   dispose: vi.fn(),
 }));
 
-vi.mock("../pubky/PubkySdkAdapter", async (importOriginal) => {
-  const original = await importOriginal<typeof import("../pubky/PubkySdkAdapter")>();
+vi.mock("@/client/logic/pubky/PubkySdkAdapter", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/client/logic/pubky/PubkySdkAdapter")>();
   return {
     ...original,
     PubkySdkAdapter: class {

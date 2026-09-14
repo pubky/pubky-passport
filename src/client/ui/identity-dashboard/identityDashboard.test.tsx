@@ -6,12 +6,12 @@ import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
-import type { PubkyPublicIdentity } from "../../logic/pubky/pubkyIdentityKey";
+import type { LocalIdentityCatalog } from "@/client/logic/local-identity/localIdentityModels";
+import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
 import { withPassportTestProviders } from "../../../../test-utils/googleIdentityConfiguration";
 import { fakeLocalIdentityController } from "../../../../test-utils/fakeLocalIdentityController";
 import { mockGoogleIdentityController } from "../../../../test-utils/mockGoogleIdentityController";
-import { PubkyRingMigration } from "../../logic/pubky/PubkySdkAdapter";
+import { PubkyRingMigration } from "@/client/logic/pubky/PubkySdkAdapter";
 import { IdentityDashboard } from "./identityDashboard";
 
 const FLOW = {

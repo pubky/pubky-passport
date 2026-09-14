@@ -3,9 +3,9 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
-import { LOGGER } from "../../../../libs/logger/logger";
-import type { AuthorizationEntry } from "../entry/authorizationEntry";
-import { ValidatedPubkyAuthRequest } from "../request/ValidatedPubkyAuthRequest";
+import { LOGGER } from "@/libs/logger/logger";
+import type { AuthorizationEntry } from "@/client/logic/authorization/entry/authorizationEntry";
+import { ValidatedPubkyAuthRequest } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 import type {
   AuthorizationHandoffStatus,
   AuthorizationOutcome,

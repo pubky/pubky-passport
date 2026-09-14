@@ -1,9 +1,9 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 
-import { MobilePassportFooter } from "../shared/mobilePassportFooter";
-import { PassportScreen } from "../shared/passportScreen";
-import { DisplayHeading, LeadText } from "../shared/primitives/typography";
+import { MobilePassportFooter } from "@/client/ui/shared/mobilePassportFooter";
+import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 
 function SignInPage({ children }: { children: ReactNode }) {
   return (

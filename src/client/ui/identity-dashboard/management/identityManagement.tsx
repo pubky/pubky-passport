@@ -3,20 +3,26 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
-import type { LocalIdentityResult } from "../../../logic/local-identity/LocalStorageIdentityRepository";
-import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
-import type { PubkyHomeserverResolutionResult } from "../../../logic/pubky/pubkyIdentityKey";
-import { CopyIcon, DownloadIcon, KeyRoundIcon, LinkOffIcon, LogOutIcon } from "../../shared/icons";
-import { BackButton } from "../../shared/backButton";
-import { cn } from "../../shared/mergeClassNames";
-import { PassportNavigation } from "../../shared/passportNavigation";
-import { PassportScreen } from "../../shared/passportScreen";
-import { Avatar } from "../../shared/primitives/avatar";
-import { Button } from "../../shared/primitives/button";
-import { IconButton } from "../../shared/primitives/iconButton";
-import { FieldMessage } from "../../shared/primitives/fieldMessage";
-import { DisplayHeading } from "../../shared/primitives/typography";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
+import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
+import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubkyIdentityKey";
+import {
+  CopyIcon,
+  DownloadIcon,
+  KeyRoundIcon,
+  LinkOffIcon,
+  LogOutIcon,
+} from "@/client/ui/shared/icons";
+import { BackButton } from "@/client/ui/shared/backButton";
+import { cn } from "@/client/ui/shared/mergeClassNames";
+import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
+import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { Avatar } from "@/client/ui/shared/primitives/avatar";
+import { Button } from "@/client/ui/shared/primitives/button";
+import { IconButton } from "@/client/ui/shared/primitives/iconButton";
+import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
+import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
 
 function IdentityManagement({
   identity,

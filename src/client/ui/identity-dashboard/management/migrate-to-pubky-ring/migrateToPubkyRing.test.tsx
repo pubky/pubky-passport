@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PubkyRingMigration } from "../../../../logic/pubky/PubkySdkAdapter";
+import { PubkyRingMigration } from "@/client/logic/pubky/PubkySdkAdapter";
 import { MigrateToPubkyRing } from "./migrateToPubkyRing";
 
 const MIGRATION_URL =

@@ -1,7 +1,7 @@
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { HttpResponseError } from "../../../../libs/http/HttpResponseError";
+import { HttpResponseError } from "@/libs/http/HttpResponseError";
 import { fetchGoogleAccountProfile } from "./fetchGoogleAccountProfile";
 
 describe("fetchGoogleAccountProfile", () => {

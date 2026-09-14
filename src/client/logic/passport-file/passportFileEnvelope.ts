@@ -3,9 +3,9 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 import { z } from "zod";
 
-import { decodeBase64Url } from "../../../libs/encoding/base64Url";
-import { passportKeyIdSchema } from "../../../libs/passportPolicy";
-import { PUBKY_SECRET_KEY_BYTES } from "../pubky/pubkyIdentityKey";
+import { decodeBase64Url } from "@/libs/encoding/base64Url";
+import { passportKeyIdSchema } from "@/libs/passportPolicy";
+import { PUBKY_SECRET_KEY_BYTES } from "@/client/logic/pubky/pubkyIdentityKey";
 
 export type PassportFileEnvelope = {
   /** Numeric storage format version. */

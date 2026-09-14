@@ -6,14 +6,14 @@ import { Result } from "better-result";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { GoogleIdentityViewState } from "../../logic/google-identity/GoogleIdentityController";
+import type { GoogleIdentityViewState } from "@/client/logic/google-identity/GoogleIdentityController";
 import {
   mockGoogleIdentityController,
   type MockGoogleIdentityController,
 } from "../../../../test-utils/mockGoogleIdentityController";
 import { withPassportTestProviders } from "../../../../test-utils/googleIdentityConfiguration";
-import { LOGGER } from "../../../libs/logger/logger";
-import type { PassportCollaborators } from "../passportCollaborators";
+import { LOGGER } from "@/libs/logger/logger";
+import type { PassportCollaborators } from "@/client/ui/passportCollaborators";
 import { IdentityEstablishmentFlow } from "./identityEstablishmentFlow";
 
 const MOCKS = {

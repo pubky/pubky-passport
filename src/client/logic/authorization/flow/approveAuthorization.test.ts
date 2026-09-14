@@ -3,8 +3,8 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LOGGER } from "../../../../libs/logger/logger";
-import { ValidatedPubkyAuthRequest } from "../request/ValidatedPubkyAuthRequest";
+import { LOGGER } from "@/libs/logger/logger";
+import { ValidatedPubkyAuthRequest } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 
 const MOCKS = vi.hoisted(() => ({
   approveAuthRequest: vi.fn(),
@@ -20,7 +20,9 @@ vi.mock("../../pubky/PubkySdkAdapter", () => ({
 }));
 
 vi.mock("../../local-identity/LocalStorageIdentityRepository", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../local-identity/LocalStorageIdentityRepository")>()),
+  ...(await importOriginal<
+    typeof import("@/client/logic/local-identity/LocalStorageIdentityRepository")
+  >()),
   LocalStorageIdentityRepository: class {
     read = MOCKS.readIdentity;
   },

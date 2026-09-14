@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER } from "@/libs/logger/logger";
 import { handoffAuthorizationOutcome } from "./authorizationOutcomeHandoff";
 
 const CALLBACK = "https://app.example/auth/passport/success?private=value";

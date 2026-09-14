@@ -2,9 +2,9 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { EARLY_AUTHORIZATION_LOCATION_PROPERTY } from "../../../../libs/authorization/earlyAuthorizationLocation";
-import { LOGGER } from "../../../../libs/logger/logger";
-import { PUBKY_AUTH_REQUEST_LIMITS } from "../request/parser/pubkyAuthRequestParser";
+import { EARLY_AUTHORIZATION_LOCATION_PROPERTY } from "@/libs/authorization/earlyAuthorizationLocation";
+import { LOGGER } from "@/libs/logger/logger";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "@/client/logic/authorization/request/parser/pubkyAuthRequestParser";
 import {
   invalidateAuthorizationEntry,
   readAndScrubAuthorizationEntry,

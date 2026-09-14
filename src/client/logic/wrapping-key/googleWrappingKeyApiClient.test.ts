@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 
-import { encodeBase64Url } from "../../../libs/encoding/base64Url";
-import { HttpResponseError } from "../../../libs/http/HttpResponseError";
-import { LOGGER } from "../../../libs/logger/logger";
+import { encodeBase64Url } from "@/libs/encoding/base64Url";
+import { HttpResponseError } from "@/libs/http/HttpResponseError";
+import { LOGGER } from "@/libs/logger/logger";
 import { GoogleWrappingKeyApiClient } from "./GoogleWrappingKeyApiClient";
 
 describe("GoogleWrappingKeyApiClient", () => {

@@ -4,7 +4,7 @@ import { Result, type Result as ResultType } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectResultOk } from "../../../../test-utils/resultAssertions";
-import { LOGGER } from "../../../libs/logger/logger";
+import { LOGGER } from "@/libs/logger/logger";
 import { GoogleIdentityLifecycle, type GoogleIdentityProgress } from "./GoogleIdentityLifecycle";
 
 const MOCKS = {

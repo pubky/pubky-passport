@@ -1,8 +1,8 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
-import { GoogleLogo } from "../../shared/brand/googleLogo";
-import { cn } from "../../shared/mergeClassNames";
-import { Avatar } from "../../shared/primitives/avatar";
+import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
+import { cn } from "@/client/ui/shared/mergeClassNames";
+import { Avatar } from "@/client/ui/shared/primitives/avatar";
 
 type IdentityRowProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   avatarSrc?: string;

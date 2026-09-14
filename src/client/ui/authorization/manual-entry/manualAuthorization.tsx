@@ -1,18 +1,18 @@
 import dynamic from "next/dynamic";
 import { type SubmitEvent, useCallback, useRef, useState } from "react";
 
-import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
-import { validateManualAuthorizationInput } from "../../../logic/authorization/entry/manualAuthorizationInput";
-import { ArrowRightIcon, CameraIcon, ClipboardPasteIcon, ScanIcon } from "../../shared/icons";
-import { BackButton } from "../../shared/backButton";
-import { PassportNavigation } from "../../shared/passportNavigation";
-import { PassportScreen } from "../../shared/passportScreen";
-import { Button } from "../../shared/primitives/button";
-import { FieldMessage } from "../../shared/primitives/fieldMessage";
-import { IconButton } from "../../shared/primitives/iconButton";
-import { Input } from "../../shared/primitives/input";
-import { Label } from "../../shared/primitives/label";
-import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import { validateManualAuthorizationInput } from "@/client/logic/authorization/entry/manualAuthorizationInput";
+import { ArrowRightIcon, CameraIcon, ClipboardPasteIcon, ScanIcon } from "@/client/ui/shared/icons";
+import { BackButton } from "@/client/ui/shared/backButton";
+import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
+import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { Button } from "@/client/ui/shared/primitives/button";
+import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
+import { IconButton } from "@/client/ui/shared/primitives/iconButton";
+import { Input } from "@/client/ui/shared/primitives/input";
+import { Label } from "@/client/ui/shared/primitives/label";
+import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 
 const AuthorizationQrScanner = dynamic(
   () => import("./authorizationQrScanner").then((module) => module.AuthorizationQrScanner),

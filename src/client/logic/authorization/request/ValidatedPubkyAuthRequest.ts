@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import {
   parseEncodedPubkyAuthRequest,
   type ParsedPubkyAuthRequest,

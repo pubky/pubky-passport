@@ -5,16 +5,16 @@ import { useState } from "react";
 import type {
   LocalIdentityCatalog,
   LocalIdentityMetadata,
-} from "../../logic/local-identity/localIdentityModels";
-import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
+} from "@/client/logic/local-identity/localIdentityModels";
+import { IdentitySelectionFlow } from "@/client/ui/identity-catalog/selection/identitySelectionFlow";
 import {
   useIdentityCatalog,
   type IdentityCatalogActions,
-} from "../identity-catalog/useIdentityCatalog";
-import { IdentityEstablishmentFlow } from "../onboarding/identityEstablishmentFlow";
-import { RotateCcwIcon } from "../shared/icons";
-import { ButtonLink } from "../shared/primitives/button";
-import { Spinner } from "../shared/primitives/spinner";
+} from "@/client/ui/identity-catalog/useIdentityCatalog";
+import { IdentityEstablishmentFlow } from "@/client/ui/onboarding/identityEstablishmentFlow";
+import { RotateCcwIcon } from "@/client/ui/shared/icons";
+import { ButtonLink } from "@/client/ui/shared/primitives/button";
+import { Spinner } from "@/client/ui/shared/primitives/spinner";
 import { IdentityManagement } from "./management/identityManagement";
 import { DetachFromGoogleFlow } from "./management/detach-from-google/detachFromGoogleFlow";
 import { RecoveryFileDownload } from "./management/recovery-file/recoveryFileDownload";

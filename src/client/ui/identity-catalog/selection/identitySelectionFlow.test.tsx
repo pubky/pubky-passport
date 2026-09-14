@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PassportCollaboratorsProvider } from "../../passportCollaborators";
+import { PassportCollaboratorsProvider } from "@/client/ui/passportCollaborators";
 import { IdentitySelectionFlow } from "./identitySelectionFlow";
 
 function IdentitySetupStub({

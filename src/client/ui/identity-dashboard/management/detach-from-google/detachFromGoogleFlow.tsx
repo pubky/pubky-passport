@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { preload } from "react-dom";
 
-import type { LocalIdentityRecoveryFileResult } from "../../../../logic/local-identity/LocalIdentityController";
-import type { LocalIdentityResult } from "../../../../logic/local-identity/LocalStorageIdentityRepository";
-import type { LocalIdentityMetadata } from "../../../../logic/local-identity/localIdentityModels";
-import type { PubkyRingMigration } from "../../../../logic/pubky/PubkySdkAdapter";
-import { RecoveryFileDownload } from "../recovery-file/recoveryFileDownload";
-import { MigrateToPubkyRing } from "../migrate-to-pubky-ring/migrateToPubkyRing";
+import type { LocalIdentityRecoveryFileResult } from "@/client/logic/local-identity/LocalIdentityController";
+import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
+import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
+import type { PubkyRingMigration } from "@/client/logic/pubky/PubkySdkAdapter";
+import { RecoveryFileDownload } from "@/client/ui/identity-dashboard/management/recovery-file/recoveryFileDownload";
+import { MigrateToPubkyRing } from "@/client/ui/identity-dashboard/management/migrate-to-pubky-ring/migrateToPubkyRing";
 import { RecoveryBeforeDetaching } from "./recoveryBeforeDetaching";
 import { ConfirmGoogleDetachment } from "./confirmGoogleDetachment";
 import { GoogleDetachmentComplete } from "./googleDetachmentComplete";

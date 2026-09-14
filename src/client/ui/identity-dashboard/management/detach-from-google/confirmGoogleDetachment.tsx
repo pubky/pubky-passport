@@ -1,4 +1,4 @@
-import { ConfirmDeletionDialog } from "../../../shared/confirmDeletionDialog";
+import { ConfirmDeletionDialog } from "@/client/ui/shared/confirmDeletionDialog";
 
 function ConfirmGoogleDetachment({
   canConfirm,

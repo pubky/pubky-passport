@@ -1,6 +1,6 @@
 import "client-only";
 
-import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 
 export type AuthorizationOutcome = "success" | "error" | "cancel";
 export type AuthorizationHandoffStatus =

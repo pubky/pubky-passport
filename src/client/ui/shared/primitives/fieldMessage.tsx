@@ -1,6 +1,6 @@
 import type { ComponentPropsWithoutRef } from "react";
 
-import { cn } from "../mergeClassNames";
+import { cn } from "@/client/ui/shared/mergeClassNames";
 
 function FieldMessage({
   className,

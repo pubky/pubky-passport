@@ -3,21 +3,21 @@ import Image from "next/image";
 import { type SubmitEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { LOGGER, safeErrorLogFields } from "../../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import {
   MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS,
   type LocalIdentityRecoveryFile,
   type LocalIdentityRecoveryFileResult,
-} from "../../../../logic/local-identity/LocalIdentityController";
-import { DownloadRecoveryFileIcon } from "../../../shared/icons";
-import { BackButton } from "../../../shared/backButton";
-import { PassportNavigation } from "../../../shared/passportNavigation";
-import { PassportScreen } from "../../../shared/passportScreen";
-import { Button } from "../../../shared/primitives/button";
-import { FieldMessage } from "../../../shared/primitives/fieldMessage";
-import { Input } from "../../../shared/primitives/input";
-import { Label } from "../../../shared/primitives/label";
-import { DisplayHeading, LeadText } from "../../../shared/primitives/typography";
+} from "@/client/logic/local-identity/LocalIdentityController";
+import { DownloadRecoveryFileIcon } from "@/client/ui/shared/icons";
+import { BackButton } from "@/client/ui/shared/backButton";
+import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
+import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { Button } from "@/client/ui/shared/primitives/button";
+import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
+import { Input } from "@/client/ui/shared/primitives/input";
+import { Label } from "@/client/ui/shared/primitives/label";
+import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 
 function RecoveryFileDownload({
   createRecoveryFile,
