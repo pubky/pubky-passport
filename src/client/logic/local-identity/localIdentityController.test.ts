@@ -38,25 +38,23 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("LocalIdentityController", () => {
   it("delegates catalog actions to its concrete repository", () => {
-    const list = vi
-      .spyOn(LocalStorageIdentityRepository.prototype, "list")
-      .mockReturnValue(Result.ok({ activePublicKeyZ32: null, identities: [] }));
-    const select = vi
-      .spyOn(LocalStorageIdentityRepository.prototype, "select")
-      .mockReturnValue(Result.ok());
-    const remove = vi
-      .spyOn(LocalStorageIdentityRepository.prototype, "remove")
-      .mockReturnValue(Result.ok());
-    const controller = new LocalIdentityController();
+    const repository = {
+      list: vi.fn(() => Result.ok({ activePublicKeyZ32: null, identities: [] })),
+      select: vi.fn(() => Result.ok()),
+      remove: vi.fn(() => Result.ok()),
+      subscribe: vi.fn(() => () => undefined),
+      read: vi.fn(),
+    };
+    const controller = new LocalIdentityController(repository);
 
     expect(controller.listIdentities()).toEqual(
       Result.ok({ activePublicKeyZ32: null, identities: [] }),
     );
     expect(controller.selectIdentity(PUBLIC_KEY)).toEqual(Result.ok());
     expect(controller.removeIdentity(PUBLIC_KEY)).toEqual(Result.ok());
-    expect(list).toHaveBeenCalledOnce();
-    expect(select).toHaveBeenCalledWith(PUBLIC_KEY);
-    expect(remove).toHaveBeenCalledWith(PUBLIC_KEY);
+    expect(repository.list).toHaveBeenCalledOnce();
+    expect(repository.select).toHaveBeenCalledWith(PUBLIC_KEY);
+    expect(repository.remove).toHaveBeenCalledWith(PUBLIC_KEY);
   });
 
   it("creates an owned Ring migration and clears the repository secret bytes", async () => {

@@ -5,18 +5,19 @@ import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { PassportCollaboratorsProvider } from "../../passportCollaborators";
 import { IdentitySelectionFlow } from "./identitySelectionFlow";
 
-vi.mock("../../onboarding/identityEstablishmentFlow", () => ({
-  IdentityEstablishmentFlow: ({
-    forAuthorization,
-    onBack,
-    onComplete,
-  }: {
-    forAuthorization?: boolean;
-    onBack: () => void;
-    onComplete: () => void;
-  }) => (
+function IdentitySetupStub({
+  forAuthorization,
+  onBack,
+  onComplete,
+}: {
+  forAuthorization?: boolean;
+  onBack?: () => void;
+  onComplete: () => void;
+}) {
+  return (
     <>
       {forAuthorization ? <p>Authorization identity setup</p> : null}
       <button onClick={onComplete} type="button">
@@ -26,8 +27,8 @@ vi.mock("../../onboarding/identityEstablishmentFlow", () => ({
         Cancel identity setup
       </button>
     </>
-  ),
-}));
+  );
+}
 
 const CATALOG = {
   activePublicKeyZ32: "first",
@@ -59,12 +60,14 @@ describe("IdentitySelectionFlow", () => {
   it("runs the normal identity setup flow from Add identity", async () => {
     const onIdentitySelected = vi.fn();
     render(
-      <IdentitySelectionFlow
-        catalog={CATALOG}
-        onBack={vi.fn()}
-        onIdentitySelected={onIdentitySelected}
-        selectIdentity={() => Result.ok()}
-      />,
+      <PassportCollaboratorsProvider value={{ IdentitySetup: IdentitySetupStub }}>
+        <IdentitySelectionFlow
+          catalog={CATALOG}
+          onBack={vi.fn()}
+          onIdentitySelected={onIdentitySelected}
+          selectIdentity={() => Result.ok()}
+        />
+      </PassportCollaboratorsProvider>,
     );
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Add identity" }));
@@ -74,13 +77,15 @@ describe("IdentitySelectionFlow", () => {
 
   it("uses the authorization variant when adding an identity", async () => {
     render(
-      <IdentitySelectionFlow
-        catalog={CATALOG}
-        onBack={vi.fn()}
-        onIdentitySelected={vi.fn()}
-        selectIdentity={() => Result.ok()}
-        forAuthorization
-      />,
+      <PassportCollaboratorsProvider value={{ IdentitySetup: IdentitySetupStub }}>
+        <IdentitySelectionFlow
+          catalog={CATALOG}
+          forAuthorization
+          onBack={vi.fn()}
+          onIdentitySelected={vi.fn()}
+          selectIdentity={() => Result.ok()}
+        />
+      </PassportCollaboratorsProvider>,
     );
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Use other identity" }));
@@ -90,12 +95,14 @@ describe("IdentitySelectionFlow", () => {
 
   it("returns to identity selection when identity setup is cancelled", async () => {
     render(
-      <IdentitySelectionFlow
-        catalog={CATALOG}
-        onBack={vi.fn()}
-        onIdentitySelected={vi.fn()}
-        selectIdentity={() => Result.ok()}
-      />,
+      <PassportCollaboratorsProvider value={{ IdentitySetup: IdentitySetupStub }}>
+        <IdentitySelectionFlow
+          catalog={CATALOG}
+          onBack={vi.fn()}
+          onIdentitySelected={vi.fn()}
+          selectIdentity={() => Result.ok()}
+        />
+      </PassportCollaboratorsProvider>,
     );
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Add identity" }));

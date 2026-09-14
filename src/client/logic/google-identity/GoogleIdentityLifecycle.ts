@@ -117,39 +117,97 @@ type EstablishmentStepResult<Success = void> = ResultType<
  * Public asynchronous operations settle with a Result for operational and unexpected failures;
  * they do not intentionally reject. Construction can throw when a required browser dependency or
  * configured endpoint cannot be initialized.
+ *
+ * Optional `dependencies` replace the collaborators this class otherwise
+ * constructs. Production omits them.
+ *
+ * An injected `pubky` is not disposed if later construction throws. After a
+ * successful constructor, {@link dispose} always disposes `this.pubky`.
  */
 export class GoogleIdentityLifecycle {
-  private readonly repository = new LocalStorageIdentityRepository();
-  private readonly pubky: PubkySdkAdapter;
-  private readonly wrappingKeys: GoogleWrappingKeyApiClient;
-  private readonly homegate: HomegateClient;
-  private readonly crypto: PassportFileWebCrypto;
+  private readonly repository;
+  private readonly pubky;
+  private readonly wrappingKeys;
+  private readonly homegate;
+  private readonly crypto;
+  private readonly createDriveStore;
+  private readonly createVisibleRecoveryCopies;
   private readonly requests = new AbortController();
-  private readonly fetch: typeof fetch = (request, init) => {
-    const signals = [this.requests.signal, AbortSignal.timeout(NETWORK_OPERATION_TIMEOUT_MS)];
-    if (init?.signal) signals.push(init.signal);
-    return globalThis.fetch(request, { ...init, signal: AbortSignal.any(signals) });
-  };
+  private readonly fetch: typeof fetch;
   private disposed = false;
 
   /** @throws {Error} when a required dependency or configured endpoint cannot be initialized. */
   constructor(
     homegateBaseUrl: string,
     private readonly passportOrigin: string,
+    dependencies: {
+      fetch?: typeof fetch;
+      pubky?: Pick<
+        PubkySdkAdapter,
+        | "createIdentityKey"
+        | "exportSecretKey"
+        | "restoreIdentityKey"
+        | "signup"
+        | "signin"
+        | "resolveHomeserver"
+        | "publishHomeserver"
+        | "disposeIdentityKey"
+        | "dispose"
+      >;
+      crypto?: Pick<PassportFileWebCrypto, "encryptSecretKeyBytes" | "decryptSecretKeyBytes">;
+      repository?: Pick<LocalStorageIdentityRepository, "save" | "remove">;
+      wrappingKeys?: Pick<GoogleWrappingKeyApiClient, "requestGoogleWrappingKey">;
+      homegate?: Pick<HomegateClient, "requestGoogleSignupToken">;
+      createDriveStore?: (
+        driveAccessToken: string,
+        fetchImpl: typeof fetch,
+      ) => Pick<
+        GoogleDrivePassportFileStore,
+        | "readPassportFile"
+        | "deleteInvalidPassportFile"
+        | "createPassportFile"
+        | "deletePassportFile"
+      >;
+      createVisibleRecoveryCopies?: (
+        driveAccessToken: string,
+        fetchImpl: typeof fetch,
+      ) => Pick<
+        GoogleDriveVisibleRecoveryCopies,
+        "createVisibleRecoveryCopy" | "deleteVisibleRecoveryCopies"
+      >;
+    } = {},
   ) {
-    this.pubky = new PubkySdkAdapter();
+    const ownsPubky = dependencies.pubky === undefined;
+    const fetchImpl = dependencies.fetch ?? globalThis.fetch.bind(globalThis);
+    this.fetch = (request, init) => {
+      const signals = [this.requests.signal, AbortSignal.timeout(NETWORK_OPERATION_TIMEOUT_MS)];
+      if (init?.signal) signals.push(init.signal);
+      return fetchImpl(request, { ...init, signal: AbortSignal.any(signals) });
+    };
+    this.pubky = dependencies.pubky ?? new PubkySdkAdapter();
+    this.repository = dependencies.repository ?? new LocalStorageIdentityRepository();
+    this.createDriveStore =
+      dependencies.createDriveStore ??
+      ((driveAccessToken, nextFetch) =>
+        new GoogleDrivePassportFileStore(driveAccessToken, nextFetch));
+    this.createVisibleRecoveryCopies =
+      dependencies.createVisibleRecoveryCopies ??
+      ((driveAccessToken, nextFetch) =>
+        new GoogleDriveVisibleRecoveryCopies(driveAccessToken, nextFetch));
     try {
-      this.wrappingKeys = new GoogleWrappingKeyApiClient(this.fetch);
-      this.homegate = new HomegateClient(homegateBaseUrl, this.fetch);
-      this.crypto = new PassportFileWebCrypto();
+      this.wrappingKeys = dependencies.wrappingKeys ?? new GoogleWrappingKeyApiClient(this.fetch);
+      this.homegate = dependencies.homegate ?? new HomegateClient(homegateBaseUrl, this.fetch);
+      this.crypto = dependencies.crypto ?? new PassportFileWebCrypto();
     } catch (e) {
-      try {
-        this.pubky.dispose();
-      } catch (e) {
-        LOGGER.warn("identity.google.cleanup.failed", {
-          operation: "construction_pubky_dispose",
-          ...safeErrorLogFields(e),
-        });
+      if (ownsPubky) {
+        try {
+          this.pubky.dispose();
+        } catch (e) {
+          LOGGER.warn("identity.google.cleanup.failed", {
+            operation: "construction_pubky_dispose",
+            ...safeErrorLogFields(e),
+          });
+        }
       }
       throw e;
     }
@@ -165,7 +223,7 @@ export class GoogleIdentityLifecycle {
   ): Promise<GoogleIdentityEstablishmentResult> {
     try {
       report({ flow: "lookup", step: "checking" });
-      const store = new GoogleDrivePassportFileStore(credentials.driveAccessToken, this.fetch);
+      const store = this.createDriveStore(credentials.driveAccessToken, this.fetch);
       LOGGER.info("identity.google.drive_read.started");
       const storedFile = await store.readPassportFile();
       if (Result.isError(storedFile)) {
@@ -201,7 +259,7 @@ export class GoogleIdentityLifecycle {
       if (Result.isError(signupDetails)) return Result.err(signupDetails.error);
 
       report({ flow: "create", step: "creating" });
-      const visibleCopies = new GoogleDriveVisibleRecoveryCopies(
+      const visibleCopies = this.createVisibleRecoveryCopies(
         credentials.driveAccessToken,
         this.fetch,
       );
@@ -232,7 +290,7 @@ export class GoogleIdentityLifecycle {
     report: (progress: GoogleIdentityProgress) => void,
   ): Promise<GoogleIdentityEstablishmentResult> {
     try {
-      const store = new GoogleDrivePassportFileStore(credentials.driveAccessToken, this.fetch);
+      const store = this.createDriveStore(credentials.driveAccessToken, this.fetch);
       const deleted = await store.deleteInvalidPassportFile();
       if (Result.isError(deleted)) {
         return Result.err({
@@ -311,8 +369,8 @@ export class GoogleIdentityLifecycle {
     wrappingKey: string,
     keyId: string,
     report: (progress: GoogleIdentityProgress) => void,
-    store: GoogleDrivePassportFileStore,
-    visibleCopies: GoogleDriveVisibleRecoveryCopies,
+    store: ReturnType<GoogleIdentityLifecycle["createDriveStore"]>,
+    visibleCopies: ReturnType<GoogleIdentityLifecycle["createVisibleRecoveryCopies"]>,
   ): Promise<GoogleIdentityEstablishmentResult> {
     LOGGER.info("identity.google.create.started");
     LOGGER.info("identity.google.create_key.started");
@@ -626,7 +684,7 @@ export class GoogleIdentityLifecycle {
     credentials: GoogleIdentityCredentials,
     publicIdentity: PubkyPublicIdentity,
   ): Promise<DetachGoogleIdentityResult> {
-    const store = new GoogleDrivePassportFileStore(credentials.driveAccessToken, this.fetch);
+    const store = this.createDriveStore(credentials.driveAccessToken, this.fetch);
     const storedFile = await store.readPassportFile();
     if (Result.isError(storedFile)) {
       return Result.err({ code: "google_drive_cleanup_failed", cause: storedFile.error });
@@ -660,7 +718,7 @@ export class GoogleIdentityLifecycle {
       }
     }
 
-    const visibleCopies = new GoogleDriveVisibleRecoveryCopies(
+    const visibleCopies = this.createVisibleRecoveryCopies(
       credentials.driveAccessToken,
       this.fetch,
     );
@@ -677,7 +735,7 @@ export class GoogleIdentityLifecycle {
   }
 
   private async createVisibleRecoveryCopy(
-    visibleCopies: GoogleDriveVisibleRecoveryCopies,
+    visibleCopies: ReturnType<GoogleIdentityLifecycle["createVisibleRecoveryCopies"]>,
     envelope: PassportFileEnvelope,
     publicIdentity: PubkyPublicIdentity,
   ): Promise<boolean> {

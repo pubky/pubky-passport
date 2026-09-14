@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { LocalIdentityResult } from "../../../logic/local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityCatalog } from "../../../logic/local-identity/localIdentityModels";
 import { IdentityEstablishmentFlow } from "../../onboarding/identityEstablishmentFlow";
+import { usePassportCollaborators } from "../../passportCollaborators";
 import { IdentitySwitcher } from "./identitySwitcher";
 
 function IdentitySelectionFlow({
@@ -19,12 +20,14 @@ function IdentitySelectionFlow({
   onIdentitySelected: () => void;
   selectIdentity: (publicKeyZ32: string) => LocalIdentityResult<void>;
 }) {
+  const { IdentitySetup } = usePassportCollaborators();
+  const Setup = IdentitySetup ?? IdentityEstablishmentFlow;
   const [view, setView] = useState<"selection" | "add-identity">("selection");
   const [selectionFailed, setSelectionFailed] = useState(false);
 
   if (view === "add-identity") {
     return (
-      <IdentityEstablishmentFlow
+      <Setup
         forAuthorization={forAuthorization}
         onBack={() => setView("selection")}
         onComplete={onIdentitySelected}

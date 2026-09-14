@@ -72,10 +72,22 @@ export type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityViewErro
  * updates while allowing already-started cleanup to finish safely.
  *
  * Public asynchronous operations settle with a Result and do not intentionally reject.
+ *
+ * Optional constructor factories replace the lazy-imported authorization and
+ * lifecycle constructors. Supply both or omit both.
  */
 export class GoogleIdentityController {
-  private googleAuthorization: GoogleImplicitAuthorization | undefined;
-  private lifecycle: GoogleIdentityLifecycle | undefined;
+  private googleAuthorization: Pick<GoogleImplicitAuthorization, "request" | "dispose"> | undefined;
+  private lifecycle:
+    | Pick<
+        GoogleIdentityLifecycle,
+        | "establishIdentity"
+        | "replaceInvalidPassportFile"
+        | "detachIdentity"
+        | "abortRequests"
+        | "dispose"
+      >
+    | undefined;
   private lifecycleDisposed = false;
   private operationPending = false;
   private googleSubject: string | undefined;
@@ -90,6 +102,20 @@ export class GoogleIdentityController {
     private readonly googleClientId: string,
     private readonly homegateBaseUrl: string,
     private readonly onState: (state: GoogleIdentityViewState) => void,
+    private readonly createAuthorization?: (
+      googleClientId: string,
+    ) => Pick<GoogleImplicitAuthorization, "request" | "dispose">,
+    private readonly createLifecycle?: (
+      homegateBaseUrl: string,
+      passportOrigin: string,
+    ) => Pick<
+      GoogleIdentityLifecycle,
+      | "establishIdentity"
+      | "replaceInvalidPassportFile"
+      | "detachIdentity"
+      | "abortRequests"
+      | "dispose"
+    >,
   ) {}
 
   /**
@@ -377,18 +403,12 @@ export class GoogleIdentityController {
 
   private async initializeDependencies(): Promise<boolean> {
     if (this.googleAuthorization && this.lifecycle) return true;
-    const [authorizationModule, lifecycleModule] = await Promise.all([
-      import("./gia/GoogleImplicitAuthorization"),
-      import("./GoogleIdentityLifecycle"),
-    ]);
+    const factories = await this.resolveFactories();
     if (this.disposed) return false;
 
-    const authorization = new authorizationModule.GoogleImplicitAuthorization(this.googleClientId);
+    const authorization = factories.createAuthorization(this.googleClientId);
     try {
-      const lifecycle = new lifecycleModule.GoogleIdentityLifecycle(
-        this.homegateBaseUrl,
-        globalThis.location.origin,
-      );
+      const lifecycle = factories.createLifecycle(this.homegateBaseUrl, globalThis.location.origin);
       this.googleAuthorization = authorization;
       this.lifecycle = lifecycle;
       return true;
@@ -403,6 +423,33 @@ export class GoogleIdentityController {
       }
       throw e;
     }
+  }
+
+  private async resolveFactories() {
+    const hasAuthorization = this.createAuthorization !== undefined;
+    const hasLifecycle = this.createLifecycle !== undefined;
+    if (hasAuthorization !== hasLifecycle) {
+      throw new Error(
+        "GoogleIdentityController requires both authorization and lifecycle factories, or neither.",
+      );
+    }
+    if (this.createAuthorization && this.createLifecycle) {
+      return {
+        createAuthorization: this.createAuthorization,
+        createLifecycle: this.createLifecycle,
+      };
+    }
+
+    const [authorizationModule, lifecycleModule] = await Promise.all([
+      import("./gia/GoogleImplicitAuthorization"),
+      import("./GoogleIdentityLifecycle"),
+    ]);
+    return {
+      createAuthorization: (googleClientId: string) =>
+        new authorizationModule.GoogleImplicitAuthorization(googleClientId),
+      createLifecycle: (homegateBaseUrl: string, passportOrigin: string) =>
+        new lifecycleModule.GoogleIdentityLifecycle(homegateBaseUrl, passportOrigin),
+    };
   }
 }
 
