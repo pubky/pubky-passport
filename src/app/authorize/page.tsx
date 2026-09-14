@@ -1,4 +1,4 @@
-import { AuthorizationFlow } from "../../client/ui/authorization/authorizationFlow";
+import { AuthorizationFlow } from "@/client/ui/authorization/authorizationFlow";
 
 export default function AuthorizePage() {
   return <AuthorizationFlow />;

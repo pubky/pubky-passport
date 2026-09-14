@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 
-import { LOGGER } from "../logger/logger";
+import { LOGGER } from "@/libs/logger/logger";
 import { readBoundedBytes, readBoundedText } from "./boundedBody";
 
 afterEach(() => vi.restoreAllMocks());

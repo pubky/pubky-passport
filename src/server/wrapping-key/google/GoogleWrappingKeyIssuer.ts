@@ -2,9 +2,9 @@ import "server-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
-import type { CodedFailure } from "../../../libs/result";
-import { getPublicEnvironment, getServerEnvironment } from "../../environment";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import type { CodedFailure } from "@/libs/result";
+import { getPublicEnvironment, getServerEnvironment } from "@/server/environment";
 import {
   GoogleIdTokenVerifier,
   type GoogleIdTokenVerificationResult,

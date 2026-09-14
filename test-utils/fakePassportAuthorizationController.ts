@@ -1,7 +1,7 @@
 import { vi } from "vitest";
 
-import type { PassportAuthorizationViewState } from "../src/client/logic/authorization/flow/PassportAuthorizationController";
-import type { AuthorizationControllerPort } from "../src/client/ui/passportCollaborators";
+import type { PassportAuthorizationViewState } from "@/client/logic/authorization/flow/PassportAuthorizationController";
+import type { AuthorizationControllerPort } from "@/client/ui/passportCollaborators";
 
 export function fakePassportAuthorizationController(
   state: {

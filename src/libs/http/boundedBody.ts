@@ -1,6 +1,6 @@
 import { Result, type Result as ResultType } from "better-result";
 
-import { LOGGER, safeErrorLogFields } from "../logger/logger";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 
 export type BoundedBody = {
   body: ReadableStream<Uint8Array> | null;

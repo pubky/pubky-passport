@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 
-import type { GoogleWrappingKeyIssuer } from "../../../../server/wrapping-key/google/GoogleWrappingKeyIssuer";
+import type { GoogleWrappingKeyIssuer } from "@/server/wrapping-key/google/GoogleWrappingKeyIssuer";
 
 describe("POST /api/wrapping-key/google", () => {
   afterEach(() => {
-    vi.doUnmock("../../../../server/wrapping-key/google/GoogleWrappingKeyIssuer");
+    vi.doUnmock("@/server/wrapping-key/google/GoogleWrappingKeyIssuer");
     vi.restoreAllMocks();
   });
 
@@ -63,7 +63,7 @@ describe("POST /api/wrapping-key/google", () => {
       issuer(async () => Result.ok({ wrappingKey: "opaque-key", keyId: "current" })),
     );
     const post = await handlerWithFactory(factory);
-    const { LOGGER } = await import("../../../../libs/logger/logger");
+    const { LOGGER } = await import("@/libs/logger/logger");
     const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
 
     const response = await post(requestWithFailingBody(streamFailure));
@@ -179,19 +179,16 @@ async function handlerWithFactory(
   },
 ) {
   vi.resetModules();
-  vi.doMock(
-    "../../../../server/wrapping-key/google/GoogleWrappingKeyIssuer",
-    async (importOriginal) => ({
-      ...(await importOriginal<
-        typeof import("../../../../server/wrapping-key/google/GoogleWrappingKeyIssuer")
-      >()),
-      GoogleWrappingKeyIssuer: class {
-        static fromEnvironment() {
-          return factory();
-        }
-      },
-    }),
-  );
+  vi.doMock("@/server/wrapping-key/google/GoogleWrappingKeyIssuer", async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("@/server/wrapping-key/google/GoogleWrappingKeyIssuer")
+    >()),
+    GoogleWrappingKeyIssuer: class {
+      static fromEnvironment() {
+        return factory();
+      }
+    },
+  }));
   return (await import("./handler")).googleWrappingKeyPost;
 }
 

@@ -1,4 +1,4 @@
-import { AUTHORIZATION_CAPTURE_MAX_CHARACTERS } from "../passportPolicy";
+import { AUTHORIZATION_CAPTURE_MAX_CHARACTERS } from "@/libs/passportPolicy";
 
 export type EarlyAuthorizationLocation =
   | { status: "captured"; hash: string; expiresAt: number }

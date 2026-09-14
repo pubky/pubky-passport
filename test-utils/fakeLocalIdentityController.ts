@@ -1,7 +1,7 @@
 import { Result } from "better-result";
 
-import type { LocalIdentityCatalog } from "../src/client/logic/local-identity/localIdentityModels";
-import type { LocalIdentityControllerPort } from "../src/client/ui/passportCollaborators";
+import type { LocalIdentityCatalog } from "@/client/logic/local-identity/localIdentityModels";
+import type { LocalIdentityControllerPort } from "@/client/ui/passportCollaborators";
 
 export function fakeLocalIdentityController(
   state: {

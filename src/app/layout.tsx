@@ -3,12 +3,12 @@ import { connection } from "next/server";
 import type { ReactNode } from "react";
 import "@fontsource-variable/inter-tight";
 import "./globals.css";
-import { GoogleIdentityConfigurationProvider } from "../client/ui/googleIdentityConfiguration";
-import { BrandEndorsement } from "../client/ui/shared/brand/brandEndorsement";
-import { PassportLogo } from "../client/ui/shared/brand/passportLogo";
-import { Sonner } from "../client/ui/shared/sonner";
-import { LOGGER, safeErrorLogFields } from "../libs/logger/logger";
-import { getPublicEnvironment } from "../server/environment";
+import { GoogleIdentityConfigurationProvider } from "@/client/ui/googleIdentityConfiguration";
+import { BrandEndorsement } from "@/client/ui/shared/brand/brandEndorsement";
+import { PassportLogo } from "@/client/ui/shared/brand/passportLogo";
+import { Sonner } from "@/client/ui/shared/sonner";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import { getPublicEnvironment } from "@/server/environment";
 import { ParserTimeScripts } from "./parserTimeScripts";
 
 export const metadata: Metadata = {

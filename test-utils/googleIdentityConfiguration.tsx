@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 
-import { GoogleIdentityConfigurationProvider } from "../src/client/ui/googleIdentityConfiguration";
+import { GoogleIdentityConfigurationProvider } from "@/client/ui/googleIdentityConfiguration";
 import {
   PassportCollaboratorsProvider,
   type PassportCollaborators,
-} from "../src/client/ui/passportCollaborators";
+} from "@/client/ui/passportCollaborators";
 
 const TEST_GOOGLE_IDENTITY_CONFIGURATION = {
   googleClientId: "google-client-id",
