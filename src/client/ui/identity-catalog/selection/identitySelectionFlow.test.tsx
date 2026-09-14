@@ -13,8 +13,8 @@ function IdentitySetupStub({
   onBack,
   onComplete,
 }: {
-  forAuthorization?: boolean;
-  onBack?: () => void;
+  forAuthorization?: boolean | undefined;
+  onBack?: (() => void) | undefined;
   onComplete: () => void;
 }) {
   return (

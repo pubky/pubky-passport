@@ -32,14 +32,14 @@ function ConfiguredIdentityEstablishmentFlow({
   onBack,
   onComplete,
 }: {
-  forAuthorization?: boolean;
-  onBack?: () => void;
+  forAuthorization?: boolean | undefined;
+  onBack?: (() => void) | undefined;
   onComplete: () => void;
 }) {
   return withPassportTestProviders(
     <IdentityEstablishmentFlow
-      {...(forAuthorization ? { forAuthorization } : {})}
-      {...(onBack ? { onBack } : {})}
+      forAuthorization={forAuthorization}
+      onBack={onBack}
       onComplete={onComplete}
     />,
     COLLABORATORS,

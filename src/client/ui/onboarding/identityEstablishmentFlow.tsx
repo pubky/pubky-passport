@@ -14,8 +14,8 @@ function IdentityEstablishmentFlow({
   onBack,
   onComplete,
 }: {
-  forAuthorization?: boolean;
-  onBack?: () => void;
+  forAuthorization?: boolean | undefined;
+  onBack?: (() => void) | undefined;
   onComplete: () => void;
 }) {
   const google = useGoogleIdentityEstablishment();

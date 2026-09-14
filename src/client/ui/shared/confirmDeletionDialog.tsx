@@ -21,7 +21,7 @@ type ConfirmDeletionDialogProps = {
   open: boolean;
   pending?: boolean;
   pendingLabel?: string;
-  retryAction?: { label: string; onClick: () => void };
+  retryAction?: { label: string; onClick: () => void } | undefined;
   title: string;
 };
 
