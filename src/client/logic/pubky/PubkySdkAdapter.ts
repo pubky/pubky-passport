@@ -3,6 +3,7 @@ import "client-only";
 import { Keypair, Pubky, PublicKey, type PubkyError, type Session } from "@synonymdev/pubky";
 import { Result, type Result as ResultType } from "better-result";
 
+import { createFailure } from "@/libs/logger/createFailure";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import type { CodedFailure } from "@/libs/result";
 import {
@@ -590,6 +591,8 @@ type PubkyErrorCode =
   | "invalid_pubky"
   | "resolution_failed";
 
+const fail = createFailure("identity.pubky.operation.failed");
+
 function failure<Success, Code extends PubkyErrorCode>(
   operation: PubkyOperation,
   stage: PubkyFailureStage,
@@ -597,14 +600,16 @@ function failure<Success, Code extends PubkyErrorCode>(
   cause?: unknown,
 ): ResultType<Success, CodedFailure<Code>> {
   const sdkErrorName = cause === undefined ? undefined : safePubkySdkErrorName(cause);
-  LOGGER.warn("identity.pubky.operation.failed", {
-    operation,
-    stage,
-    code,
-    ...(sdkErrorName ? { sdkErrorName } : {}),
-    ...(cause === undefined ? {} : safeErrorLogFields(cause)),
-  });
-  return Result.err(cause === undefined ? { code } : { code, cause });
+  return fail(
+    {
+      operation,
+      stage,
+      code,
+      ...(sdkErrorName ? { sdkErrorName } : {}),
+      ...(cause === undefined ? {} : safeErrorLogFields(cause)),
+    },
+    cause === undefined ? undefined : { code, cause },
+  );
 }
 
 function safePubkySdkErrorName(error: unknown): string | undefined {
