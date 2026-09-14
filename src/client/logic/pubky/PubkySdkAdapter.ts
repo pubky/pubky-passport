@@ -591,7 +591,8 @@ type PubkyErrorCode =
   | "invalid_pubky"
   | "resolution_failed";
 
-const fail = createFailure("identity.pubky.operation.failed");
+/** `fail` is the shared log-and-return factory; `failure` below adds this adapter's typed positional API. */
+const fail = createFailure<PubkyErrorCode>("identity.pubky.operation.failed");
 
 function failure<Success, Code extends PubkyErrorCode>(
   operation: PubkyOperation,
@@ -599,16 +600,17 @@ function failure<Success, Code extends PubkyErrorCode>(
   code: Code,
   cause?: unknown,
 ): ResultType<Success, CodedFailure<Code>> {
-  const sdkErrorName = cause === undefined ? undefined : safePubkySdkErrorName(cause);
+  if (cause === undefined) return fail({ operation, stage, code });
+  const sdkErrorName = safePubkySdkErrorName(cause);
   return fail(
     {
       operation,
       stage,
       code,
       ...(sdkErrorName ? { sdkErrorName } : {}),
-      ...(cause === undefined ? {} : safeErrorLogFields(cause)),
+      ...safeErrorLogFields(cause),
     },
-    cause === undefined ? undefined : { code, cause },
+    { code, cause },
   );
 }
 

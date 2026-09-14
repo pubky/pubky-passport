@@ -60,7 +60,7 @@ type RequestLock = <LockResult>(
   callback: () => Promise<LockResult>,
 ) => Promise<LockResult>;
 
-const failure = createFailure("identity.google.drive_store.failed");
+const failure = createFailure<StoreErrorCode>("identity.google.drive_store.failed");
 const PASSPORT_FILE_NAME = "passport.json";
 const CREATE_PASSPORT_FILE_LOCK_NAME = "pubky-passport:google-drive:passport-file:create:v1";
 

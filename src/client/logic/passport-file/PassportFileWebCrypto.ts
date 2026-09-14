@@ -25,7 +25,7 @@ type CryptoResult<Success> = ResultType<Success, CodedFailure<CryptoErrorCode>>;
 type BrowserCrypto = { crypto: Crypto; subtle: SubtleCrypto };
 type BrowserCryptoResult = ResultType<BrowserCrypto, CodedFailure<"unsupported_browser_crypto">>;
 
-const failure = createFailure("passport_file.crypto.failed");
+const failure = createFailure<CryptoErrorCode>("passport_file.crypto.failed");
 const WRAPPING_KEY_BYTES = 32;
 const AES_GCM_IV_BYTES = 12;
 const AES_GCM_TAG_BITS = 128;

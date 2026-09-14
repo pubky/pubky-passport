@@ -53,7 +53,9 @@ type RequestLock = <LockResult>(
   callback: () => Promise<LockResult>,
 ) => Promise<LockResult>;
 
-const failure = createFailure("identity.google.visible_recovery_copies.failed");
+const failure = createFailure<VisibleCopiesErrorCode>(
+  "identity.google.visible_recovery_copies.failed",
+);
 const VISIBLE_RECOVERY_FOLDER_NAME = "Pubky Passport";
 const DRIVE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 const DRIVE_FILE_ID_PATTERN = /^[A-Za-z0-9_-]+$/;

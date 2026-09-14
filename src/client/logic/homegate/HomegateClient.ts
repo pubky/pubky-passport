@@ -28,6 +28,9 @@ export type HomegateSignupTokenErrorCode =
   | "network_failed";
 
 const MAX_ERROR_RESPONSE_BYTES = 256;
+const failure = createFailure<HomegateSignupTokenErrorCode>(
+  "identity.google.homeserver_signup_token.failed",
+);
 const MAX_SIGNUP_TOKEN_LENGTH = 1024;
 const GOOGLE_VERIFICATION_PATH = "/google_verification";
 const SIGNUP_TOKEN_SCHEMA = z
@@ -213,8 +216,6 @@ function mapHomegateError(body: string): HomegateSignupTokenErrorCode {
       return "malformed_homegate_response";
   }
 }
-
-const failure = createFailure("identity.google.homeserver_signup_token.failed");
 
 function isValidGoogleIdToken(value: string): boolean {
   return value.length <= MAXIMUM_JSON_BODY_BYTES && value.trim().length > 0;

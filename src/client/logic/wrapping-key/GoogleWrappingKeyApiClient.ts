@@ -10,7 +10,7 @@ import { readBoundedText } from "@/libs/http/boundedBody";
 import { HttpResponseError } from "@/libs/http/HttpResponseError";
 import { MAXIMUM_JSON_BODY_BYTES, passportKeyIdSchema } from "@/libs/passportPolicy";
 
-const failure = createFailure("identity.google.wrapping_key.failed");
+const failure = createFailure<GoogleWrappingKeyErrorCode>("identity.google.wrapping_key.failed");
 const ERROR_CODES = [
   "invalid_request",
   "invalid_google_id_token",
