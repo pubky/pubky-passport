@@ -15,11 +15,11 @@ const MOCKS = vi.hoisted(() => ({
   restoreIdentityKey: vi.fn(),
 }));
 
-vi.mock("../../pubky/PubkySdkAdapter", () => ({
+vi.mock("@/client/logic/pubky/PubkySdkAdapter", () => ({
   PubkySdkAdapter: MOCKS.PubkySdkAdapter,
 }));
 
-vi.mock("../../local-identity/LocalStorageIdentityRepository", async (importOriginal) => ({
+vi.mock("@/client/logic/local-identity/LocalStorageIdentityRepository", async (importOriginal) => ({
   ...(await importOriginal<
     typeof import("@/client/logic/local-identity/LocalStorageIdentityRepository")
   >()),
