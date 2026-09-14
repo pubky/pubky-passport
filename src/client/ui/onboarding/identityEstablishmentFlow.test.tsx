@@ -6,7 +6,6 @@ import { Result } from "better-result";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { GoogleIdentityViewState } from "@/client/logic/google-identity/GoogleIdentityController";
 import {
   mockGoogleIdentityController,
   type MockGoogleIdentityController,
@@ -144,16 +143,15 @@ describe("IdentityEstablishmentFlow", () => {
   });
 
   it("shows the restore branch reported by the flow", async () => {
-    const emitState = captureControllerState(
-      mockGoogleIdentityController({
-        establishIdentity: vi.fn(() => new Promise<never>(() => undefined)),
-      }),
-    );
+    const controller = mockGoogleIdentityController({
+      establishIdentity: vi.fn(() => new Promise<never>(() => undefined)),
+    });
+    useController(controller);
     render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
     act(() =>
-      emitState.current?.({
+      controller.emitState({
         status: "establishing",
         progress: { flow: "restore", step: "restoring" },
       }),
@@ -178,7 +176,7 @@ describe("IdentityEstablishmentFlow", () => {
     expect(screen.queryByText("Republish PKDNS records")).not.toBeInTheDocument();
 
     act(() =>
-      emitState.current?.({
+      controller.emitState({
         status: "establishing",
         progress: { flow: "repair", step: "signing_up" },
       }),
@@ -197,16 +195,15 @@ describe("IdentityEstablishmentFlow", () => {
   });
 
   it("does not claim setup or restore before checking Google Drive", async () => {
-    const emitState = captureControllerState(
-      mockGoogleIdentityController({
-        establishIdentity: vi.fn(() => new Promise<never>(() => undefined)),
-      }),
-    );
+    const controller = mockGoogleIdentityController({
+      establishIdentity: vi.fn(() => new Promise<never>(() => undefined)),
+    });
+    useController(controller);
     render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
     act(() =>
-      emitState.current?.({
+      controller.emitState({
         status: "establishing",
         progress: { flow: "lookup", step: "checking" },
       }),
@@ -397,18 +394,13 @@ describe("IdentityEstablishmentFlow", () => {
     expect(await screen.findByRole("heading", { name: "Setup complete." })).toBeInTheDocument();
   });
 
-  it("clears the pinned Google account when returning from an establishment failure", async () => {
-    const clearPinnedGoogleSubject = vi.fn();
+  it("resets the controller when returning from an establishment failure", async () => {
     const establishIdentity = vi
       .fn()
       .mockResolvedValueOnce(Result.err({ code: "signin_failed" as const }))
       .mockImplementationOnce(() => new Promise<never>(() => undefined));
-    useController(
-      mockGoogleIdentityController({
-        clearPinnedGoogleSubject,
-        establishIdentity,
-      }),
-    );
+    const controller = mockGoogleIdentityController({ establishIdentity });
+    useController(controller);
     render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
     await userEvent
@@ -421,7 +413,7 @@ describe("IdentityEstablishmentFlow", () => {
       }),
     );
 
-    expect(clearPinnedGoogleSubject).toHaveBeenCalledOnce();
+    expect(controller.reset).toHaveBeenCalledOnce();
     expect(MOCKS.constructGoogleIdentityController).toHaveBeenCalledOnce();
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(establishIdentity).toHaveBeenCalledTimes(2);
@@ -587,15 +579,4 @@ describe("IdentityEstablishmentFlow", () => {
 
 function useController(controller: MockGoogleIdentityController): void {
   MOCKS.constructGoogleIdentityController.mockReturnValue(controller);
-}
-
-function captureControllerState(controller: MockGoogleIdentityController): {
-  current?: (state: GoogleIdentityViewState) => void;
-} {
-  const capture: { current?: (state: GoogleIdentityViewState) => void } = {};
-  MOCKS.constructGoogleIdentityController.mockImplementation((_, __, onState) => {
-    capture.current = onState;
-    return controller;
-  });
-  return capture;
 }
