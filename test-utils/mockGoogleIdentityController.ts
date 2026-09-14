@@ -20,7 +20,8 @@ type MockOperations = Pick<
 /**
  * Fakes the controller's state publication around injected operations. Each
  * operation publishes `requesting-authorization` when called and a terminal state
- * derived from its Result, as the real controller does.
+ * derived from its Result, as the real controller does. Unlike the real controller it
+ * neither rejects concurrent operations nor suppresses states after `dispose()`.
  */
 export function mockGoogleIdentityController(
   overrides: Partial<MockOperations> = {},

@@ -82,7 +82,11 @@ type OperationWork<Success> = (
   lifecycle: Lifecycle,
 ) => Promise<ResultType<Success, GoogleIdentityError>>;
 
-/** `disposing`: dispose() ran mid-operation; lifecycle disposal waits for it to settle. */
+/**
+ * ready → busy (runOperation) → ready (finishOperation).
+ * dispose(): ready → disposed (lifecycle released immediately); busy → disposing (lifecycle
+ * released by finishOperation once the in-flight operation settles). disposed is terminal.
+ */
 type ControllerStatus = "ready" | "busy" | "disposing" | "disposed";
 
 const IDLE_STATE: GoogleIdentityViewState = { status: "idle" };
@@ -185,8 +189,8 @@ export class GoogleIdentityController {
   /** Cancels Google authorization and releases Pubky SDK resources owned by this controller. */
   dispose(): void {
     if (this.isDisposed) return;
-    const operationPending = this.status === "busy";
-    this.status = operationPending ? "disposing" : "disposed";
+    const isOperationInFlight = this.status === "busy";
+    this.status = isOperationInFlight ? "disposing" : "disposed";
     this.googleSubject = undefined;
     this.listeners.clear();
     try {
@@ -198,7 +202,7 @@ export class GoogleIdentityController {
       });
     } finally {
       this.lifecycle?.abortRequests();
-      if (!operationPending) this.disposeLifecycle();
+      if (!isOperationInFlight) this.disposeLifecycle();
     }
   }
 
@@ -382,11 +386,17 @@ export class GoogleIdentityController {
   }
 
   private finishOperation(): void {
-    if (this.status === "disposing") {
-      this.status = "disposed";
-      this.disposeLifecycle();
-    } else if (this.status === "busy") {
-      this.status = "ready";
+    switch (this.status) {
+      case "disposing":
+        this.status = "disposed";
+        this.disposeLifecycle();
+        return;
+      case "busy":
+        this.status = "ready";
+        return;
+      case "ready":
+      case "disposed":
+        return;
     }
   }
 

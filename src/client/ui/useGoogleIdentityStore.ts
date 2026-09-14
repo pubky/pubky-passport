@@ -7,12 +7,15 @@ import type {
   GoogleIdentityViewState,
 } from "@/client/logic/google-identity/GoogleIdentityController";
 import { useGoogleIdentityConfiguration } from "./googleIdentityConfiguration";
-import { usePassportCollaborators, type PassportCollaborators } from "./passportCollaborators";
+import {
+  usePassportCollaborators,
+  type GoogleIdentityControllerPort,
+} from "./passportCollaborators";
 
-type GoogleIdentityController = ReturnType<PassportCollaborators["createGoogleIdentityController"]>;
 type GoogleIdentityOperation = (
-  controller: GoogleIdentityController,
+  controller: GoogleIdentityControllerPort,
 ) => Promise<Result<unknown, GoogleIdentityViewError>>;
+type GoogleIdentityOperationName = "detach" | "establish" | "replace-invalid-file";
 type GoogleIdentityScreen = "establishment" | "detachment";
 
 const IDLE_STATE: GoogleIdentityViewState = { status: "idle" };
@@ -26,16 +29,16 @@ const OPERATION_FAILED_STATE: GoogleIdentityViewState = {
  *
  * The controller is constructed on the first operation so server rendering and idle
  * screens never load browser dependencies. The controller publishes its own states;
- * this store only adds a generic `operation_failed` state for construction failures
- * and rejected operation promises, which the real controller never produces.
+ * this store only adds a generic `operation_failed` state for construction failures,
+ * rejected operation promises, and input a screen rejects through {@link fail}.
  */
 class GoogleIdentityStore {
-  private controller: GoogleIdentityController | null = null;
+  private controller: GoogleIdentityControllerPort | null = null;
   private failure: GoogleIdentityViewState | null = null;
   private readonly listeners = new Set<() => void>();
 
   constructor(
-    private readonly createController: () => GoogleIdentityController,
+    private readonly createController: () => GoogleIdentityControllerPort,
     private readonly screen: GoogleIdentityScreen,
   ) {}
 
@@ -50,7 +53,7 @@ class GoogleIdentityStore {
   };
 
   /** Starts one controller operation; its Result is published by the controller itself. */
-  run = (name: string, operation: GoogleIdentityOperation): void => {
+  run = (name: GoogleIdentityOperationName, operation: GoogleIdentityOperation): void => {
     const controller = this.ensureController();
     if (!controller) return;
     this.setFailure(null);
@@ -88,11 +91,12 @@ class GoogleIdentityStore {
     }
   };
 
-  private ensureController(): GoogleIdentityController | null {
+  private ensureController(): GoogleIdentityControllerPort | null {
     if (this.controller) return this.controller;
     try {
       const controller = this.createController();
       this.controller = controller;
+      // The controller clears its listeners in dispose(), so the unsubscribe handle is not kept.
       controller.subscribe(this.notify);
       return controller;
     } catch (e) {

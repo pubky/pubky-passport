@@ -153,4 +153,21 @@ describe("useDetachFromGoogle", () => {
     expect(await screen.findByText("complete")).toBeInTheDocument();
     expect(MOCKS.constructGoogleIdentityController).toHaveBeenCalledTimes(2);
   });
+
+  it("disposes its controller on unmount and ignores states published afterwards", async () => {
+    const dispose = vi.fn();
+    const controller = mockGoogleIdentityController({
+      dispose,
+      detachIdentity: vi.fn(() => new Promise<never>(() => undefined)),
+    });
+    MOCKS.constructGoogleIdentityController.mockReturnValue(controller);
+    const rendered = renderProbe();
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Detach" }));
+    expect(await screen.findByText("requesting-authorization")).toBeInTheDocument();
+    rendered.unmount();
+
+    expect(dispose).toHaveBeenCalledOnce();
+    expect(() => controller.emitState({ status: "detached" })).not.toThrow();
+  });
 });

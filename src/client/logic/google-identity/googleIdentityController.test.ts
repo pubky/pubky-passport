@@ -128,6 +128,24 @@ describe("GoogleIdentityController", () => {
     expect(MOCKS.establishIdentity).toHaveBeenCalledWith(CREDENTIALS, expect.any(Function));
   });
 
+  it("publishes only the allowlisted established fields", async () => {
+    MOCKS.establishIdentity.mockResolvedValue(
+      Result.ok({
+        establishmentMode: "restored" as const,
+        publicIdentity: PUBLIC_IDENTITY,
+        secret: "ESTABLISHED-PAYLOAD-CANARY",
+      }),
+    );
+    const controller = createController();
+    const states = recordStates(controller);
+
+    const established = await controller.establishIdentity();
+
+    expect(JSON.stringify(controller.getState())).not.toContain("ESTABLISHED-PAYLOAD-CANARY");
+    expect(JSON.stringify(states)).not.toContain("ESTABLISHED-PAYLOAD-CANARY");
+    expect(JSON.stringify(established)).not.toContain("ESTABLISHED-PAYLOAD-CANARY");
+  });
+
   it("forwards restored-identity repair progress unchanged", async () => {
     MOCKS.establishIdentity.mockImplementation(async (_credentials, reportProgress) => {
       reportProgress({ flow: "repair", step: "signing_up" });
