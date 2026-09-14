@@ -15,33 +15,40 @@ export type IdentitySetup = (props: {
   onComplete: () => void;
 }) => ReactNode;
 
+/** The controller surface each screen consumes; fakes in `test-utils/` implement these ports. */
+export type AuthorizationControllerPort = Pick<
+  PassportAuthorizationController,
+  "approve" | "cancel" | "dispose" | "getState" | "subscribe"
+>;
+
+export type GoogleIdentityControllerPort = Pick<
+  GoogleIdentityController,
+  | "clearPinnedGoogleSubject"
+  | "detachIdentity"
+  | "dispose"
+  | "establishIdentity"
+  | "replaceInvalidPassportFile"
+>;
+
+export type LocalIdentityControllerPort = Pick<
+  LocalIdentityController,
+  | "createPubkyRingMigration"
+  | "createRecoveryFile"
+  | "listIdentities"
+  | "removeIdentity"
+  | "resolveHomeserver"
+  | "selectIdentity"
+  | "subscribeToIdentityChanges"
+>;
+
 export type PassportCollaborators = {
-  createAuthorizationController?: () => Pick<
-    PassportAuthorizationController,
-    "approve" | "cancel" | "dispose" | "getState" | "subscribe"
-  >;
+  createAuthorizationController?: () => AuthorizationControllerPort;
   createGoogleIdentityController: (
     googleClientId: string,
     homegateBaseUrl: string,
     onState: (state: GoogleIdentityViewState) => void,
-  ) => Pick<
-    GoogleIdentityController,
-    | "clearPinnedGoogleSubject"
-    | "detachIdentity"
-    | "dispose"
-    | "establishIdentity"
-    | "replaceInvalidPassportFile"
-  >;
-  createLocalIdentityController: () => Pick<
-    LocalIdentityController,
-    | "createPubkyRingMigration"
-    | "createRecoveryFile"
-    | "listIdentities"
-    | "removeIdentity"
-    | "resolveHomeserver"
-    | "selectIdentity"
-    | "subscribeToIdentityChanges"
-  >;
+  ) => GoogleIdentityControllerPort;
+  createLocalIdentityController: () => LocalIdentityControllerPort;
   IdentitySetup?: IdentitySetup;
 };
 

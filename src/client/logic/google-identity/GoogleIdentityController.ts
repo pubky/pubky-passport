@@ -73,8 +73,8 @@ export type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityViewErro
  *
  * Public asynchronous operations settle with a Result and do not intentionally reject.
  *
- * Optional constructor factories replace the lazy-imported authorization and
- * lifecycle constructors. Supply both or omit both.
+ * Each optional constructor factory independently replaces the lazy-imported
+ * authorization or lifecycle constructor. Production omits both.
  */
 export class GoogleIdentityController {
   private googleAuthorization: Pick<GoogleImplicitAuthorization, "request" | "dispose"> | undefined;
@@ -426,30 +426,19 @@ export class GoogleIdentityController {
   }
 
   private async resolveFactories() {
-    const hasAuthorization = this.createAuthorization !== undefined;
-    const hasLifecycle = this.createLifecycle !== undefined;
-    if (hasAuthorization !== hasLifecycle) {
-      throw new Error(
-        "GoogleIdentityController requires both authorization and lifecycle factories, or neither.",
-      );
-    }
-    if (this.createAuthorization && this.createLifecycle) {
-      return {
-        createAuthorization: this.createAuthorization,
-        createLifecycle: this.createLifecycle,
-      };
-    }
-
-    const [authorizationModule, lifecycleModule] = await Promise.all([
-      import("./gia/GoogleImplicitAuthorization"),
-      import("./GoogleIdentityLifecycle"),
+    const [createAuthorization, createLifecycle] = await Promise.all([
+      this.createAuthorization ??
+        import("./gia/GoogleImplicitAuthorization").then(
+          (module) => (googleClientId: string) =>
+            new module.GoogleImplicitAuthorization(googleClientId),
+        ),
+      this.createLifecycle ??
+        import("./GoogleIdentityLifecycle").then(
+          (module) => (homegateBaseUrl: string, passportOrigin: string) =>
+            new module.GoogleIdentityLifecycle(homegateBaseUrl, passportOrigin),
+        ),
     ]);
-    return {
-      createAuthorization: (googleClientId: string) =>
-        new authorizationModule.GoogleImplicitAuthorization(googleClientId),
-      createLifecycle: (homegateBaseUrl: string, passportOrigin: string) =>
-        new lifecycleModule.GoogleIdentityLifecycle(homegateBaseUrl, passportOrigin),
-    };
+    return { createAuthorization, createLifecycle };
   }
 }
 

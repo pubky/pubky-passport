@@ -6,7 +6,11 @@ import type { LocalIdentityResult } from "../../logic/local-identity/LocalStorag
 import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
 import type { PubkyHomeserverResolutionResult } from "../../logic/pubky/pubkyIdentityKey";
 import type { PubkyRingMigration } from "../../logic/pubky/PubkySdkAdapter";
-import { usePassportCollaborators, type PassportCollaborators } from "../passportCollaborators";
+import {
+  usePassportCollaborators,
+  type LocalIdentityControllerPort,
+  type PassportCollaborators,
+} from "../passportCollaborators";
 
 type IdentityCatalogActions = {
   createMigration: (publicKeyZ32: string) => Promise<LocalIdentityResult<PubkyRingMigration>>;
@@ -27,55 +31,36 @@ type IdentityCatalogState =
 const SERVER_SNAPSHOT: IdentityCatalogState = { status: "loading" };
 
 class IdentityCatalogStore {
-  private readonly controller: ReturnType<
-    PassportCollaborators["createLocalIdentityController"]
-  > | null;
+  private readonly controller: LocalIdentityControllerPort;
   private dirty = true;
   private snapshot: IdentityCatalogState | undefined;
 
   readonly actions: IdentityCatalogActions;
 
   constructor(createController: PassportCollaborators["createLocalIdentityController"]) {
-    try {
-      this.controller = createController();
-    } catch {
-      this.controller = null;
-    }
+    this.controller = createController();
     this.actions = {
       createMigration: async (publicKeyZ32) =>
-        this.controller
-          ? this.controller.createPubkyRingMigration(publicKeyZ32)
-          : Result.err({ code: "storage_unavailable" }),
+        this.controller.createPubkyRingMigration(publicKeyZ32),
       createRecoveryFile: async (publicKeyZ32, password) =>
-        this.controller
-          ? this.controller.createRecoveryFile(publicKeyZ32, password)
-          : Result.err({ code: "identity_unavailable" }),
-      removeIdentity: (publicKeyZ32) =>
-        this.controller?.removeIdentity(publicKeyZ32) ??
-        Result.err({ code: "storage_unavailable" }),
-      resolveHomeserver: async (publicKeyZ32) =>
-        this.controller
-          ? this.controller.resolveHomeserver(publicKeyZ32)
-          : Result.err({ code: "resolution_failed" }),
-      selectIdentity: (publicKeyZ32) =>
-        this.controller?.selectIdentity(publicKeyZ32) ??
-        Result.err({ code: "storage_unavailable" }),
+        this.controller.createRecoveryFile(publicKeyZ32, password),
+      removeIdentity: (publicKeyZ32) => this.controller.removeIdentity(publicKeyZ32),
+      resolveHomeserver: async (publicKeyZ32) => this.controller.resolveHomeserver(publicKeyZ32),
+      selectIdentity: (publicKeyZ32) => this.controller.selectIdentity(publicKeyZ32),
     };
   }
 
   getSnapshot = (): IdentityCatalogState => {
     if (!this.dirty && this.snapshot) return this.snapshot;
-    const catalog = this.controller?.listIdentities();
-    this.snapshot =
-      catalog && Result.isOk(catalog)
-        ? { status: "ready", catalog: catalog.value, actions: this.actions }
-        : { status: "unavailable" };
+    const catalog = this.controller.listIdentities();
+    this.snapshot = Result.isOk(catalog)
+      ? { status: "ready", catalog: catalog.value, actions: this.actions }
+      : { status: "unavailable" };
     this.dirty = false;
     return this.snapshot;
   };
 
   subscribe = (listener: () => void): (() => void) => {
-    if (!this.controller) return () => undefined;
     return this.controller.subscribeToIdentityChanges(() => {
       this.dirty = true;
       listener();

@@ -124,14 +124,54 @@ type EstablishmentStepResult<Success = void> = ResultType<
  * An injected `pubky` is not disposed if later construction throws. After a
  * successful constructor, {@link dispose} always disposes `this.pubky`.
  */
+export type DriveStorePort = Pick<
+  GoogleDrivePassportFileStore,
+  "readPassportFile" | "deleteInvalidPassportFile" | "createPassportFile" | "deletePassportFile"
+>;
+
+export type VisibleRecoveryCopiesPort = Pick<
+  GoogleDriveVisibleRecoveryCopies,
+  "createVisibleRecoveryCopy" | "deleteVisibleRecoveryCopies"
+>;
+
+/** Collaborators the lifecycle otherwise constructs itself; every member is optional. */
+export type GoogleIdentityLifecycleDependencies = {
+  fetch?: typeof fetch;
+  pubky?: Pick<
+    PubkySdkAdapter,
+    | "createIdentityKey"
+    | "exportSecretKey"
+    | "restoreIdentityKey"
+    | "signup"
+    | "signin"
+    | "resolveHomeserver"
+    | "publishHomeserver"
+    | "disposeIdentityKey"
+    | "dispose"
+  >;
+  crypto?: Pick<PassportFileWebCrypto, "encryptSecretKeyBytes" | "decryptSecretKeyBytes">;
+  repository?: Pick<LocalStorageIdentityRepository, "save" | "remove">;
+  wrappingKeys?: Pick<GoogleWrappingKeyApiClient, "requestGoogleWrappingKey">;
+  homegate?: Pick<HomegateClient, "requestGoogleSignupToken">;
+  createDriveStore?: (driveAccessToken: string, fetchImpl: typeof fetch) => DriveStorePort;
+  createVisibleRecoveryCopies?: (
+    driveAccessToken: string,
+    fetchImpl: typeof fetch,
+  ) => VisibleRecoveryCopiesPort;
+};
+
 export class GoogleIdentityLifecycle {
-  private readonly repository;
-  private readonly pubky;
-  private readonly wrappingKeys;
-  private readonly homegate;
-  private readonly crypto;
-  private readonly createDriveStore;
-  private readonly createVisibleRecoveryCopies;
+  private readonly repository: NonNullable<GoogleIdentityLifecycleDependencies["repository"]>;
+  private readonly pubky: NonNullable<GoogleIdentityLifecycleDependencies["pubky"]>;
+  private readonly wrappingKeys: NonNullable<GoogleIdentityLifecycleDependencies["wrappingKeys"]>;
+  private readonly homegate: NonNullable<GoogleIdentityLifecycleDependencies["homegate"]>;
+  private readonly crypto: NonNullable<GoogleIdentityLifecycleDependencies["crypto"]>;
+  private readonly createDriveStore: NonNullable<
+    GoogleIdentityLifecycleDependencies["createDriveStore"]
+  >;
+  private readonly createVisibleRecoveryCopies: NonNullable<
+    GoogleIdentityLifecycleDependencies["createVisibleRecoveryCopies"]
+  >;
   private readonly requests = new AbortController();
   private readonly fetch: typeof fetch;
   private disposed = false;
@@ -140,45 +180,11 @@ export class GoogleIdentityLifecycle {
   constructor(
     homegateBaseUrl: string,
     private readonly passportOrigin: string,
-    dependencies: {
-      fetch?: typeof fetch;
-      pubky?: Pick<
-        PubkySdkAdapter,
-        | "createIdentityKey"
-        | "exportSecretKey"
-        | "restoreIdentityKey"
-        | "signup"
-        | "signin"
-        | "resolveHomeserver"
-        | "publishHomeserver"
-        | "disposeIdentityKey"
-        | "dispose"
-      >;
-      crypto?: Pick<PassportFileWebCrypto, "encryptSecretKeyBytes" | "decryptSecretKeyBytes">;
-      repository?: Pick<LocalStorageIdentityRepository, "save" | "remove">;
-      wrappingKeys?: Pick<GoogleWrappingKeyApiClient, "requestGoogleWrappingKey">;
-      homegate?: Pick<HomegateClient, "requestGoogleSignupToken">;
-      createDriveStore?: (
-        driveAccessToken: string,
-        fetchImpl: typeof fetch,
-      ) => Pick<
-        GoogleDrivePassportFileStore,
-        | "readPassportFile"
-        | "deleteInvalidPassportFile"
-        | "createPassportFile"
-        | "deletePassportFile"
-      >;
-      createVisibleRecoveryCopies?: (
-        driveAccessToken: string,
-        fetchImpl: typeof fetch,
-      ) => Pick<
-        GoogleDriveVisibleRecoveryCopies,
-        "createVisibleRecoveryCopy" | "deleteVisibleRecoveryCopies"
-      >;
-    } = {},
+    dependencies: GoogleIdentityLifecycleDependencies = {},
   ) {
     const ownsPubky = dependencies.pubky === undefined;
-    const fetchImpl = dependencies.fetch ?? globalThis.fetch.bind(globalThis);
+    const fetchImpl: typeof fetch =
+      dependencies.fetch ?? ((request, init) => globalThis.fetch(request, init));
     this.fetch = (request, init) => {
       const signals = [this.requests.signal, AbortSignal.timeout(NETWORK_OPERATION_TIMEOUT_MS)];
       if (init?.signal) signals.push(init.signal);
@@ -369,8 +375,8 @@ export class GoogleIdentityLifecycle {
     wrappingKey: string,
     keyId: string,
     report: (progress: GoogleIdentityProgress) => void,
-    store: ReturnType<GoogleIdentityLifecycle["createDriveStore"]>,
-    visibleCopies: ReturnType<GoogleIdentityLifecycle["createVisibleRecoveryCopies"]>,
+    store: DriveStorePort,
+    visibleCopies: VisibleRecoveryCopiesPort,
   ): Promise<GoogleIdentityEstablishmentResult> {
     LOGGER.info("identity.google.create.started");
     LOGGER.info("identity.google.create_key.started");
@@ -735,7 +741,7 @@ export class GoogleIdentityLifecycle {
   }
 
   private async createVisibleRecoveryCopy(
-    visibleCopies: ReturnType<GoogleIdentityLifecycle["createVisibleRecoveryCopies"]>,
+    visibleCopies: VisibleRecoveryCopiesPort,
     envelope: PassportFileEnvelope,
     publicIdentity: PubkyPublicIdentity,
   ): Promise<boolean> {

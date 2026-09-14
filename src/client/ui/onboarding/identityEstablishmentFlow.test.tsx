@@ -11,28 +11,21 @@ import {
   mockGoogleIdentityController,
   type MockGoogleIdentityController,
 } from "../../../../test-utils/mockGoogleIdentityController";
-import { withGoogleIdentityConfiguration } from "../../../../test-utils/googleIdentityConfiguration";
+import { withPassportTestProviders } from "../../../../test-utils/googleIdentityConfiguration";
 import { LOGGER } from "../../../libs/logger/logger";
+import type { PassportCollaborators } from "../passportCollaborators";
 import { IdentityEstablishmentFlow } from "./identityEstablishmentFlow";
 
-const MOCKS = vi.hoisted(() => ({
-  constructGoogleIdentityController: vi.fn(),
-}));
+const MOCKS = {
+  constructGoogleIdentityController:
+    vi.fn<PassportCollaborators["createGoogleIdentityController"]>(),
+};
+const COLLABORATORS: Partial<PassportCollaborators> = {
+  createGoogleIdentityController: MOCKS.constructGoogleIdentityController,
+};
 
 const MOBILE_FOOTER_COPY =
   "Pubky Passport is powered by the Pubky protocol. Built by Synonym Software, S.A. DE C.V. ©2026.";
-
-vi.mock("../../logic/google-identity/GoogleIdentityController", () => ({
-  GoogleIdentityController: class {
-    constructor(
-      googleClientId: string,
-      homegateBaseUrl: string,
-      onState: (state: GoogleIdentityViewState) => void,
-    ) {
-      return MOCKS.constructGoogleIdentityController(googleClientId, homegateBaseUrl, onState);
-    }
-  },
-}));
 
 function ConfiguredIdentityEstablishmentFlow({
   forAuthorization,
@@ -43,12 +36,13 @@ function ConfiguredIdentityEstablishmentFlow({
   onBack?: () => void;
   onComplete: () => void;
 }) {
-  return withGoogleIdentityConfiguration(
+  return withPassportTestProviders(
     <IdentityEstablishmentFlow
       {...(forAuthorization ? { forAuthorization } : {})}
       {...(onBack ? { onBack } : {})}
       onComplete={onComplete}
     />,
+    COLLABORATORS,
   );
 }
 

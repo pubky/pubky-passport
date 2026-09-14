@@ -23,6 +23,11 @@ export type LocalIdentityRecoveryFileResult = ResultType<
   CodedFailure<LocalIdentityRecoveryFileErrorCode>
 >;
 
+type LocalIdentityRepositoryPort = Pick<
+  LocalStorageIdentityRepository,
+  "list" | "select" | "remove" | "subscribe" | "read"
+>;
+
 /**
  * Browser entry point for identities stored in localStorage.
  *
@@ -30,31 +35,10 @@ export type LocalIdentityRecoveryFileResult = ResultType<
  * Production omits it.
  */
 export class LocalIdentityController {
-  private readonly repository: Pick<
-    LocalStorageIdentityRepository,
-    "list" | "select" | "remove" | "subscribe" | "read"
-  >;
+  private readonly repository: LocalIdentityRepositoryPort;
 
-  constructor(
-    repository?: Pick<
-      LocalStorageIdentityRepository,
-      "list" | "select" | "remove" | "subscribe" | "read"
-    >,
-  ) {
-    if (repository) {
-      this.repository = repository;
-      return;
-    }
-    try {
-      this.repository = new LocalStorageIdentityRepository();
-    } catch (e) {
-      LOGGER.error("identity.controller.failed", {
-        operation: "initialize",
-        code: "runtime_exception",
-        ...safeErrorLogFields(e),
-      });
-      throw new Error("Local identity initialization unavailable.", { cause: e });
-    }
+  constructor(repository?: LocalIdentityRepositoryPort) {
+    this.repository = repository ?? new LocalStorageIdentityRepository();
   }
 
   listIdentities(): LocalIdentityResult<LocalIdentityCatalog> {

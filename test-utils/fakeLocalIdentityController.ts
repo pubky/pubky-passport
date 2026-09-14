@@ -1,11 +1,7 @@
 import { Result } from "better-result";
 
 import type { LocalIdentityCatalog } from "../src/client/logic/local-identity/localIdentityModels";
-import type { PassportCollaborators } from "../src/client/ui/passportCollaborators";
-
-type LocalIdentityControllerFake = ReturnType<
-  PassportCollaborators["createLocalIdentityController"]
->;
+import type { LocalIdentityControllerPort } from "../src/client/ui/passportCollaborators";
 
 export function fakeLocalIdentityController(
   state: {
@@ -13,8 +9,8 @@ export function fakeLocalIdentityController(
     listener?: (() => void) | undefined;
     storageUnavailable?: boolean | undefined;
   },
-  overrides: Partial<LocalIdentityControllerFake> = {},
-): LocalIdentityControllerFake {
+  overrides: Partial<LocalIdentityControllerPort> = {},
+): LocalIdentityControllerPort {
   return {
     createPubkyRingMigration:
       overrides.createPubkyRingMigration ??

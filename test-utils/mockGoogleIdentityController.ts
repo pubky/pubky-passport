@@ -1,16 +1,9 @@
 import { Result } from "better-result";
 import { vi } from "vitest";
 
-import type { GoogleIdentityController } from "../src/client/logic/google-identity/GoogleIdentityController";
+import type { GoogleIdentityControllerPort } from "../src/client/ui/passportCollaborators";
 
-export type MockGoogleIdentityController = Pick<
-  GoogleIdentityController,
-  | "clearPinnedGoogleSubject"
-  | "detachIdentity"
-  | "dispose"
-  | "establishIdentity"
-  | "replaceInvalidPassportFile"
->;
+export type MockGoogleIdentityController = GoogleIdentityControllerPort;
 
 export function mockGoogleIdentityController(
   overrides: Partial<MockGoogleIdentityController> = {},

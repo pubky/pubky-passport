@@ -1,19 +1,15 @@
 import { vi } from "vitest";
 
 import type { PassportAuthorizationViewState } from "../src/client/logic/authorization/flow/PassportAuthorizationController";
-import type { PassportCollaborators } from "../src/client/ui/passportCollaborators";
-
-type AuthorizationControllerFake = ReturnType<
-  NonNullable<PassportCollaborators["createAuthorizationController"]>
->;
+import type { AuthorizationControllerPort } from "../src/client/ui/passportCollaborators";
 
 export function fakePassportAuthorizationController(
   state: {
     current?: PassportAuthorizationViewState | undefined;
     listener?: ((state: PassportAuthorizationViewState) => void) | undefined;
   },
-  overrides: Partial<AuthorizationControllerFake> = {},
-): AuthorizationControllerFake {
+  overrides: Partial<AuthorizationControllerPort> = {},
+): AuthorizationControllerPort {
   return {
     approve: overrides.approve ?? vi.fn(),
     cancel: overrides.cancel ?? vi.fn(),
