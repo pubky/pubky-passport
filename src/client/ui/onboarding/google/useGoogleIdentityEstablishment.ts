@@ -5,7 +5,7 @@ import type {
   GoogleIdentityViewState,
 } from "@/client/logic/google-identity/GoogleIdentityController";
 import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
-import { useGoogleIdentityController } from "@/client/ui/shared/useGoogleIdentityController";
+import { useGoogleIdentityStore } from "@/client/ui/useGoogleIdentityStore";
 
 type GoogleIdentityEstablishmentView =
   | { status: "idle" }
@@ -21,7 +21,7 @@ type GoogleIdentityEstablishmentView =
     };
 
 function useGoogleIdentityEstablishment() {
-  const google = useGoogleIdentityController("identity.google.establishment_ui.failed");
+  const google = useGoogleIdentityStore("establishment");
 
   return {
     back: google.reset,

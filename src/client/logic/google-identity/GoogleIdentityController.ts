@@ -20,7 +20,7 @@ import type {
 export type { GoogleIdentityProgress } from "./GoogleIdentityLifecycle";
 
 /** Safe setup or restore details published after the identity is active locally. */
-export type EstablishedGoogleIdentity =
+type EstablishedGoogleIdentity =
   | {
       establishmentMode: "created";
       googleAccount: GoogleAccountProfile;
@@ -77,12 +77,12 @@ type Lifecycle = Pick<
 >;
 type EstablishmentOperation = "establish" | "replace_invalid_passport_file";
 type GoogleIdentityOperation = EstablishmentOperation | "detach";
+type OperationWork<Success> = (
+  credentials: GoogleIdentityCredentials,
+  lifecycle: Lifecycle,
+) => Promise<ResultType<Success, GoogleIdentityError>>;
 
-/**
- * `busy` and `disposing` both mean one operation is in flight. `disposing` additionally
- * records that {@link GoogleIdentityController.dispose} ran and lifecycle disposal must
- * wait for that operation to settle.
- */
+/** `disposing`: dispose() ran mid-operation; lifecycle disposal waits for it to settle. */
 type ControllerStatus = "ready" | "busy" | "disposing" | "disposed";
 
 const IDLE_STATE: GoogleIdentityViewState = { status: "idle" };
@@ -220,7 +220,24 @@ export class GoogleIdentityController {
             : lifecycle.replaceInvalidPassportFile(credentials, progress.report);
         const established = await establishment.finally(progress.stop);
         if (Result.isError(established)) return Result.err(established.error);
-        return Result.ok({ ...established.value, googleAccount: credentials.googleAccount });
+
+        // Name every field so nothing new on the lifecycle result reaches UI state unreviewed.
+        const googleAccount = credentials.googleAccount;
+        switch (established.value.establishmentMode) {
+          case "created":
+            return Result.ok({
+              establishmentMode: "created",
+              googleAccount,
+              publicIdentity: established.value.publicIdentity,
+              visibleRecoveryCopyStatus: established.value.visibleRecoveryCopyStatus,
+            });
+          case "restored":
+            return Result.ok({
+              establishmentMode: "restored",
+              googleAccount,
+              publicIdentity: established.value.publicIdentity,
+            });
+        }
       },
       (identity) => ({ status: "established", identity }),
     );
@@ -233,10 +250,7 @@ export class GoogleIdentityController {
   private async runOperation<Success>(
     operation: GoogleIdentityOperation,
     expectedGoogleSubject: string | undefined,
-    work: (
-      credentials: GoogleIdentityCredentials,
-      lifecycle: Lifecycle,
-    ) => Promise<ResultType<Success, GoogleIdentityError>>,
+    work: OperationWork<Success>,
     toState: (value: Success) => GoogleIdentityViewState,
   ): Promise<ResultType<Success, GoogleIdentityViewError>> {
     if (this.status !== "ready") {
@@ -263,10 +277,7 @@ export class GoogleIdentityController {
   private async authorizeAndRun<Success>(
     operation: GoogleIdentityOperation,
     expectedGoogleSubject: string | undefined,
-    work: (
-      credentials: GoogleIdentityCredentials,
-      lifecycle: Lifecycle,
-    ) => Promise<ResultType<Success, GoogleIdentityError>>,
+    work: OperationWork<Success>,
   ): Promise<ResultType<Success, GoogleIdentityError>> {
     const authorized = await this.requestGoogleCredentials(expectedGoogleSubject);
     if (Result.isError(authorized)) return Result.err(authorized.error);

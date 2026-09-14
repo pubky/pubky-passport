@@ -6,16 +6,14 @@ import type {
   GoogleIdentityViewError,
   GoogleIdentityViewState,
 } from "@/client/logic/google-identity/GoogleIdentityController";
-import { useGoogleIdentityConfiguration } from "@/client/ui/googleIdentityConfiguration";
-import {
-  usePassportCollaborators,
-  type PassportCollaborators,
-} from "@/client/ui/passportCollaborators";
+import { useGoogleIdentityConfiguration } from "./googleIdentityConfiguration";
+import { usePassportCollaborators, type PassportCollaborators } from "./passportCollaborators";
 
 type GoogleIdentityController = ReturnType<PassportCollaborators["createGoogleIdentityController"]>;
 type GoogleIdentityOperation = (
   controller: GoogleIdentityController,
 ) => Promise<Result<unknown, GoogleIdentityViewError>>;
+type GoogleIdentityScreen = "establishment" | "detachment";
 
 const IDLE_STATE: GoogleIdentityViewState = { status: "idle" };
 const OPERATION_FAILED_STATE: GoogleIdentityViewState = {
@@ -34,12 +32,11 @@ const OPERATION_FAILED_STATE: GoogleIdentityViewState = {
 class GoogleIdentityStore {
   private controller: GoogleIdentityController | null = null;
   private failure: GoogleIdentityViewState | null = null;
-  private unsubscribeController: (() => void) | undefined;
   private readonly listeners = new Set<() => void>();
 
   constructor(
     private readonly createController: () => GoogleIdentityController,
-    private readonly logEvent: string,
+    private readonly screen: GoogleIdentityScreen,
   ) {}
 
   getSnapshot = (): GoogleIdentityViewState =>
@@ -58,7 +55,7 @@ class GoogleIdentityStore {
     if (!controller) return;
     this.setFailure(null);
     operation(controller).catch((e: unknown) => {
-      LOGGER.warn(this.logEvent, {
+      LOGGER.warn(`identity.google.${this.screen}_ui.failed`, {
         operation: name,
         stage: "operation_promise",
         ...safeErrorLogFields(e),
@@ -80,14 +77,12 @@ class GoogleIdentityStore {
   dispose = (): void => {
     const controller = this.controller;
     this.controller = null;
-    this.unsubscribeController?.();
-    this.unsubscribeController = undefined;
     if (!controller) return;
     try {
       controller.dispose();
     } catch (e) {
       LOGGER.warn("identity.google.cleanup.failed", {
-        operation: "controller_dispose",
+        operation: `${this.screen}_controller_dispose`,
         ...safeErrorLogFields(e),
       });
     }
@@ -98,10 +93,10 @@ class GoogleIdentityStore {
     try {
       const controller = this.createController();
       this.controller = controller;
-      this.unsubscribeController = controller.subscribe(this.notify);
+      controller.subscribe(this.notify);
       return controller;
     } catch (e) {
-      LOGGER.warn(this.logEvent, {
+      LOGGER.warn(`identity.google.${this.screen}_ui.failed`, {
         operation: "construct_controller",
         ...safeErrorLogFields(e),
       });
@@ -121,25 +116,20 @@ class GoogleIdentityStore {
   };
 }
 
-/**
- * Connects a screen to its own Google identity controller through `useSyncExternalStore`.
- *
- * @param logEvent Stable warn event for failures that originate in this bridge rather
- * than in the controller.
- */
-export function useGoogleIdentityController(logEvent: string) {
+/** Connects a screen to its own Google identity controller through `useSyncExternalStore`. */
+export function useGoogleIdentityStore(screen: GoogleIdentityScreen) {
   const { googleClientId, homegateBaseUrl } = useGoogleIdentityConfiguration();
   const { createGoogleIdentityController } = usePassportCollaborators();
   const [store] = useState(
     () =>
       new GoogleIdentityStore(
         () => createGoogleIdentityController(googleClientId, homegateBaseUrl),
-        logEvent,
+        screen,
       ),
   );
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, () => IDLE_STATE);
 
-  useEffect(() => store.dispose, [store]);
+  useEffect(() => () => store.dispose(), [store]);
 
   return { fail: store.fail, reset: store.reset, run: store.run, state };
 }

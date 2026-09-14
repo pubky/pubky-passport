@@ -140,11 +140,19 @@ describe("GoogleIdentityController", () => {
 
     await controller.establishIdentity();
 
-    expect(states.slice(0, 4)).toEqual([
+    expect(states).toEqual([
       { status: "requesting-authorization" },
       { status: "establishing", progress: { flow: "repair", step: "signing_up" } },
       { status: "establishing", progress: { flow: "repair", step: "publishing" } },
       { status: "establishing", progress: { flow: "repair", step: "signing_in" } },
+      {
+        status: "established",
+        identity: {
+          establishmentMode: "restored",
+          googleAccount: GOOGLE_ACCOUNT,
+          publicIdentity: PUBLIC_IDENTITY,
+        },
+      },
     ]);
   });
 
