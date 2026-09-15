@@ -5,11 +5,10 @@ import { Result, type Result as ResultType } from "better-result";
 import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { NETWORK_OPERATION_TIMEOUT_MS, REQUEST_TIMEOUT_MS } from "@/libs/passportPolicy";
-import type { CodedFailure } from "@/libs/result";
 import type { GoogleIdentityCredentials } from "./gia/GoogleImplicitAuthorization";
+import type { GoogleIdentityOperationError } from "./googleIdentityErrors";
 import {
   HomegateClient,
-  type HomegateSignupTokenErrorCode,
   type HomeserverSignupDetails,
 } from "@/client/logic/homegate/HomegateClient";
 import { GoogleDrivePassportFileStore } from "@/client/logic/passport-file/google/GoogleDrivePassportFileStore";
@@ -22,10 +21,7 @@ import {
   type PubkyPublicIdentity,
 } from "@/client/logic/pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "@/client/logic/pubky/PubkySdkAdapter";
-import {
-  GoogleWrappingKeyApiClient,
-  type GoogleWrappingKeyErrorCode,
-} from "@/client/logic/wrapping-key/GoogleWrappingKeyApiClient";
+import { GoogleWrappingKeyApiClient } from "@/client/logic/wrapping-key/GoogleWrappingKeyApiClient";
 import { LocalStorageIdentityRepository } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 
 /** Safe setup or restore progress emitted while establishing an identity. */
@@ -55,56 +51,14 @@ type GoogleIdentityEstablishmentValue =
       publicIdentity: PubkyPublicIdentity;
     };
 
-type GoogleIdentityEstablishmentError =
-  | {
-      code: "wrapping_key_failed";
-      detailCode: GoogleWrappingKeyErrorCode;
-      cause?: unknown;
-    }
-  | {
-      code: "homeserver_signup_token_failed";
-      detailCode: HomegateSignupTokenErrorCode;
-      cause?: unknown;
-    }
-  | CodedFailure<
-      | "create_failed"
-      | "decrypt_failed"
-      | "publication_failed"
-      | "drive_create_conflict"
-      | "invalid_passport_file"
-      | "invalid_passport_file_delete_failed"
-      | "drive_read_failed"
-      | "drive_write_failed"
-      | "encrypt_failed"
-      | "identity_mismatch"
-      | "local_save_failed"
-      | "restore_failed"
-      | "signin_failed"
-      | "signup_failed"
-      | "unexpected_failure"
-    >;
-
 type GoogleIdentityEstablishmentResult = ResultType<
   GoogleIdentityEstablishmentValue,
-  GoogleIdentityEstablishmentError
+  GoogleIdentityOperationError
 >;
 
-type DetachGoogleIdentityError = CodedFailure<
-  | "google_account_mismatch"
-  | "google_drive_cleanup_failed"
-  | "local_remove_failed"
-  | "unexpected_failure"
->;
+type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityOperationError>;
 
-export type GoogleIdentityLifecycleError =
-  GoogleIdentityEstablishmentError | DetachGoogleIdentityError;
-
-type DetachGoogleIdentityResult = ResultType<void, DetachGoogleIdentityError>;
-
-type EstablishmentStepResult<Success = void> = ResultType<
-  Success,
-  GoogleIdentityEstablishmentError
->;
+type EstablishmentStepResult<Success = void> = ResultType<Success, GoogleIdentityOperationError>;
 
 /**
  * Executes Google-backed identity establishment, repair, and detachment.

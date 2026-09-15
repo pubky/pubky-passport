@@ -108,7 +108,11 @@ function ConfirmDeletionDialog({
             ref={confirmationInput}
             value={confirmation}
           />
-          {error ? <FieldMessage error>{error}</FieldMessage> : null}
+          {error == null ? null : typeof error === "string" ? (
+            <FieldMessage error>{error}</FieldMessage>
+          ) : (
+            error
+          )}
         </div>
 
         <div className="flex flex-col gap-3">
