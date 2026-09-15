@@ -50,9 +50,11 @@ export class PassportAuthorizationController {
   private state: PassportAuthorizationViewState;
 
   /**
-   * Idempotently owns the injected bootstrap entry. Does not read or scrub the
-   * address bar; that stays in the Next.js client entrypoint so render-phase
-   * snapshots cannot call `history.replaceState`.
+   * Idempotently owns the injected bootstrap entry, consulting the taker once when the
+   * page-scoped controller is first created. This method never reads or scrubs the
+   * address bar itself; the Next.js client entrypoint does that before hydration, and
+   * its taker may re-scrub a restored secret-bearing URL, so callers decide whether
+   * invoking it during render is acceptable.
    */
   static fromBrowser(
     takeInitialAuthorizationEntry: TakeInitialAuthorizationEntry,
