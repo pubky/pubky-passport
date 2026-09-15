@@ -44,7 +44,7 @@ function IdentityManagement({
 }) {
   const account = identity.googleAccount;
   const name = account?.name ?? "Your Pubky";
-  const [homeserver, setHomeserver] = useState<string | null | undefined>();
+  const [homeserver, setHomeserver] = useState<HomeserverLookup>({ status: "looking-up" });
   const [logoutFailed, setLogoutFailed] = useState(false);
 
   function logout(): void {
@@ -60,14 +60,20 @@ function IdentityManagement({
     let cancelled = false;
     void resolveHomeserver(identity.publicIdentity.publicKeyZ32)
       .then((result) => {
-        if (!cancelled) setHomeserver(Result.isError(result) ? null : result.value);
+        if (!cancelled) {
+          setHomeserver(
+            Result.isOk(result) && result.value
+              ? { status: "resolved", pubky: result.value }
+              : { status: "unavailable" },
+          );
+        }
       })
       .catch((e: unknown) => {
         LOGGER.warn("identity.management.failed", {
           operation: "resolve_homeserver",
           ...safeErrorLogFields(e),
         });
-        if (!cancelled) setHomeserver(null);
+        if (!cancelled) setHomeserver({ status: "unavailable" });
       });
     return () => {
       cancelled = true;
@@ -102,6 +108,7 @@ function IdentityManagement({
         <IdentityDetail label="User" value={name} />
         <IdentityDetail label="Google account" value={account?.email ?? "Not connected"} />
         <IdentityDetail
+          copyable
           label="Pubky"
           onCopied={() =>
             toast.info("Pubky copied to clipboard", {
@@ -111,9 +118,16 @@ function IdentityManagement({
           value={identity.publicIdentity.publicKeyZ32}
         />
         <IdentityDetail
+          copyable={homeserver.status === "resolved"}
           label="Homeserver"
           onCopied={() => toast.info("Homeserver copied")}
-          value={homeserver === undefined ? "Looking up…" : (homeserver ?? "Unavailable")}
+          value={
+            homeserver.status === "looking-up"
+              ? "Looking up…"
+              : homeserver.status === "resolved"
+                ? homeserver.pubky
+                : "Unavailable"
+          }
         />
       </section>
 
@@ -138,16 +152,21 @@ function IdentityManagement({
   );
 }
 
+type HomeserverLookup =
+  { status: "looking-up" } | { status: "unavailable" } | { status: "resolved"; pubky: string };
+
 function IdentityDetail({
+  copyable = false,
   label,
   onCopied,
   value,
 }: {
+  copyable?: boolean;
   label: string;
   onCopied?: () => void;
   value: string;
 }) {
-  const isCopyable = onCopied !== undefined && value !== "Unavailable" && value !== "Looking up…";
+  const isCopyable = copyable && onCopied !== undefined;
 
   async function copyValue() {
     try {

@@ -28,6 +28,33 @@ describe("IdentityManagement", () => {
     vi.clearAllMocks();
   });
 
+  it("keeps the homeserver copy control disabled until a PKDNS name resolves", async () => {
+    let resolveHomeserver!: (value: string) => void;
+    render(
+      <IdentityManagement
+        identity={identity}
+        onBack={vi.fn()}
+        onDetachFromGoogle={vi.fn()}
+        onDownloadRecoveryFile={vi.fn()}
+        onRemoveLocalIdentity={() => Result.ok()}
+        onMigrateToKeychain={vi.fn()}
+        resolveHomeserver={() =>
+          new Promise((resolve) => {
+            resolveHomeserver = (pubky) => resolve(Result.ok(pubky));
+          })
+        }
+      />,
+    );
+
+    const homeserverButton = screen.getByRole("button", { name: "Copy Homeserver" });
+    expect(screen.getByText("Looking up…")).toBeInTheDocument();
+    expect(homeserverButton).toBeDisabled();
+
+    resolveHomeserver("homeserver-pubky");
+    await waitFor(() => expect(homeserverButton).toBeEnabled());
+    expect(screen.getByText("homeserver-pubky")).toBeInTheDocument();
+  });
+
   it("copies the Pubky and resolved PKDNS homeserver and returns", async () => {
     const writeText = vi.fn(() => Promise.resolve());
     const onBack = vi.fn();

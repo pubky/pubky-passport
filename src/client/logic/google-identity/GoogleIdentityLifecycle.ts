@@ -140,8 +140,10 @@ export class GoogleIdentityLifecycle {
     const fetchImpl: typeof fetch =
       dependencies.fetch ?? ((request, init) => globalThis.fetch(request, init));
     this.fetch = (request, init) => {
-      const signals = [this.requests.signal, AbortSignal.timeout(NETWORK_OPERATION_TIMEOUT_MS)];
+      const signals = [this.requests.signal];
+      // Clients that pass a signal own that request's timeout. Otherwise this wrapper does.
       if (init?.signal) signals.push(init.signal);
+      else signals.push(AbortSignal.timeout(NETWORK_OPERATION_TIMEOUT_MS));
       return fetchImpl(request, { ...init, signal: AbortSignal.any(signals) });
     };
     this.pubky = dependencies.pubky ?? new PubkySdkAdapter();

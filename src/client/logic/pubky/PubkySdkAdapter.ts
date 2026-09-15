@@ -54,10 +54,11 @@ const PASSPORT_CLIENT_ID = "passport.pubky.app";
 /**
  * Owns one SDK keypair while handing an identity to Pubky Ring.
  *
- * The {@link url} embeds the full exported secret key. Treat it as secret material: never log,
- * persist, or place it in application state. {@link navigate} disposes the handle after attempting
- * the browser handoff; callers that only inspect the URL or abandon the handoff must call
- * {@link dispose} themselves.
+ * The {@link url} embeds the full exported secret key. Treat it as secret material: never log
+ * or persist it. Rendering it is the one intentional exception to "secrets never enter render
+ * output", because a QR code must contain the secret. {@link navigate} disposes the handle after
+ * attempting the browser handoff; callers that only inspect the URL or abandon the handoff must
+ * call {@link dispose} themselves.
  */
 export class PubkyRingMigration {
   private keypair: Keypair | null;

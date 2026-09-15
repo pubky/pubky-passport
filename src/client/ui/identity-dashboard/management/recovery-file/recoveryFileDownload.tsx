@@ -50,20 +50,14 @@ function RecoveryFileDownload({
     event.preventDefault();
     const passwordInput = passwordInputRef.current;
     if (!passwordInput || !validPassword || pending) return;
-    let password = passwordInput.value;
+    const password = passwordInput.value;
     passwordInput.value = "";
     setPasswordLength(0);
     setPending(true);
     setRecoveryFileFailed(false);
     let downloaded = false;
     try {
-      let recoveryFilePromise: ReturnType<typeof createRecoveryFile>;
-      try {
-        recoveryFilePromise = createRecoveryFile(publicKeyZ32, password);
-      } finally {
-        password = "";
-      }
-      const recoveryFile = await recoveryFilePromise;
+      const recoveryFile = await createRecoveryFile(publicKeyZ32, password);
       if (!activeRef.current) return;
       if (Result.isError(recoveryFile) || !downloadFile(recoveryFile.value))
         setRecoveryFileFailed(true);

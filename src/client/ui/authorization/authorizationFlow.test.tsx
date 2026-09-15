@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { Result } from "better-result";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -529,6 +529,9 @@ describe("AuthorizationFlow", () => {
     await screen.findByRole("heading", { name: "Add identity" });
 
     MOCKS.catalog = { activePublicKeyZ32: FIRST.publicIdentity.publicKeyZ32, identities: [FIRST] };
+    act(() => {
+      MOCKS.catalogListener?.();
+    });
 
     expect(screen.getByRole("heading", { name: "Add identity" })).toBeInTheDocument();
     expect(
