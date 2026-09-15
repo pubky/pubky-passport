@@ -57,6 +57,7 @@ describe("PassportAuthorizationController", () => {
   });
 
   afterEach(() => {
+    PassportAuthorizationController.fromBrowser(() => undefined).dispose();
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
@@ -276,6 +277,30 @@ describe("PassportAuthorizationController", () => {
     const { controller } = createController({}, { status: entryStatus });
 
     expect(controller.getState()).toEqual({ status: viewStatus });
+  });
+
+  it("owns the injected bootstrap entry without reading the address bar", () => {
+    window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
+    const entry = createEntry({});
+    const takeInitial = vi.fn(() => entry);
+
+    const fromBrowser = PassportAuthorizationController.fromBrowser(takeInitial);
+
+    expect(fromBrowser).toBe(PassportAuthorizationController.fromBrowser(takeInitial));
+    expect(fromBrowser.getState().status).toBe("review");
+    expect(takeInitial).toHaveBeenCalledOnce();
+    expect(window.location.hash).toContain("d=");
+    fromBrowser.dispose();
+  });
+
+  it("starts in manual entry when bootstrap capture is absent", () => {
+    window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
+
+    const controller = PassportAuthorizationController.fromBrowser(() => undefined);
+
+    expect(controller.getState()).toEqual({ status: "manual-entry" });
+    expect(window.location.hash).toContain("d=");
+    controller.dispose();
   });
 
   it("keeps a request live while the user completes onboarding", () => {

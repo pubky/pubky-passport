@@ -3,11 +3,7 @@ import "client-only";
 import { Result } from "better-result";
 
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
-import {
-  readAndScrubAuthorizationEntry,
-  type AuthorizationEntry,
-} from "@/client/logic/authorization/entry/authorizationEntry";
-import { takeInitialAuthorizationEntry } from "@/instrumentation-client";
+import type { AuthorizationEntry } from "@/client/logic/authorization/entry/authorizationEntry";
 import {
   type AuthorizationRequestReview,
   ValidatedPubkyAuthRequest,
@@ -42,6 +38,9 @@ type AuthorizationAction = Readonly<{
 
 let browserController: PassportAuthorizationController | undefined;
 
+/** Reads the bootstrap authorization entry captured by the page entrypoint. */
+export type TakeInitialAuthorizationEntry = () => AuthorizationEntry | undefined;
+
 /** Coordinates one reviewed request from browser entry to a terminal outcome. */
 export class PassportAuthorizationController {
   private abortController = new AbortController();
@@ -50,12 +49,17 @@ export class PassportAuthorizationController {
   private request: ValidatedPubkyAuthRequest | undefined;
   private state: PassportAuthorizationViewState;
 
-  /** Idempotently captures and owns the current authorization document. */
-  static fromBrowser(): PassportAuthorizationController {
+  /**
+   * Idempotently owns the injected bootstrap entry. Does not read or scrub the
+   * address bar; that stays in the Next.js client entrypoint so render-phase
+   * snapshots cannot call `history.replaceState`.
+   */
+  static fromBrowser(
+    takeInitialAuthorizationEntry: TakeInitialAuthorizationEntry,
+  ): PassportAuthorizationController {
     if (browserController) return browserController;
-    const appWindow = window;
-    const entry = takeInitialAuthorizationEntry() ?? readAndScrubAuthorizationEntry(appWindow);
-    browserController = new PassportAuthorizationController(appWindow, entry);
+    const entry = takeInitialAuthorizationEntry() ?? { status: "empty" };
+    browserController = new PassportAuthorizationController(window, entry);
     return browserController;
   }
 

@@ -51,6 +51,16 @@ const ESLINT_CONFIG = defineConfig([
     rules: { "no-restricted-imports": restrictedImports(serverImport, sdkImport) },
   },
   {
+    files: [`src/client/logic/${sourceFiles}`],
+    ignores: [`src/client/logic/${testFiles}`, "src/client/logic/pubky/PubkySdkAdapter.ts"],
+    rules: {
+      "no-restricted-imports": restrictedImports(serverImport, sdkImport, {
+        regex: "^(?:@/instrumentation-client$|(?:\\.\\./)+instrumentation-client$)",
+        message: "Client logic must not import the Next.js client entrypoint.",
+      }),
+    },
+  },
+  {
     files: ["src/client/logic/pubky/PubkySdkAdapter.ts"],
     rules: { "no-restricted-imports": restrictedImports(serverImport) },
   },
