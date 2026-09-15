@@ -316,7 +316,7 @@ describe("Google identity use cases", () => {
     expect(MOCKS.createIdentityKey).not.toHaveBeenCalled();
   });
 
-  it("restores through normal sign-in without publishing or requesting Homegate", async () => {
+  it("restores through normal sign-in, republishes in the background, and does not request Homegate", async () => {
     const decryptedBytes = new Uint8Array(32).fill(9);
     MOCKS.readPassportFile.mockResolvedValue(
       Result.ok({
@@ -338,16 +338,57 @@ describe("Google identity use cases", () => {
     });
     expect(MOCKS.requestSignupToken).not.toHaveBeenCalled();
     expect(MOCKS.signup).not.toHaveBeenCalled();
-    expect(MOCKS.publishHomeserver).not.toHaveBeenCalled();
+    expect(MOCKS.publishHomeserver).toHaveBeenCalledWith(KEY_HANDLE);
     expect(MOCKS.signin).toHaveBeenCalledWith(KEY_HANDLE, "normal");
     expect(MOCKS.resolveHomeserver).not.toHaveBeenCalled();
     expect(decryptedBytes).toEqual(new Uint8Array(32));
-    expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
+    await vi.waitFor(() => expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE));
     expect(progress).toEqual([
       { flow: "lookup", step: "checking" },
       { flow: "restore", step: "restoring" },
       { flow: "restore", step: "signing_in" },
     ]);
+  });
+
+  it("does not await homeserver republish on the restore path", async () => {
+    foundPassportFile();
+    let finishRepublish: (value: ResultType<void, { code: string }>) => void = () => undefined;
+    MOCKS.publishHomeserver.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishRepublish = resolve;
+        }),
+    );
+
+    expectResultOk(await createSubject().establishIdentity(CREDENTIALS, () => undefined));
+    expect(MOCKS.publishHomeserver).toHaveBeenCalledWith(KEY_HANDLE);
+    expect(MOCKS.disposeIdentityKey).not.toHaveBeenCalled();
+
+    finishRepublish(Result.ok());
+    await vi.waitFor(() => expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE));
+  });
+
+  it("does not dispose the shared Pubky adapter until background republish settles", async () => {
+    foundPassportFile();
+    let finishRepublish: (value: ResultType<void, { code: string }>) => void = () => undefined;
+    MOCKS.publishHomeserver.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishRepublish = resolve;
+        }),
+    );
+    const subject = createSubject();
+
+    expectResultOk(await subject.establishIdentity(CREDENTIALS, () => undefined));
+    subject.dispose();
+    expect(MOCKS.disposeIdentityKey).not.toHaveBeenCalled();
+    expect(MOCKS.disposePubky).not.toHaveBeenCalled();
+
+    finishRepublish(Result.ok());
+    await vi.waitFor(() => {
+      expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
+      expect(MOCKS.disposePubky).toHaveBeenCalledOnce();
+    });
   });
 
   it("does not request another signup token when an established identity sign-in fails", async () => {

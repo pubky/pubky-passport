@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
+import type { LocalIdentityHomeserverRepublishResult } from "@/client/logic/local-identity/LocalIdentityController";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubkyIdentityKey";
 import {
@@ -13,6 +14,7 @@ import {
   KeyRoundIcon,
   LinkOffIcon,
   LogOutIcon,
+  RotateCcwIcon,
 } from "@/client/ui/shared/icons";
 import { shortCopiedValue } from "@/client/ui/shared/formatPublicKey";
 import { BackButton } from "@/client/ui/shared/backButton";
@@ -46,6 +48,7 @@ function IdentityManagement({
   onDownloadRecoveryFile,
   onRemoveLocalIdentity,
   onMigrateToKeychain,
+  republishHomeserver,
   resolveHomeserver,
 }: {
   identity: LocalIdentityMetadata;
@@ -54,12 +57,17 @@ function IdentityManagement({
   onDownloadRecoveryFile: () => void;
   onRemoveLocalIdentity: () => LocalIdentityResult<void>;
   onMigrateToKeychain: () => void;
+  republishHomeserver: () => Promise<LocalIdentityHomeserverRepublishResult>;
   resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult>;
 }) {
   const account = identity.googleAccount;
   const name = account?.name ?? "Your Pubky";
   const [homeserver, setHomeserver] = useState<HomeserverLookup>({ status: "looking-up" });
   const [logoutFailed, setLogoutFailed] = useState(false);
+  const [republishing, setRepublishing] = useState(false);
+  const [republishMessage, setRepublishMessage] = useState<{ error: boolean; text: string } | null>(
+    null,
+  );
 
   function logout(): void {
     const removed = onRemoveLocalIdentity();
@@ -68,6 +76,39 @@ function IdentityManagement({
       return;
     }
     onBack();
+  }
+
+  async function republish(): Promise<void> {
+    setRepublishing(true);
+    setRepublishMessage(null);
+    try {
+      const published = await republishHomeserver();
+      if (Result.isError(published)) {
+        setRepublishMessage({
+          error: true,
+          text: "Could not republish the homeserver record. Please try again.",
+        });
+        return;
+      }
+      setRepublishMessage({ error: false, text: "Homeserver record republished." });
+      const resolved = await resolveHomeserver(identity.publicIdentity.publicKeyZ32);
+      setHomeserver(
+        Result.isOk(resolved) && resolved.value
+          ? { status: "resolved", pubky: resolved.value }
+          : { status: "unavailable" },
+      );
+    } catch (e) {
+      LOGGER.warn("identity.management.failed", {
+        operation: "republish_homeserver",
+        ...safeErrorLogFields(e),
+      });
+      setRepublishMessage({
+        error: true,
+        text: "Could not republish the homeserver record. Please try again.",
+      });
+    } finally {
+      setRepublishing(false);
+    }
   }
 
   useEffect(() => {
@@ -143,6 +184,20 @@ function IdentityManagement({
         {logoutFailed ? (
           <FieldMessage error>Could not log out. Please try again.</FieldMessage>
         ) : null}
+        {republishMessage ? (
+          <FieldMessage error={republishMessage.error}>{republishMessage.text}</FieldMessage>
+        ) : null}
+        {homeserver.status === "unavailable" ? (
+          <ManagementButton
+            disabled={republishing}
+            icon={<RotateCcwIcon />}
+            onClick={() => {
+              void republish();
+            }}
+          >
+            Republish homeserver
+          </ManagementButton>
+        ) : null}
         <ManagementButton icon={<KeyRoundIcon />} onClick={onMigrateToKeychain}>
           Migrate to keychain
         </ManagementButton>
@@ -212,16 +267,19 @@ function IdentityDetail({
 
 function ManagementButton({
   children,
+  disabled,
   icon,
   onClick,
 }: {
   children: string;
+  disabled?: boolean;
   icon: ReactNode;
   onClick?: () => void;
 }) {
   return (
     <Button
       className="w-full md:h-10 md:min-w-0 md:flex-1 md:px-4 md:py-2"
+      disabled={disabled}
       onClick={onClick}
       size="lg"
       variant="secondary"

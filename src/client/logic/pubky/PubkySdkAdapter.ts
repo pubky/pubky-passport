@@ -388,6 +388,7 @@ export class PubkySdkAdapter {
     return Result.ok(Object.freeze({ keyHandle, publicIdentity: identity.value }));
   }
 
+  /** Force-publishes the signer's `_pubky` record, including when the current record is still fresh. */
   async publishHomeserver(
     keyHandle: PubkyIdentityKeyHandle,
     homeserverPubky?: string | null,
@@ -408,7 +409,7 @@ export class PubkySdkAdapter {
         const pkdns = signer.pkdns;
         try {
           transferredToSdk = homeserver.value !== null;
-          await pkdns.publishHomeserverIfStale(homeserver.value);
+          await pkdns.publishHomeserverForce(homeserver.value);
         } finally {
           cleanup("publish_homeserver", "pkdns_free", () => pkdns.free());
         }

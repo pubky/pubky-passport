@@ -480,14 +480,14 @@ describe("PubkySdkAdapter", () => {
     }
   });
 
-  it("publishes stale PKDNS records through the SDK and logs only a safe PKARR error category", async () => {
+  it("force-publishes PKDNS records through the SDK and logs only a safe PKARR error category", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const forcePublish = vi.spyOn(Pkdns.prototype, "publishHomeserverForce");
+    const publishIfStale = vi.spyOn(Pkdns.prototype, "publishHomeserverIfStale");
     const cause = Object.assign(new Error("sensitive PKARR transport details"), {
       name: "PkarrError",
     });
-    const publishIfStale = vi
-      .spyOn(Pkdns.prototype, "publishHomeserverIfStale")
+    const forcePublish = vi
+      .spyOn(Pkdns.prototype, "publishHomeserverForce")
       .mockImplementation(async (homeserver) => {
         homeserver?.free();
         throw cause;
@@ -501,8 +501,8 @@ describe("PubkySdkAdapter", () => {
       const result = await pubky.publishHomeserver(identity.keyHandle, homeserverPublicKey.z32());
 
       expectErrorCause(result, "publish_failed", cause);
-      expect(publishIfStale).toHaveBeenCalledOnce();
-      expect(forcePublish).not.toHaveBeenCalled();
+      expect(forcePublish).toHaveBeenCalledOnce();
+      expect(publishIfStale).not.toHaveBeenCalled();
       expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
         operation: "publish_homeserver",
         stage: "sdk_publish",

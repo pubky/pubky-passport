@@ -22,6 +22,11 @@ export type LocalIdentityRecoveryFileResult = ResultType<
   LocalIdentityRecoveryFile,
   CodedFailure<LocalIdentityRecoveryFileErrorCode>
 >;
+type LocalIdentityHomeserverRepublishErrorCode = "publication_failed" | "identity_unavailable";
+export type LocalIdentityHomeserverRepublishResult = ResultType<
+  void,
+  CodedFailure<LocalIdentityHomeserverRepublishErrorCode>
+>;
 
 type LocalIdentityRepositoryPort = Pick<
   LocalStorageIdentityRepository,
@@ -63,6 +68,47 @@ export class LocalIdentityController {
       return await resolvePubkyHomeserver(publicKeyZ32);
     } catch (e) {
       return Result.err({ code: "resolution_failed", cause: e });
+    }
+  }
+
+  async republishHomeserver(publicKeyZ32: string): Promise<LocalIdentityHomeserverRepublishResult> {
+    const stored = this.repository.read(publicKeyZ32);
+    if (Result.isError(stored)) {
+      return Result.err({ code: "identity_unavailable", cause: stored.error });
+    }
+
+    let pubky: PubkySdkAdapter | undefined;
+    try {
+      const { PubkySdkAdapter } = await import("@/client/logic/pubky/PubkySdkAdapter");
+      pubky = new PubkySdkAdapter();
+      const restored = await pubky.restoreIdentityKey(stored.value.secretKey);
+      if (Result.isError(restored)) {
+        return Result.err({ code: "publication_failed", cause: restored.error });
+      }
+      if (restored.value.publicIdentity.publicKeyZ32 !== publicKeyZ32) {
+        return Result.err({ code: "publication_failed" });
+      }
+      const published = await pubky.publishHomeserver(restored.value.keyHandle);
+      return Result.isError(published)
+        ? Result.err({ code: "publication_failed", cause: published.error })
+        : Result.ok();
+    } catch (e) {
+      LOGGER.warn("identity.controller.failed", {
+        operation: "republish_homeserver",
+        code: "publication_failed",
+        ...safeErrorLogFields(e),
+      });
+      return Result.err({ code: "publication_failed", cause: e });
+    } finally {
+      stored.value.secretKey.bytes.fill(0);
+      try {
+        pubky?.dispose();
+      } catch (e) {
+        LOGGER.warn("identity.homeserver.republish.cleanup.failed", {
+          operation: "pubky_dispose",
+          ...safeErrorLogFields(e),
+        });
+      }
     }
   }
 
