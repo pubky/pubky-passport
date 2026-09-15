@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectResultOk } from "../../../../test-utils/resultAssertions";
 import { LOGGER } from "@/libs/logger/logger";
+import { NETWORK_OPERATION_TIMEOUT_MS } from "@/libs/passportPolicy";
 import { GoogleIdentityLifecycle, type GoogleIdentityProgress } from "./GoogleIdentityLifecycle";
 
 const MOCKS = {
@@ -827,6 +828,31 @@ describe("Google identity use cases", () => {
 
     subject.abortRequests();
     expect(requestSignal?.aborted).toBe(true);
+  });
+
+  it("adds the network timeout only to requests whose client passes no signal", async () => {
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("{}", { status: 200 })),
+    );
+    const subject = createSubject();
+    void subject.establishIdentity(CREDENTIALS, () => undefined);
+    await vi.waitFor(() => expect(MOCKS.contextFetch.current).toBeDefined());
+    const fetchWithDeadline = MOCKS.contextFetch.current;
+    if (!fetchWithDeadline) throw new Error("Expected the context fetch function");
+    timeout.mockClear();
+
+    await fetchWithDeadline("/without-signal");
+    expect(timeout).toHaveBeenCalledWith(NETWORK_OPERATION_TIMEOUT_MS);
+
+    timeout.mockClear();
+    const clientTimeout = AbortSignal.timeout(1_000);
+    timeout.mockClear();
+    await fetchWithDeadline("/with-signal", { signal: clientTimeout });
+    expect(timeout).not.toHaveBeenCalled();
+
+    subject.dispose();
   });
 });
 

@@ -25,6 +25,20 @@ import { IconButton } from "@/client/ui/shared/primitives/iconButton";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
 
+type HomeserverLookup =
+  { status: "looking-up" } | { status: "unavailable" } | { status: "resolved"; pubky: string };
+
+function homeserverLabel(lookup: HomeserverLookup): string {
+  switch (lookup.status) {
+    case "looking-up":
+      return "Looking up…";
+    case "resolved":
+      return lookup.pubky;
+    case "unavailable":
+      return "Unavailable";
+  }
+}
+
 function IdentityManagement({
   identity,
   onBack,
@@ -121,13 +135,7 @@ function IdentityManagement({
           copyable={homeserver.status === "resolved"}
           label="Homeserver"
           onCopied={() => toast.info("Homeserver copied")}
-          value={
-            homeserver.status === "looking-up"
-              ? "Looking up…"
-              : homeserver.status === "resolved"
-                ? homeserver.pubky
-                : "Unavailable"
-          }
+          value={homeserverLabel(homeserver)}
         />
       </section>
 
@@ -152,9 +160,6 @@ function IdentityManagement({
   );
 }
 
-type HomeserverLookup =
-  { status: "looking-up" } | { status: "unavailable" } | { status: "resolved"; pubky: string };
-
 function IdentityDetail({
   copyable = false,
   label,
@@ -166,8 +171,6 @@ function IdentityDetail({
   onCopied?: () => void;
   value: string;
 }) {
-  const isCopyable = copyable && onCopied !== undefined;
-
   async function copyValue() {
     try {
       await navigator.clipboard.writeText(value);
@@ -194,7 +197,7 @@ function IdentityDetail({
         <IconButton
           aria-label={`Copy ${label}`}
           className="size-9 p-1"
-          disabled={!isCopyable}
+          disabled={!copyable}
           onClick={() => {
             void copyValue();
           }}

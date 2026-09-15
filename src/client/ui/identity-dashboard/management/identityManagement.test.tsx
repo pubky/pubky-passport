@@ -29,7 +29,7 @@ describe("IdentityManagement", () => {
   });
 
   it("keeps the homeserver copy control disabled until a PKDNS name resolves", async () => {
-    let resolveHomeserver!: (value: string) => void;
+    let settleLookup!: (value: string) => void;
     render(
       <IdentityManagement
         identity={identity}
@@ -40,7 +40,7 @@ describe("IdentityManagement", () => {
         onMigrateToKeychain={vi.fn()}
         resolveHomeserver={() =>
           new Promise((resolve) => {
-            resolveHomeserver = (pubky) => resolve(Result.ok(pubky));
+            settleLookup = (pubky) => resolve(Result.ok(pubky));
           })
         }
       />,
@@ -50,7 +50,7 @@ describe("IdentityManagement", () => {
     expect(screen.getByText("Looking up…")).toBeInTheDocument();
     expect(homeserverButton).toBeDisabled();
 
-    resolveHomeserver("homeserver-pubky");
+    settleLookup("homeserver-pubky");
     await waitFor(() => expect(homeserverButton).toBeEnabled());
     expect(screen.getByText("homeserver-pubky")).toBeInTheDocument();
   });
@@ -141,6 +141,7 @@ describe("IdentityManagement", () => {
     );
 
     await waitFor(() => expect(screen.getByText("Unavailable")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Copy Homeserver" })).toBeDisabled();
     expect(warning).toHaveBeenCalledWith(
       "identity.management.failed",
       expect.objectContaining({
