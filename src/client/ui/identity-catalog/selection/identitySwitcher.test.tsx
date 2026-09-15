@@ -48,12 +48,15 @@ describe("IdentitySwitcher", () => {
 
     const activeRow = screen.getByRole("button", { name: /Active Account/ });
     expect(activeRow).toHaveAttribute("aria-pressed", "true");
+    expect(activeRow).toHaveClass("border-brand/64");
     expect(
       screen.getAllByRole("button").filter((button) => button.hasAttribute("aria-pressed"))[0],
     ).toBe(activeRow);
     expect(screen.getByText("active@gmail.com")).toHaveClass("lowercase");
     expect(activeRow).not.toHaveTextContent("seco...5678");
     const otherRow = screen.getByRole("button", { name: /Other Account/ });
+    expect(otherRow).toHaveClass("border-transparent");
+    expect(otherRow).not.toHaveClass("border-brand/64");
     expect(otherRow).toHaveTextContent("other@gmail.com");
     expect(otherRow).not.toHaveTextContent("firs...1234");
     await userEvent.setup().click(otherRow);

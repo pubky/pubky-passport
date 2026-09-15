@@ -20,7 +20,6 @@ function IdentityRow({
   name,
   provider,
   selected,
-  style,
   ...props
 }: IdentityRowProps) {
   const googleProvider = provider === "google";
@@ -30,10 +29,10 @@ function IdentityRow({
     <button
       aria-pressed={selected}
       className={cn(
-        "relative flex h-[72px] w-full items-center gap-2 rounded-2xl bg-card p-4 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50",
+        "relative flex h-[72px] w-full items-center gap-2 rounded-2xl border border-transparent bg-card p-4 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50",
+        selected && "border-brand/64",
         className,
       )}
-      style={{ ...style, border: selected ? "1px solid rgba(200, 255, 0, 0.64)" : undefined }}
       type="button"
       {...props}
     >
