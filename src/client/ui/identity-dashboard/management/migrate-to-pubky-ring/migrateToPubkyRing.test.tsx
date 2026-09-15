@@ -206,6 +206,31 @@ describe("MigrateToPubkyRing", () => {
     expect(screen.queryByRole("link", { name: "Import pubky" })).not.toBeInTheDocument();
   });
 
+  it("reuses a ready migration for direct import", async () => {
+    const handle = createMigrationHandle();
+    const navigate = vi.spyOn(handle, "navigate");
+    const createMigration = vi.fn(async () => Result.ok(handle));
+    vi.stubGlobal("location", { assign: vi.fn(), href: "http://localhost/" });
+    render(
+      <MigrateToPubkyRing
+        createMigration={createMigration}
+        navigationAction="back"
+        onBack={vi.fn()}
+      />,
+    );
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Show QR" }));
+    expect(createMigration).toHaveBeenCalledOnce();
+    expect(screen.getByRole("dialog", { name: "Scan with Pubky Ring" })).toBeInTheDocument();
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Import pubky" }));
+
+    expect(createMigration).toHaveBeenCalledOnce();
+    expect(navigate).toHaveBeenCalledOnce();
+    expect(handle.url).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Scan with Pubky Ring" })).not.toBeInTheDocument();
+  });
+
   it("shows an export failure from the structured result", async () => {
     render(
       <MigrateToPubkyRing
