@@ -22,11 +22,11 @@ function SignInPage({ children }: { children: ReactNode }) {
             app, no hassle.
           </LeadText>
         </div>
-        <div className="grid gap-6 md:grid-cols-[var(--passport-content-copy-width)_var(--passport-content-art-width)] md:gap-0">
+        <div className="grid gap-6 md:grid-cols-(--passport-content-columns) md:gap-0">
           <Image
             alt=""
             aria-hidden="true"
-            className="mx-auto size-[200px] md:col-start-2 md:row-start-1 md:mt-[var(--passport-signin-art-offset)]"
+            className="mx-auto size-[200px] md:col-start-2 md:row-start-1 md:mt-2.5"
             height={200}
             priority
             src="/illustrations/cloud.png"

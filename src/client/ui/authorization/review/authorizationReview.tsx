@@ -69,7 +69,7 @@ function AuthorizationReview({
           <h2 className="sr-only" id="authorization-identity-heading">
             Signing identity
           </h2>
-          <div className="relative flex h-[72px] items-center gap-2 rounded-2xl bg-card p-4">
+          <div className="flex h-[72px] items-center gap-2 rounded-2xl bg-card p-4">
             {identity ? (
               <IdentitySummary
                 avatarSrc={account?.pictureUrl ?? undefined}

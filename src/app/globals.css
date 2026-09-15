@@ -35,13 +35,10 @@
   color-scheme: dark;
   --passport-context-band-height: 0px;
   --passport-header-height: 84px;
-  --passport-content-copy-width: 307px;
-  --passport-content-art-width: 281px;
-  --passport-signin-art-offset: 10px;
-  --passport-recovery-heading-height: 136px;
-  --passport-recovery-body-height: 224px;
-  --passport-recovery-nav-height: 60px;
-  --passport-recovery-padding-top: 34px;
+  /* Desktop Passport canvas is 588px: the 281px art column is fixed, the copy column flexes. */
+  --passport-content-columns: minmax(0, 1fr) 281px;
+  --passport-recovery-heading-min-height: 136px;
+  --passport-recovery-body-min-height: 224px;
   --radius: 0.625rem;
   --background: oklch(0.118 0.014 284.115);
   --foreground: oklch(1 0 0);
