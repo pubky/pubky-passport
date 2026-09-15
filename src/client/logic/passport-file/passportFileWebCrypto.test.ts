@@ -5,7 +5,7 @@ import {
   expectAsyncResultError,
   expectResultError,
   expectResultOk,
-} from "../../../../test-utils/resultAssertions";
+} from "@test-utils/resultAssertions";
 import { encodeBase64Url } from "@/libs/encoding/base64Url";
 import { LOGGER } from "@/libs/logger/logger";
 import { PUBKY_SECRET_KEY_BYTES } from "@/client/logic/pubky/pubkyIdentityKey";

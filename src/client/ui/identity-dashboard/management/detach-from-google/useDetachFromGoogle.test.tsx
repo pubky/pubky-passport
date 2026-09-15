@@ -5,8 +5,8 @@ import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { withPassportTestProviders } from "../../../../../../test-utils/googleIdentityConfiguration";
-import { mockGoogleIdentityController } from "../../../../../../test-utils/mockGoogleIdentityController";
+import { withPassportTestProviders } from "@test-utils/googleIdentityConfiguration";
+import { mockGoogleIdentityController } from "@test-utils/mockGoogleIdentityController";
 import { LOGGER } from "@/libs/logger/logger";
 import type { PassportCollaborators } from "@/client/ui/passportCollaborators";
 import { useDetachFromGoogle } from "./useDetachFromGoogle";

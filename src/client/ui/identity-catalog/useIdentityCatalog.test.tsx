@@ -4,8 +4,8 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fakeLocalIdentityController } from "../../../../test-utils/fakeLocalIdentityController";
-import { withPassportTestProviders } from "../../../../test-utils/googleIdentityConfiguration";
+import { fakeLocalIdentityController } from "@test-utils/fakeLocalIdentityController";
+import { withPassportTestProviders } from "@test-utils/googleIdentityConfiguration";
 import type { LocalIdentityCatalog } from "@/client/logic/local-identity/localIdentityModels";
 import { useIdentityCatalog } from "./useIdentityCatalog";
 

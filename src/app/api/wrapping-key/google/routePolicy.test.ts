@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
 
-import { expectAsyncResultError } from "../../../../../test-utils/resultAssertions";
+import { expectAsyncResultError } from "@test-utils/resultAssertions";
 import { parseGoogleIdTokenRequest } from "./routePolicy";
 
 describe("Google wrapping-key route policy", () => {

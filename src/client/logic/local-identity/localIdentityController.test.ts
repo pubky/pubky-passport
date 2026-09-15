@@ -1,7 +1,7 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { expectResultOk } from "../../../../test-utils/resultAssertions";
+import { expectResultOk } from "@test-utils/resultAssertions";
 import { LOGGER } from "@/libs/logger/logger";
 import {
   PUBKY_SECRET_KEY_FORMAT,

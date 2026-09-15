@@ -3,7 +3,7 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../../test-utils/MemoryStorage";
+import { MemoryStorage } from "@test-utils/MemoryStorage";
 import { LOGGER } from "@/libs/logger/logger";
 import { LocalStorageIdentityRepository } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
