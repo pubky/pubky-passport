@@ -183,7 +183,7 @@ function MigrateToPubkyRing({
 
       <Image
         alt=""
-        className="mx-auto size-[200px] md:hidden"
+        className="mx-auto size-50 md:hidden"
         height={200}
         src="/illustrations/keychain.png"
         width={200}

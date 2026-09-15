@@ -26,7 +26,7 @@ function SignInPage({ children }: { children: ReactNode }) {
           <Image
             alt=""
             aria-hidden="true"
-            className="mx-auto size-[200px] md:col-start-2 md:row-start-1 md:mt-2.5"
+            className="mx-auto size-50 md:col-start-2 md:row-start-1 md:mt-2.5"
             height={200}
             priority
             src="/illustrations/cloud.png"

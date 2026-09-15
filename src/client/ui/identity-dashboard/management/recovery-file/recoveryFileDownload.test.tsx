@@ -154,7 +154,7 @@ describe("RecoveryFileDownload", () => {
     const navigation = back.parentElement?.parentElement;
 
     expect(label).toHaveClass("leading-5", "md:leading-4");
-    expect(password.parentElement).toHaveClass("h-14", "md:h-[60px]");
+    expect(password.parentElement).toHaveClass("h-14", "md:h-15");
     expect(illustration).toHaveClass("order-3", "md:order-[0]");
     expect(navigation).toHaveClass("order-4", "-mt-1", "md:order-[0]", "md:mt-0");
     expect(download).toHaveClass("order-5", "-mt-2", "md:order-[0]", "md:mt-4");

@@ -13,7 +13,7 @@ function GoogleAccountCard({ account, className, ...props }: GoogleAccountCardPr
   return (
     <div
       className={cn(
-        "flex h-[72px] w-full items-center gap-2 overflow-hidden rounded-2xl bg-card p-4 text-left",
+        "flex h-18 w-full items-center gap-2 overflow-hidden rounded-2xl bg-card p-4 text-left",
         className,
       )}
       {...props}

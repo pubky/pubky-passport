@@ -14,7 +14,10 @@ describe("PassportNavigation", () => {
 
     const slot = screen.getByRole("button", { name: "Back" }).parentElement;
     expect(slot).toHaveClass("md:col-start-1");
-    expect(slot?.parentElement).toHaveClass("w-full", "md:grid-cols-[120px_1fr_228px]");
+    expect(slot?.parentElement).toHaveClass(
+      "w-full",
+      "md:grid-cols-(--passport-navigation-columns)",
+    );
     expect(slot?.parentElement).not.toHaveClass("mt-auto");
   });
 
@@ -23,6 +26,9 @@ describe("PassportNavigation", () => {
 
     const slot = screen.getByRole("button", { name: "Confirm" }).parentElement;
     expect(slot).toHaveClass("md:col-start-3");
-    expect(slot?.parentElement).toHaveClass("w-full", "md:grid-cols-[120px_1fr_228px]");
+    expect(slot?.parentElement).toHaveClass(
+      "w-full",
+      "md:grid-cols-(--passport-navigation-columns)",
+    );
   });
 });

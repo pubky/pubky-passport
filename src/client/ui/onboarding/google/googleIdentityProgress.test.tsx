@@ -20,7 +20,7 @@ describe("GoogleIdentityProgress", () => {
     expect(heading.closest("main")).toHaveClass("gap-6", "md:gap-8");
     const checking = screen.getByRole("button", { name: "Checking Google Drive..." });
     expect(checking).toBeDisabled();
-    expect(checking).toHaveClass("h-[60px]", "bg-secondary", "md:w-[249px]");
+    expect(checking).toHaveClass("h-15", "bg-secondary", "md:w-[249px]");
   });
 
   it.each([

@@ -22,7 +22,7 @@ function GoogleDetachmentComplete({ onDone }: { onDone: () => void }) {
         <Image
           alt=""
           aria-hidden="true"
-          className="size-[200px]"
+          className="size-50"
           height={200}
           src="/illustrations/checkmark.png"
           width={200}

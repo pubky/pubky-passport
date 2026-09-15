@@ -47,7 +47,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         >
           {children}
         </GoogleIdentityConfigurationProvider>
-        <footer className="passport-footer pointer-events-none fixed inset-x-0 bottom-0 z-10 hidden h-[72px] items-center px-10 md:flex">
+        <footer className="passport-footer pointer-events-none fixed inset-x-0 bottom-0 z-10 hidden h-18 items-center px-10 md:flex">
           <BrandEndorsement />
         </footer>
         <Sonner />

@@ -200,7 +200,10 @@ describe("IdentityManagement", () => {
       "md:h-10",
     );
     expect(logout.querySelector("svg")).toBeInTheDocument();
-    expect(logout).not.toHaveClass("bg-destructive-surface", "h-[60px]");
-    expect(back.parentElement?.parentElement).toHaveClass("grid", "md:grid-cols-[120px_1fr_228px]");
+    expect(logout).not.toHaveClass("bg-destructive-surface", "h-15");
+    expect(back.parentElement?.parentElement).toHaveClass(
+      "grid",
+      "md:grid-cols-(--passport-navigation-columns)",
+    );
   });
 });
