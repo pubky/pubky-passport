@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { Result } from "better-result";
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import type { PubkyRingMigration } from "@/client/logic/pubky/PubkySdkAdapter";
@@ -20,33 +20,11 @@ type MigrationMode = "desktop" | "dialog";
 
 type PubkyRingMigrationState =
   | { status: "idle" }
-  | { status: "loading"; mode?: MigrationMode }
+  | { status: "loading" }
   | { status: "ready"; mode: MigrationMode; migration: PubkyRingMigration }
   | { status: "failed" };
 
-type PubkyRingMigrationAction =
-  | { type: "invalidate" }
-  | { type: "load"; mode?: MigrationMode }
-  | { type: "ready"; mode: MigrationMode; migration: PubkyRingMigration }
-  | { type: "failed" };
-
-const INITIAL_MIGRATION_STATE: PubkyRingMigrationState = { status: "idle" };
-
-function reduceMigrationState(
-  _state: PubkyRingMigrationState,
-  action: PubkyRingMigrationAction,
-): PubkyRingMigrationState {
-  switch (action.type) {
-    case "invalidate":
-      return INITIAL_MIGRATION_STATE;
-    case "load":
-      return action.mode ? { status: "loading", mode: action.mode } : { status: "loading" };
-    case "ready":
-      return { status: "ready", mode: action.mode, migration: action.migration };
-    case "failed":
-      return { status: "failed" };
-  }
-}
+const IDLE_MIGRATION_STATE: PubkyRingMigrationState = { status: "idle" };
 
 function MigrateToPubkyRing({
   createMigration,
@@ -57,8 +35,12 @@ function MigrateToPubkyRing({
   navigationAction: "back" | "continue";
   onBack: () => void;
 }) {
-  const [state, dispatch] = useReducer(reduceMigrationState, INITIAL_MIGRATION_STATE);
-  const [desktop, setDesktop] = useState(false);
+  const [state, setState] = useState<PubkyRingMigrationState>(IDLE_MIGRATION_STATE);
+  // Ownership lives outside React state on purpose: `ownedMigrationRef` lets every transition
+  // dispose the previous secret-bearing handle synchronously (a reducer or effect cleanup would
+  // double-run or free a handle a Strict Mode remount still renders), `requestRef` cancels
+  // event-handler-initiated loads that settle after invalidation, and `createMigrationRef`
+  // keeps a changed `createMigration` prop from regenerating a ready QR on parent re-renders.
   const requestRef = useRef(0);
   const ownedMigrationRef = useRef<PubkyRingMigration | undefined>(undefined);
   const createMigrationRef = useRef(createMigration);
@@ -68,41 +50,39 @@ function MigrateToPubkyRing({
   }, [createMigration]);
 
   /** Disposes the previously owned handle, then commits the next view state. */
-  const commitOwned = useCallback((action: PubkyRingMigrationAction) => {
+  const commitOwned = useCallback((next: PubkyRingMigrationState) => {
     ownedMigrationRef.current?.dispose();
-    ownedMigrationRef.current = action.type === "ready" ? action.migration : undefined;
-    dispatch(action);
+    ownedMigrationRef.current = next.status === "ready" ? next.migration : undefined;
+    setState(next);
   }, []);
 
   const invalidate = useCallback(() => {
     requestRef.current += 1;
-    commitOwned({ type: "invalidate" });
+    commitOwned(IDLE_MIGRATION_STATE);
   }, [commitOwned]);
 
-  const createCurrent = useCallback(
-    async (mode?: MigrationMode): Promise<PubkyRingMigration | null> => {
-      const request = ++requestRef.current;
-      commitOwned(mode ? { type: "load", mode } : { type: "load" });
-      const result = await createMigrationRef.current();
-      if (request !== requestRef.current) {
-        if (Result.isOk(result)) result.value.dispose();
-        return null;
-      }
-      if (Result.isError(result)) {
-        commitOwned({ type: "failed" });
-        return null;
-      }
-      return result.value;
-    },
-    [commitOwned],
-  );
+  /** Creates a migration for the current request; a stale or failed request yields null. */
+  const requestMigration = useCallback(async (): Promise<PubkyRingMigration | null> => {
+    const request = ++requestRef.current;
+    commitOwned({ status: "loading" });
+    const result = await createMigrationRef.current();
+    if (request !== requestRef.current) {
+      if (Result.isOk(result)) result.value.dispose();
+      return null;
+    }
+    if (Result.isError(result)) {
+      commitOwned({ status: "failed" });
+      return null;
+    }
+    return result.value;
+  }, [commitOwned]);
 
   const load = useCallback(
     async (mode: MigrationMode) => {
-      const migration = await createCurrent(mode);
-      if (migration) commitOwned({ type: "ready", mode, migration });
+      const migration = await requestMigration();
+      if (migration) commitOwned({ status: "ready", mode, migration });
     },
-    [commitOwned, createCurrent],
+    [commitOwned, requestMigration],
   );
 
   useEffect(() => {
@@ -110,10 +90,8 @@ function MigrateToPubkyRing({
     const media = globalThis.matchMedia("(min-width: 48rem)");
 
     async function syncDesktop() {
-      const nextDesktop = media.matches;
       invalidate();
-      setDesktop(nextDesktop);
-      if (nextDesktop) await load("desktop");
+      if (media.matches) await load("desktop");
     }
 
     void syncDesktop();
@@ -128,17 +106,15 @@ function MigrateToPubkyRing({
   }, [invalidate, load]);
 
   async function importPubky() {
-    const ownedMigration = ownedMigrationRef.current;
-    if (ownedMigration) {
-      ownedMigration.navigate();
-      invalidate();
-      return;
-    }
-
-    const migration = await createCurrent();
+    const migration = ownedMigrationRef.current ?? (await requestMigration());
     if (!migration) return;
-    if (!migration.navigate()) migration.dispose();
-    invalidate();
+    // Own a freshly created handle so the invalidation below disposes it even if navigate throws.
+    ownedMigrationRef.current = migration;
+    try {
+      migration.navigate();
+    } finally {
+      invalidate();
+    }
   }
 
   function back() {
@@ -200,7 +176,7 @@ function MigrateToPubkyRing({
             </Button>
           </div>
         </div>
-        {desktop && state.status === "ready" && state.mode === "desktop" ? (
+        {state.status === "ready" && state.mode === "desktop" ? (
           <PubkyRingQrCode className="size-48 shrink-0" migration={state.migration} />
         ) : null}
       </section>

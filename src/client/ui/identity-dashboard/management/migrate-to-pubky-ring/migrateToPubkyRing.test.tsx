@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import { PubkyRingMigration } from "@/client/logic/pubky/PubkySdkAdapter";
 import { MigrateToPubkyRing } from "./migrateToPubkyRing";
 
@@ -151,22 +152,128 @@ describe("MigrateToPubkyRing", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows Back for identity management and clears the QR URL when leaving", () => {
+  it("shows Back for identity management and disposes the QR migration when leaving", async () => {
     const onBack = vi.fn();
+    const handle = createMigrationHandle();
+    const dispose = vi.spyOn(handle, "dispose");
     render(
       <MigrateToPubkyRing
-        createMigration={async () => Result.ok(createMigrationHandle())}
+        createMigration={async () => Result.ok(handle)}
         navigationAction="back"
         onBack={onBack}
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Show QR" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Show QR" }));
+    expect(screen.getByRole("dialog", { name: "Scan with Pubky Ring" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Continue" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
 
     expect(onBack).toHaveBeenCalledOnce();
     expect(screen.queryByRole("dialog", { name: "Scan with Pubky Ring" })).not.toBeInTheDocument();
+    expect(dispose).toHaveBeenCalledOnce();
+    expect(handle.url).toBeNull();
+  });
+
+  it("disposes the desktop migration on unmount", async () => {
+    const handle = createMigrationHandle();
+    const dispose = vi.spyOn(handle, "dispose");
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({
+        addEventListener: vi.fn(),
+        matches: true,
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const view = render(
+      <MigrateToPubkyRing
+        createMigration={async () => Result.ok(handle)}
+        navigationAction="back"
+        onBack={vi.fn()}
+      />,
+    );
+    await screen.findByRole("img", { name: "Pubky Ring migration QR code" });
+
+    view.unmount();
+
+    expect(dispose).toHaveBeenCalledOnce();
+    expect(handle.url).toBeNull();
+  });
+
+  it("disposes a migration that resolves after unmount without rendering it", async () => {
+    let settle!: (result: LocalIdentityResult<PubkyRingMigration>) => void;
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({
+        addEventListener: vi.fn(),
+        matches: true,
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const view = render(
+      <MigrateToPubkyRing
+        createMigration={() =>
+          new Promise<LocalIdentityResult<PubkyRingMigration>>((resolve) => {
+            settle = resolve;
+          })
+        }
+        navigationAction="back"
+        onBack={vi.fn()}
+      />,
+    );
+    view.unmount();
+
+    const handle = createMigrationHandle();
+    await act(async () => {
+      settle(Result.ok(handle));
+    });
+
+    expect(handle.url).toBeNull();
+  });
+
+  it("disposes the dialog migration when the breakpoint rises to desktop", async () => {
+    let desktop = false;
+    let breakpointListener: (() => void) | undefined;
+    const dialogHandle = createMigrationHandle();
+    const desktopHandle = createMigrationHandle();
+    const disposeDialog = vi.spyOn(dialogHandle, "dispose");
+    const createMigration = vi
+      .fn<() => Promise<LocalIdentityResult<PubkyRingMigration>>>()
+      .mockResolvedValueOnce(Result.ok(dialogHandle))
+      .mockResolvedValueOnce(Result.ok(desktopHandle));
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({
+        addEventListener: vi.fn((_event: string, listener: () => void) => {
+          breakpointListener = listener;
+        }),
+        get matches() {
+          return desktop;
+        },
+        removeEventListener: vi.fn(),
+      })),
+    );
+    render(
+      <MigrateToPubkyRing
+        createMigration={createMigration}
+        navigationAction="back"
+        onBack={vi.fn()}
+      />,
+    );
+    await userEvent.setup().click(screen.getByRole("button", { name: "Show QR" }));
+    expect(screen.getByRole("dialog", { name: "Scan with Pubky Ring" })).toBeInTheDocument();
+
+    desktop = true;
+    act(() => breakpointListener?.());
+
+    expect(disposeDialog).toHaveBeenCalledOnce();
+    expect(dialogHandle.url).toBeNull();
+    expect(
+      await screen.findByRole("img", { name: "Pubky Ring migration QR code" }),
+    ).toBeInTheDocument();
+    expect(desktopHandle.url).not.toBeNull();
+    expect(createMigration).toHaveBeenCalledTimes(2);
   });
 
   it("shows Continue for the Google detachment recovery flow", () => {
