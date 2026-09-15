@@ -3,7 +3,8 @@ import type { HomegateSignupTokenErrorCode } from "@/client/logic/homegate/Homeg
 import type { GoogleWrappingKeyErrorCode } from "@/client/logic/wrapping-key/GoogleWrappingKeyApiClient";
 import type { GoogleImplicitAuthorizationError } from "./gia/GoogleImplicitAuthorization";
 
-type GoogleIdentityOperationError =
+/** Failure produced by the lifecycle layer, before the controller strips diagnostics. */
+export type GoogleIdentityLifecycleError =
   | {
       code: "wrapping_key_failed";
       detailCode: GoogleWrappingKeyErrorCode;
@@ -37,7 +38,7 @@ type GoogleIdentityOperationError =
 
 /** Internal Google identity failure, including diagnostic `cause` before the UI boundary. */
 export type GoogleIdentityError =
-  | GoogleIdentityOperationError
+  | GoogleIdentityLifecycleError
   | GoogleImplicitAuthorizationError
   | CodedFailure<"authorization_failed" | "cancelled" | "operation_failed">;
 
@@ -53,11 +54,8 @@ export type GoogleIdentityViewError = {
 };
 
 /** Drops `cause` and other diagnostic fields. Keeps `code` and `detailCode` unchanged. */
-function withoutCause(error: GoogleIdentityError): GoogleIdentityViewError {
+export function withoutCause(error: GoogleIdentityError): GoogleIdentityViewError {
   return "detailCode" in error
     ? { code: error.code, detailCode: error.detailCode }
     : { code: error.code };
 }
-
-export { withoutCause };
-export type { GoogleIdentityOperationError };

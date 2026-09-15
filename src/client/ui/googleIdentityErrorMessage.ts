@@ -1,6 +1,9 @@
 import type { GoogleIdentityViewError } from "@/client/logic/google-identity/googleIdentityErrors";
 
-/** Single mapping from a Google identity view code to user-facing copy. */
+/**
+ * Single mapping from a Google identity view code to user-facing copy. The switch has no
+ * default branch on purpose: a new code fails typechecking until it receives deliberate copy.
+ */
 function googleIdentityErrorMessage(code: GoogleIdentityViewError["code"]): string {
   switch (code) {
     case "create_failed":
@@ -36,7 +39,7 @@ function googleIdentityErrorMessage(code: GoogleIdentityViewError["code"]): stri
     case "invalid_passport_file_delete_failed":
       return "Passport could not delete the invalid identity file from Google Drive. You can try deleting it again.";
     case "google_authorization_denied":
-      return "Passport needs access to your Google Drive to create or restore your Pubky.";
+      return "Passport needs access to your Google Drive to continue.";
     case "google_authorization_popup_closed":
       return "The Google authorization window was closed before access was granted.";
     case "google_authorization_popup_failed_to_open":
@@ -48,8 +51,10 @@ function googleIdentityErrorMessage(code: GoogleIdentityViewError["code"]): stri
     case "google_drive_cleanup_failed":
     case "local_remove_failed":
       return "Could not remove Google access. Please try again.";
-    default:
-      return "Passport could not finish this Google identity operation. Please try again.";
+    case "cancelled":
+    case "operation_failed":
+    case "unexpected_failure":
+      return "Passport could not finish this operation. Please try again.";
   }
 }
 

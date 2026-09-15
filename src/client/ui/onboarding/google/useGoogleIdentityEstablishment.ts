@@ -1,7 +1,7 @@
 import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
+import type { GoogleIdentityViewError } from "@/client/logic/google-identity/googleIdentityErrors";
 import type {
   GoogleIdentityProgress,
-  GoogleIdentityViewError,
   GoogleIdentityViewState,
 } from "@/client/logic/google-identity/GoogleIdentityController";
 import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";

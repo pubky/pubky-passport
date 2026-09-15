@@ -6,7 +6,7 @@ import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { NETWORK_OPERATION_TIMEOUT_MS, REQUEST_TIMEOUT_MS } from "@/libs/passportPolicy";
 import type { GoogleIdentityCredentials } from "./gia/GoogleImplicitAuthorization";
-import type { GoogleIdentityOperationError } from "./googleIdentityErrors";
+import type { GoogleIdentityLifecycleError } from "./googleIdentityErrors";
 import {
   HomegateClient,
   type HomeserverSignupDetails,
@@ -53,12 +53,12 @@ type GoogleIdentityEstablishmentValue =
 
 type GoogleIdentityEstablishmentResult = ResultType<
   GoogleIdentityEstablishmentValue,
-  GoogleIdentityOperationError
+  GoogleIdentityLifecycleError
 >;
 
-type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityOperationError>;
+type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityLifecycleError>;
 
-type EstablishmentStepResult<Success = void> = ResultType<Success, GoogleIdentityOperationError>;
+type EstablishmentStepResult<Success = void> = ResultType<Success, GoogleIdentityLifecycleError>;
 
 /**
  * Executes Google-backed identity establishment, repair, and detachment.

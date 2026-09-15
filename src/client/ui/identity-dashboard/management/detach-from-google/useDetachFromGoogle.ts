@@ -1,7 +1,5 @@
-import type {
-  GoogleIdentityViewError,
-  GoogleIdentityViewState,
-} from "@/client/logic/google-identity/GoogleIdentityController";
+import type { GoogleIdentityViewError } from "@/client/logic/google-identity/googleIdentityErrors";
+import type { GoogleIdentityViewState } from "@/client/logic/google-identity/GoogleIdentityController";
 import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
 import { useGoogleIdentityStore } from "@/client/ui/useGoogleIdentityStore";
 
@@ -9,7 +7,7 @@ type DetachFromGoogleOperationState =
   | { status: "ready" }
   | { status: "requesting-authorization" }
   | { status: "detaching" }
-  | { status: "authorization-failed" }
+  | { status: "authorization-failed"; error: GoogleIdentityViewError }
   | { status: "operation-failed"; error: GoogleIdentityViewError }
   | { status: "complete" };
 
@@ -39,7 +37,7 @@ function toDetachmentState(state: GoogleIdentityViewState): DetachFromGoogleOper
       return { status: "complete" };
     case "failed":
       return state.error.code === "authorization_failed"
-        ? { status: "authorization-failed" }
+        ? { status: "authorization-failed", error: state.error }
         : { status: "operation-failed", error: state.error };
     case "idle":
     case "establishing":

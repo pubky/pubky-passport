@@ -17,7 +17,6 @@ import {
 import type { GoogleIdentityLifecycle, GoogleIdentityProgress } from "./GoogleIdentityLifecycle";
 
 export type { GoogleIdentityProgress } from "./GoogleIdentityLifecycle";
-export type { GoogleIdentityError, GoogleIdentityViewError } from "./googleIdentityErrors";
 
 /** Safe setup or restore details published after the identity is active locally. */
 type EstablishedGoogleIdentity =
