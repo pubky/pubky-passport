@@ -7,21 +7,14 @@ import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubkyIdentityKey";
-import {
-  CopyIcon,
-  DownloadIcon,
-  KeyRoundIcon,
-  LinkOffIcon,
-  LogOutIcon,
-} from "@/client/ui/shared/icons";
+import { DownloadIcon, KeyRoundIcon, LinkOffIcon, LogOutIcon } from "@/client/ui/shared/icons";
 import { shortCopiedValue } from "@/client/ui/shared/formatPublicKey";
 import { BackButton } from "@/client/ui/shared/backButton";
-import { cn } from "@/client/ui/shared/mergeClassNames";
+import { DetailField } from "@/client/ui/shared/detailField";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Avatar } from "@/client/ui/shared/primitives/avatar";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { IconButton } from "@/client/ui/shared/primitives/iconButton";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
 
@@ -184,29 +177,12 @@ function IdentityDetail({
   }
 
   return (
-    <div className="flex items-end gap-3">
-      <div className="min-w-0 flex-1">
-        <p className="mb-1 text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">
-          {label}
-        </p>
-        <p className={cn("break-all font-medium leading-6", onCopied && "md:text-sm md:leading-5")}>
-          {value}
-        </p>
-      </div>
-      {onCopied ? (
-        <IconButton
-          aria-label={`Copy ${label}`}
-          className="size-9 p-1"
-          disabled={!copyable}
-          onClick={() => {
-            void copyValue();
-          }}
-          variant="ghost"
-        >
-          <CopyIcon size={20} />
-        </IconButton>
-      ) : null}
-    </div>
+    <DetailField
+      copyable={copyable}
+      label={label}
+      onCopy={onCopied ? () => void copyValue() : undefined}
+      value={value}
+    />
   );
 }
 

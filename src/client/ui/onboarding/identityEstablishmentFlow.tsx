@@ -1,4 +1,5 @@
 import { preload } from "react-dom";
+import type { ReactNode } from "react";
 
 import { GoogleAccessScreen } from "./google/googleAccessScreen";
 import { GoogleIdentityComplete } from "./google/googleIdentityComplete";
@@ -11,10 +12,14 @@ import { SignInPage } from "./signInPage";
 
 function IdentityEstablishmentFlow({
   forAuthorization = false,
+  creatingAccount = false,
+  signupActions,
   onBack,
   onComplete,
 }: {
   forAuthorization?: boolean | undefined;
+  creatingAccount?: boolean | undefined;
+  signupActions?: ReactNode;
   onBack?: (() => void) | undefined;
   onComplete: () => void;
 }) {
@@ -52,7 +57,7 @@ function IdentityEstablishmentFlow({
       return <GoogleIdentityProgress progress={view.progress} />;
     case "idle":
       return (
-        <SignInPage>
+        <SignInPage creatingAccount={creatingAccount}>
           <ProviderSignInButton
             className="w-full"
             onClick={google.establishIdentity}
@@ -60,6 +65,7 @@ function IdentityEstablishmentFlow({
           >
             Continue with Google
           </ProviderSignInButton>
+          {signupActions}
           {onBack ? <BackButton className="md:mt-auto" onClick={onBack} /> : null}
         </SignInPage>
       );

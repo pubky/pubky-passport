@@ -1,5 +1,8 @@
 # Integrating Pubky Passport
 
+For SMS/Lightning onboarding with Ring signup inside Passport, see
+[Create an account with SMS or Lightning](signup-integration.md).
+
 Passport is a signer UI for Pubky authorization requests. Your app starts an authorization flow
 with the Pubky SDK, opens Passport in a popup, and waits for the SDK to receive the result through
 the relay.

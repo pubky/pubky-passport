@@ -53,6 +53,7 @@ const NEXT_CONFIG: NextConfig = {
       { source: "/authorize", headers: AUTHORIZE_HEADERS },
       { source: "/authorize/:path*", headers: AUTHORIZE_HEADERS },
       { source: "/", headers: AUTHORIZE_TRANSPORT_HEADERS },
+      { source: "/create-account", headers: AUTHORIZE_TRANSPORT_HEADERS },
     ];
   },
 };
