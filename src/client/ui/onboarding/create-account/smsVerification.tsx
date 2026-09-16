@@ -3,12 +3,13 @@ import { useEffect, useState } from "react";
 import {
   phoneNumberSchema,
   smsCodeSchema,
-} from "../../../logic/homegate/HomegateVerificationClient";
-import { BackButton } from "../../shared/backButton";
-import { Button } from "../../shared/primitives/button";
-import { FieldMessage } from "../../shared/primitives/fieldMessage";
-import { Input } from "../../shared/primitives/input";
-import { Label } from "../../shared/primitives/label";
+} from "@/client/logic/homegate/HomegateVerificationClient";
+import { BackButton } from "@/client/ui/shared/backButton";
+import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
+import { Button } from "@/client/ui/shared/primitives/button";
+import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
+import { Input } from "@/client/ui/shared/primitives/input";
+import { Label } from "@/client/ui/shared/primitives/label";
 import { SignupStep } from "./signupStep";
 
 type SmsVerificationProps = {
@@ -54,15 +55,20 @@ export function PhoneNumberStep({ pending, error, onBack, onSendCode }: SmsVerif
           </FieldMessage>
         </div>
         {error ? <FieldMessage error>{error}</FieldMessage> : null}
-        <Button
-          type="submit"
-          size="lg"
-          disabled={pending || !phoneNumberSchema.safeParse(normalized).success}
-        >
-          {pending ? "Sending code…" : "Send verification code"}
-        </Button>
+        <PassportNavigation
+          back={<BackButton onClick={onBack} />}
+          confirm={
+            <Button
+              className="w-full"
+              type="submit"
+              size="lg"
+              disabled={pending || !phoneNumberSchema.safeParse(normalized).success}
+            >
+              {pending ? "Sending code…" : "Send verification code"}
+            </Button>
+          }
+        />
       </form>
-      <BackButton onClick={onBack} />
     </SignupStep>
   );
 }
@@ -123,22 +129,27 @@ export function SmsCodeStep({
         </div>
         {error ? <FieldMessage error>{error}</FieldMessage> : null}
         <Button
-          type="submit"
+          variant="secondary"
           size="lg"
-          disabled={pending || !smsCodeSchema.safeParse(code).success}
+          disabled={pending || remaining > 0}
+          onClick={() => onSendCode(phoneNumber)}
         >
-          {pending ? "Verifying…" : "Verify and continue"}
+          {remaining > 0 ? `Resend code in ${remaining}s` : "Resend code"}
         </Button>
+        <PassportNavigation
+          back={<BackButton onClick={onBack} />}
+          confirm={
+            <Button
+              className="w-full"
+              type="submit"
+              size="lg"
+              disabled={pending || !smsCodeSchema.safeParse(code).success}
+            >
+              {pending ? "Verifying…" : "Verify and continue"}
+            </Button>
+          }
+        />
       </form>
-      <Button
-        variant="secondary"
-        size="lg"
-        disabled={pending || remaining > 0}
-        onClick={() => onSendCode(phoneNumber)}
-      >
-        {remaining > 0 ? `Resend code in ${remaining}s` : "Resend code"}
-      </Button>
-      <BackButton onClick={onBack} />
     </SignupStep>
   );
 }
