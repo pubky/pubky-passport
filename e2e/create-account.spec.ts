@@ -112,9 +112,9 @@ test("Lightning shows the invoice and returns an invite after payment", async ({
     "href",
     "lightning:lnbc100n1example",
   );
-  await expect(page.getByLabel("Lightning invoice", { exact: true })).toHaveValue(
-    "lnbc100n1example",
-  );
+  await expect(page.getByText("lnbc100n1example", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Copy Lightning invoice" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Waiting for payment" })).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,

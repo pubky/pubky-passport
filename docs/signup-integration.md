@@ -91,29 +91,37 @@ is available if automatic handoff fails.
 
 ## Continue in Ring
 
-Immediately after accepting the invite, the client starts the SDK flow:
+After accepting the invite, show a dedicated signup QR and **Open in Ring** link:
 
 ```ts
-import { AuthFlowKind, PublicKey, Pubky } from "@synonymdev/pubky";
+const signupUrl = `pubkyauth://direct_signup?${new URLSearchParams({ hs, st })}`;
+// Render signupUrl as the QR code and Open in Ring link.
+```
+
+On desktop, the user opens **Add Pubky → Scan signup QR** in Ring on their phone
+and scans this QR. Ring creates the keys and consumes the invite. On mobile, the
+link opens Ring directly; keep it visible because browsers may suppress a deeplink
+following an asynchronous return. See [Ring's deeplink documentation](https://github.com/pubky/pubky-ring#deeplinks).
+
+After the user finishes signup in Ring, provide **Continue to sign in**. This starts
+a separate authorization flow for the new account:
+
+```ts
+import { AuthFlowKind, Pubky } from "@synonymdev/pubky";
 
 const pubky = new Pubky();
-const homeserver = PublicKey.from(hs);
-const flow = await pubky.startGrantAuthFlow(
-  "/pub/your-app.example/:rw",
-  AuthFlowKind.signup(homeserver, st),
-  { clientId: "your-app.example" },
-);
-// Render flow.authorizationUrl as the client's QR code and Open in Ring link.
-// On mobile, attempt the deeplink immediately; keep the link for an explicit retry.
-// The same-tab callback can use location.replace(flow.authorizationUrl).
+const flow = await pubky.startGrantAuthFlow("/pub/your-app.example/:rw", AuthFlowKind.signin(), {
+  clientId: "your-app.example",
+});
+// Render flow.authorizationUrl as a new QR code and Open in Ring link.
 const session = await flow.awaitApproval();
 ```
 
-The client owns the QR, deeplink, relay secret and SDK flow. Never send
-`flow.authorizationUrl` to `/create-account`. Ring creates the keys, consumes the
-invite, and approves the client session. Keep the **Open in Ring** fallback on
-mobile because browsers may suppress a deeplink following an asynchronous return.
-The caller must clean up its SDK flow and listeners when completed or abandoned.
+Keep signup and sign-in as separate steps: a `signup_grant` authorization URL is
+not a replacement for the `direct_signup` QR accepted by Ring's signup scanner.
+The client owns both QR codes and deeplinks, the relay secret, and the SDK flow.
+Never send `flow.authorizationUrl` to `/create-account`. Clean up the SDK flow and
+listeners when completed or abandoned.
 
 ## Test and review
 
