@@ -5,21 +5,28 @@ import { MobilePassportFooter } from "@/client/ui/shared/mobilePassportFooter";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 
-function SignInPage({ children }: { children: ReactNode }) {
+function SignInPage({
+  children,
+  creatingAccount = false,
+}: {
+  children: ReactNode;
+  creatingAccount?: boolean | undefined;
+}) {
   return (
     <PassportScreen className="gap-6 md:gap-8">
       <section className="flex flex-col gap-6 md:gap-8">
         <div className="flex flex-col gap-6 md:gap-3">
           <DisplayHeading
-            accent="signing."
-            aria-label="Quick & easy signing."
+            accent={creatingAccount ? "account." : "signing."}
+            aria-label={creatingAccount ? "Create your account." : "Quick & easy signing."}
             desktopAccentOnNewLine
           >
-            Quick &amp; easy
+            {creatingAccount ? "Create your" : "Quick & easy"}
           </DisplayHeading>
           <LeadText>
-            Pubky Passport is a browser-based signer for the Pubky ecosystem. No seed phrase, no
-            app, no hassle.
+            {creatingAccount
+              ? "Use Google with Passport, or choose Lightning or SMS to create your account in Pubky Ring."
+              : "Pubky Passport is a browser-based signer for the Pubky ecosystem. No seed phrase, no app, no hassle."}
           </LeadText>
         </div>
         <div className="grid gap-6 md:grid-cols-(--passport-content-columns) md:gap-0">

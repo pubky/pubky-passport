@@ -83,7 +83,7 @@ describe("handoffAuthorizationOutcome", () => {
     expect(messageFailure.navigate).toHaveBeenCalledWith(CALLBACK);
     expect(messageFailure.removeEventListener).toHaveBeenCalledOnce();
     expect(messageFailure.clearTimeout).toHaveBeenCalledOnce();
-    expect(warning).toHaveBeenCalledWith("authorize.callback_handoff.failed", {
+    expect(warning).toHaveBeenCalledWith("client.callback_handoff.failed", {
       operation: "post_message",
       diagnosticId: expect.any(String),
       errorName: "Error",
@@ -128,7 +128,7 @@ describe("handoffAuthorizationOutcome", () => {
 
       await expect(completion).resolves.toBe("acknowledged-and-closed");
       expect(harness.close).toHaveBeenCalledOnce();
-      expect(warning).toHaveBeenCalledWith("authorize.callback_handoff.failed", {
+      expect(warning).toHaveBeenCalledWith("client.callback_handoff.failed", {
         operation:
           failure === "removeEventListener"
             ? "remove_message_listener"
@@ -144,7 +144,7 @@ describe("handoffAuthorizationOutcome", () => {
     const harness = windowHarness({ opener: false, navigationFails: true });
 
     await expect(complete(harness, "cancel")).resolves.toBe("unavailable");
-    expect(warning).toHaveBeenCalledWith("authorize.callback_handoff.failed", {
+    expect(warning).toHaveBeenCalledWith("client.callback_handoff.failed", {
       operation: "navigate",
       diagnosticId: expect.any(String),
       errorName: "Error",
