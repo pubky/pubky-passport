@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from "react";
 
 import { parseSignupRequest } from "@/client/logic/signup/signupRequest";
 import { useGoogleIdentityConfiguration } from "@/client/ui/googleIdentityConfiguration";
-import { BackButton } from "@/client/ui/shared/backButton";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { IdentityEstablishmentFlow } from "@/client/ui/onboarding/identityEstablishmentFlow";
@@ -22,7 +21,6 @@ export function CreateAccountFlow() {
   const router = useRouter();
   const captured = useRef<ReturnType<typeof parseSignupRequest> | null>(null);
   const [entry, setEntry] = useState<ReturnType<typeof parseSignupRequest> | null>(null);
-  const [missingClient, setMissingClient] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -53,17 +51,6 @@ export function CreateAccountFlow() {
     );
   }
   const request = entry && Result.isOk(entry) ? entry.value : null;
-  if (missingClient) {
-    return (
-      <SignupStep
-        title="Start from"
-        accent="your app."
-        description="To use Lightning or SMS, choose Create account in the app you want to join. We’ll return you there to finish with Pubky Ring."
-      >
-        <BackButton onClick={() => setMissingClient(false)} />
-      </SignupStep>
-    );
-  }
 
   const view = signup.view;
   switch (view.step) {
@@ -79,7 +66,7 @@ export function CreateAccountFlow() {
                 variant="secondary"
                 className="w-full"
                 disabled={!entry}
-                onClick={() => (request ? void signup.createInvoice() : setMissingClient(true))}
+                onClick={() => void signup.createInvoice()}
               >
                 <LightningIcon /> Continue with Lightning
               </Button>
@@ -88,14 +75,14 @@ export function CreateAccountFlow() {
                 variant="secondary"
                 className="w-full"
                 disabled={!entry}
-                onClick={() => (request ? signup.chooseSms() : setMissingClient(true))}
+                onClick={signup.chooseSms}
               >
                 <SmsIcon /> Continue with SMS
               </Button>
               {request ? (
                 <FieldMessage className="break-words">
-                  After SMS or Lightning verification, return to {request.clientOrigin} to continue
-                  in Pubky Ring.
+                  Create your account in Pubky Ring, then return to {request.clientOrigin} to sign
+                  in.
                 </FieldMessage>
               ) : null}
             </>
@@ -136,7 +123,7 @@ export function CreateAccountFlow() {
         />
       );
     case "complete":
-      return request ? <SignupComplete request={request} invite={view.invite} /> : null;
+      return <SignupComplete request={request} invite={view.invite} />;
   }
 }
 

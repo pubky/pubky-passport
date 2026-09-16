@@ -42,7 +42,7 @@ export function LightningVerification({
     <SignupStep
       title="Continue with"
       accent="Lightning."
-      description="Pay a Lightning invoice to get your signup invite. Once confirmed, you’ll return to your app to create your account in Pubky Ring."
+      description="Pay a Lightning invoice to get your signup invite. Once confirmed, create your account in Pubky Ring using the signup QR shown here."
     >
       {invoice ? (
         expired ? (

@@ -1,36 +1,31 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { handoffSignupInvite, signupCallbackUrl } from "./signupInviteHandoff";
+import { handoffSignupCompletion, signupCallbackUrl } from "./signupCompletionHandoff";
 
 const request = {
   callback: "https://app.example/return?from=signup",
   clientOrigin: "https://app.example",
   state: "test_signup_state_1234",
 };
-const invite = {
-  homeserverPubky: "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo",
-  signupToken: "invite+token/=",
-};
 
-describe("signup invite handoff", () => {
-  it("returns hs, st and state only in the callback fragment", () => {
-    const url = new URL(signupCallbackUrl(request, invite));
+describe("signup completion handoff", () => {
+  it("returns completion and state only in the callback fragment", () => {
+    const url = new URL(signupCallbackUrl(request));
     expect(url.search).toBe("?from=signup");
     expect(Object.fromEntries(new URLSearchParams(url.hash.slice(1)))).toEqual({
-      hs: invite.homeserverPubky,
-      st: invite.signupToken,
+      signup: "complete",
       state: request.state,
     });
   });
   it("navigates in the same tab when there is no opener", async () => {
     const replace = vi.fn();
     const window = { opener: null, location: { replace } } as unknown as Window;
-    expect(await handoffSignupInvite(window, request, invite, new AbortController().signal)).toBe(
+    expect(await handoffSignupCompletion(window, request, new AbortController().signal)).toBe(
       "navigated",
     );
-    expect(replace).toHaveBeenCalledWith(signupCallbackUrl(request, invite));
+    expect(replace).toHaveBeenCalledWith(signupCallbackUrl(request));
   });
-  it("sends only an invite to the exact client origin and closes after its matching acknowledgement", async () => {
+  it("sends only completion to the exact client origin and closes after its matching acknowledgement", async () => {
     const events = new EventTarget();
     const close = vi.fn();
     const opener = {
@@ -40,7 +35,11 @@ describe("signup invite handoff", () => {
         Object.assign(event, {
           source: opener,
           origin: request.clientOrigin,
-          data: { type: "pubky-passport.signup-invite-ack", version: 1, messageId: data.messageId },
+          data: {
+            type: "pubky-passport.signup-complete-ack",
+            version: 1,
+            messageId: data.messageId,
+          },
         });
         events.dispatchEvent(event);
       }),
@@ -56,17 +55,15 @@ describe("signup invite handoff", () => {
       clearTimeout,
       location: { replace: vi.fn() },
     } as unknown as Window;
-    expect(await handoffSignupInvite(window, request, invite, new AbortController().signal)).toBe(
+    expect(await handoffSignupCompletion(window, request, new AbortController().signal)).toBe(
       "acknowledged-and-closed",
     );
     expect(opener.postMessage).toHaveBeenCalledWith(
       {
-        type: "pubky-passport.signup-invite",
+        type: "pubky-passport.signup-complete",
         version: 1,
         messageId: "message-1234",
         state: request.state,
-        hs: invite.homeserverPubky,
-        st: invite.signupToken,
       },
       request.clientOrigin,
     );

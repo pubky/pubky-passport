@@ -1,6 +1,6 @@
 # Integrating Pubky Passport
 
-For SMS/Lightning onboarding that returns a Homegate invite to a client, see
+For SMS/Lightning onboarding with Ring signup inside Passport, see
 [Create an account with SMS or Lightning](signup-integration.md).
 
 Passport is a signer UI for Pubky authorization requests. Your app starts an authorization flow

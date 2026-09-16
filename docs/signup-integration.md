@@ -1,138 +1,100 @@
 # Create an account with SMS or Lightning
 
-`/create-account` offers Google, Lightning and SMS using Passport's existing UI.
-Google follows the existing Passport/Drive identity flow. SMS (Prelude through
-Homegate) and Lightning obtain a homeserver invite and return it to your app.
-Your app then starts signup and authorization with Pubky Ring.
+`/create-account` offers Google, SMS (Prelude through Homegate), and Lightning.
+Google follows the existing Passport/Drive identity flow. After SMS verification
+or Lightning payment, **Passport** displays the Ring signup QR. The invite stays
+in Passport; it is not returned to the calling app.
 
-Passport does not create keys, consume the invite, or receive the client's
-authorization URL on the SMS/Lightning path. The start page and `/authorize`
-continue to use their existing flow; see [authorization integration](integration.md).
+## User flow
 
-## Open Passport
+1. Choose SMS or Lightning and complete verification in Passport.
+2. Passport shows **Scan QR Code**. In Ring, choose **Add Pubky → Scan signup QR**.
+   On mobile, use **Open Pubky Ring**, or **Show signup QR** to use another device.
+3. If Ring is not installed, choose **Need to install Pubky Ring?**. The install
+   screen links to both app stores. Returning to scan preserves the same invite.
+4. Ring creates the account and holds its keys. When finished, choose **Continue
+   to sign in** in Passport to return to the client.
+5. The client starts a fresh SDK sign-in flow and waits for Ring approval.
 
-Use the user's configured Passport origin. Open the popup directly from a click
-handler, or navigate the current tab to the same URL:
+The completion button is a user confirmation, not proof of account creation or
+authentication. Passport cannot observe completion of a direct signup in Ring.
+Only the SDK's approved session authenticates the user. A standalone Passport
+visit also supports SMS/Lightning signup, without a client return button.
+
+The QR uses `pubkyauth://direct_signup?hs=…&st=…`, accepted by Ring's signup
+scanner. It contains no client grant or relay secret. The invite stays in memory;
+reloading before using it loses the pending invite. If the account was already
+created, use normal sign-in. Do not log the invite or include it in analytics.
+
+## Open Passport from a client
+
+Open a popup directly from a user gesture or navigate the current tab:
 
 ```ts
 const passportOrigin = "https://passport.pubky.app";
 const state = crypto.randomUUID();
 const callback = "https://your-app.example/auth/signup/return";
 const fragment = new URLSearchParams({ callback, state });
-const signupUrl = `${passportOrigin}/create-account#${fragment}`;
-const popup = window.open(signupUrl, "passport-signup", "popup,width=520,height=760");
+const popup = window.open(
+  `${passportOrigin}/create-account#${fragment}`,
+  "passport-signup",
+  "popup,width=520,height=760",
+);
 ```
 
-For same-tab navigation, keep `state` in your app's session storage before leaving.
-Accept one return per attempt, then delete that stored state. An invite message is
-not proof of authentication: only the SDK `Session` establishes the user's session.
+Persist a fresh state before same-tab navigation. Entry parameters are
+fragment-only: `callback` must be HTTPS, at most 2,048 characters, with no
+credentials or fragment; `state` must contain 16–128 characters from
+`A–Z`, `a–z`, `0–9`, `_`, `-`. The complete fragment is limited to 4,096 characters.
+Other parameters, duplicates, query parameters, and client grants are rejected.
+Passport removes the entry fragment from history after capture.
 
-Entry parameters are fragment-only:
+## Completion handoff
 
-| Parameter  | Contract                                                                     |
-| ---------- | ---------------------------------------------------------------------------- |
-| `callback` | Absolute HTTPS URL, at most 2,048 characters; no credentials or fragment     |
-| `state`    | 16–128 characters from `A–Z`, `a–z`, `0–9`, `_`, `-`; fresh for each attempt |
-
-The complete encoded fragment is limited to 4,096 characters.
-Other parameters, duplicates, query parameters, and client grants (`d`, `secret`,
-`relay`, etc.) are rejected. The entry fragment is removed from browser history
-after capture. The UI shows the callback origin before verification.
-A standalone visit displays the method picker; SMS/Lightning explain that signup
-must start in a client app so Passport knows where to return the invitation.
-
-## Receive the invitation
-
-After successful verification, a popup sends this message to the callback's exact
-origin:
+Only after the user selects **Continue to sign in**, Passport sends:
 
 ```ts
 {
-  type: "pubky-passport.signup-invite",
+  type: "pubky-passport.signup-complete",
   version: 1,
   messageId: "<unique message ID>",
-  state: "<your attempt state>",
-  hs: "<homeserver public key in z-base-32>",
-  st: "<single-use homeserver signup token>"
+  state: "<your attempt state>"
 }
 ```
 
-Before accepting it, validate `event.origin === passportOrigin`,
-`event.source === popup`, `type`, `version`, `state`, and the payload types. Validate
-`hs` with the SDK's `PublicKey.from()` and require a non-empty `st` of at most 1,024
-characters. Retain the invite before acknowledging; ignore repeated messages for
-the completed attempt. Acknowledge immediately, before starting asynchronous SDK
-work:
+Validate the exact Passport origin, original popup window, type, version, state,
+and message ID. Consume the pending state once and acknowledge synchronously:
 
 ```ts
 popup.postMessage(
-  {
-    type: "pubky-passport.signup-invite-ack",
-    version: 1,
-    messageId: event.data.messageId,
-  },
+  { type: "pubky-passport.signup-complete-ack", version: 1, messageId: event.data.messageId },
   passportOrigin,
 );
 ```
 
-Passport waits up to three seconds for a matching acknowledgement from that opener
-and origin, then closes. If there is no opener, no valid acknowledgement, or the
-popup cannot close, Passport navigates to:
+Duplicate messages may be acknowledged again without starting another sign-in.
+Passport waits up to three seconds for acknowledgement, then closes. If the popup
+cannot close or no acknowledgement arrives, it navigates to
+`https://your-app.example/auth/signup/return#signup=complete&state=…`. The existing
+callback query is preserved. Capture and scrub the fragment before rendering;
+validate the stored attempt state and consume it once. No invite, key, grant, or
+session is returned in either path.
 
-```text
-https://your-app.example/auth/signup/return#hs=…&st=…&state=…
-```
+After a validated completion, start `pubky.startGrantAuthFlow(capabilities,
+AuthFlowKind.signin(), { clientId })`, or the SDK cookie equivalent. Display the
+resulting sign-in QR/deeplink and await SDK approval. Dispose abandoned flows.
+The start page and `/authorize` keep their existing behavior.
 
-Your callback page must capture and remove this fragment before rendering the app,
-validate the stored attempt state, and handle the same invitation shape. The
-existing callback query is preserved. The invite stays out of HTTP requests and
-referrers; do not log it or send it to analytics. A visible **Return to app** link
-is available if automatic handoff fails.
+## Design source and validation
 
-## Continue in Ring
+The Ring scan/install layout and illustrations are adapted from
+[pubky-app at 50aaaa6](https://github.com/pubky/pubky-app/tree/50aaaa6de03a792fe9e3216462c06e82fea408f2):
+`Scan`, `BalancedQrCard`, `QrCodeSlot`, and `Install`. Passport retains its shared
+navigation, typography, branding, and store badges. The signup QR uses high error
+correction with an excavated logo area. The upstream [MIT license](vendor/pubky-app/LICENSE)
+is retained with the copied assets.
 
-After accepting the invite, show a dedicated signup QR and **Open in Ring** link:
-
-```ts
-const signupUrl = `pubkyauth://direct_signup?${new URLSearchParams({ hs, st })}`;
-// Render signupUrl as the QR code and Open in Ring link.
-```
-
-On desktop, the user opens **Add Pubky → Scan signup QR** in Ring on their phone
-and scans this QR. Ring creates the keys and consumes the invite. On mobile, the
-link opens Ring directly; keep it visible because browsers may suppress a deeplink
-following an asynchronous return. See [Ring's deeplink documentation](https://github.com/pubky/pubky-ring#deeplinks).
-
-After the user finishes signup in Ring, provide **Continue to sign in**. This starts
-a separate authorization flow for the new account:
-
-```ts
-import { AuthFlowKind, Pubky } from "@synonymdev/pubky";
-
-const pubky = new Pubky();
-const flow = await pubky.startGrantAuthFlow("/pub/your-app.example/:rw", AuthFlowKind.signin(), {
-  clientId: "your-app.example",
-});
-// Render flow.authorizationUrl as a new QR code and Open in Ring link.
-const session = await flow.awaitApproval();
-```
-
-Keep signup and sign-in as separate steps: a `signup_grant` authorization URL is
-not a replacement for the `direct_signup` QR accepted by Ring's signup scanner.
-The client owns both QR codes and deeplinks, the relay secret, and the SDK flow.
-Never send `flow.authorizationUrl` to `/create-account`. Clean up the SDK flow and
-listeners when completed or abandoned.
-
-## Test and review
-
-```bash
-pnpm check
-pnpm test:e2e:run
-```
-
-`e2e/create-account.spec.ts` mocks Homegate to cover SMS, invalid codes and limits,
-Lightning payment and expiry, same-tab and popup returns, accessibility, and the
-unchanged start/authorize screens. It does not send SMS or pay live invoices.
-For live testing, point `HOMEGATE_URL` at the intended Homegate service and open the
-route with a real client callback implementing the contract above. Client chrome,
-Ring signup, and the final SDK session remain client/Ring integration work.
+Run `pnpm check` and `pnpm test:e2e:run`. Tests mock Homegate and cover verification,
+Ring setup inside Passport, install/back navigation, explicit completion, popup
+and callback handoffs, and unchanged start/authorize screens. No live SMS or
+payment is sent; actual Ring signup and approval still require device testing.

@@ -13,10 +13,20 @@ async function mockCallback(page: Page) {
   );
 }
 
-async function expectInvite(page: Page) {
+async function expectCompletion(page: Page) {
   await expect(page).toHaveURL(/^https:\/\/app\.example\/return#/);
   const values = Object.fromEntries(new URLSearchParams(new URL(page.url()).hash.slice(1)));
-  expect(values).toEqual({ hs: HOMESERVER, st: "invite-token", state: STATE });
+  expect(values).toEqual({ signup: "complete", state: STATE });
+}
+
+async function finishInRing(page: Page) {
+  await expect(page.getByRole("heading", { name: "Scan QR Code." })).toBeVisible();
+  await expect(page).toHaveURL(/\/create-account$/);
+  const showQr = page.getByRole("button", { name: "Show signup QR" });
+  if (await showQr.isVisible()) await showQr.click();
+  await expect(page.getByRole("img", { name: "Pubky Ring signup QR code" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue to sign in" })).toBeEnabled();
+  await page.getByRole("button", { name: "Continue to sign in" }).click();
 }
 
 test("create-account adds methods without changing the start or authorize screens", async ({
@@ -38,7 +48,9 @@ test("create-account adds methods without changing the start or authorize screen
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
-test("SMS validates the code and returns the invite automatically", async ({ page }) => {
+test("SMS validates the code and keeps signup in Passport until the user continues", async ({
+  page,
+}) => {
   await mockCallback(page);
   await page.route("https://homegate.example/sms_verification/send_code", async (route) => {
     expect(route.request().postDataJSON()).toEqual({ phoneNumber: "+41791234567" });
@@ -66,7 +78,8 @@ test("SMS validates the code and returns the invite automatically", async ({ pag
   await expect(page.getByRole("main").getByRole("alert")).toContainText("That code is incorrect");
   await page.getByLabel("Verification code", { exact: true }).fill("123456");
   await page.getByRole("button", { name: "Verify and continue" }).click();
-  await expectInvite(page);
+  await finishInRing(page);
+  await expectCompletion(page);
 });
 
 test("SMS reports provider limits and lets the user choose another method", async ({ page }) => {
@@ -82,7 +95,7 @@ test("SMS reports provider limits and lets the user choose another method", asyn
   await expect(page.getByRole("button", { name: "Continue with Lightning" })).toBeVisible();
 });
 
-test("Lightning shows the invoice and returns an invite after payment", async ({ page }) => {
+test("Lightning shows the invoice and shows Ring signup after payment", async ({ page }) => {
   await mockCallback(page);
   let paid = false;
   await page.route("https://homegate.example/ln_verification", (route) =>
@@ -121,7 +134,8 @@ test("Lightning shows the invoice and returns an invite after payment", async ({
   );
   expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([]);
   paid = true;
-  await expectInvite(page);
+  await finishInRing(page);
+  await expectCompletion(page);
 });
 
 test("expired invoices hide payment actions and allow checking a late payment", async ({
@@ -157,10 +171,11 @@ test("expired invoices hide payment actions and allow checking a late payment", 
   await expect(page.getByRole("link", { name: "Open Lightning wallet" })).toHaveCount(0);
   paid = true;
   await page.getByRole("button", { name: "Check payment", exact: true }).click();
-  await expectInvite(page);
+  await finishInRing(page);
+  await expectCompletion(page);
 });
 
-test("a popup returns an invite to its opener and waits for acknowledgement", async ({
+test("a popup returns completion to its opener and waits for acknowledgement", async ({
   page,
   baseURL,
 }) => {
@@ -175,9 +190,9 @@ test("a popup returns an invite to its opener and waits for acknowledgement", as
       addEventListener('message', event => {
         if (event.origin !== ${JSON.stringify(baseURL)} || event.source !== popup) return;
         const data = event.data;
-        if (data.type !== 'pubky-passport.signup-invite' || data.state !== ${JSON.stringify(STATE)}) return;
+        if (data.type !== 'pubky-passport.signup-complete' || data.state !== ${JSON.stringify(STATE)}) return;
         document.getElementById('result').textContent = JSON.stringify(data);
-        popup.postMessage({ type: 'pubky-passport.signup-invite-ack', version: 1, messageId: data.messageId }, event.origin);
+        popup.postMessage({ type: 'pubky-passport.signup-complete-ack', version: 1, messageId: data.messageId }, event.origin);
       });
     </script>`,
     }),
@@ -201,28 +216,38 @@ test("a popup returns an invite to its opener and waits for acknowledgement", as
   await popup.getByRole("button", { name: "Send verification code" }).click();
   await popup.getByLabel("Verification code", { exact: true }).fill("123456");
   await popup.getByRole("button", { name: "Verify and continue" }).click();
-  await expect(page.locator("#result")).toContainText('"st":"invite-token"');
+  await finishInRing(popup);
+  await expect(page.locator("#result")).toContainText('"type":"pubky-passport.signup-complete"');
   await expect.poll(() => popup.isClosed()).toBe(true);
   const message = JSON.parse(await page.locator("#result").innerText());
-  expect(Object.keys(message).sort()).toEqual([
-    "hs",
-    "messageId",
-    "st",
-    "state",
-    "type",
-    "version",
-  ]);
+  expect(Object.keys(message).sort()).toEqual(["messageId", "state", "type", "version"]);
 });
 
-test("a standalone visit explains how to start invite signup from a client", async ({ page }) => {
-  const requests: string[] = [];
-  page.on("request", (request) => {
-    if (request.url().includes("homegate.example")) requests.push(request.url());
-  });
+test("standalone signup shows Ring instructions without requiring a client", async ({ page }) => {
+  await page.route("https://homegate.example/sms_verification/send_code", (route) =>
+    route.fulfill({ status: 200, body: "" }),
+  );
+  await page.route("https://homegate.example/sms_verification/validate_code", (route) =>
+    route.fulfill({
+      json: { valid: "true", signupCode: "invite-token", homeserverPubky: HOMESERVER },
+    }),
+  );
   await page.goto("/create-account");
   await page.getByRole("button", { name: "Continue with SMS" }).click();
-  await expect(page.getByRole("heading", { name: "Start from your app." })).toBeVisible();
-  expect(requests).toEqual([]);
+  await page.getByLabel("Phone number", { exact: true }).fill("+41791234567");
+  await page.getByRole("button", { name: "Send verification code" }).click();
+  await page.getByLabel("Verification code", { exact: true }).fill("123456");
+  await page.getByRole("button", { name: "Verify and continue" }).click();
+  await expect(page.getByRole("heading", { name: "Scan QR Code." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue to sign in" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Need to install Pubky Ring?" }).click();
+  await expect(page.getByRole("heading", { name: "Install Pubky Ring." })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Download Pubky Ring on the App Store" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Continue with Pubky Ring" }).click();
+  await expect(page.getByRole("heading", { name: "Scan QR Code." })).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
 test("the create-account entry rejects grant secrets", async ({ page }) => {
