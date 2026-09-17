@@ -3,10 +3,7 @@
 import { createContext, type ReactNode, useContext, useMemo } from "react";
 
 import type { PassportAuthorizationController } from "@/client/logic/authorization/flow/PassportAuthorizationController";
-import {
-  GoogleIdentityController,
-  type GoogleIdentityViewState,
-} from "@/client/logic/google-identity/GoogleIdentityController";
+import { GoogleIdentityController } from "@/client/logic/google-identity/GoogleIdentityController";
 import { LocalIdentityController } from "@/client/logic/local-identity/LocalIdentityController";
 
 export type IdentitySetup = (props: {
@@ -23,11 +20,13 @@ export type AuthorizationControllerPort = Pick<
 
 export type GoogleIdentityControllerPort = Pick<
   GoogleIdentityController,
-  | "clearPinnedGoogleSubject"
   | "detachIdentity"
   | "dispose"
   | "establishIdentity"
+  | "getState"
   | "replaceInvalidPassportFile"
+  | "reset"
+  | "subscribe"
 >;
 
 export type LocalIdentityControllerPort = Pick<
@@ -46,15 +45,14 @@ export type PassportCollaborators = {
   createGoogleIdentityController: (
     googleClientId: string,
     homegateBaseUrl: string,
-    onState: (state: GoogleIdentityViewState) => void,
   ) => GoogleIdentityControllerPort;
   createLocalIdentityController: () => LocalIdentityControllerPort;
   IdentitySetup?: IdentitySetup;
 };
 
 const DEFAULT_PASSPORT_COLLABORATORS: PassportCollaborators = {
-  createGoogleIdentityController: (googleClientId, homegateBaseUrl, onState) =>
-    new GoogleIdentityController(googleClientId, homegateBaseUrl, onState),
+  createGoogleIdentityController: (googleClientId, homegateBaseUrl) =>
+    new GoogleIdentityController(googleClientId, homegateBaseUrl),
   createLocalIdentityController: () => new LocalIdentityController(),
 };
 
