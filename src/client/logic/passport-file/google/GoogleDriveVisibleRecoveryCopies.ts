@@ -3,6 +3,7 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import { createFailure } from "@/libs/logger/createFailure";
+import { isNonEmptyString } from "@/libs/typeGuards";
 import { safeErrorLogFields } from "@/libs/logger/logger";
 import type { CodedFailure } from "@/libs/result";
 import {
@@ -15,6 +16,7 @@ import {
 } from "@/client/logic/passport-file/passportFileEnvelope";
 import {
   authorizationHeaders,
+  browserRequestLock,
   createDriveHttpResponseFailure,
   DRIVE_FILES_URL,
   DRIVE_MULTIPART_CONTENT_TYPE,
@@ -22,7 +24,6 @@ import {
   driveFileUrl,
   fetchDrive,
   isDriveFile,
-  isNonEmptyString,
   mapDriveStatus,
   multipartBody,
   parseDriveFileRevision,
@@ -48,11 +49,6 @@ type VisibleCopiesFailure = CodedFailure<VisibleCopiesErrorCode> & { httpStatus?
 type VisibleCopiesResult<Success> = ResultType<Success, VisibleCopiesFailure>;
 type VisibleFolder = DriveFile & { id: string };
 type VisibleFile = DriveFile & { id: string };
-type RequestLock = <LockResult>(
-  name: string,
-  callback: () => Promise<LockResult>,
-) => Promise<LockResult>;
-
 const failure = createFailure<VisibleCopiesErrorCode>(
   "identity.google.visible_recovery_copies.failed",
 );
@@ -108,7 +104,7 @@ export class GoogleDriveVisibleRecoveryCopies {
       });
     }
 
-    const token = this.getAccessToken();
+    const token = this.readAccessToken();
     if (Result.isError(token)) return Result.err(token.error);
     if (signal.aborted) {
       return failure({
@@ -167,7 +163,7 @@ export class GoogleDriveVisibleRecoveryCopies {
       });
     }
 
-    const token = this.getAccessToken();
+    const token = this.readAccessToken();
     if (Result.isError(token)) return Result.err(token.error);
 
     try {
@@ -207,12 +203,9 @@ export class GoogleDriveVisibleRecoveryCopies {
     }
   }
 
-  private getAccessToken(): VisibleCopiesResult<string> {
-    if (this.accessToken.length > 0) return Result.ok(this.accessToken);
-    return failure({
-      operation: "access_token",
-      code: "unauthorized",
-    });
+  private readAccessToken(): VisibleCopiesResult<string> {
+    if (isNonEmptyString(this.accessToken)) return Result.ok(this.accessToken);
+    return failure({ operation: "access_token", code: "unauthorized" });
   }
 
   private async findOrCreateFolderWithLock(
@@ -634,12 +627,6 @@ function folderQuery(): string {
 
 function visibleRecoveryFileName(publicIdentity: PubkyPublicIdentity): string | null {
   return isPubkyPublicIdentity(publicIdentity) ? `${publicIdentity.publicKeyZ32}.json` : null;
-}
-
-function browserRequestLock(): RequestLock | null {
-  if (typeof navigator === "undefined" || navigator.locks === undefined) return null;
-  return <LockResult>(name: string, callback: () => Promise<LockResult>) =>
-    navigator.locks.request(name, callback);
 }
 
 function invalidFolderList(): VisibleCopiesResult<never> {

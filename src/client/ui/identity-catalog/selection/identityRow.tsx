@@ -1,8 +1,9 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
+import { CheckIcon } from "@/client/ui/shared/icons";
+import { IdentitySummary } from "@/client/ui/shared/identitySummary";
 import { cn } from "@/client/ui/shared/mergeClassNames";
-import { Avatar } from "@/client/ui/shared/primitives/avatar";
 
 type IdentityRowProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   avatarSrc?: string | undefined;
@@ -36,38 +37,19 @@ function IdentityRow({
       type="button"
       {...props}
     >
-      <Avatar fallback={name} size="sm" src={avatarSrc} />
-      {googleProvider ? (
-        <span className="absolute left-[39px] top-[39px] flex size-4 items-center justify-center drop-shadow-xl">
-          {providerMark}
-        </span>
-      ) : null}
-      <span className="min-w-0 flex-1">
-        <strong className="block truncate leading-6">{name}</strong>
-        <span className="block truncate text-xs font-medium lowercase tracking-[0.1em] text-muted-foreground">
-          {detail}
-        </span>
-      </span>
+      <IdentitySummary
+        avatarSrc={avatarSrc}
+        badge={googleProvider ? providerMark : undefined}
+        detail={detail}
+        detailClassName="lowercase"
+        name={name}
+      />
       {selected ? (
-        <CheckIcon />
+        <CheckIcon className="text-brand" />
       ) : !googleProvider && providerMark ? (
         <span className="flex size-4 shrink-0 items-center justify-center">{providerMark}</span>
       ) : null}
     </button>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg aria-hidden="true" className="size-4 shrink-0 text-brand" fill="none" viewBox="0 0 16 16">
-      <path
-        d="m2.67 8 3.55 3.56 7.11-7.12"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.5"
-      />
-    </svg>
   );
 }
 

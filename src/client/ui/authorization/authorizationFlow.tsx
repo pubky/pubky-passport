@@ -12,8 +12,8 @@ import { ArrowRightIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { LoadingScreen } from "@/client/ui/shared/loadingScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { Spinner } from "@/client/ui/shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 import { usePassportCollaborators } from "@/client/ui/passportCollaborators";
 import { SignInBand } from "./signInBand";
@@ -22,12 +22,15 @@ import { InvalidAuthorization } from "./invalidAuthorization";
 import { ManualAuthorization } from "./manual-entry/manualAuthorization";
 import { usePassportAuthorization, type AuthorizationController } from "./usePassportAuthorization";
 
+const AUTHORIZATION_LOADING_HEIGHT =
+  "min-h-[calc(100svh-var(--passport-header-height)-var(--passport-context-band-height))]";
+
 function AuthorizationFlow() {
   const { controller: passportAuthorizationController, state: authorization } =
     usePassportAuthorization();
 
   if (!passportAuthorizationController || !authorization) {
-    return <AuthorizationLoading label="Loading authorization" />;
+    return <LoadingScreen className={AUTHORIZATION_LOADING_HEIGHT} label="Loading authorization" />;
   }
 
   if (authorization.status === "completing") {
@@ -88,7 +91,7 @@ function AuthorizationWithIdentity({
 
   switch (identityCatalog.status) {
     case "loading":
-      return <AuthorizationLoading label="Loading identities" />;
+      return <LoadingScreen className={AUTHORIZATION_LOADING_HEIGHT} label="Loading identities" />;
     case "unavailable":
       return (
         <PassportScreen className="gap-6">
@@ -197,17 +200,6 @@ function AuthorizationTerminal({ outcome }: { outcome: "approved" | "cancelled" 
         <PassportNavigation back={<BackButton onClick={goHome} />} />
       )}
     </PassportScreen>
-  );
-}
-
-function AuthorizationLoading({ label }: { label: string }) {
-  return (
-    <main
-      aria-label={label}
-      className="grid min-h-[calc(100svh-var(--passport-header-height)-var(--passport-context-band-height))] place-items-center"
-    >
-      <Spinner />
-    </main>
   );
 }
 
