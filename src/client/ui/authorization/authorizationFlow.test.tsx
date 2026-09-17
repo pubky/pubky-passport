@@ -283,6 +283,46 @@ describe("AuthorizationFlow", () => {
     }
   });
 
+  it("fits the requester against the heading when its inline wrapper has no width", () => {
+    const callbackHost = "gillohner.github.io";
+    const clientWidth = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.tagName === "H1" ? 300 : 0;
+      });
+    const scrollWidth = vi
+      .spyOn(HTMLElement.prototype, "scrollWidth", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.tagName === "BDI" && this.textContent === callbackHost ? 400 : 0;
+      });
+    const computedStyle = vi.spyOn(window, "getComputedStyle").mockImplementation(
+      (element) =>
+        ({
+          display: (element as HTMLElement).tagName === "SPAN" ? "inline" : "block",
+          fontSize: "48px",
+        }) as CSSStyleDeclaration,
+    );
+
+    try {
+      MOCKS.authorizationState = {
+        status: "review",
+        review: { ...REVIEW, callbackHost },
+      };
+
+      renderFlow();
+
+      const domain = document.querySelector<HTMLElement>("h1 bdi");
+      expect(domain).not.toBeNull();
+      if (!domain) throw new Error("Missing fitted requester");
+      expect(domain.style.fontSize).toBe("36px");
+      expect(domain.style.whiteSpace).toBe("nowrap");
+    } finally {
+      clientWidth.mockRestore();
+      scrollWidth.mockRestore();
+      computedStyle.mockRestore();
+    }
+  });
+
   it("wraps rather than shrinking a callback host below the readable minimum", () => {
     const callbackHost =
       "an-extremely-long-callback-host-that-cannot-fit-at-a-readable-size.requesting.example";

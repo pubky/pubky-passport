@@ -89,6 +89,26 @@ test("falls back to the callback domain when x-source is absent", async ({ page 
   await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
 });
 
+test("keeps a long requester name inside the viewport on desktop breakpoints", async ({ page }) => {
+  const source = "Extraordinarily Long Requester Application Name For Layout Testing GmbH & Co. KG";
+  await installLocalIdentityFixture(page);
+  for (const viewport of [
+    { width: 768, height: 1024 },
+    { width: 1280, height: 800 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(
+      authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`, "cookie", source)),
+    );
+
+    await expect(page.getByRole("heading", { name: `Sign in to ${source}` })).toBeVisible();
+    await page.evaluate(async () => document.fonts.ready);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      viewport.width,
+    );
+  }
+});
+
 test("scrubs a valid request and renders only safe review data", async ({ page, request }) => {
   const url = authorizationUrl(
     authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}?region=eu`),
