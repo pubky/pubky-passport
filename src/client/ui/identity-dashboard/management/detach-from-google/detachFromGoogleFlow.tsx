@@ -79,11 +79,10 @@ function DetachFromGoogleFlow({
             }
             canRetryAuthorization={operation.state.status === "authorization-failed"}
             error={
-              operation.state.status === "authorization-failed"
-                ? "authorization_failed"
-                : operation.state.status === "operation-failed"
-                  ? operation.state.error.code
-                  : null
+              operation.state.status === "authorization-failed" ||
+              operation.state.status === "operation-failed"
+                ? operation.state.error
+                : null
             }
             onCancel={() => setState({ view: "review", confirmation: "closed" })}
             onConfirm={operation.detach}

@@ -4,18 +4,17 @@ import { Result, type Result as ResultType } from "better-result";
 
 import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
-import type { CodedFailure } from "@/libs/result";
 import type {
   GoogleImplicitAuthorization,
   GoogleIdentityCredentials,
-  GoogleImplicitAuthorizationError,
 } from "./gia/GoogleImplicitAuthorization";
 import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
-import type {
-  GoogleIdentityLifecycle,
-  GoogleIdentityLifecycleError,
-  GoogleIdentityProgress,
-} from "./GoogleIdentityLifecycle";
+import {
+  withoutCause,
+  type GoogleIdentityError,
+  type GoogleIdentityViewError,
+} from "./googleIdentityErrors";
+import type { GoogleIdentityLifecycle, GoogleIdentityProgress } from "./GoogleIdentityLifecycle";
 
 export type { GoogleIdentityProgress } from "./GoogleIdentityLifecycle";
 
@@ -32,22 +31,6 @@ type EstablishedGoogleIdentity =
       googleAccount: GoogleAccountProfile;
       publicIdentity: PubkyPublicIdentity;
     };
-
-export type GoogleIdentityError =
-  | GoogleIdentityLifecycleError
-  | GoogleImplicitAuthorizationError
-  | CodedFailure<"authorization_failed" | "cancelled" | "operation_failed">;
-
-type GoogleIdentityErrorDetailCode = Extract<
-  GoogleIdentityLifecycleError,
-  { detailCode: string }
->["detailCode"];
-
-/** Error fields explicitly allowed to cross into React state or rendered output. */
-export type GoogleIdentityViewError = {
-  code: GoogleIdentityError["code"];
-  detailCode?: GoogleIdentityErrorDetailCode;
-};
 
 /** Render-safe states published while Passport creates, restores, or detaches a Google-backed identity. */
 export type GoogleIdentityViewState =
@@ -464,16 +447,5 @@ export class GoogleIdentityController {
         ),
     ]);
     return { createAuthorization, createLifecycle };
-  }
-}
-
-function withoutCause(error: GoogleIdentityError): GoogleIdentityViewError {
-  switch (error.code) {
-    case "wrapping_key_failed":
-      return { code: error.code, detailCode: error.detailCode };
-    case "homeserver_signup_token_failed":
-      return { code: error.code, detailCode: error.detailCode };
-    default:
-      return { code: error.code };
   }
 }

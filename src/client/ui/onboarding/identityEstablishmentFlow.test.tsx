@@ -252,7 +252,7 @@ describe("IdentityEstablishmentFlow", () => {
         "Passport needs access to your Google Drive to create or restore your Pubky.",
       ),
     ).toHaveClass("hidden", "md:block");
-    expect(screen.queryByRole("group", { name: "Error" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Technical details")).not.toBeInTheDocument();
     const mobileActions = screen.getByRole("group", { name: "Mobile error actions" });
     const desktopActions = screen.getByRole("group", { name: "Desktop error actions" });
     const mobileTryAgain = within(mobileActions).getByRole("button", { name: "Try again" });
@@ -343,8 +343,10 @@ describe("IdentityEstablishmentFlow", () => {
     await user.click(await screen.findByRole("button", { name: "Continue with Google" }));
 
     expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
+    const invalidFileDetails = screen.getByText("Technical details").closest("details");
+    expect(invalidFileDetails).not.toHaveAttribute("open");
     expect(
-      within(screen.getByRole("group", { name: "Error" })).getByText("invalid_passport_file"),
+      within(invalidFileDetails as HTMLDetailsElement).getByText("invalid_passport_file"),
     ).toBeInTheDocument();
     const mobileActions = screen.getByRole("group", { name: "Mobile error actions" });
     const desktopActions = screen.getByRole("group", { name: "Desktop error actions" });
@@ -436,11 +438,14 @@ describe("IdentityEstablishmentFlow", () => {
     expect(
       await screen.findByText("Passport could not obtain a homeserver invitation."),
     ).toBeInTheDocument();
-    const errorDetails = screen.getByRole("group", { name: "Error" });
-    expect(errorDetails).toHaveClass("border-dashed", "border-input", "min-h-14");
-    expect(errorDetails).not.toContainElement(screen.getByText("Error"));
-    expect(within(errorDetails).getByText("homeserver_signup_token_failed")).toBeInTheDocument();
-    expect(within(errorDetails).getByText("weekly_limit_exceeded")).toBeInTheDocument();
+    const errorDetails = screen.getByText("Technical details").closest("details");
+    expect(errorDetails).not.toHaveAttribute("open");
+    expect(
+      within(errorDetails as HTMLDetailsElement).getByText("homeserver_signup_token_failed"),
+    ).toBeInTheDocument();
+    expect(
+      within(errorDetails as HTMLDetailsElement).getByText("weekly_limit_exceeded"),
+    ).toBeInTheDocument();
     const mobileActions = screen.getByRole("group", { name: "Mobile error actions" });
     const desktopActions = screen.getByRole("group", { name: "Desktop error actions" });
     expect(

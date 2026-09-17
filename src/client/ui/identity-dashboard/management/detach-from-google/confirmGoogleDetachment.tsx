@@ -1,3 +1,6 @@
+import type { GoogleIdentityViewError } from "@/client/logic/google-identity/googleIdentityErrors";
+import { GoogleIdentityErrorDetails } from "@/client/ui/googleIdentityErrorDetails";
+import { googleIdentityErrorMessage } from "@/client/ui/googleIdentityErrorMessage";
 import { ConfirmDeletionDialog } from "@/client/ui/shared/confirmDeletionDialog";
 
 function ConfirmGoogleDetachment({
@@ -12,27 +15,19 @@ function ConfirmGoogleDetachment({
 }: {
   canConfirm: boolean;
   canRetryAuthorization: boolean;
-  error: string | null;
+  error: GoogleIdentityViewError | null;
   onCancel: () => void;
   onConfirm: () => void;
   onRetryAuthorization: () => void;
   open: boolean;
   pending: boolean;
 }) {
-  const errorMessage =
-    error === null
-      ? null
-      : `${
-          canRetryAuthorization
-            ? "Could not connect to Google. Try again."
-            : "Could not remove Google access. Please try again."
-        } ${error}`;
-
   return (
     <ConfirmDeletionDialog
       canConfirm={canConfirm}
       confirmLabel="Confirm deletion"
-      error={errorMessage}
+      error={error === null ? undefined : googleIdentityErrorMessage(error.code)}
+      errorDetails={error === null ? undefined : <GoogleIdentityErrorDetails error={error} />}
       id="detach-google"
       onCancel={onCancel}
       onConfirm={onConfirm}

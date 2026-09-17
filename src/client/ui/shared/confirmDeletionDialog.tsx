@@ -14,7 +14,9 @@ type ConfirmDeletionDialogProps = {
   canConfirm?: boolean;
   confirmLabel: string;
   description?: ReactNode;
-  error?: ReactNode;
+  error?: string | undefined;
+  /** Rendered under the error message, e.g. a technical-details disclosure. */
+  errorDetails?: ReactNode | undefined;
   id: string;
   onCancel: () => void;
   onConfirm: () => void;
@@ -30,6 +32,7 @@ function ConfirmDeletionDialog({
   confirmLabel,
   description,
   error,
+  errorDetails,
   id,
   onCancel,
   onConfirm,
@@ -108,7 +111,8 @@ function ConfirmDeletionDialog({
             ref={confirmationInput}
             value={confirmation}
           />
-          {error ? <FieldMessage error>{error}</FieldMessage> : null}
+          {error === undefined ? null : <FieldMessage error>{error}</FieldMessage>}
+          {errorDetails}
         </div>
 
         <div className="flex flex-col gap-3">

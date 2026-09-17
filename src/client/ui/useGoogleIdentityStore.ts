@@ -2,10 +2,8 @@ import type { Result } from "better-result";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
-import type {
-  GoogleIdentityViewError,
-  GoogleIdentityViewState,
-} from "@/client/logic/google-identity/GoogleIdentityController";
+import type { GoogleIdentityViewError } from "@/client/logic/google-identity/googleIdentityErrors";
+import type { GoogleIdentityViewState } from "@/client/logic/google-identity/GoogleIdentityController";
 import { useGoogleIdentityConfiguration } from "./googleIdentityConfiguration";
 import {
   usePassportCollaborators,

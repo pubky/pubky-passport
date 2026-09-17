@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -63,7 +63,7 @@ describe("ConfirmGoogleDetachment", () => {
       <ConfirmGoogleDetachment
         canConfirm={false}
         canRetryAuthorization
-        error="authorization_failed"
+        error={{ code: "authorization_failed" }}
         onCancel={vi.fn()}
         onConfirm={vi.fn()}
         onRetryAuthorization={onRetryAuthorization}
@@ -81,12 +81,12 @@ describe("ConfirmGoogleDetachment", () => {
     expect(confirmation).not.toHaveAttribute("aria-invalid");
   });
 
-  it("shows the safe detachment error code", async () => {
+  it("shows user copy and keeps the safe error code behind details", async () => {
     render(
       <ConfirmGoogleDetachment
         canConfirm
         canRetryAuthorization={false}
-        error="google_drive_cleanup_failed"
+        error={{ code: "google_drive_cleanup_failed" }}
         onCancel={vi.fn()}
         onConfirm={vi.fn()}
         onRetryAuthorization={vi.fn()}
@@ -95,6 +95,14 @@ describe("ConfirmGoogleDetachment", () => {
       />,
     );
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("google_drive_cleanup_failed");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not remove Google access. Please try again.",
+    );
+    expect(screen.getByRole("alert")).not.toHaveTextContent("google_drive_cleanup_failed");
+    const details = screen.getByText("Technical details").closest("details");
+    expect(details).not.toHaveAttribute("open");
+    expect(
+      within(details as HTMLDetailsElement).getByText("google_drive_cleanup_failed"),
+    ).toBeInTheDocument();
   });
 });

@@ -1,10 +1,8 @@
 import { Result } from "better-result";
 import { vi } from "vitest";
 
-import type {
-  GoogleIdentityViewError,
-  GoogleIdentityViewState,
-} from "@/client/logic/google-identity/GoogleIdentityController";
+import type { GoogleIdentityViewError } from "@/client/logic/google-identity/googleIdentityErrors";
+import type { GoogleIdentityViewState } from "@/client/logic/google-identity/GoogleIdentityController";
 import type { GoogleIdentityControllerPort } from "@/client/ui/passportCollaborators";
 
 export type MockGoogleIdentityController = GoogleIdentityControllerPort & {
