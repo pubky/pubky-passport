@@ -21,7 +21,7 @@ type ConfirmDeletionDialogProps = {
   open: boolean;
   pending?: boolean;
   pendingLabel?: string;
-  retryAction?: { label: string; onClick: () => void };
+  retryAction?: { label: string; onClick: () => void } | undefined;
   title: string;
 };
 
@@ -65,7 +65,7 @@ function ConfirmDeletionDialog({
 
   return (
     <Dialog
-      {...(description ? { "aria-describedby": descriptionId } : {})}
+      aria-describedby={description ? descriptionId : undefined}
       aria-labelledby={titleId}
       className="mb-0 mt-auto w-full max-w-none rounded-t-xl border bg-popover p-6 text-foreground shadow-[0_50px_100px_rgba(5,5,10,0.75)] backdrop:bg-black/75 sm:m-auto sm:max-w-[375px] sm:rounded-xl"
       onOpenChange={(nextOpen) => {

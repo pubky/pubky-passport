@@ -6,7 +6,7 @@ import { cn } from "@/client/ui/shared/mergeClassNames";
 type AvatarProps = ComponentPropsWithoutRef<"span"> & {
   fallback: string;
   size?: "sm" | "md" | "lg";
-  src?: string;
+  src?: string | undefined;
 };
 
 const sizes = { sm: "size-10 text-sm", md: "size-12 text-base", lg: "size-24 text-2xl" };

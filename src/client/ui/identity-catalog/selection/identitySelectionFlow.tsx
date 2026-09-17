@@ -15,7 +15,7 @@ function IdentitySelectionFlow({
   selectIdentity,
 }: {
   catalog: LocalIdentityCatalog;
-  forAuthorization?: boolean;
+  forAuthorization?: boolean | undefined;
   onBack: () => void;
   onIdentitySelected: () => void;
   selectIdentity: (publicKeyZ32: string) => LocalIdentityResult<void>;

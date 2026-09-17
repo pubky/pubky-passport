@@ -55,12 +55,12 @@ function IdentitySwitcher({
           const publicKeyZ32 = identity.publicIdentity.publicKeyZ32;
           return (
             <IdentityRow
-              {...(account?.pictureUrl ? { avatarSrc: account.pictureUrl } : {})}
+              avatarSrc={account?.pictureUrl ?? undefined}
               detail={account?.email ?? shortPublicKey(publicKeyZ32)}
               key={publicKeyZ32}
               name={account?.name ?? "Your Pubky"}
               onClick={() => onSelect(publicKeyZ32)}
-              {...(account ? { provider: "google" } : {})}
+              provider={account ? "google" : undefined}
               selected={publicKeyZ32 === activePublicKeyZ32}
             />
           );

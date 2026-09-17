@@ -10,8 +10,8 @@ import {
 import { LocalIdentityController } from "@/client/logic/local-identity/LocalIdentityController";
 
 export type IdentitySetup = (props: {
-  forAuthorization?: boolean;
-  onBack?: () => void;
+  forAuthorization?: boolean | undefined;
+  onBack?: (() => void) | undefined;
   onComplete: () => void;
 }) => ReactNode;
 

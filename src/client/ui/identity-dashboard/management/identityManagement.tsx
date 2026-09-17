@@ -93,7 +93,7 @@ function IdentityManagement({
           className="ml-auto"
           fallback={name}
           size="lg"
-          {...(account?.pictureUrl ? { src: account.pictureUrl } : {})}
+          src={account?.pictureUrl ?? undefined}
         />
       </header>
 

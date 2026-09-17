@@ -5,10 +5,10 @@ import { cn } from "@/client/ui/shared/mergeClassNames";
 import { Avatar } from "@/client/ui/shared/primitives/avatar";
 
 type IdentityRowProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  avatarSrc?: string;
+  avatarSrc?: string | undefined;
   detail: string;
   name: string;
-  provider?: ReactNode;
+  provider?: ReactNode | undefined;
   selected?: boolean;
 };
 
@@ -36,7 +36,7 @@ function IdentityRow({
       type="button"
       {...props}
     >
-      <Avatar fallback={name} size="sm" {...(avatarSrc ? { src: avatarSrc } : {})} />
+      <Avatar fallback={name} size="sm" src={avatarSrc} />
       {googleProvider ? (
         <span className="absolute left-[39px] top-[39px] flex size-4 items-center justify-center drop-shadow-xl">
           {providerMark}

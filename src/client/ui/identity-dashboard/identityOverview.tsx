@@ -24,11 +24,7 @@ function IdentityOverview({
         Your{" "}
       </DisplayHeading>
       <section className="flex w-full flex-col items-center gap-6 overflow-hidden rounded-2xl bg-card px-6 pb-6 pt-12 md:grid md:grid-cols-[96px_1fr] md:grid-rows-[104px_60px_40px] md:gap-x-6 md:gap-y-6 md:p-12">
-        <Avatar
-          fallback={name}
-          size="lg"
-          {...(account?.pictureUrl ? { src: account.pictureUrl } : {})}
-        />
+        <Avatar fallback={name} size="lg" src={account?.pictureUrl ?? undefined} />
         <div className="flex w-full flex-col items-center gap-3 text-center md:items-start md:self-start md:gap-0 md:text-left">
           <h2 className="w-[276px] max-w-full text-2xl font-bold leading-8">{name}</h2>
           <p className="w-[276px] max-w-full break-all text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">

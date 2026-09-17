@@ -39,9 +39,9 @@ function ConfirmGoogleDetachment({
       open={open}
       pending={pending}
       pendingLabel="Removing…"
-      {...(canRetryAuthorization
-        ? { retryAction: { label: "Try again", onClick: onRetryAuthorization } }
-        : {})}
+      retryAction={
+        canRetryAuthorization ? { label: "Try again", onClick: onRetryAuthorization } : undefined
+      }
       title="Remove Google Access"
     />
   );

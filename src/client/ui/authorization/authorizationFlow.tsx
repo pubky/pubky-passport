@@ -139,7 +139,7 @@ function AuthorizationWithIdentity({
       );
       return (
         <AuthorizationReview
-          {...(activeIdentity ? { identity: activeIdentity } : {})}
+          identity={activeIdentity}
           onAuthorize={() => {
             if (activeIdentity) {
               void passportAuthorizationController.approve(

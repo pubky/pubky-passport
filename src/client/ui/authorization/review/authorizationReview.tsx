@@ -19,7 +19,7 @@ function AuthorizationReview({
   phase,
   review,
 }: {
-  identity?: LocalIdentityMetadata;
+  identity?: LocalIdentityMetadata | undefined;
   onAuthorize: () => void;
   onCancel: () => void;
   onSwitch: () => void;
@@ -71,11 +71,7 @@ function AuthorizationReview({
           <div className="relative flex h-[72px] items-center gap-2 rounded-2xl bg-card p-4">
             {identity ? (
               <>
-                <Avatar
-                  fallback={identityName}
-                  size="sm"
-                  {...(account?.pictureUrl ? { src: account.pictureUrl } : {})}
-                />
+                <Avatar fallback={identityName} size="sm" src={account?.pictureUrl ?? undefined} />
                 {account ? (
                   <span className="absolute left-[39px] top-[39px] flex size-4 items-center justify-center drop-shadow-xl">
                     <GoogleLogo />
