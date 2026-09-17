@@ -68,7 +68,7 @@ function GoogleIdentityError({
               </div>
               <div
                 aria-label="Desktop error actions"
-                className="hidden w-full grid-cols-[1fr_148px] gap-3 md:grid md:gap-x-6"
+                className="hidden w-full grid-cols-(--passport-error-actions-compact-columns) gap-3 md:grid md:gap-x-6"
                 role="group"
               >
                 <Button
@@ -108,7 +108,7 @@ function GoogleIdentityError({
               </div>
               <div
                 aria-label="Desktop error actions"
-                className="hidden w-full grid-cols-[120px_1fr_148px] gap-3 md:grid md:gap-x-0"
+                className="hidden w-full grid-cols-(--passport-error-actions-columns) gap-3 md:grid md:gap-x-0"
                 role="group"
               >
                 <BackButton className="md:col-start-1 md:row-start-1" onClick={onBack} />
@@ -180,7 +180,7 @@ function GoogleAccessDenied({
       </div>
       <div
         aria-label="Desktop error actions"
-        className="hidden w-full grid-cols-[120px_1fr_148px] items-center gap-0 md:grid"
+        className="hidden w-full grid-cols-(--passport-error-actions-columns) items-center gap-0 md:grid"
         role="group"
       >
         <BackButton className="md:col-start-1 md:row-start-1" onClick={onBack} />

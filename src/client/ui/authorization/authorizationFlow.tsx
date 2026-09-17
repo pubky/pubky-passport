@@ -211,7 +211,7 @@ function AuthorizationTerminal({ outcome }: { outcome: "approved" | "cancelled" 
         <Image
           alt=""
           aria-hidden="true"
-          className="mx-auto size-[200px]"
+          className="mx-auto size-50"
           height={200}
           src="/illustrations/checkmark.png"
           width={200}

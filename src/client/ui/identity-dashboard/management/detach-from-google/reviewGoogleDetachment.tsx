@@ -32,7 +32,7 @@ function ReviewGoogleDetachment({
         <Image
           alt=""
           aria-hidden="true"
-          className="size-[200px] object-cover"
+          className="size-50 object-cover"
           height={200}
           src="/illustrations/cloud.png"
           width={200}

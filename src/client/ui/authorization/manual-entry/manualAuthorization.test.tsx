@@ -55,7 +55,7 @@ describe("ManualAuthorization", () => {
     const input = screen.getByLabelText("Authorization link");
     expect(input).toHaveValue("");
     expect(input).toHaveAttribute("placeholder", "pubkyauth://");
-    expect(input.parentElement).toHaveClass("h-14", "md:h-[60px]");
+    expect(input.parentElement).toHaveClass("h-14", "md:h-15");
     expect(screen.getByText("Authorization link")).toHaveClass("leading-5", "md:leading-4");
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     const scanButton = screen.getByRole("button", { name: "Scan QR" });

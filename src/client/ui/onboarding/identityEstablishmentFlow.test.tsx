@@ -105,7 +105,7 @@ describe("IdentityEstablishmentFlow", () => {
     expect(requestingHeading.closest("main")).toHaveClass("gap-6", "md:gap-8");
     const waiting = screen.getByRole("button", { name: "Waiting for Google..." });
     expect(waiting).toBeDisabled();
-    expect(waiting).toHaveClass("w-full", "h-[60px]", "bg-secondary", "disabled:opacity-50");
+    expect(waiting).toHaveClass("w-full", "h-15", "bg-secondary", "disabled:opacity-50");
     expect(
       within(screen.getByRole("status")).getByText("Waiting for Google..."),
     ).toBeInTheDocument();
@@ -372,7 +372,12 @@ describe("IdentityEstablishmentFlow", () => {
     ]);
     expect(mobileActions).toHaveClass("mt-auto", "md:hidden");
     expect(mobileActions.parentElement).toHaveClass("min-h-0", "flex-1");
-    expect(desktopActions).toHaveClass("hidden", "md:grid", "grid-cols-[1fr_148px]", "md:gap-x-6");
+    expect(desktopActions).toHaveClass(
+      "hidden",
+      "md:grid",
+      "grid-cols-(--passport-error-actions-compact-columns)",
+      "md:gap-x-6",
+    );
     expect(mobileDelete).toHaveClass("bg-destructive-surface", "text-destructive-foreground");
     expect(desktopDelete).toHaveClass(
       "bg-destructive-surface",

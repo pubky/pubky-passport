@@ -57,7 +57,7 @@ function GoogleIdentityComplete({
         <Image
           alt=""
           aria-hidden="true"
-          className="mx-auto mt-6 size-[200px] md:order-4 md:mt-8"
+          className="mx-auto mt-6 size-50 md:order-4 md:mt-8"
           height={200}
           src="/illustrations/checkmark.png"
           width={200}

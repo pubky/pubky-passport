@@ -122,7 +122,7 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
               aria-invalid={Boolean(error)}
               autoCapitalize="none"
               autoComplete="off"
-              containerClassName="h-14 border-dashed bg-transparent md:h-[60px]"
+              containerClassName="h-14 border-dashed bg-transparent md:h-15"
               id="authorization-link"
               onInput={(event) => {
                 setHasAuthorization(event.currentTarget.value.trim().length > 0);

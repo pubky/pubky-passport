@@ -69,7 +69,7 @@ function IdentitySwitcher({
         {selectionFailed ? (
           <FieldMessage error>Could not switch identities. Please try again.</FieldMessage>
         ) : null}
-        <div className="flex min-h-[136px] flex-1 flex-col gap-4 md:grid md:min-h-0 md:flex-none md:grid-cols-[120px_1fr_228px] md:items-center md:gap-0">
+        <div className="flex min-h-[136px] flex-1 flex-col gap-4 md:grid md:min-h-0 md:flex-none md:grid-cols-(--passport-navigation-columns) md:items-center md:gap-0">
           {desktopViewport
             ? [
                 <div className="mt-auto w-full md:col-start-1 md:mt-0" key="back">

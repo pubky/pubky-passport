@@ -11,7 +11,7 @@ function Input({ action, className, containerClassName, ...props }: InputProps) 
   return (
     <div
       className={cn(
-        "flex h-[60px] items-center gap-3 overflow-hidden rounded-lg border border-input bg-black/10 pl-6 pr-5 shadow-xs focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30 has-[:disabled]:opacity-50 has-[[aria-invalid=true]]:border-destructive",
+        "flex h-15 items-center gap-3 overflow-hidden rounded-lg border border-input bg-black/10 pl-6 pr-5 shadow-xs focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30 has-[:disabled]:opacity-50 has-[[aria-invalid=true]]:border-destructive",
         containerClassName,
       )}
     >

@@ -104,7 +104,7 @@ function RecoveryFileDownload({
               aria-describedby="recovery-file-password-requirement"
               aria-invalid={passwordTooShort || undefined}
               autoComplete="new-password"
-              containerClassName="h-14 border-dashed md:h-[60px]"
+              containerClassName="h-14 border-dashed md:h-15"
               id="recovery-file-password"
               maxLength={1024}
               minLength={MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS}
@@ -139,7 +139,7 @@ function RecoveryFileDownload({
         <Image
           alt=""
           aria-hidden="true"
-          className="order-3 mx-auto size-[200px] md:order-[0] md:col-start-2 md:row-start-2 md:mt-3"
+          className="order-3 mx-auto size-50 md:order-[0] md:col-start-2 md:row-start-2 md:mt-3"
           height={200}
           src="/illustrations/file.png"
           width={200}
