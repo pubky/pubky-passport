@@ -9,8 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   mockGoogleIdentityController,
   type MockGoogleIdentityController,
-} from "../../../../test-utils/mockGoogleIdentityController";
-import { withPassportTestProviders } from "../../../../test-utils/googleIdentityConfiguration";
+} from "@test-utils/mockGoogleIdentityController";
+import { withPassportTestProviders } from "@test-utils/googleIdentityConfiguration";
 import { LOGGER } from "@/libs/logger/logger";
 import type { PassportCollaborators } from "@/client/ui/passportCollaborators";
 import { IdentityEstablishmentFlow } from "./identityEstablishmentFlow";

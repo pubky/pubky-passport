@@ -8,9 +8,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PassportAuthorizationViewState } from "@/client/logic/authorization/flow/PassportAuthorizationController";
 import type { LocalIdentityCatalog } from "@/client/logic/local-identity/localIdentityModels";
-import { fakeLocalIdentityController } from "../../../../test-utils/fakeLocalIdentityController";
-import { fakePassportAuthorizationController } from "../../../../test-utils/fakePassportAuthorizationController";
-import { withPassportTestProviders } from "../../../../test-utils/googleIdentityConfiguration";
+import { fakeLocalIdentityController } from "@test-utils/fakeLocalIdentityController";
+import { fakePassportAuthorizationController } from "@test-utils/fakePassportAuthorizationController";
+import { withPassportTestProviders } from "@test-utils/googleIdentityConfiguration";
 import { AuthorizationFlow } from "./authorizationFlow";
 
 const MOCKS = {

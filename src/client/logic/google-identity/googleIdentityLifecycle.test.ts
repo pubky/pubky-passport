@@ -3,7 +3,7 @@
 import { Result, type Result as ResultType } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { expectResultOk } from "../../../../test-utils/resultAssertions";
+import { expectResultOk } from "@test-utils/resultAssertions";
 import { LOGGER } from "@/libs/logger/logger";
 import { NETWORK_OPERATION_TIMEOUT_MS } from "@/libs/passportPolicy";
 import { GoogleIdentityLifecycle, type GoogleIdentityProgress } from "./GoogleIdentityLifecycle";

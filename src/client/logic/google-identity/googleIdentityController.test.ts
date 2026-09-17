@@ -3,7 +3,7 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { expectResultError } from "../../../../test-utils/resultAssertions";
+import { expectResultError } from "@test-utils/resultAssertions";
 import { LOGGER } from "@/libs/logger/logger";
 import { GoogleIdentityController, type GoogleIdentityViewState } from "./GoogleIdentityController";
 
