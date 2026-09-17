@@ -1,9 +1,9 @@
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { HttpResponseError } from "../../../../libs/http/HttpResponseError";
-import { LOGGER } from "../../../../libs/logger/logger";
-import type { PassportFileEnvelope } from "../passportFileEnvelope";
+import { HttpResponseError } from "@/libs/http/HttpResponseError";
+import { LOGGER } from "@/libs/logger/logger";
+import type { PassportFileEnvelope } from "@/client/logic/passport-file/passportFileEnvelope";
 import { GoogleDriveVisibleRecoveryCopies } from "./GoogleDriveVisibleRecoveryCopies";
 
 const ACCESS_TOKEN = "SECRET-DRIVE-TOKEN";

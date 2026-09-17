@@ -3,11 +3,11 @@ import { useCallback, useSyncExternalStore } from "react";
 import {
   PassportAuthorizationController,
   type PassportAuthorizationViewState,
-} from "../../logic/authorization/flow/PassportAuthorizationController";
+} from "@/client/logic/authorization/flow/PassportAuthorizationController";
 import {
   usePassportCollaborators,
   type AuthorizationControllerPort,
-} from "../passportCollaborators";
+} from "@/client/ui/passportCollaborators";
 
 export type AuthorizationController = AuthorizationControllerPort;
 

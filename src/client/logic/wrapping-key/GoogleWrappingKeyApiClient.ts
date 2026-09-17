@@ -3,11 +3,11 @@ import "client-only";
 import { Result } from "better-result";
 import { z } from "zod";
 
-import { isCanonicalBase64Url } from "../../../libs/encoding/base64Url";
-import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
-import { readBoundedText } from "../../../libs/http/boundedBody";
-import { HttpResponseError } from "../../../libs/http/HttpResponseError";
-import { MAXIMUM_JSON_BODY_BYTES, passportKeyIdSchema } from "../../../libs/passportPolicy";
+import { isCanonicalBase64Url } from "@/libs/encoding/base64Url";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import { readBoundedText } from "@/libs/http/boundedBody";
+import { HttpResponseError } from "@/libs/http/HttpResponseError";
+import { MAXIMUM_JSON_BODY_BYTES, passportKeyIdSchema } from "@/libs/passportPolicy";
 
 const ERROR_CODES = [
   "invalid_request",

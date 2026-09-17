@@ -7,8 +7,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { withPassportTestProviders } from "../../../../../../test-utils/googleIdentityConfiguration";
 import { mockGoogleIdentityController } from "../../../../../../test-utils/mockGoogleIdentityController";
-import { LOGGER } from "../../../../../libs/logger/logger";
-import type { PassportCollaborators } from "../../../passportCollaborators";
+import { LOGGER } from "@/libs/logger/logger";
+import type { PassportCollaborators } from "@/client/ui/passportCollaborators";
 import { useDetachFromGoogle } from "./useDetachFromGoogle";
 
 const MOCKS = {

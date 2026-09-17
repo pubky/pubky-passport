@@ -2,12 +2,12 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import type { GoogleAccountProfile } from "../../../../libs/googleAccountProfile";
-import { encodeBase64Url } from "../../../../libs/encoding/base64Url";
-import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
-import { AUTHORIZATION_TIMEOUT_MS } from "../../../../libs/passportPolicy";
-import type { CodedFailure } from "../../../../libs/result";
-import { GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE } from "../../../../libs/authorization/earlyGoogleImplicitResponse";
+import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
+import { encodeBase64Url } from "@/libs/encoding/base64Url";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import { AUTHORIZATION_TIMEOUT_MS } from "@/libs/passportPolicy";
+import type { CodedFailure } from "@/libs/result";
+import { GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE } from "@/libs/authorization/earlyGoogleImplicitResponse";
 import {
   GOOGLE_AUTHORIZATION_SCOPE,
   parseGoogleAuthorizationResponse,

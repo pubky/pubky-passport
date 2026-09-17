@@ -5,10 +5,10 @@ import { Result, type Result as ResultType } from "better-result";
 import {
   EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS,
   GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE,
-} from "../../../../libs/authorization/earlyGoogleImplicitResponse";
-import { decodeBase64Url } from "../../../../libs/encoding/base64Url";
-import { isRecord } from "../../../../libs/isRecord";
-import { MAXIMUM_JSON_BODY_BYTES } from "../../../../libs/passportPolicy";
+} from "@/libs/authorization/earlyGoogleImplicitResponse";
+import { decodeBase64Url } from "@/libs/encoding/base64Url";
+import { isRecord } from "@/libs/isRecord";
+import { MAXIMUM_JSON_BODY_BYTES } from "@/libs/passportPolicy";
 
 const GOOGLE_DRIVE_APP_DATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
 const GOOGLE_DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";

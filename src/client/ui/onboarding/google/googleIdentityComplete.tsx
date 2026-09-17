@@ -1,10 +1,10 @@
 import Image from "next/image";
 
-import type { GoogleAccountProfile } from "../../../../libs/googleAccountProfile";
-import type { PubkyPublicIdentity } from "../../../logic/pubky/pubkyIdentityKey";
-import { PassportScreen } from "../../shared/passportScreen";
-import { Button } from "../../shared/primitives/button";
-import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
+import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
+import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
+import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { Button } from "@/client/ui/shared/primitives/button";
+import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 import { GoogleAccountCard } from "./googleAccountCard";
 
 function GoogleIdentityComplete({

@@ -3,8 +3,8 @@ import "server-only";
 import { OAuth2Client, type Certificates, type LoginTicket } from "google-auth-library";
 import { Result } from "better-result";
 
-import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
-import type { CodedFailure } from "../../../libs/result";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import type { CodedFailure } from "@/libs/result";
 
 export const CANONICAL_GOOGLE_ISSUER = "https://accounts.google.com";
 

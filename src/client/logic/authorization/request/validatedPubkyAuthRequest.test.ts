@@ -1,7 +1,7 @@
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER } from "@/libs/logger/logger";
 import { ValidatedPubkyAuthRequest } from "./ValidatedPubkyAuthRequest";
 
 const REQUEST =

@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 
-import { CheckIcon, DownloadIcon, KeyRoundIcon } from "../../../shared/icons";
-import { BackButton } from "../../../shared/backButton";
-import { PassportNavigation } from "../../../shared/passportNavigation";
-import { PassportScreen } from "../../../shared/passportScreen";
-import { Button } from "../../../shared/primitives/button";
-import { LeadText } from "../../../shared/primitives/typography";
+import { CheckIcon, DownloadIcon, KeyRoundIcon } from "@/client/ui/shared/icons";
+import { BackButton } from "@/client/ui/shared/backButton";
+import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
+import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { Button } from "@/client/ui/shared/primitives/button";
+import { LeadText } from "@/client/ui/shared/primitives/typography";
 
 function RecoveryBeforeDetaching({
   onBack,

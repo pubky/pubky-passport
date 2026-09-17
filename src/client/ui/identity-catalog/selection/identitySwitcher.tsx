@@ -1,11 +1,11 @@
-import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
+import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { useSyncExternalStore } from "react";
-import { UserRoundPlusIcon } from "../../shared/icons";
-import { BackButton } from "../../shared/backButton";
-import { PassportScreen } from "../../shared/passportScreen";
-import { Button } from "../../shared/primitives/button";
-import { FieldMessage } from "../../shared/primitives/fieldMessage";
-import { DisplayHeading } from "../../shared/primitives/typography";
+import { UserRoundPlusIcon } from "@/client/ui/shared/icons";
+import { BackButton } from "@/client/ui/shared/backButton";
+import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { Button } from "@/client/ui/shared/primitives/button";
+import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
+import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
 import { IdentityRow } from "./identityRow";
 
 function IdentitySwitcher({

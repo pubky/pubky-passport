@@ -2,15 +2,15 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { readBoundedText } from "../../../../libs/http/boundedBody";
-import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
-import { MAXIMUM_JSON_BODY_BYTES } from "../../../../libs/passportPolicy";
-import type { CodedFailure } from "../../../../libs/result";
+import { readBoundedText } from "@/libs/http/boundedBody";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import { MAXIMUM_JSON_BODY_BYTES } from "@/libs/passportPolicy";
+import type { CodedFailure } from "@/libs/result";
 import {
   parsePassportFileContents,
   serializePassportFileEnvelope,
   type PassportFileEnvelope,
-} from "../passportFileEnvelope";
+} from "@/client/logic/passport-file/passportFileEnvelope";
 import {
   authorizationHeaders,
   createDriveHttpResponseFailure,

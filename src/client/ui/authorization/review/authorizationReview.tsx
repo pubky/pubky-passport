@@ -1,14 +1,14 @@
 import { useLayoutEffect, useRef } from "react";
 
-import type { AuthorizationRequestReview } from "../../../logic/authorization/request/ValidatedPubkyAuthRequest";
-import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
-import { GoogleLogo } from "../../shared/brand/googleLogo";
-import { CheckIcon, SquareUserRoundIcon, XIcon } from "../../shared/icons";
-import { PassportNavigation } from "../../shared/passportNavigation";
-import { PassportScreen } from "../../shared/passportScreen";
-import { Avatar } from "../../shared/primitives/avatar";
-import { Button } from "../../shared/primitives/button";
-import { DisplayHeading } from "../../shared/primitives/typography";
+import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
+import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
+import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
+import { CheckIcon, SquareUserRoundIcon, XIcon } from "@/client/ui/shared/icons";
+import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
+import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { Avatar } from "@/client/ui/shared/primitives/avatar";
+import { Button } from "@/client/ui/shared/primitives/button";
+import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
 import { PermissionList, PermissionRow } from "./permissionList";
 
 function AuthorizationReview({

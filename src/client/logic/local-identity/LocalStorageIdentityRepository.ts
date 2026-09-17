@@ -2,25 +2,18 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import {
-  decodeBase64Url,
-  encodeBase64Url,
-  isCanonicalBase64Url,
-} from "../../../libs/encoding/base64Url";
-import {
-  isGoogleAccountProfile,
-  type GoogleAccountProfile,
-} from "../../../libs/googleAccountProfile";
-import { isRecord } from "../../../libs/isRecord";
-import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
-import type { CodedFailure } from "../../../libs/result";
+import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "@/libs/encoding/base64Url";
+import { isGoogleAccountProfile, type GoogleAccountProfile } from "@/libs/googleAccountProfile";
+import { isRecord } from "@/libs/isRecord";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import type { CodedFailure } from "@/libs/result";
 import {
   isPubkyPublicIdentity,
   isPubkyPublicKey,
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,
   type PubkySecretKeyMaterial,
-} from "../pubky/pubkyIdentityKey";
+} from "@/client/logic/pubky/pubkyIdentityKey";
 import type { LocalIdentityCatalog, LocalIdentityMetadata } from "./localIdentityModels";
 
 type StoredLocalIdentity = {

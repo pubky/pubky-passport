@@ -1,7 +1,7 @@
 import "server-only";
 
-import { isCspSafeHostname } from "../libs/http/cspSafeHostname";
-import { PASSPORT_KEY_ID_PATTERN } from "../libs/passportPolicy";
+import { isCspSafeHostname } from "@/libs/http/cspSafeHostname";
+import { PASSPORT_KEY_ID_PATTERN } from "@/libs/passportPolicy";
 
 const MINIMUM_SERVER_SECRET_BYTES = 32;
 

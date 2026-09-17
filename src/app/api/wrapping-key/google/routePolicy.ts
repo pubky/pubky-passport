@@ -3,9 +3,9 @@ import "server-only";
 import { Result, type Result as ResultType } from "better-result";
 import { z } from "zod";
 
-import { readBoundedText } from "../../../../libs/http/boundedBody";
-import { MAXIMUM_JSON_BODY_BYTES, passportKeyIdSchema } from "../../../../libs/passportPolicy";
-import type { CodedFailure } from "../../../../libs/result";
+import { readBoundedText } from "@/libs/http/boundedBody";
+import { MAXIMUM_JSON_BODY_BYTES, passportKeyIdSchema } from "@/libs/passportPolicy";
+import type { CodedFailure } from "@/libs/result";
 
 const REQUEST_SCHEMA = z
   .object({

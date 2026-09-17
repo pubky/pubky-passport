@@ -1,11 +1,11 @@
 import { Result } from "better-result";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { LOGGER, safeErrorLogFields } from "../../../../../libs/logger/logger";
-import type { GoogleIdentityViewError } from "../../../../logic/google-identity/GoogleIdentityController";
-import type { PubkyPublicIdentity } from "../../../../logic/pubky/pubkyIdentityKey";
-import { useGoogleIdentityConfiguration } from "../../../googleIdentityConfiguration";
-import { usePassportCollaborators } from "../../../passportCollaborators";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import type { GoogleIdentityViewError } from "@/client/logic/google-identity/GoogleIdentityController";
+import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
+import { useGoogleIdentityConfiguration } from "@/client/ui/googleIdentityConfiguration";
+import { usePassportCollaborators } from "@/client/ui/passportCollaborators";
 
 type DetachFromGoogleOperationState =
   | { status: "ready" }

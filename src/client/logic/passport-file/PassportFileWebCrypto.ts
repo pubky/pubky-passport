@@ -2,10 +2,10 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { decodeBase64Url, encodeBase64Url } from "../../../libs/encoding/base64Url";
-import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
-import type { CodedFailure } from "../../../libs/result";
-import { PUBKY_SECRET_KEY_BYTES } from "../pubky/pubkyIdentityKey";
+import { decodeBase64Url, encodeBase64Url } from "@/libs/encoding/base64Url";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import type { CodedFailure } from "@/libs/result";
+import { PUBKY_SECRET_KEY_BYTES } from "@/client/logic/pubky/pubkyIdentityKey";
 import {
   normalizePassportFileOrigin,
   parsePassportFileEnvelope,

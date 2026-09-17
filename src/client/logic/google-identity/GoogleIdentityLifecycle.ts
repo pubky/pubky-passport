@@ -2,31 +2,31 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import type { GoogleAccountProfile } from "../../../libs/googleAccountProfile";
-import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
-import { NETWORK_OPERATION_TIMEOUT_MS, REQUEST_TIMEOUT_MS } from "../../../libs/passportPolicy";
-import type { CodedFailure } from "../../../libs/result";
+import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import { NETWORK_OPERATION_TIMEOUT_MS, REQUEST_TIMEOUT_MS } from "@/libs/passportPolicy";
+import type { CodedFailure } from "@/libs/result";
 import type { GoogleIdentityCredentials } from "./gia/GoogleImplicitAuthorization";
 import {
   HomegateClient,
   type HomegateSignupTokenErrorCode,
   type HomeserverSignupDetails,
-} from "../homegate/HomegateClient";
-import { GoogleDrivePassportFileStore } from "../passport-file/google/GoogleDrivePassportFileStore";
-import { GoogleDriveVisibleRecoveryCopies } from "../passport-file/google/GoogleDriveVisibleRecoveryCopies";
-import type { PassportFileEnvelope } from "../passport-file/passportFileEnvelope";
-import { PassportFileWebCrypto } from "../passport-file/PassportFileWebCrypto";
+} from "@/client/logic/homegate/HomegateClient";
+import { GoogleDrivePassportFileStore } from "@/client/logic/passport-file/google/GoogleDrivePassportFileStore";
+import { GoogleDriveVisibleRecoveryCopies } from "@/client/logic/passport-file/google/GoogleDriveVisibleRecoveryCopies";
+import type { PassportFileEnvelope } from "@/client/logic/passport-file/passportFileEnvelope";
+import { PassportFileWebCrypto } from "@/client/logic/passport-file/PassportFileWebCrypto";
 import {
   PUBKY_SECRET_KEY_FORMAT,
   type PubkyIdentityKey,
   type PubkyPublicIdentity,
-} from "../pubky/pubkyIdentityKey";
-import { PubkySdkAdapter } from "../pubky/PubkySdkAdapter";
+} from "@/client/logic/pubky/pubkyIdentityKey";
+import { PubkySdkAdapter } from "@/client/logic/pubky/PubkySdkAdapter";
 import {
   GoogleWrappingKeyApiClient,
   type GoogleWrappingKeyErrorCode,
-} from "../wrapping-key/GoogleWrappingKeyApiClient";
-import { LocalStorageIdentityRepository } from "../local-identity/LocalStorageIdentityRepository";
+} from "@/client/logic/wrapping-key/GoogleWrappingKeyApiClient";
+import { LocalStorageIdentityRepository } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 
 /** Safe setup or restore progress emitted while establishing an identity. */
 export type GoogleIdentityProgress =

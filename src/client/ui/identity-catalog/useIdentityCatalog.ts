@@ -1,16 +1,16 @@
 import { Result } from "better-result";
 import { useState, useSyncExternalStore } from "react";
 
-import type { LocalIdentityRecoveryFileResult } from "../../logic/local-identity/LocalIdentityController";
-import type { LocalIdentityResult } from "../../logic/local-identity/LocalStorageIdentityRepository";
-import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
-import type { PubkyHomeserverResolutionResult } from "../../logic/pubky/pubkyIdentityKey";
-import type { PubkyRingMigration } from "../../logic/pubky/PubkySdkAdapter";
+import type { LocalIdentityRecoveryFileResult } from "@/client/logic/local-identity/LocalIdentityController";
+import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
+import type { LocalIdentityCatalog } from "@/client/logic/local-identity/localIdentityModels";
+import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubkyIdentityKey";
+import type { PubkyRingMigration } from "@/client/logic/pubky/PubkySdkAdapter";
 import {
   usePassportCollaborators,
   type LocalIdentityControllerPort,
   type PassportCollaborators,
-} from "../passportCollaborators";
+} from "@/client/ui/passportCollaborators";
 
 type IdentityCatalogActions = {
   createMigration: (publicKeyZ32: string) => Promise<LocalIdentityResult<PubkyRingMigration>>;

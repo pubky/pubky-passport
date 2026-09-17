@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Result } from "better-result";
 
-import { encodeBase64Url } from "../../../libs/encoding/base64Url";
+import { encodeBase64Url } from "@/libs/encoding/base64Url";
 import {
   normalizePassportFileOrigin,
   parsePassportFileContents,

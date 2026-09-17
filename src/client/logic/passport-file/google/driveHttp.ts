@@ -3,9 +3,9 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 import { z } from "zod";
 
-import { readBoundedText } from "../../../../libs/http/boundedBody";
-import { HttpResponseError } from "../../../../libs/http/HttpResponseError";
-import { MAXIMUM_JSON_BODY_BYTES } from "../../../../libs/passportPolicy";
+import { readBoundedText } from "@/libs/http/boundedBody";
+import { HttpResponseError } from "@/libs/http/HttpResponseError";
+import { MAXIMUM_JSON_BODY_BYTES } from "@/libs/passportPolicy";
 
 const MULTIPART_BOUNDARY = "pubky-passport-drive-boundary-v1";
 

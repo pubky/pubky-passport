@@ -5,11 +5,11 @@ import { Result } from "better-result";
 import {
   EARLY_AUTHORIZATION_LOCATION_PROPERTY,
   type EarlyAuthorizationLocation,
-} from "../../../../libs/authorization/earlyAuthorizationLocation";
-import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
-import { AUTHORIZATION_CAPTURE_MAX_CHARACTERS } from "../../../../libs/passportPolicy";
-import { ValidatedPubkyAuthRequest } from "../request/ValidatedPubkyAuthRequest";
-import { PUBKY_AUTH_REQUEST_LIMITS } from "../request/parser/pubkyAuthRequestParser";
+} from "@/libs/authorization/earlyAuthorizationLocation";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import { AUTHORIZATION_CAPTURE_MAX_CHARACTERS } from "@/libs/passportPolicy";
+import { ValidatedPubkyAuthRequest } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "@/client/logic/authorization/request/parser/pubkyAuthRequestParser";
 
 export type AuthorizationEntry =
   | {

@@ -5,10 +5,10 @@ import { Result, type Result as ResultType } from "better-result";
 import {
   googleAccountProfileFromUserInfo,
   type GoogleAccountProfile,
-} from "../../../../libs/googleAccountProfile";
-import { readBoundedText } from "../../../../libs/http/boundedBody";
-import { HttpResponseError } from "../../../../libs/http/HttpResponseError";
-import { MAXIMUM_JSON_BODY_BYTES, REQUEST_TIMEOUT_MS } from "../../../../libs/passportPolicy";
+} from "@/libs/googleAccountProfile";
+import { readBoundedText } from "@/libs/http/boundedBody";
+import { HttpResponseError } from "@/libs/http/HttpResponseError";
+import { MAXIMUM_JSON_BODY_BYTES, REQUEST_TIMEOUT_MS } from "@/libs/passportPolicy";
 
 const GOOGLE_USER_INFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 

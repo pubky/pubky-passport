@@ -1,7 +1,7 @@
 import { Result } from "better-result";
 import { describe, expect, it } from "vitest";
 
-import { HttpResponseError } from "../../../../libs/http/HttpResponseError";
+import { HttpResponseError } from "@/libs/http/HttpResponseError";
 import {
   createDriveHttpResponseFailure,
   fetchDrive,

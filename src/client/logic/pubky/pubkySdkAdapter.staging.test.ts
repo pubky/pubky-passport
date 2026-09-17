@@ -2,8 +2,8 @@ import { AuthFlowKind, Pubky, PublicKey, type Session } from "@synonymdev/pubky"
 import { Result, type Result as ResultType } from "better-result";
 import { expect, test } from "vitest";
 
-import { ValidatedPubkyAuthRequest } from "../authorization/request/ValidatedPubkyAuthRequest";
-import { HomegateClient } from "../homegate/HomegateClient";
+import { ValidatedPubkyAuthRequest } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
+import { HomegateClient } from "@/client/logic/homegate/HomegateClient";
 import { PubkySdkAdapter } from "./PubkySdkAdapter";
 
 const CAPABILITIES = "/pub/passport-staging.pubky.app/:rw" as const;

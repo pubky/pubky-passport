@@ -1,7 +1,7 @@
-import type { ButtonProps } from "../shared/primitives/button";
-import { Button } from "../shared/primitives/button";
-import { AppleLogo } from "../shared/brand/appleLogo";
-import { GoogleLogo } from "../shared/brand/googleLogo";
+import type { ButtonProps } from "@/client/ui/shared/primitives/button";
+import { Button } from "@/client/ui/shared/primitives/button";
+import { AppleLogo } from "@/client/ui/shared/brand/appleLogo";
+import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
 
 const providerMark = { apple: <AppleLogo />, google: <GoogleLogo />, ring: "P" };
 

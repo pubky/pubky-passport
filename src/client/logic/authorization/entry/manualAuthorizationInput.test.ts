@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { PUBKY_AUTH_REQUEST_LIMITS } from "../request/parser/pubkyAuthRequestParser";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "@/client/logic/authorization/request/parser/pubkyAuthRequestParser";
 import { validateManualAuthorizationInput } from "./manualAuthorizationInput";
 
 describe("validateManualAuthorizationInput", () => {

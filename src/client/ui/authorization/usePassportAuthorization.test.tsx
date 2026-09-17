@@ -3,7 +3,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { PassportAuthorizationController } from "../../logic/authorization/flow/PassportAuthorizationController";
+import { PassportAuthorizationController } from "@/client/logic/authorization/flow/PassportAuthorizationController";
 import { usePassportAuthorization } from "./usePassportAuthorization";
 
 function Probe() {

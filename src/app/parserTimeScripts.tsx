@@ -3,8 +3,8 @@
 import { useServerInsertedHTML } from "next/navigation";
 import { useRef } from "react";
 
-import { EARLY_AUTHORIZATION_LOCATION_SCRIPT } from "../libs/authorization/earlyAuthorizationLocation";
-import { EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT } from "../libs/authorization/earlyGoogleImplicitResponse";
+import { EARLY_AUTHORIZATION_LOCATION_SCRIPT } from "@/libs/authorization/earlyAuthorizationLocation";
+import { EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT } from "@/libs/authorization/earlyGoogleImplicitResponse";
 
 /** Inserts executable scripts into initial HTML without rendering script elements on the client. */
 export function ParserTimeScripts() {

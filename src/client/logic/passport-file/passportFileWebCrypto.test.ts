@@ -6,9 +6,9 @@ import {
   expectResultError,
   expectResultOk,
 } from "../../../../test-utils/resultAssertions";
-import { encodeBase64Url } from "../../../libs/encoding/base64Url";
-import { LOGGER } from "../../../libs/logger/logger";
-import { PUBKY_SECRET_KEY_BYTES } from "../pubky/pubkyIdentityKey";
+import { encodeBase64Url } from "@/libs/encoding/base64Url";
+import { LOGGER } from "@/libs/logger/logger";
+import { PUBKY_SECRET_KEY_BYTES } from "@/client/logic/pubky/pubkyIdentityKey";
 import { parsePassportFileEnvelope } from "./passportFileEnvelope";
 import { PassportFileWebCrypto } from "./PassportFileWebCrypto";
 

@@ -2,15 +2,15 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import type { GoogleAccountProfile } from "../../../libs/googleAccountProfile";
-import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
-import type { CodedFailure } from "../../../libs/result";
+import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import type { CodedFailure } from "@/libs/result";
 import type {
   GoogleImplicitAuthorization,
   GoogleIdentityCredentials,
   GoogleImplicitAuthorizationError,
 } from "./gia/GoogleImplicitAuthorization";
-import type { PubkyPublicIdentity } from "../pubky/pubkyIdentityKey";
+import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
 import type {
   GoogleIdentityLifecycle,
   GoogleIdentityLifecycleError,

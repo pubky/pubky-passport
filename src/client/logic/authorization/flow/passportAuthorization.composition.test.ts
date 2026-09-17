@@ -4,10 +4,13 @@ import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MemoryStorage } from "../../../../../test-utils/MemoryStorage";
-import { LOGGER } from "../../../../libs/logger/logger";
-import { LocalStorageIdentityRepository } from "../../local-identity/LocalStorageIdentityRepository";
-import type { LocalIdentityMetadata } from "../../local-identity/localIdentityModels";
-import { PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";
+import { LOGGER } from "@/libs/logger/logger";
+import { LocalStorageIdentityRepository } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
+import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
+import {
+  PUBKY_SECRET_KEY_FORMAT,
+  type PubkySecretKeyMaterial,
+} from "@/client/logic/pubky/pubkyIdentityKey";
 
 const MOCKS = vi.hoisted(() => ({
   PubkySdkAdapter: vi.fn(),
@@ -17,7 +20,7 @@ const MOCKS = vi.hoisted(() => ({
   approveAuthRequest: vi.fn(),
 }));
 
-vi.mock("../../pubky/PubkySdkAdapter", () => ({
+vi.mock("@/client/logic/pubky/PubkySdkAdapter", () => ({
   PubkySdkAdapter: MOCKS.PubkySdkAdapter,
 }));
 

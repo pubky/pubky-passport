@@ -11,9 +11,9 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
-import { ValidatedPubkyAuthRequest } from "../authorization/request/ValidatedPubkyAuthRequest";
-import { PUBKY_AUTH_CAPABILITY_LIMITS } from "../authorization/request/parser/pubkyAuthCapabilities";
-import { LOGGER } from "../../../libs/logger/logger";
+import { ValidatedPubkyAuthRequest } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
+import { PUBKY_AUTH_CAPABILITY_LIMITS } from "@/client/logic/authorization/request/parser/pubkyAuthCapabilities";
+import { LOGGER } from "@/libs/logger/logger";
 import {
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,
@@ -430,7 +430,7 @@ describe("PubkySdkAdapter", () => {
       },
     }));
     const { resolvePubkyHomeserver } = await import("./PubkySdkAdapter");
-    const { LOGGER: currentLogger } = await import("../../../libs/logger/logger");
+    const { LOGGER: currentLogger } = await import("@/libs/logger/logger");
     const warn = vi.spyOn(currentLogger, "warn").mockImplementation(() => undefined);
 
     const result = await resolvePubkyHomeserver(

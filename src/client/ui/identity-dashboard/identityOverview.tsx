@@ -1,10 +1,10 @@
-import type { LocalIdentityMetadata } from "../../logic/local-identity/localIdentityModels";
-import { GoogleLogo } from "../shared/brand/googleLogo";
-import { KeyRoundIcon, SettingsIcon, SquareUserRoundIcon } from "../shared/icons";
-import { PassportScreen } from "../shared/passportScreen";
-import { Avatar } from "../shared/primitives/avatar";
-import { Button, ButtonLink } from "../shared/primitives/button";
-import { DisplayHeading } from "../shared/primitives/typography";
+import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
+import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
+import { KeyRoundIcon, SettingsIcon, SquareUserRoundIcon } from "@/client/ui/shared/icons";
+import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { Avatar } from "@/client/ui/shared/primitives/avatar";
+import { Button, ButtonLink } from "@/client/ui/shared/primitives/button";
+import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
 
 function IdentityOverview({
   identity,

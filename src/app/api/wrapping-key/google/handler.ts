@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { Result } from "better-result";
 
-import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import {
   GoogleWrappingKeyIssuer,
   type GoogleWrappingKeyIssueErrorCode,
-} from "../../../../server/wrapping-key/google/GoogleWrappingKeyIssuer";
+} from "@/server/wrapping-key/google/GoogleWrappingKeyIssuer";
 import { GOOGLE_WRAPPING_KEY_RESPONSE_HEADERS, parseGoogleIdTokenRequest } from "./routePolicy";
 
 type GoogleWrappingKeyRouteBody =

@@ -1,6 +1,6 @@
 import type { ComponentPropsWithRef, ReactNode } from "react";
 
-import { cn } from "../mergeClassNames";
+import { cn } from "@/client/ui/shared/mergeClassNames";
 
 type InputProps = ComponentPropsWithRef<"input"> & {
   action?: ReactNode;

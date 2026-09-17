@@ -1,10 +1,10 @@
 import { Result } from "better-result";
 import { useState } from "react";
 
-import type { LocalIdentityResult } from "../../../logic/local-identity/LocalStorageIdentityRepository";
-import type { LocalIdentityCatalog } from "../../../logic/local-identity/localIdentityModels";
-import { IdentityEstablishmentFlow } from "../../onboarding/identityEstablishmentFlow";
-import { usePassportCollaborators } from "../../passportCollaborators";
+import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
+import type { LocalIdentityCatalog } from "@/client/logic/local-identity/localIdentityModels";
+import { IdentityEstablishmentFlow } from "@/client/ui/onboarding/identityEstablishmentFlow";
+import { usePassportCollaborators } from "@/client/ui/passportCollaborators";
 import { IdentitySwitcher } from "./identitySwitcher";
 
 function IdentitySelectionFlow({

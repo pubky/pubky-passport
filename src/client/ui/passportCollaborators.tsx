@@ -2,12 +2,12 @@
 
 import { createContext, type ReactNode, useContext, useMemo } from "react";
 
-import type { PassportAuthorizationController } from "../logic/authorization/flow/PassportAuthorizationController";
+import type { PassportAuthorizationController } from "@/client/logic/authorization/flow/PassportAuthorizationController";
 import {
   GoogleIdentityController,
   type GoogleIdentityViewState,
-} from "../logic/google-identity/GoogleIdentityController";
-import { LocalIdentityController } from "../logic/local-identity/LocalIdentityController";
+} from "@/client/logic/google-identity/GoogleIdentityController";
+import { LocalIdentityController } from "@/client/logic/local-identity/LocalIdentityController";
 
 export type IdentitySetup = (props: {
   forAuthorization?: boolean;

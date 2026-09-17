@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LOGGER } from "../libs/logger/logger";
+import { LOGGER } from "@/libs/logger/logger";
 import RootLayout from "./layout";
 
 const MOCKS = vi.hoisted(() => ({ connection: vi.fn() }));

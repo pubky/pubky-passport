@@ -2,15 +2,15 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
-import type { CodedFailure } from "../../../../libs/result";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import type { CodedFailure } from "@/libs/result";
 import {
   LocalStorageIdentityRepository,
   type LocalIdentityErrorCode,
-} from "../../local-identity/LocalStorageIdentityRepository";
-import type { PubkyIdentityKey, PubkyPublicIdentity } from "../../pubky/pubkyIdentityKey";
-import type { PubkySdkAdapter } from "../../pubky/PubkySdkAdapter";
-import type { ValidatedPubkyAuthRequest } from "../request/ValidatedPubkyAuthRequest";
+} from "@/client/logic/local-identity/LocalStorageIdentityRepository";
+import type { PubkyIdentityKey, PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
+import type { PubkySdkAdapter } from "@/client/logic/pubky/PubkySdkAdapter";
+import type { ValidatedPubkyAuthRequest } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 
 type ApproveAuthorizationResult = ResultType<void, CodedFailure<"approval_failed" | "cancelled">>;
 
@@ -36,7 +36,7 @@ export async function approveAuthorization(
   if (signal?.aborted) return Result.err({ code: "cancelled" });
   let pubky: PubkySdkAdapter;
   try {
-    const { PubkySdkAdapter } = await import("../../pubky/PubkySdkAdapter");
+    const { PubkySdkAdapter } = await import("@/client/logic/pubky/PubkySdkAdapter");
     if (signal?.aborted) return Result.err({ code: "cancelled" });
     pubky = new PubkySdkAdapter();
   } catch (e) {

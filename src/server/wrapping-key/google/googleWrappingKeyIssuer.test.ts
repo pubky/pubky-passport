@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 import { OAuth2Client } from "google-auth-library";
 
-import { LOGGER } from "../../../libs/logger/logger";
+import { LOGGER } from "@/libs/logger/logger";
 import { expectAsyncResultError } from "../../../../test-utils/resultAssertions";
 import { GoogleIdTokenVerifier } from "./GoogleIdTokenVerifier";
 import { GoogleWrappingKeyIssuer } from "./GoogleWrappingKeyIssuer";

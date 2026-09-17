@@ -1,4 +1,4 @@
-import { LogInIcon } from "../shared/icons";
+import { LogInIcon } from "@/client/ui/shared/icons";
 
 function SignInBand({ requester }: { requester: string }) {
   return (

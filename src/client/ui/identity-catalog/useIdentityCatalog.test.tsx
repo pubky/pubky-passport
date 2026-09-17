@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fakeLocalIdentityController } from "../../../../test-utils/fakeLocalIdentityController";
 import { withPassportTestProviders } from "../../../../test-utils/googleIdentityConfiguration";
-import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
+import type { LocalIdentityCatalog } from "@/client/logic/local-identity/localIdentityModels";
 import { useIdentityCatalog } from "./useIdentityCatalog";
 
 const CATALOG: {

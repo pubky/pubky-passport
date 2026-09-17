@@ -13,7 +13,7 @@ import {
   isCanonicalPubkyAuthSecret,
   isCanonicalPubkyPublicKey,
   utf8Length,
-} from "../../../pubky/pubkyProtocol";
+} from "@/client/logic/pubky/pubkyProtocol";
 
 export type PubkyAuthenticationMethod = "cookie" | "grant";
 

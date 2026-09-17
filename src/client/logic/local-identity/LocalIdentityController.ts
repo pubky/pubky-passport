@@ -2,10 +2,10 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
-import type { CodedFailure } from "../../../libs/result";
-import type { PubkyHomeserverResolutionResult } from "../pubky/pubkyIdentityKey";
-import type { PubkyRingMigration, PubkySdkAdapter } from "../pubky/PubkySdkAdapter";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import type { CodedFailure } from "@/libs/result";
+import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubkyIdentityKey";
+import type { PubkyRingMigration, PubkySdkAdapter } from "@/client/logic/pubky/PubkySdkAdapter";
 import type { LocalIdentityCatalog } from "./localIdentityModels";
 import {
   LocalStorageIdentityRepository,
@@ -59,7 +59,7 @@ export class LocalIdentityController {
 
   async resolveHomeserver(publicKeyZ32: string): Promise<PubkyHomeserverResolutionResult> {
     try {
-      const { resolvePubkyHomeserver } = await import("../pubky/PubkySdkAdapter");
+      const { resolvePubkyHomeserver } = await import("@/client/logic/pubky/PubkySdkAdapter");
       return await resolvePubkyHomeserver(publicKeyZ32);
     } catch (e) {
       return Result.err({ code: "resolution_failed", cause: e });
@@ -84,7 +84,7 @@ export class LocalIdentityController {
 
     let pubky: PubkySdkAdapter | undefined;
     try {
-      const { PubkySdkAdapter } = await import("../pubky/PubkySdkAdapter");
+      const { PubkySdkAdapter } = await import("@/client/logic/pubky/PubkySdkAdapter");
       pubky = new PubkySdkAdapter();
       const recoveryFile = pubky.createRecoveryFile(stored.value.secretKey, publicKeyZ32, password);
       return Result.isError(recoveryFile)
@@ -120,7 +120,7 @@ export class LocalIdentityController {
     if (Result.isError(stored)) return Result.err(stored.error);
 
     try {
-      const { PubkySdkAdapter } = await import("../pubky/PubkySdkAdapter");
+      const { PubkySdkAdapter } = await import("@/client/logic/pubky/PubkySdkAdapter");
       const migration = PubkySdkAdapter.createPubkyRingMigration(
         stored.value.secretKey,
         publicKeyZ32,
