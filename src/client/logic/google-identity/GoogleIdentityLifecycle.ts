@@ -3,6 +3,7 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
+import { createFailure } from "@/libs/logger/createFailure";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { NETWORK_OPERATION_TIMEOUT_MS, REQUEST_TIMEOUT_MS } from "@/libs/passportPolicy";
 import type { GoogleIdentityCredentials } from "./gia/GoogleImplicitAuthorization";
@@ -60,24 +61,6 @@ type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityLifecycleError>
 
 type EstablishmentStepResult<Success = void> = ResultType<Success, GoogleIdentityLifecycleError>;
 
-/**
- * Executes Google-backed identity establishment, repair, and detachment.
- *
- * Unlike `GoogleIdentityController`, this class does not request authorization or own
- * presentation state. It receives fresh credentials from the controller and coordinates Google
- * Drive persistence, wrapping-key retrieval, Homegate signup, cryptography, local storage, and
- * Pubky activation.
- *
- * Public asynchronous operations settle with a Result for operational and unexpected failures;
- * they do not intentionally reject. Construction can throw when a required browser dependency or
- * configured endpoint cannot be initialized.
- *
- * Optional `dependencies` replace the collaborators this class otherwise
- * constructs. Production omits them.
- *
- * An injected `pubky` is not disposed if later construction throws. After a
- * successful constructor, {@link dispose} always disposes `this.pubky`.
- */
 export type DriveStorePort = Pick<
   GoogleDrivePassportFileStore,
   "readPassportFile" | "deleteInvalidPassportFile" | "createPassportFile" | "deletePassportFile"
@@ -114,6 +97,28 @@ export type GoogleIdentityLifecycleDependencies = {
   ) => VisibleRecoveryCopiesPort;
 };
 
+const detachFailure = createFailure<GoogleIdentityLifecycleError["code"]>(
+  "identity.google.detach.failed",
+);
+
+/**
+ * Executes Google-backed identity establishment, repair, and detachment.
+ *
+ * Unlike `GoogleIdentityController`, this class does not request authorization or own
+ * presentation state. It receives fresh credentials from the controller and coordinates Google
+ * Drive persistence, wrapping-key retrieval, Homegate signup, cryptography, local storage, and
+ * Pubky activation.
+ *
+ * Public asynchronous operations settle with a Result for operational and unexpected failures;
+ * they do not intentionally reject. Construction can throw when a required browser dependency or
+ * configured endpoint cannot be initialized.
+ *
+ * Optional `dependencies` replace the collaborators this class otherwise
+ * constructs. Production omits them.
+ *
+ * An injected `pubky` is not disposed if later construction throws. After a
+ * successful constructor, {@link dispose} always disposes `this.pubky`.
+ */
 export class GoogleIdentityLifecycle {
   private readonly repository: NonNullable<GoogleIdentityLifecycleDependencies["repository"]>;
   private readonly pubky: NonNullable<GoogleIdentityLifecycleDependencies["pubky"]>;
@@ -285,11 +290,7 @@ export class GoogleIdentityLifecycle {
     expectedGoogleSubject: string,
   ): Promise<DetachGoogleIdentityResult> {
     if (credentials.googleAccount.googleSubject !== expectedGoogleSubject) {
-      LOGGER.warn("identity.google.detach.failed", {
-        stage: "account_binding",
-        code: "google_account_mismatch",
-      });
-      return Result.err({ code: "google_account_mismatch" });
+      return detachFailure({ stage: "account_binding", code: "google_account_mismatch" });
     }
 
     try {
@@ -301,11 +302,10 @@ export class GoogleIdentityLifecycle {
         ? Result.err({ code: "local_remove_failed", cause: removed.error })
         : Result.ok();
     } catch (e) {
-      LOGGER.warn("identity.google.detach.failed", {
-        code: "unexpected_failure",
-        ...safeErrorLogFields(e),
-      });
-      return Result.err({ code: "unexpected_failure", cause: e });
+      return detachFailure(
+        { code: "unexpected_failure", ...safeErrorLogFields(e) },
+        { code: "unexpected_failure", cause: e },
+      );
     }
   }
 
