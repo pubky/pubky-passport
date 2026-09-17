@@ -2,7 +2,8 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import { createFailure } from "@/libs/logger/createFailure";
+import { safeErrorLogFields } from "@/libs/logger/logger";
 import type { CodedFailure } from "@/libs/result";
 import {
   isPubkyPublicIdentity,
@@ -52,6 +53,9 @@ type RequestLock = <LockResult>(
   callback: () => Promise<LockResult>,
 ) => Promise<LockResult>;
 
+const failure = createFailure<VisibleCopiesErrorCode>(
+  "identity.google.visible_recovery_copies.failed",
+);
 const VISIBLE_RECOVERY_FOLDER_NAME = "Pubky Passport";
 const DRIVE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 const DRIVE_FILE_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
@@ -83,38 +87,34 @@ export class GoogleDriveVisibleRecoveryCopies {
     signal: AbortSignal,
   ): Promise<VisibleCopiesResult<void>> {
     if (signal.aborted) {
-      LOGGER.warn("identity.google.visible_recovery_copies.failed", {
+      return failure({
         operation: "create_visible_copy",
         code: "network_failed",
       });
-      return Result.err({ code: "network_failed" });
     }
 
     const serializedEnvelope = serializePassportFileEnvelope(envelope);
     if (serializedEnvelope === null) {
-      LOGGER.warn("identity.google.visible_recovery_copies.failed", {
+      return failure({
         operation: "serialize_envelope",
         code: "invalid_file",
       });
-      return Result.err({ code: "invalid_file" });
     }
     const fileName = visibleRecoveryFileName(publicIdentity);
     if (fileName === null) {
-      LOGGER.warn("identity.google.visible_recovery_copies.failed", {
+      return failure({
         operation: "visible_file_name",
         code: "invalid_file",
       });
-      return Result.err({ code: "invalid_file" });
     }
 
     const token = this.getAccessToken();
     if (Result.isError(token)) return Result.err(token.error);
     if (signal.aborted) {
-      LOGGER.warn("identity.google.visible_recovery_copies.failed", {
+      return failure({
         operation: "create_visible_copy",
         code: "network_failed",
       });
-      return Result.err({ code: "network_failed" });
     }
 
     const folder = await this.findOrCreateFolderWithLock(token.value, signal);
@@ -161,11 +161,10 @@ export class GoogleDriveVisibleRecoveryCopies {
   ): Promise<VisibleCopiesResult<void>> {
     const fileName = visibleRecoveryFileName(publicIdentity);
     if (fileName === null) {
-      LOGGER.warn("identity.google.visible_recovery_copies.failed", {
+      return failure({
         operation: "validate_file_name",
         code: "invalid_file",
       });
-      return Result.err({ code: "invalid_file" });
     }
 
     const token = this.getAccessToken();
@@ -197,22 +196,23 @@ export class GoogleDriveVisibleRecoveryCopies {
 
       return Result.ok();
     } catch (e) {
-      LOGGER.warn("identity.google.visible_recovery_copies.failed", {
-        operation: "delete_visible_copies",
-        code: "network_failed",
-        ...safeErrorLogFields(e),
-      });
-      return Result.err({ code: "network_failed", cause: e });
+      return failure(
+        {
+          operation: "delete_visible_copies",
+          code: "network_failed",
+          ...safeErrorLogFields(e),
+        },
+        { code: "network_failed", cause: e },
+      );
     }
   }
 
   private getAccessToken(): VisibleCopiesResult<string> {
     if (this.accessToken.length > 0) return Result.ok(this.accessToken);
-    LOGGER.warn("identity.google.visible_recovery_copies.failed", {
+    return failure({
       operation: "access_token",
       code: "unauthorized",
     });
-    return Result.err({ code: "unauthorized" });
   }
 
   private async findOrCreateFolderWithLock(
@@ -225,12 +225,14 @@ export class GoogleDriveVisibleRecoveryCopies {
     try {
       return await requestLock(CREATE_VISIBLE_FOLDER_LOCK_NAME, create);
     } catch (e) {
-      LOGGER.warn("identity.google.visible_recovery_copies.failed", {
-        operation: "create_folder_lock",
-        code: "write_failed",
-        ...safeErrorLogFields(e),
-      });
-      return Result.err({ code: "write_failed", cause: e });
+      return failure(
+        {
+          operation: "create_folder_lock",
+          code: "write_failed",
+          ...safeErrorLogFields(e),
+        },
+        { code: "write_failed", cause: e },
+      );
     }
   }
 
@@ -270,11 +272,10 @@ export class GoogleDriveVisibleRecoveryCopies {
     const checked = await this.findCanonicalFolder(token, signal);
     if (Result.isError(checked)) return Result.err(checked.error);
     if (checked.value !== null) return Result.ok(checked.value);
-    LOGGER.warn("identity.google.visible_recovery_copies.failed", {
+    return failure({
       operation: "verify_folder",
       code: "write_failed",
     });
-    return Result.err({ code: "write_failed" });
   }
 
   private async findCanonicalFolder(
@@ -324,12 +325,14 @@ export class GoogleDriveVisibleRecoveryCopies {
   private async parseFolderResponse(response: Response): Promise<VisibleCopiesResult<string>> {
     const folder = await readDriveJson(response);
     if (Result.isError(folder)) {
-      LOGGER.warn("identity.google.visible_recovery_copies.failed", {
-        operation: "parse_folder_response",
-        code: "invalid_response",
-        ...safeErrorLogFields(folder.error.cause),
-      });
-      return Result.err({ code: "invalid_response", cause: folder.error.cause });
+      return failure(
+        {
+          operation: "parse_folder_response",
+          code: "invalid_response",
+          ...safeErrorLogFields(folder.error.cause),
+        },
+        { code: "invalid_response", cause: folder.error.cause },
+      );
     }
     const metadata = folder.value;
     const isFile = isDriveFile(metadata);
@@ -340,11 +343,10 @@ export class GoogleDriveVisibleRecoveryCopies {
       metadata.mimeType === DRIVE_FOLDER_MIME_TYPE &&
       metadata.trashed === false;
     if (!isNonEmptyString(folderId) || !hasExpectedMetadata) {
-      LOGGER.warn("identity.google.visible_recovery_copies.failed", {
+      return failure({
         operation: "parse_folder_response",
         code: "invalid_response",
       });
-      return Result.err({ code: "invalid_response" });
     }
     return Result.ok(folderId);
   }
@@ -356,28 +358,28 @@ export class GoogleDriveVisibleRecoveryCopies {
   ): Promise<VisibleCopiesResult<DriveFileRevision>> {
     const file = await readDriveJson(response);
     if (Result.isError(file)) {
-      LOGGER.warn("identity.google.visible_recovery_copies.failed", {
-        operation,
-        code: "invalid_response",
-        ...safeErrorLogFields(file.error.cause),
-      });
-      return Result.err({ code: "invalid_response", cause: file.error.cause });
+      return failure(
+        {
+          operation,
+          code: "invalid_response",
+          ...safeErrorLogFields(file.error.cause),
+        },
+        { code: "invalid_response", cause: file.error.cause },
+      );
     }
     if (!isDriveFile(file.value)) {
-      LOGGER.warn("identity.google.visible_recovery_copies.failed", {
+      return failure({
         operation,
         code: "invalid_response",
       });
-      return Result.err({ code: "invalid_response" });
     }
 
     const reference = parseDriveFileRevision(file.value);
     if (reference === null || file.value.name !== expectedName || file.value.trashed === true) {
-      LOGGER.warn("identity.google.visible_recovery_copies.failed", {
+      return failure({
         operation,
         code: "invalid_response",
       });
-      return Result.err({ code: "invalid_response" });
     }
     return Result.ok(reference);
   }
@@ -408,19 +410,20 @@ export class GoogleDriveVisibleRecoveryCopies {
 
     const file = await readDriveJson(response.value);
     if (Result.isError(file)) {
-      LOGGER.warn("identity.google.visible_recovery_copies.failed", {
-        operation: "parse_copy_verification_response",
-        code: "invalid_response",
-        ...safeErrorLogFields(file.error.cause),
-      });
-      return Result.err({ code: "invalid_response", cause: file.error.cause });
+      return failure(
+        {
+          operation: "parse_copy_verification_response",
+          code: "invalid_response",
+          ...safeErrorLogFields(file.error.cause),
+        },
+        { code: "invalid_response", cause: file.error.cause },
+      );
     }
     if (!isDriveFile(file.value)) {
-      LOGGER.warn("identity.google.visible_recovery_copies.failed", {
+      return failure({
         operation: "parse_copy_verification_response",
         code: "invalid_response",
       });
-      return Result.err({ code: "invalid_response" });
     }
 
     const reference = parseDriveFileRevision(file.value);
@@ -433,11 +436,10 @@ export class GoogleDriveVisibleRecoveryCopies {
     const hasExpectedIdentity =
       reference !== null && sameDriveFileIdentity(reference, expectedReference);
     if (!hasExpectedMetadata || !hasExpectedIdentity) {
-      LOGGER.warn("identity.google.visible_recovery_copies.failed", {
+      return failure({
         operation: "parse_copy_verification_response",
         code: "invalid_response",
       });
-      return Result.err({ code: "invalid_response" });
     }
     return Result.ok();
   }
@@ -455,11 +457,10 @@ export class GoogleDriveVisibleRecoveryCopies {
 
     do {
       if (pagesRead >= MAXIMUM_LIST_PAGES) {
-        LOGGER.warn("identity.google.visible_recovery_copies.failed", {
+        return failure({
           operation,
           code: "invalid_response",
         });
-        return Result.err({ code: "invalid_response" });
       }
       pagesRead += 1;
 
@@ -478,21 +479,19 @@ export class GoogleDriveVisibleRecoveryCopies {
       const list = await this.parseListResponse(response.value, operation);
       if (Result.isError(list)) return Result.err(list.error);
       if (!list.value.files.every(validate)) {
-        LOGGER.warn("identity.google.visible_recovery_copies.failed", {
+        return failure({
           operation,
           code: "invalid_response",
         });
-        return Result.err({ code: "invalid_response" });
       }
       files.push(...list.value.files);
 
       pageToken = list.value.nextPageToken;
       if (pageToken && seenPageTokens.has(pageToken)) {
-        LOGGER.warn("identity.google.visible_recovery_copies.failed", {
+        return failure({
           operation,
           code: "invalid_response",
         });
-        return Result.err({ code: "invalid_response" });
       }
       if (pageToken) seenPageTokens.add(pageToken);
     } while (pageToken);
@@ -520,20 +519,21 @@ export class GoogleDriveVisibleRecoveryCopies {
   ): Promise<VisibleCopiesResult<DriveFileList>> {
     const parsed = await readDriveJson(response);
     if (Result.isError(parsed)) {
-      LOGGER.warn("identity.google.visible_recovery_copies.failed", {
-        operation,
-        code: "invalid_response",
-        ...safeErrorLogFields(parsed.error.cause),
-      });
-      return Result.err({ code: "invalid_response", cause: parsed.error.cause });
+      return failure(
+        {
+          operation,
+          code: "invalid_response",
+          ...safeErrorLogFields(parsed.error.cause),
+        },
+        { code: "invalid_response", cause: parsed.error.cause },
+      );
     }
     const list = parseDriveFileList(parsed.value);
     if (list !== null) return Result.ok(list);
-    LOGGER.warn("identity.google.visible_recovery_copies.failed", {
+    return failure({
       operation,
       code: "invalid_response",
     });
-    return Result.err({ code: "invalid_response" });
   }
 
   private async fetchVisible(
@@ -543,12 +543,14 @@ export class GoogleDriveVisibleRecoveryCopies {
   ): Promise<VisibleCopiesResult<Response>> {
     const response = await fetchDrive(this.fetchImpl, input, init);
     if (!Result.isError(response)) return Result.ok(response.value);
-    LOGGER.warn("identity.google.visible_recovery_copies.failed", {
-      operation,
-      code: "network_failed",
-      ...safeErrorLogFields(response.error.cause),
-    });
-    return Result.err(response.error);
+    return failure(
+      {
+        operation,
+        code: "network_failed",
+        ...safeErrorLogFields(response.error.cause),
+      },
+      response.error,
+    );
   }
 
   private async httpResponseFailure<Success>(
@@ -556,14 +558,16 @@ export class GoogleDriveVisibleRecoveryCopies {
     operation: VisibleCopiesOperation,
     code: VisibleCopiesErrorCode,
   ): Promise<VisibleCopiesResult<Success>> {
-    const failure = await createDriveHttpResponseFailure(response, code);
-    LOGGER.warn("identity.google.visible_recovery_copies.failed", {
-      operation,
-      code,
-      httpStatus: failure.httpStatus,
-      ...safeErrorLogFields(failure.cause),
-    });
-    return Result.err(failure);
+    const responseFailure = await createDriveHttpResponseFailure(response, code);
+    return failure(
+      {
+        operation,
+        code,
+        httpStatus: responseFailure.httpStatus,
+        ...safeErrorLogFields(responseFailure.cause),
+      },
+      responseFailure,
+    );
   }
 }
 
@@ -639,11 +643,10 @@ function browserRequestLock(): RequestLock | null {
 }
 
 function invalidFolderList(): VisibleCopiesResult<never> {
-  LOGGER.warn("identity.google.visible_recovery_copies.failed", {
+  return failure({
     operation: "parse_folder_list_response",
     code: "invalid_response",
   });
-  return Result.err({ code: "invalid_response" });
 }
 
 function isExpectedFolder(file: DriveFile): file is VisibleFolder {
