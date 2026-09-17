@@ -82,7 +82,7 @@ function RecoveryFileDownload({
   return (
     <PassportScreen>
       <form
-        className="flex min-h-full flex-1 flex-col gap-6 md:grid md:grid-cols-[307px_281px] md:grid-rows-[136px_224px_60px] md:gap-x-0 md:gap-y-8 md:pt-[34px]"
+        className="flex min-h-full flex-1 flex-col gap-6 md:grid md:grid-cols-(--passport-content-columns) md:grid-rows-[minmax(var(--passport-recovery-heading-min-height),auto)_minmax(var(--passport-recovery-body-min-height),auto)_auto] md:content-start md:gap-x-0 md:gap-y-8 md:pt-8.5"
         onSubmit={submit}
       >
         <div className="flex flex-col gap-6 md:col-span-2 md:gap-3">

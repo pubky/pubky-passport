@@ -18,12 +18,14 @@ export function IdentitySummary({
 }) {
   return (
     <>
-      <Avatar fallback={name} size="sm" src={avatarSrc} />
-      {badge ? (
-        <span className="absolute left-[39px] top-[39px] flex size-4 items-center justify-center drop-shadow-xl">
-          {badge}
-        </span>
-      ) : null}
+      <span className="relative flex shrink-0">
+        <Avatar fallback={name} size="sm" src={avatarSrc} />
+        {badge ? (
+          <span className="absolute bottom-px right-px flex size-4 items-center justify-center drop-shadow-xl">
+            {badge}
+          </span>
+        ) : null}
+      </span>
       <span className="min-w-0 flex-1">
         <strong className="block truncate leading-6">{name}</strong>
         <span
