@@ -43,9 +43,6 @@ export type GoogleImplicitAuthorizationResult<Success> = ResultType<
 >;
 
 const GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth";
-const failure = createFailure<GoogleImplicitAuthorizationErrorCode>(
-  "identity.google.implicit_authorization.failed",
-);
 const POPUP_POLL_MS = 200;
 
 type AuthorizationAttempt = {
@@ -96,7 +93,8 @@ export class GoogleImplicitAuthorization {
   ): Promise<GoogleImplicitAuthorizationResult<GoogleIdentityCredentials>> {
     if (this.activeAttempt) {
       return Promise.resolve(
-        failure(
+        createFailure(
+          "identity.google.implicit_authorization.failed",
           { code: "google_authorization_failed", reason: "authorization_in_progress" },
           {
             operation: "authorize",
@@ -128,7 +126,8 @@ export class GoogleImplicitAuthorization {
       popup = AuthorizationPopup.open(url, `pubky-passport-google-${state}`);
       if (!popup) {
         return Promise.resolve(
-          failure(
+          createFailure(
+            "identity.google.implicit_authorization.failed",
             { code: "google_authorization_popup_failed_to_open" },
             {
               operation: "authorize",
@@ -141,7 +140,8 @@ export class GoogleImplicitAuthorization {
     } catch (e) {
       popup?.close();
       return Promise.resolve(
-        failure(
+        createFailure(
+          "identity.google.implicit_authorization.failed",
           { code: "google_authorization_failed", cause: e },
           {
             operation: "authorize",
@@ -205,7 +205,8 @@ export class GoogleImplicitAuthorization {
         attempt.timeout = setTimeout(() => {
           this.finish(
             attempt,
-            failure(
+            createFailure(
+              "identity.google.implicit_authorization.failed",
               { code: "google_authorization_failed", reason: "authorization_timed_out" },
               {
                 operation: "authorize",
@@ -260,7 +261,10 @@ export class GoogleImplicitAuthorization {
   ): Promise<GoogleImplicitAuthorizationResult<GoogleIdentityCredentials>> {
     const parsed = parseGoogleAuthorizationResponse(capture, attempt.state, attempt.nonce);
     if (Result.isError(parsed)) {
-      return failure(parsed.error, { operation: "authorize", stage: "response" });
+      return createFailure("identity.google.implicit_authorization.failed", parsed.error, {
+        operation: "authorize",
+        stage: "response",
+      });
     }
     const account = await fetchGoogleAccountProfile(
       parsed.value.accessToken,
@@ -268,7 +272,8 @@ export class GoogleImplicitAuthorization {
       attempt.abortController.signal,
     );
     if (Result.isError(account)) {
-      return failure(
+      return createFailure(
+        "identity.google.implicit_authorization.failed",
         {
           code: account.error.code,
           ...(account.error.cause === undefined ? {} : { cause: account.error.cause }),
@@ -295,7 +300,8 @@ export class GoogleImplicitAuthorization {
     stage: "attempt_setup" | "message_listener" | "popup_poll" | "response_handler",
     error: unknown,
   ): void {
-    const failed = failure(
+    const failed = createFailure(
+      "identity.google.implicit_authorization.failed",
       { code: "google_authorization_failed", cause: error },
       {
         operation: "authorize",

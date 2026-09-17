@@ -23,10 +23,6 @@ type RestoreLocalIdentityResult = ResultType<
 type RestoreLocalIdentityErrorCode =
   LocalIdentityErrorCode | "identity_mismatch" | "restore_failed";
 
-const restoreFailure = createFailure<RestoreLocalIdentityErrorCode>(
-  "identity.local_restore.failed",
-);
-
 /**
  * Approves one request with the exact local identity selected during review.
  * SDK, storage, callback, and cleanup failures settle as a Result; the promise
@@ -111,7 +107,7 @@ async function restoreLocalIdentity(
 
   try {
     if (stored.value.identity.publicIdentity.publicKeyZ32 !== publicKeyZ32) {
-      return restoreFailure({ code: "identity_mismatch" });
+      return createFailure("identity.local_restore.failed", { code: "identity_mismatch" });
     }
 
     const restored = await pubky.restoreIdentityKey(stored.value.secretKey);
@@ -123,7 +119,7 @@ async function restoreLocalIdentity(
       !isSamePublicIdentity(restored.value.publicIdentity, stored.value.identity.publicIdentity)
     ) {
       disposeIdentityKey(pubky, restored.value.keyHandle);
-      return restoreFailure({ code: "identity_mismatch" });
+      return createFailure("identity.local_restore.failed", { code: "identity_mismatch" });
     }
 
     return Result.ok(restored.value);

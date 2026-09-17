@@ -25,7 +25,6 @@ type CryptoResult<Success> = ResultType<Success, CodedFailure<CryptoErrorCode>>;
 type BrowserCrypto = { crypto: Crypto; subtle: SubtleCrypto };
 type BrowserCryptoResult = ResultType<BrowserCrypto, CodedFailure<"unsupported_browser_crypto">>;
 
-const failure = createFailure<CryptoErrorCode>("passport_file.crypto.failed");
 const WRAPPING_KEY_BYTES = 32;
 const AES_GCM_IV_BYTES = 12;
 const AES_GCM_TAG_BITS = 128;
@@ -57,7 +56,7 @@ export class PassportFileWebCrypto {
   ): Promise<CryptoResult<PassportFileEnvelope>> {
     const browserCrypto = getBrowserCrypto();
     if (Result.isError(browserCrypto)) {
-      return failure(browserCrypto.error, {
+      return createFailure("passport_file.crypto.failed", browserCrypto.error, {
         operation: "encrypt",
         ...(browserCrypto.error.cause === undefined
           ? {}
@@ -66,16 +65,25 @@ export class PassportFileWebCrypto {
     }
     const { crypto, subtle } = browserCrypto.value;
     if (typeof crypto.getRandomValues !== "function") {
-      return failure({ code: "unsupported_browser_crypto" }, { operation: "encrypt" });
+      return createFailure(
+        "passport_file.crypto.failed",
+        { code: "unsupported_browser_crypto" },
+        { operation: "encrypt" },
+      );
     }
 
     if (!isValidSecretKeyBytes(secretKeyBytes)) {
-      return failure({ code: "invalid_plaintext" }, { operation: "encrypt" });
+      return createFailure(
+        "passport_file.crypto.failed",
+        { code: "invalid_plaintext" },
+        { operation: "encrypt" },
+      );
     }
 
     const origin = normalizePassportFileOrigin(passportOrigin);
     if (Result.isError(origin)) {
-      return failure(
+      return createFailure(
+        "passport_file.crypto.failed",
         { code: "invalid_envelope", cause: origin.error },
         {
           operation: "encrypt",
@@ -85,14 +93,18 @@ export class PassportFileWebCrypto {
 
     const wrappingMaterial = decodeFixedLengthBase64Url(wrappingKey, WRAPPING_KEY_BYTES);
     if (!wrappingMaterial) {
-      return failure({ code: "invalid_wrapping_key" }, { operation: "encrypt" });
+      return createFailure(
+        "passport_file.crypto.failed",
+        { code: "invalid_wrapping_key" },
+        { operation: "encrypt" },
+      );
     }
 
     const plaintext = copyToArrayBuffer(secretKeyBytes);
     try {
       const key = await this.deriveAesGcmKey(subtle, wrappingMaterial);
       if (Result.isError(key)) {
-        return failure(key.error, {
+        return createFailure("passport_file.crypto.failed", key.error, {
           operation: "encrypt",
           ...(key.error.cause === undefined ? {} : safeErrorLogFields(key.error.cause)),
         });
@@ -119,7 +131,8 @@ export class PassportFileWebCrypto {
         url: origin.value,
       });
     } catch (e) {
-      return failure(
+      return createFailure(
+        "passport_file.crypto.failed",
         { code: "encrypt_failed", cause: e },
         {
           operation: "encrypt",
@@ -144,7 +157,7 @@ export class PassportFileWebCrypto {
   ): Promise<CryptoResult<Uint8Array>> {
     const browserCrypto = getBrowserCrypto();
     if (Result.isError(browserCrypto)) {
-      return failure(browserCrypto.error, {
+      return createFailure("passport_file.crypto.failed", browserCrypto.error, {
         operation: "decrypt",
         ...(browserCrypto.error.cause === undefined
           ? {}
@@ -155,7 +168,8 @@ export class PassportFileWebCrypto {
 
     const parsed = parsePassportFileEnvelope(envelope);
     if (Result.isError(parsed)) {
-      return failure(
+      return createFailure(
+        "passport_file.crypto.failed",
         { code: "invalid_envelope", cause: parsed.error },
         {
           operation: "decrypt",
@@ -166,7 +180,8 @@ export class PassportFileWebCrypto {
 
     const expectedOrigin = normalizePassportFileOrigin(passportOrigin);
     if (Result.isError(expectedOrigin)) {
-      return failure(
+      return createFailure(
+        "passport_file.crypto.failed",
         { code: "invalid_envelope", cause: expectedOrigin.error },
         {
           operation: "decrypt",
@@ -174,28 +189,44 @@ export class PassportFileWebCrypto {
       );
     }
     if (expectedOrigin.value !== parsedEnvelope.url) {
-      return failure({ code: "invalid_envelope" }, { operation: "decrypt" });
+      return createFailure(
+        "passport_file.crypto.failed",
+        { code: "invalid_envelope" },
+        { operation: "decrypt" },
+      );
     }
 
     const iv = decodeFixedLengthBase64Url(parsedEnvelope.iv, AES_GCM_IV_BYTES);
     if (!iv) {
-      return failure({ code: "invalid_envelope" }, { operation: "decrypt" });
+      return createFailure(
+        "passport_file.crypto.failed",
+        { code: "invalid_envelope" },
+        { operation: "decrypt" },
+      );
     }
 
     const ciphertext = decodeFixedLengthBase64Url(parsedEnvelope.ct, AES_GCM_CIPHERTEXT_BYTES);
     if (!ciphertext) {
-      return failure({ code: "invalid_envelope" }, { operation: "decrypt" });
+      return createFailure(
+        "passport_file.crypto.failed",
+        { code: "invalid_envelope" },
+        { operation: "decrypt" },
+      );
     }
 
     const wrappingMaterial = decodeFixedLengthBase64Url(wrappingKey, WRAPPING_KEY_BYTES);
     if (!wrappingMaterial) {
-      return failure({ code: "invalid_wrapping_key" }, { operation: "decrypt" });
+      return createFailure(
+        "passport_file.crypto.failed",
+        { code: "invalid_wrapping_key" },
+        { operation: "decrypt" },
+      );
     }
 
     try {
       const key = await this.deriveAesGcmKey(subtle, wrappingMaterial);
       if (Result.isError(key)) {
-        return failure(key.error, {
+        return createFailure("passport_file.crypto.failed", key.error, {
           operation: "decrypt",
           ...(key.error.cause === undefined ? {} : safeErrorLogFields(key.error.cause)),
         });
@@ -215,12 +246,17 @@ export class PassportFileWebCrypto {
       const secretKeyBytes = new Uint8Array(plaintext);
       if (!isValidSecretKeyBytes(secretKeyBytes)) {
         secretKeyBytes.fill(0);
-        return failure({ code: "invalid_plaintext" }, { operation: "decrypt" });
+        return createFailure(
+          "passport_file.crypto.failed",
+          { code: "invalid_plaintext" },
+          { operation: "decrypt" },
+        );
       }
 
       return Result.ok(secretKeyBytes);
     } catch (e) {
-      return failure(
+      return createFailure(
+        "passport_file.crypto.failed",
         { code: "decrypt_failed", cause: e },
         {
           operation: "decrypt",

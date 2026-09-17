@@ -10,7 +10,6 @@ import { readBoundedText } from "@/libs/http/boundedBody";
 import { HttpResponseError } from "@/libs/http/HttpResponseError";
 import { MAXIMUM_JSON_BODY_BYTES, passportKeyIdSchema } from "@/libs/passportPolicy";
 
-const failure = createFailure<GoogleWrappingKeyErrorCode>("identity.google.wrapping_key.failed");
 const ERROR_CODES = [
   "invalid_request",
   "invalid_google_id_token",
@@ -69,7 +68,8 @@ export class GoogleWrappingKeyApiClient {
         referrerPolicy: "no-referrer",
       });
     } catch (e) {
-      return failure(
+      return createFailure(
+        "identity.google.wrapping_key.failed",
         { code: "network_failed", cause: e },
         {
           operation: "request_google_wrapping_key",
@@ -81,7 +81,8 @@ export class GoogleWrappingKeyApiClient {
 
     const contents = await readBoundedText(response, MAXIMUM_JSON_BODY_BYTES);
     if (Result.isError(contents)) {
-      return failure(
+      return createFailure(
+        "identity.google.wrapping_key.failed",
         {
           code: "invalid_response",
           httpStatus: response.status,
@@ -110,7 +111,8 @@ export class GoogleWrappingKeyApiClient {
       const cause = new HttpResponseError(response.status, response.statusText, responseText, {
         cause: parseCause,
       });
-      return failure(
+      return createFailure(
+        "identity.google.wrapping_key.failed",
         { code, httpStatus: response.status, cause },
         {
           operation: "request_google_wrapping_key",
@@ -126,7 +128,8 @@ export class GoogleWrappingKeyApiClient {
       body = JSON.parse(responseText);
     } catch (e) {
       const responseError = new Error("Wrapping-key response must be valid JSON.", { cause: e });
-      return failure(
+      return createFailure(
+        "identity.google.wrapping_key.failed",
         {
           code: "invalid_response",
           httpStatus: response.status,
@@ -146,7 +149,8 @@ export class GoogleWrappingKeyApiClient {
       return Result.ok(parsed.data);
     }
     // Zod issues may echo the wrapping key, so retain only a fixed diagnostic cause.
-    return failure(
+    return createFailure(
+      "identity.google.wrapping_key.failed",
       {
         code: "invalid_response",
         httpStatus: response.status,

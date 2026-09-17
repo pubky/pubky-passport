@@ -33,7 +33,6 @@ export type LocalIdentityResult<Success> = ResultType<
 >;
 
 const STORAGE_ROOT = "pubky-passport/local-identities/v1";
-const failure = createFailure<LocalIdentityErrorCode>("identity.local_store.failed");
 const IDENTITY_KEY_PREFIX = `${STORAGE_ROOT}/identity/`;
 const ACTIVE_IDENTITY_KEY = `${STORAGE_ROOT}/active`;
 const SAME_TAB_LISTENERS = new Set<() => void>();
@@ -82,7 +81,11 @@ export class LocalStorageIdentityRepository {
       secretKey.format !== PUBKY_SECRET_KEY_FORMAT ||
       secretKey.bytes.byteLength !== PUBKY_SECRET_KEY_BYTES
     ) {
-      return failure({ code: "invalid_secret_key" }, { operation: "save" });
+      return createFailure(
+        "identity.local_store.failed",
+        { code: "invalid_secret_key" },
+        { operation: "save" },
+      );
     }
 
     const storageResult = getLocalStorage("write");
@@ -355,12 +358,22 @@ function invalidIdentity(operation: string): LocalIdentityResult<never> {
 }
 
 function invalidStore(): LocalIdentityResult<never> {
-  return failure({ code: "invalid_store" }, { operation: "read" });
+  return createFailure(
+    "identity.local_store.failed",
+    { code: "invalid_store" },
+    { operation: "read" },
+  );
 }
 
 function storageUnavailable(operation: string, cause?: unknown): LocalIdentityResult<never> {
-  if (cause === undefined) return failure({ code: "storage_unavailable" }, { operation });
-  return failure(
+  if (cause === undefined)
+    return createFailure(
+      "identity.local_store.failed",
+      { code: "storage_unavailable" },
+      { operation },
+    );
+  return createFailure(
+    "identity.local_store.failed",
     { code: "storage_unavailable", cause },
     { operation, ...safeErrorLogFields(cause) },
   );

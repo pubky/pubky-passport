@@ -28,9 +28,6 @@ export type HomegateSignupTokenErrorCode =
   | "network_failed";
 
 const MAX_ERROR_RESPONSE_BYTES = 256;
-const failure = createFailure<HomegateSignupTokenErrorCode>(
-  "identity.google.homeserver_signup_token.failed",
-);
 const MAX_SIGNUP_TOKEN_LENGTH = 1024;
 const GOOGLE_VERIFICATION_PATH = "/google_verification";
 const SIGNUP_TOKEN_SCHEMA = z
@@ -74,7 +71,8 @@ export class HomegateClient {
     >
   > {
     if (!isValidGoogleIdToken(googleIdToken)) {
-      return failure(
+      return createFailure(
+        "identity.google.homeserver_signup_token.failed",
         { code: "homegate_invalid_request" },
         {
           operation: "request_google_signup_token",
@@ -98,7 +96,8 @@ export class HomegateClient {
         signal,
       });
     } catch (e) {
-      return failure(
+      return createFailure(
+        "identity.google.homeserver_signup_token.failed",
         { code: "network_failed", cause: e },
         {
           operation: "request_google_signup_token",
@@ -113,7 +112,8 @@ export class HomegateClient {
       response.ok ? MAXIMUM_JSON_BODY_BYTES : MAX_ERROR_RESPONSE_BYTES,
     );
     if (Result.isError(responseText) && signal.aborted) {
-      return failure(
+      return createFailure(
+        "identity.google.homeserver_signup_token.failed",
         {
           code: "network_failed",
           httpStatus: response.status,
@@ -129,7 +129,8 @@ export class HomegateClient {
     }
     if (Result.isError(responseText)) {
       const code = response.ok ? "malformed_homegate_response" : "homegate_unavailable";
-      return failure(
+      return createFailure(
+        "identity.google.homeserver_signup_token.failed",
         { code, httpStatus: response.status, cause: responseText.error.cause },
         {
           operation: "request_google_signup_token",
@@ -143,7 +144,8 @@ export class HomegateClient {
     if (!response.ok) {
       const code = mapHomegateError(responseText.value);
       const cause = new HttpResponseError(response.status, response.statusText, responseText.value);
-      return failure(
+      return createFailure(
+        "identity.google.homeserver_signup_token.failed",
         { code, httpStatus: response.status, cause },
         {
           operation: "request_google_signup_token",
@@ -159,7 +161,8 @@ export class HomegateClient {
       responseJson = JSON.parse(responseText.value);
     } catch (e) {
       const responseError = new Error("Homegate response must be valid JSON.", { cause: e });
-      return failure(
+      return createFailure(
+        "identity.google.homeserver_signup_token.failed",
         {
           code: "malformed_homegate_response",
           httpStatus: response.status,
@@ -177,7 +180,8 @@ export class HomegateClient {
     const signupToken = SIGNUP_TOKEN_RESPONSE_SCHEMA.safeParse(responseJson);
     if (signupToken.success) return Result.ok(signupToken.data);
     // Zod issues may echo the signup token, so retain only a fixed diagnostic cause.
-    return failure(
+    return createFailure(
+      "identity.google.homeserver_signup_token.failed",
       {
         code: "malformed_homegate_response",
         httpStatus: response.status,
