@@ -5,8 +5,12 @@ import { useState } from "react";
 import { preload } from "react-dom";
 
 import type { PassportAuthorizationViewState } from "@/client/logic/authorization/flow/PassportAuthorizationController";
+import type { LocalIdentityCatalog } from "@/client/logic/local-identity/localIdentityModels";
 import { IdentitySelectionFlow } from "@/client/ui/identity-catalog/selection/identitySelectionFlow";
-import { useIdentityCatalog } from "@/client/ui/identity-catalog/useIdentityCatalog";
+import {
+  useIdentityCatalog,
+  type IdentityCatalogActions,
+} from "@/client/ui/identity-catalog/useIdentityCatalog";
 import { IdentityEstablishmentFlow } from "@/client/ui/onboarding/identityEstablishmentFlow";
 import { ArrowRightIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
@@ -74,20 +78,22 @@ function AuthorizationFlow() {
   }
 }
 
+type ActiveAuthorization = Extract<
+  PassportAuthorizationViewState,
+  { status: "review" | "preparing" | "granting" | "completing" }
+>;
+
+/** `first-identity-setup` stays until the setup screen reports completion, not when the catalog fills. */
+type AuthorizationIdentityView = "first-identity-setup" | "review" | "identity-selection";
+
 function AuthorizationWithIdentity({
   authorization,
   passportAuthorizationController,
 }: {
-  authorization: Extract<
-    PassportAuthorizationViewState,
-    { status: "review" | "preparing" | "granting" | "completing" }
-  >;
+  authorization: ActiveAuthorization;
   passportAuthorizationController: AuthorizationController;
 }) {
-  const { IdentitySetup } = usePassportCollaborators();
-  const Setup = IdentitySetup ?? IdentityEstablishmentFlow;
   const identityCatalog = useIdentityCatalog();
-  const [view, setView] = useState<"review" | "identity-selection">("review");
 
   switch (identityCatalog.status) {
     case "loading":
@@ -110,56 +116,80 @@ function AuthorizationWithIdentity({
           />
         </PassportScreen>
       );
-    case "ready": {
-      const { actions, catalog } = identityCatalog;
-
-      if (catalog.identities.length === 0) {
-        return (
-          <Setup
-            forAuthorization
-            onBack={() => {
-              void passportAuthorizationController.cancel();
-            }}
-            onComplete={() => undefined}
-          />
-        );
-      }
-
-      if (view === "identity-selection") {
-        return (
-          <IdentitySelectionFlow
-            catalog={catalog}
-            forAuthorization
-            onBack={() => setView("review")}
-            onIdentitySelected={() => setView("review")}
-            selectIdentity={actions.selectIdentity}
-          />
-        );
-      }
-
-      const activeIdentity = catalog.identities.find(
-        (identity) => identity.publicIdentity.publicKeyZ32 === catalog.activePublicKeyZ32,
-      );
+    case "ready":
       return (
-        <AuthorizationReview
-          identity={activeIdentity}
-          onAuthorize={() => {
-            if (activeIdentity) {
-              void passportAuthorizationController.approve(
-                activeIdentity.publicIdentity.publicKeyZ32,
-              );
-            }
-          }}
-          onCancel={() => {
-            void passportAuthorizationController.cancel();
-          }}
-          onSwitch={() => setView("identity-selection")}
-          phase={authorization.status}
-          review={authorization.review}
+        <ReadyAuthorizationWithIdentity
+          actions={identityCatalog.actions}
+          authorization={authorization}
+          catalog={identityCatalog.catalog}
+          passportAuthorizationController={passportAuthorizationController}
         />
       );
-    }
   }
+}
+
+function ReadyAuthorizationWithIdentity({
+  actions,
+  authorization,
+  catalog,
+  passportAuthorizationController,
+}: {
+  actions: IdentityCatalogActions;
+  authorization: ActiveAuthorization;
+  catalog: LocalIdentityCatalog;
+  passportAuthorizationController: AuthorizationController;
+}) {
+  const { IdentitySetup } = usePassportCollaborators();
+  const Setup = IdentitySetup ?? IdentityEstablishmentFlow;
+  const [view, setView] = useState<AuthorizationIdentityView>(() =>
+    catalog.identities.length === 0 ? "first-identity-setup" : "review",
+  );
+  const resolvedView: AuthorizationIdentityView =
+    catalog.identities.length === 0 ? "first-identity-setup" : view;
+
+  if (resolvedView === "first-identity-setup") {
+    return (
+      <Setup
+        forAuthorization
+        onBack={() => {
+          void passportAuthorizationController.cancel();
+        }}
+        onComplete={() => setView("review")}
+      />
+    );
+  }
+
+  if (resolvedView === "identity-selection") {
+    return (
+      <IdentitySelectionFlow
+        catalog={catalog}
+        forAuthorization
+        onBack={() => setView("review")}
+        onIdentitySelected={() => setView("review")}
+        selectIdentity={actions.selectIdentity}
+      />
+    );
+  }
+
+  const activeIdentity = catalog.identities.find(
+    (identity) => identity.publicIdentity.publicKeyZ32 === catalog.activePublicKeyZ32,
+  );
+  return (
+    <AuthorizationReview
+      identity={activeIdentity}
+      onAuthorize={() => {
+        if (activeIdentity) {
+          void passportAuthorizationController.approve(activeIdentity.publicIdentity.publicKeyZ32);
+        }
+      }}
+      onCancel={() => {
+        void passportAuthorizationController.cancel();
+      }}
+      onSwitch={() => setView("identity-selection")}
+      phase={authorization.status}
+      review={authorization.review}
+    />
+  );
 }
 
 function AuthorizationTerminal({ outcome }: { outcome: "approved" | "cancelled" }) {

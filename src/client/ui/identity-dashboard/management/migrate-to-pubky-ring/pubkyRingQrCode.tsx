@@ -11,6 +11,7 @@ function PubkyRingQrCode({
   className?: string;
   migration: PubkyRingMigration;
 }) {
+  // Intentional exception to "secrets never enter render output": the QR must encode the secret.
   const migrationUrl = migration.url;
 
   return (

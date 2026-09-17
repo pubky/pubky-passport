@@ -28,6 +28,33 @@ describe("IdentityManagement", () => {
     vi.clearAllMocks();
   });
 
+  it("keeps the homeserver copy control disabled until a PKDNS name resolves", async () => {
+    let settleLookup!: (value: string) => void;
+    render(
+      <IdentityManagement
+        identity={identity}
+        onBack={vi.fn()}
+        onDetachFromGoogle={vi.fn()}
+        onDownloadRecoveryFile={vi.fn()}
+        onRemoveLocalIdentity={() => Result.ok()}
+        onMigrateToKeychain={vi.fn()}
+        resolveHomeserver={() =>
+          new Promise((resolve) => {
+            settleLookup = (pubky) => resolve(Result.ok(pubky));
+          })
+        }
+      />,
+    );
+
+    const homeserverButton = screen.getByRole("button", { name: "Copy Homeserver" });
+    expect(screen.getByText("Looking up…")).toBeInTheDocument();
+    expect(homeserverButton).toBeDisabled();
+
+    settleLookup("homeserver-pubky");
+    await waitFor(() => expect(homeserverButton).toBeEnabled());
+    expect(screen.getByText("homeserver-pubky")).toBeInTheDocument();
+  });
+
   it("copies the Pubky and resolved PKDNS homeserver and returns", async () => {
     const writeText = vi.fn(() => Promise.resolve());
     const onBack = vi.fn();
@@ -114,6 +141,7 @@ describe("IdentityManagement", () => {
     );
 
     await waitFor(() => expect(screen.getByText("Unavailable")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Copy Homeserver" })).toBeDisabled();
     expect(warning).toHaveBeenCalledWith(
       "identity.management.failed",
       expect.objectContaining({

@@ -25,6 +25,20 @@ import { IconButton } from "@/client/ui/shared/primitives/iconButton";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
 
+type HomeserverLookup =
+  { status: "looking-up" } | { status: "unavailable" } | { status: "resolved"; pubky: string };
+
+function homeserverLabel(lookup: HomeserverLookup): string {
+  switch (lookup.status) {
+    case "looking-up":
+      return "Looking up…";
+    case "resolved":
+      return lookup.pubky;
+    case "unavailable":
+      return "Unavailable";
+  }
+}
+
 function IdentityManagement({
   identity,
   onBack,
@@ -44,7 +58,7 @@ function IdentityManagement({
 }) {
   const account = identity.googleAccount;
   const name = account?.name ?? "Your Pubky";
-  const [homeserver, setHomeserver] = useState<string | null | undefined>();
+  const [homeserver, setHomeserver] = useState<HomeserverLookup>({ status: "looking-up" });
   const [logoutFailed, setLogoutFailed] = useState(false);
 
   function logout(): void {
@@ -60,14 +74,20 @@ function IdentityManagement({
     let cancelled = false;
     void resolveHomeserver(identity.publicIdentity.publicKeyZ32)
       .then((result) => {
-        if (!cancelled) setHomeserver(Result.isError(result) ? null : result.value);
+        if (!cancelled) {
+          setHomeserver(
+            Result.isOk(result) && result.value
+              ? { status: "resolved", pubky: result.value }
+              : { status: "unavailable" },
+          );
+        }
       })
       .catch((e: unknown) => {
         LOGGER.warn("identity.management.failed", {
           operation: "resolve_homeserver",
           ...safeErrorLogFields(e),
         });
-        if (!cancelled) setHomeserver(null);
+        if (!cancelled) setHomeserver({ status: "unavailable" });
       });
     return () => {
       cancelled = true;
@@ -102,6 +122,7 @@ function IdentityManagement({
         <IdentityDetail label="User" value={name} />
         <IdentityDetail label="Google account" value={account?.email ?? "Not connected"} />
         <IdentityDetail
+          copyable
           label="Pubky"
           onCopied={() =>
             toast.info("Pubky copied to clipboard", {
@@ -111,9 +132,10 @@ function IdentityManagement({
           value={identity.publicIdentity.publicKeyZ32}
         />
         <IdentityDetail
+          copyable={homeserver.status === "resolved"}
           label="Homeserver"
           onCopied={() => toast.info("Homeserver copied")}
-          value={homeserver === undefined ? "Looking up…" : (homeserver ?? "Unavailable")}
+          value={homeserverLabel(homeserver)}
         />
       </section>
 
@@ -139,16 +161,16 @@ function IdentityManagement({
 }
 
 function IdentityDetail({
+  copyable = false,
   label,
   onCopied,
   value,
 }: {
+  copyable?: boolean;
   label: string;
   onCopied?: () => void;
   value: string;
 }) {
-  const isCopyable = onCopied !== undefined && value !== "Unavailable" && value !== "Looking up…";
-
   async function copyValue() {
     try {
       await navigator.clipboard.writeText(value);
@@ -175,7 +197,7 @@ function IdentityDetail({
         <IconButton
           aria-label={`Copy ${label}`}
           className="size-9 p-1"
-          disabled={!isCopyable}
+          disabled={!copyable}
           onClick={() => {
             void copyValue();
           }}
