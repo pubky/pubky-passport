@@ -46,6 +46,19 @@ describe("instrumentation-client authorization entry", () => {
     if (entry?.status === "valid") entry.request.release();
   });
 
+  it("re-scrubs if Next restores the secret-bearing address bar", async () => {
+    window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
+    const bootstrap = await import("./instrumentation-client");
+    expect(window.location.hash).toBe("");
+
+    window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
+    const entry = bootstrap.takeInitialAuthorizationEntry();
+
+    expect(entry?.status).toBe("valid");
+    if (entry?.status === "valid") entry.request.release();
+    expect(window.location.hash).toBe("");
+  });
+
   it("rejects an early capture whose short deadline already passed", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(0));

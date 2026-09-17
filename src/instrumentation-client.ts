@@ -14,7 +14,10 @@ let initialAuthorizationEntry =
     ? readAndScrubAuthorizationEntry(window)
     : undefined;
 
-/** Takes the one-shot authorization entry captured before React hydration. */
+/**
+ * Takes the one-shot authorization entry captured and scrubbed before React
+ * hydration. Re-scrubs if Next restored the secret-bearing address bar.
+ */
 export function takeInitialAuthorizationEntry(): AuthorizationEntry | undefined {
   const entry = initialAuthorizationEntry;
   initialAuthorizationEntry = undefined;

@@ -20,6 +20,10 @@ const serverEnvironmentImport = {
   regex: "^(?:@/server/environment$|(?:\\.\\.?/)+(?:server/)?environment$)",
   message: "Environment-backed configuration is confined to approved bootstrap modules.",
 };
+const clientEntrypointImport = {
+  regex: "^(?:@/instrumentation-client$|(?:\\.\\./)+instrumentation-client$)",
+  message: "Client logic must not import the Next.js client entrypoint.",
+};
 const restrictedImports = (...patterns) => ["error", { patterns }];
 
 const ESLINT_CONFIG = defineConfig([
@@ -51,8 +55,15 @@ const ESLINT_CONFIG = defineConfig([
     rules: { "no-restricted-imports": restrictedImports(serverImport, sdkImport) },
   },
   {
+    files: [`src/client/logic/${sourceFiles}`],
+    ignores: [`src/client/logic/${testFiles}`, "src/client/logic/pubky/PubkySdkAdapter.ts"],
+    rules: {
+      "no-restricted-imports": restrictedImports(serverImport, sdkImport, clientEntrypointImport),
+    },
+  },
+  {
     files: ["src/client/logic/pubky/PubkySdkAdapter.ts"],
-    rules: { "no-restricted-imports": restrictedImports(serverImport) },
+    rules: { "no-restricted-imports": restrictedImports(serverImport, clientEntrypointImport) },
   },
   {
     files: [`src/server/${sourceFiles}`],

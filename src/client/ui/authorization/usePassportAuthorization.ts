@@ -1,5 +1,6 @@
 import { useCallback, useSyncExternalStore } from "react";
 
+import { takeInitialAuthorizationEntry } from "@/instrumentation-client";
 import {
   PassportAuthorizationController,
   type PassportAuthorizationViewState,
@@ -17,12 +18,15 @@ type PassportAuthorization = {
 };
 
 function createBrowserAuthorizationController(): AuthorizationController {
-  return PassportAuthorizationController.fromBrowser();
+  return PassportAuthorizationController.fromBrowser(takeInitialAuthorizationEntry);
 }
 
 /**
  * Connects React to the page-scoped authorization store without effect timing assumptions.
  * The collaborator factory is consulted only when the page-scoped controller is first created.
+ * `fromBrowser` does not read or scrub the address bar; the injected
+ * `takeInitialAuthorizationEntry` may still `replaceState` on the first snapshot if Next
+ * restored the secret-bearing URL after the pre-hydration scrub.
  */
 export function usePassportAuthorization(): PassportAuthorization {
   const { createAuthorizationController } = usePassportCollaborators();

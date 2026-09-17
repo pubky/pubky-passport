@@ -3,6 +3,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { takeInitialAuthorizationEntry } from "@/instrumentation-client";
 import { PassportAuthorizationController } from "@/client/logic/authorization/flow/PassportAuthorizationController";
 import { usePassportAuthorization } from "./usePassportAuthorization";
 
@@ -11,7 +12,9 @@ function Probe() {
   return (
     <p>
       {state?.status ?? "no-state"}:
-      {controller === PassportAuthorizationController.fromBrowser() ? "browser" : "other"}
+      {controller === PassportAuthorizationController.fromBrowser(takeInitialAuthorizationEntry)
+        ? "browser"
+        : "other"}
     </p>
   );
 }
