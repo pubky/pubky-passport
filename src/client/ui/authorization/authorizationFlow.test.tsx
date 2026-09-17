@@ -3,14 +3,17 @@
 import { Result } from "better-result";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { StrictMode } from "react";
+import { StrictMode, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PassportAuthorizationViewState } from "../../logic/authorization/flow/PassportAuthorizationController";
 import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
+import { fakeLocalIdentityController } from "../../../../test-utils/fakeLocalIdentityController";
+import { fakePassportAuthorizationController } from "../../../../test-utils/fakePassportAuthorizationController";
+import { withPassportTestProviders } from "../../../../test-utils/googleIdentityConfiguration";
 import { AuthorizationFlow } from "./authorizationFlow";
 
-const MOCKS = vi.hoisted(() => ({
+const MOCKS = {
   approve: vi.fn(),
   authorizationListener: null as null | (() => void),
   authorizationState: undefined as PassportAuthorizationViewState | undefined,
@@ -20,54 +23,18 @@ const MOCKS = vi.hoisted(() => ({
   dispose: vi.fn(),
   select: vi.fn(),
   createAuthorizationController: vi.fn(),
-}));
+};
 
-vi.mock("../../logic/authorization/flow/PassportAuthorizationController", () => ({
-  PassportAuthorizationController: class {
-    static fromBrowser() {
-      MOCKS.createAuthorizationController();
-      return {
-        approve: MOCKS.approve,
-        cancel: MOCKS.cancel,
-        dispose: MOCKS.dispose,
-        getState: () => MOCKS.authorizationState,
-        subscribe: (listener: () => void) => {
-          MOCKS.authorizationListener = listener;
-          return () => {
-            MOCKS.authorizationListener = null;
-          };
-        },
-      };
-    }
-  },
-}));
-
-vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
-  LocalIdentityController: class {
-    listIdentities = () =>
-      MOCKS.catalog
-        ? Result.ok(MOCKS.catalog)
-        : Result.err({ code: "storage_unavailable" as const });
-    selectIdentity = MOCKS.select;
-    subscribeToIdentityChanges = (listener: () => void) => {
-      MOCKS.catalogListener = listener;
-      return () => {
-        MOCKS.catalogListener = undefined;
-      };
-    };
-  },
-}));
-
-vi.mock("../onboarding/identityEstablishmentFlow", () => ({
-  IdentityEstablishmentFlow: ({
-    forAuthorization,
-    onBack,
-    onComplete,
-  }: {
-    forAuthorization?: boolean;
-    onBack?: () => void;
-    onComplete: () => void;
-  }) => (
+function IdentitySetupStub({
+  forAuthorization,
+  onBack,
+  onComplete,
+}: {
+  forAuthorization?: boolean;
+  onBack?: () => void;
+  onComplete: () => void;
+}) {
+  return (
     <main>
       <h1>Add identity</h1>
       {forAuthorization ? <p>Authorization identity setup</p> : null}
@@ -86,8 +53,59 @@ vi.mock("../onboarding/identityEstablishmentFlow", () => ({
         </button>
       ) : null}
     </main>
-  ),
-}));
+  );
+}
+
+function authorizationCollaborators() {
+  return {
+    createAuthorizationController: () => {
+      MOCKS.createAuthorizationController();
+      return fakePassportAuthorizationController(
+        {
+          get current() {
+            return MOCKS.authorizationState;
+          },
+          get listener() {
+            return MOCKS.authorizationListener ?? undefined;
+          },
+          set listener(listener) {
+            MOCKS.authorizationListener = listener ?? null;
+          },
+        },
+        {
+          approve: MOCKS.approve,
+          cancel: MOCKS.cancel,
+          dispose: MOCKS.dispose,
+        },
+      );
+    },
+    createLocalIdentityController: () =>
+      fakeLocalIdentityController(
+        {
+          get catalog() {
+            return MOCKS.catalog;
+          },
+          set catalog(catalog) {
+            MOCKS.catalog = catalog;
+          },
+          get listener() {
+            return MOCKS.catalogListener;
+          },
+          set listener(listener) {
+            MOCKS.catalogListener = listener;
+          },
+        },
+        { selectIdentity: MOCKS.select },
+      ),
+  };
+}
+
+function wrapFlow(children: ReactNode) {
+  return withPassportTestProviders(children, {
+    ...authorizationCollaborators(),
+    IdentitySetup: IdentitySetupStub,
+  });
+}
 
 const REVIEW = {
   authenticationMethod: "cookie",
@@ -143,7 +161,7 @@ describe("AuthorizationFlow", () => {
     MOCKS.catalogListener = undefined;
   });
 
-  const renderFlow = () => render(<AuthorizationFlow />);
+  const renderFlow = () => render(wrapFlow(<AuthorizationFlow />));
 
   it("shows the requested permissions and active identity", async () => {
     renderFlow();
@@ -554,11 +572,7 @@ describe("AuthorizationFlow", () => {
   });
 
   it("survives StrictMode replay and keeps the request until the page is left", async () => {
-    const rendered = render(
-      <StrictMode>
-        <AuthorizationFlow />
-      </StrictMode>,
-    );
+    const rendered = render(<StrictMode>{wrapFlow(<AuthorizationFlow />)}</StrictMode>);
     await screen.findByRole("heading", { name: "Sign in to requesting.app" });
     await Promise.resolve();
     expect(MOCKS.dispose).not.toHaveBeenCalled();

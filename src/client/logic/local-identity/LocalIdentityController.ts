@@ -23,9 +23,23 @@ export type LocalIdentityRecoveryFileResult = ResultType<
   CodedFailure<LocalIdentityRecoveryFileErrorCode>
 >;
 
-/** Browser entry point for identities stored in localStorage. */
+type LocalIdentityRepositoryPort = Pick<
+  LocalStorageIdentityRepository,
+  "list" | "select" | "remove" | "subscribe" | "read"
+>;
+
+/**
+ * Browser entry point for identities stored in localStorage.
+ *
+ * Optional `repository` replaces {@link LocalStorageIdentityRepository}.
+ * Production omits it.
+ */
 export class LocalIdentityController {
-  private readonly repository = new LocalStorageIdentityRepository();
+  private readonly repository: LocalIdentityRepositoryPort;
+
+  constructor(repository?: LocalIdentityRepositoryPort) {
+    this.repository = repository ?? new LocalStorageIdentityRepository();
+  }
 
   listIdentities(): LocalIdentityResult<LocalIdentityCatalog> {
     return this.repository.list();

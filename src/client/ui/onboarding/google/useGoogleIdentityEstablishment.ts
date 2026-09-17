@@ -3,13 +3,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { GoogleAccountProfile } from "../../../../libs/googleAccountProfile";
 import { LOGGER, safeErrorLogFields } from "../../../../libs/logger/logger";
-import {
-  GoogleIdentityController,
-  type GoogleIdentityProgress,
-  type GoogleIdentityViewError,
+import type {
+  GoogleIdentityProgress,
+  GoogleIdentityViewError,
 } from "../../../logic/google-identity/GoogleIdentityController";
 import type { PubkyPublicIdentity } from "../../../logic/pubky/pubkyIdentityKey";
 import { useGoogleIdentityConfiguration } from "../../googleIdentityConfiguration";
+import { usePassportCollaborators } from "../../passportCollaborators";
 
 type GoogleIdentityEstablishmentView =
   | { status: "idle" }
@@ -26,16 +26,19 @@ type GoogleIdentityEstablishmentView =
 
 function useGoogleIdentityEstablishment() {
   const { googleClientId, homegateBaseUrl } = useGoogleIdentityConfiguration();
-  const controllerRef = useRef<GoogleIdentityController | null>(null);
+  const { createGoogleIdentityController } = usePassportCollaborators();
+  const controllerRef = useRef<ReturnType<typeof createGoogleIdentityController> | null>(null);
   const operationPendingRef = useRef(false);
   const operationIdRef = useRef(0);
   const [view, setView] = useState<GoogleIdentityEstablishmentView>({ status: "idle" });
 
-  const ensureController = useCallback((): GoogleIdentityController | null => {
+  const ensureController = useCallback((): ReturnType<
+    typeof createGoogleIdentityController
+  > | null => {
     if (controllerRef.current) return controllerRef.current;
 
     try {
-      const controller = new GoogleIdentityController(
+      const controller = createGoogleIdentityController(
         googleClientId,
         homegateBaseUrl,
         (nextState) => {
@@ -57,7 +60,7 @@ function useGoogleIdentityEstablishment() {
       setView({ status: "failed", error: { code: "operation_failed" } });
       return null;
     }
-  }, [googleClientId, homegateBaseUrl]);
+  }, [createGoogleIdentityController, googleClientId, homegateBaseUrl]);
 
   const startIdentityOperation = useCallback(
     (operation: "establish" | "replace-invalid-file") => {

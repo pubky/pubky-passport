@@ -5,8 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectResultError } from "../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../libs/logger/logger";
+import { GoogleIdentityController, type GoogleIdentityViewState } from "./GoogleIdentityController";
 
-const MOCKS = vi.hoisted(() => ({
+const MOCKS = {
   detachIdentity: vi.fn(),
   abortRequests: vi.fn(),
   disposeAuthorization: vi.fn(),
@@ -14,25 +15,7 @@ const MOCKS = vi.hoisted(() => ({
   establishIdentity: vi.fn(),
   replaceInvalidPassportFile: vi.fn(),
   requestAuthorization: vi.fn(),
-}));
-
-vi.mock("./gia/GoogleImplicitAuthorization", () => ({
-  GoogleImplicitAuthorization: class {
-    request = MOCKS.requestAuthorization;
-    dispose = MOCKS.disposeAuthorization;
-  },
-}));
-vi.mock("./GoogleIdentityLifecycle", () => ({
-  GoogleIdentityLifecycle: class {
-    abortRequests = MOCKS.abortRequests;
-    detachIdentity = MOCKS.detachIdentity;
-    dispose = MOCKS.disposeLifecycle;
-    establishIdentity = MOCKS.establishIdentity;
-    replaceInvalidPassportFile = MOCKS.replaceInvalidPassportFile;
-  },
-}));
-
-import { GoogleIdentityController, type GoogleIdentityViewState } from "./GoogleIdentityController";
+};
 
 const GOOGLE_ACCOUNT = {
   googleSubject: "google-account-id",
@@ -80,6 +63,50 @@ describe("GoogleIdentityController", () => {
       vi.fn(),
     );
     expect(() => session.dispose()).not.toThrow();
+  });
+
+  it("runs the real authorization and lifecycle constructors when no factories are injected", async () => {
+    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const open = vi.fn(() => null);
+    vi.stubGlobal("open", open);
+    const controller = new GoogleIdentityController(
+      "google-client-id",
+      "https://homegate.example/",
+      vi.fn(),
+    );
+
+    expectResultError(await controller.establishIdentity(), {
+      code: "google_authorization_popup_failed_to_open",
+    });
+    expect(open).toHaveBeenCalledOnce();
+    controller.dispose();
+  });
+
+  it("lets a single injected factory replace only its own constructor", async () => {
+    const states: GoogleIdentityViewState[] = [];
+    const controller = new GoogleIdentityController(
+      "google-client-id",
+      "https://homegate.example/",
+      (state) => states.push(state),
+      undefined,
+      () => ({
+        abortRequests: MOCKS.abortRequests,
+        detachIdentity: MOCKS.detachIdentity,
+        dispose: MOCKS.disposeLifecycle,
+        establishIdentity: MOCKS.establishIdentity,
+        replaceInvalidPassportFile: MOCKS.replaceInvalidPassportFile,
+      }),
+    );
+    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const open = vi.fn(() => null);
+    vi.stubGlobal("open", open);
+
+    expectResultError(await controller.establishIdentity(), {
+      code: "google_authorization_popup_failed_to_open",
+    });
+    expect(open).toHaveBeenCalledOnce();
+    expect(MOCKS.establishIdentity).not.toHaveBeenCalled();
+    expect(states).toEqual([{ status: "requesting-authorization" }]);
   });
 
   it("reports authorization and establishment progress", async () => {
@@ -407,5 +434,20 @@ describe("GoogleIdentityController", () => {
 function createController(
   onState: (state: GoogleIdentityViewState) => void = vi.fn(),
 ): GoogleIdentityController {
-  return new GoogleIdentityController("google-client-id", "https://homegate.example/", onState);
+  return new GoogleIdentityController(
+    "google-client-id",
+    "https://homegate.example/",
+    onState,
+    () => ({
+      request: MOCKS.requestAuthorization,
+      dispose: MOCKS.disposeAuthorization,
+    }),
+    () => ({
+      abortRequests: MOCKS.abortRequests,
+      detachIdentity: MOCKS.detachIdentity,
+      dispose: MOCKS.disposeLifecycle,
+      establishIdentity: MOCKS.establishIdentity,
+      replaceInvalidPassportFile: MOCKS.replaceInvalidPassportFile,
+    }),
+  );
 }

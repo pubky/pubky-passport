@@ -3,12 +3,11 @@
 import { Result, type Result as ResultType } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../test-utils/MemoryStorage";
 import { expectResultOk } from "../../../../test-utils/resultAssertions";
 import { LOGGER } from "../../../libs/logger/logger";
-import { LocalStorageIdentityRepository } from "../local-identity/LocalStorageIdentityRepository";
+import { GoogleIdentityLifecycle, type GoogleIdentityProgress } from "./GoogleIdentityLifecycle";
 
-const MOCKS = vi.hoisted(() => ({
+const MOCKS = {
   createIdentityKey: vi.fn(),
   exportSecretKey: vi.fn(),
   restoreIdentityKey: vi.fn(),
@@ -33,62 +32,7 @@ const MOCKS = vi.hoisted(() => ({
   deletePassportFile: vi.fn(),
   createVisibleRecoveryCopy: vi.fn(),
   deleteVisibleRecoveryCopies: vi.fn(),
-}));
-
-vi.mock("../pubky/PubkySdkAdapter", () => ({
-  PubkySdkAdapter: class {
-    createIdentityKey = MOCKS.createIdentityKey;
-    exportSecretKey = MOCKS.exportSecretKey;
-    restoreIdentityKey = MOCKS.restoreIdentityKey;
-    signup = MOCKS.signup;
-    signin = MOCKS.signin;
-    resolveHomeserver = MOCKS.resolveHomeserver;
-    publishHomeserver = MOCKS.publishHomeserver;
-    disposeIdentityKey = MOCKS.disposeIdentityKey;
-    dispose = MOCKS.disposePubky;
-  },
-}));
-vi.mock("../wrapping-key/GoogleWrappingKeyApiClient", () => ({
-  GoogleWrappingKeyApiClient: class {
-    requestGoogleWrappingKey = MOCKS.requestWrappingKey;
-  },
-}));
-vi.mock("../homegate/HomegateClient", () => ({
-  HomegateClient: class {
-    requestGoogleSignupToken = MOCKS.requestSignupToken;
-  },
-}));
-vi.mock("../passport-file/PassportFileWebCrypto", () => ({
-  PassportFileWebCrypto: class {
-    encryptSecretKeyBytes = MOCKS.encryptSecretKeyBytes;
-    decryptSecretKeyBytes = MOCKS.decryptSecretKeyBytes;
-  },
-}));
-vi.mock("../passport-file/google/GoogleDrivePassportFileStore", () => ({
-  GoogleDrivePassportFileStore: class {
-    constructor(_driveAccessToken: string, fetchImpl: typeof fetch) {
-      MOCKS.driveStoreConstructions.count += 1;
-      MOCKS.contextFetch.current = fetchImpl;
-    }
-
-    createPassportFile = MOCKS.createPassportFile;
-    deleteInvalidPassportFile = MOCKS.deleteInvalidPassportFile;
-    deletePassportFile = MOCKS.deletePassportFile;
-    readPassportFile = MOCKS.readPassportFile;
-  },
-}));
-vi.mock("../passport-file/google/GoogleDriveVisibleRecoveryCopies", () => ({
-  GoogleDriveVisibleRecoveryCopies: class {
-    constructor() {
-      MOCKS.visibleCopiesConstructions.count += 1;
-    }
-
-    createVisibleRecoveryCopy = MOCKS.createVisibleRecoveryCopy;
-    deleteVisibleRecoveryCopies = MOCKS.deleteVisibleRecoveryCopies;
-  },
-}));
-
-import { GoogleIdentityLifecycle, type GoogleIdentityProgress } from "./GoogleIdentityLifecycle";
+};
 
 const PUBLIC_IDENTITY = {
   publicKeyZ32: "public-identity",
@@ -123,7 +67,6 @@ describe("Google identity use cases", () => {
     vi.clearAllMocks();
     MOCKS.driveStoreConstructions.count = 0;
     MOCKS.visibleCopiesConstructions.count = 0;
-    vi.stubGlobal("localStorage", new MemoryStorage());
     MOCKS.contextFetch.current = undefined;
     MOCKS.requestWrappingKey.mockResolvedValue(
       Result.ok({
@@ -160,12 +103,6 @@ describe("Google identity use cases", () => {
       }),
     );
     MOCKS.repositoryRemove.mockReturnValue(Result.ok());
-    vi.spyOn(LocalStorageIdentityRepository.prototype, "save").mockImplementation(
-      MOCKS.repositorySave,
-    );
-    vi.spyOn(LocalStorageIdentityRepository.prototype, "remove").mockImplementation(
-      MOCKS.repositoryRemove,
-    );
   });
 
   afterEach(() => {
@@ -894,7 +831,50 @@ describe("Google identity use cases", () => {
 });
 
 function createSubject(): GoogleIdentityLifecycle {
-  return new GoogleIdentityLifecycle("https://homegate.example/", "https://passport.pubky.app");
+  return new GoogleIdentityLifecycle("https://homegate.example/", "https://passport.pubky.app", {
+    pubky: {
+      createIdentityKey: MOCKS.createIdentityKey,
+      exportSecretKey: MOCKS.exportSecretKey,
+      restoreIdentityKey: MOCKS.restoreIdentityKey,
+      signup: MOCKS.signup,
+      signin: MOCKS.signin,
+      resolveHomeserver: MOCKS.resolveHomeserver,
+      publishHomeserver: MOCKS.publishHomeserver,
+      disposeIdentityKey: MOCKS.disposeIdentityKey,
+      dispose: MOCKS.disposePubky,
+    },
+    crypto: {
+      encryptSecretKeyBytes: MOCKS.encryptSecretKeyBytes,
+      decryptSecretKeyBytes: MOCKS.decryptSecretKeyBytes,
+    },
+    repository: {
+      save: MOCKS.repositorySave,
+      remove: MOCKS.repositoryRemove,
+    },
+    wrappingKeys: {
+      requestGoogleWrappingKey: MOCKS.requestWrappingKey,
+    },
+    homegate: {
+      requestGoogleSignupToken: MOCKS.requestSignupToken,
+    },
+    createDriveStore: (_driveAccessToken, fetchImpl) => {
+      MOCKS.driveStoreConstructions.count += 1;
+      MOCKS.contextFetch.current = fetchImpl;
+      return {
+        createPassportFile: MOCKS.createPassportFile,
+        deleteInvalidPassportFile: MOCKS.deleteInvalidPassportFile,
+        deletePassportFile: MOCKS.deletePassportFile,
+        readPassportFile: MOCKS.readPassportFile,
+      };
+    },
+    createVisibleRecoveryCopies: () => {
+      MOCKS.visibleCopiesConstructions.count += 1;
+      return {
+        createVisibleRecoveryCopy: MOCKS.createVisibleRecoveryCopy,
+        deleteVisibleRecoveryCopies: MOCKS.deleteVisibleRecoveryCopies,
+      };
+    },
+  });
 }
 
 function foundPassportFile(): void {

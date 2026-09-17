@@ -5,23 +5,17 @@ import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { withGoogleIdentityConfiguration } from "../../../../../../test-utils/googleIdentityConfiguration";
+import { withPassportTestProviders } from "../../../../../../test-utils/googleIdentityConfiguration";
 import { mockGoogleIdentityController } from "../../../../../../test-utils/mockGoogleIdentityController";
 import { LOGGER } from "../../../../../libs/logger/logger";
+import type { PassportCollaborators } from "../../../passportCollaborators";
 import { useDetachFromGoogle } from "./useDetachFromGoogle";
 
-const MOCKS = vi.hoisted(() => ({
-  constructGoogleIdentityController: vi.fn(),
+const MOCKS = {
+  constructGoogleIdentityController:
+    vi.fn<PassportCollaborators["createGoogleIdentityController"]>(),
   detachIdentity: vi.fn(),
-}));
-
-vi.mock("../../../../logic/google-identity/GoogleIdentityController", () => ({
-  GoogleIdentityController: class {
-    constructor(googleClientId: string, homegateBaseUrl: string, onState: unknown) {
-      return MOCKS.constructGoogleIdentityController(googleClientId, homegateBaseUrl, onState);
-    }
-  },
-}));
+};
 
 function Probe() {
   const operation = useDetachFromGoogle({ publicKeyZ32: "identity" }, "google-account");
@@ -44,7 +38,11 @@ function Probe() {
 }
 
 function renderProbe() {
-  return render(withGoogleIdentityConfiguration(<Probe />));
+  return render(
+    withPassportTestProviders(<Probe />, {
+      createGoogleIdentityController: MOCKS.constructGoogleIdentityController,
+    }),
+  );
 }
 
 describe("useDetachFromGoogle", () => {

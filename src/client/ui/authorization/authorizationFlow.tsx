@@ -4,10 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { preload } from "react-dom";
 
-import type {
-  PassportAuthorizationController,
-  PassportAuthorizationViewState,
-} from "../../logic/authorization/flow/PassportAuthorizationController";
+import type { PassportAuthorizationViewState } from "../../logic/authorization/flow/PassportAuthorizationController";
 import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
 import { useIdentityCatalog } from "../identity-catalog/useIdentityCatalog";
 import { IdentityEstablishmentFlow } from "../onboarding/identityEstablishmentFlow";
@@ -18,11 +15,12 @@ import { PassportScreen } from "../shared/passportScreen";
 import { Button } from "../shared/primitives/button";
 import { Spinner } from "../shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "../shared/primitives/typography";
+import { usePassportCollaborators } from "../passportCollaborators";
 import { SignInBand } from "./signInBand";
 import { AuthorizationReview } from "./review/authorizationReview";
 import { InvalidAuthorization } from "./invalidAuthorization";
 import { ManualAuthorization } from "./manual-entry/manualAuthorization";
-import { usePassportAuthorization } from "./usePassportAuthorization";
+import { usePassportAuthorization, type AuthorizationController } from "./usePassportAuthorization";
 
 function AuthorizationFlow() {
   const { controller: passportAuthorizationController, state: authorization } =
@@ -81,8 +79,10 @@ function AuthorizationWithIdentity({
     PassportAuthorizationViewState,
     { status: "review" | "preparing" | "granting" | "completing" }
   >;
-  passportAuthorizationController: PassportAuthorizationController;
+  passportAuthorizationController: AuthorizationController;
 }) {
+  const { IdentitySetup } = usePassportCollaborators();
+  const Setup = IdentitySetup ?? IdentityEstablishmentFlow;
   const identityCatalog = useIdentityCatalog();
   const [view, setView] = useState<"review" | "identity-selection">("review");
 
@@ -112,7 +112,7 @@ function AuthorizationWithIdentity({
 
       if (catalog.identities.length === 0) {
         return (
-          <IdentityEstablishmentFlow
+          <Setup
             forAuthorization
             onBack={() => {
               void passportAuthorizationController.cancel();
