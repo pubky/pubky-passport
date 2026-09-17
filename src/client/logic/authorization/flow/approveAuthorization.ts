@@ -2,7 +2,6 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { createFailure } from "@/libs/logger/createFailure";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import type { CodedFailure } from "@/libs/result";
 import {
@@ -107,7 +106,8 @@ async function restoreLocalIdentity(
 
   try {
     if (stored.value.identity.publicIdentity.publicKeyZ32 !== publicKeyZ32) {
-      return createFailure("identity.local_restore.failed", { code: "identity_mismatch" });
+      LOGGER.warn("identity.local_restore.failed", { code: "identity_mismatch" });
+      return Result.err({ code: "identity_mismatch" });
     }
 
     const restored = await pubky.restoreIdentityKey(stored.value.secretKey);
@@ -119,7 +119,8 @@ async function restoreLocalIdentity(
       !isSamePublicIdentity(restored.value.publicIdentity, stored.value.identity.publicIdentity)
     ) {
       disposeIdentityKey(pubky, restored.value.keyHandle);
-      return createFailure("identity.local_restore.failed", { code: "identity_mismatch" });
+      LOGGER.warn("identity.local_restore.failed", { code: "identity_mismatch" });
+      return Result.err({ code: "identity_mismatch" });
     }
 
     return Result.ok(restored.value);
