@@ -70,13 +70,12 @@ export class GoogleWrappingKeyApiClient {
       });
     } catch (e) {
       return failure(
+        { code: "network_failed", cause: e },
         {
           operation: "request_google_wrapping_key",
           stage: "request",
-          code: "network_failed",
           ...safeErrorLogFields(e),
         },
-        { code: "network_failed", cause: e },
       );
     }
 
@@ -84,16 +83,15 @@ export class GoogleWrappingKeyApiClient {
     if (Result.isError(contents)) {
       return failure(
         {
-          operation: "request_google_wrapping_key",
-          stage: "response_read",
-          code: "invalid_response",
-          httpStatus: response.status,
-          ...safeErrorLogFields(contents.error.cause),
-        },
-        {
           code: "invalid_response",
           httpStatus: response.status,
           cause: contents.error.cause,
+        },
+        {
+          operation: "request_google_wrapping_key",
+          stage: "response_read",
+          httpStatus: response.status,
+          ...safeErrorLogFields(contents.error.cause),
         },
       );
     }
@@ -113,14 +111,13 @@ export class GoogleWrappingKeyApiClient {
         cause: parseCause,
       });
       return failure(
+        { code, httpStatus: response.status, cause },
         {
           operation: "request_google_wrapping_key",
           stage: "error_response",
-          code,
           httpStatus: response.status,
           ...safeErrorLogFields(cause),
         },
-        { code, httpStatus: response.status, cause },
       );
     }
 
@@ -131,16 +128,15 @@ export class GoogleWrappingKeyApiClient {
       const responseError = new Error("Wrapping-key response must be valid JSON.", { cause: e });
       return failure(
         {
-          operation: "request_google_wrapping_key",
-          stage: "response_parse",
-          code: "invalid_response",
-          httpStatus: response.status,
-          ...safeErrorLogFields(responseError),
-        },
-        {
           code: "invalid_response",
           httpStatus: response.status,
           cause: responseError,
+        },
+        {
+          operation: "request_google_wrapping_key",
+          stage: "response_parse",
+          httpStatus: response.status,
+          ...safeErrorLogFields(responseError),
         },
       );
     }
@@ -152,15 +148,14 @@ export class GoogleWrappingKeyApiClient {
     // Zod issues may echo the wrapping key, so retain only a fixed diagnostic cause.
     return failure(
       {
-        operation: "request_google_wrapping_key",
-        stage: "response_validation",
-        code: "invalid_response",
-        httpStatus: response.status,
-      },
-      {
         code: "invalid_response",
         httpStatus: response.status,
         cause: new Error("Wrapping-key response does not match the success schema."),
+      },
+      {
+        operation: "request_google_wrapping_key",
+        stage: "response_validation",
+        httpStatus: response.status,
       },
     );
   }

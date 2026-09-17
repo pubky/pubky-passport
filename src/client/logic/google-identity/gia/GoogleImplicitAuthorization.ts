@@ -97,13 +97,12 @@ export class GoogleImplicitAuthorization {
     if (this.activeAttempt) {
       return Promise.resolve(
         failure(
+          { code: "google_authorization_failed", reason: "authorization_in_progress" },
           {
             operation: "authorize",
             stage: "request",
-            code: "google_authorization_failed",
             reason: "authorization_in_progress",
           },
-          { code: "google_authorization_failed", reason: "authorization_in_progress" },
         ),
       );
     }
@@ -129,11 +128,13 @@ export class GoogleImplicitAuthorization {
       popup = AuthorizationPopup.open(url, `pubky-passport-google-${state}`);
       if (!popup) {
         return Promise.resolve(
-          failure({
-            operation: "authorize",
-            stage: "popup",
-            code: "google_authorization_popup_failed_to_open",
-          }),
+          failure(
+            { code: "google_authorization_popup_failed_to_open" },
+            {
+              operation: "authorize",
+              stage: "popup",
+            },
+          ),
         );
       }
       return this.startAuthorizationAttempt({ abortController, nonce, origin, popup, state });
@@ -141,13 +142,12 @@ export class GoogleImplicitAuthorization {
       popup?.close();
       return Promise.resolve(
         failure(
+          { code: "google_authorization_failed", cause: e },
           {
             operation: "authorize",
             stage: "request_setup",
-            code: "google_authorization_failed",
             ...safeErrorLogFields(e),
           },
-          { code: "google_authorization_failed", cause: e },
         ),
       );
     }
@@ -206,13 +206,12 @@ export class GoogleImplicitAuthorization {
           this.finish(
             attempt,
             failure(
+              { code: "google_authorization_failed", reason: "authorization_timed_out" },
               {
                 operation: "authorize",
                 stage: "timeout",
-                code: "google_authorization_failed",
                 reason: "authorization_timed_out",
               },
-              { code: "google_authorization_failed", reason: "authorization_timed_out" },
             ),
           );
         }, AUTHORIZATION_TIMEOUT_MS);
@@ -261,10 +260,7 @@ export class GoogleImplicitAuthorization {
   ): Promise<GoogleImplicitAuthorizationResult<GoogleIdentityCredentials>> {
     const parsed = parseGoogleAuthorizationResponse(capture, attempt.state, attempt.nonce);
     if (Result.isError(parsed)) {
-      return failure(
-        { operation: "authorize", stage: "response", code: parsed.error.code },
-        parsed.error,
-      );
+      return failure(parsed.error, { operation: "authorize", stage: "response" });
     }
     const account = await fetchGoogleAccountProfile(
       parsed.value.accessToken,
@@ -274,17 +270,16 @@ export class GoogleImplicitAuthorization {
     if (Result.isError(account)) {
       return failure(
         {
+          code: account.error.code,
+          ...(account.error.cause === undefined ? {} : { cause: account.error.cause }),
+        },
+        {
           operation: "authorize",
           stage: account.error.stage,
-          code: account.error.code,
           ...(account.error.httpStatus === undefined
             ? {}
             : { httpStatus: account.error.httpStatus }),
           ...(account.error.cause === undefined ? {} : safeErrorLogFields(account.error.cause)),
-        },
-        {
-          code: account.error.code,
-          ...(account.error.cause === undefined ? {} : { cause: account.error.cause }),
         },
       );
     }
@@ -300,14 +295,13 @@ export class GoogleImplicitAuthorization {
     stage: "attempt_setup" | "message_listener" | "popup_poll" | "response_handler",
     error: unknown,
   ): void {
-    const failed = failure<GoogleIdentityCredentials, GoogleAuthorizationFailure>(
+    const failed = failure(
+      { code: "google_authorization_failed", cause: error },
       {
         operation: "authorize",
         stage,
-        code: "google_authorization_failed",
         ...safeErrorLogFields(error),
       },
-      { code: "google_authorization_failed", cause: error },
     );
     if (this.activeAttempt === attempt) this.finish(attempt, failed);
   }

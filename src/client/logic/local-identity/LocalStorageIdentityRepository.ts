@@ -82,7 +82,7 @@ export class LocalStorageIdentityRepository {
       secretKey.format !== PUBKY_SECRET_KEY_FORMAT ||
       secretKey.bytes.byteLength !== PUBKY_SECRET_KEY_BYTES
     ) {
-      return failure({ operation: "save", code: "invalid_secret_key" });
+      return failure({ code: "invalid_secret_key" }, { operation: "save" });
     }
 
     const storageResult = getLocalStorage("write");
@@ -355,14 +355,14 @@ function invalidIdentity(operation: string): LocalIdentityResult<never> {
 }
 
 function invalidStore(): LocalIdentityResult<never> {
-  return failure({ operation: "read", code: "invalid_store" });
+  return failure({ code: "invalid_store" }, { operation: "read" });
 }
 
 function storageUnavailable(operation: string, cause?: unknown): LocalIdentityResult<never> {
-  if (cause === undefined) return failure({ operation, code: "storage_unavailable" });
+  if (cause === undefined) return failure({ code: "storage_unavailable" }, { operation });
   return failure(
-    { operation, code: "storage_unavailable", ...safeErrorLogFields(cause) },
     { code: "storage_unavailable", cause },
+    { operation, ...safeErrorLogFields(cause) },
   );
 }
 

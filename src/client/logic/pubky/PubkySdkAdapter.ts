@@ -601,17 +601,16 @@ function failure<Success, Code extends PubkyErrorCode>(
   code: Code,
   cause?: unknown,
 ): ResultType<Success, CodedFailure<Code>> {
-  if (cause === undefined) return fail({ operation, stage, code });
+  if (cause === undefined) return fail({ code }, { operation, stage });
   const sdkErrorName = safePubkySdkErrorName(cause);
   return fail(
+    { code, cause },
     {
       operation,
       stage,
-      code,
       ...(sdkErrorName ? { sdkErrorName } : {}),
       ...safeErrorLogFields(cause),
     },
-    { code, cause },
   );
 }
 

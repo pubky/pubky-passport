@@ -74,11 +74,13 @@ export class HomegateClient {
     >
   > {
     if (!isValidGoogleIdToken(googleIdToken)) {
-      return failure({
-        operation: "request_google_signup_token",
-        stage: "input_validation",
-        code: "homegate_invalid_request",
-      });
+      return failure(
+        { code: "homegate_invalid_request" },
+        {
+          operation: "request_google_signup_token",
+          stage: "input_validation",
+        },
+      );
     }
 
     let signal: AbortSignal;
@@ -97,13 +99,12 @@ export class HomegateClient {
       });
     } catch (e) {
       return failure(
+        { code: "network_failed", cause: e },
         {
           operation: "request_google_signup_token",
           stage: "request",
-          code: "network_failed",
           ...safeErrorLogFields(e),
         },
-        { code: "network_failed", cause: e },
       );
     }
 
@@ -114,30 +115,28 @@ export class HomegateClient {
     if (Result.isError(responseText) && signal.aborted) {
       return failure(
         {
-          operation: "request_google_signup_token",
-          stage: "response_read",
-          code: "network_failed",
-          httpStatus: response.status,
-          ...safeErrorLogFields(responseText.error.cause),
-        },
-        {
           code: "network_failed",
           httpStatus: response.status,
           cause: responseText.error.cause,
+        },
+        {
+          operation: "request_google_signup_token",
+          stage: "response_read",
+          httpStatus: response.status,
+          ...safeErrorLogFields(responseText.error.cause),
         },
       );
     }
     if (Result.isError(responseText)) {
       const code = response.ok ? "malformed_homegate_response" : "homegate_unavailable";
       return failure(
+        { code, httpStatus: response.status, cause: responseText.error.cause },
         {
           operation: "request_google_signup_token",
           stage: "response_read",
-          code,
           httpStatus: response.status,
           ...safeErrorLogFields(responseText.error.cause),
         },
-        { code, httpStatus: response.status, cause: responseText.error.cause },
       );
     }
 
@@ -145,14 +144,13 @@ export class HomegateClient {
       const code = mapHomegateError(responseText.value);
       const cause = new HttpResponseError(response.status, response.statusText, responseText.value);
       return failure(
+        { code, httpStatus: response.status, cause },
         {
           operation: "request_google_signup_token",
           stage: "error_response",
-          code,
           httpStatus: response.status,
           ...safeErrorLogFields(cause),
         },
-        { code, httpStatus: response.status, cause },
       );
     }
 
@@ -163,16 +161,15 @@ export class HomegateClient {
       const responseError = new Error("Homegate response must be valid JSON.", { cause: e });
       return failure(
         {
-          operation: "request_google_signup_token",
-          stage: "response_parse",
-          code: "malformed_homegate_response",
-          httpStatus: response.status,
-          ...safeErrorLogFields(responseError),
-        },
-        {
           code: "malformed_homegate_response",
           httpStatus: response.status,
           cause: responseError,
+        },
+        {
+          operation: "request_google_signup_token",
+          stage: "response_parse",
+          httpStatus: response.status,
+          ...safeErrorLogFields(responseError),
         },
       );
     }
@@ -182,15 +179,14 @@ export class HomegateClient {
     // Zod issues may echo the signup token, so retain only a fixed diagnostic cause.
     return failure(
       {
-        operation: "request_google_signup_token",
-        stage: "response_validation",
-        code: "malformed_homegate_response",
-        httpStatus: response.status,
-      },
-      {
         code: "malformed_homegate_response",
         httpStatus: response.status,
         cause: new Error("Homegate response does not match the signup-token schema."),
+      },
+      {
+        operation: "request_google_signup_token",
+        stage: "response_validation",
+        httpStatus: response.status,
       },
     );
   }

@@ -290,7 +290,7 @@ export class GoogleIdentityLifecycle {
     expectedGoogleSubject: string,
   ): Promise<DetachGoogleIdentityResult> {
     if (credentials.googleAccount.googleSubject !== expectedGoogleSubject) {
-      return detachFailure({ stage: "account_binding", code: "google_account_mismatch" });
+      return detachFailure({ code: "google_account_mismatch" }, { stage: "account_binding" });
     }
 
     try {
@@ -302,10 +302,7 @@ export class GoogleIdentityLifecycle {
         ? Result.err({ code: "local_remove_failed", cause: removed.error })
         : Result.ok();
     } catch (e) {
-      return detachFailure(
-        { code: "unexpected_failure", ...safeErrorLogFields(e) },
-        { code: "unexpected_failure", cause: e },
-      );
+      return detachFailure({ code: "unexpected_failure", cause: e }, safeErrorLogFields(e));
     }
   }
 
