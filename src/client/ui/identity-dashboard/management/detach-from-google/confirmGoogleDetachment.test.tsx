@@ -81,7 +81,7 @@ describe("ConfirmGoogleDetachment", () => {
     expect(confirmation).not.toHaveAttribute("aria-invalid");
   });
 
-  it("shows user copy and keeps the safe error code behind details", async () => {
+  it("shows user copy and the safe error code in the Error box", async () => {
     render(
       <ConfirmGoogleDetachment
         canConfirm
@@ -99,10 +99,8 @@ describe("ConfirmGoogleDetachment", () => {
       "Could not remove Google access. Please try again.",
     );
     expect(screen.getByRole("alert")).not.toHaveTextContent("google_drive_cleanup_failed");
-    const details = screen.getByText("Technical details").closest("details");
-    expect(details).not.toHaveAttribute("open");
     expect(
-      within(details as HTMLDetailsElement).getByText("google_drive_cleanup_failed"),
+      within(screen.getByRole("group", { name: "Error" })).getByText("google_drive_cleanup_failed"),
     ).toBeInTheDocument();
   });
 });

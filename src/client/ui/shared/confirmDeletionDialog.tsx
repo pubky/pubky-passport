@@ -15,7 +15,7 @@ type ConfirmDeletionDialogProps = {
   confirmLabel: string;
   description?: ReactNode;
   error?: string | undefined;
-  /** Rendered under the error message, e.g. a technical-details disclosure. */
+  /** Rendered under the error message, e.g. the labeled error-code box. */
   errorDetails?: ReactNode | undefined;
   id: string;
   onCancel: () => void;
