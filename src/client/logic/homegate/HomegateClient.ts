@@ -5,8 +5,7 @@ import { z } from "zod";
 
 import { readBoundedText } from "@/libs/http/boundedBody";
 import { HttpResponseError } from "@/libs/http/HttpResponseError";
-import { createFailure } from "@/libs/logger/createFailure";
-import { safeErrorLogFields } from "@/libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { MAXIMUM_JSON_BODY_BYTES, REQUEST_TIMEOUT_MS } from "@/libs/passportPolicy";
 import type { CodedFailure } from "@/libs/result";
 import { isPubkyPublicKey } from "@/client/logic/pubky/pubkyIdentityKey";
@@ -28,9 +27,6 @@ export type HomegateSignupTokenErrorCode =
   | "network_failed";
 
 const MAX_ERROR_RESPONSE_BYTES = 256;
-const failure = createFailure<HomegateSignupTokenErrorCode>(
-  "identity.google.homeserver_signup_token.failed",
-);
 const MAX_SIGNUP_TOKEN_LENGTH = 1024;
 const GOOGLE_VERIFICATION_PATH = "/google_verification";
 const SIGNUP_TOKEN_SCHEMA = z
@@ -74,11 +70,12 @@ export class HomegateClient {
     >
   > {
     if (!isValidGoogleIdToken(googleIdToken)) {
-      return failure({
+      LOGGER.warn("identity.google.homeserver_signup_token.failed", {
         operation: "request_google_signup_token",
         stage: "input_validation",
         code: "homegate_invalid_request",
       });
+      return Result.err({ code: "homegate_invalid_request" });
     }
 
     let signal: AbortSignal;
@@ -96,15 +93,13 @@ export class HomegateClient {
         signal,
       });
     } catch (e) {
-      return failure(
-        {
-          operation: "request_google_signup_token",
-          stage: "request",
-          code: "network_failed",
-          ...safeErrorLogFields(e),
-        },
-        { code: "network_failed", cause: e },
-      );
+      LOGGER.warn("identity.google.homeserver_signup_token.failed", {
+        operation: "request_google_signup_token",
+        stage: "request",
+        ...safeErrorLogFields(e),
+        code: "network_failed",
+      });
+      return Result.err({ code: "network_failed", cause: e });
     }
 
     const responseText = await readBoundedText(
@@ -112,48 +107,42 @@ export class HomegateClient {
       response.ok ? MAXIMUM_JSON_BODY_BYTES : MAX_ERROR_RESPONSE_BYTES,
     );
     if (Result.isError(responseText) && signal.aborted) {
-      return failure(
-        {
-          operation: "request_google_signup_token",
-          stage: "response_read",
-          code: "network_failed",
-          httpStatus: response.status,
-          ...safeErrorLogFields(responseText.error.cause),
-        },
-        {
-          code: "network_failed",
-          httpStatus: response.status,
-          cause: responseText.error.cause,
-        },
-      );
+      LOGGER.warn("identity.google.homeserver_signup_token.failed", {
+        operation: "request_google_signup_token",
+        stage: "response_read",
+        httpStatus: response.status,
+        ...safeErrorLogFields(responseText.error.cause),
+        code: "network_failed",
+      });
+      return Result.err({
+        code: "network_failed",
+        httpStatus: response.status,
+        cause: responseText.error.cause,
+      });
     }
     if (Result.isError(responseText)) {
       const code = response.ok ? "malformed_homegate_response" : "homegate_unavailable";
-      return failure(
-        {
-          operation: "request_google_signup_token",
-          stage: "response_read",
-          code,
-          httpStatus: response.status,
-          ...safeErrorLogFields(responseText.error.cause),
-        },
-        { code, httpStatus: response.status, cause: responseText.error.cause },
-      );
+      LOGGER.warn("identity.google.homeserver_signup_token.failed", {
+        operation: "request_google_signup_token",
+        stage: "response_read",
+        httpStatus: response.status,
+        ...safeErrorLogFields(responseText.error.cause),
+        code,
+      });
+      return Result.err({ code, httpStatus: response.status, cause: responseText.error.cause });
     }
 
     if (!response.ok) {
       const code = mapHomegateError(responseText.value);
       const cause = new HttpResponseError(response.status, response.statusText, responseText.value);
-      return failure(
-        {
-          operation: "request_google_signup_token",
-          stage: "error_response",
-          code,
-          httpStatus: response.status,
-          ...safeErrorLogFields(cause),
-        },
-        { code, httpStatus: response.status, cause },
-      );
+      LOGGER.warn("identity.google.homeserver_signup_token.failed", {
+        operation: "request_google_signup_token",
+        stage: "error_response",
+        httpStatus: response.status,
+        ...safeErrorLogFields(cause),
+        code,
+      });
+      return Result.err({ code, httpStatus: response.status, cause });
     }
 
     let responseJson: unknown;
@@ -161,38 +150,34 @@ export class HomegateClient {
       responseJson = JSON.parse(responseText.value);
     } catch (e) {
       const responseError = new Error("Homegate response must be valid JSON.", { cause: e });
-      return failure(
-        {
-          operation: "request_google_signup_token",
-          stage: "response_parse",
-          code: "malformed_homegate_response",
-          httpStatus: response.status,
-          ...safeErrorLogFields(responseError),
-        },
-        {
-          code: "malformed_homegate_response",
-          httpStatus: response.status,
-          cause: responseError,
-        },
-      );
+      LOGGER.warn("identity.google.homeserver_signup_token.failed", {
+        operation: "request_google_signup_token",
+        stage: "response_parse",
+        httpStatus: response.status,
+        ...safeErrorLogFields(responseError),
+        code: "malformed_homegate_response",
+      });
+      return Result.err({
+        code: "malformed_homegate_response",
+        httpStatus: response.status,
+        cause: responseError,
+      });
     }
 
     const signupToken = SIGNUP_TOKEN_RESPONSE_SCHEMA.safeParse(responseJson);
     if (signupToken.success) return Result.ok(signupToken.data);
     // Zod issues may echo the signup token, so retain only a fixed diagnostic cause.
-    return failure(
-      {
-        operation: "request_google_signup_token",
-        stage: "response_validation",
-        code: "malformed_homegate_response",
-        httpStatus: response.status,
-      },
-      {
-        code: "malformed_homegate_response",
-        httpStatus: response.status,
-        cause: new Error("Homegate response does not match the signup-token schema."),
-      },
-    );
+    LOGGER.warn("identity.google.homeserver_signup_token.failed", {
+      operation: "request_google_signup_token",
+      stage: "response_validation",
+      httpStatus: response.status,
+      code: "malformed_homegate_response",
+    });
+    return Result.err({
+      code: "malformed_homegate_response",
+      httpStatus: response.status,
+      cause: new Error("Homegate response does not match the signup-token schema."),
+    });
   }
 }
 

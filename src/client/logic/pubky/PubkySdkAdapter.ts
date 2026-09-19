@@ -3,7 +3,6 @@ import "client-only";
 import { Keypair, Pubky, PublicKey, type PubkyError, type Session } from "@synonymdev/pubky";
 import { Result, type Result as ResultType } from "better-result";
 
-import { createFailure } from "@/libs/logger/createFailure";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import type { CodedFailure } from "@/libs/result";
 import {
@@ -592,27 +591,25 @@ type PubkyErrorCode =
   | "invalid_pubky"
   | "resolution_failed";
 
-/** `fail` is the shared log-and-return factory; `failure` below adds this adapter's typed positional API. */
-const fail = createFailure<PubkyErrorCode>("identity.pubky.operation.failed");
-
 function failure<Success, Code extends PubkyErrorCode>(
   operation: PubkyOperation,
   stage: PubkyFailureStage,
   code: Code,
   cause?: unknown,
 ): ResultType<Success, CodedFailure<Code>> {
-  if (cause === undefined) return fail({ operation, stage, code });
+  if (cause === undefined) {
+    LOGGER.warn("identity.pubky.operation.failed", { operation, stage, code });
+    return Result.err({ code });
+  }
   const sdkErrorName = safePubkySdkErrorName(cause);
-  return fail(
-    {
-      operation,
-      stage,
-      code,
-      ...(sdkErrorName ? { sdkErrorName } : {}),
-      ...safeErrorLogFields(cause),
-    },
-    { code, cause },
-  );
+  LOGGER.warn("identity.pubky.operation.failed", {
+    operation,
+    stage,
+    ...(sdkErrorName ? { sdkErrorName } : {}),
+    ...safeErrorLogFields(cause),
+    code,
+  });
+  return Result.err({ code, cause });
 }
 
 function safePubkySdkErrorName(error: unknown): string | undefined {

@@ -4,13 +4,11 @@ import { Result } from "better-result";
 import { z } from "zod";
 
 import { isCanonicalBase64Url } from "@/libs/encoding/base64Url";
-import { createFailure } from "@/libs/logger/createFailure";
-import { safeErrorLogFields } from "@/libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { readBoundedText } from "@/libs/http/boundedBody";
 import { HttpResponseError } from "@/libs/http/HttpResponseError";
 import { MAXIMUM_JSON_BODY_BYTES, passportKeyIdSchema } from "@/libs/passportPolicy";
 
-const failure = createFailure<GoogleWrappingKeyErrorCode>("identity.google.wrapping_key.failed");
 const ERROR_CODES = [
   "invalid_request",
   "invalid_google_id_token",
@@ -69,33 +67,29 @@ export class GoogleWrappingKeyApiClient {
         referrerPolicy: "no-referrer",
       });
     } catch (e) {
-      return failure(
-        {
-          operation: "request_google_wrapping_key",
-          stage: "request",
-          code: "network_failed",
-          ...safeErrorLogFields(e),
-        },
-        { code: "network_failed", cause: e },
-      );
+      LOGGER.warn("identity.google.wrapping_key.failed", {
+        operation: "request_google_wrapping_key",
+        stage: "request",
+        ...safeErrorLogFields(e),
+        code: "network_failed",
+      });
+      return Result.err({ code: "network_failed", cause: e });
     }
 
     const contents = await readBoundedText(response, MAXIMUM_JSON_BODY_BYTES);
     if (Result.isError(contents)) {
-      return failure(
-        {
-          operation: "request_google_wrapping_key",
-          stage: "response_read",
-          code: "invalid_response",
-          httpStatus: response.status,
-          ...safeErrorLogFields(contents.error.cause),
-        },
-        {
-          code: "invalid_response",
-          httpStatus: response.status,
-          cause: contents.error.cause,
-        },
-      );
+      LOGGER.warn("identity.google.wrapping_key.failed", {
+        operation: "request_google_wrapping_key",
+        stage: "response_read",
+        httpStatus: response.status,
+        ...safeErrorLogFields(contents.error.cause),
+        code: "invalid_response",
+      });
+      return Result.err({
+        code: "invalid_response",
+        httpStatus: response.status,
+        cause: contents.error.cause,
+      });
     }
 
     const responseText = contents.value;
@@ -112,16 +106,14 @@ export class GoogleWrappingKeyApiClient {
       const cause = new HttpResponseError(response.status, response.statusText, responseText, {
         cause: parseCause,
       });
-      return failure(
-        {
-          operation: "request_google_wrapping_key",
-          stage: "error_response",
-          code,
-          httpStatus: response.status,
-          ...safeErrorLogFields(cause),
-        },
-        { code, httpStatus: response.status, cause },
-      );
+      LOGGER.warn("identity.google.wrapping_key.failed", {
+        operation: "request_google_wrapping_key",
+        stage: "error_response",
+        httpStatus: response.status,
+        ...safeErrorLogFields(cause),
+        code,
+      });
+      return Result.err({ code, httpStatus: response.status, cause });
     }
 
     let body: unknown;
@@ -129,20 +121,18 @@ export class GoogleWrappingKeyApiClient {
       body = JSON.parse(responseText);
     } catch (e) {
       const responseError = new Error("Wrapping-key response must be valid JSON.", { cause: e });
-      return failure(
-        {
-          operation: "request_google_wrapping_key",
-          stage: "response_parse",
-          code: "invalid_response",
-          httpStatus: response.status,
-          ...safeErrorLogFields(responseError),
-        },
-        {
-          code: "invalid_response",
-          httpStatus: response.status,
-          cause: responseError,
-        },
-      );
+      LOGGER.warn("identity.google.wrapping_key.failed", {
+        operation: "request_google_wrapping_key",
+        stage: "response_parse",
+        httpStatus: response.status,
+        ...safeErrorLogFields(responseError),
+        code: "invalid_response",
+      });
+      return Result.err({
+        code: "invalid_response",
+        httpStatus: response.status,
+        cause: responseError,
+      });
     }
 
     const parsed = SUCCESS_SCHEMA.safeParse(body);
@@ -150,18 +140,16 @@ export class GoogleWrappingKeyApiClient {
       return Result.ok(parsed.data);
     }
     // Zod issues may echo the wrapping key, so retain only a fixed diagnostic cause.
-    return failure(
-      {
-        operation: "request_google_wrapping_key",
-        stage: "response_validation",
-        code: "invalid_response",
-        httpStatus: response.status,
-      },
-      {
-        code: "invalid_response",
-        httpStatus: response.status,
-        cause: new Error("Wrapping-key response does not match the success schema."),
-      },
-    );
+    LOGGER.warn("identity.google.wrapping_key.failed", {
+      operation: "request_google_wrapping_key",
+      stage: "response_validation",
+      httpStatus: response.status,
+      code: "invalid_response",
+    });
+    return Result.err({
+      code: "invalid_response",
+      httpStatus: response.status,
+      cause: new Error("Wrapping-key response does not match the success schema."),
+    });
   }
 }

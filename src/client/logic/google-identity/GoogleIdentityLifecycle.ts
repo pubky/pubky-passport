@@ -3,7 +3,6 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
-import { createFailure } from "@/libs/logger/createFailure";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { NETWORK_OPERATION_TIMEOUT_MS, REQUEST_TIMEOUT_MS } from "@/libs/passportPolicy";
 import type { GoogleIdentityCredentials } from "./gia/GoogleImplicitAuthorization";
@@ -96,10 +95,6 @@ export type GoogleIdentityLifecycleDependencies = {
     fetchImpl: typeof fetch,
   ) => VisibleRecoveryCopiesPort;
 };
-
-const detachFailure = createFailure<GoogleIdentityLifecycleError["code"]>(
-  "identity.google.detach.failed",
-);
 
 /**
  * Executes Google-backed identity establishment, repair, and detachment.
@@ -290,7 +285,11 @@ export class GoogleIdentityLifecycle {
     expectedGoogleSubject: string,
   ): Promise<DetachGoogleIdentityResult> {
     if (credentials.googleAccount.googleSubject !== expectedGoogleSubject) {
-      return detachFailure({ stage: "account_binding", code: "google_account_mismatch" });
+      LOGGER.warn("identity.google.detach.failed", {
+        stage: "account_binding",
+        code: "google_account_mismatch",
+      });
+      return Result.err({ code: "google_account_mismatch" });
     }
 
     try {
@@ -302,10 +301,11 @@ export class GoogleIdentityLifecycle {
         ? Result.err({ code: "local_remove_failed", cause: removed.error })
         : Result.ok();
     } catch (e) {
-      return detachFailure(
-        { code: "unexpected_failure", ...safeErrorLogFields(e) },
-        { code: "unexpected_failure", cause: e },
-      );
+      LOGGER.warn("identity.google.detach.failed", {
+        ...safeErrorLogFields(e),
+        code: "unexpected_failure",
+      });
+      return Result.err({ code: "unexpected_failure", cause: e });
     }
   }
 

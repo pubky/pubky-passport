@@ -5,7 +5,6 @@ import { Result, type Result as ResultType } from "better-result";
 import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "@/libs/encoding/base64Url";
 import { isGoogleAccountProfile, type GoogleAccountProfile } from "@/libs/googleAccountProfile";
 import { isRecord } from "@/libs/typeGuards";
-import { createFailure } from "@/libs/logger/createFailure";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import type { CodedFailure } from "@/libs/result";
 import {
@@ -33,7 +32,6 @@ export type LocalIdentityResult<Success> = ResultType<
 >;
 
 const STORAGE_ROOT = "pubky-passport/local-identities/v1";
-const failure = createFailure<LocalIdentityErrorCode>("identity.local_store.failed");
 const IDENTITY_KEY_PREFIX = `${STORAGE_ROOT}/identity/`;
 const ACTIVE_IDENTITY_KEY = `${STORAGE_ROOT}/active`;
 const SAME_TAB_LISTENERS = new Set<() => void>();
@@ -82,7 +80,11 @@ export class LocalStorageIdentityRepository {
       secretKey.format !== PUBKY_SECRET_KEY_FORMAT ||
       secretKey.bytes.byteLength !== PUBKY_SECRET_KEY_BYTES
     ) {
-      return failure({ operation: "save", code: "invalid_secret_key" });
+      LOGGER.warn("identity.local_store.failed", {
+        operation: "save",
+        code: "invalid_secret_key",
+      });
+      return Result.err({ code: "invalid_secret_key" });
     }
 
     const storageResult = getLocalStorage("write");
@@ -355,15 +357,27 @@ function invalidIdentity(operation: string): LocalIdentityResult<never> {
 }
 
 function invalidStore(): LocalIdentityResult<never> {
-  return failure({ operation: "read", code: "invalid_store" });
+  LOGGER.warn("identity.local_store.failed", {
+    operation: "read",
+    code: "invalid_store",
+  });
+  return Result.err({ code: "invalid_store" });
 }
 
 function storageUnavailable(operation: string, cause?: unknown): LocalIdentityResult<never> {
-  if (cause === undefined) return failure({ operation, code: "storage_unavailable" });
-  return failure(
-    { operation, code: "storage_unavailable", ...safeErrorLogFields(cause) },
-    { code: "storage_unavailable", cause },
-  );
+  if (cause === undefined) {
+    LOGGER.warn("identity.local_store.failed", {
+      operation,
+      code: "storage_unavailable",
+    });
+    return Result.err({ code: "storage_unavailable" });
+  }
+  LOGGER.warn("identity.local_store.failed", {
+    operation,
+    ...safeErrorLogFields(cause),
+    code: "storage_unavailable",
+  });
+  return Result.err({ code: "storage_unavailable", cause });
 }
 
 function getLocalStorage(operation: "read" | "write"): LocalIdentityResult<Storage> {
