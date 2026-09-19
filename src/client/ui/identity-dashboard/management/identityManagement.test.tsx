@@ -5,7 +5,10 @@ import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LOGGER } from "@/libs/logger/logger";
+import type { LocalIdentityHomeserverRepublishResult } from "@/client/logic/local-identity/LocalIdentityController";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
+import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
+import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubkyIdentityKey";
 import { IdentityManagement } from "./identityManagement";
 
 const MOCKS = vi.hoisted(() => ({ toastInfo: vi.fn() }));
@@ -38,6 +41,7 @@ describe("IdentityManagement", () => {
         onDownloadRecoveryFile={vi.fn()}
         onRemoveLocalIdentity={() => Result.ok()}
         onMigrateToKeychain={vi.fn()}
+        republishHomeserver={async () => Result.ok()}
         resolveHomeserver={() =>
           new Promise((resolve) => {
             settleLookup = (pubky) => resolve(Result.ok(pubky));
@@ -60,17 +64,7 @@ describe("IdentityManagement", () => {
     const onBack = vi.fn();
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
 
-    render(
-      <IdentityManagement
-        identity={identity}
-        onBack={onBack}
-        onDetachFromGoogle={vi.fn()}
-        onDownloadRecoveryFile={vi.fn()}
-        onRemoveLocalIdentity={() => Result.ok()}
-        onMigrateToKeychain={vi.fn()}
-        resolveHomeserver={async () => Result.ok("homeserver-pubky")}
-      />,
-    );
+    renderManagement({ onBack, resolveHomeserver: async () => Result.ok("homeserver-pubky") });
     const back = screen.getByRole("button", { name: "Back" });
     fireEvent.click(back);
     expect(onBack).toHaveBeenCalledOnce();
@@ -88,6 +82,7 @@ describe("IdentityManagement", () => {
     fireEvent.click(homeserverButton);
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("homeserver-pubky"));
     expect(MOCKS.toastInfo).toHaveBeenCalledWith("Homeserver copied");
+    expect(screen.queryByRole("button", { name: "Republish homeserver" })).not.toBeInTheDocument();
   });
 
   it("does not confirm a failed copy", async () => {
@@ -96,17 +91,7 @@ describe("IdentityManagement", () => {
       configurable: true,
       value: { writeText: vi.fn(() => Promise.reject(new Error("SECRET-COPY-CANARY"))) },
     });
-    render(
-      <IdentityManagement
-        identity={identity}
-        onBack={vi.fn()}
-        onDetachFromGoogle={vi.fn()}
-        onDownloadRecoveryFile={vi.fn()}
-        onRemoveLocalIdentity={() => Result.ok()}
-        onMigrateToKeychain={vi.fn()}
-        resolveHomeserver={async () => Result.ok("homeserver-pubky")}
-      />,
-    );
+    renderManagement({ resolveHomeserver: async () => Result.ok("homeserver-pubky") });
 
     fireEvent.click(screen.getByRole("button", { name: "Copy Pubky" }));
 
@@ -126,22 +111,15 @@ describe("IdentityManagement", () => {
 
   it("settles a rejected homeserver lookup as unavailable", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    render(
-      <IdentityManagement
-        identity={identity}
-        onBack={vi.fn()}
-        onDetachFromGoogle={vi.fn()}
-        onDownloadRecoveryFile={vi.fn()}
-        onRemoveLocalIdentity={() => Result.ok()}
-        onMigrateToKeychain={vi.fn()}
-        resolveHomeserver={async () => {
-          throw new Error("SECRET-HOMESERVER-CANARY");
-        }}
-      />,
-    );
+    renderManagement({
+      resolveHomeserver: async () => {
+        throw new Error("SECRET-HOMESERVER-CANARY");
+      },
+    });
 
     await waitFor(() => expect(screen.getByText("Unavailable")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Copy Homeserver" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Republish homeserver" })).toBeInTheDocument();
     expect(warning).toHaveBeenCalledWith(
       "identity.management.failed",
       expect.objectContaining({
@@ -153,19 +131,54 @@ describe("IdentityManagement", () => {
     expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-HOMESERVER-CANARY");
   });
 
+  it("shows a visible result after a successful manual republish", async () => {
+    const republishHomeserver = vi.fn(async () => Result.ok());
+    const resolveHomeserver = vi
+      .fn(async (): Promise<PubkyHomeserverResolutionResult> => Result.ok(null))
+      .mockResolvedValueOnce(Result.ok(null))
+      .mockResolvedValueOnce(Result.ok("homeserver-pubky"));
+
+    renderManagement({ republishHomeserver, resolveHomeserver });
+
+    await waitFor(() => expect(screen.getByText("Unavailable")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Republish homeserver" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Homeserver record republished.")).toBeInTheDocument(),
+    );
+    expect(republishHomeserver).toHaveBeenCalledOnce();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Copy Homeserver" })).toBeEnabled(),
+    );
+    expect(screen.queryByRole("button", { name: "Republish homeserver" })).not.toBeInTheDocument();
+  });
+
+  it("shows a retryable error when manual republish fails", async () => {
+    renderManagement({
+      republishHomeserver: async () => Result.err({ code: "publication_failed" }),
+      resolveHomeserver: async () => Result.ok(null),
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Republish homeserver" })).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Republish homeserver" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("Could not republish the homeserver record. Please try again."),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: "Republish homeserver" })).toBeEnabled();
+  });
+
   it("shows a retryable error when local logout fails", () => {
     const onBack = vi.fn();
-    render(
-      <IdentityManagement
-        identity={identity}
-        onBack={onBack}
-        onDetachFromGoogle={vi.fn()}
-        onDownloadRecoveryFile={vi.fn()}
-        onRemoveLocalIdentity={() => Result.err({ code: "storage_unavailable" })}
-        onMigrateToKeychain={vi.fn()}
-        resolveHomeserver={async () => Result.ok(null)}
-      />,
-    );
+    renderManagement({
+      onBack,
+      onRemoveLocalIdentity: () => Result.err({ code: "storage_unavailable" }),
+      resolveHomeserver: async () => Result.ok(null),
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Log out" }));
 
@@ -174,17 +187,7 @@ describe("IdentityManagement", () => {
   });
 
   it("shows secondary logout in the header at the responsive design sizes", () => {
-    render(
-      <IdentityManagement
-        identity={identity}
-        onBack={vi.fn()}
-        onDetachFromGoogle={vi.fn()}
-        onDownloadRecoveryFile={vi.fn()}
-        onRemoveLocalIdentity={() => Result.ok()}
-        onMigrateToKeychain={vi.fn()}
-        resolveHomeserver={async () => Result.ok(null)}
-      />,
-    );
+    renderManagement({ resolveHomeserver: async () => Result.ok(null) });
 
     const logout = screen.getByRole("button", { name: "Log out" });
     const back = screen.getByRole("button", { name: "Back" });
@@ -207,3 +210,28 @@ describe("IdentityManagement", () => {
     );
   });
 });
+
+function renderManagement({
+  onBack = vi.fn(),
+  onRemoveLocalIdentity = () => Result.ok(),
+  republishHomeserver = async () => Result.ok(),
+  resolveHomeserver = async () => Result.ok("homeserver-pubky"),
+}: {
+  onBack?: () => void;
+  onRemoveLocalIdentity?: () => LocalIdentityResult<void>;
+  republishHomeserver?: () => Promise<LocalIdentityHomeserverRepublishResult>;
+  resolveHomeserver?: () => Promise<PubkyHomeserverResolutionResult>;
+} = {}) {
+  return render(
+    <IdentityManagement
+      identity={identity}
+      onBack={onBack}
+      onDetachFromGoogle={vi.fn()}
+      onDownloadRecoveryFile={vi.fn()}
+      onRemoveLocalIdentity={onRemoveLocalIdentity}
+      onMigrateToKeychain={vi.fn()}
+      republishHomeserver={republishHomeserver}
+      resolveHomeserver={resolveHomeserver}
+    />,
+  );
+}

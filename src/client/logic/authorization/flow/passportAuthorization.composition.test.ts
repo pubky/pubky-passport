@@ -18,6 +18,7 @@ const MOCKS = vi.hoisted(() => ({
   restoreIdentityKey: vi.fn(),
   disposeIdentityKey: vi.fn(),
   approveAuthRequest: vi.fn(),
+  publishHomeserver: vi.fn(),
 }));
 
 vi.mock("@/client/logic/pubky/PubkySdkAdapter", () => ({
@@ -40,14 +41,17 @@ describe("PassportAuthorizationController composition", () => {
     MOCKS.restoreIdentityKey.mockReset();
     MOCKS.disposeIdentityKey.mockReset();
     MOCKS.approveAuthRequest.mockReset();
+    MOCKS.publishHomeserver.mockReset();
     MOCKS.PubkySdkAdapter.mockImplementation(function () {
       return {
         dispose: MOCKS.dispose,
         restoreIdentityKey: MOCKS.restoreIdentityKey,
         disposeIdentityKey: MOCKS.disposeIdentityKey,
         approveAuthRequest: MOCKS.approveAuthRequest,
+        publishHomeserver: MOCKS.publishHomeserver,
       };
     });
+    MOCKS.publishHomeserver.mockResolvedValue(Result.ok());
     window.history.replaceState({}, "", "/");
   });
   afterEach(() => {

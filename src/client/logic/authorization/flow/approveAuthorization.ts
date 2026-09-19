@@ -3,6 +3,7 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import { startHomeserverRepublish } from "@/client/logic/pubky/startHomeserverRepublish";
 import type { CodedFailure } from "@/libs/result";
 import {
   LocalStorageIdentityRepository,
@@ -49,6 +50,7 @@ export async function approveAuthorization(
   }
 
   let keyHandle: PubkyIdentityKey["keyHandle"] | undefined;
+  let republish: Promise<void> | undefined;
   let stage: "identity_restore" | "sdk_approve" = "identity_restore";
   try {
     const authRequestUrl = request.validatedUrlForApproval();
@@ -69,11 +71,13 @@ export async function approveAuthorization(
       return Result.err({ code: "approval_failed", cause: restored.error });
     }
 
-    keyHandle = restored.value.keyHandle;
+    const restoredKey = restored.value.keyHandle;
+    keyHandle = restoredKey;
+    republish = startHomeserverRepublish(() => pubky.publishHomeserver(restoredKey));
     stage = "sdk_approve";
     if (signal?.aborted) return Result.err({ code: "cancelled" });
     onCommit?.();
-    const approved = await pubky.approveAuthRequest(keyHandle, authRequestUrl);
+    const approved = await pubky.approveAuthRequest(restoredKey, authRequestUrl);
     if (Result.isError(approved)) {
       LOGGER.warn("authorize.approval.failed", {
         stage: "sdk_approve",
@@ -91,8 +95,15 @@ export async function approveAuthorization(
     });
     return Result.err({ code: "approval_failed", cause: e });
   } finally {
-    disposeIdentityKey(pubky, keyHandle);
-    disposePubky(pubky);
+    if (republish) {
+      void republish.finally(() => {
+        disposeIdentityKey(pubky, keyHandle);
+        disposePubky(pubky);
+      });
+    } else {
+      disposeIdentityKey(pubky, keyHandle);
+      disposePubky(pubky);
+    }
   }
 }
 

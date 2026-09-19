@@ -20,6 +20,7 @@ import {
   type PubkyIdentityKey,
   type PubkyPublicIdentity,
 } from "@/client/logic/pubky/pubkyIdentityKey";
+import { startHomeserverRepublish } from "@/client/logic/pubky/startHomeserverRepublish";
 import { PubkySdkAdapter } from "@/client/logic/pubky/PubkySdkAdapter";
 import { GoogleWrappingKeyApiClient } from "@/client/logic/wrapping-key/GoogleWrappingKeyApiClient";
 import { LocalStorageIdentityRepository } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
@@ -127,6 +128,7 @@ export class GoogleIdentityLifecycle {
     GoogleIdentityLifecycleDependencies["createVisibleRecoveryCopies"]
   >;
   private readonly requests = new AbortController();
+  private homeserverRepublish: Promise<void> | undefined;
   private readonly fetch: typeof fetch;
   private disposed = false;
 
@@ -319,7 +321,9 @@ export class GoogleIdentityLifecycle {
     if (this.disposed) return;
     this.disposed = true;
     this.abortRequests();
-    this.pubky.dispose();
+    const release = () => this.pubky.dispose();
+    if (this.homeserverRepublish) void this.homeserverRepublish.finally(release);
+    else release();
   }
 
   /**
@@ -425,6 +429,7 @@ export class GoogleIdentityLifecycle {
     const restored = await this.restoreKey(envelope, wrappingKey);
     if (Result.isError(restored)) return Result.err(restored.error);
 
+    let republish: Promise<void> | undefined;
     try {
       report({ flow: "restore", step: "signing_in" });
       const signedIn = await this.pubky.signin(restored.value.keyHandle, "normal");
@@ -437,6 +442,10 @@ export class GoogleIdentityLifecycle {
           "restored",
         );
         if (Result.isError(saved)) return Result.err(saved.error);
+        this.homeserverRepublish = startHomeserverRepublish(() =>
+          this.pubky.publishHomeserver(restored.value.keyHandle),
+        );
+        republish = this.homeserverRepublish;
         return Result.ok({
           establishmentMode: "restored",
           publicIdentity: restored.value.publicIdentity,
@@ -469,7 +478,13 @@ export class GoogleIdentityLifecycle {
         publicIdentity: restored.value.publicIdentity,
       });
     } finally {
-      this.disposeIdentityKey(restored.value, "restored_key_dispose");
+      if (republish) {
+        void republish.finally(() =>
+          this.disposeIdentityKey(restored.value, "restored_key_dispose"),
+        );
+      } else {
+        this.disposeIdentityKey(restored.value, "restored_key_dispose");
+      }
     }
   }
 

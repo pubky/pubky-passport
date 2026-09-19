@@ -123,6 +123,7 @@ function ReadyIdentityDashboard({
               publicKeyZ32,
             });
           }}
+          republishHomeserver={() => actions.republishHomeserver(publicKeyZ32)}
           resolveHomeserver={actions.resolveHomeserver}
         />
       );

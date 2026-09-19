@@ -35,6 +35,7 @@ export type LocalIdentityControllerPort = Pick<
   | "createRecoveryFile"
   | "listIdentities"
   | "removeIdentity"
+  | "republishHomeserver"
   | "resolveHomeserver"
   | "selectIdentity"
   | "subscribeToIdentityChanges"
