@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER } from "@/libs/logger/logger";
 import { handoffAuthorizationOutcome } from "./authorizationOutcomeHandoff";
 
 const CALLBACK = "https://app.example/auth/passport/success?private=value";
@@ -85,6 +85,8 @@ describe("handoffAuthorizationOutcome", () => {
     expect(messageFailure.clearTimeout).toHaveBeenCalledOnce();
     expect(warning).toHaveBeenCalledWith("authorize.callback_handoff.failed", {
       operation: "post_message",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain(CALLBACK);
 
@@ -131,6 +133,8 @@ describe("handoffAuthorizationOutcome", () => {
           failure === "removeEventListener"
             ? "remove_message_listener"
             : "clear_acknowledgement_timeout",
+        diagnosticId: expect.any(String),
+        errorName: "Error",
       });
     },
   );
@@ -142,6 +146,8 @@ describe("handoffAuthorizationOutcome", () => {
     await expect(complete(harness, "cancel")).resolves.toBe("unavailable");
     expect(warning).toHaveBeenCalledWith("authorize.callback_handoff.failed", {
       operation: "navigate",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain(CALLBACK);
   });

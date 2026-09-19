@@ -3,10 +3,10 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../../test-utils/MemoryStorage";
-import { encodeBase64Url } from "../../../../libs/encoding/base64Url";
-import { GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE } from "../../../../libs/authorization/earlyGoogleImplicitResponse";
-import { LOGGER } from "../../../../libs/logger/logger";
+import { MemoryStorage } from "@test-utils/MemoryStorage";
+import { encodeBase64Url } from "@/libs/encoding/base64Url";
+import { GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE } from "@/libs/authorization/earlyGoogleImplicitResponse";
+import { LOGGER } from "@/libs/logger/logger";
 import { GoogleImplicitAuthorization } from "./GoogleImplicitAuthorization";
 
 const ORIGIN = "https://passport.example";
@@ -262,6 +262,33 @@ describe("GoogleImplicitAuthorization", () => {
     expect(JSON.stringify(warning.mock.calls)).not.toContain("USERINFO-FAILURE-CANARY");
   });
 
+  it.each([null, false, 0, ""] as const)(
+    "preserves a falsey user-info exception (%j)",
+    async (thrown) => {
+      const popup = createPopup();
+      const open = vi.fn<typeof window.open>(() => popup.window);
+      vi.stubGlobal("open", open);
+      vi.stubGlobal("fetch", vi.fn<typeof globalThis.fetch>().mockRejectedValue(thrown));
+      const authorization = new GoogleImplicitAuthorization("client-id");
+      const request = authorization.request();
+      const authorizeUrl = new URL(String(open.mock.calls[0]?.[0]));
+      popup.returnTo(
+        `${ORIGIN}/#${new URLSearchParams({
+          access_token: ACCESS_TOKEN,
+          id_token: jwt({ sub: SUBJECT, nonce: authorizeUrl.searchParams.get("nonce") }),
+          scope: APP_DATA_SCOPE,
+          state: authorizeUrl.searchParams.get("state") ?? "",
+        })}`,
+      );
+
+      const result = await request;
+
+      expect(Result.isError(result)).toBe(true);
+      if (!Result.isError(result)) return;
+      expect(result.error).toHaveProperty("cause", thrown);
+    },
+  );
+
   it("reports popup closure from the popup handle", async () => {
     vi.useFakeTimers();
     const popup = createPopup();
@@ -295,7 +322,9 @@ describe("GoogleImplicitAuthorization", () => {
 
     const result = await request;
     expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) expect(result.error).toEqual({ code: expectedCode });
+    if (Result.isError(result)) {
+      expect(result.error).toEqual({ code: expectedCode });
+    }
   });
 
   it.each([
@@ -316,7 +345,10 @@ describe("GoogleImplicitAuthorization", () => {
     popup.returnTo(`${ORIGIN}/#${params}`);
 
     const result = await request;
-    expect(Result.isError(result) && result.error).toEqual({ code: "google_authorization_failed" });
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error).toEqual({ code: "google_authorization_failed" });
+    }
   });
 
   it("rejects concurrent requests and times out the active request", async () => {
@@ -330,15 +362,23 @@ describe("GoogleImplicitAuthorization", () => {
     const active = authorization.request();
 
     const concurrent = await authorization.request();
-    expect(Result.isError(concurrent) && concurrent.error).toEqual({
-      code: "google_authorization_failed",
-    });
+    expect(Result.isError(concurrent)).toBe(true);
+    if (Result.isError(concurrent)) {
+      expect(concurrent.error).toEqual({
+        code: "google_authorization_failed",
+        reason: "authorization_in_progress",
+      });
+    }
     await vi.advanceTimersByTimeAsync(5 * 60_000);
 
     const timedOut = await active;
-    expect(Result.isError(timedOut) && timedOut.error).toEqual({
-      code: "google_authorization_failed",
-    });
+    expect(Result.isError(timedOut)).toBe(true);
+    if (Result.isError(timedOut)) {
+      expect(timedOut.error).toEqual({
+        code: "google_authorization_failed",
+        reason: "authorization_timed_out",
+      });
+    }
     expect(popup.close).toHaveBeenCalledOnce();
   });
 
@@ -459,6 +499,13 @@ describe("GoogleImplicitAuthorization", () => {
       expect(result.error.code).toBe("google_authorization_failed");
       expect(result.error.cause).toBe(thrown);
     }
+    expect(warning).toHaveBeenCalledWith("identity.google.implicit_authorization.failed", {
+      operation: "authorize",
+      stage: "request_setup",
+      code: "google_authorization_failed",
+      diagnosticId: expect.any(String),
+      errorName: "ErrorLike",
+    });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("AUTHORIZATION-SETUP-CANARY");
   });
 
@@ -498,10 +545,17 @@ describe("GoogleImplicitAuthorization", () => {
     const result = await request;
 
     expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) expect(result.error.code).toBe("google_authorization_failed");
+    if (Result.isError(result)) {
+      expect(result.error).toEqual({
+        code: "google_authorization_failed",
+        reason: "authorization_disposed",
+      });
+    }
     expect(popup.close).toHaveBeenCalledOnce();
     expect(warning).toHaveBeenCalledWith("identity.google.implicit_authorization.cleanup_failed", {
       operation: "remove_message_listener",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-CLEANUP-CANARY");
   });

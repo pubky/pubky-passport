@@ -5,18 +5,18 @@ import { GoogleIdentityComplete } from "./google/googleIdentityComplete";
 import { GoogleIdentityError } from "./google/googleIdentityError";
 import { GoogleIdentityProgress } from "./google/googleIdentityProgress";
 import { useGoogleIdentityEstablishment } from "./google/useGoogleIdentityEstablishment";
-import { BackButton } from "../shared/backButton";
+import { BackButton } from "@/client/ui/shared/backButton";
 import { ProviderSignInButton } from "./providerSignInButton";
 import { SignInPage } from "./signInPage";
 
 function IdentityEstablishmentFlow({
+  forAuthorization = false,
   onBack,
   onComplete,
-  signInTo,
 }: {
-  onBack?: () => void;
+  forAuthorization?: boolean | undefined;
+  onBack?: (() => void) | undefined;
   onComplete: () => void;
-  signInTo?: string;
 }) {
   const google = useGoogleIdentityEstablishment();
   const view = google.view;
@@ -34,32 +34,25 @@ function IdentityEstablishmentFlow({
           mode={view.mode}
           visibleRecoveryCopyStatus={view.visibleRecoveryCopyStatus}
           onContinue={onComplete}
-          {...(signInTo ? { signInTo } : {})}
         />
       );
     case "requesting-access":
-      return <GoogleAccessScreen {...(signInTo ? { signInTo } : {})} />;
+      return <GoogleAccessScreen fullWidthAction={forAuthorization} />;
     case "failed": {
       return (
         <GoogleIdentityError
           error={view.error}
           onBack={google.back}
+          onReplaceInvalidFile={google.replaceInvalidPassportFile}
           onTryAgain={google.establishIdentity}
-          {...(signInTo ? { signInTo } : {})}
-          {...(view.error.code === "invalid_passport_file" ||
-          view.error.code === "invalid_passport_file_delete_failed"
-            ? { onReplaceInvalidFile: google.replaceInvalidPassportFile }
-            : {})}
         />
       );
     }
     case "working":
-      return (
-        <GoogleIdentityProgress progress={view.progress} {...(signInTo ? { signInTo } : {})} />
-      );
+      return <GoogleIdentityProgress progress={view.progress} />;
     case "idle":
       return (
-        <SignInPage {...(signInTo ? { signInTo } : {})}>
+        <SignInPage>
           <ProviderSignInButton
             className="w-full"
             onClick={google.establishIdentity}

@@ -14,6 +14,13 @@ export type PubkyAuthUrlValidationError = {
   code: PubkyAuthUrlValidationErrorCode;
 };
 
+/** Canonical callbacks retained outside renderable authorization state. */
+export type ValidatedPubkyAuthCallbacks = {
+  success?: string;
+  error?: string;
+  cancel?: string;
+};
+
 type PubkyAuthUrlValidationResult = ResultType<
   ValidatedPubkyAuthCallbacks,
   PubkyAuthUrlValidationError
@@ -48,15 +55,15 @@ function validateRelayUrl(value: string | null): ResultType<void, PubkyAuthUrlVa
   }
 
   const parsed = parseAbsoluteUrl(value);
-  if (
-    parsed === null ||
-    parsed.protocol !== "https:" ||
-    parsed.username !== "" ||
-    parsed.password !== "" ||
-    parsed.hash !== "" ||
-    parsed.port !== "" ||
-    !isExactRelayHostname(parsed.hostname)
-  ) {
+  if (parsed === null) {
+    return Result.err<never, PubkyAuthUrlValidationError>({ code: "invalid_relay" });
+  }
+
+  const usesHttps = parsed.protocol === "https:";
+  const hasCredentials = parsed.username !== "" || parsed.password !== "";
+  const hasFragmentOrPort = parsed.hash !== "" || parsed.port !== "";
+  const hasValidHostname = isExactRelayHostname(parsed.hostname);
+  if (!usesHttps || hasCredentials || hasFragmentOrPort || !hasValidHostname) {
     return Result.err<never, PubkyAuthUrlValidationError>({ code: "invalid_relay" });
   }
 
@@ -77,20 +84,20 @@ function isExactRelayHostname(hostname: string): boolean {
 function validateCallbacks(
   authUrl: URL,
 ): ResultType<ValidatedPubkyAuthCallbacks, PubkyAuthUrlValidationError> {
-  const rawSuccess = rawQueryValue(authUrl, URL_PARAMETERS.success);
+  const rawSuccess = getRawQueryValue(authUrl, URL_PARAMETERS.success);
   const success = validateEncodedCallback(
-    rawSuccess ?? rawQueryValue(authUrl, URL_PARAMETERS.legacySuccess),
+    rawSuccess ?? getRawQueryValue(authUrl, URL_PARAMETERS.legacySuccess),
   );
   if (Result.isError(success)) {
     return Result.err(success.error);
   }
 
-  const errorCallback = validateEncodedCallback(rawQueryValue(authUrl, URL_PARAMETERS.error));
+  const errorCallback = validateEncodedCallback(getRawQueryValue(authUrl, URL_PARAMETERS.error));
   if (Result.isError(errorCallback)) {
     return Result.err(errorCallback.error);
   }
 
-  const cancel = validateEncodedCallback(rawQueryValue(authUrl, URL_PARAMETERS.cancel));
+  const cancel = validateEncodedCallback(getRawQueryValue(authUrl, URL_PARAMETERS.cancel));
   if (Result.isError(cancel)) {
     return Result.err(cancel.error);
   }
@@ -120,7 +127,7 @@ function validateCallbacks(
   return Result.ok(callbacks);
 }
 
-function rawQueryValue(url: URL, key: string): string | undefined {
+export function getRawQueryValue(url: URL, key: string): string | undefined {
   const query = url.search.startsWith("?") ? url.search.slice(1) : url.search;
   for (const pair of query.split("&")) {
     const separator = pair.indexOf("=");
@@ -143,13 +150,6 @@ function validateEncodedCallback(
     return Result.err<never, PubkyAuthUrlValidationError>({ code: "invalid_callback" });
   }
 }
-
-/** Canonical callbacks retained outside renderable authorization state. */
-export type ValidatedPubkyAuthCallbacks = {
-  success?: string;
-  error?: string;
-  cancel?: string;
-};
 
 function validateOptionalCallback(
   value: string | null,

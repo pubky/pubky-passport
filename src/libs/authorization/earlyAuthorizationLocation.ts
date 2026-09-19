@@ -1,4 +1,10 @@
-import { AUTHORIZATION_CAPTURE_MAX_CHARACTERS } from "../passportPolicy";
+import { AUTHORIZATION_CAPTURE_MAX_CHARACTERS } from "@/libs/passportPolicy";
+
+export type EarlyAuthorizationLocation =
+  | { status: "captured"; hash: string; expiresAt: number }
+  | { status: "expired" }
+  | { status: "invalid_search" }
+  | { status: "too_large" };
 
 export const EARLY_AUTHORIZATION_LOCATION_PROPERTY = "__takePassportAuthorizationLocation";
 const EARLY_AUTHORIZATION_LOCATION_LIFETIME_MS = 60_000;
@@ -24,8 +30,10 @@ export const EARLY_AUTHORIZATION_LOCATION_SCRIPT = `(() => {
   try {
     History.prototype.replaceState.call(history, null, "", location.pathname);
   } catch {
-    try { stop(); } catch {}
-    try { location.replace(location.pathname); } catch {}
+    try { stop(); } catch { /* Loading may already have stopped. */ }
+    try { location.replace(location.pathname); } catch {
+      /* Authorization-data scrubbing is best effort when native location APIs fail. */
+    }
     return;
   }
 
@@ -52,9 +60,3 @@ export const EARLY_AUTHORIZATION_LOCATION_SCRIPT = `(() => {
     },
   });
 })();`;
-
-export type EarlyAuthorizationLocation =
-  | { status: "captured"; hash: string; expiresAt: number }
-  | { status: "expired" }
-  | { status: "invalid_search" }
-  | { status: "too_large" };

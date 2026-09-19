@@ -3,9 +3,9 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
-import { LOGGER } from "../../../../libs/logger/logger";
-import type { AuthorizationEntry } from "../entry/authorizationEntry";
-import { ValidatedPubkyAuthRequest } from "../request/ValidatedPubkyAuthRequest";
+import { LOGGER } from "@/libs/logger/logger";
+import type { AuthorizationEntry } from "@/client/logic/authorization/entry/authorizationEntry";
+import { ValidatedPubkyAuthRequest } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 import type {
   AuthorizationHandoffStatus,
   AuthorizationOutcome,
@@ -57,6 +57,7 @@ describe("PassportAuthorizationController", () => {
   });
 
   afterEach(() => {
+    PassportAuthorizationController.fromBrowser(() => undefined).dispose();
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
@@ -193,6 +194,8 @@ describe("PassportAuthorizationController", () => {
     expect(warning).toHaveBeenCalledWith("authorize.callback.failed", {
       outcome: "success",
       operation: "complete",
+      diagnosticId: expect.any(String),
+      errorName: "TypeError",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain(SECRET);
     expect(JSON.stringify(warning.mock.calls)).not.toContain(SUCCESS_CALLBACK);
@@ -209,6 +212,8 @@ describe("PassportAuthorizationController", () => {
     expect(warning).toHaveBeenCalledOnce();
     expect(warning).toHaveBeenCalledWith("authorize.state_listener.failed", {
       state: "cancelled",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
   });
 
@@ -272,6 +277,30 @@ describe("PassportAuthorizationController", () => {
     const { controller } = createController({}, { status: entryStatus });
 
     expect(controller.getState()).toEqual({ status: viewStatus });
+  });
+
+  it("owns the injected bootstrap entry without reading the address bar", () => {
+    window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
+    const entry = createEntry({});
+    const takeInitial = vi.fn(() => entry);
+
+    const fromBrowser = PassportAuthorizationController.fromBrowser(takeInitial);
+
+    expect(fromBrowser).toBe(PassportAuthorizationController.fromBrowser(takeInitial));
+    expect(fromBrowser.getState().status).toBe("review");
+    expect(takeInitial).toHaveBeenCalledOnce();
+    expect(window.location.hash).toContain("d=");
+    fromBrowser.dispose();
+  });
+
+  it("starts in manual entry when bootstrap capture is absent", () => {
+    window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
+
+    const controller = PassportAuthorizationController.fromBrowser(() => undefined);
+
+    expect(controller.getState()).toEqual({ status: "manual-entry" });
+    expect(window.location.hash).toContain("d=");
+    controller.dispose();
   });
 
   it("keeps a request live while the user completes onboarding", () => {

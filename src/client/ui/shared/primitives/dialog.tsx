@@ -33,4 +33,4 @@ function Dialog({ onOpenChange, open, ...props }: DialogProps) {
   );
 }
 
-export { Dialog, type DialogProps };
+export { Dialog };

@@ -3,10 +3,13 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../test-utils/MemoryStorage";
-import { expectResultError, expectResultOk } from "../../../../test-utils/resultAssertions";
-import { LOGGER } from "../../../libs/logger/logger";
-import { PUBKY_SECRET_KEY_FORMAT, type PubkyPublicIdentity } from "../pubky/pubkyIdentityKey";
+import { MemoryStorage } from "@test-utils/MemoryStorage";
+import { expectResultError, expectResultOk } from "@test-utils/resultAssertions";
+import { LOGGER } from "@/libs/logger/logger";
+import {
+  PUBKY_SECRET_KEY_FORMAT,
+  type PubkyPublicIdentity,
+} from "@/client/logic/pubky/pubkyIdentityKey";
 import { LocalStorageIdentityRepository } from "./LocalStorageIdentityRepository";
 
 const FIRST_KEY = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
@@ -294,6 +297,25 @@ describe("LocalStorageIdentityRepository", () => {
 
     expect(Result.isError(result) && result.error.code).toBe("storage_unavailable");
     expect(JSON.stringify(warning.mock.calls)).not.toContain("sensitive persisted contents");
+  });
+
+  it("preserves exceptions raised while accessing browser storage", () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const cause = new DOMException("sensitive browser policy details", "SecurityError");
+    vi.spyOn(window, "localStorage", "get").mockImplementation(() => {
+      throw cause;
+    });
+
+    const result = new LocalStorageIdentityRepository().list();
+
+    expectResultError(result, { code: "storage_unavailable", cause });
+    expect(warning).toHaveBeenCalledWith("identity.local_store.failed", {
+      operation: "read",
+      code: "storage_unavailable",
+      diagnosticId: expect.any(String),
+      errorName: "SecurityError",
+    });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("sensitive browser policy details");
   });
 });
 

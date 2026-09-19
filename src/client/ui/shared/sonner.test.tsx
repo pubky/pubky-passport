@@ -4,7 +4,7 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { toast } from "sonner";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { showCopyConfirmation, showDownloadConfirmation, Sonner } from "./sonner";
+import { Sonner } from "./sonner";
 
 describe("Sonner", () => {
   afterEach(() => {
@@ -14,39 +14,38 @@ describe("Sonner", () => {
     cleanup();
   });
 
-  it("renders the designed copy confirmation", async () => {
+  it("renders a gray info notification with its icon and description", async () => {
     render(<Sonner />);
 
-    const pubky = "x8jpihgjy51fdnaingcp8rum1omfzd6p8bhm7usune41grd97dho5cwy4mra";
     act(() => {
-      showCopyConfirmation("Pubky", pubky);
+      toast.info("Copied", { description: "Copied value" });
     });
 
-    const message = await screen.findByText("Pubky copied to clipboard");
-    expect(screen.getByText("x8jp...4mra")).toBeInTheDocument();
-    expect(screen.queryByText(pubky)).not.toBeInTheDocument();
-    expect(message).toBeInTheDocument();
+    const title = await screen.findByText("Copied");
+    const notification = title.closest("[data-sonner-toast]");
+    expect(notification).toHaveAttribute("data-type", "info");
+    expect(notification).toHaveClass("!border-[#303034]");
+    const icon = notification?.querySelector("[data-icon] svg");
+    expect(icon).not.toBeNull();
+    expect(icon).toHaveAttribute("viewBox", "0 0 20 20");
+    expect(icon?.parentElement).toHaveClass("text-[#89898F]");
+    expect(screen.getByText("Copied value")).toBeInTheDocument();
   });
 
-  it("renders the copied homeserver below its confirmation title", async () => {
+  it("renders a green success notification with its checkmark", async () => {
     render(<Sonner />);
 
     act(() => {
-      showCopyConfirmation("Homeserver", "homeserver-pubky");
+      toast.success("Saved");
     });
 
-    expect(await screen.findByText("Homeserver copied to clipboard")).toBeInTheDocument();
-    expect(screen.getByText("home...ubky")).toBeInTheDocument();
-    expect(screen.queryByText("homeserver-pubky")).not.toBeInTheDocument();
-  });
-
-  it("renders a recovery-file download confirmation", async () => {
-    render(<Sonner />);
-
-    act(() => {
-      showDownloadConfirmation();
-    });
-
-    expect(await screen.findByText("File downloaded")).toBeInTheDocument();
+    const title = await screen.findByText("Saved");
+    const notification = title.closest("[data-sonner-toast]");
+    expect(notification).toHaveAttribute("data-type", "success");
+    expect(notification).toHaveClass("!border-brand/50", "bg-brand/25");
+    const icon = notification?.querySelector("[data-icon] svg");
+    expect(icon).not.toBeNull();
+    expect(icon).toHaveAttribute("viewBox", "0 0 20 20");
+    expect(icon?.parentElement).toHaveClass("text-brand");
   });
 });

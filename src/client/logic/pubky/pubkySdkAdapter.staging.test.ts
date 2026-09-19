@@ -2,8 +2,8 @@ import { AuthFlowKind, Pubky, PublicKey, type Session } from "@synonymdev/pubky"
 import { Result, type Result as ResultType } from "better-result";
 import { expect, test } from "vitest";
 
-import { ValidatedPubkyAuthRequest } from "../authorization/request/ValidatedPubkyAuthRequest";
-import { HomegateClient } from "../homegate/HomegateClient";
+import { ValidatedPubkyAuthRequest } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
+import { HomegateClient } from "@/client/logic/homegate/HomegateClient";
 import { PubkySdkAdapter } from "./PubkySdkAdapter";
 
 const CAPABILITIES = "/pub/passport-staging.pubky.app/:rw" as const;
@@ -13,9 +13,9 @@ const RESOLUTION_POLL_INTERVAL_MS = 2_000;
 test("completes signup, publication, signin, and both v0.10 authorization methods", async () => {
   const config = stagingConfig();
   const homegate = new HomegateClient(config.homegateBaseUrl, globalThis.fetch);
-  const invitation = expectOk(
-    await homegate.requestGoogleSignupInvitation(config.googleIdToken),
-    "Homegate did not issue a staging invitation",
+  const signupDetails = expectOk(
+    await homegate.requestGoogleSignupToken(config.googleIdToken),
+    "Homegate did not issue a staging signup token",
   );
   const passport = new PubkySdkAdapter();
   const relyingParty = new Pubky();
@@ -28,19 +28,23 @@ test("completes signup, publication, signin, and both v0.10 authorization method
     );
 
     const signup = expectOk(
-      await passport.signup(identity.keyHandle, invitation.homeserverPubky, invitation.signupCode),
-      "Passport could not sign up with the staging invitation",
+      await passport.signup(
+        identity.keyHandle,
+        signupDetails.homeserverPubky,
+        signupDetails.signupToken,
+      ),
+      "Passport could not sign up with the staging signup token",
     );
     expect(signup.publicIdentity).toEqual(identity.publicIdentity);
 
     expectOk(
-      await passport.publishHomeserver(identity.keyHandle, invitation.homeserverPubky),
+      await passport.publishHomeserver(identity.keyHandle, signupDetails.homeserverPubky),
       "Passport could not publish the homeserver record",
     );
     await expectHomeserverResolution(
       relyingParty,
       identity.publicIdentity.publicKeyZ32,
-      invitation.homeserverPubky,
+      signupDetails.homeserverPubky,
     );
 
     const signin = expectOk(

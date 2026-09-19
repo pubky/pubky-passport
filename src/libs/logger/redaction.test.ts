@@ -109,10 +109,10 @@ describe("redactForLog sensitive and opaque values", () => {
 
   it("redacts sensitive key value pairs with equals and colon separators", () => {
     const value =
-      "id_token=abc access_token:def token=ghi secret=jkl wrapping_key=mno credential=pqr";
+      "id_token=abc access_token:def token=ghi secret=jkl wrapping_key=mno credential=pqr signupCode=stu signupToken=vwx";
 
     expect(redactForLog(value)).toBe(
-      "id_token=[REDACTED_TOKEN] access_token=[REDACTED_TOKEN] token=[REDACTED_TOKEN] secret=[REDACTED_TOKEN] wrapping_key=[REDACTED_TOKEN] credential=[REDACTED_TOKEN]",
+      "id_token=[REDACTED_TOKEN] access_token=[REDACTED_TOKEN] token=[REDACTED_TOKEN] secret=[REDACTED_TOKEN] wrapping_key=[REDACTED_TOKEN] credential=[REDACTED_TOKEN] signupCode=[REDACTED_TOKEN] signupToken=[REDACTED_TOKEN]",
     );
   });
 

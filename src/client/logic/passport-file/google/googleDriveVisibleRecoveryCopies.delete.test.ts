@@ -1,7 +1,8 @@
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LOGGER } from "../../../../libs/logger/logger";
+import { HttpResponseError } from "@/libs/http/HttpResponseError";
+import { LOGGER } from "@/libs/logger/logger";
 import { GoogleDriveVisibleRecoveryCopies } from "./GoogleDriveVisibleRecoveryCopies";
 
 const TOKEN = "SECRET-DRIVE-TOKEN";
@@ -106,7 +107,14 @@ describe("GoogleDriveVisibleRecoveryCopies deletion", () => {
 
     const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_IDENTITY);
 
-    expect(Result.isError(result) && result.error).toEqual({ code: "forbidden" });
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error).toMatchObject({
+        code: "forbidden",
+        httpStatus: 403,
+        cause: expect.any(HttpResponseError),
+      });
+    }
   });
 
   it("rejects an oversized Drive list response before issuing another request", async () => {
@@ -118,7 +126,10 @@ describe("GoogleDriveVisibleRecoveryCopies deletion", () => {
 
     const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_IDENTITY);
 
-    expect(Result.isError(result) && result.error).toEqual({ code: "invalid_response" });
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error).toMatchObject({ code: "invalid_response", cause: expect.any(Error) });
+    }
     expect(calls).toHaveLength(1);
   });
 
@@ -159,11 +170,25 @@ describe("GoogleDriveVisibleRecoveryCopies deletion", () => {
 
     const result = await visibleCopies.deleteVisibleRecoveryCopies(PUBLIC_IDENTITY);
 
-    expect(Result.isError(result) && result.error).toEqual({ code: "forbidden" });
+    expect(Result.isError(result)).toBe(true);
+    if (!Result.isError(result)) throw new Error("Expected the Drive request to fail.");
+    expect(result.error).toMatchObject({
+      code: "forbidden",
+      httpStatus: 403,
+      cause: expect.any(HttpResponseError),
+    });
+    expect(result.error.cause).toMatchObject({
+      status: 403,
+      responseBody: "SECRET-UPSTREAM-BODY",
+    });
     expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {
       operation: "list_folders",
       code: "forbidden",
+      httpStatus: 403,
+      diagnosticId: expect.any(String),
+      errorName: "HttpResponseError",
     });
+    expect(JSON.stringify(result)).not.toContain("SECRET-UPSTREAM-BODY");
     const logged = JSON.stringify(warning.mock.calls);
     expect(logged).not.toContain(TOKEN);
     expect(logged).not.toContain("SECRET-UPSTREAM-BODY");
@@ -197,6 +222,8 @@ describe("GoogleDriveVisibleRecoveryCopies deletion", () => {
     expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {
       operation: "delete_visible_copies",
       code: "network_failed",
+      diagnosticId: expect.any(String),
+      errorName: "ErrorLike",
     });
     expect(warning).toHaveBeenCalledOnce();
     expect(warning.mock.calls[0]?.[1]).not.toHaveProperty("cause");

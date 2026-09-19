@@ -1,7 +1,7 @@
-import { BackButton } from "../shared/backButton";
-import { PassportNavigation } from "../shared/passportNavigation";
-import { PassportScreen } from "../shared/passportScreen";
-import { DisplayHeading, LeadText } from "../shared/primitives/typography";
+import { BackButton } from "@/client/ui/shared/backButton";
+import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
+import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 
 function InvalidAuthorization({ onBack }: { onBack: () => void }) {
   return (

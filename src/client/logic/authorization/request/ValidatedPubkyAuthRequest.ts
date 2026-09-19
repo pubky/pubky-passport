@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import {
   parseEncodedPubkyAuthRequest,
   type ParsedPubkyAuthRequest,
@@ -12,7 +12,7 @@ import {
 import type { ValidatedPubkyAuthCallbacks } from "./parser/pubkyAuthUrls";
 
 /** One safe capability row rendered during authorization review. */
-export type AuthorizationCapability = Readonly<{
+type AuthorizationCapability = Readonly<{
   path: string;
   read: boolean;
   write: boolean;
@@ -82,9 +82,10 @@ export class ValidatedPubkyAuthRequest {
   takeOutcomeCallback(outcome: keyof ValidatedPubkyAuthCallbacks): string | undefined {
     try {
       return this.#metadata?.callbacks[outcome];
-    } catch {
+    } catch (e) {
       LOGGER.warn("authorize.request_metadata.failed", {
         operation: "take_outcome_callback",
+        ...safeErrorLogFields(e),
       });
       return undefined;
     } finally {

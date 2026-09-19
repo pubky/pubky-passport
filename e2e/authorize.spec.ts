@@ -4,6 +4,7 @@ const SENSITIVE_SECRET = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 const RELAY_ORIGIN = "https://relay.client.example";
 const RELAY_PATH_CANARY = "private-inbox";
 const CALLBACK_QUERY_CANARY = "session=sensitive";
+const SOURCE_NAME = "Client App";
 const GRANT_CLIENT_ID = "grant-client.example";
 const GRANT_CLIENT_PUBLIC_KEY = "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo";
 const SENSITIVE_CANARIES = [
@@ -37,6 +38,77 @@ test("shows manual authorization entry when no request was supplied", async ({ p
   await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
 });
 
+test("shows identity setup context as the designed full-width accent band", async ({ page }) => {
+  for (const viewport of [
+    { width: 375, height: 812 },
+    { width: 1280, height: 720 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`)));
+
+    const band = page.getByLabel("Signing in to client.example");
+    const logo = page.getByRole("img", { name: "Pubky Passport" });
+    const main = page.locator("main");
+    await expect(band).toBeVisible();
+    await expect(band.locator("svg")).toHaveAttribute("viewBox", "0 0 24 24");
+    await expect(band.locator("svg path")).toHaveAttribute(
+      "d",
+      "M15 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H15M10 7L15 12L10 17M15 12H3",
+    );
+    await page.evaluate(async () => document.fonts.ready);
+
+    const [bandBox, logoBox, mainBox] = await Promise.all([
+      band.boundingBox(),
+      logo.boundingBox(),
+      main.boundingBox(),
+    ]);
+    expect(bandBox).not.toBeNull();
+    expect(logoBox).not.toBeNull();
+    expect(mainBox).not.toBeNull();
+    expectWithinOnePixel(bandBox?.x ?? -1, 0);
+    expectWithinOnePixel(bandBox?.y ?? -1, 0);
+    expectWithinOnePixel(bandBox?.width ?? -1, viewport.width);
+    expectWithinOnePixel(bandBox?.height ?? -1, 34);
+    expect(logoBox?.y).toBeGreaterThanOrEqual((bandBox?.y ?? 0) + (bandBox?.height ?? 0));
+    expect(mainBox?.y).toBeGreaterThanOrEqual((logoBox?.y ?? 0) + (logoBox?.height ?? 0));
+    expect(await band.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("0px");
+    expect(await band.evaluate((element) => getComputedStyle(element).color)).toBe(
+      "rgb(200, 255, 0)",
+    );
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      viewport.width,
+    );
+  }
+});
+
+test("falls back to the callback domain when x-source is absent", async ({ page }) => {
+  await installLocalIdentityFixture(page);
+  await page.goto(authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`, "cookie", null)));
+
+  await expect(page.getByRole("heading", { name: "Sign in to client.example" })).toBeVisible();
+  await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
+});
+
+test("keeps a long requester name inside the viewport on desktop breakpoints", async ({ page }) => {
+  const source = "Extraordinarily Long Requester Application Name For Layout Testing GmbH & Co. KG";
+  await installLocalIdentityFixture(page);
+  for (const viewport of [
+    { width: 768, height: 1024 },
+    { width: 1280, height: 800 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(
+      authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`, "cookie", source)),
+    );
+
+    await expect(page.getByRole("heading", { name: `Sign in to ${source}` })).toBeVisible();
+    await page.evaluate(async () => document.fonts.ready);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      viewport.width,
+    );
+  }
+});
+
 test("scrubs a valid request and renders only safe review data", async ({ page, request }) => {
   const url = authorizationUrl(
     authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}?region=eu`),
@@ -67,7 +139,8 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   expect(policy).not.toContain(SENSITIVE_SECRET);
 
   await expect(page).toHaveURL(/\/authorize$/u);
-  await expect(page.getByRole("heading", { name: "Sign in to client.example" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: `Sign in to ${SOURCE_NAME}` })).toBeVisible();
+  await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
   await expect(page.getByText("/pub/example.app/", { exact: true })).toBeVisible();
 
   const renderedReview = await page.locator("main").innerHTML();
@@ -132,7 +205,7 @@ test("reviews and scrubs a v0.10 grant authorization request", async ({ page }) 
 
   expect(response?.ok()).toBe(true);
   await expect(page).toHaveURL(/\/authorize$/u);
-  await expect(page.getByRole("heading", { name: "Sign in to client.example" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: `Sign in to ${SOURCE_NAME}` })).toBeVisible();
   expect(await page.locator("main").innerHTML()).not.toContain(GRANT_CLIENT_PUBLIC_KEY);
   expect(await page.evaluate(() => window.location.search)).toBe("");
   expect(await page.evaluate(() => window.location.hash)).toBe("");
@@ -150,7 +223,7 @@ test("manual entry reloads into fragment-backed capability review", async ({ pag
     .fill(authorizationRequest(`${RELAY_ORIGIN}/inbox`));
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await expect(page.getByRole("heading", { name: "Sign in to client.example" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: `Sign in to ${SOURCE_NAME}` })).toBeVisible();
   await expect(page).toHaveURL(/\/authorize$/u);
   expect(await page.evaluate(() => window.location.hash)).toBe("");
 });
@@ -254,6 +327,7 @@ test("uses the cancel callback for direct navigation without an opener", async (
 function authorizationRequest(
   relay: string,
   authenticationMethod: "cookie" | "grant" = "cookie",
+  source: string | null = SOURCE_NAME,
 ): string {
   const request = new URL(
     `pubkyauth://${authenticationMethod === "grant" ? "signin_grant" : "signin"}`,
@@ -277,11 +351,15 @@ function authorizationRequest(
     "x-cancel",
     `https://client.example/authorization-cancel?${CALLBACK_QUERY_CANARY}`,
   );
-  return request.href;
+  return source === null ? request.href : `${request.href}&x-source=${encodeURIComponent(source)}`;
 }
 
 function authorizationUrl(request: string): string {
   return `/authorize#d=${encodeURIComponent(request)}`;
+}
+
+function expectWithinOnePixel(actual: number, expected: number) {
+  expect(Math.abs(actual - expected)).toBeLessThanOrEqual(1);
 }
 
 function cspSources(policy: string, directiveName: string): string[] {

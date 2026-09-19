@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LOGGER } from "../libs/logger/logger";
+import { LOGGER } from "@/libs/logger/logger";
 import RootLayout from "./layout";
 
 const MOCKS = vi.hoisted(() => ({ connection: vi.fn() }));
@@ -12,7 +12,7 @@ vi.mock("next/server", () => ({ connection: MOCKS.connection }));
 describe("RootLayout bootstrap", () => {
   beforeEach(() => {
     vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
-    vi.stubEnv("HOMEGATE_URL", "https://homegate.example/api");
+    vi.stubEnv("HOMEGATE_URL", "https://homegate.example");
     vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example");
     vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", "current");
     vi.stubEnv(

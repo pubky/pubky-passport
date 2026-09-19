@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-import { cn } from "../mergeClassNames";
+import { cn } from "@/client/ui/shared/mergeClassNames";
 
 function PubkyRingLogo({ className }: { className?: string }) {
   return (

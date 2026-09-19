@@ -1,12 +1,11 @@
 import Image from "next/image";
 
-import type { GoogleAccountProfile } from "../../../logic/local-identity/localIdentityModels";
-import type { PubkyPublicIdentity } from "../../../logic/pubky/pubkyIdentityKey";
-import { PassportNavigation } from "../../shared/passportNavigation";
-import { PassportScreen } from "../../shared/passportScreen";
-import { Button } from "../../shared/primitives/button";
-import { DisplayHeading, LeadText } from "../../shared/primitives/typography";
-import { SignInContext } from "../../shared/signInContext";
+import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
+import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
+import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { ArrowRightIcon } from "@/client/ui/shared/icons";
+import { Button } from "@/client/ui/shared/primitives/button";
+import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 import { GoogleAccountCard } from "./googleAccountCard";
 
 function GoogleIdentityComplete({
@@ -14,35 +13,32 @@ function GoogleIdentityComplete({
   identity,
   mode,
   onContinue,
-  signInTo,
   visibleRecoveryCopyStatus,
 }: {
   googleAccount: GoogleAccountProfile;
   identity: PubkyPublicIdentity;
   mode: "created" | "restored";
   onContinue: () => void;
-  signInTo?: string;
   visibleRecoveryCopyStatus: "created" | "unconfirmed" | null;
 }) {
   const restored = mode === "restored";
   return (
-    <PassportScreen className="gap-8">
-      <div className="flex flex-col gap-6">
+    <PassportScreen className="gap-0 md:pb-0">
+      <div className="flex flex-col gap-6 md:gap-3">
         <DisplayHeading
           accent="complete."
           aria-label={restored ? "Restore complete." : "Setup complete."}
         >
           {restored ? "Restore" : "Setup"}
         </DisplayHeading>
-        {signInTo ? <SignInContext requester={signInTo} /> : null}
         <LeadText>
-          {restored
-            ? "Restored Passport file from Google Drive."
-            : "Stored Passport file in Google Drive."}
+          {restored ? "Restored backup from Google Drive." : "Stored backup in Google Drive."}
         </LeadText>
+      </div>
+      <div className="mt-6 flex min-h-0 flex-1 flex-col md:mt-8">
         {visibleRecoveryCopyStatus === "unconfirmed" ? (
           <p
-            className="rounded-xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm leading-5"
+            className="mb-6 rounded-xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm leading-5"
             role="status"
           >
             Your identity is ready, but Passport could not confirm the visible recovery copy in
@@ -50,8 +46,8 @@ function GoogleIdentityComplete({
           </p>
         ) : null}
         <GoogleAccountCard account={googleAccount} />
-        <div className="rounded-xl border border-brand/30 p-4 shadow-xl">
-          <p className="mb-2 text-xs font-medium uppercase tracking-[0.1em] text-brand">
+        <div className="mt-6 min-h-[84px] rounded-xl border border-brand/32 p-[15px] shadow-xl">
+          <p className="mb-2 text-xs font-medium uppercase leading-5 tracking-[0.1em] text-brand">
             Your Pubky
           </p>
           <p className="break-all font-medium leading-6 text-secondary-foreground">
@@ -61,35 +57,17 @@ function GoogleIdentityComplete({
         <Image
           alt=""
           aria-hidden="true"
-          className="mx-auto size-[200px]"
+          className="mx-auto mt-6 size-50 md:order-4 md:mt-8"
           height={200}
           src="/illustrations/checkmark.png"
           width={200}
         />
+        <Button className="mt-auto w-full md:order-3 md:mt-6" onClick={onContinue} size="lg">
+          <ArrowRightIcon />
+          Continue
+        </Button>
       </div>
-      <PassportNavigation
-        confirm={
-          <Button className="w-full" onClick={onContinue} size="lg">
-            <ArrowRightIcon />
-            Continue
-          </Button>
-        }
-      />
     </PassportScreen>
-  );
-}
-
-function ArrowRightIcon() {
-  return (
-    <svg aria-hidden="true" fill="none" viewBox="0 0 16 16">
-      <path
-        d="M3.33 8h9.34M8.67 4l4 4-4 4"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.3"
-      />
-    </svg>
   );
 }
 

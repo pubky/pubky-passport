@@ -1,17 +1,31 @@
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
-import { cn } from "../mergeClassNames";
+import { cn } from "@/client/ui/shared/mergeClassNames";
 
 function DisplayHeading({
   accent,
+  accentClassName,
   children,
   className,
+  desktopAccentOnNewLine = false,
   ...props
-}: ComponentPropsWithoutRef<"h1"> & { accent: ReactNode }) {
+}: ComponentPropsWithoutRef<"h1"> & {
+  accent: ReactNode;
+  accentClassName?: string;
+  desktopAccentOnNewLine?: boolean;
+}) {
   return (
     <h1 className={cn("text-5xl font-bold leading-none md:text-6xl", className)} {...props}>
       <span className="block md:inline">{children}</span>{" "}
-      <span className="block text-brand md:inline">{accent}</span>
+      <span
+        className={cn(
+          "block text-brand",
+          desktopAccentOnNewLine ? "md:block" : "md:inline",
+          accentClassName,
+        )}
+      >
+        {accent}
+      </span>
     </h1>
   );
 }

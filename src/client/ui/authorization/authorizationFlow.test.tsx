@@ -1,16 +1,19 @@
 /** @vitest-environment jsdom */
 
 import { Result } from "better-result";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { StrictMode } from "react";
+import { StrictMode, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PassportAuthorizationViewState } from "../../logic/authorization/flow/PassportAuthorizationController";
-import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
+import type { PassportAuthorizationViewState } from "@/client/logic/authorization/flow/PassportAuthorizationController";
+import type { LocalIdentityCatalog } from "@/client/logic/local-identity/localIdentityModels";
+import { fakeLocalIdentityController } from "@test-utils/fakeLocalIdentityController";
+import { fakePassportAuthorizationController } from "@test-utils/fakePassportAuthorizationController";
+import { withPassportTestProviders } from "@test-utils/googleIdentityConfiguration";
 import { AuthorizationFlow } from "./authorizationFlow";
 
-const MOCKS = vi.hoisted(() => ({
+const MOCKS = {
   approve: vi.fn(),
   authorizationListener: null as null | (() => void),
   authorizationState: undefined as PassportAuthorizationViewState | undefined,
@@ -20,59 +23,21 @@ const MOCKS = vi.hoisted(() => ({
   dispose: vi.fn(),
   select: vi.fn(),
   createAuthorizationController: vi.fn(),
-}));
+};
 
-vi.mock("../../logic/authorization/flow/PassportAuthorizationController", () => ({
-  PassportAuthorizationController: class {
-    static fromBrowser() {
-      MOCKS.createAuthorizationController();
-      return {
-        approve: MOCKS.approve,
-        cancel: MOCKS.cancel,
-        dispose: MOCKS.dispose,
-        getState: () => MOCKS.authorizationState,
-        subscribe: (listener: () => void) => {
-          MOCKS.authorizationListener = listener;
-          return () => {
-            MOCKS.authorizationListener = null;
-          };
-        },
-      };
-    }
-  },
-}));
-
-vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
-  LocalIdentityController: class {
-    listIdentities = () =>
-      MOCKS.catalog
-        ? Result.ok(MOCKS.catalog)
-        : Result.err({ code: "storage_unavailable" as const });
-    selectIdentity = MOCKS.select;
-    subscribeToIdentityChanges = (listener: () => void) => {
-      MOCKS.catalogListener = listener;
-      return () => {
-        MOCKS.catalogListener = undefined;
-      };
-    };
-  },
-}));
-
-vi.mock("../onboarding/identityEstablishmentFlow", () => ({
-  IdentityEstablishmentFlow: ({
-    onBack,
-    onComplete,
-    signInTo,
-  }: {
-    onBack?: () => void;
-    onComplete: () => void;
-    signInTo?: string;
-  }) => (
+function IdentitySetupStub({
+  forAuthorization,
+  onBack,
+  onComplete,
+}: {
+  forAuthorization?: boolean | undefined;
+  onBack?: (() => void) | undefined;
+  onComplete: () => void;
+}) {
+  return (
     <main>
       <h1>Add identity</h1>
-      {signInTo ? (
-        <aside aria-label={`Signing in to ${signInTo}`}>Signing in to {signInTo}</aside>
-      ) : null}
+      {forAuthorization ? <p>Authorization identity setup</p> : null}
       <button
         onClick={() => {
           MOCKS.catalogListener?.();
@@ -88,8 +53,59 @@ vi.mock("../onboarding/identityEstablishmentFlow", () => ({
         </button>
       ) : null}
     </main>
-  ),
-}));
+  );
+}
+
+function authorizationCollaborators() {
+  return {
+    createAuthorizationController: () => {
+      MOCKS.createAuthorizationController();
+      return fakePassportAuthorizationController(
+        {
+          get current() {
+            return MOCKS.authorizationState;
+          },
+          get listener() {
+            return MOCKS.authorizationListener ?? undefined;
+          },
+          set listener(listener) {
+            MOCKS.authorizationListener = listener ?? null;
+          },
+        },
+        {
+          approve: MOCKS.approve,
+          cancel: MOCKS.cancel,
+          dispose: MOCKS.dispose,
+        },
+      );
+    },
+    createLocalIdentityController: () =>
+      fakeLocalIdentityController(
+        {
+          get catalog() {
+            return MOCKS.catalog;
+          },
+          set catalog(catalog) {
+            MOCKS.catalog = catalog;
+          },
+          get listener() {
+            return MOCKS.catalogListener;
+          },
+          set listener(listener) {
+            MOCKS.catalogListener = listener;
+          },
+        },
+        { selectIdentity: MOCKS.select },
+      ),
+  };
+}
+
+function wrapFlow(children: ReactNode) {
+  return withPassportTestProviders(children, {
+    ...authorizationCollaborators(),
+    IdentitySetup: IdentitySetupStub,
+  });
+}
 
 const REVIEW = {
   authenticationMethod: "cookie",
@@ -145,7 +161,7 @@ describe("AuthorizationFlow", () => {
     MOCKS.catalogListener = undefined;
   });
 
-  const renderFlow = () => render(<AuthorizationFlow />);
+  const renderFlow = () => render(wrapFlow(<AuthorizationFlow />));
 
   it("shows the requested permissions and active identity", async () => {
     renderFlow();
@@ -153,8 +169,26 @@ describe("AuthorizationFlow", () => {
     expect(
       await screen.findByRole("heading", { name: "Sign in to requesting.app" }),
     ).toBeInTheDocument();
+    const band = screen.getByLabelText("Signing in to requesting.app");
+    expect(band).toHaveAttribute("data-passport-context-band", "");
+    expect(band).toHaveClass(
+      "absolute",
+      "inset-x-0",
+      "top-0",
+      "h-[var(--passport-context-band-height)]",
+      "border-brand/20",
+      "bg-brand/10",
+      "text-brand",
+    );
+    const signInIcon = band.querySelector("svg");
+    expect(signInIcon).toHaveAttribute("viewBox", "0 0 24 24");
+    expect(signInIcon?.querySelector("path")).toHaveAttribute(
+      "d",
+      "M15 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H15M10 7L15 12L10 17M15 12H3",
+    );
+    expect(screen.getAllByLabelText("Signing in to requesting.app")).toHaveLength(1);
     expect(screen.getByText("/pub/requesting.app/")).toBeInTheDocument();
-    expect(screen.getByText("Read & write")).toBeInTheDocument();
+    expect(screen.getByText("Read,write").parentElement).toHaveClass("min-h-5", "items-center");
     expect(screen.getByText("First User")).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -166,6 +200,10 @@ describe("AuthorizationFlow", () => {
       screen.getByText(/allow requesting\.app to read and update your data/u),
     ).toBeInTheDocument();
     expect(MOCKS.createAuthorizationController).toHaveBeenCalledWith();
+    expect(screen.getByRole("button", { name: "Cancel" }).closest(".grid")).toHaveClass(
+      "mt-auto",
+      "md:mt-0",
+    );
   });
 
   it("shows the validated callback host for a grant request", async () => {
@@ -188,26 +226,27 @@ describe("AuthorizationFlow", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows x-source as the app name while retaining the callback domain", async () => {
+  it("uses x-source for the title and the validated callback host for the context band", async () => {
     MOCKS.authorizationState = {
       status: "review",
       review: {
         ...REVIEW,
-        requesterName: "Example App",
-        callbackHost: "login.example",
+        requesterName: "Trusted App",
+        callbackHost: "trusted.example",
       },
     };
 
     renderFlow();
 
     expect(
-      await screen.findByRole("heading", { name: "Sign in to Example App" }),
+      await screen.findByRole("heading", { name: "Sign in to Trusted App" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/returns to/iu)).toHaveTextContent("Returns to login.example");
-    expect(screen.getByText(/allow Example App to read and update your data/u)).toBeInTheDocument();
+    expect(screen.getByLabelText("Signing in to trusted.example")).toBeInTheDocument();
+    expect(screen.getByText(/allow Trusted App to read and update your data/u)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Signing in to Trusted App")).not.toBeInTheDocument();
   });
 
-  it("scales a callback host to the largest font size that fits", async () => {
+  it("scales a callback host to the largest font size that fits", () => {
     const callbackHost = "gillohner.github.io";
     const clientWidth = vi
       .spyOn(HTMLElement.prototype, "clientWidth", "get")
@@ -231,7 +270,9 @@ describe("AuthorizationFlow", () => {
 
       renderFlow();
 
-      const domain = await screen.findByText(callbackHost);
+      const domain = document.querySelector<HTMLElement>("h1 bdi");
+      expect(domain).not.toBeNull();
+      if (!domain) throw new Error("Missing fitted requester");
       expect(domain.style.fontSize).toBe("36px");
       expect(domain.style.whiteSpace).toBe("nowrap");
       expect(domain).toHaveTextContent(callbackHost);
@@ -242,7 +283,47 @@ describe("AuthorizationFlow", () => {
     }
   });
 
-  it("wraps rather than shrinking a callback host below the readable minimum", async () => {
+  it("fits the requester against the heading when its inline wrapper has no width", () => {
+    const callbackHost = "gillohner.github.io";
+    const clientWidth = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.tagName === "H1" ? 300 : 0;
+      });
+    const scrollWidth = vi
+      .spyOn(HTMLElement.prototype, "scrollWidth", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.tagName === "BDI" && this.textContent === callbackHost ? 400 : 0;
+      });
+    const computedStyle = vi.spyOn(window, "getComputedStyle").mockImplementation(
+      (element) =>
+        ({
+          display: (element as HTMLElement).tagName === "SPAN" ? "inline" : "block",
+          fontSize: "48px",
+        }) as CSSStyleDeclaration,
+    );
+
+    try {
+      MOCKS.authorizationState = {
+        status: "review",
+        review: { ...REVIEW, callbackHost },
+      };
+
+      renderFlow();
+
+      const domain = document.querySelector<HTMLElement>("h1 bdi");
+      expect(domain).not.toBeNull();
+      if (!domain) throw new Error("Missing fitted requester");
+      expect(domain.style.fontSize).toBe("36px");
+      expect(domain.style.whiteSpace).toBe("nowrap");
+    } finally {
+      clientWidth.mockRestore();
+      scrollWidth.mockRestore();
+      computedStyle.mockRestore();
+    }
+  });
+
+  it("wraps rather than shrinking a callback host below the readable minimum", () => {
     const callbackHost =
       "an-extremely-long-callback-host-that-cannot-fit-at-a-readable-size.requesting.example";
     const clientWidth = vi
@@ -267,7 +348,9 @@ describe("AuthorizationFlow", () => {
 
       renderFlow();
 
-      const domain = await screen.findByText(callbackHost);
+      const domain = document.querySelector<HTMLElement>("h1 bdi");
+      expect(domain).not.toBeNull();
+      if (!domain) throw new Error("Missing fitted requester");
       expect(domain).toHaveClass("break-words");
       expect(domain.style.fontSize).toBe("32px");
       expect(domain.style.whiteSpace).toBe("normal");
@@ -309,9 +392,12 @@ describe("AuthorizationFlow", () => {
 
     renderFlow();
 
-    const permissionSection = (
-      await screen.findByRole("heading", { name: "Requested permissions" })
-    ).closest("section");
+    const permissionHeading = await screen.findByRole("heading", {
+      name: "Requested permissions",
+    });
+    const permissionSection = permissionHeading.closest("section");
+    expect(permissionHeading).toHaveClass("leading-5");
+    expect(permissionSection).toHaveClass("p-[15px]");
     expect(
       Array.from(permissionSection?.querySelectorAll("bdi") ?? [], (path) => path.textContent),
     ).toEqual(["/pub/ordinary.app/", "/pub/", "/priv/vault/", "/"]);
@@ -364,6 +450,25 @@ describe("AuthorizationFlow", () => {
     expect(
       screen.getByText(/allow this service to read and update your data/u),
     ).toBeInTheDocument();
+    expect(document.querySelector("[data-passport-context-band]")).not.toBeInTheDocument();
+  });
+
+  it("uses x-source for the title but requires a callback origin for the band", async () => {
+    MOCKS.authorizationState = {
+      status: "review",
+      review: {
+        authenticationMethod: REVIEW.authenticationMethod,
+        capabilities: REVIEW.capabilities,
+        requesterName: "Source Only App",
+      },
+    };
+
+    renderFlow();
+
+    expect(
+      await screen.findByRole("heading", { name: "Sign in to Source Only App" }),
+    ).toBeInTheDocument();
+    expect(document.querySelector("[data-passport-context-band]")).not.toBeInTheDocument();
   });
 
   it("uses a neutral progress label while completing the callback", async () => {
@@ -372,6 +477,7 @@ describe("AuthorizationFlow", () => {
     renderFlow();
 
     expect(await screen.findByRole("button", { name: "Completing…" })).toBeDisabled();
+    expect(screen.getByLabelText("Signing in to requesting.app")).toBeInTheDocument();
   });
 
   it("shows manual entry only when no authorization request was supplied", async () => {
@@ -403,14 +509,15 @@ describe("AuthorizationFlow", () => {
 
     await user.click(screen.getByRole("button", { name: "Switch" }));
     expect(screen.getByRole("heading", { name: "Switch identity." })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /add identity/iu })).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Signing in to requesting.app")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /use other identity/iu })).toBeInTheDocument();
+    expect(screen.getByText("second@example.com")).toHaveClass("lowercase");
     await user.click(screen.getByRole("button", { name: /Second User/iu }));
 
     await waitFor(() => expect(screen.getByText("Second User")).toBeInTheDocument());
     expect(MOCKS.select).toHaveBeenCalledWith(SECOND.publicIdentity.publicKeyZ32);
     expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
-    expect(screen.getByText("seco...-key")).toHaveClass("normal-case");
-    expect(screen.getByText("seco...-key")).not.toHaveClass("uppercase");
+    expect(screen.getByText("seco...-key")).toHaveClass("uppercase");
   });
 
   it("adds an identity through the normal sign-in flow without losing the review", async () => {
@@ -419,9 +526,11 @@ describe("AuthorizationFlow", () => {
     await screen.findByRole("heading", { name: "Sign in to requesting.app" });
 
     await user.click(screen.getByRole("button", { name: "Switch" }));
-    await user.click(screen.getByRole("button", { name: /add identity/iu }));
+    await user.click(screen.getByRole("button", { name: /use other identity/iu }));
 
     expect(screen.getByRole("heading", { name: "Add identity" })).toBeInTheDocument();
+    expect(screen.getByText("Authorization identity setup")).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Signing in to requesting.app")).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "Complete identity setup" }));
     expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
   });
@@ -437,19 +546,7 @@ describe("AuthorizationFlow", () => {
     expect(screen.getByRole("button", { name: "Back" })).toBeInTheDocument();
   });
 
-  it("uses x-source as the app cue during identity setup", async () => {
-    MOCKS.authorizationState = {
-      status: "review",
-      review: { ...REVIEW, requesterName: "Example App" },
-    };
-    MOCKS.catalog = { activePublicKeyZ32: null, identities: [] };
-
-    renderFlow();
-
-    expect(await screen.findByLabelText("Signing in to Example App")).toBeInTheDocument();
-  });
-
-  it("uses a neutral setup cue when the request has no callback host", async () => {
+  it("does not show a setup band when the request has no callback host", async () => {
     MOCKS.authorizationState = {
       status: "review",
       review: {
@@ -461,7 +558,8 @@ describe("AuthorizationFlow", () => {
 
     renderFlow();
 
-    expect(await screen.findByLabelText("Signing in to this service")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Add identity" })).toBeInTheDocument();
+    expect(document.querySelector("[data-passport-context-band]")).not.toBeInTheDocument();
   });
 
   it("waits for explicit completion after the first identity enters the catalog", async () => {
@@ -471,6 +569,9 @@ describe("AuthorizationFlow", () => {
     await screen.findByRole("heading", { name: "Add identity" });
 
     MOCKS.catalog = { activePublicKeyZ32: FIRST.publicIdentity.publicKeyZ32, identities: [FIRST] };
+    act(() => {
+      MOCKS.catalogListener?.();
+    });
 
     expect(screen.getByRole("heading", { name: "Add identity" })).toBeInTheDocument();
     expect(
@@ -496,6 +597,7 @@ describe("AuthorizationFlow", () => {
     MOCKS.catalog = undefined;
     renderFlow();
 
+    expect(screen.getByLabelText("Signing in to requesting.app")).toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: "Back" }));
 
     expect(MOCKS.cancel).toHaveBeenCalledOnce();
@@ -513,11 +615,7 @@ describe("AuthorizationFlow", () => {
   });
 
   it("survives StrictMode replay and keeps the request until the page is left", async () => {
-    const rendered = render(
-      <StrictMode>
-        <AuthorizationFlow />
-      </StrictMode>,
-    );
+    const rendered = render(<StrictMode>{wrapFlow(<AuthorizationFlow />)}</StrictMode>);
     await screen.findByRole("heading", { name: "Sign in to requesting.app" });
     await Promise.resolve();
     expect(MOCKS.dispose).not.toHaveBeenCalled();

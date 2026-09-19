@@ -1,11 +1,11 @@
 import Image from "next/image";
 
-import { TrashIcon } from "../../../shared/actionIcons";
-import { BackButton } from "../../../shared/backButton";
-import { PassportNavigation } from "../../../shared/passportNavigation";
-import { PassportScreen } from "../../../shared/passportScreen";
-import { Button } from "../../../shared/primitives/button";
-import { DisplayHeading, LeadText } from "../../../shared/primitives/typography";
+import { TrashIcon } from "@/client/ui/shared/icons";
+import { BackButton } from "@/client/ui/shared/backButton";
+import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
+import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { Button } from "@/client/ui/shared/primitives/button";
+import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 
 function ReviewGoogleDetachment({
   onBack,
@@ -32,7 +32,7 @@ function ReviewGoogleDetachment({
         <Image
           alt=""
           aria-hidden="true"
-          className="size-[200px] object-cover"
+          className="size-50 object-cover"
           height={200}
           src="/illustrations/cloud.png"
           width={200}
@@ -49,6 +49,7 @@ function ReviewGoogleDetachment({
 
       <PassportNavigation
         back={<BackButton onClick={onBack} />}
+        className="-mt-6 md:mt-0"
         confirm={
           <Button
             className="w-full"

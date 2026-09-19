@@ -4,7 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER } from "@/libs/logger/logger";
 import { ManualAuthorization } from "./manualAuthorization";
 
 vi.mock("./authorizationQrScanner", () => ({
@@ -55,13 +55,33 @@ describe("ManualAuthorization", () => {
     const input = screen.getByLabelText("Authorization link");
     expect(input).toHaveValue("");
     expect(input).toHaveAttribute("placeholder", "pubkyauth://");
+    expect(input.parentElement).toHaveClass("h-14", "md:h-15");
+    expect(screen.getByText("Authorization link")).toHaveClass("leading-5", "md:leading-4");
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
-    const scanButton = screen.getByRole("button", { name: "Scan authorization QR code" });
+    const scanButton = screen.getByRole("button", { name: "Scan QR" });
     expect(scanButton).toBeEnabled();
-    const cameraIcon = scanButton.querySelector('img[src="/icons/camera.svg"]');
+    expect(scanButton).toHaveClass("w-full", "md:hidden");
+    const cameraButton = screen.getByRole("button", { name: "Scan authorization QR code" });
+    expect(cameraButton).toHaveClass("hidden", "md:inline-flex");
+    const cameraIcon = cameraButton.querySelector("svg");
+    expect(cameraIcon).toHaveAttribute("viewBox", "0 0 21.5 17.5");
     expect(cameraIcon).toHaveAttribute("width", "21.5");
     expect(cameraIcon).toHaveAttribute("height", "17.5");
     expect(cameraIcon?.parentElement).toHaveClass("h-4", "w-5");
+    expect(screen.getByRole("button", { name: "Paste authorization link" })).toHaveClass(
+      "size-6",
+      "md:size-8",
+    );
+    const back = screen.getByRole("button", { name: "Back" });
+    const navigation = back.parentElement?.parentElement;
+    expect(navigation).toHaveClass("mt-auto", "md:mt-0", "md:pt-6");
+    expect(
+      back.compareDocumentPosition(scanButton) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      scanButton.compareDocumentPosition(screen.getByRole("button", { name: "Continue" })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "Paste authorization link" }));
 
@@ -74,7 +94,7 @@ describe("ManualAuthorization", () => {
     const user = userEvent.setup();
     render(<ManualAuthorization onBack={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: "Scan authorization QR code" }));
+    await user.click(screen.getByRole("button", { name: "Scan QR" }));
     expect(screen.getByRole("dialog", { name: "Authorization QR scanner" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Scan valid QR" }));
@@ -90,7 +110,7 @@ describe("ManualAuthorization", () => {
     const user = userEvent.setup();
     render(<ManualAuthorization onBack={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: "Scan authorization QR code" }));
+    await user.click(screen.getByRole("button", { name: "Scan QR" }));
     await user.click(screen.getByRole("button", { name: "Scan invalid QR" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(
@@ -144,6 +164,8 @@ describe("ManualAuthorization", () => {
     expect(info).toHaveBeenCalledWith("authorize.manual_entry.failed", {
       operation: "enter_authorization",
       code: "navigation_failed",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(info).toHaveBeenCalledOnce();
     expect(JSON.stringify(info.mock.calls)).not.toContain("secret-canary");
@@ -164,6 +186,8 @@ describe("ManualAuthorization", () => {
     expect(info).toHaveBeenCalledWith("authorize.manual_entry.failed", {
       operation: "read_clipboard",
       code: "clipboard_unavailable",
+      diagnosticId: expect.any(String),
+      errorName: "NotAllowedError",
     });
     expect(JSON.stringify(info.mock.calls)).not.toContain("SECRET-CLIPBOARD-CANARY");
   });

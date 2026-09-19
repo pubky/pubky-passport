@@ -5,11 +5,11 @@ import { Result } from "better-result";
 import {
   EARLY_AUTHORIZATION_LOCATION_PROPERTY,
   type EarlyAuthorizationLocation,
-} from "../../../../libs/authorization/earlyAuthorizationLocation";
-import { LOGGER } from "../../../../libs/logger/logger";
-import { AUTHORIZATION_CAPTURE_MAX_CHARACTERS } from "../../../../libs/passportPolicy";
-import { ValidatedPubkyAuthRequest } from "../request/ValidatedPubkyAuthRequest";
-import { PUBKY_AUTH_REQUEST_LIMITS } from "../request/parser/pubkyAuthRequestParser";
+} from "@/libs/authorization/earlyAuthorizationLocation";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import { AUTHORIZATION_CAPTURE_MAX_CHARACTERS } from "@/libs/passportPolicy";
+import { ValidatedPubkyAuthRequest } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "@/client/logic/authorization/request/parser/pubkyAuthRequestParser";
 
 export type AuthorizationEntry =
   | {
@@ -86,10 +86,11 @@ function takeEarlyAuthorizationLocation(appWindow: Window): EarlyAuthorizationLo
       Number.isFinite(capture.expiresAt)
       ? { status: "captured", hash: capture.hash, expiresAt: capture.expiresAt }
       : undefined;
-  } catch {
+  } catch (e) {
     LOGGER.warn("authorize.entry.failed", {
       operation: "take_early_capture",
       code: "capture_unavailable",
+      ...safeErrorLogFields(e),
     });
     return undefined;
   }
@@ -133,10 +134,11 @@ export function scrubAuthorizationLocation(
       appWindow.location.pathname,
     );
     return true;
-  } catch {
+  } catch (e) {
     LOGGER.warn("authorize.entry.failed", {
       operation: "scrub_fragment",
       code: "history_unavailable",
+      ...safeErrorLogFields(e),
     });
     try {
       appWindow.stop();
@@ -158,13 +160,18 @@ function safeHistoryState(appWindow: Window): unknown {
 
   try {
     const serialized = JSON.stringify(state);
-    if (
-      serialized === undefined ||
-      serialized.length > AUTHORIZATION_CAPTURE_MAX_CHARACTERS ||
-      (appWindow.location.hash !== "" && serialized.includes(appWindow.location.hash)) ||
-      (appWindow.location.search !== "" && serialized.includes(appWindow.location.search)) ||
-      /pubkyauth(?::|%3a)|(?:#|%23|\?|%3f)d(?:=|%3d)/iu.test(serialized)
-    ) {
+    if (serialized === undefined || serialized.length > AUTHORIZATION_CAPTURE_MAX_CHARACTERS) {
+      return null;
+    }
+
+    const containsCurrentFragment =
+      appWindow.location.hash !== "" && serialized.includes(appWindow.location.hash);
+    const containsCurrentQuery =
+      appWindow.location.search !== "" && serialized.includes(appWindow.location.search);
+    const containsAuthorizationData = /pubkyauth(?::|%3a)|(?:#|%23|\?|%3f)d(?:=|%3d)/iu.test(
+      serialized,
+    );
+    if (containsCurrentFragment || containsCurrentQuery || containsAuthorizationData) {
       return null;
     }
     return state;

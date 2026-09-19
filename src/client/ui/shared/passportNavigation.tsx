@@ -14,7 +14,7 @@ function PassportNavigation({
   return (
     <div
       className={cn(
-        "grid w-full grid-cols-1 gap-4 md:grid-cols-[120px_1fr_228px] md:items-center md:gap-0",
+        "grid w-full grid-cols-1 gap-4 md:grid-cols-(--passport-navigation-columns) md:items-center md:gap-0",
         className,
       )}
     >

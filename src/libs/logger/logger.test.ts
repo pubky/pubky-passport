@@ -114,4 +114,14 @@ describe("LOGGER", () => {
     expect(JSON.stringify(first)).not.toContain("sensitive token contents");
     expect(JSON.stringify(first)).not.toContain("stack");
   });
+
+  it("does not expose an attacker-controlled error name", () => {
+    const sensitiveName = "shortSensitiveCredential";
+
+    const fields = safeErrorLogFields({ name: sensitiveName });
+
+    expect(fields.errorName).toBe("ErrorLike");
+    expect(fields.diagnosticId).toEqual(expect.any(String));
+    expect(JSON.stringify(fields)).not.toContain(sensitiveName);
+  });
 });

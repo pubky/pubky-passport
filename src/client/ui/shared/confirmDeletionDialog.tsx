@@ -1,6 +1,6 @@
 import { type ReactNode, type SubmitEvent, useEffect, useRef, useState } from "react";
 
-import { XIcon } from "./actionIcons";
+import { XIcon } from "./icons";
 import { Button } from "./primitives/button";
 import { Dialog } from "./primitives/dialog";
 import { FieldMessage } from "./primitives/fieldMessage";
@@ -14,14 +14,16 @@ type ConfirmDeletionDialogProps = {
   canConfirm?: boolean;
   confirmLabel: string;
   description?: ReactNode;
-  error?: ReactNode;
+  error?: string | undefined;
+  /** Rendered under the error message, e.g. the labeled error-code box. */
+  errorDetails?: ReactNode | undefined;
   id: string;
   onCancel: () => void;
   onConfirm: () => void;
   open: boolean;
   pending?: boolean;
   pendingLabel?: string;
-  retryAction?: { label: string; onClick: () => void };
+  retryAction?: { label: string; onClick: () => void } | undefined;
   title: string;
 };
 
@@ -30,6 +32,7 @@ function ConfirmDeletionDialog({
   confirmLabel,
   description,
   error,
+  errorDetails,
   id,
   onCancel,
   onConfirm,
@@ -65,7 +68,7 @@ function ConfirmDeletionDialog({
 
   return (
     <Dialog
-      {...(description ? { "aria-describedby": descriptionId } : {})}
+      aria-describedby={description ? descriptionId : undefined}
       aria-labelledby={titleId}
       className="mb-0 mt-auto w-full max-w-none rounded-t-xl border bg-popover p-6 text-foreground shadow-[0_50px_100px_rgba(5,5,10,0.75)] backdrop:bg-black/75 sm:m-auto sm:max-w-[375px] sm:rounded-xl"
       onOpenChange={(nextOpen) => {
@@ -108,7 +111,8 @@ function ConfirmDeletionDialog({
             ref={confirmationInput}
             value={confirmation}
           />
-          {error ? <FieldMessage error>{error}</FieldMessage> : null}
+          {error === undefined ? null : <FieldMessage error>{error}</FieldMessage>}
+          {errorDetails}
         </div>
 
         <div className="flex flex-col gap-3">

@@ -2,19 +2,29 @@ import Image from "next/image";
 import { Result } from "better-result";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { LocalIdentityResult } from "../../../../logic/local-identity/LocalStorageIdentityRepository";
-import type { PubkyRingMigration } from "../../../../logic/pubky/PubkySdkAdapter";
-import { PubkyBrandIcon } from "../../../shared/brand/pubkyBrandIcon";
-import { PubkyRingLogo } from "../../../shared/brand/pubkyRingLogo";
-import { PubkyRingStoreBadges } from "../../../shared/brand/pubkyRingStoreBadges";
-import { CheckIcon, ScanIcon } from "../../../shared/actionIcons";
-import { BackButton } from "../../../shared/backButton";
-import { PassportNavigation } from "../../../shared/passportNavigation";
-import { PassportScreen } from "../../../shared/passportScreen";
-import { Button } from "../../../shared/primitives/button";
-import { DisplayHeading, LeadText } from "../../../shared/primitives/typography";
+import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
+import type { PubkyRingMigration } from "@/client/logic/pubky/PubkySdkAdapter";
+import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
+import { PubkyRingLogo } from "@/client/ui/shared/brand/pubkyRingLogo";
+import { PubkyRingStoreBadges } from "@/client/ui/shared/brand/pubkyRingStoreBadges";
+import { CheckIcon, ScanIcon } from "@/client/ui/shared/icons";
+import { BackButton } from "@/client/ui/shared/backButton";
+import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
+import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { Button } from "@/client/ui/shared/primitives/button";
+import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 import { PubkyRingQrCode } from "./pubkyRingQrCode";
 import { PubkyRingQrDialog } from "./pubkyRingQrDialog";
+
+type MigrationMode = "desktop" | "dialog";
+
+type PubkyRingMigrationState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; mode: MigrationMode; migration: PubkyRingMigration }
+  | { status: "failed" };
+
+const IDLE_MIGRATION_STATE: PubkyRingMigrationState = { status: "idle" };
 
 function MigrateToPubkyRing({
   createMigration,
@@ -25,56 +35,63 @@ function MigrateToPubkyRing({
   navigationAction: "back" | "continue";
   onBack: () => void;
 }) {
-  const migrationRef = useRef<PubkyRingMigration>(null);
-  const migrationModeRef = useRef<"desktop" | "dialog" | null>(null);
-  const migrationRequestRef = useRef(0);
-  const [migration, setMigration] = useState<PubkyRingMigration | null>(null);
-  const [exportFailed, setExportFailed] = useState(false);
-  const [desktop, setDesktop] = useState(false);
-  const [qrDialogOpen, setQrDialogOpen] = useState(false);
-  const [pending, setPending] = useState(false);
+  const [state, setState] = useState<PubkyRingMigrationState>(IDLE_MIGRATION_STATE);
+  // Ownership lives outside React state on purpose: `ownedMigrationRef` lets every transition
+  // dispose the previous secret-bearing handle synchronously (a reducer or effect cleanup would
+  // double-run or free a handle a Strict Mode remount still renders), `requestRef` cancels
+  // event-handler-initiated loads that settle after invalidation, and `createMigrationRef`
+  // keeps a changed `createMigration` prop from regenerating a ready QR on parent re-renders.
+  const requestRef = useRef(0);
+  const ownedMigrationRef = useRef<PubkyRingMigration | undefined>(undefined);
+  const createMigrationRef = useRef(createMigration);
 
-  const releaseMigration = useCallback(() => {
-    migrationRef.current?.dispose();
-    migrationRef.current = null;
-    migrationModeRef.current = null;
+  useEffect(() => {
+    createMigrationRef.current = createMigration;
+  }, [createMigration]);
+
+  /** Disposes the previously owned handle, then commits the next view state. */
+  const commitOwned = useCallback((next: PubkyRingMigrationState) => {
+    ownedMigrationRef.current?.dispose();
+    ownedMigrationRef.current = next.status === "ready" ? next.migration : undefined;
+    setState(next);
   }, []);
 
-  const loadMigration = useCallback(
-    async (mode: "desktop" | "dialog"): Promise<PubkyRingMigration | null> => {
-      const request = ++migrationRequestRef.current;
-      releaseMigration();
-      setMigration(null);
-      setPending(true);
-      const result = await createMigration();
-      if (request !== migrationRequestRef.current) {
-        if (Result.isOk(result)) result.value.dispose();
-        return null;
-      }
-      setPending(false);
-      setExportFailed(Result.isError(result));
-      if (Result.isError(result)) return null;
-      migrationRef.current = result.value;
-      migrationModeRef.current = mode;
-      setMigration(result.value);
-      return result.value;
+  const invalidate = useCallback(() => {
+    requestRef.current += 1;
+    commitOwned(IDLE_MIGRATION_STATE);
+  }, [commitOwned]);
+
+  /** Creates a migration for the current request; a stale or failed request yields null. */
+  const requestMigration = useCallback(async (): Promise<PubkyRingMigration | null> => {
+    const request = ++requestRef.current;
+    commitOwned({ status: "loading" });
+    const result = await createMigrationRef.current();
+    if (request !== requestRef.current) {
+      if (Result.isOk(result)) result.value.dispose();
+      return null;
+    }
+    if (Result.isError(result)) {
+      commitOwned({ status: "failed" });
+      return null;
+    }
+    return result.value;
+  }, [commitOwned]);
+
+  const load = useCallback(
+    async (mode: MigrationMode) => {
+      const migration = await requestMigration();
+      if (migration) commitOwned({ status: "ready", mode, migration });
     },
-    [createMigration, releaseMigration],
+    [commitOwned, requestMigration],
   );
 
   useEffect(() => {
-    if (typeof globalThis.matchMedia !== "function") return releaseMigration;
+    if (typeof globalThis.matchMedia !== "function") return invalidate;
     const media = globalThis.matchMedia("(min-width: 48rem)");
 
     async function syncDesktop() {
-      const nextDesktop = media.matches;
-      migrationRequestRef.current += 1;
-      releaseMigration();
-      setMigration(null);
-      setDesktop(nextDesktop);
-      setQrDialogOpen(false);
-      if (!nextDesktop) return;
-      await loadMigration("desktop");
+      invalidate();
+      if (media.matches) await load("desktop");
     }
 
     void syncDesktop();
@@ -83,45 +100,39 @@ function MigrateToPubkyRing({
     };
     media.addEventListener("change", onChange);
     return () => {
-      migrationRequestRef.current += 1;
       media.removeEventListener("change", onChange);
-      releaseMigration();
+      invalidate();
     };
-  }, [loadMigration, releaseMigration]);
-
-  function closeQrDialog() {
-    if (migrationModeRef.current === "dialog") releaseMigration();
-    setMigration(null);
-    setQrDialogOpen(false);
-  }
-
-  async function showQr() {
-    if (!(await loadMigration("dialog"))) return;
-    setQrDialogOpen(true);
-  }
+  }, [invalidate, load]);
 
   async function importPubky() {
-    setPending(true);
-    const result = await createMigration();
-    setPending(false);
-    setExportFailed(Result.isError(result));
-    if (Result.isOk(result)) result.value.navigate();
+    const migration = ownedMigrationRef.current ?? (await requestMigration());
+    if (!migration) return;
+    // Own a freshly created handle so the invalidation below disposes it even if navigate throws.
+    ownedMigrationRef.current = migration;
+    try {
+      migration.navigate();
+    } finally {
+      invalidate();
+    }
   }
 
   function back() {
-    migrationRequestRef.current += 1;
-    releaseMigration();
-    setMigration(null);
-    setQrDialogOpen(false);
+    invalidate();
     onBack();
   }
 
+  const pending = state.status === "loading";
+  const exportFailed = state.status === "failed";
+
   return (
-    <PassportScreen className="gap-6">
-      <DisplayHeading accent="keychain." aria-label="Migrate to keychain.">
-        Migrate to
-      </DisplayHeading>
-      <LeadText>Install a supported keychain app to self-manage your pubky identity.</LeadText>
+    <PassportScreen className="gap-6 md:gap-8">
+      <div className="flex flex-col gap-6 md:gap-3">
+        <DisplayHeading accent="keychain." aria-label="Migrate to keychain.">
+          Migrate to
+        </DisplayHeading>
+        <LeadText>Install a supported keychain app to self-manage your pubky identity.</LeadText>
+      </div>
 
       <section className="flex w-full flex-col gap-6 rounded-2xl bg-card p-6 md:flex-row md:p-12">
         <div className="flex min-w-0 flex-1 flex-col gap-6 md:justify-center">
@@ -143,7 +154,7 @@ function MigrateToPubkyRing({
             <Button
               disabled={pending}
               onClick={() => {
-                void showQr();
+                void load("dialog");
               }}
               size="lg"
               type="button"
@@ -165,14 +176,14 @@ function MigrateToPubkyRing({
             </Button>
           </div>
         </div>
-        {desktop && migration ? (
-          <PubkyRingQrCode className="size-48 shrink-0" migration={migration} />
+        {state.status === "ready" && state.mode === "desktop" ? (
+          <PubkyRingQrCode className="size-48 shrink-0" migration={state.migration} />
         ) : null}
       </section>
 
       <Image
         alt=""
-        className="mx-auto size-[200px] md:hidden"
+        className="mx-auto size-50 md:hidden"
         height={200}
         src="/illustrations/keychain.png"
         width={200}
@@ -190,8 +201,8 @@ function MigrateToPubkyRing({
           }
         />
       )}
-      {qrDialogOpen && migration ? (
-        <PubkyRingQrDialog migration={migration} onClose={closeQrDialog} />
+      {state.status === "ready" && state.mode === "dialog" ? (
+        <PubkyRingQrDialog migration={state.migration} onClose={invalidate} />
       ) : null}
     </PassportScreen>
   );

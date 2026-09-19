@@ -2,26 +2,19 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import {
-  decodeBase64Url,
-  encodeBase64Url,
-  isCanonicalBase64Url,
-} from "../../../libs/encoding/base64Url";
-import { isGoogleAccountProfile } from "../../../libs/googleAccountProfile";
-import { LOGGER, safeErrorLogFields } from "../../../libs/logger/logger";
-import type { CodedFailure } from "../../../libs/result";
+import { decodeBase64Url, encodeBase64Url, isCanonicalBase64Url } from "@/libs/encoding/base64Url";
+import { isGoogleAccountProfile, type GoogleAccountProfile } from "@/libs/googleAccountProfile";
+import { isRecord } from "@/libs/typeGuards";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import type { CodedFailure } from "@/libs/result";
 import {
   isPubkyPublicIdentity,
   isPubkyPublicKey,
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,
   type PubkySecretKeyMaterial,
-} from "../pubky/pubkyIdentityKey";
-import type {
-  GoogleAccountProfile,
-  LocalIdentityCatalog,
-  LocalIdentityMetadata,
-} from "./localIdentityModels";
+} from "@/client/logic/pubky/pubkyIdentityKey";
+import type { LocalIdentityCatalog, LocalIdentityMetadata } from "./localIdentityModels";
 
 type StoredLocalIdentity = {
   v: 1;
@@ -46,8 +39,9 @@ const SAME_TAB_LISTENERS = new Set<() => void>();
 /** Stores each identity independently so concurrent tabs cannot overwrite a shared array. */
 export class LocalStorageIdentityRepository {
   list(): LocalIdentityResult<LocalIdentityCatalog> {
-    const storage = getLocalStorage();
-    if (!storage) return storageUnavailable("read");
+    const storageResult = getLocalStorage("read");
+    if (Result.isError(storageResult)) return Result.err(storageResult.error);
+    const storage = storageResult.value;
 
     const identities = readAllIdentities(storage);
     if (Result.isError(identities)) return Result.err(identities.error);
@@ -86,12 +80,16 @@ export class LocalStorageIdentityRepository {
       secretKey.format !== PUBKY_SECRET_KEY_FORMAT ||
       secretKey.bytes.byteLength !== PUBKY_SECRET_KEY_BYTES
     ) {
-      LOGGER.warn("identity.local_store.failed", { operation: "save", code: "invalid_secret_key" });
+      LOGGER.warn("identity.local_store.failed", {
+        operation: "save",
+        code: "invalid_secret_key",
+      });
       return Result.err({ code: "invalid_secret_key" });
     }
 
-    const storage = getLocalStorage();
-    if (!storage) return storageUnavailable("write");
+    const storageResult = getLocalStorage("write");
+    if (Result.isError(storageResult)) return Result.err(storageResult.error);
+    const storage = storageResult.value;
     const stored: StoredLocalIdentity = {
       v: 1,
       publicKeyZ32: identity.publicIdentity.publicKeyZ32,
@@ -110,7 +108,7 @@ export class LocalStorageIdentityRepository {
       storage.setItem(ACTIVE_IDENTITY_KEY, stored.publicKeyZ32);
       notifySameTab();
       return Result.ok(toMetadata(stored));
-    } catch (cause) {
+    } catch (e) {
       if (previousIdentity !== undefined && previousActive !== undefined) {
         restoreStorageValues(
           storage,
@@ -122,13 +120,14 @@ export class LocalStorageIdentityRepository {
         );
         notifySameTab();
       }
-      return storageUnavailable("write", cause);
+      return storageUnavailable("write", e);
     }
   }
 
   select(publicKeyZ32: string): LocalIdentityResult<void> {
-    const storage = getLocalStorage();
-    if (!storage) return storageUnavailable("write");
+    const storageResult = getLocalStorage("write");
+    if (Result.isError(storageResult)) return Result.err(storageResult.error);
+    const storage = storageResult.value;
     const identity = readIdentity(storage, publicKeyZ32);
     if (Result.isError(identity)) return Result.err(identity.error);
     if (!identity.value) return invalidIdentity("select");
@@ -139,8 +138,9 @@ export class LocalStorageIdentityRepository {
   }
 
   remove(publicKeyZ32: string): LocalIdentityResult<void> {
-    const storage = getLocalStorage();
-    if (!storage) return storageUnavailable("write");
+    const storageResult = getLocalStorage("write");
+    if (Result.isError(storageResult)) return Result.err(storageResult.error);
+    const storage = storageResult.value;
     const identity = readIdentity(storage, publicKeyZ32);
     if (Result.isError(identity)) return Result.err(identity.error);
     if (!identity.value) return invalidIdentity("remove");
@@ -164,7 +164,7 @@ export class LocalStorageIdentityRepository {
       storage.removeItem(storedKey);
       notifySameTab();
       return Result.ok();
-    } catch (cause) {
+    } catch (e) {
       restoreStorageValues(
         storage,
         [
@@ -174,7 +174,7 @@ export class LocalStorageIdentityRepository {
         "remove_rollback",
       );
       notifySameTab();
-      return storageUnavailable("write", cause);
+      return storageUnavailable("write", e);
     }
   }
 
@@ -182,8 +182,9 @@ export class LocalStorageIdentityRepository {
     identity: LocalIdentityMetadata;
     secretKey: PubkySecretKeyMaterial;
   }> {
-    const storage = getLocalStorage();
-    if (!storage) return storageUnavailable("read");
+    const storageResult = getLocalStorage("read");
+    if (Result.isError(storageResult)) return Result.err(storageResult.error);
+    const storage = storageResult.value;
     const stored = readIdentity(storage, publicKeyZ32);
     if (Result.isError(stored)) return Result.err(stored.error);
     if (!stored.value) return invalidIdentity("read_identity");
@@ -222,8 +223,8 @@ function readAllIdentities(storage: Storage): LocalIdentityResult<StoredLocalIde
       if (!identity || key !== identityStorageKey(identity.publicKeyZ32)) return invalidStore();
       identities.push(identity);
     }
-  } catch (cause) {
-    return storageUnavailable("read", cause);
+  } catch (e) {
+    return storageUnavailable("read", e);
   }
   return Result.ok(identities);
 }
@@ -238,8 +239,8 @@ function readIdentity(
     if (value === null) return Result.ok(null);
     const identity = parseStoredIdentity(value);
     return identity ? Result.ok(identity) : invalidStore();
-  } catch (cause) {
-    return storageUnavailable("read", cause);
+  } catch (e) {
+    return storageUnavailable("read", e);
   }
 }
 
@@ -247,8 +248,8 @@ function readActiveIdentity(storage: Storage): LocalIdentityResult<string | null
   try {
     const value = storage.getItem(ACTIVE_IDENTITY_KEY);
     return value === null || isPubkyPublicKey(value) ? Result.ok(value) : invalidStore();
-  } catch (cause) {
-    return storageUnavailable("read", cause);
+  } catch (e) {
+    return storageUnavailable("read", e);
   }
 }
 
@@ -259,8 +260,8 @@ function writeActiveIdentity(
   try {
     writeActiveIdentityOrThrow(storage, publicKeyZ32);
     return Result.ok();
-  } catch (cause) {
-    return storageUnavailable("write", cause);
+  } catch (e) {
+    return storageUnavailable("write", e);
   }
 }
 
@@ -274,6 +275,7 @@ function parseStoredIdentity(value: string): StoredLocalIdentity | null {
     const parsed: unknown = JSON.parse(value);
     return isStoredIdentity(parsed) ? parsed : null;
   } catch {
+    // Parser messages may echo the stored secret key, so treat malformed records as invalid.
     return null;
   }
 }
@@ -323,10 +325,10 @@ function notifySameTab(): void {
 function notifyListener(listener: () => void, source: "same_tab" | "storage_event"): void {
   try {
     listener();
-  } catch (cause) {
+  } catch (e) {
     LOGGER.warn("identity.local_store.listener.failed", {
       source,
-      ...safeErrorLogFields(cause),
+      ...safeErrorLogFields(e),
     });
   }
 }
@@ -340,10 +342,10 @@ function restoreStorageValues(
     try {
       if (value === null) storage.removeItem(key);
       else storage.setItem(key, value);
-    } catch (cause) {
+    } catch (e) {
       LOGGER.error("identity.local_store.rollback.failed", {
         operation,
-        ...safeErrorLogFields(cause),
+        ...safeErrorLogFields(e),
       });
     }
   }
@@ -355,31 +357,36 @@ function invalidIdentity(operation: string): LocalIdentityResult<never> {
 }
 
 function invalidStore(): LocalIdentityResult<never> {
-  LOGGER.warn("identity.local_store.failed", { operation: "read", code: "invalid_store" });
+  LOGGER.warn("identity.local_store.failed", {
+    operation: "read",
+    code: "invalid_store",
+  });
   return Result.err({ code: "invalid_store" });
 }
 
 function storageUnavailable(operation: string, cause?: unknown): LocalIdentityResult<never> {
+  if (cause === undefined) {
+    LOGGER.warn("identity.local_store.failed", {
+      operation,
+      code: "storage_unavailable",
+    });
+    return Result.err({ code: "storage_unavailable" });
+  }
   LOGGER.warn("identity.local_store.failed", {
     operation,
+    ...safeErrorLogFields(cause),
     code: "storage_unavailable",
-    ...(cause === undefined ? {} : safeErrorLogFields(cause)),
   });
-  return Result.err(
-    cause === undefined ? { code: "storage_unavailable" } : { code: "storage_unavailable", cause },
-  );
+  return Result.err({ code: "storage_unavailable", cause });
 }
 
-function getLocalStorage(): Storage | null {
+function getLocalStorage(operation: "read" | "write"): LocalIdentityResult<Storage> {
   try {
-    return globalThis.window?.localStorage ?? globalThis.localStorage;
-  } catch {
-    return null;
+    const storage = globalThis.window?.localStorage ?? globalThis.localStorage;
+    return storage ? Result.ok(storage) : storageUnavailable(operation);
+  } catch (e) {
+    return storageUnavailable(operation, e);
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function hasExactKeys(value: Record<string, unknown>, expected: string[]): boolean {

@@ -1,9 +1,7 @@
 import "client-only";
 
-import type { GoogleAccountProfile } from "../../../libs/googleAccountProfile";
-import type { PubkyPublicIdentity } from "../pubky/pubkyIdentityKey";
-
-export type { GoogleAccountProfile } from "../../../libs/googleAccountProfile";
+import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
+import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
 
 /** UI-safe local identity metadata. Contains no secret key material. */
 export type LocalIdentityMetadata = Readonly<{

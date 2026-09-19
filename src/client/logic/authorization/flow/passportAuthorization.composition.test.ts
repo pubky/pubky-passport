@@ -3,11 +3,14 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MemoryStorage } from "../../../../../test-utils/MemoryStorage";
-import { LOGGER } from "../../../../libs/logger/logger";
-import { LocalStorageIdentityRepository } from "../../local-identity/LocalStorageIdentityRepository";
-import type { LocalIdentityMetadata } from "../../local-identity/localIdentityModels";
-import { PUBKY_SECRET_KEY_FORMAT, type PubkySecretKeyMaterial } from "../../pubky/pubkyIdentityKey";
+import { MemoryStorage } from "@test-utils/MemoryStorage";
+import { LOGGER } from "@/libs/logger/logger";
+import { LocalStorageIdentityRepository } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
+import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
+import {
+  PUBKY_SECRET_KEY_FORMAT,
+  type PubkySecretKeyMaterial,
+} from "@/client/logic/pubky/pubkyIdentityKey";
 
 const MOCKS = vi.hoisted(() => ({
   PubkySdkAdapter: vi.fn(),
@@ -15,12 +18,14 @@ const MOCKS = vi.hoisted(() => ({
   restoreIdentityKey: vi.fn(),
   disposeIdentityKey: vi.fn(),
   approveAuthRequest: vi.fn(),
+  publishHomeserver: vi.fn(),
 }));
 
-vi.mock("../../pubky/PubkySdkAdapter", () => ({
+vi.mock("@/client/logic/pubky/PubkySdkAdapter", () => ({
   PubkySdkAdapter: MOCKS.PubkySdkAdapter,
 }));
 
+import { readAndScrubAuthorizationEntry } from "@/client/logic/authorization/entry/authorizationEntry";
 import { PassportAuthorizationController } from "./PassportAuthorizationController";
 
 const RELAY_ORIGIN = "https://relay.example";
@@ -36,14 +41,17 @@ describe("PassportAuthorizationController composition", () => {
     MOCKS.restoreIdentityKey.mockReset();
     MOCKS.disposeIdentityKey.mockReset();
     MOCKS.approveAuthRequest.mockReset();
+    MOCKS.publishHomeserver.mockReset();
     MOCKS.PubkySdkAdapter.mockImplementation(function () {
       return {
         dispose: MOCKS.dispose,
         restoreIdentityKey: MOCKS.restoreIdentityKey,
         disposeIdentityKey: MOCKS.disposeIdentityKey,
         approveAuthRequest: MOCKS.approveAuthRequest,
+        publishHomeserver: MOCKS.publishHomeserver,
       };
     });
+    MOCKS.publishHomeserver.mockResolvedValue(Result.ok());
     window.history.replaceState({}, "", "/");
   });
   afterEach(() => {
@@ -56,7 +64,7 @@ describe("PassportAuthorizationController composition", () => {
   it("constructs Pubky lazily for approval and owns adapter cleanup", async () => {
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
 
-    controller = PassportAuthorizationController.fromBrowser();
+    controller = controllerFromCapturedUrl();
 
     expect(controller.getState().status).toBe("review");
     expect(MOCKS.PubkySdkAdapter).not.toHaveBeenCalled();
@@ -74,7 +82,7 @@ describe("PassportAuthorizationController composition", () => {
       "invalid-store",
     );
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
-    controller = PassportAuthorizationController.fromBrowser();
+    controller = controllerFromCapturedUrl();
 
     await expect(controller.approve("missing-public-key")).resolves.toEqual({
       status: "failed",
@@ -88,7 +96,7 @@ describe("PassportAuthorizationController composition", () => {
       throw new Error("sensitive authorization request");
     });
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
-    controller = PassportAuthorizationController.fromBrowser();
+    controller = controllerFromCapturedUrl();
 
     await expect(controller.approve("missing-public-key")).resolves.toEqual({
       status: "failed",
@@ -97,6 +105,8 @@ describe("PassportAuthorizationController composition", () => {
     expect(warning).toHaveBeenCalledWith("authorize.approval.failed", {
       stage: "sdk_initialize",
       code: "unexpected_failure",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("sensitive authorization request");
   });
@@ -108,7 +118,7 @@ describe("PassportAuthorizationController composition", () => {
       throw new Error("cleanup failed");
     });
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
-    controller = PassportAuthorizationController.fromBrowser();
+    controller = controllerFromCapturedUrl();
 
     await expect(controller.approve("missing-public-key")).resolves.toEqual({
       status: "failed",
@@ -119,6 +129,8 @@ describe("PassportAuthorizationController composition", () => {
     });
     expect(warning).toHaveBeenCalledWith("authorize.cleanup.failed", {
       operation: "pubky_dispose",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
   });
 
@@ -136,7 +148,7 @@ describe("PassportAuthorizationController composition", () => {
     });
     MOCKS.approveAuthRequest.mockResolvedValue(Result.ok());
     window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
-    controller = PassportAuthorizationController.fromBrowser();
+    controller = controllerFromCapturedUrl();
 
     await expect(controller.approve(firstIdentity.publicIdentity.publicKeyZ32)).resolves.toEqual({
       status: "approved",
@@ -146,6 +158,10 @@ describe("PassportAuthorizationController composition", () => {
     expect(MOCKS.approveAuthRequest).toHaveBeenCalledOnce();
   });
 });
+
+function controllerFromCapturedUrl(): PassportAuthorizationController {
+  return PassportAuthorizationController.fromBrowser(() => readAndScrubAuthorizationEntry(window));
+}
 
 function validRequest(): string {
   return `pubkyauth://signin?caps=/pub/example.app/:rw&relay=${encodeURIComponent(`${RELAY_ORIGIN}/inbox`)}&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8`;

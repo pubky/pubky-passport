@@ -2,9 +2,9 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { EARLY_AUTHORIZATION_LOCATION_PROPERTY } from "../../../../libs/authorization/earlyAuthorizationLocation";
-import { LOGGER } from "../../../../libs/logger/logger";
-import { PUBKY_AUTH_REQUEST_LIMITS } from "../request/parser/pubkyAuthRequestParser";
+import { EARLY_AUTHORIZATION_LOCATION_PROPERTY } from "@/libs/authorization/earlyAuthorizationLocation";
+import { LOGGER } from "@/libs/logger/logger";
+import { PUBKY_AUTH_REQUEST_LIMITS } from "@/client/logic/authorization/request/parser/pubkyAuthRequestParser";
 import {
   invalidateAuthorizationEntry,
   readAndScrubAuthorizationEntry,
@@ -199,6 +199,8 @@ describe("authorizationEntry", () => {
     expect(warning).toHaveBeenCalledWith("authorize.entry.failed", {
       operation: "scrub_fragment",
       code: "history_unavailable",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain(SECRET);
   });
@@ -217,6 +219,8 @@ describe("authorizationEntry", () => {
     expect(warning).toHaveBeenCalledWith("authorize.entry.failed", {
       operation: "take_early_capture",
       code: "capture_unavailable",
+      diagnosticId: expect.any(String),
+      errorName: "TypeError",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain(SECRET);
   });

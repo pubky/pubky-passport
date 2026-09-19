@@ -3,9 +3,9 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 import { z } from "zod";
 
-import { decodeBase64Url } from "../../../libs/encoding/base64Url";
-import { passportKeyIdSchema } from "../../../libs/passportPolicy";
-import { PUBKY_SECRET_KEY_BYTES } from "../pubky/pubkyIdentityKey";
+import { decodeBase64Url } from "@/libs/encoding/base64Url";
+import { passportKeyIdSchema } from "@/libs/passportPolicy";
+import { PUBKY_SECRET_KEY_BYTES } from "@/client/logic/pubky/pubkyIdentityKey";
 
 export type PassportFileEnvelope = {
   /** Numeric storage format version. */
@@ -21,7 +21,7 @@ export type PassportFileEnvelope = {
 };
 
 /** Only distinctions that change production behavior are exposed. */
-export type PassportFileParseError = {
+type PassportFileParseError = {
   code: "invalid_json" | "invalid_file" | "unsupported_version";
 };
 
@@ -32,16 +32,13 @@ type PassportFileOriginResult = ResultType<string, { code: "invalid_field"; fiel
 const AES_GCM_IV_BYTES = 12;
 const AES_GCM_TAG_BYTES = 16;
 const AES_GCM_CIPHERTEXT_BYTES = PUBKY_SECRET_KEY_BYTES + AES_GCM_TAG_BYTES;
-const CRYPTO_FIELDS = {
-  iv: z.string().refine((value) => isFixedLengthBase64Url(value, AES_GCM_IV_BYTES)),
-  ct: z.string().refine((value) => isFixedLengthBase64Url(value, AES_GCM_CIPHERTEXT_BYTES)),
-  url: z.string(),
-};
 const PASSPORT_FILE_ENVELOPE_SCHEMA = z
   .object({
     v: z.literal(1),
     keyId: passportKeyIdSchema,
-    ...CRYPTO_FIELDS,
+    iv: z.string().refine((value) => isFixedLengthBase64Url(value, AES_GCM_IV_BYTES)),
+    ct: z.string().refine((value) => isFixedLengthBase64Url(value, AES_GCM_CIPHERTEXT_BYTES)),
+    url: z.string(),
   })
   .strict();
 
@@ -93,8 +90,6 @@ export function parsePassportFileEnvelope(input: unknown): PassportFileParseResu
 
   return Result.ok({
     ...parsed.data,
-    iv: parsed.data.iv,
-    ct: parsed.data.ct,
     url: origin.value,
   });
 }

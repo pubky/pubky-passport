@@ -1,14 +1,15 @@
 import { useLayoutEffect, useRef } from "react";
 
-import type { AuthorizationRequestReview } from "../../../logic/authorization/flow/PassportAuthorizationController";
-import type { LocalIdentityMetadata } from "../../../logic/local-identity/localIdentityModels";
-import { GoogleLogo } from "../../shared/brand/googleLogo";
-import { CheckIcon, SquareUserRoundIcon, XIcon } from "../../shared/actionIcons";
-import { PassportNavigation } from "../../shared/passportNavigation";
-import { PassportScreen } from "../../shared/passportScreen";
-import { Avatar } from "../../shared/primitives/avatar";
-import { Button } from "../../shared/primitives/button";
-import { DisplayHeading } from "../../shared/primitives/typography";
+import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
+import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
+import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
+import { shortPublicKey } from "@/client/ui/shared/formatPublicKey";
+import { CheckIcon, SquareUserRoundIcon, XIcon } from "@/client/ui/shared/icons";
+import { IdentitySummary } from "@/client/ui/shared/identitySummary";
+import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
+import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { Button } from "@/client/ui/shared/primitives/button";
+import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
 import { PermissionList, PermissionRow } from "./permissionList";
 
 function AuthorizationReview({
@@ -19,7 +20,7 @@ function AuthorizationReview({
   phase,
   review,
 }: {
-  identity?: LocalIdentityMetadata;
+  identity?: LocalIdentityMetadata | undefined;
   onAuthorize: () => void;
   onCancel: () => void;
   onSwitch: () => void;
@@ -41,11 +42,6 @@ function AuthorizationReview({
         >
           Sign in to
         </DisplayHeading>
-        {review.requesterName && review.callbackHost ? (
-          <p className="-mt-4 text-sm font-medium text-muted-foreground">
-            Returns to <bdi className="font-bold text-foreground">{review.callbackHost}</bdi>
-          </p>
-        ) : null}
         {hasBroadAccess ? (
           <p
             className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm font-medium leading-5 text-foreground"
@@ -73,26 +69,15 @@ function AuthorizationReview({
           <h2 className="sr-only" id="authorization-identity-heading">
             Signing identity
           </h2>
-          <div className="relative flex h-[72px] items-center gap-2 rounded-2xl bg-card p-4">
+          <div className="flex h-18 items-center gap-2 rounded-2xl bg-card p-4">
             {identity ? (
-              <>
-                <Avatar
-                  fallback={identityName}
-                  size="sm"
-                  {...(account?.pictureUrl ? { src: account.pictureUrl } : {})}
-                />
-                {account ? (
-                  <span className="absolute left-[39px] top-[39px] flex size-4 items-center justify-center drop-shadow-xl">
-                    <GoogleLogo />
-                  </span>
-                ) : null}
-                <span className="min-w-0 flex-1">
-                  <strong className="block truncate leading-6">{identityName}</strong>
-                  <span className="block truncate text-xs font-medium normal-case tracking-[0.1em] text-muted-foreground">
-                    {shortPublicKey(identity.publicIdentity.publicKeyZ32)}
-                  </span>
-                </span>
-              </>
+              <IdentitySummary
+                avatarSrc={account?.pictureUrl ?? undefined}
+                badge={account ? <GoogleLogo /> : undefined}
+                detail={shortPublicKey(identity.publicIdentity.publicKeyZ32)}
+                detailClassName="uppercase"
+                name={identityName}
+              />
             ) : (
               <span className="min-w-0 flex-1 text-sm font-medium text-muted-foreground">
                 No local identity available
@@ -129,7 +114,7 @@ function AuthorizationReview({
               Cancel
             </Button>
           }
-          className="pt-6"
+          className="mt-auto md:mt-0"
           confirm={
             <Button
               className="w-full"
@@ -155,7 +140,7 @@ function FittedRequester({ children }: { children: string }) {
 
   useLayoutEffect(() => {
     const requester = requesterRef.current;
-    const container = requester?.parentElement;
+    const container = requester ? nearestBlockContainer(requester) : null;
     if (!requester || !container) return;
 
     const fit = () => {
@@ -163,7 +148,12 @@ function FittedRequester({ children }: { children: string }) {
       requester.style.whiteSpace = "nowrap";
 
       const availableWidth = container.clientWidth;
-      const requiredWidth = requester.scrollWidth;
+      // `scrollWidth` is 0 while the requester itself is inline (desktop); the bounding box then
+      // carries the single-line text width.
+      const requiredWidth = Math.max(
+        requester.scrollWidth,
+        requester.getBoundingClientRect().width,
+      );
       if (availableWidth <= 0 || requiredWidth <= availableWidth) return;
 
       const baseFontSize = Number.parseFloat(window.getComputedStyle(requester).fontSize);
@@ -197,6 +187,18 @@ function FittedRequester({ children }: { children: string }) {
   );
 }
 
+/**
+ * The accent wrapper is `display: inline` on desktop, where `clientWidth` is always 0, so the
+ * requester is fitted against the nearest block-level ancestor (the heading) instead.
+ */
+function nearestBlockContainer(element: HTMLElement): HTMLElement | null {
+  let container = element.parentElement;
+  while (container && window.getComputedStyle(container).display === "inline") {
+    container = container.parentElement;
+  }
+  return container;
+}
+
 function authorizationButtonLabel(
   phase: "review" | "preparing" | "granting" | "completing",
 ): string {
@@ -222,13 +224,9 @@ function describeAuthorizationEffect(
 }
 
 function formatAccess(capability: AuthorizationRequestReview["capabilities"][number]): string {
-  if (capability.read && capability.write) return "Read & write";
+  if (capability.read && capability.write) return "Read,write";
   if (capability.write) return "Write";
   return "Read";
-}
-
-function shortPublicKey(publicKey: string): string {
-  return publicKey.length > 12 ? `${publicKey.slice(0, 4)}...${publicKey.slice(-4)}` : publicKey;
 }
 
 export { AuthorizationReview };

@@ -1,8 +1,8 @@
 import Image from "next/image";
 import { QRCodeSVG } from "qrcode.react";
 
-import type { PubkyRingMigration } from "../../../../logic/pubky/PubkySdkAdapter";
-import { cn } from "../../../shared/mergeClassNames";
+import type { PubkyRingMigration } from "@/client/logic/pubky/PubkySdkAdapter";
+import { cn } from "@/client/ui/shared/mergeClassNames";
 
 function PubkyRingQrCode({
   className,
@@ -11,6 +11,7 @@ function PubkyRingQrCode({
   className?: string;
   migration: PubkyRingMigration;
 }) {
+  // Intentional exception to "secrets never enter render output": the QR must encode the secret.
   const migrationUrl = migration.url;
 
   return (

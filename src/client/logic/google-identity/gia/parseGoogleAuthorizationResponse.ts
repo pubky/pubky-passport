@@ -5,9 +5,10 @@ import { Result, type Result as ResultType } from "better-result";
 import {
   EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS,
   GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE,
-} from "../../../../libs/authorization/earlyGoogleImplicitResponse";
-import { decodeBase64Url } from "../../../../libs/encoding/base64Url";
-import { MAXIMUM_JSON_BODY_BYTES } from "../../../../libs/passportPolicy";
+} from "@/libs/authorization/earlyGoogleImplicitResponse";
+import { decodeBase64Url } from "@/libs/encoding/base64Url";
+import { isRecord } from "@/libs/typeGuards";
+import { MAXIMUM_JSON_BODY_BYTES } from "@/libs/passportPolicy";
 
 const GOOGLE_DRIVE_APP_DATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
 const GOOGLE_DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
@@ -41,44 +42,45 @@ type GoogleAuthorizationResponseError = {
   code: "google_authorization_denied" | "google_authorization_failed";
 };
 
-/** Pure validation of the captured OAuth fragment and ID-token binding fields. */
+type CapturedGoogleImplicitResponse = {
+  hash: string;
+  status: "captured";
+  type: typeof GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE;
+};
+
+/**
+ * Validates the captured OAuth fragment and its state, scope, and ID-token bindings.
+ *
+ * Invalid or malformed input is returned as a failure Result. This function does not
+ * intentionally throw.
+ */
 export function parseGoogleAuthorizationResponse(
   capture: unknown,
   expectedState: string,
   expectedNonce: string,
 ): ResultType<ParsedGoogleAuthorizationResponse, GoogleAuthorizationResponseError> {
-  if (
-    !isRecord(capture) ||
-    capture.type !== GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE ||
-    capture.status !== "captured" ||
-    typeof capture.hash !== "string" ||
-    capture.hash.length === 0 ||
-    capture.hash.length > EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS
-  ) {
+  if (!isCapturedGoogleImplicitResponse(capture)) {
     return Result.err({ code: "google_authorization_failed" });
   }
 
   const params = new URLSearchParams(capture.hash.slice(1));
   const state = oneValue(params, "state");
   if (params.has("error")) {
-    if (state !== expectedState) return Result.err({ code: "google_authorization_failed" });
-    return Result.err({
-      code:
-        oneValue(params, "error") === "access_denied"
-          ? "google_authorization_denied"
-          : "google_authorization_failed",
-    });
+    if (state !== expectedState) {
+      return Result.err({ code: "google_authorization_failed" });
+    }
+    return oneValue(params, "error") === "access_denied"
+      ? Result.err({ code: "google_authorization_denied" })
+      : Result.err({ code: "google_authorization_failed" });
   }
 
   const googleIdToken = oneValue(params, "id_token");
   const accessToken = oneValue(params, "access_token");
   const scope = oneValue(params, "scope");
-  if (
-    state !== expectedState ||
-    !boundedToken(googleIdToken) ||
-    !boundedToken(accessToken) ||
-    !hasAllowedScopes(scope)
-  ) {
+  const hasExpectedState = state === expectedState;
+  const hasRequiredTokens = boundedToken(googleIdToken) && boundedToken(accessToken);
+  const hasExpectedScopes = hasAllowedScopes(scope);
+  if (!hasExpectedState || !hasRequiredTokens || !hasExpectedScopes) {
     return Result.err({ code: "google_authorization_failed" });
   }
 
@@ -94,17 +96,31 @@ function readIdTokenSubject(token: string, expectedNonce: string): string | null
   const bytes = decodeBase64Url(segments[1]);
   if (!bytes || bytes.byteLength > 8 * 1024) return null;
   try {
-    const value: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
-    return isRecord(value) &&
-      typeof value.sub === "string" &&
-      value.sub.length > 0 &&
-      value.sub.length <= 255 &&
-      value.nonce === expectedNonce
-      ? value.sub
-      : null;
+    const claims: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+    if (!isRecord(claims)) return null;
+    const googleSubject = claims.sub;
+    if (typeof googleSubject !== "string") return null;
+
+    const hasValidSubjectLength = googleSubject.length > 0 && googleSubject.length <= 255;
+    const hasExpectedNonce = claims.nonce === expectedNonce;
+    return hasValidSubjectLength && hasExpectedNonce ? googleSubject : null;
   } catch {
+    // Decoding errors may echo token claims, so treat them as invalid without retaining a cause.
     return null;
   }
+}
+
+function isCapturedGoogleImplicitResponse(
+  capture: unknown,
+): capture is CapturedGoogleImplicitResponse {
+  if (!isRecord(capture)) return false;
+  const isCapturedResponse =
+    capture.type === GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE && capture.status === "captured";
+  const hasBoundedHash =
+    typeof capture.hash === "string" &&
+    capture.hash.length > 0 &&
+    capture.hash.length <= EARLY_GOOGLE_IMPLICIT_RESPONSE_MAX_CHARACTERS;
+  return isCapturedResponse && hasBoundedHash;
 }
 
 function boundedToken(value: string | null): value is string {
@@ -123,8 +139,4 @@ function hasAllowedScopes(value: string | null): boolean {
 function oneValue(params: URLSearchParams, name: string): string | null {
   const values = params.getAll(name);
   return values.length === 1 ? (values[0] ?? null) : null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

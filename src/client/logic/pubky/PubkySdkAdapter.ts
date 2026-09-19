@@ -3,8 +3,8 @@ import "client-only";
 import { Keypair, Pubky, PublicKey, type PubkyError, type Session } from "@synonymdev/pubky";
 import { Result, type Result as ResultType } from "better-result";
 
-import { LOGGER } from "../../../libs/logger/logger";
-import type { CodedFailure } from "../../../libs/result";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import type { CodedFailure } from "@/libs/result";
 import {
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,
@@ -21,7 +21,7 @@ export type PubkyAuthenticatedIdentity = {
   publicIdentity: PubkyPublicIdentity;
 };
 
-export type PubkySessionAccessErrorCode =
+type PubkySessionAccessErrorCode =
   | "account_exists"
   | "invalid_homeserver_pubky"
   | "key_unavailable"
@@ -32,16 +32,15 @@ export type PubkySessionAccessResult<Success> = ResultType<
   Success,
   CodedFailure<PubkySessionAccessErrorCode>
 >;
-export type PubkyPublicationErrorCode =
-  "invalid_homeserver_pubky" | "key_unavailable" | "publish_failed";
+type PubkyPublicationErrorCode = "invalid_homeserver_pubky" | "key_unavailable" | "publish_failed";
 export type PubkyPublicationResult = ResultType<void, CodedFailure<PubkyPublicationErrorCode>>;
-export type PubkyRecoveryFileErrorCode =
+type PubkyRecoveryFileErrorCode =
   "invalid_passphrase" | "invalid_secret_key" | "key_unavailable" | "recovery_file_failed";
 export type PubkyRecoveryFileResult = ResultType<
   Uint8Array,
   CodedFailure<PubkyRecoveryFileErrorCode>
 >;
-export type PubkyAuthApprovalErrorCode = "approval_failed" | "key_unavailable" | "request_rejected";
+type PubkyAuthApprovalErrorCode = "approval_failed" | "key_unavailable" | "request_rejected";
 export type PubkyAuthApprovalResult = ResultType<void, CodedFailure<PubkyAuthApprovalErrorCode>>;
 
 type Signer = ReturnType<Pubky["signer"]>;
@@ -51,7 +50,15 @@ type PublicKeyParseResult<ErrorCode extends string> = ResultType<
 >;
 const PASSPORT_CLIENT_ID = "passport.pubky.app";
 
-/** SDK-owned single-identity export for Pubky Ring. */
+/**
+ * Owns one SDK keypair while handing an identity to Pubky Ring.
+ *
+ * The {@link url} embeds the full exported secret key. Treat it as secret material: never log,
+ * persist, or hold it in application state. Rendering it is the one intentional exception to
+ * "secrets never enter render output", because a QR code must contain the secret. {@link navigate} disposes the handle after
+ * attempting the browser handoff; callers that only inspect the URL or abandon the handoff must
+ * call {@link dispose} themselves.
+ */
 export class PubkyRingMigration {
   private keypair: Keypair | null;
 
@@ -59,6 +66,7 @@ export class PubkyRingMigration {
     this.keypair = keypair;
   }
 
+  /** Idempotently releases the SDK keypair owned by this migration. */
   dispose(): void {
     const keypair = this.keypair;
     if (!keypair) return;
@@ -66,6 +74,7 @@ export class PubkyRingMigration {
     cleanup("create_pubky_ring_migration", "keypair_free", () => keypair.free());
   }
 
+  /** Attempts the Pubky Ring handoff and consumes the migration after a navigation attempt. */
   navigate(): boolean {
     const migrationUrl = this.url;
     if (!migrationUrl) return false;
@@ -77,6 +86,7 @@ export class PubkyRingMigration {
     }
   }
 
+  /** Returns the secret-bearing handoff URL, or `null` after the migration is disposed. */
   get url(): string | null {
     if (!this.keypair) return null;
     const exportedSecret = this.keypair.secret();
@@ -128,11 +138,11 @@ export class PubkySdkAdapter {
       const migration = new PubkyRingMigration(keypair);
       keypair = undefined;
       return Result.ok(migration);
-    } catch (cause) {
-      cleanup("create_pubky_ring_migration", "keypair_free", () => keypair?.free());
-      return failure("create_pubky_ring_migration", "sdk_export", "export_failed", cause);
+    } catch (e) {
+      return failure("create_pubky_ring_migration", "sdk_export", "export_failed", e);
     } finally {
       clearSecretKey(secretKey, "create_pubky_ring_migration");
+      cleanup("create_pubky_ring_migration", "keypair_free", () => keypair?.free());
     }
   }
 
@@ -143,8 +153,8 @@ export class PubkySdkAdapter {
 
     try {
       return this.registerKeypair("create_identity_key", Keypair.random());
-    } catch (cause) {
-      return failure("create_identity_key", "sdk_create", "create_failed", cause);
+    } catch (e) {
+      return failure("create_identity_key", "sdk_create", "create_failed", e);
     }
   }
 
@@ -164,8 +174,8 @@ export class PubkySdkAdapter {
 
     try {
       return this.registerKeypair("restore_identity_key", Keypair.fromSecret(secretKey.bytes));
-    } catch (cause) {
-      return failure("restore_identity_key", "sdk_restore", "restore_failed", cause);
+    } catch (e) {
+      return failure("restore_identity_key", "sdk_restore", "restore_failed", e);
     } finally {
       clearSecretKey(secretKey);
     }
@@ -205,8 +215,8 @@ export class PubkySdkAdapter {
         );
       }
       return Result.ok(keypair.createRecoveryFile(passphrase));
-    } catch (cause) {
-      return failure("create_recovery_file", "sdk_recovery_file", "recovery_file_failed", cause);
+    } catch (e) {
+      return failure("create_recovery_file", "sdk_recovery_file", "recovery_file_failed", e);
     } finally {
       clearSecretKey(secretKey, "create_recovery_file");
       cleanup("create_recovery_file", "keypair_free", () => keypair?.free());
@@ -233,15 +243,15 @@ export class PubkySdkAdapter {
         bytes: keypair.secret(),
         format: PUBKY_SECRET_KEY_FORMAT,
       });
-    } catch (cause) {
-      return failure("export_secret_key", "sdk_export", "export_failed", cause);
+    } catch (e) {
+      return failure("export_secret_key", "sdk_export", "export_failed", e);
     }
   }
 
   async signup(
     keyHandle: PubkyIdentityKeyHandle,
     homeserverPubky: string,
-    signupCode?: string | null,
+    signupToken?: string | null,
   ): Promise<PubkySessionAccessResult<PubkyAuthenticatedIdentity>> {
     const keypair = this.keypairFor(keyHandle);
     if (!keypair) {
@@ -255,7 +265,7 @@ export class PubkySdkAdapter {
 
     try {
       await this.withSigner("signup", keypair, (signer) =>
-        signer.signup(homeserver.value, signupCode ?? null),
+        signer.signup(homeserver.value, signupToken ?? null),
       );
       const identity = publicIdentity("signup", keypair);
       if (Result.isError(identity)) {
@@ -263,17 +273,17 @@ export class PubkySdkAdapter {
       }
 
       return Result.ok({ publicIdentity: identity.value });
-    } catch (error) {
-      const status = requestStatus(error);
+    } catch (e) {
+      const status = requestStatus(e);
       return failure(
         "signup",
         "sdk_signup",
         status === 409
           ? "account_exists"
-          : isDefinitiveSignupRejection(error, status)
+          : isDefinitiveSignupRejection(e, status)
             ? "signup_failed"
             : "signup_uncertain",
-        error,
+        e,
       );
     } finally {
       cleanup("signup", "homeserver_free", () => homeserver.value.free());
@@ -301,8 +311,8 @@ export class PubkySdkAdapter {
       } finally {
         await session.signout();
       }
-    } catch (error) {
-      return failure("signin", "sdk_signin", "signin_failed", error);
+    } catch (e) {
+      return failure("signin", "sdk_signin", "signin_failed", e);
     } finally {
       cleanup("signin", "session_free", () => session?.free());
     }
@@ -316,8 +326,8 @@ export class PubkySdkAdapter {
     try {
       homeserver = await this.pubky.getHomeserverOf(identity.value);
       return Result.ok(homeserver?.z32() ?? null);
-    } catch (cause) {
-      return failure("resolve_homeserver", "sdk_resolution", "resolution_failed", cause);
+    } catch (e) {
+      return failure("resolve_homeserver", "sdk_resolution", "resolution_failed", e);
     } finally {
       cleanup("resolve_homeserver", "homeserver_free", () => homeserver?.free());
       cleanup("resolve_homeserver", "public_key_free", () => identity.value.free());
@@ -343,8 +353,8 @@ export class PubkySdkAdapter {
       );
 
       return Result.ok();
-    } catch (cause) {
-      return failure("approve_auth_request", "sdk_approval", "approval_failed", cause);
+    } catch (e) {
+      return failure("approve_auth_request", "sdk_approval", "approval_failed", e);
     }
   }
 
@@ -378,6 +388,7 @@ export class PubkySdkAdapter {
     return Result.ok(Object.freeze({ keyHandle, publicIdentity: identity.value }));
   }
 
+  /** Force-publishes the signer's `_pubky` record, including when the current record is still fresh. */
   async publishHomeserver(
     keyHandle: PubkyIdentityKeyHandle,
     homeserverPubky?: string | null,
@@ -398,15 +409,15 @@ export class PubkySdkAdapter {
         const pkdns = signer.pkdns;
         try {
           transferredToSdk = homeserver.value !== null;
-          await pkdns.publishHomeserverIfStale(homeserver.value);
+          await pkdns.publishHomeserverForce(homeserver.value);
         } finally {
           cleanup("publish_homeserver", "pkdns_free", () => pkdns.free());
         }
       });
 
       return Result.ok();
-    } catch (error) {
-      return failure("publish_homeserver", "sdk_publish", "publish_failed", error);
+    } catch (e) {
+      return failure("publish_homeserver", "sdk_publish", "publish_failed", e);
     } finally {
       if (!transferredToSdk) {
         cleanup("publish_homeserver", "homeserver_free", () => homeserver.value?.free());
@@ -432,12 +443,25 @@ export class PubkySdkAdapter {
   }
 }
 
+/**
+ * Resolves one identity without retaining an SDK adapter.
+ * SDK initialization and resolution failures settle as a Result; the promise does not
+ * intentionally reject.
+ */
 export async function resolvePubkyHomeserver(
   publicKeyZ32: string,
 ): Promise<PubkyHomeserverResolutionResult> {
-  const pubky = new PubkySdkAdapter();
+  let pubky: PubkySdkAdapter;
+  try {
+    pubky = new PubkySdkAdapter();
+  } catch (e) {
+    return failure("resolve_homeserver", "sdk_initialize", "resolution_failed", e);
+  }
+
   try {
     return await pubky.resolveHomeserver(publicKeyZ32);
+  } catch (e) {
+    return failure("resolve_homeserver", "sdk_resolution", "resolution_failed", e);
   } finally {
     pubky.dispose();
   }
@@ -458,8 +482,8 @@ function publicIdentity(
     } finally {
       cleanup(operation, "public_key_free", () => publicKey.free());
     }
-  } catch (cause) {
-    return Result.err({ code: "public_identity_failed", cause });
+  } catch (e) {
+    return Result.err({ code: "public_identity_failed", cause: e });
   }
 }
 
@@ -538,6 +562,7 @@ type PubkyFailureStage =
   | "sdk_approval"
   | "sdk_create"
   | "sdk_export"
+  | "sdk_initialize"
   | "sdk_public_identity"
   | "sdk_recovery_file"
   | "sdk_publish"
@@ -573,18 +598,19 @@ function failure<Success, Code extends PubkyErrorCode>(
   code: Code,
   cause?: unknown,
 ): ResultType<Success, CodedFailure<Code>> {
-  const sdkErrorName = cause === undefined ? undefined : safePubkySdkErrorName(cause);
+  if (cause === undefined) {
+    LOGGER.warn("identity.pubky.operation.failed", { operation, stage, code });
+    return Result.err({ code });
+  }
+  const sdkErrorName = safePubkySdkErrorName(cause);
   LOGGER.warn("identity.pubky.operation.failed", {
     operation,
     stage,
-    code,
     ...(sdkErrorName ? { sdkErrorName } : {}),
+    ...safeErrorLogFields(cause),
+    code,
   });
-  return Result.err(codedFailure(code, cause));
-}
-
-function codedFailure<Code extends string>(code: Code, cause?: unknown): CodedFailure<Code> {
-  return cause === undefined ? { code } : { code, cause };
+  return Result.err({ code, cause });
 }
 
 function safePubkySdkErrorName(error: unknown): string | undefined {
@@ -642,11 +668,12 @@ function isDefinitiveSignupRejection(error: unknown, status: number | undefined)
 function cleanup(operation: PubkyOperation, stage: PubkyCleanupStage, action: () => void): void {
   try {
     action();
-  } catch {
+  } catch (e) {
     LOGGER.warn("identity.pubky.cleanup.failed", {
       operation,
       stage,
       code: "cleanup_failed",
+      ...safeErrorLogFields(e),
     });
   }
 }

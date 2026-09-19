@@ -1,6 +1,6 @@
 import "client-only";
 
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 
 export type AuthorizationOutcome = "success" | "error" | "cancel";
 export type AuthorizationHandoffStatus =
@@ -11,7 +11,12 @@ const ACKNOWLEDGEMENT_TYPE = "pubky-passport.authorization-outcome-ack";
 const MESSAGE_VERSION = 1;
 const ACKNOWLEDGEMENT_TIMEOUT_MS = 3_000;
 
-/** Uses an acknowledged opener message when possible, then falls back to navigation. */
+/**
+ * Uses an acknowledged opener message when possible, then falls back to navigation.
+ *
+ * @throws {Error} when acknowledgement listener or timer setup fails; controller
+ * callers contain that exceptional browser-runtime path.
+ */
 export async function handoffAuthorizationOutcome(
   appWindow: Window,
   callback: string,
@@ -45,8 +50,8 @@ export async function handoffAuthorizationOutcome(
       }),
       targetOrigin,
     );
-  } catch {
-    logHandoffFailure("post_message");
+  } catch (e) {
+    logHandoffFailure("post_message", e);
     acknowledgement.cancel();
     return navigationStatus(appWindow, callback);
   }
@@ -75,18 +80,18 @@ function waitForAcknowledgement(
   const cleanup = () => {
     try {
       appWindow.removeEventListener("message", onMessage);
-    } catch {
-      logHandoffFailure("remove_message_listener");
+    } catch (e) {
+      logHandoffFailure("remove_message_listener", e);
     }
     try {
       signal.removeEventListener("abort", onAbort);
-    } catch {
-      logHandoffFailure("remove_abort_listener");
+    } catch (e) {
+      logHandoffFailure("remove_abort_listener", e);
     }
     try {
       if (timeoutId !== undefined) appWindow.clearTimeout(timeoutId);
-    } catch {
-      logHandoffFailure("clear_acknowledgement_timeout");
+    } catch (e) {
+      logHandoffFailure("clear_acknowledgement_timeout", e);
     }
   };
   const settle = (acknowledged: boolean) => {
@@ -164,12 +169,15 @@ function navigationStatus(appWindow: Window, callback: string): AuthorizationHan
   try {
     appWindow.location.replace(callback);
     return "navigated";
-  } catch {
-    logHandoffFailure("navigate");
+  } catch (e) {
+    logHandoffFailure("navigate", e);
     return "unavailable";
   }
 }
 
-function logHandoffFailure(operation: string): void {
-  LOGGER.warn("authorize.callback_handoff.failed", { operation });
+function logHandoffFailure(operation: string, cause: unknown): void {
+  LOGGER.warn("authorize.callback_handoff.failed", {
+    operation,
+    ...safeErrorLogFields(cause),
+  });
 }

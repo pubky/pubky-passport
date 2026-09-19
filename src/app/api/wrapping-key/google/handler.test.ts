@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 
-import type { GoogleWrappingKeyIssuer } from "../../../../server/wrapping-key/google/GoogleWrappingKeyIssuer";
+import type { GoogleWrappingKeyIssuer } from "@/server/wrapping-key/google/GoogleWrappingKeyIssuer";
 
 describe("POST /api/wrapping-key/google", () => {
   afterEach(() => {
-    vi.doUnmock("../../../../server/wrapping-key/google/GoogleWrappingKeyIssuer");
+    vi.doUnmock("@/server/wrapping-key/google/GoogleWrappingKeyIssuer");
     vi.restoreAllMocks();
   });
 
@@ -57,10 +57,39 @@ describe("POST /api/wrapping-key/google", () => {
     expect(factory).not.toHaveBeenCalled();
   });
 
+  it("logs request-stream failures without exposing their contents", async () => {
+    const streamFailure = new TypeError("SECRET-GOOGLE-ID-TOKEN");
+    const factory = vi.fn(() =>
+      issuer(async () => Result.ok({ wrappingKey: "opaque-key", keyId: "current" })),
+    );
+    const post = await handlerWithFactory(factory);
+    const { LOGGER } = await import("@/libs/logger/logger");
+    const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+
+    const response = await post(requestWithFailingBody(streamFailure));
+    const responseText = await response.text();
+
+    expect(response.status).toBe(400);
+    expect(responseText).toBe('{"error":{"code":"invalid_request"}}');
+    expect(factory).not.toHaveBeenCalled();
+    expect(info).toHaveBeenCalledWith(
+      "identity.google.wrapping_key.failed",
+      expect.objectContaining({
+        operation: "parse",
+        code: "invalid_request",
+        errorName: "TypeError",
+        diagnosticId: expect.any(String),
+      }),
+    );
+    expect(JSON.stringify(info.mock.calls)).not.toContain("SECRET-GOOGLE-ID-TOKEN");
+    expect(responseText).not.toContain("SECRET-GOOGLE-ID-TOKEN");
+  });
+
   it.each([
     ["invalid_google_id_token", 401],
     ["key_unavailable", 409],
-    ["dependency_unavailable", 503],
+    ["google_verifier_unavailable", 503],
+    ["key_derivation_failed", 500],
   ] as const)("maps %s failures to HTTP %i", async (code, status) => {
     const post = await postHandler(async () => Result.err({ code }));
 
@@ -69,17 +98,20 @@ describe("POST /api/wrapping-key/google", () => {
     ).resolves.toEqual({ status, body: { error: { code } } });
   });
 
-  it("never serializes an internal failure cause", async () => {
+  it.each([
+    ["google_verifier_unavailable", 503],
+    ["key_derivation_failed", 500],
+  ] as const)("never serializes an internal %s cause", async (code, status) => {
     const post = await postHandler(async () =>
       Result.err({
-        code: "dependency_unavailable" as const,
+        code,
         cause: new Error("SECRET-GOOGLE-ID-TOKEN"),
       }),
     );
 
     const response = await post(jsonRequest({ googleIdToken: "id-token" }));
     const responseText = await response.text();
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(status);
     expect(responseText).not.toContain("cause");
     expect(responseText).not.toContain("SECRET-GOOGLE-ID-TOKEN");
   });
@@ -147,19 +179,16 @@ async function handlerWithFactory(
   },
 ) {
   vi.resetModules();
-  vi.doMock(
-    "../../../../server/wrapping-key/google/GoogleWrappingKeyIssuer",
-    async (importOriginal) => ({
-      ...(await importOriginal<
-        typeof import("../../../../server/wrapping-key/google/GoogleWrappingKeyIssuer")
-      >()),
-      GoogleWrappingKeyIssuer: class {
-        static fromEnvironment() {
-          return factory();
-        }
-      },
-    }),
-  );
+  vi.doMock("@/server/wrapping-key/google/GoogleWrappingKeyIssuer", async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("@/server/wrapping-key/google/GoogleWrappingKeyIssuer")
+    >()),
+    GoogleWrappingKeyIssuer: class {
+      static fromEnvironment() {
+        return factory();
+      }
+    },
+  }));
   return (await import("./handler")).googleWrappingKeyPost;
 }
 
@@ -173,6 +202,20 @@ function jsonRequest(body: unknown): Request {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+}
+
+function requestWithFailingBody(error: Error): Request {
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      controller.error(error);
+    },
+  });
+  return new Request("https://passport.pubky.app/api/wrapping-key/google", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+    duplex: "half",
+  } as RequestInit);
 }
 
 async function responseSummary(response: Response): Promise<{ status: number; body: unknown }> {

@@ -1,7 +1,7 @@
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LOGGER } from "../../../../libs/logger/logger";
+import { LOGGER } from "@/libs/logger/logger";
 import { ValidatedPubkyAuthRequest } from "./ValidatedPubkyAuthRequest";
 
 const REQUEST =
@@ -104,6 +104,8 @@ describe("ValidatedPubkyAuthRequest", () => {
     expect(validated.value.isLive()).toBe(false);
     expect(warning).toHaveBeenCalledWith("authorize.request_metadata.failed", {
       operation: "take_outcome_callback",
+      diagnosticId: expect.any(String),
+      errorName: "TypeError",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain(SECRET);
     expect(JSON.stringify(warning.mock.calls)).not.toContain(REQUEST);

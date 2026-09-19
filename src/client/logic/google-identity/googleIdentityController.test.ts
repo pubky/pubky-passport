@@ -3,36 +3,19 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { expectResultError } from "../../../../test-utils/resultAssertions";
-import { LOGGER } from "../../../libs/logger/logger";
+import { expectResultError } from "@test-utils/resultAssertions";
+import { LOGGER } from "@/libs/logger/logger";
+import { GoogleIdentityController, type GoogleIdentityViewState } from "./GoogleIdentityController";
 
-const MOCKS = vi.hoisted(() => ({
+const MOCKS = {
   detachIdentity: vi.fn(),
   abortRequests: vi.fn(),
   disposeAuthorization: vi.fn(),
-  disposeOperations: vi.fn(),
+  disposeLifecycle: vi.fn(),
   establishIdentity: vi.fn(),
   replaceInvalidPassportFile: vi.fn(),
   requestAuthorization: vi.fn(),
-}));
-
-vi.mock("./gia/GoogleImplicitAuthorization", () => ({
-  GoogleImplicitAuthorization: class {
-    request = MOCKS.requestAuthorization;
-    dispose = MOCKS.disposeAuthorization;
-  },
-}));
-vi.mock("./GoogleIdentityOperations", () => ({
-  GoogleIdentityOperations: class {
-    abortRequests = MOCKS.abortRequests;
-    detachIdentity = MOCKS.detachIdentity;
-    dispose = MOCKS.disposeOperations;
-    establishIdentity = MOCKS.establishIdentity;
-    replaceInvalidPassportFile = MOCKS.replaceInvalidPassportFile;
-  },
-}));
-
-import { GoogleIdentityController, type GoogleIdentityViewState } from "./GoogleIdentityController";
+};
 
 const GOOGLE_ACCOUNT = {
   googleSubject: "google-account-id",
@@ -74,32 +57,93 @@ describe("GoogleIdentityController", () => {
   });
 
   it("composes and disposes its real screen-scoped dependencies", () => {
-    const session = new GoogleIdentityController(
-      "google-client-id",
-      "https://homegate.example/",
-      vi.fn(),
-    );
+    const session = new GoogleIdentityController("google-client-id", "https://homegate.example/");
     expect(() => session.dispose()).not.toThrow();
   });
 
-  it("reports authorization and establishment progress", async () => {
-    const states: GoogleIdentityViewState[] = [];
-    const controller = createController((state) => states.push(state));
+  it("runs the real authorization and lifecycle constructors when no factories are injected", async () => {
+    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const open = vi.fn(() => null);
+    vi.stubGlobal("open", open);
+    const controller = new GoogleIdentityController(
+      "google-client-id",
+      "https://homegate.example/",
+    );
 
-    await expect(controller.establishIdentity()).resolves.toEqual(
-      Result.ok({
-        establishmentMode: "restored",
-        googleAccount: GOOGLE_ACCOUNT,
-        publicIdentity: PUBLIC_IDENTITY,
+    expectResultError(await controller.establishIdentity(), {
+      code: "google_authorization_popup_failed_to_open",
+    });
+    expect(open).toHaveBeenCalledOnce();
+    controller.dispose();
+  });
+
+  it("lets a single injected factory replace only its own constructor", async () => {
+    const controller = new GoogleIdentityController(
+      "google-client-id",
+      "https://homegate.example/",
+      undefined,
+      () => ({
+        abortRequests: MOCKS.abortRequests,
+        detachIdentity: MOCKS.detachIdentity,
+        dispose: MOCKS.disposeLifecycle,
+        establishIdentity: MOCKS.establishIdentity,
+        replaceInvalidPassportFile: MOCKS.replaceInvalidPassportFile,
       }),
     );
+    const states = recordStates(controller);
+    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const open = vi.fn(() => null);
+    vi.stubGlobal("open", open);
+
+    expectResultError(await controller.establishIdentity(), {
+      code: "google_authorization_popup_failed_to_open",
+    });
+    expect(open).toHaveBeenCalledOnce();
+    expect(MOCKS.establishIdentity).not.toHaveBeenCalled();
+    expect(states).toEqual([
+      { status: "requesting-authorization" },
+      { status: "failed", error: { code: "google_authorization_popup_failed_to_open" } },
+    ]);
+  });
+
+  it("starts idle and publishes authorization, establishment progress, and the result", async () => {
+    const controller = createController();
+    const states = recordStates(controller);
+    const established = {
+      establishmentMode: "restored" as const,
+      googleAccount: GOOGLE_ACCOUNT,
+      publicIdentity: PUBLIC_IDENTITY,
+    };
+
+    expect(controller.getState()).toEqual({ status: "idle" });
+    await expect(controller.establishIdentity()).resolves.toEqual(Result.ok(established));
 
     expect(states).toEqual([
       { status: "requesting-authorization" },
       { status: "establishing", progress: { flow: "lookup", step: "checking" } },
       { status: "establishing", progress: { flow: "restore", step: "restoring" } },
+      { status: "established", identity: established },
     ]);
+    expect(controller.getState()).toEqual({ status: "established", identity: established });
     expect(MOCKS.establishIdentity).toHaveBeenCalledWith(CREDENTIALS, expect.any(Function));
+  });
+
+  it("publishes only the allowlisted established fields", async () => {
+    MOCKS.establishIdentity.mockResolvedValue(
+      Result.ok({
+        establishmentMode: "restored" as const,
+        publicIdentity: PUBLIC_IDENTITY,
+        secret: "ESTABLISHED-PAYLOAD-CANARY",
+      }),
+    );
+    const controller = createController();
+    const states = recordStates(controller);
+
+    const established = await controller.establishIdentity();
+
+    expect(JSON.stringify(controller.getState())).not.toContain("ESTABLISHED-PAYLOAD-CANARY");
+    expect(JSON.stringify(states)).not.toContain("ESTABLISHED-PAYLOAD-CANARY");
+    expect(JSON.stringify(established)).not.toContain("ESTABLISHED-PAYLOAD-CANARY");
   });
 
   it("forwards restored-identity repair progress unchanged", async () => {
@@ -109,15 +153,59 @@ describe("GoogleIdentityController", () => {
       reportProgress({ flow: "repair", step: "signing_in" });
       return Result.ok({ establishmentMode: "restored" as const, publicIdentity: PUBLIC_IDENTITY });
     });
-    const states: GoogleIdentityViewState[] = [];
+    const controller = createController();
+    const states = recordStates(controller);
 
-    await createController((state) => states.push(state)).establishIdentity();
+    await controller.establishIdentity();
 
     expect(states).toEqual([
       { status: "requesting-authorization" },
       { status: "establishing", progress: { flow: "repair", step: "signing_up" } },
       { status: "establishing", progress: { flow: "repair", step: "publishing" } },
       { status: "establishing", progress: { flow: "repair", step: "signing_in" } },
+      {
+        status: "established",
+        identity: {
+          establishmentMode: "restored",
+          googleAccount: GOOGLE_ACCOUNT,
+          publicIdentity: PUBLIC_IDENTITY,
+        },
+      },
+    ]);
+  });
+
+  it("publishes safe failures and returns to idle on reset", async () => {
+    MOCKS.requestAuthorization.mockResolvedValue(
+      Result.err({ code: "google_authorization_denied" as const }),
+    );
+    const controller = createController();
+    const states = recordStates(controller);
+
+    await controller.establishIdentity();
+    expect(controller.getState()).toEqual({
+      status: "failed",
+      error: { code: "google_authorization_denied" },
+    });
+
+    controller.reset();
+    expect(controller.getState()).toEqual({ status: "idle" });
+    expect(states).toEqual([
+      { status: "requesting-authorization" },
+      { status: "failed", error: { code: "google_authorization_denied" } },
+      { status: "idle" },
+    ]);
+  });
+
+  it("publishes detachment progress and completion", async () => {
+    const controller = createController();
+    const states = recordStates(controller);
+
+    await controller.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.googleSubject);
+
+    expect(states).toEqual([
+      { status: "requesting-authorization" },
+      { status: "detaching" },
+      { status: "detached" },
     ]);
   });
 
@@ -126,7 +214,8 @@ describe("GoogleIdentityController", () => {
     const listenerError = Object.assign(new Error("listener failed"), {
       secret: "sensitive-state-listener",
     });
-    const controller = createController(() => {
+    const controller = createController();
+    controller.subscribe(() => {
       throw listenerError;
     });
 
@@ -149,7 +238,7 @@ describe("GoogleIdentityController", () => {
     expect(JSON.stringify(warning.mock.calls)).not.toContain("sensitive-state-listener");
   });
 
-  it("returns a direct authorization error without invoking identity operations", async () => {
+  it("returns a direct authorization error without invoking the identity lifecycle", async () => {
     MOCKS.requestAuthorization.mockResolvedValue(
       Result.err({
         code: "google_authorization_popup_closed" as const,
@@ -200,7 +289,7 @@ describe("GoogleIdentityController", () => {
     const controller = createController();
     await controller.establishIdentity();
 
-    controller.clearPinnedGoogleSubject();
+    controller.reset();
     await controller.establishIdentity();
 
     expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(1, undefined);
@@ -249,7 +338,7 @@ describe("GoogleIdentityController", () => {
   it("preserves safe operation classifications without diagnostic causes", async () => {
     const diagnosticCanary = { secret: "CONTROLLER-CAUSE-CANARY" };
     const operationError = {
-      code: "homeserver_signup_invitation_failed" as const,
+      code: "homeserver_signup_token_failed" as const,
       detailCode: "weekly_limit_exceeded" as const,
       cause: diagnosticCanary,
     };
@@ -259,7 +348,7 @@ describe("GoogleIdentityController", () => {
     const result = await createController().establishIdentity();
 
     expectResultError(result, {
-      code: "homeserver_signup_invitation_failed",
+      code: "homeserver_signup_token_failed",
       detailCode: "weekly_limit_exceeded",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("CONTROLLER-CAUSE-CANARY");
@@ -329,7 +418,7 @@ describe("GoogleIdentityController", () => {
     expect(MOCKS.replaceInvalidPassportFile).not.toHaveBeenCalled();
   });
 
-  it("defers operation cleanup until in-flight work settles", async () => {
+  it("defers operation cleanup until in-flight work settles and suppresses later states", async () => {
     let finish!: () => void;
     MOCKS.establishIdentity.mockImplementation(
       () =>
@@ -344,19 +433,22 @@ describe("GoogleIdentityController", () => {
         }),
     );
     const controller = createController();
+    const states = recordStates(controller);
 
     const pending = controller.establishIdentity();
     await vi.waitFor(() => expect(MOCKS.establishIdentity).toHaveBeenCalledOnce());
     controller.dispose();
     expect(MOCKS.abortRequests).toHaveBeenCalledOnce();
-    expect(MOCKS.disposeOperations).not.toHaveBeenCalled();
+    expect(MOCKS.disposeLifecycle).not.toHaveBeenCalled();
     finish();
 
     expectResultError(await pending, { code: "cancelled" });
-    expect(MOCKS.disposeOperations).toHaveBeenCalledOnce();
+    expect(MOCKS.disposeLifecycle).toHaveBeenCalledOnce();
+    expect(states).toEqual([{ status: "requesting-authorization" }]);
+    expect(controller.getState()).toEqual({ status: "requesting-authorization" });
   });
 
-  it("does not start identity operations when disposed as authorization settles", async () => {
+  it("does not start the identity lifecycle when disposed as authorization settles", async () => {
     let authorize!: () => void;
     MOCKS.requestAuthorization.mockImplementation(
       () =>
@@ -373,7 +465,7 @@ describe("GoogleIdentityController", () => {
 
     expectResultError(await pending, { code: "cancelled" });
     expect(MOCKS.establishIdentity).not.toHaveBeenCalled();
-    expect(MOCKS.disposeOperations).toHaveBeenCalledOnce();
+    expect(MOCKS.disposeLifecycle).toHaveBeenCalledOnce();
   });
 
   it("rejects a concurrent operation without another authorization", async () => {
@@ -404,8 +496,26 @@ describe("GoogleIdentityController", () => {
   });
 });
 
-function createController(
-  onState: (state: GoogleIdentityViewState) => void = vi.fn(),
-): GoogleIdentityController {
-  return new GoogleIdentityController("google-client-id", "https://homegate.example/", onState);
+function recordStates(controller: GoogleIdentityController): GoogleIdentityViewState[] {
+  const states: GoogleIdentityViewState[] = [];
+  controller.subscribe((state) => states.push(state));
+  return states;
+}
+
+function createController(): GoogleIdentityController {
+  return new GoogleIdentityController(
+    "google-client-id",
+    "https://homegate.example/",
+    () => ({
+      request: MOCKS.requestAuthorization,
+      dispose: MOCKS.disposeAuthorization,
+    }),
+    () => ({
+      abortRequests: MOCKS.abortRequests,
+      detachIdentity: MOCKS.detachIdentity,
+      dispose: MOCKS.disposeLifecycle,
+      establishIdentity: MOCKS.establishIdentity,
+      replaceInvalidPassportFile: MOCKS.replaceInvalidPassportFile,
+    }),
+  );
 }

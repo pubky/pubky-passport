@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 
-import { encodeBase64Url } from "../../../libs/encoding/base64Url";
-import { LOGGER } from "../../../libs/logger/logger";
+import { encodeBase64Url } from "@/libs/encoding/base64Url";
+import { HttpResponseError } from "@/libs/http/HttpResponseError";
+import { LOGGER } from "@/libs/logger/logger";
 import { GoogleWrappingKeyApiClient } from "./GoogleWrappingKeyApiClient";
 
 describe("GoogleWrappingKeyApiClient", () => {
@@ -48,11 +49,24 @@ describe("GoogleWrappingKeyApiClient", () => {
     const result = await client.requestGoogleWrappingKey("id-token");
 
     expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) expect(result.error).toEqual({ code: "invalid_google_id_token" });
+    if (Result.isError(result)) {
+      expect(result.error).toMatchObject({
+        code: "invalid_google_id_token",
+        httpStatus: 401,
+        cause: expect.any(HttpResponseError),
+      });
+      expect(result.error.cause).toMatchObject({
+        status: 401,
+        responseBody: JSON.stringify({ error: { code: "invalid_google_id_token" } }),
+      });
+    }
     expect(warn).toHaveBeenCalledWith("identity.google.wrapping_key.failed", {
       operation: "request_google_wrapping_key",
       stage: "error_response",
       code: "invalid_google_id_token",
+      httpStatus: 401,
+      diagnosticId: expect.any(String),
+      errorName: "HttpResponseError",
     });
   });
 
@@ -76,7 +90,13 @@ describe("GoogleWrappingKeyApiClient", () => {
     );
     const result = await client.requestGoogleWrappingKey("id-token");
     expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) expect(result.error).toEqual({ code: "invalid_response" });
+    if (Result.isError(result)) {
+      expect(result.error).toMatchObject({
+        code: "invalid_response",
+        httpStatus: 401,
+        cause: expect.any(HttpResponseError),
+      });
+    }
   });
 
   it("returns invalid_response when the route has no valid error body", async () => {
@@ -85,7 +105,13 @@ describe("GoogleWrappingKeyApiClient", () => {
     );
     const result = await client.requestGoogleWrappingKey("id-token");
     expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) expect(result.error).toEqual({ code: "invalid_response" });
+    if (Result.isError(result)) {
+      expect(result.error).toMatchObject({
+        code: "invalid_response",
+        httpStatus: 503,
+        cause: expect.any(HttpResponseError),
+      });
+    }
   });
 
   it.each([
@@ -100,7 +126,13 @@ describe("GoogleWrappingKeyApiClient", () => {
     const client = new GoogleWrappingKeyApiClient(async () => Response.json(body));
     const result = await client.requestGoogleWrappingKey("id-token");
     expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) expect(result.error).toEqual({ code: "invalid_response" });
+    if (Result.isError(result)) {
+      expect(result.error).toMatchObject({
+        code: "invalid_response",
+        httpStatus: 200,
+        cause: expect.any(Error),
+      });
+    }
   });
 
   it("accepts every canonical terminal character for a 32-byte value", async () => {
@@ -160,7 +192,13 @@ describe("GoogleWrappingKeyApiClient", () => {
     );
     const result = await client.requestGoogleWrappingKey("id-token");
     expect(Result.isError(result)).toBe(true);
-    if (Result.isError(result)) expect(result.error).toEqual({ code: "invalid_response" });
+    if (Result.isError(result)) {
+      expect(result.error).toMatchObject({
+        code: "invalid_response",
+        httpStatus: 200,
+        cause: expect.any(Error),
+      });
+    }
   });
 
   it("maps fetch failures to network_failed", async () => {
@@ -178,6 +216,8 @@ describe("GoogleWrappingKeyApiClient", () => {
       operation: "request_google_wrapping_key",
       stage: "request",
       code: "network_failed",
+      diagnosticId: expect.any(String),
+      errorName: "TypeError",
     });
     expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-GOOGLE-ID-TOKEN");
   });

@@ -2,7 +2,7 @@ import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
 
-import { isValidPubkyCapabilityPath, utf8Length } from "../../../pubky/pubkyProtocol";
+import { isValidPubkyCapabilityPath, utf8Length } from "@/client/logic/pubky/pubkyProtocol";
 
 /** Bounds enforced while parsing the requested capability list. */
 export const PUBKY_AUTH_CAPABILITY_LIMITS = {

@@ -1,9 +1,9 @@
 import type { IScannerControls } from "@zxing/browser";
 import { useEffect, useRef, useState } from "react";
 
-import { LOGGER } from "../../../../libs/logger/logger";
-import { Button } from "../../shared/primitives/button";
-import { Dialog } from "../../shared/primitives/dialog";
+import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import { Button } from "@/client/ui/shared/primitives/button";
+import { Dialog } from "@/client/ui/shared/primitives/dialog";
 
 type AuthorizationQrScannerProps = {
   onClose: () => void;
@@ -50,11 +50,12 @@ function AuthorizationQrScanner({ onClose, onScan }: AuthorizationQrScannerProps
         }
         controls = activeControls;
         setStatus("scanning");
-      } catch {
+      } catch (e) {
         if (disposed) return;
         LOGGER.info("authorize.manual_entry.failed", {
           operation: "scan_qr",
           code: "camera_unavailable",
+          ...safeErrorLogFields(e),
         });
         setStatus("unavailable");
       }

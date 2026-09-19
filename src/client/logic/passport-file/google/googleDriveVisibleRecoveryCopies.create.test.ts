@@ -1,8 +1,9 @@
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LOGGER } from "../../../../libs/logger/logger";
-import type { PassportFileEnvelope } from "../passportFileEnvelope";
+import { HttpResponseError } from "@/libs/http/HttpResponseError";
+import { LOGGER } from "@/libs/logger/logger";
+import type { PassportFileEnvelope } from "@/client/logic/passport-file/passportFileEnvelope";
 import { GoogleDriveVisibleRecoveryCopies } from "./GoogleDriveVisibleRecoveryCopies";
 
 const ACCESS_TOKEN = "SECRET-DRIVE-TOKEN";
@@ -124,6 +125,40 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
     expect(lockManager.maximumActive).toBe(1);
   });
 
+  it("returns and safely correlates a browser lock failure", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const cause = {
+      name: "SECRET-VISIBLE-LOCK-NAME",
+      token: ACCESS_TOKEN,
+      envelope: ENVELOPE,
+    };
+    vi.stubGlobal("navigator", {
+      locks: {
+        request: async () => {
+          throw cause;
+        },
+      },
+    });
+    const visibleCopies = createVisibleCopies([]);
+
+    const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, SIGNAL);
+
+    expect(Result.isError(result)).toBe(true);
+    if (!Result.isError(result)) throw new Error("Expected the browser lock request to fail.");
+    expect(result.error).toEqual({ code: "write_failed", cause });
+    expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {
+      operation: "create_folder_lock",
+      code: "write_failed",
+      diagnosticId: expect.any(String),
+      errorName: "ErrorLike",
+    });
+    const logged = JSON.stringify(warning.mock.calls);
+    expect(logged).not.toContain(cause.name);
+    expect(logged).not.toContain(ACCESS_TOKEN);
+    expect(logged).not.toContain(ENVELOPE.iv);
+    expect(logged).not.toContain(ENVELOPE.ct);
+  });
+
   it("selects the same canonical folder when concurrent devices created duplicates", async () => {
     const canonicalFolder = { ...FOLDER, id: "A-CANONICAL-FOLDER" };
     const createdFile = { id: "SECRET-CREATED-ID", name: VISIBLE_FILE_NAME, version: "1" };
@@ -215,7 +250,10 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
 
     const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, SIGNAL);
 
-    expect(Result.isError(result) && result.error).toEqual({ code: "invalid_response" });
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error).toMatchObject({ code: "invalid_response", cause: expect.any(Error) });
+    }
     expect(calls).toHaveLength(1);
   });
 
@@ -227,11 +265,25 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
 
     const result = await visibleCopies.createVisibleRecoveryCopy(ENVELOPE, PUBLIC_IDENTITY, SIGNAL);
 
-    expect(Result.isError(result) && result.error).toEqual({ code: "forbidden" });
+    expect(Result.isError(result)).toBe(true);
+    if (!Result.isError(result)) throw new Error("Expected the Drive request to fail.");
+    expect(result.error).toMatchObject({
+      code: "forbidden",
+      httpStatus: 403,
+      cause: expect.any(HttpResponseError),
+    });
+    expect(result.error.cause).toMatchObject({
+      status: 403,
+      responseBody: JSON.stringify({ error: "SECRET-UPSTREAM-BODY" }),
+    });
     expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {
       operation: "list_folder",
       code: "forbidden",
+      httpStatus: 403,
+      diagnosticId: expect.any(String),
+      errorName: "HttpResponseError",
     });
+    expect(JSON.stringify(result)).not.toContain("SECRET-UPSTREAM-BODY");
     const logged = JSON.stringify(warning.mock.calls);
     expect(logged).not.toContain("SECRET-UPSTREAM-BODY");
     expect(logged).not.toContain(ACCESS_TOKEN);
@@ -286,6 +338,8 @@ describe("GoogleDriveVisibleRecoveryCopies creation", () => {
     expect(warning).toHaveBeenCalledWith("identity.google.visible_recovery_copies.failed", {
       operation: "list_folder",
       code: "network_failed",
+      diagnosticId: expect.any(String),
+      errorName: "AbortError",
     });
   });
 

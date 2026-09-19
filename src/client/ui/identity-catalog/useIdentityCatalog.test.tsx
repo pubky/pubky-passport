@@ -1,44 +1,24 @@
 /** @vitest-environment jsdom */
 
 import { act, cleanup, render, screen } from "@testing-library/react";
-import { Result } from "better-result";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
+import { fakeLocalIdentityController } from "@test-utils/fakeLocalIdentityController";
+import { withPassportTestProviders } from "@test-utils/googleIdentityConfiguration";
+import type { LocalIdentityCatalog } from "@/client/logic/local-identity/localIdentityModels";
 import { useIdentityCatalog } from "./useIdentityCatalog";
 
-const MOCKS = vi.hoisted(() => ({
-  catalog: { activePublicKeyZ32: null, identities: [] } as LocalIdentityCatalog,
-  create: vi.fn(),
-  listener: undefined as (() => void) | undefined,
-  unavailable: false,
-}));
-
-vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
-  LocalIdentityController: class {
-    constructor() {
-      MOCKS.create();
-      return {
-        createPubkyRingMigration: () => Result.err({ code: "invalid_identity" as const }),
-        createRecoveryFile: async () => Result.err({ code: "identity_unavailable" as const }),
-        listIdentities: () =>
-          MOCKS.unavailable
-            ? Result.err({ code: "storage_unavailable" as const })
-            : Result.ok(MOCKS.catalog),
-        removeIdentity: () => Result.ok(),
-        resolveHomeserver: async () => Result.ok(null),
-        selectIdentity: () => Result.ok(),
-        subscribeToIdentityChanges: (listener: () => void) => {
-          MOCKS.listener = listener;
-          return () => {
-            MOCKS.listener = undefined;
-          };
-        },
-      };
-    }
-  },
-}));
+const CATALOG: {
+  catalog: LocalIdentityCatalog | undefined;
+  listener: (() => void) | undefined;
+  storageUnavailable: boolean;
+} = {
+  catalog: { activePublicKeyZ32: null, identities: [] },
+  listener: undefined,
+  storageUnavailable: false,
+};
+const create = vi.fn();
 
 function IdentityCatalogProbe() {
   const state = useIdentityCatalog();
@@ -47,10 +27,22 @@ function IdentityCatalogProbe() {
   );
 }
 
+function renderProbe(children = <IdentityCatalogProbe />) {
+  return render(
+    withPassportTestProviders(children, {
+      createLocalIdentityController: () => {
+        create();
+        return fakeLocalIdentityController(CATALOG);
+      },
+    }),
+  );
+}
+
 describe("useIdentityCatalog", () => {
   beforeEach(() => {
-    MOCKS.catalog = { activePublicKeyZ32: null, identities: [] };
-    MOCKS.unavailable = false;
+    CATALOG.catalog = { activePublicKeyZ32: null, identities: [] };
+    CATALOG.listener = undefined;
+    CATALOG.storageUnavailable = false;
   });
 
   afterEach(() => {
@@ -59,31 +51,31 @@ describe("useIdentityCatalog", () => {
   });
 
   it("updates when the repository reports same-tab or cross-tab changes", async () => {
-    render(<IdentityCatalogProbe />);
+    renderProbe();
     expect(await screen.findByText("ready:0")).toBeInTheDocument();
 
-    MOCKS.catalog = {
+    CATALOG.catalog = {
       activePublicKeyZ32: "identity",
       identities: [{ publicIdentity: { publicKeyZ32: "identity" } }],
     };
-    act(() => MOCKS.listener?.());
+    act(() => CATALOG.listener?.());
 
     expect(await screen.findByText("ready:1")).toBeInTheDocument();
   });
 
   it("maps catalog failures to unavailable", async () => {
-    MOCKS.unavailable = true;
-    render(<IdentityCatalogProbe />);
+    CATALOG.storageUnavailable = true;
+    renderProbe();
     expect(await screen.findByText("unavailable")).toBeInTheDocument();
   });
 
   it("keeps one live subscription under Strict Mode", async () => {
-    render(
+    renderProbe(
       <StrictMode>
         <IdentityCatalogProbe />
       </StrictMode>,
     );
     expect(await screen.findByText("ready:0")).toBeInTheDocument();
-    expect(MOCKS.listener).toEqual(expect.any(Function));
+    expect(CATALOG.listener).toEqual(expect.any(Function));
   });
 });

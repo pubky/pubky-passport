@@ -7,16 +7,20 @@ import {
   type AuthorizationEntry,
 } from "./client/logic/authorization/entry/authorizationEntry";
 
-// Next.js evaluates this framework entrypoint before React hydration.
-let authorizationEntry =
+// Next.js runs this module's top-level code before React hydration. Unlike server
+// instrumentation.ts, client instrumentation has no register() hook.
+let initialAuthorizationEntry =
   typeof window !== "undefined" && window.location.pathname === "/authorize"
     ? readAndScrubAuthorizationEntry(window)
     : undefined;
 
-/** Takes the one-shot authorization entry captured before React hydration. */
+/**
+ * Takes the one-shot authorization entry captured and scrubbed before React
+ * hydration. Re-scrubs if Next restored the secret-bearing address bar.
+ */
 export function takeInitialAuthorizationEntry(): AuthorizationEntry | undefined {
-  const entry = authorizationEntry;
-  authorizationEntry = undefined;
+  const entry = initialAuthorizationEntry;
+  initialAuthorizationEntry = undefined;
   if (
     entry &&
     window.location.pathname === "/authorize" &&

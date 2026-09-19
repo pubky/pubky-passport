@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { EARLY_AUTHORIZATION_LOCATION_SCRIPT } from "./libs/authorization/earlyAuthorizationLocation";
 import { EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT } from "./libs/authorization/earlyGoogleImplicitResponse";
 import { LOGGER, safeErrorLogFields } from "./libs/logger/logger";
-import { getPublicApplicationEnvironment } from "./server/config/publicApplicationEnvironment";
+import { getPublicEnvironment } from "./server/environment";
 
 const EARLY_AUTHORIZATION_LOCATION_SCRIPT_SOURCE = `'sha256-${createHash("sha256")
   .update(EARLY_AUTHORIZATION_LOCATION_SCRIPT)
@@ -12,10 +12,15 @@ const EARLY_AUTHORIZATION_LOCATION_SCRIPT_SOURCE = `'sha256-${createHash("sha256
 const EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT_SOURCE = `'sha256-${createHash("sha256")
   .update(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT)
   .digest("base64")}'`;
+/**
+ * Allows user-selected HTTPS relays without allowing arbitrary cross-origin WebSockets.
+ * CSP's `https:` scheme source does not match `wss:`; `'self'` still covers same-origin WSS.
+ */
+const AUTHORIZATION_RELAY_CONNECT_SOURCE = "https:";
 
 export function proxy(request: NextRequest) {
   try {
-    const environment = getPublicApplicationEnvironment();
+    const environment = getPublicEnvironment();
     const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
     const contentSecurityPolicy = createContentSecurityPolicy({
       nonce,
@@ -31,14 +36,14 @@ export function proxy(request: NextRequest) {
     const response = NextResponse.next({ request: { headers: requestHeaders } });
     response.headers.set("Content-Security-Policy", contentSecurityPolicy);
     return response;
-  } catch (cause) {
+  } catch (e) {
     LOGGER.error("proxy.bootstrap.failed", {
       layer: "proxy",
       operation: "build_response_policy",
       code: "runtime_exception",
-      ...safeErrorLogFields(cause),
+      ...safeErrorLogFields(e),
     });
-    throw new Error("Proxy configuration unavailable.", { cause });
+    throw new Error("Proxy configuration unavailable.", { cause: e });
   }
 }
 
@@ -70,7 +75,7 @@ function createContentSecurityPolicy(input: {
       ...input.homeserverConnectOrigins,
       "https://pkarr.pubky.app",
       "https://pkarr.pubky.org",
-      ...(input.allowPubkyAuthRelays ? ["https:"] : []),
+      ...(input.allowPubkyAuthRelays ? [AUTHORIZATION_RELAY_CONNECT_SOURCE] : []),
     ].join(" "),
     "img-src 'self' data: https://lh3.googleusercontent.com",
     "style-src 'self' 'unsafe-inline'",

@@ -5,16 +5,16 @@ import { useState } from "react";
 import type {
   LocalIdentityCatalog,
   LocalIdentityMetadata,
-} from "../../logic/local-identity/localIdentityModels";
-import { IdentitySelectionFlow } from "../identity-catalog/selection/identitySelectionFlow";
+} from "@/client/logic/local-identity/localIdentityModels";
+import { IdentitySelectionFlow } from "@/client/ui/identity-catalog/selection/identitySelectionFlow";
 import {
   useIdentityCatalog,
   type IdentityCatalogActions,
-} from "../identity-catalog/useIdentityCatalog";
-import { IdentityEstablishmentFlow } from "../onboarding/identityEstablishmentFlow";
-import { RotateCcwIcon } from "../shared/actionIcons";
-import { ButtonLink } from "../shared/primitives/button";
-import { Spinner } from "../shared/primitives/spinner";
+} from "@/client/ui/identity-catalog/useIdentityCatalog";
+import { IdentityEstablishmentFlow } from "@/client/ui/onboarding/identityEstablishmentFlow";
+import { RotateCcwIcon } from "@/client/ui/shared/icons";
+import { LoadingScreen } from "@/client/ui/shared/loadingScreen";
+import { ButtonLink } from "@/client/ui/shared/primitives/button";
 import { IdentityManagement } from "./management/identityManagement";
 import { DetachFromGoogleFlow } from "./management/detach-from-google/detachFromGoogleFlow";
 import { RecoveryFileDownload } from "./management/recovery-file/recoveryFileDownload";
@@ -36,12 +36,10 @@ function IdentityDashboard() {
   switch (identityCatalogState.status) {
     case "loading":
       return (
-        <main
-          aria-label="Checking login state"
-          className="grid min-h-[calc(100svh-var(--passport-header-height))] place-items-center"
-        >
-          <Spinner />
-        </main>
+        <LoadingScreen
+          className="min-h-[calc(100svh-var(--passport-header-height))]"
+          label="Checking login state"
+        />
       );
     case "unavailable":
       return (
@@ -125,6 +123,7 @@ function ReadyIdentityDashboard({
               publicKeyZ32,
             });
           }}
+          republishHomeserver={() => actions.republishHomeserver(publicKeyZ32)}
           resolveHomeserver={actions.resolveHomeserver}
         />
       );

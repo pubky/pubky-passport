@@ -6,123 +6,84 @@ import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LocalIdentityCatalog } from "../../logic/local-identity/localIdentityModels";
-import type { PubkyPublicIdentity } from "../../logic/pubky/pubkyIdentityKey";
-import { withGoogleIdentityConfiguration } from "../../../../test-utils/googleIdentityConfiguration";
-import { mockGoogleIdentityController } from "../../../../test-utils/mockGoogleIdentityController";
-import { PubkyRingMigration } from "../../logic/pubky/PubkySdkAdapter";
+import type { LocalIdentityCatalog } from "@/client/logic/local-identity/localIdentityModels";
+import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
+import { withPassportTestProviders } from "@test-utils/googleIdentityConfiguration";
+import { fakeLocalIdentityController } from "@test-utils/fakeLocalIdentityController";
+import { mockGoogleIdentityController } from "@test-utils/mockGoogleIdentityController";
+import { PubkyRingMigration } from "@/client/logic/pubky/PubkySdkAdapter";
 import { IdentityDashboard } from "./identityDashboard";
 
-const FLOW = vi.hoisted(() => ({
+const FLOW = {
   catalog: { activePublicKeyZ32: null, identities: [] } as LocalIdentityCatalog,
-  catalogListener: undefined as (() => void) | undefined,
+  listener: undefined as (() => void) | undefined,
   establishIdentity: false,
   establishmentMode: "created" as "created" | "restored",
   migrationExportKeys: [] as string[],
   storageUnavailable: false,
-}));
-
-vi.mock("../../logic/local-identity/LocalIdentityController", () => ({
-  MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS: 6,
-  LocalIdentityController: class {
-    constructor() {
-      return {
-        createPubkyRingMigration: (publicKeyZ32: string) => {
-          FLOW.migrationExportKeys.push(publicKeyZ32);
-          return Result.ok(
-            new PubkyRingMigration(
-              Keypair.fromSecret(Uint8Array.from({ length: 32 }, (_, index) => index)),
-            ),
-          );
-        },
-        listIdentities: () =>
-          FLOW.storageUnavailable
-            ? Result.err({ code: "storage_unavailable" as const })
-            : Result.ok(FLOW.catalog),
-        removeIdentity: (publicKeyZ32: string) => {
-          const identities = FLOW.catalog.identities.filter(
-            (identity) => identity.publicIdentity.publicKeyZ32 !== publicKeyZ32,
-          );
-          FLOW.catalog = {
-            activePublicKeyZ32: identities[0]?.publicIdentity.publicKeyZ32 ?? null,
-            identities,
-          };
-          FLOW.catalogListener?.();
-          return Result.ok();
-        },
-        selectIdentity: (publicKeyZ32: string) => {
-          FLOW.catalog = { ...FLOW.catalog, activePublicKeyZ32: publicKeyZ32 };
-          FLOW.catalogListener?.();
-          return Result.ok();
-        },
-        subscribeToIdentityChanges: (listener: () => void) => {
-          FLOW.catalogListener = listener;
-          return () => {
-            FLOW.catalogListener = undefined;
-          };
-        },
-        resolveHomeserver: vi.fn(async () => Result.ok(null)),
-        createRecoveryFile: vi.fn(async () =>
-          Result.err({ code: "recovery_file_failed" as const }),
-        ),
-      };
-    }
-  },
-}));
-
-vi.mock("../../logic/google-identity/GoogleIdentityController", () => ({
-  GoogleIdentityController: class {
-    constructor() {
-      return mockGoogleIdentityController({
-        establishIdentity: async () => {
-          if (FLOW.establishIdentity) {
-            const identity = {
-              publicIdentity: { publicKeyZ32: "created" },
-              googleAccount: {
-                googleSubject: "google-created",
-                email: "created@gmail.com",
-                name: "Created",
-                pictureUrl: null,
-              },
-            };
-            FLOW.catalog = {
-              activePublicKeyZ32: identity.publicIdentity.publicKeyZ32,
-              identities: [identity],
-            };
-            FLOW.catalogListener?.();
-            return Result.ok({
-              establishmentMode: FLOW.establishmentMode,
-              googleAccount: identity.googleAccount,
-              publicIdentity: identity.publicIdentity,
-              visibleRecoveryCopyStatus: "created" as const,
-            });
-          }
-          return Result.err({ code: "authorization_failed" as const });
-        },
-        detachIdentity: async (publicIdentity: PubkyPublicIdentity) => {
-          const identities = FLOW.catalog.identities.filter(
-            (identity) => identity.publicIdentity.publicKeyZ32 !== publicIdentity.publicKeyZ32,
-          );
-          FLOW.catalog = {
-            activePublicKeyZ32: identities[0]?.publicIdentity.publicKeyZ32 ?? null,
-            identities,
-          };
-          FLOW.catalogListener?.();
-          return Result.ok();
-        },
-      });
-    }
-  },
-}));
+};
 
 function renderDashboard() {
-  return render(withGoogleIdentityConfiguration(<IdentityDashboard />));
+  return render(
+    withPassportTestProviders(<IdentityDashboard />, {
+      createLocalIdentityController: () =>
+        fakeLocalIdentityController(FLOW, {
+          createPubkyRingMigration: async (publicKeyZ32) => {
+            FLOW.migrationExportKeys.push(publicKeyZ32);
+            return Result.ok(
+              new PubkyRingMigration(
+                Keypair.fromSecret(Uint8Array.from({ length: 32 }, (_, index) => index)),
+              ),
+            );
+          },
+        }),
+      createGoogleIdentityController: () =>
+        mockGoogleIdentityController({
+          establishIdentity: async () => {
+            if (FLOW.establishIdentity) {
+              const identity = {
+                publicIdentity: { publicKeyZ32: "created" },
+                googleAccount: {
+                  googleSubject: "google-created",
+                  email: "created@gmail.com",
+                  name: "Created",
+                  pictureUrl: null,
+                },
+              };
+              FLOW.catalog = {
+                activePublicKeyZ32: identity.publicIdentity.publicKeyZ32,
+                identities: [identity],
+              };
+              FLOW.listener?.();
+              return Result.ok({
+                establishmentMode: FLOW.establishmentMode,
+                googleAccount: identity.googleAccount,
+                publicIdentity: identity.publicIdentity,
+                visibleRecoveryCopyStatus: "created" as const,
+              });
+            }
+            return Result.err({ code: "authorization_failed" as const });
+          },
+          detachIdentity: async (publicIdentity: PubkyPublicIdentity) => {
+            const identities = FLOW.catalog.identities.filter(
+              (identity) => identity.publicIdentity.publicKeyZ32 !== publicIdentity.publicKeyZ32,
+            );
+            FLOW.catalog = {
+              activePublicKeyZ32: identities[0]?.publicIdentity.publicKeyZ32 ?? null,
+              identities,
+            };
+            FLOW.listener?.();
+            return Result.ok();
+          },
+        }),
+    }),
+  );
 }
 
 describe("IdentityDashboard", () => {
   beforeEach(() => {
     FLOW.catalog = { activePublicKeyZ32: null, identities: [] };
-    FLOW.catalogListener = undefined;
+    FLOW.listener = undefined;
     FLOW.establishIdentity = false;
     FLOW.establishmentMode = "created";
     FLOW.migrationExportKeys = [];
@@ -196,17 +157,21 @@ describe("IdentityDashboard", () => {
     renderDashboard();
     expect(await screen.findByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
     const name = screen.getByText("Satoshi Nakamoto");
-    expect(name).toHaveClass("w-[276px]", "text-2xl", "leading-8");
-    expect(name.parentElement).toHaveClass("gap-0");
-    expect(screen.getByText("identity")).toHaveClass("normal-case");
-    expect(screen.getByText("identity")).not.toHaveClass("uppercase");
+    expect(name).toHaveClass("w-69", "text-2xl", "leading-8");
+    expect(name.parentElement).toHaveClass("gap-3", "md:gap-0");
+    expect(screen.getByText("identity")).toHaveClass("uppercase");
     expect(screen.getByText("satoshi@gmail.com")).toHaveClass(
-      "w-[276px]",
+      "w-full",
       "h-10",
+      "justify-center",
       "gap-2",
+      "px-4",
       "py-2",
       "font-bold",
       "leading-5",
+      "md:w-69",
+      "md:justify-start",
+      "md:px-0",
     );
     expect(screen.queryByRole("button", { name: "satoshi@gmail.com" })).not.toBeInTheDocument();
     expect(
@@ -316,7 +281,7 @@ describe("IdentityDashboard", () => {
 
     await userEvent.setup().click(await screen.findByRole("button", { name: "Manage" }));
     expect(screen.queryByRole("button", { name: "Detach from Google" })).not.toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole("button", { name: "Download recovery file" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
 
     expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
@@ -393,9 +358,7 @@ describe("IdentityDashboard", () => {
     expect(confirm).toBeEnabled();
     await userEvent.setup().click(confirm);
 
-    expect(
-      await screen.findByRole("heading", { name: "Detached from Google." }),
-    ).toBeInTheDocument();
+    expect((await screen.findByText("Detached")).closest("h1")).toBeInTheDocument();
     expect(FLOW.catalog.identities).toEqual([]);
     await userEvent.setup().click(screen.getByRole("button", { name: "Done" }));
     expect(

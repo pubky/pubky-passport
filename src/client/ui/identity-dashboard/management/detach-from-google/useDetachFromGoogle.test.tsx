@@ -5,23 +5,17 @@ import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { withGoogleIdentityConfiguration } from "../../../../../../test-utils/googleIdentityConfiguration";
-import { mockGoogleIdentityController } from "../../../../../../test-utils/mockGoogleIdentityController";
-import { LOGGER } from "../../../../../libs/logger/logger";
+import { withPassportTestProviders } from "@test-utils/googleIdentityConfiguration";
+import { mockGoogleIdentityController } from "@test-utils/mockGoogleIdentityController";
+import { LOGGER } from "@/libs/logger/logger";
+import type { PassportCollaborators } from "@/client/ui/passportCollaborators";
 import { useDetachFromGoogle } from "./useDetachFromGoogle";
 
-const MOCKS = vi.hoisted(() => ({
-  constructGoogleIdentityController: vi.fn(),
+const MOCKS = {
+  constructGoogleIdentityController:
+    vi.fn<PassportCollaborators["createGoogleIdentityController"]>(),
   detachIdentity: vi.fn(),
-}));
-
-vi.mock("../../../../logic/google-identity/GoogleIdentityController", () => ({
-  GoogleIdentityController: class {
-    constructor(googleClientId: string, homegateBaseUrl: string, onState: unknown) {
-      return MOCKS.constructGoogleIdentityController(googleClientId, homegateBaseUrl, onState);
-    }
-  },
-}));
+};
 
 function Probe() {
   const operation = useDetachFromGoogle({ publicKeyZ32: "identity" }, "google-account");
@@ -44,7 +38,11 @@ function Probe() {
 }
 
 function renderProbe() {
-  return render(withGoogleIdentityConfiguration(<Probe />));
+  return render(
+    withPassportTestProviders(<Probe />, {
+      createGoogleIdentityController: MOCKS.constructGoogleIdentityController,
+    }),
+  );
 }
 
 describe("useDetachFromGoogle", () => {
@@ -128,6 +126,11 @@ describe("useDetachFromGoogle", () => {
     expect(screen.getByTestId("operation-state")).not.toHaveTextContent(
       "DETACH-CONSTRUCTOR-CANARY",
     );
+    expect(warning).toHaveBeenCalledWith("identity.google.detachment_ui.failed", {
+      operation: "construct_controller",
+      diagnosticId: expect.any(String),
+      errorName: "ErrorLike",
+    });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("DETACH-CONSTRUCTOR-CANARY");
   });
 
@@ -149,5 +152,22 @@ describe("useDetachFromGoogle", () => {
 
     expect(await screen.findByText("complete")).toBeInTheDocument();
     expect(MOCKS.constructGoogleIdentityController).toHaveBeenCalledTimes(2);
+  });
+
+  it("disposes its controller on unmount and ignores states published afterwards", async () => {
+    const dispose = vi.fn();
+    const controller = mockGoogleIdentityController({
+      dispose,
+      detachIdentity: vi.fn(() => new Promise<never>(() => undefined)),
+    });
+    MOCKS.constructGoogleIdentityController.mockReturnValue(controller);
+    const rendered = renderProbe();
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Detach" }));
+    expect(await screen.findByText("requesting-authorization")).toBeInTheDocument();
+    rendered.unmount();
+
+    expect(dispose).toHaveBeenCalledOnce();
+    expect(() => controller.emitState({ status: "detached" })).not.toThrow();
   });
 });

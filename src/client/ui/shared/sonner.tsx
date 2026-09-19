@@ -1,36 +1,19 @@
 "use client";
 
-import Image from "next/image";
-import { Toaster, toast } from "sonner";
+import { Toaster } from "sonner";
+
+import { CircleCheckIcon, CircleInfoIcon } from "./icons";
 
 function Sonner() {
   return (
     <Toaster
       duration={3000}
       icons={{
-        info: (
-          <Image
-            alt=""
-            aria-hidden="true"
-            height={20}
-            src="/icons/sonner-info.svg"
-            unoptimized
-            width={20}
-          />
-        ),
-        success: (
-          <Image
-            alt=""
-            aria-hidden="true"
-            height={20}
-            src="/icons/sonner-success.svg"
-            unoptimized
-            width={20}
-          />
-        ),
+        info: <CircleInfoIcon className="text-[#89898F]" size={20} />,
+        success: <CircleCheckIcon className="text-brand" size={20} />,
       }}
-      mobileOffset={{ left: 15, right: 15, top: 5 }}
-      offset={{ top: 5 }}
+      mobileOffset={{ left: 24, right: 24, top: 24 }}
+      offset={{ top: 24 }}
       position="top-center"
       style={{ "--width": "392px" } as React.CSSProperties}
       toastOptions={{
@@ -50,16 +33,4 @@ function Sonner() {
   );
 }
 
-function showCopyConfirmation(label: string, value: string) {
-  toast.info(`${label} copied to clipboard`, { description: shortCopiedValue(value) });
-}
-
-function shortCopiedValue(value: string): string {
-  return value.length > 12 ? `${value.slice(0, 4)}...${value.slice(-4)}` : value;
-}
-
-function showDownloadConfirmation() {
-  toast.success("File downloaded");
-}
-
-export { showCopyConfirmation, showDownloadConfirmation, Sonner };
+export { Sonner };

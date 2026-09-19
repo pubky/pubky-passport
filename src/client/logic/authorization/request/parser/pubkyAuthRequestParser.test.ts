@@ -73,15 +73,29 @@ describe("parseEncodedPubkyAuthRequest", () => {
     });
   });
 
-  it("parses a bounded human-readable x-source", () => {
-    const request = `${VALID_REQUEST}&x-source=Pubky%20App`;
+  it("parses and normalizes the SDK x-source name", () => {
+    const request = `${VALID_REQUEST}&x-source=${encodeURIComponent("  Cafe\u0301 + App  ")}`;
     const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
 
     if (Result.isError(result)) throw new Error(result.error.code);
-    expect(result.value.source).toBe("Pubky App");
+    expect(result.value.source).toBe("Café + App");
     expect(result.value.sensitivePubkyAuthUrl).toBe(request);
   });
 
+  it("preserves a literal plus while decoding an x-source percent-encoded space", () => {
+    const request = `${VALID_REQUEST}&x-source=Bitkit+Wallet%20Mobile`;
+    const result = parseEncodedPubkyAuthRequest(encodeRequest(request));
+
+    if (Result.isError(result)) throw new Error(result.error.code);
+    expect(result.value.source).toBe("Bitkit+Wallet Mobile");
+  });
+
+  it.each(["Trusted%0AApp", "Trusted%E2%80%AEApp"])(
+    "rejects an unsafe x-source display name: %s",
+    (source) => {
+      expectError(encodeRequest(`${VALID_REQUEST}&x-source=${source}`), "invalid_source");
+    },
+  );
   it("parses the documented pubkyauth:/// form", () => {
     const request =
       "pubkyauth:///?caps=/pub/pubky.app/:rw&relay=https://httprelay.pubky.app/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
@@ -126,16 +140,11 @@ describe("parseEncodedPubkyAuthRequest", () => {
   it("rejects unsupported parameters", () => {
     expectError(encodeRequest(`${VALID_REQUEST}&x-unreviewed=true`), "unsupported_parameter");
   });
-
-  it("rejects oversized or directionally misleading x-source values", () => {
+  it("rejects oversized x-source values", () => {
     expectError(
       encodeRequest(
         `${VALID_REQUEST}&x-source=${"a".repeat(PUBKY_AUTH_REQUEST_LIMITS.maximumSourceCodeUnits + 1)}`,
       ),
-      "invalid_source",
-    );
-    expectError(
-      encodeRequest(`${VALID_REQUEST}&x-source=${encodeURIComponent("Trusted\u202eApp")}`),
       "invalid_source",
     );
   });

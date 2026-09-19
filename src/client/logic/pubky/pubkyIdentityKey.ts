@@ -2,7 +2,7 @@ import "client-only";
 
 import type { Result } from "better-result";
 
-import type { CodedFailure } from "../../../libs/result";
+import type { CodedFailure } from "@/libs/result";
 import { isCanonicalPubkyPublicKey } from "./pubkyProtocol";
 
 declare const pubkyIdentityKeyHandleBrand: unique symbol;

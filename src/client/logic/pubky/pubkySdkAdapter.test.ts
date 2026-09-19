@@ -11,9 +11,9 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result, type Result as ResultType } from "better-result";
 
-import { ValidatedPubkyAuthRequest } from "../authorization/request/ValidatedPubkyAuthRequest";
-import { PUBKY_AUTH_CAPABILITY_LIMITS } from "../authorization/request/parser/pubkyAuthCapabilities";
-import { LOGGER } from "../../../libs/logger/logger";
+import { ValidatedPubkyAuthRequest } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
+import { PUBKY_AUTH_CAPABILITY_LIMITS } from "@/client/logic/authorization/request/parser/pubkyAuthCapabilities";
+import { LOGGER } from "@/libs/logger/logger";
 import {
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,
@@ -21,25 +21,31 @@ import {
 } from "./pubkyIdentityKey";
 import { PubkySdkAdapter } from "./PubkySdkAdapter";
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.doUnmock("@synonymdev/pubky");
+  vi.restoreAllMocks();
+});
 
 describe("PubkySdkAdapter", () => {
   it("accepts SDK-generated cookie and grant links with x-callback metadata", async () => {
     const relyingParty = new Pubky();
-    const xCallback = {
-      xSource: "Passport Test",
-      xSuccess: "https://passport.test/auth/success",
-    };
     const cookieFlow = relyingParty.startCookieAuthFlow(
       "/pub/passport.test/:rw",
       AuthFlowKind.signin(),
       "https://relay.example/inbox",
-      xCallback,
+      { xSource: "Passport Test", xSuccess: "https://passport.test/success" },
     );
     const grantFlow = await relyingParty.startGrantAuthFlow(
       "/pub/passport.test/:rw",
       AuthFlowKind.signin(),
-      { clientId: "passport.test", relay: "https://relay.example/inbox", xCallback },
+      {
+        clientId: "passport.test",
+        relay: "https://relay.example/inbox",
+        xCallback: {
+          xSource: "Passport Grant Test",
+          xSuccess: "https://grant.passport.test/success",
+        },
+      },
     );
 
     try {
@@ -51,10 +57,11 @@ describe("PubkySdkAdapter", () => {
       );
 
       expect(Result.isOk(cookie) && cookie.value.review.authenticationMethod).toBe("cookie");
-      expect(Result.isOk(grant) && grant.value.review.authenticationMethod).toBe("grant");
       expect(Result.isOk(cookie) && cookie.value.review.requesterName).toBe("Passport Test");
-      expect(Result.isOk(grant) && grant.value.review.requesterName).toBe("Passport Test");
-      expect(Result.isOk(grant) && grant.value.review.callbackHost).toBe("passport.test");
+      expect(Result.isOk(cookie) && cookie.value.review.callbackHost).toBe("passport.test");
+      expect(Result.isOk(grant) && grant.value.review.authenticationMethod).toBe("grant");
+      expect(Result.isOk(grant) && grant.value.review.requesterName).toBe("Passport Grant Test");
+      expect(Result.isOk(grant) && grant.value.review.callbackHost).toBe("grant.passport.test");
     } finally {
       cookieFlow.free();
       grantFlow.free();
@@ -131,6 +138,7 @@ describe("PubkySdkAdapter", () => {
 
   it("rejects a Ring export when the secret derives to another identity", () => {
     const bytes = Uint8Array.from({ length: PUBKY_SECRET_KEY_BYTES }, (_, index) => index);
+    const free = vi.spyOn(Keypair.prototype, "free");
 
     const result = PubkySdkAdapter.createPubkyRingMigration(
       {
@@ -142,6 +150,7 @@ describe("PubkySdkAdapter", () => {
 
     expect(Result.isError(result) && result.error.code).toBe("invalid_secret_key");
     expect(bytes).toEqual(new Uint8Array(PUBKY_SECRET_KEY_BYTES));
+    expect(free).toHaveBeenCalledOnce();
   });
 
   it("contains SDK Ring export failures without logging secret material", () => {
@@ -166,6 +175,8 @@ describe("PubkySdkAdapter", () => {
       operation: "create_pubky_ring_migration",
       stage: "sdk_export",
       code: "export_failed",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain(secret);
   });
@@ -184,6 +195,8 @@ describe("PubkySdkAdapter", () => {
         operation: "create_identity_key",
         stage: "sdk_create",
         code: "create_failed",
+        diagnosticId: expect.any(String),
+        errorName: "string",
       });
       expect(JSON.stringify(warn.mock.calls)).not.toContain(cause);
     } finally {
@@ -209,6 +222,8 @@ describe("PubkySdkAdapter", () => {
         operation: "create_identity_key",
         stage: "sdk_public_identity",
         code: "public_identity_failed",
+        diagnosticId: expect.any(String),
+        errorName: "Error",
       });
       expect(warn).toHaveBeenCalledOnce();
       expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-PUBLIC-KEY-MATERIAL");
@@ -291,6 +306,8 @@ describe("PubkySdkAdapter", () => {
         operation: "create_recovery_file",
         stage: "sdk_recovery_file",
         code: "recovery_file_failed",
+        diagnosticId: expect.any(String),
+        errorName: "RangeError",
       });
       expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-RECOVERY-PASSPHRASE");
     } finally {
@@ -347,6 +364,8 @@ describe("PubkySdkAdapter", () => {
         operation: "restore_identity_key",
         stage: "secret_key_clear",
         code: "cleanup_failed",
+        diagnosticId: expect.any(String),
+        errorName: "TypeError",
       });
     } finally {
       pubky.dispose();
@@ -390,6 +409,8 @@ describe("PubkySdkAdapter", () => {
         operation: "resolve_homeserver",
         stage: "sdk_resolution",
         code: "resolution_failed",
+        diagnosticId: expect.any(String),
+        errorName: "TypeError",
       });
       expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-HOMESERVER-URL");
     } finally {
@@ -397,7 +418,37 @@ describe("PubkySdkAdapter", () => {
     }
   });
 
-  it("maps invalid homeserver values without exposing signup codes", async () => {
+  it("contains SDK construction failures in the homeserver-resolution Result", async () => {
+    const cause = new TypeError("SECRET-SDK-INITIALIZATION-DETAILS");
+    vi.resetModules();
+    vi.doMock("@synonymdev/pubky", async () => ({
+      ...(await vi.importActual<typeof import("@synonymdev/pubky")>("@synonymdev/pubky")),
+      Pubky: class {
+        constructor() {
+          throw cause;
+        }
+      },
+    }));
+    const { resolvePubkyHomeserver } = await import("./PubkySdkAdapter");
+    const { LOGGER: currentLogger } = await import("@/libs/logger/logger");
+    const warn = vi.spyOn(currentLogger, "warn").mockImplementation(() => undefined);
+
+    const result = await resolvePubkyHomeserver(
+      "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo",
+    );
+
+    expectErrorCause(result, "resolution_failed", cause);
+    expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
+      operation: "resolve_homeserver",
+      stage: "sdk_initialize",
+      code: "resolution_failed",
+      diagnosticId: expect.any(String),
+      errorName: "TypeError",
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-SDK-INITIALIZATION-DETAILS");
+  });
+
+  it("maps invalid homeserver values without exposing signup tokens", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const pubky = new PubkySdkAdapter();
 
@@ -406,13 +457,13 @@ describe("PubkySdkAdapter", () => {
       const signup = await pubky.signup(
         created.keyHandle,
         "not a public key",
-        "sensitive-signup-code",
+        "sensitive-signup-token",
       );
       const publication = await pubky.publishHomeserver(created.keyHandle, "not a public key");
 
       expectErrorResult(signup, "invalid_homeserver_pubky");
       expectErrorResult(publication, "invalid_homeserver_pubky");
-      expect(JSON.stringify(signup)).not.toContain("sensitive-signup-code");
+      expect(JSON.stringify(signup)).not.toContain("sensitive-signup-token");
       expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
         operation: "signup",
         stage: "homeserver_parse",
@@ -423,20 +474,20 @@ describe("PubkySdkAdapter", () => {
         stage: "homeserver_parse",
         code: "invalid_homeserver_pubky",
       });
-      expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive-signup-code");
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive-signup-token");
     } finally {
       pubky.dispose();
     }
   });
 
-  it("publishes stale PKDNS records through the SDK and logs only a safe PKARR error category", async () => {
+  it("force-publishes PKDNS records through the SDK and logs only a safe PKARR error category", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
-    const forcePublish = vi.spyOn(Pkdns.prototype, "publishHomeserverForce");
+    const publishIfStale = vi.spyOn(Pkdns.prototype, "publishHomeserverIfStale");
     const cause = Object.assign(new Error("sensitive PKARR transport details"), {
       name: "PkarrError",
     });
-    const publishIfStale = vi
-      .spyOn(Pkdns.prototype, "publishHomeserverIfStale")
+    const forcePublish = vi
+      .spyOn(Pkdns.prototype, "publishHomeserverForce")
       .mockImplementation(async (homeserver) => {
         homeserver?.free();
         throw cause;
@@ -450,13 +501,15 @@ describe("PubkySdkAdapter", () => {
       const result = await pubky.publishHomeserver(identity.keyHandle, homeserverPublicKey.z32());
 
       expectErrorCause(result, "publish_failed", cause);
-      expect(publishIfStale).toHaveBeenCalledOnce();
-      expect(forcePublish).not.toHaveBeenCalled();
+      expect(forcePublish).toHaveBeenCalledOnce();
+      expect(publishIfStale).not.toHaveBeenCalled();
       expect(warn).toHaveBeenCalledWith("identity.pubky.operation.failed", {
         operation: "publish_homeserver",
         stage: "sdk_publish",
         code: "publish_failed",
         sdkErrorName: "PkarrError",
+        diagnosticId: expect.any(String),
+        errorName: "ErrorLike",
       });
       expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive PKARR transport details");
     } finally {
@@ -481,7 +534,7 @@ describe("PubkySdkAdapter", () => {
       const result = await pubky.signup(
         created.keyHandle,
         homeserverPublicKey.z32(),
-        "sensitive-signup-code",
+        "sensitive-signup-token",
       );
 
       expectErrorCause(result, "signup_failed", cause);
@@ -490,8 +543,10 @@ describe("PubkySdkAdapter", () => {
         stage: "sdk_signup",
         code: "signup_failed",
         sdkErrorName: "AuthenticationError",
+        diagnosticId: expect.any(String),
+        errorName: "ErrorLike",
       });
-      expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive-signup-code");
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("sensitive-signup-token");
       expect(JSON.stringify(warn.mock.calls)).not.toContain("signup token and request URL");
     } finally {
       homeserverPublicKey.free();
@@ -523,7 +578,7 @@ describe("PubkySdkAdapter", () => {
       const result = await pubky.signup(
         created.keyHandle,
         homeserverPublicKey.z32(),
-        "SECRET-SIGNUP-CODE",
+        "SECRET-SIGNUP-TOKEN",
       );
 
       expectErrorCause(result, "signup_uncertain", cause);
@@ -531,10 +586,12 @@ describe("PubkySdkAdapter", () => {
         operation: "signup",
         stage: "sdk_signup",
         code: "signup_uncertain",
+        diagnosticId: expect.any(String),
+        errorName: "ErrorLike",
       });
       const logged = JSON.stringify(warn.mock.calls);
       expect(logged).not.toContain("SECRET-ERROR-NAME");
-      expect(logged).not.toContain("SECRET-SIGNUP-CODE");
+      expect(logged).not.toContain("SECRET-SIGNUP-TOKEN");
     } finally {
       homeserverPublicKey.free();
       homeserver.free();
@@ -567,7 +624,7 @@ describe("PubkySdkAdapter", () => {
     try {
       const created = expectOk(await pubky.createIdentityKey());
       await expectError(
-        pubky.signup(created.keyHandle, homeserverPublicKey.z32(), "sensitive-signup-code"),
+        pubky.signup(created.keyHandle, homeserverPublicKey.z32(), "sensitive-signup-token"),
         expectedCode,
       );
     } finally {
@@ -592,7 +649,7 @@ describe("PubkySdkAdapter", () => {
     try {
       const created = expectOk(await pubky.createIdentityKey());
       await expectError(
-        pubky.signup(created.keyHandle, homeserverPublicKey.z32(), "sensitive-signup-code"),
+        pubky.signup(created.keyHandle, homeserverPublicKey.z32(), "sensitive-signup-token"),
         expectedCode,
       );
     } finally {
@@ -760,6 +817,8 @@ describe("PubkySdkAdapter", () => {
         operation: "approve_auth_request",
         stage: "sdk_approval",
         code: "approval_failed",
+        diagnosticId: expect.any(String),
+        errorName: "Error",
       });
       expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-AUTHORIZATION-URL");
     } finally {
@@ -801,11 +860,15 @@ describe("PubkySdkAdapter", () => {
       operation: "dispose_identity_key",
       stage: "keypair_free",
       code: "cleanup_failed",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(warn).toHaveBeenCalledWith("identity.pubky.cleanup.failed", {
       operation: "dispose_adapter",
       stage: "keypair_free",
       code: "cleanup_failed",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
     });
     expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET-KEY-CANARY");
     await expectError(pubky.exportSecretKey(firstBulkHandle), "key_unavailable");
