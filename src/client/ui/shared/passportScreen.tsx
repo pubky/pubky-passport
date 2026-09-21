@@ -6,7 +6,7 @@ function PassportScreen({ className, ...props }: ComponentPropsWithoutRef<"main"
   return (
     <main
       className={cn(
-        "mx-auto flex min-h-[calc(100svh-var(--passport-header-height)-var(--passport-context-band-height))] w-full max-w-[375px] flex-col px-6 pb-6 pt-3 md:max-w-[588px] md:px-0 md:pb-10 md:pt-2",
+        "mx-auto flex w-full max-w-[375px] grow flex-col px-6 pb-10 pt-3 md:max-w-[588px] md:px-0 md:pb-12 md:pt-2",
         className,
       )}
       {...props}

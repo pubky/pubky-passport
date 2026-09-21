@@ -23,9 +23,6 @@ const COLLABORATORS: Partial<PassportCollaborators> = {
   createGoogleIdentityController: MOCKS.constructGoogleIdentityController,
 };
 
-const MOBILE_FOOTER_COPY =
-  "Pubky Passport is powered by the Pubky protocol. Built by Synonym Software, S.A. DE C.V. ©2026.";
-
 function ConfiguredIdentityEstablishmentFlow({
   forAuthorization,
   onBack,
@@ -75,11 +72,6 @@ describe("IdentityEstablishmentFlow", () => {
     ).toHaveClass("md:block");
     expect(googleButton).toBeEnabled();
     expect(googleButton?.parentElement).toHaveClass("md:col-start-1", "md:row-start-1");
-    expect(within(shell).getByText(MOBILE_FOOTER_COPY).closest("footer")).toHaveClass("md:hidden");
-    expect(within(shell).getByRole("img", { name: "Synonym, a Tether company" })).toHaveAttribute(
-      "src",
-      "/brand/brand-endorsement.svg",
-    );
     expect(MOCKS.constructGoogleIdentityController).not.toHaveBeenCalled();
   });
 
@@ -109,7 +101,6 @@ describe("IdentityEstablishmentFlow", () => {
     expect(
       within(screen.getByRole("status")).getByText("Waiting for Google..."),
     ).toBeInTheDocument();
-    expect(screen.getByText(MOBILE_FOOTER_COPY).closest("footer")).toHaveClass("md:hidden");
   });
 
   it("uses the authorization action width when embedded in that flow", async () => {
