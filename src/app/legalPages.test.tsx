@@ -15,5 +15,6 @@ describe("legal pages", () => {
     expect(markup).toContain("Effective Date: September 21, 2026");
     expect(markup).not.toContain("[DATE]");
     expect(markup).not.toContain("[Legal:");
+    expect(markup).not.toContain('aria-label="Legal documents"');
   });
 });

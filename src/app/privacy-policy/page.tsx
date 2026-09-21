@@ -35,37 +35,49 @@ export default function PrivacyPolicyPage() {
         </p>
         <p>
           Passport runs in your browser. Your identity secret key stays on your device and, in
-          encrypted form, in your own Google Drive. We do not receive it. Your Google email address,
-          Google Account identifier, display name, and profile picture stay in your browser only. We
-          do not keep a user account or a copy of those identifiers on our servers. What our servers
-          do receive is a Google identity assertion that we verify in order to derive a key that
-          unlocks your encrypted backup, and ordinary technical information that comes with any web
-          request (such as IP address and logs). We do not sell or share personal information, we do
-          not run advertising, and no analytics or error-monitoring vendor is configured in
-          Passport.
+          encrypted form, in your own Google Drive. We do not receive it. Passport fetches your
+          Google email address, Google Account identifier, display name, and profile-picture link
+          directly from Google in your browser and stores that profile information there. Passport
+          also sends a signed Google identity assertion to our wrapping-key service and, during
+          account creation, to our verification service. That assertion identifies your Google
+          Account and may contain Google profile claims. We do not retain the assertion or create a
+          Passport user profile from those claims. Our verification service does retain a stable,
+          pseudonymous hash derived from your Google Account identifier, together with signup and
+          timing information, to enforce onboarding limits. Our servers also receive ordinary
+          technical information that comes with web requests, such as IP address, browser and device
+          information, and logs. We do not sell or share personal information, we do not run
+          advertising, and no analytics or error-monitoring vendor is configured in Passport.
         </p>
       </LegalSection>
 
       <LegalSection title="NOTICE AT COLLECTION">
         <p>
           “Collect” in this notice means information involved when you use Passport. It does not
-          mean we keep a copy of everything on our servers. There is no Passport user database.
+          mean we keep a copy of everything on our servers. Passport does not maintain a
+          conventional user-profile database, but the verification service used during account
+          creation keeps the pseudonymous verification records described below.
         </p>
         <p>
-          <strong>Stored in your browser only.</strong> Your Google Account identifier, email
-          address, display name, a link to your Google profile picture, your Pubky public key, and
-          your identity secret key. Clearing Passport’s browser storage removes them from that
-          device.
+          <strong>Stored in your browser.</strong> The Google profile returned directly to
+          Passport’s browser code—including your Google Account identifier, email address, display
+          name, and a link to your profile picture—together with your Pubky public key and identity
+          secret key. Clearing Passport’s browser storage removes them from that device. As
+          described below, some of the same Google identifiers may also appear as claims in the
+          identity assertion processed by our services.
         </p>
         <p>
           <strong>Stored in your Google Drive, not on our servers.</strong> The encrypted Passport
           File, and any visible recovery copies Passport writes for you.
         </p>
         <p>
-          <strong>Received by our servers, not stored as a user profile.</strong> A Google identity
-          assertion, used for the request that derives a wrapping key and then discarded. Ordinary
-          internet activity that comes with any web request: IP address, device and browser
-          information, and structured server logs of operations that succeed or fail.
+          <strong>Received by our services.</strong> A Google identity assertion, used to derive a
+          wrapping key and, when you request account creation, to verify eligibility for a signup
+          invitation. We do not retain the assertion itself. The account-creation verification
+          service stores a stable, peppered hash derived from the assertion’s issuer and Google
+          Account identifier, the issued signup code, and the time of issuance. Our services also
+          receive ordinary internet activity that comes with web requests, including IP address,
+          device and browser information, request metadata, and structured logs of operations that
+          succeed or fail.
         </p>
         <p>
           We use these categories in order to provide Passport to you, to secure it against abuse,
@@ -73,26 +85,30 @@ export default function PrivacyPolicyPage() {
         </p>
         <p>
           We may have disclosed each of these categories for a business purpose as described below.
-          We have not “sold” or “shared” personal information in the past 12 months, as those terms
-          are defined by the California Consumer Privacy Act (“CCPA”) or the General Data Protection
-          Regulation (“GDPR”). For a description of your rights and how to exercise them, see Your
-          Privacy Rights below.
+          We have not “sold” or “shared” personal information in the past 12 months as those terms
+          are defined by the California Consumer Privacy Act (“CCPA”). We do not sell personal data
+          as that concept is understood under the General Data Protection Regulation (“GDPR”). For a
+          description of your rights and how to exercise them, see Your Privacy Rights below.
         </p>
       </LegalSection>
 
       <LegalSection title="TYPES OF INFORMATION WE COLLECT">
         <p>Here are examples of the information involved when you use Passport:</p>
         <p>
-          <strong>Google Account Information (browser only).</strong> When you sign in with Google,
-          Passport receives your Google Account identifier, your email address, your name, and a
-          link to your profile picture. Passport stores this in your browser to label the identities
-          you hold. We do not store these identifiers on our servers.
+          <strong>Google Account Information.</strong> When you sign in with Google, Passport
+          fetches your Google Account identifier, email address, name, and a link to your profile
+          picture directly from Google in your browser. Passport stores that profile in your browser
+          to label the identities you hold. We do not create a server-side Passport user profile
+          from it. The Google identity assertion processed by our services separately contains your
+          Google Account identifier and may contain other Google profile claims.
         </p>
         <p>
           <strong>Google Identity Assertion.</strong> Passport sends the signed assertion issued by
-          Google to our wrapping-key endpoint so that we can verify it with Google and derive the
-          key that decrypts your encrypted backup. We use it for that request and we do not store
-          it.
+          Google to our wrapping-key endpoint so that we can verify it and derive the key that
+          decrypts your encrypted backup. If you request account creation, Passport also sends the
+          assertion to our verification service. We use it for those requests and do not retain the
+          assertion itself. The verification service derives and retains the pseudonymous record
+          described below.
         </p>
         <p>
           <strong>Google Authorization Token.</strong> Passport receives a token that lets it read
@@ -100,9 +116,10 @@ export default function PrivacyPolicyPage() {
           operation in progress and is not sent to us.
         </p>
         <p>
-          <strong>Pubky Public Key (browser only).</strong> The public identifier of each identity
-          you create or restore. It is stored in your browser. It is public by design. We do not
-          keep a copy in a Passport user profile.
+          <strong>Pubky Public Key.</strong> The public identifier of each identity you create or
+          restore is stored in your browser. It is public by design and is provided to Homeservers
+          and to applications you authorize as part of Pubky account and authorization flows. We do
+          not keep a copy in a Passport user profile.
         </p>
         <p>
           <strong>Device and Log Information.</strong> Like any website, Passport’s servers receive
@@ -129,8 +146,10 @@ export default function PrivacyPolicyPage() {
           its own application data and to files it creates. Passport does not read your other files.
         </p>
         <p>
-          <strong>Passwords, recovery phrases, or payment credentials.</strong> Passport does not
-          ask for them.
+          <strong>Recovery phrases and payment credentials.</strong> Passport does not ask for them.
+          Passport does ask you to create a password when you download an encrypted recovery file.
+          That password is processed in your browser to encrypt the file and is not sent to or
+          stored by us.
         </p>
       </LegalSection>
 
@@ -152,11 +171,14 @@ export default function PrivacyPolicyPage() {
         </p>
         <p>
           <strong>On our server.</strong> We do not store your email address or other Google profile
-          fields. We hold one or more secrets used to derive the key that decrypts a Passport File.
-          Deriving it requires a Google identity assertion that Google confirms as belonging to the
-          same Google Account. The file itself never passes through us, so the derived key alone
-          does not give us access to your identity. Each Passport File records the public identifier
-          of the secret used, never the secret itself. We retain server logs as described above.
+          fields in a Passport user profile. We hold one or more secrets used to derive the key that
+          decrypts a Passport File. Deriving it requires a Google identity assertion that Google
+          confirms as belonging to the same Google Account. The file itself never passes through us,
+          so the derived key alone does not give us access to your identity. Each Passport File
+          records the public identifier of the secret used, never the secret itself. During account
+          creation, our verification service stores a stable, peppered hash derived from the
+          assertion’s issuer and Google Account identifier, the issued signup code, and its creation
+          time. We also retain server logs as described above.
         </p>
       </LegalSection>
 
@@ -203,8 +225,9 @@ export default function PrivacyPolicyPage() {
         <p>
           <strong>From a verification service we operate.</strong> Where Passport helps you create
           an account on a Homeserver, that service confirms a Google identity assertion and issues a
-          signup invitation. It applies rate limits, which means it keeps counters associated with
-          that verification.
+          signup invitation. To apply weekly and annual rate limits, it records each successful
+          issuance using a stable, peppered hash derived from the assertion’s issuer and Google
+          Account identifier, together with the signup code and issuance time.
         </p>
       </LegalSection>
 
@@ -254,37 +277,41 @@ export default function PrivacyPolicyPage() {
           <li>As requested or directed by you.</li>
         </ul>
         <p>
-          We do not share your information with the applications that ask you for authorization.
-          When you approve a request, the application receives the access you approved on your
-          Homeserver, not the information described in this Policy.
+          We do not share your Google profile, Google identity assertion, Google authorization
+          token, or identity secret key with applications that ask you for authorization. When you
+          approve a request, the application receives a Pubky session containing your public key,
+          the relevant Homeserver, grant details, and the capabilities you approved.
         </p>
       </LegalSection>
 
       <LegalSection title="RETENTION">
         <p>
-          We do not retain Google Account information (email, name, picture, Google identifier),
-          your Pubky public key, or your identity secret key on our servers. Those live in your
-          browser until you clear it, and the encrypted backup lives in your Google Drive until you
-          delete it.
+          We do not retain the Google profile fetched by Passport (email, name, and picture), your
+          Pubky public key, or your identity secret key in a Passport user profile on our servers.
+          Those live in your browser until you clear it, and the encrypted backup lives in your
+          Google Drive until you delete it.
         </p>
         <p>
           We do not retain Google identity assertions or Google authorization tokens after the
           request that uses them.
         </p>
         <p>
-          Server logs are retained for a limited operational period, based on security and
-          abuse-prevention needs, legal and regulatory requirements, and dispute resolution
-          obligations, and then deleted.
+          The account-creation verification service retains the stable, peppered Google identity
+          hash, signup code, and issuance time described above to enforce weekly and annual limits
+          and to operate and secure onboarding. Server logs and verification records are retained
+          according to our operational, security, legal, regulatory, and dispute-resolution needs.
         </p>
       </LegalSection>
 
       <LegalSection title="CHILDREN">
         <p>
-          Passport is meant for adults. We do not knowingly collect personally identifiable data
-          from persons under the age of 18. If you are a parent or legal guardian and think your
-          child under 18 has provided us with information, please contact us at{" "}
-          <a href="mailto:privacy@synonym.to">privacy@synonym.to</a> and mark your inquiry “COPPA
-          Information Request”.
+          If you are under 18, you may use Passport only with the permission of a parent or legal
+          guardian who accepts the Terms with you and is responsible for your activity. Passport
+          processes the same categories of information described in this Policy when an eligible
+          minor uses the service. If you are a parent or legal guardian and have questions about a
+          child’s information, please contact us at{" "}
+          <a href="mailto:privacy@synonym.to">privacy@synonym.to</a> and mark your inquiry “Child
+          Privacy Request”.
         </p>
       </LegalSection>
 
@@ -334,10 +361,11 @@ export default function PrivacyPolicyPage() {
           the same address.
         </p>
         <p>
-          Because your Google identifiers, identity secret key, and Passport File are held by you,
-          on your device and in your Google Account, a request to us cannot delete them. We will
-          tell you where the data sits and how to remove it. We can act only on what we actually
-          hold, which is server logs and any message you send us.
+          Because the Google profile fetched by Passport, your identity secret key, and your
+          Passport File are held on your device or in your Google Account, a request to us cannot
+          delete those copies. We will tell you where the data sits and how to remove it. We can act
+          only on information we hold, which may include server logs, account-creation verification
+          records, and messages you send us.
         </p>
       </LegalSection>
 
