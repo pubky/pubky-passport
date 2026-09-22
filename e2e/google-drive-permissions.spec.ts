@@ -27,7 +27,10 @@ async function mockGoogleGrant(context: BrowserContext, scope: string) {
       scope,
       expires_in: "3600",
     }).toString();
-    await route.fulfill({ status: 302, headers: { location: response.href } });
+    await route.fulfill({
+      contentType: "text/html",
+      body: `<!doctype html><script>location.replace(${JSON.stringify(response.href)})</script>`,
+    });
   });
   await context.route("https://openidconnect.googleapis.com/v1/userinfo", (route) =>
     route.fulfill({
