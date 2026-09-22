@@ -16,6 +16,8 @@ const EXPECTED_COPY: Record<GoogleIdentityViewError["code"], string> = {
   encrypt_failed: "Passport created an identity, but could not encrypt it for Google Drive.",
   google_account_mismatch: "Could not remove Google access. Please try again.",
   google_authorization_denied: "Passport needs access to your Google Drive to continue.",
+  google_drive_access_required:
+    "Passport needs permission to store its encrypted identity in Google Drive. Select the configuration-data checkbox and try again.",
   google_authorization_failed: "Could not connect to Google. Try again.",
   google_authorization_popup_closed:
     "The Google authorization window was closed before access was granted.",
@@ -38,6 +40,8 @@ const EXPECTED_COPY: Record<GoogleIdentityViewError["code"], string> = {
   unexpected_failure: "Passport could not finish this operation. Please try again.",
   wrapping_key_failed:
     "Passport could not unlock your encrypted identity with this Google account.",
+  visible_backup_permission_missing:
+    "Passport can continue, but it will not create a visible recovery copy in Google Drive unless you grant the second permission.",
 };
 
 describe("googleIdentityErrorMessage", () => {

@@ -45,7 +45,7 @@ type GoogleIdentityEstablishmentValue =
   | {
       establishmentMode: "created";
       publicIdentity: PubkyPublicIdentity;
-      visibleRecoveryCopyStatus: "created" | "unconfirmed";
+      visibleRecoveryCopyStatus: "created" | "unconfirmed" | "skipped";
     }
   | {
       establishmentMode: "restored";
@@ -224,10 +224,10 @@ export class GoogleIdentityLifecycle {
       if (Result.isError(signupDetails)) return Result.err(signupDetails.error);
 
       report({ flow: "create", step: "creating" });
-      const visibleCopies = this.createVisibleRecoveryCopies(
-        credentials.driveAccessToken,
-        this.fetch,
-      );
+      const visibleCopies =
+        credentials.visibleBackupPermissionGranted === false
+          ? undefined
+          : this.createVisibleRecoveryCopies(credentials.driveAccessToken, this.fetch);
       return await this.createIdentity(
         credentials.googleAccount,
         signupDetails.value,
@@ -337,7 +337,7 @@ export class GoogleIdentityLifecycle {
     keyId: string,
     report: (progress: GoogleIdentityProgress) => void,
     store: DriveStorePort,
-    visibleCopies: VisibleRecoveryCopiesPort,
+    visibleCopies: VisibleRecoveryCopiesPort | undefined,
   ): Promise<GoogleIdentityEstablishmentResult> {
     LOGGER.info("identity.google.create.started");
     LOGGER.info("identity.google.create_key.started");
@@ -353,7 +353,7 @@ export class GoogleIdentityLifecycle {
         return Result.err({ code: "create_failed", cause: secretKey.error });
       }
 
-      let visibleRecoveryCopyStatus: "created" | "unconfirmed" = "created";
+      let visibleRecoveryCopyStatus: "created" | "unconfirmed" | "skipped" = "created";
       report({ flow: "create", step: "storing_passport_file" });
       LOGGER.info("identity.google.encrypt.started");
       const encrypted = await this.crypto
@@ -380,17 +380,21 @@ export class GoogleIdentityLifecycle {
       }
       LOGGER.info("identity.google.operational_drive_write.completed");
 
-      LOGGER.info("identity.google.visible_recovery_copy.started");
-      const visibleCopyConfirmed = await this.createVisibleRecoveryCopy(
-        visibleCopies,
-        envelope,
-        created.value.publicIdentity,
-      );
-      if (!visibleCopyConfirmed) {
-        visibleRecoveryCopyStatus = "unconfirmed";
-        LOGGER.warn("identity.google.visible_recovery_copy.unconfirmed", {
-          activationContinues: true,
-        });
+      if (!visibleCopies) {
+        visibleRecoveryCopyStatus = "skipped";
+      } else {
+        LOGGER.info("identity.google.visible_recovery_copy.started");
+        const visibleCopyConfirmed = await this.createVisibleRecoveryCopy(
+          visibleCopies,
+          envelope,
+          created.value.publicIdentity,
+        );
+        if (!visibleCopyConfirmed) {
+          visibleRecoveryCopyStatus = "unconfirmed";
+          LOGGER.warn("identity.google.visible_recovery_copy.unconfirmed", {
+            activationContinues: true,
+          });
+        }
       }
       LOGGER.info("identity.google.visible_recovery_copy.completed", {
         status: visibleRecoveryCopyStatus,

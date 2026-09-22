@@ -132,6 +132,7 @@ describe("GoogleImplicitAuthorization", () => {
           name: "Person",
           pictureUrl: null,
         },
+        visibleBackupPermissionGranted: false,
       }),
     );
     expect(fetch).toHaveBeenCalledOnce();
@@ -412,6 +413,10 @@ describe("GoogleImplicitAuthorization", () => {
       await vi.advanceTimersByTimeAsync(200);
       const result = await request;
       expect(Result.isError(result)).toBe(true);
+      if (scenario === "scope" && Result.isError(result)) {
+        expect(result.error.code).toBe("google_drive_access_required");
+        expect(fetch).not.toHaveBeenCalled();
+      }
     }
   });
 

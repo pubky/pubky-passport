@@ -40,7 +40,12 @@ export type GoogleIdentityLifecycleError =
 export type GoogleIdentityError =
   | GoogleIdentityLifecycleError
   | GoogleImplicitAuthorizationError
-  | CodedFailure<"authorization_failed" | "cancelled" | "operation_failed">;
+  | CodedFailure<
+      | "authorization_failed"
+      | "cancelled"
+      | "operation_failed"
+      | "visible_backup_permission_missing"
+    >;
 
 type GoogleIdentityErrorDetailCode = Extract<
   GoogleIdentityError,

@@ -233,6 +233,9 @@ describe("IdentityEstablishmentFlow", () => {
     const deniedHeading = await screen.findByRole("heading", {
       name: "Google Drive access denied.",
     });
+    expect(
+      screen.getByRole("img", { name: /selecting both Google Drive permission checkboxes/i }),
+    ).toHaveAttribute("src", "/illustrations/google-drive-permissions.gif");
     expect(within(deniedHeading).getByText("Drive")).toHaveClass("hidden", "md:inline");
     expect(deniedHeading.parentElement).toHaveClass("gap-6", "md:gap-3");
     expect(
@@ -285,6 +288,64 @@ describe("IdentityEstablishmentFlow", () => {
     expect(screen.getByText("satoshi@gmail.com")).toHaveClass("uppercase");
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
     expect(onComplete).toHaveBeenCalledOnce();
+  });
+
+  it("explains missing required Drive access before setup and offers a retry", async () => {
+    const establishIdentity = vi.fn(async () =>
+      Result.err({ code: "google_drive_access_required" as const }),
+    );
+    useController(mockGoogleIdentityController({ establishIdentity }));
+    render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Drive access required." }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: /selecting both Google Drive permission checkboxes/i }),
+    ).toHaveAttribute("src", "/illustrations/google-drive-permissions.gif");
+    expect(
+      screen.queryByRole("button", { name: "Continue without visible backup" }),
+    ).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
+    expect(establishIdentity).toHaveBeenCalledTimes(2);
+  });
+
+  it("lets a partial grant continue without the visible backup", async () => {
+    const continueWithoutVisibleBackup = vi.fn(async () =>
+      Result.ok({
+        establishmentMode: "created" as const,
+        googleAccount: {
+          googleSubject: "google-1",
+          email: "user@example.com",
+          name: "User",
+          pictureUrl: null,
+        },
+        publicIdentity: { publicKeyZ32: "new-key" },
+        visibleRecoveryCopyStatus: "skipped" as const,
+      }),
+    );
+    useController(
+      mockGoogleIdentityController({
+        establishIdentity: vi.fn(async () =>
+          Result.err({ code: "visible_backup_permission_missing" as const }),
+        ),
+        continueWithoutVisibleBackup,
+      }),
+    );
+    render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
+    expect(
+      await screen.findByRole("heading", { name: "Drive access optional." }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/it won’t create a visible backup/i)).toBeInTheDocument();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Continue without visible backup" }));
+    expect(continueWithoutVisibleBackup).toHaveBeenCalledOnce();
+    expect(await screen.findByText(/No visible recovery copy was created/i)).toBeInTheDocument();
   });
 
   it("shows the setup error and retries automatic reconciliation", async () => {

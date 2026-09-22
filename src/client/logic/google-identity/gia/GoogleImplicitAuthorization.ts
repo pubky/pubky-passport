@@ -20,11 +20,13 @@ export type GoogleIdentityCredentials = {
   googleIdToken: string;
   driveAccessToken: string;
   googleAccount: GoogleAccountProfile;
+  visibleBackupPermissionGranted?: boolean;
 };
 
 type GoogleImplicitAuthorizationErrorCode =
   | "google_authorization_denied"
   | "google_authorization_failed"
+  | "google_drive_access_required"
   | "google_authorization_popup_closed"
   | "google_authorization_popup_failed_to_open";
 type GoogleAuthorizationFailureReason =
@@ -277,6 +279,9 @@ export class GoogleImplicitAuthorization {
       googleIdToken: parsed.value.googleIdToken,
       driveAccessToken: parsed.value.accessToken,
       googleAccount: account.value,
+      ...(parsed.value.visibleBackupPermissionGranted
+        ? {}
+        : { visibleBackupPermissionGranted: false }),
     });
   }
 

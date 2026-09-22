@@ -24,7 +24,7 @@ type EstablishedGoogleIdentity =
       establishmentMode: "created";
       googleAccount: GoogleAccountProfile;
       publicIdentity: PubkyPublicIdentity;
-      visibleRecoveryCopyStatus: "created" | "unconfirmed";
+      visibleRecoveryCopyStatus: "created" | "unconfirmed" | "skipped";
     }
   | {
       establishmentMode: "restored";
@@ -93,6 +93,8 @@ export class GoogleIdentityController {
   private googleAuthorization: GoogleAuthorization | undefined;
   private lifecycle: Lifecycle | undefined;
   private googleSubject: string | undefined;
+  private pendingVisibleBackupConsent:
+    { credentials: GoogleIdentityCredentials; operation: EstablishmentOperation } | undefined;
   private status: ControllerStatus = "ready";
   private state: GoogleIdentityViewState = IDLE_STATE;
   private readonly listeners = new Set<(state: GoogleIdentityViewState) => void>();
@@ -143,6 +145,13 @@ export class GoogleIdentityController {
     return this.runIdentityEstablishment("replace_invalid_passport_file");
   }
 
+  /** Continues the current setup with the already-granted private Drive storage permission. */
+  async continueWithoutVisibleBackup(): Promise<EstablishGoogleIdentityResult> {
+    const pending = this.pendingVisibleBackupConsent;
+    if (!pending) return Result.err({ code: "operation_failed" });
+    return this.runIdentityEstablishment(pending.operation, pending.credentials);
+  }
+
   /**
    * Deletes the Google Drive Passport files first, then removes the local identity.
    * A Google Drive failure leaves the local identity untouched.
@@ -166,6 +175,7 @@ export class GoogleIdentityController {
   /** Returns to idle and lets a new establishment flow choose a different Google account. */
   reset(): void {
     this.googleSubject = undefined;
+    this.pendingVisibleBackupConsent = undefined;
     if (this.status === "ready") this.publish(IDLE_STATE);
   }
 
@@ -175,6 +185,7 @@ export class GoogleIdentityController {
     const isOperationInFlight = this.status === "busy";
     this.status = isOperationInFlight ? "disposing" : "disposed";
     this.googleSubject = undefined;
+    this.pendingVisibleBackupConsent = undefined;
     this.listeners.clear();
     try {
       this.googleAuthorization?.dispose();
@@ -195,6 +206,7 @@ export class GoogleIdentityController {
 
   private runIdentityEstablishment(
     operation: EstablishmentOperation,
+    credentialsOverride?: GoogleIdentityCredentials,
   ): Promise<EstablishGoogleIdentityResult> {
     return this.runOperation(
       operation,
@@ -227,6 +239,7 @@ export class GoogleIdentityController {
         }
       },
       (identity) => ({ status: "established", identity }),
+      credentialsOverride,
     );
   }
 
@@ -239,15 +252,26 @@ export class GoogleIdentityController {
     expectedGoogleSubject: string | undefined,
     work: OperationWork<Success>,
     toState: (value: Success) => GoogleIdentityViewState,
+    credentialsOverride?: GoogleIdentityCredentials,
   ): Promise<ResultType<Success, GoogleIdentityViewError>> {
     if (this.status !== "ready") {
       return Result.err({ code: this.status === "busy" ? "operation_failed" : "cancelled" });
     }
     this.status = "busy";
-    this.publish({ status: "requesting-authorization" });
+    this.pendingVisibleBackupConsent = undefined;
+    this.publish(
+      credentialsOverride
+        ? { status: "establishing", progress: { flow: "lookup", step: "checking" } }
+        : { status: "requesting-authorization" },
+    );
 
     try {
-      const outcome = await this.authorizeAndRun(operation, expectedGoogleSubject, work);
+      const outcome = await this.authorizeAndRun(
+        operation,
+        expectedGoogleSubject,
+        work,
+        credentialsOverride,
+      );
       return this.settle(outcome, toState);
     } catch (e) {
       LOGGER.warn("identity.google.action.failed", {
@@ -265,11 +289,23 @@ export class GoogleIdentityController {
     operation: GoogleIdentityOperation,
     expectedGoogleSubject: string | undefined,
     work: OperationWork<Success>,
+    credentialsOverride?: GoogleIdentityCredentials,
   ): Promise<ResultType<Success, GoogleIdentityError>> {
-    const authorized = await this.requestGoogleCredentials(expectedGoogleSubject);
+    const authorized = credentialsOverride
+      ? Result.ok(credentialsOverride)
+      : await this.requestGoogleCredentials(expectedGoogleSubject);
     if (Result.isError(authorized)) return Result.err(authorized.error);
     // Disposal may land between the authorization settling and this continuation.
     if (this.isDisposed) return Result.err({ code: "cancelled" });
+
+    if (
+      !credentialsOverride &&
+      operation !== "detach" &&
+      authorized.value.visibleBackupPermissionGranted === false
+    ) {
+      this.pendingVisibleBackupConsent = { credentials: authorized.value, operation };
+      return Result.err({ code: "visible_backup_permission_missing" });
+    }
 
     const lifecycle = this.lifecycle;
     if (!lifecycle) {

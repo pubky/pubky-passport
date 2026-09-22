@@ -158,6 +158,24 @@ describe("Google identity use cases", () => {
     expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
   });
 
+  it("stores the private backup but skips visible-copy APIs when that permission was declined", async () => {
+    MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
+
+    const result = await createSubject().establishIdentity(
+      { ...CREDENTIALS, visibleBackupPermissionGranted: false },
+      () => undefined,
+    );
+
+    expect(expectResultOk(result)).toEqual({
+      establishmentMode: "created",
+      publicIdentity: PUBLIC_IDENTITY,
+      visibleRecoveryCopyStatus: "skipped",
+    });
+    expect(MOCKS.createPassportFile).toHaveBeenCalledOnce();
+    expect(MOCKS.visibleCopiesConstructions.count).toBe(0);
+    expect(MOCKS.createVisibleRecoveryCopy).not.toHaveBeenCalled();
+  });
+
   it("clears the exported secret before waiting on the Drive write", async () => {
     const exportedBytes = new Uint8Array(32).fill(7);
     let finishDriveWrite!: () => void;

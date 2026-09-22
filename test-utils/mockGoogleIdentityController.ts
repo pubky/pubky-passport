@@ -12,7 +12,11 @@ export type MockGoogleIdentityController = GoogleIdentityControllerPort & {
 
 type MockOperations = Pick<
   MockGoogleIdentityController,
-  "detachIdentity" | "dispose" | "establishIdentity" | "replaceInvalidPassportFile"
+  | "detachIdentity"
+  | "dispose"
+  | "establishIdentity"
+  | "replaceInvalidPassportFile"
+  | "continueWithoutVisibleBackup"
 >;
 
 /**
@@ -39,6 +43,9 @@ export function mockGoogleIdentityController(
   const detachIdentity: MockOperations["detachIdentity"] =
     overrides.detachIdentity ??
     vi.fn(async () => Result.err({ code: "authorization_failed" as const }));
+  const continueWithoutVisibleBackup: MockOperations["continueWithoutVisibleBackup"] =
+    overrides.continueWithoutVisibleBackup ??
+    vi.fn(async () => Result.err({ code: "operation_failed" as const }));
 
   const publishing =
     <Args extends unknown[], Success>(
@@ -66,6 +73,10 @@ export function mockGoogleIdentityController(
     reset: vi.fn(() => emitState({ status: "idle" })),
     dispose: overrides.dispose ?? vi.fn(),
     establishIdentity: publishing(establishIdentity, (identity) => ({
+      status: "established",
+      identity,
+    })),
+    continueWithoutVisibleBackup: publishing(continueWithoutVisibleBackup, (identity) => ({
       status: "established",
       identity,
     })),

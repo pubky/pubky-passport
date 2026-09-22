@@ -17,7 +17,7 @@ type GoogleIdentityEstablishmentView =
       googleAccount: GoogleAccountProfile;
       identity: PubkyPublicIdentity;
       mode: "created" | "restored";
-      visibleRecoveryCopyStatus: "created" | "unconfirmed" | null;
+      visibleRecoveryCopyStatus: "created" | "unconfirmed" | "skipped" | null;
     };
 
 function useGoogleIdentityEstablishment() {
@@ -27,6 +27,10 @@ function useGoogleIdentityEstablishment() {
     back: google.reset,
     establishIdentity: () =>
       google.run("establish", (controller) => controller.establishIdentity()),
+    continueWithoutVisibleBackup: () =>
+      google.run("continue-without-visible-backup", (controller) =>
+        controller.continueWithoutVisibleBackup(),
+      ),
     replaceInvalidPassportFile: () =>
       google.run("replace-invalid-file", (controller) => controller.replaceInvalidPassportFile()),
     view: toEstablishmentView(google.state),

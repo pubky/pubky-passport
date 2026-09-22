@@ -56,6 +56,43 @@ describe("GoogleIdentityController", () => {
     vi.unstubAllGlobals();
   });
 
+  it("pauses before Drive access when visible-copy permission is missing, then continues with the same credentials", async () => {
+    const controller = createController();
+    const states = recordStates(controller);
+    const partialCredentials = { ...CREDENTIALS, visibleBackupPermissionGranted: false };
+    MOCKS.requestAuthorization.mockResolvedValue(Result.ok(partialCredentials));
+
+    expectResultError(await controller.establishIdentity(), {
+      code: "visible_backup_permission_missing",
+    });
+    expect(MOCKS.establishIdentity).not.toHaveBeenCalled();
+    expect(states.at(-1)).toEqual({
+      status: "failed",
+      error: { code: "visible_backup_permission_missing" },
+    });
+
+    const result = await controller.continueWithoutVisibleBackup();
+    expect(Result.isOk(result)).toBe(true);
+    expect(MOCKS.requestAuthorization).toHaveBeenCalledOnce();
+    expect(MOCKS.establishIdentity).toHaveBeenCalledWith(partialCredentials, expect.any(Function));
+  });
+
+  it("drops a pending partial grant when the user retries", async () => {
+    const controller = createController();
+    MOCKS.requestAuthorization
+      .mockResolvedValueOnce(Result.ok({ ...CREDENTIALS, visibleBackupPermissionGranted: false }))
+      .mockResolvedValueOnce(Result.ok(CREDENTIALS));
+
+    expectResultError(await controller.establishIdentity(), {
+      code: "visible_backup_permission_missing",
+    });
+    await controller.establishIdentity();
+    expectResultError(await controller.continueWithoutVisibleBackup(), {
+      code: "operation_failed",
+    });
+    expect(MOCKS.requestAuthorization).toHaveBeenCalledTimes(2);
+  });
+
   it("composes and disposes its real screen-scoped dependencies", () => {
     const session = new GoogleIdentityController("google-client-id", "https://homegate.example/");
     expect(() => session.dispose()).not.toThrow();
