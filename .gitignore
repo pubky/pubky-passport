@@ -1,36 +1,42 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Dependencies
+node_modules/
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
-
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# local env files
-.env*.local
-.env
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
+# Next.js
+.next/
+out/
 next-env.d.ts
+
+# Build output
+dist/
+build/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Local bootstrap recovery files
+.bootstrap-trash/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# Pubky docs snapshots
+docs/vendor/pubky/llms-full.txt
+docs/vendor/pubky/llms-small.txt
+docs/vendor/pubky/SOURCE.md
+
+# Local Plans
+plan/*
+scripts/fetch-pubky-docs.sh
+opencode.json
+
+# Certificates
+certificates/

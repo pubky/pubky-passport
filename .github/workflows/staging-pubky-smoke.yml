@@ -1,0 +1,38 @@
+name: Staging Pubky Smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pubky-critical-path:
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 10
+    env:
+      PUBKY_STAGING_HOMEGATE_URL: ${{ secrets.PUBKY_STAGING_HOMEGATE_URL }}
+      PUBKY_STAGING_GOOGLE_ID_TOKEN: ${{ secrets.PUBKY_STAGING_GOOGLE_ID_TOKEN }}
+      PUBKY_STAGING_RELAY_URL: ${{ secrets.PUBKY_STAGING_RELAY_URL }}
+
+    steps:
+      - name: Checkout
+        # actions/checkout v4, pinned to a commit SHA to avoid mutable tag drift.
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node
+        # actions/setup-node v4, pinned to a commit SHA to avoid mutable tag drift.
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run concrete Pubky critical path
+        run: pnpm test:staging:pubky

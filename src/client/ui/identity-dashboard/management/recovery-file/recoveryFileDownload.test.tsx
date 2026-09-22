@@ -1,0 +1,260 @@
+/** @vitest-environment jsdom */
+
+import { Result } from "better-result";
+import { act, cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { LOGGER } from "@/libs/logger/logger";
+import { RecoveryFileDownload } from "./recoveryFileDownload";
+
+const MOCKS = vi.hoisted(() => ({ toastSuccess: vi.fn() }));
+const RECOVERY_PASSWORD = "correct horse";
+
+vi.mock("sonner", () => ({ toast: { success: MOCKS.toastSuccess } }));
+
+describe("RecoveryFileDownload", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  it("encrypts and downloads the recovery file under Strict Mode", async () => {
+    const bytes = new Uint8Array([1, 2, 3]);
+    const createRecoveryFile = vi.fn(async () =>
+      Result.ok({ bytes, fileName: "pubky-identity.pkarr" }),
+    );
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:backup");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+    const onBack = vi.fn();
+    render(
+      <StrictMode>
+        <RecoveryFileDownload
+          createRecoveryFile={createRecoveryFile}
+          publicKeyZ32="identity"
+          onBack={onBack}
+        />
+      </StrictMode>,
+    );
+
+    const download = screen.getByRole("button", { name: "Download backup" });
+    const password = screen.getByLabelText("Enter strong password");
+    expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
+    expect(password).toHaveAttribute("minlength", "6");
+    expect(download).toBeDisabled();
+    await userEvent.setup().type(password, RECOVERY_PASSWORD);
+    await userEvent.setup().click(download);
+
+    expect(createRecoveryFile).toHaveBeenCalledWith("identity", RECOVERY_PASSWORD);
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    expect(click).toHaveBeenCalledOnce();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:backup");
+    expect(bytes).toEqual(new Uint8Array([1, 2, 3]));
+    expect(MOCKS.toastSuccess).toHaveBeenCalledWith("File downloaded");
+    expect(onBack).toHaveBeenCalledOnce();
+  });
+
+  it("explains and enforces the six-character password minimum", async () => {
+    render(
+      <RecoveryFileDownload
+        createRecoveryFile={vi.fn()}
+        publicKeyZ32="identity"
+        onBack={vi.fn()}
+      />,
+    );
+    const user = userEvent.setup();
+    const password = screen.getByLabelText("Enter strong password");
+    const requirement = screen.getByText("Minimum 6 characters.");
+    const download = screen.getByRole("button", { name: "Download backup" });
+
+    expect(password).toHaveAttribute("aria-describedby", requirement.id);
+    expect(password).not.toHaveAttribute("aria-invalid");
+    expect(requirement).not.toHaveAttribute("role");
+
+    await user.type(password, "12345");
+    expect(password).toHaveAttribute("aria-invalid", "true");
+    expect(requirement).toHaveAttribute("role", "alert");
+    expect(download).toBeDisabled();
+
+    await user.type(password, "6");
+    expect(password).not.toHaveAttribute("aria-invalid");
+    expect(requirement).not.toHaveAttribute("role");
+    expect(download).toBeEnabled();
+  });
+
+  it("revokes the recovery-file URL when clicking the download link throws", async () => {
+    const createRecoveryFile = vi.fn(async () =>
+      Result.ok({
+        bytes: new Uint8Array([1, 2, 3]),
+        fileName: "pubky-identity.pkarr",
+      }),
+    );
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:backup");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {
+      throw new Error("download failed");
+    });
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const onBack = vi.fn();
+    render(
+      <RecoveryFileDownload
+        createRecoveryFile={createRecoveryFile}
+        publicKeyZ32="identity"
+        onBack={onBack}
+      />,
+    );
+
+    await userEvent.setup().type(screen.getByLabelText("Enter strong password"), RECOVERY_PASSWORD);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not create the recovery file",
+    );
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:backup");
+    expect(warning).toHaveBeenCalledWith(
+      "identity.recovery_file.ui.failed",
+      expect.objectContaining({
+        operation: "download",
+        diagnosticId: expect.any(String),
+        errorName: "Error",
+      }),
+    );
+    expect(MOCKS.toastSuccess).not.toHaveBeenCalled();
+    expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it("returns to identity management", async () => {
+    const onBack = vi.fn();
+    render(
+      <RecoveryFileDownload createRecoveryFile={vi.fn()} publicKeyZ32="identity" onBack={onBack} />,
+    );
+    await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
+    expect(onBack).toHaveBeenCalledOnce();
+  });
+
+  it("relocates the download action only in the mobile layout", () => {
+    render(
+      <RecoveryFileDownload
+        createRecoveryFile={vi.fn()}
+        publicKeyZ32="identity"
+        onBack={vi.fn()}
+      />,
+    );
+
+    const label = screen.getByText("Enter strong password");
+    const password = screen.getByLabelText("Enter strong password");
+    const download = screen.getByRole("button", { name: "Download backup" });
+    const back = screen.getByRole("button", { name: "Back" });
+    const illustration = document.querySelector("img");
+    const navigation = back.parentElement?.parentElement;
+
+    expect(label).toHaveClass("leading-5", "md:leading-4");
+    expect(password.parentElement).toHaveClass("h-14", "md:h-15");
+    expect(illustration).toHaveClass("order-3", "md:order-[0]");
+    expect(navigation).toHaveClass("order-4", "-mt-1", "md:order-[0]", "md:mt-0");
+    expect(download).toHaveClass("order-5", "-mt-2", "md:order-[0]", "md:mt-4");
+  });
+
+  it("announces recovery-file failures without marking a valid password invalid", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const secret = "sensitive recovery cause";
+    const onBack = vi.fn();
+    render(
+      <RecoveryFileDownload
+        createRecoveryFile={async () =>
+          Result.err({
+            code: "recovery_file_failed",
+            cause: new Error(secret),
+          })
+        }
+        publicKeyZ32="identity"
+        onBack={onBack}
+      />,
+    );
+    const password = screen.getByLabelText("Enter strong password");
+    await userEvent.setup().type(password, RECOVERY_PASSWORD);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not create the recovery file",
+    );
+    expect(password).not.toHaveAttribute("aria-invalid");
+    expect(MOCKS.toastSuccess).not.toHaveBeenCalled();
+    expect(onBack).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).not.toHaveTextContent(secret);
+    expect(warning).not.toHaveBeenCalled();
+  });
+
+  it("contains rejected recovery-file promises without exposing their contents", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const secret = "sensitive rejected password";
+    const createRecoveryFile = vi.fn(async () => {
+      throw new TypeError(secret);
+    });
+    render(
+      <RecoveryFileDownload
+        createRecoveryFile={createRecoveryFile}
+        publicKeyZ32="identity"
+        onBack={vi.fn()}
+      />,
+    );
+
+    const password = screen.getByLabelText("Enter strong password");
+    await userEvent.setup().type(password, RECOVERY_PASSWORD);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not create the recovery file",
+    );
+    expect(password).toHaveValue("");
+    expect(warning).toHaveBeenCalledWith(
+      "identity.recovery_file.ui.failed",
+      expect.objectContaining({
+        operation: "create_and_download",
+        diagnosticId: expect.any(String),
+        errorName: "TypeError",
+      }),
+    );
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(secret);
+  });
+
+  it("disables Back and ignores completion after the screen is left", async () => {
+    let finish!: (
+      result: ReturnType<typeof Result.ok<{ bytes: Uint8Array; fileName: string }>>,
+    ) => void;
+    const createRecoveryFile = vi.fn(
+      () =>
+        new Promise<ReturnType<typeof Result.ok<{ bytes: Uint8Array; fileName: string }>>>(
+          (resolve) => {
+            finish = resolve;
+          },
+        ),
+    );
+    const createObjectURL = vi.spyOn(URL, "createObjectURL");
+    const onBack = vi.fn();
+    const rendered = render(
+      <RecoveryFileDownload
+        createRecoveryFile={createRecoveryFile}
+        publicKeyZ32="identity"
+        onBack={onBack}
+      />,
+    );
+    await userEvent.setup().type(screen.getByLabelText("Enter strong password"), RECOVERY_PASSWORD);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
+
+    expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
+    rendered.unmount();
+    await act(async () =>
+      finish(Result.ok({ bytes: new Uint8Array([1]), fileName: "backup.pkarr" })),
+    );
+
+    expect(createObjectURL).not.toHaveBeenCalled();
+    expect(MOCKS.toastSuccess).not.toHaveBeenCalled();
+    expect(onBack).not.toHaveBeenCalled();
+  });
+});
