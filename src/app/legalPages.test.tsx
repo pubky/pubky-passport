@@ -17,4 +17,13 @@ describe("legal pages", () => {
     expect(markup).not.toContain("[Legal:");
     expect(markup).not.toContain('aria-label="Legal documents"');
   });
+
+  it("uses the approved privacy-policy wording for children and authorization sessions", () => {
+    const markup = renderToStaticMarkup(<PrivacyPolicyPage />);
+
+    expect(markup).toContain("Passport is meant for adults.");
+    expect(markup).toContain("COPPA Information Request");
+    expect(markup).toContain("Public Session containing your public key");
+    expect(markup).not.toContain("eligible minor");
+  });
 });
