@@ -75,34 +75,26 @@ function CheckIcon(props: IconProps) {
   );
 }
 
-function CameraIcon({ className }: Pick<IconProps, "className">) {
+function CameraIcon(props: IconProps) {
   return (
-    <span aria-hidden="true" className={cn("relative inline-flex h-4 w-5 shrink-0", className)}>
-      <svg
-        className="absolute -left-[0.75px] -top-[0.75px] max-w-none"
-        fill="none"
-        height={17.5}
-        viewBox="0 0 21.5 17.5"
-        width={21.5}
-      >
-        <path
-          d="M13.25.75h-5l-2.5 3h-3a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-3l-2.5-3Z"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="1.5"
-        />
-        <circle
-          cx="10.75"
-          cy="9.75"
-          r="3"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="1.5"
-        />
-      </svg>
-    </span>
+    <Glyph height={props.size ?? 16} viewBox="0 0 21.5 17.5" width={props.size ?? 16} {...props}>
+      <path
+        d="M13.25.75h-5l-2.5 3h-3a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-3l-2.5-3Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+      <circle
+        cx="10.75"
+        cy="9.75"
+        r="3"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </Glyph>
   );
 }
 
@@ -152,7 +144,12 @@ function CopyIcon(props: IconProps) {
 
 function ClipboardPasteIcon(props: IconProps) {
   return (
-    <Glyph height={17.9967} viewBox="0 0 15.4967 17.9967" width={15.4967} {...props}>
+    <Glyph
+      height={props.size ?? 16}
+      viewBox="0 0 15.4967 17.9967"
+      width={props.size ?? 16}
+      {...props}
+    >
       <path
         d="M3.99833 2.33167H2.33167c-.44203 0-.86595.17559-1.17851.48815A1.66668 1.66668 0 0 0 .665 3.99833V15.665c0 .442.175595.866.48816 1.1785.31256.3126.73648.4882 1.17851.4882h10c.442 0 .8659-.1756 1.1785-.4882.3125-.3125.4881-.7365.4881-1.1785M10.665 2.33167h1.6667c.442 0 .8659.17559 1.1785.48815.3125.31256.4881.73649.4881 1.17851V5.665M6.49833 10.665h8.33337m-3.3334 3.3333 3.3334-3.3333-3.3334-3.33333M9.83167.665h-5c-.22102 0-.43298.087797-.58926.244078-.15628.156282-.24408.368242-.24408.589252V3.165c0 .5.33334.83333.83334.83333h5c.50003 0 .83333-.33333.83333-.83333V1.49833C10.665.998333 10.3317.665 9.83167.665Z"
         stroke="currentColor"

@@ -17,8 +17,8 @@ function SignInPage({ children }: { children: ReactNode }) {
             Quick &amp; easy
           </DisplayHeading>
           <LeadText>
-            Pubky Passport is a browser-based signer for the Pubky ecosystem. No seed phrase, no
-            app, no hassle.
+            Use your Google account to sign in to the Pubky ecosystem. No seed phrase, no app, no
+            hassle.
           </LeadText>
         </div>
         <div className="grid gap-6 md:grid-cols-(--passport-content-columns) md:gap-0">

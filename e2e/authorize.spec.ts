@@ -47,7 +47,7 @@ test("shows identity setup context as the designed full-width accent band", asyn
     await page.goto(authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`)));
 
     const band = page.getByLabel("Signing in to client.example");
-    const logo = page.getByRole("img", { name: "Pubky Passport" });
+    const logo = page.getByRole("img", { name: "Pubky", exact: true });
     const main = page.locator("main");
     await expect(band).toBeVisible();
     await expect(band.locator("svg")).toHaveAttribute("viewBox", "0 0 24 24");
