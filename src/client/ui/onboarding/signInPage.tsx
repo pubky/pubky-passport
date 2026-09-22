@@ -1,7 +1,6 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 
-import { MobilePassportFooter } from "@/client/ui/shared/mobilePassportFooter";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 
@@ -35,7 +34,6 @@ function SignInPage({ children }: { children: ReactNode }) {
           <div className="flex flex-col gap-3 md:col-start-1 md:row-start-1">{children}</div>
         </div>
       </section>
-      <MobilePassportFooter />
     </PassportScreen>
   );
 }

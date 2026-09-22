@@ -1,4 +1,3 @@
-import { MobilePassportFooter } from "@/client/ui/shared/mobilePassportFooter";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { Spinner } from "@/client/ui/shared/primitives/spinner";
@@ -30,7 +29,6 @@ function GoogleAccessScreen({ fullWidthAction = false }: { fullWidthAction?: boo
           Waiting for Google...
         </Button>
       </div>
-      <MobilePassportFooter />
     </PassportScreen>
   );
 }

@@ -4,8 +4,8 @@ import type { ReactNode } from "react";
 import "@fontsource-variable/inter-tight";
 import "./globals.css";
 import { GoogleIdentityConfigurationProvider } from "@/client/ui/googleIdentityConfiguration";
-import { BrandEndorsement } from "@/client/ui/shared/brand/brandEndorsement";
 import { PassportLogo } from "@/client/ui/shared/brand/passportLogo";
+import { PassportFooter } from "@/client/ui/shared/passportFooter";
 import { Sonner } from "@/client/ui/shared/sonner";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { getPublicEnvironment } from "@/server/environment";
@@ -47,9 +47,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         >
           {children}
         </GoogleIdentityConfigurationProvider>
-        <footer className="passport-footer pointer-events-none fixed inset-x-0 bottom-0 z-10 hidden h-18 items-center px-10 md:flex">
-          <BrandEndorsement />
-        </footer>
+        <PassportFooter />
         <Sonner />
       </body>
     </html>

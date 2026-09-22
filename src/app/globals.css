@@ -82,6 +82,8 @@
 }
 
 body {
+  display: flex;
+  flex-direction: column;
   min-height: 100svh;
   background: var(--background);
   color: var(--foreground);
@@ -92,8 +94,99 @@ body:has([data-passport-context-band]) {
   --passport-context-band-height: 34px;
 }
 
-@media (min-width: 48rem) and (max-height: 44.999rem) {
-  .passport-footer {
-    position: static;
+@layer components {
+  .legal-document {
+    color: var(--muted-foreground);
+    font-size: 1rem;
+    line-height: 1.75rem;
+  }
+
+  .legal-document > p,
+  .legal-document section > p,
+  .legal-document section > ul,
+  .legal-document section > ol {
+    margin-bottom: 1.25rem;
+  }
+
+  .legal-document h2 {
+    margin-top: 3.5rem;
+    margin-bottom: 1.25rem;
+    color: var(--foreground);
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+  }
+
+  .legal-document h3 {
+    margin-top: 2rem;
+    margin-bottom: 0.5rem;
+    color: var(--foreground);
+    font-size: 1.125rem;
+    font-weight: 700;
+  }
+
+  .legal-document a {
+    border-radius: calc(var(--radius) - 4px);
+    color: var(--brand);
+    font-weight: 600;
+    text-decoration-line: underline;
+    text-decoration-color: color-mix(in oklab, var(--brand) 40%, transparent);
+    text-underline-offset: 4px;
+    outline: none;
+  }
+
+  .legal-document a:hover {
+    text-decoration-color: var(--brand);
+  }
+
+  .legal-document a:focus-visible {
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
+  }
+
+  .legal-document strong {
+    color: var(--foreground);
+    font-weight: 700;
+  }
+
+  .legal-document ul,
+  .legal-document ol {
+    padding-left: 1.5rem;
+  }
+
+  .legal-document ul {
+    list-style-type: disc;
+  }
+
+  .legal-document ol {
+    list-style-type: decimal;
+  }
+
+  .legal-document li + li {
+    margin-top: 0.5rem;
+  }
+
+  .legal-document .legal-section-introduction {
+    margin-bottom: 1.5rem;
+    border-left: 2px solid var(--brand);
+    padding-left: 1rem;
+    color: color-mix(in oklab, var(--foreground) 80%, transparent);
+    font-style: italic;
+  }
+
+  @media (min-width: 48rem) {
+    .legal-document {
+      font-size: 1.125rem;
+      line-height: 2rem;
+    }
+
+    .legal-document h2 {
+      margin-top: 4.5rem;
+      font-size: 1.875rem;
+    }
+
+    .legal-document h3 {
+      font-size: 1.25rem;
+    }
   }
 }
