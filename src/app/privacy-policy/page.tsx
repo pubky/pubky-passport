@@ -278,7 +278,7 @@ export default function PrivacyPolicyPage() {
         <p>
           We do not share your Google profile, Google identity assertion, Google authorization
           token, or identity secret key with applications that ask you for authorization. When you
-          approve a request, the application receives a Public Session containing your public key,
+          approve a request, the application receives a Pubky session containing your public key,
           the relevant Homeserver, grant details, and the capabilities you approved.
         </p>
       </LegalSection>

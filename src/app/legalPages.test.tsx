@@ -23,7 +23,7 @@ describe("legal pages", () => {
 
     expect(markup).toContain("Passport is meant for adults.");
     expect(markup).toContain("COPPA Information Request");
-    expect(markup).toContain("Public Session containing your public key");
+    expect(markup).toContain("Pubky session containing your public key");
     expect(markup).not.toContain("eligible minor");
   });
 });
