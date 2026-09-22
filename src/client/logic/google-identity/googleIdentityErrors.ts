@@ -33,6 +33,8 @@ export type GoogleIdentityLifecycleError =
       | "unexpected_failure"
       | "google_account_mismatch"
       | "google_drive_cleanup_failed"
+      | "google_detachment_permission_required"
+      | "visible_backup_permission_missing"
       | "local_remove_failed"
     >;
 
@@ -40,12 +42,7 @@ export type GoogleIdentityLifecycleError =
 export type GoogleIdentityError =
   | GoogleIdentityLifecycleError
   | GoogleImplicitAuthorizationError
-  | CodedFailure<
-      | "authorization_failed"
-      | "cancelled"
-      | "operation_failed"
-      | "visible_backup_permission_missing"
-    >;
+  | CodedFailure<"authorization_failed" | "cancelled" | "operation_failed">;
 
 type GoogleIdentityErrorDetailCode = Extract<
   GoogleIdentityError,

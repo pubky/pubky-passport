@@ -19,8 +19,10 @@ import { AuthorizationPopup } from "./AuthorizationPopup";
 export type GoogleIdentityCredentials = {
   googleIdToken: string;
   driveAccessToken: string;
+  /** Epoch milliseconds from Google's expires_in, or null when the lifetime is unknown. */
+  driveAccessTokenExpiresAt: number | null;
   googleAccount: GoogleAccountProfile;
-  visibleBackupPermissionGranted?: boolean;
+  visibleBackupPermissionGranted: boolean;
 };
 
 type GoogleImplicitAuthorizationErrorCode =
@@ -278,10 +280,9 @@ export class GoogleImplicitAuthorization {
     return Result.ok({
       googleIdToken: parsed.value.googleIdToken,
       driveAccessToken: parsed.value.accessToken,
+      driveAccessTokenExpiresAt: parsed.value.accessTokenExpiresAt,
       googleAccount: account.value,
-      ...(parsed.value.visibleBackupPermissionGranted
-        ? {}
-        : { visibleBackupPermissionGranted: false }),
+      visibleBackupPermissionGranted: parsed.value.visibleBackupPermissionGranted,
     });
   }
 

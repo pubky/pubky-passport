@@ -51,6 +51,8 @@ const REFERENCE = { storageId: "opaque-file-id", revision: "42" };
 const CREDENTIALS = {
   googleIdToken: "google-id-token",
   driveAccessToken: "drive-access-token",
+  driveAccessTokenExpiresAt: Date.now() + 3_600_000,
+  visibleBackupPermissionGranted: true,
   googleAccount: {
     googleSubject: "google-account",
     email: "user@example.com",
@@ -158,12 +160,75 @@ describe("Google identity use cases", () => {
     expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
   });
 
+  it("asks for a decision only after finding no identity, before creating anything", async () => {
+    MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
+
+    expectResultError(
+      await createSubject().establishIdentity(
+        { ...CREDENTIALS, visibleBackupPermissionGranted: false },
+        () => undefined,
+      ),
+      { code: "visible_backup_permission_missing" },
+    );
+
+    expect(MOCKS.readPassportFile).toHaveBeenCalledOnce();
+    expect(MOCKS.requestWrappingKey).not.toHaveBeenCalled();
+    expect(MOCKS.requestSignupToken).not.toHaveBeenCalled();
+    expect(MOCKS.createIdentityKey).not.toHaveBeenCalled();
+    expect(MOCKS.createPassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.repositorySave).not.toHaveBeenCalled();
+  });
+
+  it("restores an existing identity without visible-copy permission or an extra decision", async () => {
+    MOCKS.readPassportFile.mockResolvedValue(
+      Result.ok({ status: "found", envelope: ENVELOPE, reference: REFERENCE }),
+    );
+
+    const result = await createSubject().establishIdentity(
+      { ...CREDENTIALS, visibleBackupPermissionGranted: false },
+      () => undefined,
+    );
+
+    expect(expectResultOk(result).establishmentMode).toBe("restored");
+    expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
+    expect(MOCKS.visibleCopiesConstructions.count).toBe(0);
+    expect(MOCKS.createVisibleRecoveryCopy).not.toHaveBeenCalled();
+  });
+
+  it("keeps an invalid file until the visible-backup decision is made", async () => {
+    expectResultError(
+      await createSubject().replaceInvalidPassportFile(
+        { ...CREDENTIALS, visibleBackupPermissionGranted: false },
+        () => undefined,
+      ),
+      { code: "visible_backup_permission_missing" },
+    );
+    expect(MOCKS.deleteInvalidPassportFile).not.toHaveBeenCalled();
+  });
+
+  it("requires visible-copy permission before detaching or removing anything", async () => {
+    expectResultError(
+      await createSubject().detachIdentity(
+        { ...CREDENTIALS, visibleBackupPermissionGranted: false },
+        PUBLIC_IDENTITY,
+        CREDENTIALS.googleAccount.googleSubject,
+      ),
+      { code: "google_detachment_permission_required" },
+    );
+
+    expect(MOCKS.readPassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.deleteVisibleRecoveryCopies).not.toHaveBeenCalled();
+    expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.repositoryRemove).not.toHaveBeenCalled();
+  });
+
   it("stores the private backup but skips visible-copy APIs when that permission was declined", async () => {
     MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
 
     const result = await createSubject().establishIdentity(
       { ...CREDENTIALS, visibleBackupPermissionGranted: false },
       () => undefined,
+      true,
     );
 
     expect(expectResultOk(result)).toEqual({

@@ -1,7 +1,10 @@
 import { useState } from "react";
-import Image from "next/image";
 
 import type { GoogleIdentityViewError } from "@/client/logic/google-identity/googleIdentityErrors";
+import {
+  GoogleDrivePermissionPrompt,
+  GooglePermissionGuide,
+} from "@/client/ui/googleDrivePermissionPrompt";
 import { GoogleIdentityErrorDetails } from "@/client/ui/googleIdentityErrorDetails";
 import { googleIdentityErrorMessage } from "@/client/ui/googleIdentityErrorMessage";
 import { RotateCcwIcon, TrashIcon } from "@/client/ui/shared/icons";
@@ -40,7 +43,7 @@ function GoogleIdentityError({
   ) {
     return (
       <GoogleDrivePermissionPrompt
-        required={error.code === "google_drive_access_required"}
+        mode={error.code === "google_drive_access_required" ? "required" : "optional"}
         onBack={onBack}
         onContinue={onContinueWithoutVisibleBackup}
         onTryAgain={onTryAgain}
@@ -161,71 +164,6 @@ function GoogleIdentityError({
         />
       ) : null}
     </>
-  );
-}
-
-function GoogleDrivePermissionPrompt({
-  required,
-  onBack,
-  onContinue,
-  onTryAgain,
-}: {
-  required: boolean;
-  onBack: () => void;
-  onContinue?: (() => void) | undefined;
-  onTryAgain: () => void;
-}) {
-  return (
-    <PassportScreen className="gap-6 md:max-w-[558px] md:gap-8">
-      <div className="flex flex-col gap-6 md:gap-3">
-        <DisplayHeading accent={required ? "required." : "optional."}>Drive access</DisplayHeading>
-        <LeadText>
-          {required
-            ? "Passport needs the first Google Drive permission to store and restore your encrypted identity. Select it in Google’s window to continue."
-            : "You allowed private backup storage, but not visible recovery copies. Passport can continue, but it won’t create a visible backup in your Google Drive."}
-        </LeadText>
-      </div>
-
-      <GooglePermissionGuide />
-
-      <div className="mt-auto flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <BackButton onClick={onBack} />
-        <div className="flex flex-col gap-3 md:flex-row">
-          {!required && onContinue ? (
-            <Button onClick={onContinue} size="lg" type="button" variant="secondary">
-              Continue without visible backup
-            </Button>
-          ) : null}
-          <Button onClick={onTryAgain} size="lg" type="button">
-            <RotateCcwIcon />
-            Try again
-          </Button>
-        </div>
-      </div>
-    </PassportScreen>
-  );
-}
-
-function GooglePermissionGuide() {
-  return (
-    <figure className="w-full">
-      <Image
-        alt="Animation showing a pointer selecting both Google Drive permission checkboxes with Select all, then clicking Continue."
-        className="mx-auto h-auto w-full max-w-[480px] rounded-2xl motion-reduce:hidden"
-        height={776}
-        src="/illustrations/google-drive-permissions.gif"
-        unoptimized
-        width={960}
-      />
-      <Image
-        alt="Both Google Drive permission checkboxes selected: configuration data and files used with this app."
-        className="mx-auto hidden h-auto w-full max-w-[480px] rounded-2xl motion-reduce:block"
-        height={776}
-        src="/illustrations/google-drive-permissions-still.png"
-        unoptimized
-        width={960}
-      />
-    </figure>
   );
 }
 

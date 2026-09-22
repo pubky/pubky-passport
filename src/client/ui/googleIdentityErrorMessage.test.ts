@@ -24,6 +24,8 @@ const EXPECTED_COPY: Record<GoogleIdentityViewError["code"], string> = {
   google_authorization_popup_failed_to_open:
     "Passport could not open the Google authorization window. Check your popup settings and try again.",
   google_drive_cleanup_failed: "Could not remove Google access. Please try again.",
+  google_detachment_permission_required:
+    "Passport needs both Google Drive permissions to delete your encrypted identity and visible recovery copies before removing Google access.",
   homeserver_signup_token_failed: "Passport could not obtain a homeserver invitation.",
   identity_mismatch: "The restored Pubky identity did not match the activated homeserver identity.",
   invalid_passport_file:
