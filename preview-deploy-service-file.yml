@@ -1,0 +1,56 @@
+# Cloud Run service template for PR previews. The preview workflow fills in the service name,
+# image, and Google client ID; everything else here is shared by every preview.
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: SHOULD_BE_CHANGED
+  labels:
+    cloud.googleapis.com/location: europe-west6
+    managed-by: github-actions
+  annotations:
+    # Previews sit behind IAP, as pubky-app previews do, so only the team can reach them.
+    run.googleapis.com/invoker-iam-disabled: "true"
+    run.googleapis.com/iap-enabled: "true"
+
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: "2"
+        run.googleapis.com/cpu-throttling: "true"
+        run.googleapis.com/startup-cpu-boost: "true"
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      containers:
+        - name: pubky-passport
+          image: SHOULD_BE_UPDATED
+          ports:
+            - name: http1
+              containerPort: 3000
+          env:
+            - name: GOOGLE_CLIENT_ID
+              value: SHOULD_BE_UPDATED
+            - name: HOMEGATE_URL
+              value: "https://homegate.staging.pubky.app"
+            - name: PUBKY_HOMESERVER_CONNECT_ORIGINS
+              value: "https://homeserver.staging.pubky.app"
+            - name: PASSPORT_SERVER_SECRET_CURRENT_KEY_ID
+              value: "preview"
+            # Preview-only keyring, never the staging or production one. It must contain the
+            # "preview" key ID above.
+            - name: PASSPORT_SERVER_SECRET_KEYRING_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: pubky-passport-preview-server-keyring
+                  key: latest
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          startupProbe:
+            timeoutSeconds: 240
+            periodSeconds: 240
+            failureThreshold: 1
+            tcpSocket:
+              port: 3000
