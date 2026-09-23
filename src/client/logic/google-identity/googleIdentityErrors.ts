@@ -33,6 +33,8 @@ export type GoogleIdentityLifecycleError =
       | "unexpected_failure"
       | "google_account_mismatch"
       | "google_drive_cleanup_failed"
+      | "google_detachment_permission_required"
+      | "visible_backup_permission_missing"
       | "local_remove_failed"
     >;
 

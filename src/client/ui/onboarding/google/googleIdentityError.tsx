@@ -1,6 +1,10 @@
 import { useState } from "react";
 
 import type { GoogleIdentityViewError } from "@/client/logic/google-identity/googleIdentityErrors";
+import {
+  GoogleDrivePermissionPrompt,
+  GooglePermissionGuide,
+} from "@/client/ui/googleDrivePermissionPrompt";
 import { GoogleIdentityErrorDetails } from "@/client/ui/googleIdentityErrorDetails";
 import { googleIdentityErrorMessage } from "@/client/ui/googleIdentityErrorMessage";
 import { RotateCcwIcon, TrashIcon } from "@/client/ui/shared/icons";
@@ -15,11 +19,13 @@ function GoogleIdentityError({
   onBack,
   onReplaceInvalidFile,
   onTryAgain,
+  onContinueWithoutVisibleBackup,
 }: {
   error: GoogleIdentityViewError;
   onBack: () => void;
   onReplaceInvalidFile?: (() => void) | undefined;
   onTryAgain: () => void;
+  onContinueWithoutVisibleBackup?: (() => void) | undefined;
 }) {
   const [confirmationOpen, setConfirmationOpen] = useState(false);
   const replaceInvalidFile =
@@ -29,6 +35,20 @@ function GoogleIdentityError({
 
   if (error.code === "google_authorization_denied") {
     return <GoogleAccessDenied onBack={onBack} onTryAgain={onTryAgain} />;
+  }
+
+  if (
+    error.code === "google_drive_access_required" ||
+    error.code === "visible_backup_permission_missing"
+  ) {
+    return (
+      <GoogleDrivePermissionPrompt
+        mode={error.code === "google_drive_access_required" ? "required" : "optional"}
+        onBack={onBack}
+        onContinue={onContinueWithoutVisibleBackup}
+        onTryAgain={onTryAgain}
+      />
+    );
   }
 
   return (
@@ -167,6 +187,7 @@ function GoogleAccessDenied({
           Passport needs access to your Google Drive to create or restore your Pubky.
         </LeadText>
       </div>
+      <GooglePermissionGuide />
       <div
         aria-label="Mobile error actions"
         className="mt-auto grid w-full grid-cols-1 gap-3 md:hidden"

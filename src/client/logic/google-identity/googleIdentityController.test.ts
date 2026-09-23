@@ -26,6 +26,8 @@ const GOOGLE_ACCOUNT = {
 const CREDENTIALS = {
   googleIdToken: "google-id-token",
   driveAccessToken: "drive-access-token",
+  driveAccessTokenExpiresAt: Date.now() + 3_600_000,
+  visibleBackupPermissionGranted: true,
   googleAccount: GOOGLE_ACCOUNT,
 };
 const PUBLIC_IDENTITY = {
@@ -54,6 +56,165 @@ describe("GoogleIdentityController", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it("continues a creation paused by the lifecycle with the same credentials", async () => {
+    const controller = createController();
+    const states = recordStates(controller);
+    const partialCredentials = { ...CREDENTIALS, visibleBackupPermissionGranted: false };
+    MOCKS.requestAuthorization.mockResolvedValue(Result.ok(partialCredentials));
+    MOCKS.establishIdentity.mockResolvedValueOnce(
+      Result.err({ code: "visible_backup_permission_missing" }),
+    );
+
+    expectResultError(await controller.establishIdentity(), {
+      code: "visible_backup_permission_missing",
+    });
+    expect(MOCKS.establishIdentity).toHaveBeenCalledWith(
+      partialCredentials,
+      expect.any(Function),
+      false,
+    );
+    expect(states.at(-1)).toEqual({
+      status: "failed",
+      error: { code: "visible_backup_permission_missing" },
+    });
+
+    const result = await controller.continueWithoutVisibleBackup();
+    expect(Result.isOk(result)).toBe(true);
+    expect(MOCKS.requestAuthorization).toHaveBeenCalledOnce();
+    expect(MOCKS.establishIdentity).toHaveBeenLastCalledWith(
+      partialCredentials,
+      expect.any(Function),
+      true,
+    );
+  });
+
+  it("drops a pending partial grant when the user retries", async () => {
+    const controller = createController();
+    MOCKS.establishIdentity.mockResolvedValueOnce(
+      Result.err({ code: "visible_backup_permission_missing" }),
+    );
+    MOCKS.requestAuthorization
+      .mockResolvedValueOnce(Result.ok({ ...CREDENTIALS, visibleBackupPermissionGranted: false }))
+      .mockResolvedValueOnce(Result.ok(CREDENTIALS));
+
+    expectResultError(await controller.establishIdentity(), {
+      code: "visible_backup_permission_missing",
+    });
+    await controller.establishIdentity();
+    expectResultError(await controller.continueWithoutVisibleBackup(), {
+      code: "operation_failed",
+    });
+    expect(MOCKS.requestAuthorization).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["establishIdentity", "replaceInvalidPassportFile"] as const)(
+    "renews expired credentials when continuing %s without prompting again",
+    async (method) => {
+      const controller = createController();
+      const now = Date.now();
+      vi.spyOn(Date, "now").mockReturnValue(now);
+      const partialCredentials = {
+        ...CREDENTIALS,
+        driveAccessTokenExpiresAt: now + 3_600_000,
+        visibleBackupPermissionGranted: false,
+      };
+      const refreshedCredentials = {
+        ...partialCredentials,
+        driveAccessToken: "refreshed-access-token",
+        driveAccessTokenExpiresAt: now + 10_800_000,
+      };
+      MOCKS.requestAuthorization
+        .mockResolvedValueOnce(Result.ok(partialCredentials))
+        .mockResolvedValueOnce(Result.ok(refreshedCredentials));
+      MOCKS[method].mockResolvedValueOnce(
+        Result.err({ code: "visible_backup_permission_missing" }),
+      );
+
+      await controller[method]();
+      vi.mocked(Date.now).mockReturnValue(now + 7_200_000);
+      expect(Result.isOk(await controller.continueWithoutVisibleBackup())).toBe(true);
+
+      expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(2, GOOGLE_ACCOUNT.googleSubject);
+      expect(MOCKS[method]).toHaveBeenLastCalledWith(
+        refreshedCredentials,
+        expect.any(Function),
+        true,
+      );
+    },
+  );
+
+  it.each([null, Date.now() + 10_000])(
+    "renews credentials with unknown or imminent expiry (%s)",
+    async (driveAccessTokenExpiresAt) => {
+      const controller = createController();
+      MOCKS.requestAuthorization
+        .mockResolvedValueOnce(
+          Result.ok({
+            ...CREDENTIALS,
+            driveAccessTokenExpiresAt,
+            visibleBackupPermissionGranted: false,
+          }),
+        )
+        .mockResolvedValueOnce(Result.ok(CREDENTIALS));
+      MOCKS.establishIdentity.mockResolvedValueOnce(
+        Result.err({ code: "visible_backup_permission_missing" }),
+      );
+
+      await controller.establishIdentity();
+      expect(Result.isOk(await controller.continueWithoutVisibleBackup())).toBe(true);
+      expect(MOCKS.requestAuthorization).toHaveBeenCalledTimes(2);
+      expect(MOCKS.establishIdentity).toHaveBeenLastCalledWith(
+        CREDENTIALS,
+        expect.any(Function),
+        true,
+      );
+    },
+  );
+
+  it("rejects a different account when renewing paused credentials", async () => {
+    const controller = createController();
+    MOCKS.requestAuthorization
+      .mockResolvedValueOnce(
+        Result.ok({
+          ...CREDENTIALS,
+          driveAccessTokenExpiresAt: 0,
+          visibleBackupPermissionGranted: false,
+        }),
+      )
+      .mockResolvedValueOnce(
+        Result.ok({
+          ...CREDENTIALS,
+          googleAccount: { ...GOOGLE_ACCOUNT, googleSubject: "different-account" },
+        }),
+      );
+    MOCKS.establishIdentity.mockResolvedValueOnce(
+      Result.err({ code: "visible_backup_permission_missing" }),
+    );
+
+    await controller.establishIdentity();
+    expectResultError(await controller.continueWithoutVisibleBackup(), {
+      code: "authorization_failed",
+    });
+    expect(MOCKS.establishIdentity).toHaveBeenCalledOnce();
+  });
+
+  it.each(["reset", "dispose"] as const)("clears paused credentials on %s", async (method) => {
+    const controller = createController();
+    MOCKS.requestAuthorization.mockResolvedValue(
+      Result.ok({ ...CREDENTIALS, visibleBackupPermissionGranted: false }),
+    );
+    MOCKS.establishIdentity.mockResolvedValueOnce(
+      Result.err({ code: "visible_backup_permission_missing" }),
+    );
+    await controller.establishIdentity();
+
+    controller[method]();
+    expectResultError(await controller.continueWithoutVisibleBackup(), {
+      code: "operation_failed",
+    });
+    expect(MOCKS.establishIdentity).toHaveBeenCalledOnce();
   });
 
   it("composes and disposes its real screen-scoped dependencies", () => {
@@ -125,7 +286,7 @@ describe("GoogleIdentityController", () => {
       { status: "established", identity: established },
     ]);
     expect(controller.getState()).toEqual({ status: "established", identity: established });
-    expect(MOCKS.establishIdentity).toHaveBeenCalledWith(CREDENTIALS, expect.any(Function));
+    expect(MOCKS.establishIdentity).toHaveBeenCalledWith(CREDENTIALS, expect.any(Function), false);
   });
 
   it("publishes only the allowlisted established fields", async () => {
@@ -396,6 +557,7 @@ describe("GoogleIdentityController", () => {
     expect(MOCKS.replaceInvalidPassportFile).toHaveBeenCalledWith(
       CREDENTIALS,
       expect.any(Function),
+      false,
     );
   });
 

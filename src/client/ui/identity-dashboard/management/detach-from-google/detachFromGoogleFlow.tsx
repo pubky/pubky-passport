@@ -7,6 +7,7 @@ import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localI
 import type { PubkyRingMigration } from "@/client/logic/pubky/PubkySdkAdapter";
 import { RecoveryFileDownload } from "@/client/ui/identity-dashboard/management/recovery-file/recoveryFileDownload";
 import { MigrateToPubkyRing } from "@/client/ui/identity-dashboard/management/migrate-to-pubky-ring/migrateToPubkyRing";
+import { GoogleDrivePermissionPrompt } from "@/client/ui/googleDrivePermissionPrompt";
 import { RecoveryBeforeDetaching } from "./recoveryBeforeDetaching";
 import { ConfirmGoogleDetachment } from "./confirmGoogleDetachment";
 import { GoogleDetachmentComplete } from "./googleDetachmentComplete";
@@ -64,6 +65,18 @@ function DetachFromGoogleFlow({
         />
       );
     case "review": {
+      if (operation.state.status === "permission-required") {
+        return (
+          <GoogleDrivePermissionPrompt
+            mode="detach"
+            onBack={() => {
+              operation.reset();
+              setState({ view: "review", confirmation: "closed" });
+            }}
+            onTryAgain={operation.retryDetachment}
+          />
+        );
+      }
       const pending =
         operation.state.status === "requesting-authorization" ||
         operation.state.status === "detaching";

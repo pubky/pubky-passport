@@ -13,7 +13,8 @@ import {
 type GoogleIdentityOperation = (
   controller: GoogleIdentityControllerPort,
 ) => Promise<Result<unknown, GoogleIdentityViewError>>;
-type GoogleIdentityOperationName = "detach" | "establish" | "replace-invalid-file";
+type GoogleIdentityOperationName =
+  "detach" | "establish" | "replace-invalid-file" | "continue-without-visible-backup";
 type GoogleIdentityScreen = "establishment" | "detachment";
 
 const IDLE_STATE: GoogleIdentityViewState = { status: "idle" };

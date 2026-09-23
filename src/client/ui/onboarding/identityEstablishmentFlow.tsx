@@ -45,6 +45,7 @@ function IdentityEstablishmentFlow({
           onBack={google.back}
           onReplaceInvalidFile={google.replaceInvalidPassportFile}
           onTryAgain={google.establishIdentity}
+          onContinueWithoutVisibleBackup={google.continueWithoutVisibleBackup}
         />
       );
     }

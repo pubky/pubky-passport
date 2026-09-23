@@ -16,12 +16,16 @@ const EXPECTED_COPY: Record<GoogleIdentityViewError["code"], string> = {
   encrypt_failed: "Passport created an identity, but could not encrypt it for Google Drive.",
   google_account_mismatch: "Could not remove Google access. Please try again.",
   google_authorization_denied: "Passport needs access to your Google Drive to continue.",
+  google_drive_access_required:
+    "Passport needs permission to store its encrypted identity in Google Drive. Select the configuration-data checkbox and try again.",
   google_authorization_failed: "Could not connect to Google. Try again.",
   google_authorization_popup_closed:
     "The Google authorization window was closed before access was granted.",
   google_authorization_popup_failed_to_open:
     "Passport could not open the Google authorization window. Check your popup settings and try again.",
   google_drive_cleanup_failed: "Could not remove Google access. Please try again.",
+  google_detachment_permission_required:
+    "Passport needs both Google Drive permissions to delete your encrypted identity and visible recovery copies before removing Google access.",
   homeserver_signup_token_failed: "Passport could not obtain a homeserver invitation.",
   identity_mismatch: "The restored Pubky identity did not match the activated homeserver identity.",
   invalid_passport_file:
@@ -38,6 +42,8 @@ const EXPECTED_COPY: Record<GoogleIdentityViewError["code"], string> = {
   unexpected_failure: "Passport could not finish this operation. Please try again.",
   wrapping_key_failed:
     "Passport could not unlock your encrypted identity with this Google account.",
+  visible_backup_permission_missing:
+    "Passport can continue, but it will not create a visible recovery copy in Google Drive unless you grant the second permission.",
 };
 
 describe("googleIdentityErrorMessage", () => {

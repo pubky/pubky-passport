@@ -23,6 +23,7 @@ export type GoogleIdentityControllerPort = Pick<
   | "detachIdentity"
   | "dispose"
   | "establishIdentity"
+  | "continueWithoutVisibleBackup"
   | "getState"
   | "replaceInvalidPassportFile"
   | "reset"

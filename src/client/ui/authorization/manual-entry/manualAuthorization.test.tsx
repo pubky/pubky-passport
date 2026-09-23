@@ -65,9 +65,8 @@ describe("ManualAuthorization", () => {
     expect(cameraButton).toHaveClass("hidden", "md:inline-flex");
     const cameraIcon = cameraButton.querySelector("svg");
     expect(cameraIcon).toHaveAttribute("viewBox", "0 0 21.5 17.5");
-    expect(cameraIcon).toHaveAttribute("width", "21.5");
-    expect(cameraIcon).toHaveAttribute("height", "17.5");
-    expect(cameraIcon?.parentElement).toHaveClass("h-4", "w-5");
+    expect(cameraIcon).toHaveStyle({ width: "20px", height: "20px" });
+    expect(cameraIcon?.parentElement).toHaveClass("size-5", "items-center", "justify-center");
     expect(screen.getByRole("button", { name: "Paste authorization link" })).toHaveClass(
       "size-6",
       "md:size-8",

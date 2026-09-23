@@ -40,6 +40,12 @@ function googleIdentityErrorMessage(code: GoogleIdentityViewError["code"]): stri
       return "Passport could not delete the invalid identity file from Google Drive. You can try deleting it again.";
     case "google_authorization_denied":
       return "Passport needs access to your Google Drive to continue.";
+    case "google_drive_access_required":
+      return "Passport needs permission to store its encrypted identity in Google Drive. Select the configuration-data checkbox and try again.";
+    case "google_detachment_permission_required":
+      return "Passport needs both Google Drive permissions to delete your encrypted identity and visible recovery copies before removing Google access.";
+    case "visible_backup_permission_missing":
+      return "Passport can continue, but it will not create a visible recovery copy in Google Drive unless you grant the second permission.";
     case "google_authorization_popup_closed":
       return "The Google authorization window was closed before access was granted.";
     case "google_authorization_popup_failed_to_open":

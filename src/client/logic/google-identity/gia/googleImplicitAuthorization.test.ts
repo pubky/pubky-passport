@@ -71,8 +71,10 @@ describe("GoogleImplicitAuthorization", () => {
 
     await expect(request).resolves.toEqual(
       Result.ok({
+        visibleBackupPermissionGranted: true,
         googleIdToken: jwt({ sub: SUBJECT, nonce }),
         driveAccessToken: ACCESS_TOKEN,
+        driveAccessTokenExpiresAt: null,
         googleAccount: {
           googleSubject: SUBJECT,
           email: "person@example.com",
@@ -126,15 +128,58 @@ describe("GoogleImplicitAuthorization", () => {
       Result.ok({
         googleIdToken: jwt({ sub: SUBJECT, nonce: authorizeUrl.searchParams.get("nonce") }),
         driveAccessToken: ACCESS_TOKEN,
+        driveAccessTokenExpiresAt: null,
         googleAccount: {
           googleSubject: SUBJECT,
           email: "person@example.com",
           name: "Person",
           pictureUrl: null,
         },
+        visibleBackupPermissionGranted: false,
       }),
     );
     expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    { values: ["3600"], lifetime: 3_600_000 },
+    { values: ["0"], lifetime: 0 },
+    { values: [], lifetime: null },
+    { values: [""], lifetime: null },
+    { values: ["-1"], lifetime: null },
+    { values: ["1.5"], lifetime: null },
+    { values: ["Infinity"], lifetime: null },
+    { values: ["99999999999999999"], lifetime: null },
+    { values: ["3600", "7200"], lifetime: null },
+  ])("records expiry conservatively for expires_in=$values", async ({ values, lifetime }) => {
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now);
+    const popup = createPopup();
+    const open = vi.fn<typeof window.open>(() => popup.window);
+    vi.stubGlobal("open", open);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({ sub: SUBJECT, email: "person@example.com", name: "Person" }),
+      ),
+    );
+    const authorization = new GoogleImplicitAuthorization("client-id");
+    const request = authorization.request();
+    const authorizeUrl = new URL(String(open.mock.calls[0]?.[0]));
+    const response = new URLSearchParams({
+      access_token: ACCESS_TOKEN,
+      id_token: jwt({ sub: SUBJECT, nonce: authorizeUrl.searchParams.get("nonce") }),
+      scope: APP_DATA_SCOPE,
+      state: authorizeUrl.searchParams.get("state") ?? "",
+    });
+    for (const value of values) response.append("expires_in", value);
+    popup.returnTo(`${ORIGIN}/#${response}`);
+
+    const result = await request;
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isError(result)) return;
+    expect(result.value.driveAccessTokenExpiresAt).toBe(lifetime === null ? null : now + lifetime);
+    expect(result.value.visibleBackupPermissionGranted).toBe(false);
   });
 
   it("consumes only one response message", async () => {
@@ -412,6 +457,10 @@ describe("GoogleImplicitAuthorization", () => {
       await vi.advanceTimersByTimeAsync(200);
       const result = await request;
       expect(Result.isError(result)).toBe(true);
+      if (scenario === "scope" && Result.isError(result)) {
+        expect(result.error.code).toBe("google_drive_access_required");
+        expect(fetch).not.toHaveBeenCalled();
+      }
     }
   });
 

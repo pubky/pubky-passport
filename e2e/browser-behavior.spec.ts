@@ -105,7 +105,7 @@ test("the passport chrome does not overlap content in a short viewport", async (
   await page.setViewportSize({ width: 1024, height: 400 });
   await page.goto("/");
 
-  const logo = page.getByRole("img", { name: "Pubky Passport" });
+  const logo = page.getByRole("img", { name: "Pubky", exact: true });
   const heading = page.getByRole("heading", { name: "Quick & easy signing." });
   const footer = page.locator("body > footer");
   const main = page.locator("main");

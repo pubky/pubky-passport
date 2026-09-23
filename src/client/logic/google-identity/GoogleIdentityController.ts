@@ -24,7 +24,7 @@ type EstablishedGoogleIdentity =
       establishmentMode: "created";
       googleAccount: GoogleAccountProfile;
       publicIdentity: PubkyPublicIdentity;
-      visibleRecoveryCopyStatus: "created" | "unconfirmed";
+      visibleRecoveryCopyStatus: "created" | "unconfirmed" | "skipped";
     }
   | {
       establishmentMode: "restored";
@@ -59,6 +59,10 @@ type Lifecycle = Pick<
   | "dispose"
 >;
 type EstablishmentOperation = "establish" | "replace_invalid_passport_file";
+type EstablishmentOptions = {
+  allowWithoutVisibleBackup?: boolean;
+  credentials?: GoogleIdentityCredentials | undefined;
+};
 type GoogleIdentityOperation = EstablishmentOperation | "detach";
 type OperationWork<Success> = (
   credentials: GoogleIdentityCredentials,
@@ -73,12 +77,13 @@ type OperationWork<Success> = (
 type ControllerStatus = "ready" | "busy" | "disposing" | "disposed";
 
 const IDLE_STATE: GoogleIdentityViewState = { status: "idle" };
+const CREDENTIAL_EXPIRY_MARGIN_MS = 30_000;
 
 /**
  * Presentation-facing controller for one screen's Google authorization and identity flow.
  *
- * Each public operation first obtains fresh short-lived Google credentials. The
- * credentials stay in this browser object, are passed directly to the concrete
+ * New operations obtain fresh short-lived Google credentials; continuing paused setup
+ * can reuse unexpired credentials. Credentials stay in this browser object and go directly to the
  * Google-backed operation, and never enter UI state. Only one operation may run at
  * a time. Calling {@link dispose} cancels authorization and suppresses later UI
  * updates while allowing already-started cleanup to finish safely.
@@ -93,6 +98,8 @@ export class GoogleIdentityController {
   private googleAuthorization: GoogleAuthorization | undefined;
   private lifecycle: Lifecycle | undefined;
   private googleSubject: string | undefined;
+  private pendingVisibleBackupConsent:
+    { credentials: GoogleIdentityCredentials; operation: EstablishmentOperation } | undefined;
   private status: ControllerStatus = "ready";
   private state: GoogleIdentityViewState = IDLE_STATE;
   private readonly listeners = new Set<(state: GoogleIdentityViewState) => void>();
@@ -143,6 +150,19 @@ export class GoogleIdentityController {
     return this.runIdentityEstablishment("replace_invalid_passport_file");
   }
 
+  /** Continues without a visible copy, renewing expired credentials for the same Google account. */
+  async continueWithoutVisibleBackup(): Promise<EstablishGoogleIdentityResult> {
+    const pending = this.pendingVisibleBackupConsent;
+    if (!pending) return Result.err({ code: "operation_failed" });
+    const expiresAt = pending.credentials.driveAccessTokenExpiresAt;
+    const canReuseCredentials =
+      expiresAt !== null && expiresAt > Date.now() + CREDENTIAL_EXPIRY_MARGIN_MS;
+    return this.runIdentityEstablishment(pending.operation, {
+      allowWithoutVisibleBackup: true,
+      credentials: canReuseCredentials ? pending.credentials : undefined,
+    });
+  }
+
   /**
    * Deletes the Google Drive Passport files first, then removes the local identity.
    * A Google Drive failure leaves the local identity untouched.
@@ -166,6 +186,7 @@ export class GoogleIdentityController {
   /** Returns to idle and lets a new establishment flow choose a different Google account. */
   reset(): void {
     this.googleSubject = undefined;
+    this.pendingVisibleBackupConsent = undefined;
     if (this.status === "ready") this.publish(IDLE_STATE);
   }
 
@@ -175,6 +196,7 @@ export class GoogleIdentityController {
     const isOperationInFlight = this.status === "busy";
     this.status = isOperationInFlight ? "disposing" : "disposed";
     this.googleSubject = undefined;
+    this.pendingVisibleBackupConsent = undefined;
     this.listeners.clear();
     try {
       this.googleAuthorization?.dispose();
@@ -195,18 +217,30 @@ export class GoogleIdentityController {
 
   private runIdentityEstablishment(
     operation: EstablishmentOperation,
+    options: EstablishmentOptions = {},
   ): Promise<EstablishGoogleIdentityResult> {
+    const allowWithoutVisibleBackup = options.allowWithoutVisibleBackup ?? false;
     return this.runOperation(
       operation,
       undefined,
       async (credentials, lifecycle) => {
-        const progress = this.createProgressReporter();
+        let reporting = true;
+        const report = (progress: GoogleIdentityProgress) => {
+          if (reporting) this.publish({ status: "establishing", progress });
+        };
         const establishment =
           operation === "establish"
-            ? lifecycle.establishIdentity(credentials, progress.report)
-            : lifecycle.replaceInvalidPassportFile(credentials, progress.report);
-        const established = await establishment.finally(progress.stop);
-        if (Result.isError(established)) return Result.err(established.error);
+            ? lifecycle.establishIdentity(credentials, report, allowWithoutVisibleBackup)
+            : lifecycle.replaceInvalidPassportFile(credentials, report, allowWithoutVisibleBackup);
+        const established = await establishment.finally(() => {
+          reporting = false;
+        });
+        if (Result.isError(established)) {
+          if (established.error.code === "visible_backup_permission_missing" && !this.isDisposed) {
+            this.pendingVisibleBackupConsent = { credentials, operation };
+          }
+          return Result.err(established.error);
+        }
 
         // Name every field so nothing new on the lifecycle result reaches UI state unreviewed.
         const googleAccount = credentials.googleAccount;
@@ -227,6 +261,7 @@ export class GoogleIdentityController {
         }
       },
       (identity) => ({ status: "established", identity }),
+      options.credentials,
     );
   }
 
@@ -239,15 +274,26 @@ export class GoogleIdentityController {
     expectedGoogleSubject: string | undefined,
     work: OperationWork<Success>,
     toState: (value: Success) => GoogleIdentityViewState,
+    credentialsOverride?: GoogleIdentityCredentials,
   ): Promise<ResultType<Success, GoogleIdentityViewError>> {
     if (this.status !== "ready") {
       return Result.err({ code: this.status === "busy" ? "operation_failed" : "cancelled" });
     }
     this.status = "busy";
-    this.publish({ status: "requesting-authorization" });
+    this.pendingVisibleBackupConsent = undefined;
+    this.publish(
+      credentialsOverride
+        ? { status: "establishing", progress: { flow: "lookup", step: "checking" } }
+        : { status: "requesting-authorization" },
+    );
 
     try {
-      const outcome = await this.authorizeAndRun(operation, expectedGoogleSubject, work);
+      const outcome = await this.authorizeAndRun(
+        operation,
+        expectedGoogleSubject,
+        work,
+        credentialsOverride,
+      );
       return this.settle(outcome, toState);
     } catch (e) {
       LOGGER.warn("identity.google.action.failed", {
@@ -265,8 +311,11 @@ export class GoogleIdentityController {
     operation: GoogleIdentityOperation,
     expectedGoogleSubject: string | undefined,
     work: OperationWork<Success>,
+    credentialsOverride?: GoogleIdentityCredentials,
   ): Promise<ResultType<Success, GoogleIdentityError>> {
-    const authorized = await this.requestGoogleCredentials(expectedGoogleSubject);
+    const authorized = credentialsOverride
+      ? Result.ok(credentialsOverride)
+      : await this.requestGoogleCredentials(expectedGoogleSubject);
     if (Result.isError(authorized)) return Result.err(authorized.error);
     // Disposal may land between the authorization settling and this continuation.
     if (this.isDisposed) return Result.err({ code: "cancelled" });
@@ -351,21 +400,6 @@ export class GoogleIdentityController {
       });
       return Result.err({ code: "authorization_failed", cause: e });
     }
-  }
-
-  private createProgressReporter(): {
-    report: (progress: GoogleIdentityProgress) => void;
-    stop: () => void;
-  } {
-    let active = true;
-    return {
-      report: (progress) => {
-        if (active) this.publish({ status: "establishing", progress });
-      },
-      stop: () => {
-        active = false;
-      },
-    };
   }
 
   private finishOperation(): void {
