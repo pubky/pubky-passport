@@ -353,7 +353,7 @@ describe("IdentityDashboard", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Remove Google Access" }));
     const confirm = screen.getByRole("button", { name: "Confirm deletion" });
     expect(confirm).toBeDisabled();
-    await userEvent.setup().type(screen.getByLabelText("Type DELETE to confirm"), "DELETE");
+    await userEvent.setup().type(screen.getByLabelText("Type DETACH to confirm"), "DETACH");
     expect(confirm).toBeEnabled();
     await userEvent.setup().click(confirm);
 

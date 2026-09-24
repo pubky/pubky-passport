@@ -28,11 +28,11 @@ describe("ConfirmGoogleDetachment", () => {
     expect(heading).toBeInTheDocument();
     const confirm = screen.getByRole("button", { name: "Confirm deletion" });
     expect(confirm).toBeDisabled();
-    expect(screen.getByText("DELETE")).toHaveClass("text-white");
-    await userEvent.setup().type(screen.getByLabelText("Type DELETE to confirm"), "delete");
+    expect(screen.getByText("DETACH")).toHaveClass("text-white");
+    await userEvent.setup().type(screen.getByLabelText("Type DETACH to confirm"), "detach");
     expect(confirm).toBeDisabled();
-    await userEvent.setup().clear(screen.getByLabelText("Type DELETE to confirm"));
-    await userEvent.setup().type(screen.getByLabelText("Type DELETE to confirm"), "DELETE");
+    await userEvent.setup().clear(screen.getByLabelText("Type DETACH to confirm"));
+    await userEvent.setup().type(screen.getByLabelText("Type DETACH to confirm"), "DETACH");
     await userEvent.setup().click(confirm);
     expect(onConfirm).toHaveBeenCalledOnce();
   });
@@ -76,7 +76,7 @@ describe("ConfirmGoogleDetachment", () => {
 
     expect(onRetryAuthorization).toHaveBeenCalledOnce();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    const confirmation = screen.getByLabelText("Type DELETE to confirm");
+    const confirmation = screen.getByLabelText("Type DETACH to confirm");
     expect(screen.getByRole("alert")).toHaveTextContent("Could not connect to Google");
     expect(confirmation).not.toHaveAttribute("aria-invalid");
   });

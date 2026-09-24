@@ -48,7 +48,7 @@ describe("DetachFromGoogleFlow", () => {
     );
     await user.click(screen.getByRole("button", { name: "I backed up my pubky" }));
     await user.click(screen.getByRole("button", { name: "Remove Google Access" }));
-    await user.type(screen.getByLabelText("Type DELETE to confirm"), "DELETE");
+    await user.type(screen.getByLabelText("Type DETACH to confirm"), "DETACH");
     await user.click(screen.getByRole("button", { name: "Confirm deletion" }));
 
     expect(
@@ -76,7 +76,7 @@ describe("DetachFromGoogleFlow", () => {
 
     detachIdentity.mockResolvedValueOnce(Result.ok());
     await user.click(screen.getByRole("button", { name: "Remove Google Access" }));
-    await user.type(screen.getByLabelText("Type DELETE to confirm"), "DELETE");
+    await user.type(screen.getByLabelText("Type DETACH to confirm"), "DETACH");
     await user.click(screen.getByRole("button", { name: "Confirm deletion" }));
     expect(await screen.findByText(/Google access has been removed/i)).toBeInTheDocument();
   });
