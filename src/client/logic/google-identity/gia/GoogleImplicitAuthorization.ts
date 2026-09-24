@@ -30,6 +30,7 @@ type GoogleImplicitAuthorizationErrorCode =
   | "google_authorization_failed"
   | "google_drive_access_required"
   | "google_authorization_popup_closed"
+  /** Reported by the caller that opens the popup (see {@link AuthorizationPopup.openPending}). */
   | "google_authorization_popup_failed_to_open";
 type GoogleAuthorizationFailureReason =
   "authorization_disposed" | "authorization_in_progress" | "authorization_timed_out";
@@ -72,9 +73,10 @@ type AuthorizationAttemptSetup = {
  * Coordinates Passport's browser-based Google OAuth 2.0 implicit authorization flow.
  *
  * In this flow Google returns an ID token and access token directly in the redirect fragment,
- * without a separate authorization-code exchange. Each request opens a Google consent popup,
- * validates the same-origin relayed fragment against its state and nonce, and binds the returned
- * credentials to Google UserInfo. Only one authorization attempt may be active at a time.
+ * without a separate authorization-code exchange. Each request sends a popup the caller opened
+ * inside the user's click to Google consent, validates the same-origin relayed fragment against
+ * its state and nonce, and binds the returned credentials to Google UserInfo. Only one
+ * authorization attempt may be active at a time.
  *
  * Call {@link dispose} to settle an active request and release its popup, listeners, timers, and
  * in-flight profile request.
@@ -85,16 +87,20 @@ export class GoogleImplicitAuthorization {
   constructor(private readonly clientId: string) {}
 
   /**
-   * Runs one Google authorization attempt.
+   * Runs one Google authorization attempt in `popup`, which the caller opened with
+   * {@link AuthorizationPopup.openPending}. The request owns the popup from here and closes it
+   * however the attempt ends.
    *
    * The promise settles with a Result for setup, popup, provider-response, and UserInfo
    * failures. It does not intentionally reject. Passing a login hint asks Google to select that
    * account but does not replace the ID-token and UserInfo account-binding checks.
    */
   request(
+    popup: AuthorizationPopup,
     loginHint?: string,
   ): Promise<GoogleImplicitAuthorizationResult<GoogleIdentityCredentials>> {
     if (this.activeAttempt) {
+      popup.close();
       LOGGER.warn("identity.google.implicit_authorization.failed", {
         operation: "authorize",
         stage: "request",
@@ -105,7 +111,6 @@ export class GoogleImplicitAuthorization {
         Result.err({ code: "google_authorization_failed", reason: "authorization_in_progress" }),
       );
     }
-    let popup: AuthorizationPopup | null = null;
     try {
       const origin = globalThis.location.origin;
       const state = randomBase64Url(32);
@@ -124,18 +129,10 @@ export class GoogleImplicitAuthorization {
         ...(loginHint ? { login_hint: loginHint } : {}),
       }).toString();
 
-      popup = AuthorizationPopup.open(url, `pubky-passport-google-${state}`);
-      if (!popup) {
-        LOGGER.warn("identity.google.implicit_authorization.failed", {
-          operation: "authorize",
-          stage: "popup",
-          code: "google_authorization_popup_failed_to_open",
-        });
-        return Promise.resolve(Result.err({ code: "google_authorization_popup_failed_to_open" }));
-      }
+      popup.navigate(url);
       return this.startAuthorizationAttempt({ abortController, nonce, origin, popup, state });
     } catch (e) {
-      popup?.close();
+      popup.close();
       LOGGER.warn("identity.google.implicit_authorization.failed", {
         operation: "authorize",
         stage: "request_setup",
