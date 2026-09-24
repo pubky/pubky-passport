@@ -9,9 +9,8 @@ function GoogleDetachmentComplete({ onDone }: { onDone: () => void }) {
   return (
     <PassportScreen className="gap-6 md:gap-8">
       <div className="flex flex-col gap-6 md:gap-3">
-        <DisplayHeading accent="from Google.">
-          <span className="md:hidden">Detached</span>
-          <span className="hidden md:inline">Detach</span>
+        <DisplayHeading accent="from Google." aria-label="Detached from Google.">
+          Detached
         </DisplayHeading>
         <LeadText>
           Google access has been removed. Your identity is self-managed, and recoverable only with
