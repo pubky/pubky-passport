@@ -98,21 +98,22 @@ function GoogleIdentityError({
               </div>
               <div
                 aria-label="Desktop error actions"
-                className="hidden w-full grid-cols-(--passport-error-actions-compact-columns) gap-3 md:grid md:gap-x-6"
+                className="hidden w-full grid-cols-(--passport-error-actions-columns) gap-3 md:grid md:gap-x-6"
                 role="group"
               >
+                <BackButton className="md:col-start-1 md:row-start-1" onClick={onBack} />
                 <Button
-                  className="w-full md:col-start-1 md:row-start-1"
+                  className="w-full md:col-start-2 md:row-start-1"
                   onClick={() => setConfirmationOpen(true)}
                   size="lg"
                   type="button"
                   variant="destructive"
                 >
                   <TrashIcon />
-                  Delete file and create new identity
+                  Delete &amp; create new
                 </Button>
                 <Button
-                  className="w-full md:col-start-2 md:row-start-1"
+                  className="w-full md:col-start-3 md:row-start-1"
                   onClick={onTryAgain}
                   size="lg"
                   type="button"
@@ -120,7 +121,6 @@ function GoogleIdentityError({
                   <RotateCcwIcon />
                   Try again
                 </Button>
-                <BackButton className="md:col-start-1 md:row-start-2" onClick={onBack} />
               </div>
             </>
           ) : (

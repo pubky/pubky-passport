@@ -406,7 +406,7 @@ describe("IdentityEstablishmentFlow", () => {
     });
     const mobileBack = within(mobileActions).getByRole("button", { name: "Back" });
     const desktopDelete = within(desktopActions).getByRole("button", {
-      name: "Delete file and create new identity",
+      name: "Delete & create new",
     });
     const desktopTryAgain = within(desktopActions).getByRole("button", { name: "Try again" });
     const desktopBack = within(desktopActions).getByRole("button", { name: "Back" });
@@ -416,27 +416,27 @@ describe("IdentityEstablishmentFlow", () => {
       mobileBack,
     ]);
     expect(within(desktopActions).getAllByRole("button")).toEqual([
+      desktopBack,
       desktopDelete,
       desktopTryAgain,
-      desktopBack,
     ]);
     expect(mobileActions).toHaveClass("mt-auto", "md:hidden");
     expect(mobileActions.parentElement).toHaveClass("min-h-0", "flex-1");
     expect(desktopActions).toHaveClass(
       "hidden",
       "md:grid",
-      "grid-cols-(--passport-error-actions-compact-columns)",
+      "grid-cols-(--passport-error-actions-columns)",
       "md:gap-x-6",
     );
     expect(mobileDelete).toHaveClass("bg-destructive-surface", "text-destructive-foreground");
     expect(desktopDelete).toHaveClass(
       "bg-destructive-surface",
       "text-destructive-foreground",
-      "md:col-start-1",
+      "md:col-start-2",
       "md:row-start-1",
     );
-    expect(desktopTryAgain).toHaveClass("md:col-start-2", "md:row-start-1");
-    expect(desktopBack).toHaveClass("md:col-start-1", "md:row-start-2");
+    expect(desktopTryAgain).toHaveClass("md:col-start-3", "md:row-start-1");
+    expect(desktopBack).toHaveClass("md:col-start-1", "md:row-start-1");
     await user.click(mobileDelete);
 
     const confirmation = screen.getByRole("textbox", { name: "Type DELETE to confirm" });
@@ -500,7 +500,7 @@ describe("IdentityEstablishmentFlow", () => {
     ).toBeInTheDocument();
     await user.click(
       within(screen.getByRole("group", { name: "Desktop error actions" })).getByRole("button", {
-        name: "Delete file and create new identity",
+        name: "Delete & create new",
       }),
     );
 
@@ -525,7 +525,7 @@ describe("IdentityEstablishmentFlow", () => {
 
     await user.click(
       within(screen.getByRole("group", { name: "Desktop error actions" })).getByRole("button", {
-        name: "Delete file and create new identity",
+        name: "Delete & create new",
       }),
     );
     expect(

@@ -41,7 +41,6 @@
   --passport-recovery-body-min-height: 224px;
   --passport-navigation-columns: 120px 1fr 228px;
   --passport-error-actions-columns: 120px 1fr 148px;
-  --passport-error-actions-compact-columns: 1fr 148px;
   --passport-overview-columns: 96px 1fr;
   --passport-overview-rows: minmax(104px, auto) minmax(60px, auto) minmax(40px, auto);
   --radius: 0.625rem;
