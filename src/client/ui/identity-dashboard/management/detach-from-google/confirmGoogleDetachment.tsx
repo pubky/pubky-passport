@@ -25,7 +25,7 @@ function ConfirmGoogleDetachment({
   return (
     <ConfirmDeletionDialog
       canConfirm={canConfirm}
-      confirmLabel="Confirm deletion"
+      confirmLabel="Confirm detachment"
       confirmationWord="DETACH"
       error={error === null ? undefined : googleIdentityErrorMessage(error.code)}
       errorDetails={error === null ? undefined : <GoogleIdentityErrorDetails error={error} />}

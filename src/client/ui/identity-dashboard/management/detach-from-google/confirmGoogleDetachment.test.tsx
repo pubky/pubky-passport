@@ -26,7 +26,7 @@ describe("ConfirmGoogleDetachment", () => {
 
     const heading = await screen.findByRole("heading", { name: "Remove Google Access" });
     expect(heading).toBeInTheDocument();
-    const confirm = screen.getByRole("button", { name: "Confirm deletion" });
+    const confirm = screen.getByRole("button", { name: "Confirm detachment" });
     expect(confirm).toBeDisabled();
     expect(screen.getByText("DETACH")).toHaveClass("text-white");
     await userEvent.setup().type(screen.getByLabelText("Type DETACH to confirm"), "detach");

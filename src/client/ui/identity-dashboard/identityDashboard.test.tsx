@@ -351,7 +351,7 @@ describe("IdentityDashboard", () => {
     expect(screen.getByRole("heading", { name: "Detach from Google." })).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Remove Google Access" })).not.toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Remove Google Access" }));
-    const confirm = screen.getByRole("button", { name: "Confirm deletion" });
+    const confirm = screen.getByRole("button", { name: "Confirm detachment" });
     expect(confirm).toBeDisabled();
     await userEvent.setup().type(screen.getByLabelText("Type DETACH to confirm"), "DETACH");
     expect(confirm).toBeEnabled();
