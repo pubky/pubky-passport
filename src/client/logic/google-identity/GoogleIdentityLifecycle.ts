@@ -61,6 +61,15 @@ type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityLifecycleError>
 
 type EstablishmentStepResult<Success = void> = ResultType<Success, GoogleIdentityLifecycleError>;
 
+/**
+ * How {@link GoogleIdentityLifecycle.signupAndActivate} treats a definitive signup: a new
+ * identity republishes PKDNS in the background and signs in at once, a reconciliation keeps the
+ * awaited publish and blocking sign-in.
+ */
+type ActivationMode =
+  | { reconciliation: true }
+  | { reconciliation: false; onBackgroundRepublish: (republish: Promise<void>) => void };
+
 export type DriveStorePort = Pick<
   GoogleDrivePassportFileStore,
   "readPassportFile" | "deleteInvalidPassportFile" | "createPassportFile" | "deletePassportFile"
@@ -386,7 +395,8 @@ export class GoogleIdentityLifecycle {
 
   /**
    * Creates the encrypted Drive file before attempting homeserver activation. Once
-   * that authoritative file exists it is preserved on every later failure.
+   * that authoritative file exists it is preserved on every later failure. The visible
+   * recovery copy uploads while the homeserver work runs; it is never on the activation path.
    */
   private async createIdentity(
     googleAccount: GoogleAccountProfile,
@@ -405,13 +415,13 @@ export class GoogleIdentityLifecycle {
     }
     LOGGER.info("identity.google.create_key.completed");
 
+    const background: { republish: Promise<void> | undefined } = { republish: undefined };
     try {
       const secretKey = await this.pubky.exportSecretKey(created.value.keyHandle);
       if (Result.isError(secretKey)) {
         return Result.err({ code: "create_failed", cause: secretKey.error });
       }
 
-      let visibleRecoveryCopyStatus: "created" | "unconfirmed" | "skipped" = "created";
       report({ flow: "create", step: "storing_passport_file" });
       LOGGER.info("identity.google.encrypt.started");
       const encrypted = await this.crypto
@@ -438,34 +448,31 @@ export class GoogleIdentityLifecycle {
       }
       LOGGER.info("identity.google.operational_drive_write.completed");
 
-      if (!visibleCopies) {
-        visibleRecoveryCopyStatus = "skipped";
-      } else {
+      let visibleCopy: Promise<boolean> | undefined;
+      if (visibleCopies) {
         LOGGER.info("identity.google.visible_recovery_copy.started");
-        const visibleCopyConfirmed = await this.createVisibleRecoveryCopy(
+        visibleCopy = this.createVisibleRecoveryCopy(
           visibleCopies,
           envelope,
           created.value.publicIdentity,
         );
-        if (!visibleCopyConfirmed) {
-          visibleRecoveryCopyStatus = "unconfirmed";
-          LOGGER.warn("identity.google.visible_recovery_copy.unconfirmed", {
-            activationContinues: true,
-          });
-        }
       }
-      LOGGER.info("identity.google.visible_recovery_copy.completed", {
-        status: visibleRecoveryCopyStatus,
-      });
 
       const activated = await this.signupAndActivate(
         created.value,
         signupDetails,
         googleAccount,
         report,
+        {
+          reconciliation: false,
+          onBackgroundRepublish: (republish) => {
+            background.republish = republish;
+          },
+        },
       );
       if (Result.isError(activated)) return Result.err(activated.error);
 
+      const visibleRecoveryCopyStatus = await this.settleVisibleRecoveryCopy(visibleCopy);
       LOGGER.info("identity.google.create.completed", { visibleRecoveryCopyStatus });
       return Result.ok({
         establishmentMode: "created",
@@ -473,8 +480,31 @@ export class GoogleIdentityLifecycle {
         visibleRecoveryCopyStatus,
       });
     } finally {
-      this.disposeIdentityKey(created.value, "created_key_dispose");
+      // A background republish still signs with this key; free it once that settles.
+      if (background.republish) {
+        void background.republish.finally(() =>
+          this.disposeIdentityKey(created.value, "created_key_dispose"),
+        );
+      } else {
+        this.disposeIdentityKey(created.value, "created_key_dispose");
+      }
     }
+  }
+
+  private async settleVisibleRecoveryCopy(
+    visibleCopy: Promise<boolean> | undefined,
+  ): Promise<"created" | "unconfirmed" | "skipped"> {
+    let status: "created" | "unconfirmed" | "skipped" = "skipped";
+    if (visibleCopy) {
+      status = (await visibleCopy) ? "created" : "unconfirmed";
+      if (status === "unconfirmed") {
+        LOGGER.warn("identity.google.visible_recovery_copy.unconfirmed", {
+          activationCompleted: true,
+        });
+      }
+    }
+    LOGGER.info("identity.google.visible_recovery_copy.completed", { status });
+    return status;
   }
 
   /**
@@ -532,7 +562,7 @@ export class GoogleIdentityLifecycle {
         signupDetails.value,
         credentials.googleAccount,
         report,
-        true,
+        { reconciliation: true },
       );
       if (Result.isError(activated)) return Result.err(activated.error);
       return Result.ok({
@@ -577,17 +607,19 @@ export class GoogleIdentityLifecycle {
   }
 
   /**
-   * Shared activation for new and interrupted identities. Signup conflict means the
-   * account already exists. Ambiguous signup or publication failures are verified
-   * through blocking sign-in before they are treated as fatal.
+   * Shared activation for new and interrupted identities. The SDK's signup publishes PKDNS
+   * itself, so a definitive new signup only republishes in the background and signs in without
+   * waiting. Signup conflict means the account already exists. Ambiguous signup or publication
+   * failures are verified through blocking sign-in before they are treated as fatal.
    */
   private async signupAndActivate(
     identity: PubkyIdentityKey,
     signupDetails: HomeserverSignupDetails,
     googleAccount: GoogleAccountProfile,
     report: (progress: GoogleIdentityProgress) => void,
-    isReconciliation = false,
+    activation: ActivationMode,
   ): Promise<EstablishmentStepResult> {
+    const isReconciliation = activation.reconciliation;
     if (!isReconciliation) report({ flow: "create", step: "signing_up" });
     LOGGER.info("identity.google.signup.started");
     const signedUp = await this.pubky.signup(
@@ -607,6 +639,15 @@ export class GoogleIdentityLifecycle {
     LOGGER.info("identity.google.signup.completed", {
       status: Result.isError(signedUp) ? signedUp.error.code : "created",
     });
+    if (!activation.reconciliation && !Result.isError(signedUp)) {
+      return this.activateAfterSignup(
+        identity,
+        signupDetails,
+        googleAccount,
+        report,
+        activation.onBackgroundRepublish,
+      );
+    }
 
     report(
       isReconciliation
@@ -639,6 +680,34 @@ export class GoogleIdentityLifecycle {
             : "signin_failed",
         cause: signedIn.error,
       });
+    }
+    const verified = this.verifySessionIdentity(identity, signedIn.value.publicIdentity);
+    if (Result.isError(verified)) return Result.err(verified.error);
+    return this.saveIdentity(identity, googleAccount, "homeserver_signup");
+  }
+
+  /**
+   * A definitive signup has already published PKDNS. The forced republish is insurance that
+   * runs in the background; the caller must let it settle before freeing the key.
+   */
+  private async activateAfterSignup(
+    identity: PubkyIdentityKey,
+    signupDetails: HomeserverSignupDetails,
+    googleAccount: GoogleAccountProfile,
+    report: (progress: GoogleIdentityProgress) => void,
+    onBackgroundRepublish: (republish: Promise<void>) => void,
+  ): Promise<EstablishmentStepResult> {
+    LOGGER.info("identity.google.publication.started", { background: true });
+    const republish = startHomeserverRepublish(() =>
+      this.pubky.publishHomeserver(identity.keyHandle, signupDetails.homeserverPubky),
+    );
+    this.homeserverRepublish = republish;
+    onBackgroundRepublish(republish);
+
+    report({ flow: "create", step: "activating" });
+    const signedIn = await this.pubky.signin(identity.keyHandle, "normal");
+    if (Result.isError(signedIn)) {
+      return Result.err({ code: "signin_failed", cause: signedIn.error });
     }
     const verified = this.verifySessionIdentity(identity, signedIn.value.publicIdentity);
     if (Result.isError(verified)) return Result.err(verified.error);
