@@ -1,22 +1,20 @@
 import type { GoogleIdentityProgress as GoogleIdentityProgressState } from "@/client/logic/google-identity/GoogleIdentityController";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
-import { Button } from "@/client/ui/shared/primitives/button";
-import { Spinner } from "@/client/ui/shared/primitives/spinner";
-import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
+import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
 
 type StepState = "complete" | "active" | "pending";
 type SetupStep = { label: string; state: StepState };
 type ProgressPresentation = {
-  heading: "Setting up" | "Restoring" | "Repairing";
+  heading: "Looking for" | "Setting up" | "Restoring" | "Repairing";
   listLabel: string;
   steps: SetupStep[];
 };
 
+/**
+ * One screen for every establishment phase. The Drive lookup is the first step of each flow;
+ * the heading and the remaining steps follow whichever action the lookup led to.
+ */
 function GoogleIdentityProgress({ progress }: { progress: GoogleIdentityProgressState }) {
-  if (progress.flow === "lookup") {
-    return <IdentityLookup />;
-  }
-
   const presentation = progressPresentation(progress);
   const activeStep = presentation.steps.find((step) => step.state === "active");
 
@@ -38,38 +36,6 @@ function GoogleIdentityProgress({ progress }: { progress: GoogleIdentityProgress
             <ProgressStep key={step.label} step={step} />
           ))}
         </ol>
-      </div>
-    </PassportScreen>
-  );
-}
-
-function IdentityLookup() {
-  return (
-    <PassportScreen className="gap-6 md:gap-8">
-      <div className="flex flex-col gap-6 md:gap-3">
-        <DisplayHeading
-          accent={<span className="md:whitespace-nowrap">existing Pubky.</span>}
-          aria-label="Looking for existing Pubky."
-        >
-          Looking for
-        </DisplayHeading>
-        <LeadText>Checking Google Drive for an encrypted Passport file.</LeadText>
-      </div>
-      <div role="status">
-        <Button
-          className="w-full md:w-[249px]"
-          disabled
-          size="lg"
-          type="button"
-          variant="secondary"
-        >
-          <Spinner
-            aria-hidden="true"
-            className="size-4 motion-reduce:animate-none"
-            role="presentation"
-          />
-          Checking Google Drive...
-        </Button>
       </div>
     </PassportScreen>
   );
@@ -104,10 +70,16 @@ function ProgressStep({ step }: { step: SetupStep }) {
   );
 }
 
-function progressPresentation(
-  progress: Exclude<GoogleIdentityProgressState, { flow: "lookup" }>,
-): ProgressPresentation {
+const LOOKUP_STEP = "Check Google Drive for a backup";
+
+function progressPresentation(progress: GoogleIdentityProgressState): ProgressPresentation {
   switch (progress.flow) {
+    case "lookup":
+      return {
+        heading: "Looking for",
+        listLabel: "Pubky identity lookup progress",
+        steps: states([LOOKUP_STEP], 0),
+      };
     case "create":
       return setupPresentation(CREATE_STEP_INDEX[progress.step]);
     case "restore":
@@ -137,11 +109,16 @@ const REPAIR_STEP_INDEX = {
   signing_in: 3,
 } satisfies Record<Extract<GoogleIdentityProgressState, { flow: "repair" }>["step"], number>;
 
+/** Every flow starts with the completed Drive lookup, so flow indexes are offset by one. */
+function flowSteps(labels: string[], activeIndex: number): SetupStep[] {
+  return states([LOOKUP_STEP, ...labels], activeIndex + 1);
+}
+
 function restorePresentation(activeIndex: number): ProgressPresentation {
   return {
     heading: "Restoring",
     listLabel: "Pubky identity restore progress",
-    steps: states(["Restore encrypted backup", "Sign in to the homeserver"], activeIndex),
+    steps: flowSteps(["Restore encrypted backup", "Sign in to the homeserver"], activeIndex),
   };
 }
 
@@ -149,7 +126,7 @@ function repairPresentation(activeIndex: number): ProgressPresentation {
   return {
     heading: "Repairing",
     listLabel: "Pubky identity repair progress",
-    steps: states(
+    steps: flowSteps(
       [
         "Restore encrypted backup",
         "Repair homeserver access",
@@ -165,7 +142,7 @@ function setupPresentation(activeIndex: number): ProgressPresentation {
   return {
     heading: "Setting up",
     listLabel: "Pubky identity setup progress",
-    steps: states(
+    steps: flowSteps(
       [
         "Store encrypted backup",
         "Sign up to the homeserver",

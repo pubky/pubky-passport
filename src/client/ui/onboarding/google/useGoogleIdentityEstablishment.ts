@@ -16,8 +16,14 @@ type GoogleIdentityEstablishmentView =
       status: "complete";
       googleAccount: GoogleAccountProfile;
       identity: PubkyPublicIdentity;
-      mode: "created" | "restored";
-      visibleRecoveryCopyStatus: "created" | "unconfirmed" | "skipped" | null;
+      mode: "created";
+      visibleRecoveryCopyStatus: "created" | "unconfirmed" | "skipped";
+    }
+  | {
+      status: "complete";
+      googleAccount: GoogleAccountProfile;
+      identity: PubkyPublicIdentity;
+      mode: "restored";
     };
 
 function useGoogleIdentityEstablishment() {
@@ -50,16 +56,20 @@ function toEstablishmentView(state: GoogleIdentityViewState): GoogleIdentityEsta
     case "failed":
       return { status: "failed", error: state.error };
     case "established":
-      return {
-        status: "complete",
-        googleAccount: state.identity.googleAccount,
-        identity: state.identity.publicIdentity,
-        mode: state.identity.establishmentMode,
-        visibleRecoveryCopyStatus:
-          state.identity.establishmentMode === "created"
-            ? state.identity.visibleRecoveryCopyStatus
-            : null,
-      };
+      return state.identity.establishmentMode === "created"
+        ? {
+            status: "complete",
+            googleAccount: state.identity.googleAccount,
+            identity: state.identity.publicIdentity,
+            mode: "created",
+            visibleRecoveryCopyStatus: state.identity.visibleRecoveryCopyStatus,
+          }
+        : {
+            status: "complete",
+            googleAccount: state.identity.googleAccount,
+            identity: state.identity.publicIdentity,
+            mode: "restored",
+          };
     case "idle":
     case "detaching":
     case "detached":
