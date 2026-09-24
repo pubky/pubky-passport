@@ -44,6 +44,7 @@ function IdentityEstablishmentFlow({
           error={view.error}
           onBack={google.back}
           onReplaceInvalidFile={google.replaceInvalidPassportFile}
+          onReplaceUndecryptableFile={google.replaceUndecryptablePassportFile}
           onTryAgain={google.establishIdentity}
           onContinueWithoutVisibleBackup={google.continueWithoutVisibleBackup}
         />

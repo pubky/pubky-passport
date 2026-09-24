@@ -32,6 +32,8 @@ const EXPECTED_COPY: Record<GoogleIdentityViewError["code"], string> = {
     "Passport found your encrypted identity file in Google Drive, but it is damaged and cannot be restored.",
   invalid_passport_file_delete_failed:
     "Passport could not delete the invalid identity file from Google Drive. You can try deleting it again.",
+  undecryptable_passport_file_delete_failed:
+    "Passport could not delete the identity file it cannot decrypt from Google Drive. You can try deleting it again.",
   local_remove_failed: "Could not remove Google access. Please try again.",
   local_save_failed: "Your identity was activated, but could not be saved in this browser.",
   operation_failed: "Passport could not finish this operation. Please try again.",

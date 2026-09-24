@@ -16,6 +16,7 @@ type MockOperations = Pick<
   | "dispose"
   | "establishIdentity"
   | "replaceInvalidPassportFile"
+  | "replaceUndecryptablePassportFile"
   | "continueWithoutVisibleBackup"
 >;
 
@@ -39,6 +40,9 @@ export function mockGoogleIdentityController(
     vi.fn(async () => Result.err({ code: "authorization_failed" as const }));
   const replaceInvalidPassportFile: MockOperations["replaceInvalidPassportFile"] =
     overrides.replaceInvalidPassportFile ??
+    vi.fn(async () => Result.err({ code: "authorization_failed" as const }));
+  const replaceUndecryptablePassportFile: MockOperations["replaceUndecryptablePassportFile"] =
+    overrides.replaceUndecryptablePassportFile ??
     vi.fn(async () => Result.err({ code: "authorization_failed" as const }));
   const detachIdentity: MockOperations["detachIdentity"] =
     overrides.detachIdentity ??
@@ -81,6 +85,10 @@ export function mockGoogleIdentityController(
       identity,
     })),
     replaceInvalidPassportFile: publishing(replaceInvalidPassportFile, (identity) => ({
+      status: "established",
+      identity,
+    })),
+    replaceUndecryptablePassportFile: publishing(replaceUndecryptablePassportFile, (identity) => ({
       status: "established",
       identity,
     })),

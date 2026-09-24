@@ -15,6 +15,7 @@ const MOCKS = {
   disposeLifecycle: vi.fn(),
   establishIdentity: vi.fn(),
   replaceInvalidPassportFile: vi.fn(),
+  replaceUndecryptablePassportFile: vi.fn(),
   requestAuthorization: vi.fn(),
 };
 
@@ -51,6 +52,13 @@ describe("GoogleIdentityController", () => {
     });
     MOCKS.detachIdentity.mockResolvedValue(Result.ok());
     MOCKS.replaceInvalidPassportFile.mockResolvedValue(
+      Result.ok({
+        establishmentMode: "created" as const,
+        publicIdentity: PUBLIC_IDENTITY,
+        visibleRecoveryCopyStatus: "created" as const,
+      }),
+    );
+    MOCKS.replaceUndecryptablePassportFile.mockResolvedValue(
       Result.ok({
         establishmentMode: "created" as const,
         publicIdentity: PUBLIC_IDENTITY,
@@ -115,7 +123,11 @@ describe("GoogleIdentityController", () => {
     expect(MOCKS.requestAuthorization).toHaveBeenCalledTimes(2);
   });
 
-  it.each(["establishIdentity", "replaceInvalidPassportFile"] as const)(
+  it.each([
+    "establishIdentity",
+    "replaceInvalidPassportFile",
+    "replaceUndecryptablePassportFile",
+  ] as const)(
     "renews expired credentials when continuing %s without prompting again",
     async (method) => {
       const controller = createController();
@@ -295,6 +307,7 @@ describe("GoogleIdentityController", () => {
         dispose: MOCKS.disposeLifecycle,
         establishIdentity: MOCKS.establishIdentity,
         replaceInvalidPassportFile: MOCKS.replaceInvalidPassportFile,
+        replaceUndecryptablePassportFile: MOCKS.replaceUndecryptablePassportFile,
       }),
     );
     const states = recordStates(controller);
@@ -672,6 +685,33 @@ describe("GoogleIdentityController", () => {
     );
   });
 
+  it("replaces an undecryptable file with the pinned Google account and returns the created identity", async () => {
+    const controller = createController();
+    MOCKS.establishIdentity.mockResolvedValueOnce(Result.err({ code: "decrypt_failed" as const }));
+    await controller.establishIdentity();
+
+    await expect(controller.replaceUndecryptablePassportFile()).resolves.toEqual(
+      Result.ok({
+        establishmentMode: "created",
+        googleAccount: GOOGLE_ACCOUNT,
+        publicIdentity: PUBLIC_IDENTITY,
+        visibleRecoveryCopyStatus: "created",
+      }),
+    );
+
+    expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(
+      2,
+      expect.any(AuthorizationPopup),
+      GOOGLE_ACCOUNT.googleSubject,
+    );
+    expect(MOCKS.replaceUndecryptablePassportFile).toHaveBeenCalledWith(
+      CREDENTIALS,
+      expect.any(Function),
+      false,
+    );
+    expect(MOCKS.replaceInvalidPassportFile).not.toHaveBeenCalled();
+  });
+
   it("rejects a different Google account before invalid-file replacement", async () => {
     const controller = createController();
     MOCKS.establishIdentity.mockResolvedValueOnce(
@@ -797,6 +837,7 @@ function createController(): GoogleIdentityController {
       dispose: MOCKS.disposeLifecycle,
       establishIdentity: MOCKS.establishIdentity,
       replaceInvalidPassportFile: MOCKS.replaceInvalidPassportFile,
+      replaceUndecryptablePassportFile: MOCKS.replaceUndecryptablePassportFile,
     }),
   );
 }

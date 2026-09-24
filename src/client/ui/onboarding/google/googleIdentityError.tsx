@@ -14,24 +14,34 @@ import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 
+/** A confirmed deletion of the Drive identity file followed by creation of a new identity. */
+type PassportFileReplacement = {
+  id: string;
+  description: string;
+  error: string | undefined;
+  onConfirm: () => void;
+};
+
 function GoogleIdentityError({
   error,
   onBack,
   onReplaceInvalidFile,
+  onReplaceUndecryptableFile,
   onTryAgain,
   onContinueWithoutVisibleBackup,
 }: {
   error: GoogleIdentityViewError;
   onBack: () => void;
   onReplaceInvalidFile?: (() => void) | undefined;
+  onReplaceUndecryptableFile?: (() => void) | undefined;
   onTryAgain: () => void;
   onContinueWithoutVisibleBackup?: (() => void) | undefined;
 }) {
   const [confirmationOpen, setConfirmationOpen] = useState(false);
-  const replaceInvalidFile =
-    error.code === "invalid_passport_file" || error.code === "invalid_passport_file_delete_failed"
-      ? onReplaceInvalidFile
-      : undefined;
+  const replacement = passportFileReplacement(error.code, {
+    onReplaceInvalidFile,
+    onReplaceUndecryptableFile,
+  });
 
   if (error.code === "google_authorization_denied") {
     return <GoogleAccessDenied onBack={onBack} onTryAgain={onTryAgain} />;
@@ -63,7 +73,7 @@ function GoogleIdentityError({
 
         <div className="flex min-h-0 flex-1 flex-col gap-6">
           <GoogleIdentityErrorDetails error={error} />
-          {replaceInvalidFile ? (
+          {replacement ? (
             <>
               <div
                 aria-label="Mobile error actions"
@@ -147,24 +157,63 @@ function GoogleIdentityError({
         </div>
       </PassportScreen>
 
-      {replaceInvalidFile ? (
+      {replacement ? (
         <ConfirmDeletionDialog
           confirmLabel="Delete and create new identity"
-          description="Passport will delete the invalid file from Google Drive and automatically create a new Pubky identity. This cannot be undone."
-          error={
-            error.code === "invalid_passport_file_delete_failed"
-              ? "Passport could not delete the invalid identity file. Please try again."
-              : undefined
-          }
-          id="replace-invalid-passport-file"
+          description={replacement.description}
+          error={replacement.error}
+          id={replacement.id}
           onCancel={() => setConfirmationOpen(false)}
-          onConfirm={replaceInvalidFile}
+          onConfirm={replacement.onConfirm}
           open={confirmationOpen}
           title="Permanently replace identity?"
         />
       ) : null}
     </>
   );
+}
+
+/**
+ * Only file conditions Passport has verified itself offer replacement: a file that does not
+ * parse, or one that parses but cannot be decrypted for the signed-in Google account.
+ */
+function passportFileReplacement(
+  code: GoogleIdentityViewError["code"],
+  actions: {
+    onReplaceInvalidFile: (() => void) | undefined;
+    onReplaceUndecryptableFile: (() => void) | undefined;
+  },
+): PassportFileReplacement | undefined {
+  switch (code) {
+    case "invalid_passport_file":
+    case "invalid_passport_file_delete_failed":
+      if (!actions.onReplaceInvalidFile) return undefined;
+      return {
+        id: "replace-invalid-passport-file",
+        description:
+          "Passport will delete the invalid file from Google Drive and automatically create a new Pubky identity. This cannot be undone.",
+        error:
+          code === "invalid_passport_file_delete_failed"
+            ? "Passport could not delete the invalid identity file. Please try again."
+            : undefined,
+        onConfirm: actions.onReplaceInvalidFile,
+      };
+    case "decrypt_failed":
+    case "undecryptable_passport_file_delete_failed":
+      if (!actions.onReplaceUndecryptableFile) return undefined;
+      return {
+        id: "replace-undecryptable-passport-file",
+        description:
+          "Passport will delete the identity file it cannot decrypt from Google Drive and automatically create a new Pubky identity. The Pubky stored in that file will no longer be recoverable from this Google account. This cannot be undone.",
+        error:
+          code === "undecryptable_passport_file_delete_failed"
+            ? "Passport could not delete the identity file. Please try again."
+            : undefined,
+        onConfirm: actions.onReplaceUndecryptableFile,
+      };
+    default:
+      return undefined;
+  }
 }
 
 function GoogleAccessDenied({

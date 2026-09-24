@@ -451,6 +451,93 @@ describe("IdentityEstablishmentFlow", () => {
     expect(await screen.findByRole("heading", { name: "Setup complete." })).toBeInTheDocument();
   });
 
+  it("offers to delete an identity file Passport cannot decrypt and creates a new identity", async () => {
+    const googleAccount = {
+      googleSubject: "google-account",
+      email: "user@example.com",
+      name: "User",
+      pictureUrl: null,
+    };
+    const replaceInvalidPassportFile = vi.fn(async () =>
+      Result.err({ code: "operation_failed" as const }),
+    );
+    const replaceUndecryptablePassportFile = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Result.err({ code: "undecryptable_passport_file_delete_failed" as const }),
+      )
+      .mockResolvedValueOnce(
+        Result.ok({
+          establishmentMode: "created" as const,
+          googleAccount,
+          publicIdentity: { publicKeyZ32: "new-key" },
+          visibleRecoveryCopyStatus: "created" as const,
+        }),
+      );
+    useController(
+      mockGoogleIdentityController({
+        establishIdentity: vi.fn(async () => Result.err({ code: "decrypt_failed" as const })),
+        replaceInvalidPassportFile,
+        replaceUndecryptablePassportFile,
+      }),
+    );
+    render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "Continue with Google" }));
+
+    expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
+    expect(
+      screen.getByText("Passport found your encrypted identity, but could not decrypt it."),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("group", { name: "Error" })).getByText("decrypt_failed"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("group", { name: "Mobile error actions" })).getByRole("button", {
+        name: "Delete backup & create new pubky",
+      }),
+    ).toBeInTheDocument();
+    await user.click(
+      within(screen.getByRole("group", { name: "Desktop error actions" })).getByRole("button", {
+        name: "Delete file and create new identity",
+      }),
+    );
+
+    expect(
+      screen.getByText(/no longer be recoverable from this Google account/),
+    ).toBeInTheDocument();
+    await user.type(screen.getByRole("textbox", { name: "Type DELETE to confirm" }), "DELETE");
+    await user.click(screen.getByRole("button", { name: "Delete and create new identity" }));
+
+    expect(replaceUndecryptablePassportFile).toHaveBeenCalledOnce();
+    expect(replaceInvalidPassportFile).not.toHaveBeenCalled();
+    expect(
+      await screen.findByText(
+        "Passport could not delete the identity file it cannot decrypt from Google Drive. You can try deleting it again.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("group", { name: "Error" })).getByText(
+        "undecryptable_passport_file_delete_failed",
+      ),
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(screen.getByRole("group", { name: "Desktop error actions" })).getByRole("button", {
+        name: "Delete file and create new identity",
+      }),
+    );
+    expect(
+      screen.getByText("Passport could not delete the identity file. Please try again."),
+    ).toBeInTheDocument();
+    await user.type(screen.getByRole("textbox", { name: "Type DELETE to confirm" }), "DELETE");
+    await user.click(screen.getByRole("button", { name: "Delete and create new identity" }));
+
+    expect(replaceUndecryptablePassportFile).toHaveBeenCalledTimes(2);
+    expect(await screen.findByRole("heading", { name: "Setup complete." })).toBeInTheDocument();
+  });
+
   it("resets the controller when returning from an establishment failure", async () => {
     const establishIdentity = vi
       .fn()

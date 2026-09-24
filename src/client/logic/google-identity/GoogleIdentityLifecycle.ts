@@ -188,66 +188,24 @@ export class GoogleIdentityLifecycle {
     report: (progress: GoogleIdentityProgress) => void,
     allowWithoutVisibleBackup = false,
   ): Promise<GoogleIdentityEstablishmentResult> {
-    try {
-      report({ flow: "lookup", step: "checking" });
-      const store = this.createDriveStore(credentials.driveAccessToken, this.fetch);
-      LOGGER.info("identity.google.drive_read.started");
-      const storedFile = await store.readPassportFile();
-      if (Result.isError(storedFile)) {
-        return Result.err({
-          code:
-            storedFile.error.code === "invalid_file"
-              ? "invalid_passport_file"
-              : "drive_read_failed",
-          cause: storedFile.error,
-        });
-      }
+    return this.restoreOrCreate(credentials, report, allowWithoutVisibleBackup, false);
+  }
 
-      if (storedFile.value.status === "found") {
-        LOGGER.info("identity.google.drive_read.completed", { status: "found" });
-        const wrappingKey = await this.requestWrappingKey(
-          credentials.googleIdToken,
-          storedFile.value.envelope,
-        );
-        if (Result.isError(wrappingKey)) return Result.err(wrappingKey.error);
-        return await this.restoreIdentity(
-          credentials,
-          storedFile.value.envelope,
-          wrappingKey.value.wrappingKey,
-          report,
-        );
-      }
-
-      LOGGER.info("identity.google.drive_read.completed", { status: "missing" });
-      if (!credentials.visibleBackupPermissionGranted && !allowWithoutVisibleBackup) {
-        return Result.err({ code: "visible_backup_permission_missing" });
-      }
-      report({ flow: "create", step: "preparing" });
-      const wrappingKey = await this.requestWrappingKey(credentials.googleIdToken);
-      if (Result.isError(wrappingKey)) return Result.err(wrappingKey.error);
-      const signupDetails = await this.requestSignupToken(credentials.googleIdToken);
-      if (Result.isError(signupDetails)) return Result.err(signupDetails.error);
-
-      report({ flow: "create", step: "creating" });
-      const visibleCopies = credentials.visibleBackupPermissionGranted
-        ? this.createVisibleRecoveryCopies(credentials.driveAccessToken, this.fetch)
-        : undefined;
-      return await this.createIdentity(
-        credentials.googleAccount,
-        signupDetails.value,
-        wrappingKey.value.wrappingKey,
-        wrappingKey.value.keyId,
-        report,
-        store,
-        visibleCopies,
-      );
-    } catch (e) {
-      LOGGER.warn("identity.google.restore_or_create.failed", {
-        code: "unexpected_failure",
-        ...safeErrorLogFields(e),
-      });
-      return Result.err({ code: "unexpected_failure", cause: e });
+  /**
+   * Deletes the Drive file only when this attempt confirms it still cannot be decrypted for
+   * this Google account, then creates a replacement identity. A file that decrypts after all is
+   * restored and kept. Resolves the visible-backup decision before deleting anything.
+   * The promise settles with a Result and does not intentionally reject.
+   */
+  async replaceUndecryptablePassportFile(
+    credentials: GoogleIdentityCredentials,
+    report: (progress: GoogleIdentityProgress) => void,
+    allowWithoutVisibleBackup = false,
+  ): Promise<GoogleIdentityEstablishmentResult> {
+    if (!credentials.visibleBackupPermissionGranted && !allowWithoutVisibleBackup) {
+      return Result.err({ code: "visible_backup_permission_missing" });
     }
+    return this.restoreOrCreate(credentials, report, allowWithoutVisibleBackup, true);
   }
 
   /**
@@ -337,6 +295,93 @@ export class GoogleIdentityLifecycle {
     const release = () => this.pubky.dispose();
     if (this.homeserverRepublish) void this.homeserverRepublish.finally(release);
     else release();
+  }
+
+  /**
+   * Restores the found Drive file, otherwise creates a new identity. With
+   * `replaceUndecryptableFile`, a file whose decryption fails on this very read is deleted by
+   * revision before creation continues, so a file changed meanwhile by another device is never
+   * removed.
+   */
+  private async restoreOrCreate(
+    credentials: GoogleIdentityCredentials,
+    report: (progress: GoogleIdentityProgress) => void,
+    allowWithoutVisibleBackup: boolean,
+    replaceUndecryptableFile: boolean,
+  ): Promise<GoogleIdentityEstablishmentResult> {
+    try {
+      report({ flow: "lookup", step: "checking" });
+      const store = this.createDriveStore(credentials.driveAccessToken, this.fetch);
+      LOGGER.info("identity.google.drive_read.started");
+      const storedFile = await store.readPassportFile();
+      if (Result.isError(storedFile)) {
+        return Result.err({
+          code:
+            storedFile.error.code === "invalid_file"
+              ? "invalid_passport_file"
+              : "drive_read_failed",
+          cause: storedFile.error,
+        });
+      }
+
+      if (storedFile.value.status === "found") {
+        LOGGER.info("identity.google.drive_read.completed", { status: "found" });
+        const wrappingKey = await this.requestWrappingKey(
+          credentials.googleIdToken,
+          storedFile.value.envelope,
+        );
+        if (Result.isError(wrappingKey)) return Result.err(wrappingKey.error);
+        const restored = await this.restoreIdentity(
+          credentials,
+          storedFile.value.envelope,
+          wrappingKey.value.wrappingKey,
+          report,
+        );
+        const undecryptable = Result.isError(restored) && restored.error.code === "decrypt_failed";
+        if (!replaceUndecryptableFile || !undecryptable) return restored;
+
+        LOGGER.info("identity.google.undecryptable_passport_file_delete.started");
+        const deleted = await store.deletePassportFile(storedFile.value.reference);
+        if (Result.isError(deleted)) {
+          return Result.err({
+            code: "undecryptable_passport_file_delete_failed",
+            cause: deleted.error,
+          });
+        }
+        LOGGER.info("identity.google.undecryptable_passport_file_delete.completed");
+      } else {
+        LOGGER.info("identity.google.drive_read.completed", { status: "missing" });
+      }
+
+      if (!credentials.visibleBackupPermissionGranted && !allowWithoutVisibleBackup) {
+        return Result.err({ code: "visible_backup_permission_missing" });
+      }
+      report({ flow: "create", step: "preparing" });
+      const wrappingKey = await this.requestWrappingKey(credentials.googleIdToken);
+      if (Result.isError(wrappingKey)) return Result.err(wrappingKey.error);
+      const signupDetails = await this.requestSignupToken(credentials.googleIdToken);
+      if (Result.isError(signupDetails)) return Result.err(signupDetails.error);
+
+      report({ flow: "create", step: "creating" });
+      const visibleCopies = credentials.visibleBackupPermissionGranted
+        ? this.createVisibleRecoveryCopies(credentials.driveAccessToken, this.fetch)
+        : undefined;
+      return await this.createIdentity(
+        credentials.googleAccount,
+        signupDetails.value,
+        wrappingKey.value.wrappingKey,
+        wrappingKey.value.keyId,
+        report,
+        store,
+        visibleCopies,
+      );
+    } catch (e) {
+      LOGGER.warn("identity.google.restore_or_create.failed", {
+        code: "unexpected_failure",
+        ...safeErrorLogFields(e),
+      });
+      return Result.err({ code: "unexpected_failure", cause: e });
+    }
   }
 
   /**

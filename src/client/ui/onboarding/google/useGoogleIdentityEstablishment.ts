@@ -33,6 +33,10 @@ function useGoogleIdentityEstablishment() {
       ),
     replaceInvalidPassportFile: () =>
       google.run("replace-invalid-file", (controller) => controller.replaceInvalidPassportFile()),
+    replaceUndecryptablePassportFile: () =>
+      google.run("replace-undecryptable-file", (controller) =>
+        controller.replaceUndecryptablePassportFile(),
+      ),
     view: toEstablishmentView(google.state),
   };
 }

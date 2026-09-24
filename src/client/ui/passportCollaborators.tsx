@@ -26,6 +26,7 @@ export type GoogleIdentityControllerPort = Pick<
   | "continueWithoutVisibleBackup"
   | "getState"
   | "replaceInvalidPassportFile"
+  | "replaceUndecryptablePassportFile"
   | "reset"
   | "subscribe"
 >;
