@@ -133,7 +133,7 @@ describe("IdentityEstablishmentFlow", () => {
     expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
   });
 
-  it("shows the restore branch reported by the flow", async () => {
+  it("finishes a restore under the lookup heading and announces a repair", async () => {
     const controller = mockGoogleIdentityController({
       establishIdentity: vi.fn(() => new Promise<never>(() => undefined)),
     });
@@ -149,12 +149,15 @@ describe("IdentityEstablishmentFlow", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "Restoring your pubky." }),
+      await screen.findByRole("heading", { name: "Looking for your pubky." }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "Setting up your pubky." }),
     ).not.toBeInTheDocument();
     const restoreProgress = screen.getByRole("list", { name: "Pubky identity restore progress" });
+    expect(
+      within(restoreProgress).getByText("Check Google Drive for a backup").closest("li"),
+    ).toHaveTextContent("Check Google Drive for a backup (complete)");
     expect(
       within(restoreProgress).getByText("Restore encrypted backup").closest("li"),
     ).toHaveAttribute("aria-current", "step");
@@ -162,7 +165,7 @@ describe("IdentityEstablishmentFlow", () => {
       within(restoreProgress).getByText("Sign in to the homeserver").closest("li"),
     ).toHaveTextContent("Sign in to the homeserver (pending)");
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Restoring your Pubky: Restore encrypted backup.",
+      "Looking for your Pubky: Restore encrypted backup.",
     );
     expect(screen.queryByText("Republish PKDNS records")).not.toBeInTheDocument();
 
@@ -210,9 +213,6 @@ describe("IdentityEstablishmentFlow", () => {
     ).toHaveAttribute("aria-current", "step");
     expect(
       screen.queryByRole("heading", { name: "Setting up your pubky." }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { name: "Restoring your pubky." }),
     ).not.toBeInTheDocument();
   });
 

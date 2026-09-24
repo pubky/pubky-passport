@@ -5,14 +5,15 @@ import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
 type StepState = "complete" | "active" | "pending";
 type SetupStep = { label: string; state: StepState };
 type ProgressPresentation = {
-  heading: "Looking for" | "Setting up" | "Restoring" | "Repairing";
+  heading: "Looking for" | "Setting up" | "Repairing";
   listLabel: string;
   steps: SetupStep[];
 };
 
 /**
- * One screen for every establishment phase. The Drive lookup is the first step of each flow;
- * the heading and the remaining steps follow whichever action the lookup led to.
+ * One screen for every establishment phase. The Drive lookup is the first step of each flow. A
+ * restore is usually over in a moment, so it finishes under the lookup heading and only ticks
+ * its remaining steps; setup and repair take longer and announce themselves.
  */
 function GoogleIdentityProgress({ progress }: { progress: GoogleIdentityProgressState }) {
   const presentation = progressPresentation(progress);
@@ -116,7 +117,7 @@ function flowSteps(labels: string[], activeIndex: number): SetupStep[] {
 
 function restorePresentation(activeIndex: number): ProgressPresentation {
   return {
-    heading: "Restoring",
+    heading: "Looking for",
     listLabel: "Pubky identity restore progress",
     steps: flowSteps(["Restore encrypted backup", "Sign in to the homeserver"], activeIndex),
   };

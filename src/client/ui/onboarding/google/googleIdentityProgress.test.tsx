@@ -59,8 +59,13 @@ describe("GoogleIdentityProgress", () => {
   );
 
   it.each([
-    [{ flow: "restore", step: "restoring" }, "Restoring", "restore", "Restore encrypted backup"],
-    [{ flow: "restore", step: "signing_in" }, "Restoring", "restore", "Sign in to the homeserver"],
+    [{ flow: "restore", step: "restoring" }, "Looking for", "restore", "Restore encrypted backup"],
+    [
+      { flow: "restore", step: "signing_in" },
+      "Looking for",
+      "restore",
+      "Sign in to the homeserver",
+    ],
     [{ flow: "repair", step: "signing_up" }, "Repairing", "repair", "Repair homeserver access"],
     [{ flow: "repair", step: "publishing" }, "Repairing", "repair", "Publish PKDNS records"],
     [{ flow: "repair", step: "signing_in" }, "Repairing", "repair", "Sign in to the homeserver"],
