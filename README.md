@@ -13,20 +13,20 @@ Signing in with Google creates a Pubky keypair in the browser, registers it with
 backs it up to the user's Google Drive. Recovery is a 2-of-2 between Google and Passport: neither
 side can recover the key on its own.
 
-- **Google holds the ciphertext.** The secret key is encrypted with AES-256-GCM in the browser and
-  stored as `passport.json` in the app-data area of the user's Drive, with a visible copy in a
-  "Pubky Passport" folder. Google never sees the key that decrypts it.
+- **Only the browser holds the key.** The Pubky secret key is created, encrypted and decrypted in
+  the browser and kept in its local storage. Neither Google nor the Passport server ever sees it.
+- **Google holds the ciphertext.** The key is encrypted with AES-256-GCM before it leaves the
+  browser and stored as `passport.json` in the app-data area of the user's Drive, with a visible
+  copy in a "Pubky Passport" folder. Google has no way to decrypt it.
 - **Passport holds the wrapping key.** The Passport server derives it with HKDF from its own secret
-  and the verified Google account, and only hands it out for a fresh, valid Google ID token. The
-  server never sees the file or the secret key, and each file is bound to the Passport origin that
-  created it.
+  and the verified Google account, and hands it out only for a fresh, valid Google ID token. It
+  never sees the file, and each file is bound to the Passport origin that created it.
 
 Decryption needs both: Drive access to fetch the file and a Google sign-in to obtain the wrapping
 key. On a new device, signing in with the same Google account restores the identity. When there is
-no file yet, Passport asks [Homegate](https://github.com/pubky/homegate) for a signup token and
-creates a new one. Afterwards the user can download an encrypted recovery file, move the key to
-Pubky Ring, or detach from Google, which deletes the Drive files and leaves a self-managed identity
-in the browser.
+no file yet, Passport creates a new identity and backs it up the same way. Afterwards the user can
+download an encrypted recovery file, move the key to Pubky Ring, or detach from Google, which
+deletes the Drive files and leaves a self-managed identity in the browser.
 
 ## Signing in to apps
 
