@@ -71,21 +71,6 @@ pnpm test:e2e        # production build and Playwright tests
 pnpm check:critical  # dependency audit and every check
 ```
 
-CI runs the audit, `pnpm check` and the browser tests on every pull request. The live staging
-smoke test runs separately with `pnpm test:staging:pubky`. The `Dockerfile` builds the standalone
-production image.
-
-## Layout
-
-| Path                  | Purpose                                                       |
-| --------------------- | ------------------------------------------------------------- |
-| `src/app`             | Next.js routes: `/`, `/authorize` and the wrapping-key API    |
-| `src/client/logic`    | Identity lifecycle, Drive storage, crypto, authorization flow |
-| `src/client/ui`       | Screens for onboarding, authorization and identity management |
-| `src/server`          | Google ID token verification and wrapping-key derivation      |
-| `docs/integration.md` | How an app integrates Passport sign-in                        |
-| `e2e`                 | Playwright specs                                              |
-
 ## License
 
 MIT, see [LICENSE](LICENSE).
