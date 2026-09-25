@@ -1,6 +1,7 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 
+import { PASSPORT_README_URL } from "./google/continueWithGoogle";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 
@@ -18,7 +19,15 @@ function SignInPage({ children }: { children: ReactNode }) {
           </DisplayHeading>
           <LeadText>
             Use your Google account to sign in to the Pubky ecosystem. No seed phrase, no app, no
-            hassle.
+            hassle.{" "}
+            <a
+              className="rounded-sm font-bold text-brand outline-none hover:underline hover:underline-offset-4 focus-visible:ring-3 focus-visible:ring-ring/50"
+              href={PASSPORT_README_URL}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              How?
+            </a>
           </LeadText>
         </div>
         <div className="grid gap-6 md:grid-cols-(--passport-content-columns) md:gap-0">
