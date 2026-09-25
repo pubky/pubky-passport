@@ -4,6 +4,7 @@ import { Result, type Result as ResultType } from "better-result";
 
 import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
+import { AuthorizationPopup } from "./gia/AuthorizationPopup";
 import type {
   GoogleImplicitAuthorization,
   GoogleIdentityCredentials,
@@ -87,6 +88,10 @@ const CREDENTIAL_EXPIRY_MARGIN_MS = 30_000;
  * Google-backed operation, and never enter UI state. Only one operation may run at
  * a time. Calling {@link dispose} cancels authorization and suppresses later UI
  * updates while allowing already-started cleanup to finish safely.
+ *
+ * Operations that need new credentials open the Google consent popup synchronously, before
+ * their first await, so call them directly from the user's click handler or the browser
+ * blocks the popup.
  *
  * State is published through {@link subscribe}; public asynchronous operations also
  * settle with a Result and do not intentionally reject.
@@ -354,9 +359,24 @@ export class GoogleIdentityController {
   private async requestGoogleCredentials(
     expectedGoogleSubject: string | undefined,
   ): Promise<ResultType<GoogleIdentityCredentials, GoogleIdentityError>> {
+    // Opened before the first await so it still belongs to the user's click. Safari blocks a
+    // popup opened after the lazy imports below on a cold page, then allows it on "Try again".
+    const popup = AuthorizationPopup.openPending();
+    if (!popup) {
+      LOGGER.warn("identity.google.authorization.failed", {
+        operation: "request_credentials",
+        code: "google_authorization_popup_failed_to_open",
+      });
+      return Result.err({ code: "google_authorization_popup_failed_to_open" });
+    }
+
     try {
-      if (!(await this.initializeDependencies())) return Result.err({ code: "cancelled" });
+      if (!(await this.initializeDependencies())) {
+        popup.close();
+        return Result.err({ code: "cancelled" });
+      }
     } catch (e) {
+      popup.close();
       LOGGER.error("identity.google.controller.failed", {
         operation: "initialize",
         code: "runtime_exception",
@@ -367,6 +387,7 @@ export class GoogleIdentityController {
 
     const googleAuthorization = this.googleAuthorization;
     if (!googleAuthorization) {
+      popup.close();
       LOGGER.warn("identity.google.authorization.failed", {
         operation: "request_credentials",
         code: "authorization_unavailable",
@@ -376,7 +397,7 @@ export class GoogleIdentityController {
 
     const googleSubject = expectedGoogleSubject ?? this.googleSubject;
     try {
-      const credentials = await googleAuthorization.request(googleSubject);
+      const credentials = await googleAuthorization.request(popup, googleSubject);
       if (this.isDisposed) return Result.err({ code: "cancelled" });
       if (Result.isError(credentials)) return Result.err(credentials.error);
       if (
