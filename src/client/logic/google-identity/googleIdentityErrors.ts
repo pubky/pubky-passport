@@ -22,6 +22,7 @@ export type GoogleIdentityLifecycleError =
       | "drive_create_conflict"
       | "invalid_passport_file"
       | "invalid_passport_file_delete_failed"
+      | "undecryptable_passport_file_delete_failed"
       | "drive_read_failed"
       | "drive_write_failed"
       | "encrypt_failed"

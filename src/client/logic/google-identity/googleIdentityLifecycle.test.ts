@@ -399,6 +399,128 @@ describe("Google identity use cases", () => {
     expect(MOCKS.createIdentityKey).not.toHaveBeenCalled();
   });
 
+  it("keeps an undecryptable file until the visible-backup decision is made", async () => {
+    expectResultError(
+      await createSubject().replaceUndecryptablePassportFile(
+        { ...CREDENTIALS, visibleBackupPermissionGranted: false },
+        () => undefined,
+      ),
+      { code: "visible_backup_permission_missing" },
+    );
+    expect(MOCKS.readPassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
+  });
+
+  it("deletes the exact file revision that failed to decrypt, then creates a new identity", async () => {
+    const events: string[] = [];
+    foundPassportFile();
+    MOCKS.decryptSecretKeyBytes.mockResolvedValue(Result.err({ code: "decrypt_failed" }));
+    record(MOCKS.decryptSecretKeyBytes, "decrypt", events);
+    record(MOCKS.deletePassportFile, "delete-file", events);
+    record(MOCKS.createIdentityKey, "create-key", events);
+    const progress: GoogleIdentityProgress[] = [];
+
+    const result = await createSubject().replaceUndecryptablePassportFile(CREDENTIALS, (phase) =>
+      progress.push(phase),
+    );
+
+    expect(expectResultOk(result)).toEqual({
+      establishmentMode: "created",
+      publicIdentity: PUBLIC_IDENTITY,
+      visibleRecoveryCopyStatus: "created",
+    });
+    expect(events).toEqual(["decrypt", "delete-file", "create-key"]);
+    expect(MOCKS.deletePassportFile).toHaveBeenCalledWith(REFERENCE);
+    expect(MOCKS.deleteInvalidPassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.restoreIdentityKey).not.toHaveBeenCalled();
+    expect(MOCKS.readPassportFile).toHaveBeenCalledOnce();
+    expect(MOCKS.driveStoreConstructions.count).toBe(1);
+    expect(progress).toEqual([
+      { flow: "lookup", step: "checking" },
+      { flow: "restore", step: "restoring" },
+      { flow: "create", step: "preparing" },
+      { flow: "create", step: "creating" },
+      { flow: "create", step: "storing_passport_file" },
+      { flow: "create", step: "signing_up" },
+      { flow: "create", step: "publishing" },
+      { flow: "create", step: "activating" },
+    ]);
+  });
+
+  it("restores instead of deleting a file that decrypts after all", async () => {
+    foundPassportFile();
+
+    const result = await createSubject().replaceUndecryptablePassportFile(
+      CREDENTIALS,
+      () => undefined,
+    );
+
+    expect(expectResultOk(result)).toEqual({
+      establishmentMode: "restored",
+      publicIdentity: PUBLIC_IDENTITY,
+    });
+    expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.createIdentityKey).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE));
+  });
+
+  it.each([
+    [
+      "restore_failed",
+      () => MOCKS.restoreIdentityKey.mockResolvedValue(Result.err({ code: "restore_failed" })),
+    ],
+    [
+      "wrapping_key_failed",
+      () => MOCKS.requestWrappingKey.mockResolvedValue(Result.err({ code: "network_failed" })),
+    ],
+    [
+      "signin_failed",
+      () => {
+        MOCKS.signin.mockResolvedValue(Result.err({ code: "signin_failed" }));
+        MOCKS.resolveHomeserver.mockResolvedValue(Result.ok("homeserver-pubky"));
+      },
+    ],
+  ] as const)(
+    "keeps a file whose restoration fails with %s rather than decryption",
+    async (code, arrange) => {
+      foundPassportFile();
+      arrange();
+
+      expectResultError(
+        await createSubject().replaceUndecryptablePassportFile(CREDENTIALS, () => undefined),
+        { code },
+      );
+      expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
+      expect(MOCKS.createIdentityKey).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not create an identity when the undecryptable file cannot be deleted", async () => {
+    foundPassportFile();
+    MOCKS.decryptSecretKeyBytes.mockResolvedValue(Result.err({ code: "decrypt_failed" }));
+    MOCKS.deletePassportFile.mockResolvedValue(Result.err({ code: "stale_file" }));
+
+    const failure = expectResultError(
+      await createSubject().replaceUndecryptablePassportFile(CREDENTIALS, () => undefined),
+      { code: "undecryptable_passport_file_delete_failed" },
+    );
+
+    expect(failure.cause).toEqual({ code: "stale_file" });
+    expect(MOCKS.requestSignupToken).not.toHaveBeenCalled();
+    expect(MOCKS.createIdentityKey).not.toHaveBeenCalled();
+  });
+
+  it("never deletes a file that fails to decrypt during plain establishment", async () => {
+    foundPassportFile();
+    MOCKS.decryptSecretKeyBytes.mockResolvedValue(Result.err({ code: "decrypt_failed" }));
+
+    expectResultError(await createSubject().establishIdentity(CREDENTIALS, () => undefined), {
+      code: "decrypt_failed",
+    });
+    expect(MOCKS.deletePassportFile).not.toHaveBeenCalled();
+    expect(MOCKS.createIdentityKey).not.toHaveBeenCalled();
+  });
+
   it("restores through normal sign-in, republishes in the background, and does not request Homegate", async () => {
     const decryptedBytes = new Uint8Array(32).fill(9);
     MOCKS.readPassportFile.mockResolvedValue(

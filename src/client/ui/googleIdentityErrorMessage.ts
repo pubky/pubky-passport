@@ -38,6 +38,8 @@ function googleIdentityErrorMessage(code: GoogleIdentityViewError["code"]): stri
       return "Passport found your encrypted identity file in Google Drive, but it is damaged and cannot be restored.";
     case "invalid_passport_file_delete_failed":
       return "Passport could not delete the invalid identity file from Google Drive. You can try deleting it again.";
+    case "undecryptable_passport_file_delete_failed":
+      return "Passport could not delete the identity file it cannot decrypt from Google Drive. You can try deleting it again.";
     case "google_authorization_denied":
       return "Passport needs access to your Google Drive to continue.";
     case "google_drive_access_required":

@@ -55,11 +55,13 @@ type Lifecycle = Pick<
   GoogleIdentityLifecycle,
   | "establishIdentity"
   | "replaceInvalidPassportFile"
+  | "replaceUndecryptablePassportFile"
   | "detachIdentity"
   | "abortRequests"
   | "dispose"
 >;
-type EstablishmentOperation = "establish" | "replace_invalid_passport_file";
+type EstablishmentOperation =
+  "establish" | "replace_invalid_passport_file" | "replace_undecryptable_passport_file";
 type EstablishmentOptions = {
   allowWithoutVisibleBackup?: boolean;
   credentials?: GoogleIdentityCredentials | undefined;
@@ -155,6 +157,15 @@ export class GoogleIdentityController {
     return this.runIdentityEstablishment("replace_invalid_passport_file");
   }
 
+  /**
+   * Permanently removes a Drive file that cannot be decrypted for this Google account and
+   * immediately creates a replacement identity.
+   * The promise settles with a Result and does not intentionally reject.
+   */
+  async replaceUndecryptablePassportFile(): Promise<EstablishGoogleIdentityResult> {
+    return this.runIdentityEstablishment("replace_undecryptable_passport_file");
+  }
+
   /** Continues without a visible copy, renewing expired credentials for the same Google account. */
   async continueWithoutVisibleBackup(): Promise<EstablishGoogleIdentityResult> {
     const pending = this.pendingVisibleBackupConsent;
@@ -233,10 +244,13 @@ export class GoogleIdentityController {
         const report = (progress: GoogleIdentityProgress) => {
           if (reporting) this.publish({ status: "establishing", progress });
         };
-        const establishment =
-          operation === "establish"
-            ? lifecycle.establishIdentity(credentials, report, allowWithoutVisibleBackup)
-            : lifecycle.replaceInvalidPassportFile(credentials, report, allowWithoutVisibleBackup);
+        const establishment = startEstablishment(
+          lifecycle,
+          operation,
+          credentials,
+          report,
+          allowWithoutVisibleBackup,
+        );
         const established = await establishment.finally(() => {
           reporting = false;
         });
@@ -502,5 +516,26 @@ export class GoogleIdentityController {
         ),
     ]);
     return { createAuthorization, createLifecycle };
+  }
+}
+
+function startEstablishment(
+  lifecycle: Lifecycle,
+  operation: EstablishmentOperation,
+  credentials: GoogleIdentityCredentials,
+  report: (progress: GoogleIdentityProgress) => void,
+  allowWithoutVisibleBackup: boolean,
+) {
+  switch (operation) {
+    case "establish":
+      return lifecycle.establishIdentity(credentials, report, allowWithoutVisibleBackup);
+    case "replace_invalid_passport_file":
+      return lifecycle.replaceInvalidPassportFile(credentials, report, allowWithoutVisibleBackup);
+    case "replace_undecryptable_passport_file":
+      return lifecycle.replaceUndecryptablePassportFile(
+        credentials,
+        report,
+        allowWithoutVisibleBackup,
+      );
   }
 }
