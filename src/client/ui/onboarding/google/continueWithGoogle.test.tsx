@@ -9,23 +9,34 @@ import { ContinueWithGoogle, PASSPORT_README_URL } from "./continueWithGoogle";
 const TITLE = "Continue with Google, powered by Pubky Passport.";
 const HELP = "How Continue with Google works";
 
-function stubViewport(desktop: boolean): void {
+/** Stubs matchMedia; the returned function flips the breakpoint and notifies subscribers. */
+function stubViewport(desktop: boolean): (next: boolean) => void {
+  const state = { matches: desktop };
+  const listeners = new Set<() => void>();
   vi.stubGlobal(
     "matchMedia",
     vi.fn((media: string) => ({
-      matches: desktop,
+      get matches() {
+        return state.matches;
+      },
       media,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
+      addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+      removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
     })),
   );
+  return (next) => {
+    state.matches = next;
+    act(() => {
+      for (const listener of listeners) listener();
+    });
+  };
 }
 
 function renderControl(desktop: boolean) {
-  stubViewport(desktop);
+  const setDesktop = stubViewport(desktop);
   const onContinue = vi.fn();
   render(<ContinueWithGoogle onContinue={onContinue} />);
-  return { onContinue, trigger: screen.getByRole("button", { name: HELP }) };
+  return { onContinue, setDesktop, trigger: screen.getByRole("button", { name: HELP }) };
 }
 
 function expectExplanation(container: HTMLElement): void {
@@ -86,21 +97,38 @@ describe("ContinueWithGoogle", () => {
   });
 
   describe("on desktop", () => {
-    it("pins the panel on click, explains the split, and unpins on the next click", () => {
+    it("pins the panel on click so it outlives the pointer, and unpins on the next click", () => {
+      vi.useFakeTimers();
       const { onContinue, trigger } = renderControl(true);
 
+      fireEvent.mouseEnter(trigger);
       fireEvent.click(trigger);
+      fireEvent.mouseLeave(trigger);
+      act(() => vi.advanceTimersByTime(500));
 
       const panel = screen.getByRole("dialog", { name: TITLE });
       expect(trigger).toHaveAttribute("aria-expanded", "true");
       expect(trigger).toHaveAttribute("aria-controls", panel.id);
       expect(panel.parentElement).toHaveClass("left-full", "top-0", "w-[432px]");
+      expect(panel).toHaveAttribute("tabindex", "-1");
+      expect(within(panel).getByRole("heading", { level: 2, name: TITLE })).toBeInTheDocument();
       expectExplanation(panel);
       expect(onContinue).not.toHaveBeenCalled();
 
       fireEvent.click(trigger);
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(trigger).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("stays open when a press inside the panel moves focus onto it", () => {
+      const { trigger } = renderControl(true);
+      fireEvent.click(trigger);
+      const panel = screen.getByRole("dialog");
+
+      panel.focus();
+      fireEvent.blur(trigger, { relatedTarget: panel });
+
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
 
     it("shows on hover, survives the move into the panel, and closes shortly after leaving", () => {
@@ -142,6 +170,42 @@ describe("ContinueWithGoogle", () => {
       expect(trigger).toHaveFocus();
     });
 
+    it("closes a hover-shown panel on Escape even though nothing in it has focus", () => {
+      const { trigger } = renderControl(true);
+      fireEvent.mouseEnter(trigger);
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+      fireEvent.keyDown(document.body, { key: "Escape" });
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("leaves focus alone when Escape is pressed in a field elsewhere", () => {
+      const { trigger } = renderControl(true);
+      const field = document.body.appendChild(document.createElement("input"));
+      fireEvent.mouseEnter(trigger);
+      field.focus();
+
+      fireEvent.keyDown(field, { key: "Escape" });
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(field).toHaveFocus();
+      field.remove();
+    });
+
+    it("drops a pinned panel when the viewport shrinks to a phone", () => {
+      const { setDesktop, trigger } = renderControl(true);
+      fireEvent.click(trigger);
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+      setDesktop(false);
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+      fireEvent.click(trigger);
+      expect(screen.getByRole("dialog").tagName).toBe("DIALOG");
+    });
+
     it("closes a pinned panel when pressing outside the control", () => {
       const { trigger } = renderControl(true);
       fireEvent.click(trigger);
@@ -165,7 +229,8 @@ describe("ContinueWithGoogle", () => {
 
       const sheet = screen.getByRole("dialog", { name: TITLE });
       expect(sheet.tagName).toBe("DIALOG");
-      expect(sheet).toHaveClass("mt-auto", "rounded-t-2xl");
+      expect(sheet).toHaveClass("mt-auto", "rounded-t-2xl", "p-0");
+      expect(within(sheet).getByRole("heading", { level: 2, name: TITLE })).toBeInTheDocument();
       expect(trigger).toHaveAttribute("aria-expanded", "true");
       expectExplanation(sheet);
       expect(within(sheet).getByRole("button", { name: "Close" })).toBeInTheDocument();
@@ -187,6 +252,8 @@ describe("ContinueWithGoogle", () => {
       fireEvent.click(trigger);
       const sheet = screen.getByRole("dialog");
       fireEvent.click(within(sheet).getByRole("link", { name: "Learn more" }));
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      fireEvent.click(within(sheet).getByRole("button", { name: "Close" }).parentElement!);
       expect(screen.getByRole("dialog")).toBeInTheDocument();
       fireEvent.click(sheet);
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

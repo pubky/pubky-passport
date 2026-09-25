@@ -207,7 +207,7 @@ function DownloadIcon(props: IconProps) {
 }
 
 function FileTextIcon(props: IconProps) {
-  const size = props.size ?? 20;
+  const size = props.size ?? 16;
 
   return (
     <Glyph height={size} size={size} viewBox="0 0 20 20" width={size} {...props}>

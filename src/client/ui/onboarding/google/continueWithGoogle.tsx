@@ -1,9 +1,9 @@
 import {
   type FocusEvent,
-  type KeyboardEvent,
   type MouseEvent,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -46,18 +46,28 @@ const POINTS = [
  *
  * The mark is a sibling of the pill, laid over it, so no interactive element nests in another.
  * On desktop the explanation is a panel to the right of the pill: hover and focus show it, a
- * click pins it, and Escape, tabbing away, or a click elsewhere closes it. On phones the mark
- * opens a bottom sheet that also offers the sign-in itself. Both hold links, so they are dialogs
- * rather than tooltips.
+ * click pins it, and Escape, tabbing away, or a press elsewhere closes it; it shifts up only as
+ * far as needed to stay inside the viewport. On phones the mark opens a bottom sheet that also
+ * offers the sign-in itself. Both hold links, so they are dialogs rather than tooltips.
  */
 function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
   const desktop = useDesktopBreakpoint();
   const [pinned, setPinned] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // A resize or rotation across the breakpoint swaps the explainer's form; the old form's state
+  // must not carry over.
+  const [seenDesktop, setSeenDesktop] = useState(desktop);
+  if (seenDesktop !== desktop) {
+    setSeenDesktop(desktop);
+    setPinned(false);
+    setHovered(false);
+    setSheetOpen(false);
+  }
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   const refocusing = useRef(false);
   const labelId = useId();
   const panelId = useId();
@@ -76,9 +86,13 @@ function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
     setHovered(true);
   };
   // The panel sits a few pixels away from the mark; the delay lets the pointer cross that gap.
+  // Content shown on focus stays while focus is inside it; leaveWithKeyboard closes it then.
   const hide = () => {
     cancelClose();
-    closeTimer.current = setTimeout(() => setHovered(false), CLOSE_DELAY_MS);
+    closeTimer.current = setTimeout(() => {
+      if (panel.current?.contains(document.activeElement)) return;
+      setHovered(false);
+    }, CLOSE_DELAY_MS);
   };
   const closePanel = () => {
     cancelClose();
@@ -95,8 +109,41 @@ function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
       setPinned(false);
       setHovered(false);
     };
+    // Escape dismisses the panel wherever focus is (a mouse click does not focus the mark in
+    // WebKit); focus returns to the mark only when nothing outside the control owns it.
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const target = event.target instanceof Node ? event.target : null;
+      const inside = target !== null && root.current?.contains(target) === true;
+      const unowned = target === document.body || target === document.documentElement;
+      setPinned(false);
+      setHovered(false);
+      if (!inside && !unowned) return;
+      refocusing.current = document.activeElement !== trigger.current;
+      trigger.current?.focus();
+    };
     document.addEventListener("pointerdown", closeOnOutsidePress);
-    return () => document.removeEventListener("pointerdown", closeOnOutsidePress);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePress);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [panelOpen]);
+
+  // Keep the mock's top alignment when it fits; otherwise shift the panel up just enough.
+  useLayoutEffect(() => {
+    if (!panelOpen) return;
+    const keepInViewport = () => {
+      const element = panel.current;
+      if (!element) return;
+      element.style.top = "0px";
+      const { top, bottom } = element.getBoundingClientRect();
+      const overflow = bottom + 16 - window.innerHeight;
+      if (overflow > 0) element.style.top = `-${Math.min(overflow, Math.max(top - 16, 0))}px`;
+    };
+    keepInViewport();
+    window.addEventListener("resize", keepInViewport);
+    return () => window.removeEventListener("resize", keepInViewport);
   }, [panelOpen]);
 
   function toggle() {
@@ -127,14 +174,6 @@ function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
     closePanel();
   }
 
-  function closeOnEscape(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key !== "Escape" || !panelOpen) return;
-    event.stopPropagation();
-    closePanel();
-    refocusing.current = document.activeElement !== trigger.current;
-    trigger.current?.focus();
-  }
-
   function closeSheetOnBackdrop(event: MouseEvent<HTMLDialogElement>) {
     if (event.target === event.currentTarget) setSheetOpen(false);
   }
@@ -142,7 +181,7 @@ function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
   return (
     // A flex wrapper blockifies the inline-flex pill, so no line-box gap makes the wrapper taller
     // than the pill and the overlay centres exactly on it.
-    <div className="relative flex" onBlur={leaveWithKeyboard} onKeyDown={closeOnEscape} ref={root}>
+    <div className="relative flex" onBlur={leaveWithKeyboard} ref={root}>
       <Button
         aria-labelledby={labelId}
         className="w-full"
@@ -183,18 +222,21 @@ function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
       {panelOpen ? (
         <div
           // 420px card plus its 12px gap, capped so it stays inside the viewport from 768px up:
-          // the pill's right edge sits at 50vw + 13px on the 588px desktop canvas.
-          className="absolute left-full top-0 z-20 w-[432px] max-w-[calc(50vw-17px)] pl-3"
+          // the pill's right edge sits at 50vw + 13px on the 588px desktop canvas, and the extra
+          // margin covers a classic scrollbar, which vw units include and the canvas does not.
+          className="absolute left-full top-0 z-20 w-[432px] max-w-[calc(50vw-24px)] pl-3"
           onMouseEnter={show}
           onMouseLeave={hide}
+          ref={panel}
         >
           <div
             aria-labelledby={panelTitleId}
-            className="flex flex-col gap-6 rounded-2xl border border-border bg-popover p-8 text-base leading-6 text-muted-foreground shadow-[0_24px_48px_rgba(5,5,10,0.6)]"
+            className="flex flex-col gap-6 rounded-2xl border border-border bg-popover p-8 text-base leading-6 text-muted-foreground shadow-[0_24px_48px_rgba(5,5,10,0.6)] outline-none"
             id={panelId}
             role="dialog"
+            tabIndex={-1}
           >
-            <p
+            <h2
               aria-label={TITLE}
               className="text-xl font-bold leading-7 text-foreground"
               id={panelTitleId}
@@ -202,7 +244,7 @@ function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
               Continue with Google,
               <br />
               powered by Pubky Passport.
-            </p>
+            </h2>
             <ExplanationPoints />
             <ButtonLink
               className="w-full"
@@ -220,53 +262,56 @@ function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
 
       <Dialog
         aria-labelledby={sheetTitleId}
-        className="mb-0 mt-auto w-full max-w-none rounded-t-2xl border bg-popover px-6 pb-8 pt-3 text-base leading-6 text-muted-foreground shadow-[0_50px_100px_rgba(5,5,10,0.75)] backdrop:bg-black/75"
+        className="mb-0 mt-auto w-full max-w-none rounded-t-2xl border bg-popover p-0 text-base leading-6 text-muted-foreground shadow-[0_50px_100px_rgba(5,5,10,0.75)] backdrop:bg-black/75"
         onClick={closeSheetOnBackdrop}
         onOpenChange={setSheetOpen}
         open={sheetOpen}
       >
-        <button
-          aria-label="Close"
-          className="mx-auto mb-6 block h-1.5 w-16 rounded-full bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-          onClick={() => setSheetOpen(false)}
-          type="button"
-        />
-        <div className="flex flex-col gap-6">
-          <p
-            aria-label={TITLE}
-            className="text-center text-xl font-bold leading-7 text-foreground"
-            id={sheetTitleId}
-          >
-            Continue with Google,
-            <br />
-            powered by Pubky Passport.
-          </p>
-          <ExplanationPoints />
-          <div className="flex flex-col gap-3">
-            <Button
-              className="w-full"
-              onClick={() => {
-                setSheetOpen(false);
-                onContinue();
-              }}
-              size="lg"
-              type="button"
-              variant="secondary"
+        {/* The padding lives inside, so only the backdrop hits the dialog element itself. */}
+        <div className="px-6 pb-8 pt-3">
+          <button
+            aria-label="Close"
+            className="mx-auto mb-6 block h-1.5 w-16 rounded-full bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            onClick={() => setSheetOpen(false)}
+            type="button"
+          />
+          <div className="flex flex-col gap-6">
+            <h2
+              aria-label={TITLE}
+              className="text-center text-xl font-bold leading-7 text-foreground"
+              id={sheetTitleId}
             >
-              <ArrowRightIcon />
-              Continue with Google
-            </Button>
-            <ButtonLink
-              className="w-full"
-              href={PASSPORT_README_URL}
-              rel="noopener noreferrer"
-              size="lg"
-              target="_blank"
-              variant="secondary"
-            >
-              <FileTextIcon />
-              Learn more
-            </ButtonLink>
+              Continue with Google,
+              <br />
+              powered by Pubky Passport.
+            </h2>
+            <ExplanationPoints />
+            <div className="flex flex-col gap-3">
+              <Button
+                className="w-full"
+                onClick={() => {
+                  setSheetOpen(false);
+                  onContinue();
+                }}
+                size="lg"
+                type="button"
+                variant="secondary"
+              >
+                <ArrowRightIcon />
+                Continue with Google
+              </Button>
+              <ButtonLink
+                className="w-full"
+                href={PASSPORT_README_URL}
+                rel="noopener noreferrer"
+                size="lg"
+                target="_blank"
+                variant="secondary"
+              >
+                <FileTextIcon />
+                Learn more
+              </ButtonLink>
+            </div>
           </div>
         </div>
       </Dialog>
