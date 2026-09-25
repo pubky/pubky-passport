@@ -58,11 +58,10 @@ describe("IdentityEstablishmentFlow", () => {
     const markup = renderToStaticMarkup(
       <ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />,
     );
-    const shell = document.createElement("div");
+    // Attached so accessible names that resolve through aria-labelledby can be computed.
+    const shell = document.body.appendChild(document.createElement("div"));
     shell.innerHTML = markup;
-    const googleButton = [...shell.querySelectorAll("button")].find((button) =>
-      button.textContent?.includes("Continue with Google"),
-    );
+    const googleButton = within(shell).getByRole("button", { name: "Continue with Google" });
 
     expect(within(shell).getByRole("heading", { name: "Quick & easy signing." })).toHaveTextContent(
       "Quick & easy",
@@ -71,8 +70,19 @@ describe("IdentityEstablishmentFlow", () => {
       within(shell).getByRole("heading", { name: "Quick & easy signing." }).lastElementChild,
     ).toHaveClass("md:block");
     expect(googleButton).toBeEnabled();
-    expect(googleButton?.parentElement).toHaveClass("md:col-start-1", "md:row-start-1");
+    expect(googleButton.parentElement?.parentElement).toHaveClass(
+      "md:col-start-1",
+      "md:row-start-1",
+    );
+    expect(
+      within(shell).getByRole("button", { name: "How Continue with Google works" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(within(shell).getByRole("link", { name: "How?" })).toHaveAttribute(
+      "href",
+      "https://github.com/pubky/pubky-passport/blob/main/README.md",
+    );
     expect(MOCKS.constructGoogleIdentityController).not.toHaveBeenCalled();
+    shell.remove();
   });
 
   it("starts Google authorization from one button click", async () => {
