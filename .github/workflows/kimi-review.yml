@@ -1,0 +1,73 @@
+name: Kimi review
+
+# Independent review of every same-repo PR by Kimi (Moonshot) through OpenRouter, using
+# .github/prompts/review.md. Needs the OPENROUTER_API_KEY repository secret; without it the
+# job passes with a notice. Forks and drafts are skipped so the secret is never exposed.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: kimi-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      # secrets are not readable in a job-level `if`, so gate the steps instead.
+      HAS_KEY: ${{ secrets.OPENROUTER_API_KEY != '' }}
+    steps:
+      - name: Skip notice
+        if: env.HAS_KEY != 'true'
+        run: echo "::notice title=Kimi review skipped::Set the OPENROUTER_API_KEY repository secret to enable the independent review."
+
+      - name: Checkout
+        if: env.HAS_KEY == 'true'
+        # actions/checkout v4, pinned to a commit SHA to avoid mutable tag drift.
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Write PR body for the reviewer
+        if: env.HAS_KEY == 'true'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: printf '%s\n' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
+
+      - name: Run review
+        if: env.HAS_KEY == 'true'
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+        run: scripts/agent/review-kimi.sh --base "$BASE_REF" --pr-body "$RUNNER_TEMP/pr-body.md" --out "$RUNNER_TEMP/review.md"
+
+      - name: Post review comment
+        if: env.HAS_KEY == 'true'
+        # actions/github-script v8.0.0, pinned to a commit SHA to avoid mutable tag drift.
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
+        with:
+          script: |
+            const fs = require("fs");
+            const marker = "<!-- kimi-review -->";
+            const review = fs.readFileSync(`${process.env.RUNNER_TEMP}/review.md`, "utf8");
+            const body = `${marker}\n### Kimi review (independent)\n\n${review}`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find((c) => c.body && c.body.startsWith(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }

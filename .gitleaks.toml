@@ -1,0 +1,21 @@
+# Extends the default gitleaks rules. Keep allowlists narrow and explain each one.
+title = "pubky-passport"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test fixtures and vendored protocol docs contain deliberately fake secrets"
+regexes = [
+  # CI keyring fixture in .github/workflows: 32 bytes of 0x01, base64-encoded.
+  '''AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=''',
+]
+paths = [
+  '''pnpm-lock\.yaml''',
+  '''certificates/''',
+  '''(^|/)[^/]+\.(test|spec)\.tsx?$''',
+  '''(^|/)[^/]+\.staging\.test\.ts$''',
+  '''^e2e/''',
+  '''^test-utils/''',
+  '''^docs/vendor/''',
+]
