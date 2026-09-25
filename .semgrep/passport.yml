@@ -1,0 +1,116 @@
+rules:
+  - id: passport-postmessage-wildcard-origin
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: postMessage must name an explicit target origin (threat model B1, B9).
+    patterns:
+      - pattern-either:
+          - pattern: '$W.postMessage($MSG, "*")'
+          - pattern: '$W.postMessage($MSG, "*", ...)'
+  - id: passport-message-listener-without-origin-check
+    languages: [typescript, javascript]
+    severity: WARNING
+    message: An inline message listener must check event.origin against the configured allowlist before reading event.data. Named handlers are reviewed by hand (threat model B1).
+    patterns:
+      - pattern-either:
+          - pattern: $T.addEventListener("message", ($E) => { ... })
+          - pattern: $T.addEventListener("message", function ($E) { ... })
+      - pattern-not: |
+          $T.addEventListener("message", ($E) => {
+            ...
+            if (<... $E.origin ...>) { ... }
+            ...
+          })
+      - pattern-not: |
+          $T.addEventListener("message", ($E) => {
+            ...
+            if (<... $E.origin ...>) $S;
+            ...
+          })
+      - pattern-not: |
+          $T.addEventListener("message", function ($E) {
+            ...
+            if (<... $E.origin ...>) { ... }
+            ...
+          })
+      - pattern-not: |
+          $T.addEventListener("message", function ($E) {
+            ...
+            if (<... $E.origin ...>) $S;
+            ...
+          })
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.test.tsx"
+        - e2e/**
+  - id: passport-secret-in-logger
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: Never log key material, tokens, passphrases, or invite codes (AGENTS.md invariant 1).
+    patterns:
+      - pattern-either:
+          - pattern: "$LOG.$LEVEL(..., $X.$FIELD, ...)"
+          - pattern: "$LOG.$LEVEL(..., { ..., $FIELD: $V, ... }, ...)"
+          - pattern: "$LOG.$LEVEL(..., $FIELD, ...)"
+      - metavariable-regex:
+          metavariable: $LEVEL
+          regex: ^(debug|info|warn|error|log|trace)$
+      - metavariable-regex:
+          metavariable: $FIELD
+          regex: (?i)^(secret|secretKey|privateKey|mnemonic|seed|passphrase|password|wrappingKey|clientSecret|client_secret|inviteCode|signupToken|token|authToken|idToken|accessToken|refreshToken)$
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.test.tsx"
+        - e2e/**
+        - test-utils/**
+  - id: passport-secret-in-url
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: Secrets and invite codes never go into query strings; only designed `#` fragments may carry them.
+    patterns:
+      - pattern-either:
+          - pattern: '$P.set("$KEY", ...)'
+          - pattern: '$P.append("$KEY", ...)'
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: (?i)^(secret|secret_key|private_key|mnemonic|seed|passphrase|password|invite|invite_code|signup_token|token)$
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.test.tsx"
+        - e2e/**
+        - test-utils/**
+  - id: passport-process-env-outside-environment
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: Read environment only in src/server/environment.ts (ADR 0001); client code gets config from the server-rendered payload.
+    patterns:
+      - pattern: process.env.$X
+      - pattern-not: process.env.NODE_ENV
+    paths:
+      exclude:
+        - src/server/environment.ts
+        - src/instrumentation.ts
+        - src/instrumentation-client.ts
+        - next.config.ts
+        - playwright.config.ts
+        - vitest.config.mts
+        - vitest.staging.config.mts
+        - "**/*.test.ts"
+        - "**/*.test.tsx"
+        - e2e/**
+        - test-utils/**
+  - id: passport-dangerously-set-inner-html
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: dangerouslySetInnerHTML is not allowed in Passport UI.
+    pattern: dangerouslySetInnerHTML
+  - id: passport-eval
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: eval / new Function are forbidden.
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
