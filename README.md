@@ -63,9 +63,6 @@ To rotate the server secret, deploy the new key alongside the retained keys, the
 current. Keep an old key for as long as files bearing its ID must remain usable; files contain key
 IDs, never secrets.
 
-The staging Google client is unpublished, so only `@synonym.to` accounts complete Continue with
-Google there. Production accepts any Google account.
-
 ## Validation
 
 ```bash
