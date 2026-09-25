@@ -13,10 +13,9 @@ describe("GoogleDetachmentComplete", () => {
     const onDone = vi.fn();
     const { container } = render(<GoogleDetachmentComplete onDone={onDone} />);
 
-    const heading = screen.getByRole("heading");
-    expect(heading).not.toHaveAttribute("aria-label");
-    expect(heading.querySelector(".md\\:hidden")).toHaveTextContent("Detached");
-    expect(heading.querySelector(".hidden.md\\:inline")).toHaveTextContent("Detach");
+    const heading = screen.getByRole("heading", { name: "Detached from Google." });
+    expect(heading).toHaveTextContent("Detached from Google.");
+    expect(heading.querySelector(".md\\:hidden")).toBeNull();
     expect(
       screen.getByText(
         "Google access has been removed. Your identity is self-managed, and recoverable only with your backup.",

@@ -74,8 +74,8 @@ test("detachment requires both permissions using the shared screen", async ({
   await page.getByRole("button", { name: "Detach from Google" }).click();
   await page.getByRole("button", { name: "I backed up my pubky" }).click();
   await page.getByRole("button", { name: "Remove Google Access" }).click();
-  await page.getByLabel("Type DELETE to confirm").fill("DELETE");
-  await page.getByRole("button", { name: "Confirm deletion" }).click();
+  await page.getByLabel("Type DETACH to confirm").fill("DETACH");
+  await page.getByRole("button", { name: "Confirm detachment" }).click();
 
   await expect(page.getByRole("heading", { name: "Drive access required." })).toBeVisible();
   await expect(page.getByText(/both Google Drive permissions to delete/)).toBeVisible();

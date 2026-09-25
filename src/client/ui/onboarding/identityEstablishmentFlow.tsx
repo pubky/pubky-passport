@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { preload } from "react-dom";
 
 import { GoogleAccessScreen } from "./google/googleAccessScreen";
@@ -20,6 +21,19 @@ function IdentityEstablishmentFlow({
 }) {
   const google = useGoogleIdentityEstablishment();
   const view = google.view;
+  const restored = view.status === "complete" && view.mode === "restored";
+  const restorationReported = useRef(false);
+
+  // A restored identity needs no confirmation screen: the caller moves straight on.
+  useEffect(() => {
+    if (!restored) {
+      restorationReported.current = false;
+      return;
+    }
+    if (restorationReported.current) return;
+    restorationReported.current = true;
+    onComplete();
+  }, [onComplete, restored]);
 
   if (view.status === "requesting-access" || view.status === "working") {
     preload("/illustrations/checkmark.png", { as: "image" });
@@ -27,11 +41,11 @@ function IdentityEstablishmentFlow({
 
   switch (view.status) {
     case "complete":
+      if (view.mode === "restored") return null;
       return (
         <GoogleIdentityComplete
           googleAccount={view.googleAccount}
           identity={view.identity}
-          mode={view.mode}
           visibleRecoveryCopyStatus={view.visibleRecoveryCopyStatus}
           onContinue={onComplete}
         />

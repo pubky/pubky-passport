@@ -133,7 +133,7 @@ describe("IdentityEstablishmentFlow", () => {
     expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
   });
 
-  it("shows the restore branch reported by the flow", async () => {
+  it("finishes a restore under the lookup heading and announces a repair", async () => {
     const controller = mockGoogleIdentityController({
       establishIdentity: vi.fn(() => new Promise<never>(() => undefined)),
     });
@@ -149,12 +149,15 @@ describe("IdentityEstablishmentFlow", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "Restoring your pubky." }),
+      await screen.findByRole("heading", { name: "Looking for your pubky." }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "Setting up your pubky." }),
     ).not.toBeInTheDocument();
     const restoreProgress = screen.getByRole("list", { name: "Pubky identity restore progress" });
+    expect(
+      within(restoreProgress).getByText("Check Google Drive for a backup").closest("li"),
+    ).toHaveTextContent("Check Google Drive for a backup (complete)");
     expect(
       within(restoreProgress).getByText("Restore encrypted backup").closest("li"),
     ).toHaveAttribute("aria-current", "step");
@@ -162,7 +165,7 @@ describe("IdentityEstablishmentFlow", () => {
       within(restoreProgress).getByText("Sign in to the homeserver").closest("li"),
     ).toHaveTextContent("Sign in to the homeserver (pending)");
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Restoring your Pubky: Restore encrypted backup.",
+      "Looking for your Pubky: Restore encrypted backup.",
     );
     expect(screen.queryByText("Republish PKDNS records")).not.toBeInTheDocument();
 
@@ -201,13 +204,15 @@ describe("IdentityEstablishmentFlow", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "Looking for existing Pubky." }),
+      await screen.findByRole("heading", { name: "Looking for your pubky." }),
     ).toBeInTheDocument();
+    const lookupProgress = screen.getByRole("list", { name: "Pubky identity lookup progress" });
+    expect(within(lookupProgress).getAllByRole("listitem")).toHaveLength(1);
+    expect(
+      within(lookupProgress).getByText("Check Google Drive for a backup").closest("li"),
+    ).toHaveAttribute("aria-current", "step");
     expect(
       screen.queryByRole("heading", { name: "Setting up your pubky." }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { name: "Restoring your pubky." }),
     ).not.toBeInTheDocument();
   });
 
@@ -261,7 +266,7 @@ describe("IdentityEstablishmentFlow", () => {
     expect(establishIdentity).toHaveBeenCalledTimes(2);
   });
 
-  it("preserves restored mode through completion", async () => {
+  it("finishes a restored identity without a completion screen", async () => {
     const onComplete = vi.fn();
     const googleAccount = {
       googleSubject: "google-1",
@@ -283,11 +288,11 @@ describe("IdentityEstablishmentFlow", () => {
     render(<ConfiguredIdentityEstablishmentFlow onComplete={onComplete} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
-    expect(await screen.findByRole("heading", { name: "Restore complete." })).toBeInTheDocument();
-    expect(screen.getByText("Satoshi Nakamoto")).toBeInTheDocument();
-    expect(screen.getByText("satoshi@gmail.com")).toHaveClass("uppercase");
-    await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
-    expect(onComplete).toHaveBeenCalledOnce();
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalledOnce());
+    expect(screen.queryByRole("heading", { name: "Restore complete." })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Setup complete." })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continue" })).not.toBeInTheDocument();
   });
 
   it("explains missing required Drive access before setup and offers a retry", async () => {

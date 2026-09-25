@@ -124,7 +124,7 @@ describe("IdentityDashboard", () => {
     expect(await screen.findByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
   });
 
-  it("keeps restored onboarding mounted until restore completion is acknowledged", async () => {
+  it("returns to the overview directly after restoring an identity", async () => {
     FLOW.establishIdentity = true;
     FLOW.establishmentMode = "restored";
     renderDashboard();
@@ -133,10 +133,9 @@ describe("IdentityDashboard", () => {
       .setup()
       .click(await screen.findByRole("button", { name: "Continue with Google" }));
 
-    expect(await screen.findByRole("heading", { name: "Restore complete." })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Your pubky." })).not.toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
     expect(await screen.findByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Restore complete." })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continue" })).not.toBeInTheDocument();
   });
 
   it("routes a stored identity to the signed-in home state", async () => {
@@ -352,9 +351,9 @@ describe("IdentityDashboard", () => {
     expect(screen.getByRole("heading", { name: "Detach from Google." })).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Remove Google Access" })).not.toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Remove Google Access" }));
-    const confirm = screen.getByRole("button", { name: "Confirm deletion" });
+    const confirm = screen.getByRole("button", { name: "Confirm detachment" });
     expect(confirm).toBeDisabled();
-    await userEvent.setup().type(screen.getByLabelText("Type DELETE to confirm"), "DELETE");
+    await userEvent.setup().type(screen.getByLabelText("Type DETACH to confirm"), "DETACH");
     expect(confirm).toBeEnabled();
     await userEvent.setup().click(confirm);
 
