@@ -23,8 +23,16 @@ jobs:
       github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    env:
+      # secrets are not readable in a job-level `if`, so gate the steps instead.
+      HAS_OPENAI_KEY: ${{ secrets.OPENAI_API_KEY != '' }}
     steps:
+      - name: Skip notice
+        if: env.HAS_OPENAI_KEY != 'true'
+        run: echo "::notice title=Codex review skipped::Set the OPENAI_API_KEY repository secret to enable the cross-vendor review."
+
       - name: Checkout merge commit
+        if: env.HAS_OPENAI_KEY == 'true'
         # actions/checkout v4, pinned to a commit SHA to avoid mutable tag drift.
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
@@ -32,6 +40,7 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch base and head refs
+        if: env.HAS_OPENAI_KEY == 'true'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -41,11 +50,13 @@ jobs:
           git update-ref refs/remotes/origin/HEAD "$HEAD_SHA"
 
       - name: Write PR body for the reviewer
+        if: env.HAS_OPENAI_KEY == 'true'
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: printf '%s\n' "$PR_BODY" > PR_BODY.md
 
       - name: Run Codex review
+        if: env.HAS_OPENAI_KEY == 'true'
         id: codex
         # openai/codex-action v1.12, pinned to a commit SHA to avoid mutable tag drift.
         uses: openai/codex-action@86365089eb2b84e0a8fb0717b304f8bdcb13b20e
@@ -57,6 +68,7 @@ jobs:
           output-file: codex-review.md
 
       - name: Post review comment
+        if: env.HAS_OPENAI_KEY == 'true'
         # actions/github-script v8.0.0, pinned to a commit SHA to avoid mutable tag drift.
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
         with:
