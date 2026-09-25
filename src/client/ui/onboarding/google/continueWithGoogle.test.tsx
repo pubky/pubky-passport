@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ContinueWithGoogle, PASSPORT_README_URL } from "./continueWithGoogle";
 
 const TITLE = "Continue with Google, powered by Pubky Passport.";
-const HELP = "How Continue with Google works";
+const HELP = "About signing in with Google";
 
 /** Stubs matchMedia; the returned function flips the breakpoint and notifies subscribers. */
 function stubViewport(desktop: boolean): (next: boolean) => void {

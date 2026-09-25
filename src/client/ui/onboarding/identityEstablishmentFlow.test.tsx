@@ -75,7 +75,7 @@ describe("IdentityEstablishmentFlow", () => {
       "md:row-start-1",
     );
     expect(
-      within(shell).getByRole("button", { name: "How Continue with Google works" }),
+      within(shell).getByRole("button", { name: "About signing in with Google" }),
     ).toHaveAttribute("aria-expanded", "false");
     expect(within(shell).getByRole("link", { name: "How?" })).toHaveAttribute(
       "href",
