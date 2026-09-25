@@ -4,12 +4,12 @@ How features get built, reviewed, published, and merged in this repo with severa
 
 ## Roles and where they run
 
-| Role           | Who                                                               | Where                                                                    | Credentials                                                                       |
-| -------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
-| Implementer    | Claude Code, Codex CLI, or cursor-agent                           | Coder workspaces `pp1`..`pp5` (template `pubky-dev`, role `implementer`) | Vendor login only. No GitHub access.                                              |
-| Steward        | `scripts/agent/steward.sh`, optionally driven by a Claude session | Coder workspace `steward` (role `steward`)                               | Fine-grained GitHub token (no Workflows permission), OpenRouter key, Claude login |
-| Reviewers      | Kimi K3 via OpenRouter, Claude security auditor                   | On the steward and in CI                                                 | API keys on the steward and as repository secrets                                 |
-| Decision maker | Human                                                             | herdr on the laptop, attached to the machines                            | Everything, including `main`                                                      |
+| Role           | Who                                                                                           | Where                                                                    | Credentials                                                                                                                                                                          |
+| -------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Implementer    | Claude Code, Codex CLI, cursor-agent, or OpenCode                                             | Coder workspaces `pp1`..`pp5` (template `pubky-dev`, role `implementer`) | Vendor logins only, done once per workspace. No GitHub access.                                                                                                                       |
+| Steward        | `scripts/agent/steward.sh`, optionally driven by a Claude or OpenCode session                 | Coder workspace `steward` (role `steward`)                               | `gh auth login --with-token` with a fine-grained PAT (no Workflows permission) and `opencode auth login` for OpenRouter, both done by hand inside the workspace. Nothing is mounted. |
+| Reviewers      | Kimi K3 via OpenRouter (OpenCode `reviewer` agent, read-only) and the Claude security auditor | On the steward and in CI                                                 | OpenCode login on the steward; `OPENROUTER_API_KEY` repository secret for CI                                                                                                         |
+| Decision maker | Human                                                                                         | herdr on the laptop, attached to the machines                            | Everything, including `main`                                                                                                                                                         |
 
 Rules: the vendor that wrote a branch never reviews it. Nothing an implementer says is trusted; the steward re-runs every check. Only the steward talks to GitHub, and it can only push feature branches and merge to `dev`.
 
@@ -22,7 +22,7 @@ Rules: the vendor that wrote a branch never reviews it. Nothing an implementer s
 
 That is the whole inter-agent protocol. No agent needs SSH to another workspace, and a compromised implementer can only produce junk on staging.
 
-Protocol knowledge comes from [pubky/agent-skills](https://github.com/pubky/agent-skills). The Coder template symlinks its skills into `~/.claude/skills`, `~/.codex/skills`, and `~/.cursor/skills`, and `.claude/settings.json` enables the `pubky` plugin for Claude Code.
+Protocol knowledge comes from [pubky/agent-skills](https://github.com/pubky/agent-skills). The Coder template symlinks its skills into `~/.claude/skills`, `~/.codex/skills`, `~/.cursor/skills`, and `~/.config/opencode/skills`, and `.claude/settings.json` enables the `pubky` plugin for Claude Code. `opencode.json` sets Kimi K3 as OpenCode's default model here, and `.opencode/agents/reviewer.md` is the read-only reviewer the steward runs.
 
 ## Per-feature loop
 
@@ -53,7 +53,7 @@ Talking to the steward as an agent: start Claude Code in the steward workspace. 
 
 ## Reviews
 
-- `scripts/agent/review-kimi.sh` sends `AGENTS.md`, the threat model, the PR description, and the diff to `moonshotai/kimi-k3` on OpenRouter with `.github/prompts/review.md`. About 60k tokens per review.
+- `scripts/agent/review-kimi.sh` runs the OpenCode `reviewer` agent (Kimi K3, read-only, can read files) when OpenCode has an OpenRouter login, and otherwise makes one OpenRouter API call with `AGENTS.md`, the threat model, the PR description, and the diff inline, which is what CI does. About 60k tokens per review.
 - `/pubky-review` runs the vendored security auditor and clean-code reviewer with Claude.
 - `scripts/agent/review.sh --author <vendor>` runs whichever of the two did not write the code, plus `--with-codex` or `--with-cursor` if you want a third opinion locally.
 - `security-audit.yml` runs Claude weekly on `dev` and files `security-audit` issues; `scripts/agent/audit.sh` is the local version.
@@ -67,14 +67,14 @@ Talking to the steward as an agent: start Claude Code in the steward workspace. 
 
 ## Authorization checklist
 
-| What                       | How                                                                                                                                                                                          |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Devbox plumbing            | Run `devbox-setup.sh` from the Coder templates folder once as `gil` (creates `/srv/agents`, the bare repo, the mailbox, and the secrets directory)                                           |
-| Steward GitHub token       | Fine-grained PAT, repository `pubky/pubky-passport` only, permissions: Contents RW, Pull requests RW, Issues RW, Metadata R. No Workflows. Save as `/srv/coder-secrets/github-token-steward` |
-| OpenRouter key             | `/srv/coder-secrets/agent-auth/openrouter-key` (steward) and `gh secret set OPENROUTER_API_KEY` (CI)                                                                                         |
-| Anthropic API key          | `gh secret set ANTHROPIC_API_KEY` for the weekly audit                                                                                                                                       |
-| Claude Code in a workspace | Copy `~/.claude/.credentials.json` to `/srv/coder-secrets/agent-auth/claude-credentials.json`, or `claude login` inside the workspace                                                        |
-| Codex CLI in a workspace   | Copy `~/.codex/auth.json` to `/srv/coder-secrets/agent-auth/codex-auth.json`, or `codex login --device-auth` inside the workspace                                                            |
-| cursor-agent               | `cursor-agent login` on the laptop, then copy `~/.cursor/agent-cli-state.json` to `/srv/coder-secrets/agent-auth/cursor-agent-cli-state.json`                                                |
-| Branch protection          | `gh api -X POST repos/pubky/pubky-passport/rulesets --input scripts/agent/rulesets.json`                                                                                                     |
-| Workspaces                 | `coder templates push pubky-dev`, then `coder create steward --template pubky-dev --parameter role=steward`, and `coder update ppN` for the implementers                                     |
+Nothing is mounted into workspaces except the shared `/srv/agents` tree. Every credential is a one-time login inside the workspace that owns it; the home volume keeps it across restarts.
+
+| What                 | How                                                                                                                                                                                                                     |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Devbox plumbing      | `devbox-setup.sh` from the Coder templates folder, once (creates `/srv/agents` with the staging repo and mailbox)                                                                                                       |
+| Steward: GitHub      | Inside `steward`: `gh auth login --with-token` with a fine-grained PAT for `pubky/pubky-passport` only, permissions Contents RW, Pull requests RW, Issues RW, Metadata R, no Workflows. Then `gh auth setup-git`.       |
+| Steward: OpenRouter  | Inside `steward`: `opencode auth login`, pick OpenRouter, paste the key. `review-kimi.sh` and `steward.sh` read it from OpenCode.                                                                                       |
+| Implementers         | Inside each `ppN`: `claude login`, `codex login --device-auth`, `cursor-agent login`, or `opencode auth login` for whichever vendors that workspace runs. No GitHub login.                                              |
+| CI reviews and audit | `gh secret set OPENROUTER_API_KEY` and `gh secret set ANTHROPIC_API_KEY` on the repository                                                                                                                              |
+| Branch protection    | `gh api -X POST repos/pubky/pubky-passport/rulesets --input scripts/agent/rulesets.json`                                                                                                                                |
+| Workspaces and herdr | `coder templates push pubky-dev`, `coder create steward --template pubky-dev --parameter role=steward --parameter branch=dev`, `coder update ppN`, then on the laptop `herdr machine add --label steward herdr-steward` |

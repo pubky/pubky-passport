@@ -1,24 +1,49 @@
 #!/usr/bin/env bash
 # Independent review of the current branch by Kimi via OpenRouter.
 #
-#   scripts/agent/review-kimi.sh [--base <ref>] [--out <file>] [--pr-body <file>]
+#   scripts/agent/review-kimi.sh [--base <ref>] [--out <file>] [--pr-body <file>] [--via opencode|api]
 #
-# Needs OPENROUTER_API_KEY. Model from KIMI_MODEL (default moonshotai/kimi-k3).
-# Sends AGENTS.md, the threat model, the PR body, and the diff; prints the review.
+# --via opencode (default when `opencode` is installed and has an openrouter login): runs the
+#   repo's read-only `reviewer` agent (.opencode/agents/reviewer.md), so Kimi can read files.
+# --via api: one OpenRouter chat completion with AGENTS.md, the threat model, the PR body, and
+#   the diff inline. Used in CI. Needs OPENROUTER_API_KEY, or falls back to the key OpenCode
+#   stored with `opencode auth login` (~/.local/share/opencode/auth.json).
+# Model from KIMI_MODEL (default moonshotai/kimi-k3).
 set -euo pipefail
 
-base="origin/dev" out="" pr_body=""
+base="origin/dev" out="" pr_body="" via=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --base) base="$2"; shift 2 ;;
     --out) out="$2"; shift 2 ;;
     --pr-body) pr_body="$2"; shift 2 ;;
-    -h|--help) sed -n '2,8p' "$0"; exit 0 ;;
+    --via) via="$2"; shift 2 ;;
+    -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 1 ;;
   esac
 done
-: "${OPENROUTER_API_KEY:?OPENROUTER_API_KEY is not set}"
 model="${KIMI_MODEL:-moonshotai/kimi-k3}"
+opencode_auth="$HOME/.local/share/opencode/auth.json"
+if [ -z "$via" ]; then
+  if command -v opencode >/dev/null && [ -f "$opencode_auth" ] && jq -e '.openrouter' "$opencode_auth" >/dev/null 2>&1; then via=opencode; else via=api; fi
+fi
+
+if [ "$via" = "opencode" ]; then
+  root=$(git rev-parse --show-toplevel); cd "$root"
+  body="(no PR description)"; [ -n "$pr_body" ] && [ -s "$pr_body" ] && body=$(cat "$pr_body")
+  msg=$(printf 'Review the current branch against %s. Use `git diff %s...HEAD` for the change.\n\nPR description:\n\n%s\n' "$base" "$base" "$body")
+  if [ -n "$out" ]; then
+    opencode run --agent reviewer -m "openrouter/$model" "$msg" > "$out" 2>/dev/null && echo "review written to $out (opencode/$model)"
+  else
+    opencode run --agent reviewer -m "openrouter/$model" "$msg" 2>/dev/null
+  fi
+  exit
+fi
+
+if [ -z "${OPENROUTER_API_KEY:-}" ] && [ -f "$opencode_auth" ]; then
+  OPENROUTER_API_KEY=$(jq -r '.openrouter.key // empty' "$opencode_auth")
+fi
+: "${OPENROUTER_API_KEY:?OPENROUTER_API_KEY is not set and OpenCode has no openrouter login}"
 max_diff_chars="${KIMI_MAX_DIFF_CHARS:-600000}"
 
 root=$(git rev-parse --show-toplevel); cd "$root"

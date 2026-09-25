@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Cross-vendor review of the current branch against its base.
 #
-#   scripts/agent/review.sh [--author claude|codex|cursor|human] [--base origin/dev]
+#   scripts/agent/review.sh [--author claude|codex|cursor|opencode|human] [--base origin/dev]
 #                           [--pane <herdr pane id>] [--machine <herdr machine>] [--with-codex] [--with-cursor]
 #
 # Runs the reviewers that did NOT write the code, headless, and writes reports to
@@ -70,6 +70,7 @@ run_cursor() {
 
 case "$author" in
   claude) run_kimi ;;
+  opencode) run_claude ;;
   codex|cursor|human) run_kimi; run_claude ;;
   *) echo "unknown author: $author" >&2; exit 1 ;;
 esac

@@ -12,7 +12,7 @@ Read this file fully before editing. Read `docs/security/threat-model.md` before
 
 ## Protocol knowledge
 
-Pubky SDK, auth-flow, app-specs, and infrastructure facts come from the [pubky/agent-skills](https://github.com/pubky/agent-skills) skills, never from memory. Claude Code loads the `pubky` plugin automatically through `.claude/settings.json`; Codex and Cursor find the same skills under `~/.codex/skills/` and `~/.cursor/skills/` in the Coder workspaces. Before touching auth, storage, or profile code, open the matching reference (`auth.md`, `app-specs.md`, `sdk-js.md`, `shipped-vs-planned.md`) and use only documented functionality.
+Pubky SDK, auth-flow, app-specs, and infrastructure facts come from the [pubky/agent-skills](https://github.com/pubky/agent-skills) skills, never from memory. Claude Code loads the `pubky` plugin automatically through `.claude/settings.json`; Codex, Cursor, and OpenCode find the same skills under `~/.codex/skills/`, `~/.cursor/skills/`, and `~/.config/opencode/skills/` in the Coder workspaces; `opencode.json` and `.opencode/agents/reviewer.md` configure OpenCode for this repo. Before touching auth, storage, or profile code, open the matching reference (`auth.md`, `app-specs.md`, `sdk-js.md`, `shipped-vs-planned.md`) and use only documented functionality.
 
 ## Commands
 

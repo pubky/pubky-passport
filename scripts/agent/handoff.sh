@@ -2,7 +2,7 @@
 # Implementer side: push the current branch to the shared staging repo and tell the steward
 # it is ready for verification, review, and publishing. Implementers hold no GitHub credentials.
 #
-#   scripts/agent/handoff.sh [--author claude|codex|cursor|human] [--issue <n>] [--body <pr-description.md>]
+#   scripts/agent/handoff.sh [--author claude|codex|cursor|opencode|human] [--issue <n>] [--body <pr-description.md>]
 #
 # Then: scripts/agent/inbox.sh --wait   (blocks until the steward answers)
 set -euo pipefail

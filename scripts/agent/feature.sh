@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Open one feature as a herdr workspace: a git worktree, three panes, and the implementer started.
 #
-#   scripts/agent/feature.sh <slug> [--vendor claude|codex|cursor] [--base dev] [--machine <herdr machine>]
+#   scripts/agent/feature.sh <slug> [--vendor claude|codex|cursor|opencode] [--base dev] [--machine <herdr machine>]
 #                            [--issue <n>] [--prompt "<text>"]
 #
 # Pane layout (tab 1 of the new workspace):
@@ -25,8 +25,8 @@ while [ $# -gt 0 ]; do
     *) slug="$1"; shift ;;
   esac
 done
-[ -n "$slug" ] || { echo "usage: $0 <slug> [--vendor claude|codex|cursor] [--base dev] [--machine <m>] [--issue <n>] [--prompt <text>]" >&2; exit 1; }
-case "$vendor" in claude|codex|cursor) ;; *) echo "unknown vendor: $vendor" >&2; exit 1 ;; esac
+[ -n "$slug" ] || { echo "usage: $0 <slug> [--vendor claude|codex|cursor|opencode] [--base dev] [--machine <m>] [--issue <n>] [--prompt <text>]" >&2; exit 1; }
+case "$vendor" in claude|codex|cursor|opencode) ;; *) echo "unknown vendor: $vendor" >&2; exit 1 ;; esac
 
 h() { if [ -n "$machine" ]; then herdr --machine "$machine" "$@"; else herdr "$@"; fi; }
 if [ -z "$machine" ]; then

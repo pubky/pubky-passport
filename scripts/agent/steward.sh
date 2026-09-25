@@ -11,7 +11,7 @@
 # Environment (defaults suit the Coder steward workspace):
 #   AGENTS_ROOT=/srv/agents           STAGING=$AGENTS_ROOT/staging.git   MAILBOX=$AGENTS_ROOT/mailbox
 #   STEWARD_WORKTREES=~/steward-worktrees   STEWARD_AUTO_MERGE=dev|off (default dev)
-#   STEWARD_INTERVAL=60 (seconds, watch loop)   OPENROUTER_API_KEY (Kimi review; skipped if unset)
+#   STEWARD_INTERVAL=60 (seconds, watch loop)   Kimi reviews use OpenCode's openrouter login or OPENROUTER_API_KEY
 set -euo pipefail
 
 AGENTS_ROOT="${AGENTS_ROOT:-/srv/agents}"
@@ -56,10 +56,11 @@ publish() {
 
   # 2. Independent reviews. Kimi (OpenRouter) and the Claude security auditor; never the author's vendor for Claude.
   local body="$box/pr.md"; [ -s "$body" ] || printf '## Intent\n\n(implementer did not provide a description)\n\n## Authored by\n\n%s\n' "$author" > "$body"
-  if [ -n "${OPENROUTER_API_KEY:-}" ]; then
-    ( cd "$wt" && "$scripts/review-kimi.sh" --base origin/dev --pr-body "$body" --out "$out/kimi.md" ) || log "kimi review failed"
-  else log "OPENROUTER_API_KEY unset; skipping Kimi review"; fi
-  if [ "$author" != "claude" ] || [ -z "${OPENROUTER_API_KEY:-}" ]; then
+  local kimi_ok=""
+  if [ "$author" = "opencode" ]; then log "author is opencode (Kimi); skipping Kimi self-review"
+  elif ( cd "$wt" && "$scripts/review-kimi.sh" --base origin/dev --pr-body "$body" --out "$out/kimi.md" ); then kimi_ok=1
+  else log "kimi review unavailable (no OpenRouter login?) or failed"; fi
+  if [ "$author" != "claude" ] || [ -z "$kimi_ok" ]; then
     if command -v claude >/dev/null; then
       ( cd "$wt" && claude -p "Run the pubky-review skill on the current branch against origin/dev and output the full report." --output-format text --max-turns 60 >"$out/claude.md" 2>&1 ) || log "claude review failed"
     fi
