@@ -1,0 +1,13 @@
+# Semgrep skips these on top of its defaults. Test fixtures hold deliberately fake secrets;
+# the project rules in .semgrep already exclude tests where it matters.
+node_modules/
+.next/
+coverage/
+playwright-report/
+test-results/
+*.test.ts
+*.test.tsx
+*.staging.test.ts
+e2e/
+test-utils/
+docs/vendor/
