@@ -1,67 +1,80 @@
 # Agent workflow
 
-How features get built, reviewed, and audited in this repo with several AI vendors and a human in the loop. AGENTS.md holds the rules agents follow; this file holds the process the human runs.
+How features get built, reviewed, published, and merged in this repo with several AI vendors, a steward workspace that owns GitHub, and a human who decides. `AGENTS.md` holds the rules agents follow; this file holds the process.
 
-## Roles
+## Roles and where they run
 
-| Role                | Who                                             | Where it runs                                       |
-| ------------------- | ----------------------------------------------- | --------------------------------------------------- |
-| Implementer         | Claude Code or Codex CLI (Cursor for UI-heavy)  | A Coder workspace, one herdr workspace per feature  |
-| First review        | `/pubky-review` (security auditor + clean-code) | Same workspace, `review` pane                       |
-| Cross-vendor review | The vendor that did not write the PR            | Locally via `scripts/agent/review.sh` and in CI     |
-| Scheduled audit     | Claude, weekly, read-only                       | GitHub Actions (`security-audit.yml`) or `audit.sh` |
-| Decision maker      | Human                                           | herdr on the laptop, attached to the Coder machines |
+| Role           | Who                                                               | Where                                                                    | Credentials                                                                       |
+| -------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| Implementer    | Claude Code, Codex CLI, or cursor-agent                           | Coder workspaces `pp1`..`pp5` (template `pubky-dev`, role `implementer`) | Vendor login only. No GitHub access.                                              |
+| Steward        | `scripts/agent/steward.sh`, optionally driven by a Claude session | Coder workspace `steward` (role `steward`)                               | Fine-grained GitHub token (no Workflows permission), OpenRouter key, Claude login |
+| Reviewers      | Kimi K3 via OpenRouter, Claude security auditor                   | On the steward and in CI                                                 | API keys on the steward and as repository secrets                                 |
+| Decision maker | Human                                                             | herdr on the laptop, attached to the machines                            | Everything, including `main`                                                      |
 
-Rule: the vendor that wrote a PR never reviews it. Different model families miss different bugs.
+Rules: the vendor that wrote a branch never reviews it. Nothing an implementer says is trusted; the steward re-runs every check. Only the steward talks to GitHub, and it can only push feature branches and merge to `dev`.
 
-## Environment
+## Shared plumbing on the devbox
 
-- Coder workspaces `pp1`..`pp5` on the devbox, template `pubky-dev`. Each has Claude Code, Codex CLI, cursor-agent, herdr, gh. Agent credentials are mounted read-only from `/srv/coder-secrets/agent-auth/` on the host and copied into the home volume on first start.
-- herdr on the laptop has the workspaces saved as machines (`herdr machine list`). Every command below accepts `--machine <label>` to run on a workspace instead of locally.
-- Branch protection on `dev` and `main`: PR required, CI + Security checks required, no force pushes. Agents cannot bypass this because workspaces hold no GitHub credentials beyond the read-only token.
+`/srv/agents` on the host is mounted read-write into every workspace:
+
+- `staging.git` is a bare repo. Implementers push their branches here; the steward fetches from here.
+- `mailbox/<branch>/` carries `meta.json` (author, issue, head), `pr.md` (the implementer's PR description), a `ready` marker, the steward's `feedback-*.md` files, and `state.json`.
+
+That is the whole inter-agent protocol. No agent needs SSH to another workspace, and a compromised implementer can only produce junk on staging.
+
+Protocol knowledge comes from [pubky/agent-skills](https://github.com/pubky/agent-skills). The Coder template symlinks its skills into `~/.claude/skills`, `~/.codex/skills`, and `~/.cursor/skills`, and `.claude/settings.json` enables the `pubky` plugin for Claude Code.
 
 ## Per-feature loop
 
-1. **Issue.** Write acceptance criteria and tick the boundaries from `docs/security/threat-model.md` it touches. If it needs a decision no ADR covers, write the ADR first (see `docs/adr/README.md`).
-2. **Open the feature.**
+1. **Issue.** Acceptance criteria, boundaries from `docs/security/threat-model.md`, answers to the ADR's open questions.
+2. **Open the feature** from the laptop:
    ```bash
    scripts/agent/feature.sh custom-homegate --vendor claude --issue 42 --machine pp2
    ```
-   Creates `feat/custom-homegate` as a worktree in a new herdr workspace with three panes (implementer, shell, review), starts the implementer, and asks it for a plan.
-3. **Approve the plan.** Read it with `herdr agent read impl-custom-homegate`, answer with `herdr agent prompt`. The agent then implements and runs `pnpm check`.
-4. **Simplify and first review.** In the implementer: `/simplify`, then in the review pane `/pubky-review`. Fix Critical and High in the same session.
-5. **Cross-vendor review.**
-   ```bash
-   scripts/agent/review.sh --author claude --pane w3:p3 --machine pp2
-   ```
-   Runs `pnpm check`, then Codex (and cursor-agent when installed) headless with `.github/prompts/codex-review.md`, writes reports under `.review/<branch>/`, and starts an interactive Claude reviewer in the pane. Read the Verdict lines; open the reports only for Needs changes or Blocked.
-6. **PR.** The implementer opens the PR with the template filled in and "Authored by" set. CI runs quality, browser, Security (gitleaks, Semgrep, dependency review), and the Codex review comment. For auth, key, or postMessage changes also run `/code-review ultra` from the laptop.
-7. **Merge.** Human reads the review summaries and merges to `dev`. Release PRs from `dev` to `main` run `pnpm check:critical`.
+   Creates `feat/custom-homegate` as a worktree in a herdr workspace on pp2 with three panes: implementer, shell, and steward feedback (`inbox.sh --follow`). The implementer reads the docs and proposes a plan.
+3. **Approve the plan** with `herdr --machine pp2 agent prompt impl-custom-homegate "Approved."`. The agent implements, runs `pnpm check`, writes `.review/pr.md`, and hands off with `scripts/agent/handoff.sh`.
+4. **Steward publishes.** `steward.sh watch` (running in the steward workspace) sees the `ready` marker: fetches the branch, runs `pnpm check`, runs Kimi and the Claude auditor, pushes to GitHub, opens or updates the PR with a steward report, and writes feedback to the mailbox. The implementer, waiting in `inbox.sh --wait`, fixes what came back and hands off again.
+5. **CI** runs quality, browser, Security, and the Kimi review comment on the PR.
+6. **Merge.** When every check is green and both verdicts read "Ready to merge", the steward squash-merges into `dev` and deletes the branch. Anything else waits for you. A human review requesting changes always blocks. Release PRs from `dev` to `main` are yours.
 
-Keep at most three features in flight. Past that, review is the bottleneck and the threat model stops being updated.
+Keep at most three features in flight.
 
-## Scheduled audit
-
-`security-audit.yml` runs every Monday 06:00 UTC on `dev`, files one issue per Critical or High finding under the `security-audit` label, and one rollup for the rest. Run it by hand from the Actions tab (`workflow_dispatch`) or locally:
+## Steward commands
 
 ```bash
-scripts/agent/audit.sh              # report only, to .review/audit-<date>.md
-scripts/agent/audit.sh --file-issues
+scripts/agent/steward.sh status            # mailbox state and open PRs
+scripts/agent/steward.sh publish feat/x    # one branch, by hand
+scripts/agent/steward.sh merge feat/x      # merge if green
+scripts/agent/steward.sh watch             # the loop; run it in a tmux or herdr pane on the steward
+STEWARD_AUTO_MERGE=off scripts/agent/steward.sh watch   # publish and review only, never merge
 ```
 
-## Guardrails for agents
+Talking to the steward as an agent: start Claude Code in the steward workspace. It has `gh` with the steward token and the same guard hooks, so it can inspect PRs, re-run publishes, and explain a verdict, but its pushes and merges still go through `steward.sh` and its allowlists.
 
-- `.claude/settings.json` denies reads of `.env.local`, certificates, and credential files, denies edits to workflows and to itself, and runs `scripts/agent/guard-bash.sh` before every Bash command. The hook blocks force pushes, direct pushes to `dev`/`main`, secret changes, and destructive git or filesystem commands.
-- Codex and cursor-agent read `AGENTS.md` for the same rules; the Coder workspaces give them no credentials that could push to protected branches.
-- CI secrets (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) are only exposed to workflows running on same-repo branches; the Codex review job skips forks and drafts.
+## Reviews
+
+- `scripts/agent/review-kimi.sh` sends `AGENTS.md`, the threat model, the PR description, and the diff to `moonshotai/kimi-k3` on OpenRouter with `.github/prompts/review.md`. About 60k tokens per review.
+- `/pubky-review` runs the vendored security auditor and clean-code reviewer with Claude.
+- `scripts/agent/review.sh --author <vendor>` runs whichever of the two did not write the code, plus `--with-codex` or `--with-cursor` if you want a third opinion locally.
+- `security-audit.yml` runs Claude weekly on `dev` and files `security-audit` issues; `scripts/agent/audit.sh` is the local version.
+
+## Guardrails
+
+- `.claude/settings.json`: denies reading `.env.local`, certificates, `/run/secrets`, and credential files; denies edits to workflows, the guard, the steward script, and itself; runs `scripts/agent/guard-bash.sh` before every Bash command (blocks force pushes, pushes to `dev`/`main`, secret changes, destructive git and rm).
+- Branch protection on `dev` and `main` (see `scripts/agent/rulesets.json`): PR required, checks required, no force push, no deletion. Applies to the steward token.
+- The steward token has no Workflows permission, so pushes touching `.github/workflows` are rejected by GitHub for every agent. Humans push workflow changes.
+- CI secrets are only exposed to same-repo, non-draft PRs.
 
 ## Authorization checklist
 
-| What                       | How                                                                                                                                                                 |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Claude Code in a workspace | Already logged in on `pp1`/`pp2`; new workspaces copy `claude-credentials.json` from `/srv/coder-secrets/agent-auth/` or run `claude login`                         |
-| Codex CLI in a workspace   | Copy `~/.codex/auth.json` from the laptop to `/srv/coder-secrets/agent-auth/codex-auth.json` on the devbox, or run `codex login --device-auth` inside the workspace |
-| cursor-agent               | `cursor-agent login` on the laptop, then copy `~/.cursor/agent-cli-state.json` to `/srv/coder-secrets/agent-auth/cursor-agent-cli-state.json`                       |
-| Codex review in CI         | `gh secret set OPENAI_API_KEY --repo pubky/pubky-passport` (API key from platform.openai.com; billed per token)                                                     |
-| Scheduled audit in CI      | `gh secret set ANTHROPIC_API_KEY --repo pubky/pubky-passport` (API key from console.anthropic.com; billed per token)                                                |
-| Branch protection          | Repository admin; rulesets are in the repo settings, see `scripts/agent/rulesets.json` for the definition applied                                                   |
+| What                       | How                                                                                                                                                                                          |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Devbox plumbing            | Run `devbox-setup.sh` from the Coder templates folder once as `gil` (creates `/srv/agents`, the bare repo, the mailbox, and the secrets directory)                                           |
+| Steward GitHub token       | Fine-grained PAT, repository `pubky/pubky-passport` only, permissions: Contents RW, Pull requests RW, Issues RW, Metadata R. No Workflows. Save as `/srv/coder-secrets/github-token-steward` |
+| OpenRouter key             | `/srv/coder-secrets/agent-auth/openrouter-key` (steward) and `gh secret set OPENROUTER_API_KEY` (CI)                                                                                         |
+| Anthropic API key          | `gh secret set ANTHROPIC_API_KEY` for the weekly audit                                                                                                                                       |
+| Claude Code in a workspace | Copy `~/.claude/.credentials.json` to `/srv/coder-secrets/agent-auth/claude-credentials.json`, or `claude login` inside the workspace                                                        |
+| Codex CLI in a workspace   | Copy `~/.codex/auth.json` to `/srv/coder-secrets/agent-auth/codex-auth.json`, or `codex login --device-auth` inside the workspace                                                            |
+| cursor-agent               | `cursor-agent login` on the laptop, then copy `~/.cursor/agent-cli-state.json` to `/srv/coder-secrets/agent-auth/cursor-agent-cli-state.json`                                                |
+| Branch protection          | `gh api -X POST repos/pubky/pubky-passport/rulesets --input scripts/agent/rulesets.json`                                                                                                     |
+| Workspaces                 | `coder templates push pubky-dev`, then `coder create steward --template pubky-dev --parameter role=steward`, and `coder update ppN` for the implementers                                     |

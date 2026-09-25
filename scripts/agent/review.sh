@@ -2,26 +2,29 @@
 # Cross-vendor review of the current branch against its base.
 #
 #   scripts/agent/review.sh [--author claude|codex|cursor|human] [--base origin/dev]
-#                           [--pane <herdr pane id>] [--machine <herdr machine>]
+#                           [--pane <herdr pane id>] [--machine <herdr machine>] [--with-codex] [--with-cursor]
 #
 # Runs the reviewers that did NOT write the code, headless, and writes reports to
 # .review/<branch>/<vendor>.md (gitignored). With --pane, also starts Claude interactively
 # in that herdr pane running /pubky-review so you can talk to the reviewer.
 #
 # Always runs (deterministic): pnpm check.
+# kimi    : scripts/agent/review-kimi.sh (OpenRouter, needs OPENROUTER_API_KEY); default second reviewer
 # claude  : /pubky-review via the project skill (security auditor + clean-code reviewer)
-# codex   : codex review with .github/prompts/codex-review.md
-# cursor  : cursor-agent in plan mode with the same prompt
+# codex   : codex review with .github/prompts/review.md (only with --with-codex)
+# cursor  : cursor-agent in plan mode with the same prompt (only with --with-cursor)
 set -euo pipefail
 
-author="human" base="origin/dev" pane="" machine=""
+author="human" base="origin/dev" pane="" machine="" with_codex="" with_cursor=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --author) author="$2"; shift 2 ;;
     --base) base="$2"; shift 2 ;;
     --pane) pane="$2"; shift 2 ;;
     --machine) machine="$2"; shift 2 ;;
-    -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
+    --with-codex) with_codex=1; shift ;;
+    --with-cursor) with_cursor=1; shift ;;
+    -h|--help) sed -n '2,14p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 1 ;;
   esac
 done
@@ -47,29 +50,31 @@ run_claude() {
   claude -p "Run the pubky-review skill on the current branch against $base. Changed files: $files. Output the full report." \
     --output-format text --max-turns 60 > "$out/claude.md" 2>&1 && echo "claude: $out/claude.md" || echo "claude: failed (see $out/claude.md)"
 }
+run_kimi() {
+  echo "== kimi (OpenRouter)"
+  if [ -z "${OPENROUTER_API_KEY:-}" ]; then echo "kimi: skipped (OPENROUTER_API_KEY unset)"; return; fi
+  gh pr view --json body -q .body > "$out/pr-body.md" 2>/dev/null || printf '(no PR yet)\n' > "$out/pr-body.md"
+  scripts/agent/review-kimi.sh --base "$base" --pr-body "$out/pr-body.md" --out "$out/kimi.md" || echo "kimi: failed"
+}
 run_codex() {
   echo "== codex review"
-  git update-ref refs/remotes/origin/BASE "$merge_base"
-  git update-ref refs/remotes/origin/HEAD HEAD
-  gh pr view --json body -q .body > PR_BODY.md 2>/dev/null || printf '(no PR yet)\n' > PR_BODY.md
-  codex review --base "$base" "$(cat .github/prompts/codex-review.md)" > "$out/codex.md" 2>&1 \
+  codex review --base "$base" "$(cat .github/prompts/review.md)" > "$out/codex.md" 2>&1 \
     && echo "codex: $out/codex.md" || echo "codex: failed (see $out/codex.md)"
-  rm -f PR_BODY.md
 }
 run_cursor() {
   echo "== cursor-agent (plan mode)"
   cursor-agent --print --mode plan --output-format text \
-    "$(cat .github/prompts/codex-review.md) The diff to review is in $out/diff.patch; origin/BASE is $merge_base." \
+    "$(cat .github/prompts/review.md) The diff to review is in $out/diff.patch against $base." \
     > "$out/cursor.md" 2>&1 && echo "cursor: $out/cursor.md" || echo "cursor: failed (see $out/cursor.md)"
 }
 
 case "$author" in
-  claude) run_codex; command -v cursor-agent >/dev/null && run_cursor ;;
-  codex)  run_claude; command -v cursor-agent >/dev/null && run_cursor ;;
-  cursor) run_claude; run_codex ;;
-  human)  run_claude; run_codex ;;
+  claude) run_kimi ;;
+  codex|cursor|human) run_kimi; run_claude ;;
   *) echo "unknown author: $author" >&2; exit 1 ;;
 esac
+[ -n "$with_codex" ] && [ "$author" != "codex" ] && run_codex
+[ -n "$with_cursor" ] && [ "$author" != "cursor" ] && command -v cursor-agent >/dev/null && run_cursor
 
 if [ -n "$pane" ]; then
   h() { if [ -n "$machine" ]; then herdr --machine "$machine" "$@"; else herdr "$@"; fi; }

@@ -10,6 +10,10 @@ Browser signer for `pubkyauth` requests plus cloud-backed identity recovery. Nex
 
 Read this file fully before editing. Read `docs/security/threat-model.md` before touching anything listed under "Security invariants". Read the matching ADR in `docs/adr/` before working on a v2 feature.
 
+## Protocol knowledge
+
+Pubky SDK, auth-flow, app-specs, and infrastructure facts come from the [pubky/agent-skills](https://github.com/pubky/agent-skills) skills, never from memory. Claude Code loads the `pubky` plugin automatically through `.claude/settings.json`; Codex and Cursor find the same skills under `~/.codex/skills/` and `~/.cursor/skills/` in the Coder workspaces. Before touching auth, storage, or profile code, open the matching reference (`auth.md`, `app-specs.md`, `sdk-js.md`, `shipped-vs-planned.md`) and use only documented functionality.
+
 ## Commands
 
 ```bash
@@ -67,6 +71,14 @@ These are non-negotiable and reviewed on every PR. Details and rationale live in
 - Fill in the PR template honestly, especially "Boundaries touched". It decides which reviews run.
 - Reviews are cross-vendor: the agent that wrote a PR does not review it. See `docs/agent-workflow.md`.
 - When blocked on a product decision, stop and ask in the PR or issue; do not guess at security-relevant behaviour.
+
+## Handing work off
+
+Implementer workspaces hold no GitHub credentials by design; do not try to obtain any, push to `origin`, or open PRs. When `pnpm check` is green:
+
+1. Write the PR description to `.review/pr.md` using `.github/pull_request_template.md`.
+2. Run `scripts/agent/handoff.sh --author <vendor> --issue <n> --body .review/pr.md`. It pushes the branch to the shared staging repo and notifies the steward.
+3. Run `scripts/agent/inbox.sh --wait` and act on the steward's feedback. The steward re-runs `pnpm check`, runs the independent reviews, opens the PR, and merges to `dev` when every gate is green.
 
 ## Definition of done
 

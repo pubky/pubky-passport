@@ -24,7 +24,11 @@
       "Bash(gh pr diff:*)",
       "Bash(gh pr checks:*)",
       "Bash(gh issue view:*)",
-      "Bash(gh issue list:*)"
+      "Bash(gh issue list:*)",
+      "Bash(scripts/agent/handoff.sh:*)",
+      "Bash(scripts/agent/inbox.sh:*)",
+      "Bash(scripts/agent/review.sh:*)",
+      "Bash(scripts/agent/review-kimi.sh:*)"
     ],
     "deny": [
       "Read(./.env.local)",
@@ -38,7 +42,11 @@
       "Edit(./scripts/agent/guard-bash.sh)",
       "Write(./scripts/agent/guard-bash.sh)",
       "Edit(./.claude/settings.json)",
-      "Write(./.claude/settings.json)"
+      "Write(./.claude/settings.json)",
+      "Read(/srv/coder-secrets/**)",
+      "Read(/run/secrets/**)",
+      "Edit(./scripts/agent/steward.sh)",
+      "Write(./scripts/agent/steward.sh)"
     ]
   },
   "hooks": {
@@ -53,5 +61,16 @@
         ]
       }
     ]
+  },
+  "extraKnownMarketplaces": {
+    "pubky-agent-skills": {
+      "source": {
+        "source": "github",
+        "repo": "pubky/agent-skills"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "pubky@pubky-agent-skills": true
   }
 }

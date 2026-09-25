@@ -7,7 +7,7 @@
 # Pane layout (tab 1 of the new workspace):
 #   left  : implementer agent (pane p_impl)
 #   right : shell for pnpm check / dev server (pane p_shell)
-#   below : reserved for the reviewer, started later by scripts/agent/review.sh
+#   below : steward feedback (scripts/agent/inbox.sh --follow); reviewers run on the steward
 #
 # With --machine the whole thing runs on a saved herdr SSH machine (a Coder workspace) and
 # paths are resolved there. Without it, runs in the local herdr session.
@@ -50,7 +50,8 @@ h pane rename "$root" "impl-$vendor" >/dev/null 2>&1 || true
 h pane rename "$shell" "shell" >/dev/null 2>&1 || true
 h pane rename "$review" "review" >/dev/null 2>&1 || true
 
-h pane run "$shell" "pnpm install --frozen-lockfile" >/dev/null
+h pane run "$shell" "git remote add staging ${STAGING:-/srv/agents/staging.git} 2>/dev/null; pnpm install --frozen-lockfile" >/dev/null
+h pane run "$review" "scripts/agent/inbox.sh --follow" >/dev/null
 
 echo "starting $vendor as implementer in $root..."
 h agent start "impl-$slug" --kind "$vendor" --pane "$root" --timeout 120000 >/dev/null
@@ -58,7 +59,7 @@ h agent start "impl-$slug" --kind "$vendor" --pane "$root" --timeout 120000 >/de
 if [ -z "$prompt" ]; then
   prompt="You are implementing feature '$slug' on branch $branch."
   [ -n "$issue" ] && prompt="$prompt The specification is GitHub issue #$issue (read it with gh issue view $issue)."
-  prompt="$prompt Read AGENTS.md, docs/security/threat-model.md and the relevant ADR in docs/adr first. Produce a short plan (files, tests, boundaries touched) and wait for my approval before writing code. After approval: implement, run pnpm check, and report the result verbatim. Do not open a PR."
+  prompt="$prompt Read AGENTS.md, docs/security/threat-model.md and the relevant ADR in docs/adr first; use the pubky agent skill references for SDK, auth and app-specs behaviour. Produce a short plan (files, tests, boundaries touched) and wait for my approval before writing code. After approval: implement, run pnpm check, and report the result verbatim. When it is green, write the PR description to .review/pr.md using .github/pull_request_template.md, then run scripts/agent/handoff.sh --author $vendor${issue:+ --issue $issue} --body .review/pr.md and scripts/agent/inbox.sh --wait, and address the steward's feedback. You have no GitHub access by design; do not try to open PRs or push to origin."
 fi
 h agent prompt "impl-$slug" "$prompt" --wait --until blocked --until idle --until done --timeout 900000 >/dev/null || true
 
@@ -69,5 +70,5 @@ agent:     impl-$slug ($vendor)
 
 Next: read the plan with   herdr${machine:+ --machine $machine} agent read impl-$slug
       approve with         herdr${machine:+ --machine $machine} agent prompt impl-$slug "Approved, go ahead."
-      when done, review:   scripts/agent/review.sh --pane $review --author $vendor${machine:+ --machine $machine}
+      the agent hands off with scripts/agent/handoff.sh; the steward's feedback appears in pane $review
 MSG
