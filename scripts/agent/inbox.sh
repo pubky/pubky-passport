@@ -10,7 +10,7 @@ MAILBOX="${MAILBOX:-$AGENTS_ROOT/mailbox}"
 mode="${1:-latest}"
 root=$(git rev-parse --show-toplevel); cd "$root"
 b=$(git rev-parse --abbrev-ref HEAD); box="$MAILBOX/$b"
-latest() { ls -1 "$box"/feedback-*.md 2>/dev/null | sort | tail -n 1; }
+latest() { { ls -1 "$box"/feedback-*.md 2>/dev/null || true; } | sort | tail -n 1; }
 case "$mode" in
   latest)
     f=$(latest); [ -n "$f" ] || { echo "no feedback yet for $b"; exit 0; }
