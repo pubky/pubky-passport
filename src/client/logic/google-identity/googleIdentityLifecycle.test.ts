@@ -152,12 +152,13 @@ describe("Google identity use cases", () => {
       { flow: "create", step: "creating" },
       { flow: "create", step: "storing_passport_file" },
       { flow: "create", step: "signing_up" },
-      { flow: "create", step: "publishing" },
       { flow: "create", step: "activating" },
     ]);
     expect(MOCKS.driveStoreConstructions.count).toBe(1);
     expect(MOCKS.visibleCopiesConstructions.count).toBe(1);
-    expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
+    expect(MOCKS.signin).toHaveBeenCalledWith(KEY_HANDLE, "normal");
+    expect(MOCKS.signin).not.toHaveBeenCalledWith(KEY_HANDLE, "after-publication");
+    await vi.waitFor(() => expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE));
   });
 
   it("asks for a decision only after finding no identity, before creating anything", async () => {
@@ -442,7 +443,6 @@ describe("Google identity use cases", () => {
       { flow: "create", step: "creating" },
       { flow: "create", step: "storing_passport_file" },
       { flow: "create", step: "signing_up" },
-      { flow: "create", step: "publishing" },
       { flow: "create", step: "activating" },
     ]);
   });
@@ -802,15 +802,11 @@ describe("Google identity use cases", () => {
   });
 
   it.each([
-    ["publication", "publication_failed"],
     ["signin", "signin_failed"],
     ["local-save", "local_save_failed"],
   ] as const)("stops and disposes the key after a %s failure", async (stage, expectedCode) => {
     MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
-    if (stage === "publication") {
-      MOCKS.publishHomeserver.mockResolvedValue(Result.err({ code: "publish_failed" }));
-      MOCKS.signin.mockResolvedValue(Result.err({ code: "signin_failed" }));
-    } else if (stage === "signin") {
+    if (stage === "signin") {
       MOCKS.signin.mockResolvedValue(Result.err({ code: "signin_failed" }));
     } else {
       MOCKS.repositorySave.mockReturnValue(Result.err({ code: "storage_unavailable" }));
@@ -819,7 +815,70 @@ describe("Google identity use cases", () => {
     expectResultError(await createSubject().establishIdentity(CREDENTIALS, () => undefined), {
       code: expectedCode,
     });
-    expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
+    await vi.waitFor(() => expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE));
+  });
+
+  it("keeps a new identity when its background republish fails", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
+    MOCKS.publishHomeserver.mockResolvedValue(Result.err({ code: "publish_failed" }));
+
+    expectResultOk(await createSubject().establishIdentity(CREDENTIALS, () => undefined));
+
+    expect(MOCKS.signin).toHaveBeenCalledWith(KEY_HANDLE, "normal");
+    expect(MOCKS.repositorySave).toHaveBeenCalledOnce();
+    await vi.waitFor(() =>
+      expect(warning).toHaveBeenCalledWith(
+        "identity.homeserver.republish.failed",
+        expect.objectContaining({ code: "publish_failed" }),
+      ),
+    );
+    await vi.waitFor(() => expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE));
+  });
+
+  it("does not await the background republish after a definitive signup", async () => {
+    MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
+    let finishRepublish: (value: ResultType<void, { code: string }>) => void = () => undefined;
+    MOCKS.publishHomeserver.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishRepublish = resolve;
+        }),
+    );
+    const subject = createSubject();
+
+    expectResultOk(await subject.establishIdentity(CREDENTIALS, () => undefined));
+    expect(MOCKS.publishHomeserver).toHaveBeenCalledWith(
+      KEY_HANDLE,
+      SIGNUP_DETAILS.homeserverPubky,
+    );
+    expect(MOCKS.disposeIdentityKey).not.toHaveBeenCalled();
+    subject.dispose();
+    expect(MOCKS.disposePubky).not.toHaveBeenCalled();
+
+    finishRepublish(Result.ok());
+    await vi.waitFor(() => {
+      expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(KEY_HANDLE);
+      expect(MOCKS.disposePubky).toHaveBeenCalledOnce();
+    });
+  });
+
+  it("uploads the visible recovery copy while homeserver activation runs", async () => {
+    MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
+    let finishCopy: (value: ResultType<void, { code: string }>) => void = () => undefined;
+    MOCKS.createVisibleRecoveryCopy.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishCopy = resolve;
+        }),
+    );
+
+    const pending = createSubject().establishIdentity(CREDENTIALS, () => undefined);
+    await vi.waitFor(() => expect(MOCKS.repositorySave).toHaveBeenCalledOnce());
+    expect(MOCKS.createVisibleRecoveryCopy).toHaveBeenCalledOnce();
+
+    finishCopy(Result.ok());
+    expect(expectResultOk(await pending)).toMatchObject({ visibleRecoveryCopyStatus: "created" });
   });
 
   it("relies on the Pubky adapter to clear decrypted bytes when key restoration fails", async () => {
@@ -953,11 +1012,13 @@ describe("Google identity use cases", () => {
     });
 
     expectResultOk(await createSubject().establishIdentity(CREDENTIALS, () => undefined));
-    expect(warning).toHaveBeenCalledWith("identity.google.cleanup.failed", {
-      operation: "created_key_dispose",
-      diagnosticId: expect.any(String),
-      errorName: "Error",
-    });
+    await vi.waitFor(() =>
+      expect(warning).toHaveBeenCalledWith("identity.google.cleanup.failed", {
+        operation: "created_key_dispose",
+        diagnosticId: expect.any(String),
+        errorName: "Error",
+      }),
+    );
     expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-KEY-CLEANUP-CANARY");
   });
 
