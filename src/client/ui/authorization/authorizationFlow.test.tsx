@@ -634,6 +634,12 @@ describe("AuthorizationFlow", () => {
       "Continue",
       "You can return to the app or device where you started.",
     ],
+    [
+      "handed-off",
+      "Return to the app.",
+      "Continue",
+      "Passport cannot see the approval in Pubky Ring. The app signs you in once the approval reaches it.",
+    ],
     ["cancelled", "Authorization cancelled.", "Back", "No authorization was granted."],
     [
       "failed",

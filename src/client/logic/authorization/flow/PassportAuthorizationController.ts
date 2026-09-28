@@ -23,12 +23,14 @@ export type PassportAuthorizationViewState =
   | { status: "granting"; review: AuthorizationRequestReview }
   | { status: "completing"; review: AuthorizationRequestReview }
   | { status: "approved" }
+  /** Handed to an external signer; Passport cannot see whether it approved. */
+  | { status: "handed-off" }
   | { status: "cancelled" }
   | { status: "failed" };
 
 type LocalTerminalState = Extract<
   PassportAuthorizationViewState,
-  { status: "approved" | "cancelled" | "failed" }
+  { status: "approved" | "handed-off" | "cancelled" | "failed" }
 >;
 
 type AuthorizationAction = Readonly<{
@@ -87,6 +89,15 @@ export class PassportAuthorizationController {
   }
 
   /**
+   * Returns the exact validated request for an intentional external-signer handoff.
+   * Callers must not persist, log, or copy this value into general presentation state.
+   */
+  externalSignerUrl(): string | undefined {
+    if (this.disposed || this.state.status !== "review") return undefined;
+    return this.request?.validatedUrlForApproval();
+  }
+
+  /**
    * Subscribes to state transitions. Listener exceptions are contained so they
    * cannot interrupt an authorization flow.
    */
@@ -136,6 +147,21 @@ export class PassportAuthorizationController {
     return this.completeRequestOutcome(action.request, "cancel", action.review);
   }
 
+  /**
+   * Ends the review after the person reports approving the request in an external signer such as
+   * Pubky Ring. Passport cannot observe that approval, so the `success` outcome it hands back is
+   * the person's report, a hint like every outcome: the app still waits for its own SDK flow.
+   * Without a usable callback the request ends as `handed-off`, never as approved.
+   */
+  async finishExternalApproval(): Promise<PassportAuthorizationViewState> {
+    const action = this.beginAction();
+    if (!action) return this.state;
+
+    return this.completeRequestOutcome(action.request, "success", action.review, {
+      status: "handed-off",
+    });
+  }
+
   private beginAction(): AuthorizationAction | undefined {
     if (this.disposed || !this.request || this.state.status !== "review") return undefined;
 
@@ -149,6 +175,7 @@ export class PassportAuthorizationController {
     request: ValidatedPubkyAuthRequest,
     outcome: AuthorizationOutcome,
     review: AuthorizationRequestReview,
+    localState: LocalTerminalState = localStateForOutcome(outcome),
   ): Promise<PassportAuthorizationViewState> {
     if (this.disposed) {
       request.release();
@@ -157,7 +184,7 @@ export class PassportAuthorizationController {
 
     this.request = undefined;
     const callback = request.takeOutcomeCallback(outcome);
-    if (!callback) return this.update(localStateForOutcome(outcome));
+    if (!callback) return this.update(localState);
 
     this.update({ status: "completing", review });
     let handoffStatus: Awaited<ReturnType<typeof handoffAuthorizationOutcome>>;
@@ -174,7 +201,7 @@ export class PassportAuthorizationController {
         operation: "complete",
         ...safeErrorLogFields(e),
       });
-      return this.update(localStateForOutcome(outcome));
+      return this.update(localState);
     }
     if (handoffStatus !== "unavailable") return this.state;
 
@@ -182,7 +209,7 @@ export class PassportAuthorizationController {
       outcome,
       operation: "complete",
     });
-    return this.update(localStateForOutcome(outcome));
+    return this.update(localState);
   }
 
   private update(state: PassportAuthorizationViewState): PassportAuthorizationViewState {

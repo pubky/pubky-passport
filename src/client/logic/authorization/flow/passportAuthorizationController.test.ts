@@ -76,6 +76,15 @@ describe("PassportAuthorizationController", () => {
     expect(serializedState).not.toContain(SUCCESS_CALLBACK);
   });
 
+  it("exposes the exact live request only for an external signer handoff", async () => {
+    const { controller } = createController();
+
+    expect(controller.externalSignerUrl()).toBe(validRequest());
+
+    await controller.cancel();
+    expect(controller.externalSignerUrl()).toBeUndefined();
+  });
+
   it("approves once with the reviewed identity and completes the success callback", async () => {
     let completeApproval: (() => void) | undefined;
     let capturedRequest: ValidatedPubkyAuthRequest | undefined;
@@ -161,6 +170,60 @@ describe("PassportAuthorizationController", () => {
       });
     },
   );
+
+  it("hands the success callback back after an external signer, as a hint without approving", async () => {
+    const handoffOutcome = vi.fn(async () => "acknowledged-and-closed" as const);
+    const { controller, entry } = createController({ handoffOutcome });
+    if (entry.status !== "valid") throw new Error("Expected a valid entry");
+
+    await expect(controller.finishExternalApproval()).resolves.toMatchObject({
+      status: "completing",
+    });
+
+    expect(handoffOutcome).toHaveBeenCalledOnce();
+    expect(handoffOutcome).toHaveBeenCalledWith(
+      window,
+      SUCCESS_CALLBACK,
+      "success",
+      expect.anything(),
+    );
+    expect(MOCKS.approveAuthorization).not.toHaveBeenCalled();
+    expect(entry.request.isLive()).toBe(false);
+    expect(controller.externalSignerUrl()).toBeUndefined();
+    await expect(controller.finishExternalApproval()).resolves.toMatchObject({
+      status: "completing",
+    });
+    expect(handoffOutcome).toHaveBeenCalledOnce();
+  });
+
+  it("never reports an external signer's request as approved without a callback", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const handoffOutcome = vi.fn(async () => "unavailable" as const);
+    const withoutCallbacks = createController({ handoffOutcome }, { callbacks: false }).controller;
+    await expect(withoutCallbacks.finishExternalApproval()).resolves.toEqual({
+      status: "handed-off",
+    });
+    expect(handoffOutcome).not.toHaveBeenCalled();
+
+    const unreachable = createController({ handoffOutcome }).controller;
+    await expect(unreachable.finishExternalApproval()).resolves.toEqual({
+      status: "handed-off",
+    });
+    expect(warning).toHaveBeenCalledWith("authorize.callback.failed", {
+      outcome: "success",
+      operation: "complete",
+    });
+    expect(MOCKS.approveAuthorization).not.toHaveBeenCalled();
+  });
+
+  it("ignores an external approval report once the request has ended", async () => {
+    const handoffOutcome = vi.fn(async () => "navigated" as const);
+    const { controller } = createController({ handoffOutcome }, { callbacks: false });
+    await controller.cancel();
+
+    await expect(controller.finishExternalApproval()).resolves.toEqual({ status: "cancelled" });
+    expect(handoffOutcome).not.toHaveBeenCalled();
+  });
 
   it("uses one render state for approval failure", async () => {
     MOCKS.approveAuthorization.mockResolvedValueOnce(
