@@ -27,6 +27,40 @@ describe("LocalStorageIdentityRepository", () => {
     vi.unstubAllGlobals();
   });
 
+  it("links and detaches Google without changing either local key or active selection", () => {
+    const repository = new LocalStorageIdentityRepository();
+    save(repository, FIRST_IDENTITY, 1);
+    save(repository, SECOND_IDENTITY, 2);
+    const listener = vi.fn();
+    const unsubscribe = repository.subscribe(listener);
+    const account = {
+      googleSubject: "subject",
+      email: "person@example.com",
+      name: "Person",
+      pictureUrl: null,
+    };
+    expectResultOk(repository.setGoogleAccount(FIRST_KEY, account));
+    expect(expectResultOk(repository.read(FIRST_KEY)).identity.googleAccount).toEqual(account);
+    expectResultOk(repository.setGoogleAccount(FIRST_KEY, undefined));
+    expect(expectResultOk(repository.read(FIRST_KEY))).toEqual({
+      identity: { publicIdentity: FIRST_IDENTITY },
+      secretKey: secret(1),
+    });
+    expect(expectResultOk(repository.list()).activePublicKeyZ32).toBe(SECOND_KEY);
+    expectResultOk(repository.setGoogleAccount(SECOND_KEY, account));
+    expectResultOk(repository.setGoogleAccount(SECOND_KEY, undefined));
+    expect(expectResultOk(repository.list()).activePublicKeyZ32).toBe(SECOND_KEY);
+    expect(expectResultOk(repository.read(SECOND_KEY)).secretKey).toEqual(secret(2));
+    expect(listener).toHaveBeenCalledTimes(4);
+    unsubscribe();
+  });
+
+  it("does not recreate a removed identity when linking Google", () => {
+    expectResultError(new LocalStorageIdentityRepository().setGoogleAccount(FIRST_KEY, undefined), {
+      code: "invalid_identity",
+    });
+  });
+
   it("stores identities in independent records and selects the latest", () => {
     const repository = new LocalStorageIdentityRepository();
     const first = save(repository, FIRST_IDENTITY, 1);
@@ -258,21 +292,200 @@ describe("LocalStorageIdentityRepository", () => {
     });
   });
 
-  it("rejects incompatible records and invalid input metadata", () => {
+  it("skips records it cannot validate and lists the rest, logging only why", () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const repository = new LocalStorageIdentityRepository();
+    const second = save(repository, SECOND_IDENTITY, 2);
+    const malformed = JSON.stringify({
+      v: 2,
+      publicKeyZ32: FIRST_KEY,
+      secretKey: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+      extra: "MALFORMED-VALUE-CANARY",
+    });
+    localStorage.setItem(`${IDENTITY_PREFIX}${FIRST_KEY}`, malformed);
+    localStorage.setItem(`${IDENTITY_PREFIX}misfiled`, '{"not json');
     localStorage.setItem(
-      `${IDENTITY_PREFIX}${FIRST_KEY}`,
-      JSON.stringify({
-        v: 2,
-        publicKeyZ32: FIRST_KEY,
-        secretKey: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+      `${IDENTITY_PREFIX}misfiled-copy`,
+      localStorage.getItem(`${IDENTITY_PREFIX}${SECOND_KEY}`)!,
+    );
+
+    expect(expectResultOk(repository.list())).toEqual({
+      activePublicKeyZ32: SECOND_KEY,
+      identities: [second],
+    });
+    expect(warning.mock.calls).toEqual([
+      ["identity.local_store.record_skipped", { operation: "read", reason: "invalid_record" }],
+      ["identity.local_store.record_skipped", { operation: "read", reason: "invalid_record" }],
+      ["identity.local_store.record_skipped", { operation: "read", reason: "key_mismatch" }],
+    ]);
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("MALFORMED-VALUE-CANARY");
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("AQEBAQEB");
+    expect(JSON.stringify(warning.mock.calls)).not.toContain(FIRST_KEY);
+    expect(localStorage.getItem(`${IDENTITY_PREFIX}${FIRST_KEY}`)).toBe(malformed);
+    expect(Result.isError(repository.read(FIRST_KEY))).toBe(true);
+  });
+
+  it("repairs an active selection that points at a skipped record", () => {
+    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const repository = new LocalStorageIdentityRepository();
+    const second = save(repository, SECOND_IDENTITY, 2);
+    localStorage.setItem(`${IDENTITY_PREFIX}${FIRST_KEY}`, '{"v":1}');
+    localStorage.setItem(ACTIVE_IDENTITY_KEY, FIRST_KEY);
+
+    expect(expectResultOk(repository.list())).toEqual({
+      activePublicKeyZ32: SECOND_KEY,
+      identities: [second],
+    });
+    expect(localStorage.getItem(ACTIVE_IDENTITY_KEY)).toBe(SECOND_KEY);
+    expect(localStorage.getItem(`${IDENTITY_PREFIX}${FIRST_KEY}`)).toBe('{"v":1}');
+
+    expectResultOk(repository.remove(SECOND_KEY));
+    expect(expectResultOk(repository.list())).toEqual({
+      activePublicKeyZ32: null,
+      identities: [],
+    });
+  });
+
+  it("keeps a Ring entry public-only and refuses to give it a Google account or a key", () => {
+    const repository = new LocalStorageIdentityRepository();
+    expect(expectResultOk(repository.saveExternal(FIRST_KEY))).toEqual({
+      publicIdentity: FIRST_IDENTITY,
+      keySource: "ring",
+    });
+    expect(JSON.parse(localStorage.getItem(`${IDENTITY_PREFIX}${FIRST_KEY}`)!)).toEqual({
+      v: 1,
+      publicKeyZ32: FIRST_KEY,
+      keySource: "ring",
+    });
+    expectResultError(
+      repository.setGoogleAccount(FIRST_KEY, {
+        googleSubject: "subject",
+        email: "person@example.com",
+        name: "Person",
+        pictureUrl: null,
+      }),
+      { code: "invalid_identity" },
+    );
+    expectResultError(repository.read(FIRST_KEY), { code: "invalid_identity" });
+    expect(expectResultOk(repository.list())).toEqual({
+      activePublicKeyZ32: FIRST_KEY,
+      identities: [{ publicIdentity: FIRST_IDENTITY, keySource: "ring" }],
+    });
+  });
+
+  it("keeps a Ring entry's pending profile setup when it reconnects", () => {
+    const repository = new LocalStorageIdentityRepository();
+    expectResultOk(repository.saveExternal(FIRST_KEY, true));
+    expect(expectResultOk(repository.saveExternal(FIRST_KEY))).toEqual({
+      publicIdentity: FIRST_IDENTITY,
+      keySource: "ring",
+      profileSetupRequired: true,
+    });
+  });
+
+  it("selects an existing local key instead of replacing it with a Ring entry", () => {
+    const repository = new LocalStorageIdentityRepository();
+    const first = save(repository, FIRST_IDENTITY, 1);
+    save(repository, SECOND_IDENTITY, 2);
+
+    expect(expectResultOk(repository.saveExternal(FIRST_KEY))).toEqual(first);
+    expect(expectResultOk(repository.read(FIRST_KEY)).secretKey).toEqual(secret(1));
+    expect(expectResultOk(repository.list()).activePublicKeyZ32).toBe(FIRST_KEY);
+  });
+
+  it("rolls back a Ring entry when selecting it fails", () => {
+    const repository = new LocalStorageIdentityRepository();
+    const second = save(repository, SECOND_IDENTITY, 2);
+    const storage = localStorage as MemoryStorage;
+    const setItem = storage.setItem.bind(storage);
+    const writeFailure = new DOMException("quota", "QuotaExceededError");
+    vi.spyOn(storage, "setItem").mockImplementation((key, value) => {
+      if (key === ACTIVE_IDENTITY_KEY) throw writeFailure;
+      setItem(key, value);
+    });
+
+    expectResultError(repository.saveExternal(FIRST_KEY), {
+      code: "storage_unavailable",
+      cause: writeFailure,
+    });
+    expect(storage.getItem(`${IDENTITY_PREFIX}${FIRST_KEY}`)).toBeNull();
+    expect(expectResultOk(repository.list())).toEqual({
+      activePublicKeyZ32: SECOND_KEY,
+      identities: [second],
+    });
+  });
+
+  it("keeps an unfinished account's profile setup when its key is saved again", () => {
+    const repository = new LocalStorageIdentityRepository();
+    expectResultOk(
+      repository.save({ publicIdentity: FIRST_IDENTITY, profileSetupRequired: true }, secret(1)),
+    );
+    expect(expectResultOk(repository.save({ publicIdentity: FIRST_IDENTITY }, secret(1)))).toEqual({
+      publicIdentity: FIRST_IDENTITY,
+      profileSetupRequired: true,
+    });
+    expectResultOk(repository.completeProfileSetup(FIRST_KEY));
+    expect(expectResultOk(repository.list()).identities).toEqual([
+      { publicIdentity: FIRST_IDENTITY },
+    ]);
+  });
+
+  it("keeps the homeserver a key was signed up on through restores and Google changes", () => {
+    const repository = new LocalStorageIdentityRepository();
+    expect(
+      expectResultOk(
+        repository.save({ publicIdentity: FIRST_IDENTITY, homeserverPubky: SECOND_KEY }, secret(1)),
+      ),
+    ).toEqual({ publicIdentity: FIRST_IDENTITY, homeserverPubky: SECOND_KEY });
+
+    // A restore that does not sign the key up again carries no homeserver of its own.
+    save(repository, FIRST_IDENTITY, 1);
+    expectResultOk(
+      repository.setGoogleAccount(FIRST_KEY, {
+        googleSubject: "subject",
+        email: "person@example.com",
+        name: "Person",
+        pictureUrl: null,
       }),
     );
-    expectResultError(new LocalStorageIdentityRepository().list(), { code: "invalid_store" });
+    expect(expectResultOk(repository.read(FIRST_KEY)).identity.homeserverPubky).toBe(SECOND_KEY);
+    expect(expectResultOk(new LocalStorageIdentityRepository().list()).identities).toEqual([
+      expect.objectContaining({ homeserverPubky: SECOND_KEY }),
+    ]);
 
-    localStorage.clear();
+    // A new signup records where the key now lives.
+    expectResultOk(
+      repository.save({ publicIdentity: FIRST_IDENTITY, homeserverPubky: FIRST_KEY }, secret(1)),
+    );
+    expect(expectResultOk(repository.read(FIRST_KEY)).identity.homeserverPubky).toBe(FIRST_KEY);
+  });
+
+  it("skips a stored record whose homeserver is not a pubky", () => {
+    vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const repository = new LocalStorageIdentityRepository();
+    save(repository, FIRST_IDENTITY, 1);
+    const record = JSON.parse(
+      localStorage.getItem(`${IDENTITY_PREFIX}${FIRST_KEY}`) ?? "{}",
+    ) as Record<string, unknown>;
+    localStorage.setItem(
+      `${IDENTITY_PREFIX}${FIRST_KEY}`,
+      JSON.stringify({ ...record, homeserverPubky: "https://homeserver.example" }),
+    );
+
+    expect(expectResultOk(repository.list()).identities).toEqual([]);
+  });
+
+  it("rejects invalid input metadata", () => {
     expectResultError(
       new LocalStorageIdentityRepository().save(
         { publicIdentity: { publicKeyZ32: "not-a-pubky" } },
+        secret(1),
+      ),
+      { code: "invalid_identity" },
+    );
+    expectResultError(
+      new LocalStorageIdentityRepository().save(
+        { publicIdentity: FIRST_IDENTITY, homeserverPubky: "not-a-pubky" },
         secret(1),
       ),
       { code: "invalid_identity" },
