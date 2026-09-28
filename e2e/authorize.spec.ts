@@ -127,13 +127,13 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   expect(headers["cache-control"]).toContain("no-store");
   expect(headers["referrer-policy"]).toBe("no-referrer");
 
+  // Both signer pages reach any HTTPS homeserver or relay; the request itself never shapes CSP.
   const policy = headers["content-security-policy"] ?? "";
-  const baselineSources = new Set(
+  const authorizationSources = cspSources(policy, "connect-src");
+  expect(authorizationSources).toEqual(
     cspSources(baselineResponse.headers()["content-security-policy"] ?? "", "connect-src"),
   );
-  const authorizationSources = cspSources(policy, "connect-src");
-  expect(baselineSources).toContain("https://homeserver.example");
-  expect(authorizationSources.filter((source) => !baselineSources.has(source))).toEqual(["https:"]);
+  expect(authorizationSources).toContain("https:");
   expect(authorizationSources).not.toContain("https://client.example");
   expect(policy).not.toContain("/private-inbox");
   expect(policy).not.toContain(SENSITIVE_SECRET);

@@ -2,11 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Result } from "better-result";
 
 import type { GoogleWrappingKeyIssuer } from "@/server/wrapping-key/google/GoogleWrappingKeyIssuer";
+import { stubPassportEnvironment } from "@test-utils/passportEnvironment";
 
 describe("POST /api/wrapping-key/google", () => {
   afterEach(() => {
     vi.doUnmock("@/server/wrapping-key/google/GoogleWrappingKeyIssuer");
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it("returns the selected wrapping key and its public ID", async () => {
@@ -154,6 +156,34 @@ describe("POST /api/wrapping-key/google", () => {
     expect(factory).toHaveBeenCalledTimes(2);
   });
 
+  it("reports a Google-free instance as unavailable without an error log", async () => {
+    stubPassportEnvironment({
+      PASSPORT_PROVIDER_CONFIG_JSON: JSON.stringify({
+        googleEnabled: false,
+        verificationMethods: ["invite"],
+      }),
+      HOMEGATE_URL: undefined,
+      PASSPORT_SERVER_SECRET_CURRENT_KEY_ID: undefined,
+      PASSPORT_SERVER_SECRET_KEYRING_JSON: undefined,
+    });
+    vi.resetModules();
+    const { googleWrappingKeyPost } = await import("./handler");
+    const { LOGGER } = await import("@/libs/logger/logger");
+    const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
+    const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+
+    for (const googleIdToken of ["first", "second"]) {
+      await expect(
+        googleWrappingKeyPost(jsonRequest({ googleIdToken })).then(responseSummary),
+      ).resolves.toEqual({ status: 404, body: { error: { code: "google_unavailable" } } });
+    }
+    expect(error).not.toHaveBeenCalled();
+    expect(info).toHaveBeenCalledWith(
+      "identity.google.wrapping_key.failed",
+      expect.objectContaining({ operation: "compose", code: "google_unavailable" }),
+    );
+  });
+
   it("maps unexpected issuer failures to a safe response", async () => {
     const post = await postHandler(async () => {
       throw new Error("SECRET-GOOGLE-ID-TOKEN");
@@ -185,7 +215,7 @@ async function handlerWithFactory(
     >()),
     GoogleWrappingKeyIssuer: class {
       static fromEnvironment() {
-        return factory();
+        return Result.ok(factory());
       }
     },
   }));
