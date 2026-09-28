@@ -134,6 +134,36 @@ describe("PassportAuthorizationController composition", () => {
     });
   });
 
+  it("does not authorize an expired entry or discard a completed identity", async () => {
+    const completed = identity(PUBLIC_KEY_Z32);
+    const repository = new LocalStorageIdentityRepository();
+    expect(Result.isOk(repository.save(completed, secretKey(1)))).toBe(true);
+    controller = new PassportAuthorizationController(window, { status: "expired" });
+
+    expect(controller.externalSignerUrl()).toBeUndefined();
+    await expect(controller.approve(PUBLIC_KEY_Z32)).resolves.toEqual({ status: "invalid" });
+    expect(MOCKS.PubkySdkAdapter).not.toHaveBeenCalled();
+    const catalog = repository.list();
+    expect(Result.isOk(catalog) && catalog.value.identities).toEqual([completed]);
+  });
+
+  it("keeps a completed identity when an expired relay rejects approval", async () => {
+    const completed = identity(PUBLIC_KEY_Z32);
+    const repository = new LocalStorageIdentityRepository();
+    expect(Result.isOk(repository.save(completed, secretKey(1)))).toBe(true);
+    MOCKS.restoreIdentityKey.mockResolvedValue(
+      Result.ok({ keyHandle: {}, publicIdentity: completed.publicIdentity }),
+    );
+    MOCKS.approveAuthRequest.mockResolvedValue(Result.err({ code: "approval_failed" }));
+    window.history.replaceState({}, "", `/authorize#d=${encodeURIComponent(validRequest())}`);
+    controller = controllerFromCapturedUrl();
+
+    await expect(controller.approve(PUBLIC_KEY_Z32)).resolves.toEqual({ status: "failed" });
+    expect(controller.externalSignerUrl()).toBeUndefined();
+    const catalog = repository.list();
+    expect(Result.isOk(catalog) && catalog.value.identities).toEqual([completed]);
+  });
+
   it("approves with the reviewed identity after another identity becomes active", async () => {
     const firstIdentity = identity("5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo");
     const secondIdentity = identity("y".repeat(52));

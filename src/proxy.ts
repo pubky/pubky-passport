@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createHash } from "node:crypto";
 
+import { AUTHORIZATION_ENTRY_PATH } from "./libs/authorization/authorizationLocationRules";
 import { EARLY_AUTHORIZATION_LOCATION_SCRIPT } from "./libs/authorization/earlyAuthorizationLocation";
 import { EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT } from "./libs/authorization/earlyGoogleImplicitResponse";
 import { LOGGER, safeErrorLogFields } from "./libs/logger/logger";
@@ -19,8 +20,8 @@ const EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT_SOURCE = `'sha256-${createHash("sha2
  * origin. CSP's `https:` scheme source does not match `wss:`; `'self'` still covers same-origin WSS.
  */
 const SIGNER_CONNECT_SOURCE = "https:";
-/** `/authorize` reviews requests and `/` manages identities; both use homeservers and relays. */
-const SIGNER_PATHS: ReadonlySet<string> = new Set(["/", "/authorize"]);
+/** `/authorize` takes requests and `/` forwards them there; both run the signer. */
+const SIGNER_PATHS: ReadonlySet<string> = new Set(["/", AUTHORIZATION_ENTRY_PATH]);
 
 export function proxy(request: NextRequest) {
   try {
@@ -82,7 +83,8 @@ function createContentSecurityPolicy(input: {
       "https://pkarr.pubky.org",
       ...(input.signer ? [SIGNER_CONNECT_SOURCE] : []),
     ].join(" "),
-    "img-src 'self' data: https://lh3.googleusercontent.com",
+    // Profile avatars are SDK reads rendered as blob: URLs; only Google's avatar host is remote.
+    "img-src 'self' data: blob: https://lh3.googleusercontent.com",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
     "frame-src 'none'",

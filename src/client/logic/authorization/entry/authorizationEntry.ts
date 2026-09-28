@@ -3,6 +3,13 @@ import "client-only";
 import { Result } from "better-result";
 
 import {
+  AUTHORIZATION_ENTRY_PATH,
+  FORWARDED_QUERY,
+  GOOGLE_CREDENTIAL_FRAGMENT_SOURCE,
+  REQUEST_MARKER_SOURCE,
+  REQUEST_QUERY_SOURCE,
+} from "@/libs/authorization/authorizationLocationRules";
+import {
   EARLY_AUTHORIZATION_LOCATION_PROPERTY,
   type EarlyAuthorizationLocation,
 } from "@/libs/authorization/earlyAuthorizationLocation";
@@ -19,6 +26,10 @@ export type AuthorizationEntry =
   | { status: "empty" }
   | { status: "expired" }
   | { status: "invalid" };
+
+const GOOGLE_CREDENTIAL_FRAGMENT = new RegExp(GOOGLE_CREDENTIAL_FRAGMENT_SOURCE);
+const REQUEST_MARKER = new RegExp(REQUEST_MARKER_SOURCE, "i");
+const REQUEST_QUERY = new RegExp(REQUEST_QUERY_SOURCE);
 
 /**
  * Consumes the early authorization capture, scrubs the address bar, and returns
@@ -43,12 +54,17 @@ export function readAndScrubAuthorizationEntry(appWindow: Window): Authorization
     return { status: "expired" };
   }
 
-  if (rawSearch.length === 0 && rawHash.length === 0) {
+  // A plain query string carries no request; legacy query transport, or a query next to a
+  // fragment, is rejected.
+  const queryInvalidatesEntry =
+    rawSearch.length > 0 && (rawHash.length > 0 || REQUEST_QUERY.test(rawSearch));
+  if (!queryInvalidatesEntry && rawHash.length === 0) {
     return { status: "empty" };
   }
 
-  const rawD =
-    rawSearch.length === 0 ? extractAuthorizationFragmentValue(rawHash) : { valid: false as const };
+  const rawD = queryInvalidatesEntry
+    ? { valid: false as const }
+    : extractAuthorizationFragmentValue(rawHash);
   const validated = ValidatedPubkyAuthRequest.fromEncoded(rawD.valid ? rawD.value : undefined);
   if (Result.isError(validated)) {
     LOGGER.info("authorize.parse.failed", {
@@ -117,6 +133,53 @@ function extractAuthorizationFragmentValue(
   }
 
   return value === undefined ? { valid: true } : { valid: true, value };
+}
+
+/**
+ * Sends a request that reached `/` on to the authorization entry, which alone accepts requests.
+ * The parser-time script normally does this before any app code runs; this is its fallback and
+ * keeps its order: the request leaves the address bar and loading stops before navigating. A
+ * query is replaced by the valueless `FORWARDED_QUERY`, never copied.
+ */
+export function forwardHomeAuthorizationRequest(appWindow: Window): boolean {
+  const { hash, search } = appWindow.location;
+  if (GOOGLE_CREDENTIAL_FRAGMENT.test(hash.slice(1)) || !REQUEST_MARKER.test(search + hash)) {
+    return false;
+  }
+  const destination = `${AUTHORIZATION_ENTRY_PATH}${search === "" ? "" : FORWARDED_QUERY}${hash}`;
+  // A failed scrub already navigates to a clean `/`; the forward below supersedes it.
+  scrubAuthorizationLocation(appWindow);
+  leave(appWindow, destination, "forward_request");
+  return true;
+}
+
+/**
+ * Sends a window whose entry holds no request to `/`, where identity management lives. The
+ * parser-time script normally does this; this is its fallback.
+ */
+export function leaveEmptyAuthorizationEntry(appWindow: Window): void {
+  leave(appWindow, "/", "leave_entry");
+}
+
+function leave(
+  appWindow: Window,
+  destination: string,
+  operation: "forward_request" | "leave_entry",
+): void {
+  try {
+    appWindow.stop();
+  } catch {
+    /* Loading may already have stopped. */
+  }
+  try {
+    appWindow.location.replace(destination);
+  } catch (e) {
+    LOGGER.warn("authorize.entry.failed", {
+      operation,
+      code: "navigation_failed",
+      ...safeErrorLogFields(e),
+    });
+  }
 }
 
 /** Removes authorization data, navigating away without it when native scrubbing fails. */

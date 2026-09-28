@@ -3,6 +3,9 @@
 Pubky Passport approves authorization requests created by the Pubky SDK. Your app creates a
 request, opens Passport, and waits for the SDK to receive the approval through the relay.
 
+For SMS/Lightning onboarding with Ring signup inside Passport, see
+[Create an account with SMS or Lightning](signup-integration.md).
+
 > Authenticate the user only after the Pubky SDK returns a `Session`. Passport callbacks and
 > messages describe the UI outcome; they are not credentials.
 
@@ -30,11 +33,38 @@ sequenceDiagram
 1. Your app starts a grant auth flow and receives `flow.authorizationUrl`.
 2. Your app opens Passport with that URL in the fragment of `/authorize`.
 3. The user approves or cancels in Passport. On approval, Passport posts the encrypted approval to
-   the relay before it reports the outcome to your app.
+   the relay before it reports the outcome to your app. It also republishes the identity's
+   homeserver record in the background and keeps the page open up to two seconds after posting the
+   approval, so the return to your app does not cut that republish off. The approval does not wait
+   for it: an SDK already polling the relay may resolve the record before the republish lands.
 4. The SDK receives the approval, exchanges it with the homeserver, and returns a `Session`.
 
 The authorization URL contains the relay secret. Keep it in the browser, encode it exactly once,
 and never log it or send it to analytics.
+
+Passport opens directly to permission review when a saved identity is selected, including locally
+saved Google identities. Without identities, it offers the shared add screen. **Use Pubky Ring**
+opens a separate sign-in screen directly from permission review or the add screen; it does not
+require switching the selected identity. For a selected identity held in Ring, permission review
+shows one action, **Continue in Pubky Ring**, and says that the identity is chosen in Ring. The
+Ring screen shows your request unchanged. Passport cannot see Ring's approval, so the screen asks
+the user to return to your app after approving, and **I approved in Pubky Ring** reports `success`
+(see [Outcome messages](#outcome-messages)). Switching identities or completing setup preserves the
+original request; local approval always requires an explicit **Authorize** action. Opening `/`
+without a request shows the selected identity overview, or the add screen on first use. An
+unfinished local account setup resumes its saved key and backup step after a reload.
+
+Passport accepts only sign-in requests: `pubkyauth://signin_grant?…` from
+`AuthFlowKind.signin()`, and the legacy `pubkyauth://signin?…` and `pubkyauth:///?…` forms.
+Sign-up requests (`signup`, `signup_grant` from `AuthFlowKind.signup(…)`, and `direct_signup`) are
+rejected as invalid; new users create their account inside Passport instead.
+
+`/authorize#d=…` is the only entry that accepts a request. Passport forwards a request that
+arrives at `/#d=…` to `/authorize` before any of its code runs, but that is a convenience, not a
+contract; a query string is never forwarded, so `/?d=…` is still rejected. Navigating an open
+Passport window to a new `/authorize#d=…` URL, for example by reusing a named popup, reloads
+Passport with the new request and abandons any request still under review. `/authorize` without a
+request, including a reload after the request was read, returns to `/`.
 
 ## Popup sign-in
 
@@ -56,7 +86,13 @@ const CAPABILITIES = "/pub/example.app/:rw";
 const CLIENT_ID = "example.app";
 const CALLBACK_PATH = "/auth/passport/return";
 export const CALLBACK_MESSAGE = "example.app.passport-return";
-const TIMEOUT_MS = 5 * 60_000;
+// The user may create an account inside the popup (verification, backup, profile setup), so the
+// attempt deadline is long. Closing the popup still ends the attempt at once.
+const ATTEMPT_TIMEOUT_MS = 30 * 60_000;
+// After a `success` message Passport has posted the approval to the relay, or, after a Pubky Ring
+// handoff, the user reports approving in Ring. Either way the wait is short, and only the SDK
+// `Session` authenticates.
+const RELAY_GRACE_MS = 60_000;
 const POLL_INTERVAL_MS = 250;
 
 const pubky = new Pubky();
@@ -72,9 +108,12 @@ export async function signInWithPassport(): Promise<Session> {
   if (!popup) throw new Error("Passport popup was blocked");
 
   let outcome: Outcome | undefined;
+  let succeededAt: number | undefined;
   const onMessage = (event: MessageEvent<unknown>) => {
     const received = readOutcome(event, popup);
-    if (received) outcome = received;
+    if (!received) return;
+    outcome = received;
+    if (received === "success") succeededAt ??= Date.now();
   };
   window.addEventListener("message", onMessage);
 
@@ -95,7 +134,11 @@ export async function signInWithPassport(): Promise<Session> {
     return await waitForSession(flow, () => {
       if (outcome === "cancel") return "Passport authorization was cancelled";
       if (outcome === "error") return "Passport could not approve the request";
-      // After a `success` message Passport closes the popup itself; keep polling for the relay.
+      // After a `success` message Passport closes the popup itself; keep polling for the relay,
+      // but only briefly, however long the user spent in the popup before approving.
+      if (succeededAt !== undefined && Date.now() - succeededAt > RELAY_GRACE_MS) {
+        return "Passport approval did not arrive through the relay";
+      }
       if (popup.closed && outcome !== "success") return "Passport popup was closed";
       return undefined;
     });
@@ -114,7 +157,7 @@ async function waitForSession(
   interruption: () => string | undefined,
 ): Promise<Session> {
   try {
-    const deadline = Date.now() + TIMEOUT_MS;
+    const deadline = Date.now() + ATTEMPT_TIMEOUT_MS;
     while (Date.now() < deadline) {
       const reason = interruption();
       if (reason) throw new Error(reason);
@@ -190,14 +233,24 @@ must survive a page reload.
 flow must not be freed while one of its calls is pending, so a popup attempt polls with
 `flow.tryPollOnce()` instead and decides between polls:
 
-| Signal                          | Meaning                                                   | What the example does                     |
-| ------------------------------- | --------------------------------------------------------- | ----------------------------------------- |
-| SDK returns a `Session`         | The user is authenticated                                 | Returns it and closes the popup           |
-| `success` message               | The approval reached the relay; Passport closes the popup | Keeps polling until the `Session` arrives |
-| `error` or `cancel` message     | Passport could not approve, or the user declined          | Ends the attempt                          |
-| Popup closed without an outcome | The user abandoned the attempt                            | Ends the attempt                          |
-| SDK throws                      | Relay, network, or approval failure                       | Ends the attempt                          |
-| Deadline passed                 | The user never finished                                   | Ends the attempt                          |
+| Signal                               | Meaning                                                         | What the example does                     |
+| ------------------------------------ | --------------------------------------------------------------- | ----------------------------------------- |
+| SDK returns a `Session`              | The user is authenticated                                       | Returns it and closes the popup           |
+| `success` message                    | Approval posted, or reported after a Ring handoff; popup closed | Keeps polling until the `Session` arrives |
+| No `Session` a minute after success  | No approval reached the relay                                   | Ends the attempt                          |
+| `error` or `cancel` message          | Passport could not approve, or the user declined                | Ends the attempt                          |
+| Popup closed without an outcome      | The user abandoned the attempt                                  | Ends the attempt                          |
+| SDK throws                           | Relay, network, or approval failure                             | Ends the attempt                          |
+| Attempt deadline passed (30 minutes) | The user never finished                                         | Ends the attempt                          |
+
+The popup's lifetime and the relay wait are separate. A new user may verify a phone number or pay
+an invoice, save and check a backup, and publish a profile before approving, all inside the popup,
+so the attempt deadline must leave room for that; a five-minute deadline would close the popup in
+the middle of account creation. Once Passport reports `success`, it has posted the approval to the
+relay, or, after a Pubky Ring handoff, the user reports approving in Ring; either way the approval
+should arrive with the next polls, so that wait gets its own short limit (`RELAY_GRACE_MS`). Only
+the SDK `Session` authenticates the user. Closing the popup ends the attempt immediately, so a long
+deadline never keeps an abandoned attempt alive.
 
 Every ending frees the flow, removes the message listener, and closes the popup if it is still
 open. Never reuse a flow after its attempt ended; start a fresh one to retry.
@@ -256,13 +309,16 @@ Use the exact Passport origin as `targetOrigin`, never `"*"`. Passport waits up 
 for the acknowledgement. Once acknowledged, it closes the popup; without an acknowledgement, it
 navigates the popup to the matching callback.
 
-A `success` message means the approval reached the relay; keep waiting for the SDK. `error` and
-`cancel` end the attempt. None of these messages authenticate the user.
+A `success` message means Passport posted the approval to the relay; keep waiting for the SDK.
+After a Pubky Ring handoff, `success` means only that the user pressed **I approved in Pubky Ring**:
+Passport cannot see Ring's approval, which may still be on its way or missing, so the short relay
+wait after `success` matters there. Without callbacks Passport reports nothing and tells the user to
+return to your app. `error` and `cancel` end the attempt. None of these messages authenticate the user.
 
 ## Browser requirements
 
-- Build the Passport URL as `/authorize#d=${encodeURIComponent(flow.authorizationUrl)}`. Passport
-  rejects requests that carry a query string.
+- Build the Passport URL as `/authorize#d=${encodeURIComponent(flow.authorizationUrl)}`.
+  Passport rejects requests that carry a query string.
 - Set `xSource` to a short display name of at most 128 characters. Passport shows the callback
   host separately because `xSource` is not a verified identity.
 - Open the popup without `noopener` or `noreferrer`, otherwise Passport cannot message your page.
@@ -294,5 +350,20 @@ Test at least these cases before shipping:
 - A blocked popup fails immediately with a clear message.
 - Without an acknowledgement, the callback page closes the popup and the attempt ends.
 - Messages from other origins or windows are ignored.
+- Creating a new account inside the popup finishes well within the attempt deadline.
 - The deadline ends the attempt and frees the flow.
 - A second click during a pending attempt does not start a second one.
+
+## Profile setup in Passport
+
+Clients can expose one **Sign in** button and optionally their SDK flow's Ring QR code.
+Passport handles identity choice, account creation, backup verification, and public profile
+setup. New accounts finish profile publication before returning to permission review. Existing
+identities load their public profile when available.
+
+Ring profile editing uses Passport's own limited delegated grant, write-only for the profile document
+and avatar files. It never modifies the client's request or treats opening Ring as a successful
+sign-in. Your request comes first: for a Ring identity whose profile setup is unfinished, Passport
+opens permission review and asks for its own profile grant only once no request is under review.
+The `/authorize#d=…` entry and outcome protocol above are unchanged; continue waiting for your
+original SDK flow to return a session.

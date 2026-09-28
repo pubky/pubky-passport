@@ -29,28 +29,30 @@ describe("next config headers", () => {
       { key: "Referrer-Policy", value: "no-referrer" },
     ];
 
-    expect(headers).toContainEqual({
-      source: "/authorize",
-      headers: expect.arrayContaining(authorizeHeaders),
-    });
-    expect(headers).toContainEqual({
-      source: "/authorize/:path*",
-      headers: expect.arrayContaining(authorizeHeaders),
-    });
-    expect(headers).toContainEqual({
-      source: "/",
-      headers: authorizeHeaders,
-    });
+    for (const source of ["/authorize", "/authorize/:path*", "/"]) {
+      expect(headers).toContainEqual({
+        source,
+        headers: expect.arrayContaining(authorizeHeaders),
+      });
+    }
   });
 
-  it("allows camera access only on authorization routes", async () => {
+  it("allows camera access only on the signer routes that offer the QR scanner", async () => {
     const headers = await NEXT_CONFIG.headers?.();
     const globalHeaders = headers?.find((entry) => entry.source === "/:path*")?.headers ?? [];
-    const authorizeHeaders = headers?.find((entry) => entry.source === "/authorize")?.headers ?? [];
 
     expect(headerValue(globalHeaders, "Permissions-Policy")).toContain("camera=()");
-    expect(headerValue(authorizeHeaders, "Permissions-Policy")).toContain("camera=(self)");
-    expect(headerValue(authorizeHeaders, "Permissions-Policy")).toContain("microphone=()");
+    for (const source of ["/authorize", "/authorize/:path*", "/"]) {
+      const signerHeaders = headers?.find((entry) => entry.source === source)?.headers ?? [];
+      expect(headerValue(signerHeaders, "Permissions-Policy")).toContain("camera=(self)");
+      expect(headerValue(signerHeaders, "Permissions-Policy")).toContain("microphone=()");
+    }
+    expect(headers?.map((entry) => entry.source)).toEqual([
+      "/:path*",
+      "/authorize",
+      "/authorize/:path*",
+      "/",
+    ]);
   });
 });
 

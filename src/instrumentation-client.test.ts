@@ -10,7 +10,53 @@ describe("instrumentation-client authorization entry", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.resetModules();
+    vi.doUnmock("./client/logic/authorization/entry/authorizationEntry");
     window.history.replaceState({}, "", "/");
+  });
+
+  it("forwards a request from the home page instead of reading it there", async () => {
+    const forward = vi.fn(() => true);
+    vi.doMock("./client/logic/authorization/entry/authorizationEntry", async (importOriginal) => ({
+      ...(await importOriginal<object>()),
+      forwardHomeAuthorizationRequest: forward,
+    }));
+    window.history.replaceState({}, "", `/#d=${encodeURIComponent(validRequest())}`);
+    const bootstrap = await import("./instrumentation-client");
+
+    expect(forward).toHaveBeenCalledExactlyOnceWith(window);
+    expect(bootstrap.takeInitialAuthorizationEntry()).toBeUndefined();
+  });
+
+  it.each([
+    ["no request", "/authorize", "empty"],
+    ["a plain query", "/authorize?utm_source=newsletter", "empty"],
+    ["an invalid request", "/authorize#d=not-a-request", "invalid"],
+  ])("leaves an entry with %s for the home page only when it is empty", async (_, url, status) => {
+    const leave = vi.fn();
+    vi.doMock("./client/logic/authorization/entry/authorizationEntry", async (importOriginal) => ({
+      ...(await importOriginal<object>()),
+      leaveEmptyAuthorizationEntry: leave,
+    }));
+    window.history.replaceState({}, "", url);
+    const bootstrap = await import("./instrumentation-client");
+
+    expect(leave.mock.calls).toEqual(status === "empty" ? [[window]] : []);
+    expect(bootstrap.takeInitialAuthorizationEntry()?.status).toBe(status);
+  });
+
+  it("neither reads nor forwards requests on other routes", async () => {
+    const forward = vi.fn(() => true);
+    vi.doMock("./client/logic/authorization/entry/authorizationEntry", async (importOriginal) => ({
+      ...(await importOriginal<object>()),
+      forwardHomeAuthorizationRequest: forward,
+    }));
+    const url = `/privacy-policy#d=${encodeURIComponent(validRequest())}`;
+    window.history.replaceState({}, "", url);
+    const bootstrap = await import("./instrumentation-client");
+
+    expect(forward).not.toHaveBeenCalled();
+    expect(bootstrap.takeInitialAuthorizationEntry()).toBeUndefined();
+    expect(window.location.pathname + window.location.hash).toBe(url);
   });
 
   it("retains a parsed request without a review deadline", async () => {

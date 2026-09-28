@@ -21,7 +21,7 @@ const FIXED_CONNECT_SOURCES = [
 ];
 /** Both signer pages reach any homeserver and relay over HTTPS. */
 const SIGNER_CONNECT_SOURCES = [...FIXED_CONNECT_SOURCES, "https:"];
-const NARROW_IMAGE_SOURCES = ["'self'", "data:", "https://lh3.googleusercontent.com"];
+const NARROW_IMAGE_SOURCES = ["'self'", "data:", "blob:", "https://lh3.googleusercontent.com"];
 const GRANT_RELAY_URL = "https://relay.passport.example/inbox";
 
 describe("request CSP proxy", () => {

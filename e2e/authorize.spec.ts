@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import { USE_DEV_SERVER } from "./helpers/e2eServer";
+import { expect, test, type Page } from "./helpers/passportTest";
 
 const SENSITIVE_SECRET = "kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8";
 const RELAY_ORIGIN = "https://relay.client.example";
@@ -27,7 +28,7 @@ const LOCAL_IDENTITY_STORAGE = {
 };
 
 test("shows shared onboarding when no request was supplied", async ({ page }) => {
-  await page.goto("/authorize");
+  await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "Quick & easy signing." })).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
@@ -81,6 +82,7 @@ test("shows identity setup context as the designed full-width accent band", asyn
 test("falls back to the callback domain when x-source is absent", async ({ page }) => {
   await installLocalIdentityFixture(page);
   await page.goto(authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`, "cookie", null)));
+  await chooseSavedIdentity(page);
 
   await expect(page.getByRole("heading", { name: "Sign in to client.example" })).toBeVisible();
   await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
@@ -94,9 +96,11 @@ test("keeps a long requester name inside the viewport on desktop breakpoints", a
     { width: 1280, height: 800 },
   ]) {
     await page.setViewportSize(viewport);
+    await page.goto("about:blank");
     await page.goto(
       authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`, "cookie", source)),
     );
+    await chooseSavedIdentity(page);
 
     await expect(page.getByRole("heading", { name: `Sign in to ${source}` })).toBeVisible();
     await page.evaluate(async () => document.fonts.ready);
@@ -110,8 +114,8 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   const url = authorizationUrl(
     authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}?region=eu`),
   );
-  await installLocalIdentityFixture(page);
   const leakMonitor = await installAuthorizationLeakMonitor(page);
+  await installLocalIdentityFixture(page);
   const baselineResponse = await request.get("/");
   await page.goto("/");
   const response = await page.goto(url);
@@ -121,7 +125,7 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   expect(rawInitialBody).toBeDefined();
   for (const canary of SENSITIVE_CANARIES) expect(rawInitialBody).not.toContain(canary);
   const headers = response?.headers() ?? {};
-  expect(headers["cache-control"]).toContain("no-store");
+  expect(headers["cache-control"]).toContain(USE_DEV_SERVER ? "no-cache" : "no-store");
   expect(headers["referrer-policy"]).toBe("no-referrer");
 
   // Both signer pages reach any HTTPS homeserver or relay; the request itself never shapes CSP.
@@ -136,10 +140,14 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   expect(policy).not.toContain(SENSITIVE_SECRET);
 
   await expect(page).toHaveURL(/\/authorize$/u);
+  await chooseSavedIdentity(page);
   await expect(page.getByRole("heading", { name: `Sign in to ${SOURCE_NAME}` })).toBeVisible();
   await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
   await expect(page.getByText("/pub/example.app/", { exact: true })).toBeVisible();
 
+  // The review never renders the secret-bearing request, not even as a Ring link or QR.
+  await expect(page.locator('main a[href^="pubkyauth:"]')).toHaveCount(0);
+  await expect(page.getByRole("img", { name: "Pubky authorization QR code" })).toHaveCount(0);
   const renderedReview = await page.locator("main").innerHTML();
   for (const canary of SENSITIVE_CANARIES) expect(renderedReview).not.toContain(canary);
   expect(renderedReview).not.toContain("authorization-success");
@@ -157,17 +165,222 @@ test("scrubs a valid request and renders only safe review data", async ({ page, 
   expectAuthorizationPersistenceSafe(authorizationPersistence, LOCAL_IDENTITY_STORAGE);
 
   await page.goBack();
-  await expect(page).toHaveURL(/\/$/u);
+  await expectEntryWithoutRequest(page, /\/$/u);
+  // The scrubbed entry no longer holds a request, so it hands over to `/`.
   await page.goForward();
-  await expect(page).toHaveURL(/\/authorize$/u);
-  expect(await page.evaluate(() => window.location.search)).toBe("");
-  expect(await page.evaluate(() => window.location.hash)).toBe("");
+  await expectEntryWithoutRequest(page, /\/$/u);
   const restoredPersistence = await browserPersistenceSnapshot(page);
   expectAuthorizationPersistenceSafe(restoredPersistence, LOCAL_IDENTITY_STORAGE);
   await expectNoSensitiveBrowserLeaks(page, leakMonitor, [
     authorizationPersistence,
     restoredPersistence,
   ]);
+});
+
+test("keeps remote images to Google avatars and homeservers and relays to the signer pages", async ({
+  request,
+}) => {
+  const policies = new Map<string, string>();
+  for (const [route, status] of [
+    ["/authorize", 200],
+    ["/", 200],
+    ["/privacy-policy", 200],
+    ["/terms-of-service", 200],
+    ["/missing-page", 404],
+  ] as const) {
+    const response = await request.get(route);
+    expect(response.status()).toBe(status);
+    policies.set(route, response.headers()["content-security-policy"] ?? "");
+  }
+  const connectSources = (route: string) => cspSources(policies.get(route) ?? "", "connect-src");
+  const beyondLegalPages = (route: string) => {
+    const legal = new Set(connectSources("/privacy-policy"));
+    return connectSources(route).filter((source) => !legal.has(source));
+  };
+
+  // Pages without the signer reach no homeserver and no relay.
+  expect(connectSources("/privacy-policy")).not.toContain("https:");
+  expect(connectSources("/privacy-policy")).not.toContain("https://homeserver.example");
+  expect(connectSources("/privacy-policy")).not.toContain("https://relay.passport.example");
+  expect(connectSources("/terms-of-service")).toEqual(connectSources("/privacy-policy"));
+  expect(connectSources("/missing-page")).toEqual(connectSources("/privacy-policy"));
+  // Both signer pages reach any homeserver an identity's record names, and any relay.
+  expect(beyondLegalPages("/authorize")).toEqual(["https:"]);
+  expect(beyondLegalPages("/")).toEqual(["https:"]);
+  for (const policy of policies.values()) {
+    expect(cspSources(policy, "img-src")).toEqual([
+      "'self'",
+      "data:",
+      "blob:",
+      "https://lh3.googleusercontent.com",
+    ]);
+  }
+});
+
+test("an entry without a request continues on the home page", async ({ page }) => {
+  await installLocalIdentityFixture(page);
+  for (const entry of ["/authorize", "/authorize?utm_source=newsletter"]) {
+    const homeResponse = waitForHomeDocument(page);
+    expect((await page.goto(entry))?.status()).toBe(200);
+
+    // The hand-over loads the home document anew.
+    expect((await homeResponse).ok()).toBe(true);
+    await expectEntryWithoutRequest(page, /\/$/u);
+    await expect(page.getByRole("button", { name: "Manage identity" })).toBeVisible();
+  }
+});
+
+test("a reload during review returns to the home page", async ({ page }) => {
+  await installLocalIdentityFixture(page);
+  await page.goto(authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`)));
+  await chooseSavedIdentity(page);
+  await expect(page.getByRole("heading", { name: `Sign in to ${SOURCE_NAME}` })).toBeVisible();
+
+  const homeResponse = waitForHomeDocument(page);
+  await page.reload();
+
+  expect((await homeResponse).ok()).toBe(true);
+  await expectEntryWithoutRequest(page, /\/$/u);
+  await expect(page.getByRole("button", { name: "Manage identity" })).toBeVisible();
+});
+
+test("forwards a query to the entry for rejection without sending its contents again", async ({
+  page,
+}) => {
+  const request = authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}`);
+  for (const home of [
+    `/?d=${encodeURIComponent(request)}`,
+    `/?utm_source=${RELAY_PATH_CANARY}#d=${encodeURIComponent(request)}`,
+  ]) {
+    const documents: string[] = [];
+    const recordDocument = (outgoing: { resourceType(): string; url(): string }) => {
+      if (outgoing.resourceType() === "document") documents.push(outgoing.url());
+    };
+    page.on("request", recordDocument);
+    await page.goto(home);
+
+    await expect(
+      page.getByRole("heading", { name: "Invalid authorization request" }),
+    ).toBeVisible();
+    await expectEntryWithoutRequest(page, /\/authorize$/u);
+    page.off("request", recordDocument);
+    // The first document request is the test's own; Passport's forward carries only `?d=`.
+    expect(documents.slice(1).map((url) => new URL(url).pathname + new URL(url).search)).toEqual([
+      "/authorize?d=",
+    ]);
+    for (const url of documents.slice(1)) {
+      for (const canary of SENSITIVE_CANARIES) expect(url).not.toContain(canary);
+    }
+  }
+});
+
+test("forwards a request sent to the home page before Passport code runs", async ({ page }) => {
+  const leakMonitor = await installAuthorizationLeakMonitor(page);
+  await installLocalIdentityFixture(page);
+  await page.goto("/privacy-policy");
+  const homeResponse = waitForHomeDocument(page);
+
+  await page.goto(
+    `/#d=${encodeURIComponent(authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}`))}`,
+  );
+
+  expect((await homeResponse).ok()).toBe(true);
+  await expectEntryWithoutRequest(page, /\/authorize$/u);
+  await chooseSavedIdentity(page);
+  await expect(page.getByRole("heading", { name: `Sign in to ${SOURCE_NAME}` })).toBeVisible();
+  const persistence = await browserPersistenceSnapshot(page);
+  expectAuthorizationPersistenceSafe(persistence, LOCAL_IDENTITY_STORAGE);
+
+  // The forward replaced the `/#d=…` entry: Back returns to the page before, and Forward reaches
+  // the scrubbed entry, which holds no request any more and hands over to `/`.
+  await page.goBack();
+  await expectEntryWithoutRequest(page, /\/privacy-policy$/u);
+  await page.goForward();
+  await expectEntryWithoutRequest(page, /\/$/u);
+  await expectNoSensitiveBrowserLeaks(page, leakMonitor, [persistence]);
+});
+
+test("forwards a request navigated into an open home page", async ({ page }) => {
+  const leakMonitor = await installAuthorizationLeakMonitor(page);
+  await installLocalIdentityFixture(page);
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Manage identity" })).toBeVisible();
+
+  // A pasted link or a reused named popup is a same-document fragment navigation.
+  await page.evaluate(
+    (request) => {
+      window.location.hash = `d=${encodeURIComponent(request)}`;
+    },
+    authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}`),
+  );
+
+  await expectEntryWithoutRequest(page, /\/authorize$/u);
+  await chooseSavedIdentity(page);
+  await expect(page.getByRole("heading", { name: `Sign in to ${SOURCE_NAME}` })).toBeVisible();
+  const persistence = await browserPersistenceSnapshot(page);
+  expectAuthorizationPersistenceSafe(persistence, LOCAL_IDENTITY_STORAGE);
+
+  // The fragment navigation's entry was replaced by the forward; Back reaches the clean home page.
+  await page.goBack();
+  await expectEntryWithoutRequest(page, /\/$/u);
+  await expect(page.getByRole("button", { name: "Manage identity" })).toBeVisible();
+  await expectNoSensitiveBrowserLeaks(page, leakMonitor, [persistence]);
+});
+
+test("captures a new request navigated into an open authorization page", async ({ page }) => {
+  const leakMonitor = await installAuthorizationLeakMonitor(page);
+  await installLocalIdentityFixture(page);
+  await page.goto(
+    authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`, "cookie", "First App")),
+  );
+  await expect(page.getByRole("heading", { name: "Sign in to First App" })).toBeVisible();
+
+  // A reused named popup navigates the same document to the next request.
+  await page.evaluate(
+    (request) => {
+      window.location.hash = `d=${encodeURIComponent(request)}`;
+    },
+    authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}`),
+  );
+
+  await expect(page.getByRole("heading", { name: `Sign in to ${SOURCE_NAME}` })).toBeVisible();
+  await expectEntryWithoutRequest(page, /\/authorize$/u);
+  const persistence = await browserPersistenceSnapshot(page);
+  expectAuthorizationPersistenceSafe(persistence, LOCAL_IDENTITY_STORAGE);
+
+  // Both requests' entries were scrubbed. Back may stay in the reloaded document or load the first
+  // entry anew, which then hands over to `/`; either way no entry holds a request.
+  await page.goBack();
+  await expectEntryWithoutRequest(page, /\/(?:authorize)?$/u);
+  await expectNoSensitiveBrowserLeaks(page, leakMonitor, [persistence]);
+});
+
+test("shows the request to Ring only in its link and QR code", async ({ page }) => {
+  const request = authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}`, "grant");
+  const leakMonitor = await installAuthorizationLeakMonitor(page);
+  await installLocalIdentityFixture(page);
+  await page.goto(authorizationUrl(request));
+  await page.getByRole("button", { name: "Use Pubky Ring", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Sign in with Ring." })).toBeVisible();
+  const showQr = page.getByRole("button", { name: "Show QR" });
+  if (await showQr.isVisible()) await showQr.click();
+  await expect(page.getByRole("img", { name: "Pubky authorization QR code" })).toBeVisible();
+
+  const links = page.locator('main a[href^="pubkyauth:"]');
+  await expect(links).toHaveCount(1);
+  await expect(links).toHaveAttribute("href", request);
+  // Apart from that one href, the markup (text, aria and data attributes, the QR's SVG paths)
+  // carries none of the request.
+  const markupWithoutLink = await page.locator("main").evaluate((main) => {
+    const copy = main.cloneNode(true) as HTMLElement;
+    copy.querySelector('a[href^="pubkyauth:"]')?.removeAttribute("href");
+    return copy.innerHTML;
+  });
+  for (const canary of SENSITIVE_CANARIES) expect(markupWithoutLink).not.toContain(canary);
+  expect(await page.evaluate(() => window.location.hash)).toBe("");
+  const persistence = await browserPersistenceSnapshot(page);
+  expectAuthorizationPersistenceSafe(persistence, LOCAL_IDENTITY_STORAGE);
+  await expectNoSensitiveBrowserLeaks(page, leakMonitor, [persistence]);
 });
 
 test("rejects an unsafe relay without adding it to CSP", async ({ page }) => {
@@ -189,20 +402,29 @@ test("rejects an unsafe relay without adding it to CSP", async ({ page }) => {
   const persistence = await browserPersistenceSnapshot(page);
   expectAuthorizationPersistenceSafe(persistence);
   await expectNoSensitiveBrowserLeaks(page, leakMonitor, [persistence]);
+
+  // Leaving a finished request loads `/` anew.
+  const homeResponse = waitForHomeDocument(page);
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  expect((await homeResponse).ok()).toBe(true);
+  await expect(page).toHaveURL(/\/$/u);
+  await expect(page.getByRole("heading", { name: "Quick & easy signing." })).toBeVisible();
 });
 
 test("reviews and scrubs a v0.10 grant authorization request", async ({ page }) => {
   const url = authorizationUrl(
     authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}`, "grant"),
   );
-  await installLocalIdentityFixture(page);
   const leakMonitor = await installAuthorizationLeakMonitor(page);
+  await installLocalIdentityFixture(page);
 
   const response = await page.goto(url);
 
   expect(response?.ok()).toBe(true);
   await expect(page).toHaveURL(/\/authorize$/u);
+  await chooseSavedIdentity(page);
   await expect(page.getByRole("heading", { name: `Sign in to ${SOURCE_NAME}` })).toBeVisible();
+  await expect(page.locator('main a[href^="pubkyauth:"]')).toHaveCount(0);
   expect(await page.locator("main").innerHTML()).not.toContain(GRANT_CLIENT_PUBLIC_KEY);
   expect(await page.evaluate(() => window.location.search)).toBe("");
   expect(await page.evaluate(() => window.location.hash)).toBe("");
@@ -213,7 +435,7 @@ test("reviews and scrubs a v0.10 grant authorization request", async ({ page }) 
 
 test("manual entry reloads into fragment-backed capability review", async ({ page }) => {
   await installLocalIdentityFixture(page);
-  await page.goto("/authorize");
+  await page.goto("/");
   await page.getByRole("button", { name: "Authorize an app" }).click();
 
   await page
@@ -221,6 +443,7 @@ test("manual entry reloads into fragment-backed capability review", async ({ pag
     .fill(authorizationRequest(`${RELAY_ORIGIN}/inbox`));
   await page.getByRole("button", { name: "Continue" }).click();
 
+  await chooseSavedIdentity(page);
   await expect(page.getByRole("heading", { name: `Sign in to ${SOURCE_NAME}` })).toBeVisible();
   await expect(page).toHaveURL(/\/authorize$/u);
   expect(await page.evaluate(() => window.location.hash)).toBe("");
@@ -246,6 +469,7 @@ test("falls back to the cancel callback when the opener does not acknowledge", a
   );
   const popup = await popupPromise;
 
+  await chooseSavedIdentity(popup);
   await popup.getByRole("button", { name: "Cancel" }).click();
 
   await expect(popup).toHaveURL(/https:\/\/client\.example\/authorization-cancel/u);
@@ -296,6 +520,7 @@ test("notifies the callback-origin opener and closes after acknowledgement", asy
   }, popupUrl);
   const popup = await popupPromise;
 
+  await chooseSavedIdentity(popup);
   await popup.getByRole("button", { name: "Cancel" }).click();
 
   await expect.poll(() => popup.isClosed()).toBe(true);
@@ -316,6 +541,7 @@ test("uses the cancel callback for direct navigation without an opener", async (
   await installLocalIdentityFixture(page);
   await page.goto(authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`)));
 
+  await chooseSavedIdentity(page);
   await page.getByRole("button", { name: "Cancel" }).click();
 
   await expect(page).toHaveURL(/https:\/\/client\.example\/authorization-cancel/u);
@@ -356,6 +582,25 @@ function authorizationUrl(request: string): string {
   return `/authorize#d=${encodeURIComponent(request)}`;
 }
 
+/** Waits for the document response of `/`. */
+function waitForHomeDocument(page: Page) {
+  return page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/" && response.request().resourceType() === "document",
+  );
+}
+
+/** Waits for the current history entry to settle on `path`, then checks it holds no request. */
+async function expectEntryWithoutRequest(page: Page, path: RegExp): Promise<void> {
+  await expect(page).toHaveURL(path);
+  expect(await page.evaluate(() => window.location.search + window.location.hash)).toBe("");
+  for (const canary of SENSITIVE_CANARIES) expect(page.url()).not.toContain(canary);
+}
+
+async function chooseSavedIdentity(page: Page): Promise<void> {
+  await expect(page.getByRole("button", { name: "Authorize", exact: true })).toBeVisible();
+}
+
 function expectWithinOnePixel(actual: number, expected: number) {
   expect(Math.abs(actual - expected)).toBeLessThanOrEqual(1);
 }
@@ -384,7 +629,9 @@ async function browserPersistenceSnapshot(page: Page) {
           .__passportPersistenceWrites ?? [],
       indexedDatabases:
         typeof indexedDB.databases === "function"
-          ? (await indexedDB.databases()).map(({ name, version }) => ({ name, version }))
+          ? (await indexedDB.databases())
+              .filter(({ name }) => name !== "__next_debug_channel")
+              .map(({ name, version }) => ({ name, version }))
           : [],
       caches: "caches" in window ? await caches.keys() : [],
     };
@@ -440,7 +687,10 @@ function expectAuthorizationPersistenceSafe(
   for (const canary of SENSITIVE_CANARIES) {
     expect(JSON.stringify(snapshot.historyState)).not.toContain(canary);
   }
-  expect(snapshot.writes).toEqual([]);
+  const expectedIdentityWrites = new Set(
+    Object.entries(expectedLocalStorage).map(([key, value]) => `storage:${key}:${value}`),
+  );
+  expect(snapshot.writes.filter((write) => !expectedIdentityWrites.has(write))).toEqual([]);
   expect(snapshot.indexedDatabases).toEqual([]);
   expect(snapshot.caches).toEqual([]);
 }
@@ -475,7 +725,9 @@ async function installPersistenceObserver(page: Page): Promise<void> {
         ? IDBFactory.prototype.open.call(databaseFactory, name)
         : IDBFactory.prototype.open.call(databaseFactory, name, version);
     databaseFactory.open = ((name: string, version?: number) => {
-      writes.push(`indexedDB:${name}:${version ?? "default"}`);
+      if (name !== "__next_debug_channel") {
+        writes.push(`indexedDB:${name}:${version ?? "default"}`);
+      }
       return version === undefined ? openDatabase(name) : openDatabase(name, version);
     }) as IDBFactory["open"];
 
@@ -485,7 +737,9 @@ async function installPersistenceObserver(page: Page): Promise<void> {
       value: unknown,
       key?: IDBValidKey,
     ) {
-      writes.push(`indexedDB-add:${serialize(value)}:${serialize(key)}`);
+      if (this.transaction.db.name !== "__next_debug_channel") {
+        writes.push(`indexedDB-add:${serialize(value)}:${serialize(key)}`);
+      }
       return key === undefined ? addRecord.call(this, value) : addRecord.call(this, value, key);
     } as IDBObjectStore["add"];
 
@@ -495,7 +749,9 @@ async function installPersistenceObserver(page: Page): Promise<void> {
       value: unknown,
       key?: IDBValidKey,
     ) {
-      writes.push(`indexedDB-put:${serialize(value)}:${serialize(key)}`);
+      if (this.transaction.db.name !== "__next_debug_channel") {
+        writes.push(`indexedDB-put:${serialize(value)}:${serialize(key)}`);
+      }
       return key === undefined ? putRecord.call(this, value) : putRecord.call(this, value, key);
     } as IDBObjectStore["put"];
 

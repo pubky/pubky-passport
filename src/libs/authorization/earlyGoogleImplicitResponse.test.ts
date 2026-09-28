@@ -7,8 +7,53 @@ import {
   EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT,
   GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE,
 } from "./earlyGoogleImplicitResponse";
+import {
+  EARLY_AUTHORIZATION_LOCATION_PROPERTY,
+  EARLY_AUTHORIZATION_LOCATION_SCRIPT,
+} from "./earlyAuthorizationLocation";
 
 describe("early Google implicit response bootstrap", () => {
+  it.each([
+    "#d=pubky-request&access_token=credential-canary&state=state-canary",
+    "#access_token=credential-canary&%64=pubky-request&state=state-canary",
+  ])("rejects a mixed Pubky request and Google credential fragment: %s", (hash) => {
+    const postMessage = vi.fn();
+    const location = {
+      pathname: "/",
+      search: "",
+      hash,
+      origin: "https://passport.example",
+      replace: vi.fn(),
+    };
+    const context: Record<string, unknown> = {
+      location,
+      history: {},
+      History: {
+        prototype: {
+          replaceState() {
+            location.hash = "";
+          },
+        },
+      },
+      addEventListener: vi.fn(),
+      opener: { postMessage },
+    };
+    context.window = context;
+
+    runInNewContext(EARLY_AUTHORIZATION_LOCATION_SCRIPT, context);
+    runInNewContext(EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT, context);
+
+    expect(location.hash).toBe("");
+    // The request is not forwarded to the authorization entry either.
+    expect(location.replace).not.toHaveBeenCalled();
+    expect(context[EARLY_AUTHORIZATION_LOCATION_PROPERTY]).toBeUndefined();
+    expect(postMessage).toHaveBeenCalledWith(
+      { type: GOOGLE_IMPLICIT_RESPONSE_MESSAGE_TYPE, status: "invalid" },
+      "https://passport.example",
+    );
+    expect(JSON.stringify(postMessage.mock.calls)).not.toContain("credential-canary");
+  });
+
   it("scrubs the credential fragment and sends it only to the opener", () => {
     const postMessage = vi.fn();
     const location = {
