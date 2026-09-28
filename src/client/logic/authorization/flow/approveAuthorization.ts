@@ -15,6 +15,13 @@ import type { ValidatedPubkyAuthRequest } from "@/client/logic/authorization/req
 
 type ApproveAuthorizationResult = ResultType<void, CodedFailure<"approval_failed" | "cancelled">>;
 
+/**
+ * How long Passport keeps the page open after posting an approval, so the background republish of
+ * the identity's homeserver record is not cut off by the return to the app. The approval is on the
+ * relay by then: an app already polling it may resolve the record before the republish lands.
+ */
+export const REPUBLISH_HANDOFF_WAIT_MS = 2_000;
+
 type RestoreLocalIdentityResult = ResultType<
   PubkyIdentityKey,
   CodedFailure<RestoreLocalIdentityErrorCode>
@@ -78,6 +85,7 @@ export async function approveAuthorization(
     if (signal?.aborted) return Result.err({ code: "cancelled" });
     onCommit?.();
     const approved = await pubky.approveAuthRequest(restoredKey, authRequestUrl);
+    await settleWithin(republish, REPUBLISH_HANDOFF_WAIT_MS);
     if (Result.isError(approved)) {
       LOGGER.warn("authorize.approval.failed", {
         stage: "sdk_approve",
@@ -104,6 +112,21 @@ export async function approveAuthorization(
       disposeIdentityKey(pubky, keyHandle);
       disposePubky(pubky);
     }
+  }
+}
+
+/** Resolves once `task` settles or `milliseconds` pass, whichever comes first. */
+async function settleWithin(task: Promise<void>, milliseconds: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      task,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, milliseconds);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 

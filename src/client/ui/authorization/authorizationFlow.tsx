@@ -58,6 +58,8 @@ function AuthorizationFlow() {
       );
     case "approved":
       return <AuthorizationTerminal outcome="approved" />;
+    case "handed-off":
+      return <AuthorizationTerminal outcome="handed-off" />;
     case "cancelled":
       return <AuthorizationTerminal outcome="cancelled" />;
     case "review":
@@ -192,21 +194,34 @@ function ReadyAuthorizationWithIdentity({
   );
 }
 
-function AuthorizationTerminal({ outcome }: { outcome: "approved" | "cancelled" }) {
+const TERMINAL_COPY = {
+  approved: {
+    title: "Authorization",
+    accent: "complete.",
+    lead: "You can return to the app or device where you started.",
+  },
+  // Passport cannot see an external signer's approval, so it never claims one.
+  "handed-off": {
+    title: "Return to",
+    accent: "the app.",
+    lead: "Passport cannot see the approval in Pubky Ring. The app signs you in once the approval reaches it.",
+  },
+  cancelled: {
+    title: "Authorization",
+    accent: "cancelled.",
+    lead: "No authorization was granted.",
+  },
+} as const;
+
+function AuthorizationTerminal({ outcome }: { outcome: keyof typeof TERMINAL_COPY }) {
   const approved = outcome === "approved";
+  const copy = TERMINAL_COPY[outcome];
   return (
     <PassportScreen className="gap-6">
-      <DisplayHeading
-        accent={approved ? "complete." : "cancelled."}
-        aria-label={approved ? "Authorization complete." : "Authorization cancelled."}
-      >
-        Authorization
+      <DisplayHeading accent={copy.accent} aria-label={`${copy.title} ${copy.accent}`}>
+        {copy.title}
       </DisplayHeading>
-      <LeadText>
-        {approved
-          ? "You can return to the app or device where you started."
-          : "No authorization was granted."}
-      </LeadText>
+      <LeadText>{copy.lead}</LeadText>
       {approved ? (
         <Image
           alt=""
@@ -217,7 +232,7 @@ function AuthorizationTerminal({ outcome }: { outcome: "approved" | "cancelled" 
           width={200}
         />
       ) : null}
-      {approved ? (
+      {outcome !== "cancelled" ? (
         <PassportNavigation
           confirm={
             <Button className="w-full" onClick={goHome} size="lg" type="button">
