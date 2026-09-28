@@ -54,6 +54,32 @@ describe("redactForLog authorization URLs", () => {
 
     expect(redactForLog(value)).toBe(value);
   });
+
+  // `/` forwards requests to `/authorize`, so both entry shapes can reach a log line.
+  it.each([
+    "/#d=pubkyauth%3A%2F%2Fsignin%3Frelay%3Dhttps%253A%252F%252Frelay.example%26secret%3Dsecret-value",
+    "/?utm_source=newsletter#d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value",
+    "/?d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value",
+    "/#%64=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value",
+    "/#unexpected=value&d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value",
+    "/authorize?utm_source=newsletter#d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value",
+    "https://passport.pubky.app/#d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value",
+    "https://passport.pubky.app/?utm_source=newsletter#d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value",
+    "https://passport.pubky.app/?d=pubkyauth%3A%2F%2Fsignin%3Fsecret%3Dsecret-value",
+  ])("redacts the request shape %s", (url) => {
+    for (const value of [`GET ${url}`, `url=${url}`]) {
+      const redacted = redactForLog(value);
+      expect(redacted).toBe(value.replace(url, "[REDACTED_AUTHORIZATION_URL]"));
+      expect(redacted).not.toContain("relay.example");
+      expect(redacted).not.toContain("signin");
+    }
+  });
+
+  it("does not redact paths that merely end in a slash", () => {
+    const value = "GET /privacy-policy/ and https://passport.pubky.app/";
+
+    expect(redactForLog(value)).toBe(value);
+  });
 });
 
 describe("redactForLog HTTP URL parameters", () => {

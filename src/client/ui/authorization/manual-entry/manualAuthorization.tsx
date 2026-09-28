@@ -89,7 +89,9 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
             <DisplayHeading accent="a service." aria-label="Authorize a service.">
               Authorize
             </DisplayHeading>
-            <LeadText>Paste the authorization link from the app you want to connect.</LeadText>
+            <LeadText>
+              Paste or scan the authorization request from the app you want to connect.
+            </LeadText>
           </div>
           <div className="flex flex-col gap-2">
             <Label className="leading-5 md:leading-4" htmlFor="authorization-link">
@@ -97,7 +99,7 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
             </Label>
             <Input
               action={
-                <div className="flex items-center gap-1">
+                <div className="flex shrink-0 items-center gap-1">
                   <IconButton
                     aria-label="Scan authorization QR code"
                     className="hidden size-8 p-0 md:inline-flex"

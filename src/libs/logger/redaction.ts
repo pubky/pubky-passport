@@ -8,6 +8,9 @@ const PUBKY_AUTH_URL_PATTERN = /pubkyauth:\/\/[^\s<>'"]+/giu;
 const RELATIVE_AUTHORIZE_QUERY_URL_PATTERN = /(^|[^\w/])\/authorize\?[^\s<>'"]*\bd=[^\s<>'"]*/giu;
 const RELATIVE_AUTHORIZE_FRAGMENT_URL_PATTERN =
   /(^|[^\w/])\/authorize(?:\?[^\s<>'"#]*)?#[^\s<>'"]+/giu;
+// `/` forwards requests to `/authorize`, so its query and any fragment are redacted the same way.
+const RELATIVE_ROOT_QUERY_URL_PATTERN = /(^|[^\w/])\/\?[^\s<>'"]*\bd=[^\s<>'"]*/giu;
+const RELATIVE_ROOT_FRAGMENT_URL_PATTERN = /(^|[^\w/])\/(?:\?[^\s<>'"#]*)?#[^\s<>'"]+/giu;
 const HTTP_URL_PATTERN = /https?:\/\/[^\s<>'"]+/giu;
 const AUTHORIZATION_HEADER_PATTERN = /\bAuthorization\s*:\s*([^\s,;'\x22]+)\s+([^\s,;'\x22]+)/giu;
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/gu;
@@ -66,6 +69,14 @@ function redactAuthorizationUrls(value: string): string {
       RELATIVE_AUTHORIZE_FRAGMENT_URL_PATTERN,
       (_match, prefix: string) => `${prefix}${AUTHORIZATION_URL_REDACTION}`,
     )
+    .replace(
+      RELATIVE_ROOT_QUERY_URL_PATTERN,
+      (_match, prefix: string) => `${prefix}${AUTHORIZATION_URL_REDACTION}`,
+    )
+    .replace(
+      RELATIVE_ROOT_FRAGMENT_URL_PATTERN,
+      (_match, prefix: string) => `${prefix}${AUTHORIZATION_URL_REDACTION}`,
+    )
     .replace(HTTP_URL_PATTERN, (match) =>
       isPassportAuthorizationUrl(match) ? AUTHORIZATION_URL_REDACTION : match,
     );
@@ -98,7 +109,7 @@ export function redactForLog(value: string): string {
 function isPassportAuthorizationUrl(value: string): boolean {
   const url = parseUrl(value);
 
-  if (url?.pathname !== "/authorize") return false;
+  if (url?.pathname !== "/" && url?.pathname !== "/authorize") return false;
   return (
     url.searchParams.has("d") ||
     new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash).has("d")

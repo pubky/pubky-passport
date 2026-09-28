@@ -1,7 +1,10 @@
 import "client-only";
 
+import { AUTHORIZATION_ENTRY_PATH } from "./libs/authorization/authorizationLocationRules";
 import {
+  forwardHomeAuthorizationRequest,
   invalidateAuthorizationEntry,
+  leaveEmptyAuthorizationEntry,
   readAndScrubAuthorizationEntry,
   scrubAuthorizationLocation,
   type AuthorizationEntry,
@@ -9,10 +12,22 @@ import {
 
 // Next.js runs this module's top-level code before React hydration. Unlike server
 // instrumentation.ts, client instrumentation has no register() hook.
-let initialAuthorizationEntry =
-  typeof window !== "undefined" && window.location.pathname === "/authorize"
-    ? readAndScrubAuthorizationEntry(window)
-    : undefined;
+let initialAuthorizationEntry = captureInitialAuthorizationEntry();
+
+/**
+ * Only the entry path accepts a request; `/` forwards one there instead of reading it, and an entry
+ * without one leaves for `/`. The parser-time script normally did both already.
+ */
+function captureInitialAuthorizationEntry(): AuthorizationEntry | undefined {
+  if (typeof window === "undefined") return undefined;
+  if (window.location.pathname === AUTHORIZATION_ENTRY_PATH) {
+    const entry = readAndScrubAuthorizationEntry(window);
+    if (entry.status === "empty") leaveEmptyAuthorizationEntry(window);
+    return entry;
+  }
+  if (window.location.pathname === "/") forwardHomeAuthorizationRequest(window);
+  return undefined;
+}
 
 /**
  * Takes the one-shot authorization entry captured and scrubbed before React
@@ -23,7 +38,7 @@ export function takeInitialAuthorizationEntry(): AuthorizationEntry | undefined 
   initialAuthorizationEntry = undefined;
   if (
     entry &&
-    window.location.pathname === "/authorize" &&
+    window.location.pathname === AUTHORIZATION_ENTRY_PATH &&
     (window.location.search !== "" || window.location.hash !== "")
   ) {
     // Next may restore the initial address-bar URL during hydration.

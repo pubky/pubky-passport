@@ -2,6 +2,7 @@ import "client-only";
 
 import { Result } from "better-result";
 
+import { AUTHORIZATION_ENTRY_PATH } from "@/libs/authorization/authorizationLocationRules";
 import { LOGGER } from "@/libs/logger/logger";
 import {
   PUBKY_AUTH_REQUEST_LIMITS,
@@ -35,7 +36,7 @@ export function validateManualAuthorizationInput(
     return { status: "invalid" };
   }
 
-  return { status: "valid", destination: `/authorize#d=${encodedRequest}` };
+  return { status: "valid", destination: `${AUTHORIZATION_ENTRY_PATH}#d=${encodedRequest}` };
 }
 
 function logFailure(code: string): void {

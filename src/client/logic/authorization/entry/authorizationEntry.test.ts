@@ -6,7 +6,9 @@ import { EARLY_AUTHORIZATION_LOCATION_PROPERTY } from "@/libs/authorization/earl
 import { LOGGER } from "@/libs/logger/logger";
 import { PUBKY_AUTH_REQUEST_LIMITS } from "@/client/logic/authorization/request/parser/pubkyAuthRequestParser";
 import {
+  forwardHomeAuthorizationRequest,
   invalidateAuthorizationEntry,
+  leaveEmptyAuthorizationEntry,
   readAndScrubAuthorizationEntry,
   scrubAuthorizationLocation,
 } from "./authorizationEntry";
@@ -130,11 +132,37 @@ describe("authorizationEntry", () => {
     expect(JSON.stringify(info.mock.calls)).not.toContain(SECRET);
   });
 
+  it("treats a plain query string as an empty entry and scrubs it", () => {
+    window.history.replaceState({}, "", "/authorize?utm_source=newsletter&ref=home");
+
+    expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "empty" });
+    expect(window.location.search).toBe("");
+  });
+
+  it("rejects legacy query transport without a fragment", () => {
+    window.history.replaceState({}, "", `/authorize?d=${encodeURIComponent(validRequest())}`);
+
+    expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "invalid" });
+    expect(window.location.search).toBe("");
+  });
+
   it("rejects legacy query transport even when a valid fragment is present", () => {
     window.history.replaceState(
       {},
       "",
       `/authorize?d=${encodeURIComponent(validRequest())}#d=${encodeURIComponent(validRequest())}`,
+    );
+
+    expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "invalid" });
+    expect(window.location.search).toBe("");
+    expect(window.location.hash).toBe("");
+  });
+
+  it("rejects a plain query next to a valid fragment", () => {
+    window.history.replaceState(
+      {},
+      "",
+      `/authorize?utm_source=newsletter#d=${encodeURIComponent(validRequest())}`,
     );
 
     expect(readAndScrubAuthorizationEntry(window)).toEqual({ status: "invalid" });
@@ -224,6 +252,84 @@ describe("authorizationEntry", () => {
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain(SECRET);
   });
+
+  describe("home-page fallback forwarding", () => {
+    it.each([
+      `#d=${encodeURIComponent(validRequest())}`,
+      `#%64=${encodeURIComponent(validRequest())}`,
+    ])("scrubs, stops loading, then forwards %s to the authorization entry", (hash) => {
+      const { appWindow, calls } = homeWindow("", hash);
+
+      expect(forwardHomeAuthorizationRequest(appWindow)).toBe(true);
+      expect(calls).toEqual(["replaceState:/", "stop", `replace:/authorize${hash}`]);
+    });
+
+    it.each([
+      [`?d=${encodeURIComponent(validRequest())}`, ""],
+      ["?utm_source=newsletter", `#d=${encodeURIComponent(validRequest())}`],
+    ])("forwards %s%s for rejection without copying the query", (search, hash) => {
+      const { appWindow, calls } = homeWindow(search, hash);
+
+      expect(forwardHomeAuthorizationRequest(appWindow)).toBe(true);
+      expect(calls).toEqual(["replaceState:/", "stop", `replace:/authorize?d=${hash}`]);
+      const forwardedQuery = calls.join().replace(hash, "");
+      expect(forwardedQuery).not.toContain("newsletter");
+      expect(forwardedQuery).not.toContain(SECRET);
+    });
+
+    it.each([
+      ["", ""],
+      ["?utm_source=newsletter", "#top"],
+      ["", "#access_token=google-token&state=state"],
+    ])("leaves %s%s on the home page", (search, hash) => {
+      const { appWindow, calls } = homeWindow(search, hash);
+
+      expect(forwardHomeAuthorizationRequest(appWindow)).toBe(false);
+      expect(calls).toEqual([]);
+    });
+
+    it("keeps the request scrubbed when forwarding fails, without logging it", () => {
+      const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+      const { appWindow, calls } = homeWindow("", `#d=${encodeURIComponent(validRequest())}`, {
+        replaceThrows: true,
+      });
+
+      expect(forwardHomeAuthorizationRequest(appWindow)).toBe(true);
+      expect(calls.slice(0, 2)).toEqual(["replaceState:/", "stop"]);
+      expect(appWindow.location.hash).toBe("");
+      expect(warning).toHaveBeenCalledWith("authorize.entry.failed", {
+        operation: "forward_request",
+        code: "navigation_failed",
+        diagnosticId: expect.any(String),
+        errorName: "Error",
+      });
+      expect(JSON.stringify(warning.mock.calls)).not.toContain(SECRET);
+    });
+  });
+
+  describe("leaving an entry without a request", () => {
+    it("stops loading and replaces the entry with the home page", () => {
+      const { appWindow, calls } = homeWindow("", "");
+
+      leaveEmptyAuthorizationEntry(appWindow);
+
+      expect(calls).toEqual(["stop", "replace:/"]);
+    });
+
+    it("logs a failed navigation", () => {
+      const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+      const { appWindow } = homeWindow("", "", { replaceThrows: true });
+
+      leaveEmptyAuthorizationEntry(appWindow);
+
+      expect(warning).toHaveBeenCalledWith("authorize.entry.failed", {
+        operation: "leave_entry",
+        code: "navigation_failed",
+        diagnosticId: expect.any(String),
+        errorName: "Error",
+      });
+    });
+  });
 });
 
 function setAuthorizationUrl(request: string): void {
@@ -232,6 +338,35 @@ function setAuthorizationUrl(request: string): void {
 
 function setRawAuthorizationFragment(fragment: string): void {
   window.history.replaceState({}, "", `/authorize#${fragment}`);
+}
+
+/** A home-page window whose history and navigation calls are recorded in order. */
+function homeWindow(search: string, hash: string, options: { replaceThrows?: boolean } = {}) {
+  const calls: string[] = [];
+  const location = {
+    hash,
+    pathname: "/",
+    search,
+    replace(url: string) {
+      calls.push(`replace:${url}`);
+      if (options.replaceThrows) throw new Error(`navigation failed ${SECRET}`);
+    },
+  };
+  const appWindow = {
+    History: {
+      prototype: {
+        replaceState(_state: unknown, _title: string, url: string) {
+          calls.push(`replaceState:${url}`);
+          location.search = "";
+          location.hash = "";
+        },
+      },
+    },
+    history: {},
+    location,
+    stop: () => calls.push("stop"),
+  } as unknown as Window;
+  return { appWindow, calls };
 }
 
 function validRequest(): string {
