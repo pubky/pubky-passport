@@ -8,6 +8,15 @@ const sdkImport = {
   regex: "^@synonymdev/pubky$",
   message: "The Pubky SDK is confined to PubkySdkAdapter and intentional tests.",
 };
+const specsImport = {
+  regex: "^pubky-app-specs(?:/|$)",
+  message: "pubky-app-specs is confined to ProfileSpecsAdapter and intentional tests.",
+};
+// no-restricted-imports does not see `import()`, which is how the WASM package is loaded.
+const specsDynamicImport = {
+  selector: "ImportExpression[source.value=/^pubky-app-specs(\\/|$)/]",
+  message: specsImport.message,
+};
 const serverImport = {
   regex: "^(?:server-only$|@/server(?:/|$)|(?:\\.\\./)+server(?:/|$))",
   message: "Client modules must not import server runtime code.",
@@ -51,19 +60,40 @@ const ESLINT_CONFIG = defineConfig([
   },
   {
     files: [`src/client/${sourceFiles}`],
-    ignores: [`src/client/${testFiles}`, "src/client/logic/pubky/PubkySdkAdapter.ts"],
-    rules: { "no-restricted-imports": restrictedImports(serverImport, sdkImport) },
+    ignores: [
+      `src/client/${testFiles}`,
+      "src/client/logic/pubky/PubkySdkAdapter.ts",
+      "src/client/logic/profile/ProfileSpecsAdapter.ts",
+    ],
+    rules: { "no-restricted-imports": restrictedImports(serverImport, sdkImport, specsImport) },
   },
   {
     files: [`src/client/logic/${sourceFiles}`],
-    ignores: [`src/client/logic/${testFiles}`, "src/client/logic/pubky/PubkySdkAdapter.ts"],
+    ignores: [
+      `src/client/logic/${testFiles}`,
+      "src/client/logic/pubky/PubkySdkAdapter.ts",
+      "src/client/logic/profile/ProfileSpecsAdapter.ts",
+    ],
     rules: {
-      "no-restricted-imports": restrictedImports(serverImport, sdkImport, clientEntrypointImport),
+      "no-restricted-imports": restrictedImports(
+        serverImport,
+        sdkImport,
+        specsImport,
+        clientEntrypointImport,
+      ),
     },
   },
   {
     files: ["src/client/logic/pubky/PubkySdkAdapter.ts"],
-    rules: { "no-restricted-imports": restrictedImports(serverImport, clientEntrypointImport) },
+    rules: {
+      "no-restricted-imports": restrictedImports(serverImport, specsImport, clientEntrypointImport),
+    },
+  },
+  {
+    files: ["src/client/logic/profile/ProfileSpecsAdapter.ts"],
+    rules: {
+      "no-restricted-imports": restrictedImports(serverImport, sdkImport, clientEntrypointImport),
+    },
   },
   {
     files: [`src/server/${sourceFiles}`],
@@ -72,12 +102,17 @@ const ESLINT_CONFIG = defineConfig([
       "src/server/wrapping-key/google/GoogleWrappingKeyIssuer.ts",
     ],
     rules: {
-      "no-restricted-imports": restrictedImports(clientImport, serverEnvironmentImport, sdkImport),
+      "no-restricted-imports": restrictedImports(
+        clientImport,
+        serverEnvironmentImport,
+        sdkImport,
+        specsImport,
+      ),
     },
   },
   {
     files: ["src/server/wrapping-key/google/GoogleWrappingKeyIssuer.ts"],
-    rules: { "no-restricted-imports": restrictedImports(clientImport, sdkImport) },
+    rules: { "no-restricted-imports": restrictedImports(clientImport, sdkImport, specsImport) },
   },
   {
     files: [`src/libs/${sourceFiles}`],
@@ -90,18 +125,26 @@ const ESLINT_CONFIG = defineConfig([
           message: "Shared modules must remain independent from client and server runtimes.",
         },
         sdkImport,
+        specsImport,
       ),
     },
   },
   {
     files: [`src/app/${sourceFiles}`],
     ignores: [`src/app/${testFiles}`, "src/app/layout.tsx"],
-    rules: { "no-restricted-imports": restrictedImports(serverEnvironmentImport, sdkImport) },
+    rules: {
+      "no-restricted-imports": restrictedImports(serverEnvironmentImport, sdkImport, specsImport),
+    },
   },
   {
     files: ["src/app/layout.tsx", "src/*.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
     ignores: ["src/*.{test,spec}.{js,jsx,mjs,cjs,ts,mts,cts,tsx}"],
-    rules: { "no-restricted-imports": restrictedImports(sdkImport) },
+    rules: { "no-restricted-imports": restrictedImports(sdkImport, specsImport) },
+  },
+  {
+    files: [`src/${sourceFiles}`],
+    ignores: [`src/${testFiles}`, "src/client/logic/profile/ProfileSpecsAdapter.ts"],
+    rules: { "no-restricted-syntax": ["error", specsDynamicImport] },
   },
 ]);
 
