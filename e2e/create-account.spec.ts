@@ -1,0 +1,547 @@
+import { holdHttpsRequests } from "./helpers/network";
+import { expect, test, type Page } from "./helpers/passportTest";
+import AxeBuilder from "@axe-core/playwright";
+import { E2E_HTTP_RELAY_URL, E2E_SIGNUP_HOMESERVER } from "./helpers/e2eServer";
+import { HOMESERVER as TEST_HOMESERVER, mockHomeserverRecords } from "./helpers/pubkyProfile";
+
+const HOMEGATE_HOMESERVER = "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo";
+const LIGHTNING_INVOICE_ID = "550e8400-e29b-41d4-a716-446655440000";
+// Manual invites must have the homeserver token form; malformed codes never reach a homeserver.
+const MANUAL_INVITE = "AB12-CD34-EF56";
+const RING_INVITE = "R1NG-5GNP-QW7X";
+const AUTHORIZATION_REQUEST =
+  "pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.client.example/inbox&secret=kqnceEMgrNQM_xi06oQXjA3cJHX_RQmw1BY6JE1bse8&x-source=Client%20App&x-success=https%3A%2F%2Fclient.example%2Fsuccess&x-error=https%3A%2F%2Fclient.example%2Ferror&x-cancel=https%3A%2F%2Fclient.example%2Fcancel";
+
+test("creates an account inside the root signer experience", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Create account", exact: true }).click();
+
+  await expect(page.getByRole("heading", { name: "Create your account." })).toBeVisible();
+  await page.getByRole("button", { name: "Enter invite manually" }).click();
+  await expect(page.getByText(E2E_SIGNUP_HOMESERVER, { exact: true })).toBeVisible();
+  await page.getByLabel("Enter invite code").fill(MANUAL_INVITE);
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page.getByRole("button", { name: "Use Pubky Ring" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Keep in Passport/u })).toBeVisible();
+});
+
+test("keeps account-signup QR distinct and does not claim Ring success", async ({ page }) => {
+  await reachDestinationChoice(page);
+  await page.getByRole("button", { name: "Use Pubky Ring" }).click();
+
+  const showSignupQr = page.getByRole("button", { name: "Show signup QR" });
+  if (await showSignupQr.isVisible()) await showSignupQr.click();
+  await expect(page.getByRole("img", { name: "Pubky Ring signup QR code" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Pubky authorization QR code" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Continue to sign in" })).toHaveCount(0);
+  await expect(page.getByText(/Authentication succeeded/u)).toHaveCount(0);
+});
+
+test("keeps request context and requires a separate profile approval after Ring signup", async ({
+  page,
+}) => {
+  await page.goto(`/authorize#d=${encodeURIComponent(AUTHORIZATION_REQUEST)}`);
+  await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
+  await page.getByRole("button", { name: "Create account", exact: true }).click();
+  await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
+  await page.getByRole("button", { name: "Enter invite manually" }).click();
+  await page.getByLabel("Enter invite code").fill(MANUAL_INVITE);
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Use Pubky Ring" }).click();
+  await page.getByRole("button", { name: "Continue to profile" }).click();
+  await expect(page.getByRole("heading", { name: "Connect your Ring." })).toBeVisible();
+
+  await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
+  // Passport's own profile request is labelled apart from the app's sign-in request.
+  const profileRequestLink = page.getByRole("link", {
+    name: "Connect in Ring",
+    includeHidden: true,
+  });
+  await expect(profileRequestLink).toHaveAttribute("href", /^pubkyauth:\/\//);
+  await expect(page.getByRole("link", { name: "Open in Ring", includeHidden: true })).toHaveCount(
+    0,
+  );
+  const profileRequest = new URL((await profileRequestLink.getAttribute("href"))!);
+  expect(profileRequest.href).not.toBe(AUTHORIZATION_REQUEST);
+  expect(profileRequest.searchParams.get("caps")?.split(",")).toEqual([
+    "/pub/pubky.app/profile.json:w",
+    "/pub/pubky.app/files/:w",
+    "/pub/pubky.app/blobs/:w",
+  ]);
+  expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([]);
+  await expect(page.getByRole("heading", { name: "Authorization complete." })).toHaveCount(0);
+  const showProfileQr = page.getByRole("button", { name: "Show QR" });
+  if (await showProfileQr.isVisible()) await showProfileQr.click();
+  await expect(
+    page.getByRole("img", { name: "Pubky Ring profile connection QR code" }),
+  ).toBeVisible();
+  await expect(page.getByRole("img", { name: "Pubky authorization QR code" })).toHaveCount(0);
+  await expect(page.getByRole("img", { name: "Pubky Ring signup QR code" })).toHaveCount(0);
+});
+
+test("the profile grant after a Ring signup on the home page polls only the configured relay", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const refused: string[] = [];
+    Object.defineProperty(window, "__refusedConnections", { value: refused });
+    document.addEventListener("securitypolicyviolation", (event) => {
+      if (event.effectiveDirective === "connect-src") refused.push(event.blockedURI);
+    });
+  });
+  const relayRequests: string[] = [];
+  await page.route(`${new URL(E2E_HTTP_RELAY_URL).origin}/**`, async (route) => {
+    relayRequests.push(route.request().url());
+    await route.fulfill({ status: 404, body: "" });
+  });
+  await reachDestinationChoice(page);
+  await page.getByRole("button", { name: "Use Pubky Ring" }).click();
+  await page.getByRole("button", { name: "Continue to profile" }).click();
+  await expect(page.getByRole("heading", { name: "Connect your Ring." })).toBeVisible();
+  await expect(page).toHaveURL(/\/$/u);
+
+  const profileRequestLink = page.getByRole("link", {
+    name: "Connect in Ring",
+    includeHidden: true,
+  });
+  const profileRequest = new URL((await profileRequestLink.getAttribute("href"))!);
+  expect(profileRequest.searchParams.get("relay")).toBe(E2E_HTTP_RELAY_URL);
+  await expect.poll(() => relayRequests.length).toBeGreaterThan(0);
+  for (const url of relayRequests) expect(url.startsWith(`${E2E_HTTP_RELAY_URL}/`)).toBe(true);
+  // `/`'s connect policy refuses nothing in the signup and grant flow, the invite check included.
+  const refused = await page.evaluate(
+    () => (window as Window & { __refusedConnections?: string[] }).__refusedConnections ?? [],
+  );
+  expect(refused).toEqual([]);
+});
+
+test("local setup starts with a password-protected backup", async ({ page }) => {
+  await reachDestinationChoice(page);
+  await page.getByRole("button", { name: /Keep in Passport/u }).click();
+
+  await expect(page.getByRole("heading", { name: /Protect your key/u })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Download encrypted backup" })).toBeVisible();
+  await expect(page.getByText(/Select and decrypt the backup/u)).toHaveCount(0);
+});
+
+test("Back and reload keep local setup resumable without forcing it", async ({
+  page,
+}, testInfo) => {
+  await page.goto(`/authorize#d=${encodeURIComponent(AUTHORIZATION_REQUEST)}`);
+  await page.getByRole("button", { name: "Create account", exact: true }).click();
+  await page.getByRole("button", { name: "Enter invite manually" }).click();
+  await page.getByLabel("Enter invite code").fill(MANUAL_INVITE);
+  await page.getByRole("button", { name: "Continue" }).click();
+  await inspect("signer-choice");
+  await page.getByRole("button", { name: "Keep in Passport" }).click();
+  await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
+  const firstKey = await page.evaluate(
+    () =>
+      JSON.parse(localStorage.getItem("pubky-passport/local-account-draft/v1")!)
+        .publicKeyZ32 as string,
+  );
+  await expect(page.getByText(`Pubky: ${firstKey}`, { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
+  await inspect("protect-key");
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Choose your signer." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Use Pubky Ring" })).toBeEnabled();
+  // Leaving before the invite is submitted forgets the draft; a fresh key is prepared next.
+  expect(
+    await page.evaluate(() => localStorage.getItem("pubky-passport/local-account-draft/v1")),
+  ).toBeNull();
+  await page.getByRole("button", { name: "Keep in Passport" }).click();
+  await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
+  const key = await page.evaluate(
+    () =>
+      JSON.parse(localStorage.getItem("pubky-passport/local-account-draft/v1")!)
+        .publicKeyZ32 as string,
+  );
+  expect(key).not.toBe(firstKey);
+  await expect(page.getByText(`Pubky: ${key}`, { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Use Pubky Ring" })).toHaveCount(0);
+  await page.getByLabel("Enter strong password").fill("correct horse");
+  await page.getByLabel("Confirm password").fill("correct horse");
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download encrypted backup" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe(`pubky-${key}.pkarr`);
+  await expect(page.getByRole("heading", { name: "Verify backup." })).toBeVisible();
+  await inspect("verify-backup");
+  await page.reload();
+  // A reload never forces setup; opening account creation again offers the saved key.
+  await expect(page.getByRole("heading", { name: "Verify backup." })).toHaveCount(0);
+  await resumeSavedSetup(page);
+  await expect(page.getByRole("heading", { name: "Verify backup." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Verify and create account" })).toBeDisabled();
+  // Skipping needs a download made in this session; after a reload only the file check remains.
+  await expect(page.getByRole("button", { name: "Skip verification" })).toHaveCount(0);
+  await expect(page.getByLabel("Backup password")).toHaveValue("");
+  const savedKeys = await page.evaluate(() => Object.keys(localStorage));
+  expect(savedKeys.some((entry) => entry.startsWith("pubky-passport/local-identities/"))).toBe(
+    false,
+  );
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain("correct horse");
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain("pubkyauth://");
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByText(`Pubky: ${key}`, { exact: true })).toBeVisible();
+  await page.reload();
+  await resumeSavedSetup(page);
+  await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
+  await expect(page.getByText(`Pubky: ${key}`, { exact: true })).toBeVisible();
+
+  async function inspect(name: string) {
+    await page.mouse.move(0, 0);
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    const layout = await page.evaluate(() => ({
+      width: document.documentElement.scrollWidth,
+      viewport: window.innerWidth,
+      contentBottom: document.querySelector("main")!.getBoundingClientRect().bottom,
+      footerTop: document.querySelector("footer")!.getBoundingClientRect().top,
+    }));
+    expect(layout.width).toBeLessThanOrEqual(layout.viewport);
+    expect(layout.footerTop).toBeGreaterThanOrEqual(layout.contentBottom - 1);
+    await page.screenshot({ path: testInfo.outputPath(`${name}.png`), fullPage: true });
+  }
+});
+
+test("decrypts the downloaded backup before starting local registration", async ({ page }) => {
+  await reachDestinationChoiceOnTestHomeserver(page);
+  await page.getByRole("button", { name: /Keep in Passport/u }).click();
+
+  await page.getByLabel("Enter strong password").fill("correct horse");
+  await page.getByLabel("Confirm password").fill("correct horse");
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download encrypted backup" }).click();
+  const download = await downloadPromise;
+  const backupPath = await download.path();
+  expect(backupPath).not.toBeNull();
+
+  await expect(page.getByRole("heading", { name: "Verify backup." })).toBeVisible();
+  await page.getByLabel("Backup just downloaded").setInputFiles(backupPath!);
+  await page.getByLabel("Backup password").fill("wrong password");
+  await page.getByRole("button", { name: "Verify and create account" }).click();
+  await expect(page.getByText(/password is wrong/u)).toBeVisible();
+
+  await holdHttpsRequests(page);
+  await page.getByLabel("Backup password").fill("correct horse");
+  await page.getByRole("button", { name: "Verify and create account" }).click();
+  await expect(page.getByRole("heading", { name: "Setting up your pubky." })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Pubky identity setup progress" })).toBeVisible();
+});
+
+test("SMS validates codes and retains Homegate's homeserver for the destination choice", async ({
+  page,
+}) => {
+  await page.route("**/sms_verification/send_code", async (route) => {
+    expect(route.request().postDataJSON()).toEqual({ phoneNumber: "+41791234567" });
+    await route.fulfill({ status: 200, body: "" });
+  });
+  await page.route("**/sms_verification/validate_code", async (route) => {
+    const body = route.request().postDataJSON();
+    await route.fulfill({
+      json:
+        body.code === "123456"
+          ? {
+              valid: "true",
+              signupCode: "sms-invite-token",
+              homeserverPubky: HOMEGATE_HOMESERVER,
+            }
+          : { valid: "false" },
+    });
+  });
+
+  await openCreateAccount(page);
+  await page.getByRole("button", { name: "Continue with SMS" }).click();
+  await page.getByLabel("Phone number", { exact: true }).fill("+41 79 123 45 67");
+  await page.getByRole("button", { name: "Send Code" }).click();
+  await page.getByLabel("Verification code", { exact: true }).fill("000000");
+  await page.getByRole("button", { name: "Verify Code" }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("incorrect");
+  await page.getByLabel("Verification code", { exact: true }).fill("123456");
+  await page.getByRole("button", { name: "Verify Code" }).click();
+
+  await expect(page.getByRole("button", { name: "Use Pubky Ring" })).toBeVisible();
+  await openRingSignup(page);
+  await expect(
+    page.getByRole("link", { name: "Continue with Pubky Ring", includeHidden: true }),
+  ).toHaveAttribute(
+    "href",
+    `pubkyauth://direct_signup?hs=${HOMEGATE_HOMESERVER}&st=sms-invite-token`,
+  );
+});
+
+test("SMS provider limits stay recoverable inside account creation", async ({ page }) => {
+  await page.route("**/sms_verification/send_code", (route) =>
+    route.fulfill({ status: 429, body: "Phone number has exceeded weekly verification limit" }),
+  );
+  await openCreateAccount(page);
+  await page.getByRole("button", { name: "Continue with SMS" }).click();
+  await page.getByLabel("Phone number", { exact: true }).fill("+41791234567");
+  await page.getByRole("button", { name: "Send Code" }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("weekly signup limit");
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Create your account." })).toBeVisible();
+});
+
+test("SMS Back, Cancel, and reload preserve the verified invite", async ({ page }) => {
+  let sends = 0;
+  let verifications = 0;
+  await page.route("**/sms_verification/send_code", async (route) => {
+    sends++;
+    await route.fulfill({ status: 200, body: "" });
+  });
+  await page.route("**/sms_verification/validate_code", async (route) => {
+    verifications++;
+    await route.fulfill({
+      json: {
+        valid: "true",
+        signupCode: "verified-sms-invite",
+        homeserverPubky: HOMEGATE_HOMESERVER,
+      },
+    });
+  });
+  await page.goto(`/authorize#d=${encodeURIComponent(AUTHORIZATION_REQUEST)}`);
+  await page.getByRole("button", { name: "Create account", exact: true }).click();
+  await page.getByRole("button", { name: "Continue with SMS" }).click();
+  await page.getByLabel("Phone number", { exact: true }).fill("+41791234567");
+  await page.getByRole("button", { name: "Send Code" }).click();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByLabel("Phone number", { exact: true })).toHaveValue("+41791234567");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByLabel("Verification code", { exact: true }).fill("123456");
+  await page.getByRole("button", { name: "Verify Code" }).click();
+  await page.getByRole("button", { name: "Keep in Passport" }).click();
+  await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
+  const draft = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("pubky-passport/local-account-draft/v1")!),
+  );
+  expect(draft.signupToken).toBe("verified-sms-invite");
+  expect(draft.homeserverPubky).toBe(HOMEGATE_HOMESERVER);
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Choose your signer." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Use Pubky Ring" })).toBeEnabled();
+  // The verified invite survives Back inside the flow, but the unregistered key does not.
+  expect(
+    await page.evaluate(() => localStorage.getItem("pubky-passport/local-account-draft/v1")),
+  ).toBeNull();
+  await page.getByRole("button", { name: "Keep in Passport" }).click();
+  await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
+  await expect(page.getByText(`Pubky: ${draft.publicKeyZ32}`, { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Signing in to client.example")).toHaveCount(1);
+  expect(sends).toBe(1);
+  expect(verifications).toBe(1);
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Resume account setup" })).toHaveCount(0);
+  // Cancel drops the unsubmitted key, but the verified invite reopens without another SMS.
+  await page.getByRole("button", { name: "Create account", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Choose your signer." })).toBeVisible();
+  await page.getByRole("button", { name: "Use Pubky Ring" }).click();
+  const ringLink = page.getByRole("link", {
+    name: "Continue with Pubky Ring",
+    includeHidden: true,
+  });
+  const ringRequest = new URL((await ringLink.getAttribute("href"))!);
+  expect(ringRequest.searchParams.get("st")).toBe("verified-sms-invite");
+  expect(ringRequest.searchParams.get("hs")).toBe(HOMEGATE_HOMESERVER);
+  expect(
+    await page.evaluate(() => localStorage.getItem("pubky-passport/local-account-draft/v1")),
+  ).toBeNull();
+  await expect(page.getByLabel("Signing in to client.example")).toHaveCount(1);
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain("+41791234567");
+
+  await page.reload();
+  await page.getByRole("button", { name: "Create account", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Choose your signer." })).toBeVisible();
+  await page.getByRole("button", { name: "Use Pubky Ring" }).click();
+  await expect(ringLink).toHaveAttribute(
+    "href",
+    `pubkyauth://direct_signup?hs=${HOMEGATE_HOMESERVER}&st=verified-sms-invite`,
+  );
+  expect(sends).toBe(1);
+  expect(verifications).toBe(1);
+});
+
+test("manual invite Back returns to the completed form and then verification methods", async ({
+  page,
+}) => {
+  await reachDestinationChoice(page);
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByLabel("Enter invite code")).toHaveValue(MANUAL_INVITE);
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Create your account." })).toBeVisible();
+  await page.getByRole("button", { name: "Enter invite manually" }).click();
+  await expect(page.getByLabel("Enter invite code")).toHaveValue(MANUAL_INVITE);
+});
+
+test("shared account creation offers Ring after verification and Back keeps its invite", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Use Pubky Ring", exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Create account in Ring", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Create account", exact: true }).click();
+  await page.getByRole("button", { name: "Enter invite manually" }).click();
+  await page.getByLabel("Enter invite code").fill(RING_INVITE);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Choose your signer." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Keep in Passport" })).toBeEnabled();
+  await page.getByRole("button", { name: "Use Pubky Ring", exact: true }).click();
+  const link = page.getByRole("link", { name: "Continue with Pubky Ring", includeHidden: true });
+  const url = `pubkyauth://direct_signup?hs=${E2E_SIGNUP_HOMESERVER}&st=${RING_INVITE}`;
+  await expect(link).toHaveAttribute("href", url);
+  await page.getByRole("button", { name: "Install Pubky Ring", exact: true }).click();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(link).toHaveAttribute("href", url);
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Choose your signer." })).toBeVisible();
+  // Passport stays available; the invite is checked with the homeserver before reuse.
+  await expect(page.getByRole("button", { name: "Keep in Passport" })).toBeEnabled();
+  await page.getByRole("button", { name: "Use Pubky Ring", exact: true }).click();
+  await expect(link).toHaveAttribute("href", url);
+  await expect(page.getByRole("img", { name: "Pubky authorization QR code" })).toHaveCount(0);
+});
+
+test("Lightning payment uses the homeserver returned with its token", async ({ page }) => {
+  let paid = false;
+  let invoices = 0;
+  await page.route("**/ln_verification", (route) => {
+    invoices++;
+    return route.fulfill({
+      json: {
+        id: LIGHTNING_INVOICE_ID,
+        amountSat: 100,
+        expiresAt: Date.now() + 60_000,
+        bolt11Invoice: "lnbc100n1example",
+      },
+    });
+  });
+  await page.route(`**/ln_verification/${LIGHTNING_INVOICE_ID}`, (route) =>
+    route.fulfill({
+      json: {
+        id: LIGHTNING_INVOICE_ID,
+        isPaid: paid,
+        signupCode: paid ? "lightning-invite-token" : null,
+        homeserverPubky: HOMEGATE_HOMESERVER,
+      },
+    }),
+  );
+
+  await openCreateAccount(page);
+  await page.getByRole("button", { name: "Continue with Lightning" }).click();
+  await expect(page.getByLabel("100 sats", { exact: true })).toBeVisible();
+  await expect(page.locator('a[href^="lightning:"]')).toHaveAttribute(
+    "href",
+    "lightning:lnbc100n1example",
+  );
+  paid = true;
+  await expect(page.getByRole("button", { name: "Use Pubky Ring" })).toBeVisible({
+    timeout: 10_000,
+  });
+  await openRingSignup(page);
+  await expect(
+    page.getByRole("link", { name: "Continue with Pubky Ring", includeHidden: true }),
+  ).toHaveAttribute(
+    "href",
+    `pubkyauth://direct_signup?hs=${HOMEGATE_HOMESERVER}&st=lightning-invite-token`,
+  );
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Choose your signer." })).toBeVisible();
+  await openRingSignup(page);
+  await expect(
+    page.getByRole("link", { name: "Continue with Pubky Ring", includeHidden: true }),
+  ).toHaveAttribute(
+    "href",
+    `pubkyauth://direct_signup?hs=${HOMEGATE_HOMESERVER}&st=lightning-invite-token`,
+  );
+  expect(invoices).toBe(1);
+});
+
+test("the removed account route returns not found while the authorization entry remains", async ({
+  page,
+}) => {
+  expect((await page.goto("/create-account"))?.status()).toBe(404);
+  expect((await page.goto("/authorize"))?.status()).toBe(200);
+  // Without a request the entry hands over to `/`.
+  await expect(page).toHaveURL(/\/$/u);
+  await expect(page.getByRole("button", { name: "Create account", exact: true })).toBeVisible();
+});
+
+async function reachDestinationChoice(page: Page): Promise<void> {
+  await openCreateAccount(page);
+  await page.getByRole("button", { name: "Enter invite manually" }).click();
+  await page.getByLabel("Enter invite code").fill(MANUAL_INVITE);
+  await page.getByRole("button", { name: "Continue" }).click();
+}
+
+/**
+ * Reaches the signer choice with an SMS invite for the test homeserver, whose signed record the
+ * relays serve, so registration contacts only hosts the spec controls.
+ */
+async function reachDestinationChoiceOnTestHomeserver(page: Page): Promise<void> {
+  await mockHomeserverRecords(page);
+  await page.route("**/sms_verification/send_code", (route) =>
+    route.fulfill({ status: 200, body: "" }),
+  );
+  await page.route("**/sms_verification/validate_code", (route) =>
+    route.fulfill({
+      json: { valid: "true", signupCode: "SMS1-NV1T-C0DE", homeserverPubky: TEST_HOMESERVER },
+    }),
+  );
+  await openCreateAccount(page);
+  await page.getByRole("button", { name: "Continue with SMS" }).click();
+  await page.getByLabel("Phone number", { exact: true }).fill("+41791234567");
+  await page.getByRole("button", { name: "Send Code" }).click();
+  await page.getByLabel("Verification code", { exact: true }).fill("123456");
+  await page.getByRole("button", { name: "Verify Code" }).click();
+}
+
+async function openCreateAccount(page: Page): Promise<void> {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Create account", exact: true }).click();
+}
+
+async function openRingSignup(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Use Pubky Ring" }).click();
+}
+
+test("can skip the backup check and keeps the attempted signup bound to its key", async ({
+  page,
+}) => {
+  await reachDestinationChoiceOnTestHomeserver(page);
+  await page.getByRole("button", { name: "Keep in Passport" }).click();
+  await expect(page.getByRole("button", { name: "Download encrypted backup" })).toBeDisabled();
+  await page.getByLabel("Enter strong password").fill("correct horse");
+  // Skipping the file check relies on the password having been typed twice.
+  await expect(page.getByRole("button", { name: "Download encrypted backup" })).toBeDisabled();
+  await page.getByLabel("Confirm password").fill("correct horse");
+  await page.getByRole("button", { name: "Download encrypted backup" }).click();
+  await expect(page.getByRole("heading", { name: "Verify backup." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Download again" })).toBeVisible();
+  // The invite lookup is answered and the signup stays pending, so the attempt remains in progress.
+  await page.route(
+    (url) => url.hostname === "homeserver.example" && !url.pathname.startsWith("/signup_tokens/"),
+    () => undefined,
+  );
+  await page.getByRole("button", { name: "Skip verification" }).click();
+  await expect(page.getByRole("heading", { name: "Setting up your pubky." })).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          JSON.parse(localStorage.getItem("pubky-passport/local-account-draft/v1")!)
+            .registrationStarted,
+      ),
+    )
+    .toBe(true);
+});
+
+async function resumeSavedSetup(page: Page) {
+  await page.getByRole("button", { name: "Create account", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Choose your signer." })).toBeVisible();
+  await page.getByRole("button", { name: "Keep in Passport" }).click();
+}
