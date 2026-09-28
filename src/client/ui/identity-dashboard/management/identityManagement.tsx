@@ -1,292 +1,197 @@
-import { Result } from "better-result";
-import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { useState } from "react";
 
-import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityHomeserverRepublishResult } from "@/client/logic/local-identity/LocalIdentityController";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubkyIdentityKey";
+import { BackButton } from "@/client/ui/shared/backButton";
+import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
+import { DetailField } from "@/client/ui/shared/detailField";
+import { shortCopiedValue } from "@/client/ui/shared/formatPublicKey";
+import { GoogleAccountTag } from "@/client/ui/shared/googleAccountTag";
 import {
-  CopyIcon,
   DownloadIcon,
   KeyRoundIcon,
   LinkOffIcon,
   LogOutIcon,
-  RotateCcwIcon,
+  SquareUserRoundIcon,
 } from "@/client/ui/shared/icons";
-import { shortCopiedValue } from "@/client/ui/shared/formatPublicKey";
-import { BackButton } from "@/client/ui/shared/backButton";
-import { cn } from "@/client/ui/shared/mergeClassNames";
+import { PassportHeaderAction } from "@/client/ui/shared/passportHeaderAction";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Avatar } from "@/client/ui/shared/primitives/avatar";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { IconButton } from "@/client/ui/shared/primitives/iconButton";
-import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
-
-type HomeserverLookup =
-  { status: "looking-up" } | { status: "unavailable" } | { status: "resolved"; pubky: string };
-
-function homeserverLabel(lookup: HomeserverLookup): string {
-  switch (lookup.status) {
-    case "looking-up":
-      return "Looking up…";
-    case "resolved":
-      return lookup.pubky;
-    case "unavailable":
-      return "Unavailable";
-  }
-}
+import { HomeserverRecord } from "./homeserverRecord";
+import { IdentityProviderSection } from "./identityProviderSection";
+import { LogoutConfirmation } from "./logoutConfirmation";
 
 function IdentityManagement({
   identity,
+  confirmLogout = false,
   onBack,
+  onEditProfile,
+  onBackupToGoogle,
   onDetachFromGoogle,
   onDownloadRecoveryFile,
   onRemoveLocalIdentity,
   onMigrateToKeychain,
   republishHomeserver,
   resolveHomeserver,
+  providerHomeserver,
 }: {
   identity: LocalIdentityMetadata;
+  /** Opens on the logout confirmation, e.g. when returning from the backup it asked for. */
+  confirmLogout?: boolean;
   onBack: () => void;
+  onEditProfile?: () => void;
+  /** Offered only when Google is available; its presence is the only switch. */
+  onBackupToGoogle?: () => void;
   onDetachFromGoogle: () => void;
-  onDownloadRecoveryFile: () => void;
+  /** `returnTo` names the screen to come back to once the backup is done. */
+  onDownloadRecoveryFile: (returnTo: "manage" | "logout") => void;
   onRemoveLocalIdentity: () => LocalIdentityResult<void>;
   onMigrateToKeychain: () => void;
-  republishHomeserver: () => Promise<LocalIdentityHomeserverRepublishResult>;
+  republishHomeserver: (
+    publicKeyZ32: string,
+    homeserverPubky: string,
+  ) => Promise<LocalIdentityHomeserverRepublishResult>;
+  /** Repairs a missing `_pubky` record of an identity that does not remember its homeserver. */
+  providerHomeserver?: string | undefined;
   resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult>;
 }) {
+  const [confirmingLogout, setConfirmingLogout] = useState(confirmLogout);
   const account = identity.googleAccount;
-  const name = account?.name ?? "Your Pubky";
-  const [homeserver, setHomeserver] = useState<HomeserverLookup>({ status: "looking-up" });
-  const [logoutFailed, setLogoutFailed] = useState(false);
-  const [republishing, setRepublishing] = useState(false);
-  const [republishMessage, setRepublishMessage] = useState<{ error: boolean; text: string } | null>(
-    null,
-  );
+  const publicKeyZ32 = identity.publicIdentity.publicKeyZ32;
+  const name = identity.profile?.name ?? "Your Pubky";
+  // A Ring-held key never reaches Passport, so it cannot be backed up or signed with here.
+  const browserKey = identity.keySource !== "ring";
 
-  function logout(): void {
-    const removed = onRemoveLocalIdentity();
-    if (Result.isError(removed)) {
-      setLogoutFailed(true);
-      return;
-    }
-    onBack();
-  }
-
-  async function republish(): Promise<void> {
-    setRepublishing(true);
-    setRepublishMessage(null);
-    try {
-      const published = await republishHomeserver();
-      if (Result.isError(published)) {
-        setRepublishMessage({
-          error: true,
-          text: "Could not republish the homeserver record. Please try again.",
-        });
-        return;
-      }
-      setRepublishMessage({ error: false, text: "Homeserver record republished." });
-      const resolved = await resolveHomeserver(identity.publicIdentity.publicKeyZ32);
-      setHomeserver(
-        Result.isOk(resolved) && resolved.value
-          ? { status: "resolved", pubky: resolved.value }
-          : { status: "unavailable" },
-      );
-    } catch (e) {
-      LOGGER.warn("identity.management.failed", {
-        operation: "republish_homeserver",
-        ...safeErrorLogFields(e),
-      });
-      setRepublishMessage({
-        error: true,
-        text: "Could not republish the homeserver record. Please try again.",
-      });
-    } finally {
-      setRepublishing(false);
-    }
-  }
-
-  useEffect(() => {
-    let cancelled = false;
-    void resolveHomeserver(identity.publicIdentity.publicKeyZ32)
-      .then((result) => {
-        if (!cancelled) {
-          setHomeserver(
-            Result.isOk(result) && result.value
-              ? { status: "resolved", pubky: result.value }
-              : { status: "unavailable" },
-          );
-        }
-      })
-      .catch((e: unknown) => {
-        LOGGER.warn("identity.management.failed", {
-          operation: "resolve_homeserver",
-          ...safeErrorLogFields(e),
-        });
-        if (!cancelled) setHomeserver({ status: "unavailable" });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [identity.publicIdentity.publicKeyZ32, resolveHomeserver]);
+  if (confirmingLogout)
+    return (
+      <LogoutConfirmation
+        identity={identity}
+        onCancel={() => setConfirmingLogout(false)}
+        onDownloadBackup={() => onDownloadRecoveryFile("logout")}
+        onRemoveIdentity={onRemoveLocalIdentity}
+        onRemoved={onBack}
+      />
+    );
 
   return (
-    <PassportScreen className="gap-6 md:gap-8">
-      <Button
-        className="absolute right-6 top-[26px] z-10 md:right-10 md:top-12 md:h-10 md:px-4 md:py-2 md:text-sm md:leading-5"
-        onClick={logout}
-        size="sm"
-        variant="secondary"
-      >
-        <LogOutIcon />
-        Log out
-      </Button>
-
-      <header className="flex items-start gap-6 md:items-center">
-        <DisplayHeading accent="identity." aria-label="Manage identity.">
-          Manage
-        </DisplayHeading>
-        <Avatar
-          className="ml-auto"
-          fallback={name}
-          size="lg"
-          src={account?.pictureUrl ?? undefined}
-        />
-      </header>
-
-      <section className="flex flex-col gap-6 md:grid md:grid-cols-2 md:gap-x-4 md:gap-y-6">
-        <IdentityDetail label="User" value={name} />
-        <IdentityDetail label="Google account" value={account?.email ?? "Not connected"} />
-        <IdentityDetail
-          copyable
-          label="Pubky"
-          onCopied={() =>
-            toast.info("Pubky copied to clipboard", {
-              description: shortCopiedValue(identity.publicIdentity.publicKeyZ32),
-            })
-          }
-          value={identity.publicIdentity.publicKeyZ32}
-        />
-        <IdentityDetail
-          copyable={homeserver.status === "resolved"}
-          label="Homeserver"
-          onCopied={() => toast.info("Homeserver copied")}
-          value={homeserverLabel(homeserver)}
-        />
-      </section>
-
-      <div className="mt-auto flex flex-col gap-4 pt-6 md:mt-0 md:flex-row md:flex-wrap md:gap-3 md:pt-0">
-        {logoutFailed ? (
-          <FieldMessage error>Could not log out. Please try again.</FieldMessage>
-        ) : null}
-        {republishMessage ? (
-          <FieldMessage error={republishMessage.error}>{republishMessage.text}</FieldMessage>
-        ) : null}
-        {homeserver.status === "unavailable" ? (
-          <ManagementButton
-            disabled={republishing}
-            icon={<RotateCcwIcon />}
-            onClick={() => {
-              void republish();
-            }}
-          >
-            Republish homeserver
-          </ManagementButton>
-        ) : null}
-        <ManagementButton icon={<KeyRoundIcon />} onClick={onMigrateToKeychain}>
-          Migrate to keychain
-        </ManagementButton>
-        <ManagementButton icon={<DownloadIcon />} onClick={onDownloadRecoveryFile}>
-          Download backup
-        </ManagementButton>
-        {account ? (
-          <ManagementButton icon={<LinkOffIcon />} onClick={onDetachFromGoogle}>
-            Detach from Google
-          </ManagementButton>
-        ) : null}
-      </div>
-      <PassportNavigation back={<BackButton onClick={onBack} />} className="mt-0 pt-0 md:pt-1" />
-    </PassportScreen>
-  );
-}
-
-function IdentityDetail({
-  copyable = false,
-  label,
-  onCopied,
-  value,
-}: {
-  copyable?: boolean;
-  label: string;
-  onCopied?: () => void;
-  value: string;
-}) {
-  async function copyValue() {
-    try {
-      await navigator.clipboard.writeText(value);
-      onCopied?.();
-    } catch (e) {
-      LOGGER.info("identity.management.failed", {
-        operation: "copy",
-        ...safeErrorLogFields(e),
-      });
-    }
-  }
-
-  return (
-    <div className="flex items-end gap-3">
-      <div className="min-w-0 flex-1">
-        <p className="mb-1 text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">
-          {label}
-        </p>
-        <p className={cn("break-all font-medium leading-6", onCopied && "md:text-sm md:leading-5")}>
-          {value}
-        </p>
-      </div>
-      {onCopied ? (
-        <IconButton
-          aria-label={`Copy ${label}`}
-          className="size-9 p-1"
-          disabled={!copyable}
-          onClick={() => {
-            void copyValue();
-          }}
-          variant="ghost"
+    <PassportScreen width="wide" className="gap-6">
+      <PassportHeaderAction>
+        <Button
+          aria-label="Log out"
+          title="Log out"
+          className="size-10 p-0 min-[375px]:w-auto min-[375px]:px-4"
+          onClick={() => setConfirmingLogout(true)}
+          variant="secondary"
         >
-          <CopyIcon size={20} />
-        </IconButton>
-      ) : null}
-    </div>
-  );
-}
-
-function ManagementButton({
-  children,
-  disabled,
-  icon,
-  onClick,
-}: {
-  children: string;
-  disabled?: boolean;
-  icon: ReactNode;
-  onClick?: () => void;
-}) {
-  return (
-    <Button
-      className="w-full md:h-10 md:min-w-0 md:flex-1 md:px-4 md:py-2"
-      disabled={disabled}
-      onClick={onClick}
-      size="lg"
-      variant="secondary"
-    >
-      {icon}
-      {children}
-    </Button>
+          <LogOutIcon />
+          <span className="hidden min-[375px]:inline">Log out</span>
+        </Button>
+      </PassportHeaderAction>
+      <DisplayHeading accent="identity." aria-label="Manage identity.">
+        Manage
+      </DisplayHeading>
+      <div className="grid min-w-0 gap-6 lg:grid-cols-2">
+        <section
+          aria-labelledby="manage-profile"
+          className="flex min-w-0 flex-col items-start gap-6 rounded-lg bg-card p-6 md:p-8 xl:p-12"
+        >
+          <h2 id="manage-profile" className="text-2xl font-bold">
+            Public profile
+          </h2>
+          <div className="flex min-w-0 items-center gap-4">
+            <Avatar
+              fallback={name}
+              src={identity.avatarUrl ?? undefined}
+              className="size-16 shrink-0"
+            />
+            <p className="min-w-0 break-words text-xl font-bold">{name}</p>
+          </div>
+          {identity.profile?.bio ? (
+            <p className="break-words text-sm leading-5 text-secondary-foreground">
+              {identity.profile.bio}
+            </p>
+          ) : null}
+          <DetailField
+            copy={{
+              value: publicKeyZ32,
+              copied: "Pubky copied to clipboard",
+              copiedDescription: shortCopiedValue(publicKeyZ32),
+              failed: "Could not copy pubky",
+              failedDescription: "Select and copy your pubky manually.",
+            }}
+            label="Pubky"
+            value={publicKeyZ32}
+          />
+          <HomeserverRecord
+            providerHomeserver={providerHomeserver}
+            publicKeyZ32={publicKeyZ32}
+            registeredHomeserver={identity.homeserverPubky}
+            resolveHomeserver={resolveHomeserver}
+            {...(browserKey ? { republishHomeserver } : {})}
+          />
+          {onEditProfile ? (
+            <Button onClick={onEditProfile} variant="secondary">
+              <SquareUserRoundIcon /> Edit profile
+            </Button>
+          ) : null}
+        </section>
+        <section
+          aria-labelledby="manage-keys"
+          className="flex min-w-0 flex-col items-start gap-6 rounded-lg bg-card p-6 md:p-8 xl:p-12"
+        >
+          <h2 id="manage-keys" className="text-2xl font-bold">
+            Backup & key access
+          </h2>
+          <p className="text-sm leading-5 text-secondary-foreground">
+            {browserKey
+              ? "Your key is saved in this browser. Keep an encrypted backup so you can restore it elsewhere."
+              : "Your private key stays in Pubky Ring. Manage its backup in Ring."}
+          </p>
+          {browserKey ? (
+            <div className="flex w-full flex-wrap gap-3">
+              <Button onClick={() => onDownloadRecoveryFile("manage")} variant="secondary">
+                <DownloadIcon /> Download backup
+              </Button>
+              <Button onClick={onMigrateToKeychain} variant="secondary">
+                <KeyRoundIcon /> Use in Pubky Ring
+              </Button>
+            </div>
+          ) : null}
+          {account || (browserKey && onBackupToGoogle) ? (
+            <IdentityProviderSection name="Google account">
+              {account ? (
+                <>
+                  <GoogleAccountTag account={account} />
+                  <p className="text-sm leading-5 text-secondary-foreground">
+                    Use this Google account to sign in to Passport and restore your encrypted
+                    identity.
+                  </p>
+                  <Button onClick={onDetachFromGoogle} variant="outline">
+                    <LinkOffIcon /> Detach from Google
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm leading-5 text-secondary-foreground">
+                    Attach a Google account to sign in with Google and keep an encrypted backup in
+                    your Google Drive.
+                  </p>
+                  <Button onClick={onBackupToGoogle} variant="secondary">
+                    <GoogleLogo /> Attach to Google
+                  </Button>
+                </>
+              )}
+            </IdentityProviderSection>
+          ) : null}
+        </section>
+      </div>
+      <PassportNavigation back={<BackButton onClick={onBack} />} />
+    </PassportScreen>
   );
 }
 

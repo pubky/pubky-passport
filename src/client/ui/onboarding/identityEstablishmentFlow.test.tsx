@@ -25,18 +25,23 @@ const COLLABORATORS: Partial<PassportCollaborators> = {
 
 function ConfiguredIdentityEstablishmentFlow({
   forAuthorization,
-  onBack,
   onComplete,
 }: {
   forAuthorization?: boolean | undefined;
-  onBack?: (() => void) | undefined;
   onComplete: () => void;
 }) {
   return withPassportTestProviders(
     <IdentityEstablishmentFlow
       forAuthorization={forAuthorization}
-      onBack={onBack}
       onComplete={onComplete}
+      renderEntry={(startGoogle) => (
+        <main>
+          <h1>Entry</h1>
+          <button onClick={startGoogle} type="button">
+            Continue with Google
+          </button>
+        </main>
+      )}
     />,
     COLLABORATORS,
   );
@@ -54,7 +59,7 @@ describe("IdentityEstablishmentFlow", () => {
     vi.clearAllMocks();
   });
 
-  it("renders without constructing browser dependencies on the server", () => {
+  it("renders the parent's entry screen without constructing browser dependencies on the server", () => {
     const markup = renderToStaticMarkup(
       <ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />,
     );
@@ -63,24 +68,8 @@ describe("IdentityEstablishmentFlow", () => {
     shell.innerHTML = markup;
     const googleButton = within(shell).getByRole("button", { name: "Continue with Google" });
 
-    expect(within(shell).getByRole("heading", { name: "Quick & easy signing." })).toHaveTextContent(
-      "Quick & easy",
-    );
-    expect(
-      within(shell).getByRole("heading", { name: "Quick & easy signing." }).lastElementChild,
-    ).toHaveClass("md:block");
+    expect(within(shell).getByRole("heading", { name: "Entry" })).toHaveTextContent("Entry");
     expect(googleButton).toBeEnabled();
-    expect(googleButton.parentElement?.parentElement).toHaveClass(
-      "md:col-start-1",
-      "md:row-start-1",
-    );
-    expect(
-      within(shell).getByRole("button", { name: "About signing in with Google" }),
-    ).toHaveAttribute("aria-expanded", "false");
-    expect(within(shell).getByRole("link", { name: "How?" })).toHaveAttribute(
-      "href",
-      "https://github.com/pubky/pubky-passport/blob/main/README.md",
-    );
     expect(MOCKS.constructGoogleIdentityController).not.toHaveBeenCalled();
     shell.remove();
   });
@@ -111,6 +100,7 @@ describe("IdentityEstablishmentFlow", () => {
     expect(
       within(screen.getByRole("status")).getByText("Waiting for Google..."),
     ).toBeInTheDocument();
+    expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
   });
 
   it("uses the authorization action width when embedded in that flow", async () => {
@@ -126,21 +116,6 @@ describe("IdentityEstablishmentFlow", () => {
     expect(screen.getByRole("button", { name: "Waiting for Google..." })).not.toHaveClass(
       "md:w-[220px]",
     );
-  });
-
-  it("only shows contextual back navigation when supplied by its parent flow", async () => {
-    const onBack = vi.fn();
-    const rendered = render(
-      <ConfiguredIdentityEstablishmentFlow onBack={onBack} onComplete={vi.fn()} />,
-    );
-
-    const back = await screen.findByRole("button", { name: "Back" });
-    expect(back).toHaveClass("md:mt-auto");
-    await userEvent.setup().click(back);
-    expect(onBack).toHaveBeenCalledOnce();
-
-    rendered.rerender(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
-    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
   });
 
   it("keeps a restore on the loading screen and announces a repair", async () => {
@@ -282,7 +257,7 @@ describe("IdentityEstablishmentFlow", () => {
 
     await waitFor(() => expect(onComplete).toHaveBeenCalledOnce());
     expect(screen.queryByRole("heading", { name: "Restore complete." })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Setup complete." })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Backup ready." })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Continue" })).not.toBeInTheDocument();
   });
 
@@ -444,10 +419,10 @@ describe("IdentityEstablishmentFlow", () => {
     await user.click(replace);
 
     expect(replaceInvalidPassportFile).toHaveBeenCalledOnce();
-    expect(await screen.findByRole("heading", { name: "Setup complete." })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Backup ready." })).toBeInTheDocument();
   });
 
-  it("offers to delete an identity file Passport cannot decrypt and creates a new identity", async () => {
+  it("offers to delete an own-origin identity file Passport cannot decrypt and creates a new identity", async () => {
     const googleAccount = {
       googleSubject: "google-account",
       email: "user@example.com",
@@ -472,7 +447,9 @@ describe("IdentityEstablishmentFlow", () => {
       );
     useController(
       mockGoogleIdentityController({
-        establishIdentity: vi.fn(async () => Result.err({ code: "decrypt_failed" as const })),
+        establishIdentity: vi.fn(async () =>
+          Result.err({ code: "passport_file_undecryptable" as const }),
+        ),
         replaceInvalidPassportFile,
         replaceUndecryptablePassportFile,
       }),
@@ -484,10 +461,12 @@ describe("IdentityEstablishmentFlow", () => {
 
     expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
     expect(
-      screen.getByText("Passport found your encrypted identity, but could not decrypt it."),
+      screen.getByText(
+        "Passport found your encrypted identity file in Google Drive, but can no longer unlock it with this Google account.",
+      ),
     ).toBeInTheDocument();
     expect(
-      within(screen.getByRole("group", { name: "Error" })).getByText("decrypt_failed"),
+      within(screen.getByRole("group", { name: "Error" })).getByText("passport_file_undecryptable"),
     ).toBeInTheDocument();
     expect(
       within(screen.getByRole("group", { name: "Mobile error actions" })).getByRole("button", {
@@ -531,7 +510,7 @@ describe("IdentityEstablishmentFlow", () => {
     await user.click(screen.getByRole("button", { name: "Delete and create new identity" }));
 
     expect(replaceUndecryptablePassportFile).toHaveBeenCalledTimes(2);
-    expect(await screen.findByRole("heading", { name: "Setup complete." })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Backup ready." })).toBeInTheDocument();
   });
 
   it("resets the controller when returning from an establishment failure", async () => {
@@ -668,7 +647,7 @@ describe("IdentityEstablishmentFlow", () => {
         ),
       );
 
-    expect(await screen.findByRole("heading", { name: "Setup complete." })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Backup ready." })).toBeInTheDocument();
     expect(MOCKS.constructGoogleIdentityController).toHaveBeenCalledTimes(2);
   });
 

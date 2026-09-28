@@ -1,18 +1,15 @@
-import { LogInIcon } from "@/client/ui/shared/icons";
+import type { PassportAuthorizationViewState } from "@/client/logic/authorization/flow/PassportAuthorizationController";
+import { RequestContextBand } from "@/client/ui/shared/requestContextBand";
 
-function SignInBand({ requester }: { requester: string }) {
-  return (
-    <aside
-      aria-label={`Signing in to ${requester}`}
-      className="absolute inset-x-0 top-0 z-20 flex h-[var(--passport-context-band-height)] w-full shrink-0 items-center justify-start gap-1 border-b border-brand/20 bg-brand/10 px-6 text-xs font-medium leading-4 text-brand md:px-10"
-      data-passport-context-band=""
-    >
-      <LogInIcon />
-      <span className="min-w-0 truncate">
-        Signing in to <bdi className="font-bold">{requester}</bdi>
-      </span>
-    </aside>
-  );
+/**
+ * Names the validated callback host of a request. The app-chosen `xSource` label is never shown
+ * here: it is a signal, not an origin, so a request without callbacks gets no band.
+ */
+function SignInBand({ authorization }: { authorization: PassportAuthorizationViewState }) {
+  const callbackHost = "review" in authorization ? authorization.review.callbackHost : undefined;
+  return callbackHost ? (
+    <RequestContextBand label="Signing in to" requester={callbackHost} />
+  ) : null;
 }
 
 export { SignInBand };

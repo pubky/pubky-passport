@@ -1,9 +1,11 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type BrowserContext } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page, type Route } from "./helpers/passportTest";
 
 const APP_DATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
+const DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const SUBJECT = "google-permission-test";
 const PUBLIC_KEY = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
+const SECRET_KEY = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE";
 const STORAGE_ROOT = "pubky-passport/local-identities/v1";
 
 async function mockGoogleGrant(context: BrowserContext, scope: string) {
@@ -49,33 +51,9 @@ test("detachment requires both permissions using the shared screen", async ({
     driveRequests.push(route.request().url());
     return route.fulfill({ status: 403, json: { error: "unexpected Drive request" } });
   });
-  await page.addInitScript(
-    ({ publicKey, subject, root }) => {
-      localStorage.setItem(
-        `${root}/identity/${publicKey}`,
-        JSON.stringify({
-          v: 1,
-          publicKeyZ32: publicKey,
-          secretKey: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
-          googleAccount: {
-            googleSubject: subject,
-            email: "test@example.com",
-            name: "Test",
-            pictureUrl: null,
-          },
-        }),
-      );
-      localStorage.setItem(`${root}/active`, publicKey);
-    },
-    { publicKey: PUBLIC_KEY, subject: SUBJECT, root: STORAGE_ROOT },
-  );
+  await installBoundIdentity(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "Manage", exact: true }).click();
-  await page.getByRole("button", { name: "Detach from Google" }).click();
-  await page.getByRole("button", { name: "I backed up my pubky" }).click();
-  await page.getByRole("button", { name: "Remove Google Access" }).click();
-  await page.getByLabel("Type DETACH to confirm").fill("DETACH");
-  await page.getByRole("button", { name: "Confirm detachment" }).click();
+  await confirmDetachment(page);
 
   await expect(page.getByRole("heading", { name: "Drive access required." })).toBeVisible();
   await expect(page.getByText(/both Google Drive permissions to delete/)).toBeVisible();
@@ -105,6 +83,45 @@ test("detachment requires both permissions using the shared screen", async ({
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
+test("detaching removes the Google backup and keeps the identity active in this browser", async ({
+  context,
+  page,
+}) => {
+  await mockGoogleGrant(context, `${APP_DATA_SCOPE} ${DRIVE_FILE_SCOPE}`);
+  const driveRequests: string[] = [];
+  await context.route("https://www.googleapis.com/**", (route) => {
+    driveRequests.push(route.request().method());
+    // No app-data file and no visible recovery folder are left, so nothing needs decrypting.
+    return route.fulfill({ json: { files: [] } });
+  });
+  await installBoundIdentity(page);
+  await page.goto("/");
+  await confirmDetachment(page);
+
+  await expect(page.getByRole("heading", { name: "Detached from Google." })).toBeVisible();
+  expect(driveRequests.length).toBeGreaterThan(0);
+  expect(driveRequests.every((method) => method === "GET")).toBe(true);
+  const stored = await page.evaluate(
+    ({ root, publicKey }) => ({
+      identity: localStorage.getItem(`${root}/identity/${publicKey}`),
+      active: localStorage.getItem(`${root}/active`),
+    }),
+    { root: STORAGE_ROOT, publicKey: PUBLIC_KEY },
+  );
+  expect(stored.active).toBe(PUBLIC_KEY);
+  const identity = JSON.parse(stored.identity ?? "null") as Record<string, unknown> | null;
+  expect(identity).toMatchObject({ publicKeyZ32: PUBLIC_KEY, secretKey: SECRET_KEY });
+  expect(identity).not.toHaveProperty("googleAccount");
+
+  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Manage identity", exact: true }).click();
+  await expect(
+    page.getByRole("region", { name: "Google account" }).getByRole("button", {
+      name: "Attach to Google",
+    }),
+  ).toBeVisible();
+});
+
 test("new identities reach optional backup consent only after a Drive lookup", async ({
   context,
   page,
@@ -128,3 +145,186 @@ test("new identities reach optional backup consent only after a Drive lookup", a
     fullPage: true,
   });
 });
+
+for (const [probe, answer] of [
+  ["missing", (route: Route) => route.fulfill({ status: 404, body: "" })],
+  ["blocked", (route: Route) => route.fulfill({ status: 403, body: "" })],
+  ["unreachable", (route: Route) => route.abort("failed")],
+] as const) {
+  test(`Google sign-in reaches the Drive lookup before Homegate while the probe is ${probe}`, async ({
+    context,
+    page,
+  }) => {
+    const homegateMethods: string[] = [];
+    await context.route("**/google_verification", (route) => {
+      homegateMethods.push(route.request().method());
+      return answer(route);
+    });
+    await mockGoogleGrant(context, APP_DATA_SCOPE);
+    const driveRequests: string[] = [];
+    await context.route("https://www.googleapis.com/drive/v3/files**", (route) => {
+      driveRequests.push(route.request().method());
+      return route.fulfill({ json: { files: [] } });
+    });
+    await page.goto("/");
+    await page.getByRole("button", { name: "Continue with Google" }).click();
+    // The lookup decides between restoring and creating; only creating needs Homegate.
+    await expect(page.getByRole("heading", { name: "Drive access optional." })).toBeVisible();
+    expect(driveRequests).toEqual(["GET"]);
+    expect(homegateMethods).not.toContain("POST");
+  });
+}
+
+test("Google attachment stays within narrow screens while authorizing and retrying", async ({
+  context,
+  page,
+}, testInfo) => {
+  await installDetachedIdentity(page);
+  await context.route("https://accounts.google.com/o/oauth2/v2/auth**", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: "<!doctype html><title>Choose an account</title>Choose an account",
+    }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Manage identity" }).click();
+  const googleAccount = page.getByRole("region", { name: "Google account" });
+  await expect(googleAccount.getByRole("button", { name: "Attach to Google" })).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "Backup & key access" })
+      .getByRole("region", { name: "Google account" })
+      .getByRole("button", { name: "Attach to Google" }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("google-account-section.png"),
+    fullPage: true,
+  });
+  await googleAccount.getByRole("button", { name: "Attach to Google" }).click();
+  await expect(page.getByRole("heading", { name: "Attach to Google." })).toBeVisible();
+  const popupPromise = page.waitForEvent("popup");
+  await page.getByRole("button", { name: "Attach to Google" }).click();
+  const popup = await popupPromise;
+  await expect(page.getByRole("button", { name: "Attaching…" })).toBeDisabled();
+  await expectAttachmentFits(page);
+  await page.screenshot({
+    path: testInfo.outputPath("google-attachment-pending.png"),
+    fullPage: true,
+  });
+  await popup.close();
+  const retry = page.getByRole("button", { name: "Try again" });
+  await expect(retry).toBeEnabled();
+  await expect(retry.locator("svg")).toBeVisible();
+  await expectAttachmentFits(page);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await page.screenshot({
+    path: testInfo.outputPath("google-attachment-retry.png"),
+    fullPage: true,
+  });
+});
+
+for (const [grant, scope] of [
+  ["both permissions", `${APP_DATA_SCOPE} ${DRIVE_FILE_SCOPE}`],
+  ["only private storage", APP_DATA_SCOPE],
+] as const) {
+  test(`attaching an occupied Google account with ${grant} only lists metadata and preserves the local identity`, async ({
+    context,
+    page,
+  }) => {
+    await installDetachedIdentity(page);
+    await mockGoogleGrant(context, scope);
+    const requests: Array<{ method: string; path: string; alt: string | null }> = [];
+    await context.route("https://www.googleapis.com/**", (route) => {
+      const url = new URL(route.request().url());
+      requests.push({
+        method: route.request().method(),
+        path: url.pathname,
+        alt: url.searchParams.get("alt"),
+      });
+      return route.fulfill({
+        json: { files: [{ id: "existing-backup", name: "passport.json", version: "1" }] },
+      });
+    });
+    let wrappingRequests = 0;
+    await context.route("**/api/wrapping-key/google", (route) => {
+      wrappingRequests++;
+      return route.fulfill({ status: 500 });
+    });
+    await page.goto("/");
+    const before = await page.evaluate(() => JSON.stringify(localStorage));
+    await page.getByRole("button", { name: "Manage identity" }).click();
+    await page.getByRole("button", { name: "Attach to Google" }).click();
+    await page.getByRole("button", { name: "Attach to Google" }).click();
+    // The occupied account is reported before any visible-copy consent is asked for.
+    await expect(page.getByRole("main").getByRole("alert")).toContainText(
+      "already has a Passport backup",
+    );
+    await expect(page.getByRole("button", { name: "Continue without visible backup" })).toHaveCount(
+      0,
+    );
+    expect(requests).toEqual([{ method: "GET", path: "/drive/v3/files", alt: null }]);
+    expect(wrappingRequests).toBe(0);
+    expect(await page.evaluate(() => JSON.stringify(localStorage))).toBe(before);
+    await expect(page.getByRole("button", { name: "Try again" }).locator("svg")).toBeVisible();
+  });
+}
+
+async function installBoundIdentity(page: Page) {
+  await page.addInitScript(
+    ({ publicKey, secretKey, subject, root }) => {
+      localStorage.setItem(
+        `${root}/identity/${publicKey}`,
+        JSON.stringify({
+          v: 1,
+          publicKeyZ32: publicKey,
+          secretKey,
+          googleAccount: {
+            googleSubject: subject,
+            email: "test@example.com",
+            name: "Test",
+            pictureUrl: null,
+          },
+        }),
+      );
+      localStorage.setItem(`${root}/active`, publicKey);
+    },
+    { publicKey: PUBLIC_KEY, secretKey: SECRET_KEY, subject: SUBJECT, root: STORAGE_ROOT },
+  );
+}
+
+async function confirmDetachment(page: Page) {
+  await page.getByRole("button", { name: "Manage identity", exact: true }).click();
+  await page.getByRole("button", { name: "Detach from Google" }).click();
+  await page.getByRole("button", { name: "I backed up my pubky" }).click();
+  await page.getByRole("button", { name: "Remove Google Access" }).click();
+  await page.getByLabel("Type DETACH to confirm").fill("DETACH");
+  await page.getByRole("button", { name: "Confirm detachment" }).click();
+}
+
+async function installDetachedIdentity(page: Page) {
+  await page.addInitScript(
+    ({ publicKey, secretKey, root }) => {
+      localStorage.setItem(
+        `${root}/identity/${publicKey}`,
+        JSON.stringify({ v: 1, publicKeyZ32: publicKey, secretKey }),
+      );
+      localStorage.setItem(`${root}/active`, publicKey);
+    },
+    { publicKey: PUBLIC_KEY, secretKey: SECRET_KEY, root: STORAGE_ROOT },
+  );
+}
+
+async function expectAttachmentFits(page: Page) {
+  for (const width of [1280, 560, 375]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    for (const button of await page.locator("main button").all()) {
+      const bounds = await button.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    }
+  }
+}

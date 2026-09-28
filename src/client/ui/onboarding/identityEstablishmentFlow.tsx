@@ -1,23 +1,26 @@
 import { useEffect, useRef } from "react";
-import { preload } from "react-dom";
+import type { ReactNode } from "react";
+import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 
 import { GoogleAccessScreen } from "./google/googleAccessScreen";
 import { GoogleIdentityComplete } from "./google/googleIdentityComplete";
 import { GoogleIdentityError } from "./google/googleIdentityError";
 import { GoogleIdentityProgress } from "./google/googleIdentityProgress";
-import { ContinueWithGoogle } from "./google/continueWithGoogle";
 import { useGoogleIdentityEstablishment } from "./google/useGoogleIdentityEstablishment";
-import { BackButton } from "@/client/ui/shared/backButton";
-import { SignInPage } from "./signInPage";
 
+/**
+ * Drives Google identity establishment. The idle entry screen belongs to the parent. Starting is
+ * never gated on Homegate: restoring an identity does not use it, and creating one reports a
+ * Homegate failure through the error screen.
+ */
 function IdentityEstablishmentFlow({
   forAuthorization = false,
-  onBack,
+  renderEntry,
   onComplete,
 }: {
   forAuthorization?: boolean | undefined;
-  onBack?: (() => void) | undefined;
-  onComplete: () => void;
+  renderEntry: (startGoogle: () => void) => ReactNode;
+  onComplete: (identity: LocalIdentityMetadata) => void;
 }) {
   const google = useGoogleIdentityEstablishment();
   const view = google.view;
@@ -30,14 +33,10 @@ function IdentityEstablishmentFlow({
       restorationReported.current = false;
       return;
     }
-    if (restorationReported.current) return;
+    if (restorationReported.current || view.status !== "complete") return;
     restorationReported.current = true;
-    onComplete();
-  }, [onComplete, restored]);
-
-  if (view.status === "requesting-access" || view.status === "working") {
-    preload("/illustrations/checkmark.png", { as: "image" });
-  }
+    onComplete({ publicIdentity: view.identity, googleAccount: view.googleAccount });
+  }, [onComplete, restored, view]);
 
   switch (view.status) {
     case "complete":
@@ -47,7 +46,9 @@ function IdentityEstablishmentFlow({
           googleAccount={view.googleAccount}
           identity={view.identity}
           visibleRecoveryCopyStatus={view.visibleRecoveryCopyStatus}
-          onContinue={onComplete}
+          onContinue={() =>
+            onComplete({ publicIdentity: view.identity, googleAccount: view.googleAccount })
+          }
         />
       );
     case "requesting-access":
@@ -67,12 +68,7 @@ function IdentityEstablishmentFlow({
     case "working":
       return <GoogleIdentityProgress progress={view.progress} />;
     case "idle":
-      return (
-        <SignInPage>
-          <ContinueWithGoogle onContinue={google.establishIdentity} />
-          {onBack ? <BackButton className="md:mt-auto" onClick={onBack} /> : null}
-        </SignInPage>
-      );
+      return renderEntry(google.establishIdentity);
   }
 }
 

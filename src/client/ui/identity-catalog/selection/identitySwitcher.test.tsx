@@ -9,19 +9,21 @@ import { IdentitySwitcher } from "./identitySwitcher";
 const IDENTITIES = [
   {
     publicIdentity: { publicKeyZ32: "firstidentity1234" },
+    profile: { name: "Other Account" },
     googleAccount: {
       googleSubject: "google-1",
       email: "other@gmail.com",
-      name: "Other Account",
+      name: "Google Other",
       pictureUrl: null,
     },
   },
   {
     publicIdentity: { publicKeyZ32: "secondidentity5678" },
+    profile: { name: "Active Account" },
     googleAccount: {
       googleSubject: "google-2",
       email: "active@gmail.com",
-      name: "Active Account",
+      name: "Google Active",
       pictureUrl: null,
     },
   },
@@ -51,11 +53,15 @@ describe("IdentitySwitcher", () => {
     expect(
       screen.getAllByRole("button").filter((button) => button.hasAttribute("aria-pressed"))[0],
     ).toBe(activeRow);
-    expect(screen.getByText("active@gmail.com")).toHaveClass("lowercase");
-    expect(activeRow).not.toHaveTextContent("seco...5678");
+    // The row is the Pubky profile; Google appears only as the small attached-account tag.
+    expect(activeRow).toHaveTextContent("seco...5678");
+    expect(activeRow).not.toHaveTextContent("Google Active");
+    expect(
+      screen.getByRole("group", { name: "Attached Google account: active@gmail.com" }),
+    ).toBeInTheDocument();
     const otherRow = screen.getByRole("button", { name: /Other Account/ });
     expect(otherRow).toHaveTextContent("other@gmail.com");
-    expect(otherRow).not.toHaveTextContent("firs...1234");
+    expect(otherRow).toHaveTextContent("firs...1234");
     await userEvent.setup().click(otherRow);
     expect(onSelect).toHaveBeenCalledWith("firstidentity1234");
     const back = screen.getByRole("button", { name: "Back" });
@@ -114,5 +120,23 @@ describe("IdentitySwitcher", () => {
     const localKey = screen.getByText("loca...1234");
     expect(localKey).toHaveClass("lowercase");
     expect(screen.getByRole("button", { name: /Your Pubky/ })).toContainElement(localKey);
+  });
+
+  it("notes a Ring-held key outside the lowercase key line", () => {
+    render(
+      <IdentitySwitcher
+        activePublicKeyZ32={null}
+        identities={[{ publicIdentity: { publicKeyZ32: "ringidentity1234" }, keySource: "ring" }]}
+        onAddIdentity={vi.fn()}
+        onBack={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    const note = screen.getByText("Key in Pubky Ring");
+    expect(note).not.toHaveClass("lowercase");
+    expect(note.closest(".lowercase")).toBeNull();
+    expect(screen.getByText("ring...1234")).toHaveClass("lowercase");
+    expect(screen.getByRole("button", { name: /Your Pubky/ })).toContainElement(note);
   });
 });

@@ -1,5 +1,5 @@
-import { IdentityDashboard } from "@/client/ui/identity-dashboard/identityDashboard";
+import { UniversalSignerFlow } from "@/client/ui/universal-signer/universalSignerFlow";
 
 export default function Home() {
-  return <IdentityDashboard />;
+  return <UniversalSignerFlow />;
 }

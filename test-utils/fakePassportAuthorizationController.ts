@@ -14,6 +14,8 @@ export function fakePassportAuthorizationController(
     approve: overrides.approve ?? vi.fn(),
     cancel: overrides.cancel ?? vi.fn(),
     dispose: overrides.dispose ?? vi.fn(),
+    externalSignerUrl: overrides.externalSignerUrl ?? (() => undefined),
+    finishExternalApproval: overrides.finishExternalApproval ?? vi.fn(),
     getState:
       overrides.getState ??
       (() => {

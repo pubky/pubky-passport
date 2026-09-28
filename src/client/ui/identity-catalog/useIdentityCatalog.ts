@@ -22,7 +22,10 @@ type IdentityCatalogActions = {
     password: string,
   ) => Promise<LocalIdentityRecoveryFileResult>;
   removeIdentity: (publicKeyZ32: string) => LocalIdentityResult<void>;
-  republishHomeserver: (publicKeyZ32: string) => Promise<LocalIdentityHomeserverRepublishResult>;
+  republishHomeserver: (
+    publicKeyZ32: string,
+    homeserverPubky: string,
+  ) => Promise<LocalIdentityHomeserverRepublishResult>;
   resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult>;
   selectIdentity: (publicKeyZ32: string) => LocalIdentityResult<void>;
 };
@@ -49,8 +52,8 @@ class IdentityCatalogStore {
       createRecoveryFile: async (publicKeyZ32, password) =>
         this.controller.createRecoveryFile(publicKeyZ32, password),
       removeIdentity: (publicKeyZ32) => this.controller.removeIdentity(publicKeyZ32),
-      republishHomeserver: async (publicKeyZ32) =>
-        this.controller.republishHomeserver(publicKeyZ32),
+      republishHomeserver: async (publicKeyZ32, homeserverPubky) =>
+        this.controller.republishHomeserver(publicKeyZ32, homeserverPubky),
       resolveHomeserver: async (publicKeyZ32) => this.controller.resolveHomeserver(publicKeyZ32),
       selectIdentity: (publicKeyZ32) => this.controller.selectIdentity(publicKeyZ32),
     };

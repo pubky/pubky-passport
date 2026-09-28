@@ -1,6 +1,7 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes } from "react";
 
-import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
+import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
+import { GoogleAccountTag } from "@/client/ui/shared/googleAccountTag";
 import { CheckIcon } from "@/client/ui/shared/icons";
 import { IdentitySummary } from "@/client/ui/shared/identitySummary";
 import { cn } from "@/client/ui/shared/mergeClassNames";
@@ -8,8 +9,10 @@ import { cn } from "@/client/ui/shared/mergeClassNames";
 type IdentityRowProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   avatarSrc?: string | undefined;
   detail: string;
+  googleAccount?: GoogleAccountProfile | undefined;
+  /** Notes that the private key lives in Pubky Ring, outside the case-styled key line. */
+  keyInRing?: boolean | undefined;
   name: string;
-  provider?: ReactNode | undefined;
   selected?: boolean;
 };
 
@@ -17,36 +20,38 @@ function IdentityRow({
   avatarSrc,
   className,
   detail,
+  googleAccount,
+  keyInRing = false,
   name,
-  provider,
   selected,
   ...props
 }: IdentityRowProps) {
-  const googleProvider = provider === "google";
-  const providerMark = googleProvider ? <GoogleLogo /> : provider;
-
   return (
     <button
       aria-pressed={selected}
       className={cn(
-        "flex h-18 w-full items-center gap-2 rounded-2xl border border-transparent bg-card p-4 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:border-brand/64",
+        "group flex min-h-18 w-full items-center gap-2 rounded-2xl border border-transparent bg-card p-4 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:border-brand/64",
         className,
       )}
       type="button"
       {...props}
     >
       <IdentitySummary
+        attachment={
+          keyInRing ? (
+            <span className="text-xs font-medium leading-4 text-muted-foreground">
+              Key in Pubky Ring
+            </span>
+          ) : googleAccount ? (
+            <GoogleAccountTag account={googleAccount} />
+          ) : undefined
+        }
         avatarSrc={avatarSrc}
-        badge={googleProvider ? providerMark : undefined}
         detail={detail}
-        detailClassName="lowercase"
+        detailClassName="lowercase group-hover:text-secondary-foreground group-focus-visible:text-secondary-foreground"
         name={name}
       />
-      {selected ? (
-        <CheckIcon className="text-brand" />
-      ) : !googleProvider && providerMark ? (
-        <span className="flex size-4 shrink-0 items-center justify-center">{providerMark}</span>
-      ) : null}
+      {selected ? <CheckIcon className="text-brand" /> : null}
     </button>
   );
 }

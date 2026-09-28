@@ -1,5 +1,6 @@
+import { mockPublicProfile, seedProfileIdentity } from "./helpers/pubkyProfile";
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./helpers/passportTest";
 
 const FIRST_KEY = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
 const SECOND_KEY = "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo";
@@ -29,46 +30,18 @@ async function seedLocalIdentity(page: Page) {
   );
 }
 
-async function measureAccountRow(accountRow: Locator) {
-  return accountRow.evaluate((row) => {
-    const icon = row.querySelector("svg");
-    const email = Array.from(row.childNodes).find(
-      (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim(),
-    );
-    if (!icon || !email) throw new Error("The Google account row is missing its expected content");
-
-    const rowBox = row.getBoundingClientRect();
-    const iconBox = icon.getBoundingClientRect();
-    const emailRange = document.createRange();
-    emailRange.selectNodeContents(email);
-    const emailBox = emailRange.getBoundingClientRect();
-    const contentLeft = Math.min(iconBox.left, emailBox.left);
-    const contentRight = Math.max(iconBox.right, emailBox.right);
-
-    return {
-      row: { x: rowBox.x, y: rowBox.y, width: rowBox.width, height: rowBox.height },
-      rowCenter: rowBox.left + rowBox.width / 2,
-      contentLeft,
-      contentCenter: (contentLeft + contentRight) / 2,
-    };
-  });
-}
-
-function expectWithinOnePixel(actual: number, expected: number) {
-  expect(Math.abs(actual - expected)).toBeLessThanOrEqual(1);
-}
-
 test("primary screens have no automated accessibility violations", async ({ page }) => {
+  await seedLocalIdentity(page);
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Quick & easy signing." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your pubky." })).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
-  await page.goto("/authorize");
+  await page.getByRole("button", { name: "Authorize an app" }).click();
   await expect(page.getByRole("heading", { name: "Authorize a service." })).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
-test("the sign-in title keeps its designed line break and accent color", async ({ page }) => {
+test("the signer title keeps its accent color without horizontal overflow", async ({ page }) => {
   for (const viewport of [
     { width: 1280, height: 720 },
     { width: 375, height: 812 },
@@ -94,10 +67,10 @@ test("the sign-in title keeps its designed line break and accent color", async (
     expect(titleBox).toBeDefined();
     expect(accentBox).toBeDefined();
     expect(titleBox?.color).toBe(headingColor);
-    expect(accentBox?.display).toBe("block");
     expect(accentBox?.color).toBe("rgb(200, 255, 0)");
-    expect(accentBox?.top).toBeGreaterThan(titleBox?.top ?? 0);
-    expect(Math.abs((accentBox?.left ?? 0) - (titleBox?.left ?? 0))).toBeLessThanOrEqual(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      viewport.width,
+    );
   }
 });
 
@@ -128,7 +101,9 @@ test("the passport chrome does not overlap content in a short viewport", async (
 });
 
 test("brand border utilities override the neutral base border", async ({ page }) => {
-  await page.goto("/authorize");
+  await seedLocalIdentity(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Authorize an app" }).click();
 
   const continueButton = page.getByRole("button", { name: "Continue" });
   await expect(continueButton).toBeVisible();
@@ -146,7 +121,9 @@ test("camera denial is contained in an accessible dialog", async ({ page }) => {
       },
     });
   });
-  await page.goto("/authorize");
+  await seedLocalIdentity(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Authorize an app" }).click();
   await page.getByRole("button", { name: /^Scan (?:authorization QR code|QR)$/ }).click();
 
   const dialog = page.getByRole("dialog", { name: "Scan QR code" });
@@ -158,7 +135,10 @@ test("camera denial is contained in an accessible dialog", async ({ page }) => {
   ).toEqual([]);
 });
 
-test("identity selection synchronizes across tabs", async ({ context, page }) => {
+test("saved identities stay available when active identity changes across tabs", async ({
+  context,
+  page,
+}) => {
   await page.addInitScript(
     ({ firstKey, secondKey, secretKey, storageRoot }) => {
       const profile = (publicKeyZ32: string, name: string) =>
@@ -185,7 +165,9 @@ test("identity selection synchronizes across tabs", async ({ context, page }) =>
     },
   );
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "First" })).toBeVisible();
+  // Without profile.json the Google name is not shown; the attached email identifies each one.
+  await expect(page.getByText("First@example.com", { exact: true })).toBeVisible();
+  await expect(page.getByText("Second@example.com", { exact: true })).toHaveCount(0);
 
   const otherTab = await context.newPage();
   await otherTab.goto("/");
@@ -194,35 +176,26 @@ test("identity selection synchronizes across tabs", async ({ context, page }) =>
     { storageRoot: STORAGE_ROOT, secondKey: SECOND_KEY },
   );
 
-  await expect(page.getByRole("heading", { name: "Second" })).toBeVisible();
+  await expect(page.getByText("Second@example.com", { exact: true })).toBeVisible();
   await otherTab.close();
 });
 
-test("the signed-in Google account row stays centered on mobile and left-aligned on desktop", async ({
-  page,
-}) => {
+test("saved identity rows do not overflow mobile or desktop", async ({ page }) => {
   await seedLocalIdentity(page);
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/");
 
+  await page.getByRole("button", { name: "Manage identity" }).click();
   const accountRow = page.getByText("First@example.com", { exact: true });
   await expect(accountRow).toBeVisible();
   await page.evaluate(async () => document.fonts.ready);
 
-  const mobile = await measureAccountRow(accountRow);
-  expectWithinOnePixel(mobile.row.x, 48);
-  expectWithinOnePixel(mobile.row.y, 424);
-  expectWithinOnePixel(mobile.row.width, 279);
-  expectWithinOnePixel(mobile.row.height, 40);
-  expectWithinOnePixel(mobile.contentCenter, mobile.rowCenter);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.evaluate(async () => document.fonts.ready);
 
-  const desktop = await measureAccountRow(accountRow);
-  expectWithinOnePixel(desktop.row.width, 276);
-  expectWithinOnePixel(desktop.contentLeft, desktop.row.x);
-  expect(desktop.contentCenter).toBeLessThan(desktop.rowCenter);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1280);
 });
 
 test("backup password guidance enforces the twelve-character minimum responsively", async ({
@@ -236,7 +209,7 @@ test("backup password guidance enforces the twelve-character minimum responsivel
   ]) {
     await page.setViewportSize(viewport);
     await page.goto("/");
-    await page.getByRole("button", { name: "Manage" }).click();
+    await page.getByRole("button", { name: "Manage identity" }).click();
     await page.getByRole("button", { name: "Download backup" }).click();
 
     const password = page.getByLabel("Enter strong password");
@@ -268,32 +241,30 @@ test("backup password guidance enforces the twelve-character minimum responsivel
   }
 });
 
-test("identity management keeps Log out in the designed responsive header position", async ({
+test("overview keeps recovery and account actions in a separate management screen", async ({
   page,
 }) => {
   await seedLocalIdentity(page);
-  await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/");
-  await page.getByRole("button", { name: "Manage" }).click();
+  await expect(page.getByRole("heading", { name: "Your pubky." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Authorize an app" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Download backup" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Manage identity" }).click();
   await expect(page.getByRole("heading", { name: "Manage identity." })).toBeVisible();
-  await page.evaluate(async () => document.fonts.ready);
-
-  const logout = page.getByRole("button", { name: "Log out" });
-  const mobile = await logout.boundingBox();
-  expect(mobile).not.toBeNull();
-  expectWithinOnePixel(375 - ((mobile?.x ?? 0) + (mobile?.width ?? 0)), 24);
-  expectWithinOnePixel(mobile?.y ?? 0, 26);
-  expectWithinOnePixel(mobile?.height ?? 0, 32);
-
-  await page.setViewportSize({ width: 1280, height: 720 });
-  const desktop = await logout.boundingBox();
-  expect(desktop).not.toBeNull();
-  expectWithinOnePixel(1280 - ((desktop?.x ?? 0) + (desktop?.width ?? 0)), 40);
-  expectWithinOnePixel(desktop?.y ?? 0, 48);
-  expectWithinOnePixel(desktop?.height ?? 0, 40);
+  await expect(page.locator("main")).toBeFocused();
+  await expect(page.getByRole("button", { name: "Authorize an app" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Download backup" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Use in Pubky Ring" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Detach from Google" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Your pubky." })).toBeVisible();
+  await expect(page.locator("main")).toBeFocused();
 });
 
-test("copying the Pubky shows the gray info toast at the mobile inset", async ({ page }) => {
+test("overview pubky is plain text; management copying shows the gray info toast", async ({
+  page,
+}) => {
   await seedLocalIdentity(page);
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "clipboard", {
@@ -303,9 +274,15 @@ test("copying the Pubky shows the gray info toast at the mobile inset", async ({
   });
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/");
-  await page.getByRole("button", { name: "Manage" }).click();
-  await expect(page.getByRole("heading", { name: "Manage identity." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your pubky." })).toBeVisible();
 
+  const pubky = page.getByText(FIRST_KEY, { exact: true });
+  await expect(pubky).toBeVisible();
+  await expect(page.getByRole("button", { name: "Copy Pubky" })).toHaveCount(0);
+  await expect(pubky).not.toHaveAttribute("title");
+  await pubky.click();
+  await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
+  await page.getByRole("button", { name: "Manage identity" }).click();
   await page.getByRole("button", { name: "Copy Pubky" }).click();
   const toast = page
     .locator("[data-sonner-toast]")
@@ -333,4 +310,75 @@ test("copying the Pubky shows the gray info toast at the mobile inset", async ({
       { timeout: 2_000 },
     )
     .toBe(true);
+});
+
+test("management copy controls align with their values and share a right edge", async ({
+  page,
+}, testInfo) => {
+  await mockPublicProfile(page, { name: "Satoshi Nakamoto" });
+  await seedProfileIdentity(page, false);
+  await page.getByRole("button", { name: "Manage identity" }).click();
+  await expect(page.getByRole("button", { name: "Copy Homeserver" })).toBeEnabled();
+  await page.evaluate(async () => document.fonts.ready);
+
+  for (const width of [1440, 768, 375, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const controls = [];
+    for (const name of ["Copy Pubky", "Copy Homeserver"]) {
+      const button = page.getByRole("button", { name });
+      const geometry = await button.evaluate((element) => {
+        const control = element.getBoundingClientRect();
+        const value = element.parentElement!.querySelector("p")!.getBoundingClientRect();
+        const icon = element.querySelector("img, svg")!.getBoundingClientRect();
+        return {
+          right: control.right,
+          width: control.width,
+          height: control.height,
+          iconWidth: icon.width,
+          iconHeight: icon.height,
+          centerOffset: control.y + control.height / 2 - (value.y + value.height / 2),
+          gap: control.left - value.right,
+        };
+      });
+      expect(geometry.width).toBe(36);
+      expect(geometry.height).toBe(36);
+      expect(geometry.iconWidth).toBe(20);
+      expect(geometry.iconHeight).toBe(20);
+      expect(Math.abs(geometry.centerOffset)).toBeLessThanOrEqual(1);
+      expect(geometry.gap).toBe(12);
+      controls.push(geometry);
+    }
+    expect(controls[0]!.right).toBe(controls[1]!.right);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    await page.getByRole("region", { name: "Public profile" }).screenshot({
+      path: testInfo.outputPath(`profile-copy-controls-${width}.png`),
+    });
+  }
+});
+
+test("management backup uses one encryption password and verifies the downloaded file", async ({
+  page,
+}, testInfo) => {
+  await mockPublicProfile(page, null);
+  await seedProfileIdentity(page, false);
+  await page.getByRole("button", { name: "Manage identity" }).click();
+  await page.getByRole("button", { name: "Download backup" }).click();
+  await page.getByLabel("Enter strong password").fill("correct horse");
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download backup" }).click();
+  const backup = await downloadPromise;
+  await expect(page.getByRole("heading", { name: "Verify backup." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Skip verification" })).toBeEnabled();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await page.screenshot({
+    path: testInfo.outputPath("management-backup-verification.png"),
+    fullPage: true,
+  });
+  await page.getByLabel("Backup just downloaded").setInputFiles((await backup.path())!);
+  await page.getByLabel("Backup password").fill("wrong password");
+  await page.getByRole("button", { name: "Verify backup" }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("password is wrong");
+  await page.getByLabel("Backup password").fill("correct horse");
+  await page.getByRole("button", { name: "Verify backup" }).click();
+  await expect(page.getByRole("heading", { name: "Manage identity." })).toBeVisible();
 });
