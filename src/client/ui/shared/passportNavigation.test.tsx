@@ -31,4 +31,23 @@ describe("PassportNavigation", () => {
       "md:grid-cols-(--passport-navigation-columns)",
     );
   });
+
+  it("gives paired actions equal full-width columns in reading order", () => {
+    render(
+      <PassportNavigation
+        layout="paired"
+        back={<Button>Cancel</Button>}
+        confirm={<Button>Log out</Button>}
+      />,
+    );
+
+    const cancel = screen.getByRole("button", { name: "Cancel" });
+    const logOut = screen.getByRole("button", { name: "Log out" });
+    const grid = cancel.parentElement?.parentElement;
+    expect(grid).toHaveClass("sm:grid-cols-2", "[&_button]:w-full");
+    expect(grid).not.toHaveClass("md:grid-cols-(--passport-navigation-columns)");
+    expect(cancel.parentElement).not.toHaveClass("md:col-start-1");
+    expect(logOut.parentElement).not.toHaveClass("md:col-start-3");
+    expect(cancel.compareDocumentPosition(logOut) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });

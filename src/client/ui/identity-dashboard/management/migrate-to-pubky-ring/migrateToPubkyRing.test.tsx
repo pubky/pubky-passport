@@ -26,7 +26,7 @@ describe("MigrateToPubkyRing", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders the pixel-accurate desktop card with a live migration QR", async () => {
+  it("renders the desktop card with a live migration QR", async () => {
     const createMigration = vi.fn(async () => Result.ok(createMigrationHandle()));
     vi.stubGlobal(
       "matchMedia",
@@ -72,9 +72,9 @@ describe("MigrateToPubkyRing", () => {
     expect(qrCode.parentElement).toHaveClass("inset-[4.66%]");
     expect(qrCode.parentElement?.parentElement).toHaveClass("size-48");
     expect(qrCode.parentElement?.parentElement?.parentElement).toHaveClass(
-      "rounded-2xl",
+      "rounded-lg",
       "md:flex-row",
-      "md:p-12",
+      "md:p-8",
     );
     expect(
       qrCode.parentElement?.parentElement?.querySelector('img[src="/brand/pubky-brand-mark.svg"]'),
