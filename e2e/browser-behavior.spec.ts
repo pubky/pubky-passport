@@ -225,7 +225,7 @@ test("the signed-in Google account row stays centered on mobile and left-aligned
   expect(desktop.contentCenter).toBeLessThan(desktop.rowCenter);
 });
 
-test("backup password guidance enforces the six-character minimum responsively", async ({
+test("backup password guidance enforces the twelve-character minimum responsively", async ({
   page,
 }) => {
   await seedLocalIdentity(page);
@@ -240,13 +240,10 @@ test("backup password guidance enforces the six-character minimum responsively",
     await page.getByRole("button", { name: "Download backup" }).click();
 
     const password = page.getByLabel("Enter strong password");
-    const requirement = page.getByText("Minimum 6 characters.");
+    const requirement = page.getByText("Minimum 12 characters.");
     const download = page.getByRole("button", { name: "Download backup" });
-    await expect(password).toHaveAttribute("minlength", "6");
-    await expect(password).toHaveAttribute(
-      "aria-describedby",
-      "recovery-file-password-requirement",
-    );
+    await expect(password).toHaveAttribute("minlength", "12");
+    await expect(password).toHaveAttribute("aria-describedby", "backup-password-help");
     await expect(requirement).toBeVisible();
 
     const [passwordBox, requirementBox] = await Promise.all([
@@ -259,12 +256,12 @@ test("backup password guidance enforces the six-character minimum responsively",
       (passwordBox?.y ?? 0) + (passwordBox?.height ?? 0),
     );
 
-    await password.fill("12345");
+    await password.fill("12345678901");
     await expect(password).toHaveAttribute("aria-invalid", "true");
     await expect(requirement).toHaveAttribute("role", "alert");
     await expect(download).toBeDisabled();
 
-    await password.fill("123456");
+    await password.fill("123456789012");
     await expect(password).not.toHaveAttribute("aria-invalid", "true");
     await expect(requirement).not.toHaveAttribute("role", "alert");
     await expect(download).toBeEnabled();
