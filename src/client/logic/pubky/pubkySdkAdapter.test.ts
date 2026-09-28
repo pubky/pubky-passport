@@ -280,6 +280,55 @@ describe("PubkySdkAdapter", () => {
     }
   });
 
+  it("restores an SDK recovery file and clears the encrypted input buffer", async () => {
+    const pubky = new PubkySdkAdapter();
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      const secretKey = expectOk(await pubky.exportSecretKey(created.keyHandle));
+      const recoveryFile = expectOk(
+        pubky.createRecoveryFile(
+          secretKey,
+          created.publicIdentity.publicKeyZ32,
+          "a strong backup password",
+        ),
+      );
+
+      const restored = expectOk(
+        pubky.restoreRecoveryFile(recoveryFile, "a strong backup password"),
+      );
+
+      expect(restored.publicIdentity).toEqual(created.publicIdentity);
+      expect(recoveryFile).toEqual(new Uint8Array(recoveryFile.byteLength));
+    } finally {
+      pubky.dispose();
+    }
+  });
+
+  it("rejects a wrong recovery-file password without retaining its bytes", async () => {
+    const pubky = new PubkySdkAdapter();
+
+    try {
+      const created = expectOk(await pubky.createIdentityKey());
+      const secretKey = expectOk(await pubky.exportSecretKey(created.keyHandle));
+      const recoveryFile = expectOk(
+        pubky.createRecoveryFile(
+          secretKey,
+          created.publicIdentity.publicKeyZ32,
+          "a strong backup password",
+        ),
+      );
+
+      await expectError(
+        pubky.restoreRecoveryFile(recoveryFile, "wrong password"),
+        "restore_failed",
+      );
+      expect(recoveryFile).toEqual(new Uint8Array(recoveryFile.byteLength));
+    } finally {
+      pubky.dispose();
+    }
+  });
+
   it("returns the exact recovery-file SDK cause without logging the passphrase", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const pubky = new PubkySdkAdapter();
