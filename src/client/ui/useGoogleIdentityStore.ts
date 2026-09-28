@@ -15,11 +15,12 @@ type GoogleIdentityOperation = (
 ) => Promise<Result<unknown, GoogleIdentityViewError>>;
 type GoogleIdentityOperationName =
   | "detach"
+  | "backup"
   | "establish"
   | "replace-invalid-file"
   | "replace-undecryptable-file"
   | "continue-without-visible-backup";
-type GoogleIdentityScreen = "establishment" | "detachment";
+type GoogleIdentityScreen = "establishment" | "detachment" | "backup";
 
 const IDLE_STATE: GoogleIdentityViewState = { status: "idle" };
 const OPERATION_FAILED_STATE: GoogleIdentityViewState = {

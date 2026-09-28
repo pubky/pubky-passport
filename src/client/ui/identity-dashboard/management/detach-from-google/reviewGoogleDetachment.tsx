@@ -24,8 +24,8 @@ function ReviewGoogleDetachment({
       </div>
 
       <div className="rounded-md bg-destructive-surface px-4 py-3 text-sm font-medium leading-5 text-destructive-foreground">
-        Warning: Make sure you can sign in with your keychain or encrypted key before removing
-        Google access. This can’t be undone.
+        Warning: Make sure you can sign in with your keychain or encrypted key before removing your
+        Google backup. You’ll stay signed in on this device and can back up to Google again.
       </div>
 
       <div className="relative flex h-[248px] w-full items-center justify-center md:-ml-[101px] md:h-56 md:w-[790px]">

@@ -10,6 +10,7 @@ import { GoogleIdentityController, type GoogleIdentityViewState } from "./Google
 
 const MOCKS = {
   detachIdentity: vi.fn(),
+  backupIdentity: vi.fn(),
   abortRequests: vi.fn(),
   disposeAuthorization: vi.fn(),
   disposeLifecycle: vi.fn(),
@@ -70,6 +71,124 @@ describe("GoogleIdentityController", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it("backs up with render-safe states and reuses credentials for optional-copy consent", async () => {
+    const controller = createController();
+    const states = recordStates(controller);
+    MOCKS.backupIdentity
+      .mockResolvedValueOnce(Result.err({ code: "visible_backup_permission_missing" }))
+      .mockResolvedValueOnce(Result.ok({ visibleRecoveryCopyStatus: "skipped" }));
+    await controller.backupIdentity(PUBLIC_IDENTITY);
+    expect(controller.getState()).toEqual({
+      status: "failed",
+      error: { code: "visible_backup_permission_missing" },
+    });
+    await controller.continueBackupWithoutVisibleCopy();
+    expect(MOCKS.requestAuthorization).toHaveBeenCalledOnce();
+    expect(MOCKS.backupIdentity).toHaveBeenLastCalledWith(CREDENTIALS, PUBLIC_IDENTITY, true);
+    expect(controller.getState()).toEqual({
+      status: "backed-up",
+      backup: { visibleRecoveryCopyStatus: "skipped" },
+    });
+    // Reused credentials publish backup progress, never an establishment state.
+    expect(states.map((state) => state.status)).not.toContain("establishing");
+    expect(JSON.stringify(states)).not.toContain(CREDENTIALS.driveAccessToken);
+    expect(JSON.stringify(states)).not.toContain(CREDENTIALS.googleIdToken);
+  });
+
+  it("keeps a paused backup and a paused establishment from continuing each other", async () => {
+    const controller = createController();
+    expectResultError(await controller.continueBackupWithoutVisibleCopy(), {
+      code: "operation_failed",
+    });
+
+    MOCKS.backupIdentity.mockResolvedValueOnce(
+      Result.err({ code: "visible_backup_permission_missing" }),
+    );
+    await controller.backupIdentity(PUBLIC_IDENTITY);
+    expectResultError(await controller.continueWithoutVisibleBackup(), {
+      code: "operation_failed",
+    });
+    expect(MOCKS.establishIdentity).not.toHaveBeenCalled();
+
+    MOCKS.establishIdentity.mockResolvedValueOnce(
+      Result.err({ code: "visible_backup_permission_missing" }),
+    );
+    await controller.establishIdentity();
+    expectResultError(await controller.continueBackupWithoutVisibleCopy(), {
+      code: "operation_failed",
+    });
+    expect(MOCKS.backupIdentity).toHaveBeenCalledOnce();
+  });
+
+  it("renews expired credentials for the same account when continuing a paused backup", async () => {
+    const controller = createController();
+    MOCKS.requestAuthorization
+      .mockResolvedValueOnce(
+        Result.ok({
+          ...CREDENTIALS,
+          driveAccessTokenExpiresAt: 0,
+          visibleBackupPermissionGranted: false,
+        }),
+      )
+      .mockResolvedValueOnce(Result.ok(CREDENTIALS));
+    MOCKS.backupIdentity
+      .mockResolvedValueOnce(Result.err({ code: "visible_backup_permission_missing" }))
+      .mockResolvedValueOnce(Result.ok({ visibleRecoveryCopyStatus: "created" }));
+
+    await controller.backupIdentity(PUBLIC_IDENTITY);
+    expect(Result.isOk(await controller.continueBackupWithoutVisibleCopy())).toBe(true);
+
+    expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(
+      2,
+      expect.any(AuthorizationPopup),
+      GOOGLE_ACCOUNT.googleSubject,
+    );
+    expect(MOCKS.backupIdentity).toHaveBeenLastCalledWith(CREDENTIALS, PUBLIC_IDENTITY, true);
+  });
+
+  it("keeps the Google account pinned when a backup is retried without reset", async () => {
+    const controller = createController();
+    MOCKS.backupIdentity.mockResolvedValue(
+      Result.err({ code: "google_backup_created_not_linked" }),
+    );
+    await controller.backupIdentity(PUBLIC_IDENTITY);
+    await controller.backupIdentity(PUBLIC_IDENTITY);
+    expect(MOCKS.requestAuthorization).toHaveBeenLastCalledWith(
+      expect.any(AuthorizationPopup),
+      GOOGLE_ACCOUNT.googleSubject,
+    );
+  });
+
+  it("publishes a foreign file's origin for display without its diagnostic cause", async () => {
+    const controller = createController();
+    MOCKS.establishIdentity.mockResolvedValue(
+      Result.err({
+        code: "foreign_passport_file",
+        passportFileOrigin: "https://other.example",
+        cause: new Error("FOREIGN-CAUSE-CANARY"),
+      }),
+    );
+
+    const error = {
+      code: "foreign_passport_file" as const,
+      passportFileOrigin: "https://other.example",
+    };
+    expectResultError(await controller.establishIdentity(), error);
+    expect(controller.getState()).toEqual({ status: "failed", error });
+  });
+
+  it("clears the selected Google account on reset so backup conflicts can use another account", async () => {
+    const controller = createController();
+    MOCKS.backupIdentity.mockResolvedValue(Result.err({ code: "google_backup_conflict" }));
+    await controller.backupIdentity(PUBLIC_IDENTITY);
+    controller.reset();
+    await controller.backupIdentity(PUBLIC_IDENTITY);
+    expect(MOCKS.requestAuthorization).toHaveBeenLastCalledWith(
+      expect.any(AuthorizationPopup),
+      undefined,
+    );
   });
 
   it("continues a creation paused by the lifecycle with the same credentials", async () => {
@@ -304,6 +423,7 @@ describe("GoogleIdentityController", () => {
       () => ({
         abortRequests: MOCKS.abortRequests,
         detachIdentity: MOCKS.detachIdentity,
+        backupIdentity: MOCKS.backupIdentity,
         dispose: MOCKS.disposeLifecycle,
         establishIdentity: MOCKS.establishIdentity,
         replaceInvalidPassportFile: MOCKS.replaceInvalidPassportFile,
@@ -834,6 +954,7 @@ function createController(): GoogleIdentityController {
     () => ({
       abortRequests: MOCKS.abortRequests,
       detachIdentity: MOCKS.detachIdentity,
+      backupIdentity: MOCKS.backupIdentity,
       dispose: MOCKS.disposeLifecycle,
       establishIdentity: MOCKS.establishIdentity,
       replaceInvalidPassportFile: MOCKS.replaceInvalidPassportFile,

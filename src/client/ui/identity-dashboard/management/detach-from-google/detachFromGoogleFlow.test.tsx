@@ -78,6 +78,6 @@ describe("DetachFromGoogleFlow", () => {
     await user.click(screen.getByRole("button", { name: "Remove Google Access" }));
     await user.type(screen.getByLabelText("Type DETACH to confirm"), "DETACH");
     await user.click(screen.getByRole("button", { name: "Confirm detachment" }));
-    expect(await screen.findByText(/Google access has been removed/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Your Google backup has been removed/i)).toBeInTheDocument();
   });
 });

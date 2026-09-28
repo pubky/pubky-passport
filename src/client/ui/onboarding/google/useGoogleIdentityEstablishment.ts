@@ -3,6 +3,7 @@ import type { GoogleIdentityViewError } from "@/client/logic/google-identity/goo
 import type {
   GoogleIdentityProgress,
   GoogleIdentityViewState,
+  VisibleRecoveryCopyStatus,
 } from "@/client/logic/google-identity/GoogleIdentityController";
 import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
 import { useGoogleIdentityStore } from "@/client/ui/useGoogleIdentityStore";
@@ -17,7 +18,7 @@ type GoogleIdentityEstablishmentView =
       googleAccount: GoogleAccountProfile;
       identity: PubkyPublicIdentity;
       mode: "created";
-      visibleRecoveryCopyStatus: "created" | "unconfirmed" | "skipped";
+      visibleRecoveryCopyStatus: VisibleRecoveryCopyStatus;
     }
   | {
       status: "complete";
@@ -73,6 +74,8 @@ function toEstablishmentView(state: GoogleIdentityViewState): GoogleIdentityEsta
     case "idle":
     case "detaching":
     case "detached":
+    case "backing-up":
+    case "backed-up":
       return { status: "idle" };
   }
 }

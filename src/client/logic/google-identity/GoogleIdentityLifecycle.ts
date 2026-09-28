@@ -7,23 +7,27 @@ import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { NETWORK_OPERATION_TIMEOUT_MS, REQUEST_TIMEOUT_MS } from "@/libs/passportPolicy";
 import type { GoogleIdentityCredentials } from "./gia/GoogleImplicitAuthorization";
 import type { GoogleIdentityLifecycleError } from "./googleIdentityErrors";
-import {
-  HomegateClient,
-  type HomeserverSignupDetails,
-} from "@/client/logic/homegate/HomegateClient";
+import { HomegateClient } from "@/client/logic/homegate/HomegateClient";
+import type { HomeserverSignupDetails } from "@/client/logic/signup/homeserverInvite";
 import { GoogleDrivePassportFileStore } from "@/client/logic/passport-file/google/GoogleDrivePassportFileStore";
 import { GoogleDriveVisibleRecoveryCopies } from "@/client/logic/passport-file/google/GoogleDriveVisibleRecoveryCopies";
-import type { PassportFileEnvelope } from "@/client/logic/passport-file/passportFileEnvelope";
+import {
+  normalizePassportFileOrigin,
+  type PassportFileEnvelope,
+} from "@/client/logic/passport-file/passportFileEnvelope";
 import { PassportFileWebCrypto } from "@/client/logic/passport-file/PassportFileWebCrypto";
 import {
   PUBKY_SECRET_KEY_FORMAT,
   type PubkyIdentityKey,
   type PubkyPublicIdentity,
+  type PubkySecretKeyMaterial,
 } from "@/client/logic/pubky/pubkyIdentityKey";
 import { startHomeserverRepublish } from "@/client/logic/pubky/startHomeserverRepublish";
 import { PubkySdkAdapter } from "@/client/logic/pubky/PubkySdkAdapter";
+import { SignupTokenChecker } from "@/client/logic/pubky/SignupTokenChecker";
 import { GoogleWrappingKeyApiClient } from "@/client/logic/wrapping-key/GoogleWrappingKeyApiClient";
 import { LocalStorageIdentityRepository } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
+import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 
 /** Safe setup or restore progress emitted while establishing an identity. */
 export type GoogleIdentityProgress =
@@ -41,11 +45,14 @@ export type GoogleIdentityProgress =
   | { flow: "restore"; step: "restoring" | "signing_in" }
   | { flow: "repair"; step: "signing_up" | "publishing" | "signing_in" };
 
+/** Outcome of the optional visible recovery copy written next to the private Drive backup. */
+export type VisibleRecoveryCopyStatus = "created" | "unconfirmed" | "skipped";
+
 type GoogleIdentityEstablishmentValue =
   | {
       establishmentMode: "created";
       publicIdentity: PubkyPublicIdentity;
-      visibleRecoveryCopyStatus: "created" | "unconfirmed" | "skipped";
+      visibleRecoveryCopyStatus: VisibleRecoveryCopyStatus;
     }
   | {
       establishmentMode: "restored";
@@ -59,7 +66,39 @@ type GoogleIdentityEstablishmentResult = ResultType<
 
 type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityLifecycleError>;
 
+export type GoogleIdentityBackup = {
+  visibleRecoveryCopyStatus: VisibleRecoveryCopyStatus;
+};
+
 type EstablishmentStepResult<Success = void> = ResultType<Success, GoogleIdentityLifecycleError>;
+
+type LocalIdentityRecord = {
+  identity: LocalIdentityMetadata;
+  secretKey: PubkySecretKeyMaterial;
+};
+
+/**
+ * Backups written to Drive whose local Google association could not be saved, keyed by Google
+ * subject and public key, with the visible-copy outcome to report once linking succeeds.
+ */
+export type UnlinkedGoogleBackups = Map<string, VisibleRecoveryCopyStatus>;
+
+/**
+ * Page-scoped, so leaving and reopening the attach screen can still finish the link. Held only
+ * in memory: the storage that failed to record the link cannot be trusted to record this either.
+ */
+const UNLINKED_GOOGLE_BACKUPS: UnlinkedGoogleBackups = new Map();
+
+/**
+ * Homegate invites issued to a Google account that no signup has used yet, keyed by Google
+ * subject. Each invite spends one of the account's few Google verifications, so an attempt that
+ * stops before signing up, for example while the homeserver does not answer, leaves its invite
+ * for the next attempt instead of requesting another.
+ */
+export type UnspentGoogleSignupInvites = Map<string, HomeserverSignupDetails>;
+
+/** Page-scoped and held only in memory, like {@link UNLINKED_GOOGLE_BACKUPS}. */
+const UNSPENT_GOOGLE_SIGNUP_INVITES: UnspentGoogleSignupInvites = new Map();
 
 /**
  * How {@link GoogleIdentityLifecycle.signupAndActivate} treats a definitive signup: a new
@@ -72,7 +111,11 @@ type ActivationMode =
 
 export type DriveStorePort = Pick<
   GoogleDrivePassportFileStore,
-  "readPassportFile" | "deleteInvalidPassportFile" | "createPassportFile" | "deletePassportFile"
+  | "hasPassportFile"
+  | "readPassportFile"
+  | "deleteInvalidPassportFile"
+  | "createPassportFile"
+  | "deletePassportFile"
 >;
 
 export type VisibleRecoveryCopiesPort = Pick<
@@ -96,18 +139,24 @@ export type GoogleIdentityLifecycleDependencies = {
     | "dispose"
   >;
   crypto?: Pick<PassportFileWebCrypto, "encryptSecretKeyBytes" | "decryptSecretKeyBytes">;
-  repository?: Pick<LocalStorageIdentityRepository, "save" | "remove">;
+  repository?: Pick<LocalStorageIdentityRepository, "save" | "read" | "setGoogleAccount">;
   wrappingKeys?: Pick<GoogleWrappingKeyApiClient, "requestGoogleWrappingKey">;
   homegate?: Pick<HomegateClient, "requestGoogleSignupToken">;
+  signupTokens?: Pick<SignupTokenChecker, "lookUp">;
   createDriveStore?: (driveAccessToken: string, fetchImpl: typeof fetch) => DriveStorePort;
   createVisibleRecoveryCopies?: (
     driveAccessToken: string,
     fetchImpl: typeof fetch,
   ) => VisibleRecoveryCopiesPort;
+  /** Replaces the page-scoped record of backups created but not linked locally. */
+  unlinkedBackups?: UnlinkedGoogleBackups;
+  /** Replaces the page-scoped record of Homegate invites no signup has used yet. */
+  unspentSignupInvites?: UnspentGoogleSignupInvites;
 };
 
 /**
- * Executes Google-backed identity establishment, repair, and detachment.
+ * Executes Google-backed identity establishment, repair, attachment (backup of an existing local
+ * identity), and detachment.
  *
  * Unlike `GoogleIdentityController`, this class does not request authorization or own
  * presentation state. It receives fresh credentials from the controller and coordinates Google
@@ -129,6 +178,7 @@ export class GoogleIdentityLifecycle {
   private readonly pubky: NonNullable<GoogleIdentityLifecycleDependencies["pubky"]>;
   private readonly wrappingKeys: NonNullable<GoogleIdentityLifecycleDependencies["wrappingKeys"]>;
   private readonly homegate: NonNullable<GoogleIdentityLifecycleDependencies["homegate"]>;
+  private readonly signupTokens: NonNullable<GoogleIdentityLifecycleDependencies["signupTokens"]>;
   private readonly crypto: NonNullable<GoogleIdentityLifecycleDependencies["crypto"]>;
   private readonly createDriveStore: NonNullable<
     GoogleIdentityLifecycleDependencies["createDriveStore"]
@@ -137,6 +187,8 @@ export class GoogleIdentityLifecycle {
     GoogleIdentityLifecycleDependencies["createVisibleRecoveryCopies"]
   >;
   private readonly requests = new AbortController();
+  private readonly unlinkedBackups: UnlinkedGoogleBackups;
+  private readonly unspentSignupInvites: UnspentGoogleSignupInvites;
   private homeserverRepublish: Promise<void> | undefined;
   private readonly fetch: typeof fetch;
   private disposed = false;
@@ -160,6 +212,9 @@ export class GoogleIdentityLifecycle {
     };
     this.pubky = dependencies.pubky ?? new PubkySdkAdapter();
     this.repository = dependencies.repository ?? new LocalStorageIdentityRepository();
+    this.unlinkedBackups = dependencies.unlinkedBackups ?? UNLINKED_GOOGLE_BACKUPS;
+    this.unspentSignupInvites = dependencies.unspentSignupInvites ?? UNSPENT_GOOGLE_SIGNUP_INVITES;
+    this.signupTokens = dependencies.signupTokens ?? new SignupTokenChecker();
     this.createDriveStore =
       dependencies.createDriveStore ??
       ((driveAccessToken, nextFetch) =>
@@ -232,8 +287,15 @@ export class GoogleIdentityLifecycle {
     }
     try {
       const store = this.createDriveStore(credentials.driveAccessToken, this.fetch);
-      const deleted = await store.deleteInvalidPassportFile();
+      const deleted = await store.deleteInvalidPassportFile(this.ownOrigin());
       if (Result.isError(deleted)) {
+        if (deleted.error.code === "foreign_file" && deleted.error.passportFileOrigin) {
+          return Result.err({
+            code: "foreign_passport_file",
+            passportFileOrigin: deleted.error.passportFileOrigin,
+            cause: deleted.error,
+          });
+        }
         return Result.err({
           code: "invalid_passport_file_delete_failed",
           cause: deleted.error,
@@ -253,8 +315,11 @@ export class GoogleIdentityLifecycle {
   }
 
   /**
-   * Deletes Google Drive Passport files belonging to the selected identity, then removes
-   * the local identity. Any Google Drive failure preserves the local copy.
+   * Deletes Google Drive Passport files, then clears the Google association.
+   * The local identity and active selection are preserved, including on failure.
+   * Nothing is deleted unless this browser still holds the key for the identity and its
+   * record is bound to the expected Google account; otherwise the Drive copy could be the
+   * only remaining copy of the key.
    * The promise settles with a Result and does not intentionally reject.
    */
   async detachIdentity(
@@ -275,17 +340,100 @@ export class GoogleIdentityLifecycle {
     }
 
     try {
+      const local = this.verifyLocalIdentityBinding(publicIdentity, expectedGoogleSubject);
+      if (Result.isError(local)) return Result.err(local.error);
+
       const deleted = await this.deleteVerifiedGoogleDriveFiles(credentials, publicIdentity);
       if (Result.isError(deleted)) return Result.err(deleted.error);
+      // The deleted backup can no longer be claimed by a later attach on this page.
+      this.unlinkedBackups.delete(unlinkedBackupKey(credentials.googleAccount, publicIdentity));
 
-      const removed = this.repository.remove(publicIdentity.publicKeyZ32);
-      return Result.isError(removed)
-        ? Result.err({ code: "local_remove_failed", cause: removed.error })
+      const unlinked = this.repository.setGoogleAccount(publicIdentity.publicKeyZ32, undefined);
+      return Result.isError(unlinked)
+        ? Result.err({ code: "local_unlink_failed", cause: unlinked.error })
         : Result.ok();
     } catch (e) {
       LOGGER.warn("identity.google.detach.failed", {
         ...safeErrorLogFields(e),
         code: "unexpected_failure",
+      });
+      return Result.err({ code: "unexpected_failure", cause: e });
+    }
+  }
+
+  /**
+   * Attaches a local identity to an empty Google account; existing backups are never opened.
+   * The account is checked before the visible-copy decision, and the secret key is read only
+   * for encryption. A backup this page created but could not record locally is linked on a
+   * later attempt for the same identity and Google account instead of being reported as a
+   * conflict.
+   * The promise settles with a Result and does not intentionally reject.
+   */
+  async backupIdentity(
+    credentials: GoogleIdentityCredentials,
+    publicIdentity: PubkyPublicIdentity,
+    allowWithoutVisibleBackup = false,
+  ): Promise<EstablishmentStepResult<GoogleIdentityBackup>> {
+    try {
+      LOGGER.info("identity.google.backup.started");
+      const local = this.readLocalIdentityMetadata(publicIdentity);
+      if (Result.isError(local)) return Result.err(local.error);
+      const boundSubject = local.value.googleAccount?.googleSubject;
+      if (boundSubject !== undefined && boundSubject !== credentials.googleAccount.googleSubject) {
+        LOGGER.warn("identity.google.backup.failed", {
+          stage: "account_binding",
+          code: "google_account_mismatch",
+        });
+        return Result.err({ code: "google_account_mismatch" });
+      }
+
+      const store = this.createDriveStore(credentials.driveAccessToken, this.fetch);
+      const stored = await store.hasPassportFile();
+      if (Result.isError(stored)) {
+        return Result.err({ code: "drive_read_failed", cause: stored.error });
+      }
+      if (stored.value) {
+        // Only a file this page created for exactly this identity and Google account may be
+        // linked without opening it. Any other existing backup stays unread and unclaimed.
+        const unlinked = this.unlinkedBackups.get(
+          unlinkedBackupKey(credentials.googleAccount, publicIdentity),
+        );
+        if (unlinked === undefined) return Result.err({ code: "google_backup_conflict" });
+        LOGGER.info("identity.google.backup.link_only");
+        return this.linkGoogleAccount(publicIdentity, credentials.googleAccount, unlinked);
+      }
+
+      if (!credentials.visibleBackupPermissionGranted && !allowWithoutVisibleBackup) {
+        return Result.err({ code: "visible_backup_permission_missing" });
+      }
+      const wrappingKey = await this.requestWrappingKey(credentials.googleIdToken);
+      if (Result.isError(wrappingKey)) return Result.err(wrappingKey.error);
+      const encrypted = await this.encryptLocalSecretKey(publicIdentity, wrappingKey.value);
+      if (Result.isError(encrypted)) return Result.err(encrypted.error);
+      const written = await this.writePassportFile(store, encrypted.value);
+      if (Result.isError(written)) return Result.err(written.error);
+
+      const visibleCopy = this.startVisibleRecoveryCopy(
+        credentials.visibleBackupPermissionGranted
+          ? this.createVisibleRecoveryCopies(credentials.driveAccessToken, this.fetch)
+          : undefined,
+        encrypted.value,
+        publicIdentity,
+      );
+      const visibleRecoveryCopyStatus = await this.settleVisibleRecoveryCopy(visibleCopy);
+      const linked = this.linkGoogleAccount(
+        publicIdentity,
+        credentials.googleAccount,
+        visibleRecoveryCopyStatus,
+      );
+      if (Result.isOk(linked)) {
+        LOGGER.info("identity.google.backup.completed", { visibleRecoveryCopyStatus });
+      }
+      return linked;
+    } catch (e) {
+      LOGGER.warn("identity.google.backup.failed", {
+        code: "unexpected_failure",
+        ...safeErrorLogFields(e),
       });
       return Result.err({ code: "unexpected_failure", cause: e });
     }
@@ -324,6 +472,16 @@ export class GoogleIdentityLifecycle {
       LOGGER.info("identity.google.drive_read.started");
       const storedFile = await store.readPassportFile();
       if (Result.isError(storedFile)) {
+        // A malformed file naming another Passport origin is that origin's, never offered for deletion.
+        const claimed = storedFile.error.passportFileOrigin;
+        if (claimed && claimed !== this.ownOrigin()) {
+          LOGGER.warn("identity.google.foreign_passport_file", { passportFileOrigin: claimed });
+          return Result.err({
+            code: "foreign_passport_file",
+            passportFileOrigin: claimed,
+            cause: storedFile.error,
+          });
+        }
         return Result.err({
           code:
             storedFile.error.code === "invalid_file"
@@ -339,14 +497,27 @@ export class GoogleIdentityLifecycle {
           credentials.googleIdToken,
           storedFile.value.envelope,
         );
-        if (Result.isError(wrappingKey)) return Result.err(wrappingKey.error);
+        if (Result.isError(wrappingKey)) {
+          // Another Passport's key ID means nothing to this server's keyring.
+          const foreignKeyUnavailable =
+            wrappingKey.error.code === "wrapping_key_failed" &&
+            wrappingKey.error.detailCode === "key_unavailable" &&
+            !this.isOwnPassportFile(storedFile.value.envelope);
+          return Result.err(
+            foreignKeyUnavailable
+              ? this.foreignPassportFileError(storedFile.value.envelope, wrappingKey.error)
+              : wrappingKey.error,
+          );
+        }
         const restored = await this.restoreIdentity(
           credentials,
           storedFile.value.envelope,
           wrappingKey.value.wrappingKey,
           report,
         );
-        const undecryptable = Result.isError(restored) && restored.error.code === "decrypt_failed";
+        // Only this origin's own file that its key no longer opens; a foreign file is never deleted.
+        const undecryptable =
+          Result.isError(restored) && restored.error.code === "passport_file_undecryptable";
         if (!replaceUndecryptableFile || !undecryptable) return restored;
 
         LOGGER.info("identity.google.undecryptable_passport_file_delete.started");
@@ -368,8 +539,16 @@ export class GoogleIdentityLifecycle {
       report({ flow: "create", step: "preparing" });
       const wrappingKey = await this.requestWrappingKey(credentials.googleIdToken);
       if (Result.isError(wrappingKey)) return Result.err(wrappingKey.error);
-      const signupDetails = await this.requestSignupToken(credentials.googleIdToken);
+      const signupDetails = await this.requestSignupToken(credentials);
       if (Result.isError(signupDetails)) return Result.err(signupDetails.error);
+      // Nothing is written to Drive for a signup that cannot succeed: a backup left behind would
+      // send every later attempt down the restore path instead of creating an account.
+      const checked = await this.checkSignupHomeserver(
+        credentials.googleAccount,
+        signupDetails.value,
+        "create",
+      );
+      if (Result.isError(checked)) return Result.err(checked.error);
 
       report({ flow: "create", step: "creating" });
       const visibleCopies = credentials.visibleBackupPermissionGranted
@@ -435,28 +614,14 @@ export class GoogleIdentityLifecycle {
       const envelope = encrypted.value;
       LOGGER.info("identity.google.encrypt.completed");
 
-      LOGGER.info("identity.google.operational_drive_write.started");
-      const written = await store.createPassportFile(envelope);
-      if (Result.isError(written)) {
-        return Result.err({
-          code:
-            written.error.code === "create_conflict"
-              ? "drive_create_conflict"
-              : "drive_write_failed",
-          cause: written.error,
-        });
-      }
-      LOGGER.info("identity.google.operational_drive_write.completed");
+      const written = await this.writePassportFile(store, envelope);
+      if (Result.isError(written)) return Result.err(written.error);
 
-      let visibleCopy: Promise<boolean> | undefined;
-      if (visibleCopies) {
-        LOGGER.info("identity.google.visible_recovery_copy.started");
-        visibleCopy = this.createVisibleRecoveryCopy(
-          visibleCopies,
-          envelope,
-          created.value.publicIdentity,
-        );
-      }
+      const visibleCopy = this.startVisibleRecoveryCopy(
+        visibleCopies,
+        envelope,
+        created.value.publicIdentity,
+      );
 
       const activated = await this.signupAndActivate(
         created.value,
@@ -491,10 +656,39 @@ export class GoogleIdentityLifecycle {
     }
   }
 
+  /** Creates the operational Drive file; a concurrent writer observed by the store is a conflict. */
+  private async writePassportFile(
+    store: DriveStorePort,
+    envelope: PassportFileEnvelope,
+  ): Promise<EstablishmentStepResult> {
+    LOGGER.info("identity.google.operational_drive_write.started");
+    const written = await store.createPassportFile(envelope);
+    if (Result.isError(written)) {
+      return Result.err({
+        code:
+          written.error.code === "create_conflict" ? "drive_create_conflict" : "drive_write_failed",
+        cause: written.error,
+      });
+    }
+    LOGGER.info("identity.google.operational_drive_write.completed");
+    return Result.ok();
+  }
+
+  /** Starts the optional visible copy; it never fails the caller, which settles it later. */
+  private startVisibleRecoveryCopy(
+    visibleCopies: VisibleRecoveryCopiesPort | undefined,
+    envelope: PassportFileEnvelope,
+    publicIdentity: PubkyPublicIdentity,
+  ): Promise<boolean> | undefined {
+    if (!visibleCopies) return undefined;
+    LOGGER.info("identity.google.visible_recovery_copy.started");
+    return this.createVisibleRecoveryCopy(visibleCopies, envelope, publicIdentity);
+  }
+
   private async settleVisibleRecoveryCopy(
     visibleCopy: Promise<boolean> | undefined,
-  ): Promise<"created" | "unconfirmed" | "skipped"> {
-    let status: "created" | "unconfirmed" | "skipped" = "skipped";
+  ): Promise<VisibleRecoveryCopyStatus> {
+    let status: VisibleRecoveryCopyStatus = "skipped";
     if (visibleCopy) {
       status = (await visibleCopy) ? "created" : "unconfirmed";
       if (status === "unconfirmed") {
@@ -555,8 +749,15 @@ export class GoogleIdentityLifecycle {
       }
 
       report({ flow: "repair", step: "signing_up" });
-      const signupDetails = await this.requestSignupToken(credentials.googleIdToken);
+      const signupDetails = await this.requestSignupToken(credentials);
       if (Result.isError(signupDetails)) return Result.err(signupDetails.error);
+      // A record published for an unreachable homeserver would end every later repair attempt.
+      const checked = await this.checkSignupHomeserver(
+        credentials.googleAccount,
+        signupDetails.value,
+        "repair",
+      );
+      if (Result.isError(checked)) return Result.err(checked.error);
       const activated = await this.signupAndActivate(
         restored.value,
         signupDetails.value,
@@ -586,13 +787,16 @@ export class GoogleIdentityLifecycle {
     wrappingKey: string,
   ): Promise<EstablishmentStepResult<PubkyIdentityKey>> {
     LOGGER.info("identity.google.decrypt.started");
-    const secretKey = await this.crypto.decryptSecretKeyBytes(
-      envelope,
-      wrappingKey,
-      this.passportOrigin,
-    );
+    const secretKey = await this.crypto.decryptSecretKeyBytes(envelope, wrappingKey);
     if (Result.isError(secretKey)) {
-      return Result.err({ code: "decrypt_failed", cause: secretKey.error });
+      if (!isKeyMismatch(secretKey.error.code)) {
+        return Result.err({ code: "decrypt_failed", cause: secretKey.error });
+      }
+      return Result.err(
+        this.isOwnPassportFile(envelope)
+          ? { code: "passport_file_undecryptable", cause: secretKey.error }
+          : this.foreignPassportFileError(envelope, secretKey.error),
+      );
     }
 
     const restored = await this.pubky.restoreIdentityKey({
@@ -621,6 +825,8 @@ export class GoogleIdentityLifecycle {
   ): Promise<EstablishmentStepResult> {
     const isReconciliation = activation.reconciliation;
     if (!isReconciliation) report({ flow: "create", step: "signing_up" });
+    // From here the homeserver may redeem the invite, so no later attempt may reuse it.
+    this.forgetUnspentSignupInvite(googleAccount, signupDetails);
     LOGGER.info("identity.google.signup.started");
     const signedUp = await this.pubky.signup(
       identity.keyHandle,
@@ -683,7 +889,16 @@ export class GoogleIdentityLifecycle {
     }
     const verified = this.verifySessionIdentity(identity, signedIn.value.publicIdentity);
     if (Result.isError(verified)) return Result.err(verified.error);
-    return this.saveIdentity(identity, googleAccount, "homeserver_signup");
+    // A new key's account is always new. A repaired identity keeps its existing account and
+    // profile unless this signup definitively created an account for it. Either way its record
+    // was just published to this homeserver.
+    const accountCreated = !isReconciliation || !Result.isError(signedUp);
+    return this.saveIdentity(
+      identity,
+      googleAccount,
+      accountCreated ? "homeserver_signup" : "restored",
+      signupDetails.homeserverPubky,
+    );
   }
 
   /**
@@ -711,7 +926,12 @@ export class GoogleIdentityLifecycle {
     }
     const verified = this.verifySessionIdentity(identity, signedIn.value.publicIdentity);
     if (Result.isError(verified)) return Result.err(verified.error);
-    return this.saveIdentity(identity, googleAccount, "homeserver_signup");
+    return this.saveIdentity(
+      identity,
+      googleAccount,
+      "homeserver_signup",
+      signupDetails.homeserverPubky,
+    );
   }
 
   private verifySessionIdentity(
@@ -725,10 +945,12 @@ export class GoogleIdentityLifecycle {
     return Result.err({ code: "identity_mismatch" });
   }
 
+  /** `homeserverPubky` is the host this run signed the key up on; a restore does not know it. */
   private async saveIdentity(
     identity: PubkyIdentityKey,
     googleAccount: GoogleAccountProfile,
     activation: "homeserver_signup" | "restored",
+    homeserverPubky?: string,
   ): Promise<EstablishmentStepResult> {
     LOGGER.info("identity.local_save.started", { activation });
     const secretKey = await this.pubky.exportSecretKey(identity.keyHandle);
@@ -740,6 +962,8 @@ export class GoogleIdentityLifecycle {
         {
           publicIdentity: identity.publicIdentity,
           googleAccount,
+          ...(activation === "homeserver_signup" ? { profileSetupRequired: true as const } : {}),
+          ...(homeserverPubky ? { homeserverPubky } : {}),
         },
         secretKey.value,
       );
@@ -753,11 +977,22 @@ export class GoogleIdentityLifecycle {
     }
   }
 
+  /**
+   * Reuses the invite an earlier attempt on this page obtained for this Google account and never
+   * used, otherwise requests one from Homegate, which spends one of the account's Google
+   * verifications. The invite stays unspent until a signup is attempted with it.
+   */
   private async requestSignupToken(
-    googleIdToken: string,
+    credentials: GoogleIdentityCredentials,
   ): Promise<EstablishmentStepResult<HomeserverSignupDetails>> {
+    const googleSubject = credentials.googleAccount.googleSubject;
+    const unspent = this.unspentSignupInvites.get(googleSubject);
+    if (unspent) {
+      LOGGER.info("identity.google.homeserver_signup_token.reused");
+      return Result.ok(unspent);
+    }
     LOGGER.info("identity.google.homeserver_signup_token.started");
-    const signupDetails = await this.homegate.requestGoogleSignupToken(googleIdToken);
+    const signupDetails = await this.homegate.requestGoogleSignupToken(credentials.googleIdToken);
     if (Result.isError(signupDetails)) {
       return Result.err({
         code: "homeserver_signup_token_failed",
@@ -765,8 +1000,66 @@ export class GoogleIdentityLifecycle {
         cause: signupDetails.error,
       });
     }
+    this.unspentSignupInvites.set(googleSubject, signupDetails.value);
     LOGGER.info("identity.google.homeserver_signup_token.completed");
     return Result.ok(signupDetails.value);
+  }
+
+  /** Drops an invite once a signup may have redeemed it or its homeserver refused it. */
+  private forgetUnspentSignupInvite(
+    googleAccount: GoogleAccountProfile,
+    signupDetails: HomeserverSignupDetails,
+  ): void {
+    if (this.unspentSignupInvites.get(googleAccount.googleSubject) === signupDetails) {
+      this.unspentSignupInvites.delete(googleAccount.googleSubject);
+    }
+  }
+
+  /**
+   * Looks the Homegate invite up on its homeserver (read-only) before anything irreversible. A
+   * homeserver that does not answer stops both flows and keeps the invite for the next attempt.
+   * Creation also stops for an invite the homeserver reports used or unknown, since a new key
+   * cannot own an account yet, and drops that invite; a repair continues, because the key's own
+   * earlier signup may have spent it.
+   */
+  private async checkSignupHomeserver(
+    googleAccount: GoogleAccountProfile,
+    signupDetails: HomeserverSignupDetails,
+    flow: "create" | "repair",
+  ): Promise<EstablishmentStepResult> {
+    LOGGER.info("identity.google.homeserver_check.started", { flow });
+    const lookup = await this.signupTokens.lookUp(signupDetails, this.requests.signal);
+    if (!lookup.reached) {
+      LOGGER.warn("identity.google.homeserver_check.failed", { flow, code: "unreachable" });
+      return Result.err({ code: "homeserver_unreachable" });
+    }
+    if (flow === "create" && (lookup.status === "used" || lookup.status === "not_found")) {
+      LOGGER.warn("identity.google.homeserver_check.failed", { flow, code: lookup.status });
+      this.forgetUnspentSignupInvite(googleAccount, signupDetails);
+      return Result.err({ code: "homeserver_invite_rejected" });
+    }
+    LOGGER.info("identity.google.homeserver_check.completed", { flow, status: lookup.status });
+    return Result.ok();
+  }
+
+  /** This Passport's normalized origin; `null` when unparseable, which never claims a file. */
+  private ownOrigin(): string | null {
+    const origin = normalizePassportFileOrigin(this.passportOrigin);
+    return Result.isOk(origin) ? origin.value : null;
+  }
+
+  /** Whether this origin wrote the envelope. */
+  private isOwnPassportFile(envelope: PassportFileEnvelope): boolean {
+    const origin = this.ownOrigin();
+    return origin !== null && origin === envelope.url;
+  }
+
+  private foreignPassportFileError(
+    envelope: PassportFileEnvelope,
+    cause: unknown,
+  ): GoogleIdentityLifecycleError {
+    LOGGER.warn("identity.google.foreign_passport_file", { passportFileOrigin: envelope.url });
+    return { code: "foreign_passport_file", passportFileOrigin: envelope.url, cause };
   }
 
   private async requestWrappingKey(
@@ -787,6 +1080,105 @@ export class GoogleIdentityLifecycle {
     }
     LOGGER.info("identity.google.wrapping_key.completed");
     return Result.ok(wrappingKey.value);
+  }
+
+  /**
+   * Confirms this browser still holds the identity's key and that its record is bound to the
+   * expected Google account. The secret bytes read for this check are zeroed immediately.
+   */
+  private verifyLocalIdentityBinding(
+    publicIdentity: PubkyPublicIdentity,
+    expectedGoogleSubject: string,
+  ): EstablishmentStepResult {
+    const local = this.readLocalIdentityMetadata(publicIdentity);
+    if (Result.isError(local)) return Result.err(local.error);
+    if (local.value.googleAccount?.googleSubject !== expectedGoogleSubject) {
+      LOGGER.warn("identity.google.detach.failed", {
+        stage: "local_identity",
+        code: "local_identity_not_bound",
+      });
+      return Result.err({ code: "local_identity_not_bound" });
+    }
+    return Result.ok();
+  }
+
+  /**
+   * The single translation of local-repository read failures. The caller owns the returned
+   * secret bytes and must zero them.
+   */
+  private readLocalIdentity(
+    publicIdentity: PubkyPublicIdentity,
+  ): EstablishmentStepResult<LocalIdentityRecord> {
+    const local = this.repository.read(publicIdentity.publicKeyZ32);
+    if (Result.isOk(local)) return Result.ok(local.value);
+    LOGGER.warn("identity.google.local_identity.failed", {
+      code: "local_identity_unavailable",
+      localCode: local.error.code,
+    });
+    return Result.err({ code: "local_identity_unavailable", cause: local.error });
+  }
+
+  /** Reads the identity's local metadata; the secret bytes read with it are zeroed at once. */
+  private readLocalIdentityMetadata(
+    publicIdentity: PubkyPublicIdentity,
+  ): EstablishmentStepResult<LocalIdentityMetadata> {
+    const local = this.readLocalIdentity(publicIdentity);
+    if (Result.isError(local)) return Result.err(local.error);
+    local.value.secretKey.bytes.fill(0);
+    return Result.ok(local.value.identity);
+  }
+
+  /** Reads the local secret key only to encrypt it, and zeroes it once encryption settles. */
+  private async encryptLocalSecretKey(
+    publicIdentity: PubkyPublicIdentity,
+    wrappingKey: { wrappingKey: string; keyId: string },
+  ): Promise<EstablishmentStepResult<PassportFileEnvelope>> {
+    const local = this.readLocalIdentity(publicIdentity);
+    if (Result.isError(local)) return Result.err(local.error);
+    LOGGER.info("identity.google.encrypt.started");
+    const encrypted = await this.crypto
+      .encryptSecretKeyBytes(
+        local.value.secretKey.bytes,
+        wrappingKey.wrappingKey,
+        this.passportOrigin,
+        wrappingKey.keyId,
+      )
+      .finally(() => {
+        local.value.secretKey.bytes.fill(0);
+      });
+    if (Result.isError(encrypted)) {
+      return Result.err({ code: "encrypt_failed", cause: encrypted.error });
+    }
+    LOGGER.info("identity.google.encrypt.completed");
+    return Result.ok(encrypted.value);
+  }
+
+  /**
+   * Records the Google association for a backup that already exists in Drive. A second
+   * attempt covers transient storage failures; after that the backup is remembered as
+   * unlinked so a later attempt can finish the link without touching Drive.
+   */
+  private linkGoogleAccount(
+    publicIdentity: PubkyPublicIdentity,
+    googleAccount: GoogleAccountProfile,
+    visibleRecoveryCopyStatus: VisibleRecoveryCopyStatus,
+  ): EstablishmentStepResult<GoogleIdentityBackup> {
+    const key = unlinkedBackupKey(googleAccount, publicIdentity);
+    let linked = this.repository.setGoogleAccount(publicIdentity.publicKeyZ32, googleAccount);
+    if (Result.isError(linked)) {
+      LOGGER.warn("identity.google.backup.link.retrying", { code: linked.error.code });
+      linked = this.repository.setGoogleAccount(publicIdentity.publicKeyZ32, googleAccount);
+    }
+    if (Result.isError(linked)) {
+      this.unlinkedBackups.set(key, visibleRecoveryCopyStatus);
+      LOGGER.warn("identity.google.backup.failed", {
+        code: "google_backup_created_not_linked",
+        localCode: linked.error.code,
+      });
+      return Result.err({ code: "google_backup_created_not_linked", cause: linked.error });
+    }
+    this.unlinkedBackups.delete(key);
+    return Result.ok({ visibleRecoveryCopyStatus });
   }
 
   private async deleteVerifiedGoogleDriveFiles(
@@ -895,4 +1287,16 @@ export class GoogleIdentityLifecycle {
       });
     }
   }
+}
+
+function unlinkedBackupKey(
+  googleAccount: GoogleAccountProfile,
+  publicIdentity: PubkyPublicIdentity,
+): string {
+  return `${googleAccount.googleSubject}\n${publicIdentity.publicKeyZ32}`;
+}
+
+/** Authentication or plaintext failures: the wrapping key does not open this envelope. */
+function isKeyMismatch(code: string): boolean {
+  return code === "decrypt_failed" || code === "invalid_plaintext";
 }

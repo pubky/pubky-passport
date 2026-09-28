@@ -15,9 +15,18 @@ import {
   type GoogleIdentityError,
   type GoogleIdentityViewError,
 } from "./googleIdentityErrors";
-import type { GoogleIdentityLifecycle, GoogleIdentityProgress } from "./GoogleIdentityLifecycle";
+import type {
+  GoogleIdentityLifecycle,
+  GoogleIdentityProgress,
+  GoogleIdentityBackup,
+  VisibleRecoveryCopyStatus,
+} from "./GoogleIdentityLifecycle";
 
-export type { GoogleIdentityProgress } from "./GoogleIdentityLifecycle";
+export type {
+  GoogleIdentityBackup,
+  GoogleIdentityProgress,
+  VisibleRecoveryCopyStatus,
+} from "./GoogleIdentityLifecycle";
 
 /** Safe setup or restore details published after the identity is active locally. */
 type EstablishedGoogleIdentity =
@@ -25,7 +34,7 @@ type EstablishedGoogleIdentity =
       establishmentMode: "created";
       googleAccount: GoogleAccountProfile;
       publicIdentity: PubkyPublicIdentity;
-      visibleRecoveryCopyStatus: "created" | "unconfirmed" | "skipped";
+      visibleRecoveryCopyStatus: VisibleRecoveryCopyStatus;
     }
   | {
       establishmentMode: "restored";
@@ -33,7 +42,10 @@ type EstablishedGoogleIdentity =
       publicIdentity: PubkyPublicIdentity;
     };
 
-/** Render-safe states published while Passport creates, restores, or detaches a Google-backed identity. */
+/**
+ * Render-safe states published while Passport creates, restores, attaches (backs up), or detaches
+ * a Google-backed identity.
+ */
 export type GoogleIdentityViewState =
   | { status: "idle" }
   | { status: "requesting-authorization" }
@@ -41,6 +53,8 @@ export type GoogleIdentityViewState =
   | { status: "established"; identity: EstablishedGoogleIdentity }
   | { status: "detaching" }
   | { status: "detached" }
+  | { status: "backing-up" }
+  | { status: "backed-up"; backup: GoogleIdentityBackup }
   | { status: "failed"; error: GoogleIdentityViewError };
 
 export type EstablishGoogleIdentityResult = ResultType<
@@ -50,6 +64,8 @@ export type EstablishGoogleIdentityResult = ResultType<
 
 export type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityViewError>;
 
+export type BackupGoogleIdentityResult = ResultType<GoogleIdentityBackup, GoogleIdentityViewError>;
+
 type GoogleAuthorization = Pick<GoogleImplicitAuthorization, "request" | "dispose">;
 type Lifecycle = Pick<
   GoogleIdentityLifecycle,
@@ -57,6 +73,7 @@ type Lifecycle = Pick<
   | "replaceInvalidPassportFile"
   | "replaceUndecryptablePassportFile"
   | "detachIdentity"
+  | "backupIdentity"
   | "abortRequests"
   | "dispose"
 >;
@@ -66,11 +83,24 @@ type EstablishmentOptions = {
   allowWithoutVisibleBackup?: boolean;
   credentials?: GoogleIdentityCredentials | undefined;
 };
-type GoogleIdentityOperation = EstablishmentOperation | "detach";
+type GoogleIdentityOperation = EstablishmentOperation | "detach" | "backup";
 type OperationWork<Success> = (
   credentials: GoogleIdentityCredentials,
   lifecycle: Lifecycle,
 ) => Promise<ResultType<Success, GoogleIdentityError>>;
+/** Credentials kept from a paused operation, with the state published when they are reused. */
+type ReusedCredentials = {
+  credentials: GoogleIdentityCredentials;
+  workingState: GoogleIdentityViewState;
+};
+/** An operation paused on the optional visible-copy permission, with the grant it received. */
+type PendingVisibleBackupConsent =
+  | { operation: EstablishmentOperation; credentials: GoogleIdentityCredentials }
+  | {
+      operation: "backup";
+      credentials: GoogleIdentityCredentials;
+      publicIdentity: PubkyPublicIdentity;
+    };
 
 /**
  * ready → busy (runOperation) → ready (finishOperation).
@@ -105,8 +135,7 @@ export class GoogleIdentityController {
   private googleAuthorization: GoogleAuthorization | undefined;
   private lifecycle: Lifecycle | undefined;
   private googleSubject: string | undefined;
-  private pendingVisibleBackupConsent:
-    { credentials: GoogleIdentityCredentials; operation: EstablishmentOperation } | undefined;
+  private pendingVisibleBackupConsent: PendingVisibleBackupConsent | undefined;
   private status: ControllerStatus = "ready";
   private state: GoogleIdentityViewState = IDLE_STATE;
   private readonly listeners = new Set<(state: GoogleIdentityViewState) => void>();
@@ -166,21 +195,22 @@ export class GoogleIdentityController {
     return this.runIdentityEstablishment("replace_undecryptable_passport_file");
   }
 
-  /** Continues without a visible copy, renewing expired credentials for the same Google account. */
+  /**
+   * Continues a paused establishment without a visible copy, renewing expired credentials for
+   * the same Google account.
+   * The promise settles with a Result and does not intentionally reject.
+   */
   async continueWithoutVisibleBackup(): Promise<EstablishGoogleIdentityResult> {
     const pending = this.pendingVisibleBackupConsent;
-    if (!pending) return Result.err({ code: "operation_failed" });
-    const expiresAt = pending.credentials.driveAccessTokenExpiresAt;
-    const canReuseCredentials =
-      expiresAt !== null && expiresAt > Date.now() + CREDENTIAL_EXPIRY_MARGIN_MS;
+    if (!pending || pending.operation === "backup") return Result.err({ code: "operation_failed" });
     return this.runIdentityEstablishment(pending.operation, {
       allowWithoutVisibleBackup: true,
-      credentials: canReuseCredentials ? pending.credentials : undefined,
+      credentials: reusableCredentials(pending.credentials),
     });
   }
 
   /**
-   * Deletes the Google Drive Passport files first, then removes the local identity.
+   * Deletes the Google Drive Passport files, keeping the identity active locally.
    * A Google Drive failure leaves the local identity untouched.
    * The promise settles with a Result and does not intentionally reject.
    */
@@ -197,6 +227,26 @@ export class GoogleIdentityController {
       },
       () => ({ status: "detached" }),
     );
+  }
+
+  /**
+   * Attaches an existing local identity to an empty Google account by backing up its key to
+   * Google Drive. Opens the consent popup synchronously, so call it from the user's click.
+   * The promise settles with a Result and does not intentionally reject.
+   */
+  async backupIdentity(publicIdentity: PubkyPublicIdentity): Promise<BackupGoogleIdentityResult> {
+    return this.runBackup(publicIdentity, false);
+  }
+
+  /**
+   * Continues a paused attachment without a visible copy, renewing expired credentials for the
+   * same Google account.
+   * The promise settles with a Result and does not intentionally reject.
+   */
+  async continueBackupWithoutVisibleCopy(): Promise<BackupGoogleIdentityResult> {
+    const pending = this.pendingVisibleBackupConsent;
+    if (pending?.operation !== "backup") return Result.err({ code: "operation_failed" });
+    return this.runBackup(pending.publicIdentity, true, reusableCredentials(pending.credentials));
   }
 
   /** Returns to idle and lets a new establishment flow choose a different Google account. */
@@ -280,38 +330,75 @@ export class GoogleIdentityController {
         }
       },
       (identity) => ({ status: "established", identity }),
-      options.credentials,
+      options.credentials && {
+        credentials: options.credentials,
+        workingState: { status: "establishing", progress: { flow: "lookup", step: "checking" } },
+      },
+    );
+  }
+
+  private runBackup(
+    publicIdentity: PubkyPublicIdentity,
+    allowWithoutVisibleBackup: boolean,
+    credentials?: GoogleIdentityCredentials,
+  ): Promise<BackupGoogleIdentityResult> {
+    return this.runOperation(
+      "backup",
+      undefined,
+      async (authorized, lifecycle) => {
+        this.publish({ status: "backing-up" });
+        const result = await lifecycle.backupIdentity(
+          authorized,
+          publicIdentity,
+          allowWithoutVisibleBackup,
+        );
+        if (
+          Result.isError(result) &&
+          result.error.code === "visible_backup_permission_missing" &&
+          !this.isDisposed
+        ) {
+          this.pendingVisibleBackupConsent = {
+            operation: "backup",
+            credentials: authorized,
+            publicIdentity,
+          };
+        }
+        return result;
+      },
+      // Name every field so nothing new on the lifecycle result reaches UI state unreviewed.
+      (backup) => ({
+        status: "backed-up",
+        backup: { visibleRecoveryCopyStatus: backup.visibleRecoveryCopyStatus },
+      }),
+      credentials && { credentials, workingState: { status: "backing-up" } },
     );
   }
 
   /**
    * Runs one authorized operation with a single entry and exit for the busy state,
-   * publishing the terminal state unless the controller was disposed meanwhile.
+   * publishing the terminal state unless the controller was disposed meanwhile. Reused
+   * credentials skip authorization and publish the caller's working state instead.
    */
   private async runOperation<Success>(
     operation: GoogleIdentityOperation,
     expectedGoogleSubject: string | undefined,
     work: OperationWork<Success>,
     toState: (value: Success) => GoogleIdentityViewState,
-    credentialsOverride?: GoogleIdentityCredentials,
+    reused?: ReusedCredentials,
   ): Promise<ResultType<Success, GoogleIdentityViewError>> {
     if (this.status !== "ready") {
       return Result.err({ code: this.status === "busy" ? "operation_failed" : "cancelled" });
     }
     this.status = "busy";
     this.pendingVisibleBackupConsent = undefined;
-    this.publish(
-      credentialsOverride
-        ? { status: "establishing", progress: { flow: "lookup", step: "checking" } }
-        : { status: "requesting-authorization" },
-    );
+    this.publish(reused ? reused.workingState : { status: "requesting-authorization" });
 
     try {
       const outcome = await this.authorizeAndRun(
         operation,
         expectedGoogleSubject,
         work,
-        credentialsOverride,
+        reused?.credentials,
       );
       return this.settle(outcome, toState);
     } catch (e) {
@@ -517,6 +604,16 @@ export class GoogleIdentityController {
     ]);
     return { createAuthorization, createLifecycle };
   }
+}
+
+/** Credentials that stay valid long enough to finish an operation; otherwise `undefined`. */
+function reusableCredentials(
+  credentials: GoogleIdentityCredentials,
+): GoogleIdentityCredentials | undefined {
+  const expiresAt = credentials.driveAccessTokenExpiresAt;
+  return expiresAt !== null && expiresAt > Date.now() + CREDENTIAL_EXPIRY_MARGIN_MS
+    ? credentials
+    : undefined;
 }
 
 function startEstablishment(
