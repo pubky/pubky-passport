@@ -13,8 +13,8 @@ function GoogleDetachmentComplete({ onDone }: { onDone: () => void }) {
           Detached
         </DisplayHeading>
         <LeadText>
-          Google access has been removed. Your identity is self-managed, and recoverable only with
-          your backup.
+          Your Google backup has been removed. You’re still signed in on this device. Keep your own
+          backup safe, or back up to Google again from Manage identity.
         </LeadText>
       </div>
       <div className="flex h-[296px] items-center justify-center md:h-56">

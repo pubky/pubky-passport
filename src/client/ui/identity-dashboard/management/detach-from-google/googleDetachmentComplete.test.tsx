@@ -18,7 +18,7 @@ describe("GoogleDetachmentComplete", () => {
     expect(heading.querySelector(".md\\:hidden")).toBeNull();
     expect(
       screen.getByText(
-        "Google access has been removed. Your identity is self-managed, and recoverable only with your backup.",
+        /Your Google backup has been removed. You’re still signed in on this device./,
       ),
     ).toBeInTheDocument();
     expect(container.querySelector('img[src*="checkmark.png"]')?.parentElement).toHaveClass(

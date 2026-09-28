@@ -1,10 +1,35 @@
 import type { GoogleIdentityViewError } from "@/client/logic/google-identity/googleIdentityErrors";
 
+/** Screen that shows the failure; some codes need different copy when attaching a backup. */
+type GoogleIdentityErrorContext = "default" | "attach";
+
+/**
+ * Copy that replaces the default when the failure happened while attaching a local identity to
+ * a Google account. Codes missing here fall back to the default copy.
+ */
+const ATTACH_COPY: Partial<Record<GoogleIdentityViewError["code"], string>> = {
+  google_account_mismatch:
+    "This identity is already attached to a different Google account. Sign in with that account or remove Google access first.",
+  drive_read_failed:
+    "Passport could not check this Google account for an existing Passport backup. Try again.",
+  wrapping_key_failed:
+    "Passport could not get an encryption key for this Google account. Nothing was saved to Google Drive. Try again.",
+  local_identity_unavailable:
+    "Passport could not read this identity from this browser, so nothing was saved to Google Drive. Reload the page and try again.",
+};
+
 /**
  * Single mapping from a Google identity view code to user-facing copy. The switch has no
  * default branch on purpose: a new code fails typechecking until it receives deliberate copy.
  */
-function googleIdentityErrorMessage(code: GoogleIdentityViewError["code"]): string {
+function googleIdentityErrorMessage(
+  code: GoogleIdentityViewError["code"],
+  context: GoogleIdentityErrorContext = "default",
+): string {
+  if (context === "attach") {
+    const attachCopy = ATTACH_COPY[code];
+    if (attachCopy !== undefined) return attachCopy;
+  }
   switch (code) {
     case "create_failed":
       return "Passport could not create a new Pubky identity.";
@@ -12,12 +37,16 @@ function googleIdentityErrorMessage(code: GoogleIdentityViewError["code"]): stri
       return "Passport found your encrypted identity, but could not decrypt it.";
     case "drive_create_conflict":
       return "Another Passport identity file was created at the same time. Check the Google account and try again.";
+    case "google_backup_conflict":
+      return "This Google account already has a Passport backup, which has not been opened or changed. Choose another Google account, or use Continue with Google with this account to restore the identity it holds.";
+    case "google_backup_created_not_linked":
+      return "Your encrypted backup was saved to Google Drive, but Passport could not record the link in this browser. Try again to finish attaching the same Google account.";
     case "drive_read_failed":
       return "Passport could not read your encrypted identity from Google Drive.";
     case "drive_write_failed":
       return "Passport could not save your encrypted identity to Google Drive.";
     case "encrypt_failed":
-      return "Passport created an identity, but could not encrypt it for Google Drive.";
+      return "Passport could not encrypt your identity for Google Drive.";
     case "identity_mismatch":
       return "The restored Pubky identity did not match the activated homeserver identity.";
     case "restore_failed":
@@ -30,12 +59,26 @@ function googleIdentityErrorMessage(code: GoogleIdentityViewError["code"]): stri
       return "Passport could not publish your identity's PKDNS records.";
     case "local_save_failed":
       return "Your identity was activated, but could not be saved in this browser.";
+    case "local_identity_unavailable":
+      return "Passport could not read this identity from this browser, so nothing was removed from Google Drive. Reload the page and try again.";
+    case "local_identity_not_bound":
+      return "This identity is no longer stored in this browser with this Google account, so nothing was removed from Google Drive. Reload the page and try again.";
+    case "local_unlink_failed":
+      return "Your Google Drive backup was removed, but Passport could not update this browser. Try again to finish removing Google access.";
     case "wrapping_key_failed":
       return "Passport could not unlock your encrypted identity with this Google account.";
     case "homeserver_signup_token_failed":
       return "Passport could not obtain a homeserver invitation.";
+    case "homeserver_unreachable":
+      return "The homeserver is not answering right now, so nothing was changed. Try again later.";
+    case "homeserver_invite_rejected":
+      return "The homeserver did not accept the invitation Passport received for your new identity, so nothing was saved to Google Drive. The operator of this Passport may need to check its invitations.";
     case "invalid_passport_file":
       return "Passport found your encrypted identity file in Google Drive, but it is damaged and cannot be restored.";
+    case "passport_file_undecryptable":
+      return "Passport found your encrypted identity file in Google Drive, but can no longer unlock it with this Google account.";
+    case "foreign_passport_file":
+      return "This Google account already has a Passport identity file that names another Passport site. This Passport cannot unlock it and has not changed it.";
     case "invalid_passport_file_delete_failed":
       return "Passport could not delete the invalid identity file from Google Drive. You can try deleting it again.";
     case "undecryptable_passport_file_delete_failed":
@@ -57,7 +100,6 @@ function googleIdentityErrorMessage(code: GoogleIdentityViewError["code"]): stri
       return "Could not connect to Google. Try again.";
     case "google_account_mismatch":
     case "google_drive_cleanup_failed":
-    case "local_remove_failed":
       return "Could not remove Google access. Please try again.";
     case "cancelled":
     case "operation_failed":

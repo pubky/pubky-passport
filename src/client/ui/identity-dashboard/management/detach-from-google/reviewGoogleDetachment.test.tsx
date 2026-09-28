@@ -18,7 +18,7 @@ describe("ReviewGoogleDetachment", () => {
     expect(
       screen.getByText("You are about to remove Google as a way to access your pubky identity."),
     ).toBeInTheDocument();
-    expect(screen.getByText(/This can’t be undone/)).toBeInTheDocument();
+    expect(screen.getByText(/You’ll stay signed in on this device/)).toBeInTheDocument();
     const redLine = container.querySelector('img[src$="red-line.svg"]');
     expect(redLine).toHaveClass("h-auto");
     expect(redLine).toHaveAttribute("width", "282");
