@@ -1,15 +1,15 @@
-import { useLayoutEffect, useRef } from "react";
+import { useId, useLayoutEffect, useRef } from "react";
 
 import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
-import { CheckIcon, XIcon } from "@/client/ui/shared/icons";
+import { CheckIcon, TriangleAlertIcon, XIcon } from "@/client/ui/shared/icons";
 import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
 import { SelectedIdentity } from "@/client/ui/shared/selectedIdentity";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
-import { PermissionList, PermissionRow } from "./permissionList";
+import { PermissionList } from "./permissionList";
 
 function AuthorizationReview({
   identity,
@@ -31,41 +31,53 @@ function AuthorizationReview({
   const busy = phase !== "review";
   // Ring signs with its own key, and the person picks the identity there.
   const heldInRing = identity?.keySource === "ring";
-  const hasBroadAccess = review.capabilities.some((capability) => capability.scope === "broad");
-  const requester = review.requesterName ?? review.callbackHost ?? "this service";
+  const broadAccessWarning = describeBroadAccess(review.capabilities);
+  const { callbackHost, requesterName } = review;
+  const requester = requesterName ?? callbackHost ?? "this service";
+  // The app picks its own label; the callback host is named beside it whenever the two differ.
+  const labelledHost =
+    requesterName && callbackHost && requesterName !== callbackHost ? callbackHost : undefined;
+  // Without callbacks nothing on the screen names a website, so the line under the heading says
+  // so instead; the Authorize button carries either line as its description.
+  const describesHost = labelledHost !== undefined || callbackHost === undefined;
+  const hostId = useId();
 
   return (
     <PassportScreen>
       <div className="flex flex-1 flex-col gap-6">
-        <DisplayHeading
-          accent={<FittedRequester>{requester}</FittedRequester>}
-          aria-label={`Sign in to ${requester}`}
-        >
-          Sign in to
-        </DisplayHeading>
-        {hasBroadAccess ? (
-          <p
-            className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm font-medium leading-5 text-foreground"
+        <div className="flex flex-col gap-3">
+          <DisplayHeading
+            accent={<FittedRequester>{requester}</FittedRequester>}
+            aria-label={`Sign in to ${requester}`}
+          >
+            Sign in to
+          </DisplayHeading>
+          {labelledHost ? (
+            // Wraps instead of truncating: the end of the host is the part that names its owner.
+            <p className="text-sm font-medium leading-5 text-secondary-foreground" id={hostId}>
+              Website:{" "}
+              <bdi className="font-bold text-foreground [overflow-wrap:anywhere]">
+                {labelledHost}
+              </bdi>
+            </p>
+          ) : null}
+          {callbackHost === undefined ? (
+            <p className="text-sm font-medium leading-5 text-muted-foreground" id={hostId}>
+              This request doesn&apos;t name a website. Only continue if you just started signing in
+              on another device.
+            </p>
+          ) : null}
+        </div>
+        {broadAccessWarning ? (
+          <div
+            className="flex items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm font-medium leading-5 text-foreground"
             role="alert"
           >
-            This request includes broad access that is not limited to one app namespace.
-          </p>
+            <TriangleAlertIcon className="mt-0.5 text-destructive" />
+            <p>{broadAccessWarning}</p>
+          </div>
         ) : null}
-        <PermissionList>
-          {review.capabilities.length === 0 ? (
-            <p className="text-sm font-medium text-muted-foreground">
-              No data permissions requested.
-            </p>
-          ) : (
-            review.capabilities.map((capability, index) => (
-              <PermissionRow
-                access={formatAccess(capability)}
-                key={`${capability.path}:${capability.read}:${capability.write}:${index}`}
-                path={capability.path}
-              />
-            ))
-          )}
-        </PermissionList>
+        <PermissionList capabilities={review.capabilities} />
         <SelectedIdentity identity={identity} onSwitch={onSwitch} disabled={busy} />
         {heldInRing ? (
           <p className="text-sm font-medium leading-5 text-muted-foreground">
@@ -75,7 +87,10 @@ function AuthorizationReview({
         <p className="break-words text-sm font-medium leading-5 text-muted-foreground">
           Make sure you trust this service, browser, or device before authorizing with your pubky.{" "}
           <strong className="font-bold text-foreground">
-            {describeAuthorizationEffect(review.capabilities, requester)}
+            {describeAuthorizationEffect(
+              review.capabilities,
+              labelledHost ? `${requester} (${labelledHost})` : requester,
+            )}
           </strong>
         </p>
         {phase === "granting" ? (
@@ -100,6 +115,7 @@ function AuthorizationReview({
           className="mt-auto md:mt-0"
           confirm={
             <Button
+              aria-describedby={describesHost ? hostId : undefined}
               className="w-full"
               disabled={busy || !identity}
               onClick={onAuthorize}
@@ -212,6 +228,32 @@ function authorizationButtonLabel(
   return "Authorize";
 }
 
+/**
+ * The warning for broad capabilities, scaled to the widest one requested: the root (or both
+ * halves) reaches all of the person's data, `/pub/` or `/priv/` every app's folder on that side.
+ */
+function describeBroadAccess(
+  capabilities: AuthorizationRequestReview["capabilities"],
+): string | undefined {
+  const broadPaths = new Set(
+    capabilities
+      .filter((capability) => capability.scope === "broad")
+      .map((capability) => capability.path),
+  );
+  if (broadPaths.has("/") || (broadPaths.has("/pub/") && broadPaths.has("/priv/"))) {
+    return "This app asks for access to all your data, public and private.";
+  }
+  if (broadPaths.has("/pub/")) {
+    return "This app asks for all your public data, including the folders other apps keep for you.";
+  }
+  if (broadPaths.has("/priv/")) {
+    return "This app asks for all your private data, including the folders other apps keep for you.";
+  }
+  return broadPaths.size > 0
+    ? "This app asks for more than its own folder. It could reach the data other apps keep for you."
+    : undefined;
+}
+
 function describeAuthorizationEffect(
   capabilities: AuthorizationRequestReview["capabilities"],
   requester: string,
@@ -225,12 +267,6 @@ function describeAuthorizationEffect(
   if (canRead) return `Authorizing will allow ${requester} to read your data.`;
   if (canWrite) return `Authorizing will allow ${requester} to update your data.`;
   return "This request does not ask for data access.";
-}
-
-function formatAccess(capability: AuthorizationRequestReview["capabilities"][number]): string {
-  if (capability.read && capability.write) return "Read,write";
-  if (capability.write) return "Write";
-  return "Read";
 }
 
 export { AuthorizationReview };

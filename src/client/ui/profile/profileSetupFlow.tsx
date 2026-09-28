@@ -242,7 +242,7 @@ function ProfileEditor({
                 <Label htmlFor="profile-bio">Bio</Label>
                 <textarea
                   id="profile-bio"
-                  className="min-h-26 w-full resize-y rounded-lg border border-dashed border-input bg-black/10 px-5 py-4 text-base leading-6 placeholder:text-muted-foreground focus-visible:outline-ring"
+                  className="min-h-26 w-full resize-y rounded-lg border border-dashed border-input bg-black/10 px-5 py-4 text-base leading-6 placeholder:text-muted-foreground"
                   placeholder="Tell a bit about yourself."
                   value={draft.bio}
                   onChange={(event) => setDraft({ ...draft, bio: event.target.value })}
@@ -360,7 +360,7 @@ function ProfileEditor({
                   <TrashIcon /> Delete
                 </Button>
               ) : (
-                <label className="relative flex h-8 cursor-pointer items-center gap-2 rounded-full bg-secondary px-3 text-xs font-bold text-secondary-foreground focus-within:ring-3 focus-within:ring-ring/50">
+                <label className="relative flex h-8 cursor-pointer items-center gap-2 rounded-full bg-secondary px-3 text-xs font-bold text-secondary-foreground has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-foreground">
                   <Image alt="" src="/icons/profile-file.svg" width={16} height={16} /> Choose file
                   <input
                     aria-label="Choose avatar file"

@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { Result } from "better-result";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -176,7 +176,12 @@ describe("UniversalSignerFlow with an authorization request", () => {
     );
     expect(screen.getAllByLabelText("Signing in to requesting.app")).toHaveLength(1);
     expect(screen.getByText("/pub/requesting.app/")).toBeInTheDocument();
-    expect(screen.getByText("Read,write").parentElement).toHaveClass("min-h-5", "items-center");
+    const permissions = screen.getByRole("list", { name: "Requested permissions" });
+    expect(
+      within(permissions)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual(["/pub/requesting.app/, Read & write", "/pub/paykit/, Read only"]);
     expect(screen.getByText("First User")).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -230,7 +235,9 @@ describe("UniversalSignerFlow with an authorization request", () => {
       await screen.findByRole("heading", { name: "Sign in to Trusted App" }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Signing in to trusted.example")).toBeInTheDocument();
-    expect(screen.getByText(/allow Trusted App to read and update your data/u)).toBeInTheDocument();
+    expect(
+      screen.getByText(/allow Trusted App \(trusted\.example\) to read and update your data/u),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText("Signing in to Trusted App")).not.toBeInTheDocument();
   });
 
@@ -361,7 +368,9 @@ describe("UniversalSignerFlow with an authorization request", () => {
 
     renderFlow();
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/broad access/u);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This app asks for access to all your data, public and private.",
+    );
   });
 
   it("lists permissions in the requested order", async () => {

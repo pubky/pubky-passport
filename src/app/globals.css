@@ -78,6 +78,17 @@
   * {
     border-color: var(--border);
   }
+
+  /*
+   * One focus indicator for every control: a solid outline in the text colour, drawn outside the
+   * control so its own border keeps its colour. Outlines also survive forced-colours mode, where
+   * box-shadow rings disappear. Elements that take focus only programmatically opt out with
+   * `outline-none`.
+   */
+  :focus-visible {
+    outline: 2px solid var(--foreground);
+    outline-offset: 2px;
+  }
 }
 
 body {
@@ -87,6 +98,8 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  /* Inter Tight's contextual alternates draw an x between two digits as "×" in keys and invoices. */
+  font-variant-ligatures: no-contextual;
 }
 
 body:has([data-passport-context-band]) {
@@ -132,15 +145,10 @@ body:has([data-passport-context-band]) {
     text-decoration-line: underline;
     text-decoration-color: color-mix(in oklab, var(--brand) 40%, transparent);
     text-underline-offset: 4px;
-    outline: none;
   }
 
   .legal-document a:hover {
     text-decoration-color: var(--brand);
-  }
-
-  .legal-document a:focus-visible {
-    box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
   }
 
   .legal-document strong {

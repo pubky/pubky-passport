@@ -1,5 +1,9 @@
 import { LogInIcon } from "./icons";
 
+/**
+ * Names who a request comes from. A long `requester` is cut at its start, never its end: the end
+ * of a host name is its registrable domain, the part that says who really asks.
+ */
 export function RequestContextBand({ label, requester }: { label: string; requester: string }) {
   return (
     <aside
@@ -8,8 +12,12 @@ export function RequestContextBand({ label, requester }: { label: string; reques
       data-passport-context-band=""
     >
       <LogInIcon />
-      <span className="min-w-0 truncate">
-        {label} <bdi className="font-bold">{requester}</bdi>
+      <span className="shrink-0">{label}</span>
+      {/* Right-to-left only moves the ellipsis to the start; the host itself reads left to right. */}
+      <span className="min-w-0 truncate text-left" dir="rtl" title={requester}>
+        <bdi className="font-bold" dir="ltr">
+          {requester}
+        </bdi>
       </span>
     </aside>
   );

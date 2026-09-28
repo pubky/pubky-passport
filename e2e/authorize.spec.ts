@@ -110,6 +110,141 @@ test("keeps a long requester name inside the viewport on desktop breakpoints", a
   }
 });
 
+test("names a look-alike callback host in full and keeps its end visible in the band", async ({
+  page,
+}) => {
+  const host = "accounts.google.com.sign-in.secure-verify.attacker.example";
+  await installLocalIdentityFixture(page);
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 1280, height: 800 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("about:blank");
+    await page.goto(
+      authorizationUrl(
+        authorizationRequest(`${RELAY_ORIGIN}/inbox`, "cookie", "Google", {
+          callbackOrigin: `https://${host}`,
+        }),
+      ),
+    );
+    await chooseSavedIdentity(page);
+    await page.evaluate(async () => document.fonts.ready);
+
+    await expect(page.getByRole("heading", { name: "Sign in to Google" })).toBeVisible();
+    await expect(page.getByText(`Website: ${host}`, { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Authorize", exact: true }),
+    ).toHaveAccessibleDescription(`Website: ${host}`);
+    await expect(page.getByText(`allow Google (${host}) to read and update`)).toBeVisible();
+
+    // The band truncates from the start: the registrable domain at the end stays inside the clip.
+    const band = page.getByLabel(`Signing in to ${host}`);
+    const tail = await band.getByTitle(host).evaluate((clip, suffix) => {
+      const text = clip.querySelector("bdi")!.firstChild!;
+      const range = document.createRange();
+      range.setStart(text, text.textContent!.length - suffix.length);
+      range.setEnd(text, text.textContent!.length);
+      const visible = clip.getBoundingClientRect();
+      const end = range.getBoundingClientRect();
+      return { left: end.left - visible.left, right: visible.right - end.right };
+    }, "attacker.example");
+    expect(tail.left).toBeGreaterThanOrEqual(-1);
+    expect(tail.right).toBeGreaterThanOrEqual(-1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      viewport.width,
+    );
+  }
+});
+
+test("says so when a request names no website instead of trusting its label alone", async ({
+  page,
+}) => {
+  await installLocalIdentityFixture(page);
+  await page.goto(
+    authorizationUrl(
+      authorizationRequest(`${RELAY_ORIGIN}/inbox`, "cookie", "Google", { callbackOrigin: null }),
+    ),
+  );
+  await chooseSavedIdentity(page);
+
+  const notice =
+    "This request doesn't name a website. Only continue if you just started signing in on another device.";
+  await expect(page.getByRole("heading", { name: "Sign in to Google" })).toBeVisible();
+  await expect(page.getByText(notice, { exact: true })).toBeVisible();
+  await expect(page.getByText(/^Website:/u)).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Authorize", exact: true }),
+  ).toHaveAccessibleDescription(notice);
+});
+
+test("lists requested permissions with spelled-out access and flags broad rows", async ({
+  page,
+}) => {
+  await installLocalIdentityFixture(page);
+  await page.goto(
+    authorizationUrl(
+      authorizationRequest(`${RELAY_ORIGIN}/inbox`, "cookie", SOURCE_NAME, {
+        capabilities: "/pub/example.app/:rw,/pub/:r",
+      }),
+    ),
+  );
+  await chooseSavedIdentity(page);
+
+  await expect(page.locator("main").getByRole("alert")).toHaveText(
+    "This app asks for all your public data, including the folders other apps keep for you.",
+  );
+  const permissions = page.getByRole("list", { name: "Requested permissions" });
+  await expect(permissions.getByRole("listitem")).toHaveText([
+    "/pub/example.app/, Read & write",
+    "Broad access: /pub/, Read only",
+  ]);
+  const [scoped, broad, text] = await permissions
+    .getByRole("listitem")
+    .evaluateAll((items) => [
+      ...items.map((item) => getComputedStyle(item.querySelector("bdi")!).color),
+      getComputedStyle(document.body).color,
+    ]);
+  expect(scoped).toBe(text);
+  expect(broad).not.toBe(text);
+});
+
+test("keyboard focus on Authorize draws a solid outline and keeps the brand border", async ({
+  page,
+}) => {
+  await installLocalIdentityFixture(page);
+  await page.goto(authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`)));
+  await chooseSavedIdentity(page);
+  const authorize = page.getByRole("button", { name: "Authorize", exact: true });
+
+  for (let presses = 0; presses < 20; presses += 1) {
+    if (await authorize.evaluate((element) => element === document.activeElement)) break;
+    await page.keyboard.press("Tab");
+  }
+  await expect(authorize).toBeFocused();
+  // Polled: the outline colour eases in with the button's colour transition.
+  await expect
+    .poll(() =>
+      authorize.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          border: style.borderTopColor,
+          textColored: style.outlineColor === getComputedStyle(document.body).color,
+          offset: style.outlineOffset,
+          style: style.outlineStyle,
+          width: style.outlineWidth,
+        };
+      }),
+    )
+    .toEqual({
+      border: "rgb(200, 255, 0)",
+      textColored: true,
+      offset: "2px",
+      style: "solid",
+      width: "2px",
+    });
+});
+
 test("scrubs a valid request and renders only safe review data", async ({ page, request }) => {
   const url = authorizationUrl(
     authorizationRequest(`${RELAY_ORIGIN}/${RELAY_PATH_CANARY}?region=eu`),
@@ -552,29 +687,29 @@ function authorizationRequest(
   relay: string,
   authenticationMethod: "cookie" | "grant" = "cookie",
   source: string | null = SOURCE_NAME,
+  {
+    callbackOrigin = "https://client.example",
+    capabilities = "/pub/example.app/:rw",
+  }: { callbackOrigin?: string | null; capabilities?: string } = {},
 ): string {
   const request = new URL(
     `pubkyauth://${authenticationMethod === "grant" ? "signin_grant" : "signin"}`,
   );
-  request.searchParams.set("caps", "/pub/example.app/:rw");
+  request.searchParams.set("caps", capabilities);
   request.searchParams.set("relay", relay);
   request.searchParams.set("secret", SENSITIVE_SECRET);
   if (authenticationMethod === "grant") {
     request.searchParams.set("cid", GRANT_CLIENT_ID);
     request.searchParams.set("cpk", GRANT_CLIENT_PUBLIC_KEY);
   }
-  request.searchParams.set(
-    "x-success",
-    `https://client.example/authorization-success?${CALLBACK_QUERY_CANARY}`,
-  );
-  request.searchParams.set(
-    "x-error",
-    `https://client.example/authorization-error?${CALLBACK_QUERY_CANARY}`,
-  );
-  request.searchParams.set(
-    "x-cancel",
-    `https://client.example/authorization-cancel?${CALLBACK_QUERY_CANARY}`,
-  );
+  if (callbackOrigin !== null) {
+    for (const outcome of ["success", "error", "cancel"]) {
+      request.searchParams.set(
+        `x-${outcome}`,
+        `${callbackOrigin}/authorization-${outcome}?${CALLBACK_QUERY_CANARY}`,
+      );
+    }
+  }
   return source === null ? request.href : `${request.href}&x-source=${encodeURIComponent(source)}`;
 }
 

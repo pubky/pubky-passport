@@ -165,7 +165,7 @@ export function InviteCodeStep({
             onChange={(event) => setCode(event.target.value)}
             aria-invalid={rejected || undefined}
             aria-describedby={check === "idle" ? undefined : "invite-code-status"}
-            containerClassName={`h-14 border-dashed px-4 ${verified ? "border-brand focus-within:border-brand" : ""}`}
+            containerClassName={`h-14 border-dashed px-4 ${verified ? "border-brand" : ""}`}
             className={verified ? "text-brand" : ""}
             action={verified ? <CircleCheckIcon className="text-brand" size={20} /> : undefined}
           />

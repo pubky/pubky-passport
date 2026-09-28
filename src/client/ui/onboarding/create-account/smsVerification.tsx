@@ -65,7 +65,7 @@ export function PhoneNumberStep({
             value={phoneNumber}
             maxLength={32}
             disabled={pending}
-            containerClassName={`h-14 border-dashed px-4 ${valid ? "border-brand text-brand focus-within:border-brand focus-within:ring-brand/20" : ""}`}
+            containerClassName={`h-14 border-dashed px-4 ${valid ? "border-brand text-brand" : ""}`}
             className={valid ? "text-brand" : ""}
             action={valid ? <CircleCheckIcon className="text-brand" size={20} /> : undefined}
             aria-describedby={error ? "phone-help phone-error" : "phone-help"}
@@ -178,10 +178,10 @@ export function SmsCodeStep({
                     error && "border-destructive",
                     !pending &&
                       index === Math.min(cursorPosition, code.length, 5) && [
-                        "group-focus-within/sms-code:border-solid group-focus-within/sms-code:ring-2",
+                        "group-focus-within/sms-code:border-solid group-focus-within/sms-code:outline-2 group-focus-within/sms-code:outline-offset-2 group-focus-within/sms-code:outline-foreground",
                         error
-                          ? "group-focus-within/sms-code:border-destructive group-focus-within/sms-code:ring-destructive/20"
-                          : "group-focus-within/sms-code:border-brand group-focus-within/sms-code:ring-brand/20",
+                          ? "group-focus-within/sms-code:border-destructive"
+                          : "group-focus-within/sms-code:border-brand",
                       ],
                   )}
                 >

@@ -1,11 +1,18 @@
 import { mockPublicProfile, seedProfileIdentity } from "./helpers/pubkyProfile";
 import AxeBuilder from "@axe-core/playwright";
+import { storeLocalIdentities } from "./helpers/localIdentities";
 import { expect, test, type Page } from "./helpers/passportTest";
 
 const FIRST_KEY = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
 const SECOND_KEY = "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo";
 const SECRET_KEY = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE";
 const STORAGE_ROOT = "pubky-passport/local-identities/v1";
+const GOOGLE_EXPLAINER = "Continue with Google, powered by Pubky Passport.";
+const PASSPORT_README = "https://github.com/pubky/pubky-passport/blob/main/README.md";
+
+function centreOf(box: { x: number; y: number; width: number; height: number }) {
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
 
 async function seedLocalIdentity(page: Page) {
   await page.addInitScript(
@@ -110,6 +117,141 @@ test("brand border utilities override the neutral base border", async ({ page })
   expect(await continueButton.evaluate((element) => getComputedStyle(element).borderColor)).toBe(
     "rgb(200, 255, 0)",
   );
+});
+
+test("keys draw an x between two digits as the letter, not as a multiplication sign", async ({
+  page,
+}) => {
+  // z-base-32 keys mix letters and digits; this one contains "9x6" twice.
+  const key = "p37b3zjjsn5a9wj46uniud9x6uz1ifaspa6kphzr9x6c5ynomxao";
+  await page.goto("/");
+  await storeLocalIdentities(page, [{ publicKeyZ32: key }], { active: key });
+  await page.reload();
+  await page.getByRole("button", { name: "Manage identity" }).click();
+  const value = page.getByText(key, { exact: true });
+  await expect(value).toBeVisible();
+  await page.evaluate(async () => document.fonts.ready);
+
+  const rendering = await value.evaluate((element) => {
+    const widthOf = (fontFeatureSettings: string) => {
+      const probe = document.createElement("span");
+      probe.textContent = "9x6";
+      probe.style.fontFeatureSettings = fontFeatureSettings;
+      element.append(probe);
+      const { width } = probe.getBoundingClientRect();
+      probe.remove();
+      return width;
+    };
+    return {
+      ligatures: getComputedStyle(element).fontVariantLigatures,
+      rendered: widthOf(""),
+      withoutAlternates: widthOf('"calt" 0'),
+    };
+  });
+  expect(rendering.ligatures).toBe("no-contextual");
+  expect(rendering.rendered).toBe(rendering.withoutAlternates);
+});
+
+test("the Google explainer opens inside the window at every desktop width", async ({ page }) => {
+  const height = 900;
+  for (const width of [768, 1024, 1440, 1920]) {
+    await page.setViewportSize({ width, height });
+    await page.goto("/");
+    const help = page.getByRole("button", { name: "About signing in with Google" });
+    await help.click();
+    const panel = page.getByRole("dialog", { name: GOOGLE_EXPLAINER });
+    await expect(panel).toBeVisible();
+
+    const box = await panel.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width,
+    );
+    // Beside or above the pill the panel is placed only where it fits, so it stays in the window
+    // vertically too; below is also the fallback when nothing fits.
+    const placement = await panel.locator("..").getAttribute("data-placement");
+    expect(box!.y).toBeGreaterThanOrEqual(0);
+    if (placement !== "below") expect(box!.y + box!.height).toBeLessThanOrEqual(height);
+
+    await help.focus();
+    await page.keyboard.press("Tab");
+    const learnMore = panel.getByRole("link", { name: "Learn more" });
+    await expect(learnMore).toBeFocused();
+    const linkBox = await learnMore.boundingBox();
+    expect(linkBox!.x).toBeGreaterThanOrEqual(0);
+    expect(linkBox!.x + linkBox!.width).toBeLessThanOrEqual(width);
+  }
+});
+
+for (const viewport of [
+  { width: 1440, height: 900 },
+  { width: 1920, height: 1080 },
+]) {
+  test(`the Google explainer stays open while the pointer crosses the pill to it at ${viewport.width}px`, async ({
+    context,
+    page,
+  }) => {
+    await context.route(`${PASSPORT_README}*`, (route) =>
+      route.fulfill({ body: "<title>README</title>", contentType: "text/html" }),
+    );
+    await page.setViewportSize(viewport);
+    await page.goto("/");
+    const mark = page.getByRole("button", { name: "About signing in with Google" });
+    await mark.hover();
+    const panel = page.getByRole("dialog", { name: GOOGLE_EXPLAINER });
+    await expect(panel).toBeVisible();
+    // The regression case: the panel opens on the pill's far side from the mark.
+    await expect(panel.locator("..")).toHaveAttribute("data-placement", "left");
+    const learnMore = panel.getByRole("link", { name: "Learn more" });
+    const from = centreOf((await mark.boundingBox())!);
+    const to = centreOf((await learnMore.boundingBox())!);
+
+    // A straight line at about 1px/ms, which leaves the pill well before it reaches the panel.
+    const steps = Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / 16);
+    for (let step = 1; step <= steps; step += 1) {
+      await page.mouse.move(
+        from.x + ((to.x - from.x) * step) / steps,
+        from.y + ((to.y - from.y) * step) / steps,
+      );
+      await page.waitForTimeout(16);
+    }
+
+    await expect(panel).toBeVisible();
+    const readme = context.waitForEvent("page");
+    await learnMore.click();
+    await expect(await readme).toHaveURL(PASSPORT_README);
+  });
+}
+
+test("a focused text field is outlined, and its actions are outlined on their own", async ({
+  page,
+}) => {
+  await seedLocalIdentity(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Authorize an app" }).click();
+  const field = page.getByRole("textbox", { name: "Authorization link" });
+  const container = field.locator("..");
+  const outline = () =>
+    container.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return `${style.outlineStyle} ${style.outlineWidth}`;
+    });
+
+  await field.focus();
+  expect(await outline()).toBe("solid 2px");
+
+  // Focus moves to the field's own scan or paste button, which carries the outline instead.
+  await page.keyboard.press("Tab");
+  const actionFocused = await container.evaluate((element) => {
+    const focused = document.activeElement;
+    return focused instanceof HTMLButtonElement && element.contains(focused)
+      ? getComputedStyle(focused).outlineStyle
+      : null;
+  });
+  expect(actionFocused).toBe("solid");
+  expect(await outline()).not.toBe("solid 2px");
 });
 
 test("camera denial is contained in an accessible dialog", async ({ page }) => {

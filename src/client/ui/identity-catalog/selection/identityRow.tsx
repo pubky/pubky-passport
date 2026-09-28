@@ -30,7 +30,7 @@ function IdentityRow({
     <button
       aria-pressed={selected}
       className={cn(
-        "group flex min-h-18 w-full items-center gap-2 rounded-2xl border border-transparent bg-card p-4 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:border-brand/64",
+        "group flex min-h-18 w-full items-center gap-2 rounded-2xl border border-transparent bg-card p-4 text-left transition-colors hover:bg-accent aria-pressed:border-brand/64",
         className,
       )}
       type="button"
