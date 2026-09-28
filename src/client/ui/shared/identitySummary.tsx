@@ -4,12 +4,15 @@ import { cn } from "./mergeClassNames";
 import { Avatar } from "./primitives/avatar";
 
 export function IdentitySummary({
+  attachment,
   avatarSrc,
   badge,
   detail,
   detailClassName,
   name,
 }: {
+  /** Rendered under the detail line, e.g. an attached Google account. */
+  attachment?: ReactNode | undefined;
   avatarSrc?: string | undefined;
   badge?: ReactNode | undefined;
   detail: string;
@@ -36,6 +39,7 @@ export function IdentitySummary({
         >
           {detail}
         </span>
+        {attachment ? <span className="mt-1 flex min-w-0">{attachment}</span> : null}
       </span>
     </>
   );

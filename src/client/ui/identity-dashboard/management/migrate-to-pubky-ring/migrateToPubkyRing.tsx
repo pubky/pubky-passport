@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { Result } from "better-result";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -134,7 +133,7 @@ function MigrateToPubkyRing({
         <LeadText>Install a supported keychain app to self-manage your pubky identity.</LeadText>
       </div>
 
-      <section className="flex w-full flex-col gap-6 rounded-2xl bg-card p-6 md:flex-row md:p-12">
+      <section className="flex w-full flex-col gap-6 rounded-lg bg-card p-6 md:flex-row md:p-8">
         <div className="flex min-w-0 flex-1 flex-col gap-6 md:justify-center">
           <div className="flex justify-center md:justify-start">
             <PubkyRingLogo />
@@ -180,14 +179,6 @@ function MigrateToPubkyRing({
           <PubkyRingQrCode className="size-48 shrink-0" migration={state.migration} />
         ) : null}
       </section>
-
-      <Image
-        alt=""
-        className="mx-auto size-50 md:hidden"
-        height={200}
-        src="/illustrations/keychain.png"
-        width={200}
-      />
 
       {navigationAction === "back" ? (
         <PassportNavigation back={<BackButton onClick={back} />} />

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
-import { CheckIcon, DownloadIcon, KeyRoundIcon } from "@/client/ui/shared/icons";
+import { CheckIcon, DownloadIcon, ScanIcon } from "@/client/ui/shared/icons";
+import { OnboardingCard } from "@/client/ui/shared/onboardingCard";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
@@ -33,17 +34,18 @@ function RecoveryBeforeDetaching({
           If you remove Google as a way to access your pubky identity, you need a backup to restore
           account access.
         </LeadText>
-        <section className="flex flex-col gap-3 pt-6 md:mt-5 md:pt-0">
-          <p className="text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">
-            Choose backup method
+        <OnboardingCard illustration="/illustrations/backup-shield.png" className="mt-3">
+          <h2 className="text-xl font-bold leading-7">Choose backup method</h2>
+          <p className="text-base leading-6 text-secondary-foreground">
+            Safely back up your pubky before disconnecting Google.
           </p>
-          <RecoveryMethodButton icon={<KeyRoundIcon />} onClick={onMigrateToKeychain}>
+          <RecoveryMethodButton icon={<ScanIcon />} onClick={onMigrateToKeychain}>
             Migrate to keychain
           </RecoveryMethodButton>
           <RecoveryMethodButton icon={<DownloadIcon />} onClick={onDownloadRecoveryFile}>
             Download encrypted backup
           </RecoveryMethodButton>
-        </section>
+        </OnboardingCard>
       </div>
 
       <PassportNavigation
