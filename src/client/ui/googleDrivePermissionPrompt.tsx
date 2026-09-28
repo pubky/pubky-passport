@@ -2,9 +2,8 @@ import Image from "next/image";
 
 import { RotateCcwIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
-import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { ErrorScreen } from "@/client/ui/shared/errorScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 
 const PERMISSION_COPY = {
   required:
@@ -27,31 +26,27 @@ function GoogleDrivePermissionPrompt({
   onTryAgain: () => void;
 }) {
   return (
-    <PassportScreen className="gap-6 md:max-w-[558px] md:gap-8">
-      <div className="flex flex-col gap-6 md:gap-3">
-        <DisplayHeading accent={mode === "optional" ? "optional." : "required."}>
-          Drive access
-        </DisplayHeading>
-        <LeadText>{PERMISSION_COPY[mode]}</LeadText>
-      </div>
-
-      <GooglePermissionGuide />
-
-      <div className="mt-auto flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <BackButton onClick={onBack} />
-        <div className="flex flex-col gap-3 md:flex-row">
-          {mode === "optional" && onContinue ? (
-            <Button onClick={onContinue} size="lg" type="button" variant="secondary">
-              Continue without visible backup
-            </Button>
-          ) : null}
-          <Button onClick={onTryAgain} size="lg" type="button">
-            <RotateCcwIcon />
-            Try again
+    <ErrorScreen
+      accent={mode === "optional" ? "optional." : "required."}
+      action={
+        <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
+          <RotateCcwIcon />
+          Try again
+        </Button>
+      }
+      back={<BackButton onClick={onBack} />}
+      cause={PERMISSION_COPY[mode]}
+      secondaryAction={
+        mode === "optional" && onContinue ? (
+          <Button onClick={onContinue} size="lg" type="button" variant="ghost">
+            Continue without visible backup
           </Button>
-        </div>
-      </div>
-    </PassportScreen>
+        ) : null
+      }
+      title="Drive access"
+    >
+      <GooglePermissionGuide />
+    </ErrorScreen>
   );
 }
 

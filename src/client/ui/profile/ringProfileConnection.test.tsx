@@ -92,11 +92,20 @@ describe("RingProfileConnection", () => {
     const ring = controller();
     ring.poll.mockResolvedValueOnce(Result.err({ code }));
     mount(ring);
-    expect(await screen.findByRole("alert")).toHaveTextContent(message);
-    expect(screen.getByRole("alert")).not.toHaveTextContent("Could not connect to Ring");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(message);
+    expect(alert).not.toHaveTextContent("Could not connect to Ring");
+    // The failure takes focus, and the recovery is the primary action beside Back.
+    expect(alert).toHaveFocus();
+    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([
+      "Back",
+      "Try again",
+    ]);
     await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
     await waitFor(() => expect(ring.start).toHaveBeenCalledTimes(2));
     expect(ring.dispose).toHaveBeenCalledOnce();
+    // Try again is gone once Ring waits again; focus moves to the wait, not the page.
+    expect(await screen.findByText("Waiting for approval in Ring…")).toHaveFocus();
   });
 
   it("explains a request that could not be created before polling", async () => {

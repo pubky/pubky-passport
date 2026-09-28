@@ -77,11 +77,12 @@ test("local signup sends nothing while its homeserver is unreachable and retries
   await page.getByRole("button", { name: "Download encrypted backup" }).click();
   await page.getByRole("button", { name: "Skip verification" }).click();
 
-  await expect(page.getByRole("heading", { name: "Setup interrupted." })).toBeVisible({
-    timeout: 15_000,
-  });
-  await expect(page.getByRole("main").getByRole("alert")).toContainText(
-    "could not reach this invite's homeserver, so nothing was submitted",
+  const interrupted = page.getByRole("heading", { name: "Setup interrupted." });
+  await expect(interrupted).toBeVisible({ timeout: 15_000 });
+  // The failure screen focuses its heading, which is described by the cause.
+  await expect(interrupted).toBeFocused();
+  await expect(interrupted).toHaveAccessibleDescription(
+    /could not reach this invite's homeserver, so nothing was submitted/u,
   );
   // Only the read-only invite lookup was tried: no signup, no record, and the invite stays unsubmitted.
   expect(events).toEqual([]);

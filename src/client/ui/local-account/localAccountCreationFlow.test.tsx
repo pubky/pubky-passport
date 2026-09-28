@@ -131,8 +131,12 @@ describe("LocalAccountCreationFlow", () => {
     const { onBack, onAbandon } = renderFlow(controller);
     const user = userEvent.setup();
     await downloadAndSkip(user);
-    expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toHaveFocus();
-    expect(screen.getByRole("alert")).toHaveTextContent("Account state is uncertain");
+    const heading = await screen.findByRole("heading", { name: "Setup interrupted." });
+    // Focus lands on the heading, which is described by the cause, so both are announced.
+    expect(heading).toHaveFocus();
+    expect(heading).toHaveAccessibleDescription(/Account state is uncertain/u);
+    expect(screen.getByText("Your pubky")).toBeVisible();
+    expect(screen.getByText("signin_failed")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry with this key" })).toBeEnabled();
 
     await user.click(screen.getByRole("button", { name: "Start over" }));
@@ -190,8 +194,10 @@ describe("LocalAccountCreationFlow", () => {
     const { onAbandon, onBack } = renderFlow(controller);
     const user = userEvent.setup();
     await downloadAndSkip(user);
-    expect(await screen.findByRole("heading", { name: "Invite rejected." })).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent("rejected this invite");
+    const heading = await screen.findByRole("heading", { name: "Invite rejected." });
+    expect(heading).toHaveAccessibleDescription(/rejected this invite/u);
+    // The key owns nothing and is about to be discarded, so it is not shown.
+    expect(screen.queryByText("Your pubky")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry with this key" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Start over" })).not.toBeInTheDocument();
     // Going back would lead to verifying and resubmitting the rejected invite.
@@ -212,8 +218,9 @@ describe("LocalAccountCreationFlow", () => {
     });
     renderFlow(controller);
     await downloadAndSkip(userEvent.setup());
-    expect(await screen.findByRole("alert")).toHaveTextContent("nothing was submitted");
-    expect(screen.getByRole("alert")).not.toHaveTextContent("was verified");
+    const heading = await screen.findByRole("heading", { name: "Setup interrupted." });
+    expect(heading).toHaveAccessibleDescription(/nothing was submitted/u);
+    expect(heading).not.toHaveAccessibleDescription(/was verified/u);
   });
 
   it("offers a retry or a plain start over when a first attempt could not reach the homeserver", async () => {
@@ -226,11 +233,10 @@ describe("LocalAccountCreationFlow", () => {
     const { onAbandon, onBack } = renderFlow(controller);
     const user = userEvent.setup();
     await downloadAndSkip(user);
-    expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
-    const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent("could not reach this invite's homeserver");
-    expect(alert).toHaveTextContent("nothing was submitted");
-    expect(alert).not.toHaveTextContent("uncertain");
+    const heading = await screen.findByRole("heading", { name: "Setup interrupted." });
+    expect(heading).toHaveAccessibleDescription(/could not reach this invite's homeserver/u);
+    expect(heading).toHaveAccessibleDescription(/nothing was submitted/u);
+    expect(heading).not.toHaveAccessibleDescription(/uncertain/u);
 
     await user.click(screen.getByRole("button", { name: "Retry with this key" }));
     expect(controller.registerAccount).toHaveBeenCalledTimes(2);
@@ -252,10 +258,10 @@ describe("LocalAccountCreationFlow", () => {
     const { onAbandon } = renderFlow(controller);
     const user = userEvent.setup();
     await downloadAndSkip(user);
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("could not reach this invite's homeserver");
-    expect(alert).toHaveTextContent("this attempt sent nothing");
-    expect(alert).not.toHaveTextContent("nothing was submitted");
+    const heading = await screen.findByRole("heading", { name: "Setup interrupted." });
+    expect(heading).toHaveAccessibleDescription(/could not reach this invite's homeserver/u);
+    expect(heading).toHaveAccessibleDescription(/this attempt sent nothing/u);
+    expect(heading).not.toHaveAccessibleDescription(/nothing was submitted/u);
 
     await user.click(screen.getByRole("button", { name: "Start over" }));
     expect(screen.getByText(/may already own an account/u)).toBeVisible();

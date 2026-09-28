@@ -125,7 +125,10 @@ describe("HomeserverRecord", () => {
     expect(screen.getByRole("button", { name: "Republish homeserver" })).toHaveFocus();
     fireEvent.click(screen.getByRole("button", { name: "Republish homeserver" }));
     fireEvent.click(screen.getByRole("button", { name: "Publish record" }));
-    expect(screen.getByRole("button", { name: "Republishing…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Republishing…" })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
 
     expect(await screen.findByRole("status")).toHaveTextContent("Homeserver record republished.");
     expect(republishHomeserver).toHaveBeenCalledExactlyOnceWith(PUBLIC_KEY, PROVIDER_HOMESERVER);

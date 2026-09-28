@@ -9,6 +9,7 @@ import {
 import { usePassportCollaborators } from "@/client/ui/passportCollaborators";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { ArrowRightIcon, CircleCheckIcon } from "@/client/ui/shared/icons";
+import { Notice } from "@/client/ui/shared/notice";
 import { OnboardingCard } from "@/client/ui/shared/onboardingCard";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { Button } from "@/client/ui/shared/primitives/button";
@@ -180,11 +181,7 @@ export function InviteCodeStep({
             </FieldMessage>
           )}
         </OnboardingCard>
-        {error ? (
-          <FieldMessage error role="alert">
-            {error}
-          </FieldMessage>
-        ) : null}
+        {error ? <Notice tone="error">{error}</Notice> : null}
         <PassportNavigation
           className="mt-auto md:mt-0"
           back={<BackButton onClick={onBack} />}

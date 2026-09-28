@@ -57,9 +57,11 @@ describe("PermissionList", () => {
 
     const [scoped, broad] = within(list!).getAllByRole("listitem");
     expect(broad).toHaveTextContent("Broad access: /, Read & write");
-    expect(broad!.querySelector("bdi")).toHaveClass("text-destructive");
-    expect(scoped!.querySelector("bdi")).not.toHaveClass("text-destructive");
-    expect(screen.getByRole("heading").closest("section")).toHaveClass("border-destructive/40");
+    expect(broad!.querySelector("bdi")).toHaveClass("text-destructive-text");
+    expect(scoped!.querySelector("bdi")).not.toHaveClass("text-destructive-text");
+    expect(screen.getByRole("heading").closest("section")).toHaveClass(
+      "border-destructive-text/40",
+    );
   });
 
   it("offers line breaks after each slash and dot instead of breaking inside names", () => {

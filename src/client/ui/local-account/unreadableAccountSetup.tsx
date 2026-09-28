@@ -4,12 +4,11 @@ import { Result, type Result as ResultType } from "better-result";
 import { useState } from "react";
 
 import { LocalAccountDraftRepository } from "@/client/logic/local-account/LocalAccountDraftRepository";
-import { SignupStep } from "@/client/ui/onboarding/create-account/signupStep";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { ConfirmDeletionDialog } from "@/client/ui/shared/confirmDeletionDialog";
-import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
+import { ErrorScreen } from "@/client/ui/shared/errorScreen";
+import { TrashIcon } from "@/client/ui/shared/icons";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 
 /**
  * Shown when the saved account setup cannot be read. Its key may already own an account, so the
@@ -39,28 +38,28 @@ export function UnreadableAccountSetup({
 
   return (
     <>
-      <SignupStep
-        title="Setup"
+      <ErrorScreen
         accent="unavailable."
-        description="Passport could not read your saved account setup."
-      >
-        <FieldMessage error role="alert">
-          Your saved key has been kept. Go back and try again.
-        </FieldMessage>
-        {removable ? (
-          <Button
-            className="self-start"
-            onClick={() => {
-              setError(undefined);
-              setConfirming(true);
-            }}
-            variant="ghost"
-          >
-            Remove saved setup
-          </Button>
-        ) : null}
-        <PassportNavigation back={<BackButton onClick={onBack} />} />
-      </SignupStep>
+        back={<BackButton onClick={onBack} />}
+        cause="Passport could not read your saved account setup."
+        nextStep="Your saved key has been kept. Go back and try again."
+        secondaryAction={
+          removable ? (
+            <Button
+              className="text-destructive-text"
+              onClick={() => {
+                setError(undefined);
+                setConfirming(true);
+              }}
+              variant="ghost"
+            >
+              <TrashIcon />
+              Remove saved setup
+            </Button>
+          ) : null
+        }
+        title="Setup"
+      />
       <ConfirmDeletionDialog
         confirmLabel="Remove key and setup"
         description="The saved key may already own an account. Without a downloaded backup of it, that account cannot be recovered after removal."

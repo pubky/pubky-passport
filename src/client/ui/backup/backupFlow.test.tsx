@@ -200,7 +200,7 @@ describe("BackupFlow", () => {
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:backup");
   });
 
-  it("ties verification errors to the field they concern and moves focus to the new heading", async () => {
+  it("ties verification errors to the field they concern and moves focus to each", async () => {
     const verifyBackup = vi
       .fn()
       .mockReturnValueOnce(Result.err({ code: "backup_mismatch" }))
@@ -236,6 +236,7 @@ describe("BackupFlow", () => {
     expect(fileError).toHaveTextContent("different Pubky");
     expect(file).toHaveAttribute("aria-invalid", "true");
     expect(file).toHaveAttribute("aria-describedby", fileError.id);
+    expect(file).toHaveFocus();
 
     await user.type(screen.getByLabelText("Backup password"), PASSWORD);
     await user.click(verify);
@@ -244,12 +245,42 @@ describe("BackupFlow", () => {
     const password = screen.getByLabelText("Backup password");
     expect(password).toHaveAttribute("aria-invalid", "true");
     expect(password.getAttribute("aria-describedby")?.split(" ")).toContain(passwordError.id);
+    expect(password).toHaveFocus();
     expect(file).not.toHaveAttribute("aria-invalid");
 
     await user.type(password, PASSWORD);
     await user.click(verify);
     expect(onComplete).toHaveBeenCalledOnce();
     expect(verifyBackup).toHaveBeenCalledTimes(3);
+  });
+
+  it("shows a failed download as a notice that takes focus while the button is busy", async () => {
+    let fail!: () => void;
+    render(
+      <BackupFlow
+        creatingAccount
+        publicKey="identity"
+        createBackup={() =>
+          new Promise((resolve) => {
+            fail = () => resolve(Result.err({ code: "create_failed" }));
+          })
+        }
+        onBack={vi.fn()}
+        onComplete={vi.fn()}
+      />,
+    );
+    const user = userEvent.setup();
+    await enterNewPassword(user);
+    await user.click(screen.getByRole("button", { name: "Download encrypted backup" }));
+
+    const busy = screen.getByRole("button", { name: "Encrypting…" });
+    expect(busy).toHaveAttribute("aria-busy", "true");
+    expect(busy).toHaveFocus();
+    await act(async () => fail());
+
+    const notice = screen.getByRole("alert");
+    expect(notice).toHaveTextContent("Could not create the recovery file");
+    expect(notice).toHaveFocus();
   });
 
   it("flags an empty file selection on the file input", async () => {

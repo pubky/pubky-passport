@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { QRCodeSVG } from "qrcode.react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { LightningInvoice } from "@/client/logic/homegate/HomegateVerificationClient";
 import { BackButton } from "@/client/ui/shared/backButton";
@@ -8,9 +8,11 @@ import { copyToClipboard } from "@/client/ui/shared/copyToClipboard";
 import { CopyIcon, RotateCcwIcon } from "@/client/ui/shared/icons";
 import { Button, ButtonLink } from "@/client/ui/shared/primitives/button";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
+import { Notice } from "@/client/ui/shared/notice";
 import { OnboardingCard } from "@/client/ui/shared/onboardingCard";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { Spinner } from "@/client/ui/shared/primitives/spinner";
+import { useFocusWhenSettled } from "@/client/ui/shared/useFocusWhenSettled";
 import { SignupStep } from "./signupStep";
 
 export function LightningVerification({
@@ -33,6 +35,16 @@ export function LightningVerification({
   onUseInvite?: () => void;
 }) {
   const [copyFailed, setCopyFailed] = useState(false);
+  // Checking and creating share `pending`; only the button that started the work shows it.
+  const [busyAction, setBusyAction] = useState<"check" | "create" | null>(null);
+  if (busyAction && !pending) setBusyAction(null);
+  // A new invoice replaces the expired card and its focused button; the invoice is what's next.
+  const invoiceHeading = useRef<HTMLHeadingElement>(null);
+  useFocusWhenSettled(invoiceHeading, busyAction === "create", invoice !== null && !expired);
+  const createInvoice = () => {
+    setBusyAction("create");
+    onCreateInvoice();
+  };
   async function copyInvoice() {
     if (!invoice) return;
     const copied = await copyToClipboard(invoice.bolt11Invoice, {
@@ -67,9 +79,15 @@ export function LightningVerification({
               <p className="text-secondary-foreground" role="status">
                 If you already paid, check the payment before creating another invoice.
               </p>
-              <Button disabled={pending} onClick={onCreateInvoice} size="lg" variant="secondary">
+              <Button
+                disabled={pending}
+                loading={busyAction === "create"}
+                onClick={createInvoice}
+                size="lg"
+                variant="secondary"
+              >
                 <RotateCcwIcon />
-                Create new invoice
+                {busyAction === "create" ? "Creating invoice…" : "Create new invoice"}
               </Button>
             </div>
           ) : (
@@ -92,7 +110,13 @@ export function LightningVerification({
                 />
               </div>
               <div className="flex min-w-0 flex-1 flex-col gap-3">
-                <h2 className="text-xl font-bold leading-7">Bitcoin Lightning Payment</h2>
+                <h2
+                  className="text-xl font-bold leading-7 outline-none"
+                  ref={invoiceHeading}
+                  tabIndex={-1}
+                >
+                  Bitcoin Lightning Payment
+                </h2>
                 <p
                   className="text-5xl font-bold leading-none text-brand"
                   aria-label={`${invoice.amountSat} sats`}
@@ -103,7 +127,7 @@ export function LightningVerification({
                   Please pay {invoice.amountSat.toLocaleString()} sats to continue.
                 </p>
                 <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
-                  <Spinner className="size-4" />
+                  <Spinner className="size-4" decorative />
                   Waiting for payment…
                 </p>
                 <FieldMessage>
@@ -130,23 +154,27 @@ export function LightningVerification({
           )
         ) : pending ? (
           <p className="flex min-h-36 items-center justify-center gap-2" role="status">
-            <Spinner />
+            <Spinner decorative />
             Creating invoice…
           </p>
-        ) : (
+        ) : error ? null : (
           <p className="text-secondary-foreground">
             Your invoice could not be created. Please try again.
           </p>
         )}
-        {error ? <FieldMessage error>{error}</FieldMessage> : null}
-        {error && onUseInvite ? (
-          <button
-            className="w-fit cursor-pointer text-sm text-brand hover:underline"
-            type="button"
-            onClick={onUseInvite}
-          >
-            Use an invite code
-          </button>
+        {error ? (
+          <Notice tone="error">
+            {error}
+            {onUseInvite ? (
+              <button
+                className="w-fit cursor-pointer font-medium text-brand hover:underline"
+                type="button"
+                onClick={onUseInvite}
+              >
+                Use an invite code
+              </button>
+            ) : null}
+          </Notice>
         ) : null}
         {copyFailed && invoice && !expired ? (
           <p
@@ -166,11 +194,15 @@ export function LightningVerification({
               <Button
                 className="w-full"
                 disabled={pending}
-                onClick={() => onCheckPayment(invoice)}
+                loading={busyAction === "check"}
+                onClick={() => {
+                  setBusyAction("check");
+                  onCheckPayment(invoice);
+                }}
                 size="lg"
               >
                 <RotateCcwIcon />
-                Check payment
+                {busyAction === "check" ? "Checking payment…" : "Check payment"}
               </Button>
             ) : (
               <Button className="w-full" onClick={() => void copyInvoice()} size="lg">
@@ -178,10 +210,16 @@ export function LightningVerification({
                 Copy Invoice
               </Button>
             )
-          ) : (
-            <Button className="w-full" disabled={pending} onClick={onCreateInvoice} size="lg">
+          ) : pending && busyAction !== "create" ? undefined : (
+            // No retry while the first invoice is created; one that was pressed keeps focus.
+            <Button
+              className="w-full"
+              loading={busyAction === "create"}
+              onClick={createInvoice}
+              size="lg"
+            >
               <RotateCcwIcon />
-              Try again
+              {busyAction === "create" ? "Creating invoice…" : "Try again"}
             </Button>
           )
         }

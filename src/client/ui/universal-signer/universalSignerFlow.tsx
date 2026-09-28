@@ -3,7 +3,7 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Result } from "better-result";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { CheckIcon } from "@/client/ui/shared/icons";
+import { CheckIcon, RotateCcwIcon } from "@/client/ui/shared/icons";
 
 import type { PassportAuthorizationViewState } from "@/client/logic/authorization/flow/PassportAuthorizationController";
 import { RingProfileEditor } from "@/client/logic/profile/RingProfileEditor";
@@ -35,6 +35,7 @@ import { BackupImportFlow } from "@/client/ui/local-account/backupImportFlow";
 import { CreateAccountFlow } from "@/client/ui/onboarding/create-account/createAccountFlow";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { CancelButton } from "@/client/ui/shared/cancelButton";
+import { ErrorScreen } from "@/client/ui/shared/errorScreen";
 import { LoadingScreen } from "@/client/ui/shared/loadingScreen";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
@@ -79,21 +80,29 @@ export function UniversalSignerFlow() {
     return (
       <>
         <SignInBand authorization={authorization} />
-        <PassportScreen className="gap-6">
-          <DisplayHeading accent="unavailable.">Storage</DisplayHeading>
-          <LeadText>Passport could not read identities stored in this browser.</LeadText>
-          <PassportNavigation
-            back={
-              authorization.status === "review" ? (
-                <CancelButton onClick={() => void controller.cancel()} />
-              ) : (
-                <Button size="lg" variant="outline" onClick={() => window.location.replace("/")}>
-                  Try again
-                </Button>
-              )
-            }
-          />
-        </PassportScreen>
+        <ErrorScreen
+          accent="unavailable."
+          action={
+            authorization.status === "review" ? undefined : (
+              <Button className="w-full" onClick={() => window.location.replace("/")} size="lg">
+                <RotateCcwIcon />
+                Try again
+              </Button>
+            )
+          }
+          back={
+            authorization.status === "review" ? (
+              <CancelButton onClick={() => void controller.cancel()} />
+            ) : undefined
+          }
+          cause="Passport could not read identities stored in this browser."
+          nextStep={
+            authorization.status === "review"
+              ? "Cancel this request so the app stops waiting, then check that this browser lets Passport store site data."
+              : "Try again. If this keeps happening, check that this browser lets Passport store site data."
+          }
+          title="Storage"
+        />
       </>
     );
   }
@@ -243,25 +252,24 @@ function ReadyPassport({
       case "finish-add": {
         const publicKeyZ32 = navigation.publicKeyZ32;
         return (
-          <PassportScreen className="gap-6">
-            <DisplayHeading accent="saved.">Identity</DisplayHeading>
-            <LeadText>
-              Passport saved your identity but could not select it. Try again to continue.
-            </LeadText>
-            <PassportNavigation
-              back={<BackButton onClick={goHome} />}
-              confirm={
-                <Button
-                  className="w-full"
-                  onClick={() => selectAddedIdentity(publicKeyZ32)}
-                  size="lg"
-                >
-                  Select identity
-                </Button>
-              }
-            />
-            {cancelRequest ? <CancelButton className="mt-3" onClick={cancelRequest} /> : null}
-          </PassportScreen>
+          <ErrorScreen
+            accent="saved."
+            action={
+              <Button
+                className="w-full"
+                onClick={() => selectAddedIdentity(publicKeyZ32)}
+                size="lg"
+              >
+                <RotateCcwIcon />
+                Select identity
+              </Button>
+            }
+            back={<BackButton onClick={goHome} />}
+            cause="Passport saved your identity but could not select it."
+            nextStep="Try again to continue."
+            secondaryAction={cancelRequest ? <CancelButton onClick={cancelRequest} /> : null}
+            title="Identity"
+          />
         );
       }
       case "add":

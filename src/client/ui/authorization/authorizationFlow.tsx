@@ -7,6 +7,7 @@ import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localI
 import type { AuthorizationController } from "./usePassportAuthorization";
 import { ArrowRightIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
+import { ErrorScreen } from "@/client/ui/shared/errorScreen";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
@@ -44,13 +45,13 @@ export function AuthorizationFlow({
       return <InvalidAuthorization onBack={goHome} />;
     case "failed":
       return (
-        <PassportScreen className="gap-6">
-          <DisplayHeading accent="failed." aria-label="Authorization failed.">
-            Authorization
-          </DisplayHeading>
-          <LeadText>Passport could not authorize this request with the selected identity.</LeadText>
-          <PassportNavigation back={<BackButton onClick={goHome} />} />
-        </PassportScreen>
+        <ErrorScreen
+          accent="failed."
+          back={<BackButton onClick={goHome} />}
+          cause="Passport could not authorize this request with the selected identity."
+          nextStep="Return to the app and start a new sign-in."
+          title="Authorization"
+        />
       );
     case "approved":
       return <AuthorizationTerminal outcome="approved" />;

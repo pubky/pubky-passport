@@ -59,10 +59,38 @@ describe("GoogleIdentityError", () => {
     expect(screen.getAllByRole("button", { name: /delete/i }).length).toBeGreaterThan(0);
   });
 
+  it("points a damaged file without replacement to another Google account, not a retry", () => {
+    render(
+      <GoogleIdentityError
+        error={{ code: "invalid_passport_file" }}
+        onBack={vi.fn()}
+        onTryAgain={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Go back and choose another Google account.")).toBeVisible();
+    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Back"]);
+  });
+
+  it("states the next step and keeps Try again for a failure a retry can fix", async () => {
+    const actions = renderError({ code: "drive_write_failed" });
+
+    expect(screen.getByRole("heading", { name: "Setup interrupted." })).toHaveFocus();
+    expect(screen.getByText("Check your connection, then try again.")).toBeVisible();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
+    expect(actions.onTryAgain).toHaveBeenCalledOnce();
+  });
+
   it("shows the access-denied screen for a denied authorization", () => {
     renderError({ code: "google_authorization_denied" });
 
     expect(screen.getByRole("heading", { name: /access denied/i })).toBeInTheDocument();
+    // Only the first permission is required; the second adds the optional visible copy.
+    expect(
+      screen.getByText(
+        "Try again and allow Passport’s Google Drive access in Google’s window. The second permission also adds a visible recovery copy.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("lets establishment continue without the optional visible copy", async () => {

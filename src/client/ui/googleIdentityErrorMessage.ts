@@ -108,4 +108,114 @@ function googleIdentityErrorMessage(
   }
 }
 
-export { googleIdentityErrorMessage };
+/**
+ * What the person can do after Google setup failed, and whether trying the same step again can
+ * help. `nextStep` is omitted where the cause already ends with it.
+ */
+type GoogleIdentityErrorRecovery = { nextStep?: string; retryHelps: boolean };
+
+const ANOTHER_GOOGLE_ACCOUNT = "Go back and choose another Google account.";
+const RETRY_OR_ANOTHER_WAY = "Try again. If it keeps failing, go back and choose another option.";
+
+/**
+ * The next step for the Google setup error screen. File failures that Passport verified cannot be
+ * retried away; only deleting the file (when offered) or another Google account resolves them.
+ */
+function googleIdentityErrorRecovery(
+  error: Pick<GoogleIdentityViewError, "code" | "detailCode">,
+  { canReplaceFile }: { canReplaceFile: boolean },
+): GoogleIdentityErrorRecovery {
+  switch (error.code) {
+    case "homeserver_signup_token_failed":
+      return signupInvitationRecovery(error.detailCode);
+    case "invalid_passport_file":
+    case "invalid_passport_file_delete_failed":
+      return {
+        nextStep: canReplaceFile
+          ? "Delete the damaged file and create a new pubky, or go back and choose another Google account."
+          : ANOTHER_GOOGLE_ACCOUNT,
+        retryHelps: false,
+      };
+    case "passport_file_undecryptable":
+    case "undecryptable_passport_file_delete_failed":
+      return {
+        nextStep: canReplaceFile
+          ? "Delete the file and create a new pubky, or go back and choose another Google account."
+          : ANOTHER_GOOGLE_ACCOUNT,
+        retryHelps: false,
+      };
+    case "foreign_passport_file":
+      return { nextStep: ANOTHER_GOOGLE_ACCOUNT, retryHelps: false };
+    case "homeserver_invite_rejected":
+      return {
+        nextStep: "Try again later, or go back and create your account another way.",
+        retryHelps: true,
+      };
+    case "signin_failed":
+    case "signup_failed":
+      return {
+        nextStep: "The homeserver may be busy. Wait a few minutes, then try again.",
+        retryHelps: true,
+      };
+    case "drive_read_failed":
+    case "drive_write_failed":
+    case "publication_failed":
+      return { nextStep: "Check your connection, then try again.", retryHelps: true };
+    case "local_save_failed":
+      return {
+        nextStep:
+          "Make sure this browser lets Passport store data (private windows may not), then try again.",
+        retryHelps: true,
+      };
+    case "google_authorization_popup_closed":
+      return { nextStep: "Try again and finish signing in in Google’s window.", retryHelps: true };
+    // The cause already says what to do.
+    case "drive_create_conflict":
+    case "homeserver_unreachable":
+    case "google_authorization_popup_failed_to_open":
+    case "google_authorization_failed":
+    case "authorization_failed":
+    case "cancelled":
+    case "operation_failed":
+    case "unexpected_failure":
+      return { retryHelps: true };
+    default:
+      return { nextStep: RETRY_OR_ANOTHER_WAY, retryHelps: true };
+  }
+}
+
+function signupInvitationRecovery(
+  detailCode: GoogleIdentityViewError["detailCode"],
+): GoogleIdentityErrorRecovery {
+  // Sign-up limits count new identities per Google account over rolling windows.
+  switch (detailCode) {
+    case "weekly_limit_exceeded":
+      return {
+        nextStep:
+          "This Google account has reached its weekly limit for new identities. Try again in a week, or go back and create your account another way.",
+        retryHelps: false,
+      };
+    case "annual_limit_exceeded":
+      return {
+        nextStep:
+          "This Google account has reached its yearly limit for new identities. Go back and create your account another way.",
+        retryHelps: false,
+      };
+    case "homeserver_unavailable":
+    case "google_verifier_unavailable":
+    case "homegate_unavailable":
+    case "network_failed":
+      return {
+        nextStep:
+          "The sign-up service is not answering right now. Wait a few minutes, then try again.",
+        retryHelps: true,
+      };
+    default:
+      return {
+        nextStep: "Try again. If it keeps failing, go back and create your account another way.",
+        retryHelps: true,
+      };
+  }
+}
+
+export { googleIdentityErrorMessage, googleIdentityErrorRecovery };

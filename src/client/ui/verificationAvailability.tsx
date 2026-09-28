@@ -59,7 +59,8 @@ export function AvailabilityNotice({
   const checking = methods.some((method) => method.status === "checking");
   const unknown = methods.some((method) => method.status === "unknown");
   const blocked = methods.some((method) => method.status === "blocked");
-  // Once offered, the retry button stays mounted through the re-check so focus is not lost.
+  // Once offered, the retry button stays mounted and focusable through the re-check, showing it
+  // as the work in progress, so focus is not lost.
   const [retryOffered, setRetryOffered] = useState(false);
   if ((unknown || blocked) && !retryOffered) setRetryOffered(true);
   return (
@@ -75,7 +76,7 @@ export function AvailabilityNotice({
         </p>
       ) : null}
       {retryOffered ? (
-        <Button className="self-start" variant="secondary" onClick={onRetry} disabled={checking}>
+        <Button className="self-start" variant="secondary" onClick={onRetry} loading={checking}>
           Check again
         </Button>
       ) : null}

@@ -19,7 +19,7 @@ function PermissionList({ capabilities }: { capabilities: readonly Capability[] 
     <section
       className={cn(
         "flex flex-col gap-2 rounded-[12px] border p-[15px] shadow-xl",
-        hasBroadAccess ? "border-destructive/40" : "border-border",
+        hasBroadAccess ? "border-destructive-text/40" : "border-border",
       )}
     >
       <h2
@@ -54,7 +54,7 @@ function PermissionRow({ capability }: { capability: Capability }) {
       <span
         className={cn(
           "flex size-5 shrink-0 items-center justify-center",
-          broad && "text-destructive",
+          broad && "text-destructive-text",
         )}
       >
         {broad ? <TriangleAlertIcon /> : <FolderIcon />}
@@ -63,7 +63,7 @@ function PermissionRow({ capability }: { capability: Capability }) {
       <bdi
         className={cn(
           "min-w-0 flex-1 text-sm font-medium leading-5 [overflow-wrap:anywhere]",
-          broad && "text-destructive",
+          broad && "text-destructive-text",
         )}
         dir="ltr"
       >

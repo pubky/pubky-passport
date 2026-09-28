@@ -2,8 +2,9 @@ import { useId, useLayoutEffect, useRef } from "react";
 
 import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
-import { CheckIcon, TriangleAlertIcon, XIcon } from "@/client/ui/shared/icons";
+import { CheckIcon, XIcon } from "@/client/ui/shared/icons";
 import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
+import { Notice } from "@/client/ui/shared/notice";
 import { SelectedIdentity } from "@/client/ui/shared/selectedIdentity";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
@@ -69,13 +70,10 @@ function AuthorizationReview({
           ) : null}
         </div>
         {broadAccessWarning ? (
-          <div
-            className="flex items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm font-medium leading-5 text-foreground"
-            role="alert"
-          >
-            <TriangleAlertIcon className="mt-0.5 text-destructive" />
-            <p>{broadAccessWarning}</p>
-          </div>
+          // A security risk to stop on, so it uses the red alert surface, not the amber warning tone.
+          <Notice className="font-medium" tone="error">
+            {broadAccessWarning}
+          </Notice>
         ) : null}
         <PermissionList capabilities={review.capabilities} />
         <SelectedIdentity identity={identity} onSwitch={onSwitch} disabled={busy} />
@@ -117,7 +115,8 @@ function AuthorizationReview({
             <Button
               aria-describedby={describesHost ? hostId : undefined}
               className="w-full"
-              disabled={busy || !identity}
+              disabled={!identity}
+              loading={busy}
               onClick={onAuthorize}
               size="lg"
               type="button"

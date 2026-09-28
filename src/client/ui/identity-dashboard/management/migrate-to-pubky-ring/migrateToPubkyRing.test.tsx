@@ -349,7 +349,43 @@ describe("MigrateToPubkyRing", () => {
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Show QR" }));
 
-    expect(screen.getByText("The active Pubky could not be exported.")).toBeInTheDocument();
+    // A failure the press caused is an alert that takes focus, not muted text.
+    const failure = screen.getByRole("alert");
+    expect(failure).toHaveTextContent("The active Pubky could not be exported.");
+    expect(failure).toHaveFocus();
     expect(screen.queryByRole("dialog", { name: "Scan with Pubky Ring" })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["Show QR", "Import pubky"],
+    ["Import pubky", "Show QR"],
+  ])("shows %s as busy while the export it started runs", async (pressedName, otherName) => {
+    let settle!: (result: LocalIdentityResult<PubkyRingMigration>) => void;
+    vi.stubGlobal("location", { assign: vi.fn(), href: "http://localhost/" });
+    render(
+      <MigrateToPubkyRing
+        createMigration={() =>
+          new Promise<LocalIdentityResult<PubkyRingMigration>>((resolve) => {
+            settle = resolve;
+          })
+        }
+        navigationAction="back"
+        onBack={vi.fn()}
+      />,
+    );
+
+    await userEvent.setup().click(screen.getByRole("button", { name: pressedName }));
+
+    const pressed = screen.getByRole("button", { name: pressedName });
+    expect(pressed).toHaveAttribute("aria-busy", "true");
+    expect(pressed).toBeEnabled();
+    expect(pressed).toHaveFocus();
+    const other = screen.getByRole("button", { name: otherName });
+    expect(other).toBeDisabled();
+    expect(other).not.toHaveAttribute("aria-busy");
+
+    await act(async () => settle(Result.err({ code: "storage_unavailable" })));
+    expect(pressed).not.toHaveAttribute("aria-busy");
+    expect(screen.getByRole("alert")).toHaveFocus();
   });
 });

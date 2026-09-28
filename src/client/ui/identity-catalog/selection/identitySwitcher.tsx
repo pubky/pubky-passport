@@ -5,7 +5,7 @@ import { UserRoundPlusIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
+import { Notice } from "@/client/ui/shared/notice";
 import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
 import { IdentityRow } from "./identityRow";
 
@@ -66,7 +66,7 @@ function IdentitySwitcher({
           );
         })}
         {selectionFailed ? (
-          <FieldMessage error>Could not switch identities. Please try again.</FieldMessage>
+          <Notice tone="error">Could not switch identities. Please try again.</Notice>
         ) : null}
         <div className="flex min-h-[136px] flex-1 flex-col gap-4 md:grid md:min-h-0 md:flex-none md:grid-cols-(--passport-navigation-columns) md:items-center md:gap-0">
           {desktopViewport

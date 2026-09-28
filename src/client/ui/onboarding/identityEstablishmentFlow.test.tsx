@@ -204,11 +204,11 @@ describe("IdentityEstablishmentFlow", () => {
     const deniedHeading = await screen.findByRole("heading", {
       name: "Google Drive access denied.",
     });
+    expect(deniedHeading).toHaveFocus();
     expect(
       screen.getByRole("img", { name: /selecting both Google Drive permission checkboxes/i }),
     ).toHaveAttribute("src", "/illustrations/google-drive-permissions.gif");
     expect(within(deniedHeading).getByText("Drive")).toHaveClass("hidden", "md:inline");
-    expect(deniedHeading.parentElement).toHaveClass("gap-6", "md:gap-3");
     expect(
       screen.getByText("Passport needs Google Drive access to create or restore your Pubky."),
     ).toHaveClass("md:hidden");
@@ -216,19 +216,13 @@ describe("IdentityEstablishmentFlow", () => {
       screen.getByText(
         "Passport needs access to your Google Drive to create or restore your Pubky.",
       ),
-    ).toHaveClass("hidden", "md:block");
-    expect(screen.queryByRole("group", { name: "Error" })).not.toBeInTheDocument();
-    const mobileActions = screen.getByRole("group", { name: "Mobile error actions" });
-    const desktopActions = screen.getByRole("group", { name: "Desktop error actions" });
-    const mobileTryAgain = within(mobileActions).getByRole("button", { name: "Try again" });
-    const mobileBack = within(mobileActions).getByRole("button", { name: "Back" });
-    const desktopBack = within(desktopActions).getByRole("button", { name: "Back" });
-    const desktopTryAgain = within(desktopActions).getByRole("button", { name: "Try again" });
-    expect(within(mobileActions).getAllByRole("button")).toEqual([mobileTryAgain, mobileBack]);
-    expect(within(desktopActions).getAllByRole("button")).toEqual([desktopBack, desktopTryAgain]);
-    expect(mobileActions).toHaveClass("mt-auto", "md:hidden");
-    expect(desktopActions).toHaveClass("hidden", "md:grid");
-    await userEvent.setup().click(mobileTryAgain);
+    ).toHaveClass("hidden", "md:inline");
+    expect(screen.queryByText("Technical details")).not.toBeInTheDocument();
+    const buttons = screen.getAllByRole("button");
+    const tryAgain = screen.getByRole("button", { name: "Try again" });
+    // One action row for every viewport: back first, the recovery action last.
+    expect(buttons).toEqual([screen.getByRole("button", { name: "Back" }), tryAgain]);
+    await userEvent.setup().click(tryAgain);
     expect(establishIdentity).toHaveBeenCalledTimes(2);
   });
 
@@ -329,11 +323,7 @@ describe("IdentityEstablishmentFlow", () => {
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
-    await userEvent.setup().click(
-      within(screen.getByRole("group", { name: "Mobile error actions" })).getByRole("button", {
-        name: "Try again",
-      }),
-    );
+    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
     expect(establishIdentity).toHaveBeenNthCalledWith(2);
   });
 
@@ -366,49 +356,21 @@ describe("IdentityEstablishmentFlow", () => {
     await user.click(await screen.findByRole("button", { name: "Continue with Google" }));
 
     expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
+    expect(screen.getByText("invalid_passport_file").closest("details")).not.toHaveAttribute(
+      "open",
+    );
     expect(
-      within(screen.getByRole("group", { name: "Error" })).getByText("invalid_passport_file"),
-    ).toBeInTheDocument();
-    const mobileActions = screen.getByRole("group", { name: "Mobile error actions" });
-    const desktopActions = screen.getByRole("group", { name: "Desktop error actions" });
-    const mobileTryAgain = within(mobileActions).getByRole("button", { name: "Try again" });
-    const mobileDelete = within(mobileActions).getByRole("button", {
-      name: "Delete backup & create new pubky",
-    });
-    const mobileBack = within(mobileActions).getByRole("button", { name: "Back" });
-    const desktopDelete = within(desktopActions).getByRole("button", {
-      name: "Delete & create new",
-    });
-    const desktopTryAgain = within(desktopActions).getByRole("button", { name: "Try again" });
-    const desktopBack = within(desktopActions).getByRole("button", { name: "Back" });
-    expect(within(mobileActions).getAllByRole("button")).toEqual([
-      mobileTryAgain,
-      mobileDelete,
-      mobileBack,
-    ]);
-    expect(within(desktopActions).getAllByRole("button")).toEqual([
-      desktopBack,
-      desktopDelete,
-      desktopTryAgain,
-    ]);
-    expect(mobileActions).toHaveClass("mt-auto", "md:hidden");
-    expect(mobileActions.parentElement).toHaveClass("min-h-0", "flex-1");
-    expect(desktopActions).toHaveClass(
-      "hidden",
-      "md:grid",
-      "grid-cols-(--passport-error-actions-columns)",
-      "md:gap-x-6",
-    );
-    expect(mobileDelete).toHaveClass("bg-destructive-surface", "text-destructive-foreground");
-    expect(desktopDelete).toHaveClass(
-      "bg-destructive-surface",
-      "text-destructive-foreground",
-      "md:col-start-2",
-      "md:row-start-1",
-    );
-    expect(desktopTryAgain).toHaveClass("md:col-start-3", "md:row-start-1");
-    expect(desktopBack).toHaveClass("md:col-start-1", "md:row-start-1");
-    await user.click(mobileDelete);
+      screen.getByText(
+        "Delete the damaged file and create a new pubky, or go back and choose another Google account.",
+      ),
+    ).toBeVisible();
+    // A damaged file stays damaged, so Try again is not offered as the way out.
+    const deleteBackup = screen.getByRole("button", { name: "Delete backup & create new pubky" });
+    const back = screen.getByRole("button", { name: "Back" });
+    expect(screen.getAllByRole("button")).toEqual([back, deleteBackup]);
+    // Deleting is a secondary, destructive option below the navigation.
+    expect(deleteBackup).toHaveClass("text-destructive-text");
+    await user.click(deleteBackup);
 
     const confirmation = screen.getByRole("textbox", { name: "Type DELETE to confirm" });
     const replace = screen.getByRole("button", { name: "Delete and create new identity" });
@@ -465,19 +427,8 @@ describe("IdentityEstablishmentFlow", () => {
         "Passport found your encrypted identity file in Google Drive, but can no longer unlock it with this Google account.",
       ),
     ).toBeInTheDocument();
-    expect(
-      within(screen.getByRole("group", { name: "Error" })).getByText("passport_file_undecryptable"),
-    ).toBeInTheDocument();
-    expect(
-      within(screen.getByRole("group", { name: "Mobile error actions" })).getByRole("button", {
-        name: "Delete backup & create new pubky",
-      }),
-    ).toBeInTheDocument();
-    await user.click(
-      within(screen.getByRole("group", { name: "Desktop error actions" })).getByRole("button", {
-        name: "Delete & create new",
-      }),
-    );
+    expect(screen.getByText("passport_file_undecryptable")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Delete backup & create new pubky" }));
 
     expect(
       screen.getByText(/no longer be recoverable from this Google account/),
@@ -492,17 +443,9 @@ describe("IdentityEstablishmentFlow", () => {
         "Passport could not delete the identity file it cannot decrypt from Google Drive. You can try deleting it again.",
       ),
     ).toBeInTheDocument();
-    expect(
-      within(screen.getByRole("group", { name: "Error" })).getByText(
-        "undecryptable_passport_file_delete_failed",
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText("undecryptable_passport_file_delete_failed")).toBeInTheDocument();
 
-    await user.click(
-      within(screen.getByRole("group", { name: "Desktop error actions" })).getByRole("button", {
-        name: "Delete & create new",
-      }),
-    );
+    await user.click(screen.getByRole("button", { name: "Delete backup & create new pubky" }));
     expect(
       screen.getByText("Passport could not delete the identity file. Please try again."),
     ).toBeInTheDocument();
@@ -526,11 +469,7 @@ describe("IdentityEstablishmentFlow", () => {
       .setup()
       .click(await screen.findByRole("button", { name: "Continue with Google" }));
     expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
-    await userEvent.setup().click(
-      within(screen.getByRole("group", { name: "Mobile error actions" })).getByRole("button", {
-        name: "Back",
-      }),
-    );
+    await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
 
     expect(controller.reset).toHaveBeenCalledOnce();
     expect(MOCKS.constructGoogleIdentityController).toHaveBeenCalledOnce();
@@ -555,23 +494,20 @@ describe("IdentityEstablishmentFlow", () => {
     expect(
       await screen.findByText("Passport could not obtain a homeserver invitation."),
     ).toBeInTheDocument();
-    const errorDetails = screen.getByRole("group", { name: "Error" });
-    expect(errorDetails).toHaveClass("border-dashed", "border-input", "min-h-14");
-    expect(errorDetails).not.toContainElement(screen.getByText("Error"));
-    expect(within(errorDetails).getByText("homeserver_signup_token_failed")).toBeInTheDocument();
-    expect(within(errorDetails).getByText("weekly_limit_exceeded")).toBeInTheDocument();
-    const mobileActions = screen.getByRole("group", { name: "Mobile error actions" });
-    const desktopActions = screen.getByRole("group", { name: "Desktop error actions" });
-    expect(
-      within(mobileActions)
-        .getAllByRole("button")
-        .map((button) => button.textContent),
-    ).toEqual(["Try again", "Back"]);
-    expect(
-      within(desktopActions)
-        .getAllByRole("button")
-        .map((button) => button.textContent),
-    ).toEqual(["Back", "Try again"]);
+    // Codes are for support: collapsed technical details, not an input-like box.
+    const summary = screen.getByText("Technical details");
+    expect(summary.tagName).toBe("SUMMARY");
+    const details = summary.closest("details");
+    expect(details).not.toHaveAttribute("open");
+    expect(details).toHaveTextContent(
+      "Error code: homeserver_signup_token_failed · weekly_limit_exceeded",
+    );
+    // The limit is the actionable cause, so it is the visible next step, not only a code.
+    expect(screen.getByRole("heading", { name: "Setup interrupted." })).toHaveAccessibleDescription(
+      "Passport could not obtain a homeserver invitation. This Google account has reached its weekly limit for new identities. Try again in a week, or go back and create your account another way.",
+    );
+    // Trying again now cannot succeed, so Back is the only way on.
+    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Back"]);
   });
 
   it("contains rejected operation details outside hook state and logs safe metadata", async () => {
@@ -638,14 +574,7 @@ describe("IdentityEstablishmentFlow", () => {
     render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
-    await userEvent
-      .setup()
-      .click(
-        within(await screen.findByRole("group", { name: "Mobile error actions" })).getByRole(
-          "button",
-          { name: "Try again" },
-        ),
-      );
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Try again" }));
 
     expect(await screen.findByRole("heading", { name: "Backup ready." })).toBeInTheDocument();
     expect(MOCKS.constructGoogleIdentityController).toHaveBeenCalledTimes(2);

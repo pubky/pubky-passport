@@ -7,6 +7,7 @@ import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubky
 import { ProviderTerms, usePassportProvider } from "@/client/ui/passportProviderConfiguration";
 import { DetailField } from "@/client/ui/shared/detailField";
 import { RotateCcwIcon } from "@/client/ui/shared/icons";
+import { Notice } from "@/client/ui/shared/notice";
 import { Button, ButtonLink } from "@/client/ui/shared/primitives/button";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 
@@ -171,11 +172,8 @@ export function HomeserverRecord({
           value={homeserverLabel(lookup)}
         />
       </div>
-      {message ? (
-        <FieldMessage error={message.error} role={message.error ? "alert" : "status"}>
-          {message.text}
-        </FieldMessage>
-      ) : null}
+      {message?.error ? <Notice tone="error">{message.text}</Notice> : null}
+      {message && !message.error ? <FieldMessage role="status">{message.text}</FieldMessage> : null}
       {lookup.status === "lookup-failed" ? (
         <>
           <p className="text-sm leading-5 text-secondary-foreground">
@@ -214,8 +212,7 @@ export function HomeserverRecord({
                 Cancel
               </Button>
               <Button
-                aria-busy={republishing || undefined}
-                disabled={republishing}
+                loading={republishing}
                 onClick={() => void republish(repairTarget)}
                 variant="secondary"
               >

@@ -25,7 +25,7 @@ import {
   type RingProfileControllerPort,
 } from "@/client/ui/passportCollaborators";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
+import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { useGoogleIdentityConfiguration } from "@/client/ui/googleIdentityConfiguration";
 import { useHomegateAvailability } from "@/client/ui/homegateAvailability";
@@ -307,6 +307,9 @@ function InviteDestinationChoice({
   checkingInvite: boolean;
   error?: string | undefined;
 }) {
+  // Both choices wait on the same invite check; only the one pressed shows it.
+  const [choice, setChoice] = useState<"ring" | "passport" | null>(null);
+  if (choice && !checkingInvite) setChoice(null);
   return (
     <SignupStep
       accent="your signer."
@@ -336,12 +339,16 @@ function InviteDestinationChoice({
             </p>
             <Button
               className="w-full"
-              onClick={onRing}
+              onClick={() => {
+                setChoice("ring");
+                onRing();
+              }}
               disabled={registrationStarted || checkingInvite}
+              loading={choice === "ring"}
               size="lg"
               variant="secondary"
             >
-              <PubkyBrandIcon /> Use Pubky Ring
+              <PubkyBrandIcon /> {choice === "ring" ? "Checking invite…" : "Use Pubky Ring"}
             </Button>
           </div>
         </section>
@@ -364,21 +371,24 @@ function InviteDestinationChoice({
             </p>
             <Button
               className="w-full"
-              onClick={() => void onPassport()}
+              onClick={() => {
+                setChoice("passport");
+                void onPassport();
+              }}
               disabled={checkingInvite}
-              aria-busy={checkingInvite || undefined}
+              loading={choice === "passport"}
               size="lg"
               variant="secondary"
             >
-              <KeyRoundIcon /> {checkingInvite ? "Checking invite…" : "Keep in Passport"}
+              <KeyRoundIcon /> {choice === "passport" ? "Checking invite…" : "Keep in Passport"}
             </Button>
           </div>
         </section>
       </div>
       {error ? (
-        <FieldMessage error role="alert">
+        <Notice focusOnMount tone="error">
           {error}
-        </FieldMessage>
+        </Notice>
       ) : null}
       {onDiscardInvite ? (
         <Button

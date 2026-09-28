@@ -21,11 +21,7 @@ function GoogleAccessScreen({ fullWidthAction = false }: { fullWidthAction?: boo
           type="button"
           variant="secondary"
         >
-          <Spinner
-            aria-hidden="true"
-            className="size-4 motion-reduce:animate-none"
-            role="presentation"
-          />
+          <Spinner className="size-4" decorative />
           Waiting for Google...
         </Button>
       </div>

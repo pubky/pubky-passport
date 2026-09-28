@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import {
   phoneNumberSchema,
@@ -17,6 +17,7 @@ import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { Input } from "@/client/ui/shared/primitives/input";
+import { useFocusWhenSettled } from "@/client/ui/shared/useFocusWhenSettled";
 import { SignupStep } from "./signupStep";
 
 type SmsVerificationProps = {
@@ -35,8 +36,10 @@ export function PhoneNumberStep({
   sentPhoneNumber,
 }: SmsVerificationProps & { initialPhoneNumber?: string; sentPhoneNumber?: string | undefined }) {
   const [phoneNumber, setPhoneNumber] = useState(initialPhoneNumber);
+  const input = useRef<HTMLInputElement>(null);
   const normalized = phoneNumber.replace(/[\s()-]/g, "");
   const valid = phoneNumberSchema.safeParse(normalized).success;
+  useFocusOnError(input, error);
   return (
     <SignupStep title="Enter" accent="Phone." description="We will send you a verification code.">
       <form
@@ -64,7 +67,8 @@ export function PhoneNumberStep({
             placeholder="+1 000 000 0000"
             value={phoneNumber}
             maxLength={32}
-            disabled={pending}
+            readOnly={pending}
+            ref={input}
             containerClassName={`h-14 border-dashed px-4 ${valid ? "border-brand text-brand" : ""}`}
             className={valid ? "text-brand" : ""}
             action={valid ? <CircleCheckIcon className="text-brand" size={20} /> : undefined}
@@ -82,7 +86,7 @@ export function PhoneNumberStep({
           className="mt-auto md:mt-0"
           back={<BackButton onClick={onBack} />}
           confirm={
-            <Button className="w-full" type="submit" size="lg" disabled={pending || !valid}>
+            <Button className="w-full" type="submit" size="lg" disabled={!valid} loading={pending}>
               <ArrowRightIcon />
               {pending
                 ? "Sending code…"
@@ -114,6 +118,13 @@ export function SmsCodeStep({
 }) {
   const [code, setCode] = useState("");
   const [cursorPosition, setCursorPosition] = useState(0);
+  // Resending and verifying share `pending`; only the button that started the work shows it.
+  const [resending, setResending] = useState(false);
+  if (resending && !pending) setResending(false);
+  const input = useRef<HTMLInputElement>(null);
+  useFocusOnError(input, error);
+  // A sent code starts the cooldown, which disables the focused Resend; entering it is next.
+  useFocusWhenSettled(input, resending);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1_000);
@@ -153,7 +164,8 @@ export function SmsCodeStep({
               maxLength={6}
               pattern="[0-9]{6}"
               value={code}
-              disabled={pending}
+              readOnly={pending}
+              ref={input}
               aria-invalid={Boolean(error)}
               aria-describedby={error ? "sms-help sms-error" : "sms-help"}
               onChange={(event) => {
@@ -213,22 +225,39 @@ export function SmsCodeStep({
               className="w-full px-3"
               size="lg"
               disabled={pending || remaining > 0}
+              loading={resending}
               onClick={() => {
                 setCode("");
                 setCursorPosition(0);
+                setResending(true);
                 onSendCode(phoneNumber);
               }}
             >
               <RotateCcwIcon />
-              {remaining > 0 ? `Resend (${remaining}s)` : "Resend Code"}
+              {resending ? "Sending…" : remaining > 0 ? `Resend (${remaining}s)` : "Resend Code"}
             </Button>
-            <Button className="w-full px-3" type="submit" size="lg" disabled={pending || !valid}>
+            <Button
+              className="w-full px-3"
+              type="submit"
+              size="lg"
+              disabled={pending || !valid}
+              loading={pending && !resending}
+            >
               <CheckIcon />
-              {pending ? "Verifying…" : "Verify Code"}
+              {pending && !resending ? "Verifying…" : "Verify Code"}
             </Button>
           </div>
         </div>
       </form>
     </SignupStep>
   );
+}
+
+/** After a failed send or check, puts the person back in the field to correct it. */
+function useFocusOnError(input: { current: HTMLInputElement | null }, error: string | null) {
+  useLayoutEffect(() => {
+    if (!error) return;
+    input.current?.focus();
+    input.current?.select();
+  }, [input, error]);
 }

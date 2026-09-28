@@ -19,6 +19,8 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-destructive-surface: var(--destructive-surface);
+  --color-destructive-text: var(--destructive-text);
+  --color-warning: var(--warning);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-input-surface: var(--input-surface);
@@ -40,7 +42,6 @@
   --passport-recovery-heading-min-height: 136px;
   --passport-recovery-body-min-height: 224px;
   --passport-navigation-columns: 120px 1fr 228px;
-  --passport-error-actions-columns: 120px 1fr 148px;
   --passport-overview-columns: 96px 1fr;
   --passport-overview-rows: minmax(104px, auto) minmax(60px, auto) minmax(40px, auto);
   --radius: 0.625rem;
@@ -61,6 +62,9 @@
   --destructive: oklch(0.628 0.258 29.234);
   --destructive-foreground: #fef2f2;
   --destructive-surface: #ff000099;
+  /* Error text on the page, cards and dialogs; destructive-foreground is for text on red. */
+  --destructive-text: #ff8a80;
+  --warning: oklch(0.828 0.189 84.429);
   --border: #303034;
   --input: #525252;
   --input-surface: #ffffff0b;

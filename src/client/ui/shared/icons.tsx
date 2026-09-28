@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { cn } from "./mergeClassNames";
 
-type IconProps = { className?: string; size?: 16 | 20 };
+type IconProps = { className?: string; size?: 14 | 16 | 20 };
 
 function Glyph({
   children,
@@ -22,9 +22,10 @@ function Glyph({
       aria-hidden="true"
       className={cn(
         "inline-flex shrink-0 items-center justify-center",
-        size === 20 ? "size-5" : "size-4",
+        size === 20 ? "size-5" : size === 14 ? "size-3.5" : "size-4",
         className,
       )}
+      data-slot="icon"
     >
       <svg fill="none" style={{ height, width }} viewBox={viewBox}>
         {children}
@@ -93,6 +94,21 @@ function CameraIcon(props: IconProps) {
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth="1.5"
+      />
+    </Glyph>
+  );
+}
+
+function CircleAlertIcon(props: IconProps) {
+  const size = props.size ?? 16;
+
+  return (
+    <Glyph height={size} size={size} viewBox="0 0 20 20" width={size} {...props}>
+      <path
+        clipRule="evenodd"
+        d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5A.75.75 0 0 1 10 5Zm0 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
+        fill="currentColor"
+        fillRule="evenodd"
       />
     </Glyph>
   );
@@ -376,16 +392,17 @@ function TrashIcon(props: IconProps) {
   );
 }
 
-/** The warning triangle of `public/icons/triangle-alert.svg`, drawn in the current text colour. */
+/** A filled warning triangle, drawn in the current text colour. */
 function TriangleAlertIcon(props: IconProps) {
+  const size = props.size ?? 16;
+
   return (
-    <Glyph height={16} viewBox="0 0 16 16" width={16} {...props}>
+    <Glyph height={size} size={size} viewBox="0 0 20 20" width={size} {...props}>
       <path
-        d="M8 6V8.66667M8 11.3333H8.00667M14.4866 12L9.15329 2.66665C9.037 2.46146 8.86836 2.29078 8.66457 2.17203C8.46078 2.05329 8.22915 1.99072 7.99329 1.99072C7.75743 1.99072 7.52579 2.05329 7.322 2.17203C7.11822 2.29078 6.94958 2.46146 6.83329 2.66665L1.49995 12C1.38241 12.2036 1.32077 12.4346 1.32129 12.6697C1.32181 12.9047 1.38447 13.1355 1.50292 13.3385C1.62136 13.5416 1.79138 13.7097 1.99575 13.8259C2.20011 13.942 2.43156 14.0021 2.66662 14H13.3333C13.5672 13.9997 13.797 13.938 13.9995 13.8208C14.202 13.7037 14.3701 13.5354 14.487 13.3327C14.6038 13.1301 14.6653 12.9002 14.6653 12.6663C14.6652 12.4324 14.6036 12.2026 14.4866 12Z"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.33"
+        clipRule="evenodd"
+        d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
+        fill="currentColor"
+        fillRule="evenodd"
       />
     </Glyph>
   );
@@ -424,6 +441,7 @@ export {
   ArrowRightIcon,
   CameraIcon,
   CheckIcon,
+  CircleAlertIcon,
   CircleCheckIcon,
   CircleHelpIcon,
   CircleInfoIcon,

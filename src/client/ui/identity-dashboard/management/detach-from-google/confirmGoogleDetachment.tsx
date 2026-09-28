@@ -1,7 +1,7 @@
 import type { GoogleIdentityViewError } from "@/client/logic/google-identity/googleIdentityErrors";
-import { GoogleIdentityErrorDetails } from "@/client/ui/googleIdentityErrorDetails";
 import { googleIdentityErrorMessage } from "@/client/ui/googleIdentityErrorMessage";
 import { ConfirmDeletionDialog } from "@/client/ui/shared/confirmDeletionDialog";
+import { TechnicalDetails } from "@/client/ui/shared/errorScreen";
 
 function ConfirmGoogleDetachment({
   canConfirm,
@@ -28,7 +28,11 @@ function ConfirmGoogleDetachment({
       confirmLabel="Confirm detachment"
       confirmationWord="DETACH"
       error={error === null ? undefined : googleIdentityErrorMessage(error.code)}
-      errorDetails={error === null ? undefined : <GoogleIdentityErrorDetails error={error} />}
+      errorDetails={
+        error === null ? undefined : (
+          <TechnicalDetails code={error.code} detail={error.detailCode} />
+        )
+      }
       id="detach-google"
       onCancel={onCancel}
       onConfirm={onConfirm}

@@ -368,9 +368,12 @@ describe("UniversalSignerFlow with an authorization request", () => {
 
     renderFlow();
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    const warning = await screen.findByRole("alert");
+    expect(warning).toHaveTextContent(
       "This app asks for access to all your data, public and private.",
     );
+    // A security risk, so it keeps the red surface rather than the amber warning tone.
+    expect(warning).toHaveAttribute("data-tone", "error");
   });
 
   it("lists permissions in the requested order", async () => {
@@ -477,7 +480,10 @@ describe("UniversalSignerFlow with an authorization request", () => {
 
     renderFlow();
 
-    expect(await screen.findByRole("button", { name: "Completing…" })).toBeDisabled();
+    expect(await screen.findByRole("button", { name: "Completing…" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(screen.getByLabelText("Signing in to requesting.app")).toBeInTheDocument();
   });
 
@@ -722,14 +728,20 @@ describe("UniversalSignerFlow with an authorization request", () => {
   it("keeps an approval in progress visible when the identity catalog becomes unavailable", async () => {
     MOCKS.authorizationState = { status: "granting", review: REVIEW };
     renderFlow();
-    expect(await screen.findByRole("button", { name: "Granting access…" })).toBeDisabled();
+    expect(await screen.findByRole("button", { name: "Granting access…" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
 
     act(() => {
       MOCKS.catalog = undefined;
       MOCKS.catalogListener?.();
     });
 
-    expect(screen.getByRole("button", { name: "Granting access…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Granting access…" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(screen.getByRole("button", { name: "Switch identity" })).toBeDisabled();
     expect(screen.getByLabelText("Signing in to requesting.app")).toBeInTheDocument();
   });

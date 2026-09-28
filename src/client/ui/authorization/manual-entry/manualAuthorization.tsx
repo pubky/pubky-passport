@@ -1,5 +1,5 @@
 import dynamic from "next/dynamic";
-import { type SubmitEvent, useCallback, useRef, useState } from "react";
+import { type SubmitEvent, useCallback, useLayoutEffect, useRef, useState } from "react";
 
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { validateManualAuthorizationInput } from "@/client/logic/authorization/entry/manualAuthorizationInput";
@@ -24,6 +24,13 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
   const [hasAuthorization, setHasAuthorization] = useState(false);
   const [error, setError] = useState<string>();
   const [scannerOpen, setScannerOpen] = useState(false);
+  // A rejected link empties the field, which disables Continue (or closes the scanner): focus
+  // returns to the field after that commit, so it is not lost to the page.
+  const [focusRequest, setFocusRequest] = useState(0);
+  const refocusInput = () => setFocusRequest((request) => request + 1);
+  useLayoutEffect(() => {
+    if (focusRequest > 0) authorizationInputRef.current?.focus();
+  }, [focusRequest]);
 
   const submit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -33,6 +40,7 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
     const result = validateManualAuthorizationInput(authorization);
     if (result.status === "invalid") {
       setError("Enter a valid pubkyauth:// authorization link.");
+      refocusInput();
       return;
     }
 
@@ -73,6 +81,7 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
       if (authorizationInputRef.current) authorizationInputRef.current.value = "";
       setHasAuthorization(false);
       setError("Scan a QR code containing a valid pubkyauth:// authorization link.");
+      setFocusRequest((request) => request + 1);
       return;
     }
 

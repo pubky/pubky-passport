@@ -13,11 +13,13 @@ import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localI
 import { BackupFlow } from "@/client/ui/backup/backupFlow";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { ConfirmDeletionDialog } from "@/client/ui/shared/confirmDeletionDialog";
+import { DetailField } from "@/client/ui/shared/detailField";
+import { ErrorScreen } from "@/client/ui/shared/errorScreen";
+import { ArrowRightIcon, RotateCcwIcon, TrashIcon } from "@/client/ui/shared/icons";
+import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { RecoveryScreen } from "@/client/ui/shared/recoveryScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
-import { PublicKeyCard } from "@/client/ui/shared/publicKeyCard";
 import { IdentityProgress, progressSteps } from "@/client/ui/shared/identityProgress";
 
 const REGISTRATION_STEP_INDEX = { signing_up: 1, publishing: 2, activating: 3 } satisfies Record<
@@ -127,15 +129,13 @@ export function LocalAccountCreationFlow({
 
   if (prepared.status === "failed") {
     return (
-      <RecoveryScreen
-        description="Passport could not prepare or restore your saved key."
-        title="Setup failed."
-      >
-        <FieldMessage error role="alert">
-          Go back and try again. Any previously saved setup has been kept.
-        </FieldMessage>
-        <PassportNavigation back={<BackButton onClick={onBack} />} />
-      </RecoveryScreen>
+      <ErrorScreen
+        accent="failed."
+        back={<BackButton onClick={onBack} />}
+        cause="Passport could not prepare or restore your saved key."
+        nextStep="Go back and try again. Any previously saved setup has been kept."
+        title="Setup"
+      />
     );
   }
 
@@ -220,51 +220,24 @@ export function LocalAccountCreationFlow({
     const rejected = failure?.code === "invite_rejected";
     return (
       <>
-        <RecoveryScreen
-          title={rejected ? "Invite rejected." : "Setup interrupted."}
-          description={
-            rejected
-              ? "No account was created with this key. Use another invite to continue."
-              : "Your downloaded backup is still valid. Retry with the same key."
-          }
-        >
-          <PublicKeyCard publicKey={publicKeyZ32} />
-          {failure ? (
-            <FieldMessage error role="alert">
-              {registrationErrorMessage(failure)}
-            </FieldMessage>
-          ) : null}
-          {abandonError && !confirmingAbandon ? (
-            <FieldMessage error role="alert">
-              {abandonError}
-            </FieldMessage>
-          ) : null}
-          {/* A rejected invite has no way back: verifying again would resubmit it. */}
-          {rejected ? (
-            <Button className="mt-auto w-full" onClick={abandonSetup} size="lg">
-              Use another invite
-            </Button>
-          ) : (
-            <>
-              <Button
-                className="mt-auto w-full"
-                onClick={() => void registerPreparedAccount()}
-                size="lg"
-              >
+        <ErrorScreen
+          accent={rejected ? "rejected." : "interrupted."}
+          action={
+            // A rejected invite has no way back: verifying again would resubmit it.
+            rejected ? (
+              <Button className="w-full" onClick={abandonSetup} size="lg">
+                <ArrowRightIcon />
+                Use another invite
+              </Button>
+            ) : (
+              <Button className="w-full" onClick={() => void registerPreparedAccount()} size="lg">
+                <RotateCcwIcon />
                 Retry with this key
               </Button>
-              <Button
-                className="w-full"
-                onClick={() => {
-                  setAbandonError(undefined);
-                  if (failure?.registrationStarted === false) discardSetup();
-                  else setConfirmingAbandon(true);
-                }}
-                size="lg"
-                variant="ghost"
-              >
-                Start over
-              </Button>
+            )
+          }
+          back={
+            rejected ? undefined : (
               <BackButton
                 onClick={() => {
                   setFailure(undefined);
@@ -272,9 +245,52 @@ export function LocalAccountCreationFlow({
                   setStep("confirm");
                 }}
               />
-            </>
+            )
+          }
+          cause={failure ? registrationErrorMessage(failure) : "Registration did not complete."}
+          details={failure ? { code: failure.code } : undefined}
+          nextStep={
+            rejected
+              ? "No account was created with this key. Use another invite to continue."
+              : "Your downloaded backup is still valid. If retrying does not help, start over with a new key."
+          }
+          secondaryAction={
+            rejected ? null : (
+              <Button
+                className="text-destructive-text"
+                onClick={() => {
+                  setAbandonError(undefined);
+                  if (failure?.registrationStarted === false) discardSetup();
+                  else setConfirmingAbandon(true);
+                }}
+                variant="ghost"
+              >
+                <TrashIcon />
+                Start over
+              </Button>
+            )
+          }
+          title={rejected ? "Invite" : "Setup"}
+        >
+          {/* A rejected invite leaves a key that owns nothing and is about to be discarded. */}
+          {rejected ? null : (
+            <DetailField
+              copy={{
+                value: publicKeyZ32,
+                copied: "Pubky copied to clipboard",
+                failed: "Could not copy pubky",
+                failedDescription: "Select and copy your pubky manually.",
+              }}
+              label="Your pubky"
+              value={publicKeyZ32}
+            />
           )}
-        </RecoveryScreen>
+          {abandonError && !confirmingAbandon ? (
+            <Notice focusOnMount tone="error">
+              {abandonError}
+            </Notice>
+          ) : null}
+        </ErrorScreen>
         <ConfirmDeletionDialog
           confirmLabel="Remove key and start over"
           description="This key may already own an account on the homeserver. After removing it from this browser, it can only be restored from the backup file you downloaded."

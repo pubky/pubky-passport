@@ -3,6 +3,8 @@ import type { ComponentPropsWithRef } from "react";
 
 import { cn } from "@/client/ui/shared/mergeClassNames";
 
+import { Spinner } from "./spinner";
+
 const buttonVariants = cva(
   "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-full border text-sm font-semibold shadow-xs transition-colors disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
@@ -30,13 +32,47 @@ const buttonVariants = cva(
   },
 );
 
-export type ButtonProps = ComponentPropsWithRef<"button"> & VariantProps<typeof buttonVariants>;
+export type ButtonProps = ComponentPropsWithRef<"button"> &
+  VariantProps<typeof buttonVariants> & {
+    /**
+     * The work this button started is running. A spinner replaces its leading icon and presses
+     * are ignored, but it stays focusable at full strength: a natively disabled button would
+     * drop keyboard focus to the page and read as unavailable rather than working.
+     */
+    loading?: boolean;
+  };
 
 export type ButtonLinkProps = ComponentPropsWithRef<"a"> & VariantProps<typeof buttonVariants>;
 
-export function Button({ className, size, type = "button", variant, ...props }: ButtonProps) {
+export function Button({
+  "aria-disabled": ariaDisabled,
+  children,
+  className,
+  disabled,
+  loading = false,
+  onClick,
+  size,
+  type = "button",
+  variant,
+  ...props
+}: ButtonProps) {
   return (
-    <button className={cn(buttonVariants({ className, size, variant }))} type={type} {...props} />
+    <button
+      aria-busy={loading || undefined}
+      aria-disabled={loading || ariaDisabled}
+      className={cn(
+        buttonVariants({ className, size, variant }),
+        loading && "opacity-100! [&>[data-slot=icon]]:hidden",
+      )}
+      disabled={!loading && disabled}
+      // Enter and Space still press an aria-disabled button, and a press would submit its form.
+      onClick={loading ? (event) => event.preventDefault() : onClick}
+      type={type}
+      {...props}
+    >
+      {loading ? <Spinner decorative /> : null}
+      {children}
+    </button>
   );
 }
 

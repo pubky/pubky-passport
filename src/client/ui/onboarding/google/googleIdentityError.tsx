@@ -5,16 +5,17 @@ import {
   GoogleDrivePermissionPrompt,
   GooglePermissionGuide,
 } from "@/client/ui/googleDrivePermissionPrompt";
-import { GoogleIdentityErrorDetails } from "@/client/ui/googleIdentityErrorDetails";
-import { googleIdentityErrorMessage } from "@/client/ui/googleIdentityErrorMessage";
+import {
+  googleIdentityErrorMessage,
+  googleIdentityErrorRecovery,
+} from "@/client/ui/googleIdentityErrorMessage";
 import { googlePermissionPromptMode } from "@/client/ui/googlePermissionPromptMode";
 import { RotateCcwIcon, TrashIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { ConfirmDeletionDialog } from "@/client/ui/shared/confirmDeletionDialog";
-import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { ErrorScreen } from "@/client/ui/shared/errorScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { Label } from "@/client/ui/shared/primitives/label";
-import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 
 /** A confirmed deletion of the Drive identity file followed by creation of a new identity. */
 type PassportFileReplacement = {
@@ -65,101 +66,41 @@ function GoogleIdentityError({
     );
   }
 
+  const recovery = googleIdentityErrorRecovery(error, {
+    canReplaceFile: replacement !== undefined,
+  });
   return (
     <>
-      <PassportScreen className="gap-6 md:max-w-[558px] md:gap-8">
-        <div className="flex flex-col gap-6 md:gap-3">
-          <DisplayHeading accent="interrupted." aria-label="Setup interrupted.">
-            Setup
-          </DisplayHeading>
-          <LeadText>{googleIdentityErrorMessage(error.code)}</LeadText>
-        </div>
-
-        <div className="flex min-h-0 flex-1 flex-col gap-6">
-          <GoogleIdentityErrorDetails error={error} />
-          {replacement ? (
-            <>
-              <div
-                aria-label="Mobile error actions"
-                className="mt-auto grid w-full grid-cols-1 gap-3 md:hidden"
-                role="group"
-              >
-                <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
-                  <RotateCcwIcon />
-                  Try again
-                </Button>
-                <Button
-                  className="w-full"
-                  onClick={() => setConfirmationOpen(true)}
-                  size="lg"
-                  type="button"
-                  variant="destructive"
-                >
-                  <TrashIcon />
-                  Delete backup &amp; create new pubky
-                </Button>
-                <BackButton onClick={onBack} />
-              </div>
-              <div
-                aria-label="Desktop error actions"
-                className="hidden w-full grid-cols-(--passport-error-actions-columns) gap-3 md:grid md:gap-x-6"
-                role="group"
-              >
-                <BackButton className="md:col-start-1 md:row-start-1" onClick={onBack} />
-                <Button
-                  className="w-full md:col-start-2 md:row-start-1"
-                  onClick={() => setConfirmationOpen(true)}
-                  size="lg"
-                  type="button"
-                  variant="destructive"
-                >
-                  <TrashIcon />
-                  Delete &amp; create new
-                </Button>
-                <Button
-                  className="w-full md:col-start-3 md:row-start-1"
-                  onClick={onTryAgain}
-                  size="lg"
-                  type="button"
-                >
-                  <RotateCcwIcon />
-                  Try again
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div
-                aria-label="Mobile error actions"
-                className="mt-auto grid w-full grid-cols-1 gap-3 md:hidden"
-                role="group"
-              >
-                <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
-                  <RotateCcwIcon />
-                  Try again
-                </Button>
-                <BackButton onClick={onBack} />
-              </div>
-              <div
-                aria-label="Desktop error actions"
-                className="hidden w-full grid-cols-(--passport-error-actions-columns) gap-3 md:grid md:gap-x-0"
-                role="group"
-              >
-                <BackButton className="md:col-start-1 md:row-start-1" onClick={onBack} />
-                <Button
-                  className="w-full md:col-start-3 md:row-start-1"
-                  onClick={onTryAgain}
-                  size="lg"
-                  type="button"
-                >
-                  <RotateCcwIcon />
-                  Try again
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
-      </PassportScreen>
+      <ErrorScreen
+        accent="interrupted."
+        action={
+          // Where the same step would fail again, Try again is not offered as the way out.
+          recovery.retryHelps ? (
+            <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
+              <RotateCcwIcon />
+              Try again
+            </Button>
+          ) : null
+        }
+        back={<BackButton onClick={onBack} />}
+        cause={googleIdentityErrorMessage(error.code)}
+        details={{ code: error.code, detail: error.detailCode }}
+        nextStep={recovery.nextStep}
+        secondaryAction={
+          replacement ? (
+            <Button
+              className="text-destructive-text"
+              onClick={() => setConfirmationOpen(true)}
+              type="button"
+              variant="ghost"
+            >
+              <TrashIcon />
+              Delete backup &amp; create new pubky
+            </Button>
+          ) : null
+        }
+        title="Setup"
+      />
 
       {replacement ? (
         <ConfirmDeletionDialog
@@ -238,44 +179,28 @@ function ForeignPassportFile({
   const originLabelId = useId();
 
   return (
-    <PassportScreen className="gap-6 md:max-w-[558px] md:gap-8">
-      <div className="flex flex-col gap-6 md:gap-3">
-        <DisplayHeading accent="elsewhere." aria-label="Identity found elsewhere.">
-          Identity found
-        </DisplayHeading>
-        <LeadText>{googleIdentityErrorMessage("foreign_passport_file")}</LeadText>
-      </div>
-
-      <div className="flex min-h-0 flex-1 flex-col gap-6">
-        <div className="flex flex-col gap-2">
-          <Label className="leading-5" id={originLabelId}>
-            Site named in the file (unverified)
-          </Label>
-          <div
-            aria-labelledby={originLabelId}
-            className="flex min-h-14 flex-col justify-center rounded-lg border border-dashed border-input bg-black/10 py-4 pl-6 pr-5 shadow-xs"
-            role="group"
-          >
-            <p className="break-all text-base font-medium leading-6 text-foreground">
-              {passportFileOrigin}
-            </p>
-          </div>
-        </div>
-        <p className="text-sm leading-5 text-muted-foreground">
-          Passport cannot confirm which site created this file. Only use your identity on a Passport
-          site you already trust. To create a new identity here, go back and choose a different
-          Google account.
-        </p>
-
+    <ErrorScreen
+      accent="elsewhere."
+      back={<BackButton onClick={onBack} />}
+      cause={googleIdentityErrorMessage("foreign_passport_file")}
+      nextStep="Passport cannot confirm which site created this file. Only use your identity on a Passport site you already trust. To create a new identity here, go back and choose a different Google account."
+      title="Identity found"
+    >
+      <div className="flex flex-col gap-2">
+        <Label className="leading-5" id={originLabelId}>
+          Site named in the file (unverified)
+        </Label>
         <div
-          aria-label="Foreign identity actions"
-          className="mt-auto grid w-full grid-cols-1 gap-3 md:mt-0 md:flex md:items-center md:justify-between"
+          aria-labelledby={originLabelId}
+          className="flex min-h-14 flex-col justify-center rounded-lg border border-border bg-black/10 py-4 pl-6 pr-5"
           role="group"
         >
-          <BackButton onClick={onBack} />
+          <p className="break-all text-base font-medium leading-6 text-foreground">
+            {passportFileOrigin}
+          </p>
         </div>
       </div>
-    </PassportScreen>
+    </ErrorScreen>
   );
 }
 
@@ -287,47 +212,35 @@ function GoogleAccessDenied({
   onTryAgain: () => void;
 }) {
   return (
-    <PassportScreen className="gap-6 md:gap-8">
-      <div className="flex flex-col gap-6 md:gap-3">
-        <DisplayHeading accent="denied." desktopAccentOnNewLine>
-          Google <span className="hidden md:inline">Drive</span> access
-        </DisplayHeading>
-        <LeadText className="md:hidden">
-          Passport needs Google Drive access to create or restore your Pubky.
-        </LeadText>
-        <LeadText className="hidden md:block">
-          Passport needs access to your Google Drive to create or restore your Pubky.
-        </LeadText>
-      </div>
-      <GooglePermissionGuide />
-      <div
-        aria-label="Mobile error actions"
-        className="mt-auto grid w-full grid-cols-1 gap-3 md:hidden"
-        role="group"
-      >
+    <ErrorScreen
+      accent="denied."
+      action={
         <Button className="w-full" onClick={onTryAgain} size="lg" type="button">
           <RotateCcwIcon />
           Try again
         </Button>
-        <BackButton onClick={onBack} />
-      </div>
-      <div
-        aria-label="Desktop error actions"
-        className="hidden w-full grid-cols-(--passport-error-actions-columns) items-center gap-0 md:grid"
-        role="group"
-      >
-        <BackButton className="md:col-start-1 md:row-start-1" onClick={onBack} />
-        <Button
-          className="w-full md:col-start-3 md:row-start-1"
-          onClick={onTryAgain}
-          size="lg"
-          type="button"
-        >
-          <RotateCcwIcon />
-          Try again
-        </Button>
-      </div>
-    </PassportScreen>
+      }
+      back={<BackButton onClick={onBack} />}
+      cause={
+        <>
+          <span className="md:hidden">
+            Passport needs Google Drive access to create or restore your Pubky.
+          </span>
+          <span className="hidden md:inline">
+            Passport needs access to your Google Drive to create or restore your Pubky.
+          </span>
+        </>
+      }
+      label="Google Drive access denied."
+      nextStep="Try again and allow Passport’s Google Drive access in Google’s window. The second permission also adds a visible recovery copy."
+      title={
+        <>
+          Google <span className="hidden md:inline">Drive</span> access
+        </>
+      }
+    >
+      <GooglePermissionGuide />
+    </ErrorScreen>
   );
 }
 

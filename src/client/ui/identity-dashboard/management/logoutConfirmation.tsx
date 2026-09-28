@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { DownloadIcon } from "@/client/ui/shared/icons";
+import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
@@ -76,6 +77,7 @@ export function LogoutConfirmation({
           </label>
         </>
       ) : null}
+      {removalFailed ? <Notice tone="error">Could not log out. Please try again.</Notice> : null}
       <PassportNavigation
         layout="paired"
         back={
@@ -94,11 +96,6 @@ export function LogoutConfirmation({
           </Button>
         }
       />
-      {removalFailed ? (
-        <FieldMessage error role="alert">
-          Could not log out. Please try again.
-        </FieldMessage>
-      ) : null}
     </RecoveryScreen>
   );
 }

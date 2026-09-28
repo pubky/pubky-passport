@@ -18,4 +18,31 @@ describe("Dialog", () => {
     rendered.unmount();
     expect(dialog.open).toBe(false);
   });
+
+  it("returns focus to the control that opened it when it is unmounted", () => {
+    const rendered = render(
+      <>
+        <button type="button">Scan QR</button>
+      </>,
+    );
+    const opener = screen.getByRole("button", { name: "Scan QR" });
+    opener.focus();
+    rendered.rerender(
+      <>
+        <button type="button">Scan QR</button>
+        <Dialog aria-label="Scanner" onOpenChange={() => undefined} open>
+          <button type="button">Close</button>
+        </Dialog>
+      </>,
+    );
+    screen.getByRole("button", { name: "Close" }).focus();
+
+    rendered.rerender(
+      <>
+        <button type="button">Scan QR</button>
+      </>,
+    );
+
+    expect(opener).toHaveFocus();
+  });
 });

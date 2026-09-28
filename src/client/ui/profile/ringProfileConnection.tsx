@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState } from "react";
 import { Result } from "better-result";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import type { RingConnectionErrorCode } from "@/client/logic/profile/RingProfileController";
@@ -7,8 +7,10 @@ import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
+import { RotateCcwIcon } from "@/client/ui/shared/icons";
+import { Notice } from "@/client/ui/shared/notice";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
+import { Spinner } from "@/client/ui/shared/primitives/spinner";
 import { ExternalSignerRequest } from "@/client/ui/universal-signer/externalSignerRequest";
 
 /** Failures after Ring approved say so: retrying then needs a new approval in Ring. */
@@ -64,6 +66,15 @@ export function RingProfileConnection({
   const keepConnection = useRef(false);
   const complete = useEffectEvent(onComplete);
   const id = useId();
+  const waiting = useRef<HTMLParagraphElement>(null);
+  // A retry unmounts the control that started it; once Ring is waiting, focus the wait.
+  const retried = attempt.id > 0;
+  useLayoutEffect(() => {
+    if (retried && state.status === "waiting") waiting.current?.focus();
+  }, [retried, state.status]);
+  // Try again stays mounted while its new request is prepared, so focus stays on it.
+  const [retryPressed, setRetryPressed] = useState(false);
+  if (retryPressed && state.status !== "starting") setRetryPressed(false);
   useEffect(() => {
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
@@ -136,16 +147,14 @@ export function RingProfileConnection({
         <p className="break-all text-xs text-muted-foreground">Pubky: {expectedKey}</p>
       ) : null}
       {state.status === "starting" ? (
-        <p role="status">Preparing your connection…</p>
+        <p className="flex items-center gap-2" role="status">
+          <Spinner className="size-4" decorative />
+          Preparing your connection…
+        </p>
       ) : state.status === "failed" ? (
-        <>
-          <FieldMessage error role="alert">
-            {CONNECTION_ERRORS[state.failure]}
-          </FieldMessage>
-          <Button variant="secondary" onClick={() => retry(state.failure === "storage_failed")}>
-            Try again
-          </Button>
-        </>
+        <Notice focusOnMount tone="error">
+          {CONNECTION_ERRORS[state.failure]}
+        </Notice>
       ) : state.status === "confirming" ? (
         <section
           aria-labelledby={`${id}-confirm`}
@@ -175,12 +184,37 @@ export function RingProfileConnection({
             getAuthorizationUrl={() => controller.authorizationUrl()}
             purpose="profile-connection"
           />
-          <p className="text-sm text-muted-foreground" role="status">
+          <p
+            className="flex items-center gap-2 text-sm text-muted-foreground outline-none"
+            ref={waiting}
+            role="status"
+            tabIndex={-1}
+          >
+            <Spinner className="size-4" decorative />
             Waiting for approval in Ring…
           </p>
         </>
       )}
-      <PassportNavigation back={<BackButton onClick={onBack} />} />
+      <PassportNavigation
+        back={<BackButton onClick={onBack} />}
+        confirm={
+          state.status === "failed" || retryPressed ? (
+            <Button
+              className="w-full"
+              loading={retryPressed}
+              onClick={() => {
+                if (state.status !== "failed") return;
+                setRetryPressed(true);
+                retry(state.failure === "storage_failed");
+              }}
+              size="lg"
+            >
+              <RotateCcwIcon />
+              Try again
+            </Button>
+          ) : undefined
+        }
+      />
       {setupRequired && onDefer ? (
         <Button className="self-center" onClick={onDefer} type="button" variant="ghost">
           Finish later

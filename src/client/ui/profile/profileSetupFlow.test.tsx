@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -73,11 +73,39 @@ describe("ProfileSetupFlow", () => {
   it("shows only a retry for a failed read", async () => {
     load.mockResolvedValueOnce(Result.err({ code: "load_failed" }));
     mount();
-    expect(await screen.findByText(/Could not load your profile/)).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Could not load your profile/u);
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+    // The retry is the primary action beside Back, not a small pill above it.
+    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([
+      "Back",
+      "Try again",
+    ]);
     await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
-    expect(await screen.findByLabelText("Name")).toHaveValue("");
+    // The form replaces the focused retry, so focus moves into it rather than to the page.
+    const name = await screen.findByLabelText("Name");
+    expect(name).toHaveValue("");
+    expect(name).toHaveFocus();
     expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a failed retry's button focused and busy while it runs", async () => {
+    let failAgain!: () => void;
+    load.mockResolvedValueOnce(Result.err({ code: "load_failed" })).mockReturnValueOnce(
+      new Promise((resolve) => {
+        failAgain = () => resolve(Result.err({ code: "load_failed" }));
+      }),
+    );
+    mount();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Try again" }));
+
+    const retry = screen.getByRole("button", { name: "Try again" });
+    expect(retry).toHaveAttribute("aria-busy", "true");
+    expect(retry).toHaveFocus();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading your profile…");
+    await act(async () => failAgain());
+    expect(screen.getByRole("alert")).toHaveTextContent(/Could not load your profile/u);
+    expect(screen.getByRole("button", { name: "Try again" })).toHaveFocus();
   });
 
   it("previews an existing avatar from its downloaded bytes", async () => {
@@ -107,9 +135,37 @@ describe("ProfileSetupFlow", () => {
     const user = userEvent.setup();
     await user.type(await screen.findByLabelText("Name"), "Satoshi");
     await user.click(screen.getByRole("button", { name: "Finish" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(message);
+    // The failure appears above the actions and takes focus, so it is not missed.
+    expect(alert).toHaveFocus();
     expect(onComplete).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "Connect Ring" })).not.toBeInTheDocument();
+  });
+
+  it("shows an unsupported avatar's error by the picker and leaves focus there", async () => {
+    mount();
+    const picker = await screen.findByLabelText("Choose avatar file");
+    picker.focus();
+
+    fireEvent.change(picker, {
+      target: { files: [new File(["%PDF"], "avatar.pdf", { type: "application/pdf" })] },
+    });
+
+    const message = screen.getByRole("alert");
+    expect(message).toHaveTextContent("Choose a PNG, JPEG, WebP, or GIF image up to 5 MB.");
+    expect(picker).toHaveAccessibleDescription(
+      "Choose a PNG, JPEG, WebP, or GIF image up to 5 MB.",
+    );
+    expect(picker).toHaveAttribute("aria-invalid", "true");
+    // A field error is not a failed save: focus stays on the picker for another choice.
+    expect(picker).toHaveFocus();
+    expect(message.closest("section")).toBe(screen.getByRole("region", { name: "Avatar" }));
+
+    fireEvent.change(picker, {
+      target: { files: [new File(["png"], "avatar.png", { type: "image/png" })] },
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("offers to reconnect Ring after the grant has ended", async () => {

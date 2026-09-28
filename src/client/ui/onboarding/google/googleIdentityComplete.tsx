@@ -1,4 +1,5 @@
 import { SetupProgressProvider } from "@/client/ui/shared/setupProgress";
+import { Notice } from "@/client/ui/shared/notice";
 import { PublicKeyCard } from "@/client/ui/shared/publicKeyCard";
 
 import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
@@ -34,14 +35,11 @@ function GoogleIdentityComplete({
         <div className="mt-6 flex min-h-0 flex-1 flex-col md:mt-8">
           {visibleRecoveryCopyStatus === "unconfirmed" ||
           visibleRecoveryCopyStatus === "skipped" ? (
-            <p
-              className="mb-6 rounded-xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm leading-5"
-              role="status"
-            >
+            <Notice className="mb-6" tone="warning">
               {visibleRecoveryCopyStatus === "skipped"
                 ? "Your identity is ready. No visible recovery copy was created in Google Drive because you did not grant that permission. Download a recovery file from identity management."
                 : "Your identity is ready, but Passport could not confirm the visible recovery copy in Google Drive. Download a recovery file from identity management."}
-            </p>
+            </Notice>
           ) : null}
           <GoogleAccountCard account={googleAccount} />
           <div className="mt-6">

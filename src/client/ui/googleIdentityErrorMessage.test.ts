@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { GoogleIdentityViewError } from "@/client/logic/google-identity/googleIdentityErrors";
-import { googleIdentityErrorMessage } from "./googleIdentityErrorMessage";
+import {
+  googleIdentityErrorMessage,
+  googleIdentityErrorRecovery,
+} from "./googleIdentityErrorMessage";
 
 /** Every view code with its user copy; the `Record` keeps this table exhaustive at compile time. */
 const EXPECTED_COPY: Record<GoogleIdentityViewError["code"], string> = {
@@ -116,5 +119,71 @@ describe("googleIdentityErrorMessage", () => {
     expect(googleIdentityErrorMessage("wrapping_key_failed")).toBe(
       EXPECTED_COPY.wrapping_key_failed,
     );
+  });
+});
+
+describe("googleIdentityErrorRecovery", () => {
+  const replaceable = { canReplaceFile: true };
+
+  it.each([
+    [
+      "weekly_limit_exceeded",
+      "This Google account has reached its weekly limit for new identities. Try again in a week, or go back and create your account another way.",
+    ],
+    [
+      "annual_limit_exceeded",
+      "This Google account has reached its yearly limit for new identities. Go back and create your account another way.",
+    ],
+  ] as const)("names the %s sign-up limit and offers no retry", (detailCode, nextStep) => {
+    expect(
+      googleIdentityErrorRecovery(
+        { code: "homeserver_signup_token_failed", detailCode },
+        { canReplaceFile: false },
+      ),
+    ).toEqual({ nextStep, retryHelps: false });
+  });
+
+  it("keeps the retry for a sign-up service that is not answering", () => {
+    expect(
+      googleIdentityErrorRecovery(
+        { code: "homeserver_signup_token_failed", detailCode: "homegate_unavailable" },
+        { canReplaceFile: false },
+      ),
+    ).toEqual({
+      nextStep:
+        "The sign-up service is not answering right now. Wait a few minutes, then try again.",
+      retryHelps: true,
+    });
+  });
+
+  it.each([
+    "invalid_passport_file",
+    "invalid_passport_file_delete_failed",
+    "passport_file_undecryptable",
+    "undecryptable_passport_file_delete_failed",
+  ] as const)("resolves %s by deleting the file or another account, not a retry", (code) => {
+    const withReplacement = googleIdentityErrorRecovery({ code }, replaceable);
+    expect(withReplacement.retryHelps).toBe(false);
+    expect(withReplacement.nextStep).toMatch(
+      /^Delete the (damaged )?file and create a new pubky, or go back and choose another Google account\.$/u,
+    );
+    expect(googleIdentityErrorRecovery({ code }, { canReplaceFile: false })).toEqual({
+      nextStep: "Go back and choose another Google account.",
+      retryHelps: false,
+    });
+  });
+
+  it("omits a next step the cause already gives", () => {
+    expect(googleIdentityErrorMessage("homeserver_unreachable")).toMatch(/Try again later\.$/u);
+    expect(googleIdentityErrorRecovery({ code: "homeserver_unreachable" }, replaceable)).toEqual({
+      retryHelps: true,
+    });
+  });
+
+  it("gives every other failure a retry with a way out if it keeps failing", () => {
+    expect(googleIdentityErrorRecovery({ code: "restore_failed" }, replaceable)).toEqual({
+      nextStep: "Try again. If it keeps failing, go back and choose another option.",
+      retryHelps: true,
+    });
   });
 });

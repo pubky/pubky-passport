@@ -1,7 +1,7 @@
 "use client";
 
 import { Result } from "better-result";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { BackupImporter, type BackupImportErrorCode } from "@/client/logic/backup/BackupImporter";
 import {
@@ -11,6 +11,7 @@ import {
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { ArrowRightIcon } from "@/client/ui/shared/icons";
+import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { RecoveryScreen } from "@/client/ui/shared/recoveryScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
@@ -49,6 +50,13 @@ export function BackupImportFlow({
   // Set when the backup decrypted but its identity has no homeserver record to sign in with.
   const [unpublished, setUnpublished] = useState<string>();
 
+  // A failed import empties the password; focus what failed rather than losing it to the page.
+  useLayoutEffect(() => {
+    if (pending || !error) return;
+    if (error.target === "file") fileInput.current?.focus();
+    else if (error.target === "password") passwordInput.current?.focus();
+  }, [error, pending]);
+
   useEffect(() => {
     const setup = buildImporter();
     importer.current = setup;
@@ -60,6 +68,7 @@ export function BackupImportFlow({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (pending) return;
     const file = fileInput.current?.files?.[0];
     const password = passwordInput.current?.value ?? "";
     if (!file || file.size === 0 || file.size > MAXIMUM_BACKUP_BYTES) {
@@ -147,9 +156,9 @@ export function BackupImportFlow({
           </FieldMessage>
         </div>
         {formError ? (
-          <FieldMessage error role="alert">
+          <Notice focusOnMount tone="error">
             {formError}
-          </FieldMessage>
+          </Notice>
         ) : null}
         <PassportNavigation
           back={
@@ -168,7 +177,7 @@ export function BackupImportFlow({
             <Button
               aria-describedby="import-homeserver"
               className="w-full"
-              disabled={pending}
+              loading={pending}
               onClick={() => void republish(defaultHomeserver)}
               size="lg"
             >
@@ -217,10 +226,10 @@ export function BackupImportFlow({
             aria-invalid={passwordError ? true : undefined}
             autoComplete="current-password"
             containerClassName="border-dashed"
-            disabled={pending}
             id="passport-backup-password"
             maxLength={MAXIMUM_BACKUP_PASSWORD_LENGTH}
             onInput={() => setError(undefined)}
+            readOnly={pending}
             ref={passwordInput}
             type="password"
           />
@@ -231,15 +240,21 @@ export function BackupImportFlow({
           ) : null}
         </div>
         {formError ? (
-          <FieldMessage error role="alert">
+          <Notice focusOnMount tone="error">
             {formError}
-          </FieldMessage>
+          </Notice>
         ) : null}
         <PassportNavigation
           back={<BackButton disabled={pending} onClick={onBack} />}
           layout="paired"
           confirm={
-            <Button className="w-full" disabled={pending || !fileName} size="lg" type="submit">
+            <Button
+              className="w-full"
+              disabled={!fileName}
+              loading={pending}
+              size="lg"
+              type="submit"
+            >
               <ArrowRightIcon />
               {pending ? "Importing…" : "Import backup"}
             </Button>

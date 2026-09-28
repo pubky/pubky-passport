@@ -115,7 +115,7 @@ describe("BackupImportFlow", () => {
     ["storage_failed", "form", /could not save it/u],
     ["import_unavailable", "form", /could not import this backup/u],
   ] as const satisfies ReadonlyArray<readonly [BackupImportErrorCode, string, RegExp]>)(
-    "explains the %s outcome next to the %s",
+    "explains the %s outcome next to the %s and moves focus there",
     async (code, target, message) => {
       const { onComplete } = renderFlow(async () => Result.err({ code }));
       await submitBackup(userEvent.setup());
@@ -128,6 +128,8 @@ describe("BackupImportFlow", () => {
             ? screen.getByLabelText("Backup password")
             : undefined;
       if (field) expect(field).toHaveAttribute("aria-describedby", alert.id);
+      // The emptied password would otherwise leave focus on the page, not on what to fix.
+      expect(field ?? alert).toHaveFocus();
       expect(onComplete).not.toHaveBeenCalled();
     },
   );

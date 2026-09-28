@@ -81,7 +81,7 @@ describe("ConfirmGoogleDetachment", () => {
     expect(confirmation).not.toHaveAttribute("aria-invalid");
   });
 
-  it("shows user copy and the safe error code in the Error box", async () => {
+  it("shows user copy and keeps the safe error code in collapsed technical details", async () => {
     render(
       <ConfirmGoogleDetachment
         canConfirm
@@ -99,8 +99,38 @@ describe("ConfirmGoogleDetachment", () => {
       "Could not remove Google access. Please try again.",
     );
     expect(screen.getByRole("alert")).not.toHaveTextContent("google_drive_cleanup_failed");
-    expect(
-      within(screen.getByRole("group", { name: "Error" })).getByText("google_drive_cleanup_failed"),
-    ).toBeInTheDocument();
+    const details = screen.getByText("Technical details").closest("details");
+    expect(details).not.toHaveAttribute("open");
+    expect(within(details!).getByText("google_drive_cleanup_failed")).toBeInTheDocument();
+  });
+
+  it("keeps focus on the busy confirm button and then moves it to a new failure", async () => {
+    const props = {
+      canConfirm: true,
+      canRetryAuthorization: false,
+      onCancel: vi.fn(),
+      onConfirm: vi.fn(),
+      onRetryAuthorization: vi.fn(),
+      open: true,
+    };
+    const { rerender } = render(<ConfirmGoogleDetachment {...props} error={null} pending />);
+
+    const confirm = await screen.findByRole("button", { name: "Removing…" });
+    expect(confirm).toHaveAttribute("aria-busy", "true");
+    expect(confirm).toBeEnabled();
+    expect(screen.getByLabelText("Type DETACH to confirm")).toHaveAttribute("readonly");
+
+    rerender(
+      <ConfirmGoogleDetachment
+        {...props}
+        error={{ code: "google_drive_cleanup_failed" }}
+        pending={false}
+      />,
+    );
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveFocus();
+    expect(screen.getByLabelText("Type DETACH to confirm")).toHaveAccessibleDescription(
+      "Could not remove Google access. Please try again.",
+    );
   });
 });

@@ -116,6 +116,8 @@ describe("ManualAuthorization", () => {
       "Scan a QR code containing a valid pubkyauth:// authorization link.",
     );
     expect(screen.getByLabelText("Authorization link")).toHaveValue("");
+    // The scanner closed; focus returns to the field instead of falling to the page.
+    expect(screen.getByLabelText("Authorization link")).toHaveFocus();
   });
 
   it("submits through the validated authorization entry", async () => {
@@ -132,11 +134,13 @@ describe("ManualAuthorization", () => {
     ).toBe(VALID_REQUEST);
   });
 
-  it("shows a validation error", async () => {
+  it("shows a validation error and returns focus to the emptied field", async () => {
     render(<ManualAuthorization onBack={vi.fn()} />);
 
     await userEvent.setup().type(screen.getByLabelText("Authorization link"), "invalid request");
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
+    // Continue disabled itself with the emptied field, which would drop focus to the page.
+    expect(screen.getByLabelText("Authorization link")).toHaveFocus();
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Enter a valid pubkyauth:// authorization link.",

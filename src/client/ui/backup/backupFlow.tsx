@@ -1,7 +1,7 @@
 "use client";
 
 import { Result, type Result as ResultType } from "better-result";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -14,6 +14,7 @@ import type { LocalIdentityRecoveryFile } from "@/client/logic/local-identity/Lo
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { DownloadIcon, CheckIcon } from "@/client/ui/shared/icons";
+import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { RecoveryScreen } from "@/client/ui/shared/recoveryScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
@@ -90,6 +91,14 @@ export function BackupFlow({
       lastDownload.current = null;
     };
   }, []);
+
+  // A failed check empties the password, so the submit button disables itself: move focus to
+  // what failed instead of letting it fall to the page.
+  useLayoutEffect(() => {
+    if (pending || !error) return;
+    if (error.target === "password") password.current?.focus();
+    else if (error.target === "file") file.current?.focus();
+  }, [error, pending]);
 
   function clearPasswordField() {
     if (password.current) password.current.value = "";
@@ -285,7 +294,7 @@ export function BackupFlow({
             type="password"
             ref={password}
             required
-            disabled={pending}
+            readOnly={pending}
             minLength={confirming ? undefined : MINIMUM_BACKUP_PASSWORD_LENGTH}
             maxLength={MAXIMUM_BACKUP_PASSWORD_LENGTH}
             autoComplete={confirming ? "current-password" : "new-password"}
@@ -317,7 +326,7 @@ export function BackupFlow({
               type="password"
               ref={passwordConfirmation}
               required
-              disabled={pending}
+              readOnly={pending}
               maxLength={MAXIMUM_BACKUP_PASSWORD_LENGTH}
               autoComplete="new-password"
               containerClassName="border-dashed"
@@ -335,9 +344,9 @@ export function BackupFlow({
           </div>
         ) : null}
         {formError ? (
-          <FieldMessage error role="alert">
+          <Notice focusOnMount tone="error">
             {formError}
-          </FieldMessage>
+          </Notice>
         ) : null}
         {confirming && downloadedHere ? (
           <Button variant="ghost" className="self-center" disabled={pending} onClick={onSkip}>
@@ -350,7 +359,8 @@ export function BackupFlow({
           confirm={
             <Button
               className="w-full"
-              disabled={pending || !canSubmit || (confirming && !hasFile)}
+              disabled={!canSubmit || (confirming && !hasFile)}
+              loading={pending}
               size="lg"
               type="submit"
             >

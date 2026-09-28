@@ -89,7 +89,11 @@ describe("AuthorizationFlow", () => {
   it("disables every action while approval runs", () => {
     renderFlow({ status: "granting", review: REVIEW });
 
-    expect(screen.getByRole("button", { name: "Granting access…" })).toBeDisabled();
+    // The pressed button shows the work and keeps focus, so it is busy rather than disabled.
+    const authorize = screen.getByRole("button", { name: "Granting access…" });
+    expect(authorize).toHaveAttribute("aria-busy", "true");
+    expect(authorize).toHaveAttribute("aria-disabled", "true");
+    expect(authorize).toBeEnabled();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Switch identity" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Use Pubky Ring" })).toBeDisabled();

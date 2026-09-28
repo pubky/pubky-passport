@@ -4,6 +4,7 @@ import { googleIdentityErrorMessage } from "@/client/ui/googleIdentityErrorMessa
 import { BackButton } from "@/client/ui/shared/backButton";
 import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
 import { RotateCcwIcon } from "@/client/ui/shared/icons";
+import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
@@ -60,12 +61,12 @@ export function BackupToGoogle({
         Choose a Google account that doesn’t already have a Passport backup.
       </LeadText>
       {state.status === "failed" ? (
-        <FieldMessage error>{googleIdentityErrorMessage(state.error.code, "attach")}</FieldMessage>
+        <Notice tone="error">{googleIdentityErrorMessage(state.error.code, "attach")}</Notice>
       ) : null}
       <PassportNavigation
         back={<BackButton onClick={onBack} disabled={pending} />}
         confirm={
-          <Button className="w-full" onClick={operation.retry} disabled={pending} size="lg">
+          <Button className="w-full" onClick={operation.retry} loading={pending} size="lg">
             {state.status === "failed" ? <RotateCcwIcon /> : <GoogleLogo />}
             {pending ? "Attaching…" : state.status === "failed" ? "Try again" : "Attach to Google"}
           </Button>

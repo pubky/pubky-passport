@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { Result } from "better-result";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
@@ -12,12 +12,15 @@ import {
 } from "@/client/logic/profile/profileDraft";
 import type { IdentityCatalogActions } from "@/client/ui/identity-catalog/useIdentityCatalog";
 import { BackButton } from "@/client/ui/shared/backButton";
-import { ArrowRightIcon, TrashIcon } from "@/client/ui/shared/icons";
+import { ArrowRightIcon, RotateCcwIcon, TrashIcon } from "@/client/ui/shared/icons";
+import { Notice } from "@/client/ui/shared/notice";
+import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { Input } from "@/client/ui/shared/primitives/input";
 import { Label } from "@/client/ui/shared/primitives/label";
+import { Spinner } from "@/client/ui/shared/primitives/spinner";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 import { SetupProgressProvider } from "@/client/ui/shared/setupProgress";
 import { ProfileBackupSteps } from "./profileBackupSteps";
@@ -92,8 +95,11 @@ function ProfileEditor({
   const [attempt, setAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
   const busy = useRef(false);
+  // A failed save, about the whole form; an unsupported avatar is the picker's own error.
   const [error, setError] = useState<{ message: string; reconnect?: boolean }>();
+  const [avatarError, setAvatarError] = useState(false);
   const nextLink = useRef<number>(PROFILE_LIMITS.linksMaxCount);
+  const nameInput = useRef<HTMLInputElement>(null);
   const mounted = useRef(false);
   const initialGoogleName = identity.googleAccount?.name ?? "";
 
@@ -127,6 +133,10 @@ function ProfileEditor({
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [controller, publicKey, initialGoogleName, attempt]);
+  // A retry that loads the profile replaces the focused Try again with the form.
+  useLayoutEffect(() => {
+    if (attempt > 0 && !loading && !loadFailed) nameInput.current?.focus();
+  }, [attempt, loading, loadFailed]);
   const [filePreview, setFilePreview] = useState<string>();
   useEffect(() => {
     if (!avatar) return;
@@ -141,6 +151,7 @@ function ProfileEditor({
     busy.current = true;
     setSaving(true);
     setError(undefined);
+    setAvatarError(false);
     const result = await controller.save(publicKey, profileFromDraft(draft), avatar);
     busy.current = false;
     if (!mounted.current) return;
@@ -191,22 +202,12 @@ function ProfileEditor({
         <LeadText>Add your name, bio, links, and avatar.</LeadText>
       </div>
       {loading ? (
-        <p role="status">Loading your profile…</p>
+        <p className="flex items-center gap-2" role="status">
+          <Spinner className="size-4" decorative />
+          Loading your profile…
+        </p>
       ) : loadFailed || !draft ? (
-        <div className="space-y-6">
-          <FieldMessage error>
-            Could not load your profile. Try again before making changes.
-          </FieldMessage>
-          <Button
-            onClick={() => {
-              setLoading(true);
-              setAttempt((value) => value + 1);
-            }}
-            variant="secondary"
-          >
-            Try again
-          </Button>
-        </div>
+        <Notice tone="error">Could not load your profile. Try again before making changes.</Notice>
       ) : (
         <form className="flex flex-col gap-6" onSubmit={(event) => void finish(event)}>
           {unreadable ? (
@@ -231,6 +232,7 @@ function ProfileEditor({
                 <Input
                   autoComplete="nickname"
                   id="profile-name"
+                  ref={nameInput}
                   containerClassName="border-dashed"
                   required
                   value={draft.name}
@@ -363,6 +365,8 @@ function ProfileEditor({
                 <label className="relative flex h-8 cursor-pointer items-center gap-2 rounded-full bg-secondary px-3 text-xs font-bold text-secondary-foreground has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-foreground">
                   <Image alt="" src="/icons/profile-file.svg" width={16} height={16} /> Choose file
                   <input
+                    aria-describedby={avatarError ? "profile-avatar-error" : undefined}
+                    aria-invalid={avatarError || undefined}
                     aria-label="Choose avatar file"
                     className="absolute inset-0 w-full cursor-pointer opacity-0"
                     type="file"
@@ -371,34 +375,39 @@ function ProfileEditor({
                       const file = event.target.files?.[0];
                       event.target.value = "";
                       if (!file) return;
+                      // The error stays by the picker, which keeps focus for another choice.
                       if (!isAvatarFile(file)) {
-                        setError({ message: INVALID_AVATAR_MESSAGE });
+                        setAvatarError(true);
                         return;
                       }
                       setAvatar(file);
+                      setAvatarError(false);
                       setError(undefined);
                     }}
                   />
                 </label>
               )}
+              {avatarError ? (
+                <FieldMessage className="text-center" error id="profile-avatar-error">
+                  {INVALID_AVATAR_MESSAGE}
+                </FieldMessage>
+              ) : null}
             </section>
           </fieldset>
           {error ? (
-            <div className="flex flex-col items-start gap-3">
-              <FieldMessage error role="alert">
-                {error.message}
-              </FieldMessage>
+            <Notice focusOnMount tone="error">
+              {error.message}
               {error.reconnect ? (
                 <Button type="button" size="sm" variant="secondary" onClick={onReconnect}>
                   Connect Ring
                 </Button>
               ) : null}
-            </div>
+            </Notice>
           ) : null}
           <p className="text-sm text-muted-foreground">Your profile is public.</p>
           <div className="flex items-center justify-between gap-3">
             <BackButton className="w-[120px]" disabled={saving} onClick={back} />
-            <Button disabled={saving} size="lg" type="submit" className="min-w-32">
+            <Button loading={saving} size="lg" type="submit" className="min-w-32">
               <ArrowRightIcon />
               {saving ? "Saving…" : "Finish"}
             </Button>
@@ -408,7 +417,26 @@ function ProfileEditor({
       )}
       {loading || loadFailed ? (
         <>
-          <BackButton onClick={back} />
+          <PassportNavigation
+            back={<BackButton onClick={back} />}
+            confirm={
+              loadFailed ? (
+                // Stays mounted through the retry, so focus is not lost while it runs.
+                <Button
+                  className="w-full"
+                  loading={loading}
+                  onClick={() => {
+                    setLoading(true);
+                    setAttempt((value) => value + 1);
+                  }}
+                  size="lg"
+                >
+                  <RotateCcwIcon />
+                  Try again
+                </Button>
+              ) : undefined
+            }
+          />
           {finishLater}
         </>
       ) : null}

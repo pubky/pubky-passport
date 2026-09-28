@@ -83,7 +83,7 @@ export function VerificationOptions({
               key={option.method}
               blocked={blocked}
               label={option.title}
-              className={`flex min-w-0 flex-col gap-6 lg:rounded-lg lg:bg-card lg:p-12 ${checking ? "opacity-50" : ""}`}
+              className="flex min-w-0 flex-col gap-6 lg:rounded-lg lg:bg-card lg:p-12"
             >
               <Image
                 alt=""
@@ -105,12 +105,14 @@ export function VerificationOptions({
                 className="w-full whitespace-normal"
                 size="lg"
                 variant="secondary"
-                disabled={blocked || checking}
-                aria-busy={checking || undefined}
+                disabled={blocked}
+                // Only the button shows the probe, so the card's text stays readable.
+                loading={checking}
                 onClick={option.action}
               >
                 <Image
                   alt=""
+                  data-slot="icon"
                   src={option.icon}
                   width={16}
                   height={16}

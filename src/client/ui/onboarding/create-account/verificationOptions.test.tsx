@@ -41,9 +41,14 @@ it.each(["checking", "unavailable", "unknown", "blocked"] as const)(
       expect(onSms).not.toHaveBeenCalled();
     } else if (status === "checking") {
       // Placeholders keep the layout stable so a tap meant for Invite cannot land elsewhere.
-      expect(sms).toBeDisabled();
+      // Busy rather than disabled: the card stays readable and only the button shows the probe.
+      expect(sms).toHaveAttribute("aria-disabled", "true");
       expect(sms).toHaveAttribute("aria-busy", "true");
-      expect(screen.getByRole("button", { name: "Continue with Lightning" })).toBeDisabled();
+      expect(sms?.closest('[role="group"]')?.firstElementChild).not.toHaveClass("opacity-50");
+      expect(screen.getByRole("button", { name: "Continue with Lightning" })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
       expect(screen.queryByText("Not available in your country")).not.toBeInTheDocument();
       await userEvent.setup().click(sms!);
       expect(onSms).not.toHaveBeenCalled();
@@ -53,7 +58,7 @@ it.each(["checking", "unavailable", "unknown", "blocked"] as const)(
   },
 );
 
-it("keeps the retry button mounted and disabled while methods are re-checked", () => {
+it("keeps the pressed retry button mounted, focused and busy while methods are re-checked", () => {
   const retry = vi.fn();
   const context = (status: "unknown" | "checking") => ({
     methods: { google: { status }, sms: { status }, lightning: { status } },
@@ -87,7 +92,11 @@ it("keeps the retry button mounted and disabled while methods are re-checked", (
     ),
   );
   expect(screen.getByRole("button", { name: "Check again" })).toBe(checkAgain);
-  expect(checkAgain).toBeDisabled();
+  // Natively disabling it would drop focus to the page and dim the one control that was pressed.
+  expect(checkAgain).toBeEnabled();
+  expect(checkAgain).toHaveFocus();
+  expect(checkAgain).toHaveAttribute("aria-busy", "true");
+  expect(checkAgain.querySelector('[data-slot="spinner"]')).not.toBeNull();
   expect(screen.getByRole("status", { name: "" })).toHaveTextContent(/Checking available/u);
 });
 

@@ -1,4 +1,4 @@
-import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import type { ComponentPropsWithoutRef, ComponentPropsWithRef, ReactNode } from "react";
 
 import { cn } from "@/client/ui/shared/mergeClassNames";
 
@@ -9,7 +9,7 @@ function DisplayHeading({
   className,
   desktopAccentOnNewLine = false,
   ...props
-}: ComponentPropsWithoutRef<"h1"> & {
+}: ComponentPropsWithRef<"h1"> & {
   accent: ReactNode;
   accentClassName?: string;
   desktopAccentOnNewLine?: boolean;

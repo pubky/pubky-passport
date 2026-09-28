@@ -8,6 +8,7 @@ import { PubkyRingLogo } from "@/client/ui/shared/brand/pubkyRingLogo";
 import { PubkyRingStoreBadges } from "@/client/ui/shared/brand/pubkyRingStoreBadges";
 import { CheckIcon, ScanIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
+import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
@@ -35,6 +36,10 @@ function MigrateToPubkyRing({
   onBack: () => void;
 }) {
   const [state, setState] = useState<PubkyRingMigrationState>(IDLE_MIGRATION_STATE);
+  const pending = state.status === "loading";
+  // Both buttons wait on the same export; only the one pressed shows it.
+  const [pressed, setPressed] = useState<"qr" | "import" | null>(null);
+  if (pressed && !pending) setPressed(null);
   // Ownership lives outside React state on purpose: `ownedMigrationRef` lets every transition
   // dispose the previous secret-bearing handle synchronously (a reducer or effect cleanup would
   // double-run or free a handle a Strict Mode remount still renders), `requestRef` cancels
@@ -121,7 +126,6 @@ function MigrateToPubkyRing({
     onBack();
   }
 
-  const pending = state.status === "loading";
   const exportFailed = state.status === "failed";
 
   return (
@@ -144,15 +148,17 @@ function MigrateToPubkyRing({
           </p>
 
           {exportFailed ? (
-            <p className="text-center text-sm text-muted-foreground md:text-left">
+            <Notice focusOnMount tone="error">
               The active Pubky could not be exported.
-            </p>
+            </Notice>
           ) : null}
 
           <div className="flex flex-col gap-3 md:hidden">
             <Button
-              disabled={pending}
+              disabled={pending && pressed !== "qr"}
+              loading={pending && pressed === "qr"}
               onClick={() => {
+                setPressed("qr");
                 void load("dialog");
               }}
               size="lg"
@@ -163,8 +169,10 @@ function MigrateToPubkyRing({
               Show QR
             </Button>
             <Button
-              disabled={pending}
+              disabled={pending && pressed !== "import"}
+              loading={pending && pressed === "import"}
               onClick={() => {
+                setPressed("import");
                 void importPubky();
               }}
               size="lg"

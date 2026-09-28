@@ -355,10 +355,12 @@ test("backup password guidance enforces the twelve-character minimum responsivel
     await page.getByRole("button", { name: "Download backup" }).click();
 
     const password = page.getByLabel("Enter strong password");
-    const requirement = page.getByText("Minimum 12 characters.");
+    // The message element itself: an error wraps its text beside the alert icon.
+    const requirement = page.locator("#backup-password-help");
     const download = page.getByRole("button", { name: "Download backup" });
     await expect(password).toHaveAttribute("minlength", "12");
     await expect(password).toHaveAttribute("aria-describedby", "backup-password-help");
+    await expect(requirement).toHaveText("Minimum 12 characters.");
     await expect(requirement).toBeVisible();
 
     const [passwordBox, requirementBox] = await Promise.all([

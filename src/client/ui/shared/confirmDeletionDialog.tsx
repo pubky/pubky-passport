@@ -1,4 +1,11 @@
-import { type ReactNode, type SubmitEvent, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  type SubmitEvent,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { XIcon } from "./icons";
 import { Button } from "./primitives/button";
@@ -47,11 +54,21 @@ function ConfirmDeletionDialog({
 }: ConfirmDeletionDialogProps) {
   const [confirmation, setConfirmation] = useState("");
   const confirmationInput = useRef<HTMLInputElement>(null);
+  const errorMessage = useRef<HTMLParagraphElement>(null);
+  const shownError = useRef(error);
   const confirmed = confirmation === confirmationWord;
 
   useEffect(() => {
     if (open) confirmationInput.current?.focus();
   }, [open]);
+
+  // A failure that appears while the dialog is open takes focus, so it is read out and the
+  // controls that just changed state do not leave focus nowhere.
+  useLayoutEffect(() => {
+    const appeared = shownError.current === undefined && error !== undefined;
+    shownError.current = error;
+    if (open && appeared) errorMessage.current?.focus();
+  }, [error, open]);
 
   function cancel() {
     if (pending) return;
@@ -68,6 +85,7 @@ function ConfirmDeletionDialog({
   const titleId = `${id}-title`;
   const descriptionId = `${id}-description`;
   const confirmationId = `${id}-confirmation`;
+  const errorId = `${id}-error`;
 
   return (
     <Dialog
@@ -106,15 +124,26 @@ function ConfirmDeletionDialog({
             Type <span className="text-white">{confirmationWord}</span> to confirm
           </Label>
           <Input
+            aria-describedby={error === undefined ? undefined : errorId}
             autoComplete="off"
             containerClassName="border-dashed"
-            disabled={pending}
             id={confirmationId}
             onChange={(event) => setConfirmation(event.target.value)}
+            readOnly={pending}
             ref={confirmationInput}
             value={confirmation}
           />
-          {error === undefined ? null : <FieldMessage error>{error}</FieldMessage>}
+          {error === undefined ? null : (
+            <FieldMessage
+              className="outline-none"
+              error
+              id={errorId}
+              ref={errorMessage}
+              tabIndex={-1}
+            >
+              {error}
+            </FieldMessage>
+          )}
           {errorDetails}
         </div>
 
@@ -143,7 +172,8 @@ function ConfirmDeletionDialog({
           </Button>
           <Button
             className="w-full"
-            disabled={!confirmed || !canConfirm || pending}
+            disabled={!confirmed || !canConfirm}
+            loading={pending}
             size="lg"
             type="submit"
             variant="destructive"

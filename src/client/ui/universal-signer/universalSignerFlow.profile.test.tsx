@@ -98,7 +98,7 @@ it.each([false, true])(
         }),
     );
     await user.click(screen.getByRole("button", { name: "Finish" }));
-    expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Saving…" })).toHaveAttribute("aria-busy", "true");
     expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
     await act(async () => publish());
     expect(

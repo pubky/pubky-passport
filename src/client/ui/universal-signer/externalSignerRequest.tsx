@@ -6,7 +6,7 @@ import { useId, useState } from "react";
 import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
 import { ScanIcon } from "@/client/ui/shared/icons";
 import { Button, ButtonLink } from "@/client/ui/shared/primitives/button";
-import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
+import { Notice } from "@/client/ui/shared/notice";
 
 // Version 40 at error correction M holds at least this many UTF-8 bytes.
 const MAXIMUM_QR_BYTES = 2_331;
@@ -99,9 +99,7 @@ export function ExternalSignerRequest({
           </div>
         </>
       ) : (
-        <FieldMessage error role="alert">
-          {labels.unavailable}
-        </FieldMessage>
+        <Notice tone="error">{labels.unavailable}</Notice>
       )}
     </section>
   );
