@@ -1,0 +1,224 @@
+/** @vitest-environment jsdom */
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { Result } from "better-result";
+import { afterEach, expect, it, vi } from "vitest";
+import { UniversalSignerFlow } from "@/client/ui/universal-signer/universalSignerFlow";
+import { fakeLocalIdentityController } from "@test-utils/fakeLocalIdentityController";
+import { fakePassportAuthorizationController } from "@test-utils/fakePassportAuthorizationController";
+import { withPassportTestProviders } from "@test-utils/googleIdentityConfiguration";
+import { makeInstanceConfig } from "@test-utils/instanceConfig";
+import { LocalStorageIdentityRepository } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
+import { LocalIdentityController } from "@/client/logic/local-identity/LocalIdentityController";
+import { RingProfileController } from "@/client/logic/profile/RingProfileController";
+import type { PassportCollaborators } from "@/client/ui/passportCollaborators";
+import type { RingProfileGrant } from "@/client/logic/pubky/PubkySdkAdapter";
+import { expectResultOk } from "@test-utils/resultAssertions";
+import type {
+  LocalIdentityCatalog,
+  LocalIdentityMetadata,
+} from "@/client/logic/local-identity/localIdentityModels";
+
+const KEY = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
+const RELAY = "https://relay.passport.example/inbox";
+afterEach(() => {
+  cleanup();
+  window.dispatchEvent(new PageTransitionEvent("pagehide"));
+  localStorage.clear();
+});
+
+it("keeps the Ring grant when saving its identity opens the profile editor", async () => {
+  const repository = new LocalStorageIdentityRepository();
+  expectResultOk(repository.saveExternal(KEY, true));
+  const connection = {
+    authorizationUrl: () => "pubkyauth://signin?secret=passport-profile-only",
+    poll: async () => Result.ok(KEY),
+    publish: vi.fn(async () => Result.ok()),
+    dispose: vi.fn(async () => undefined),
+  };
+  const ring = new RingProfileController(RELAY, repository, {
+    start: async () => Result.ok(connection as unknown as RingProfileGrant),
+  });
+  const createRingProfileController = vi.fn<PassportCollaborators["createRingProfileController"]>(
+    () => ring,
+  );
+  render(
+    withPassportTestProviders(
+      <UniversalSignerFlow />,
+      {
+        createLocalIdentityController: () => new LocalIdentityController(repository),
+        createRingProfileController,
+        createAuthorizationController: () =>
+          fakePassportAuthorizationController({ current: { status: "manual-entry" } }),
+      },
+      makeInstanceConfig({ httpRelay: RELAY }),
+    ),
+  );
+
+  const user = userEvent.setup();
+  await user.type(await screen.findByLabelText("Name"), "Ring Satoshi");
+  // The grant goes through the instance's configured relay.
+  expect(createRingProfileController).toHaveBeenCalledWith(RELAY);
+  expect(ring.isConnected(KEY)).toBe(true);
+  expect(connection.dispose).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "Finish" }));
+  await waitFor(() => expect(connection.publish).toHaveBeenCalledOnce());
+  await waitFor(() =>
+    expect(expectResultOk(repository.list()).identities[0]?.profileSetupRequired).toBeUndefined(),
+  );
+});
+
+it("returns to the Ring connection when the profile grant has been revoked", async () => {
+  const repository = new LocalStorageIdentityRepository();
+  expectResultOk(repository.saveExternal(KEY, true));
+  const connection = {
+    authorizationUrl: () => "pubkyauth://signin?secret=passport-profile-only",
+    poll: vi.fn().mockResolvedValueOnce(Result.ok(KEY)).mockResolvedValue(Result.ok(undefined)),
+    publish: vi.fn(async () => Result.err({ code: "publish_unauthorized" as const })),
+    dispose: vi.fn(async () => undefined),
+  };
+  const start = vi.fn(async () => Result.ok(connection as unknown as RingProfileGrant));
+  const ring = new RingProfileController(RELAY, repository, { start });
+  render(
+    withPassportTestProviders(<UniversalSignerFlow />, {
+      createLocalIdentityController: () => new LocalIdentityController(repository),
+      createRingProfileController: () => ring,
+      createAuthorizationController: () =>
+        fakePassportAuthorizationController({ current: { status: "manual-entry" } }),
+    }),
+  );
+
+  const user = userEvent.setup();
+  await user.type(await screen.findByLabelText("Name"), "Ring Satoshi");
+  await user.click(screen.getByRole("button", { name: "Finish" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Your connection to Ring has ended");
+  expect(connection.dispose).toHaveBeenCalledOnce();
+  await user.click(screen.getByRole("button", { name: "Connect Ring" }));
+  expect(await screen.findByText("Waiting for approval in Ring…")).toBeInTheDocument();
+  expect(start).toHaveBeenCalledTimes(2);
+  expect(expectResultOk(repository.list()).identities[0]?.profileSetupRequired).toBe(true);
+});
+
+it("reviews an app request before Passport's own profile request, then hands the unchanged request to Ring", async () => {
+  const identity: LocalIdentityMetadata = {
+    publicIdentity: { publicKeyZ32: KEY },
+    keySource: "ring",
+    profileSetupRequired: true,
+  };
+  const state: { catalog: LocalIdentityCatalog; listener?: (() => void) | undefined } = {
+    catalog: { activePublicKeyZ32: KEY, identities: [identity] },
+  };
+  const approve = vi.fn();
+  const finishExternalApproval = vi.fn();
+  const ring = {
+    start: vi.fn(async () => Result.ok()),
+    authorizationUrl: () => "pubkyauth://signin?secret=passport-profile-only",
+    poll: vi.fn(async () => Result.ok({ status: "waiting" as const })),
+    confirm: vi.fn(),
+    isConnected: () => false,
+    save: vi.fn(),
+    dispose: vi.fn(),
+  };
+  const appRequest = "pubkyauth://signin?secret=original-client-request";
+  render(
+    withPassportTestProviders(<UniversalSignerFlow />, {
+      createLocalIdentityController: () => fakeLocalIdentityController(state),
+      createRingProfileController: () => ring,
+      createAuthorizationController: () =>
+        fakePassportAuthorizationController(
+          {
+            current: {
+              status: "review",
+              review: {
+                capabilities: [],
+                authenticationMethod: "cookie",
+                requesterName: "Original app",
+                callbackHost: "original.app",
+              },
+            },
+          },
+          { approve, externalSignerUrl: () => appRequest, finishExternalApproval },
+        ),
+    }),
+  );
+  expect(
+    await screen.findByRole("heading", { name: "Sign in to Original app" }),
+  ).toBeInTheDocument();
+  expect(screen.getAllByLabelText("Signing in to original.app")).toHaveLength(1);
+  expect(ring.start).not.toHaveBeenCalled();
+  expect(screen.getByText(/You choose the identity to sign in with in Ring/u)).toBeVisible();
+
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Continue in Pubky Ring" }));
+  expect(screen.getByRole("heading", { name: "Sign in with Ring." })).toBeInTheDocument();
+  expect(screen.getByText(/After approving in Pubky Ring, return to the app/u)).toBeVisible();
+  expect(screen.getByRole("region", { name: "Sign in with Pubky Ring" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Open in Ring" })).toHaveAttribute("href", appRequest);
+  await user.click(screen.getByRole("button", { name: "I approved in Pubky Ring" }));
+  expect(finishExternalApproval).toHaveBeenCalledOnce();
+  expect(approve).not.toHaveBeenCalled();
+  expect(ring.start).not.toHaveBeenCalled();
+  expect(
+    screen.queryByRole("heading", { name: "Authorization complete." }),
+  ).not.toBeInTheDocument();
+});
+
+it("adds an existing Ring identity from the home page without an invite or a profile change", async () => {
+  const repository = new LocalStorageIdentityRepository();
+  const connection = {
+    authorizationUrl: () => "pubkyauth://signin?secret=passport-profile-only",
+    poll: vi.fn().mockResolvedValueOnce(Result.ok(undefined)).mockResolvedValue(Result.ok(KEY)),
+    publish: vi.fn(async () => Result.ok()),
+    dispose: vi.fn(async () => undefined),
+  };
+  const ring = new RingProfileController(RELAY, repository, {
+    start: async () => Result.ok(connection as unknown as RingProfileGrant),
+  });
+  render(
+    withPassportTestProviders(<UniversalSignerFlow />, {
+      createLocalIdentityController: () => new LocalIdentityController(repository),
+      createRingProfileController: () => ring,
+      createAuthorizationController: () =>
+        fakePassportAuthorizationController({ current: { status: "manual-entry" } }),
+    }),
+  );
+
+  const user = userEvent.setup();
+  expect(await screen.findByRole("heading", { name: "Quick & easy signing." })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Use Pubky Ring" })).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Connect Pubky Ring" }));
+  expect(await screen.findByRole("heading", { name: "Connect your Ring." })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Connect in Ring" })).toHaveAttribute(
+    "href",
+    "pubkyauth://signin?secret=passport-profile-only",
+  );
+  expect(
+    await screen.findByRole("heading", { name: "Your pubky." }, { timeout: 3_000 }),
+  ).toBeInTheDocument();
+  const catalog = expectResultOk(repository.list());
+  expect(catalog.activePublicKeyZ32).toBe(KEY);
+  expect(catalog.identities).toEqual([
+    { publicIdentity: { publicKeyZ32: KEY }, keySource: "ring" },
+  ]);
+  // Nothing is published: an existing profile stays as it is.
+  expect(connection.publish).not.toHaveBeenCalled();
+  expect(screen.queryByLabelText("Name")).toBeNull();
+});
+
+it("offers the request handoff instead of a profile connection while an app request is pending", async () => {
+  render(
+    withPassportTestProviders(<UniversalSignerFlow />, {
+      createLocalIdentityController: () =>
+        fakeLocalIdentityController({ catalog: { activePublicKeyZ32: null, identities: [] } }),
+      createAuthorizationController: () =>
+        fakePassportAuthorizationController({
+          current: {
+            status: "review",
+            review: { capabilities: [], authenticationMethod: "cookie" },
+          },
+        }),
+    }),
+  );
+  expect(await screen.findByRole("button", { name: "Use Pubky Ring" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Connect Pubky Ring" })).toBeNull();
+});

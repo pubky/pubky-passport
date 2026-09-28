@@ -6,14 +6,12 @@ import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import type { CodedFailure } from "@/libs/result";
 import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubkyIdentityKey";
 import type { PubkyRingMigration, PubkySdkAdapter } from "@/client/logic/pubky/PubkySdkAdapter";
+import { isValidNewBackupPassword } from "@/client/logic/backup/BackupVerifier";
 import type { LocalIdentityCatalog } from "./localIdentityModels";
 import {
   LocalStorageIdentityRepository,
   type LocalIdentityResult,
 } from "./LocalStorageIdentityRepository";
-
-export const MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS = 6;
-const MAXIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS = 1024;
 
 export type LocalIdentityRecoveryFile = { bytes: Uint8Array; fileName: string };
 type LocalIdentityRecoveryFileErrorCode =
@@ -22,9 +20,15 @@ export type LocalIdentityRecoveryFileResult = ResultType<
   LocalIdentityRecoveryFile,
   CodedFailure<LocalIdentityRecoveryFileErrorCode>
 >;
-type LocalIdentityHomeserverRepublishErrorCode = "publication_failed" | "identity_unavailable";
+type LocalIdentityHomeserverRepublishErrorCode =
+  | "homeserver_mismatch"
+  | "identity_unavailable"
+  | "publication_failed"
+  | "resolution_failed"
+  | "still_unresolved";
+/** Succeeds with the homeserver the `_pubky` record resolves to after publishing. */
 export type LocalIdentityHomeserverRepublishResult = ResultType<
-  void,
+  string,
   CodedFailure<LocalIdentityHomeserverRepublishErrorCode>
 >;
 
@@ -71,7 +75,35 @@ export class LocalIdentityController {
     }
   }
 
-  async republishHomeserver(publicKeyZ32: string): Promise<LocalIdentityHomeserverRepublishResult> {
+  /**
+   * Re-signs this identity's `_pubky` record and succeeds once it resolves again.
+   *
+   * A record that still resolves keeps its homeserver. `homeserverPubky` is published only
+   * when the lookup definitively finds no record (the SDK cannot republish a missing record
+   * without a host), so a failed lookup can never repoint an identity at another homeserver.
+   * An identity that remembers the homeserver it was signed up on accepts no other host.
+   */
+  async republishHomeserver(
+    publicKeyZ32: string,
+    homeserverPubky: string,
+  ): Promise<LocalIdentityHomeserverRepublishResult> {
+    const published = await this.publishHomeserverRecord(publicKeyZ32, homeserverPubky);
+    if (Result.isError(published)) return published;
+
+    // A fresh client checks the network, not the cache the publishing client just filled.
+    const resolved = await this.resolveHomeserver(publicKeyZ32);
+    if (Result.isError(resolved)) {
+      return Result.err({ code: "still_unresolved", cause: resolved.error });
+    }
+    return resolved.value === null
+      ? Result.err({ code: "still_unresolved" })
+      : Result.ok(resolved.value);
+  }
+
+  private async publishHomeserverRecord(
+    publicKeyZ32: string,
+    homeserverPubky: string,
+  ): Promise<ResultType<void, CodedFailure<LocalIdentityHomeserverRepublishErrorCode>>> {
     const stored = this.repository.read(publicKeyZ32);
     if (Result.isError(stored)) {
       return Result.err({ code: "identity_unavailable", cause: stored.error });
@@ -79,8 +111,16 @@ export class LocalIdentityController {
 
     let pubky: PubkySdkAdapter | undefined;
     try {
+      const registered = stored.value.identity.homeserverPubky;
+      if (registered !== undefined && registered !== homeserverPubky) {
+        return Result.err({ code: "homeserver_mismatch" });
+      }
       const { PubkySdkAdapter } = await import("@/client/logic/pubky/PubkySdkAdapter");
       pubky = new PubkySdkAdapter();
+      const current = await pubky.resolveHomeserver(publicKeyZ32);
+      if (Result.isError(current)) {
+        return Result.err({ code: "resolution_failed", cause: current.error });
+      }
       const restored = await pubky.restoreIdentityKey(stored.value.secretKey);
       if (Result.isError(restored)) {
         return Result.err({ code: "publication_failed", cause: restored.error });
@@ -88,7 +128,11 @@ export class LocalIdentityController {
       if (restored.value.publicIdentity.publicKeyZ32 !== publicKeyZ32) {
         return Result.err({ code: "publication_failed" });
       }
-      const published = await pubky.publishHomeserver(restored.value.keyHandle);
+      // Without a host the SDK re-signs the homeserver already in the record.
+      const published = await pubky.publishHomeserver(
+        restored.value.keyHandle,
+        current.value === null ? homeserverPubky : null,
+      );
       return Result.isError(published)
         ? Result.err({ code: "publication_failed", cause: published.error })
         : Result.ok();
@@ -116,12 +160,8 @@ export class LocalIdentityController {
     publicKeyZ32: string,
     password: string,
   ): Promise<LocalIdentityRecoveryFileResult> {
-    if (
-      password.length < MINIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS ||
-      password.length > MAXIMUM_RECOVERY_FILE_PASSWORD_CHARACTERS
-    ) {
-      return Result.err({ code: "invalid_password" });
-    }
+    // One rule for every new backup, whether created at signup or from management.
+    if (!isValidNewBackupPassword(password)) return Result.err({ code: "invalid_password" });
 
     const stored = this.repository.read(publicKeyZ32);
     if (Result.isError(stored)) {

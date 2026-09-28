@@ -38,7 +38,9 @@ export function fakeLocalIdentityController(
         state.listener?.();
         return Result.ok();
       }),
-    republishHomeserver: overrides.republishHomeserver ?? (async () => Result.ok()),
+    republishHomeserver:
+      overrides.republishHomeserver ??
+      (async (_publicKeyZ32, homeserverPubky) => Result.ok(homeserverPubky)),
     resolveHomeserver: overrides.resolveHomeserver ?? (async () => Result.ok(null)),
     selectIdentity:
       overrides.selectIdentity ??

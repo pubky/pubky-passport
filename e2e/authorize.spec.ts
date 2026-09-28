@@ -26,16 +26,13 @@ const LOCAL_IDENTITY_STORAGE = {
   "pubky-passport/local-identities/v1/active": LOCAL_IDENTITY_PUBLIC_KEY,
 };
 
-test("shows manual authorization entry when no request was supplied", async ({ page }) => {
+test("shows shared onboarding when no request was supplied", async ({ page }) => {
   await page.goto("/authorize");
 
-  await expect(page.getByRole("heading", { name: "Authorize a service." })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Authorization link" })).toHaveValue("");
-  await expect(page.getByRole("textbox", { name: "Authorization link" })).toHaveAttribute(
-    "placeholder",
-    "pubkyauth://",
-  );
-  await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
+  await expect(page.getByRole("heading", { name: "Quick & easy signing." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Import backup" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create account" })).toBeVisible();
 });
 
 test("shows identity setup context as the designed full-width accent band", async ({ page }) => {
@@ -217,6 +214,7 @@ test("reviews and scrubs a v0.10 grant authorization request", async ({ page }) 
 test("manual entry reloads into fragment-backed capability review", async ({ page }) => {
   await installLocalIdentityFixture(page);
   await page.goto("/authorize");
+  await page.getByRole("button", { name: "Authorize an app" }).click();
 
   await page
     .getByRole("textbox", { name: "Authorization link" })

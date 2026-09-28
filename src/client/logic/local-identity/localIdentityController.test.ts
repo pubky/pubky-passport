@@ -12,6 +12,8 @@ const MOCKS = vi.hoisted(() => ({
   createRecoveryFile: vi.fn(),
   dispose: vi.fn(),
   publishHomeserver: vi.fn(),
+  resolveHomeserver: vi.fn(),
+  resolvePubkyHomeserver: vi.fn(),
   restoreIdentityKey: vi.fn(),
 }));
 
@@ -26,19 +28,25 @@ vi.mock("@/client/logic/pubky/PubkySdkAdapter", async (importOriginal) => {
       createRecoveryFile = MOCKS.createRecoveryFile;
       dispose = MOCKS.dispose;
       publishHomeserver = MOCKS.publishHomeserver;
+      resolveHomeserver = MOCKS.resolveHomeserver;
       restoreIdentityKey = MOCKS.restoreIdentityKey;
     },
+    resolvePubkyHomeserver: MOCKS.resolvePubkyHomeserver,
   };
 });
 
 import { LocalIdentityController } from "./LocalIdentityController";
 
 const PUBLIC_KEY = "yqooxx9u3aemh8mo5wcqq16yufu6jitouq1o4za751dger1igghy";
+const HOMESERVER = "ufibwbmed6jeq9k4p583go95wofakh9fwpp4k734trq79pd9u1uy";
+const OTHER_HOMESERVER = "8um71us3fyw6h8wbcxb5ar3rwusy1a6u49956ikzojg3gcwd1dty";
 
 beforeEach(() => {
   MOCKS.createRecoveryFile.mockReset();
   MOCKS.dispose.mockReset();
   MOCKS.publishHomeserver.mockReset();
+  MOCKS.resolveHomeserver.mockReset();
+  MOCKS.resolvePubkyHomeserver.mockReset();
   MOCKS.restoreIdentityKey.mockReset();
 });
 
@@ -94,7 +102,7 @@ describe("LocalIdentityController", () => {
   it("creates a named recovery file and releases sensitive resources", async () => {
     const secretBytes = new Uint8Array(32).fill(7);
     const recoveryBytes = new Uint8Array(64).fill(9);
-    const password = "sixsix";
+    const password = "ten-character-pw";
     MOCKS.createRecoveryFile.mockReturnValue(Result.ok(recoveryBytes));
 
     const recoveryFile = expectResultOk(
@@ -155,23 +163,116 @@ describe("LocalIdentityController", () => {
     expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-RECOVERY-CLEANUP-CANARY");
   });
 
-  it("force-publishes a restored identity and releases sensitive resources", async () => {
+  it("publishes the given homeserver only when no record exists, then verifies it", async () => {
     const secretBytes = new Uint8Array(32).fill(7);
     const keyHandle = {};
     const repository = storedIdentityRepository(secretBytes);
+    MOCKS.resolveHomeserver.mockResolvedValue(Result.ok(null));
     MOCKS.restoreIdentityKey.mockReturnValue(
       Result.ok({ keyHandle, publicIdentity: { publicKeyZ32: PUBLIC_KEY } }),
     );
     MOCKS.publishHomeserver.mockResolvedValue(Result.ok());
+    MOCKS.resolvePubkyHomeserver.mockResolvedValue(Result.ok(HOMESERVER));
 
-    expectResultOk(await new LocalIdentityController(repository).republishHomeserver(PUBLIC_KEY));
+    expect(
+      expectResultOk(
+        await new LocalIdentityController(repository).republishHomeserver(PUBLIC_KEY, HOMESERVER),
+      ),
+    ).toBe(HOMESERVER);
 
+    expect(MOCKS.resolveHomeserver).toHaveBeenCalledWith(PUBLIC_KEY);
     expect(MOCKS.restoreIdentityKey).toHaveBeenCalledWith(
       expect.objectContaining({ bytes: secretBytes }),
     );
-    expect(MOCKS.publishHomeserver).toHaveBeenCalledWith(keyHandle);
+    expect(MOCKS.publishHomeserver).toHaveBeenCalledWith(keyHandle, HOMESERVER);
+    expect(MOCKS.resolvePubkyHomeserver).toHaveBeenCalledWith(PUBLIC_KEY);
     expect(secretBytes).toEqual(new Uint8Array(32));
     expect(MOCKS.dispose).toHaveBeenCalledOnce();
+  });
+
+  it("refuses any host but the homeserver the identity was signed up on", async () => {
+    const secretBytes = new Uint8Array(32).fill(7);
+
+    const result = await new LocalIdentityController(
+      storedIdentityRepository(secretBytes, OTHER_HOMESERVER),
+    ).republishHomeserver(PUBLIC_KEY, HOMESERVER);
+
+    expect(Result.isError(result) && result.error).toEqual({ code: "homeserver_mismatch" });
+    expect(MOCKS.resolveHomeserver).not.toHaveBeenCalled();
+    expect(MOCKS.publishHomeserver).not.toHaveBeenCalled();
+    expect(secretBytes).toEqual(new Uint8Array(32));
+  });
+
+  it("repairs a missing record with the homeserver the identity was signed up on", async () => {
+    const keyHandle = {};
+    MOCKS.resolveHomeserver.mockResolvedValue(Result.ok(null));
+    MOCKS.restoreIdentityKey.mockReturnValue(
+      Result.ok({ keyHandle, publicIdentity: { publicKeyZ32: PUBLIC_KEY } }),
+    );
+    MOCKS.publishHomeserver.mockResolvedValue(Result.ok());
+    MOCKS.resolvePubkyHomeserver.mockResolvedValue(Result.ok(OTHER_HOMESERVER));
+
+    const result = await new LocalIdentityController(
+      storedIdentityRepository(new Uint8Array(32).fill(7), OTHER_HOMESERVER),
+    ).republishHomeserver(PUBLIC_KEY, OTHER_HOMESERVER);
+
+    expect(expectResultOk(result)).toBe(OTHER_HOMESERVER);
+    expect(MOCKS.publishHomeserver).toHaveBeenCalledWith(keyHandle, OTHER_HOMESERVER);
+  });
+
+  it("re-signs an existing record without repointing it", async () => {
+    const keyHandle = {};
+    MOCKS.resolveHomeserver.mockResolvedValue(Result.ok(OTHER_HOMESERVER));
+    MOCKS.restoreIdentityKey.mockReturnValue(
+      Result.ok({ keyHandle, publicIdentity: { publicKeyZ32: PUBLIC_KEY } }),
+    );
+    MOCKS.publishHomeserver.mockResolvedValue(Result.ok());
+    MOCKS.resolvePubkyHomeserver.mockResolvedValue(Result.ok(OTHER_HOMESERVER));
+
+    const result = await new LocalIdentityController(
+      storedIdentityRepository(new Uint8Array(32).fill(7)),
+    ).republishHomeserver(PUBLIC_KEY, HOMESERVER);
+
+    expect(expectResultOk(result)).toBe(OTHER_HOMESERVER);
+    expect(MOCKS.publishHomeserver).toHaveBeenCalledWith(keyHandle, null);
+  });
+
+  it("publishes nothing when the current record cannot be looked up", async () => {
+    const secretBytes = new Uint8Array(32).fill(7);
+    const lookupFailure = { code: "resolution_failed" as const };
+    MOCKS.resolveHomeserver.mockResolvedValue(Result.err(lookupFailure));
+
+    const result = await new LocalIdentityController(
+      storedIdentityRepository(secretBytes),
+    ).republishHomeserver(PUBLIC_KEY, HOMESERVER);
+
+    expect(Result.isError(result) && result.error).toEqual({
+      code: "resolution_failed",
+      cause: lookupFailure,
+    });
+    expect(MOCKS.restoreIdentityKey).not.toHaveBeenCalled();
+    expect(MOCKS.publishHomeserver).not.toHaveBeenCalled();
+    expect(MOCKS.resolvePubkyHomeserver).not.toHaveBeenCalled();
+    expect(secretBytes).toEqual(new Uint8Array(32));
+    expect(MOCKS.dispose).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["no record", Result.ok(null)],
+    ["a failed lookup", Result.err({ code: "resolution_failed" as const })],
+  ] as const)("reports a published record that still finds %s", async (_, verification) => {
+    MOCKS.resolveHomeserver.mockResolvedValue(Result.ok(null));
+    MOCKS.restoreIdentityKey.mockReturnValue(
+      Result.ok({ keyHandle: {}, publicIdentity: { publicKeyZ32: PUBLIC_KEY } }),
+    );
+    MOCKS.publishHomeserver.mockResolvedValue(Result.ok());
+    MOCKS.resolvePubkyHomeserver.mockResolvedValue(verification);
+
+    const result = await new LocalIdentityController(
+      storedIdentityRepository(new Uint8Array(32)),
+    ).republishHomeserver(PUBLIC_KEY, HOMESERVER);
+
+    expect(Result.isError(result) && result.error.code).toBe("still_unresolved");
   });
 
   it("maps a missing identity without creating the SDK", async () => {
@@ -180,12 +281,16 @@ describe("LocalIdentityController", () => {
       read: vi.fn(() => Result.err({ code: "storage_unavailable" as const })),
     };
 
-    const result = await new LocalIdentityController(repository).republishHomeserver(PUBLIC_KEY);
+    const result = await new LocalIdentityController(repository).republishHomeserver(
+      PUBLIC_KEY,
+      HOMESERVER,
+    );
 
     expect(Result.isError(result) && result.error).toEqual({
       code: "identity_unavailable",
       cause: { code: "storage_unavailable" },
     });
+    expect(MOCKS.resolveHomeserver).not.toHaveBeenCalled();
     expect(MOCKS.restoreIdentityKey).not.toHaveBeenCalled();
     expect(MOCKS.publishHomeserver).not.toHaveBeenCalled();
   });
@@ -196,6 +301,7 @@ describe("LocalIdentityController", () => {
       const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
       const secretBytes = new Uint8Array(32).fill(7);
       const repository = storedIdentityRepository(secretBytes);
+      MOCKS.resolveHomeserver.mockResolvedValue(Result.ok(null));
       MOCKS.restoreIdentityKey.mockReturnValue(
         Result.ok({ keyHandle: {}, publicIdentity: { publicKeyZ32: PUBLIC_KEY } }),
       );
@@ -204,9 +310,13 @@ describe("LocalIdentityController", () => {
         return Result.err({ code: "publish_failed" as const });
       });
 
-      const result = await new LocalIdentityController(repository).republishHomeserver(PUBLIC_KEY);
+      const result = await new LocalIdentityController(repository).republishHomeserver(
+        PUBLIC_KEY,
+        HOMESERVER,
+      );
 
       expect(Result.isError(result) && result.error.code).toBe("publication_failed");
+      expect(MOCKS.resolvePubkyHomeserver).not.toHaveBeenCalled();
       expect(secretBytes).toEqual(new Uint8Array(32));
       expect(MOCKS.dispose).toHaveBeenCalledOnce();
       expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-REPUBLISH-CANARY");
@@ -214,7 +324,7 @@ describe("LocalIdentityController", () => {
   );
 });
 
-function storedIdentityRepository(secretBytes: Uint8Array) {
+function storedIdentityRepository(secretBytes: Uint8Array, homeserverPubky?: string) {
   return {
     list: vi.fn(() => Result.ok({ activePublicKeyZ32: PUBLIC_KEY, identities: [] })),
     select: vi.fn(() => Result.ok()),
@@ -222,7 +332,10 @@ function storedIdentityRepository(secretBytes: Uint8Array) {
     subscribe: vi.fn(() => () => undefined),
     read: vi.fn(() =>
       Result.ok({
-        identity: { publicIdentity: { publicKeyZ32: PUBLIC_KEY } },
+        identity: {
+          publicIdentity: { publicKeyZ32: PUBLIC_KEY },
+          ...(homeserverPubky ? { homeserverPubky } : {}),
+        },
         secretKey: {
           bytes: secretBytes,
           format: PUBKY_SECRET_KEY_FORMAT,

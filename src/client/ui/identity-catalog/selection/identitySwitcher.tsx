@@ -11,7 +11,6 @@ import { IdentityRow } from "./identityRow";
 
 function IdentitySwitcher({
   activePublicKeyZ32,
-  addIdentityLabel = "Add identity",
   identities,
   onAddIdentity,
   onBack,
@@ -19,7 +18,6 @@ function IdentitySwitcher({
   selectionFailed = false,
 }: {
   activePublicKeyZ32: string | null;
-  addIdentityLabel?: "Add identity" | "Use other identity";
   identities: readonly LocalIdentityMetadata[];
   onAddIdentity: () => void;
   onBack: () => void;
@@ -49,19 +47,20 @@ function IdentitySwitcher({
       </DisplayHeading>
       <section className="flex min-h-0 flex-1 flex-col gap-3">
         <p className="text-xs font-medium uppercase leading-4 tracking-[0.1em] text-muted-foreground">
-          Select a Pubky
+          Saved identities
         </p>
         {orderedIdentities.map((identity) => {
           const account = identity.googleAccount;
           const publicKeyZ32 = identity.publicIdentity.publicKeyZ32;
           return (
             <IdentityRow
-              avatarSrc={account?.pictureUrl ?? undefined}
-              detail={account?.email ?? shortPublicKey(publicKeyZ32)}
+              avatarSrc={identity.avatarUrl ?? undefined}
+              detail={shortPublicKey(publicKeyZ32)}
+              googleAccount={account}
+              keyInRing={identity.keySource === "ring"}
               key={publicKeyZ32}
-              name={account?.name ?? "Your Pubky"}
+              name={identity.profile?.name ?? "Your Pubky"}
               onClick={() => onSelect(publicKeyZ32)}
-              provider={account ? "google" : undefined}
               selected={publicKeyZ32 === activePublicKeyZ32}
             />
           );
@@ -78,7 +77,7 @@ function IdentitySwitcher({
                 <div className="w-full md:col-start-3" key="add">
                   <Button className="w-full" onClick={onAddIdentity} size="lg" variant="secondary">
                     <UserRoundPlusIcon />
-                    {addIdentityLabel}
+                    Add identity
                   </Button>
                 </div>,
               ]
@@ -86,7 +85,7 @@ function IdentitySwitcher({
                 <div className="w-full" key="add">
                   <Button className="w-full" onClick={onAddIdentity} size="lg" variant="secondary">
                     <UserRoundPlusIcon />
-                    {addIdentityLabel}
+                    Add identity
                   </Button>
                 </div>,
                 <div className="mt-auto w-full" key="back">

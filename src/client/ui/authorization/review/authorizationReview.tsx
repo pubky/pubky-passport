@@ -2,10 +2,9 @@ import { useLayoutEffect, useRef } from "react";
 
 import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
-import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
-import { shortPublicKey } from "@/client/ui/shared/formatPublicKey";
-import { CheckIcon, SquareUserRoundIcon, XIcon } from "@/client/ui/shared/icons";
-import { IdentitySummary } from "@/client/ui/shared/identitySummary";
+import { CheckIcon, XIcon } from "@/client/ui/shared/icons";
+import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
+import { SelectedIdentity } from "@/client/ui/shared/selectedIdentity";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
@@ -17,6 +16,7 @@ function AuthorizationReview({
   onAuthorize,
   onCancel,
   onSwitch,
+  onUseRing,
   phase,
   review,
 }: {
@@ -24,13 +24,14 @@ function AuthorizationReview({
   onAuthorize: () => void;
   onCancel: () => void;
   onSwitch: () => void;
+  onUseRing?: (() => void) | undefined;
   phase: "review" | "preparing" | "granting" | "completing";
   review: AuthorizationRequestReview;
 }) {
   const busy = phase !== "review";
+  // Ring signs with its own key, and the person picks the identity there.
+  const heldInRing = identity?.keySource === "ring";
   const hasBroadAccess = review.capabilities.some((capability) => capability.scope === "broad");
-  const account = identity?.googleAccount;
-  const identityName = account?.name ?? "Your Pubky";
   const requester = review.requesterName ?? review.callbackHost ?? "this service";
 
   return (
@@ -65,31 +66,13 @@ function AuthorizationReview({
             ))
           )}
         </PermissionList>
-        <section className="flex flex-col gap-2" aria-labelledby="authorization-identity-heading">
-          <h2 className="sr-only" id="authorization-identity-heading">
-            Signing identity
-          </h2>
-          <div className="flex h-18 items-center gap-2 rounded-2xl bg-card p-4">
-            {identity ? (
-              <IdentitySummary
-                avatarSrc={account?.pictureUrl ?? undefined}
-                badge={account ? <GoogleLogo /> : undefined}
-                detail={shortPublicKey(identity.publicIdentity.publicKeyZ32)}
-                detailClassName="uppercase"
-                name={identityName}
-              />
-            ) : (
-              <span className="min-w-0 flex-1 text-sm font-medium text-muted-foreground">
-                No local identity available
-              </span>
-            )}
-            <Button disabled={busy} onClick={onSwitch} size="sm" type="button" variant="secondary">
-              <SquareUserRoundIcon />
-              Switch
-            </Button>
-          </div>
-        </section>
-        <p className="text-sm font-medium leading-5 text-muted-foreground opacity-80">
+        <SelectedIdentity identity={identity} onSwitch={onSwitch} disabled={busy} />
+        {heldInRing ? (
+          <p className="text-sm font-medium leading-5 text-muted-foreground">
+            This identity is held in Pubky Ring. You choose the identity to sign in with in Ring.
+          </p>
+        ) : null}
+        <p className="break-words text-sm font-medium leading-5 text-muted-foreground">
           Make sure you trust this service, browser, or device before authorizing with your pubky.{" "}
           <strong className="font-bold text-foreground">
             {describeAuthorizationEffect(review.capabilities, requester)}
@@ -123,11 +106,32 @@ function AuthorizationReview({
               size="lg"
               type="button"
             >
-              <CheckIcon />
-              <span aria-live="polite">{authorizationButtonLabel(phase)}</span>
+              {heldInRing ? <PubkyBrandIcon /> : <CheckIcon />}
+              <span aria-live="polite">
+                {heldInRing && phase === "review"
+                  ? "Continue in Pubky Ring"
+                  : authorizationButtonLabel(phase)}
+              </span>
             </Button>
           }
         />
+        {onUseRing && !heldInRing ? (
+          <div className="flex flex-col gap-3 border-t border-border pt-6">
+            <p className="text-center text-sm text-muted-foreground">
+              Or sign in with an identity in Pubky Ring
+            </p>
+            <Button
+              className="w-full"
+              disabled={busy}
+              onClick={onUseRing}
+              size="lg"
+              variant="secondary"
+            >
+              <PubkyBrandIcon />
+              Use Pubky Ring
+            </Button>
+          </div>
+        ) : null}
       </div>
     </PassportScreen>
   );

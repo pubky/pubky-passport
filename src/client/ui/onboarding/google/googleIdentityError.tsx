@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import type { GoogleIdentityViewError } from "@/client/logic/google-identity/googleIdentityErrors";
 import {
@@ -7,11 +7,13 @@ import {
 } from "@/client/ui/googleDrivePermissionPrompt";
 import { GoogleIdentityErrorDetails } from "@/client/ui/googleIdentityErrorDetails";
 import { googleIdentityErrorMessage } from "@/client/ui/googleIdentityErrorMessage";
+import { googlePermissionPromptMode } from "@/client/ui/googlePermissionPromptMode";
 import { RotateCcwIcon, TrashIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { ConfirmDeletionDialog } from "@/client/ui/shared/confirmDeletionDialog";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
+import { Label } from "@/client/ui/shared/primitives/label";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 
 /** A confirmed deletion of the Drive identity file followed by creation of a new identity. */
@@ -43,17 +45,19 @@ function GoogleIdentityError({
     onReplaceUndecryptableFile,
   });
 
+  if (error.code === "foreign_passport_file" && error.passportFileOrigin !== undefined) {
+    return <ForeignPassportFile onBack={onBack} passportFileOrigin={error.passportFileOrigin} />;
+  }
+
   if (error.code === "google_authorization_denied") {
     return <GoogleAccessDenied onBack={onBack} onTryAgain={onTryAgain} />;
   }
 
-  if (
-    error.code === "google_drive_access_required" ||
-    error.code === "visible_backup_permission_missing"
-  ) {
+  const permissionMode = googlePermissionPromptMode(error.code, "establish");
+  if (permissionMode !== undefined) {
     return (
       <GoogleDrivePermissionPrompt
-        mode={error.code === "google_drive_access_required" ? "required" : "optional"}
+        mode={permissionMode}
         onBack={onBack}
         onContinue={onContinueWithoutVisibleBackup}
         onTryAgain={onTryAgain}
@@ -175,7 +179,8 @@ function GoogleIdentityError({
 
 /**
  * Only file conditions Passport has verified itself offer replacement: a file that does not
- * parse, or one that parses but cannot be decrypted for the signed-in Google account.
+ * parse, or one this origin wrote that its key no longer decrypts. A file from another Passport
+ * origin is never offered for deletion.
  */
 function passportFileReplacement(
   code: GoogleIdentityViewError["code"],
@@ -198,7 +203,7 @@ function passportFileReplacement(
             : undefined,
         onConfirm: actions.onReplaceInvalidFile,
       };
-    case "decrypt_failed":
+    case "passport_file_undecryptable":
     case "undecryptable_passport_file_delete_failed":
       if (!actions.onReplaceUndecryptableFile) return undefined;
       return {
@@ -214,6 +219,64 @@ function passportFileReplacement(
     default:
       return undefined;
   }
+}
+
+/**
+ * A Drive file that names another Passport origin and that this origin could not unlock. The
+ * origin is unauthenticated: it comes from a file that failed validation or decryption, or whose
+ * key ID this server does not know. It is therefore shown only as unverified text, never as a
+ * link or a place to sign in. Nothing is offered for deletion: the file may be the only copy of
+ * an identity another site still opens.
+ */
+function ForeignPassportFile({
+  onBack,
+  passportFileOrigin,
+}: {
+  onBack: () => void;
+  passportFileOrigin: string;
+}) {
+  const originLabelId = useId();
+
+  return (
+    <PassportScreen className="gap-6 md:max-w-[558px] md:gap-8">
+      <div className="flex flex-col gap-6 md:gap-3">
+        <DisplayHeading accent="elsewhere." aria-label="Identity found elsewhere.">
+          Identity found
+        </DisplayHeading>
+        <LeadText>{googleIdentityErrorMessage("foreign_passport_file")}</LeadText>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-6">
+        <div className="flex flex-col gap-2">
+          <Label className="leading-5" id={originLabelId}>
+            Site named in the file (unverified)
+          </Label>
+          <div
+            aria-labelledby={originLabelId}
+            className="flex min-h-14 flex-col justify-center rounded-lg border border-dashed border-input bg-black/10 py-4 pl-6 pr-5 shadow-xs"
+            role="group"
+          >
+            <p className="break-all text-base font-medium leading-6 text-foreground">
+              {passportFileOrigin}
+            </p>
+          </div>
+        </div>
+        <p className="text-sm leading-5 text-muted-foreground">
+          Passport cannot confirm which site created this file. Only use your identity on a Passport
+          site you already trust. To create a new identity here, go back and choose a different
+          Google account.
+        </p>
+
+        <div
+          aria-label="Foreign identity actions"
+          className="mt-auto grid w-full grid-cols-1 gap-3 md:mt-0 md:flex md:items-center md:justify-between"
+          role="group"
+        >
+          <BackButton onClick={onBack} />
+        </div>
+      </div>
+    </PassportScreen>
+  );
 }
 
 function GoogleAccessDenied({
