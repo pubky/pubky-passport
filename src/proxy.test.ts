@@ -6,20 +6,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EARLY_AUTHORIZATION_LOCATION_SCRIPT } from "./libs/authorization/earlyAuthorizationLocation";
 import { EARLY_GOOGLE_IMPLICIT_RESPONSE_SCRIPT } from "./libs/authorization/earlyGoogleImplicitResponse";
 import { LOGGER } from "./libs/logger/logger";
+import { stubPassportEnvironment } from "@test-utils/passportEnvironment";
 import { config, proxy } from "./proxy";
+
+/** `connect-src` of every page but the two signer pages: no homeserver, no relay. */
+const FIXED_CONNECT_SOURCES = [
+  "'self'",
+  "https://openidconnect.googleapis.com",
+  "https://www.googleapis.com",
+  "https://lh3.googleusercontent.com",
+  "https://homegate.example",
+  "https://pkarr.pubky.app",
+  "https://pkarr.pubky.org",
+];
+/** Both signer pages reach any homeserver and relay over HTTPS. */
+const SIGNER_CONNECT_SOURCES = [...FIXED_CONNECT_SOURCES, "https:"];
+const NARROW_IMAGE_SOURCES = ["'self'", "data:", "https://lh3.googleusercontent.com"];
+const GRANT_RELAY_URL = "https://relay.passport.example/inbox";
 
 describe("request CSP proxy", () => {
   beforeEach(() => {
-    vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
-    vi.stubEnv("HOMEGATE_URL", "https://homegate.example");
-    vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example");
-    vi.stubEnv("PASSPORT_SERVER_SECRET_CURRENT_KEY_ID", "current");
-    vi.stubEnv(
-      "PASSPORT_SERVER_SECRET_KEYRING_JSON",
-      JSON.stringify({
-        current: Buffer.alloc(32, 1).toString("base64"),
-      }),
-    );
+    stubPassportEnvironment();
     vi.stubEnv("NODE_ENV", "production");
   });
 
@@ -29,6 +36,7 @@ describe("request CSP proxy", () => {
   });
 
   it("uses the configured matcher to exclude API and framework asset requests", () => {
+    expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/" })).toBe(true);
     expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/authorize" })).toBe(true);
     expect(
       unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/api/wrapping-key/google" }),
@@ -58,6 +66,7 @@ describe("request CSP proxy", () => {
     expect(cspSources(policy, "connect-src")).not.toContain("wss:");
     expect(cspSources(policy, "connect-src")).toContain("https://lh3.googleusercontent.com");
     expect(cspSources(policy, "connect-src")).not.toContain("https://accounts.google.com");
+    expect(cspSources(policy, "img-src")).toEqual(NARROW_IMAGE_SOURCES);
     expect(cspSources(policy, "style-src")).toEqual(["'self'", "'unsafe-inline'"]);
     expect(cspSources(policy, "frame-src")).toEqual(["'none'"]);
     expect(cspSources(policy, "form-action")).toEqual(["'self'"]);
@@ -66,27 +75,62 @@ describe("request CSP proxy", () => {
     expect(policy).not.toContain("/inbox");
     expect(policy).not.toContain("sensitive-secret");
     expect(cspSources(policy, "connect-src")).toContain("https://homegate.example");
-    expect(cspSources(policy, "connect-src")).toContain("https://homeserver.example");
   });
 
-  it("normalizes and deduplicates configured homeserver origins", () => {
-    vi.stubEnv(
-      "PUBKY_HOMESERVER_CONNECT_ORIGINS",
-      "https://homeserver.example/, https://migrated.example, https://homeserver.example",
+  it.each(["/", "/authorize"])(
+    "lets the signer page %s reach any HTTPS homeserver or relay",
+    (path) => {
+      vi.stubEnv("PUBKY_HTTP_RELAY_URL", GRANT_RELAY_URL);
+      const policy = proxy(new NextRequest(`https://passport.example${path}`)).headers.get(
+        "Content-Security-Policy",
+      );
+
+      // `https:` covers Passport's own grant relay too, so it is not named separately.
+      expect(cspSources(policy, "connect-src")).toEqual(SIGNER_CONNECT_SOURCES);
+      expect(cspSources(policy, "img-src")).toEqual(NARROW_IMAGE_SOURCES);
+    },
+  );
+
+  it.each(["/privacy-policy", "/terms-of-service", "/missing", "/authorize/extra", "/authorize-x"])(
+    "keeps %s on the fixed origins without any homeserver or relay",
+    (path) => {
+      vi.stubEnv("PUBKY_HTTP_RELAY_URL", GRANT_RELAY_URL);
+      const policy = proxy(new NextRequest(`https://passport.example${path}`)).headers.get(
+        "Content-Security-Policy",
+      );
+
+      expect(cspSources(policy, "connect-src")).toEqual(FIXED_CONNECT_SOURCES);
+      expect(cspSources(policy, "img-src")).toEqual(NARROW_IMAGE_SOURCES);
+    },
+  );
+
+  it("names no Homegate origin, and no empty source, on an instance without Homegate", () => {
+    stubPassportEnvironment({
+      PASSPORT_PROVIDER_CONFIG_JSON: JSON.stringify({
+        googleEnabled: false,
+        verificationMethods: ["invite"],
+      }),
+      HOMEGATE_URL: undefined,
+    });
+    for (const path of ["/", "/privacy-policy"]) {
+      const policy =
+        proxy(new NextRequest(`https://passport.example${path}`)).headers.get(
+          "Content-Security-Policy",
+        ) ?? "";
+
+      expect(cspSources(policy, "connect-src")).not.toContain("https://homegate.example");
+      expect(policy).not.toMatch(/ {2}|\s;/u);
+    }
+  });
+
+  it("ignores the retired homeserver origin list", () => {
+    vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", "https://homeserver.example/path");
+
+    const policy = proxy(new NextRequest("https://passport.example/privacy-policy")).headers.get(
+      "Content-Security-Policy",
     );
 
-    const response = proxy(new NextRequest("https://passport.example/"));
-    const connectSources = cspSources(
-      response.headers.get("Content-Security-Policy"),
-      "connect-src",
-    );
-
-    expect(connectSources.filter((source) => source === "https://homeserver.example")).toHaveLength(
-      1,
-    );
-    expect(connectSources).toContain("https://migrated.example");
-    expect(connectSources).not.toContain("https:");
-    expect(connectSources).not.toContain("*");
+    expect(cspSources(policy, "connect-src")).toEqual(FIXED_CONNECT_SOURCES);
   });
 
   it("builds CSP without reading server-secret configuration", () => {
@@ -108,19 +152,18 @@ describe("request CSP proxy", () => {
 
   it("does not project authorization request data into CSP", () => {
     const request = encodeURIComponent(authorizationRequest("https://attacker.example/inbox"));
-    const otherRoute = proxy(new NextRequest(`https://passport.example/?d=${request}`));
-    const authorization = proxy(new NextRequest(`https://passport.example/authorize?d=${request}`));
+    for (const path of ["/", "/authorize", "/privacy-policy"]) {
+      const policy =
+        proxy(new NextRequest(`https://passport.example${path}?d=${request}`)).headers.get(
+          "Content-Security-Policy",
+        ) ?? "";
 
-    expect(
-      cspSources(otherRoute.headers.get("Content-Security-Policy"), "connect-src"),
-    ).not.toContain("https:");
-    expect(
-      cspSources(authorization.headers.get("Content-Security-Policy"), "connect-src"),
-    ).toContain("https:");
-    expect(authorization.headers.get("Content-Security-Policy")).not.toContain(
-      "https://attacker.example",
-    );
-    expect(authorization.headers.get("Content-Security-Policy")).not.toContain("sensitive-secret");
+      expect(policy).not.toContain("attacker.example");
+      expect(policy).not.toContain("sensitive-secret");
+      expect(cspSources(policy, "connect-src")).toEqual(
+        path === "/privacy-policy" ? FIXED_CONNECT_SOURCES : SIGNER_CONNECT_SOURCES,
+      );
+    }
   });
 
   it("rejects unsafe configured Homegate origins before emitting CSP", () => {
@@ -141,34 +184,6 @@ describe("request CSP proxy", () => {
       }),
     );
     expect(JSON.stringify(error.mock.calls)).not.toContain("https://*.example.com");
-  });
-
-  it.each([
-    "http://homeserver.example",
-    "https://user:password@homeserver.example",
-    "https://homeserver.example/path",
-    "https://*.example.com",
-    "https://home;server.example",
-    "https://192.0.2.1",
-    "https://homeserver.example,,https://other.example",
-  ])("rejects unsafe configured homeserver origins before emitting CSP: %s", (origins) => {
-    const error = vi.spyOn(LOGGER, "error").mockImplementation(() => undefined);
-    vi.stubEnv("PUBKY_HOMESERVER_CONNECT_ORIGINS", origins);
-
-    expect(() => proxy(new NextRequest("https://passport.example/"))).toThrow(
-      "Proxy configuration unavailable.",
-    );
-    expect(error).toHaveBeenCalledWith(
-      "proxy.bootstrap.failed",
-      expect.objectContaining({
-        layer: "proxy",
-        operation: "build_response_policy",
-        code: "runtime_exception",
-        diagnosticId: expect.any(String),
-        errorName: expect.any(String),
-      }),
-    );
-    expect(JSON.stringify(error.mock.calls)).not.toContain(origins);
   });
 });
 
