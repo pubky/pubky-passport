@@ -70,9 +70,10 @@ test("an unreadable published profile opens an empty editor instead of blocking 
   await mockPublicProfile(page, { name: "x" });
   await seedProfileIdentity(page);
   await expect(page.getByRole("heading", { name: "Create your profile." })).toBeVisible();
-  await expect(page.getByText("Your published profile could not be read.")).toBeVisible();
+  await expect(page.getByText("We couldn’t read your current profile.")).toBeVisible();
   await expect(page.getByLabel("Name", { exact: true })).toHaveValue("");
-  await expect(page.getByRole("button", { name: "Finish", exact: true })).toBeEnabled();
+  // Saving replaces the profile other apps show, so the button says so.
+  await expect(page.getByRole("button", { name: "Replace profile", exact: true })).toBeEnabled();
 });
 
 test("existing profile names appear across identity screens and profile editing", async ({

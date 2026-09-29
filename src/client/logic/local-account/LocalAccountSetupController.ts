@@ -447,6 +447,10 @@ export class LocalAccountSetupController {
         {
           ...(existing ?? { publicIdentity: identity.publicIdentity, profileSetupRequired: true }),
           homeserverPubky,
+          // Registration needs the backup checked or, for a file made here, its check skipped.
+          backup: this.backupVerified
+            ? { verifiedAt: new Date().toISOString() }
+            : { createdAt: new Date().toISOString() },
         },
         secret.value,
       );

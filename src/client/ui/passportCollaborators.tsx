@@ -61,6 +61,7 @@ export type LocalIdentityControllerPort = Pick<
   | "resolveHomeserver"
   | "selectIdentity"
   | "subscribeToIdentityChanges"
+  | "verifyRecoveryFile"
 >;
 
 export type HomegateSignupControllerPort = Pick<

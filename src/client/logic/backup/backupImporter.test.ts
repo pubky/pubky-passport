@@ -1,5 +1,5 @@
 import { Result } from "better-result";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectResultError, expectResultOk } from "@test-utils/resultAssertions";
 import { LOGGER } from "@/libs/logger/logger";
@@ -16,19 +16,24 @@ const HOMESERVER = "ufibwbmed6jeq9k4p583go95wofakh9fwpp4k734trq79pd9u1uy";
 const PASSWORD = "correct horse battery";
 
 describe("BackupImporter", () => {
+  afterEach(() => vi.useRealTimers());
+
   it("signs in with the restored key, saves it without profile setup, and releases the handle", async () => {
+    vi.useFakeTimers({ now: Date.UTC(2026, 8, 29), toFake: ["Date"] });
     const { importer, pubky, repository } = setup();
     const bytes = new Uint8Array([7, 7]);
+    // The file just opened with its password: the key has a checked backup.
+    const backup = { verifiedAt: "2026-09-29T00:00:00.000Z" };
 
     expect(expectResultOk(await importer.importBackup(bytes, PASSWORD, HOMESERVER))).toEqual({
       status: "imported",
-      identity: { publicIdentity: { publicKeyZ32: PUBLIC_KEY } },
+      identity: { publicIdentity: { publicKeyZ32: PUBLIC_KEY }, backup },
     });
     expect(pubky.restoreRecoveryFile).toHaveBeenCalledWith(bytes, PASSWORD);
     expect(pubky.signin).toHaveBeenCalledWith("restored", "normal");
     expect(repository.save).toHaveBeenCalledOnce();
     expect(repository.save).toHaveBeenCalledWith(
-      { publicIdentity: { publicKeyZ32: PUBLIC_KEY } },
+      { publicIdentity: { publicKeyZ32: PUBLIC_KEY }, backup },
       expect.objectContaining({ format: "pubky-secret-key" }),
     );
     expect(pubky.exportedSecrets[0]?.bytes.every((byte) => byte === 0)).toBe(true);
@@ -215,6 +220,7 @@ describe("BackupImporter", () => {
       expect(expectResultOk(await importer.republishHomeserver(HOMESERVER))).toEqual({
         publicIdentity: { publicKeyZ32: PUBLIC_KEY },
         homeserverPubky: HOMESERVER,
+        backup: { verifiedAt: expect.any(String) },
       });
       // The record is looked up again right before publishing, not taken from the import.
       expect(pubky.resolveHomeserver.mock.calls).toEqual([[PUBLIC_KEY], [PUBLIC_KEY]]);
@@ -254,6 +260,7 @@ describe("BackupImporter", () => {
       expect(expectResultOk(await importer.republishHomeserver(HOMESERVER))).toEqual({
         publicIdentity: { publicKeyZ32: PUBLIC_KEY },
         homeserverPubky: HOMESERVER,
+        backup: { verifiedAt: expect.any(String) },
       });
       expect(pubky.publishHomeserver).not.toHaveBeenCalled();
       expect(pubky.signin).toHaveBeenLastCalledWith("restored", "after-publication");

@@ -6,7 +6,11 @@ import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import type { CodedFailure } from "@/libs/result";
 import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubkyIdentityKey";
 import type { PubkyRingMigration, PubkySdkAdapter } from "@/client/logic/pubky/PubkySdkAdapter";
-import { isValidNewBackupPassword } from "@/client/logic/backup/BackupVerifier";
+import {
+  isValidNewBackupPassword,
+  verifyBackupFile,
+  type BackupVerificationErrorCode,
+} from "@/client/logic/backup/BackupVerifier";
 import type { LocalIdentityCatalog } from "./localIdentityModels";
 import {
   LocalStorageIdentityRepository,
@@ -19,6 +23,10 @@ type LocalIdentityRecoveryFileErrorCode =
 export type LocalIdentityRecoveryFileResult = ResultType<
   LocalIdentityRecoveryFile,
   CodedFailure<LocalIdentityRecoveryFileErrorCode>
+>;
+export type LocalIdentityBackupCheckResult = ResultType<
+  void,
+  CodedFailure<BackupVerificationErrorCode | "verification_failed">
 >;
 type LocalIdentityHomeserverRepublishErrorCode =
   | "homeserver_mismatch"
@@ -34,7 +42,7 @@ export type LocalIdentityHomeserverRepublishResult = ResultType<
 
 type LocalIdentityRepositoryPort = Pick<
   LocalStorageIdentityRepository,
-  "list" | "select" | "remove" | "subscribe" | "read"
+  "list" | "select" | "remove" | "subscribe" | "read" | "recordBackup"
 >;
 
 /**
@@ -173,12 +181,16 @@ export class LocalIdentityController {
       const { PubkySdkAdapter } = await import("@/client/logic/pubky/PubkySdkAdapter");
       pubky = new PubkySdkAdapter();
       const recoveryFile = pubky.createRecoveryFile(stored.value.secretKey, publicKeyZ32, password);
-      return Result.isError(recoveryFile)
-        ? Result.err({ code: "recovery_file_failed", cause: recoveryFile.error })
-        : Result.ok({
-            bytes: recoveryFile.value,
-            fileName: `pubky-${publicKeyZ32}.pkarr`,
-          });
+      if (Result.isError(recoveryFile)) {
+        return Result.err({ code: "recovery_file_failed", cause: recoveryFile.error });
+      }
+      // Recorded as made, not as a backup: the browser may still cancel the download, so only a
+      // file that later opens with its password counts as protecting the key.
+      this.recordBackup(publicKeyZ32, "created");
+      return Result.ok({
+        bytes: recoveryFile.value,
+        fileName: `pubky-${publicKeyZ32}.pkarr`,
+      });
     } catch (e) {
       LOGGER.warn("identity.controller.failed", {
         operation: "create_recovery_file",
@@ -196,6 +208,32 @@ export class LocalIdentityController {
           ...safeErrorLogFields(e),
         });
       }
+    }
+  }
+
+  /**
+   * Opens a backup file of this identity with its password, without signing in or storing its
+   * key, and records the success so every screen can say the backup was checked. The bytes are
+   * always cleared.
+   */
+  async verifyRecoveryFile(
+    publicKeyZ32: string,
+    recoveryFile: Uint8Array,
+    password: string,
+  ): Promise<LocalIdentityBackupCheckResult> {
+    const verified = await verifyBackupFile(recoveryFile, password, publicKeyZ32);
+    if (Result.isOk(verified)) this.recordBackup(publicKeyZ32, "verified");
+    return verified;
+  }
+
+  /** The backup status is advisory: failing to record it never fails the backup itself. */
+  private recordBackup(publicKeyZ32: string, event: "created" | "verified"): void {
+    const recorded = this.repository.recordBackup(publicKeyZ32, event, new Date());
+    if (Result.isError(recorded)) {
+      LOGGER.warn("identity.controller.failed", {
+        operation: "record_backup",
+        code: recorded.error.code,
+      });
     }
   }
 

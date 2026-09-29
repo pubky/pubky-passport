@@ -18,6 +18,12 @@ import { PubkyRingQrDialog } from "./pubkyRingQrDialog";
 
 type MigrationMode = "desktop" | "dialog";
 
+const DESKTOP_QUERY = "(min-width: 48rem)";
+
+/** The QR code is the private key: anyone who sees it holds the identity. */
+const QR_WARNING =
+  "This code contains your private key. Anyone who scans it can use your pubky. Don’t show it on a shared or recorded screen.";
+
 type PubkyRingMigrationState =
   | { status: "idle" }
   | { status: "loading" }
@@ -46,6 +52,7 @@ function MigrateToPubkyRing({
   // event-handler-initiated loads that settle after invalidation, and `createMigrationRef`
   // keeps a changed `createMigration` prop from regenerating a ready QR on parent re-renders.
   const requestRef = useRef(0);
+  const statusRef = useRef<PubkyRingMigrationState["status"]>("idle");
   const ownedMigrationRef = useRef<PubkyRingMigration | undefined>(undefined);
   const createMigrationRef = useRef(createMigration);
 
@@ -57,6 +64,7 @@ function MigrateToPubkyRing({
   const commitOwned = useCallback((next: PubkyRingMigrationState) => {
     ownedMigrationRef.current?.dispose();
     ownedMigrationRef.current = next.status === "ready" ? next.migration : undefined;
+    statusRef.current = next.status;
     setState(next);
   }, []);
 
@@ -89,25 +97,33 @@ function MigrateToPubkyRing({
     [commitOwned, requestMigration],
   );
 
+  // The QR code appears only when asked for, and goes away when the layout switches between the
+  // inline code and the drawer or the page is hidden (another tab, a minimised window). A failure
+  // message stays until the next attempt.
   useEffect(() => {
-    if (typeof globalThis.matchMedia !== "function") return invalidate;
-    const media = globalThis.matchMedia("(min-width: 48rem)");
-
-    async function syncDesktop() {
-      invalidate();
-      if (media.matches) await load("desktop");
-    }
-
-    void syncDesktop();
-    const onChange = () => {
-      void syncDesktop();
+    const withdraw = () => {
+      if (statusRef.current !== "failed") invalidate();
     };
-    media.addEventListener("change", onChange);
+    const hide = () => {
+      if (document.hidden) withdraw();
+    };
+    const media =
+      typeof globalThis.matchMedia === "function" ? globalThis.matchMedia(DESKTOP_QUERY) : null;
+    document.addEventListener("visibilitychange", hide);
+    media?.addEventListener("change", withdraw);
     return () => {
-      media.removeEventListener("change", onChange);
+      document.removeEventListener("visibilitychange", hide);
+      media?.removeEventListener("change", withdraw);
       invalidate();
     };
-  }, [invalidate, load]);
+  }, [invalidate]);
+
+  function showQr() {
+    const desktop =
+      typeof globalThis.matchMedia === "function" && globalThis.matchMedia(DESKTOP_QUERY).matches;
+    setPressed("qr");
+    void load(desktop ? "desktop" : "dialog");
+  }
 
   async function importPubky() {
     const migration = ownedMigrationRef.current ?? (await requestMigration());
@@ -127,14 +143,18 @@ function MigrateToPubkyRing({
   }
 
   const exportFailed = state.status === "failed";
+  const desktopQr = state.status === "ready" && state.mode === "desktop";
 
   return (
     <PassportScreen className="gap-6 md:gap-8">
       <div className="flex flex-col gap-6 md:gap-3">
-        <DisplayHeading accent="keychain." aria-label="Migrate to keychain.">
-          Migrate to
+        <DisplayHeading accent="Pubky Ring." aria-label="Use in Pubky Ring.">
+          Use in
         </DisplayHeading>
-        <LeadText>Install a supported keychain app to self-manage your pubky identity.</LeadText>
+        <LeadText>
+          Pubky Ring is a phone app that keeps your key. Scan a code with Ring, or open this pubky
+          in Ring on your phone, to add it there.
+        </LeadText>
       </div>
 
       <section className="flex w-full flex-col gap-6 rounded-lg bg-card p-6 md:flex-row md:p-8">
@@ -143,32 +163,28 @@ function MigrateToPubkyRing({
             <PubkyRingLogo />
           </div>
           <PubkyRingStoreBadges />
-          <p className="hidden text-sm font-medium leading-5 text-muted-foreground md:block">
-            Scan this QR with Pubky Ring to import and self-manage your pubky identity.
-          </p>
-
+          <Notice tone="warning">{QR_WARNING}</Notice>
           {exportFailed ? (
             <Notice focusOnMount tone="error">
-              The active Pubky could not be exported.
+              Passport couldn’t read this key from browser storage. Try again, or download an
+              encrypted backup instead.
             </Notice>
           ) : null}
 
-          <div className="flex flex-col gap-3 md:hidden">
+          <div className="flex flex-col gap-3 md:flex-row">
             <Button
               disabled={pending && pressed !== "qr"}
               loading={pending && pressed === "qr"}
-              onClick={() => {
-                setPressed("qr");
-                void load("dialog");
-              }}
+              onClick={desktopQr ? invalidate : showQr}
               size="lg"
               type="button"
               variant="secondary"
             >
               <ScanIcon />
-              Show QR
+              {desktopQr ? "Hide QR code" : "Show QR code"}
             </Button>
             <Button
+              className="md:hidden"
               disabled={pending && pressed !== "import"}
               loading={pending && pressed === "import"}
               onClick={() => {
@@ -179,13 +195,22 @@ function MigrateToPubkyRing({
               type="button"
             >
               <PubkyBrandIcon />
-              Import pubky
+              Open in Pubky Ring
             </Button>
           </div>
+          <p className="text-sm leading-5 text-muted-foreground">
+            Once Ring has it, your key is in both places. To keep it only in Ring, remove it from
+            this browser afterwards.
+          </p>
         </div>
-        {state.status === "ready" && state.mode === "desktop" ? (
+        {desktopQr ? (
           <PubkyRingQrCode className="size-48 shrink-0" migration={state.migration} />
-        ) : null}
+        ) : (
+          <div className="hidden size-48 shrink-0 flex-col items-center justify-center gap-2 self-center rounded-lg border border-dashed border-border p-4 text-center text-xs leading-4 text-muted-foreground md:flex">
+            <ScanIcon />
+            The QR code stays hidden until you choose Show QR code.
+          </div>
+        )}
       </section>
 
       {navigationAction === "back" ? (
@@ -201,7 +226,7 @@ function MigrateToPubkyRing({
         />
       )}
       {state.status === "ready" && state.mode === "dialog" ? (
-        <PubkyRingQrDialog migration={state.migration} onClose={invalidate} />
+        <PubkyRingQrDialog migration={state.migration} onClose={invalidate} warning={QR_WARNING} />
       ) : null}
     </PassportScreen>
   );

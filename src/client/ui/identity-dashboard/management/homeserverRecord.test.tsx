@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Result } from "better-result";
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -115,6 +115,12 @@ describe("HomeserverRecord", () => {
     });
     expect(confirmation).toHaveTextContent(PROVIDER_HOMESERVER);
     expect(confirmation).toHaveTextContent("Only continue if your account was created on");
+    // Publishing a wrong homeserver misdirects apps: the caution is a callout, not helper text.
+    expect(
+      within(confirmation)
+        .getByText(/Only continue if/u)
+        .closest("[data-tone]"),
+    ).toHaveAttribute("data-tone", "warning");
     expect(
       screen.getByRole("heading", { name: "Point this pubky at this homeserver?" }),
     ).toHaveFocus();
@@ -130,7 +136,9 @@ describe("HomeserverRecord", () => {
       "true",
     );
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Homeserver record republished.");
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("Homeserver record republished."),
+    );
     expect(republishHomeserver).toHaveBeenCalledExactlyOnceWith(PUBLIC_KEY, PROVIDER_HOMESERVER);
     expect(screen.getByText(PROVIDER_HOMESERVER)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Copy Homeserver" })).toBeEnabled();

@@ -1,5 +1,5 @@
 import { Result } from "better-result";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryStorage } from "@test-utils/MemoryStorage";
 import { expectResultError, expectResultOk } from "@test-utils/resultAssertions";
 
@@ -25,6 +25,8 @@ const OTHER_KEY = "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo";
 const INVITE = { homeserverPubky: OTHER_KEY, signupToken: "invite-secret" };
 
 describe("LocalAccountSetupController", () => {
+  afterEach(() => vi.useRealTimers());
+
   it("can explicitly skip verification only after creating the backup", async () => {
     const { controller, pubky } = setup();
     expectResultOk(controller.prepareAccount(INVITE));
@@ -410,7 +412,9 @@ describe("LocalAccountSetupController", () => {
     expect(signupCalls[1]?.[0]).toBe(signupCalls[0]?.[0]);
   });
 
-  it("remembers the homeserver a new account was signed up on", async () => {
+  it("remembers the homeserver a new account was signed up on and its checked backup", async () => {
+    vi.useFakeTimers({ now: Date.UTC(2026, 8, 29), toFake: ["Date"] });
+    const verified = { verifiedAt: "2026-09-29T00:00:00.000Z" };
     const registration = setup();
     expectResultOk(registration.controller.prepareAccount(INVITE));
     expectResultOk(registration.controller.verifyBackup(new Uint8Array([9]), "correct horse"));
@@ -418,6 +422,7 @@ describe("LocalAccountSetupController", () => {
       publicIdentity: { publicKeyZ32: PUBLIC_KEY },
       profileSetupRequired: true,
       homeserverPubky: INVITE.homeserverPubky,
+      backup: verified,
     });
 
     const reregistration = setup({
@@ -428,6 +433,17 @@ describe("LocalAccountSetupController", () => {
     expect(expectResultOk(await reregistration.controller.registerAccount())).toEqual({
       publicIdentity: { publicKeyZ32: PUBLIC_KEY },
       homeserverPubky: INVITE.homeserverPubky,
+      backup: verified,
+    });
+  });
+
+  it("records a backup whose check was skipped as created, not checked", async () => {
+    const { controller } = setup();
+    expectResultOk(controller.prepareAccount(INVITE));
+    expectResultOk(controller.createBackup("correct horse battery"));
+    expectResultOk(controller.skipVerification());
+    expect(expectResultOk(await controller.registerAccount()).backup).toEqual({
+      createdAt: expect.any(String),
     });
   });
 

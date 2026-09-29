@@ -206,6 +206,8 @@ export class BackupImporter {
         {
           publicIdentity: identity.publicIdentity,
           ...(homeserverPubky ? { homeserverPubky } : {}),
+          // The file just opened with its password, so this key has a checked backup.
+          backup: { verifiedAt: new Date().toISOString() },
         },
         secret.value,
       );

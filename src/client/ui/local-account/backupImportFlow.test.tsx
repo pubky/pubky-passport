@@ -155,7 +155,16 @@ describe("BackupImportFlow", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(`Pubky: ${PUBLIC_KEY}`)).toBeInTheDocument();
     const publish = screen.getByRole("button", { name: "Publish record and import" });
-    expect(publish).toHaveAccessibleDescription(HOMESERVER);
+    // The button names the homeserver it publishes and the caution that goes with it.
+    expect(publish).toHaveAccessibleDescription(
+      expect.stringContaining(`Homeserver to publish ${HOMESERVER}`),
+    );
+    expect(publish).toHaveAccessibleDescription(
+      expect.stringContaining("Only continue if your account was created on this homeserver."),
+    );
+    expect(
+      screen.getByText(/Only continue if your account was created/u).closest("[data-tone]"),
+    ).toHaveAttribute("data-tone", "warning");
     expect(republishHomeserver).not.toHaveBeenCalled();
 
     await user.click(publish);

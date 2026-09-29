@@ -10,6 +10,7 @@ import {
 } from "@/client/logic/backup/BackupVerifier";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { BackButton } from "@/client/ui/shared/backButton";
+import { DetailField } from "@/client/ui/shared/detailField";
 import { ArrowRightIcon } from "@/client/ui/shared/icons";
 import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
@@ -140,21 +141,18 @@ export function BackupImportFlow({
         description="The backup opened, but the Pubky network has no homeserver record for this identity, so its account cannot be found."
       >
         <p className="break-all text-xs text-muted-foreground">Pubky: {unpublished}</p>
-        <div className="flex flex-col gap-2">
-          <p className="text-sm leading-5">
-            Passport can publish a new record that points to this homeserver:
-          </p>
-          <p
-            className="break-all rounded-lg border border-dashed px-4 py-3 text-xs text-muted-foreground"
-            id="import-homeserver"
-          >
-            {defaultHomeserver}
-          </p>
-          <FieldMessage>
-            Continue only if this Pubky signed up on that homeserver. Otherwise go back and import
-            it where its account was created.
-          </FieldMessage>
+        <p className="text-sm leading-5">
+          Passport can publish a new record that points to this homeserver.
+        </p>
+        <div id="import-homeserver">
+          <DetailField label="Homeserver to publish" value={defaultHomeserver} />
         </div>
+        {/* Publishing the wrong homeserver sends apps to the wrong place for this pubky's data. */}
+        <Notice id="import-homeserver-warning" tone="warning">
+          Only continue if your account was created on this homeserver. If it lives anywhere else,
+          apps will look for your profile and data in the wrong place. Go back and import it where
+          its account was created instead.
+        </Notice>
         {formError ? (
           <Notice focusOnMount tone="error">
             {formError}
@@ -175,7 +173,7 @@ export function BackupImportFlow({
           layout="paired"
           confirm={
             <Button
-              aria-describedby="import-homeserver"
+              aria-describedby="import-homeserver import-homeserver-warning"
               className="w-full"
               loading={pending}
               onClick={() => void republish(defaultHomeserver)}

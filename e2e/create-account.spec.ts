@@ -141,7 +141,11 @@ test("Back and reload keep local setup resumable without forcing it", async ({
       JSON.parse(localStorage.getItem("pubky-passport/local-account-draft/v1")!)
         .publicKeyZ32 as string,
   );
-  await expect(page.getByText(`Pubky: ${firstKey}`, { exact: true })).toBeVisible();
+  expect(firstKey).toBeTruthy();
+  // The screen says what is at stake: the key lives only here and nobody can reset the password.
+  await expect(page.getByText(/Your key is saved only in this browser/u)).toContainText(
+    "Nobody can reset the password",
+  );
   await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
   await inspect("protect-key");
   await page.getByRole("button", { name: "Back", exact: true }).click();
@@ -159,7 +163,6 @@ test("Back and reload keep local setup resumable without forcing it", async ({
         .publicKeyZ32 as string,
   );
   expect(key).not.toBe(firstKey);
-  await expect(page.getByText(`Pubky: ${key}`, { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Use Pubky Ring" })).toHaveCount(0);
   await page.getByLabel("Enter strong password").fill("correct horse");
   await page.getByLabel("Confirm password").fill("correct horse");
@@ -168,6 +171,10 @@ test("Back and reload keep local setup resumable without forcing it", async ({
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe(`pubky-${key}.pkarr`);
   await expect(page.getByRole("heading", { name: "Verify backup." })).toBeVisible();
+  // Passport cannot see the saved file, so it names the one it started and where to look.
+  await expect(page.getByText(/Download started:/u)).toHaveText(
+    `Download started: pubky-${key.slice(0, 6)}…${key.slice(-6)}.pkarr. Not in your downloads? Download again`,
+  );
   await inspect("verify-backup");
   await page.reload();
   // A reload never forces setup; opening account creation again offers the saved key.
@@ -176,7 +183,9 @@ test("Back and reload keep local setup resumable without forcing it", async ({
   await expect(page.getByRole("heading", { name: "Verify backup." })).toBeVisible();
   await expect(page.getByRole("button", { name: "Verify and create account" })).toBeDisabled();
   // Skipping needs a download made in this session; after a reload only the file check remains.
-  await expect(page.getByRole("button", { name: "Skip verification" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Skip this check (not recommended)" })).toHaveCount(
+    0,
+  );
   await expect(page.getByLabel("Backup password")).toHaveValue("");
   const savedKeys = await page.evaluate(() => Object.keys(localStorage));
   expect(savedKeys.some((entry) => entry.startsWith("pubky-passport/local-identities/"))).toBe(
@@ -185,11 +194,18 @@ test("Back and reload keep local setup resumable without forcing it", async ({
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain("correct horse");
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain("pubkyauth://");
   await page.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(page.getByText(`Pubky: ${key}`, { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
   await page.reload();
   await resumeSavedSetup(page);
   await expect(page.getByRole("heading", { name: "Protect your key." })).toBeVisible();
-  await expect(page.getByText(`Pubky: ${key}`, { exact: true })).toBeVisible();
+  // The resumed setup keeps the same key.
+  expect(
+    await page.evaluate(
+      () =>
+        JSON.parse(localStorage.getItem("pubky-passport/local-account-draft/v1")!)
+          .publicKeyZ32 as string,
+    ),
+  ).toBe(key);
 
   async function inspect(name: string) {
     await page.mouse.move(0, 0);
@@ -219,7 +235,7 @@ test("decrypts the downloaded backup before starting local registration", async 
   expect(backupPath).not.toBeNull();
 
   await expect(page.getByRole("heading", { name: "Verify backup." })).toBeVisible();
-  await page.getByLabel("Backup just downloaded").setInputFiles(backupPath!);
+  await page.getByLabel("Backup file").setInputFiles(backupPath!);
   await page.getByLabel("Backup password").fill("wrong password");
   await page.getByRole("button", { name: "Verify and create account" }).click();
   await expect(page.getByText(/password is wrong/u)).toBeVisible();
@@ -527,7 +543,7 @@ test("can skip the backup check and keeps the attempted signup bound to its key"
     (url) => url.hostname === "homeserver.example" && !url.pathname.startsWith("/signup_tokens/"),
     () => undefined,
   );
-  await page.getByRole("button", { name: "Skip verification" }).click();
+  await page.getByRole("button", { name: "Skip this check (not recommended)" }).click();
   await expect(page.getByRole("heading", { name: "Setting up your pubky." })).toBeVisible();
   await expect
     .poll(() =>

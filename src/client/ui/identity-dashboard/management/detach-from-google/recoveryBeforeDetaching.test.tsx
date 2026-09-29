@@ -21,7 +21,7 @@ describe("RecoveryBeforeDetaching", () => {
 
     expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Choose backup method" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Migrate to keychain" })).toHaveClass("h-15");
+    expect(screen.getByRole("button", { name: "Use in Pubky Ring" })).toHaveClass("h-15");
     expect(screen.getByRole("button", { name: "Download encrypted backup" })).toHaveClass("h-15");
     expect(screen.getByRole("button", { name: "I backed up my pubky" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Back" }).closest(".grid")).toHaveClass(
@@ -44,7 +44,7 @@ describe("RecoveryBeforeDetaching", () => {
       />,
     );
 
-    await userEvent.setup().click(screen.getByRole("button", { name: "Migrate to keychain" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Use in Pubky Ring" }));
     expect(onMigrateToKeychain).toHaveBeenCalledOnce();
     await userEvent
       .setup()

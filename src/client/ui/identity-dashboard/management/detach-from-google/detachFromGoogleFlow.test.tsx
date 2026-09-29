@@ -37,6 +37,7 @@ describe("DetachFromGoogleFlow", () => {
       withPassportTestProviders(
         <DetachFromGoogleFlow
           createRecoveryFile={vi.fn()}
+          verifyRecoveryFile={vi.fn()}
           createMigration={vi.fn()}
           googleSubject={identity.googleAccount.googleSubject}
           identity={identity}

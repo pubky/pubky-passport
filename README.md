@@ -29,7 +29,7 @@ Decryption needs both: Drive access to fetch the file and a Google sign-in to ob
 key. On a new device, signing in with the same Google account restores the identity. When there is
 no file yet, Passport creates a new identity and backs it up the same way. A file this origin wrote
 but can no longer decrypt can be deleted and replaced; a file from another Passport origin is
-reported and never deleted. Afterwards the user can download an encrypted recovery file, move the
+reported and never deleted. Afterwards the user can download an encrypted recovery file, add the
 key to Pubky Ring, or detach from Google, which deletes the Drive files and leaves a self-managed
 identity in the browser.
 

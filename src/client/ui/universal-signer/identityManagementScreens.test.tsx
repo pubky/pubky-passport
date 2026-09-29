@@ -30,6 +30,7 @@ const ACTIONS: IdentityCatalogActions = {
   republishHomeserver: async (_publicKeyZ32, homeserverPubky) => Result.ok(homeserverPubky),
   resolveHomeserver: async () => Result.ok(null),
   selectIdentity: () => Result.ok(),
+  verifyRecoveryFile: async () => Result.ok(),
 };
 
 function renderScreens(
@@ -73,6 +74,51 @@ describe("IdentityManagementScreens", () => {
       expect(onNavigate).toHaveBeenCalledWith({ view: "manage", publicKeyZ32: "managed" });
     },
   );
+
+  it("returns a backup to the screen that asked for it, and requires its check before a removal", async () => {
+    const user = userEvent.setup();
+    const home = renderScreens({ view: "recovery", publicKeyZ32: "managed", home: true });
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(home.onHome).toHaveBeenCalledOnce();
+    expect(home.onNavigate).not.toHaveBeenCalled();
+    cleanup();
+
+    const logout = renderScreens({ view: "recovery", publicKeyZ32: "managed", logout: true });
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(logout.onNavigate).toHaveBeenCalledWith({
+      view: "manage",
+      publicKeyZ32: "managed",
+      logout: true,
+    });
+    cleanup();
+
+    renderScreens({ view: "recovery", publicKeyZ32: "managed", check: true });
+    expect(screen.getByRole("heading", { name: "Verify backup." })).toBeInTheDocument();
+    expect(screen.getByLabelText("Backup file")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Enter strong password")).not.toBeInTheDocument();
+  });
+
+  it("opens the backup check from Manage for a file that was never checked", async () => {
+    const created = {
+      activePublicKeyZ32: "local",
+      identities: [
+        {
+          publicIdentity: { publicKeyZ32: "local" },
+          backup: { createdAt: "2026-09-01T10:00:00.000Z" },
+        } as const,
+      ],
+    };
+    const { onNavigate } = renderScreens(
+      { view: "manage", publicKeyZ32: "local" },
+      { catalog: created },
+    );
+    await userEvent.setup().click(screen.getByRole("button", { name: "Check backup" }));
+    expect(onNavigate).toHaveBeenCalledWith({
+      view: "recovery",
+      publicKeyZ32: "local",
+      check: true,
+    });
+  });
 
   it("starts detachment with the identity as it was, and returns to it", async () => {
     const user = userEvent.setup();

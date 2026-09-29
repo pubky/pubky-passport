@@ -31,6 +31,7 @@ export function ProfileBackupSteps({
       <RecoveryFileDownload
         publicKeyZ32={publicKey}
         createRecoveryFile={actions.createRecoveryFile}
+        verifyRecoveryFile={actions.verifyRecoveryFile}
         onBack={() => setView("methods")}
       />
     );

@@ -211,9 +211,13 @@ function ProfileEditor({
       ) : (
         <form className="flex flex-col gap-6" onSubmit={(event) => void finish(event)}>
           {unreadable ? (
-            <FieldMessage role="status">
-              Your published profile could not be read. Finishing replaces it with this one.
-            </FieldMessage>
+            // Saving over a published profile cannot be undone, so it is a callout, not a hint.
+            <Notice tone="warning">
+              <p>
+                <strong>We couldn’t read your current profile.</strong> A profile is already
+                published for this pubky. Saving here replaces it everywhere it’s shown.
+              </p>
+            </Notice>
           ) : null}
           <fieldset
             disabled={saving}
@@ -409,7 +413,13 @@ function ProfileEditor({
             <BackButton className="w-[120px]" disabled={saving} onClick={back} />
             <Button loading={saving} size="lg" type="submit" className="min-w-32">
               <ArrowRightIcon />
-              {saving ? "Saving…" : "Finish"}
+              {unreadable
+                ? saving
+                  ? "Replacing…"
+                  : "Replace profile"
+                : saving
+                  ? "Saving…"
+                  : "Finish"}
             </Button>
           </div>
           {finishLater}

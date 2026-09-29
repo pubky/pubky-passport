@@ -75,7 +75,7 @@ test("local signup sends nothing while its homeserver is unreachable and retries
   await page.getByLabel("Enter strong password").fill("correct horse");
   await page.getByLabel("Confirm password").fill("correct horse");
   await page.getByRole("button", { name: "Download encrypted backup" }).click();
-  await page.getByRole("button", { name: "Skip verification" }).click();
+  await page.getByRole("button", { name: "Skip this check (not recommended)" }).click();
 
   const interrupted = page.getByRole("heading", { name: "Setup interrupted." });
   await expect(interrupted).toBeVisible({ timeout: 15_000 });

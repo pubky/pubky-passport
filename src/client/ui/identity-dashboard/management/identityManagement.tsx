@@ -1,20 +1,24 @@
 import { useState } from "react";
 
+import { isKeyProtected, keyBackupFile } from "@/client/logic/local-identity/keyBackup";
 import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityHomeserverRepublishResult } from "@/client/logic/local-identity/LocalIdentityController";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubkyIdentityKey";
+import { BackupStatusLine, formatBackupDate } from "@/client/ui/identity-dashboard/backupStatus";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
 import { DetailField } from "@/client/ui/shared/detailField";
 import { shortCopiedValue } from "@/client/ui/shared/formatPublicKey";
 import { GoogleAccountTag } from "@/client/ui/shared/googleAccountTag";
 import {
+  CheckIcon,
   DownloadIcon,
   KeyRoundIcon,
   LinkOffIcon,
   LogOutIcon,
   SquareUserRoundIcon,
+  TrashIcon,
 } from "@/client/ui/shared/icons";
 import { PassportHeaderAction } from "@/client/ui/shared/passportHeaderAction";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
@@ -48,8 +52,11 @@ function IdentityManagement({
   /** Offered only when Google is available; its presence is the only switch. */
   onBackupToGoogle?: () => void;
   onDetachFromGoogle: () => void;
-  /** `returnTo` names the screen to come back to once the backup is done. */
-  onDownloadRecoveryFile: (returnTo: "manage" | "logout") => void;
+  /**
+   * `returnTo` names the screen to come back to once the backup is done; `check` only checks a
+   * backup file made earlier.
+   */
+  onDownloadRecoveryFile: (returnTo: "manage" | "logout", check?: boolean) => void;
   onRemoveLocalIdentity: () => LocalIdentityResult<void>;
   onMigrateToKeychain: () => void;
   republishHomeserver: (
@@ -66,12 +73,20 @@ function IdentityManagement({
   const name = identity.profile?.name ?? "Your Pubky";
   // A Ring-held key never reaches Passport, so it cannot be backed up or signed with here.
   const browserKey = identity.keySource !== "ring";
+  const backupFile = keyBackupFile(identity);
+  const uncheckedFile = backupFile !== undefined && !backupFile.verified;
+  // Leaving this browser may delete the only copy of a key nothing is known to bring back: a file
+  // Passport made but never saw open may not exist.
+  const unbacked = !isKeyProtected(identity);
+  // The accessible name starts with the visible text, so "Remove key" also works by voice.
+  const leaveLabel = unbacked ? "Remove key from this browser" : "Log out";
 
   if (confirmingLogout)
     return (
       <LogoutConfirmation
         identity={identity}
         onCancel={() => setConfirmingLogout(false)}
+        onCheckBackup={() => onDownloadRecoveryFile("logout", true)}
         onDownloadBackup={() => onDownloadRecoveryFile("logout")}
         onRemoveIdentity={onRemoveLocalIdentity}
         onRemoved={onBack}
@@ -82,14 +97,14 @@ function IdentityManagement({
     <PassportScreen width="wide" className="gap-6">
       <PassportHeaderAction>
         <Button
-          aria-label="Log out"
-          title="Log out"
+          aria-label={leaveLabel}
+          title={leaveLabel}
           className="size-10 p-0 min-[375px]:w-auto min-[375px]:px-4"
           onClick={() => setConfirmingLogout(true)}
           variant="secondary"
         >
-          <LogOutIcon />
-          <span className="hidden min-[375px]:inline">Log out</span>
+          {unbacked ? <TrashIcon /> : <LogOutIcon />}
+          <span className="hidden min-[375px]:inline">{unbacked ? "Remove key" : "Log out"}</span>
         </Button>
       </PassportHeaderAction>
       <DisplayHeading accent="identity." aria-label="Manage identity.">
@@ -148,13 +163,41 @@ function IdentityManagement({
             Backup & key access
           </h2>
           <p className="text-sm leading-5 text-secondary-foreground">
-            {browserKey
-              ? "Your key is saved in this browser. Keep an encrypted backup so you can restore it elsewhere."
-              : "Your private key stays in Pubky Ring. Manage its backup in Ring."}
+            {!browserKey
+              ? "Your private key stays in Pubky Ring. Manage its backup in Ring."
+              : account
+                ? "Your key is saved in this browser and backed up, encrypted, to Google Drive. For a copy that doesn’t depend on Google, download a backup file or use Pubky Ring."
+                : "Your key is saved only in this browser. Keep an encrypted backup file so you can restore it if this browser’s data is cleared or you switch devices."}
           </p>
+          {backupFile?.verified ? (
+            <BackupStatusLine tone="ok">
+              Backup file checked on {formatBackupDate(backupFile.at)}.
+            </BackupStatusLine>
+          ) : backupFile ? (
+            <BackupStatusLine tone="warning">
+              Passport made a backup file on {formatBackupDate(backupFile.at)}, but it was never
+              checked.
+            </BackupStatusLine>
+          ) : unbacked ? (
+            <BackupStatusLine tone="warning">
+              No backup yet. If this browser’s data is cleared, this pubky is lost.
+            </BackupStatusLine>
+          ) : null}
           {browserKey ? (
             <div className="flex w-full flex-wrap gap-3">
-              <Button onClick={() => onDownloadRecoveryFile("manage")} variant="secondary">
+              {/* A file already made is quicker to check than a new one is to make and check. */}
+              {uncheckedFile ? (
+                <Button
+                  onClick={() => onDownloadRecoveryFile("manage", true)}
+                  variant={unbacked ? "default" : "secondary"}
+                >
+                  <CheckIcon /> Check backup
+                </Button>
+              ) : null}
+              <Button
+                onClick={() => onDownloadRecoveryFile("manage")}
+                variant={unbacked && !uncheckedFile ? "default" : "secondary"}
+              >
                 <DownloadIcon /> Download backup
               </Button>
               <Button onClick={onMigrateToKeychain} variant="secondary">

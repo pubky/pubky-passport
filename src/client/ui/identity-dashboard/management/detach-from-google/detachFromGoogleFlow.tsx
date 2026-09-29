@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { preload } from "react-dom";
 
-import type { LocalIdentityRecoveryFileResult } from "@/client/logic/local-identity/LocalIdentityController";
+import type {
+  LocalIdentityBackupCheckResult,
+  LocalIdentityRecoveryFileResult,
+} from "@/client/logic/local-identity/LocalIdentityController";
 import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import type { PubkyRingMigration } from "@/client/logic/pubky/PubkySdkAdapter";
@@ -27,11 +30,17 @@ function DetachFromGoogleFlow({
   identity,
   onBack,
   onDone,
+  verifyRecoveryFile,
 }: {
   createRecoveryFile: (
     publicKeyZ32: string,
     password: string,
   ) => Promise<LocalIdentityRecoveryFileResult>;
+  verifyRecoveryFile: (
+    publicKeyZ32: string,
+    recoveryFile: Uint8Array,
+    password: string,
+  ) => Promise<LocalIdentityBackupCheckResult>;
   createMigration: () => Promise<LocalIdentityResult<PubkyRingMigration>>;
   googleSubject: string;
   identity: LocalIdentityMetadata;
@@ -52,6 +61,7 @@ function DetachFromGoogleFlow({
       return (
         <RecoveryFileDownload
           createRecoveryFile={createRecoveryFile}
+          verifyRecoveryFile={verifyRecoveryFile}
           publicKeyZ32={identity.publicIdentity.publicKeyZ32}
           onBack={() => setState({ view: "recovery-options" })}
         />

@@ -58,5 +58,8 @@ export function fakeLocalIdentityController(
           state.listener = undefined;
         };
       }),
+    verifyRecoveryFile:
+      overrides.verifyRecoveryFile ??
+      (async () => Result.err({ code: "backup_decryption_failed" as const })),
   };
 }

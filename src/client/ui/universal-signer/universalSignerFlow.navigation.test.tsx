@@ -344,6 +344,21 @@ describe("UniversalSignerFlow identity navigation", () => {
     expect(screen.getByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
   });
 
+  it("opens a backup from the overview and returns there", async () => {
+    FLOW.catalog = {
+      activePublicKeyZ32: "identity",
+      identities: [{ publicIdentity: { publicKeyZ32: "identity" } }],
+    };
+    const user = userEvent.setup();
+    renderSigner();
+
+    expect(screen.getByText(/This key is saved only in this browser/u)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Download backup" }));
+    expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
+  });
+
   it.each([
     [
       "the provider homeserver to an identity that does not remember one",
@@ -385,11 +400,11 @@ describe("UniversalSignerFlow identity navigation", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Manage identity" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Use in Pubky Ring" }));
 
-    expect(screen.getByRole("heading", { name: "Migrate to keychain." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Use in Pubky Ring." })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Back" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Continue" })).not.toBeInTheDocument();
     expect(FLOW.migrationExportKeys).toEqual([]);
-    await userEvent.setup().click(screen.getByRole("button", { name: "Show QR" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Show QR code" }));
     expect(screen.getByRole("dialog", { name: "Scan with Pubky Ring" })).toBeInTheDocument();
     expect(FLOW.migrationExportKeys).toEqual(["active"]);
     await userEvent.setup().click(screen.getByRole("button", { name: "Close" }));
@@ -421,12 +436,12 @@ describe("UniversalSignerFlow identity navigation", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Manage identity." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Detach from Google" }));
-    await userEvent.setup().click(screen.getByRole("button", { name: "Migrate to keychain" }));
-    expect(screen.getByRole("heading", { name: "Migrate to keychain." })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Use in Pubky Ring" }));
+    expect(screen.getByRole("heading", { name: "Use in Pubky Ring." })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument();
     expect(FLOW.migrationExportKeys).toEqual([]);
-    await userEvent.setup().click(screen.getByRole("button", { name: "Show QR" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Show QR code" }));
     expect(FLOW.migrationExportKeys).toEqual(["identity"]);
     await userEvent.setup().click(screen.getByRole("button", { name: "Close" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
@@ -479,7 +494,7 @@ describe("UniversalSignerFlow identity navigation", () => {
 
   it.each([
     ["Download backup", "Encrypted backup."],
-    ["Use in Pubky Ring", "Migrate to keychain."],
+    ["Use in Pubky Ring", "Use in Pubky Ring."],
     ["Attach to Google", "Attach to Google."],
   ])("leaves the %s screen when another tab removes its identity", async (action, heading) => {
     FLOW.catalog = {
@@ -515,11 +530,13 @@ describe("UniversalSignerFlow identity navigation", () => {
     renderSigner();
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Manage identity" }));
-    await userEvent.setup().click(screen.getByRole("button", { name: "Log out" }));
-    // A browser-only key without a Google backup must be acknowledged before deletion.
-    expect(screen.getByRole("button", { name: "Log out" })).toBeDisabled();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Remove key from this browser" }));
+    // A browser-only key without a backup must be acknowledged before deletion.
+    expect(screen.getByRole("button", { name: "Remove key" })).toBeDisabled();
     await userEvent.setup().click(screen.getByRole("checkbox"));
-    await userEvent.setup().click(screen.getByRole("button", { name: "Log out" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Remove key" }));
 
     expect(
       await screen.findByRole("heading", { name: "Quick & easy signing." }),
@@ -535,12 +552,14 @@ describe("UniversalSignerFlow identity navigation", () => {
     renderSigner();
 
     await user.click(screen.getByRole("button", { name: "Manage identity" }));
-    await user.click(screen.getByRole("button", { name: "Log out" }));
+    await user.click(screen.getByRole("button", { name: "Remove key from this browser" }));
     await user.click(screen.getByRole("button", { name: "Download backup" }));
     expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back" }));
 
-    expect(screen.getByRole("heading", { name: "Log out of this identity?" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Remove this key from this browser?" }),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     await user.click(screen.getByRole("button", { name: "Download backup" }));
     await user.click(screen.getByRole("button", { name: "Back" }));

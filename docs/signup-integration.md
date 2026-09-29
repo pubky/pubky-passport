@@ -69,8 +69,9 @@ After SMS/Lightning verification or manual invite entry, the user chooses where 
   connecting the profile does not authorize the client.
 - **Keep in Passport.** Passport generates one SDK key, requires a `.pkarr` download protected by
   a password entered twice, then offers a file check: select and decrypt that backup to confirm
-  the public key matches, or explicitly **Skip verification**. Passport registers, publishes, verifies sign-in, and
-  stores that same identity locally. An uncertain attempt can be retried with the same key; no
+  the public key matches, or explicitly **Skip this check (not recommended)**, offered below the
+  primary action. Passport registers, publishes, verifies sign-in, and stores that same identity
+  locally, recording whether its backup was checked or only created. An uncertain attempt can be retried with the same key; no
   replacement identity is generated. Each attempt first looks the invite up on its homeserver
   (read-only); when the homeserver does not answer, Passport submits and publishes nothing, says
   the homeserver could not be reached, and offers the retry. A first attempt that stops there
@@ -124,10 +125,29 @@ permission review for explicit approval. Without a pending request, completion o
 identity overview. Google completion still requires the user to
 choose **Continue**; local registration and profile publication must finish before returning.
 
-**Download backup** in identity management uses the same password and file-check screens.
-Encryption asks for the password once there. Verification decrypts the selected file and compares its
+**Download backup** in identity management uses the same password and file-check screens, and the
+password is entered twice there too. Verification decrypts the selected file and compares its
 public key with the selected identity, without signing in or importing another identity. Back
-returns to the password screen; successful verification or **Skip verification** returns to management.
+returns to the password screen; successful verification or skipping the check returns to
+management. A backup requested by the removal confirmation cannot skip its check, because the key
+is deleted next.
+
+Each browser-held identity records, without any file contents, when Passport last made a backup
+file of its key and when it last saw one open with its password; importing a backup counts as a
+checked backup. The status is stored under its own `local-identities/v1/identity-backup/<pubky>`
+key, beside the identity record, so a rolled-back build (which rejects records with unknown fields)
+still lists the identity. **Manage identity**, the overview and the logout confirmation show that
+status, and offer **Check backup** for a file that was never checked. Only Pubky Ring, a Google
+Drive copy or a checked file counts as protecting the key: Passport cannot see what the browser did
+with a file it made, so a download that was cancelled, or a backup screen left with Back, changes
+nothing. A browser key without such protection is not logged out of but removed: **Remove key from
+this browser** warns that it may delete the only copy and offers the backup (and, for an unchecked
+file, its check) first. Logging out of an identity protected only by a checked file still asks the
+user to confirm they have it.
+
+**Use in Pubky Ring** shows the secret-bearing migration QR code only after **Show QR code**, next to
+a warning that the code contains the private key, and withdraws it when the page is hidden or the
+layout changes. The key stays in the browser afterwards.
 
 ## Client contract
 

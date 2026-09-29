@@ -223,10 +223,10 @@ describe("shared addition navigation", () => {
       expect(screen.queryByRole("button", { name: /Use Pubky Ring/ })).not.toBeInTheDocument();
       expect(LOCAL.registerAccount).not.toHaveBeenCalled();
       if (skip) {
-        await user.click(screen.getByRole("button", { name: "Skip verification" }));
+        await user.click(screen.getByRole("button", { name: "Skip this check (not recommended)" }));
         expect(LOCAL.verifyBackup).not.toHaveBeenCalled();
       } else {
-        await user.upload(screen.getByLabelText("Backup just downloaded"), backupFile());
+        await user.upload(screen.getByLabelText("Backup file"), backupFile());
         await user.type(screen.getByLabelText("Backup password"), "correct horse");
         await user.click(screen.getByRole("button", { name: "Verify and create account" }));
       }
@@ -369,7 +369,7 @@ describe("account creation navigation", () => {
     await user.type(await screen.findByLabelText("Enter strong password"), "correct horse");
     await user.type(screen.getByLabelText("Confirm password"), "correct horse");
     await user.click(screen.getByRole("button", { name: "Download encrypted backup" }));
-    await user.click(screen.getByRole("button", { name: "Skip verification" }));
+    await user.click(screen.getByRole("button", { name: "Skip this check (not recommended)" }));
     await user.click(await screen.findByRole("button", { name: "Start over" }));
     await user.type(screen.getByRole("textbox", { name: "Type DELETE to confirm" }), "DELETE");
     checkSignupToken.mockResolvedValue(status);

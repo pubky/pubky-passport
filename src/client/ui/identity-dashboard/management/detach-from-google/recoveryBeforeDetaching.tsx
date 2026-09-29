@@ -40,7 +40,7 @@ function RecoveryBeforeDetaching({
             Safely back up your pubky before disconnecting Google.
           </p>
           <RecoveryMethodButton icon={<ScanIcon />} onClick={onMigrateToKeychain}>
-            Migrate to keychain
+            Use in Pubky Ring
           </RecoveryMethodButton>
           <RecoveryMethodButton icon={<DownloadIcon />} onClick={onDownloadRecoveryFile}>
             Download encrypted backup

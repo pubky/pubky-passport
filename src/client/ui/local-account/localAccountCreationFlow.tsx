@@ -312,7 +312,6 @@ export function LocalAccountCreationFlow({
     <BackupFlow
       key={step}
       creatingAccount
-      publicKey={publicKeyZ32}
       initialStep={step}
       createBackup={(password) =>
         controller.current?.createBackup(password) ?? Result.err({ code: "create_failed" })

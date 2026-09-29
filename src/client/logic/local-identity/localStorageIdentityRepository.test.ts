@@ -17,6 +17,7 @@ const SECOND_KEY = "5jsjx1o6fzu6aeeo697r3i5rx15zq41kikcye8wtwdqm4nb4tryo";
 const FIRST_IDENTITY = { publicKeyZ32: FIRST_KEY };
 const SECOND_IDENTITY = { publicKeyZ32: SECOND_KEY };
 const IDENTITY_PREFIX = "pubky-passport/local-identities/v1/identity/";
+const BACKUP_PREFIX = "pubky-passport/local-identities/v1/identity-backup/";
 const ACTIVE_IDENTITY_KEY = "pubky-passport/local-identities/v1/active";
 
 describe("LocalStorageIdentityRepository", () => {
@@ -458,6 +459,143 @@ describe("LocalStorageIdentityRepository", () => {
       repository.save({ publicIdentity: FIRST_IDENTITY, homeserverPubky: FIRST_KEY }, secret(1)),
     );
     expect(expectResultOk(repository.read(FIRST_KEY)).identity.homeserverPubky).toBe(FIRST_KEY);
+  });
+
+  it("keeps backup status beside the record, where released builds never look", () => {
+    const repository = new LocalStorageIdentityRepository();
+    save(repository, FIRST_IDENTITY, 1);
+    const listener = vi.fn();
+    const unsubscribe = repository.subscribe(listener);
+
+    expectResultOk(repository.recordBackup(FIRST_KEY, "verified", new Date(Date.UTC(2026, 8, 1))));
+    // A newer file that was never checked leaves the earlier check in place.
+    expectResultOk(repository.recordBackup(FIRST_KEY, "created", new Date(Date.UTC(2026, 8, 2))));
+    expect(listener).toHaveBeenCalledTimes(2);
+    unsubscribe();
+    const backup = {
+      createdAt: "2026-09-02T00:00:00.000Z",
+      verifiedAt: "2026-09-01T00:00:00.000Z",
+    };
+    expect(expectResultOk(repository.read(FIRST_KEY)).identity.backup).toEqual(backup);
+    // The identity record keeps the exact v1 shape a rolled-back build validates.
+    expect(
+      Object.keys(JSON.parse(localStorage.getItem(`${IDENTITY_PREFIX}${FIRST_KEY}`)!) as object),
+    ).toEqual(["v", "publicKeyZ32", "secretKey"]);
+    expect(JSON.parse(localStorage.getItem(`${BACKUP_PREFIX}${FIRST_KEY}`)!)).toEqual({
+      v: 1,
+      ...backup,
+    });
+
+    save(repository, FIRST_IDENTITY, 1);
+    expectResultOk(
+      repository.setGoogleAccount(FIRST_KEY, {
+        googleSubject: "subject",
+        email: "person@example.com",
+        name: "Person",
+        pictureUrl: null,
+      }),
+    );
+    expect(expectResultOk(new LocalStorageIdentityRepository().list()).identities).toEqual([
+      expect.objectContaining({ backup }),
+    ]);
+    expect(expectResultOk(repository.read(FIRST_KEY)).secretKey).toEqual(secret(1));
+
+    // A save keeps the newest date of each event.
+    expect(
+      expectResultOk(
+        repository.save(
+          {
+            publicIdentity: FIRST_IDENTITY,
+            backup: {
+              verifiedAt: "2026-09-03T00:00:00.000Z",
+              createdAt: "2026-08-01T00:00:00.000Z",
+            },
+          },
+          secret(1),
+        ),
+      ).backup,
+    ).toEqual({ createdAt: backup.createdAt, verifiedAt: "2026-09-03T00:00:00.000Z" });
+
+    expectResultOk(repository.remove(FIRST_KEY));
+    expect(localStorage.getItem(`${BACKUP_PREFIX}${FIRST_KEY}`)).toBeNull();
+  });
+
+  it("refuses a backup record for a Ring entry, a missing identity or an invalid date", () => {
+    const repository = new LocalStorageIdentityRepository();
+    expectResultOk(repository.saveExternal(FIRST_KEY));
+    save(repository, SECOND_IDENTITY, 2);
+
+    expectResultError(repository.recordBackup(FIRST_KEY, "verified", new Date()), {
+      code: "invalid_identity",
+    });
+    expectResultError(repository.recordBackup(SECOND_KEY, "created", new Date(Number.NaN)), {
+      code: "invalid_identity",
+    });
+    expectResultOk(repository.remove(SECOND_KEY));
+    expectResultError(repository.recordBackup(SECOND_KEY, "created", new Date()), {
+      code: "invalid_identity",
+    });
+    expect(localStorage.getItem(`${BACKUP_PREFIX}${SECOND_KEY}`)).toBeNull();
+    for (const backup of [{ verifiedAt: "yesterday" }, {}, { status: "verified" }]) {
+      expectResultError(repository.save({ publicIdentity: SECOND_IDENTITY, backup }, secret(2)), {
+        code: "invalid_identity",
+      });
+    }
+  });
+
+  it("ignores a stale backup status beside a Ring entry", () => {
+    const repository = new LocalStorageIdentityRepository();
+    expectResultOk(repository.saveExternal(FIRST_KEY));
+    localStorage.setItem(
+      `${BACKUP_PREFIX}${FIRST_KEY}`,
+      JSON.stringify({ v: 1, verifiedAt: "2026-09-01T00:00:00.000Z" }),
+    );
+
+    expect(expectResultOk(repository.list()).identities).toEqual([
+      { publicIdentity: FIRST_IDENTITY, keySource: "ring" },
+    ]);
+  });
+
+  it.each([
+    ["is not JSON", '{"v":1,'],
+    ["has another version", JSON.stringify({ v: 2, createdAt: "2026-09-01T00:00:00.000Z" })],
+    ["has no date", JSON.stringify({ v: 1 })],
+    ["has a date that is not ISO", JSON.stringify({ v: 1, createdAt: "Sep 1, 2026" })],
+    ["has extra fields", JSON.stringify({ v: 1, createdAt: "2026-09-01T00:00:00.000Z", file: 1 })],
+  ])("lists the identity without its backup status when that status %s", (_, value) => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const repository = new LocalStorageIdentityRepository();
+    save(repository, FIRST_IDENTITY, 1);
+    localStorage.setItem(`${BACKUP_PREFIX}${FIRST_KEY}`, value);
+
+    expect(expectResultOk(repository.list()).identities).toEqual([
+      { publicIdentity: FIRST_IDENTITY },
+    ]);
+    expect(warning).toHaveBeenCalledWith("identity.local_store.record_skipped", {
+      operation: "read",
+      reason: "invalid_backup",
+    });
+  });
+
+  it("keeps the identity and its backup status when removing that status fails", () => {
+    const repository = new LocalStorageIdentityRepository();
+    save(repository, FIRST_IDENTITY, 1);
+    expectResultOk(repository.recordBackup(FIRST_KEY, "verified", new Date(Date.UTC(2026, 8, 1))));
+    const storage = localStorage as MemoryStorage;
+    const removeItem = storage.removeItem.bind(storage);
+    const removeFailure = new DOMException("unavailable", "SecurityError");
+    vi.spyOn(storage, "removeItem").mockImplementation((key) => {
+      if (key === `${BACKUP_PREFIX}${FIRST_KEY}`) throw removeFailure;
+      removeItem(key);
+    });
+
+    expectResultError(repository.remove(FIRST_KEY), {
+      code: "storage_unavailable",
+      cause: removeFailure,
+    });
+    expect(expectResultOk(repository.read(FIRST_KEY)).identity.backup).toEqual({
+      verifiedAt: "2026-09-01T00:00:00.000Z",
+    });
   });
 
   it("skips a stored record whose homeserver is not a pubky", () => {

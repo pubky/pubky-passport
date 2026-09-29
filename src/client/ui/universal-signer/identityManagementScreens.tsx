@@ -36,6 +36,7 @@ export function IdentityManagementScreens({
     return (
       <DetachFromGoogleFlow
         createRecoveryFile={actions.createRecoveryFile}
+        verifyRecoveryFile={actions.verifyRecoveryFile}
         createMigration={() => actions.createMigration(publicKeyZ32)}
         googleSubject={navigation.googleSubject}
         identity={navigation.identity}
@@ -55,9 +56,15 @@ export function IdentityManagementScreens({
     case "recovery":
       return (
         <RecoveryFileDownload
+          // The logout that asked for this backup deletes the key next, so the file must open.
+          allowSkip={!navigation.logout}
+          check={navigation.check === true}
           createRecoveryFile={actions.createRecoveryFile}
+          verifyRecoveryFile={actions.verifyRecoveryFile}
           publicKeyZ32={publicKeyZ32}
-          onBack={() => onNavigate({ view: "manage", publicKeyZ32, ...logout })}
+          onBack={
+            navigation.home ? onHome : () => onNavigate({ view: "manage", publicKeyZ32, ...logout })
+          }
         />
       );
     case "ring":
@@ -90,11 +97,12 @@ export function IdentityManagementScreens({
                 googleSubject: identity.googleAccount.googleSubject,
               });
           }}
-          onDownloadRecoveryFile={(returnTo) =>
+          onDownloadRecoveryFile={(returnTo, check) =>
             onNavigate({
               view: "recovery",
               publicKeyZ32,
               ...(returnTo === "logout" ? { logout: true as const } : {}),
+              ...(check ? { check: true as const } : {}),
             })
           }
           onRemoveLocalIdentity={() => onRemoveLocalIdentity(publicKeyZ32)}

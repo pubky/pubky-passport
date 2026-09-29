@@ -2,6 +2,7 @@ import { Result } from "better-result";
 import { useState, useSyncExternalStore } from "react";
 
 import type {
+  LocalIdentityBackupCheckResult,
   LocalIdentityHomeserverRepublishResult,
   LocalIdentityRecoveryFileResult,
 } from "@/client/logic/local-identity/LocalIdentityController";
@@ -28,6 +29,12 @@ type IdentityCatalogActions = {
   ) => Promise<LocalIdentityHomeserverRepublishResult>;
   resolveHomeserver: (publicKeyZ32: string) => Promise<PubkyHomeserverResolutionResult>;
   selectIdentity: (publicKeyZ32: string) => LocalIdentityResult<void>;
+  /** Opens a backup file of the identity with its password and records that it was checked. */
+  verifyRecoveryFile: (
+    publicKeyZ32: string,
+    recoveryFile: Uint8Array,
+    password: string,
+  ) => Promise<LocalIdentityBackupCheckResult>;
 };
 
 type IdentityCatalogState =
@@ -56,6 +63,8 @@ class IdentityCatalogStore {
         this.controller.republishHomeserver(publicKeyZ32, homeserverPubky),
       resolveHomeserver: async (publicKeyZ32) => this.controller.resolveHomeserver(publicKeyZ32),
       selectIdentity: (publicKeyZ32) => this.controller.selectIdentity(publicKeyZ32),
+      verifyRecoveryFile: async (publicKeyZ32, recoveryFile, password) =>
+        this.controller.verifyRecoveryFile(publicKeyZ32, recoveryFile, password),
     };
   }
 

@@ -1,6 +1,15 @@
+import { isKeyProtected, keyBackup } from "@/client/logic/local-identity/keyBackup";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
+import { BackupStatusLine, formatBackupDate } from "@/client/ui/identity-dashboard/backupStatus";
 import { GoogleAccountTag } from "@/client/ui/shared/googleAccountTag";
-import { KeyRoundIcon, SettingsIcon, SquareUserRoundIcon } from "@/client/ui/shared/icons";
+import {
+  CheckIcon,
+  DownloadIcon,
+  KeyRoundIcon,
+  SettingsIcon,
+  SquareUserRoundIcon,
+} from "@/client/ui/shared/icons";
+import { Notice } from "@/client/ui/shared/notice";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Avatar } from "@/client/ui/shared/primitives/avatar";
 import { Button } from "@/client/ui/shared/primitives/button";
@@ -9,15 +18,22 @@ import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
 function IdentityOverview({
   identity,
   onAuthorize,
+  onBackup,
   onManage,
   onSwitch,
 }: {
   identity: LocalIdentityMetadata;
   onAuthorize: () => void;
+  /** Opens a new backup file, or with `check` the check of one made earlier. */
+  onBackup: (check: boolean) => void;
   onManage: () => void;
   onSwitch: () => void;
 }) {
   const account = identity.googleAccount;
+  const backup = keyBackup(identity);
+  // A browser key nothing is known to bring back is one cleared site away from being lost: say
+  // so where the person lands, with the fix one tap away.
+  const backupDue = !isKeyProtected(identity);
   // The main card is the Pubky profile; Google only appears as the attached-account tag.
   const name = identity.profile?.name ?? "Your Pubky";
   const publicKey = identity.publicIdentity.publicKeyZ32;
@@ -43,11 +59,39 @@ function IdentityOverview({
                 <GoogleAccountTag account={account} />
               </div>
             ) : null}
-            {identity.keySource === "ring" ? (
-              <p className="pt-2 text-sm text-muted-foreground">Key in Pubky Ring</p>
-            ) : null}
+            {/* A key that needs a backup gets one warning: the notice below, not this line. */}
+            {backup.kind === "ring" || backupDue ? (
+              <p className="pt-2 text-sm text-muted-foreground">
+                {backup.kind === "ring" ? "Key in Pubky Ring" : "Key in this browser"}
+              </p>
+            ) : (
+              <BackupStatusLine className="pt-2 text-muted-foreground" tone="ok">
+                {backup.kind === "file"
+                  ? `Key in this browser, backup checked ${formatBackupDate(backup.at)}`
+                  : "Key in this browser, backed up to Google Drive"}
+              </BackupStatusLine>
+            )}
           </div>
         </div>
+        {backupDue ? (
+          <Notice className="col-span-2" tone="warning">
+            <p>
+              {backup.kind === "file"
+                ? `Passport made a backup file on ${formatBackupDate(backup.at)}, but it was never checked. Check that it opens, so you know it can bring this pubky back.`
+                : "This key is saved only in this browser. Download an encrypted backup so you can get this pubky back if this browser’s data is cleared."}
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {backup.kind === "file" ? (
+                <Button onClick={() => onBackup(true)} variant="secondary">
+                  <CheckIcon /> Check backup
+                </Button>
+              ) : null}
+              <Button onClick={() => onBackup(false)} variant="secondary">
+                <DownloadIcon /> Download backup
+              </Button>
+            </div>
+          </Notice>
+        ) : null}
         {identity.profileSetupRequired ? (
           <p className="col-span-2 text-sm leading-5 text-secondary-foreground" role="status">
             Your public profile isn&apos;t set up yet. Finish it under Manage, then Edit profile.

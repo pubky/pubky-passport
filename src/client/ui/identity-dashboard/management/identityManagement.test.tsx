@@ -16,6 +16,7 @@ import type { LocalIdentityHomeserverRepublishResult } from "@/client/logic/loca
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubkyIdentityKey";
+import { formatBackupDate } from "@/client/ui/identity-dashboard/backupStatus";
 import { PassportProviderConfiguration } from "@/client/ui/passportProviderConfiguration";
 import { makeInstanceConfig } from "@test-utils/instanceConfig";
 import { IdentityManagement } from "./identityManagement";
@@ -39,6 +40,8 @@ const identity = {
 const browserOnlyIdentity = {
   publicIdentity: identity.publicIdentity,
 } satisfies LocalIdentityMetadata;
+const BACKUP_AT = "2026-09-01T10:00:00.000Z";
+const BACKUP_DATE = formatBackupDate(new Date(BACKUP_AT));
 const ringIdentity = {
   publicIdentity: identity.publicIdentity,
   keySource: "ring",
@@ -193,15 +196,99 @@ describe("IdentityManagement", () => {
     fireEvent.click(screen.getByRole("button", { name: "Download backup" }));
     expect(onDownloadRecoveryFile).toHaveBeenLastCalledWith("manage");
 
-    fireEvent.click(screen.getByRole("button", { name: "Log out" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove key from this browser" }));
     fireEvent.click(screen.getByRole("button", { name: "Download backup" }));
     expect(onDownloadRecoveryFile).toHaveBeenLastCalledWith("logout");
+  });
+
+  it("says a browser key has no backup and makes removing it, not logging out, the action", () => {
+    renderManagement({ identity: browserOnlyIdentity });
+
+    const card = screen.getByRole("region", { name: "Backup & key access" });
+    expect(card).toHaveTextContent("Your key is saved only in this browser.");
+    expect(card).toHaveTextContent(
+      "No backup yet. If this browser’s data is cleared, this pubky is lost.",
+    );
+    // The safe action is the brand one while nothing protects the key.
+    expect(within(card).getByRole("button", { name: "Download backup" })).toHaveClass(
+      "bg-brand/16",
+    );
+    expect(within(card).queryByRole("button", { name: "Check backup" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Log out" })).not.toBeInTheDocument();
+    // The accessible name starts with the visible label, so speech input reaches it.
+    const leave = screen.getByRole("button", { name: "Remove key from this browser" });
+    expect(leave).toHaveTextContent("Remove key");
+    expect(leave).toHaveAttribute("title", "Remove key from this browser");
+  });
+
+  it("keeps Log out once a backup file of the key has opened", () => {
+    renderManagement({ identity: { ...browserOnlyIdentity, backup: { verifiedAt: BACKUP_AT } } });
+
+    const card = screen.getByRole("region", { name: "Backup & key access" });
+    expect(card).toHaveTextContent(`Backup file checked on ${BACKUP_DATE}.`);
+    expect(card).not.toHaveTextContent("No backup yet");
+    expect(within(card).getByRole("button", { name: "Download backup" })).not.toHaveClass(
+      "bg-brand/16",
+    );
+    expect(within(card).queryByRole("button", { name: "Check backup" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();
+  });
+
+  it("still offers removal, not logout, for a backup file that was never checked", () => {
+    const onDownloadRecoveryFile = vi.fn();
+    renderManagement({
+      identity: { ...browserOnlyIdentity, backup: { createdAt: BACKUP_AT } },
+      onDownloadRecoveryFile,
+    });
+
+    const card = screen.getByRole("region", { name: "Backup & key access" });
+    // Passport made the file but cannot tell that the browser saved it.
+    expect(card).toHaveTextContent(
+      `Passport made a backup file on ${BACKUP_DATE}, but it was never checked.`,
+    );
+    const check = within(card).getByRole("button", { name: "Check backup" });
+    expect(check).toHaveClass("bg-brand/16");
+    expect(within(card).getByRole("button", { name: "Download backup" })).not.toHaveClass(
+      "bg-brand/16",
+    );
+    expect(screen.queryByRole("button", { name: "Log out" })).not.toBeInTheDocument();
+    fireEvent.click(check);
+    expect(onDownloadRecoveryFile).toHaveBeenLastCalledWith("manage", true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove key from this browser" }));
+    expect(
+      screen.getByRole("heading", { name: "Remove this key from this browser?" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Check backup" }));
+    expect(onDownloadRecoveryFile).toHaveBeenLastCalledWith("logout", true);
+    fireEvent.click(screen.getByRole("button", { name: "Download backup" }));
+    expect(onDownloadRecoveryFile).toHaveBeenLastCalledWith("logout");
+  });
+
+  it("checks an unchecked file of a Google-backed key without making it a removal", () => {
+    renderManagement({ identity: { ...identity, backup: { createdAt: BACKUP_AT } } });
+
+    const card = screen.getByRole("region", { name: "Backup & key access" });
+    expect(within(card).getByRole("button", { name: "Check backup" })).not.toHaveClass(
+      "bg-brand/16",
+    );
+    expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();
+  });
+
+  it("says a Google-backed key has a copy in Google Drive without warning", () => {
+    renderManagement();
+
+    const card = screen.getByRole("region", { name: "Backup & key access" });
+    expect(card).toHaveTextContent("backed up, encrypted, to Google Drive");
+    expect(card).not.toHaveTextContent("No backup yet");
   });
 
   it("opens on the logout confirmation when returning to a logout in progress", () => {
     renderManagement({ confirmLogout: true, identity: browserOnlyIdentity });
 
-    expect(screen.getByRole("heading", { name: "Log out of this identity?" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Remove this key from this browser?" }),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.getByRole("heading", { name: "Manage identity." })).toBeInTheDocument();
   });
@@ -213,17 +300,18 @@ describe("IdentityManagement", () => {
       onBack,
       onRemoveLocalIdentity: () => Result.err({ code: "storage_unavailable" }),
     });
+    const failure = "Could not remove the key. Nothing was deleted. Please try again.";
 
-    fireEvent.click(screen.getByRole("button", { name: "Log out" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove key from this browser" }));
     fireEvent.click(screen.getByRole("checkbox"));
-    fireEvent.click(screen.getByRole("button", { name: "Log out" }));
-    expect(screen.getByText("Could not log out. Please try again.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Remove key" }));
+    expect(screen.getByText(failure)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Log out" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove key from this browser" }));
     expect(screen.getByRole("checkbox")).not.toBeChecked();
-    expect(screen.getByRole("button", { name: "Log out" })).toBeDisabled();
-    expect(screen.queryByText("Could not log out. Please try again.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove key" })).toBeDisabled();
+    expect(screen.queryByText(failure)).not.toBeInTheDocument();
     expect(onBack).not.toHaveBeenCalled();
   });
 
@@ -254,7 +342,7 @@ function renderManagement({
   confirmLogout?: boolean;
   onBackupToGoogle?: () => void;
   onBack?: () => void;
-  onDownloadRecoveryFile?: (returnTo: "manage" | "logout") => void;
+  onDownloadRecoveryFile?: (returnTo: "manage" | "logout", check?: boolean) => void;
   onRemoveLocalIdentity?: () => LocalIdentityResult<void>;
   republishHomeserver?: (
     publicKeyZ32: string,

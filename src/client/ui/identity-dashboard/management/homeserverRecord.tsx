@@ -202,11 +202,16 @@ export function HomeserverRecord({
                 : "Point this pubky at this homeserver?"}
             </h3>
             <DetailField label="Homeserver to publish" value={repairTarget} />
-            <p className="text-sm leading-5 text-secondary-foreground">
-              {registeredHomeserver
-                ? "Your account was created on this homeserver from this browser."
-                : "Only continue if your account was created on this homeserver. If it lives anywhere else, apps will look for your profile and data in the wrong place."}
-            </p>
+            {registeredHomeserver ? (
+              <p className="text-sm leading-5 text-secondary-foreground">
+                Your account was created on this homeserver from this browser.
+              </p>
+            ) : (
+              <Notice tone="warning">
+                Only continue if your account was created on this homeserver. If it lives anywhere
+                else, apps will look for your profile and data in the wrong place.
+              </Notice>
+            )}
             <div className="flex flex-wrap gap-3">
               <Button disabled={republishing} onClick={closeConfirmation} variant="outline">
                 Cancel

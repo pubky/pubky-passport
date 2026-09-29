@@ -25,7 +25,7 @@ function ReviewGoogleDetachment({
       </div>
 
       <Notice tone="warning">
-        Make sure you can sign in with your keychain or encrypted key before removing your Google
+        Make sure you have this pubky in Pubky Ring or a backup file before removing your Google
         backup. You’ll stay signed in on this device and can back up to Google again.
       </Notice>
 

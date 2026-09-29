@@ -381,6 +381,9 @@ test("backup password guidance enforces the twelve-character minimum responsivel
     await password.fill("123456789012");
     await expect(password).not.toHaveAttribute("aria-invalid", "true");
     await expect(requirement).not.toHaveAttribute("role", "alert");
+    // Every new backup's password is typed twice, so a typo cannot lock the file.
+    await expect(download).toBeDisabled();
+    await page.getByLabel("Confirm password").fill("123456789012");
     await expect(download).toBeEnabled();
   }
 });
@@ -500,29 +503,40 @@ test("management copy controls align with their values and share a right edge", 
   }
 });
 
-test("management backup uses one encryption password and verifies the downloaded file", async ({
+test("management backup confirms its password, verifies the file and records the check", async ({
   page,
 }, testInfo) => {
   await mockPublicProfile(page, null);
   await seedProfileIdentity(page, false);
   await page.getByRole("button", { name: "Manage identity" }).click();
-  await page.getByRole("button", { name: "Download backup" }).click();
+  const keys = page.getByRole("region", { name: "Backup & key access" });
+  await expect(keys).toContainText("No backup yet.");
+  await keys.getByRole("button", { name: "Download backup" }).click();
   await page.getByLabel("Enter strong password").fill("correct horse");
+  await page.getByLabel("Confirm password").fill("correct horse");
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download backup" }).click();
   const backup = await downloadPromise;
   await expect(page.getByRole("heading", { name: "Verify backup." })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Skip verification" })).toBeEnabled();
+  // Outside a removal, the check may be skipped, but only after the primary action.
+  await expect(
+    page.getByRole("button", { name: "Skip this check (not recommended)" }),
+  ).toBeEnabled();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.screenshot({
     path: testInfo.outputPath("management-backup-verification.png"),
     fullPage: true,
   });
-  await page.getByLabel("Backup just downloaded").setInputFiles((await backup.path())!);
+  await page.getByLabel("Backup file").setInputFiles((await backup.path())!);
   await page.getByLabel("Backup password").fill("wrong password");
   await page.getByRole("button", { name: "Verify backup" }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText("password is wrong");
   await page.getByLabel("Backup password").fill("correct horse");
   await page.getByRole("button", { name: "Verify backup" }).click();
   await expect(page.getByRole("heading", { name: "Manage identity." })).toBeVisible();
+  // The check is remembered: the card says so and leaving is a logout again, not a removal.
+  await expect(keys).toContainText("Backup file checked on");
+  await page.getByRole("banner").getByRole("button", { name: "Log out" }).click();
+  await expect(page.getByRole("heading", { name: "Log out of this identity?" })).toBeVisible();
+  await expect(page.getByRole("main")).toContainText("You checked a backup file of this key on");
 });

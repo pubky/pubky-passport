@@ -385,6 +385,14 @@ function ReadyPassport({
             key={publicKeyZ32}
             identity={activeIdentity}
             onAuthorize={() => navigate({ view: "manual" })}
+            onBackup={(check) =>
+              navigate({
+                view: "recovery",
+                publicKeyZ32,
+                home: true,
+                ...(check ? { check: true as const } : {}),
+              })
+            }
             onSwitch={() => navigate({ view: "switch" })}
             onManage={() => navigate({ view: "manage", publicKeyZ32 })}
           />

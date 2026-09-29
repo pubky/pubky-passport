@@ -77,7 +77,9 @@ async function downloadAndSkip(user: ReturnType<typeof userEvent.setup>) {
   await user.type(await screen.findByLabelText("Enter strong password"), PASSWORD);
   await user.type(screen.getByLabelText("Confirm password"), PASSWORD);
   await user.click(screen.getByRole("button", { name: "Download encrypted backup" }));
-  await user.click(await screen.findByRole("button", { name: "Skip verification" }));
+  await user.click(
+    await screen.findByRole("button", { name: "Skip this check (not recommended)" }),
+  );
 }
 
 /**

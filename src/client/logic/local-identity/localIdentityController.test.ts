@@ -13,8 +13,10 @@ const MOCKS = vi.hoisted(() => ({
   dispose: vi.fn(),
   publishHomeserver: vi.fn(),
   resolveHomeserver: vi.fn(),
+  disposeIdentityKey: vi.fn(),
   resolvePubkyHomeserver: vi.fn(),
   restoreIdentityKey: vi.fn(),
+  restoreRecoveryFile: vi.fn(),
 }));
 
 vi.mock("@/client/logic/pubky/PubkySdkAdapter", async (importOriginal) => {
@@ -27,9 +29,11 @@ vi.mock("@/client/logic/pubky/PubkySdkAdapter", async (importOriginal) => {
       }
       createRecoveryFile = MOCKS.createRecoveryFile;
       dispose = MOCKS.dispose;
+      disposeIdentityKey = MOCKS.disposeIdentityKey;
       publishHomeserver = MOCKS.publishHomeserver;
       resolveHomeserver = MOCKS.resolveHomeserver;
       restoreIdentityKey = MOCKS.restoreIdentityKey;
+      restoreRecoveryFile = MOCKS.restoreRecoveryFile;
     },
     resolvePubkyHomeserver: MOCKS.resolvePubkyHomeserver,
   };
@@ -48,9 +52,16 @@ beforeEach(() => {
   MOCKS.resolveHomeserver.mockReset();
   MOCKS.resolvePubkyHomeserver.mockReset();
   MOCKS.restoreIdentityKey.mockReset();
+  MOCKS.disposeIdentityKey.mockReset();
+  MOCKS.restoreRecoveryFile.mockReset();
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+});
+
+const NOW = new Date(Date.UTC(2026, 8, 29, 12));
 
 describe("LocalIdentityController", () => {
   it("delegates catalog actions to the injected repository", () => {
@@ -60,6 +71,7 @@ describe("LocalIdentityController", () => {
       remove: vi.fn(() => Result.ok()),
       subscribe: vi.fn(() => () => undefined),
       read: vi.fn(),
+      recordBackup: vi.fn(() => Result.ok()),
     };
     const controller = new LocalIdentityController(repository);
 
@@ -99,18 +111,18 @@ describe("LocalIdentityController", () => {
     expect(MOCKS.createRecoveryFile).not.toHaveBeenCalled();
   });
 
-  it("creates a named recovery file and releases sensitive resources", async () => {
+  it("creates a named recovery file, records it and releases sensitive resources", async () => {
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
     const secretBytes = new Uint8Array(32).fill(7);
     const recoveryBytes = new Uint8Array(64).fill(9);
     const password = "ten-character-pw";
+    const repository = storedIdentityRepository(secretBytes);
     MOCKS.createRecoveryFile.mockReturnValue(Result.ok(recoveryBytes));
 
     const recoveryFile = expectResultOk(
-      await new LocalIdentityController(storedIdentityRepository(secretBytes)).createRecoveryFile(
-        PUBLIC_KEY,
-        password,
-      ),
+      await new LocalIdentityController(repository).createRecoveryFile(PUBLIC_KEY, password),
     );
+    expect(repository.recordBackup).toHaveBeenCalledWith(PUBLIC_KEY, "created", NOW);
 
     expect(recoveryFile).toEqual({ bytes: recoveryBytes, fileName: `pubky-${PUBLIC_KEY}.pkarr` });
     expect(MOCKS.createRecoveryFile).toHaveBeenCalledWith(
@@ -132,11 +144,14 @@ describe("LocalIdentityController", () => {
         return Result.err({ code: "recovery_file_failed" as const });
       });
 
-      const result = await new LocalIdentityController(
-        storedIdentityRepository(secretBytes),
-      ).createRecoveryFile(PUBLIC_KEY, "a strong recovery password");
+      const repository = storedIdentityRepository(secretBytes);
+      const result = await new LocalIdentityController(repository).createRecoveryFile(
+        PUBLIC_KEY,
+        "a strong recovery password",
+      );
 
       expect(Result.isError(result) && result.error.code).toBe("recovery_file_failed");
+      expect(repository.recordBackup).not.toHaveBeenCalled();
       expect(secretBytes).toEqual(new Uint8Array(32));
       expect(MOCKS.dispose).toHaveBeenCalledOnce();
       expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-RECOVERY-PASSWORD");
@@ -161,6 +176,67 @@ describe("LocalIdentityController", () => {
       errorName: "Error",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-RECOVERY-CLEANUP-CANARY");
+  });
+
+  it("keeps a created recovery file when its status cannot be recorded", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const repository = {
+      ...storedIdentityRepository(new Uint8Array(32).fill(1)),
+      recordBackup: vi.fn(() => Result.err({ code: "storage_unavailable" as const })),
+    };
+    MOCKS.createRecoveryFile.mockReturnValue(Result.ok(new Uint8Array(64)));
+
+    expectResultOk(
+      await new LocalIdentityController(repository).createRecoveryFile(
+        PUBLIC_KEY,
+        "a strong recovery password",
+      ),
+    );
+    expect(warning).toHaveBeenCalledWith("identity.controller.failed", {
+      operation: "record_backup",
+      code: "storage_unavailable",
+    });
+  });
+
+  it("records a recovery file that opens as this identity and clears its bytes", async () => {
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
+    const keyHandle = {};
+    const bytes = new Uint8Array(64).fill(3);
+    const repository = storedIdentityRepository(new Uint8Array(32));
+    MOCKS.restoreRecoveryFile.mockReturnValue(
+      Result.ok({ keyHandle, publicIdentity: { publicKeyZ32: PUBLIC_KEY } }),
+    );
+
+    expectResultOk(
+      await new LocalIdentityController(repository).verifyRecoveryFile(PUBLIC_KEY, bytes, "pw"),
+    );
+
+    expect(MOCKS.restoreRecoveryFile).toHaveBeenCalledWith(bytes, "pw");
+    expect(MOCKS.disposeIdentityKey).toHaveBeenCalledWith(keyHandle);
+    expect(repository.recordBackup).toHaveBeenCalledWith(PUBLIC_KEY, "verified", NOW);
+    expect(bytes).toEqual(new Uint8Array(64));
+    expect(repository.read).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["belongs to another pubky", "backup_mismatch", OTHER_HOMESERVER],
+    ["does not open", "backup_decryption_failed", undefined],
+  ] as const)("records nothing when the file %s", async (_, code, restoredKey) => {
+    const repository = storedIdentityRepository(new Uint8Array(32));
+    MOCKS.restoreRecoveryFile.mockReturnValue(
+      restoredKey
+        ? Result.ok({ keyHandle: {}, publicIdentity: { publicKeyZ32: restoredKey } })
+        : Result.err({ code: "invalid_recovery_file" }),
+    );
+
+    const result = await new LocalIdentityController(repository).verifyRecoveryFile(
+      PUBLIC_KEY,
+      new Uint8Array(64).fill(3),
+      "pw",
+    );
+
+    expect(Result.isError(result) && result.error.code).toBe(code);
+    expect(repository.recordBackup).not.toHaveBeenCalled();
   });
 
   it("publishes the given homeserver only when no record exists, then verifies it", async () => {
@@ -330,6 +406,7 @@ function storedIdentityRepository(secretBytes: Uint8Array, homeserverPubky?: str
     select: vi.fn(() => Result.ok()),
     remove: vi.fn(() => Result.ok()),
     subscribe: vi.fn(() => () => undefined),
+    recordBackup: vi.fn(() => Result.ok()),
     read: vi.fn(() =>
       Result.ok({
         identity: {

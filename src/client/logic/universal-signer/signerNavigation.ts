@@ -12,10 +12,20 @@ export type AdditionOrigin = "switch" | "home" | null;
 /** Screens that manage one identity. Detachment keeps the identity it started with. */
 export type ManagementNavigation =
   | {
-      view: "manage" | "recovery" | "ring" | "backup-to-google";
+      view: "manage" | "ring" | "backup-to-google";
       publicKeyZ32: string;
       /** Manage and its backup screen belong to a logout in progress. */
       logout?: true;
+    }
+  | {
+      view: "recovery";
+      publicKeyZ32: string;
+      /** The backup was asked for by a logout in progress and returns to it. */
+      logout?: true;
+      /** The backup was started from the overview and returns there. */
+      home?: true;
+      /** Only checks a backup file made earlier. */
+      check?: true;
     }
   | { view: "detach"; identity: LocalIdentityMetadata; googleSubject: string };
 

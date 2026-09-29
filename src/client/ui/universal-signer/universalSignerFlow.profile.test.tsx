@@ -137,7 +137,7 @@ it.each([false, true])(
     expect(save).not.toHaveBeenCalled();
     expect(approve).not.toHaveBeenCalled();
     if (request) return;
-    expect(screen.getByRole("status")).toHaveTextContent("profile isn't set up yet");
+    expect(screen.getByText(/profile isn't set up yet/u)).toHaveAttribute("role", "status");
     await user.click(screen.getByRole("button", { name: "Manage identity" }));
     await user.click(screen.getByRole("button", { name: "Edit profile" }));
     expect(

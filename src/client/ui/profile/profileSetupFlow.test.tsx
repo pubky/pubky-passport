@@ -60,8 +60,13 @@ describe("ProfileSetupFlow", () => {
       },
     });
     expect(await screen.findByLabelText("Name")).toHaveValue("Google name");
-    expect(screen.getByRole("status")).toHaveTextContent("could not be read");
-    await userEvent.setup().click(screen.getByRole("button", { name: "Finish" }));
+    const warning = screen.getByRole("status");
+    expect(warning).toHaveAttribute("data-tone", "warning");
+    expect(warning).toHaveTextContent("We couldn’t read your current profile.");
+    expect(warning).toHaveTextContent("Saving here replaces it everywhere it’s shown.");
+    // The button says it overwrites what other apps show, not just that setup ends.
+    expect(screen.queryByRole("button", { name: "Finish" })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Replace profile" }));
     expect(save).toHaveBeenCalledWith(
       KEY,
       expect.objectContaining({ name: "Google name" }),
