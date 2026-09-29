@@ -41,6 +41,10 @@ Source lint rules keep the package independent of Passport application code and
 confine SDK, React and QR encoder imports to their adapters. Workspace checks cover its tests and
 build without adding package code to the Passport deployment.
 
+The imported demo temporarily uses the upstream template's `qrcode` dependency,
+covered by the workspace production audit. It is separate from this package and
+will be removed when the demo adopts the package's QR entry point.
+
 ## Size budgets
 
 Entry sizes include static relative imports and the full closure of dynamically imported modules.
