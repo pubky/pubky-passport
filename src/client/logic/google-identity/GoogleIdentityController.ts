@@ -5,9 +5,11 @@ import { Result, type Result as ResultType } from "better-result";
 import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { AuthorizationPopup } from "./gia/AuthorizationPopup";
+import type { GoogleRedirectAuthorization } from "./gia/GoogleRedirectAuthorization";
 import type {
   GoogleImplicitAuthorization,
   GoogleIdentityCredentials,
+  GoogleImplicitAuthorizationResult,
 } from "./gia/GoogleImplicitAuthorization";
 import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
 import {
@@ -123,6 +125,10 @@ export class GoogleIdentityController {
       homegateBaseUrl: string,
       passportOrigin: string,
     ) => Lifecycle,
+    private readonly redirectAuthorization?: Pick<
+      GoogleRedirectAuthorization,
+      "request" | "dispose" | "takeContinuation"
+    >,
   ) {}
 
   getState(): GoogleIdentityViewState {
@@ -146,6 +152,13 @@ export class GoogleIdentityController {
    * The promise settles with a Result and does not intentionally reject.
    */
   async establishIdentity(): Promise<EstablishGoogleIdentityResult> {
+    const continuation = this.redirectAuthorization?.takeContinuation();
+    if (continuation) {
+      this.googleSubject = continuation.googleSubject;
+      return this.runIdentityEstablishment(continuation.operation, {
+        allowWithoutVisibleBackup: continuation.allowWithoutVisibleBackup,
+      });
+    }
     return this.runIdentityEstablishment("establish");
   }
 
@@ -215,6 +228,7 @@ export class GoogleIdentityController {
     this.pendingVisibleBackupConsent = undefined;
     this.listeners.clear();
     try {
+      this.redirectAuthorization?.dispose();
       this.googleAuthorization?.dispose();
     } catch (e) {
       LOGGER.warn("identity.google.cleanup.failed", {
@@ -281,6 +295,7 @@ export class GoogleIdentityController {
       },
       (identity) => ({ status: "established", identity }),
       options.credentials,
+      allowWithoutVisibleBackup,
     );
   }
 
@@ -294,6 +309,7 @@ export class GoogleIdentityController {
     work: OperationWork<Success>,
     toState: (value: Success) => GoogleIdentityViewState,
     credentialsOverride?: GoogleIdentityCredentials,
+    allowWithoutVisibleBackup = false,
   ): Promise<ResultType<Success, GoogleIdentityViewError>> {
     if (this.status !== "ready") {
       return Result.err({ code: this.status === "busy" ? "operation_failed" : "cancelled" });
@@ -312,6 +328,7 @@ export class GoogleIdentityController {
         expectedGoogleSubject,
         work,
         credentialsOverride,
+        allowWithoutVisibleBackup,
       );
       return this.settle(outcome, toState);
     } catch (e) {
@@ -331,10 +348,15 @@ export class GoogleIdentityController {
     expectedGoogleSubject: string | undefined,
     work: OperationWork<Success>,
     credentialsOverride?: GoogleIdentityCredentials,
+    allowWithoutVisibleBackup = false,
   ): Promise<ResultType<Success, GoogleIdentityError>> {
     const authorized = credentialsOverride
       ? Result.ok(credentialsOverride)
-      : await this.requestGoogleCredentials(expectedGoogleSubject);
+      : await this.requestGoogleCredentials(
+          expectedGoogleSubject,
+          operation,
+          allowWithoutVisibleBackup,
+        );
     if (Result.isError(authorized)) return Result.err(authorized.error);
     // Disposal may land between the authorization settling and this continuation.
     if (this.isDisposed) return Result.err({ code: "cancelled" });
@@ -372,11 +394,13 @@ export class GoogleIdentityController {
 
   private async requestGoogleCredentials(
     expectedGoogleSubject: string | undefined,
+    operation: GoogleIdentityOperation,
+    allowWithoutVisibleBackup: boolean,
   ): Promise<ResultType<GoogleIdentityCredentials, GoogleIdentityError>> {
     // Opened before the first await so it still belongs to the user's click. Safari blocks a
     // popup opened after the lazy imports below on a cold page, then allows it on "Try again".
-    const popup = AuthorizationPopup.openPending();
-    if (!popup) {
+    const popup = this.redirectAuthorization ? undefined : AuthorizationPopup.openPending();
+    if (!popup && !this.redirectAuthorization) {
       LOGGER.warn("identity.google.authorization.failed", {
         operation: "request_credentials",
         code: "google_authorization_popup_failed_to_open",
@@ -386,11 +410,11 @@ export class GoogleIdentityController {
 
     try {
       if (!(await this.initializeDependencies())) {
-        popup.close();
+        popup?.close();
         return Result.err({ code: "cancelled" });
       }
     } catch (e) {
-      popup.close();
+      popup?.close();
       LOGGER.error("identity.google.controller.failed", {
         operation: "initialize",
         code: "runtime_exception",
@@ -401,7 +425,7 @@ export class GoogleIdentityController {
 
     const googleAuthorization = this.googleAuthorization;
     if (!googleAuthorization) {
-      popup.close();
+      popup?.close();
       LOGGER.warn("identity.google.authorization.failed", {
         operation: "request_credentials",
         code: "authorization_unavailable",
@@ -411,7 +435,16 @@ export class GoogleIdentityController {
 
     const googleSubject = expectedGoogleSubject ?? this.googleSubject;
     try {
-      const credentials = await googleAuthorization.request(popup, googleSubject);
+      const credentials: GoogleImplicitAuthorizationResult<GoogleIdentityCredentials> =
+        this.redirectAuthorization && operation !== "detach"
+          ? await this.redirectAuthorization.request({
+              operation,
+              allowWithoutVisibleBackup,
+              ...(googleSubject ? { googleSubject } : {}),
+            })
+          : popup
+            ? await googleAuthorization.request(popup, googleSubject)
+            : Result.err({ code: "google_authorization_failed" as const });
       if (this.isDisposed) return Result.err({ code: "cancelled" });
       if (Result.isError(credentials)) return Result.err(credentials.error);
       if (

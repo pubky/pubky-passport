@@ -124,13 +124,13 @@ class GoogleIdentityStore {
 }
 
 /** Connects a screen to its own Google identity controller through `useSyncExternalStore`. */
-export function useGoogleIdentityStore(screen: GoogleIdentityScreen) {
+export function useGoogleIdentityStore(screen: GoogleIdentityScreen, forAuthorization = false) {
   const { googleClientId, homegateBaseUrl } = useGoogleIdentityConfiguration();
   const { createGoogleIdentityController } = usePassportCollaborators();
   const [store] = useState(
     () =>
       new GoogleIdentityStore(
-        () => createGoogleIdentityController(googleClientId, homegateBaseUrl),
+        () => createGoogleIdentityController(googleClientId, homegateBaseUrl, forAuthorization),
         screen,
       ),
   );
