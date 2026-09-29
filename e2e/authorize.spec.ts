@@ -38,13 +38,23 @@ test("shows manual authorization entry when no request was supplied", async ({ p
   await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
 });
 
-test("shows identity setup context as the designed full-width accent band", async ({ page }) => {
+test("keeps the full-width requester band when automatic Google sign-in cannot start", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "sessionStorage", {
+      get() {
+        throw new Error("Storage blocked");
+      },
+    });
+  });
   for (const viewport of [
     { width: 375, height: 812 },
     { width: 1280, height: 720 },
   ]) {
     await page.setViewportSize(viewport);
     await page.goto(authorizationUrl(authorizationRequest(`${RELAY_ORIGIN}/inbox`)));
+    await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
 
     const band = page.getByLabel("Signing in to client.example");
     const logo = page.getByRole("img", { name: "Pubky", exact: true });

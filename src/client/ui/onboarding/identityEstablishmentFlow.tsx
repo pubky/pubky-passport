@@ -19,7 +19,21 @@ function IdentityEstablishmentFlow({
   onBack?: (() => void) | undefined;
   onComplete: () => void;
 }) {
-  const google = useGoogleIdentityEstablishment();
+  const google = useGoogleIdentityEstablishment(forAuthorization);
+  const automaticallyStarted = useRef(false);
+  useEffect(() => {
+    if (!forAuthorization || automaticallyStarted.current) return;
+    let active = true;
+    // Wait through StrictMode's setup/cleanup probe before starting one navigation.
+    queueMicrotask(() => {
+      if (!active || automaticallyStarted.current) return;
+      automaticallyStarted.current = true;
+      google.establishIdentity();
+    });
+    return () => {
+      active = false;
+    };
+  }, [forAuthorization, google]);
   const view = google.view;
   const restored = view.status === "complete" && view.mode === "restored";
   const restorationReported = useRef(false);
@@ -56,7 +70,7 @@ function IdentityEstablishmentFlow({
       return (
         <GoogleIdentityError
           error={view.error}
-          onBack={google.back}
+          onBack={forAuthorization && onBack ? onBack : google.back}
           onReplaceInvalidFile={google.replaceInvalidPassportFile}
           onReplaceUndecryptableFile={google.replaceUndecryptablePassportFile}
           onTryAgain={google.establishIdentity}
@@ -67,6 +81,7 @@ function IdentityEstablishmentFlow({
     case "working":
       return <GoogleIdentityProgress progress={view.progress} />;
     case "idle":
+      if (forAuthorization) return <GoogleAccessScreen fullWidthAction />;
       return (
         <SignInPage>
           <ContinueWithGoogle onContinue={google.establishIdentity} />
