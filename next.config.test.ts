@@ -1,8 +1,37 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import NEXT_CONFIG from "./next.config";
 
+afterEach(() => vi.unstubAllEnvs());
+
 describe("next config headers", () => {
+  it("adds the spike permission override only in development", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const production = await NEXT_CONFIG.headers?.();
+    expect(production?.map((entry) => entry.source)).toEqual([
+      "/:path*",
+      "/authorize",
+      "/authorize/:path*",
+      "/",
+    ]);
+    expect(
+      production
+        ?.flatMap((entry) => entry.headers)
+        .some((header) => header.value.includes("publickey-credentials-get=(self)")),
+    ).toBe(false);
+    vi.stubEnv("NODE_ENV", "development");
+    const development = await NEXT_CONFIG.headers?.();
+    expect(development?.slice(0, -1)).toEqual(production);
+    const spike = development?.at(-1);
+    expect(spike?.source).toBe("/dev/key-lock-spike");
+    expect(headerValue(spike?.headers ?? [], "Permissions-Policy")).toContain(
+      "publickey-credentials-get=(self)",
+    );
+    expect(headerValue(spike?.headers ?? [], "Permissions-Policy")).toContain(
+      "publickey-credentials-create=(self)",
+    );
+    expect(headerValue(spike?.headers ?? [], "Permissions-Policy")).toContain("camera=()");
+  });
   it("does not print secret-bearing request URLs through Next logging", () => {
     expect(NEXT_CONFIG.logging).toEqual({ incomingRequests: false });
   });

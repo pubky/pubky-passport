@@ -66,6 +66,23 @@ const NEXT_CONFIG: NextConfig = {
       { source: AUTHORIZATION_ENTRY_PATH, headers: SIGNER_HEADERS },
       { source: `${AUTHORIZATION_ENTRY_PATH}/:path*`, headers: SIGNER_HEADERS },
       { source: "/", headers: SIGNER_HEADERS },
+      ...(process.env.NODE_ENV === "development"
+        ? [
+            {
+              source: "/dev/key-lock-spike",
+              headers: [
+                ...AUTHORIZE_TRANSPORT_HEADERS,
+                {
+                  key: "Permissions-Policy",
+                  value: permissionsPolicy("()").replace(
+                    "publickey-credentials-get=()",
+                    "publickey-credentials-get=(self), publickey-credentials-create=(self)",
+                  ),
+                },
+              ],
+            },
+          ]
+        : []),
     ];
   },
 };
