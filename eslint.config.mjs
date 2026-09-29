@@ -35,6 +35,69 @@ const clientEntrypointImport = {
 };
 const restrictedImports = (...patterns) => ["error", { patterns }];
 
+const packageSource = "packages/passport-client/src";
+function packageBoundaries({ sdk = false, react = false, vendor = false, core = false } = {}) {
+  return restrictedImports(
+    {
+      regex: "^(?:@/|@test-utils/|next(?:/|$)|client-only$|server-only$|node:)",
+      message: "The package must remain independent of app and server code.",
+    },
+    ...(!sdk
+      ? [
+          {
+            regex: "^@synonymdev/pubky(?:/|$)",
+            allowTypeImports: true,
+            message: "SDK values belong in flow/pubkyFlowAdapter.ts.",
+          },
+        ]
+      : []),
+    ...(!react
+      ? [{ regex: "^(?:react|react-dom)(?:/|$)", message: "React belongs in react.tsx." }]
+      : []),
+    ...(!vendor
+      ? [
+          {
+            regex: "(?:^|/)vendor/qrcodegen(?:\\.js)?$",
+            message: "The encoder belongs behind renderQrSvg.ts.",
+          },
+        ]
+      : []),
+    ...(core
+      ? [
+          {
+            regex:
+              "(?:^|/)(?:ui|qrcode)(?:/|$)|(?:^|/)(?:index|element|qr|react)(?:\\.js)?$|^@pubky/passport-client(?:/|$)",
+            message: "Core modules must not import UI, QR code or entrypoints.",
+          },
+        ]
+      : []),
+  );
+}
+
+function packageImportRules(options) {
+  return {
+    ...importRules(packageBoundaries(options)),
+    "@typescript-eslint/no-import-type-side-effects": "error",
+  };
+}
+
+function importRules(imports) {
+  return {
+    "no-restricted-imports": imports,
+    "no-restricted-syntax": [
+      "error",
+      ...imports[1].patterns.map(({ regex, message }) => ({
+        selector: `ImportExpression[source.value=/${regex.replaceAll("/", "\\/")}/]`,
+        message,
+      })),
+      {
+        selector: 'ImportExpression[source.type!="Literal"]',
+        message: "Dynamic imports use a string literal.",
+      },
+    ],
+  };
+}
+
 const ESLINT_CONFIG = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -145,6 +208,38 @@ const ESLINT_CONFIG = defineConfig([
     files: [`src/${sourceFiles}`],
     ignores: [`src/${testFiles}`, "src/client/logic/profile/ProfileSpecsAdapter.ts"],
     rules: { "no-restricted-syntax": ["error", specsDynamicImport] },
+  },
+  globalIgnores(["**/dist/**", "**/coverage/**", "**/.next/**"]),
+  {
+    files: [`src/${sourceFiles}`, `packages/${sourceFiles}`, `examples/${sourceFiles}`],
+    rules: { "import/no-relative-packages": "error" },
+  },
+  ...[
+    { files: [`${packageSource}/${sourceFiles}`], options: {} },
+    { files: [`${packageSource}/react.tsx`], options: { react: true } },
+    { files: [`${packageSource}/qrcode/renderQrSvg.ts`], options: { vendor: true } },
+    {
+      files: [
+        `${packageSource}/{client,config,attempt,flow,popup,protocol,instance,errors,view,environment,shared}/${sourceFiles}`,
+      ],
+      options: { core: true },
+    },
+    // This adapter exception must follow the core block.
+    { files: [`${packageSource}/flow/pubkyFlowAdapter.ts`], options: { sdk: true, core: true } },
+  ].map(({ files, options }) => ({
+    files,
+    ignores: [`${packageSource}/${testFiles}`],
+    rules: packageImportRules(options),
+  })),
+  {
+    files: [`examples/**/src/${sourceFiles}`],
+    ignores: [`examples/**/src/${testFiles}`],
+    rules: importRules(
+      restrictedImports({
+        regex: "^(?:@/|@test-utils/|@pubky/passport-client/(?:src|dist)(?:/|$))",
+        message: "Examples consume public package entrypoints only.",
+      }),
+    ),
   },
 ]);
 

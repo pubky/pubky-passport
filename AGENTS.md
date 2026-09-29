@@ -23,6 +23,7 @@ pnpm install --frozen-lockfile
 pnpm dev --experimental-https  # https://localhost:3000, configured by .env.local (see .env.example)
 pnpm check                     # format:check + lint + typecheck + test:coverage + build
 pnpm test:run <filter>         # focused unit tests; `pnpm test` watches
+pnpm --filter @pubky/passport-client test # package unit tests
 pnpm format                    # prettier --write .
 pnpm test:e2e                  # build, then Playwright; `pnpm test:e2e:run` reuses the last build
 pnpm check:critical            # audit --prod + check + e2e; run before a release PR
@@ -34,15 +35,17 @@ Playwright starts its own servers on `PASSPORT_E2E_PORT` (default 3100) and the 
 
 `eslint.config.mjs` enforces these imports, except that for the root `src/*.ts` files it bans only the SDK and `pubky-app-specs`; never relax a rule to make code fit. Tests, `test-utils/` and `e2e/` may import anything.
 
-| Path                                     | Runs in                   | May import                                                                          |
-| ---------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------- |
-| `src/app`                                | routes and pages          | `client`, `server`, `libs`; only `layout.tsx` imports `server/environment`          |
-| `src/proxy.ts`, `src/instrumentation.ts` | server bootstrap          | `libs`, `server/environment` (the proxy builds the CSP per request)                 |
-| `src/instrumentation-client.ts`          | browser, before hydration | `client/logic`, `libs`; never `server`                                              |
-| `src/client/logic`                       | browser, no React         | `client/logic`, `libs`; never `server` or `src/instrumentation-client.ts`           |
-| `src/client/ui`                          | browser, React            | `client/logic`, `libs`; never `server`                                              |
-| `src/server`                             | Node                      | `libs`; `environment.ts` only from `wrapping-key/google/GoogleWrappingKeyIssuer.ts` |
-| `src/libs`                               | isomorphic                | nothing from `client`, `server`, the SDK or `pubky-app-specs`                       |
+| Path                                     | Runs in                     | May import                                                                                                                                                                 |
+| ---------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/app`                                | routes and pages            | `client`, `server`, `libs`; only `layout.tsx` imports `server/environment`                                                                                                 |
+| `src/proxy.ts`, `src/instrumentation.ts` | server bootstrap            | `libs`, `server/environment` (the proxy builds the CSP per request)                                                                                                        |
+| `src/instrumentation-client.ts`          | browser, before hydration   | `client/logic`, `libs`; never `server`                                                                                                                                     |
+| `src/client/logic`                       | browser, no React           | `client/logic`, `libs`; never `server` or `src/instrumentation-client.ts`                                                                                                  |
+| `src/client/ui`                          | browser, React              | `client/logic`, `libs`; never `server`                                                                                                                                     |
+| `src/server`                             | Node                        | `libs`; `environment.ts` only from `wrapping-key/google/GoogleWrappingKeyIssuer.ts`                                                                                        |
+| `src/libs`                               | isomorphic                  | nothing from `client`, `server`, the SDK or `pubky-app-specs`                                                                                                              |
+| `packages/passport-client/src`           | browser, framework-agnostic | no app imports; SDK values only in `flow/pubkyFlowAdapter.ts`; React only in `react.tsx`; package-local result unions instead of `better-result` (no runtime dependencies) |
+| `examples/*`                             | demo apps                   | public package entry points only                                                                                                                                           |
 
 - The SDK is imported only in `src/client/logic/pubky/PubkySdkAdapter.ts`, and `pubky-app-specs` (WASM, loaded with `import()`) only in `src/client/logic/profile/ProfileSpecsAdapter.ts`. Callers get plain data and `better-result` values, not SDK objects.
 - `src/client/logic` domains: `authorization` (request parsing, approval, outcome handoff), `pubky` (SDK adapter, PKARR republish, invite lookup), `profile` (profile read and write, Ring profile grant), `homegate` (SMS and Lightning invites), `local-account` (Passport-held account setup and drafts), `local-identity` (the identity catalog), `backup` (recovery-file import and check), `google-identity`, `passport-file` and `wrapping-key` (Google Drive recovery), `signup`, `universal-signer` (screen routing).
