@@ -82,12 +82,31 @@ describe("IdentityManagement", () => {
     renderManagement();
 
     const profile = screen.getByRole("region", { name: "Public profile" });
-    expect(profile).toHaveTextContent("Your Pubky");
+    // Without a profile it is named after its own key, never with a shared placeholder.
+    expect(profile).toHaveTextContent("Pubky x8jp…4mra");
+    expect(profile).not.toHaveTextContent("Your Pubky");
     expect(profile).not.toHaveTextContent("Satoshi Nakamoto");
-    // The avatar's initials come from the same name, never from a generic placeholder.
-    expect(within(profile).getByText("YO")).toBeInTheDocument();
-    expect(within(profile).queryByText("PK")).not.toBeInTheDocument();
+    // No initials of a placeholder or of the Google name: a person glyph on the key's colour.
+    expect(profile.querySelector("[data-unnamed]")).not.toBeNull();
+    expect(within(profile).queryByText("PU")).not.toBeInTheDocument();
     expect(within(profile).queryByText("SA")).not.toBeInTheDocument();
+  });
+
+  it("says where the key lives under the name, as every identity list does", () => {
+    renderManagement({ identity: browserOnlyIdentity });
+    expect(
+      within(screen.getByRole("region", { name: "Public profile" })).getByText(
+        "Key in this browser",
+      ),
+    ).toBeVisible();
+    cleanup();
+
+    renderManagement();
+    expect(
+      within(screen.getByRole("region", { name: "Public profile" })).getByRole("group", {
+        name: "Attached Google account: satoshi@gmail.com",
+      }),
+    ).toBeVisible();
   });
 
   it("republishes a browser key's missing record to the provider homeserver", async () => {

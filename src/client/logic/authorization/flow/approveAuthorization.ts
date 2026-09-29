@@ -13,7 +13,14 @@ import type { PubkyIdentityKey, PubkyPublicIdentity } from "@/client/logic/pubky
 import type { PubkySdkAdapter } from "@/client/logic/pubky/PubkySdkAdapter";
 import type { ValidatedPubkyAuthRequest } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 
-type ApproveAuthorizationResult = ResultType<void, CodedFailure<"approval_failed" | "cancelled">>;
+/**
+ * `identity_unavailable`: Passport could not unlock the chosen identity's key in this browser.
+ * `approval_failed`: the approval could not be made or did not reach the app's relay.
+ */
+export type ApproveAuthorizationErrorCode =
+  "approval_failed" | "cancelled" | "identity_unavailable";
+
+type ApproveAuthorizationResult = ResultType<void, CodedFailure<ApproveAuthorizationErrorCode>>;
 
 /**
  * How long Passport keeps the page open after posting an approval, so the background republish of
@@ -75,7 +82,7 @@ export async function approveAuthorization(
         code: restored.error.code,
         ...safeErrorLogFields(restored.error),
       });
-      return Result.err({ code: "approval_failed", cause: restored.error });
+      return Result.err({ code: "identity_unavailable", cause: restored.error });
     }
 
     const restoredKey = restored.value.keyHandle;
@@ -101,7 +108,10 @@ export async function approveAuthorization(
       code: "unexpected_failure",
       ...safeErrorLogFields(e),
     });
-    return Result.err({ code: "approval_failed", cause: e });
+    return Result.err({
+      code: stage === "identity_restore" ? "identity_unavailable" : "approval_failed",
+      cause: e,
+    });
   } finally {
     if (republish) {
       void republish.finally(() => {

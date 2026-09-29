@@ -1,10 +1,7 @@
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
-import { shortPublicKey } from "./formatPublicKey";
-import { GoogleAccountTag } from "./googleAccountTag";
 import { SquareUserRoundIcon } from "./icons";
-import { IdentitySummary } from "./identitySummary";
+import { SavedIdentitySummary } from "./identitySummary";
 import { Button } from "./primitives/button";
-import { RingKeyTag } from "./ringKeyTag";
 
 export function SelectedIdentity({
   identity,
@@ -15,7 +12,6 @@ export function SelectedIdentity({
   onSwitch: () => void;
   disabled?: boolean;
 }) {
-  const account = identity?.googleAccount;
   return (
     <section
       aria-label="Selected identity"
@@ -24,19 +20,7 @@ export function SelectedIdentity({
       {/* The basis keeps the name, key and account readable: below it the button wraps. */}
       <div className="flex min-w-0 flex-1 basis-48 items-center gap-3">
         {identity ? (
-          <IdentitySummary
-            attachment={
-              identity.keySource === "ring" ? (
-                <RingKeyTag />
-              ) : account ? (
-                <GoogleAccountTag account={account} />
-              ) : undefined
-            }
-            avatarSrc={identity.avatarUrl ?? undefined}
-            detail={shortPublicKey(identity.publicIdentity.publicKeyZ32)}
-            detailClassName="uppercase"
-            name={identity.profile?.name ?? "Your Pubky"}
-          />
+          <SavedIdentitySummary identity={identity} />
         ) : (
           <span className="text-sm text-muted-foreground">No local identity available</span>
         )}

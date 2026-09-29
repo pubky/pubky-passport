@@ -30,7 +30,7 @@ describe("IdentitySelectionFlow", () => {
       />,
     );
 
-    await userEvent.setup().click(screen.getByRole("button", { name: /Your Pubky.*seco/iu }));
+    await userEvent.setup().click(screen.getByRole("button", { name: /Pubky second/u }));
     expect(selectIdentity).toHaveBeenCalledWith("second");
     expect(onIdentitySelected).toHaveBeenCalledOnce();
   });
@@ -88,9 +88,11 @@ describe("IdentitySelectionFlow", () => {
       />,
     );
 
-    await userEvent.setup().click(screen.getByRole("button", { name: /Your Pubky.*seco/iu }));
+    await userEvent.setup().click(screen.getByRole("button", { name: /Pubky second/u }));
 
-    expect(screen.getByText("Could not switch identities. Please try again.")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Couldn't switch. Your browser didn't let Passport save your choice. Try again.",
+    );
     expect(onIdentitySelected).not.toHaveBeenCalled();
   });
 });

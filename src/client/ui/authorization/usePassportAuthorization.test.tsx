@@ -70,7 +70,7 @@ describe("usePassportAuthorization", () => {
     expect(pendingRequestPresence.read()).toBe(true);
 
     act(() => {
-      state.current = { status: "cancelled" };
+      state.current = { status: "cancelled", review: REVIEW.review };
       state.listener?.(state.current!);
     });
     expect(screen.getByText("cancelled:other")).toBeInTheDocument();
@@ -91,7 +91,7 @@ describe("usePassportAuthorization", () => {
   });
 
   it("does not close a page whose request already had its answer", () => {
-    renderWith({ current: { status: "approved" } });
+    renderWith({ current: { status: "approved", review: REVIEW.review } });
 
     pageTransition("pagehide", true);
     pageTransition("pageshow", true);

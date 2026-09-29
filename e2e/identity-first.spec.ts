@@ -114,7 +114,7 @@ test("Ring receives the original request and opening it does not approve in Pass
       REQUEST,
     );
   else await expect(page.locator('main a[href^="pubkyauth:"]')).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Authorization complete." })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: /^Signed in to/u })).toHaveCount(0);
   expect(
     await page.evaluate(() => ({ local: { ...localStorage }, session: { ...sessionStorage } })),
   ).toEqual({ local: {}, session: {} });

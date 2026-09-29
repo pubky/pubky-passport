@@ -4,18 +4,27 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
+import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { AuthorizationReview } from "./authorizationReview";
 
 const LOOK_ALIKE_HOST = "accounts.google.com.sign-in.secure-verify.attacker.example";
 const NO_WEBSITE_NOTICE =
   "This request doesn't name a website. Only continue if you just started signing in on another device.";
 
-function renderReview(review: Partial<AuthorizationRequestReview>) {
+const KEY = "p37b3zjjsn5a9wj46uniud9x6uz1ifaspa6kphzr9x6c5ynomxao";
+
+/** The paragraph that says what the app will see and what authorizing allows. */
+function trustParagraph() {
+  return screen.getByText(/^Authorizing will allow/u).closest("p");
+}
+
+function renderReview(
+  review: Partial<AuthorizationRequestReview>,
+  identity: LocalIdentityMetadata = { publicIdentity: { publicKeyZ32: KEY } },
+) {
   return render(
     <AuthorizationReview
-      identity={{
-        publicIdentity: { publicKeyZ32: "p37b3zjjsn5a9wj46uniud9x6uz1ifaspa6kphzr9x6c5ynomxao" },
-      }}
+      identity={identity}
       onAuthorize={vi.fn()}
       onCancel={vi.fn()}
       onSwitch={vi.fn()}
@@ -118,5 +127,99 @@ describe("AuthorizationReview", () => {
     renderReview({});
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("says what the app will see, and never the secret key or the attached Google account", () => {
+    renderReview(
+      { callbackHost: "notes.example", requesterName: "Acme Notes" },
+      {
+        publicIdentity: { publicKeyZ32: KEY },
+        googleAccount: {
+          googleSubject: "google-1",
+          name: "Alex",
+          email: "alex@example.com",
+          pictureUrl: null,
+        },
+      },
+    );
+
+    expect(trustParagraph()).toHaveTextContent(
+      /^Only continue if you just started signing in to Acme Notes\. The app will see your public key \(p37b…mxao\) and your public profile, but not your secret key or your Google account\. Authorizing will allow/u,
+    );
+    // The short key reads as one value and never breaks at its ellipsis.
+    expect(screen.getByText("(p37b…mxao)")).toHaveClass("whitespace-nowrap");
+    expect(screen.queryByText(/Make sure you trust/u)).toBeNull();
+  });
+
+  it("names only the secret key for an identity without Google", () => {
+    renderReview({ callbackHost: "notes.example" });
+
+    expect(trustParagraph()).toHaveTextContent(
+      /public profile, but not your secret key\. Authorizing will allow/u,
+    );
+  });
+
+  it("does not ask twice to continue only after starting the sign-in", () => {
+    renderReview({});
+
+    // The notice under the heading already says so for a request without a website.
+    expect(trustParagraph()).not.toHaveTextContent(/Only continue/u);
+    expect(screen.getAllByText(/Only continue if you just started/u)).toHaveLength(1);
+  });
+
+  it("keeps an empty status line of reserved height until an answer is on its way", () => {
+    renderReview({ callbackHost: "notes.example" });
+
+    const status = screen.getByRole("status");
+    expect(status).toBeEmptyDOMElement();
+    // Two lines where its copy wraps, one from md: the actions under it never move.
+    expect(status).toHaveClass("min-h-10", "md:min-h-5");
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
+  });
+
+  it.each([
+    [["/:rw"], "Allow changing all your data", "read and change all your data."],
+    [["/pub/:r"], "Allow reading all public data", "read all your public data."],
+    [["/priv/:w"], "Allow changing all private data", "change all your private data."],
+    [["/pub/:r", "/priv/:rw"], "Allow changing all your data", "read and change all your data."],
+  ])(
+    "names what the broad capabilities %j give, in the action and the sentence",
+    (caps, label, effect) => {
+      renderReview({
+        callbackHost: "notes.example",
+        capabilities: caps.map((cap) => {
+          const [path = "", access = ""] = cap.split(":");
+          return {
+            path,
+            read: access.includes("r"),
+            write: access.includes("w"),
+            scope: "broad" as const,
+          };
+        }),
+      });
+
+      const action = screen.getByRole("button", { name: label });
+      expect(action).toBeEnabled();
+      // It wraps beside Cancel instead of overflowing the narrow desktop column.
+      expect(action).toHaveClass("md:whitespace-normal");
+      expect(screen.queryByRole("button", { name: "Authorize" })).not.toBeInTheDocument();
+      expect(screen.getByText(/^Allowing this lets/u)).toHaveTextContent(
+        `Allowing this lets notes.example ${effect}`,
+      );
+    },
+  );
+
+  it("points a broad request's sentence at its narrower rows too", () => {
+    renderReview({
+      capabilities: [
+        { path: "/pub/notes.example/", read: true, write: true, scope: "specific" },
+        { path: "/pub/", read: true, write: false, scope: "broad" },
+      ],
+    });
+
+    expect(screen.getByRole("button", { name: "Allow reading all public data" })).toBeVisible();
+    expect(screen.getByText(/^Allowing this lets/u)).toHaveTextContent(
+      "Allowing this lets this service read all your public data, along with the other permissions listed.",
+    );
   });
 });

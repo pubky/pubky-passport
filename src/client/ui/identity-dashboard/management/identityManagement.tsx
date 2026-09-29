@@ -12,6 +12,7 @@ import { PUBKY_COPY_TOASTS } from "@/client/ui/shared/copyToClipboard";
 import { DetailField } from "@/client/ui/shared/detailField";
 import { shortCopiedValue } from "@/client/ui/shared/formatPublicKey";
 import { GoogleAccountTag } from "@/client/ui/shared/googleAccountTag";
+import { identityDisplayName, unnamedKey } from "@/client/ui/shared/identityDisplay";
 import {
   CheckIcon,
   DownloadIcon,
@@ -24,6 +25,7 @@ import {
 import { PassportHeaderAction } from "@/client/ui/shared/passportHeaderAction";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { KeyCustodyTag } from "@/client/ui/shared/keyCustodyTag";
 import { Avatar } from "@/client/ui/shared/primitives/avatar";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
@@ -71,7 +73,7 @@ function IdentityManagement({
   const [confirmingLogout, setConfirmingLogout] = useState(confirmLogout);
   const account = identity.googleAccount;
   const publicKeyZ32 = identity.publicIdentity.publicKeyZ32;
-  const name = identity.profile?.name ?? "Your Pubky";
+  const name = identityDisplayName(identity);
   // A Ring-held key never reaches Passport, so it cannot be backed up or signed with here.
   const browserKey = identity.keySource !== "ring";
   const backupFile = keyBackupFile(identity);
@@ -124,8 +126,12 @@ function IdentityManagement({
               fallback={name}
               src={identity.avatarUrl ?? undefined}
               className="size-16 shrink-0"
+              unnamedKey={unnamedKey(identity)}
             />
-            <p className="min-w-0 break-words text-xl font-bold">{name}</p>
+            <div className="flex min-w-0 flex-col items-start gap-1">
+              <p className="min-w-0 max-w-full break-words text-xl font-bold">{name}</p>
+              <KeyCustodyTag identity={identity} />
+            </div>
           </div>
           {identity.profile?.bio ? (
             <p className="break-words text-sm leading-5 text-secondary-foreground">

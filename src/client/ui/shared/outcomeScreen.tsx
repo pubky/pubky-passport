@@ -16,11 +16,17 @@ export function OutcomeScreen({
   description,
   label,
   title,
+  windowTitle,
 }: {
   title: ReactNode;
   accent: ReactNode;
   /** The heading's accessible name when its visible text differs between viewports. */
   label?: string | undefined;
+  /**
+   * The window title, when the heading's own name would not do as one (it names the app by a
+   * label the app chose; see `PassportScreen`).
+   */
+  windowTitle?: string | undefined;
   description: ReactNode;
   /** What the person should know now, such as the account used or a missing copy. */
   children?: ReactNode;
@@ -30,7 +36,7 @@ export function OutcomeScreen({
   return (
     <PassportScreen className="gap-6 md:gap-8">
       <div className="flex flex-col gap-3">
-        <DisplayHeading accent={accent} aria-label={label}>
+        <DisplayHeading accent={accent} aria-label={label} data-window-title={windowTitle}>
           {title}
         </DisplayHeading>
         <LeadText>{description}</LeadText>

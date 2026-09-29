@@ -142,13 +142,18 @@ describe("LogoutConfirmation", () => {
     expect(screen.queryByText(/deletes the private key/)).not.toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Log out" })).toBeEnabled();
+    // Where the key lives, in the tag the lists and the review use.
+    expect(screen.getByText("Key in Pubky Ring")).toBeInTheDocument();
   });
 
   it("names the identity by its profile, never by the attached Google account", () => {
     renderConfirmation({
       identity: { publicIdentity: PUBLIC_IDENTITY, googleAccount: GOOGLE_ACCOUNT },
     });
-    expect(screen.getByText("Your Pubky")).toBeInTheDocument();
+    expect(screen.getByText("Pubky x8jp…4mra")).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: `Attached Google account: ${GOOGLE_ACCOUNT.email}` }),
+    ).toBeInTheDocument();
     expect(screen.getByText(PUBLIC_IDENTITY.publicKeyZ32)).toBeInTheDocument();
     expect(screen.queryByText("Satoshi Google")).not.toBeInTheDocument();
 

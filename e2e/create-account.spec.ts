@@ -70,7 +70,7 @@ test("keeps request context and requires a separate profile approval after Ring 
     "/pub/pubky.app/blobs/:w",
   ]);
   expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([]);
-  await expect(page.getByRole("heading", { name: "Authorization complete." })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: /^Signed in to/u })).toHaveCount(0);
   await page.getByRole("button", { name: "Show QR code" }).click();
   await expect(
     page.getByRole("img", { name: "Pubky Ring profile connection QR code" }),

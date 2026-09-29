@@ -59,8 +59,8 @@ test("each step names itself in the window title and takes focus on its heading"
     .first()
     .click();
   await page.getByRole("main").getByRole("button", { name: "Cancel" }).click();
-  await expect(page.getByRole("heading", { name: "Authorization cancelled." })).toBeFocused();
-  await expect(page).toHaveTitle("Authorization cancelled | Pubky Passport");
+  await expect(page.getByRole("heading", { name: "Sign-in cancelled." })).toBeFocused();
+  await expect(page).toHaveTitle("Sign-in cancelled | Pubky Passport");
 });
 
 test("a request's window title names its website beside the app's own label", async ({ page }) => {
@@ -92,9 +92,7 @@ for (const viewport of NARROW) {
   test(`outcome, error and profile screens reflow at ${viewport.width}px`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.goto(authorizeUrl("pubkyauth://signin?caps=nope"));
-    await expect(
-      page.getByRole("heading", { name: "Invalid authorization request" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Invalid sign-in link." })).toBeVisible();
     expect(await horizontalOverflow(page)).toBe(0);
 
     await seedGoogleIdentity(page);
@@ -105,7 +103,7 @@ for (const viewport of NARROW) {
       .first()
       .click();
     await page.getByRole("main").getByRole("button", { name: "Cancel" }).click();
-    await expect(page.getByRole("heading", { name: "Authorization cancelled." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign-in cancelled." })).toBeVisible();
     expect(await horizontalOverflow(page)).toBe(0);
 
     await mockPublicProfile(page, null);

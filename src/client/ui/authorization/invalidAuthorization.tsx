@@ -1,15 +1,49 @@
-import { BackButton } from "@/client/ui/shared/backButton";
 import { ErrorScreen } from "@/client/ui/shared/errorScreen";
+import {
+  BackToAppAction,
+  GoToPassportLink,
+  RequestExitAction,
+  useCameFromPage,
+  useOpenedByApp,
+} from "./requestExit";
 
-function InvalidAuthorization({ onBack }: { onBack: () => void }) {
+const COPY = {
+  // The capture lasts a minute; saying so would promise a lifetime the app does not control.
+  expired: {
+    title: "Request",
+    accent: "expired.",
+    cause: "This sign-in request took too long to open.",
+    nextStep: "Go back to the app and start signing in again.",
+  },
+  invalid: {
+    title: "Invalid sign-in",
+    accent: "link.",
+    cause: "This link can't be used to sign in.",
+    nextStep:
+      "Go back to the app and try again. If it keeps happening, contact the app's developer.",
+  },
+} as const;
+
+/**
+ * A request that cannot be reviewed: one that expired before Passport's page could take it, which
+ * starting again fixes, or a link that cannot be used at all. Either way the person goes back to
+ * the app: in its popup by closing the window, and in a tab the app sent them to by going back.
+ * Passport's start page (for a first-time user, its onboarding) is then only a side action, and
+ * the main one only in a tab with no page before it.
+ */
+function InvalidAuthorization({ reason }: { reason: "expired" | "invalid" }) {
+  const inPopup = useOpenedByApp();
+  const cameFromPage = useCameFromPage();
+  const copy = COPY[reason];
+  const backInTab = !inPopup && cameFromPage;
   return (
     <ErrorScreen
-      accent="request."
-      back={<BackButton onClick={onBack} />}
-      cause="The authorization link is malformed, unsafe, or no longer supported."
-      label="Invalid authorization request"
-      nextStep="Return to the app and start the sign-in again."
-      title="Invalid authorization"
+      accent={copy.accent}
+      action={backInTab ? <BackToAppAction /> : <RequestExitAction inPopup={inPopup} />}
+      cause={copy.cause}
+      nextStep={copy.nextStep}
+      secondaryAction={inPopup || backInTab ? <GoToPassportLink /> : undefined}
+      title={copy.title}
     />
   );
 }

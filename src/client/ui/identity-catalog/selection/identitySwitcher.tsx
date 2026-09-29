@@ -1,6 +1,5 @@
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { useId } from "react";
-import { shortPublicKey } from "@/client/ui/shared/formatPublicKey";
 import { UserRoundPlusIcon } from "@/client/ui/shared/icons";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
@@ -54,16 +53,11 @@ function IdentitySwitcher({
             semantics unless the role is explicit. */}
         <ul aria-labelledby={listHeadingId} className="flex flex-col gap-3" role="list">
           {orderedIdentities.map((identity) => {
-            const account = identity.googleAccount;
             const publicKeyZ32 = identity.publicIdentity.publicKeyZ32;
             return (
               <li key={publicKeyZ32}>
                 <IdentityRow
-                  avatarSrc={identity.avatarUrl ?? undefined}
-                  detail={shortPublicKey(publicKeyZ32)}
-                  googleAccount={account}
-                  keyInRing={identity.keySource === "ring"}
-                  name={identity.profile?.name ?? "Your Pubky"}
+                  identity={identity}
                   onClick={() => onSelect(publicKeyZ32)}
                   selected={publicKeyZ32 === activePublicKeyZ32}
                 />
@@ -72,7 +66,9 @@ function IdentitySwitcher({
           })}
         </ul>
         {selectionFailed ? (
-          <Notice tone="error">Could not switch identities. Please try again.</Notice>
+          <Notice tone="error">
+            Couldn&apos;t switch. Your browser didn&apos;t let Passport save your choice. Try again.
+          </Notice>
         ) : null}
       </section>
       <PassportNavigation

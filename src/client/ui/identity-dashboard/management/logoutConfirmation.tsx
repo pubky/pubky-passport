@@ -8,6 +8,8 @@ import { formatBackupDate } from "@/client/ui/identity-dashboard/backupStatus";
 import { PUBKY_COPY_TOASTS } from "@/client/ui/shared/copyToClipboard";
 import { DetailField } from "@/client/ui/shared/detailField";
 import { CheckIcon, DownloadIcon } from "@/client/ui/shared/icons";
+import { identityDisplayName } from "@/client/ui/shared/identityDisplay";
+import { KeyCustodyTag } from "@/client/ui/shared/keyCustodyTag";
 import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { Button } from "@/client/ui/shared/primitives/button";
@@ -76,7 +78,10 @@ export function LogoutConfirmation({
       description={description}
     >
       <div className="flex min-w-0 flex-col gap-3">
-        <p className="break-words font-bold">{identity.profile?.name ?? "Your Pubky"}</p>
+        <div className="flex min-w-0 flex-col items-start gap-1">
+          <p className="break-words font-bold">{identityDisplayName(identity)}</p>
+          <KeyCustodyTag identity={identity} />
+        </div>
         <DetailField
           copy={{ ...PUBKY_COPY_TOASTS, value: identity.publicIdentity.publicKeyZ32 }}
           label="Pubky"

@@ -115,7 +115,7 @@ it("offers unfinished profile setup from the overview and never forces it", asyn
 it("goes straight to the request's review for an identity without a profile", async () => {
   const user = userEvent.setup();
   mount(true);
-  await user.click(await screen.findByRole("button", { name: /Your Pubky/u }));
+  await user.click(await screen.findByRole("button", { name: /^Pubky /u }));
 
   expect(await screen.findByRole("button", { name: "Authorize" })).toBeEnabled();
   expect(screen.getByRole("heading", { name: "Sign in to Original app" })).toBeInTheDocument();
@@ -288,7 +288,7 @@ it("reads only the active identity's profile until the switcher shows them all",
   };
   mount(true);
   expect(await screen.findByRole("button", { name: /Remembered/ })).toBeInTheDocument();
-  const unnamed = screen.getByRole("button", { name: /Your Pubky/ });
+  const unnamed = screen.getByRole("button", { name: /^Pubky / });
   await act(async () => new Promise((resolve) => setTimeout(resolve, 50)));
   expect(load).not.toHaveBeenCalled();
   await user.click(unnamed);

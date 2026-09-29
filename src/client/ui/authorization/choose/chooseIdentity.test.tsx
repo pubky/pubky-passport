@@ -179,6 +179,8 @@ describe("ChooseIdentity", () => {
 
     expect(screen.getByRole("heading", { name: "Sign in to Bank" })).toBeInTheDocument();
     expect(screen.getByText(/doesn't name a website/u)).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent("Could not choose this identity.");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Couldn't choose this identity. Your browser didn't let Passport save your choice.",
+    );
   });
 });

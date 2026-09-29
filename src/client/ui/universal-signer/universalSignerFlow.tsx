@@ -13,10 +13,6 @@ import type {
   LocalIdentityMetadata,
 } from "@/client/logic/local-identity/localIdentityModels";
 import {
-  DeepLinkLauncher,
-  ringHandoffMode,
-} from "@/client/logic/universal-signer/deepLinkLauncher";
-import {
   findIdentity,
   initialSignerNavigation,
   requiresProfileSetup,
@@ -43,13 +39,14 @@ import { IdentityOverview } from "@/client/ui/identity-dashboard/identityOvervie
 import { BackupImportFlow } from "@/client/ui/local-account/backupImportFlow";
 import { CreateAccountFlow } from "@/client/ui/onboarding/create-account/createAccountFlow";
 import { BackButton } from "@/client/ui/shared/backButton";
-import { CancelButton } from "@/client/ui/shared/cancelButton";
 import { ErrorScreen } from "@/client/ui/shared/errorScreen";
 import { LoadingScreen } from "@/client/ui/shared/loadingScreen";
 import { ACCOUNT_SETUP_STEPS, SetupProgressProvider } from "@/client/ui/shared/setupProgress";
 import { AddIdentity } from "./addIdentity";
+import { IdentitiesUnavailable } from "./identitiesUnavailable";
 import { IdentityManagementScreens } from "./identityManagementScreens";
 import { RingSignIn } from "./ringSignIn";
+import { useRingRequestLauncher } from "./useRingRequestLauncher";
 import { useIdentityProfiles } from "@/client/ui/profile/useIdentityProfiles";
 import { ProfileSetupFlow } from "@/client/ui/profile/profileSetupFlow";
 import { RingProfileConnection } from "@/client/ui/profile/ringProfileConnection";
@@ -89,28 +86,11 @@ export function UniversalSignerFlow() {
     return (
       <>
         <SignInBand authorization={authorization} />
-        <ErrorScreen
-          accent="unavailable."
-          action={
-            authorization.status === "review" ? undefined : (
-              <Button className="w-full" onClick={() => window.location.replace("/")} size="lg">
-                <RotateCcwIcon />
-                Try again
-              </Button>
-            )
-          }
-          back={
-            authorization.status === "review" ? (
-              <CancelButton onClick={() => void controller.cancel()} />
-            ) : undefined
-          }
-          cause="Passport could not read identities stored in this browser."
-          nextStep={
-            authorization.status === "review"
-              ? "Cancel this request so the app stops waiting, then check that this browser lets Passport store site data."
-              : "Try again. If this keeps happening, check that this browser lets Passport store site data."
-          }
-          title="Storage"
+        <IdentitiesUnavailable
+          authorization={authorization}
+          code={identities.code}
+          controller={controller}
+          reason={identities.reason}
         />
       </>
     );
@@ -172,8 +152,7 @@ function ReadyPassport({
     [profiles.controller, ringProfile],
   );
   // Follows the request's deep link to Pubky Ring on a phone, and notices when Ring did not open.
-  const [ringLauncher] = useState(() => new DeepLinkLauncher(window));
-  useEffect(() => () => ringLauncher.dispose(), [ringLauncher]);
+  const [ringLauncher, launchRing] = useRingRequestLauncher(controller);
   const [selectionFailed, setSelectionFailed] = useState(false);
   const catalog = profiles.catalog;
   const activeIdentity = catalog.activePublicKeyZ32
@@ -193,9 +172,7 @@ function ReadyPassport({
    * what lets the browser open the app; a computer goes straight to the QR code.
    */
   const openRing = (origin: Extract<SignerNavigation, { view: "external" }>["origin"]) => {
-    ringLauncher.reset();
-    const url = ringHandoffMode(window) === "open" ? controller.externalSignerUrl() : undefined;
-    if (url) ringLauncher.launch(url);
+    launchRing();
     navigate({ view: "external", origin });
   };
   const selectAddedIdentity = (publicKeyZ32: string) => {

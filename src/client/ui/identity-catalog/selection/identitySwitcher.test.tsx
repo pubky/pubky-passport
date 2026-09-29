@@ -60,14 +60,14 @@ describe("IdentitySwitcher", () => {
     expect(screen.queryByRole("button", { pressed: true })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { pressed: false })).not.toBeInTheDocument();
     // The row is the Pubky profile; Google appears only as the small attached-account tag.
-    expect(activeRow).toHaveTextContent("seco...5678");
+    expect(activeRow).toHaveTextContent("seco…5678");
     expect(activeRow).not.toHaveTextContent("Google Active");
     expect(
       screen.getByRole("group", { name: "Attached Google account: active@gmail.com" }),
     ).toBeInTheDocument();
     const otherRow = screen.getByRole("button", { name: /Other Account/ });
     expect(otherRow).toHaveTextContent("other@gmail.com");
-    expect(otherRow).toHaveTextContent("firs...1234");
+    expect(otherRow).toHaveTextContent("firs…1234");
     await userEvent.setup().click(otherRow);
     expect(onSelect).toHaveBeenCalledWith("firstidentity1234");
     const back = screen.getByRole("button", { name: "Back" });
@@ -102,37 +102,56 @@ describe("IdentitySwitcher", () => {
     ).toEqual(["Back", "Add identity"]);
   });
 
-  it("shows the shortened Pubky when an identity has no Google account", () => {
+  it("tells identities without a profile apart by their key, in the key's own case", () => {
     render(
       <IdentitySwitcher
         activePublicKeyZ32="localidentity1234"
-        identities={[{ publicIdentity: { publicKeyZ32: "localidentity1234" } }]}
+        identities={[
+          { publicIdentity: { publicKeyZ32: "localidentity1234" } },
+          { publicIdentity: { publicKeyZ32: "otheridentity9876" } },
+        ]}
         onAddIdentity={vi.fn()}
         onBack={vi.fn()}
         onSelect={vi.fn()}
       />,
     );
 
-    const localKey = screen.getByText("loca...1234");
-    expect(localKey).toHaveClass("lowercase");
-    expect(screen.getByRole("button", { name: /Your Pubky/ })).toContainElement(localKey);
+    const first = screen.getByRole("button", { name: /Pubky loca…1234/u });
+    const second = screen.getByRole("button", { name: /Pubky othe…9876/u });
+    expect(screen.queryByText(/Your Pubky/u)).toBeNull();
+    // The name already carries the key, so no key line repeats it.
+    expect(first).toHaveTextContent(/^Pubky loca…1234Key in this browser$/u);
+    // No placeholder initials: a person glyph on a colour picked from each key.
+    const avatars = [first, second].map((row) => row.querySelector("[data-unnamed]"));
+    expect(avatars[0]).not.toHaveTextContent(/\S/u);
+    expect(avatars[0]?.getAttribute("style")).not.toBe(avatars[1]?.getAttribute("style"));
+    for (const row of [first, second])
+      expect(row.querySelector(".lowercase, .uppercase")).toBeNull();
   });
 
-  it("notes a Ring-held key outside the lowercase key line", () => {
+  it("shows where each identity's key lives in one tag style", () => {
     render(
       <IdentitySwitcher
         activePublicKeyZ32={null}
-        identities={[{ publicIdentity: { publicKeyZ32: "ringidentity1234" }, keySource: "ring" }]}
+        identities={[
+          {
+            publicIdentity: { publicKeyZ32: "ringidentity1234" },
+            profile: { name: "Ring" },
+            keySource: "ring",
+          },
+          { publicIdentity: { publicKeyZ32: "localidentity1234" }, profile: { name: "Local" } },
+        ]}
         onAddIdentity={vi.fn()}
         onBack={vi.fn()}
         onSelect={vi.fn()}
       />,
     );
 
-    const note = screen.getByText("Key in Pubky Ring");
-    expect(note).not.toHaveClass("lowercase");
-    expect(note.closest(".lowercase")).toBeNull();
-    expect(screen.getByText("ring...1234")).toHaveClass("lowercase");
-    expect(screen.getByRole("button", { name: /Your Pubky/ })).toContainElement(note);
+    const ring = screen.getByText("Key in Pubky Ring");
+    const browser = screen.getByText("Key in this browser");
+    expect(ring.className).toBe(browser.className);
+    expect(screen.getByRole("button", { name: /^Ring/u })).toContainElement(ring);
+    expect(screen.getByRole("button", { name: /^Ring/u })).toHaveTextContent("ring…1234");
+    expect(screen.getByRole("button", { name: /^Local/u })).toContainElement(browser);
   });
 });

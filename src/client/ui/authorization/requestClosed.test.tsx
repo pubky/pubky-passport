@@ -10,12 +10,15 @@ describe("RequestClosed", () => {
   afterEach(() => {
     cleanup();
     Object.defineProperty(window, "opener", { configurable: true, value: null });
+    Object.defineProperty(window, "closed", { configurable: true, value: false });
     vi.restoreAllMocks();
   });
 
   it("says the request ended and closes the app's popup", async () => {
     Object.defineProperty(window, "opener", { configurable: true, value: { closed: false } });
-    const close = vi.spyOn(window, "close").mockImplementation(() => undefined);
+    const close = vi.spyOn(window, "close").mockImplementation(() => {
+      Object.defineProperty(window, "closed", { configurable: true, value: true });
+    });
     render(<RequestClosed />);
 
     expect(screen.getByRole("heading", { name: "Sign-in request closed." })).toHaveFocus();

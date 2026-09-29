@@ -1,7 +1,7 @@
 import { isKeyProtected, keyBackup } from "@/client/logic/local-identity/keyBackup";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { BackupStatusLine, formatBackupDate } from "@/client/ui/identity-dashboard/backupStatus";
-import { GoogleAccountTag } from "@/client/ui/shared/googleAccountTag";
+import { identityDisplayName, unnamedKey } from "@/client/ui/shared/identityDisplay";
 import {
   CheckIcon,
   DownloadIcon,
@@ -11,7 +11,7 @@ import {
 } from "@/client/ui/shared/icons";
 import { Notice } from "@/client/ui/shared/notice";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
-import { RingKeyTag } from "@/client/ui/shared/ringKeyTag";
+import { KeyCustodyTag } from "@/client/ui/shared/keyCustodyTag";
 import { Avatar } from "@/client/ui/shared/primitives/avatar";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
@@ -33,13 +33,12 @@ function IdentityOverview({
   onSetUpProfile: () => void;
   onSwitch: () => void;
 }) {
-  const account = identity.googleAccount;
   const backup = keyBackup(identity);
   // A browser key nothing is known to bring back is one cleared site away from being lost: say
   // so where the person lands, with the fix one tap away.
   const backupDue = !isKeyProtected(identity);
   // The main card is the Pubky profile; Google only appears as the attached-account tag.
-  const name = identity.profile?.name ?? "Your Pubky";
+  const name = identityDisplayName(identity);
   const publicKey = identity.publicIdentity.publicKeyZ32;
 
   return (
@@ -52,31 +51,31 @@ function IdentityOverview({
         className="grid grid-cols-2 gap-x-3 gap-y-6 rounded-2xl bg-card px-6 pb-6 pt-12 md:p-12"
       >
         <div className="col-span-2 flex w-full min-w-0 flex-col items-center gap-6 md:flex-row md:items-start">
-          <Avatar fallback={name} size="lg" src={identity.avatarUrl ?? undefined} />
+          <Avatar
+            fallback={name}
+            size="lg"
+            src={identity.avatarUrl ?? undefined}
+            unnamedKey={unnamedKey(identity)}
+          />
           <div className="flex w-full min-w-0 flex-col items-center gap-3 text-center md:max-w-69 md:flex-1 md:items-start md:gap-0 md:text-left">
             <h2 className="w-full text-2xl font-bold leading-8 [overflow-wrap:anywhere]">{name}</h2>
             <p className="w-full break-all text-xs font-medium leading-4 tracking-[0.1em] text-muted-foreground md:text-left">
               {publicKey}
             </p>
-            {account ? (
-              <div className="flex w-full min-w-0 justify-center pt-3 md:justify-start">
-                <GoogleAccountTag account={account} />
-              </div>
-            ) : null}
-            {/* A key that needs a backup gets one warning: the notice below, not this line. */}
-            {backup.kind === "ring" ? (
-              <div className="flex w-full min-w-0 justify-center pt-3 md:justify-start">
-                <RingKeyTag />
-              </div>
-            ) : backupDue ? (
-              <p className="pt-2 text-sm text-muted-foreground">Key in this browser</p>
-            ) : (
+            {/* Where the key lives, in the tag every list and the review use. */}
+            <div className="flex w-full min-w-0 justify-center pt-3 md:justify-start">
+              <KeyCustodyTag identity={identity} />
+            </div>
+            {/* A key that needs a backup gets one warning: the notice below, not a line here. */}
+            {backup.kind === "google" ? (
               <BackupStatusLine className="pt-2 text-muted-foreground" tone="ok">
-                {backup.kind === "file"
-                  ? `Key in this browser, backup checked ${formatBackupDate(backup.at)}`
-                  : "Key in this browser, backed up to Google Drive"}
+                Key in this browser, backed up to Google Drive
               </BackupStatusLine>
-            )}
+            ) : backup.kind === "file" && !backupDue ? (
+              <BackupStatusLine className="pt-2 text-muted-foreground" tone="ok">
+                {`Recovery file checked ${formatBackupDate(backup.at)}`}
+              </BackupStatusLine>
+            ) : null}
           </div>
         </div>
         {backupDue ? (

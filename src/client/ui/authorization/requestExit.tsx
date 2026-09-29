@@ -1,0 +1,102 @@
+import { useState } from "react";
+
+import { ArrowLeftIcon, ArrowRightIcon, XIcon } from "@/client/ui/shared/icons";
+import { Button } from "@/client/ui/shared/primitives/button";
+
+/** The parts of the browser window a request's way out uses; tests pass their own. */
+type RequestWindow = Pick<Window, "close" | "closed" | "history" | "location" | "opener">;
+
+/**
+ * Whether another window opened this one, as an app opens its sign-in popup. Read once: the
+ * opener does not change while a request's screens are shown.
+ */
+export function useOpenedByApp(target?: Pick<RequestWindow, "opener">): boolean {
+  const [opened] = useState(() => {
+    try {
+      // `window` is read here, inside the try, so a render without one (on the server) is a tab.
+      const { opener } = target ?? window;
+      return opener !== null && opener !== undefined;
+    } catch {
+      return false;
+    }
+  });
+  return opened;
+}
+
+/**
+ * Whether this tab has a page before this one, as it does when an app sent the person here in
+ * the same tab. Read once, like the opener.
+ */
+export function useCameFromPage(target?: Pick<RequestWindow, "history">): boolean {
+  const [cameFrom] = useState(() => {
+    try {
+      return (target ?? window).history.length > 1;
+    } catch {
+      return false;
+    }
+  });
+  return cameFrom;
+}
+
+/** Leaves the request for Passport's own start page, where identity management lives. */
+export function goToPassport(target: Pick<RequestWindow, "location"> = window): void {
+  target.location.replace("/");
+}
+
+/**
+ * Closes the app's sign-in popup. A browser lets a page close only a window a script opened; if it
+ * refuses, the window goes to Passport's start page rather than leaving the button dead.
+ */
+export function closeRequestWindow(
+  target: Pick<RequestWindow, "close" | "closed" | "location"> = window,
+): void {
+  try {
+    target.close();
+    if (target.closed) return;
+  } catch {
+    // Some embedders throw instead of ignoring the call.
+  }
+  goToPassport(target);
+}
+
+/**
+ * The way out of a request that has ended. In the app's popup the person closes the window and is
+ * back in the app, which never happens by landing on Passport's start page (for a first-time user,
+ * its onboarding). In a tab there is no app window to return to, so it names where it goes.
+ */
+export function RequestExitAction({ inPopup }: { inPopup: boolean }) {
+  return inPopup ? (
+    <Button className="w-full" onClick={() => closeRequestWindow()} size="lg">
+      <XIcon />
+      Close window
+    </Button>
+  ) : (
+    <Button className="w-full" onClick={() => goToPassport()} size="lg">
+      <ArrowRightIcon />
+      Go to Passport
+    </Button>
+  );
+}
+
+/** Back to the page before this tab's request: the app, when it sent the person here. */
+export function BackToAppAction({
+  target,
+}: {
+  target?: Pick<RequestWindow, "history"> | undefined;
+}) {
+  return (
+    <Button className="w-full" onClick={() => (target ?? window).history.back()} size="lg">
+      <ArrowLeftIcon />
+      Back to the app
+    </Button>
+  );
+}
+
+/** Passport's start page as a side action beside the main way out, for fixing things there. */
+export function GoToPassportLink() {
+  return (
+    <Button onClick={() => goToPassport()} variant="link">
+      Go to Passport
+    </Button>
+  );
+}

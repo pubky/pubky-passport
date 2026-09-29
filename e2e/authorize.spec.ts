@@ -199,18 +199,26 @@ test("lists requested permissions with spelled-out access and flags broad rows",
     "This app asks for all your public data, including the folders other apps keep for you.",
   );
   const permissions = page.getByRole("list", { name: "Requested permissions" });
+  // A plain title over the exact path, which stays visible; a folder that is not the requesting
+  // website's own is another app's.
   await expect(permissions.getByRole("listitem")).toHaveText([
-    "/pub/example.app/, Read & write",
-    "Broad access: /pub/, Read only",
+    "Another app's data: “example.app”, /pub/example.app/, Read & write",
+    "Broad access: All your public data, /pub/, Read only",
   ]);
   const [scoped, broad, text] = await permissions
     .getByRole("listitem")
     .evaluateAll((items) => [
-      ...items.map((item) => getComputedStyle(item.querySelector("bdi")!).color),
+      ...items.map((item) => getComputedStyle(item.querySelector("span.flex-1 > span")!).color),
       getComputedStyle(document.body).color,
     ]);
   expect(scoped).toBe(text);
   expect(broad).not.toBe(text);
+  // A request past the app's own folder names what its primary action gives, and the sentence
+  // above it says the same.
+  await expect(page.getByRole("button", { name: "Allow reading all public data" })).toBeVisible();
+  await expect(
+    page.getByText(/^Allowing this lets .+ read all your public data, along with/u),
+  ).toBeVisible();
 });
 
 test("keyboard focus on Authorize draws a solid outline and keeps the brand border", async ({
@@ -418,9 +426,7 @@ test("forwards a query to the entry for rejection without sending its contents a
     page.on("request", recordDocument);
     await page.goto(home);
 
-    await expect(
-      page.getByRole("heading", { name: "Invalid authorization request" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Invalid sign-in link." })).toBeVisible();
     await expectEntryWithoutRequest(page, /\/authorize$/u);
     page.off("request", recordDocument);
     // The first document request is the test's own; Passport's forward carries only `?d=`.
@@ -558,7 +564,7 @@ test("rejects an unsafe relay without adding it to CSP", async ({ page }) => {
   expect(cspSources(policy, "connect-src")).not.toContain(unsafeRelayOrigin);
 
   await expect(page).toHaveURL(/\/authorize$/u);
-  await expect(page.getByRole("heading", { name: "Invalid authorization request" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Invalid sign-in link." })).toBeVisible();
   expect(await page.evaluate(() => window.location.search)).toBe("");
   expect(await page.evaluate(() => window.location.hash)).toBe("");
   const renderedState = await page.locator("main").innerHTML();
@@ -567,12 +573,28 @@ test("rejects an unsafe relay without adding it to CSP", async ({ page }) => {
   expectAuthorizationPersistenceSafe(persistence);
   await expectNoSensitiveBrowserLeaks(page, leakMonitor, [persistence]);
 
-  // Leaving a finished request loads `/` anew.
+  // Leaving a finished request loads `/` anew; in a tab of its own the way out says so.
   const homeResponse = waitForHomeDocument(page);
-  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.getByRole("button", { name: "Go to Passport" }).click();
   expect((await homeResponse).ok()).toBe(true);
   await expect(page).toHaveURL(/\/$/u);
   await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
+});
+
+test("sends an invalid link in a tab back to the app that sent it, not into onboarding", async ({
+  page,
+}) => {
+  await page.route("https://client.example/**", (route) =>
+    route.fulfill({ body: "<!doctype html><title>Client</title>", contentType: "text/html" }),
+  );
+  await page.goto("https://client.example/start");
+  await page.goto(authorizationUrl("pubkyauth://signin?caps=nope"));
+
+  await expect(page.getByRole("heading", { name: "Invalid sign-in link." })).toBeVisible();
+  // Passport's start page stays a side action.
+  await expect(page.getByRole("button", { name: "Go to Passport" })).toBeVisible();
+  await page.getByRole("button", { name: "Back to the app" }).click();
+  await expect(page).toHaveURL("https://client.example/start");
 });
 
 test("reviews and scrubs a v0.10 grant authorization request", async ({ page }) => {
@@ -765,7 +787,10 @@ async function expectEntryWithoutRequest(page: Page, path: RegExp): Promise<void
 async function chooseSavedIdentity(page: Page): Promise<void> {
   await expectIdentityList(page);
   await identityList(page).getByRole("button").first().click();
-  await expect(page.getByRole("button", { name: "Authorize", exact: true })).toBeVisible();
+  // A request for broad access names what its primary action gives.
+  await expect(
+    page.getByRole("button", { name: /^(?:Authorize|Allow (?:reading|changing) all .+)$/u }),
+  ).toBeVisible();
 }
 
 function identityList(page: Page) {

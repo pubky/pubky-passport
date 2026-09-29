@@ -14,19 +14,33 @@ import {
   handoffAuthorizationOutcome,
 } from "./authorizationOutcomeHandoff";
 
-/** Finite, render-safe states emitted by the authorization controller. */
+/**
+ * Why an approval failed: `identity` when Passport could not unlock the chosen identity's key in
+ * this browser (another identity, or the key restored from a backup, may work), `delivery` when
+ * the approval was not made or did not reach the app (only a new sign-in from the app can help).
+ */
+export type AuthorizationFailureReason = "identity" | "delivery";
+
+/**
+ * Finite, render-safe states emitted by the authorization controller. Every state of a supplied
+ * request keeps its safe `review`, so outcome screens can name the app they answered.
+ */
 export type PassportAuthorizationViewState =
   | { status: "manual-entry" }
+  /** The request's link could not be used: malformed, unsafe or in an unsupported form. */
   | { status: "invalid" }
+  /** The request was captured but Passport's page took too long to load to take it. */
+  | { status: "expired" }
   | { status: "review"; review: AuthorizationRequestReview }
   | { status: "preparing"; review: AuthorizationRequestReview }
   | { status: "granting"; review: AuthorizationRequestReview }
-  | { status: "completing"; review: AuthorizationRequestReview }
-  | { status: "approved" }
+  /** The outcome is being handed back to the app; `outcome` says which one. */
+  | { status: "completing"; review: AuthorizationRequestReview; outcome: AuthorizationOutcome }
+  | { status: "approved"; review: AuthorizationRequestReview }
   /** Handed to an external signer; Passport cannot see whether it approved. */
-  | { status: "handed-off" }
-  | { status: "cancelled" }
-  | { status: "failed" };
+  | { status: "handed-off"; review: AuthorizationRequestReview }
+  | { status: "cancelled"; review: AuthorizationRequestReview }
+  | { status: "failed"; review: AuthorizationRequestReview; reason: AuthorizationFailureReason };
 
 type LocalTerminalState = Extract<
   PassportAuthorizationViewState,
@@ -76,7 +90,14 @@ export class PassportAuthorizationController {
     entry: AuthorizationEntry,
   ) {
     if (entry.status !== "valid") {
-      this.state = { status: entry.status === "empty" ? "manual-entry" : "invalid" };
+      this.state = {
+        status:
+          entry.status === "empty"
+            ? "manual-entry"
+            : entry.status === "expired"
+              ? "expired"
+              : "invalid",
+      };
       return;
     }
 
@@ -133,11 +154,12 @@ export class PassportAuthorizationController {
         if (!this.disposed) this.update({ status: "granting", review });
       },
     );
-    return this.completeRequestOutcome(
-      action.request,
-      Result.isOk(result) ? "success" : "error",
+    if (Result.isOk(result)) return this.completeRequestOutcome(action.request, "success", review);
+    return this.completeRequestOutcome(action.request, "error", review, {
+      status: "failed",
       review,
-    );
+      reason: result.error.code === "identity_unavailable" ? "identity" : "delivery",
+    });
   }
 
   async cancel(): Promise<PassportAuthorizationViewState> {
@@ -159,6 +181,7 @@ export class PassportAuthorizationController {
 
     return this.completeRequestOutcome(action.request, "success", action.review, {
       status: "handed-off",
+      review: action.review,
     });
   }
 
@@ -175,7 +198,7 @@ export class PassportAuthorizationController {
     request: ValidatedPubkyAuthRequest,
     outcome: AuthorizationOutcome,
     review: AuthorizationRequestReview,
-    localState: LocalTerminalState = localStateForOutcome(outcome),
+    localState: LocalTerminalState = localStateForOutcome(outcome, review),
   ): Promise<PassportAuthorizationViewState> {
     if (this.disposed) {
       request.release();
@@ -186,7 +209,7 @@ export class PassportAuthorizationController {
     const callback = request.takeOutcomeCallback(outcome);
     if (!callback) return this.update(localState);
 
-    this.update({ status: "completing", review });
+    this.update({ status: "completing", review, outcome });
     let handoffStatus: Awaited<ReturnType<typeof handoffAuthorizationOutcome>>;
     try {
       handoffStatus = await handoffAuthorizationOutcome(
@@ -228,13 +251,16 @@ export class PassportAuthorizationController {
   }
 }
 
-function localStateForOutcome(outcome: AuthorizationOutcome): LocalTerminalState {
+function localStateForOutcome(
+  outcome: AuthorizationOutcome,
+  review: AuthorizationRequestReview,
+): LocalTerminalState {
   switch (outcome) {
     case "success":
-      return { status: "approved" };
+      return { status: "approved", review };
     case "error":
-      return { status: "failed" };
+      return { status: "failed", review, reason: "delivery" };
     case "cancel":
-      return { status: "cancelled" };
+      return { status: "cancelled", review };
   }
 }

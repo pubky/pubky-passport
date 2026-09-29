@@ -144,14 +144,19 @@ describe("UniversalSignerFlow identity navigation", () => {
     expect(await screen.findByRole("heading", { name: "Get your pubky." })).toBeInTheDocument();
   });
 
-  it("offers to reload when local identity storage is unavailable", async () => {
+  it("says why identities are unavailable and offers to reload once that is fixed", async () => {
     FLOW.storageUnavailable = true;
     renderSigner();
 
+    expect(await screen.findByRole("heading", { name: "Identities unavailable." })).toBeVisible();
     expect(
-      await screen.findByText("Passport could not read identities stored in this browser."),
+      screen.getByText(
+        /Your browser is blocking Passport's storage\. This happens in private windows/u,
+      ),
     ).toBeInTheDocument();
+    expect(screen.getByText("Allow site data for this site, then try again.")).toBeVisible();
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Pubky Ring/u })).not.toBeInTheDocument();
   });
 
   it("keeps onboarding mounted until setup completion is acknowledged", async () => {
@@ -200,7 +205,7 @@ describe("UniversalSignerFlow identity navigation", () => {
     renderSigner();
     expect(await screen.findByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
     // Passport manages the Pubky profile; without profile.json the Google name is not used.
-    expect(screen.getByRole("heading", { name: "Your Pubky" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Pubky identity" })).toBeInTheDocument();
     expect(screen.queryByText("Satoshi Nakamoto")).not.toBeInTheDocument();
     expect(
       screen.getByRole("group", { name: "Attached Google account: satoshi@gmail.com" }),

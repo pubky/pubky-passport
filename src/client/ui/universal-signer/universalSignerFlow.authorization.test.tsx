@@ -132,7 +132,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
       identities: [FIRST, SECOND],
     };
     MOCKS.approve.mockResolvedValue({ status: "granting", review: REVIEW });
-    MOCKS.cancel.mockResolvedValue({ status: "cancelled" });
+    MOCKS.cancel.mockResolvedValue({ status: "cancelled", review: REVIEW });
     MOCKS.select.mockImplementation((publicKeyZ32: string) => {
       if (!MOCKS.catalog) return Result.err({ code: "storage_unavailable" as const });
       MOCKS.catalog = { ...MOCKS.catalog, activePublicKeyZ32: publicKeyZ32 };
@@ -155,7 +155,9 @@ describe("UniversalSignerFlow with an authorization request", () => {
   const renderReview = async () => {
     const view = renderFlow();
     await userEvent.setup().click(await screen.findByRole("button", { name: /First User/u }));
-    await screen.findByRole("button", { name: "Authorize" });
+    await screen.findByRole("button", {
+      name: /^(?:Authorize|Allow (?:reading|changing) all .+)$/u,
+    });
     return view;
   };
 
@@ -189,14 +191,14 @@ describe("UniversalSignerFlow with an authorization request", () => {
       within(permissions)
         .getAllByRole("listitem")
         .map((item) => item.textContent),
-    ).toEqual(["/pub/requesting.app/, Read & write", "/pub/paykit/, Read only"]);
+    ).toEqual([
+      "This app's own data, /pub/requesting.app/, Read & write",
+      "Another app's data: “paykit”, /pub/paykit/, Read only",
+    ]);
     expect(screen.getByText("First User")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Make sure you trust this service, browser, or device before authorizing with your pubky.",
-        { exact: false },
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/^Authorizing will allow/u).closest("p")).toHaveTextContent(
+      "Only continue if you just started signing in to requesting.app. The app will see your public key (firs…-key) and your public profile, but not your secret key or your Google account.",
+    );
     expect(
       screen.getByText(/allow requesting\.app to read and update your data/u),
     ).toBeInTheDocument();
@@ -407,7 +409,10 @@ describe("UniversalSignerFlow with an authorization request", () => {
     expect(permissionHeading).toHaveClass("leading-5");
     expect(permissionSection).toHaveClass("p-[15px]");
     expect(
-      Array.from(permissionSection?.querySelectorAll("bdi") ?? [], (path) => path.textContent),
+      Array.from(
+        permissionSection?.querySelectorAll("bdi.font-mono") ?? [],
+        (path) => path.textContent,
+      ),
     ).toEqual(["/pub/ordinary.app/", "/pub/", "/priv/vault/", "/"]);
   });
 
@@ -464,14 +469,15 @@ describe("UniversalSignerFlow with an authorization request", () => {
   it.each(["review", "completing"] as const)(
     "never shows x-source in the context band during %s",
     async (status) => {
-      MOCKS.authorizationState = {
-        status,
-        review: {
-          authenticationMethod: REVIEW.authenticationMethod,
-          capabilities: REVIEW.capabilities,
-          requesterName: "bank.example",
-        },
+      const review = {
+        authenticationMethod: REVIEW.authenticationMethod,
+        capabilities: REVIEW.capabilities,
+        requesterName: "bank.example",
       };
+      MOCKS.authorizationState =
+        status === "completing"
+          ? { status, review, outcome: "success" }
+          : { status: "review", review };
 
       renderFlow();
 
@@ -483,16 +489,30 @@ describe("UniversalSignerFlow with an authorization request", () => {
     },
   );
 
-  it("uses a neutral progress label while completing the callback", async () => {
-    MOCKS.authorizationState = { status: "completing", review: REVIEW };
+  it("shows a refusal on Cancel, never as an approval, while it goes back to the app", async () => {
+    MOCKS.authorizationState = { status: "completing", review: REVIEW, outcome: "cancel" };
 
     renderFlow();
 
-    expect(await screen.findByRole("button", { name: "Completing…" })).toHaveAttribute(
+    expect(await screen.findByRole("button", { name: "Cancelling…" })).toHaveAttribute(
       "aria-disabled",
       "true",
     );
+    expect(screen.getByRole("button", { name: "Authorize" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Completing|Returning/u })).toBeNull();
     expect(screen.getByLabelText("Signing in to requesting.app")).toBeInTheDocument();
+  });
+
+  it("says an approval goes back to the app while completing its callback", async () => {
+    MOCKS.authorizationState = { status: "completing", review: REVIEW, outcome: "success" };
+
+    renderFlow();
+
+    expect(await screen.findByRole("button", { name: "Returning to the app…" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Returning to requesting.app…");
   });
 
   it.each(["preparing", "granting", "completing"] as const)(
@@ -500,7 +520,10 @@ describe("UniversalSignerFlow with an authorization request", () => {
     async (status) => {
       await renderReview();
       act(() => {
-        MOCKS.authorizationState = { status, review: REVIEW };
+        MOCKS.authorizationState =
+          status === "completing"
+            ? { status, review: REVIEW, outcome: "success" }
+            : { status, review: REVIEW };
         MOCKS.authorizationListener?.();
       });
       expect(screen.getByRole("button", { name: "Switch identity" })).toBeDisabled();
@@ -550,7 +573,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
 
     await user.click(await screen.findByRole("button", { name: /Second User/u }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Could not choose this identity.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't choose this identity.");
     expect(screen.queryByRole("button", { name: "Authorize" })).not.toBeInTheDocument();
   });
 
@@ -615,7 +638,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
       await screen.findByRole("heading", { name: "Authorize a service." }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("heading", { name: "Invalid authorization request" }),
+      screen.queryByRole("heading", { name: "Invalid sign-in link." }),
     ).not.toBeInTheDocument();
   });
 
@@ -624,7 +647,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
     renderFlow();
 
     expect(
-      await screen.findByRole("heading", { name: "Invalid authorization request" }),
+      await screen.findByRole("heading", { name: "Invalid sign-in link." }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Authorize a service." })).not.toBeInTheDocument();
   });
@@ -646,7 +669,8 @@ describe("UniversalSignerFlow with an authorization request", () => {
     await waitFor(() => expect(screen.getByText("Second User")).toBeInTheDocument());
     expect(MOCKS.select).toHaveBeenLastCalledWith(SECOND.publicIdentity.publicKeyZ32);
     expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
-    expect(screen.getByText("seco...-key")).toHaveClass("uppercase");
+    // The key keeps its own case in the review, as in the list.
+    expect(screen.getByText("seco…-key")).not.toHaveClass("uppercase");
   });
 
   it("adds an identity with Google or a backup from the list without losing the request", async () => {
@@ -824,7 +848,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
     const user = userEvent.setup();
     MOCKS.catalog = undefined;
     MOCKS.cancel.mockImplementation(async () => {
-      MOCKS.authorizationState = { status: "cancelled" };
+      MOCKS.authorizationState = { status: "cancelled", review: REVIEW };
       MOCKS.authorizationListener?.();
       return MOCKS.authorizationState;
     });
@@ -836,36 +860,31 @@ describe("UniversalSignerFlow with an authorization request", () => {
     expect(MOCKS.cancel).toHaveBeenCalledOnce();
     expect(MOCKS.approve).not.toHaveBeenCalled();
     // The outcome replaces the storage screen instead of hiding behind it.
-    expect(
-      await screen.findByRole("heading", { name: "Authorization cancelled." }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText("Passport could not read identities stored in this browser."),
-    ).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Sign-in cancelled." })).toBeInTheDocument();
+    expect(screen.queryByText(/blocking Passport's storage/u)).not.toBeInTheDocument();
   });
 
   it.each([
-    ["invalid", "Invalid authorization request"],
-    ["approved", "Authorization complete."],
-    ["failed", "Authorization failed."],
+    [{ status: "invalid" }, "Invalid sign-in link."],
+    [{ status: "expired" }, "Request expired."],
+    [{ status: "approved", review: REVIEW }, "Signed in to requesting.app"],
+    [{ status: "failed", review: REVIEW, reason: "delivery" }, "Couldn't reach requesting.app"],
   ] as const)(
-    "shows the %s state even when the identity catalog is unavailable",
-    async (status, heading) => {
+    "shows the %o state even when the identity catalog is unavailable",
+    async (state, heading) => {
       MOCKS.catalog = undefined;
-      MOCKS.authorizationState = { status };
+      MOCKS.authorizationState = state;
       renderFlow();
 
       expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
-      expect(
-        screen.queryByText("Passport could not read identities stored in this browser."),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText(/blocking Passport's storage/u)).not.toBeInTheDocument();
     },
   );
 
   it("keeps an approval in progress visible when the identity catalog becomes unavailable", async () => {
     MOCKS.authorizationState = { status: "granting", review: REVIEW };
     renderFlow();
-    expect(await screen.findByRole("button", { name: "Granting access…" })).toHaveAttribute(
+    expect(await screen.findByRole("button", { name: "Signing in…" })).toHaveAttribute(
       "aria-disabled",
       "true",
     );
@@ -875,7 +894,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
       MOCKS.catalogListener?.();
     });
 
-    expect(screen.getByRole("button", { name: "Granting access…" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Signing in…" })).toHaveAttribute(
       "aria-disabled",
       "true",
     );
@@ -894,7 +913,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
 
     expect(leave()).toBe(true);
     act(() => {
-      MOCKS.authorizationState = { status: "cancelled" };
+      MOCKS.authorizationState = { status: "cancelled", review: REVIEW };
       MOCKS.authorizationListener?.();
     });
     expect(leave()).toBe(false);
@@ -924,27 +943,36 @@ describe("UniversalSignerFlow with an authorization request", () => {
 
   it.each([
     [
-      "approved",
-      "Authorization complete.",
-      "Continue",
-      "You can return to the app or device where you started.",
+      { status: "approved", review: REVIEW },
+      "Signed in to requesting.app",
+      "Passport sent your approval as First User. You can go back to requesting.app now.",
     ],
-    ["cancelled", "Authorization cancelled.", "Back", "No authorization was granted."],
     [
-      "failed",
-      "Authorization failed.",
-      "Back",
-      "Passport could not authorize this request with the selected identity.",
+      { status: "cancelled", review: REVIEW },
+      "Sign-in cancelled.",
+      "Nothing was shared with requesting.app.",
+    ],
+    [
+      { status: "failed", review: REVIEW, reason: "delivery" },
+      "Couldn't reach requesting.app",
+      "Your approval didn't reach requesting.app.",
+    ],
+    [
+      { status: "failed", review: REVIEW, reason: "identity" },
+      "Couldn't use First User.",
+      "Passport couldn't unlock the key of First User in this browser.",
     ],
   ] as const)(
-    "renders the safe local %s terminal state",
-    async (status, heading, action, message) => {
-      MOCKS.authorizationState = { status };
+    "renders the safe local %o terminal state, naming the app",
+    async (state, heading, message) => {
+      MOCKS.authorizationState = state;
       renderFlow();
 
       expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
       expect(screen.getByText(message)).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: action })).toBeInTheDocument();
+      // The band still names the website the request came from.
+      expect(screen.getByLabelText("Sign-in request from requesting.app")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Go to Passport" })).toBeInTheDocument();
     },
   );
 });

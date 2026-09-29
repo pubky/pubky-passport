@@ -6,7 +6,10 @@ import type {
   LocalIdentityHomeserverRepublishResult,
   LocalIdentityRecoveryFileResult,
 } from "@/client/logic/local-identity/LocalIdentityController";
-import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
+import type {
+  LocalIdentityErrorCode,
+  LocalIdentityResult,
+} from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityCatalog } from "@/client/logic/local-identity/localIdentityModels";
 import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubkyIdentityKey";
 import type { PubkyRingMigration } from "@/client/logic/pubky/PubkySdkAdapter";
@@ -37,9 +40,20 @@ type IdentityCatalogActions = {
   ) => Promise<LocalIdentityBackupCheckResult>;
 };
 
+/**
+ * Why saved identities cannot be read, as the screen explains it: the browser blocks Passport's
+ * storage (a private window, site data turned off), or what is stored cannot be read.
+ */
+type IdentityCatalogUnavailableReason = "storage_blocked" | "unreadable_store";
+
 type IdentityCatalogState =
   | { status: "loading" }
-  | { status: "unavailable" }
+  | {
+      status: "unavailable";
+      reason: IdentityCatalogUnavailableReason;
+      /** The repository's own error code, for support: it tells a corrupt catalog from a bad key. */
+      code: LocalIdentityErrorCode;
+    }
   | { status: "ready"; catalog: LocalIdentityCatalog; actions: IdentityCatalogActions };
 
 const SERVER_SNAPSHOT: IdentityCatalogState = { status: "loading" };
@@ -73,7 +87,12 @@ class IdentityCatalogStore {
     const catalog = this.controller.listIdentities();
     this.snapshot = Result.isOk(catalog)
       ? { status: "ready", catalog: catalog.value, actions: this.actions }
-      : { status: "unavailable" };
+      : {
+          status: "unavailable",
+          reason:
+            catalog.error.code === "storage_unavailable" ? "storage_blocked" : "unreadable_store",
+          code: catalog.error.code,
+        };
     this.dirty = false;
     return this.snapshot;
   };
@@ -92,4 +111,4 @@ function useIdentityCatalog(): IdentityCatalogState {
   return useSyncExternalStore(store.subscribe, store.getSnapshot, () => SERVER_SNAPSHOT);
 }
 
-export { useIdentityCatalog, type IdentityCatalogActions };
+export { useIdentityCatalog, type IdentityCatalogActions, type IdentityCatalogUnavailableReason };

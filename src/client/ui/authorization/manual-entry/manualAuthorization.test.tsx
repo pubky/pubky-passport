@@ -10,9 +10,11 @@ import { ManualAuthorization } from "./manualAuthorization";
 vi.mock("./authorizationQrScanner", () => ({
   AuthorizationQrScanner: ({
     onClose,
+    onPasteInstead,
     onScan,
   }: {
     onClose: () => void;
+    onPasteInstead: () => void;
     onScan: (value: string) => void;
   }) => (
     <div aria-label="Authorization QR scanner" role="dialog">
@@ -24,6 +26,9 @@ vi.mock("./authorizationQrScanner", () => ({
       </button>
       <button onClick={onClose} type="button">
         Close scanner
+      </button>
+      <button onClick={onPasteInstead} type="button">
+        Paste link instead
       </button>
     </div>
   ),
@@ -74,7 +79,8 @@ describe("ManualAuthorization", () => {
     );
     const back = screen.getByRole("button", { name: "Back" });
     const navigation = back.parentElement?.parentElement;
-    expect(navigation).toHaveClass("mt-auto", "md:mt-0", "md:pt-6");
+    // Always 24px between the field (or its error) and Back, also when the page overflows.
+    expect(navigation).toHaveClass("mt-auto", "pt-6", "md:mt-0");
     expect(
       back.compareDocumentPosition(scanButton) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
@@ -118,6 +124,19 @@ describe("ManualAuthorization", () => {
     );
     expect(screen.getByLabelText("Authorization link")).toHaveValue("");
     // The scanner closed; focus returns to the field instead of falling to the page.
+    expect(screen.getByLabelText("Authorization link")).toHaveFocus();
+  });
+
+  it("leaves a scanner without a camera for the link field", async () => {
+    const user = userEvent.setup();
+    render(<ManualAuthorization onBack={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "Scan QR" }));
+    await user.click(screen.getByRole("button", { name: "Paste link instead" }));
+
+    expect(
+      screen.queryByRole("dialog", { name: "Authorization QR scanner" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByLabelText("Authorization link")).toHaveFocus();
   });
 

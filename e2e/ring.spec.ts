@@ -151,7 +151,9 @@ test("without callbacks, the Ring screen sends the user back without claiming ap
   await page.getByRole("button", { name: "Open in Pubky Ring", exact: true }).click();
   await page.getByRole("button", { name: "I approved in Pubky Ring" }).click();
 
+  // Without callbacks the request names no website, so its own label names nothing here.
   await expect(page.getByRole("heading", { name: "Return to the app." })).toBeVisible();
+  await expect(page.getByText(/Client App/u)).toHaveCount(0);
   await expect(page.getByText(/Passport cannot see the approval in Pubky Ring/u)).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Authorization complete." })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: /^Signed in to/u })).toHaveCount(0);
 });

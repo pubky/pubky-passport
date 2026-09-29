@@ -5,7 +5,6 @@ import type { AuthorizationRequestReview } from "@/client/logic/authorization/re
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { IdentityRow } from "@/client/ui/identity-catalog/selection/identityRow";
 import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
-import { shortPublicKey } from "@/client/ui/shared/formatPublicKey";
 import { ArrowRightIcon, UserRoundPlusIcon, XIcon } from "@/client/ui/shared/icons";
 import { cn } from "@/client/ui/shared/mergeClassNames";
 import { Notice } from "@/client/ui/shared/notice";
@@ -108,11 +107,7 @@ export function ChooseIdentity({
               return (
                 <li className="shrink-0" key={publicKeyZ32}>
                   <IdentityRow
-                    avatarSrc={identity.avatarUrl ?? undefined}
-                    detail={shortPublicKey(publicKeyZ32)}
-                    googleAccount={identity.googleAccount}
-                    keyInRing={identity.keySource === "ring"}
-                    name={identity.profile?.name ?? "Your Pubky"}
+                    identity={identity}
                     onClick={() => onSelect(publicKeyZ32)}
                     trailing={<ArrowRightIcon className="shrink-0 text-muted-foreground" />}
                   />
@@ -139,7 +134,10 @@ export function ChooseIdentity({
         </>
       )}
       {selectionFailed ? (
-        <Notice tone="error">Could not choose this identity. Please try again.</Notice>
+        <Notice tone="error">
+          Couldn&apos;t choose this identity. Your browser didn&apos;t let Passport save your
+          choice. Try again.
+        </Notice>
       ) : null}
       <div className="flex flex-col gap-4 [@media(max-height:50rem)]:gap-3">
         {hasIdentities ? (

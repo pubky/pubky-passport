@@ -1,35 +1,18 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
-import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
-import { GoogleAccountTag } from "@/client/ui/shared/googleAccountTag";
+import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { CheckIcon } from "@/client/ui/shared/icons";
-import { IdentitySummary } from "@/client/ui/shared/identitySummary";
+import { SavedIdentitySummary } from "@/client/ui/shared/identitySummary";
 import { cn } from "@/client/ui/shared/mergeClassNames";
-import { RingKeyTag } from "@/client/ui/shared/ringKeyTag";
 
 type IdentityRowProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  avatarSrc?: string | undefined;
-  detail: string;
-  googleAccount?: GoogleAccountProfile | undefined;
-  /** Notes that the private key lives in Pubky Ring, outside the case-styled key line. */
-  keyInRing?: boolean | undefined;
-  name: string;
+  identity: LocalIdentityMetadata;
   selected?: boolean;
   /** Shown at the end of the row when it is not the selected one, e.g. a "continue" arrow. */
   trailing?: ReactNode;
 };
 
-function IdentityRow({
-  avatarSrc,
-  className,
-  detail,
-  googleAccount,
-  keyInRing = false,
-  name,
-  selected,
-  trailing,
-  ...props
-}: IdentityRowProps) {
+function IdentityRow({ className, identity, selected, trailing, ...props }: IdentityRowProps) {
   return (
     <button
       // Choosing a row switches to that identity; it toggles nothing, so the active row is the
@@ -42,20 +25,11 @@ function IdentityRow({
       type="button"
       {...props}
     >
-      <IdentitySummary
-        attachment={
-          keyInRing ? (
-            <RingKeyTag />
-          ) : googleAccount ? (
-            <GoogleAccountTag account={googleAccount} />
-          ) : undefined
-        }
+      <SavedIdentitySummary
         // A tag beside the key keeps rows short, so a list shows more of them.
         attachmentInline
-        avatarSrc={avatarSrc}
-        detail={detail}
-        detailClassName="lowercase group-hover:text-secondary-foreground group-focus-visible:text-secondary-foreground"
-        name={name}
+        detailClassName="group-hover:text-secondary-foreground group-focus-visible:text-secondary-foreground"
+        identity={identity}
       />
       {selected ? <CheckIcon className="text-brand" /> : trailing}
     </button>

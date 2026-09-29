@@ -23,11 +23,23 @@ export function describeRequester({ callbackHost, requesterName }: Authorization
  * the callback host goes with it, and a request without one is not named after its label at all.
  */
 export function requestWindowTitle(review: AuthorizationRequestReview): string {
+  return requesterWindowTitle("Sign in to", review) ?? "Sign-in request";
+}
+
+/**
+ * A window title that names the requester after `prefix` ("Signed in to Acme Notes
+ * (acme-notes.example)"), under the rule {@link requestWindowTitle} follows. `undefined` for a
+ * request without a callback host, whose screens use generic headings instead.
+ */
+export function requesterWindowTitle(
+  prefix: string,
+  review: AuthorizationRequestReview,
+): string | undefined {
+  if (review.callbackHost === undefined) return undefined;
   const { requester, labelledHost } = describeRequester(review);
-  if (review.callbackHost === undefined) return "Sign-in request";
   return labelledHost
-    ? `Sign in to ${requester} (${labelledHost})`
-    : `Sign in to ${review.callbackHost}`;
+    ? `${prefix} ${requester} (${labelledHost})`
+    : `${prefix} ${review.callbackHost}`;
 }
 
 /** Below this window height a compact heading leaves room for what the screen lists. */
@@ -57,6 +69,9 @@ export function RequestHeading({
         aria-label={`Sign in to ${requester}`}
         className={compact ? SHORT_WINDOW_HEADING : undefined}
         data-window-title={requestWindowTitle(review)}
+        // The app's name always starts its own line, so a long one that wraps at a smaller size
+        // never shares a line with the larger "Sign in to".
+        desktopAccentOnNewLine
       >
         Sign in to
       </DisplayHeading>
@@ -83,8 +98,14 @@ export function describesHost(review: AuthorizationRequestReview): boolean {
 }
 
 const MINIMUM_REQUESTER_FONT_SIZE_PX = 32;
+/** The line height of a requester shrunk below the heading's size, which keeps its own leading. */
+const FITTED_LINE_HEIGHT = "1.1";
 
-function FittedRequester({ children }: { children: string }) {
+/**
+ * An app-supplied name as a heading accent: shrunk to fit the column down to 32px, then wrapped,
+ * never cut, since cutting could hide words of the name.
+ */
+export function FittedRequester({ children }: { children: string }) {
   const requesterRef = useRef<HTMLElement>(null);
 
   useLayoutEffect(() => {
@@ -94,11 +115,12 @@ function FittedRequester({ children }: { children: string }) {
 
     const fit = () => {
       requester.style.removeProperty("font-size");
+      requester.style.removeProperty("line-height");
       requester.style.whiteSpace = "nowrap";
 
       const availableWidth = container.clientWidth;
-      // `scrollWidth` is 0 while the requester itself is inline (desktop); the bounding box then
-      // carries the single-line text width.
+      // An inline requester (an accent that shares its line) has no `scrollWidth`; its bounding
+      // box then carries the single-line text width.
       const requiredWidth = Math.max(
         requester.scrollWidth,
         requester.getBoundingClientRect().width,
@@ -110,6 +132,7 @@ function FittedRequester({ children }: { children: string }) {
 
       const fittedFontSize = (baseFontSize * availableWidth) / requiredWidth;
       requester.style.fontSize = `${Math.max(MINIMUM_REQUESTER_FONT_SIZE_PX, fittedFontSize)}px`;
+      requester.style.lineHeight = FITTED_LINE_HEIGHT;
       if (fittedFontSize < MINIMUM_REQUESTER_FONT_SIZE_PX) requester.style.whiteSpace = "normal";
     };
 
@@ -130,15 +153,16 @@ function FittedRequester({ children }: { children: string }) {
   }, [children]);
 
   return (
-    <bdi className="block break-words md:inline" ref={requesterRef}>
+    <bdi className="block break-words" ref={requesterRef}>
       {children}
     </bdi>
   );
 }
 
 /**
- * The accent wrapper is `display: inline` on desktop, where `clientWidth` is always 0, so the
- * requester is fitted against the nearest block-level ancestor (the heading) instead.
+ * An accent wrapper that shares the heading's line on desktop is `display: inline`, where
+ * `clientWidth` is always 0, so the requester is fitted against the nearest block-level ancestor
+ * (the heading) instead.
  */
 function nearestBlockContainer(element: HTMLElement): HTMLElement | null {
   let container = element.parentElement;

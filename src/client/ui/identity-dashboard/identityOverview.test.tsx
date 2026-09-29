@@ -66,7 +66,7 @@ describe("IdentityOverview", () => {
     [
       "a checked backup file",
       { backup: { verifiedAt: BACKUP_AT } },
-      `Key in this browser, backup checked ${formatBackupDate(new Date(BACKUP_AT))}`,
+      `Recovery file checked ${formatBackupDate(new Date(BACKUP_AT))}`,
     ],
     [
       "a Google Drive copy",
@@ -88,5 +88,32 @@ describe("IdentityOverview", () => {
     expect(document.querySelector('[data-tone="warning"]')).toBeNull();
     expect(screen.queryByRole("button", { name: "Download backup" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Check backup" })).not.toBeInTheDocument();
+  });
+
+  it("shows where the key lives in the tag every list uses", () => {
+    renderOverview({ publicIdentity: PUBLIC_IDENTITY, backup: { verifiedAt: BACKUP_AT } });
+
+    const tag = screen.getByText("Key in this browser");
+    expect(tag).toHaveClass("rounded-2xl", "border");
+    expect(screen.queryByText(/^Key in this browser, /u)).toBeNull();
+  });
+
+  it("names an identity without a profile after its key, with a key-coloured avatar", () => {
+    renderOverview({ publicIdentity: PUBLIC_IDENTITY });
+
+    expect(screen.getByRole("heading", { level: 2, name: "Pubky 1aeh…dwdy" })).toBeVisible();
+    expect(screen.queryByText("Your Pubky")).toBeNull();
+    const avatar = document.querySelector("[data-unnamed]");
+    expect(avatar).not.toBeNull();
+    expect(avatar).not.toHaveTextContent(/\S/u);
+    expect(avatar?.getAttribute("style")).toMatch(/background-color: rgb\(/u);
+  });
+
+  it("shows initials and no key colour for a named identity", () => {
+    renderOverview({ publicIdentity: PUBLIC_IDENTITY, profile: { name: "Satoshi" } });
+
+    expect(screen.getByRole("heading", { level: 2, name: "Satoshi" })).toBeVisible();
+    expect(document.querySelector("[data-unnamed]")).toBeNull();
+    expect(screen.getByText("SA")).toBeInTheDocument();
   });
 });

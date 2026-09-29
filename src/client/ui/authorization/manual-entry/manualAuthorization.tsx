@@ -152,7 +152,9 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
         </div>
         <PassportNavigation
           back={<BackButton onClick={onBack} />}
-          className="mt-auto md:mt-0 md:pt-6"
+          // The padding keeps the field and its error clear of Back when the page is taller than
+          // the window, where `mt-auto` gives no room.
+          className="mt-auto pt-6 md:mt-0"
           confirm={
             <div className="flex flex-col gap-4">
               <Button
@@ -174,7 +176,14 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
         />
       </form>
       {scannerOpen ? (
-        <AuthorizationQrScanner onClose={() => setScannerOpen(false)} onScan={scan} />
+        <AuthorizationQrScanner
+          onClose={() => setScannerOpen(false)}
+          onPasteInstead={() => {
+            setScannerOpen(false);
+            refocusInput();
+          }}
+          onScan={scan}
+        />
       ) : null}
     </PassportScreen>
   );

@@ -499,8 +499,16 @@ test("saved identity rows do not overflow mobile or desktop", async ({ page }) =
   await page.goto("/");
 
   await page.getByRole("button", { name: "Manage identity" }).click();
-  const accountRow = page.getByText("First@example.com", { exact: true });
+  // The account shows in its own section and, as where the key lives, under the profile name.
+  const accountRow = page
+    .getByRole("region", { name: "Google account" })
+    .getByText("First@example.com", { exact: true });
   await expect(accountRow).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "Public profile" })
+      .getByText("First@example.com", { exact: true }),
+  ).toBeVisible();
   await page.evaluate(async () => document.fonts.ready);
 
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);

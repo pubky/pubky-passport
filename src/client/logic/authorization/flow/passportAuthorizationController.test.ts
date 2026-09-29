@@ -111,7 +111,7 @@ describe("PassportAuthorizationController", () => {
     );
     completeApproval?.();
 
-    await expect(first).resolves.toMatchObject({ status: "completing" });
+    await expect(first).resolves.toMatchObject({ status: "completing", outcome: "success" });
     await expect(second).resolves.toMatchObject({ status: "granting" });
     expect(handoffOutcome).toHaveBeenCalledWith(
       window,
@@ -135,7 +135,11 @@ describe("PassportAuthorizationController", () => {
     );
 
     const cancelled = createController({ handoffOutcome }).controller;
-    await cancelled.cancel();
+    // While the answer goes back, the state says it is a refusal, never an approval.
+    await expect(cancelled.cancel()).resolves.toMatchObject({
+      status: "completing",
+      outcome: "cancel",
+    });
     expect(handoffOutcome).toHaveBeenLastCalledWith(
       window,
       CANCEL_CALLBACK,
@@ -202,12 +206,14 @@ describe("PassportAuthorizationController", () => {
     const withoutCallbacks = createController({ handoffOutcome }, { callbacks: false }).controller;
     await expect(withoutCallbacks.finishExternalApproval()).resolves.toEqual({
       status: "handed-off",
+      review: expect.any(Object),
     });
     expect(handoffOutcome).not.toHaveBeenCalled();
 
     const unreachable = createController({ handoffOutcome }).controller;
     await expect(unreachable.finishExternalApproval()).resolves.toEqual({
       status: "handed-off",
+      review: expect.any(Object),
     });
     expect(warning).toHaveBeenCalledWith("authorize.callback.failed", {
       outcome: "success",
@@ -221,25 +227,35 @@ describe("PassportAuthorizationController", () => {
     const { controller } = createController({ handoffOutcome }, { callbacks: false });
     await controller.cancel();
 
-    await expect(controller.finishExternalApproval()).resolves.toEqual({ status: "cancelled" });
+    await expect(controller.finishExternalApproval()).resolves.toMatchObject({
+      status: "cancelled",
+    });
     expect(handoffOutcome).not.toHaveBeenCalled();
   });
 
-  it("uses one render state for approval failure", async () => {
-    MOCKS.approveAuthorization.mockResolvedValueOnce(
-      Result.err({
-        code: "approval_failed",
-        cause: new Error(SECRET),
-      }),
-    );
-    const { controller } = createController({}, { callbacks: false });
+  it.each([
+    ["approval_failed", "delivery"],
+    ["identity_unavailable", "identity"],
+  ] as const)(
+    "tells a %s failure apart as a %s failure, without exposing its cause",
+    async (code, reason) => {
+      MOCKS.approveAuthorization.mockResolvedValueOnce(
+        Result.err({
+          code,
+          cause: new Error(SECRET),
+        }),
+      );
+      const { controller, entry } = createController({}, { callbacks: false });
+      if (entry.status !== "valid") throw new Error("Expected a valid entry");
 
-    const state = await controller.approve(SELECTED_IDENTITY);
+      const state = await controller.approve(SELECTED_IDENTITY);
 
-    expect(state).toEqual({ status: "failed" });
-    expect(JSON.stringify(state)).not.toContain(SECRET);
-    expect(state).not.toHaveProperty("cause");
-  });
+      // The review stays, so the outcome can name the app; the cause never reaches the view.
+      expect(state).toEqual({ status: "failed", reason, review: entry.request.review });
+      expect(JSON.stringify(state)).not.toContain(SECRET);
+      expect(state).not.toHaveProperty("cause");
+    },
+  );
 
   it("contains handoff exceptions without exposing them to view state", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
@@ -252,7 +268,7 @@ describe("PassportAuthorizationController", () => {
 
     const state = await controller.approve(SELECTED_IDENTITY);
 
-    expect(state).toEqual({ status: "approved" });
+    expect(state).toMatchObject({ status: "approved" });
     expect(state).not.toHaveProperty("cause");
     expect(warning).toHaveBeenCalledWith("authorize.callback.failed", {
       outcome: "success",
@@ -271,7 +287,7 @@ describe("PassportAuthorizationController", () => {
       throw new Error("listener exploded");
     });
 
-    await expect(controller.cancel()).resolves.toEqual({ status: "cancelled" });
+    await expect(controller.cancel()).resolves.toMatchObject({ status: "cancelled" });
     expect(warning).toHaveBeenCalledOnce();
     expect(warning).toHaveBeenCalledWith("authorize.state_listener.failed", {
       state: "cancelled",
@@ -335,7 +351,8 @@ describe("PassportAuthorizationController", () => {
 
   it.each([
     ["empty", "manual-entry"],
-    ["expired", "invalid"],
+    ["expired", "expired"],
+    ["invalid", "invalid"],
   ] as const)("maps an %s entry to %s", (entryStatus, viewStatus) => {
     const { controller } = createController({}, { status: entryStatus });
 

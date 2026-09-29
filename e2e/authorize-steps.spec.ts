@@ -107,9 +107,10 @@ test.describe("choosing an identity first", () => {
     for (const bottom of await bottoms(page, ["Create account", "Open in Pubky Ring"]))
       expect(bottom).toBeLessThanOrEqual(POPUP.height);
 
-    await page.getByRole("button", { name: /tkrq\.\.\.p7qy/u }).click();
+    await page.getByRole("button", { name: /tkrq…p7qy/u }).click();
     const selected = page.getByRole("region", { name: "Selected identity" });
-    await expect(selected).toContainText(/tkrq\.\.\.p7qy/iu);
+    // The key keeps its own case in the review, as in the list.
+    await expect(selected).toContainText("Pubky tkrq…p7qy");
     await expect(page.getByRole("list", { name: "Requested permissions" })).toBeVisible();
     // The primary action stays in view in the popup, beside Cancel.
     const [cancel, authorize] = await bottoms(page, ["Cancel", "Authorize"]);
@@ -118,7 +119,7 @@ test.describe("choosing an identity first", () => {
 
     await page.getByRole("button", { name: "Switch identity", exact: true }).click();
     await expect(identityList(page).getByRole("button")).toHaveCount(3);
-    await expect(identityList(page).getByRole("button").first()).toContainText("tkrq...p7qy");
+    await expect(identityList(page).getByRole("button").first()).toContainText("tkrq…p7qy");
   });
 
   test("with no identity, offers only the ways in, creating an account first", async ({ page }) => {
@@ -263,7 +264,7 @@ test.describe("reading profiles", () => {
     expect(relayReads).toEqual([]);
 
     await identityList(page)
-      .getByRole("button", { name: /1aeh\.\.\.dwdy/u })
+      .getByRole("button", { name: /1aeh…dwdy/u })
       .click();
     await expect(page.getByRole("list", { name: "Requested permissions" })).toBeVisible();
     await expect.poll(() => relayReads.length).toBeGreaterThan(0);

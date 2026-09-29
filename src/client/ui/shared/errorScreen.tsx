@@ -26,11 +26,17 @@ function ErrorScreen({
   nextStep,
   secondaryAction,
   title,
+  windowTitle,
 }: {
   title: ReactNode;
   accent: ReactNode;
   /** The heading's accessible name when its visible text differs between viewports. */
   label?: string | undefined;
+  /**
+   * The window title, when the heading's own name would not do as one (it names the app by a
+   * label the app chose; see `PassportScreen`).
+   */
+  windowTitle?: string | undefined;
   /** What went wrong, in plain words. */
   cause: ReactNode;
   /** What the person can do now; omit it when the actions alone say so. */
@@ -66,6 +72,7 @@ function ErrorScreen({
           aria-describedby={nextStep ? `${causeId} ${nextStepId}` : causeId}
           aria-label={label}
           className="outline-none"
+          data-window-title={windowTitle}
           ref={heading}
           tabIndex={-1}
         >

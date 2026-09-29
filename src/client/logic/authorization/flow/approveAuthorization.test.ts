@@ -192,8 +192,9 @@ describe("approveAuthorization", () => {
 
     expect(Result.isError(result)).toBe(true);
     if (Result.isOk(result)) throw new Error("Expected approval to fail");
+    // The key could not be used: another identity, or this one restored, may still work.
     expect(result.error).toEqual({
-      code: "approval_failed",
+      code: "identity_unavailable",
       cause: { code: "identity_mismatch" },
     });
     expect(MOCKS.restoreIdentityKey).not.toHaveBeenCalled();
@@ -236,6 +237,24 @@ describe("approveAuthorization", () => {
     await expectCleanup();
   });
 
+  it("reports an exception while restoring the key as an identity failure", async () => {
+    const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
+    const restoreError = new Error(`restore exploded ${SECRET}`);
+    MOCKS.restoreIdentityKey.mockRejectedValueOnce(restoreError);
+
+    const result = await approveAuthorization(validatedRequest(), SELECTED_IDENTITY);
+
+    if (Result.isOk(result)) throw new Error("Expected approval to fail");
+    expect(result.error).toEqual({ code: "identity_unavailable", cause: restoreError });
+    expect(warning).toHaveBeenCalledWith("authorize.approval.failed", {
+      stage: "identity_restore",
+      code: "unexpected_failure",
+      diagnosticId: expect.any(String),
+      errorName: "Error",
+    });
+    expect(MOCKS.approveAuthRequest).not.toHaveBeenCalled();
+  });
+
   it("preserves expected SDK approval failures without logging their details", async () => {
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const sdkCause = new Error(`lower SDK failure ${SECRET}`);
@@ -272,7 +291,7 @@ describe("approveAuthorization", () => {
 
     if (Result.isOk(result)) throw new Error("Expected approval to fail");
     expect(result.error).toEqual({
-      code: "approval_failed",
+      code: "identity_unavailable",
       cause: { code: "restore_failed", cause: restoreFailure },
     });
     expect(warning).toHaveBeenCalledWith("authorize.approval.failed", {

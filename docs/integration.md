@@ -49,20 +49,35 @@ import directly); without saved identities it shows only those options, with **C
 recommended. Every step names your app the way permission review does: with your callback host
 when your `x-source` label differs from it, or with a notice when the request has no callbacks. The
 list reads no profiles: it shows the names and avatars kept from earlier reads.
-Choosing an identity opens the permission review, with **Authorize**, **Cancel** and **Switch**
-back to the list. Identities held in Ring are labelled **Key in Pubky Ring**; their review shows
-one action, **Continue in Pubky Ring**, and says that the identity is chosen in Ring. **Open in Pubky Ring** hands your request to Ring unchanged: on a phone or tablet
-(a coarse pointer) it follows the `pubkyauth://` link at once and shows the QR code if the page is
+Choosing an identity opens the permission review, with **Authorize**, **Cancel** and **Switch** back
+to the list. Each identity shows where its key lives (**Key in Pubky Ring**, **Key in this
+browser**, or its attached Google account), and one without a public profile is named after its key.
+Identities held in Ring show one action, **Continue in Pubky Ring**, and say that the identity is
+chosen in Ring. **Open in Pubky Ring** hands your request to Ring unchanged: on a phone or tablet (a
+coarse pointer) it follows the `pubkyauth://` link at once and shows the QR code if the page is
 still in view about two seconds later, because Ring did not open; with a mouse or trackpad (a fine
-pointer, such as your desktop popup) it shows the QR code directly, since a computer cannot open
-the link. Passport cannot see Ring's approval, so **I approved in Pubky Ring** reports `success`
-(see [Outcome messages](#outcome-messages)). Switching identities or creating an account preserves
-the original request; a new account is asked for its public profile once, and **Finish later**
-there goes on to the review. A request for broad access (for example `/:rw`) is flagged on the
-list and on the Pubky Ring screen as well as on the review. Local approval always requires an
-explicit **Authorize** action. Opening `/` without a request shows the selected identity overview,
-or the add screen on first use. An unfinished local account setup resumes its saved key and backup
-step after a reload.
+pointer, such as your desktop popup) it shows the QR code directly, since a computer cannot open the
+link. Passport cannot see Ring's approval, so **I approved in Pubky Ring** reports `success` (see
+[Outcome messages](#outcome-messages)). Switching identities or creating an account preserves the
+original request; a new account is asked for its public profile once, and **Finish later** there
+goes on to the review. A request for broad access (for example `/:rw`) is flagged on the list and on
+the Pubky Ring screen as well as on the review, where its primary action names what it gives, such
+as **Allow changing all your data** or **Allow reading all public data**, and the sentence above it
+says the same. Each permission shows a plain title above its exact path, and tells your own folder
+(`/pub/<callback host>/`) from the folders of other apps. A long list folds away only entries in
+your own public folder; broad entries, the Pubky App's folders, private folders and other apps'
+folders always stay in view, and a request without callbacks never folds. Local approval always
+requires an explicit **Authorize** (or **Allow …**) action. When the answer cannot reach your app
+through a callback, Passport ends on an outcome screen: an approval, a cancellation, an approval that
+did not reach the relay (the user starts again in your app), or an identity whose key could not be
+unlocked in the browser. It names your app only when the request has callbacks, beside their host;
+your `x-source` label alone never names it. A request that expired before Passport loaded is told
+apart from a link that cannot be used. Each of these offers **Close window** in your popup; in a tab
+of its own, the expired and invalid screens go **Back to the app** when your page sent the user
+there, and the others offer a way to Passport's start page. If the browser blocks Passport's storage
+during a request, Passport offers **Continue with Pubky Ring** beside **Cancel**. Opening `/` without a
+request shows the selected identity overview, or the add screen on first use. An unfinished local
+account setup resumes its saved key and backup step after a reload.
 
 While a request waits in a tab of its own (a same-tab redirect, or a popup whose opener has
 closed), Passport asks the browser to confirm before the page is reloaded, closed or navigated
