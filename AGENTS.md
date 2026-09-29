@@ -45,7 +45,7 @@ Playwright starts its own servers on `PASSPORT_E2E_PORT` (default 3100) and the 
 | `src/libs`                               | isomorphic                | nothing from `client`, `server`, the SDK or `pubky-app-specs`                       |
 
 - The SDK is imported only in `src/client/logic/pubky/PubkySdkAdapter.ts`, and `pubky-app-specs` (WASM, loaded with `import()`) only in `src/client/logic/profile/ProfileSpecsAdapter.ts`. Callers get plain data and `better-result` values, not SDK objects.
-- `src/client/logic` domains: `authorization` (request parsing, approval, outcome handoff), `pubky` (SDK adapter, PKARR republish, invite lookup), `profile` (profile read and write, Ring profile grant), `homegate` (SMS and Lightning invites), `local-account` (Passport-held account setup and drafts), `local-identity` (the identity catalog), `backup` (recovery-file import and check), `google-identity`, `passport-file` and `wrapping-key` (Google Drive recovery), `signup`, `universal-signer` (screen routing).
+- `src/client/logic` domains: `crypto` (shared WebCrypto primitives), `authorization` (request parsing, approval, outcome handoff), `pubky` (SDK adapter, PKARR republish, invite lookup), `profile` (profile read and write, Ring profile grant), `homegate` (SMS and Lightning invites), `local-account` (Passport-held account setup and drafts), `local-identity` (the identity catalog), `backup` (recovery-file import and check), `google-identity`, `passport-file` and `wrapping-key` (Google Drive recovery), `signup`, `universal-signer` (screen routing).
 
 ## Conventions
 

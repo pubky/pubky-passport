@@ -3,8 +3,12 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 import { z } from "zod";
 
-import { decodeBase64Url } from "@/libs/encoding/base64Url";
 import { passportKeyIdSchema } from "@/libs/passportPolicy";
+import {
+  AES_GCM_IV_BYTES,
+  AES_GCM_TAG_BYTES,
+  decodeFixedLengthBase64Url,
+} from "@/client/logic/crypto/webCryptoPrimitives";
 import { PUBKY_SECRET_KEY_BYTES } from "@/client/logic/pubky/pubkyIdentityKey";
 
 export type PassportFileEnvelope = {
@@ -29,15 +33,15 @@ type PassportFileParseResult = ResultType<PassportFileEnvelope, PassportFilePars
 
 type PassportFileOriginResult = ResultType<string, { code: "invalid_field"; field: "url" }>;
 
-const AES_GCM_IV_BYTES = 12;
-const AES_GCM_TAG_BYTES = 16;
 const AES_GCM_CIPHERTEXT_BYTES = PUBKY_SECRET_KEY_BYTES + AES_GCM_TAG_BYTES;
 const PASSPORT_FILE_ENVELOPE_SCHEMA = z
   .object({
     v: z.literal(1),
     keyId: passportKeyIdSchema,
-    iv: z.string().refine((value) => isFixedLengthBase64Url(value, AES_GCM_IV_BYTES)),
-    ct: z.string().refine((value) => isFixedLengthBase64Url(value, AES_GCM_CIPHERTEXT_BYTES)),
+    iv: z.string().refine((value) => decodeFixedLengthBase64Url(value, AES_GCM_IV_BYTES) !== null),
+    ct: z
+      .string()
+      .refine((value) => decodeFixedLengthBase64Url(value, AES_GCM_CIPHERTEXT_BYTES) !== null),
     url: z.string(),
   })
   .strict();
@@ -146,11 +150,6 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return (
     Boolean(value) && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype
   );
-}
-
-function isFixedLengthBase64Url(value: string, expectedByteLength: number): boolean {
-  if (value.length !== Math.ceil((expectedByteLength * 4) / 3)) return false;
-  return decodeBase64Url(value)?.byteLength === expectedByteLength;
 }
 
 function hasNoCredentialsOrUrlParts(url: URL): boolean {
