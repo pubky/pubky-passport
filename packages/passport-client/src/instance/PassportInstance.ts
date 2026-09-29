@@ -1,6 +1,17 @@
+import type { InstanceInvalidDetail } from "./instanceOrigin.js";
+
 export interface PassportInstance {
-  origin: string;
-  host: string;
-  source: "default" | "user";
-  isCustom: boolean;
+  readonly origin: string;
+  readonly host: string;
+  readonly source: "default" | "user";
+  readonly isCustom: boolean;
 }
+
+export type InstanceChangeResult =
+  | { ok: true; instance: PassportInstance }
+  | {
+      ok: false;
+      code: "instance_invalid" | "instance_not_allowed" | "attempt_in_progress";
+      detail?: InstanceInvalidDetail;
+      message: string;
+    };

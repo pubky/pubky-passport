@@ -144,8 +144,10 @@ test("turns JavaScript option type errors into safe configuration issues", () =>
     { messages: [] },
     { allowedInstances: "https://a.example" },
     { allowedInstances: [5] },
+    { allowedInstances: new Array(1) },
     { pubky: 5 },
     { pubky: null },
+    { pubky: [] },
   ]) {
     expect(configError(input).issues[0]?.option).toBe(Object.keys(input)[0]);
   }
@@ -218,4 +220,75 @@ test("configuration messages identify the option without exposing its input", ()
   const error = configError({ appName: canary });
   expect(error.message).toContain("appName");
   expect(String(error) + JSON.stringify(error.issues)).not.toContain(canary);
+});
+
+test("normalizes the default and every allowed origin at construction", () => {
+  const options = resolveClientOptions(
+    {
+      instance: "PASSPORT.example:443/",
+      allowedInstances: ["CUSTOM.example:443/", "pässport.example:8443"],
+    },
+    validateCapabilities,
+  );
+  expect(options.instance).toBe("https://passport.example");
+  expect(options.allowedInstances).toEqual([
+    "https://custom.example",
+    "https://xn--pssport-5wa.example:8443",
+  ]);
+  expect(Object.isFrozen(options.allowedInstances)).toBe(true);
+});
+test.each([
+  ["http://custom.example", "Use HTTPS for the Passport origin.", false],
+  ["https://localhost", "Use a domain origin without IP or localhost addresses.", true],
+  ["https://127.0.0.1", "Use a domain origin without IP or localhost addresses.", true],
+  ["https://user@custom.example", "Passport origins must not contain credentials.", false],
+  [
+    "https://custom.example/path",
+    "Passport origins must not contain a path, query or fragment.",
+    false,
+  ],
+  ["https://*.example", "Use a valid HTTPS Passport origin.", false],
+] as const)(
+  "rejects invalid defaults and allow-list entries before browser use: %s",
+  (input, message, loopback) => {
+    expect(configError({ instance: input }).issues[0]).toEqual({
+      option: "instance",
+      code: "invalid_value",
+      message: loopback
+        ? "A loopback Passport needs development: { allowLoopbackInstance: true }."
+        : message,
+    });
+    expect(
+      configError({
+        allowedInstances: ["https://valid.example", input],
+        development: { allowLoopbackInstance: true },
+      }).issues[0],
+    ).toEqual({
+      option: "allowedInstances",
+      code: "invalid_value",
+      message: `Entry 1: ${message}`,
+    });
+  },
+);
+test("allows exact loopback only for an explicitly enabled developer default", () => {
+  expect(
+    resolveClientOptions(
+      { instance: "http://localhost:3001", development: { allowLoopbackInstance: true } },
+      validateCapabilities,
+    ).instance,
+  ).toBe("http://localhost:3001");
+  expect(
+    configError({
+      instance: "http://localhost.evil.example:3001",
+      development: { allowLoopbackInstance: true },
+    }).issues[0]?.option,
+  ).toBe("instance");
+});
+
+test("explains the development flag without echoing the loopback input", () => {
+  expect(configError({ instance: "http://localhost:3001" }).issues[0]).toEqual({
+    option: "instance",
+    code: "invalid_value",
+    message: "A loopback Passport needs development: { allowLoopbackInstance: true }.",
+  });
 });

@@ -8,7 +8,8 @@ verified-requester display. The default instance is `https://passport.pubky.app`
 
 The package has zero runtime dependencies. The app supplies the Pubky SDK as a peer; React is an
 optional peer for the React entry point. It exports `DEFAULT_PASSPORT_INSTANCE`,
-`PassportConfigError`, typed runtime errors, default messages, `describePassportState` and the
+`PassportConfigError`, `validateInstanceOrigin`, `PassportInstance`, `InstanceChangeResult`,
+`InstanceInvalidDetail`, typed runtime errors, default messages, `describePassportState` and the
 option/state types; client, element, QR and React behavior arrives in subsequent changes.
 
 Configuration defaults to identity-only capabilities and a required Pubky profile. Browser-derived
@@ -53,6 +54,16 @@ Every import target is checked for existence and import policy. The React entry 
 core entry, which is budgeted once. The ceilings are 12 KB core, 22 KB element, 5 KB QR and 3 KB React.
 
 ## Development
+
+Instance choices belong to each app's origin and are never shared across apps. The canonical URL
+rules are the 76 vectors at repository path `packages/passport-client/test-vectors/instance-origin.json`; future Passport operator-URL checks
+must pass the same vectors. Developer defaults may explicitly permit exact loopback hosts for local
+development; user choices and allow-list entries require HTTPS domain origins, excluding IP and
+localhost addresses. Choices are revalidated on each read and storage failures fall back to page-local memory.
+Domain labels use ASCII letters, digits and interior hyphens after URL punycode normalization,
+with a 63-character label limit and 253-character host limit. Port zero is rejected.
+After a failed write, removing the old saved choice is attempted so reload cannot restore it
+when removal is available. Reset also attempts removal even after a storage failure.
 
 Run `pnpm --filter @pubky/passport-client test` for unit tests, or `pnpm check` at the repository root
 for the complete workspace checks.

@@ -18,3 +18,6 @@ export type {
 } from "./errors/messageTypes.js";
 export { describePassportState } from "./view/describeState.js";
 export type { PassportView } from "./view/describeState.js";
+export { validateInstanceOrigin } from "./instance/instanceOrigin.js";
+export type { InstanceInvalidDetail } from "./instance/instanceOrigin.js";
+export type { PassportInstance, InstanceChangeResult } from "./instance/PassportInstance.js";

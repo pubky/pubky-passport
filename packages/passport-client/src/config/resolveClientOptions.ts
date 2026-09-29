@@ -5,6 +5,15 @@ import { resolveCapabilities } from "./capabilityPolicy.js";
 import { validateRelay } from "./relayRules.js";
 import { resolveReturnPath } from "./returnPath.js";
 import { DEFAULT_PASSPORT_INSTANCE } from "../shared/defaults.js";
+import { validateInstanceOrigin, type InstanceInvalidDetail } from "../instance/instanceOrigin.js";
+
+const INSTANCE_DETAIL_MESSAGES: Record<InstanceInvalidDetail, string> = {
+  invalid_url: "Use a valid HTTPS Passport origin.",
+  insecure_scheme: "Use HTTPS for the Passport origin.",
+  credentials_not_allowed: "Passport origins must not contain credentials.",
+  path_not_allowed: "Passport origins must not contain a path, query or fragment.",
+  local_or_ip_not_allowed: "Use a domain origin without IP or localhost addresses.",
+};
 
 const DEFAULT_TIMEOUTS: Readonly<PassportTimeouts> = Object.freeze({
   handshakeHintMs: 15_000,
@@ -24,6 +33,27 @@ export function resolveClientOptions(
   options = options ?? {};
   if (!isPlainObject(options)) throw new PassportConfigError([]);
   validateOptionTypes(options);
+  const instance = validateInstanceOrigin(options.instance ?? DEFAULT_PASSPORT_INSTANCE, {
+    allowLoopback: options.development?.allowLoopbackInstance === true,
+  });
+  if (!instance.ok)
+    invalidOption(
+      "instance",
+      validateInstanceOrigin(options.instance ?? DEFAULT_PASSPORT_INSTANCE, { allowLoopback: true })
+        .ok
+        ? "A loopback Passport needs development: { allowLoopbackInstance: true }."
+        : INSTANCE_DETAIL_MESSAGES[instance.detail],
+    );
+  const allowedInstances: string[] = [];
+  for (const [index, entry] of (options.allowedInstances ?? []).entries()) {
+    const checked = validateInstanceOrigin(entry);
+    if (!checked.ok)
+      invalidOption(
+        "allowedInstances",
+        `Entry ${index}: ${INSTANCE_DETAIL_MESSAGES[checked.detail]}`,
+      );
+    allowedInstances.push(checked.origin);
+  }
   const timeouts = { ...DEFAULT_TIMEOUTS };
   for (const key of Object.keys(options.timeouts ?? {}))
     if (!Object.hasOwn(DEFAULT_TIMEOUTS, key)) invalidOption("timeouts", "Unknown timeout option.");
@@ -52,14 +82,14 @@ export function resolveClientOptions(
       options.allowBroadCapabilities,
     ),
     requireProfile: options.requireProfile ?? true,
-    instance: options.instance ?? DEFAULT_PASSPORT_INSTANCE,
+    instance: instance.origin,
     allowCustomInstance: options.allowCustomInstance ?? true,
     popupBlocked: options.popupBlocked ?? "redirect",
     allowLocalRedirectState: options.allowLocalRedirectState ?? false,
     allowBroadCapabilities: options.allowBroadCapabilities ?? false,
     ...(relay !== undefined ? { relay } : {}),
-    ...(options.allowedInstances
-      ? { allowedInstances: Object.freeze([...options.allowedInstances]) }
+    ...(options.allowedInstances !== undefined
+      ? { allowedInstances: Object.freeze(allowedInstances) }
       : {}),
     ...(options.development ? { development: Object.freeze({ ...options.development }) } : {}),
     ...(options.messages ? { messages: Object.freeze({ ...options.messages }) } : {}),
@@ -99,7 +129,7 @@ function validateOptionTypes(options: PassportClientOptions): void {
   if (
     options.allowedInstances !== undefined &&
     (!Array.isArray(options.allowedInstances) ||
-      options.allowedInstances.some((entry) => typeof entry !== "string"))
+      Array.from(options.allowedInstances).some((entry) => typeof entry !== "string"))
   )
     invalidOption("allowedInstances", "Use an array of origin strings.");
   if (
