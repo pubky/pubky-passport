@@ -3,10 +3,10 @@ name: Build and Publish Docker Image
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
 
 permissions:
-      contents: read
+  contents: read
 
 jobs:
   build-and-push:
@@ -38,4 +38,3 @@ jobs:
           image: pubky-passport
           cache_from: type=gha
           cache_to: type=gha,mode=max
-
