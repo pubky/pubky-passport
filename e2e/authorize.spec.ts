@@ -32,7 +32,7 @@ test("shows shared onboarding when no request was supplied", async ({ page }) =>
 
   await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Import backup" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Import recovery file" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Create account" })).toBeVisible();
 });
 
@@ -529,7 +529,7 @@ test("shows the request to Ring only in its link and QR code", async ({ page, is
   const leakMonitor = await installAuthorizationLeakMonitor(page, { handoff: request });
   await installLocalIdentityFixture(page);
   await page.goto(authorizationUrl(request));
-  await page.getByRole("button", { name: "Open in Pubky Ring", exact: true }).click();
+  await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeVisible();
   // A computer gets the QR code at once; a phone falls back to it when Ring does not open.
   await expect(page.getByRole("img", { name: "Pubky authorization QR code" })).toBeVisible();

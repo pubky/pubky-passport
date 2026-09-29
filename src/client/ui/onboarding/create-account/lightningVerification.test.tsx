@@ -39,14 +39,40 @@ describe("LightningVerification", () => {
 
   it("exposes one heading name and one description to assistive technology", () => {
     renderInvoice();
-    expect(screen.getByRole("heading", { level: 1, name: "Scan to Pay." })).toBeInTheDocument();
+    const heading = screen.getByRole("heading", { level: 1, name: "Pay with Lightning." });
+    // Sentence case, one wording at every width: no Title Case "Scan to Pay." or "Tap to Pay.".
+    expect(heading).not.toHaveAttribute("aria-label");
+    expect(heading).toHaveTextContent(/^Pay with Lightning\.$/u);
     const description = screen.getByText("Pay the invoice with your favorite bitcoin wallet.");
     expect(description).toHaveClass("sr-only");
     for (const visual of [
       "Scan the QR code with your favorite wallet.",
-      "Pay with your favorite bitcoin wallet.",
+      "Tap Pay now to open the invoice in your bitcoin wallet.",
     ])
       expect(screen.getByText(visual)).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it.each([
+    ["the invoice has expired", invoice, true],
+    ["the invoice is still being created", null, false],
+  ] as const)("names no Pay now or QR code while %s", (_, shown, expired) => {
+    render(
+      <LightningVerification
+        invoice={shown}
+        expired={expired}
+        pending={false}
+        error={null}
+        onBack={vi.fn()}
+        onCreateInvoice={vi.fn()}
+        onCheckPayment={vi.fn()}
+      />,
+    );
+    // Neither is on the screen now, so the lead doesn't point at them.
+    const lead = screen.getByText("Pay the invoice with your favorite bitcoin wallet.");
+    expect(lead).toBeVisible();
+    expect(lead).not.toHaveClass("sr-only");
+    expect(screen.queryByText(/Pay now|QR code/u)).toBeNull();
+    expect(screen.queryByRole("link", { name: /Pay now/u })).toBeNull();
   });
 
   it("names the amount in sats, grouped the same way in every locale", () => {
@@ -210,7 +236,7 @@ describe("LightningVerification", () => {
 
     // The pressed button is gone with the expired card; focus lands on the invoice, not the page.
     expect(screen.queryByRole("button", { name: /invoice…$/u })).toBeNull();
-    expect(screen.getByRole("heading", { name: "Bitcoin Lightning Payment" })).toHaveFocus();
+    expect(screen.getByRole("heading", { name: "Bitcoin Lightning payment" })).toHaveFocus();
   });
 
   it("offers no retry while the first invoice is created, and only the error after a failure", () => {

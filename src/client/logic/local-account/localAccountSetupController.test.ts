@@ -1,6 +1,7 @@
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryStorage } from "@test-utils/MemoryStorage";
+import { recoveryFileBytes } from "@test-utils/recoveryFiles";
 import { expectResultError, expectResultOk } from "@test-utils/resultAssertions";
 
 import type {
@@ -365,7 +366,7 @@ describe("LocalAccountSetupController", () => {
     expect(pubky.restoreRecoveryFile).not.toHaveBeenCalled();
 
     pubky.restoreRecoveryFile.mockReturnValueOnce(Result.err({ code: "restore_failed" }) as never);
-    const wrongPassword = controller.verifyBackup(new Uint8Array([1, 2, 3]), "wrong password");
+    const wrongPassword = controller.verifyBackup(recoveryFileBytes(), "wrong password");
     expect(Result.isError(wrongPassword) && wrongPassword.error.code).toBe(
       "backup_decryption_failed",
     );

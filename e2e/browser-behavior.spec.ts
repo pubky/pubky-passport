@@ -44,7 +44,7 @@ test("primary screens have no automated accessibility violations", async ({ page
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
   await page.getByRole("button", { name: "Authorize an app" }).click();
-  await expect(page.getByRole("heading", { name: "Authorize a service." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Authorize an app." })).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
@@ -129,7 +129,7 @@ test("the app closes its own popup mid-request without a leave prompt", async ({
         .click();
       await expect(popup.getByRole("button", { name: "Authorize", exact: true })).toBeVisible();
     } else {
-      await popup.getByRole("button", { name: "Open in Pubky Ring", exact: true }).click();
+      await popup.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
       await expect(popup.getByRole("img", { name: "Pubky authorization QR code" })).toBeVisible();
     }
 
@@ -437,7 +437,7 @@ test("camera denial is contained in an accessible dialog", async ({ page }) => {
   await seedLocalIdentity(page);
   await page.goto("/");
   await page.getByRole("button", { name: "Authorize an app" }).click();
-  await page.getByRole("button", { name: /^Scan (?:authorization QR code|QR)$/ }).click();
+  await page.getByRole("button", { name: /^Scan (?:authorization )?QR code$/u }).click();
 
   const dialog = page.getByRole("dialog", { name: "Scan QR code" });
   await expect(dialog).toBeVisible();
@@ -531,12 +531,12 @@ test("backup password guidance enforces the twelve-character minimum responsivel
     await page.setViewportSize(viewport);
     await page.goto("/");
     await page.getByRole("button", { name: "Manage identity" }).click();
-    await page.getByRole("button", { name: "Download backup" }).click();
+    await page.getByRole("button", { name: "Download recovery file" }).click();
 
     const password = page.getByLabel("Enter strong password");
     // The message element itself: an error wraps its text beside the alert icon.
     const requirement = page.locator("#backup-password-help");
-    const download = page.getByRole("button", { name: "Download backup" });
+    const download = page.getByRole("button", { name: "Download recovery file" });
     await expect(password).toHaveAttribute("minlength", "12");
     await expect(password).toHaveAttribute("aria-describedby", "backup-password-help");
     await expect(requirement).toHaveText("Minimum 12 characters.");
@@ -581,11 +581,11 @@ test("overview keeps recovery and account actions in a separate management scree
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Your pubky." })).toBeVisible();
   await expect(page.getByRole("button", { name: "Authorize an app" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Download backup" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Download recovery file" })).toHaveCount(0);
   await page.getByRole("button", { name: "Manage identity" }).click();
   await expect(page.getByRole("heading", { name: "Manage identity." })).toBeFocused();
   await expect(page.getByRole("button", { name: "Authorize an app" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Download backup" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Download recovery file" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Use in Pubky Ring" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Detach from Google" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
@@ -702,11 +702,11 @@ test("management backup confirms its password, verifies the file and records the
   await page.getByRole("button", { name: "Manage identity" }).click();
   const keys = page.getByRole("region", { name: "Backup & key access" });
   await expect(keys).toContainText("No backup yet.");
-  await keys.getByRole("button", { name: "Download backup" }).click();
+  await keys.getByRole("button", { name: "Download recovery file" }).click();
   await page.getByLabel("Enter strong password").fill("correct horse");
   await page.getByLabel("Confirm password").fill("correct horse");
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download backup" }).click();
+  await page.getByRole("button", { name: "Download recovery file" }).click();
   const backup = await downloadPromise;
   await expect(page.getByRole("heading", { name: "Verify recovery file." })).toBeVisible();
   // Outside a removal, the check may be skipped, but only after the primary action.
@@ -721,13 +721,15 @@ test("management backup confirms its password, verifies the file and records the
   await page.getByLabel("Recovery file", { exact: true }).setInputFiles((await backup.path())!);
   await page.getByLabel("Recovery file password").fill("wrong password");
   await page.getByRole("button", { name: "Verify recovery file" }).click();
-  await expect(page.getByRole("main").getByRole("alert")).toContainText("password is wrong");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "That password doesn’t open this file.",
+  );
   await page.getByLabel("Recovery file password").fill("correct horse");
   await page.getByRole("button", { name: "Verify recovery file" }).click();
   await expect(page.getByRole("heading", { name: "Manage identity." })).toBeVisible();
   // The check is remembered: the card says so and leaving is a logout again, not a removal.
-  await expect(keys).toContainText("Backup file checked on");
+  await expect(keys).toContainText("Recovery file checked on");
   await page.getByRole("banner").getByRole("button", { name: "Log out" }).click();
   await expect(page.getByRole("heading", { name: "Log out of this identity?" })).toBeVisible();
-  await expect(page.getByRole("main")).toContainText("You checked a backup file of this key on");
+  await expect(page.getByRole("main")).toContainText("You checked a recovery file of this key on");
 });

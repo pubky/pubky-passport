@@ -19,13 +19,19 @@ describe("UnreadableAccountSetup", () => {
     render(<UnreadableAccountSetup removable onBack={onBack} removeSetup={removeSetup} />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole("button", { name: "Remove saved setup" }));
-    expect(screen.getByText(/may already own an account/u)).toBeVisible();
+    // The only way on from a damaged record is a real button, not a quiet text action.
+    const remove = screen.getByRole("button", { name: "Remove saved setup…" });
+    expect(remove).toHaveClass("bg-secondary");
+    expect(screen.getByRole("heading", { name: "Setup unavailable." })).toHaveAccessibleDescription(
+      /is damaged, so Passport can’t continue it\. To start again, remove the saved setup/u,
+    );
+    await user.click(remove);
+    expect(screen.getByText(/Without its recovery file/u)).toBeVisible();
     const confirm = screen.getByRole("button", { name: "Remove key and setup" });
     expect(confirm).toBeDisabled();
     await user.type(screen.getByRole("textbox", { name: "Type DELETE to confirm" }), "DELETE");
     await user.click(confirm);
-    expect(screen.getByText(/could not remove the saved setup/u)).toBeVisible();
+    expect(screen.getByText(/this browser blocked the change/u)).toBeVisible();
     expect(onBack).not.toHaveBeenCalled();
 
     await user.click(confirm);
@@ -38,16 +44,21 @@ describe("UnreadableAccountSetup", () => {
     const onBack = vi.fn();
     render(<UnreadableAccountSetup removable onBack={onBack} removeSetup={removeSetup} />);
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Remove saved setup" }));
+    await user.click(screen.getByRole("button", { name: "Remove saved setup…" }));
     await user.click(screen.getByRole("button", { name: "Close" }));
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(removeSetup).not.toHaveBeenCalled();
     expect(onBack).toHaveBeenCalledOnce();
   });
 
-  it("offers no removal when browser storage itself is unavailable", () => {
+  it("offers no removal when browser storage itself is unavailable, and names the cause", () => {
     render(<UnreadableAccountSetup removable={false} onBack={vi.fn()} />);
-    expect(screen.getByRole("heading", { name: /Setup unavailable/u })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Remove saved setup" })).not.toBeInTheDocument();
+    const heading = screen.getByRole("heading", { name: /Setup unavailable/u });
+    // Blocked storage, not a damaged record: removing it cannot help, allowing site data can.
+    expect(heading).toHaveAccessibleDescription(
+      /can’t read this browser’s storage.*Allow site data for this site, then go back and choose Create account again\./u,
+    );
+    expect(heading).not.toHaveAccessibleDescription(/Go back and try again/u);
+    expect(screen.queryByRole("button", { name: /Remove saved setup/u })).not.toBeInTheDocument();
   });
 });

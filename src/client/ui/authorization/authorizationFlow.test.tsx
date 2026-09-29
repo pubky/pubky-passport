@@ -66,8 +66,10 @@ describe("AuthorizationFlow", () => {
 
     // Ring signs with its own key, so Authorize and a second Ring button would do the same thing.
     expect(screen.queryByRole("button", { name: "Authorize" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Open in Pubky Ring" })).not.toBeInTheDocument();
-    expect(screen.getByText(/You choose the identity to sign in with in Ring/u)).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Continue with Pubky Ring" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/You’ll pick which identity to use in Pubky Ring/u)).toBeVisible();
     expect(screen.getByText("Key in Pubky Ring")).toBeVisible();
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue in Pubky Ring" }));
 
@@ -81,7 +83,7 @@ describe("AuthorizationFlow", () => {
     expect(screen.getByRole("button", { name: "Authorize" })).toBeEnabled();
     // Pubky Ring is one of the choices in the identity list, not a competing action here.
     expect(screen.queryByRole("button", { name: /Pubky Ring/u })).not.toBeInTheDocument();
-    expect(screen.queryByText(/You choose the identity to sign in with in Ring/u)).toBeNull();
+    expect(screen.queryByText(/You’ll pick which identity to use in Pubky Ring/u)).toBeNull();
     expect(screen.queryByText("Key in Pubky Ring")).toBeNull();
   });
 

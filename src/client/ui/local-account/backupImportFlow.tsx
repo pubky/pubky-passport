@@ -116,7 +116,7 @@ export function BackupImportFlow({
     const file = fileInput.current?.files?.[0];
     const password = passwordInput.current?.value ?? "";
     if (!file || file.size === 0 || file.size > MAXIMUM_BACKUP_BYTES) {
-      setError(importError({ code: "invalid_backup" }));
+      setError({ target: "file", message: "Choose a recovery file (.pkarr) smaller than 1 MB." });
       return;
     }
     if (!password) {
@@ -352,25 +352,31 @@ function importError(
 ): ImportError {
   switch (code) {
     case "invalid_backup":
-      return { target: "file", message: "Choose a recovery file (.pkarr) smaller than 1 MB." };
+      // The file does not start like a recovery file, so no password could open it.
+      return {
+        target: "file",
+        message: "This isn’t a recovery file. Choose the file whose name ends in .pkarr.",
+      };
     case "invalid_password":
       return { target: "password", message: "Enter the password of this recovery file." };
     case "backup_decryption_failed":
+      // A typo is far more likely than a damaged file, so that comes first.
       return {
         target: "password",
-        message: "The password is wrong or this recovery file is damaged.",
+        message:
+          "That password doesn’t open this recovery file. Passwords are case-sensitive, so check for typos and caps lock. If it’s right, the file may be damaged.",
       };
     case "already_present":
       return {
         target: "form",
-        message: "This Pubky is already saved in this browser, so there is nothing to import.",
+        message: "This pubky is already saved in this browser, so there is nothing to import.",
         ...(publicKeyZ32 ? { existing: publicKeyZ32 } : {}),
       };
     case "external_key":
       return {
         target: "form",
         message:
-          "This Pubky is linked to Pubky Ring in this browser. Remove that entry before importing its key.",
+          "This pubky is linked to Pubky Ring in this browser. Remove that entry before importing its key.",
       };
     case "signin_failed":
       return {
@@ -402,7 +408,8 @@ function importError(
     case "storage_failed":
       return {
         target: "form",
-        message: "The identity was verified, but this browser could not save it.",
+        message:
+          "Your recovery file opened, but this browser couldn’t save the identity. Allow site data for this site (or free up space), then try again.",
       };
     case "import_unavailable":
       return { target: "form", message: "Passport could not import this recovery file." };

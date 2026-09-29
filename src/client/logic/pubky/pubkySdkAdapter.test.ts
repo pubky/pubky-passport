@@ -14,6 +14,7 @@ import { Result, type Result as ResultType } from "better-result";
 import { ValidatedPubkyAuthRequest } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 import { PUBKY_AUTH_CAPABILITY_LIMITS } from "@/client/logic/authorization/request/parser/pubkyAuthCapabilities";
 import { LOGGER } from "@/libs/logger/logger";
+import { hasRecoveryFileSpecLine } from "@/client/logic/backup/BackupVerifier";
 import {
   PUBKY_SECRET_KEY_BYTES,
   PUBKY_SECRET_KEY_FORMAT,
@@ -294,6 +295,8 @@ describe("PubkySdkAdapter", () => {
         ),
       );
 
+      // The pinned SDK writes the spec line the backup checks use to tell a recovery file.
+      expect(hasRecoveryFileSpecLine(recoveryFile)).toBe(true);
       const restored = expectOk(
         pubky.restoreRecoveryFile(recoveryFile, "a strong backup password"),
       );

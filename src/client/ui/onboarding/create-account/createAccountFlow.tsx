@@ -6,18 +6,22 @@ import {
   selectedInvite,
   type InviteDestinationErrorCode,
 } from "@/client/logic/local-account/InviteDestinationController";
+import type { HomegateVerificationMethod } from "@/client/logic/homegate/HomegateSignupController";
 import { releaseFinishedAccount } from "@/client/logic/local-account/unfinishedLocalAccount";
 import { invitesOnly, verifiesWithoutInvite } from "@/client/logic/homegate/verificationMethods";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import type { SignupTokenStatus } from "@/client/logic/pubky/SignupTokenChecker";
 import { sameInvite } from "@/client/logic/signup/homeserverInvite";
-import { LocalAccountCreationFlow } from "@/client/ui/local-account/localAccountCreationFlow";
+import {
+  LocalAccountCreationFlow,
+  type LocalAccountSetupPort,
+} from "@/client/ui/local-account/localAccountCreationFlow";
 import { UnreadableAccountSetup } from "@/client/ui/local-account/unreadableAccountSetup";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { ConfirmDeletionDialog } from "@/client/ui/shared/confirmDeletionDialog";
 import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
 import { ChoiceCard } from "@/client/ui/shared/choiceCard";
-import { ArrowRightIcon, KeyRoundIcon } from "@/client/ui/shared/icons";
+import { ArrowRightIcon, CircleCheckIcon, KeyRoundIcon } from "@/client/ui/shared/icons";
 import { ACCOUNT_SETUP_STEPS, SetupProgressProvider } from "@/client/ui/shared/setupProgress";
 import { VerificationOptions } from "./verificationOptions";
 import {
@@ -64,11 +68,15 @@ function AccountCreation({
   inviteHomeserver,
   onBack,
   ringProfileController,
+  createSetupController,
   onLocalComplete,
 }: {
   inviteHomeserver: string;
   onBack: () => void;
   ringProfileController?: RingProfileControllerPort;
+  /** Builds the setup controller for a key kept in this browser; the default loads the SDK. */
+  createSetupController?:
+    (() => LocalAccountSetupPort | Promise<LocalAccountSetupPort>) | undefined;
   onLocalComplete: (identity: LocalIdentityMetadata) => void;
 }) {
   const { createRingProfileController } = usePassportCollaborators();
@@ -92,6 +100,11 @@ function AccountCreation({
   // An invite restored from an earlier visit may have been shown to Ring meanwhile.
   const recheckInvite =
     usesHomegateInvite && signup.view.step === "complete" && signup.view.restored;
+  // The verification that just gave this invite, to say it worked; not one from an earlier visit.
+  const verifiedBy =
+    usesHomegateInvite && signup.view.step === "complete" && !signup.view.restored
+      ? signup.view.method
+      : undefined;
   const inviteUsed = Boolean(
     invite && destinations.usedInvite && sameInvite(invite, destinations.usedInvite),
   );
@@ -134,7 +147,16 @@ function AccountCreation({
   };
 
   if (destinations.setupUnavailable) {
-    return <UnreadableAccountSetup removable={destinations.setupRemovable} onBack={onBack} />;
+    // A damaged record is a setup that got past verification, so it stopped at the account step.
+    // Blocked storage says nothing about any setup, so nothing is shown as done.
+    return (
+      <SetupProgressProvider
+        steps={ACCOUNT_SETUP_STEPS}
+        current={destinations.setupRemovable ? 1 : 0}
+      >
+        <UnreadableAccountSetup removable={destinations.setupRemovable} onBack={onBack} />
+      </SetupProgressProvider>
+    );
   }
 
   const inviteEntry = (
@@ -160,11 +182,17 @@ function AccountCreation({
       <SetupProgressProvider steps={ACCOUNT_SETUP_STEPS} current={1}>
         <LocalAccountCreationFlow
           invite={invite}
+          inviteSource={usesHomegateInvite ? "homegate" : "manual"}
+          createSetupController={createSetupController}
           onBack={() => destinationController.leavePassport()}
           onAbandon={(reason) => {
             const recheck = destinationController.abandonPassport(reason, invite);
-            // A rejected invite must not come back from storage either.
-            if (reason === "invite_rejected" && usesHomegateInvite) signup.forget();
+            if (reason === "invite_rejected") {
+              // A refused sign-up code must not come back from storage either; the methods say
+              // why they are shown again. A refused invite code leads to the entry for another.
+              if (usesHomegateInvite) signup.forget({ refused: true });
+              else destinationController.openInviteEntry();
+            }
             void recheck.then(forgetIfSpent);
           }}
           onComplete={complete}
@@ -206,6 +234,7 @@ function AccountCreation({
           }
           onLeave={exit}
           inviteSaved={usesHomegateInvite}
+          verifiedBy={verifiedBy}
           restored={
             destinations.resumedInvite !== null
               ? "setup"
@@ -217,8 +246,8 @@ function AccountCreation({
         />
         {discardable ? (
           <ConfirmDeletionDialog
-            confirmLabel="Discard invite"
-            description="Passport keeps this invite in this browser until an account uses it. After discarding it, a new invite needs another SMS verification or payment."
+            confirmLabel="Discard verification"
+            description="Passport keeps your verification in this browser until an account uses it. After discarding it, you’ll need to verify again with SMS or another payment to create an account."
             id="discard-homegate-invite"
             onCancel={() => setConfirmingDiscard(false)}
             onConfirm={() => {
@@ -226,7 +255,7 @@ function AccountCreation({
               if (destinationController.discardInvite()) signup.forget();
             }}
             open={confirmingDiscard}
-            title="Discard this invite?"
+            title="Discard your verification?"
           />
         ) : null}
       </SetupProgressProvider>
@@ -239,13 +268,21 @@ function AccountCreation({
       if (inviteOnly) return inviteEntry;
       return (
         <VerificationOptions
+          notice={
+            signup.verificationRefused
+              ? "Your previous verification couldn’t be used. Choose a method to verify again."
+              : undefined
+          }
           onLightning={() => {
             if (methods.lightning.status === "available") void signup.createInvoice();
           }}
           onSms={() => {
             if (methods.sms.status === "available") signup.chooseSms();
           }}
-          onInvite={() => destinationController.openInviteEntry()}
+          onInvite={() => {
+            signup.dismissRefusal();
+            destinationController.openInviteEntry();
+          }}
           onBack={onBack}
         />
       );
@@ -299,9 +336,9 @@ function AccountCreation({
 function destinationErrorMessage(code: InviteDestinationErrorCode): string {
   switch (code) {
     case "invite_change_failed":
-      return "Passport could not change this invite. Your saved setup has been kept.";
     case "invite_release_failed":
-      return "Passport could not release this invite. Your saved setup has been kept.";
+      // Both mean the saved setup could not be written; the person never changed an invite.
+      return "Passport couldn’t save your progress in this browser. Nothing was lost. Check that site data is allowed for this site, then try again.";
     case "invite_used":
       return "Pubky Ring has already used this invite. Continue with Pubky Ring to finish that account, or use a different invite.";
     case "invite_redeemed":
@@ -318,6 +355,7 @@ function InviteDestinationChoice({
   onLeave,
   onDiscardInvite,
   inviteSaved,
+  verifiedBy,
   restored,
   registrationStarted,
   checkingInvite,
@@ -332,6 +370,8 @@ function InviteDestinationChoice({
   onDiscardInvite?: (() => void) | undefined;
   /** The invite came from SMS or Lightning verification and is kept for a later visit. */
   inviteSaved: boolean;
+  /** The verification that has just succeeded in this visit, to confirm it before the choice. */
+  verifiedBy?: HomegateVerificationMethod | undefined;
   /**
    * What an earlier visit left in this browser: a key whose setup was started (`setup`), or a
    * verification that issued the invite (`verification`).
@@ -400,6 +440,14 @@ function InviteDestinationChoice({
       description="Your key proves this account is yours. Keep it somewhere only you control."
       title="Where should your"
     >
+      {verifiedBy && !restored ? (
+        <p className="flex items-center gap-2 text-sm leading-5 text-foreground" role="status">
+          <CircleCheckIcon className="text-brand" size={16} />
+          {verifiedBy === "lightning"
+            ? "Payment received. You’re verified."
+            : "Phone number verified."}
+        </p>
+      ) : null}
       {welcomeBack}
       <div className="grid gap-6">
         <ChoiceCard
@@ -423,8 +471,8 @@ function InviteDestinationChoice({
           </Button>
         </ChoiceCard>
         <ChoiceCard
-          description="Passport keeps your key in this browser, and you download an encrypted backup next."
-          // Not a key like Ring's keychain: the encrypted backup that comes with this choice.
+          description="Passport keeps your key in this browser, and you download a recovery file next."
+          // Not a key like Ring's keychain: the recovery file that comes with this choice.
           illustration="/illustrations/backup-shield.png"
           title="This browser"
         >
@@ -456,7 +504,7 @@ function InviteDestinationChoice({
         tertiary={
           onDiscardInvite ? (
             <Button disabled={checkingInvite} onClick={onDiscardInvite} variant="linkDestructive">
-              Discard invite
+              Discard verification
             </Button>
           ) : undefined
         }

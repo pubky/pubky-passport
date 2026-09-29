@@ -169,7 +169,7 @@ describe("IdentityEstablishmentFlow", () => {
       screen.queryByRole("heading", { name: "Setting up your pubky." }),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Loading your Pubky.");
+    expect(screen.getByRole("status")).toHaveTextContent("Loading your pubky.");
     expect(screen.queryByText("Republish PKDNS records")).not.toBeInTheDocument();
 
     act(() =>
@@ -179,15 +179,15 @@ describe("IdentityEstablishmentFlow", () => {
       }),
     );
     expect(screen.getByRole("heading", { name: "Repairing your pubky." })).toBeInTheDocument();
-    const repairProgress = screen.getByRole("list", { name: "Pubky identity repair progress" });
+    const repairProgress = screen.getByRole("list", { name: "Steps to repair your pubky" });
+    expect(within(repairProgress).getByText("Unlock your backup").closest("li")).toHaveTextContent(
+      "Unlock your backup (complete)",
+    );
     expect(
-      within(repairProgress).getByText("Restore encrypted backup").closest("li"),
-    ).toHaveTextContent("Restore encrypted backup (complete)");
-    expect(
-      within(repairProgress).getByText("Repair homeserver access").closest("li"),
+      within(repairProgress).getByText("Finish your earlier setup").closest("li"),
     ).toHaveAttribute("aria-current", "step");
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Repairing your Pubky: Repair homeserver access.",
+      "Repairing your pubky: Finish your earlier setup.",
     );
   });
 
@@ -242,11 +242,11 @@ describe("IdentityEstablishmentFlow", () => {
     );
     expect(within(deniedHeading).getByText("Drive")).toHaveClass("hidden", "md:inline");
     expect(
-      screen.getByText("Passport needs Google Drive access to create or restore your Pubky."),
+      screen.getByText("Passport needs Google Drive access to create or restore your pubky."),
     ).toHaveClass("md:hidden");
     expect(
       screen.getByText(
-        "Passport needs access to your Google Drive to create or restore your Pubky.",
+        "Passport needs access to your Google Drive to create or restore your pubky.",
       ),
     ).toHaveClass("hidden", "md:inline");
     expect(screen.queryByText("Technical details")).not.toBeInTheDocument();
@@ -649,7 +649,7 @@ describe("IdentityEstablishmentFlow", () => {
     );
   });
 
-  it("describes a final PKDNS publication failure without stale resolution language", async () => {
+  it("describes a final publication failure in plain words, without PKDNS", async () => {
     useController(
       mockGoogleIdentityController({
         establishIdentity: vi.fn(async () => Result.err({ code: "publication_failed" as const })),
@@ -660,7 +660,7 @@ describe("IdentityEstablishmentFlow", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
 
     expect(
-      await screen.findByText("Passport could not publish your identity's PKDNS records."),
+      await screen.findByText("Passport couldn’t publish your pubky, so apps can’t find it yet."),
     ).toBeInTheDocument();
   });
 });

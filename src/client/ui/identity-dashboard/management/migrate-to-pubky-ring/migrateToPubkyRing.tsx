@@ -193,8 +193,8 @@ function MigrateToPubkyRing({
           <Notice tone="warning">{QR_WARNING}</Notice>
           {exportFailed ? (
             <Notice focusOnMount tone="error">
-              Passport couldn’t read this key from browser storage. Try again, or download an
-              encrypted backup instead.
+              Passport couldn’t read this key from browser storage. Try again, or download a
+              recovery file instead.
             </Notice>
           ) : null}
 

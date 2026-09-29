@@ -63,7 +63,7 @@ describe("ManualAuthorization", () => {
     expect(input.parentElement).toHaveClass("h-14", "md:h-15");
     expect(screen.getByText("Authorization link")).toHaveClass("leading-5", "md:leading-4");
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
-    const scanButton = screen.getByRole("button", { name: "Scan QR" });
+    const scanButton = screen.getByRole("button", { name: "Scan QR code" });
     expect(scanButton).toBeEnabled();
     expect(scanButton).toHaveClass("w-full", "md:hidden");
     const cameraButton = screen.getByRole("button", { name: "Scan authorization QR code" });
@@ -100,7 +100,7 @@ describe("ManualAuthorization", () => {
     const user = userEvent.setup();
     render(<ManualAuthorization onBack={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: "Scan QR" }));
+    await user.click(screen.getByRole("button", { name: "Scan QR code" }));
     expect(screen.getByRole("dialog", { name: "Authorization QR scanner" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Scan valid QR" }));
@@ -116,7 +116,7 @@ describe("ManualAuthorization", () => {
     const user = userEvent.setup();
     render(<ManualAuthorization onBack={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: "Scan QR" }));
+    await user.click(screen.getByRole("button", { name: "Scan QR code" }));
     await user.click(screen.getByRole("button", { name: "Scan invalid QR" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(
@@ -131,7 +131,7 @@ describe("ManualAuthorization", () => {
     const user = userEvent.setup();
     render(<ManualAuthorization onBack={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: "Scan QR" }));
+    await user.click(screen.getByRole("button", { name: "Scan QR code" }));
     await user.click(screen.getByRole("button", { name: "Paste link instead" }));
 
     expect(

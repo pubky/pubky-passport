@@ -63,7 +63,11 @@ export function PhoneNumberStep({
   const showValid = valid && !serviceError;
   useFocusOnError(input, error);
   return (
-    <SignupStep title="Enter" accent="Phone." description="We will send you a verification code.">
+    <SignupStep
+      title="Enter your"
+      accent="phone number."
+      description="We will send you a verification code."
+    >
       <form
         className="flex flex-1 flex-col gap-6 md:gap-8"
         noValidate
@@ -151,7 +155,7 @@ export function PhoneNumberStep({
                 ? "Sending code…"
                 : normalized === sentPhoneNumber
                   ? "Continue"
-                  : "Send Code"}
+                  : "Send code"}
             </Button>
           }
         />
@@ -216,8 +220,8 @@ export function SmsCodeStep({
   const resendLeads = expired && !valid;
   return (
     <SignupStep
-      title="Enter"
-      accent="Code."
+      title="Enter the"
+      accent="code."
       description={`We sent a 6-digit verification code to ${phoneNumber}.`}
     >
       <form
@@ -327,7 +331,7 @@ export function SmsCodeStep({
               }}
             >
               <RotateCcwIcon />
-              {resending ? "Sending…" : remaining > 0 ? `Resend (${remaining}s)` : "Resend Code"}
+              {resending ? "Sending…" : remaining > 0 ? `Resend (${remaining}s)` : "Resend code"}
             </Button>
             <Button
               variant={resendLeads ? "secondary" : "default"}
@@ -338,7 +342,7 @@ export function SmsCodeStep({
               loading={pending && !resending}
             >
               <CheckIcon />
-              {pending && !resending ? "Verifying…" : "Verify Code"}
+              {pending && !resending ? "Verifying…" : "Verify code"}
             </Button>
           </div>
         </div>

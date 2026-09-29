@@ -44,7 +44,7 @@ export function AddIdentity({
   // Handing a request over is named as on the review. Without one, connecting a Ring identity
   // signs the person in to Passport with it.
   const ring = onUseRing
-    ? { label: "Open in Pubky Ring", action: onUseRing }
+    ? { label: "Continue with Pubky Ring", action: onUseRing }
     : onConnectRing
       ? { label: "Sign in with Pubky Ring", action: onConnectRing }
       : undefined;
@@ -78,8 +78,8 @@ export function AddIdentity({
               description={
                 // Where an invite is the only way in, say so before the person starts.
                 invitesOnly(methods)
-                  ? "Create an account with an invite code and keep its key in Pubky Ring or this browser. Already have a backup file? Import it."
-                  : "Create an account and keep its key in Pubky Ring or this browser. Already have a backup file? Import it."
+                  ? "Create an account with an invite code and keep its key in Pubky Ring or this browser. Already have a recovery file? Import it."
+                  : "Create an account and keep its key in Pubky Ring or this browser. Already have a recovery file? Import it."
               }
               illustration="/illustrations/identity-keys.png"
               title="Hold your own key"
@@ -88,7 +88,7 @@ export function AddIdentity({
                 <UserRoundPlusIcon /> Create account
               </Button>
               <Button className="w-full" onClick={onImport} size="lg" variant="secondary">
-                <FolderIcon /> Import backup
+                <FolderIcon /> Import recovery file
               </Button>
             </ChoiceCard>
             {showGoogle ? (

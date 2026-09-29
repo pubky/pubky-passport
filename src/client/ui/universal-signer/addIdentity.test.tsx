@@ -75,8 +75,8 @@ it("renders an invite-only instance without Google or Homegate credentials", () 
   );
   expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Create account" })).toBeEnabled();
-  expect(screen.getByRole("button", { name: "Import backup" })).toBeEnabled();
-  expect(screen.getByRole("button", { name: "Open in Pubky Ring" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Import recovery file" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Continue with Pubky Ring" })).toBeEnabled();
   // Without Google only the own-key card remains, so the page keeps the narrow column.
   expect(screen.getByRole("main")).toHaveClass("max-w-[588px]");
 });
@@ -173,7 +173,7 @@ describe("AddIdentity", () => {
     );
 
     expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Import backup" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Import recovery file" })).toBeEnabled();
   });
 
   it("recommends Create account first, then Google, and keeps Ring out of the cards", () => {
@@ -188,11 +188,11 @@ describe("AddIdentity", () => {
     expect(cards[0]).toContainElement(create);
     // The one brand button is the recommendation; every other entry stays secondary.
     expect(create).toHaveClass("bg-brand/16");
-    const importBackup = screen.getByRole("button", { name: "Import backup" });
+    const importBackup = screen.getByRole("button", { name: "Import recovery file" });
     expect(cards[0]).toContainElement(importBackup);
     expect(importBackup).not.toHaveClass("bg-brand/16");
     expect(cards[1]).toContainElement(screen.getByRole("button", { name: "Continue with Google" }));
-    const ring = screen.getByRole("button", { name: "Open in Pubky Ring" });
+    const ring = screen.getByRole("button", { name: "Continue with Pubky Ring" });
     for (const card of cards) expect(card).not.toContainElement(ring);
     expect(ring).not.toHaveClass("bg-brand/16");
     expect(ring.closest("p")).toHaveTextContent(/^Already use Pubky Ring\?/u);
@@ -271,7 +271,9 @@ describe("Pubky Ring on the add screen", () => {
     renderAddIdentity(addIdentity({ onConnectRing }));
 
     expect(screen.getByText("Already use Pubky Ring?")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Open in Pubky Ring" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Continue with Pubky Ring" }),
+    ).not.toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Sign in with Pubky Ring" }));
     expect(onConnectRing).toHaveBeenCalledOnce();
   });
@@ -279,7 +281,7 @@ describe("Pubky Ring on the add screen", () => {
   it("opens a pending request in Ring, named as on the review, instead of connecting", () => {
     renderAddIdentity(addIdentity({ onUseRing: vi.fn(), onConnectRing: vi.fn() }));
 
-    expect(screen.getByRole("button", { name: "Open in Pubky Ring" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Continue with Pubky Ring" })).toBeEnabled();
     expect(
       screen.queryByRole("button", { name: "Sign in with Pubky Ring" }),
     ).not.toBeInTheDocument();

@@ -82,17 +82,17 @@ function IdentityOverview({
           <Notice className="col-span-2" tone="warning">
             <p>
               {backup.kind === "file"
-                ? `Passport made a backup file on ${formatBackupDate(backup.at)}, but it was never checked. Check that it opens, so you know it can bring this pubky back.`
-                : "This key is saved only in this browser. Download an encrypted backup so you can get this pubky back if this browser’s data is cleared."}
+                ? `Passport made a recovery file on ${formatBackupDate(backup.at)}, but it was never checked. Check that it opens, so you know it can bring this pubky back.`
+                : "This key is saved only in this browser. Download a recovery file so you can get this pubky back if this browser’s data is cleared."}
             </p>
             <div className="flex flex-wrap gap-3">
               {backup.kind === "file" ? (
                 <Button onClick={() => onBackup(true)} variant="secondary">
-                  <CheckIcon /> Check backup
+                  <CheckIcon /> Check recovery file
                 </Button>
               ) : null}
               <Button onClick={() => onBackup(false)} variant="secondary">
-                <DownloadIcon /> Download backup
+                <DownloadIcon /> Download recovery file
               </Button>
             </div>
           </Notice>

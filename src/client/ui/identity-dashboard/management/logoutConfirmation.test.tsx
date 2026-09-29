@@ -49,7 +49,7 @@ describe("LogoutConfirmation", () => {
     expect(screen.queryByRole("button", { name: "Log out" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Remove key" })).toBeDisabled();
 
-    const download = screen.getByRole("button", { name: "Download backup" });
+    const download = screen.getByRole("button", { name: "Download recovery file" });
     expect(warning).toContainElement(download);
     fireEvent.click(download);
     expect(onDownloadBackup).toHaveBeenCalledOnce();
@@ -75,10 +75,10 @@ describe("LogoutConfirmation", () => {
     ).toBeInTheDocument();
     const warning = screen.getByText(/but it was never checked/u).closest("[data-tone]");
     expect(warning).toHaveAttribute("data-tone", "warning");
-    expect(warning).toHaveTextContent(`Passport made a backup file on ${BACKUP_DATE}`);
+    expect(warning).toHaveTextContent(`Passport made a recovery file on ${BACKUP_DATE}`);
     expect(warning).not.toHaveTextContent("You created");
-    const check = screen.getByRole("button", { name: "Check backup" });
-    const download = screen.getByRole("button", { name: "Download backup" });
+    const check = screen.getByRole("button", { name: "Check recovery file" });
+    const download = screen.getByRole("button", { name: "Download recovery file" });
     expect(warning).toContainElement(check);
     expect(warning).toContainElement(download);
     expect(check).toHaveClass("bg-brand/16");
@@ -109,12 +109,12 @@ describe("LogoutConfirmation", () => {
 
     expect(screen.getByRole("heading", { name: "Log out of this identity?" })).toBeInTheDocument();
     expect(
-      screen.getByText(`You checked a backup file of this key on ${BACKUP_DATE}.`, {
+      screen.getByText(`You checked a recovery file of this key on ${BACKUP_DATE}.`, {
         exact: false,
       }),
     ).toBeInTheDocument();
     expect(document.querySelector('[data-tone="warning"]')).toBeNull();
-    expect(screen.queryByRole("button", { name: "Check backup" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Check recovery file" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Log out" })).toBeDisabled();
     fireEvent.click(screen.getByRole("checkbox"));
     expect(screen.getByRole("button", { name: "Log out" })).toBeEnabled();
@@ -129,7 +129,9 @@ describe("LogoutConfirmation", () => {
       screen.getByText(/choose Continue with Google and sign in as/u, { exact: false }),
     ).toHaveTextContent(`sign in as ${GOOGLE_ACCOUNT.email}.`);
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Download backup" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Download recovery file" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Log out" })).toBeEnabled();
   });
 

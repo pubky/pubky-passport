@@ -403,13 +403,13 @@ for (const [name, viewport, entry] of [
     await page.getByRole("button", { name: "Create account", exact: true }).click();
     await page.getByRole("button", { name: "Continue with SMS" }).click();
     await page.getByLabel("Phone number", { exact: true }).fill("+41791234567");
-    await page.getByRole("button", { name: "Send Code" }).click();
+    await page.getByRole("button", { name: "Send code" }).click();
     await page.getByLabel("Verification code", { exact: true }).fill("123456");
-    await page.getByRole("button", { name: "Verify Code" }).click();
+    await page.getByRole("button", { name: "Verify code" }).click();
     await page.getByRole("button", { name: "Keep key in this browser" }).click();
     await page.getByLabel("Enter strong password").fill("correct horse");
     await page.getByLabel("Confirm password").fill("correct horse");
-    await page.getByRole("button", { name: "Download encrypted backup" }).click();
+    await page.getByRole("button", { name: "Download recovery file" }).click();
     await page.getByRole("button", { name: "Skip this check (not recommended)" }).click();
 
     // First the account exists: its pubky, and both ways on, all in the first screenful.

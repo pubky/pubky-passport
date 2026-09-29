@@ -30,7 +30,7 @@ const FILL_SPACE = "[@media(min-height:36rem)]:[contain:size]";
  * The first step of a request: every saved identity, filling the window above the other ways to
  * sign in. Choosing one opens its permission review. With nothing saved only the other ways are
  * shown, and creating an account is the recommended one. A request for broad access is flagged
- * here too, because Open in Pubky Ring hands it on without the review.
+ * here too, because Continue with Pubky Ring hands it on without the review.
  */
 export function ChooseIdentity({
   activePublicKeyZ32,
@@ -147,17 +147,19 @@ export function ChooseIdentity({
             <span aria-hidden="true" className="h-px flex-1 bg-border" />
           </div>
         ) : null}
+        {/* A narrower inset keeps "Continue with Pubky Ring" on one line beside Create account in
+            the app's 520px popup, so the list above keeps its rows. */}
         <div className="grid gap-3 min-[30rem]:grid-cols-2">
           <Button
-            className="w-full"
+            className="w-full px-4"
             onClick={onCreateAccount}
             size="lg"
             variant={hasIdentities ? "secondary" : "default"}
           >
             <UserRoundPlusIcon /> Create account
           </Button>
-          <Button className="w-full" onClick={onOpenRing} size="lg" variant="secondary">
-            <PubkyBrandIcon /> Open in Pubky Ring
+          <Button className="w-full px-4" onClick={onOpenRing} size="lg" variant="secondary">
+            <PubkyBrandIcon /> Continue with Pubky Ring
           </Button>
         </div>
         <Button className="self-center" onClick={onMoreOptions} variant="ghost">

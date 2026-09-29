@@ -8,7 +8,7 @@ import { LocalStorageIdentityRepository } from "@/client/logic/local-identity/Lo
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import type { PubkyIdentityKey, PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
 import { PubkySdkAdapter } from "@/client/logic/pubky/PubkySdkAdapter";
-import { validateBackupInput } from "./BackupVerifier";
+import { hasRecoveryFileSpecLine, validateBackupInput } from "./BackupVerifier";
 
 export type BackupImportErrorCode =
   | "already_present"
@@ -80,9 +80,14 @@ export class BackupImporter {
       recoveryFile.fill(0);
       return Result.err({ code: invalid ?? "import_unavailable" });
     }
+    // Read before decrypting, which clears the bytes.
+    const isRecoveryFile = hasRecoveryFileSpecLine(recoveryFile);
     const restored = this.pubky.restoreRecoveryFile(recoveryFile, password);
     if (Result.isError(restored)) {
-      return Result.err({ code: "backup_decryption_failed", cause: restored.error });
+      return Result.err({
+        code: isRecoveryFile ? "backup_decryption_failed" : "invalid_backup",
+        cause: restored.error,
+      });
     }
 
     const identity = restored.value;

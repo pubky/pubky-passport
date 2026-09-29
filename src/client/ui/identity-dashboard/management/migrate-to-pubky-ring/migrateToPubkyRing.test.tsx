@@ -413,7 +413,7 @@ describe("MigrateToPubkyRing", () => {
     // A failure the press caused is an alert that takes focus, not muted text.
     const failure = screen.getByRole("alert");
     expect(failure).toHaveTextContent(
-      "Passport couldn’t read this key from browser storage. Try again, or download an encrypted backup instead.",
+      "Passport couldn’t read this key from browser storage. Try again, or download a recovery file instead.",
     );
     expect(failure).toHaveFocus();
     expect(screen.queryByRole("dialog", { name: "Scan with Pubky Ring" })).not.toBeInTheDocument();

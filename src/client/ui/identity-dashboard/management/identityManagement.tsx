@@ -170,18 +170,18 @@ function IdentityManagement({
           </h2>
           <p className="text-sm leading-5 text-secondary-foreground">
             {!browserKey
-              ? "Your private key stays in Pubky Ring. Manage its backup in Ring."
+              ? "Your private key stays in Pubky Ring. Manage its backup in Pubky Ring."
               : account
-                ? "Your key is saved in this browser and backed up, encrypted, to Google Drive. For a copy that doesn’t depend on Google, download a backup file or use Pubky Ring."
-                : "Your key is saved only in this browser. Keep an encrypted backup file so you can restore it if this browser’s data is cleared or you switch devices."}
+                ? "Your key is saved in this browser and backed up, encrypted, to Google Drive. For a copy that doesn’t depend on Google, download a recovery file or use Pubky Ring."
+                : "Your key is saved only in this browser. Keep a recovery file so you can restore it if this browser’s data is cleared or you switch devices."}
           </p>
           {backupFile?.verified ? (
             <BackupStatusLine tone="ok">
-              Backup file checked on {formatBackupDate(backupFile.at)}.
+              Recovery file checked on {formatBackupDate(backupFile.at)}.
             </BackupStatusLine>
           ) : backupFile ? (
             <BackupStatusLine tone="warning">
-              Passport made a backup file on {formatBackupDate(backupFile.at)}, but it was never
+              Passport made a recovery file on {formatBackupDate(backupFile.at)}, but it was never
               checked.
             </BackupStatusLine>
           ) : unbacked ? (
@@ -197,14 +197,14 @@ function IdentityManagement({
                   onClick={() => onDownloadRecoveryFile("manage", true)}
                   variant={unbacked ? "default" : "secondary"}
                 >
-                  <CheckIcon /> Check backup
+                  <CheckIcon /> Check recovery file
                 </Button>
               ) : null}
               <Button
                 onClick={() => onDownloadRecoveryFile("manage")}
                 variant={unbacked && !uncheckedFile ? "default" : "secondary"}
               >
-                <DownloadIcon /> Download backup
+                <DownloadIcon /> Download recovery file
               </Button>
               <Button onClick={onMigrateToKeychain} variant="secondary">
                 <KeyRoundIcon /> Use in Pubky Ring

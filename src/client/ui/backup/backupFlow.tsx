@@ -52,7 +52,7 @@ export function BackupFlow({
   checkOnly = false,
   creatingAccount = false,
 }: {
-  /** The name the backup file was given, to point to it when the check resumes a later visit. */
+  /** The name the recovery file was given, so the check and its errors can name the file. */
   backupFileName?: string | undefined;
   createBackup: (
     password: string,
@@ -86,6 +86,8 @@ export function BackupFlow({
   const downloadedHere = downloadedFile !== undefined;
   // A check reopened on a later visit asks for a file saved then, which may be lost.
   const fileSource: FileSource = checkOnly ? "check" : downloadedHere ? "downloaded" : "earlier";
+  // The file the check wants, when its name is known, so a wrong pick can be told which one.
+  const expectedFileName = downloadedFile ?? backupFileName;
   const password = useRef<HTMLInputElement>(null);
   const passwordConfirmation = useRef<HTMLInputElement>(null);
   const file = useRef<HTMLInputElement>(null);
@@ -215,7 +217,7 @@ export function BackupFlow({
     if (busy.current) return;
     const selected = file.current?.files?.[0];
     if (!selected || !selected.size || selected.size > MAXIMUM_BACKUP_BYTES) {
-      setError(verificationError("invalid_backup", fileSource));
+      setError(verificationError("invalid_backup", fileSource, expectedFileName));
       return;
     }
     if (!password.current?.value) {
@@ -234,7 +236,7 @@ export function BackupFlow({
       const verified = await verifyBackup(bytes, value);
       if (!active.current) return;
       if (Result.isError(verified)) {
-        setError(verificationError(verified.error.code, fileSource));
+        setError(verificationError(verified.error.code, fileSource, expectedFileName));
       } else {
         toast.success("Recovery file verified");
         onComplete();
@@ -279,13 +281,13 @@ export function BackupFlow({
         ? { title: "Verify", accent: "recovery file." }
         : creatingAccount
           ? { title: "Protect your", accent: "key." }
-          : { title: "Encrypted", accent: "backup." })}
+          : { title: "Make a", accent: "recovery file." })}
       description={
         confirming
           ? `Pick ${{ downloaded: "the file you just downloaded", earlier: "the recovery file you saved earlier", check: "your recovery file" }[fileSource]} and enter its password. This proves ${restores}.`
           : creatingAccount
-            ? "Your key is saved only in this browser. If you clear your browsing data or lose this device, this backup file and its password are the only way back into your account. Nobody can reset the password, not even Passport."
-            : "Encrypt a backup of your key with a strong password and keep the file somewhere safe. You’ll need both to restore your pubky, and nobody can reset the password."
+            ? "Your key is saved only in this browser. If you clear your browsing data or lose this device, this recovery file and its password are the only way back into your account. Nobody can reset the password, not even Passport."
+            : "A recovery file is a copy of your key, encrypted with a strong password. Keep the file somewhere safe. You’ll need both to restore your pubky, and nobody can reset the password."
       }
     >
       <form
@@ -471,9 +473,7 @@ export function BackupFlow({
                   ? creatingAccount
                     ? "Verify and create account"
                     : "Verify recovery file"
-                  : creatingAccount
-                    ? "Download encrypted backup"
-                    : "Download backup"}
+                  : "Download recovery file"}
             </Button>
           }
           tertiary={
@@ -496,31 +496,43 @@ function confirmationState(value: string, repeated: string): Confirmation {
   return value.startsWith(repeated) ? "typing" : "mismatch";
 }
 
-/** Messages name the file asked for: just downloaded, saved on an earlier visit, or any. */
-function verificationError(code: string, source: FileSource): FlowError {
+/**
+ * Messages name the file asked for (just downloaded, saved on an earlier visit, or any) and, when
+ * its name is known, the file itself. A password that does not open the file is most likely a
+ * typo moments after it was chosen, so that comes first; a damaged file comes second.
+ */
+function verificationError(code: string, source: FileSource, fileName?: string): FlowError {
+  const named = fileName ? shortFileName(fileName) : undefined;
   switch (code) {
     case "backup_mismatch":
       return {
         target: "file",
-        message:
-          source === "downloaded"
-            ? "That recovery file belongs to a different pubky. Select the one you just downloaded."
-            : "That recovery file belongs to a different pubky. Select the one for this pubky.",
+        message: named
+          ? `This file is for a different pubky. Pick ${named}.`
+          : "This file is for a different pubky. Pick the recovery file of this pubky.",
       };
-    case "invalid_backup":
+    case "invalid_backup": {
+      const which = {
+        downloaded: "the recovery file you just downloaded",
+        earlier: "the recovery file you saved earlier",
+        check: "your recovery file",
+      }[source];
       return {
         target: "file",
-        message: {
-          downloaded: "Select the recovery file you just downloaded (it ends in .pkarr).",
-          earlier: "Select the recovery file you saved earlier (it ends in .pkarr).",
-          check: "Select your recovery file (it ends in .pkarr).",
-        }[source],
+        message: named ? `Select ${which}, ${named}.` : `Select ${which} (it ends in .pkarr).`,
       };
+    }
     case "invalid_password":
     case "backup_decryption_failed":
       return {
         target: "password",
-        message: "The password is wrong or the selected recovery file is damaged.",
+        message: `That password doesn’t open this file. Passwords are case-sensitive, so check for typos and caps lock. If it’s right, the file may be damaged: ${
+          {
+            downloaded: "download it again.",
+            earlier: "make a new recovery file.",
+            check: "download a new recovery file.",
+          }[source]
+        }`,
       };
     default:
       return { target: "form", message: "Passport could not verify the selected recovery file." };
@@ -535,7 +547,7 @@ function shortFileName(fileName: string): string {
 }
 
 function createFailure(): FlowError {
-  return { target: "form", message: "Could not create the recovery file. Please try again." };
+  return { target: "form", message: "Couldn’t create the recovery file. Try again." };
 }
 
 function downloadFile(file: { blob: Blob; fileName: string }) {

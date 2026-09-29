@@ -126,8 +126,8 @@ export function InviteCodeStep({
 
   return (
     <SignupStep
-      title="Use"
-      accent="Invite."
+      title="Use an"
+      accent="invite."
       description={
         inviteOnly
           ? "Creating an account here needs an invite code. Enter the one you received."

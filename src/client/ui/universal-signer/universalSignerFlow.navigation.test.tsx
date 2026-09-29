@@ -215,7 +215,9 @@ describe("UniversalSignerFlow identity navigation", () => {
     expect(screen.queryByTitle("Copy Pubky")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Manage identity" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Authorize an app" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Download backup" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Download recovery file" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Get your pubky." })).not.toBeInTheDocument();
   });
 
@@ -343,9 +345,9 @@ describe("UniversalSignerFlow identity navigation", () => {
 
     expect(screen.queryByRole("button", { name: "Detach from Google" })).not.toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Manage identity" }));
-    await userEvent.setup().click(screen.getByRole("button", { name: "Download backup" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Download recovery file" }));
 
-    expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Make a recovery file." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Manage identity." })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Detach from Google" })).not.toBeInTheDocument();
@@ -362,8 +364,8 @@ describe("UniversalSignerFlow identity navigation", () => {
     renderSigner();
 
     expect(screen.getByText(/This key is saved only in this browser/u)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Download backup" }));
-    expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Download recovery file" }));
+    expect(screen.getByRole("heading", { name: "Make a recovery file." })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
   });
@@ -460,10 +462,8 @@ describe("UniversalSignerFlow identity navigation", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Close" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Done" }));
     expect(screen.getByRole("heading", { name: "Back up your pubky first." })).toBeInTheDocument();
-    await userEvent
-      .setup()
-      .click(screen.getByRole("button", { name: "Download encrypted backup" }));
-    expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Download recovery file" }));
+    expect(screen.getByRole("heading", { name: "Make a recovery file." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Back up your pubky first." })).toBeInTheDocument();
 
@@ -509,7 +509,7 @@ describe("UniversalSignerFlow identity navigation", () => {
   });
 
   it.each([
-    ["Download backup", "Encrypted backup."],
+    ["Download recovery file", "Make a recovery file."],
     ["Use in Pubky Ring", "Use in Pubky Ring."],
     ["Attach to Google", "Attach to Google."],
   ])("leaves the %s screen when another tab removes its identity", async (action, heading) => {
@@ -567,15 +567,15 @@ describe("UniversalSignerFlow identity navigation", () => {
 
     await user.click(screen.getByRole("button", { name: "Manage identity" }));
     await user.click(screen.getByRole("button", { name: "Remove key from this browser" }));
-    await user.click(screen.getByRole("button", { name: "Download backup" }));
-    expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Download recovery file" }));
+    expect(screen.getByRole("heading", { name: "Make a recovery file." })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back" }));
 
     expect(
       screen.getByRole("heading", { name: "Remove this key from this browser?" }),
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Cancel" }));
-    await user.click(screen.getByRole("button", { name: "Download backup" }));
+    await user.click(screen.getByRole("button", { name: "Download recovery file" }));
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Manage identity." })).toBeInTheDocument();
   });

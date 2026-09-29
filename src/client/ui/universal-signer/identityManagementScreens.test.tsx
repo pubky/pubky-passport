@@ -112,7 +112,7 @@ describe("IdentityManagementScreens", () => {
       { view: "manage", publicKeyZ32: "local" },
       { catalog: created },
     );
-    await userEvent.setup().click(screen.getByRole("button", { name: "Check backup" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Check recovery file" }));
     expect(onNavigate).toHaveBeenCalledWith({
       view: "recovery",
       publicKeyZ32: "local",

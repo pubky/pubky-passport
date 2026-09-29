@@ -184,10 +184,10 @@ test("an unfinished Ring identity opens the app's request first, with one Ring a
   // The list labels the identity whose key stays in Ring.
   await page.getByRole("button", { name: /Key in Pubky Ring/u }).click();
   await expect(page.getByRole("button", { name: "Authorize", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Open in Pubky Ring", exact: true })).toHaveCount(
-    0,
-  );
-  await expect(page.getByText(/You choose the identity to sign in with in Ring/u)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByText(/You’ll pick which identity to use in Pubky Ring/u)).toBeVisible();
 
   await page.getByRole("button", { name: "Continue in Pubky Ring" }).click();
   await expect(page.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeVisible();
@@ -211,7 +211,7 @@ test("without callbacks, the Ring screen sends the user back without claiming ap
 }) => {
   await mockRingNetwork(page);
   await page.goto(`/authorize#d=${encodeURIComponent(APP_REQUEST_WITHOUT_CALLBACKS)}`);
-  await page.getByRole("button", { name: "Open in Pubky Ring", exact: true }).click();
+  await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
   await page.getByRole("button", { name: "I approved in Pubky Ring" }).click();
 
   // Without callbacks the request names no website, so its own label names nothing here.

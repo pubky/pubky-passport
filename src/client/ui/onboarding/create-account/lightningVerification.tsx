@@ -55,21 +55,26 @@ export function LightningVerification({
     });
     setCopyFailed(!copied);
   }
+  // The QR code and Pay now exist only while there is an invoice that hasn't expired.
+  const payable = invoice !== null && !expired;
   return (
     <SignupStep
-      title="Scan to"
-      mobileTitle="Tap to"
-      accent="Pay."
+      title="Pay with"
+      accent="Lightning."
       description={
-        <>
-          <span className="sr-only">Pay the invoice with your favorite bitcoin wallet.</span>
-          <span aria-hidden="true" className="hidden md:inline">
-            Scan the QR code with your favorite wallet.
-          </span>
-          <span aria-hidden="true" className="md:hidden">
-            Pay with your favorite bitcoin wallet.
-          </span>
-        </>
+        payable ? (
+          <>
+            <span className="sr-only">Pay the invoice with your favorite bitcoin wallet.</span>
+            <span aria-hidden="true" className="hidden md:inline">
+              Scan the QR code with your favorite wallet.
+            </span>
+            <span aria-hidden="true" className="md:hidden">
+              Tap Pay now to open the invoice in your bitcoin wallet.
+            </span>
+          </>
+        ) : (
+          "Pay the invoice with your favorite bitcoin wallet."
+        )
       }
     >
       <OnboardingCard>
@@ -116,7 +121,7 @@ export function LightningVerification({
                   ref={invoiceHeading}
                   tabIndex={-1}
                 >
-                  Bitcoin Lightning Payment
+                  Bitcoin Lightning payment
                 </h2>
                 {/* The unit is part of the text, so the amount never reads as bitcoin. */}
                 <p className="text-5xl font-bold leading-none text-brand">

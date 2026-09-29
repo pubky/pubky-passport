@@ -43,9 +43,9 @@ The authorization URL contains the relay secret. Keep it in the browser, encode 
 and never log it or send it to analytics.
 
 Passport opens a request in two steps. First it lists every identity saved in the browser, with
-**Create account** and **Open in Pubky Ring** below them, and a quieter link to a separate step
-that offers only Google and backup import (or, on an instance without Google, opens the backup
-import directly); without saved identities it shows only those options, with **Create account**
+**Create account** and **Continue with Pubky Ring** below them, and a quieter link to a separate
+step that offers only Google and **Import recovery file** (or, on an instance without Google, opens
+the recovery file import directly); without saved identities it shows only those options, with **Create account**
 recommended. Every step names your app the way permission review does: with your callback host
 when your `x-source` label differs from it, or with a notice when the request has no callbacks. The
 list reads no profiles: it shows the names and avatars kept from earlier reads.
@@ -53,7 +53,7 @@ Choosing an identity opens the permission review, with **Authorize**, **Cancel**
 to the list. Each identity shows where its key lives (**Key in Pubky Ring**, **Key in this
 browser**, or its attached Google account), and one without a public profile is named after its key.
 Identities held in Ring show one action, **Continue in Pubky Ring**, and say that the identity is
-chosen in Ring. **Open in Pubky Ring** hands your request to Ring unchanged: on a phone or tablet (a
+chosen in Ring. **Continue with Pubky Ring** hands your request to Ring unchanged: on a phone or tablet (a
 coarse pointer) it follows the `pubkyauth://` link at once and shows the QR code if the page is
 still in view about two seconds later, because Ring did not open; with a mouse or trackpad (a fine
 pointer, such as your desktop popup) it shows the QR code directly, since a computer cannot open the

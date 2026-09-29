@@ -152,7 +152,7 @@ describe("IdentityManagement", () => {
     renderManagement();
 
     expect(screen.getByRole("region", { name: "Backup & key access" })).toContainElement(
-      screen.getByRole("button", { name: "Download backup" }),
+      screen.getByRole("button", { name: "Download recovery file" }),
     );
     expect(screen.getByRole("region", { name: "Google account" })).toContainElement(
       screen.getByRole("button", { name: "Detach from Google" }),
@@ -161,7 +161,7 @@ describe("IdentityManagement", () => {
       screen.getByRole("region", { name: "Google account" }),
     );
     expect(screen.getByRole("region", { name: "Google account" })).not.toContainElement(
-      screen.getByRole("button", { name: "Download backup" }),
+      screen.getByRole("button", { name: "Download recovery file" }),
     );
     expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Public profile" })).toContainElement(
@@ -195,7 +195,7 @@ describe("IdentityManagement", () => {
     expect(await screen.findByText("No record found")).toBeInTheDocument();
     expect(screen.getByText(/private key stays in Pubky Ring/)).toBeInTheDocument();
     for (const name of [
-      "Download backup",
+      "Download recovery file",
       "Use in Pubky Ring",
       "Republish homeserver",
       "Attach to Google",
@@ -212,11 +212,11 @@ describe("IdentityManagement", () => {
     const onDownloadRecoveryFile = vi.fn();
     renderManagement({ identity: browserOnlyIdentity, onDownloadRecoveryFile });
 
-    fireEvent.click(screen.getByRole("button", { name: "Download backup" }));
+    fireEvent.click(screen.getByRole("button", { name: "Download recovery file" }));
     expect(onDownloadRecoveryFile).toHaveBeenLastCalledWith("manage");
 
     fireEvent.click(screen.getByRole("button", { name: "Remove key from this browser" }));
-    fireEvent.click(screen.getByRole("button", { name: "Download backup" }));
+    fireEvent.click(screen.getByRole("button", { name: "Download recovery file" }));
     expect(onDownloadRecoveryFile).toHaveBeenLastCalledWith("logout");
   });
 
@@ -229,10 +229,12 @@ describe("IdentityManagement", () => {
       "No backup yet. If this browser’s data is cleared, this pubky is lost.",
     );
     // The safe action is the brand one while nothing protects the key.
-    expect(within(card).getByRole("button", { name: "Download backup" })).toHaveClass(
+    expect(within(card).getByRole("button", { name: "Download recovery file" })).toHaveClass(
       "bg-brand/16",
     );
-    expect(within(card).queryByRole("button", { name: "Check backup" })).not.toBeInTheDocument();
+    expect(
+      within(card).queryByRole("button", { name: "Check recovery file" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Log out" })).not.toBeInTheDocument();
     // The accessible name starts with the visible label, so speech input reaches it.
     const leave = screen.getByRole("button", { name: "Remove key from this browser" });
@@ -244,12 +246,14 @@ describe("IdentityManagement", () => {
     renderManagement({ identity: { ...browserOnlyIdentity, backup: { verifiedAt: BACKUP_AT } } });
 
     const card = screen.getByRole("region", { name: "Backup & key access" });
-    expect(card).toHaveTextContent(`Backup file checked on ${BACKUP_DATE}.`);
+    expect(card).toHaveTextContent(`Recovery file checked on ${BACKUP_DATE}.`);
     expect(card).not.toHaveTextContent("No backup yet");
-    expect(within(card).getByRole("button", { name: "Download backup" })).not.toHaveClass(
+    expect(within(card).getByRole("button", { name: "Download recovery file" })).not.toHaveClass(
       "bg-brand/16",
     );
-    expect(within(card).queryByRole("button", { name: "Check backup" })).not.toBeInTheDocument();
+    expect(
+      within(card).queryByRole("button", { name: "Check recovery file" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();
   });
 
@@ -263,11 +267,11 @@ describe("IdentityManagement", () => {
     const card = screen.getByRole("region", { name: "Backup & key access" });
     // Passport made the file but cannot tell that the browser saved it.
     expect(card).toHaveTextContent(
-      `Passport made a backup file on ${BACKUP_DATE}, but it was never checked.`,
+      `Passport made a recovery file on ${BACKUP_DATE}, but it was never checked.`,
     );
-    const check = within(card).getByRole("button", { name: "Check backup" });
+    const check = within(card).getByRole("button", { name: "Check recovery file" });
     expect(check).toHaveClass("bg-brand/16");
-    expect(within(card).getByRole("button", { name: "Download backup" })).not.toHaveClass(
+    expect(within(card).getByRole("button", { name: "Download recovery file" })).not.toHaveClass(
       "bg-brand/16",
     );
     expect(screen.queryByRole("button", { name: "Log out" })).not.toBeInTheDocument();
@@ -278,9 +282,9 @@ describe("IdentityManagement", () => {
     expect(
       screen.getByRole("heading", { name: "Remove this key from this browser?" }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Check backup" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check recovery file" }));
     expect(onDownloadRecoveryFile).toHaveBeenLastCalledWith("logout", true);
-    fireEvent.click(screen.getByRole("button", { name: "Download backup" }));
+    fireEvent.click(screen.getByRole("button", { name: "Download recovery file" }));
     expect(onDownloadRecoveryFile).toHaveBeenLastCalledWith("logout");
   });
 
@@ -288,7 +292,7 @@ describe("IdentityManagement", () => {
     renderManagement({ identity: { ...identity, backup: { createdAt: BACKUP_AT } } });
 
     const card = screen.getByRole("region", { name: "Backup & key access" });
-    expect(within(card).getByRole("button", { name: "Check backup" })).not.toHaveClass(
+    expect(within(card).getByRole("button", { name: "Check recovery file" })).not.toHaveClass(
       "bg-brand/16",
     );
     expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();

@@ -2,6 +2,7 @@ import Image from "next/image";
 import { useId } from "react";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { cn } from "@/client/ui/shared/mergeClassNames";
+import { Notice } from "@/client/ui/shared/notice";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
@@ -15,11 +16,14 @@ import {
 import { formatSats } from "./formatSats";
 
 export function VerificationOptions({
+  notice,
   onLightning,
   onSms,
   onInvite,
   onBack,
 }: {
+  /** Why the methods are shown again, such as a verification whose code was refused. */
+  notice?: string | undefined;
   onLightning: () => void;
   onSms: () => void;
   onInvite: () => void;
@@ -98,6 +102,7 @@ export function VerificationOptions({
           {provider.storageDescription ? ` ${provider.storageDescription}` : null}
         </p>
       </div>
+      {notice ? <Notice tone="info">{notice}</Notice> : null}
       <section
         aria-label="Verification methods"
         className={`grid gap-5 rounded-lg bg-card p-6 lg:gap-6 lg:bg-transparent lg:p-0 ${options.length === 3 ? "lg:grid-cols-3" : options.length === 2 ? "lg:grid-cols-2" : "lg:grid-cols-1"}`}

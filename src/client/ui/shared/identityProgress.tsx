@@ -1,7 +1,18 @@
 import { PassportScreen } from "./passportScreen";
-import { DisplayHeading } from "./primitives/typography";
+import { DisplayHeading, LeadText } from "./primitives/typography";
 
 export type ChecklistStep = { label: string; state: "complete" | "active" | "pending" };
+
+/**
+ * The steps a new pubky shares whichever way it is set up, named for what they do for the person
+ * rather than the protocol step behind them (signup, PKDNS publication, the first sign-in).
+ */
+export const SETUP_STEP = {
+  createAccount: "Create your account",
+  publish: "Publish your pubky so apps can find it",
+  finish: "Finish setup",
+} as const;
+export const SETUP_LIST_LABEL = "Steps to set up your pubky";
 
 export function IdentityProgress({
   heading,
@@ -17,15 +28,19 @@ export function IdentityProgress({
     // The same space under the setup stepper as every other step (it was 8px here).
     <PassportScreen className="gap-6 md:gap-8">
       <div className="flex flex-1 flex-col gap-6 md:gap-8">
-        <DisplayHeading
-          accent="your pubky."
-          aria-label={`${heading} your pubky.`}
-          desktopAccentOnNewLine
-        >
-          {heading}
-        </DisplayHeading>
+        <div className="flex flex-col gap-3">
+          <DisplayHeading
+            accent="your pubky."
+            aria-label={`${heading} your pubky.`}
+            desktopAccentOnNewLine
+          >
+            {heading}
+          </DisplayHeading>
+          {/* Closing or reloading the window mid-setup drops the work, and an app's request. */}
+          <LeadText>This takes a few seconds. Keep this window open.</LeadText>
+        </div>
         <p aria-atomic="true" className="sr-only" role="status">
-          {heading} your Pubky: {activeStep?.label}.
+          {heading} your pubky: {activeStep?.label}.
         </p>
         <ol aria-label={listLabel} className="flex flex-col gap-6 py-3">
           {steps.map((step) => (
@@ -127,15 +142,18 @@ export function IdentityLoading() {
   return (
     <PassportScreen>
       <div className="flex flex-1 flex-col gap-6 md:gap-8">
-        <DisplayHeading
-          accent="your pubky."
-          aria-label="Loading your pubky."
-          desktopAccentOnNewLine
-        >
-          Loading
-        </DisplayHeading>
+        <div className="flex flex-col gap-3">
+          <DisplayHeading
+            accent="your pubky."
+            aria-label="Loading your pubky."
+            desktopAccentOnNewLine
+          >
+            Loading
+          </DisplayHeading>
+          <LeadText>This takes a few seconds. Keep this window open.</LeadText>
+        </div>
         <p aria-atomic="true" className="sr-only" role="status">
-          Loading your Pubky.
+          Loading your pubky.
         </p>
         <div className="py-3">
           <ActiveIcon />

@@ -34,7 +34,7 @@ function renderChooser(identities: readonly LocalIdentityMetadata[], active: str
     <ChooseIdentity
       activePublicKeyZ32={active}
       identities={identities}
-      moreOptionsLabel="Continue with Google or import a backup"
+      moreOptionsLabel="Continue with Google or import a recovery file"
       review={REVIEW}
       {...handlers}
     />,
@@ -72,10 +72,10 @@ describe("ChooseIdentity", () => {
 
     const user = userEvent.setup();
     await user.click(rows[1]!);
-    await user.click(screen.getByRole("button", { name: "Open in Pubky Ring" }));
+    await user.click(screen.getByRole("button", { name: "Continue with Pubky Ring" }));
     await user.click(screen.getByRole("button", { name: "Create account" }));
     await user.click(
-      screen.getByRole("button", { name: "Continue with Google or import a backup" }),
+      screen.getByRole("button", { name: "Continue with Google or import a recovery file" }),
     );
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(handlers.onSelect).toHaveBeenCalledWith(PLAIN.publicIdentity.publicKeyZ32);
@@ -118,7 +118,9 @@ describe("ChooseIdentity", () => {
     expect(screen.queryByText("or")).not.toBeInTheDocument();
     expect(screen.getByText(/Create your Pubky account to sign in/u)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create account" })).toHaveClass("bg-brand/16");
-    expect(screen.getByRole("button", { name: "Open in Pubky Ring" })).toHaveClass("bg-secondary");
+    expect(screen.getByRole("button", { name: "Continue with Pubky Ring" })).toHaveClass(
+      "bg-secondary",
+    );
   });
 
   it("names identities from the summary this browser kept, without reading profiles", () => {
@@ -143,7 +145,7 @@ describe("ChooseIdentity", () => {
       <ChooseIdentity
         activePublicKeyZ32={null}
         identities={[]}
-        moreOptionsLabel="Import a backup"
+        moreOptionsLabel="Import a recovery file"
         onCancel={vi.fn()}
         onCreateAccount={vi.fn()}
         onMoreOptions={vi.fn()}
@@ -166,7 +168,7 @@ describe("ChooseIdentity", () => {
       <ChooseIdentity
         activePublicKeyZ32={null}
         identities={[PLAIN]}
-        moreOptionsLabel="Import a backup"
+        moreOptionsLabel="Import a recovery file"
         onCancel={vi.fn()}
         onCreateAccount={vi.fn()}
         onMoreOptions={vi.fn()}

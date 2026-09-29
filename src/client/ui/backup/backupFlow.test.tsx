@@ -71,7 +71,7 @@ describe("BackupFlow", () => {
     );
     const user = userEvent.setup();
     await enterNewPassword(user);
-    await user.click(screen.getByRole("button", { name: "Download encrypted backup" }));
+    await user.click(screen.getByRole("button", { name: "Download recovery file" }));
     expect(click).toHaveBeenCalledOnce();
     expect(revokeObjectURL).not.toHaveBeenCalled();
     // The revocation is scheduled a second out so the browser can start the download first.
@@ -106,7 +106,7 @@ describe("BackupFlow", () => {
     const user = userEvent.setup();
     const password = screen.getByLabelText("Enter strong password");
     const confirmation = screen.getByLabelText("Confirm password");
-    const download = screen.getByRole("button", { name: "Download encrypted backup" });
+    const download = screen.getByRole("button", { name: "Download recovery file" });
     expect(screen.getByText(`Minimum ${MINIMUM_BACKUP_PASSWORD_LENGTH} characters.`)).toBeVisible();
     expect(password).toHaveAttribute("minlength", String(MINIMUM_BACKUP_PASSWORD_LENGTH));
     expect(password).toHaveAttribute("autocomplete", "new-password");
@@ -181,7 +181,7 @@ describe("BackupFlow", () => {
     );
     const user = userEvent.setup();
     const password = screen.getByLabelText("Enter strong password");
-    const download = screen.getByRole("button", { name: "Download backup" });
+    const download = screen.getByRole("button", { name: "Download recovery file" });
     expect(screen.getByText(/nobody can reset the password/u)).toBeInTheDocument();
     await user.click(download);
     expect(password).toHaveFocus();
@@ -319,7 +319,7 @@ describe("BackupFlow", () => {
     );
     const user = userEvent.setup();
     await enterNewPassword(user);
-    await user.click(screen.getByRole("button", { name: "Download backup" }));
+    await user.click(screen.getByRole("button", { name: "Download recovery file" }));
 
     const file = screen.getByLabelText("Recovery file");
     const help = screen.getByText(/Download started/u);
@@ -351,7 +351,7 @@ describe("BackupFlow", () => {
       />,
     );
     await enterNewPassword(user);
-    await user.click(screen.getByRole("button", { name: "Download backup" }));
+    await user.click(screen.getByRole("button", { name: "Download recovery file" }));
     expect(screen.getByRole("heading", { name: "Verify recovery file." })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
   });
@@ -374,9 +374,9 @@ describe("BackupFlow", () => {
     );
     const user = userEvent.setup();
     await enterNewPassword(user);
-    await user.click(screen.getByRole("button", { name: "Download backup" }));
+    await user.click(screen.getByRole("button", { name: "Download recovery file" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Could not create the recovery file",
+      "Couldn’t create the recovery file. Try again.",
     );
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:backup");
   });
@@ -386,6 +386,7 @@ describe("BackupFlow", () => {
       .fn()
       .mockReturnValueOnce(Result.err({ code: "backup_mismatch" }))
       .mockReturnValueOnce(Result.err({ code: "backup_decryption_failed" }))
+      .mockReturnValueOnce(Result.err({ code: "invalid_backup" }))
       .mockReturnValueOnce(Result.ok());
     const onComplete = vi.fn();
     mockDownload();
@@ -402,7 +403,7 @@ describe("BackupFlow", () => {
     );
     const user = userEvent.setup();
     await enterNewPassword(user);
-    await user.click(screen.getByRole("button", { name: "Download encrypted backup" }));
+    await user.click(screen.getByRole("button", { name: "Download recovery file" }));
     const heading = screen.getByRole("heading", { name: "Verify recovery file." });
     expect(heading).toHaveFocus();
 
@@ -410,8 +411,9 @@ describe("BackupFlow", () => {
     const file = screen.getByLabelText("Recovery file");
     // Pressed early, the check names what is missing and moves to it.
     await user.click(verify);
+    // The file just downloaded is named, so the right one is easy to pick.
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Select the recovery file you just downloaded (it ends in .pkarr).",
+      "Select the recovery file you just downloaded, pubky-identity.pkarr.",
     );
     expect(file).toHaveFocus();
     await user.upload(file, backupFile());
@@ -424,7 +426,9 @@ describe("BackupFlow", () => {
     await user.type(screen.getByLabelText("Recovery file password"), PASSWORD);
     await user.click(verify);
     const fileError = await screen.findByRole("alert");
-    expect(fileError).toHaveTextContent("different pubky");
+    expect(fileError).toHaveTextContent(
+      "This file is for a different pubky. Pick pubky-identity.pkarr.",
+    );
     expect(file).toHaveAttribute("aria-invalid", "true");
     expect(file.getAttribute("aria-describedby")?.split(" ")).toContain(fileError.id);
     expect(file).toHaveFocus();
@@ -432,17 +436,29 @@ describe("BackupFlow", () => {
     await user.type(screen.getByLabelText("Recovery file password"), PASSWORD);
     await user.click(verify);
     const passwordError = await screen.findByRole("alert");
-    expect(passwordError).toHaveTextContent("password is wrong");
+    // Moments after the password was chosen, a typo is the likely cause, so it comes first.
+    expect(passwordError).toHaveTextContent(
+      "That password doesn’t open this file. Passwords are case-sensitive, so check for typos and caps lock. If it’s right, the file may be damaged: download it again.",
+    );
     const password = screen.getByLabelText("Recovery file password");
     expect(password).toHaveAttribute("aria-invalid", "true");
     expect(password.getAttribute("aria-describedby")?.split(" ")).toContain(passwordError.id);
     expect(password).toHaveFocus();
     expect(file).not.toHaveAttribute("aria-invalid");
 
+    // A file that isn't a recovery file at all is the wrong file, not a mistyped password.
+    await user.type(password, PASSWORD);
+    await user.click(verify);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /^Select the recovery file you just downloaded, pubky-identity\.pkarr\.$/u,
+    );
+    expect(file).toHaveAttribute("aria-invalid", "true");
+    expect(file).toHaveFocus();
+
     await user.type(password, PASSWORD);
     await user.click(verify);
     expect(onComplete).toHaveBeenCalledOnce();
-    expect(verifyBackup).toHaveBeenCalledTimes(3);
+    expect(verifyBackup).toHaveBeenCalledTimes(4);
   });
 
   it("shows a failed download as a notice that takes focus while the button is busy", async () => {
@@ -462,7 +478,7 @@ describe("BackupFlow", () => {
     );
     const user = userEvent.setup();
     await enterNewPassword(user);
-    await user.click(screen.getByRole("button", { name: "Download encrypted backup" }));
+    await user.click(screen.getByRole("button", { name: "Download recovery file" }));
 
     const busy = screen.getByRole("button", { name: "Encrypting…" });
     expect(busy).toHaveAttribute("aria-busy", "true");
@@ -470,7 +486,7 @@ describe("BackupFlow", () => {
     await act(async () => fail());
 
     const notice = screen.getByRole("alert");
-    expect(notice).toHaveTextContent("Could not create the recovery file");
+    expect(notice).toHaveTextContent("Couldn’t create the recovery file. Try again.");
     expect(notice).toHaveFocus();
   });
 
@@ -548,7 +564,7 @@ describe("BackupFlow", () => {
     await user.type(screen.getByLabelText("Recovery file password"), PASSWORD);
     await user.click(screen.getByRole("button", { name: "Verify recovery file" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "That recovery file belongs to a different pubky.",
+      "This file is for a different pubky. Pick the recovery file of this pubky.",
     );
     await user.type(screen.getByLabelText("Recovery file password"), PASSWORD);
     await user.click(screen.getByRole("button", { name: "Verify recovery file" }));
@@ -558,5 +574,43 @@ describe("BackupFlow", () => {
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(onBack).toHaveBeenCalledOnce();
     expect(screen.queryByLabelText("Enter strong password")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["a check from Manage", { checkOnly: true }, "Recovery file", "download a new recovery file."],
+    [
+      "a check resumed on a later visit",
+      { initialStep: "confirm" as const },
+      "Recovery file you saved earlier",
+      "make a new recovery file.",
+    ],
+  ])("names the expected file and the next step for %s", async (_, props, fileLabel, nextStep) => {
+    const key = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
+    const verifyBackup = vi
+      .fn()
+      .mockReturnValueOnce(Result.err({ code: "backup_mismatch" }))
+      .mockReturnValueOnce(Result.err({ code: "backup_decryption_failed" }));
+    render(
+      <BackupFlow
+        {...props}
+        backupFileName={`pubky-${key}.pkarr`}
+        createBackup={vi.fn()}
+        verifyBackup={verifyBackup}
+        onBack={vi.fn()}
+        onComplete={vi.fn()}
+      />,
+    );
+    const user = userEvent.setup();
+    await user.upload(screen.getByLabelText(fileLabel), backupFile());
+    await user.type(screen.getByLabelText("Recovery file password"), PASSWORD);
+    await user.click(screen.getByRole("button", { name: "Verify recovery file" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This file is for a different pubky. Pick pubky-1aeh1m…dddwdy.pkarr.",
+    );
+    await user.type(screen.getByLabelText("Recovery file password"), PASSWORD);
+    await user.click(screen.getByRole("button", { name: "Verify recovery file" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      `If it’s right, the file may be damaged: ${nextStep}`,
+    );
   });
 });

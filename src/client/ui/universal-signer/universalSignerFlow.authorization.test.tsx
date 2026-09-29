@@ -555,7 +555,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
     for (const row of rows) expect(row).not.toHaveAttribute("aria-pressed");
     expect(screen.queryByRole("button", { name: "Authorize" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create account" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open in Pubky Ring" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue with Pubky Ring" })).toBeInTheDocument();
     expect(screen.getByText("or")).toBeInTheDocument();
 
     await user.click(rows[1]!);
@@ -580,7 +580,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
   it("offers Pubky Ring from the list and returns there without choosing an identity", async () => {
     const user = userEvent.setup();
     renderFlow();
-    await user.click(await screen.findByRole("button", { name: "Open in Pubky Ring" }));
+    await user.click(await screen.findByRole("button", { name: "Continue with Pubky Ring" }));
 
     expect(screen.getByRole("heading", { name: "Sign in with Pubky Ring." })).toHaveFocus();
     // Without a coarse pointer the QR code shows at once; a computer cannot open the link.
@@ -612,7 +612,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
     try {
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       renderFlow();
-      await user.click(await screen.findByRole("button", { name: "Open in Pubky Ring" }));
+      await user.click(await screen.findByRole("button", { name: "Continue with Pubky Ring" }));
 
       expect(assign).toHaveBeenCalledWith(
         "pubkyauth://signin?relay=https://relay.example/inbox&secret=exact-request",
@@ -634,9 +634,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
     renderFlow();
     await userEvent.setup().click(await screen.findByRole("button", { name: "Authorize an app" }));
 
-    expect(
-      await screen.findByRole("heading", { name: "Authorize a service." }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Authorize an app." })).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "Invalid sign-in link." }),
     ).not.toBeInTheDocument();
@@ -649,7 +647,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
     expect(
       await screen.findByRole("heading", { name: "Invalid sign-in link." }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Authorize a service." })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Authorize an app." })).not.toBeInTheDocument();
   });
 
   it("switches the active identity through the list without losing the request", async () => {
@@ -678,7 +676,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
     renderFlow();
 
     await user.click(
-      await screen.findByRole("button", { name: "Continue with Google or import a backup" }),
+      await screen.findByRole("button", { name: "Continue with Google or import a recovery file" }),
     );
 
     // A focused step: the request's heading, Google and a backup, and none of the list's options.
@@ -688,7 +686,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
       within(otherWays)
         .getAllByRole("button")
         .map((button) => button.getAttribute("aria-label") ?? button.textContent?.trim()),
-    ).toEqual(expect.arrayContaining(["About signing in with Google", "Import backup"]));
+    ).toEqual(expect.arrayContaining(["About signing in with Google", "Import recovery file"]));
     expect(screen.queryByRole("button", { name: "Create account" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Pubky Ring/u })).not.toBeInTheDocument();
     expect(screen.getAllByLabelText("Signing in to requesting.app")).toHaveLength(1);
@@ -697,7 +695,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
       screen.getByRole("list", { name: "Choose the identity to sign in with." }),
     ).toBeInTheDocument();
     await user.click(
-      screen.getByRole("button", { name: "Continue with Google or import a backup" }),
+      screen.getByRole("button", { name: "Continue with Google or import a recovery file" }),
     );
     await user.click(screen.getByRole("button", { name: "Continue with Google" }));
     // A restore needs no confirmation screen; the review comes straight back.
@@ -716,7 +714,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
       ),
     );
 
-    await user.click(await screen.findByRole("button", { name: "Import a backup" }));
+    await user.click(await screen.findByRole("button", { name: "Import a recovery file" }));
     expect(
       await screen.findByRole("heading", { name: /Import (your )?(backup|recovery file)/iu }),
     ).toBeInTheDocument();
@@ -745,7 +743,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
     const user = userEvent.setup();
     renderFlow();
     await user.click(
-      await screen.findByRole("button", { name: "Continue with Google or import a backup" }),
+      await screen.findByRole("button", { name: "Continue with Google or import a recovery file" }),
     );
     MOCKS.select.mockReturnValue(Result.err({ code: "storage_unavailable" as const }));
     await user.click(screen.getByRole("button", { name: "Continue with Google" }));
@@ -757,7 +755,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
 
     await user.click(screen.getByRole("button", { name: "Switch identity" }));
     await user.click(
-      screen.getByRole("button", { name: "Continue with Google or import a backup" }),
+      screen.getByRole("button", { name: "Continue with Google or import a recovery file" }),
     );
     await user.click(screen.getByRole("button", { name: "Continue with Google" }));
     const cancel = await screen.findByRole("button", { name: "Cancel" });
@@ -785,7 +783,9 @@ describe("UniversalSignerFlow with an authorization request", () => {
     expect(screen.queryByRole("button", { name: "Switch identity" })).not.toBeInTheDocument();
     // Creating an account is the recommended way in: the brand button, not a secondary one.
     expect(screen.getByRole("button", { name: "Create account" })).toHaveClass("bg-brand/16");
-    expect(screen.getByRole("button", { name: "Open in Pubky Ring" })).toHaveClass("bg-secondary");
+    expect(screen.getByRole("button", { name: "Continue with Pubky Ring" })).toHaveClass(
+      "bg-secondary",
+    );
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
   });
 
@@ -815,7 +815,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
     MOCKS.catalog = { activePublicKeyZ32: null, identities: [] };
     renderFlow();
     await user.click(
-      await screen.findByRole("button", { name: "Continue with Google or import a backup" }),
+      await screen.findByRole("button", { name: "Continue with Google or import a recovery file" }),
     );
     await screen.findByRole("region", { name: "Other ways to sign in" });
 

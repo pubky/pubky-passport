@@ -58,7 +58,7 @@ export function LogoutConfirmation({
   let description: ReactNode;
   switch (backup.kind) {
     case "ring":
-      description = `This removes the saved identity from this browser. Your key stays in Pubky Ring, so you can add this pubky again from Ring. ${STAYS_ONLINE}`;
+      description = `This removes the saved identity from this browser. Your key stays in Pubky Ring, so you can add this pubky again from Pubky Ring. ${STAYS_ONLINE}`;
       break;
     case "google":
       description = (
@@ -96,30 +96,30 @@ export function LogoutConfirmation({
             the only copy and this pubky is gone for good.
           </p>
           <Button onClick={onDownloadBackup}>
-            <DownloadIcon /> Download backup
+            <DownloadIcon /> Download recovery file
           </Button>
         </Notice>
       ) : null}
       {backup.kind === "file" && !backup.verified ? (
         <Notice tone="warning">
           <p>
-            Passport made a backup file on {formatBackupDate(backup.at)}, but it was never checked.
-            If that file is missing or doesn’t open, removing this key deletes the only copy and
-            this pubky is gone for good.
+            Passport made a recovery file on {formatBackupDate(backup.at)}, but it was never
+            checked. If that file is missing or doesn’t open, removing this key deletes the only
+            copy and this pubky is gone for good.
           </p>
           <div className="flex flex-wrap gap-3">
             <Button onClick={onCheckBackup}>
-              <CheckIcon /> Check backup
+              <CheckIcon /> Check recovery file
             </Button>
             <Button onClick={onDownloadBackup} variant="secondary">
-              <DownloadIcon /> Download backup
+              <DownloadIcon /> Download recovery file
             </Button>
           </div>
         </Notice>
       ) : null}
       {backup.kind === "file" && backup.verified ? (
         <Notice tone="info">
-          You checked a backup file of this key on {formatBackupDate(backup.at)}. Make sure you
+          You checked a recovery file of this key on {formatBackupDate(backup.at)}. Make sure you
           still have the file and its password.
         </Notice>
       ) : null}
@@ -130,7 +130,7 @@ export function LogoutConfirmation({
         >
           {removesOnlyCopy
             ? "I have a backup of this key and understand it will be deleted from this browser."
-            : "I still have the backup file and know its password."}
+            : "I still have the recovery file and know its password."}
         </AcknowledgementCheckbox>
       ) : null}
       {removalFailed ? (

@@ -3,6 +3,8 @@ import {
   IdentityLoading,
   IdentityProgress,
   progressSteps,
+  SETUP_LIST_LABEL,
+  SETUP_STEP,
   type ChecklistStep,
 } from "@/client/ui/shared/identityProgress";
 import { GOOGLE_SETUP_STEPS, SetupProgressProvider } from "@/client/ui/shared/setupProgress";
@@ -66,14 +68,9 @@ function flowSteps(labels: string[], activeIndex: number): ChecklistStep[] {
 function repairPresentation(activeIndex: number): ProgressPresentation {
   return {
     heading: "Repairing",
-    listLabel: "Pubky identity repair progress",
+    listLabel: "Steps to repair your pubky",
     steps: flowSteps(
-      [
-        "Restore encrypted backup",
-        "Repair homeserver access",
-        "Publish PKDNS records",
-        "Sign in to the homeserver",
-      ],
+      ["Unlock your backup", "Finish your earlier setup", SETUP_STEP.publish, "Sign in"],
       activeIndex,
     ),
   };
@@ -82,13 +79,13 @@ function repairPresentation(activeIndex: number): ProgressPresentation {
 function setupPresentation(activeIndex: number): ProgressPresentation {
   return {
     heading: "Setting up",
-    listLabel: "Pubky identity setup progress",
+    listLabel: SETUP_LIST_LABEL,
     steps: flowSteps(
       [
-        "Store encrypted backup",
-        "Sign up to the homeserver",
-        "Publish PKDNS records",
-        "Activate identity",
+        "Save encrypted backup to Google Drive",
+        SETUP_STEP.createAccount,
+        SETUP_STEP.publish,
+        SETUP_STEP.finish,
       ],
       activeIndex,
     ),

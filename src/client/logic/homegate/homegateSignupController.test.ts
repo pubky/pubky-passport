@@ -75,7 +75,7 @@ describe("HomegateSignupController", () => {
     await controller.verifySmsCode("+41791234567", "123456");
 
     expect(controller.getState()).toMatchObject({
-      view: { step: "complete", invite: INVITE, restored: false },
+      view: { step: "complete", invite: INVITE, restored: false, method: "sms" },
       error: null,
       pending: false,
     });
@@ -189,7 +189,8 @@ describe("HomegateSignupController", () => {
     await vi.advanceTimersByTimeAsync(3_000);
 
     expect(controller.getState()).toMatchObject({
-      view: { step: "complete", invite: INVITE },
+      // A paid invoice issued it, so the choice that follows can say the payment was received.
+      view: { step: "complete", invite: INVITE, restored: false, method: "lightning" },
       error: null,
     });
     expect(repository.read()).toEqual(Result.ok({ invite: INVITE }));
@@ -321,7 +322,11 @@ describe("HomegateSignupController", () => {
 
     await controller.createInvoice();
 
-    expect(controller.getState().view).toMatchObject({ step: "complete", invite: INVITE });
+    expect(controller.getState().view).toMatchObject({
+      step: "complete",
+      invite: INVITE,
+      method: "lightning",
+    });
     expect(verification.createLightningInvoice).toHaveBeenCalledOnce();
   });
 
@@ -397,6 +402,38 @@ describe("HomegateSignupController", () => {
 
     expect(verification.createLightningInvoice).toHaveBeenCalledTimes(2);
     expect(controller.getState().view).toMatchObject({ invoice: REPLACEMENT });
+  });
+
+  it("notes a refused invite until a method is chosen again", async () => {
+    const { controller, verification, storage } = setup();
+    await controller.verifySmsCode("+41791234567", "123456");
+
+    controller.forget({ refused: true });
+    expect(controller.getState()).toMatchObject({
+      view: { step: "choose" },
+      verificationRefused: true,
+    });
+    expect(storage.length).toBe(0);
+    controller.chooseSms();
+    expect(controller.getState().verificationRefused).toBe(false);
+
+    controller.back();
+    controller.forget({ refused: true });
+    await controller.createInvoice();
+    expect(verification.createLightningInvoice).toHaveBeenCalledOnce();
+    expect(controller.getState().verificationRefused).toBe(false);
+
+    controller.back();
+    controller.forget({ refused: true });
+    // An invite code is chosen outside this controller, which only drops the note.
+    controller.dismissRefusal();
+    expect(controller.getState()).toMatchObject({
+      view: { step: "choose" },
+      verificationRefused: false,
+    });
+    // Forgetting for any other reason adds no note.
+    controller.forget();
+    expect(controller.getState().verificationRefused).toBe(false);
   });
 
   it("releases a redeemed invite from storage without changing the screen", async () => {

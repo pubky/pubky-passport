@@ -42,7 +42,7 @@ describe("RecoveryFileDownload", () => {
     );
 
     await enterNewPassword(user);
-    await user.click(screen.getByRole("button", { name: "Download backup" }));
+    await user.click(screen.getByRole("button", { name: "Download recovery file" }));
     expect(createRecoveryFile).toHaveBeenCalledExactlyOnceWith("identity", RECOVERY_PASSWORD);
     expect(onBack).not.toHaveBeenCalled();
 
@@ -77,7 +77,7 @@ describe("RecoveryFileDownload", () => {
       />,
     );
     await enterNewPassword(user);
-    await user.click(screen.getByRole("button", { name: "Download backup" }));
+    await user.click(screen.getByRole("button", { name: "Download recovery file" }));
     await user.click(screen.getByRole("button", { name: SKIP }));
     expect(onBack).toHaveBeenCalledOnce();
     // A skipped check proves nothing about the file.
@@ -94,7 +94,7 @@ describe("RecoveryFileDownload", () => {
       />,
     );
     await enterNewPassword(user);
-    await user.click(screen.getByRole("button", { name: "Download backup" }));
+    await user.click(screen.getByRole("button", { name: "Download recovery file" }));
     expect(screen.getByRole("heading", { name: "Verify recovery file." })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
   });

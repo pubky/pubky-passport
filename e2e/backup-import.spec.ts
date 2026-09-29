@@ -23,7 +23,7 @@ function recoveryFile(passphrase = PASSWORD) {
 }
 
 async function importBackup(page: Page, passphrase: string, file = recoveryFile()) {
-  await page.getByRole("button", { name: "Import backup", exact: true }).click();
+  await page.getByRole("button", { name: "Import recovery file", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Import recovery file." })).toBeVisible();
   await page.getByLabel("Recovery file", { exact: true }).setInputFiles(file);
   await page.getByLabel("Recovery file password").fill(passphrase);
@@ -44,7 +44,7 @@ for (const width of [320, 390]) {
   test(`the picked backup's long name stays inside the page at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 });
     await page.goto("/");
-    await page.getByRole("button", { name: "Import backup", exact: true }).click();
+    await page.getByRole("button", { name: "Import recovery file", exact: true }).click();
     const picker = page.getByLabel("Recovery file", { exact: true });
     await picker.setInputFiles(recoveryFile());
 
@@ -62,7 +62,27 @@ for (const width of [320, 390]) {
 test("backup import reports a wrong password and saves nothing", async ({ page }) => {
   await page.goto("/");
   await importBackup(page, "wrong password");
-  await expect(page.getByRole("main").getByRole("alert")).toContainText("password is wrong");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "That password doesn’t open this recovery file.",
+  );
+  expect(await savedIdentityKeys(page)).toEqual([]);
+});
+
+test("backup import says a picked file that isn't a recovery file is the wrong file", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await importBackup(page, PASSWORD, {
+    name: "notes.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("not a recovery file"),
+  });
+  // No password opens it, so the message points at the file rather than a typo.
+  const alert = page.getByRole("main").getByRole("alert");
+  await expect(alert).toHaveText(
+    "This isn’t a recovery file. Choose the file whose name ends in .pkarr.",
+  );
+  await expect(page.getByLabel("Recovery file", { exact: true })).toBeFocused();
   expect(await savedIdentityKeys(page)).toEqual([]);
 });
 

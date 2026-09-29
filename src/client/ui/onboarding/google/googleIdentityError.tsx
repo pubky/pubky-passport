@@ -221,10 +221,10 @@ function GoogleAccessDenied({
       cause={
         <>
           <span className="md:hidden">
-            Passport needs Google Drive access to create or restore your Pubky.
+            Passport needs Google Drive access to create or restore your pubky.
           </span>
           <span className="hidden md:inline">
-            Passport needs access to your Google Drive to create or restore your Pubky.
+            Passport needs access to your Google Drive to create or restore your pubky.
           </span>
         </>
       }

@@ -30,6 +30,7 @@ function fakeController(): HomegateSignupControllerPort & {
     error: null,
     sentPhoneNumber: undefined,
     phoneRefusal: null,
+    verificationRefused: false,
   };
   const listeners = new Set<() => void>();
   return {
@@ -46,6 +47,7 @@ function fakeController(): HomegateSignupControllerPort & {
     dispose: vi.fn(),
     back: vi.fn(),
     forget: vi.fn(),
+    dismissRefusal: vi.fn(),
     releaseInvite: vi.fn(),
     chooseSms: vi.fn(),
     clearError: vi.fn(),
@@ -104,7 +106,8 @@ describe("useHomegateSignup", () => {
   it("forwards every action to the controller", async () => {
     const { controller, result } = renderSignup();
     result.current.back();
-    result.current.forget();
+    result.current.forget({ refused: true });
+    result.current.dismissRefusal();
     result.current.releaseInvite();
     result.current.chooseSms();
     result.current.continueWithPhone("+41791234567");
@@ -114,7 +117,8 @@ describe("useHomegateSignup", () => {
     await result.current.checkPayment(INVOICE);
 
     expect(controller.back).toHaveBeenCalledOnce();
-    expect(controller.forget).toHaveBeenCalledOnce();
+    expect(controller.forget).toHaveBeenCalledWith({ refused: true });
+    expect(controller.dismissRefusal).toHaveBeenCalledOnce();
     expect(controller.releaseInvite).toHaveBeenCalledOnce();
     expect(controller.chooseSms).toHaveBeenCalledOnce();
     expect(controller.continueWithPhone).toHaveBeenCalledWith("+41791234567");

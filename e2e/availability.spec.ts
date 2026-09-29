@@ -103,7 +103,7 @@ test("Google regional restrictions limit only new Google identities", async ({ p
   blocked = true;
   await page.reload();
   await expect(card.getByRole("button", { name: "Restore with Google" })).toBeEnabled();
-  await expect(page.getByRole("button", { name: "Import backup" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Import recovery file" })).toBeEnabled();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.getByRole("button", { name: "Create account", exact: true }).click();
   await expect(page.getByRole("button", { name: "Enter invite manually" })).toBeEnabled();

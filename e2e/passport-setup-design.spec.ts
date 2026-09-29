@@ -28,7 +28,7 @@ for (const viewport of [
     await page.getByLabel("Enter strong password", { exact: true }).fill("correct horse battery");
     await page.getByLabel("Confirm password", { exact: true }).fill("correct horse battery");
     const download = page.waitForEvent("download");
-    await page.getByRole("button", { name: "Download encrypted backup" }).click();
+    await page.getByRole("button", { name: "Download recovery file" }).click();
     expect((await download).suggestedFilename()).toMatch(/\.pkarr$/);
     await inspect("verify-backup");
     // Each recovery step moves focus to its heading.
@@ -73,7 +73,7 @@ test("import uses a compact accessible form with a working Back action", async (
   page,
 }, testInfo) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Import backup", exact: true }).click();
+  await page.getByRole("button", { name: "Import recovery file", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Import recovery file." })).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath("import-backup.png"), fullPage: true });
@@ -103,7 +103,7 @@ test("removing a browser-only key without a backup requires acknowledging one", 
   ).toBeVisible();
   const warning = page.getByRole("main").locator('[data-tone="warning"]');
   await expect(warning).toContainText("Passport has no backup of this key.");
-  await expect(warning.getByRole("button", { name: "Download backup" })).toBeVisible();
+  await expect(warning.getByRole("button", { name: "Download recovery file" })).toBeVisible();
   const remove = page.getByRole("main").getByRole("button", { name: "Remove key" });
   await expect(remove).toBeDisabled();
   await page.getByRole("checkbox", { name: /I have a backup of this key/ }).check();
@@ -128,13 +128,13 @@ test("a backup made to remove a key only counts once its file has opened", async
   await page
     .getByRole("main")
     .locator('[data-tone="warning"]')
-    .getByRole("button", { name: "Download backup" })
+    .getByRole("button", { name: "Download recovery file" })
     .click();
 
   await page.getByLabel("Enter strong password").fill("correct horse");
   await page.getByLabel("Confirm password").fill("correct horse");
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download backup" }).click();
+  await page.getByRole("button", { name: "Download recovery file" }).click();
   const backup = await downloadPromise;
   await expect(page.getByRole("heading", { name: "Verify recovery file." })).toBeVisible();
   // The removal deletes the key next, so the file has to open: there is no skip.
@@ -145,12 +145,12 @@ test("a backup made to remove a key only counts once its file has opened", async
 
   // Back on the confirmation, which now knows the file opens: leaving is a logout again.
   await expect(page.getByRole("heading", { name: "Log out of this identity?" })).toBeVisible();
-  await expect(page.getByRole("main")).toContainText("You checked a backup file of this key on");
+  await expect(page.getByRole("main")).toContainText("You checked a recovery file of this key on");
   await expect(page.getByRole("main").locator('[data-tone="warning"]')).toHaveCount(0);
   const logOut = page.getByRole("main").getByRole("button", { name: "Log out" });
   await expect(logOut).toBeDisabled();
   await page
-    .getByRole("checkbox", { name: "I still have the backup file and know its password." })
+    .getByRole("checkbox", { name: "I still have the recovery file and know its password." })
     .check();
   await expect(logOut).toBeEnabled();
 });
@@ -168,18 +168,18 @@ test("leaving the backup a removal asked for without checking it keeps the remov
   await page
     .getByRole("main")
     .locator('[data-tone="warning"]')
-    .getByRole("button", { name: "Download backup" })
+    .getByRole("button", { name: "Download recovery file" })
     .click();
 
   await page.getByLabel("Enter strong password").fill("correct horse");
   await page.getByLabel("Confirm password").fill("correct horse");
   // The browser cancels the download: Passport made a file, but none was saved.
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download backup" }).click();
+  await page.getByRole("button", { name: "Download recovery file" }).click();
   await (await downloadPromise).cancel();
   await expect(page.getByRole("heading", { name: "Verify recovery file." })).toBeVisible();
   await page.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Encrypted backup." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Make a recovery file." })).toBeVisible();
   await page.getByRole("button", { name: "Back", exact: true }).click();
 
   // Back is no way around the check: the key is still one removal away from being lost.
@@ -187,11 +187,11 @@ test("leaving the backup a removal asked for without checking it keeps the remov
     page.getByRole("heading", { name: "Remove this key from this browser?" }),
   ).toBeVisible();
   const warning = page.getByRole("main").locator('[data-tone="warning"]');
-  await expect(warning).toContainText("Passport made a backup file on");
+  await expect(warning).toContainText("Passport made a recovery file on");
   await expect(warning).toContainText("but it was never checked.");
   await expect(warning).not.toContainText("You created");
-  await expect(warning.getByRole("button", { name: "Check backup" })).toBeVisible();
-  await expect(warning.getByRole("button", { name: "Download backup" })).toBeVisible();
+  await expect(warning.getByRole("button", { name: "Check recovery file" })).toBeVisible();
+  await expect(warning.getByRole("button", { name: "Download recovery file" })).toBeVisible();
   await expect(page.getByRole("main").getByRole("button", { name: "Remove key" })).toBeDisabled();
   await expect(page.getByRole("main").getByRole("button", { name: "Log out" })).toHaveCount(0);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);

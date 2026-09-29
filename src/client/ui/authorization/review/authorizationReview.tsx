@@ -62,7 +62,7 @@ function AuthorizationReview({
         <SelectedIdentity identity={identity} onSwitch={onSwitch} disabled={busy} />
         {heldInRing ? (
           <p className="text-sm font-medium leading-5 text-muted-foreground">
-            This identity is held in Pubky Ring. You choose the identity to sign in with in Ring.
+            This identity is held in Pubky Ring. You’ll pick which identity to use in Pubky Ring.
           </p>
         ) : null}
         <div className="flex flex-col gap-2">

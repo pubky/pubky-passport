@@ -48,7 +48,9 @@ describe("IdentitySelectionFlow", () => {
     );
     await userEvent.setup().click(screen.getByRole("button", { name: "Add identity" }));
     expect(onAddIdentity).toHaveBeenCalledOnce();
-    expect(screen.queryByRole("button", { name: "Open in Pubky Ring" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Continue with Pubky Ring" }),
+    ).not.toBeInTheDocument();
   });
 
   it("reports once that every identity is on screen", () => {

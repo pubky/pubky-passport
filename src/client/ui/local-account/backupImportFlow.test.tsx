@@ -168,12 +168,16 @@ describe("BackupImportFlow", () => {
   it.each([
     ["already_present", "form", /already saved in this browser/u],
     ["external_key", "form", /linked to Pubky Ring/u],
-    ["backup_decryption_failed", "password", /password is wrong/u],
+    ["backup_decryption_failed", "password", /doesn’t open this recovery file.*check for typos/u],
     ["invalid_password", "password", /Enter the password/u],
-    ["invalid_backup", "file", /recovery file \(\.pkarr\)/u],
+    [
+      "invalid_backup",
+      "file",
+      /^This isn’t a recovery file\. Choose the file whose name ends in \.pkarr\.$/u,
+    ],
     ["signin_failed", "form", /couldn’t sign in to its account.+Check your connection/u],
     ["resolution_failed", "form", /couldn’t look up which homeserver holds its account/u],
-    ["storage_failed", "form", /could not save it/u],
+    ["storage_failed", "form", /couldn’t save the identity\. Allow site data/u],
     ["import_unavailable", "form", /could not import this recovery file/u],
   ] as const satisfies ReadonlyArray<readonly [BackupImportErrorCode, string, RegExp]>)(
     "explains the %s outcome next to the %s and moves focus there",

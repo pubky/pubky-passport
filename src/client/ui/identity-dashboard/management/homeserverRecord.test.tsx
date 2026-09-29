@@ -181,7 +181,7 @@ describe("HomeserverRecord", () => {
     [
       "no provider homeserver",
       { providerHomeserver: undefined },
-      "repair it from the app or service you created it with",
+      "repair it from the app you created it with",
     ],
     [
       "no signing key",

@@ -68,13 +68,13 @@ test("local signup sends nothing while its homeserver is unreachable and retries
   await page.getByRole("button", { name: "Create account", exact: true }).click();
   await page.getByRole("button", { name: "Continue with SMS" }).click();
   await page.getByLabel("Phone number", { exact: true }).fill("+41791234567");
-  await page.getByRole("button", { name: "Send Code" }).click();
+  await page.getByRole("button", { name: "Send code" }).click();
   await page.getByLabel("Verification code", { exact: true }).fill("123456");
-  await page.getByRole("button", { name: "Verify Code" }).click();
+  await page.getByRole("button", { name: "Verify code" }).click();
   await page.getByRole("button", { name: /Keep key in this browser/u }).click();
   await page.getByLabel("Enter strong password").fill("correct horse");
   await page.getByLabel("Confirm password").fill("correct horse");
-  await page.getByRole("button", { name: "Download encrypted backup" }).click();
+  await page.getByRole("button", { name: "Download recovery file" }).click();
   await page.getByRole("button", { name: "Skip this check (not recommended)" }).click();
 
   const interrupted = page.getByRole("heading", { name: "Setup interrupted." });
@@ -89,7 +89,7 @@ test("local signup sends nothing while its homeserver is unreachable and retries
   expect(await draftRegistrationStarted(page)).toBeUndefined();
 
   homeserverUp = true;
-  await page.getByRole("button", { name: "Retry with this key" }).click();
+  await page.getByRole("button", { name: "Try again" }).click();
   await expect(page.getByRole("heading", { name: "Setting up your pubky." })).toBeVisible();
   await expect.poll(() => events).toContain("homeserver:POST /auth/grant/signup");
   expect(await draftRegistrationStarted(page)).toBe(true);

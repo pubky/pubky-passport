@@ -68,7 +68,7 @@ function googleIdentityErrorMessage(
   if (contextCopy !== undefined) return contextCopy;
   switch (code) {
     case "create_failed":
-      return "Passport could not create a new Pubky identity.";
+      return "Passport couldn’t create a new identity.";
     case "decrypt_failed":
       return "Passport found your encrypted identity, but could not decrypt it.";
     case "drive_create_conflict":
@@ -84,16 +84,16 @@ function googleIdentityErrorMessage(
     case "encrypt_failed":
       return "Passport could not encrypt your identity for Google Drive.";
     case "identity_mismatch":
-      return "The restored Pubky identity did not match the activated homeserver identity.";
+      return "Passport signed in as a different pubky than the one in your Google Drive backup, so it stopped.";
     case "restore_failed":
-      return "Passport could not restore the Pubky identity from the encrypted file.";
+      return "Passport couldn’t restore the identity from your Google Drive backup.";
     // Both happen once the encrypted backup is in Drive, for a new pubky as for a restored one.
     case "signin_failed":
       return "Your pubky is saved, encrypted, in your Google Drive, but Passport couldn’t sign in to its homeserver.";
     case "signup_failed":
       return "Your pubky is saved, encrypted, in your Google Drive, but its homeserver didn’t finish setting it up. Try again and Passport will finish setting up the same pubky.";
     case "publication_failed":
-      return "Passport could not publish your identity's PKDNS records.";
+      return "Passport couldn’t publish your pubky, so apps can’t find it yet.";
     case "local_save_failed":
       return "Your pubky is set up and backed up to Google Drive, but this browser didn’t let Passport save it (storage may be full or blocked).";
     case "local_identity_unavailable":

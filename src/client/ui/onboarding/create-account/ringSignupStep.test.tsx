@@ -184,7 +184,7 @@ describe("RingSignupStep", () => {
       within(screen.getByRole("navigation", { name: "Account setup progress" }))
         .getAllByRole("listitem")
         .find((step) => step.getAttribute("aria-current") === "step");
-    expect(current()).toHaveTextContent("Keys");
+    expect(current()).toHaveTextContent("Account");
 
     await userEvent
       .setup()

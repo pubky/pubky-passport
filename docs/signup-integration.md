@@ -9,8 +9,9 @@ creates a replacement client request.
 
 The shared add screen opens on first use and from **Switch identity → Add identity**; during a
 request its heading names the waiting app, backed by its website or a notice that it names none, as
-on permission review. **Create account** is the recommended path and comes first, with backup import
-beside it, then Google. Pubky Ring is a quiet link under the cards: **Open in Pubky Ring** hands a
+on permission review. **Create account** is the recommended path and comes first, with **Import
+recovery file** beside it, then Google. Pubky Ring is a quiet link under the cards: **Continue with
+Pubky Ring** hands a
 pending app request to Ring, and without a request **Sign in with Pubky Ring** adds an existing Ring
 identity. Google begins from that screen; **Create account**
 opens the provider's enabled SMS, Lightning, and manual invite options, each with its price or
@@ -47,7 +48,7 @@ record Passport cannot repair (a key held in Pubky Ring, or no homeserver to off
 default homeserver: without the variable, manual invites ask the user for one, and republishing
 and storage copy stay hidden.
 
-**Import backup** decrypts a recovery file in the browser and signs in with the homeserver its
+**Import recovery file** decrypts a recovery file in the browser and signs in with the homeserver its
 key's record names. When that key has no record, the import shows **Homeserver not found.** and
 offers **Reconnect and import**, which publishes the record for `PUBKY_SIGNUP_HOMESERVER` under
 the same condition and warning; **Back** returns to the form with the picked file kept, where the
@@ -131,7 +132,12 @@ returned in browser local storage: the open Lightning invoice until it is paid, 
 invite. Leaving with **Back**, a reload, or a closed popup does not lose either; **Create account**
 reopens at the signer choice with the saved invite, or at the invoice while it is still open. Phone
 numbers and SMS challenges are never stored. The invite is removed once an account uses it, when the
-homeserver rejects it or reports it used, or when the user chooses **Discard invite** and confirms.
+homeserver rejects it or reports it used, or when the user chooses **Discard verification** and
+confirms. The signer choice after a verification says it worked (**Phone number verified.** or
+**Payment received. You’re verified.**) and never calls the Homegate code an invite: when the
+homeserver refuses it, **Verification not accepted.** offers **Verify again**, which returns to the
+methods with a one-time note that the previous verification couldn’t be used. A refused invite code
+offers **Enter a different invite** instead. Passport promises no refund.
 An account created with a different invite leaves it saved. An invoice is removed only once it pays
 for an invite or Homegate no longer knows it: an SMS invite leaves an earlier invoice saved, since
 it may have been paid too, and Lightning offers that invoice again once the invite is gone. An
@@ -153,26 +159,28 @@ exists in Ring, with no invite. It asks Ring for the same profile grant as profi
 pubky approves, without setup and without writing anything: an existing profile stays as it is
 until the user edits it.
 
-The pending **Signing in to…** context remains visible during either path. Account, key backup,
-and profile steps have a shared progress indicator. New accounts stay in setup until their
+The pending **Signing in to…** context remains visible during either path. Both share a progress
+indicator with three steps: **Verify** (SMS, Lightning or an invite code), **Account** (where the key
+lives, its recovery file and the signup, so it is ticked only once the account exists) and
+**Profile**. While Passport registers the key, the checklist says **Keep this window open**. New accounts stay in setup until their
 `/pub/pubky.app/profile.json` is successfully published. Completion then returns to the original
 permission review for explicit approval. Without a pending request, completion opens the selected
 identity overview. Google completion still requires the user to
 choose **Continue**; local registration and profile publication must finish before returning.
 
-**Download backup** in identity management uses the same password and file-check screens, and the
+**Download recovery file** in identity management uses the same password and file-check screens, and the
 password is entered twice there too. Verification decrypts the selected file and compares its
 public key with the selected identity, without signing in or importing another identity. Back
 returns to the password screen; successful verification or skipping the check returns to
 management. A backup requested by the removal confirmation cannot skip its check, because the key
 is deleted next.
 
-Each browser-held identity records, without any file contents, when Passport last made a backup
-file of its key and when it last saw one open with its password; importing a backup counts as a
-checked backup. The status is stored under its own `local-identities/v1/identity-backup/<pubky>`
+Each browser-held identity records, without any file contents, when Passport last made a recovery
+file of its key and when it last saw one open with its password; importing a recovery file counts as
+a checked backup. The status is stored under its own `local-identities/v1/identity-backup/<pubky>`
 key, beside the identity record, so a rolled-back build (which rejects records with unknown fields)
 still lists the identity. **Manage identity**, the overview and the logout confirmation show that
-status, and offer **Check backup** for a file that was never checked. Only Pubky Ring, a Google
+status, and offer **Check recovery file** for a file that was never checked. Only Pubky Ring, a Google
 Drive copy or a checked file counts as protecting the key: Passport cannot see what the browser did
 with a file it made, so a download that was cancelled, or a backup screen left with Back, changes
 nothing. A browser key without such protection is not logged out of but removed: **Remove key from
@@ -216,7 +224,7 @@ requests, so they do not accumulate in IndexedDB. A Web Lock held by every open 
 one Passport tab from deleting a key that another still signs with. Whether Ring and the homeserver
 accept write-only scopes has not been verified on a device; test it before release.
 
-With an app request, **Open in Pubky Ring**, on permission review or the add screen, opens a
+With an app request, **Continue with Pubky Ring**, on permission review or the add screen, opens a
 separate sign-in screen with the original validated `pubkyauth` URL unchanged.
 For a selected Ring identity, the review shows one action, **Continue in Pubky Ring**, and says that
 the identity is chosen in Ring: Passport cannot make Ring sign with the one it shows. An active Ring

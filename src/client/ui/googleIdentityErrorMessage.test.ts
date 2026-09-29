@@ -10,7 +10,7 @@ import {
 const EXPECTED_COPY: Record<GoogleIdentityViewError["code"], string> = {
   authorization_failed: "Could not connect to Google. Try again.",
   cancelled: "Passport could not finish this operation. Please try again.",
-  create_failed: "Passport could not create a new Pubky identity.",
+  create_failed: "Passport couldn’t create a new identity.",
   decrypt_failed: "Passport found your encrypted identity, but could not decrypt it.",
   drive_create_conflict:
     "Another Passport identity file was created at the same time. Check the Google account and try again.",
@@ -41,7 +41,8 @@ const EXPECTED_COPY: Record<GoogleIdentityViewError["code"], string> = {
     "The homeserver isn’t answering right now, so Passport stopped before setting up your pubky. Try again later.",
   homeserver_invite_rejected:
     "The homeserver did not accept the invitation Passport received for your new identity, so nothing was saved to Google Drive. The operator of this Passport may need to check its invitations.",
-  identity_mismatch: "The restored Pubky identity did not match the activated homeserver identity.",
+  identity_mismatch:
+    "Passport signed in as a different pubky than the one in your Google Drive backup, so it stopped.",
   invalid_passport_file:
     "Passport found a backup in your Google Drive, but it’s damaged and can’t be restored.",
   passport_file_undecryptable:
@@ -61,8 +62,8 @@ const EXPECTED_COPY: Record<GoogleIdentityViewError["code"], string> = {
   local_unlink_failed:
     "Your Google Drive backup was removed, but Passport could not update this browser. Try again to finish removing Google access.",
   operation_failed: "Passport could not finish this operation. Please try again.",
-  publication_failed: "Passport could not publish your identity's PKDNS records.",
-  restore_failed: "Passport could not restore the Pubky identity from the encrypted file.",
+  publication_failed: "Passport couldn’t publish your pubky, so apps can’t find it yet.",
+  restore_failed: "Passport couldn’t restore the identity from your Google Drive backup.",
   signin_failed:
     "Your pubky is saved, encrypted, in your Google Drive, but Passport couldn’t sign in to its homeserver.",
   signup_failed:

@@ -4,8 +4,12 @@ import { createContext, type ReactNode, useContext } from "react";
 import { CheckIcon } from "./icons";
 import { cn } from "./mergeClassNames";
 
-/** Account creation with a key held by the person: in this browser or in Pubky Ring. */
-export const ACCOUNT_SETUP_STEPS = ["Account", "Keys", "Profile"] as const;
+/**
+ * Account creation with a key held by the person: in this browser or in Pubky Ring. Verify ends
+ * once SMS, Lightning or an invite code gave a sign-up code; Account covers where the key lives,
+ * its recovery file and the signup, so it is ticked only once the account exists.
+ */
+export const ACCOUNT_SETUP_STEPS = ["Verify", "Account", "Profile"] as const;
 /** Account creation with Continue with Google, where Google holds the encrypted backup. */
 export const GOOGLE_SETUP_STEPS = ["Google backup", "Profile"] as const;
 

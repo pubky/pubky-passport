@@ -1,6 +1,7 @@
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { recoveryFileBytes } from "@test-utils/recoveryFiles";
 import { expectResultOk } from "@test-utils/resultAssertions";
 import { LOGGER } from "@/libs/logger/logger";
 import {
@@ -231,7 +232,7 @@ describe("LocalIdentityController", () => {
 
     const result = await new LocalIdentityController(repository).verifyRecoveryFile(
       PUBLIC_KEY,
-      new Uint8Array(64).fill(3),
+      recoveryFileBytes(),
       "pw",
     );
 

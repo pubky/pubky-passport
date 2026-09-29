@@ -18,7 +18,7 @@ test("offers only manual invites on a provider without Google or Homegate", asyn
 
   // With one way to verify there is nothing to choose: the invite entry opens directly, in the
   // step column, with the provider's terms that the method list would have shown.
-  await expect(page.getByRole("heading", { name: "Use Invite." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Use an invite." })).toBeVisible();
   await expect(page.getByRole("button", { name: "Enter invite manually" })).toHaveCount(0);
   await expect(page.getByText(/Creating an account here needs an invite code/u)).toBeVisible();
   await expect(page.getByRole("main")).toHaveCSS("max-width", "588px");

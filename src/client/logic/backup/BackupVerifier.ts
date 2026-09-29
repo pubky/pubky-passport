@@ -21,6 +21,26 @@ export type BackupVerificationResult = ResultType<void, CodedFailure<BackupVerif
 
 type BackupKeys = Pick<PubkySdkAdapter, "restoreRecoveryFile" | "disposeIdentityKey">;
 
+/**
+ * The spec lines a recovery file starts with: `pubky.org/recovery`, or `pkarr.org/recovery` in
+ * files made by older tools, then a newline. From the pubky skill's concepts.md (observed in the
+ * SDK's `recovery_file.rs`, not an upstream statement); the pinned SDK writes the first.
+ */
+const RECOVERY_FILE_SPEC_LINES = ["pubky.org/recovery\n", "pkarr.org/recovery\n"].map((line) =>
+  new TextEncoder().encode(line),
+);
+
+/**
+ * Whether `bytes` start like a recovery file. A file that does not can't be opened by any
+ * password, so a failed decryption is then the wrong file, not a mistyped password.
+ */
+export function hasRecoveryFileSpecLine(bytes: Uint8Array): boolean {
+  return RECOVERY_FILE_SPEC_LINES.some(
+    (line) =>
+      bytes.byteLength > line.byteLength && line.every((byte, index) => bytes[index] === byte),
+  );
+}
+
 /** The name Passport gives a backup file of `publicKeyZ32`, e.g. `pubky-<key>.pkarr`. */
 export function backupFileName(publicKeyZ32: string): string {
   return `pubky-${publicKeyZ32}.pkarr`;
@@ -61,9 +81,14 @@ export class BackupVerifier {
     try {
       const invalid = validateBackupInput(bytes, password);
       if (invalid) return Result.err({ code: invalid });
+      // Read before decrypting, which clears the bytes.
+      const recoveryFile = hasRecoveryFileSpecLine(bytes);
       const restored = this.keys.restoreRecoveryFile(bytes, password);
       if (Result.isError(restored))
-        return Result.err({ code: "backup_decryption_failed", cause: restored.error });
+        return Result.err({
+          code: recoveryFile ? "backup_decryption_failed" : "invalid_backup",
+          cause: restored.error,
+        });
       try {
         return restored.value.publicIdentity.publicKeyZ32 === publicKey
           ? Result.ok()

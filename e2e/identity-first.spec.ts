@@ -59,7 +59,7 @@ for (const count of [0, 1, 2]) {
       count ? /bg-secondary/u : /bg-brand/u,
     );
     await expect(page.getByRole("img", { name: "Pubky authorization QR code" })).toHaveCount(0);
-    await page.getByRole("button", { name: "Open in Pubky Ring", exact: true }).click();
+    await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeVisible();
     await expect(page.getByRole("img", { name: "Pubky authorization QR code" })).toBeVisible();
     await page.getByRole("button", { name: "Back", exact: true }).click();
@@ -89,7 +89,7 @@ test("switching persists immediately and removing the last identity returns to s
   await page.getByRole("button", { name: "Log out" }).click();
   await page.getByRole("button", { name: "Log out" }).click();
   await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Import backup" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Import recovery file" })).toBeVisible();
 });
 
 test("Ring receives the original request and opening it does not approve in Passport", async ({
@@ -102,7 +102,7 @@ test("Ring receives the original request and opening it does not approve in Pass
   });
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto(`/authorize#d=${encodeURIComponent(REQUEST)}`);
-  await page.getByRole("button", { name: "Open in Pubky Ring", exact: true }).click();
+  await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeVisible();
   // A phone follows the unchanged request at once and shows the QR code when Ring does not open;
   // a computer, even in a narrow window, shows the QR code directly.
@@ -151,11 +151,13 @@ test("screens remain accessible, scroll naturally and have one footer at each vi
     await inspect("authorization");
     await page.getByRole("button", { name: "Switch identity", exact: true }).click();
     await expect(page.getByRole("button", { name: /identity-0@example\.com/u })).toBeVisible();
-    await page.getByRole("button", { name: "Open in Pubky Ring", exact: true }).click();
+    await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
     await inspect("ring-sign-in");
     await page.getByRole("button", { name: "Back", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Sign in to Example App" })).toBeVisible();
-    await page.getByRole("button", { name: "Continue with Google or import a backup" }).click();
+    await page
+      .getByRole("button", { name: "Continue with Google or import a recovery file" })
+      .click();
     await inspect("add-with-request");
     // A focused step: the list's own options are not repeated there.
     await expect(page.getByRole("region", { name: "Other ways to sign in" })).toBeVisible();
@@ -234,7 +236,7 @@ test("long identity and permission lists stay inside the page with a separated f
   const choice = await page.evaluate(() => {
     const list = document.querySelector("main ul")!;
     const ring = [...document.querySelectorAll("main button")].find(
-      (button) => button.textContent?.trim() === "Open in Pubky Ring",
+      (button) => button.textContent?.trim() === "Continue with Pubky Ring",
     )!;
     return {
       scrolls: list.scrollHeight > list.clientHeight,
@@ -277,7 +279,7 @@ test("a valid request larger than QR capacity still supports explicit approval a
   await page.getByRole("button", { name: /identity-1@example\.com/u }).click();
   await expect(page.getByRole("button", { name: "Authorize", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "Switch identity", exact: true }).click();
-  await page.getByRole("button", { name: "Open in Pubky Ring", exact: true }).click();
+  await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
   await expect(page.getByText(/too big for a QR code/)).toBeVisible();
   await expect(page.getByRole("img", { name: "Pubky authorization QR code" })).toHaveCount(0);
   // Without a QR code, opening Ring on this device is the only way, on any pointer.

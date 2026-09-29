@@ -327,8 +327,10 @@ test("the Drive permission guide stays still until played and never pushes the a
   );
   await page.setViewportSize(POPUP);
   await page.goto(`/authorize#d=${encodeURIComponent(APP_REQUEST)}`);
-  // A request opens on its identity list; Google is one step further, beside backup import.
-  await page.getByRole("button", { name: "Continue with Google or import a backup" }).click();
+  // A request opens on its identity list; Google is one step further, beside recovery file import.
+  await page
+    .getByRole("button", { name: "Continue with Google or import a recovery file" })
+    .click();
   await page.getByRole("button", { name: "Continue with Google", exact: true }).click();
   const heading = page.getByRole("heading", { name: "Drive access optional." });
   await expect(heading).toBeVisible();

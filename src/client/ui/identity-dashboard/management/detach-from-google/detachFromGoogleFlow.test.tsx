@@ -139,10 +139,10 @@ describe("DetachFromGoogleFlow", () => {
     await user.click(screen.getByRole("button", { name: "Done" }));
     expect(screen.getByRole("button", { name: "Continue to detach" })).toBeDisabled();
 
-    await user.click(screen.getByRole("button", { name: "Download encrypted backup" }));
+    await user.click(screen.getByRole("button", { name: "Download recovery file" }));
     await user.type(screen.getByLabelText("Enter strong password"), "correct horse battery");
     await user.type(screen.getByLabelText("Confirm password"), "correct horse battery");
-    await user.click(screen.getByRole("button", { name: "Download backup" }));
+    await user.click(screen.getByRole("button", { name: "Download recovery file" }));
     await user.upload(
       screen.getByLabelText("Recovery file"),
       new File([new Uint8Array([1, 2, 3])], "pubky-identity.pkarr"),

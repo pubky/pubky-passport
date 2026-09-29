@@ -39,9 +39,7 @@ describe("RecoveryBeforeDetaching", () => {
     expect(screen.getByText(/Detaching deletes your Google Drive backup/u)).toBeVisible();
     expect(screen.getByRole("heading", { name: "Choose backup method" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Use in Pubky Ring" })).toHaveClass("min-h-15");
-    expect(screen.getByRole("button", { name: "Download encrypted backup" })).toHaveClass(
-      "min-h-15",
-    );
+    expect(screen.getByRole("button", { name: "Download recovery file" })).toHaveClass("min-h-15");
     expect(screen.getByRole("button", { name: "Back" }).closest(".grid")).toHaveClass(
       "mt-auto",
       "md:mt-0",
@@ -102,7 +100,7 @@ describe("RecoveryBeforeDetaching", () => {
 
     await user.click(screen.getByRole("button", { name: "Use in Pubky Ring" }));
     expect(actions.onMigrateToKeychain).toHaveBeenCalledOnce();
-    await user.click(screen.getByRole("button", { name: "Download encrypted backup" }));
+    await user.click(screen.getByRole("button", { name: "Download recovery file" }));
     expect(actions.onDownloadRecoveryFile).toHaveBeenCalledOnce();
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(actions.onBack).toHaveBeenCalledOnce();

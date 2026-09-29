@@ -38,7 +38,7 @@ export function OtherWaysIn({
           <div className="flex flex-col gap-3">
             <RequestHeading compact review={review} />
             <p className="text-base leading-6 text-muted-foreground">
-              Continue with your Google account, or import an encrypted backup of your key.
+              Continue with your Google account, or import a recovery file of your key.
             </p>
           </div>
           <section
@@ -53,7 +53,7 @@ export function OtherWaysIn({
               onContinue={startGoogle}
             />
             <Button className="w-full" onClick={onImport} size="lg" variant="secondary">
-              <FolderIcon /> Import backup
+              <FolderIcon /> Import recovery file
             </Button>
           </section>
           <ProviderTerms />

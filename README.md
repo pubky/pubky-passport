@@ -4,7 +4,7 @@ Pubky Passport is a web signer for the [Pubky](https://pubky.org) protocol. It k
 identities in the browser and signs in to Pubky apps on their behalf, the way
 [Pubky Ring](https://github.com/pubky/pubky-ring) does on a phone. An identity gets into Passport
 in one of four ways: **Continue with Google**, **Create account** with SMS, Lightning or an invite,
-**Import backup** from an encrypted recovery file, or **Sign in with Pubky Ring** for an identity
+**Import recovery file** from an encrypted `.pkarr` file, or **Sign in with Pubky Ring** for an identity
 that stays in Ring.
 
 Production runs at [passport.pubky.app](https://passport.pubky.app).
@@ -38,8 +38,8 @@ identity in the browser.
 **Create account** obtains a homeserver invite through SMS or Lightning verification with Homegate,
 or accepts an invite code, which is checked with the homeserver as it is entered; an instance that
 offers only invites opens the invite entry directly. The new key then lives either in Pubky Ring or
-in Passport. A Passport key is saved as an unfinished setup until the user downloads an encrypted
-backup; leaving before the invite is submitted discards it, and opening **Create account** again
+in Passport. A Passport key is saved as an unfinished setup until the user downloads a recovery
+file; leaving before the invite is submitted discards it, and opening **Create account** again
 offers any saved setup at the signer choice instead of forcing it. A setup whose signup was already
 submitted opens **Finish your account.** instead, and a file check resumed on a later visit offers
 **Make a new recovery file** if the earlier one is lost.

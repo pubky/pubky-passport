@@ -205,13 +205,24 @@ test("a request's window title names its website beside the app's own label", as
   await expect(page).toHaveTitle(title);
 });
 
-test("short pill labels stay on one line in the popup zoomed to 200%", async ({ page }) => {
+test("pill labels fit their pills in the popup zoomed to 200%", async ({ page }) => {
   await page.setViewportSize({ width: 260, height: 380 });
   await page.goto("/");
-  for (const name of ["Create account", "Import backup"]) {
-    const box = await page.getByRole("button", { name, exact: true }).boundingBox();
-    expect(box!.height).toBe(60);
-  }
+  // A short label stays on one line.
+  const create = await page
+    .getByRole("button", { name: "Create account", exact: true })
+    .boundingBox();
+  expect(create!.height).toBe(60);
+  // A longer label may wrap, but its pill holds all of it without clipping or pushing the page
+  // sideways.
+  const importFile = page.getByRole("button", { name: "Import recovery file", exact: true });
+  expect(
+    await importFile.evaluate(
+      (button) =>
+        button.scrollWidth <= button.clientWidth && button.scrollHeight <= button.clientHeight,
+    ),
+  ).toBe(true);
+  expect(await horizontalOverflow(page)).toBe(0);
 });
 
 for (const viewport of NARROW) {
@@ -303,7 +314,9 @@ test("Backup ready keeps Continue inside the app's popup with the folder-copy no
   await page.setViewportSize({ width: 520, height: 760 });
   await mockGoogleCreation(context);
   await page.goto(`${SECURE_ORIGIN}${authorizeUrl(REQUEST)}`);
-  await page.getByRole("button", { name: "Continue with Google or import a backup" }).click();
+  await page
+    .getByRole("button", { name: "Continue with Google or import a recovery file" })
+    .click();
   await page.getByRole("button", { name: "Continue with Google", exact: true }).click();
   // Only the first Drive permission: the backup is made without its folder copy.
   await page.getByRole("button", { name: "Skip the folder copy" }).click();

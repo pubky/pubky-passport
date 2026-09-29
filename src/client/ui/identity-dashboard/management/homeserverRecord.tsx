@@ -190,7 +190,7 @@ export function HomeserverRecord({
         // Every missing record says what it means, even where Passport cannot repair it.
         <p className="text-sm leading-5 text-secondary-foreground">
           {republishHomeserver
-            ? "No homeserver record was found for this pubky, so apps cannot find your profile. Passport doesn’t know which homeserver it was created on, so repair it from the app or service you created it with."
+            ? "No homeserver record was found for this pubky, so apps cannot find your profile. Passport doesn’t know which homeserver it was created on, so repair it from the app you created it with."
             : "No homeserver record was found for this pubky, so apps cannot find your profile. Its key stays in Pubky Ring, so only Pubky Ring can publish the record again."}
         </p>
       ) : null}

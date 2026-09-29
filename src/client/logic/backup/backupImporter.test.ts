@@ -1,6 +1,7 @@
 import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { notARecoveryFileBytes, recoveryFileBytes } from "@test-utils/recoveryFiles";
 import { expectResultError, expectResultOk } from "@test-utils/resultAssertions";
 import { LOGGER } from "@/libs/logger/logger";
 import type {
@@ -76,8 +77,19 @@ describe("BackupImporter", () => {
     const { importer, pubky } = setup();
     const cause = { code: "restore_failed" };
     pubky.restoreRecoveryFile.mockReturnValueOnce(Result.err(cause) as never);
-    expectResultError(await importer.importBackup(new Uint8Array([7]), PASSWORD, HOMESERVER), {
+    expectResultError(await importer.importBackup(recoveryFileBytes(), PASSWORD, HOMESERVER), {
       code: "backup_decryption_failed",
+      cause,
+    });
+    expect(pubky.signin).not.toHaveBeenCalled();
+  });
+
+  it("reports a file that isn't a recovery file as the wrong file, not a wrong password", async () => {
+    const { importer, pubky } = setup();
+    const cause = { code: "restore_failed" };
+    pubky.restoreRecoveryFile.mockReturnValueOnce(Result.err(cause) as never);
+    expectResultError(await importer.importBackup(notARecoveryFileBytes(), PASSWORD, HOMESERVER), {
+      code: "invalid_backup",
       cause,
     });
     expect(pubky.signin).not.toHaveBeenCalled();

@@ -54,19 +54,19 @@ describe("SmsCodeStep", () => {
     render(<Harness />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole("button", { name: "Resend Code" }));
+    await user.click(screen.getByRole("button", { name: "Resend code" }));
 
     const resend = screen.getByRole("button", { name: "Sending…" });
     expect(resend).toHaveAttribute("aria-busy", "true");
     expect(resend).toHaveFocus();
-    const verify = screen.getByRole("button", { name: "Verify Code" });
+    const verify = screen.getByRole("button", { name: "Verify code" });
     expect(verify).toBeDisabled();
     expect(verify).not.toHaveAttribute("aria-busy");
     expect(screen.queryByText("Verifying…")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Finish sending" }));
     expect(screen.queryByRole("button", { name: "Sending…" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Resend Code" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Resend code" })).toBeEnabled();
   });
 
   it("moves focus to the code field once a sent code starts the resend cooldown", async () => {
@@ -92,7 +92,7 @@ describe("SmsCodeStep", () => {
     }
     render(<Harness />);
 
-    await userEvent.setup().click(screen.getByRole("button", { name: "Resend Code" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Resend code" }));
     expect(screen.getByRole("button", { name: "Sending…" })).toHaveFocus();
     act(() => finishSending());
 
@@ -159,9 +159,9 @@ describe("SmsCodeStep", () => {
       }),
     );
     expect(code).toHaveValue("");
-    const resend = screen.getByRole("button", { name: "Resend Code" });
+    const resend = screen.getByRole("button", { name: "Resend code" });
     expect(resend).toBeEnabled();
-    const verify = screen.getByRole("button", { name: "Verify Code" });
+    const verify = screen.getByRole("button", { name: "Verify code" });
     expect(verify).toBeDisabled();
     // A new code is the way on, so Resend is the primary until new digits are typed.
     expect(resend).toHaveClass("bg-brand/16");
@@ -187,7 +187,7 @@ describe("PhoneNumberStep", () => {
       />
     );
     const { rerender } = render(step(false, null));
-    await userEvent.setup().click(screen.getByRole("button", { name: "Send Code" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Send code" }));
     rerender(step(true, null));
 
     const send = screen.getByRole("button", { name: "Sending code…" });
@@ -208,7 +208,7 @@ describe("PhoneNumberStep", () => {
     await user.type(phone, "079 123 45 67");
     // Not flagged while typed.
     expect(phone).toHaveAttribute("aria-invalid", "false");
-    const send = screen.getByRole("button", { name: "Send Code" });
+    const send = screen.getByRole("button", { name: "Send code" });
     expect(send).toBeEnabled();
     await user.keyboard("{Enter}");
     expect(onSendCode).not.toHaveBeenCalled();
@@ -261,7 +261,7 @@ describe("PhoneNumberStep", () => {
     expect(phone).not.toHaveClass("text-brand");
     expect(phone).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByRole("alert")).toHaveTextContent(refusal.message);
-    expect(screen.getByRole("button", { name: "Send Code" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send code" })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Pay with Lightning instead" }));
     expect(onLightning).toHaveBeenCalledOnce();
     await user.click(screen.getByRole("button", { name: "Use an invite code" }));
@@ -270,7 +270,7 @@ describe("PhoneNumberStep", () => {
     // Another number may be sent; the refusal is only about the one refused.
     await user.type(phone, "8");
     expect(onEdit).toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Send Code" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Send code" })).toBeEnabled();
     expect(screen.queryByRole("button", { name: "Use an invite code" })).not.toBeInTheDocument();
   });
 

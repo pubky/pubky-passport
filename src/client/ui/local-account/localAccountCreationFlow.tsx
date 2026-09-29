@@ -23,7 +23,12 @@ import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { RecoveryScreen } from "@/client/ui/shared/recoveryScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { Spinner } from "@/client/ui/shared/primitives/spinner";
-import { IdentityProgress, progressSteps } from "@/client/ui/shared/identityProgress";
+import {
+  IdentityProgress,
+  progressSteps,
+  SETUP_LIST_LABEL,
+  SETUP_STEP,
+} from "@/client/ui/shared/identityProgress";
 
 const REGISTRATION_STEP_INDEX = { signing_up: 1, publishing: 2, activating: 3 } satisfies Record<
   LocalAccountRegistrationProgress,
@@ -31,9 +36,15 @@ const REGISTRATION_STEP_INDEX = { signing_up: 1, publishing: 2, activating: 3 } 
 >;
 
 type Step = "password" | "confirm" | "registering" | "failed";
+/**
+ * Why no key could be prepared: browser storage refused the draft (`storage`), the key could not
+ * be created or a saved one restored (`create`), or the code that creates keys did not load
+ * (`load`), e.g. offline.
+ */
+type PreparationFailure = "storage" | "create" | "load";
 type PreparedAccount =
   | { status: "loading" }
-  | { status: "failed" }
+  | { status: "failed"; reason: PreparationFailure }
   | { status: "ready"; identity: LocalIdentityMetadata };
 type RegistrationFailure = {
   code: LocalAccountSetupErrorCode | "controller_unavailable";
@@ -62,25 +73,61 @@ export type LocalAccountSetupPort = Pick<
  */
 export type LocalAccountAbandonReason = "invite_rejected" | "invite_submitted" | "user";
 
+/**
+ * Where the invite came from: a sign-up code Homegate issued after SMS or Lightning verification,
+ * or an invite code the person entered. People who verified never saw an invite, so a refused
+ * code is described as their verification, and the way on is to verify again.
+ */
+export type InviteSource = "homegate" | "manual";
+
+/** What went wrong while preparing the key, and the way on; only storage names site data. */
+const PREPARATION_FAILURE = {
+  // Browsers refuse storage in private windows, when site data is off, or when the disk is full.
+  storage: {
+    cause:
+      "Passport couldn’t prepare a key in this browser. This can happen in a private window, or when site data is blocked or storage is full for this site.",
+    nextStep:
+      "Allow site data for this site, then try again. Any setup you saved earlier has been kept.",
+  },
+  create: {
+    cause: "Passport couldn’t create a key in this browser.",
+    nextStep: "Try again. Any setup you saved earlier has been kept.",
+  },
+  load: {
+    cause: "Passport couldn’t load what it needs to create a key.",
+    nextStep: "Check your connection, then try again.",
+  },
+} satisfies Record<PreparationFailure, { cause: string; nextStep: string }>;
+
+/** Browsers refuse storage in private windows, when site data is off, or when the disk is full. */
+const STORAGE_BLOCKED_REMOVAL =
+  "Passport couldn’t remove the saved setup because this browser blocked the change. Allow site data for this site, then try again.";
+
 export function LocalAccountCreationFlow({
   invite,
+  inviteSource,
   onBack,
   onAbandon,
   onComplete,
   createSetupController = createLocalAccountSetupController,
 }: {
   invite: HomeserverSignupDetails;
+  /** Decides whether a refused code is described as the person's verification or an invite. */
+  inviteSource: InviteSource;
   onBack: () => void;
   /** Called after the draft was removed; the parent should stop resuming this setup. */
   onAbandon?: (reason: LocalAccountAbandonReason) => void;
   onComplete: (identity: LocalIdentityMetadata) => void;
   /** Builds the setup controller; it may load the Pubky SDK first. */
-  createSetupController?: () => LocalAccountSetupPort | Promise<LocalAccountSetupPort>;
+  createSetupController?:
+    (() => LocalAccountSetupPort | Promise<LocalAccountSetupPort>) | undefined;
 }) {
   const controller = useRef<LocalAccountSetupPort>(null);
   // The factory is a test seam fixed at mount; only the invite decides which draft to prepare.
   const [buildController] = useState(() => createSetupController);
   const [prepared, setPrepared] = useState<PreparedAccount>({ status: "loading" });
+  // Counts preparations, so Try again after a failed one builds and prepares a fresh setup.
+  const [attempt, setAttempt] = useState(0);
   const [step, setStep] = useState<Step>("password");
   const [registrationProgress, setRegistrationProgress] =
     useState<LocalAccountRegistrationProgress>("signing_up");
@@ -108,24 +155,31 @@ export function LocalAccountCreationFlow({
       controller.current = built;
       const result = built.prepareAccount(invite);
       publishPrepared(
-        Result.isError(result) ? { status: "failed" } : { status: "ready", identity: result.value },
+        Result.isError(result)
+          ? {
+              status: "failed",
+              reason: result.error.code === "storage_failed" ? "storage" : "create",
+            }
+          : { status: "ready", identity: result.value },
         built.preparedStep,
       );
     };
+    const fail = (reason: PreparationFailure) => () =>
+      publishPrepared({ status: "failed", reason });
     try {
       const built = buildController();
-      if (built instanceof Promise)
-        built.then(prepare).catch(() => publishPrepared({ status: "failed" }));
+      // A builder that rejects never delivered the code that creates keys, e.g. offline.
+      if (built instanceof Promise) built.then(prepare, fail("load")).catch(fail("create"));
       else prepare(built);
     } catch {
-      publishPrepared({ status: "failed" });
+      fail("create")();
     }
     return () => {
       active = false;
       if (controller.current === setup) controller.current = null;
       setup?.dispose();
     };
-  }, [buildController, invite]);
+  }, [attempt, buildController, invite]);
 
   if (prepared.status === "loading") {
     return (
@@ -136,7 +190,7 @@ export function LocalAccountCreationFlow({
       >
         <p aria-live="polite" className="flex items-center gap-2 text-sm text-muted-foreground">
           <Spinner className="size-4" decorative />
-          Preparing your Pubky…
+          Preparing your pubky…
         </p>
         <PassportNavigation back={<BackButton onClick={onBack} />} />
       </RecoveryScreen>
@@ -147,9 +201,21 @@ export function LocalAccountCreationFlow({
     return (
       <ErrorScreen
         accent="failed."
+        action={
+          <Button
+            className="w-full"
+            onClick={() => {
+              setPrepared({ status: "loading" });
+              setAttempt((count) => count + 1);
+            }}
+            size="lg"
+          >
+            <RotateCcwIcon />
+            Try again
+          </Button>
+        }
         back={<BackButton onClick={onBack} />}
-        cause="Passport could not prepare or restore your saved key."
-        nextStep="Go back and try again. Any previously saved setup has been kept."
+        {...PREPARATION_FAILURE[prepared.reason]}
         title="Setup"
       />
     );
@@ -197,7 +263,7 @@ export function LocalAccountCreationFlow({
     } else if (discarded?.error.code === "registration_started") {
       setConfirmingAbandon(true);
     } else {
-      setAbandonError("Passport could not remove the saved setup. Free some storage and retry.");
+      setAbandonError(STORAGE_BLOCKED_REMOVAL);
     }
   };
 
@@ -206,7 +272,7 @@ export function LocalAccountCreationFlow({
     const submitted = controller.current?.hasStartedRegistration === true;
     const abandoned = controller.current?.abandonAccount();
     if (!abandoned || Result.isError(abandoned)) {
-      setAbandonError("Passport could not remove the saved setup. Free some storage and retry.");
+      setAbandonError(STORAGE_BLOCKED_REMOVAL);
       return;
     }
     setConfirmingAbandon(false);
@@ -218,13 +284,13 @@ export function LocalAccountCreationFlow({
     return (
       <IdentityProgress
         heading="Setting up"
-        listLabel="Pubky identity setup progress"
+        listLabel={SETUP_LIST_LABEL}
         steps={progressSteps(
           [
-            "Download encrypted backup",
-            "Sign up to the homeserver",
-            "Publish PKDNS records",
-            "Activate identity",
+            "Download recovery file",
+            SETUP_STEP.createAccount,
+            SETUP_STEP.publish,
+            SETUP_STEP.finish,
           ],
           REGISTRATION_STEP_INDEX[registrationProgress],
         )}
@@ -234,58 +300,67 @@ export function LocalAccountCreationFlow({
 
   if (step === "failed") {
     const rejected = failure?.code === "invite_rejected";
+    const verified = inviteSource === "homegate";
     return (
       <>
         <ErrorScreen
-          accent={rejected ? "rejected." : "interrupted."}
+          accent={rejected ? "not accepted." : "interrupted."}
           action={
-            // A rejected invite has no way back: verifying again would resubmit it.
+            // A refused code has no way back: trying again would resubmit it.
             rejected ? (
               <Button className="w-full" onClick={abandonSetup} size="lg">
                 <ArrowRightIcon />
-                Use another invite
+                {verified ? "Verify again" : "Enter a different invite"}
               </Button>
             ) : (
               <Button className="w-full" onClick={() => void registerPreparedAccount()} size="lg">
                 <RotateCcwIcon />
-                Retry with this key
+                Try again
               </Button>
             )
           }
-          back={
-            rejected ? undefined : (
-              <BackButton
-                onClick={() => {
-                  setFailure(undefined);
-                  setAbandonError(undefined);
-                  setStep("confirm");
-                }}
-              />
-            )
+          cause={
+            failure
+              ? registrationErrorMessage(failure, inviteSource)
+              : "Passport couldn’t finish creating your account."
           }
-          cause={failure ? registrationErrorMessage(failure) : "Registration did not complete."}
           details={failure ? { code: failure.code } : undefined}
           nextStep={
             rejected
-              ? "No account was created with this key. Use another invite to continue."
-              : "Your downloaded backup is still valid. If retrying does not help, start over with a new key."
+              ? verified
+                ? "No account was created. Verify again to get a new sign-up code."
+                : "No account was created with this key. Enter a different invite to continue."
+              : "Your recovery file still works. Try again to finish, or start over with a new key."
           }
           secondaryAction={
             rejected ? null : (
-              <Button
-                onClick={() => {
-                  setAbandonError(undefined);
-                  if (failure?.registrationStarted === false) discardSetup();
-                  else setConfirmingAbandon(true);
-                }}
-                variant="linkDestructive"
-              >
-                <TrashIcon />
-                Start over
-              </Button>
+              <>
+                {/* Where Back used to lead: the file check, which does not leave this setup. */}
+                <Button
+                  onClick={() => {
+                    setFailure(undefined);
+                    setAbandonError(undefined);
+                    setStep("confirm");
+                  }}
+                  variant="link"
+                >
+                  Check recovery file
+                </Button>
+                <Button
+                  onClick={() => {
+                    setAbandonError(undefined);
+                    if (failure?.registrationStarted === false) discardSetup();
+                    else setConfirmingAbandon(true);
+                  }}
+                  variant="linkDestructive"
+                >
+                  <TrashIcon />
+                  Start over
+                </Button>
+              </>
             )
           }
-          title={rejected ? "Invite" : "Setup"}
+          title={rejected ? (verified ? "Verification" : "Invite") : "Setup"}
         >
           {/* A rejected invite leaves a key that owns nothing and is about to be discarded. */}
           {rejected ? null : (
@@ -303,7 +378,7 @@ export function LocalAccountCreationFlow({
         </ErrorScreen>
         <ConfirmDeletionDialog
           confirmLabel="Remove key and start over"
-          description="This key may already own an account on the homeserver. After removing it from this browser, it can only be restored from the backup file you downloaded."
+          description="This key may already own an account on the homeserver. After removing it from this browser, it can only be restored from the recovery file you downloaded."
           error={abandonError}
           id="abandon-account-setup"
           onCancel={() => {
@@ -348,25 +423,31 @@ function abandonReason(rejected: boolean, submitted: boolean): LocalAccountAband
   return submitted ? "invite_submitted" : "user";
 }
 
-function registrationErrorMessage({ code, registrationStarted }: RegistrationFailure): string {
+/** What happened, in plain words; the screen's next step says what to do about it. */
+function registrationErrorMessage(
+  { code, registrationStarted }: RegistrationFailure,
+  inviteSource: InviteSource,
+): string {
   switch (code) {
     case "controller_unavailable":
-      return "Passport lost access to the prepared key. Start again.";
+      return "Passport lost track of the key it prepared. Go back and start again.";
     case "draft_storage_failed":
-      return "Passport could not save your progress in this browser, so nothing was submitted. Free some storage and retry.";
+      return "Passport couldn’t save your progress in this browser, so nothing was sent. This happens when site data is blocked for this site or the device is out of space. Allow site data (or free up space), then try again.";
     case "homeserver_unreachable":
       // An earlier attempt may have submitted the invite, so the key may already own an account.
       return registrationStarted
-        ? "Passport could not reach this invite's homeserver, so this attempt sent nothing. Retry with the same key."
-        : "Passport could not reach this invite's homeserver, so nothing was submitted. Retry once it answers.";
+        ? "Passport could not reach this invite's homeserver, so this attempt sent nothing. Try again with the same key."
+        : "Passport could not reach this invite's homeserver, so nothing was submitted. Try again once it answers.";
     case "storage_failed":
-      return "The account was verified, but this browser could not save it. Retry after freeing storage.";
+      return "Your account was created, but this browser couldn’t save it. Allow site data for this site (or free up space), then try again.";
     case "signin_failed":
-      return "Account state is uncertain. Retry to reconcile it with the same key.";
+      return "Passport couldn’t confirm your account with the homeserver, so it may or may not have been created yet. Your key is still saved in this browser.";
     case "invite_rejected":
-      return "The homeserver rejected this invite. It may have expired, already been used, or be invalid. Retrying with the same invite will not work.";
+      return inviteSource === "homegate"
+        ? "The homeserver didn’t accept the sign-up code your verification gave Passport. It may have expired or already been used."
+        : "The homeserver didn’t accept this invite. It may have expired, already been used, or be invalid.";
     default:
-      return "Registration did not complete. The invite may still be valid; retry with the same key.";
+      return "Passport couldn’t finish creating your account. The invite may still be valid, so try again with the same key.";
   }
 }
 

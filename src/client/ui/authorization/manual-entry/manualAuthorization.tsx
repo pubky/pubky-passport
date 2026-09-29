@@ -95,7 +95,7 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
       <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
         <div className="flex flex-col gap-6 md:gap-8">
           <div className="flex flex-col gap-6 md:gap-3">
-            <DisplayHeading accent="a service." aria-label="Authorize a service.">
+            <DisplayHeading accent="an app." aria-label="Authorize an app.">
               Authorize
             </DisplayHeading>
             <LeadText>
@@ -165,7 +165,7 @@ function ManualAuthorization({ onBack }: { onBack: () => void }) {
                 variant="secondary"
               >
                 <ScanIcon />
-                Scan QR
+                Scan QR code
               </Button>
               <Button className="w-full" disabled={!hasAuthorization} size="lg" type="submit">
                 <ArrowRightIcon />

@@ -38,8 +38,8 @@ describe("IdentityOverview", () => {
       .getByText(/This key is saved only in this browser/u)
       .closest("[data-tone]");
     expect(reminder).toHaveAttribute("data-tone", "warning");
-    expect(screen.queryByRole("button", { name: "Check backup" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Download backup" }));
+    expect(screen.queryByRole("button", { name: "Check recovery file" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Download recovery file" }));
     expect(onBackup).toHaveBeenCalledWith(false);
   });
 
@@ -53,12 +53,12 @@ describe("IdentityOverview", () => {
     const reminder = screen.getByText(/but it was never checked/u).closest("[data-tone]");
     expect(reminder).toHaveAttribute("data-tone", "warning");
     expect(reminder).toHaveTextContent(
-      `Passport made a backup file on ${formatBackupDate(new Date(BACKUP_AT))}`,
+      `Passport made a recovery file on ${formatBackupDate(new Date(BACKUP_AT))}`,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Check backup" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check recovery file" }));
     expect(onBackup).toHaveBeenLastCalledWith(true);
     // The download may never have been saved, so a new file is one tap away too.
-    fireEvent.click(screen.getByRole("button", { name: "Download backup" }));
+    fireEvent.click(screen.getByRole("button", { name: "Download recovery file" }));
     expect(onBackup).toHaveBeenLastCalledWith(false);
   });
 
@@ -86,8 +86,10 @@ describe("IdentityOverview", () => {
 
     expect(screen.getByText(line)).toBeInTheDocument();
     expect(document.querySelector('[data-tone="warning"]')).toBeNull();
-    expect(screen.queryByRole("button", { name: "Download backup" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Check backup" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Download recovery file" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Check recovery file" })).not.toBeInTheDocument();
   });
 
   it("shows where the key lives in the tag every list uses", () => {

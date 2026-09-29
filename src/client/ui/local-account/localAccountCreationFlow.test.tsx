@@ -6,7 +6,11 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { LocalAccountSetupErrorCode } from "@/client/logic/local-account/LocalAccountSetupController";
-import { LocalAccountCreationFlow, type LocalAccountSetupPort } from "./localAccountCreationFlow";
+import {
+  LocalAccountCreationFlow,
+  type InviteSource,
+  type LocalAccountSetupPort,
+} from "./localAccountCreationFlow";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
 
@@ -57,13 +61,14 @@ function fakeController(overrides: Partial<LocalAccountSetupPort> = {}) {
   return controller;
 }
 
-function renderFlow(controller: LocalAccountSetupPort) {
+function renderFlow(controller: LocalAccountSetupPort, inviteSource: InviteSource = "manual") {
   const onBack = vi.fn();
   const onAbandon = vi.fn();
   const onComplete = vi.fn();
   render(
     <LocalAccountCreationFlow
       invite={INVITE}
+      inviteSource={inviteSource}
       onBack={onBack}
       onAbandon={onAbandon}
       onComplete={onComplete}
@@ -76,7 +81,7 @@ function renderFlow(controller: LocalAccountSetupPort) {
 async function downloadAndSkip(user: ReturnType<typeof userEvent.setup>) {
   await user.type(await screen.findByLabelText("Enter strong password"), PASSWORD);
   await user.type(screen.getByLabelText("Confirm password"), PASSWORD);
-  await user.click(screen.getByRole("button", { name: "Download encrypted backup" }));
+  await user.click(screen.getByRole("button", { name: "Download recovery file" }));
   await user.click(
     await screen.findByRole("button", { name: "Skip this check (not recommended)" }),
   );
@@ -108,6 +113,7 @@ describe("LocalAccountCreationFlow", () => {
     const view = render(
       <LocalAccountCreationFlow
         invite={INVITE}
+        inviteSource="manual"
         onBack={vi.fn()}
         onComplete={vi.fn()}
         createSetupController={() =>
@@ -117,7 +123,7 @@ describe("LocalAccountCreationFlow", () => {
         }
       />,
     );
-    expect(screen.getByText("Preparing your Pubky…")).toBeInTheDocument();
+    expect(screen.getByText("Preparing your pubky…")).toBeInTheDocument();
     expect(controller.prepareAccount).not.toHaveBeenCalled();
 
     finishLoading();
@@ -133,6 +139,7 @@ describe("LocalAccountCreationFlow", () => {
     const view = render(
       <LocalAccountCreationFlow
         invite={INVITE}
+        inviteSource="manual"
         onBack={vi.fn()}
         onComplete={vi.fn()}
         createSetupController={() =>
@@ -182,13 +189,20 @@ describe("LocalAccountCreationFlow", () => {
     const heading = await screen.findByRole("heading", { name: "Setup interrupted." });
     // Focus lands on the heading, which is described by the cause, so both are announced.
     expect(heading).toHaveFocus();
-    expect(heading).toHaveAccessibleDescription(/Account state is uncertain/u);
+    // What happened in plain words, and that nothing the person holds was lost.
+    expect(heading).toHaveAccessibleDescription(
+      /couldn’t confirm your account with the homeserver, so it may or may not have been created/u,
+    );
+    expect(heading).toHaveAccessibleDescription(/Your recovery file still works/u);
     expect(screen.getByText("Your pubky")).toBeVisible();
     expect(screen.getByText("signin_failed")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Retry with this key" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
+    // No Back that quietly leads through the file check: the file check is named instead.
+    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Check recovery file" })).toBeEnabled();
 
     await user.click(screen.getByRole("button", { name: "Start over" }));
-    expect(screen.getByText(/can only be restored from the backup file/u)).toBeVisible();
+    expect(screen.getByText(/can only be restored from the recovery file/u)).toBeVisible();
     const remove = screen.getByRole("button", { name: "Remove key and start over" });
     expect(remove).toBeDisabled();
     await user.type(screen.getByRole("textbox", { name: "Type DELETE to confirm" }), "DELETE");
@@ -234,6 +248,20 @@ describe("LocalAccountCreationFlow", () => {
     expect(onAbandon).not.toHaveBeenCalled();
   });
 
+  it("names the file check that the failure screen's side action returns to", async () => {
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:backup");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    const controller = fakeController({ registerAccount: failRegistration("signin_failed") });
+    renderFlow(controller);
+    const user = userEvent.setup();
+    await downloadAndSkip(user);
+    await user.click(await screen.findByRole("button", { name: "Check recovery file" }));
+    expect(
+      await screen.findByRole("heading", { name: "Verify recovery file." }),
+    ).toBeInTheDocument();
+  });
+
   it("releases a rejected invite's key in one step and offers no retry", async () => {
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:backup");
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
@@ -242,16 +270,39 @@ describe("LocalAccountCreationFlow", () => {
     const { onAbandon, onBack } = renderFlow(controller);
     const user = userEvent.setup();
     await downloadAndSkip(user);
-    const heading = await screen.findByRole("heading", { name: "Invite rejected." });
-    expect(heading).toHaveAccessibleDescription(/rejected this invite/u);
+    const heading = await screen.findByRole("heading", { name: "Invite not accepted." });
+    expect(heading).toHaveAccessibleDescription(/didn’t accept this invite/u);
+    expect(heading).toHaveAccessibleDescription(/Enter a different invite to continue/u);
     // The key owns nothing and is about to be discarded, so it is not shown.
     expect(screen.queryByText("Your pubky")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Retry with this key" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Start over" })).not.toBeInTheDocument();
     // Going back would lead to verifying and resubmitting the rejected invite.
     expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Use another invite" }));
+    await user.click(screen.getByRole("button", { name: "Enter a different invite" }));
+    expect(controller.abandonAccount).toHaveBeenCalledOnce();
+    expect(onAbandon).toHaveBeenCalledWith("invite_rejected");
+    expect(onBack).toHaveBeenCalledOnce();
+  });
+
+  it("calls a refused sign-up code from SMS or Lightning a verification, not an invite", async () => {
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:backup");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    const controller = fakeController({ registerAccount: failRegistration("invite_rejected") });
+    const { onAbandon, onBack } = renderFlow(controller, "homegate");
+    const user = userEvent.setup();
+    await downloadAndSkip(user);
+    const heading = await screen.findByRole("heading", { name: "Verification not accepted." });
+    expect(heading).toHaveAccessibleDescription(
+      /didn’t accept the sign-up code your verification gave Passport/u,
+    );
+    expect(heading).toHaveAccessibleDescription(/Verify again to get a new sign-up code/u);
+    expect(heading).not.toHaveAccessibleDescription(/invite/u);
+    expect(screen.queryByRole("button", { name: /invite/u })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Verify again" }));
     expect(controller.abandonAccount).toHaveBeenCalledOnce();
     expect(onAbandon).toHaveBeenCalledWith("invite_rejected");
     expect(onBack).toHaveBeenCalledOnce();
@@ -267,8 +318,10 @@ describe("LocalAccountCreationFlow", () => {
     renderFlow(controller);
     await downloadAndSkip(userEvent.setup());
     const heading = await screen.findByRole("heading", { name: "Setup interrupted." });
-    expect(heading).toHaveAccessibleDescription(/nothing was submitted/u);
-    expect(heading).not.toHaveAccessibleDescription(/was verified/u);
+    expect(heading).toHaveAccessibleDescription(/so nothing was sent/u);
+    // The usual cause, and what to change about it, instead of "free some storage".
+    expect(heading).toHaveAccessibleDescription(/Allow site data \(or free up space\)/u);
+    expect(heading).not.toHaveAccessibleDescription(/was created/u);
   });
 
   it("offers a retry or a plain start over when a first attempt could not reach the homeserver", async () => {
@@ -286,7 +339,7 @@ describe("LocalAccountCreationFlow", () => {
     expect(heading).toHaveAccessibleDescription(/nothing was submitted/u);
     expect(heading).not.toHaveAccessibleDescription(/uncertain/u);
 
-    await user.click(screen.getByRole("button", { name: "Retry with this key" }));
+    await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(controller.registerAccount).toHaveBeenCalledTimes(2);
     await user.click(await screen.findByRole("button", { name: "Start over" }));
     expect(screen.queryByRole("textbox", { name: "Type DELETE to confirm" })).toBeNull();
@@ -329,14 +382,76 @@ describe("LocalAccountCreationFlow", () => {
     expect(onComplete).toHaveBeenCalledWith({ publicIdentity: { publicKeyZ32: PUBLIC_KEY } });
   });
 
-  it("keeps the saved setup and reports failure when the key cannot be prepared", async () => {
+  it("keeps the saved setup and names blocked storage when it refused the key", async () => {
     const controller = fakeController({
-      prepareAccount: vi.fn(() => Result.err({ code: "create_failed" as const })),
+      prepareAccount: vi.fn(() => Result.err({ code: "storage_failed" as const })),
     });
     const { onBack } = renderFlow(controller);
-    expect(await screen.findByRole("heading", { name: "Setup failed." })).toBeInTheDocument();
+    const heading = await screen.findByRole("heading", { name: "Setup failed." });
+    // Storage refused the key, so the screen names the usual causes and what to change.
+    expect(heading).toHaveAccessibleDescription(/private window/u);
+    expect(heading).toHaveAccessibleDescription(/Allow site data for this site/u);
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(controller.discardUnregistered).not.toHaveBeenCalled();
     expect(onBack).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    [
+      "the key could not be created",
+      () =>
+        fakeController({
+          prepareAccount: vi.fn(() => Result.err({ code: "create_failed" as const })),
+        }),
+      "Passport couldn’t create a key in this browser. Try again. Any setup you saved earlier has been kept.",
+    ],
+    [
+      "the code that creates keys did not load",
+      () => Promise.reject(new Error("Loading chunk failed")),
+      "Passport couldn’t load what it needs to create a key. Check your connection, then try again.",
+    ],
+  ] as const)("names no browser storage when %s", async (_, createSetupController, description) => {
+    render(
+      <LocalAccountCreationFlow
+        invite={INVITE}
+        inviteSource="manual"
+        onBack={vi.fn()}
+        onComplete={vi.fn()}
+        createSetupController={createSetupController}
+      />,
+    );
+    const heading = await screen.findByRole("heading", { name: "Setup failed." });
+    expect(heading).toHaveAccessibleDescription(description);
+    expect(heading).not.toHaveAccessibleDescription(/site data|private window/u);
+    expect(screen.getByRole("button", { name: "Try again" })).toBeVisible();
+  });
+
+  it("prepares the key again on Try again instead of sending the person away", async () => {
+    const controllers = [
+      fakeController({
+        prepareAccount: vi.fn(() => Result.err({ code: "create_failed" as const })),
+      }),
+      fakeController(),
+    ];
+    const createSetupController = vi.fn(
+      () => controllers[createSetupController.mock.calls.length - 1]!,
+    );
+    const onBack = vi.fn();
+    render(
+      <LocalAccountCreationFlow
+        invite={INVITE}
+        inviteSource="manual"
+        onBack={onBack}
+        onComplete={vi.fn()}
+        createSetupController={createSetupController}
+      />,
+    );
+    await screen.findByRole("heading", { name: "Setup failed." });
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByLabelText("Enter strong password")).toBeInTheDocument();
+    expect(createSetupController).toHaveBeenCalledTimes(2);
+    expect(controllers[0]!.dispose).toHaveBeenCalledOnce();
+    expect(onBack).not.toHaveBeenCalled();
   });
 });

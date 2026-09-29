@@ -2,6 +2,7 @@ import { Result } from "better-result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PubkyIdentityKeyHandle } from "@/client/logic/pubky/pubkyIdentityKey";
 import { LOGGER } from "@/libs/logger/logger";
+import { notARecoveryFileBytes, recoveryFileBytes } from "@test-utils/recoveryFiles";
 import { expectResultOk, expectResultError } from "@test-utils/resultAssertions";
 import {
   BackupVerifier,
@@ -80,6 +81,33 @@ describe("BackupVerifier", () => {
     );
     expect(keys.restoreRecoveryFile).not.toHaveBeenCalled();
     expect(bytes[0]).toBe(0);
+  });
+
+  it("tells a password that doesn't open a recovery file from a file that isn't one", () => {
+    const keys = {
+      restoreRecoveryFile: vi.fn(() => Result.err({ code: "restore_failed" })),
+      disposeIdentityKey: vi.fn(),
+    };
+    const verifier = new BackupVerifier(keys as never);
+    const legacy = recoveryFileBytes();
+    legacy.set(new TextEncoder().encode("pkarr.org/recovery\n"));
+
+    for (const bytes of [recoveryFileBytes(), legacy])
+      expectResultError(verifier.verify(bytes, "wrong password", "expected"), {
+        code: "backup_decryption_failed",
+        cause: { code: "restore_failed" },
+      });
+    const notes = notARecoveryFileBytes();
+    expectResultError(verifier.verify(notes, "correct horse", "expected"), {
+      code: "invalid_backup",
+      cause: { code: "restore_failed" },
+    });
+    expect(notes.every((byte) => byte === 0)).toBe(true);
+    // A spec line with nothing after it holds no key either.
+    expectResultError(
+      verifier.verify(new TextEncoder().encode("pubky.org/recovery\n"), "pin", "expected"),
+      { code: "invalid_backup", cause: { code: "restore_failed" } },
+    );
   });
 
   it("clears file bytes even if the SDK throws", () => {

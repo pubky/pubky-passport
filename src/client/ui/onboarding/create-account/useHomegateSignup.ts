@@ -38,9 +38,12 @@ export function useHomegateSignup(homegateBaseUrl: string) {
           message: verificationErrorMessage(state.phoneRefusal.code, "phone"),
         }
       : null,
+    /** The homeserver refused the invite the last verification issued; see `forget`. */
+    verificationRefused: state.verificationRefused,
     clearError: () => controller.clearError(),
     back: () => controller.back(),
-    forget: () => controller.forget(),
+    forget: (options?: { refused?: boolean }) => controller.forget(options),
+    dismissRefusal: () => controller.dismissRefusal(),
     releaseInvite: () => controller.releaseInvite(),
     chooseSms: () => controller.chooseSms(),
     continueWithPhone: (phoneNumber: string) => controller.continueWithPhone(phoneNumber),

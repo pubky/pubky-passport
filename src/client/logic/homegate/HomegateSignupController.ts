@@ -16,8 +16,21 @@ export type HomegateSignupView =
   | { step: "phone"; phoneNumber: string }
   | { step: "code"; phoneNumber: string; resendAt: number }
   | { step: "lightning"; invoice: LightningInvoice | null; expired: boolean }
-  /** `restored` marks an invite issued during an earlier visit, whose later use is unknown. */
-  | { step: "complete"; invite: HomeserverSignupDetails; restored: boolean };
+  /** An invite issued during an earlier visit, whose later use is unknown. */
+  | { step: "complete"; invite: HomeserverSignupDetails; restored: true }
+  /** An invite the verification `method` issued during this visit. */
+  | {
+      step: "complete";
+      invite: HomeserverSignupDetails;
+      restored: false;
+      method: HomegateVerificationMethod;
+    };
+
+/** The Homegate verifications that issue invites. */
+export type HomegateVerificationMethod = "sms" | "lightning";
+
+/** The verification that issued an invite; a Lightning one names the invoice that paid for it. */
+type IssuingVerification = { method: "sms" } | { method: "lightning"; paidInvoiceId: string };
 
 export type HomegateSignupErrorCode = HomegateVerificationFailure["code"] | "payment_not_confirmed";
 
@@ -39,6 +52,11 @@ export type HomegateSignupState = {
   sentPhoneNumber: string | undefined;
   /** The last number Homegate refused outright, and why; sending to it again is pointless. */
   phoneRefusal: { phoneNumber: string; code: PhoneRefusalCode } | null;
+  /**
+   * The homeserver refused the invite the last verification issued, so the method list is shown
+   * again with a note saying why. Cleared once a method is chosen.
+   */
+  verificationRefused: boolean;
 };
 
 type VerificationPort = Pick<
@@ -104,6 +122,7 @@ export class HomegateSignupController {
       error: null,
       sentPhoneNumber: undefined,
       phoneRefusal: null,
+      verificationRefused: false,
     };
   }
 
@@ -144,8 +163,12 @@ export class HomegateSignupController {
     });
   }
 
-  /** Drops the issued invite, e.g. after the homeserver rejected it. An open invoice stays. */
-  forget(): void {
+  /**
+   * Drops the issued invite and returns to the method list. `refused` says the homeserver
+   * refused that invite, so the list can say why the person verifies again. An open invoice
+   * stays.
+   */
+  forget({ refused = false }: { refused?: boolean } = {}): void {
     this.abortOperation();
     this.smsChallenge = null;
     this.persist("forget", () => this.storage.removeInvite());
@@ -153,8 +176,14 @@ export class HomegateSignupController {
       pending: false,
       error: null,
       sentPhoneNumber: undefined,
+      verificationRefused: refused,
       view: { step: "choose" },
     });
+  }
+
+  /** The person chose an invite code instead, so a refused verification needs no note. */
+  dismissRefusal(): void {
+    if (this.state.verificationRefused) this.update({ verificationRefused: false });
   }
 
   /** Stops keeping the invite once an account owns it; the view and any invoice are unchanged. */
@@ -168,7 +197,11 @@ export class HomegateSignupController {
   }
 
   chooseSms(): void {
-    this.update({ error: null, view: { step: "phone", phoneNumber: this.phoneNumber } });
+    this.update({
+      error: null,
+      verificationRefused: false,
+      view: { step: "phone", phoneNumber: this.phoneNumber },
+    });
   }
 
   /** Reuses the SMS challenge already sent to this number instead of sending another code. */
@@ -208,7 +241,7 @@ export class HomegateSignupController {
   verifySmsCode(phoneNumber: string, code: string): Promise<void> {
     return this.run(
       (client, signal) => client.verifySmsCode(phoneNumber, code, signal),
-      (invite) => this.complete(invite),
+      (invite) => this.complete(invite, { method: "sms" }),
       (failure) => {
         const view = this.state.view;
         if (failure !== "verification_expired" || view.step !== "code") return;
@@ -226,6 +259,7 @@ export class HomegateSignupController {
    */
   createInvoice(): Promise<void> {
     if (this.operation) return Promise.resolve();
+    this.dismissRefusal();
     const previous = this.lastInvoice;
     if (previous && this.now() < previous.expiresAt) {
       this.update({ error: null, view: { step: "lightning", invoice: previous, expired: false } });
@@ -253,7 +287,7 @@ export class HomegateSignupController {
       },
       (outcome) =>
         outcome.kind === "paid"
-          ? this.complete(outcome.invite, previous.id)
+          ? this.complete(outcome.invite, { method: "lightning", paidInvoiceId: previous.id })
           : this.acceptInvoice(outcome.invoice),
     );
   }
@@ -263,7 +297,7 @@ export class HomegateSignupController {
       (client, signal) => client.checkLightningPayment(invoice.id, signal),
       (invite) =>
         invite
-          ? this.complete(invite, invoice.id)
+          ? this.complete(invite, { method: "lightning", paidInvoiceId: invoice.id })
           : this.update({ error: "payment_not_confirmed" }),
     );
   }
@@ -308,12 +342,17 @@ export class HomegateSignupController {
     this.persist("drop_invoice", () => this.storage.removeInvoice(invoice.id));
   }
 
-  /** `paidInvoiceId` names the invoice that paid for the invite; no other invoice is dropped. */
-  private complete(invite: HomeserverSignupDetails, paidInvoiceId?: string): void {
+  /** Only the invoice that paid for the invite is dropped; an SMS invite keeps any invoice. */
+  private complete(invite: HomeserverSignupDetails, verification: IssuingVerification): void {
+    const paidInvoiceId =
+      verification.method === "lightning" ? verification.paidInvoiceId : undefined;
     if (paidInvoiceId !== undefined && this.lastInvoice?.id === paidInvoiceId)
       this.lastInvoice = null;
     this.persist("save_invite", () => this.storage.saveInvite(invite, paidInvoiceId));
-    this.update({ error: null, view: { step: "complete", invite, restored: false } });
+    this.update({
+      error: null,
+      view: { step: "complete", invite, restored: false, method: verification.method },
+    });
   }
 
   private restoreView(): HomegateSignupView {
@@ -355,7 +394,7 @@ export class HomegateSignupController {
       const result = await client.checkLightningPayment(invoice.id, controller.signal);
       if (controller.signal.aborted) return;
       if (Result.isOk(result) && result.value) {
-        this.complete(result.value, invoice.id);
+        this.complete(result.value, { method: "lightning", paidInvoiceId: invoice.id });
         return;
       }
       if (Result.isError(result)) {

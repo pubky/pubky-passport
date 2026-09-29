@@ -250,7 +250,7 @@ it("reviews an app request before Passport's own profile request, then hands the
   // The list labels an identity whose key stays in Ring.
   await user.click(screen.getByRole("button", { name: /Key in Pubky Ring/u }));
   expect(ring.start).not.toHaveBeenCalled();
-  expect(screen.getByText(/You choose the identity to sign in with in Ring/u)).toBeVisible();
+  expect(screen.getByText(/You’ll pick which identity to use in Pubky Ring/u)).toBeVisible();
 
   await user.click(screen.getByRole("button", { name: "Continue in Pubky Ring" }));
   expect(screen.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeInTheDocument();
@@ -288,7 +288,7 @@ it("adds an existing Ring identity from the home page without an invite or a pro
 
   const user = userEvent.setup();
   expect(await screen.findByRole("heading", { name: "Get your pubky." })).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Open in Pubky Ring" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Continue with Pubky Ring" })).toBeNull();
   await user.click(screen.getByRole("button", { name: "Sign in with Pubky Ring" }));
   expect(await screen.findByRole("heading", { name: "Connect Pubky Ring." })).toBeInTheDocument();
   expect(
@@ -321,6 +321,8 @@ it("offers the request handoff instead of a profile connection while an app requ
         }),
     }),
   );
-  expect(await screen.findByRole("button", { name: "Open in Pubky Ring" })).toBeInTheDocument();
+  expect(
+    await screen.findByRole("button", { name: "Continue with Pubky Ring" }),
+  ).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Sign in with Pubky Ring" })).toBeNull();
 });

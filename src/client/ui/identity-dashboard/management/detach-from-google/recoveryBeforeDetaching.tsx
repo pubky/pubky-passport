@@ -59,7 +59,7 @@ function RecoveryBeforeDetaching({
             Use in Pubky Ring
           </RecoveryMethodButton>
           <RecoveryMethodButton icon={<DownloadIcon />} onClick={onDownloadRecoveryFile}>
-            Download encrypted backup
+            Download recovery file
           </RecoveryMethodButton>
         </OnboardingCard>
         {backupChecked ? (

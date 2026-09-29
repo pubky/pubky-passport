@@ -104,7 +104,7 @@ test.describe("choosing an identity first", () => {
     expect(Math.abs(layout.mainBottom - POPUP.height)).toBeLessThanOrEqual(1);
     expect(layout.footerTop).toBeGreaterThanOrEqual(POPUP.height - 1);
     expect(layout.width).toBeLessThanOrEqual(POPUP.width);
-    for (const bottom of await bottoms(page, ["Create account", "Open in Pubky Ring"]))
+    for (const bottom of await bottoms(page, ["Create account", "Continue with Pubky Ring"]))
       expect(bottom).toBeLessThanOrEqual(POPUP.height);
 
     await page.getByRole("button", { name: /tkrq…p7qy/u }).click();
@@ -128,7 +128,7 @@ test.describe("choosing an identity first", () => {
     await expect(identityList(page)).toHaveCount(0);
     await expect(page.getByText("or", { exact: true })).toHaveCount(0);
     const create = page.getByRole("button", { name: "Create account", exact: true });
-    const ring = page.getByRole("button", { name: "Open in Pubky Ring", exact: true });
+    const ring = page.getByRole("button", { name: "Continue with Pubky Ring", exact: true });
     // The recommended way in is the brand button; Pubky Ring is the alternative.
     expect(await create.evaluate((button) => getComputedStyle(button).borderColor)).toBe(
       "rgb(200, 255, 0)",
@@ -136,7 +136,7 @@ test.describe("choosing an identity first", () => {
     expect(await ring.evaluate((button) => getComputedStyle(button).borderColor)).not.toBe(
       "rgb(200, 255, 0)",
     );
-    for (const bottom of await bottoms(page, ["Create account", "Open in Pubky Ring"]))
+    for (const bottom of await bottoms(page, ["Create account", "Continue with Pubky Ring"]))
       expect(bottom).toBeLessThanOrEqual(POPUP.height);
 
     await create.click();
@@ -145,16 +145,18 @@ test.describe("choosing an identity first", () => {
     await page.getByRole("button", { name: "Back", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Sign in to Acme Notes" })).toBeVisible();
 
-    await page.getByRole("button", { name: "Continue with Google or import a backup" }).click();
+    await page
+      .getByRole("button", { name: "Continue with Google or import a recovery file" })
+      .click();
     // One focused step for the quieter ways in, still addressed to the waiting app.
     await expect(page.getByRole("heading", { name: "Sign in to Acme Notes" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Import backup" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Import recovery file" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Create account", exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Pubky Ring/u })).toHaveCount(0);
     await page.getByRole("button", { name: "Back", exact: true }).click();
     await expect(
-      page.getByRole("button", { name: "Open in Pubky Ring", exact: true }),
+      page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }),
     ).toBeVisible();
   });
 
@@ -207,7 +209,7 @@ test.describe("a long list in the popup", () => {
     const cut = rows.find((row) => row.bottom > clearBottom)!;
     expect(rows.indexOf(cut)).toBeGreaterThanOrEqual(2);
     expect(clearBottom - cut.top).toBeGreaterThanOrEqual((cut.bottom - cut.top) / 3);
-    for (const bottom of await bottoms(page, ["Create account", "Open in Pubky Ring"]))
+    for (const bottom of await bottoms(page, ["Create account", "Continue with Pubky Ring"]))
       expect(bottom).toBeLessThanOrEqual(POPUP.height);
 
     // Moving through the list by keyboard keeps the focused row clear of the fade.
@@ -282,7 +284,7 @@ test.describe("a computer's fine pointer", () => {
     await openRequest(page);
     expect(await page.evaluate(() => matchMedia("(pointer: fine)").matches)).toBe(true);
 
-    await page.getByRole("button", { name: "Open in Pubky Ring", exact: true }).click();
+    await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
 
     await expect(page.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeVisible();
     await expect(page.getByRole("img", { name: "Pubky authorization QR code" })).toBeVisible();
@@ -301,7 +303,7 @@ test.describe("a computer's fine pointer", () => {
       .filter({ hasText: "This app asks for access to all your data, public and private." });
     await expect(warning).toBeVisible();
 
-    await page.getByRole("button", { name: "Open in Pubky Ring", exact: true }).click();
+    await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
     await expect(page.getByRole("img", { name: "Pubky authorization QR code" })).toBeVisible();
     await expect(warning).toBeVisible();
   });
@@ -325,7 +327,7 @@ test.describe("a phone's coarse pointer", () => {
     expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
 
     const pressed = Date.now();
-    await page.getByRole("button", { name: "Open in Pubky Ring", exact: true }).click();
+    await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
 
     await expect(page.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeVisible();
     // Firefox reports no request for a navigation to another app's scheme.
@@ -350,7 +352,7 @@ test.describe("a phone's coarse pointer", () => {
 
   test("keeps the QR code behind a toggle when Pubky Ring took over the page", async ({ page }) => {
     await openRequest(page);
-    await page.getByRole("button", { name: "Open in Pubky Ring", exact: true }).click();
+    await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
     await expect(page.getByRole("link", { name: "Opening Pubky Ring…" })).toBeVisible();
     // The app opening hides the page; coming back finds the hand-off where it was.
     await page.evaluate(() => {

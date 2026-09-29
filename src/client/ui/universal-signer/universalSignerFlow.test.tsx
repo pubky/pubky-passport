@@ -100,7 +100,7 @@ function mount(withRequest: boolean, collaborators: Partial<PassportCollaborator
 async function openAddition(user: ReturnType<typeof userEvent.setup>, withRequest: boolean) {
   if (withRequest) {
     await user.click(
-      await screen.findByRole("button", { name: "Continue with Google or import a backup" }),
+      await screen.findByRole("button", { name: "Continue with Google or import a recovery file" }),
     );
     return;
   }
@@ -123,7 +123,7 @@ function stubCoarsePointer() {
 /** From the review, back to the list and on to the request's Ring hand-off. */
 async function expectRingHandoff(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "Switch identity" }));
-  await user.click(screen.getByRole("button", { name: "Open in Pubky Ring" }));
+  await user.click(screen.getByRole("button", { name: "Continue with Pubky Ring" }));
   expect(screen.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeInTheDocument();
   expect(screen.getByRole("img", { name: "Pubky authorization QR code" })).toBeInTheDocument();
 }
@@ -170,7 +170,7 @@ describe("shared addition navigation", () => {
     mount(false);
 
     const create = await screen.findByRole("button", { name: "Create account" });
-    const importBackup = screen.getByRole("button", { name: "Import backup" });
+    const importBackup = screen.getByRole("button", { name: "Import recovery file" });
     expect(
       create.compareDocumentPosition(importBackup) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
@@ -184,7 +184,7 @@ describe("shared addition navigation", () => {
     expect(await screen.findByRole("button", { name: "Create account" })).toBeInTheDocument();
     await openAddition(user, true);
     // The focused step offers only what the list does not: Google and a backup.
-    expect(screen.getByRole("button", { name: "Import backup" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Import recovery file" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Create account" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Pubky Ring/u })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Sign in to Original app" })).toBeInTheDocument();
@@ -202,7 +202,7 @@ describe("shared addition navigation", () => {
     );
     mount(withRequest);
     await openAddition(user, withRequest);
-    await user.click(screen.getByRole("button", { name: "Import backup" }));
+    await user.click(screen.getByRole("button", { name: "Import recovery file" }));
     await user.upload(screen.getByLabelText("Recovery file"), backupFile());
     await user.type(screen.getByLabelText("Recovery file password"), "correct horse");
     await user.click(screen.getByRole("button", { name: "Import recovery file" }));
@@ -252,7 +252,7 @@ describe("shared addition navigation", () => {
       await user.click(screen.getByRole("button", { name: /Keep key in this browser/ }));
       await user.type(await screen.findByLabelText("Enter strong password"), "correct horse");
       await user.type(screen.getByLabelText("Confirm password"), "correct horse");
-      await user.click(screen.getByRole("button", { name: "Download encrypted backup" }));
+      await user.click(screen.getByRole("button", { name: "Download recovery file" }));
       act(notifyAdded);
       expect(screen.getByRole("heading", { name: "Verify recovery file." })).toBeInTheDocument();
       expect(
@@ -270,20 +270,17 @@ describe("shared addition navigation", () => {
       expect(
         await screen.findByRole("heading", { name: "Setting up your pubky." }),
       ).toBeInTheDocument();
-      expect(screen.getByText("Sign up to the homeserver").closest("li")).toHaveAttribute(
+      expect(screen.getByText("Create your account").closest("li")).toHaveAttribute(
         "aria-current",
         "step",
       );
       act(() => progress("publishing"));
-      expect(screen.getByText("Publish PKDNS records").closest("li")).toHaveAttribute(
-        "aria-current",
-        "step",
-      );
-      expect(screen.getByText("Sign up to the homeserver").closest("li")).toHaveTextContent(
-        "complete",
-      );
+      expect(
+        screen.getByText("Publish your pubky so apps can find it").closest("li"),
+      ).toHaveAttribute("aria-current", "step");
+      expect(screen.getByText("Create your account").closest("li")).toHaveTextContent("complete");
       act(() => progress("activating"));
-      expect(screen.getByText("Activate identity").closest("li")).toHaveAttribute(
+      expect(screen.getByText("Finish setup").closest("li")).toHaveAttribute(
         "aria-current",
         "step",
       );
@@ -321,7 +318,7 @@ describe("shared addition navigation", () => {
       await user.click(screen.getByRole("button", { name: /Keep key in this browser/ }));
       await user.type(await screen.findByLabelText("Enter strong password"), "correct horse");
       await user.type(screen.getByLabelText("Confirm password"), "correct horse");
-      await user.click(screen.getByRole("button", { name: "Download encrypted backup" }));
+      await user.click(screen.getByRole("button", { name: "Download recovery file" }));
       await user.click(screen.getByRole("button", { name: "Skip this check (not recommended)" }));
 
       // The account exists now, and a key made in this browser says so before the profile.
@@ -357,7 +354,7 @@ describe("shared addition navigation", () => {
     const user = userEvent.setup();
     mount(true);
     await openAddition(user, true);
-    await user.click(screen.getByRole("button", { name: "Import backup" }));
+    await user.click(screen.getByRole("button", { name: "Import recovery file" }));
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("region", { name: "Other ways to sign in" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back" }));
@@ -465,7 +462,7 @@ describe("account creation navigation", () => {
     await user.click(screen.getByRole("button", { name: /Keep key in this browser/ }));
     await user.type(await screen.findByLabelText("Enter strong password"), "correct horse");
     await user.type(screen.getByLabelText("Confirm password"), "correct horse");
-    await user.click(screen.getByRole("button", { name: "Download encrypted backup" }));
+    await user.click(screen.getByRole("button", { name: "Download recovery file" }));
     await user.click(screen.getByRole("button", { name: "Skip this check (not recommended)" }));
     await user.click(await screen.findByRole("button", { name: "Start over" }));
     await user.type(screen.getByRole("textbox", { name: "Type DELETE to confirm" }), "DELETE");

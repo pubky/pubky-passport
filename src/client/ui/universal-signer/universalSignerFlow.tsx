@@ -390,7 +390,7 @@ function ReadyPassport({
             activePublicKeyZ32={catalog.activePublicKeyZ32}
             identities={catalog.identities}
             moreOptionsLabel={
-              google ? "Continue with Google or import a backup" : "Import a backup"
+              google ? "Continue with Google or import a recovery file" : "Import a recovery file"
             }
             onCancel={() => void controller.cancel()}
             onCreateAccount={() => navigate({ view: "create-account", back: "choose" })}
