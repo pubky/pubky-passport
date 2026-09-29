@@ -44,9 +44,9 @@ describe("RecoveryFileDownload", () => {
     expect(createRecoveryFile).toHaveBeenCalledExactlyOnceWith("identity", RECOVERY_PASSWORD);
     expect(onBack).not.toHaveBeenCalled();
 
-    await user.upload(screen.getByLabelText("Backup file"), backupFile());
-    await user.type(screen.getByLabelText("Backup password"), RECOVERY_PASSWORD);
-    await user.click(screen.getByRole("button", { name: "Verify backup" }));
+    await user.upload(screen.getByLabelText("Recovery file"), backupFile());
+    await user.type(screen.getByLabelText("Recovery file password"), RECOVERY_PASSWORD);
+    await user.click(screen.getByRole("button", { name: "Verify recovery file" }));
     expect(verifyRecoveryFile).toHaveBeenCalledExactlyOnceWith(
       "identity",
       expect.any(Uint8Array),
@@ -88,7 +88,7 @@ describe("RecoveryFileDownload", () => {
     );
     await enterNewPassword(user);
     await user.click(screen.getByRole("button", { name: "Download backup" }));
-    expect(screen.getByRole("heading", { name: "Verify backup." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Verify recovery file." })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: SKIP })).not.toBeInTheDocument();
   });
 

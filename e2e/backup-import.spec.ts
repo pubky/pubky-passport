@@ -24,10 +24,10 @@ function recoveryFile(passphrase = PASSWORD) {
 
 async function importBackup(page: Page, passphrase: string, file = recoveryFile()) {
   await page.getByRole("button", { name: "Import backup", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Import backup." })).toBeVisible();
-  await page.getByLabel("Pubky backup").setInputFiles(file);
-  await page.getByLabel("Backup password").fill(passphrase);
-  await page.getByRole("button", { name: "Import backup", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Import recovery file." })).toBeVisible();
+  await page.getByLabel("Recovery file", { exact: true }).setInputFiles(file);
+  await page.getByLabel("Recovery file password").fill(passphrase);
+  await page.getByRole("button", { name: "Import recovery file" }).click();
 }
 
 async function savedIdentityKeys(page: Page) {
@@ -45,7 +45,7 @@ for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 800 });
     await page.goto("/");
     await page.getByRole("button", { name: "Import backup", exact: true }).click();
-    const picker = page.getByLabel("Pubky backup");
+    const picker = page.getByLabel("Recovery file", { exact: true });
     await picker.setInputFiles(recoveryFile());
 
     // The field shows the name once, cut short inside its box, instead of a line that overflows.
@@ -74,14 +74,15 @@ test("backup import opens files protected by a passphrase shorter than Passport'
   // The file decrypted; only the unreachable relays stop the import, and an unchecked homeserver
   // record is never offered for repair.
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
-    "The backup decrypted, but its Pubky account could not be verified. Passport could not look up its homeserver record",
+    "Your recovery file opened, but Passport couldn’t look up which homeserver holds its account.",
     { timeout: 15_000 },
   );
-  await expect(page.getByRole("heading", { name: "Homeserver record missing." })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Homeserver not found." })).toHaveCount(0);
   expect(await savedIdentityKeys(page)).toEqual([]);
 });
 
 test("backup import publishes a missing homeserver record only after confirming its homeserver", async ({
+  browserName,
   page,
 }) => {
   const publications: string[] = [];
@@ -95,18 +96,36 @@ test("backup import publishes a missing homeserver record only after confirming 
   });
   await page.goto("/");
   await importBackup(page, PASSWORD);
-  await expect(page.getByRole("heading", { name: "Homeserver record missing." })).toBeVisible({
+  await expect(page.getByRole("heading", { name: "Homeserver not found." })).toBeVisible({
     timeout: 15_000,
   });
+  // The homeserver is named in plain words; its key waits behind Technical details.
+  await expect(page.getByText("This Passport’s homeserver", { exact: true })).toBeVisible();
+  await expect(page.getByText(E2E_SIGNUP_HOMESERVER, { exact: true })).toBeHidden();
+  await page.getByText("Technical details").click();
   await expect(page.getByText(E2E_SIGNUP_HOMESERVER, { exact: true })).toBeVisible();
   expect(publications).toEqual([]);
 
-  await page.getByRole("button", { name: "Publish record and import" }).click();
+  await page.getByRole("button", { name: "Reconnect and import" }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
-    "could not publish the homeserver record",
+    "Passport couldn’t list the homeserver for this account",
   );
   expect(publications).not.toEqual([]);
   expect(await savedIdentityKeys(page)).toEqual([]);
+
+  // Back returns to the form with the file already picked, where the browser can put it back.
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Import recovery file." })).toBeVisible();
+  const picker = page.getByLabel("Recovery file", { exact: true });
+  const kept = await picker.evaluate((input: HTMLInputElement) => input.files?.[0]?.name ?? null);
+  if (browserName === "chromium") expect(kept).toBe(`pubky-${PROFILE_KEY}.pkarr`);
+  if (kept) {
+    await expect(page.locator('[data-slot="file-name"]')).toContainText(
+      `pubky-${PROFILE_KEY}.pkarr`,
+    );
+  } else {
+    await expect(page.locator('[data-slot="file-field"]')).toContainText("No file chosen");
+  }
 });
 
 test("backup import reaches whichever homeserver the record names and reports its failed sign-in", async ({
@@ -126,12 +145,17 @@ test("backup import reaches whichever homeserver the record names and reports it
   // The homeserver answered (with an outage), so the import reports that, not a blocked request.
   const alert = page.getByRole("main").getByRole("alert");
   await expect(alert).toContainText(
-    "The backup decrypted, but its Pubky account could not be verified.",
+    "Your recovery file opened, but Passport couldn’t sign in to its account.",
     { timeout: 15_000 },
   );
-  await expect(alert).not.toContainText("could not look up its homeserver record");
+  await expect(alert).not.toContainText("couldn’t look up which homeserver holds its account");
   expect(reached).toContain("/auth/grant/session");
   expect(await savedIdentityKeys(page)).toEqual([]);
+  // The file and password are kept, so trying again is one press.
+  const attempts = reached.length;
+  await alert.getByRole("button", { name: "Try again" }).click();
+  await expect.poll(() => reached.length).toBeGreaterThan(attempts);
+  await expect(alert).toContainText("couldn’t sign in to its account", { timeout: 15_000 });
 });
 
 test("backup import refuses an identity already saved in this browser", async ({ page }) => {
@@ -145,13 +169,15 @@ test("backup import refuses an identity already saved in this browser", async ({
   await page.getByRole("button", { name: "Switch identity", exact: true }).click();
   await page.getByRole("button", { name: "Add identity" }).click();
   await importBackup(page, PASSWORD);
-  await expect(page.getByRole("main").getByRole("alert")).toContainText(
-    "already saved in this browser",
-  );
+  const alert = page.getByRole("main").getByRole("alert");
+  await expect(alert).toContainText("already saved in this browser");
   expect(
     await page.evaluate(
       (key) => localStorage.getItem(key),
       `${LOCAL_IDENTITY_STORAGE_ROOT}/identity/${PROFILE_KEY}`,
     ),
   ).toBe(saved);
+  // The saved identity is one press away instead of three screens back.
+  await alert.getByRole("button", { name: "Use this identity" }).click();
+  await expect(page.getByRole("heading", { name: "Your pubky." })).toBeVisible();
 });

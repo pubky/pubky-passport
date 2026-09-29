@@ -21,10 +21,13 @@ import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { FileField } from "@/client/ui/shared/primitives/fileField";
 import { Input } from "@/client/ui/shared/primitives/input";
 import { Label } from "@/client/ui/shared/primitives/label";
+import { RevealPasswordButton } from "@/client/ui/shared/revealPasswordButton";
 
 type BackupResult<T> = ResultType<T, { code: string }>;
 /** Where a failure is announced: next to the field it concerns, or for the whole form. */
 type FlowError = { target: "password" | "file" | "form"; message: string };
+/** Which backup file the check asks for, so its messages name the right one. */
+type FileSource = "downloaded" | "earlier" | "check";
 type Confirmation = "empty" | "typing" | "mismatch" | "match";
 
 /** Browsers may start the download asynchronously; revoking at once can cancel it. */
@@ -33,9 +36,11 @@ const BLOB_URL_REVOKE_DELAY_MS = 1_000;
 /**
  * Shared download and file check for signup and identity management. `checkOnly` opens a backup
  * made earlier at the check and leaves from there; `allowSkip` offers to skip the check of a
- * file this session downloaded.
+ * file this session downloaded. The primary action stays enabled: pressing it with something
+ * missing says what, at the field concerned.
  */
 export function BackupFlow({
+  backupFileName,
   createBackup,
   verifyBackup,
   initialStep = "password",
@@ -47,6 +52,8 @@ export function BackupFlow({
   checkOnly = false,
   creatingAccount = false,
 }: {
+  /** The name the backup file was given, to point to it when the check resumes a later visit. */
+  backupFileName?: string | undefined;
   createBackup: (
     password: string,
   ) => BackupResult<LocalIdentityRecoveryFile> | Promise<BackupResult<LocalIdentityRecoveryFile>>;
@@ -67,11 +74,18 @@ export function BackupFlow({
   const [pending, setPending] = useState(false);
   const [passwordLength, setPasswordLength] = useState(0);
   const [confirmation, setConfirmation] = useState<Confirmation>("empty");
-  const [hasFile, setHasFile] = useState(false);
+  // Set once the password field is left or the form sent, so a short password is not flagged
+  // while it is still being typed. The repeated password is the same, except that typing in it
+  // clears the flag again: a half-typed repetition is only called wrong once it is left.
+  const [lengthChecked, setLengthChecked] = useState(false);
+  const [confirmationChecked, setConfirmationChecked] = useState(false);
+  const [passwordShown, setPasswordShown] = useState(false);
   const [error, setError] = useState<FlowError>();
   // The file this session downloaded; skipping its check is only offered for such a file.
   const [downloadedFile, setDownloadedFile] = useState<string>();
   const downloadedHere = downloadedFile !== undefined;
+  // A check reopened on a later visit asks for a file saved then, which may be lost.
+  const fileSource: FileSource = checkOnly ? "check" : downloadedHere ? "downloaded" : "earlier";
   const password = useRef<HTMLInputElement>(null);
   const passwordConfirmation = useRef<HTMLInputElement>(null);
   const file = useRef<HTMLInputElement>(null);
@@ -84,11 +98,18 @@ export function BackupFlow({
   const validPassword = confirming
     ? passwordLength > 0
     : passwordLength >= MINIMUM_BACKUP_PASSWORD_LENGTH;
-  const passwordTooShort = !confirming && passwordLength > 0 && !validPassword;
+  const passwordTooShort = !confirming && lengthChecked && !validPassword;
   // Every new backup's password is typed twice: the file check below may be skipped, and a typo
   // would leave the file unreadable, possibly as the key's only copy outside this browser.
   const needsConfirmation = !confirming;
-  const canSubmit = validPassword && (!needsConfirmation || confirmation === "match");
+  const confirmationError =
+    confirmation === "mismatch" ||
+    (confirmationChecked && confirmation === "typing") ||
+    (confirmationChecked && validPassword && confirmation === "empty")
+      ? confirmation === "empty"
+        ? "Type the password again to confirm it."
+        : "Passwords do not match."
+      : undefined;
 
   useEffect(() => {
     active.current = true;
@@ -111,6 +132,8 @@ export function BackupFlow({
     if (passwordConfirmation.current) passwordConfirmation.current.value = "";
     setPasswordLength(0);
     setConfirmation("empty");
+    setLengthChecked(false);
+    setConfirmationChecked(false);
   }
 
   function updatePasswordState() {
@@ -123,7 +146,17 @@ export function BackupFlow({
 
   async function download(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy.current || !canSubmit) return;
+    if (busy.current) return;
+    if (!validPassword) {
+      setLengthChecked(true);
+      password.current?.focus();
+      return;
+    }
+    if (confirmation !== "match") {
+      setConfirmationChecked(true);
+      passwordConfirmation.current?.focus();
+      return;
+    }
     busy.current = true;
     setPending(true);
     setError(undefined);
@@ -145,7 +178,7 @@ export function BackupFlow({
         };
         downloadFile(lastDownload.current);
         // Passport only starts the download; the browser may still ask where to save it.
-        toast.success("Backup download started");
+        toast.success("Recovery file download started");
         setDownloadedFile(backup.value.fileName);
         setStep("confirm");
       } finally {
@@ -167,7 +200,7 @@ export function BackupFlow({
     if (!lastDownload.current) return;
     try {
       downloadFile(lastDownload.current);
-      toast.success("Backup download started");
+      toast.success("Recovery file download started");
     } catch (cause) {
       LOGGER.warn("identity.recovery_file.ui.failed", {
         operation: "download_again",
@@ -182,7 +215,11 @@ export function BackupFlow({
     if (busy.current) return;
     const selected = file.current?.files?.[0];
     if (!selected || !selected.size || selected.size > MAXIMUM_BACKUP_BYTES) {
-      setError(verificationError("invalid_backup", checkOnly));
+      setError(verificationError("invalid_backup", fileSource));
+      return;
+    }
+    if (!password.current?.value) {
+      setError({ target: "password", message: "Enter the password of this recovery file." });
       return;
     }
     busy.current = true;
@@ -197,14 +234,17 @@ export function BackupFlow({
       const verified = await verifyBackup(bytes, value);
       if (!active.current) return;
       if (Result.isError(verified)) {
-        setError(verificationError(verified.error.code, checkOnly));
+        setError(verificationError(verified.error.code, fileSource));
       } else {
-        toast.success("Backup verified");
+        toast.success("Recovery file verified");
         onComplete();
       }
     } catch {
       if (active.current)
-        setError({ target: "form", message: "Passport could not verify the selected backup." });
+        setError({
+          target: "form",
+          message: "Passport could not verify the selected recovery file.",
+        });
     } finally {
       bytes?.fill(0);
       busy.current = false;
@@ -222,7 +262,8 @@ export function BackupFlow({
     setError(undefined);
     setPasswordLength(0);
     setConfirmation("empty");
-    setHasFile(false);
+    setLengthChecked(false);
+    setConfirmationChecked(false);
     setDownloadedFile(undefined);
     lastDownload.current = null;
     setStep("password");
@@ -235,13 +276,13 @@ export function BackupFlow({
   return (
     <RecoveryScreen
       {...(confirming
-        ? { title: "Verify", accent: "backup." }
+        ? { title: "Verify", accent: "recovery file." }
         : creatingAccount
           ? { title: "Protect your", accent: "key." }
           : { title: "Encrypted", accent: "backup." })}
       description={
         confirming
-          ? `Pick ${downloadedHere ? "the file you just downloaded" : "your backup file"} and enter its password. This proves ${restores}.`
+          ? `Pick ${{ downloaded: "the file you just downloaded", earlier: "the recovery file you saved earlier", check: "your recovery file" }[fileSource]} and enter its password. This proves ${restores}.`
           : creatingAccount
             ? "Your key is saved only in this browser. If you clear your browsing data or lose this device, this backup file and its password are the only way back into your account. Nobody can reset the password, not even Passport."
             : "Encrypt a backup of your key with a strong password and keep the file somewhere safe. You’ll need both to restore your pubky, and nobody can reset the password."
@@ -251,12 +292,16 @@ export function BackupFlow({
         key={step}
         className="flex flex-1 flex-col gap-6 md:gap-8"
         aria-busy={pending}
+        // The form says what is missing itself, beside the field, instead of the browser's bubble.
+        noValidate
         onSubmit={confirming ? verify : download}
       >
         <RecoveryCard illustration="/illustrations/file.png">
           {confirming ? (
             <div className="flex flex-col gap-2">
-              <Label htmlFor="backup-file">Backup file</Label>
+              <Label htmlFor="backup-file">
+                {fileSource === "earlier" ? "Recovery file you saved earlier" : "Recovery file"}
+              </Label>
               <FileField
                 id="backup-file"
                 accept=".pkarr,application/octet-stream"
@@ -264,14 +309,11 @@ export function BackupFlow({
                 disabled={pending}
                 aria-invalid={fileError ? true : undefined}
                 aria-describedby={
-                  [downloadedFile && "backup-file-help", fileError && "backup-file-error"]
+                  [fileSource !== "check" && "backup-file-help", fileError && "backup-file-error"]
                     .filter(Boolean)
                     .join(" ") || undefined
                 }
-                onChange={(event) => {
-                  setHasFile(Boolean(event.currentTarget.files?.length));
-                  setError(undefined);
-                }}
+                onChange={() => setError(undefined)}
               />
               {/* One hint with the retry inline, not a row of its own, keeps the primary in a popup. */}
               {downloadedFile ? (
@@ -292,6 +334,29 @@ export function BackupFlow({
                     Download again
                   </Button>
                 </FieldMessage>
+              ) : fileSource === "earlier" ? (
+                // A lost file is no dead end: a new backup of the same key replaces it.
+                <FieldMessage id="backup-file-help">
+                  {backupFileName ? (
+                    <>
+                      Look for{" "}
+                      <span className="whitespace-nowrap font-medium text-foreground">
+                        {shortFileName(backupFileName)}
+                      </span>
+                      .{" "}
+                    </>
+                  ) : null}
+                  Can’t find it?{" "}
+                  <Button
+                    className="inline min-h-0 py-0 align-baseline text-xs leading-4 pointer-coarse:min-h-0"
+                    disabled={pending}
+                    onClick={back}
+                    variant="link"
+                  >
+                    Make a new recovery file
+                  </Button>
+                  . Your earlier file keeps working.
+                </FieldMessage>
               ) : null}
               {fileError ? (
                 <FieldMessage id="backup-file-error" error role="alert">
@@ -302,11 +367,11 @@ export function BackupFlow({
           ) : null}
           <div className="flex flex-col gap-2">
             <Label htmlFor="backup-password">
-              {confirming ? "Backup password" : "Enter strong password"}
+              {confirming ? "Recovery file password" : "Enter strong password"}
             </Label>
             <Input
               id="backup-password"
-              type="password"
+              type={passwordShown ? "text" : "password"}
               ref={password}
               required
               readOnly={pending}
@@ -315,6 +380,20 @@ export function BackupFlow({
               autoComplete={confirming ? "current-password" : "new-password"}
               containerClassName="border-dashed"
               aria-invalid={passwordTooShort || Boolean(passwordError) || undefined}
+              action={
+                <RevealPasswordButton
+                  controls={
+                    needsConfirmation
+                      ? "backup-password backup-password-confirmation"
+                      : "backup-password"
+                  }
+                  onToggle={() => setPasswordShown((shown) => !shown)}
+                  shown={passwordShown}
+                />
+              }
+              onBlur={() => {
+                if (passwordLength > 0) setLengthChecked(true);
+              }}
               aria-describedby={
                 [
                   confirming ? null : "backup-password-help",
@@ -327,7 +406,11 @@ export function BackupFlow({
             />
             {confirming ? null : (
               <FieldMessage id="backup-password-help" error={passwordTooShort}>
-                {`Minimum ${MINIMUM_BACKUP_PASSWORD_LENGTH} characters.`}
+                {passwordTooShort
+                  ? passwordLength === 0
+                    ? `Enter a password of at least ${MINIMUM_BACKUP_PASSWORD_LENGTH} characters.`
+                    : `Too short: use at least ${MINIMUM_BACKUP_PASSWORD_LENGTH} characters.`
+                  : `Minimum ${MINIMUM_BACKUP_PASSWORD_LENGTH} characters.`}
               </FieldMessage>
             )}
             {passwordError ? (
@@ -341,22 +424,28 @@ export function BackupFlow({
               <Label htmlFor="backup-password-confirmation">Confirm password</Label>
               <Input
                 id="backup-password-confirmation"
-                type="password"
+                type={passwordShown ? "text" : "password"}
                 ref={passwordConfirmation}
                 required
                 readOnly={pending}
                 maxLength={MAXIMUM_BACKUP_PASSWORD_LENGTH}
                 autoComplete="new-password"
                 containerClassName="border-dashed"
-                aria-invalid={confirmation === "mismatch" || undefined}
+                aria-invalid={confirmationError ? true : undefined}
                 aria-describedby={
-                  confirmation === "mismatch" ? "backup-password-confirmation-error" : undefined
+                  confirmationError ? "backup-password-confirmation-error" : undefined
                 }
-                onInput={updatePasswordState}
+                onBlur={(event) => {
+                  if (event.currentTarget.value) setConfirmationChecked(true);
+                }}
+                onInput={() => {
+                  setConfirmationChecked(false);
+                  updatePasswordState();
+                }}
               />
-              {confirmation === "mismatch" ? (
+              {confirmationError ? (
                 <FieldMessage id="backup-password-confirmation-error" error role="alert">
-                  Passwords do not match.
+                  {confirmationError}
                 </FieldMessage>
               ) : null}
             </div>
@@ -372,13 +461,7 @@ export function BackupFlow({
           layout="paired"
           back={<BackButton disabled={pending} onClick={back} />}
           confirm={
-            <Button
-              className="w-full"
-              disabled={!canSubmit || (confirming && !hasFile)}
-              loading={pending}
-              size="lg"
-              type="submit"
-            >
+            <Button className="w-full" loading={pending} size="lg" type="submit">
               {confirming ? <CheckIcon /> : <DownloadIcon />}
               {pending
                 ? confirming
@@ -387,7 +470,7 @@ export function BackupFlow({
                 : confirming
                   ? creatingAccount
                     ? "Verify and create account"
-                    : "Verify backup"
+                    : "Verify recovery file"
                   : creatingAccount
                     ? "Download encrypted backup"
                     : "Download backup"}
@@ -413,31 +496,34 @@ function confirmationState(value: string, repeated: string): Confirmation {
   return value.startsWith(repeated) ? "typing" : "mismatch";
 }
 
-/** `checkOnly` checks a file made earlier, so the messages do not assume a fresh download. */
-function verificationError(code: string, checkOnly: boolean): FlowError {
+/** Messages name the file asked for: just downloaded, saved on an earlier visit, or any. */
+function verificationError(code: string, source: FileSource): FlowError {
   switch (code) {
     case "backup_mismatch":
       return {
         target: "file",
-        message: checkOnly
-          ? "That file is a backup of a different pubky. Select the backup of this one."
-          : "That backup belongs to a different Pubky. Select the backup just created.",
+        message:
+          source === "downloaded"
+            ? "That recovery file belongs to a different pubky. Select the one you just downloaded."
+            : "That recovery file belongs to a different pubky. Select the one for this pubky.",
       };
     case "invalid_backup":
       return {
         target: "file",
-        message: checkOnly
-          ? "Select your backup file (it ends in .pkarr)."
-          : "Select the backup file you just downloaded (it ends in .pkarr).",
+        message: {
+          downloaded: "Select the recovery file you just downloaded (it ends in .pkarr).",
+          earlier: "Select the recovery file you saved earlier (it ends in .pkarr).",
+          check: "Select your recovery file (it ends in .pkarr).",
+        }[source],
       };
     case "invalid_password":
     case "backup_decryption_failed":
       return {
         target: "password",
-        message: "The password is wrong or the selected backup is malformed.",
+        message: "The password is wrong or the selected recovery file is damaged.",
       };
     default:
-      return { target: "form", message: "Passport could not verify the selected backup." };
+      return { target: "form", message: "Passport could not verify the selected recovery file." };
   }
 }
 

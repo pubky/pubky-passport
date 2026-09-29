@@ -23,7 +23,10 @@ export type BackupImportErrorCode =
   | "signin_failed"
   | "storage_failed";
 
-export type BackupImportResult<Success> = ResultType<Success, CodedFailure<BackupImportErrorCode>>;
+/** A failed import; `publicKeyZ32` names the saved entry an `already_present` import matched. */
+export type BackupImportFailure = CodedFailure<BackupImportErrorCode> & { publicKeyZ32?: string };
+
+export type BackupImportResult<Success> = ResultType<Success, BackupImportFailure>;
 
 export type BackupImportOutcome =
   | { status: "imported"; identity: LocalIdentityMetadata }
@@ -178,7 +181,10 @@ export class BackupImporter {
       (candidate) => candidate.publicIdentity.publicKeyZ32 === publicIdentity.publicKeyZ32,
     );
     if (!existing) return Result.ok();
-    return Result.err({ code: existing.keySource === "ring" ? "external_key" : "already_present" });
+    return Result.err({
+      code: existing.keySource === "ring" ? "external_key" : "already_present",
+      publicKeyZ32: publicIdentity.publicKeyZ32,
+    });
   }
 
   /** `homeserverPubky` is the homeserver this import published; a plain sign-in does not know it. */

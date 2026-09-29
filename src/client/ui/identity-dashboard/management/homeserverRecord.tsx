@@ -1,15 +1,16 @@
 import { Result } from "better-result";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import type { LocalIdentityHomeserverRepublishResult } from "@/client/logic/local-identity/LocalIdentityController";
 import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubkyIdentityKey";
 import { ProviderTerms, usePassportProvider } from "@/client/ui/passportProviderConfiguration";
 import { DetailField } from "@/client/ui/shared/detailField";
-import { RotateCcwIcon } from "@/client/ui/shared/icons";
+import { RotateCcwIcon, TriangleAlertIcon } from "@/client/ui/shared/icons";
 import { Notice } from "@/client/ui/shared/notice";
 import { Button, ButtonLink } from "@/client/ui/shared/primitives/button";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
+import { Spinner } from "@/client/ui/shared/primitives/spinner";
 
 /** A failed lookup is not evidence that the record is missing, so the two stay distinct. */
 type HomeserverLookup =
@@ -169,7 +170,7 @@ export function HomeserverRecord({
             failedDescription: "Select and copy the homeserver manually.",
           }}
           label="Homeserver"
-          value={homeserverLabel(lookup)}
+          value={homeserverStatus(lookup)}
         />
       </div>
       {message?.error ? <Notice tone="error">{message.text}</Notice> : null}
@@ -185,6 +186,14 @@ export function HomeserverRecord({
           </Button>
         </>
       ) : null}
+      {lookup.status === "not-found" && !repairTarget ? (
+        // Every missing record says what it means, even where Passport cannot repair it.
+        <p className="text-sm leading-5 text-secondary-foreground">
+          {republishHomeserver
+            ? "No homeserver record was found for this pubky, so apps cannot find your profile. Passport doesn’t know which homeserver it was created on, so repair it from the app or service you created it with."
+            : "No homeserver record was found for this pubky, so apps cannot find your profile. Its key stays in Pubky Ring, so only Pubky Ring can publish the record again."}
+        </p>
+      ) : null}
       {lookup.status === "not-found" && repairTarget ? (
         confirming ? (
           <section
@@ -199,7 +208,7 @@ export function HomeserverRecord({
             >
               {registeredHomeserver
                 ? "Point this pubky back at its homeserver?"
-                : "Point this pubky at this homeserver?"}
+                : "Was this pubky created on this Passport’s homeserver?"}
             </h3>
             <DetailField label="Homeserver to publish" value={repairTarget} />
             {registeredHomeserver ? (
@@ -207,21 +216,25 @@ export function HomeserverRecord({
                 Your account was created on this homeserver from this browser.
               </p>
             ) : (
+              // Nothing here remembers where this pubky was created, so the person decides, and
+              // not being sure means No: a wrong record hides the profile.
               <Notice tone="warning">
-                Only continue if your account was created on this homeserver. If it lives anywhere
-                else, apps will look for your profile and data in the wrong place.
+                Choose Yes only if you signed up here without entering a different homeserver. If
+                you’re not sure, cancel: pointing it to the wrong homeserver hides your profile from
+                apps.
               </Notice>
             )}
             <div className="flex flex-wrap gap-3">
               <Button disabled={republishing} onClick={closeConfirmation} variant="outline">
                 Cancel
               </Button>
-              <Button
-                loading={republishing}
-                onClick={() => void republish(repairTarget)}
-                variant="secondary"
-              >
-                <RotateCcwIcon /> {republishing ? "Republishing…" : "Publish record"}
+              <Button loading={republishing} onClick={() => void republish(repairTarget)}>
+                <RotateCcwIcon />{" "}
+                {republishing
+                  ? "Republishing…"
+                  : registeredHomeserver
+                    ? "Publish record"
+                    : "Yes, publish record"}
               </Button>
             </div>
           </section>
@@ -265,14 +278,25 @@ function lookupFrom(result: PubkyHomeserverResolutionResult): HomeserverLookup {
     : { status: "resolved", pubky: result.value };
 }
 
-function homeserverLabel(lookup: HomeserverLookup): string {
+/** The field's value: the homeserver, or a status that does not look like one. */
+function homeserverStatus(lookup: HomeserverLookup): ReactNode {
   switch (lookup.status) {
     case "looking-up":
-      return "Looking up…";
+      return (
+        <span className="inline-flex items-center gap-2 font-normal text-muted-foreground">
+          <Spinner className="size-4" decorative />
+          Looking up…
+        </span>
+      );
     case "not-found":
-      return "No record found";
+      return (
+        <span className="inline-flex items-center gap-2">
+          <TriangleAlertIcon className="text-warning" />
+          No record found
+        </span>
+      );
     case "lookup-failed":
-      return "Lookup failed";
+      return <span className="font-normal text-muted-foreground">Couldn’t check</span>;
     case "resolved":
       return lookup.pubky;
   }

@@ -10,7 +10,7 @@ import { ConfirmGoogleDetachment } from "./confirmGoogleDetachment";
 describe("ConfirmGoogleDetachment", () => {
   afterEach(cleanup);
 
-  it("requires the exact DELETE confirmation before detaching", async () => {
+  it("requires the confirmation word, in any case, before detaching", async () => {
     const onConfirm = vi.fn();
     render(
       <ConfirmGoogleDetachment
@@ -33,10 +33,11 @@ describe("ConfirmGoogleDetachment", () => {
     const confirm = screen.getByRole("button", { name: "Confirm detachment" });
     expect(confirm).toBeDisabled();
     expect(screen.getByText("DETACH")).toHaveClass("text-white");
-    await userEvent.setup().type(screen.getByLabelText("Type DETACH to confirm"), "detach");
+    await userEvent.setup().type(screen.getByLabelText("Type DETACH to confirm"), "detac");
     expect(confirm).toBeDisabled();
     await userEvent.setup().clear(screen.getByLabelText("Type DETACH to confirm"));
-    await userEvent.setup().type(screen.getByLabelText("Type DETACH to confirm"), "DETACH");
+    // The word counts, not how a phone keyboard capitalised or spaced it.
+    await userEvent.setup().type(screen.getByLabelText("Type DETACH to confirm"), "Detach ");
     await userEvent.setup().click(confirm);
     expect(onConfirm).toHaveBeenCalledOnce();
   });

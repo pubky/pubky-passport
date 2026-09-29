@@ -7,6 +7,7 @@ import {
   type InviteDestinationErrorCode,
 } from "@/client/logic/local-account/InviteDestinationController";
 import { releaseFinishedAccount } from "@/client/logic/local-account/unfinishedLocalAccount";
+import { invitesOnly, verifiesWithoutInvite } from "@/client/logic/homegate/verificationMethods";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import type { SignupTokenStatus } from "@/client/logic/pubky/SignupTokenChecker";
 import { sameInvite } from "@/client/logic/signup/homeserverInvite";
@@ -16,7 +17,7 @@ import { BackButton } from "@/client/ui/shared/backButton";
 import { ConfirmDeletionDialog } from "@/client/ui/shared/confirmDeletionDialog";
 import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
 import { ChoiceCard } from "@/client/ui/shared/choiceCard";
-import { KeyRoundIcon } from "@/client/ui/shared/icons";
+import { ArrowRightIcon, KeyRoundIcon } from "@/client/ui/shared/icons";
 import { ACCOUNT_SETUP_STEPS, SetupProgressProvider } from "@/client/ui/shared/setupProgress";
 import { VerificationOptions } from "./verificationOptions";
 import {
@@ -104,6 +105,11 @@ function AccountCreation({
   const destinationError = destinations.error
     ? destinationErrorMessage(destinations.error)
     : undefined;
+  // With no SMS or Lightning on this instance, the method list would offer the invite alone, so
+  // account creation opens on the invite entry instead of a choice with one option.
+  const inviteOnly = invitesOnly(methods);
+  const payWithLightning =
+    methods.lightning.status === "available" ? () => void signup.createInvoice() : undefined;
 
   /** An account now owns the Homegate invite, so it no longer needs to survive reloads. */
   const complete = (identity: LocalIdentityMetadata) => {
@@ -131,17 +137,23 @@ function AccountCreation({
     return <UnreadableAccountSetup removable={destinations.setupRemovable} onBack={onBack} />;
   }
 
-  if (destinations.manualEntry === "open") {
-    return (
-      <InviteCodeStep
-        homeserver={inviteHomeserver}
-        initialInvite={destinations.manualInvite ?? undefined}
-        error={destinationError}
-        onBack={() => destinationController.closeInviteEntry()}
-        onContinue={(value) => destinationController.submitInvite(value)}
-      />
-    );
-  }
+  const inviteEntry = (
+    <InviteCodeStep
+      homeserver={inviteHomeserver}
+      initialInvite={destinations.manualInvite ?? undefined}
+      error={destinationError}
+      inviteOnly={inviteOnly}
+      // Without a method list to return to, Back leaves account creation.
+      onBack={inviteOnly ? onBack : () => destinationController.closeInviteEntry()}
+      // Offered only where SMS or Lightning can be used now; otherwise it would lead back to a
+      // list with nothing else to choose.
+      onChooseAnotherMethod={
+        verifiesWithoutInvite(methods) ? () => destinationController.closeInviteEntry() : undefined
+      }
+      onContinue={(value) => destinationController.submitInvite(value)}
+    />
+  );
+  if (destinations.manualEntry === "open") return inviteEntry;
 
   if (invite && destinations.destination === "passport") {
     return (
@@ -194,6 +206,13 @@ function AccountCreation({
           }
           onLeave={exit}
           inviteSaved={usesHomegateInvite}
+          restored={
+            destinations.resumedInvite !== null
+              ? "setup"
+              : recheckInvite
+                ? "verification"
+                : undefined
+          }
           onDiscardInvite={discardable ? () => setConfirmingDiscard(true) : undefined}
         />
         {discardable ? (
@@ -217,6 +236,7 @@ function AccountCreation({
   const view = signup.view;
   switch (view.step) {
     case "choose":
+      if (inviteOnly) return inviteEntry;
       return (
         <VerificationOptions
           onLightning={() => {
@@ -235,8 +255,12 @@ function AccountCreation({
           initialPhoneNumber={view.phoneNumber}
           sentPhoneNumber={signup.sentPhoneNumber}
           error={signup.error}
+          refusal={signup.phoneRefusal}
           onBack={signup.back}
+          onEdit={signup.clearError}
+          onLightning={payWithLightning}
           onSendCode={signup.continueWithPhone}
+          onUseInvite={inviteFallback.onUseInvite}
           pending={signup.pending}
         />
       );
@@ -244,6 +268,7 @@ function AccountCreation({
       return (
         <SmsCodeStep
           error={signup.error}
+          expired={signup.errorCode === "verification_expired"}
           onBack={signup.back}
           onSendCode={signup.sendSmsCode}
           {...inviteFallback}
@@ -293,6 +318,7 @@ function InviteDestinationChoice({
   onLeave,
   onDiscardInvite,
   inviteSaved,
+  restored,
   registrationStarted,
   checkingInvite,
   error,
@@ -306,6 +332,11 @@ function InviteDestinationChoice({
   onDiscardInvite?: (() => void) | undefined;
   /** The invite came from SMS or Lightning verification and is kept for a later visit. */
   inviteSaved: boolean;
+  /**
+   * What an earlier visit left in this browser: a key whose setup was started (`setup`), or a
+   * verification that issued the invite (`verification`).
+   */
+  restored?: "setup" | "verification" | undefined;
   registrationStarted: boolean;
   checkingInvite: boolean;
   error?: string | undefined;
@@ -313,11 +344,54 @@ function InviteDestinationChoice({
   // Both choices wait on the same invite check; only the one pressed shows it.
   const [choice, setChoice] = useState<"ring" | "passport" | null>(null);
   if (choice && !checkingInvite) setChoice(null);
-  // A key saved in this browser that already started signup must finish it, so Ring is then no
-  // longer the path to recommend.
-  const recommendRing = !registrationStarted;
   // The chip also describes the recommended button, so moving between buttons still hears it.
   const recommendationId = useId();
+  const welcomeBack = restored ? (
+    <Notice tone="info">
+      {restored === "setup"
+        ? "Welcome back. The setup you started is saved in this browser, so you can pick up where you left off."
+        : "Welcome back. Your verification is saved in this browser, so you don’t need to verify again."}
+    </Notice>
+  ) : null;
+  const errorNotice = error ? (
+    <Notice focusOnMount tone="error">
+      {error}
+    </Notice>
+  ) : null;
+  const back = <BackButton onClick={onBack ?? onLeave} />;
+
+  // Signup was submitted with the key saved in this browser, which may already own the account:
+  // only that key can finish it, so there is nothing left to choose.
+  if (registrationStarted)
+    return (
+      <SignupStep
+        accent="account."
+        description="You started creating an account with a key saved in this browser. Continue to finish it with that key."
+        title="Finish your"
+      >
+        {welcomeBack}
+        {errorNotice}
+        <PassportNavigation
+          back={back}
+          confirm={
+            <Button
+              className="w-full"
+              disabled={checkingInvite}
+              loading={choice === "passport"}
+              onClick={() => {
+                setChoice("passport");
+                void onPassport();
+              }}
+              size="lg"
+            >
+              <ArrowRightIcon />
+              Continue
+            </Button>
+          }
+        />
+      </SignupStep>
+    );
+
   return (
     // The step column like every setup step, so the stepper, heading and cards share one edge;
     // each card lays itself out for that width.
@@ -326,28 +400,24 @@ function InviteDestinationChoice({
       description="Your key proves this account is yours. Keep it somewhere only you control."
       title="Where should your"
     >
+      {welcomeBack}
       <div className="grid gap-6">
         <ChoiceCard
-          description={
-            registrationStarted
-              ? "Signup has started with the key saved in this browser. Continue with that key."
-              : "Keep your key on your phone and approve sign-ins there. Needs the Pubky Ring app."
-          }
+          description="Keep your key on your phone and approve sign-ins there. Needs the Pubky Ring app."
           illustration="/illustrations/keychain.png"
-          recommendationId={recommendRing ? recommendationId : undefined}
+          recommendationId={recommendationId}
           title="Pubky Ring app"
         >
           <Button
-            aria-describedby={recommendRing ? recommendationId : undefined}
+            aria-describedby={recommendationId}
             className="w-full"
             onClick={() => {
               setChoice("ring");
               onRing();
             }}
-            disabled={registrationStarted || checkingInvite}
+            disabled={checkingInvite}
             loading={choice === "ring"}
             size="lg"
-            variant={recommendRing ? "default" : "secondary"}
           >
             <PubkyBrandIcon /> {choice === "ring" ? "Checking invite…" : "Keep key in Pubky Ring"}
           </Button>
@@ -367,26 +437,22 @@ function InviteDestinationChoice({
             disabled={checkingInvite}
             loading={choice === "passport"}
             size="lg"
-            variant={recommendRing ? "secondary" : "default"}
+            variant="secondary"
           >
             <KeyRoundIcon />{" "}
             {choice === "passport" ? "Checking invite…" : "Keep key in this browser"}
           </Button>
         </ChoiceCard>
       </div>
-      {error ? (
-        <Notice focusOnMount tone="error">
-          {error}
-        </Notice>
-      ) : null}
-      {inviteSaved && !onBack ? (
+      {errorNotice}
+      {inviteSaved && !onBack && !restored ? (
         <p className="text-sm leading-5 text-muted-foreground">
           Your verification stays saved in this browser.
         </p>
       ) : null}
       <PassportNavigation
         // Back, not Cancel: leaving account creation does not answer the app's request.
-        back={<BackButton onClick={onBack ?? onLeave} />}
+        back={back}
         tertiary={
           onDiscardInvite ? (
             <Button disabled={checkingInvite} onClick={onDiscardInvite} variant="linkDestructive">

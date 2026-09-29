@@ -29,6 +29,7 @@ function fakeController(): HomegateSignupControllerPort & {
     pending: false,
     error: null,
     sentPhoneNumber: undefined,
+    phoneRefusal: null,
   };
   const listeners = new Set<() => void>();
   return {
@@ -47,6 +48,7 @@ function fakeController(): HomegateSignupControllerPort & {
     forget: vi.fn(),
     releaseInvite: vi.fn(),
     chooseSms: vi.fn(),
+    clearError: vi.fn(),
     continueWithPhone: vi.fn(),
     sendSmsCode: vi.fn(async () => undefined),
     verifySmsCode: vi.fn(async () => undefined),
@@ -127,8 +129,8 @@ describe("useHomegateSignup", () => {
     ["invalid_code", "incorrect"],
     ["blocked", "blocked"],
     ["rate_limited", "Too many attempts"],
-    ["weekly_limit_exceeded", "weekly signup limit"],
-    ["annual_limit_exceeded", "annual signup limit"],
+    ["weekly_limit_exceeded", "weekly sign-up limit"],
+    ["annual_limit_exceeded", "yearly sign-up limit"],
     ["verification_expired", "expired"],
     ["homegate_unavailable", "Could not reach"],
     ["network_failed", "Could not reach"],
@@ -139,4 +141,33 @@ describe("useHomegateSignup", () => {
       expect(verificationErrorMessage(code)).toContain(message);
     },
   );
+
+  it.each([
+    ["blocked", "phone", "Verification by SMS isn’t available for this number."],
+    ["blocked", "lightning", "This verification request was blocked."],
+    ["verification_expired", "code", "Send a new code to continue."],
+    ["verification_expired", "lightning", "This invoice has expired. Create a new one."],
+  ] as const)("words %s for the %s step it happened on", (code, step, message) => {
+    expect(verificationErrorMessage(code, step)).toContain(message);
+  });
+
+  it("names the refused number and exposes the error code and clearing", () => {
+    const { controller, result } = renderSignup();
+    act(() =>
+      controller.publish({
+        view: { step: "code", phoneNumber: "+41791234567", resendAt: 0 },
+        error: "verification_expired",
+        phoneRefusal: { phoneNumber: "+41790000000", code: "weekly_limit_exceeded" },
+      }),
+    );
+
+    expect(result.current.errorCode).toBe("verification_expired");
+    expect(result.current.error).toContain("Send a new code");
+    expect(result.current.phoneRefusal).toEqual({
+      phoneNumber: "+41790000000",
+      message: verificationErrorMessage("weekly_limit_exceeded", "phone"),
+    });
+    result.current.clearError();
+    expect(controller.clearError).toHaveBeenCalledOnce();
+  });
 });

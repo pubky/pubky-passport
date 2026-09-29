@@ -552,18 +552,25 @@ test("backup password guidance enforces the twelve-character minimum responsivel
       (passwordBox?.y ?? 0) + (passwordBox?.height ?? 0),
     );
 
+    // Too short is said once the field is left, not while it is typed.
     await password.fill("12345678901");
+    await expect(password).not.toHaveAttribute("aria-invalid", "true");
+    await password.blur();
     await expect(password).toHaveAttribute("aria-invalid", "true");
     await expect(requirement).toHaveAttribute("role", "alert");
-    await expect(download).toBeDisabled();
+    await expect(requirement).toHaveText("Too short: use at least 12 characters.");
 
     await password.fill("123456789012");
     await expect(password).not.toHaveAttribute("aria-invalid", "true");
     await expect(requirement).not.toHaveAttribute("role", "alert");
-    // Every new backup's password is typed twice, so a typo cannot lock the file.
-    await expect(download).toBeDisabled();
-    await page.getByLabel("Confirm password").fill("123456789012");
-    await expect(download).toBeEnabled();
+    // Every new backup's password is typed twice, so a typo cannot lock the file; pressing the
+    // download before that says so at the second field.
+    await download.click();
+    const confirmation = page.getByLabel("Confirm password");
+    await expect(confirmation).toBeFocused();
+    await expect(confirmation).toHaveAttribute("aria-invalid", "true");
+    await confirmation.fill("123456789012");
+    await expect(confirmation).not.toHaveAttribute("aria-invalid", "true");
   }
 });
 
@@ -701,7 +708,7 @@ test("management backup confirms its password, verifies the file and records the
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download backup" }).click();
   const backup = await downloadPromise;
-  await expect(page.getByRole("heading", { name: "Verify backup." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Verify recovery file." })).toBeVisible();
   // Outside a removal, the check may be skipped, but only after the primary action.
   await expect(
     page.getByRole("button", { name: "Skip this check (not recommended)" }),
@@ -711,12 +718,12 @@ test("management backup confirms its password, verifies the file and records the
     path: testInfo.outputPath("management-backup-verification.png"),
     fullPage: true,
   });
-  await page.getByLabel("Backup file").setInputFiles((await backup.path())!);
-  await page.getByLabel("Backup password").fill("wrong password");
-  await page.getByRole("button", { name: "Verify backup" }).click();
+  await page.getByLabel("Recovery file", { exact: true }).setInputFiles((await backup.path())!);
+  await page.getByLabel("Recovery file password").fill("wrong password");
+  await page.getByRole("button", { name: "Verify recovery file" }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText("password is wrong");
-  await page.getByLabel("Backup password").fill("correct horse");
-  await page.getByRole("button", { name: "Verify backup" }).click();
+  await page.getByLabel("Recovery file password").fill("correct horse");
+  await page.getByRole("button", { name: "Verify recovery file" }).click();
   await expect(page.getByRole("heading", { name: "Manage identity." })).toBeVisible();
   // The check is remembered: the card says so and leaving is a logout again, not a removal.
   await expect(keys).toContainText("Backup file checked on");

@@ -58,10 +58,10 @@ describe("PassportProviderConfiguration", () => {
     );
 
     const terms = screen.getByRole("link", {
-      name: "Terms of service of the homeserver provider (opens in a new tab)",
+      name: "Terms of Service of the homeserver provider (opens in a new tab)",
     });
     const privacy = screen.getByRole("link", {
-      name: "Privacy policy of the homeserver provider (opens in a new tab)",
+      name: "Privacy Policy of the homeserver provider (opens in a new tab)",
     });
     expect(terms).toHaveAttribute("href", "https://acme.example/terms");
     expect(privacy).toHaveAttribute("href", "https://acme.example/privacy");

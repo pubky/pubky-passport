@@ -18,7 +18,12 @@ const save =
 /** Opened from Manage or the overview by default; `afterAddition` opens it as creation does. */
 function mount(
   identity: Partial<LocalIdentityMetadata> = {},
-  handlers: { onReconnect?: () => void; afterAddition?: boolean } = {},
+  handlers: {
+    onReconnect?: () => void;
+    afterAddition?: boolean;
+    created?: boolean;
+    forRequest?: boolean;
+  } = {},
 ) {
   const onBack = vi.fn();
   const onComplete = vi.fn();
@@ -220,14 +225,14 @@ describe("ProfileSetupFlow", () => {
     expect(screen.queryByRole("heading", { name: "Choose backup method" })).not.toBeInTheDocument();
   });
 
-  it("offers Finish later as the one way on right after an identity was added", async () => {
+  it("offers Skip for now as the one way on right after an identity was added", async () => {
     const { onDefer } = mount({ profileSetupRequired: true }, { afterAddition: true });
     await screen.findByLabelText("Name");
     expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
-    // A text action in Back's empty place: first in the row, with Finish last.
-    const finish = screen.getByRole("button", { name: "Finish" });
-    const finishLater = screen.getByRole("button", { name: "Finish later" });
-    expect(finishLater).toHaveClass("underline");
+    // A full button in Back's empty place: first in the row, with the save last.
+    const finish = screen.getByRole("button", { name: "Save profile" });
+    const finishLater = screen.getByRole("button", { name: "Skip for now" });
+    expect(finishLater).toHaveClass("border-border", "min-h-15");
     expect(
       finishLater.compareDocumentPosition(finish) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
@@ -242,12 +247,14 @@ describe("ProfileSetupFlow", () => {
     expect(onDefer).toHaveBeenCalledOnce();
   });
 
-  it("says setup finishes and editing publishes, with Back before the primary", async () => {
+  it("says setup is optional and editing publishes, with Back before the primary", async () => {
     mount({ profileSetupRequired: true });
     await screen.findByLabelText("Name");
-    expect(screen.getByText("Add your name, bio, links, and avatar.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Optional. Add a name, bio, links, and avatar that apps can show."),
+    ).toBeInTheDocument();
     const back = screen.getByRole("button", { name: "Back" });
-    const finish = screen.getByRole("button", { name: "Finish" });
+    const finish = screen.getByRole("button", { name: "Save profile" });
     expect(back.compareDocumentPosition(finish) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // Back keeps the shared navigation's width, not a narrower one of its own.
     expect(back).not.toHaveClass("w-[120px]");
@@ -258,7 +265,7 @@ describe("ProfileSetupFlow", () => {
     expect(
       screen.getByText("Changes are published to your public profile when you save."),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Finish" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save profile" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
   });
 
@@ -307,11 +314,59 @@ describe("ProfileSetupFlow", () => {
     expect(onBack).not.toHaveBeenCalled();
   });
 
-  it("offers only Back, no Finish later, when required setup was opened later", async () => {
+  it("says a new browser-held account exists before asking for its profile", async () => {
+    const { onDefer } = mount(
+      { profileSetupRequired: true },
+      { afterAddition: true, created: true },
+    );
+    const user = userEvent.setup();
+    expect(screen.getByRole("heading", { name: "Account created." })).toBeInTheDocument();
+    expect(screen.getByText(/Your key is saved in this browser/u)).toBeInTheDocument();
+    expect(screen.getByText(KEY)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy Your pubky" })).toBeEnabled();
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+    // Skipping comes first, as Back would; the profile is the way on.
+    const skip = screen.getByRole("button", { name: "Skip for now" });
+    const add = screen.getByRole("button", { name: "Add a public profile" });
+    expect(skip.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    await user.click(add);
+    expect(await screen.findByLabelText("Name")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Create your profile." })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Skip for now" }));
+    expect(onDefer).toHaveBeenCalledOnce();
+  });
+
+  it.each([false, true])(
+    "says that skipping continues the waiting sign-in only during a request, request=%s",
+    (forRequest) => {
+      mount({ profileSetupRequired: true }, { afterAddition: true, created: true, forRequest });
+      expect(
+        screen.queryByText(/Add a profile now, or skip it and continue signing in\./u) !== null,
+      ).toBe(forRequest);
+    },
+  );
+
+  it("skips the profile from the Account created moment", async () => {
+    const { onDefer } = mount(
+      { profileSetupRequired: true },
+      { afterAddition: true, created: true },
+    );
+    await userEvent.setup().click(screen.getByRole("button", { name: "Skip for now" }));
+    expect(onDefer).toHaveBeenCalledOnce();
+  });
+
+  it("has no Account created moment without a way to skip the profile", async () => {
+    mount({ profileSetupRequired: true }, { created: true });
+    expect(await screen.findByLabelText("Name")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Account created." })).not.toBeInTheDocument();
+  });
+
+  it("offers only Back, no Skip for now, when required setup was opened later", async () => {
     mount({ profileSetupRequired: true });
     await screen.findByLabelText("Name");
     expect(screen.getByRole("button", { name: "Back" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Finish later" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Skip for now" })).not.toBeInTheDocument();
   });
 
   it("keeps focused fields clear of the actions pinned to the window", async () => {

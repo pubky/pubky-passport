@@ -91,11 +91,11 @@ export function VerificationOptions({
         <DisplayHeading accent="account." className="[&>span]:inline">
           Create your{" "}
         </DisplayHeading>
-        <LeadText>
-          {provider.storageDescription ?? "Choose how to verify and create your Pubky account."}
-        </LeadText>
+        {/* The lead says what to do here; what the provider offers is a detail beneath it. */}
+        <LeadText>Choose how to verify and create your Pubky account.</LeadText>
         <p className="text-sm leading-5 text-muted-foreground">
           New accounts are verified once to keep out spam.
+          {provider.storageDescription ? ` ${provider.storageDescription}` : null}
         </p>
       </div>
       <section

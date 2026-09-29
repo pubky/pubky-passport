@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { isPubkyPublicKey } from "@/client/logic/pubky/pubkyIdentityKey";
 import type { SignupTokenStatus } from "@/client/logic/pubky/SignupTokenChecker";
@@ -7,6 +7,7 @@ import {
   type HomeserverSignupDetails,
 } from "@/client/logic/signup/homeserverInvite";
 import { usePassportCollaborators } from "@/client/ui/passportCollaborators";
+import { ProviderTerms } from "@/client/ui/passportProviderConfiguration";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { ArrowRightIcon, CircleCheckIcon } from "@/client/ui/shared/icons";
 import { Notice } from "@/client/ui/shared/notice";
@@ -26,7 +27,7 @@ type InviteCheck = InviteLookup | "format" | "confirm_homeserver";
 
 const INVITE_CHECK_MESSAGE: Record<Exclude<InviteCheck, "idle">, string> = {
   format: "Invite codes have the form XXXX-XXXX-XXXX.",
-  confirm_homeserver: "Choose Done to check this invite with the homeserver you entered.",
+  confirm_homeserver: "Choose Use this homeserver to check this invite with the key you entered.",
   checking: "Checking invite with the homeserver…",
   valid: "Invite verified with the homeserver.",
   used: "This invite has already been used. Enter a different invite.",
@@ -65,7 +66,9 @@ export function InviteCodeStep({
   homeserver,
   onBack,
   onContinue,
+  onChooseAnotherMethod,
   initialInvite,
+  inviteOnly = false,
   error,
 }: {
   /** The provider homeserver to prefill, or `""` when the instance has none. */
@@ -73,7 +76,11 @@ export function InviteCodeStep({
   error?: string | undefined;
   onBack: () => void;
   onContinue: (invite: HomeserverSignupDetails) => void;
+  /** Returns to the other ways to verify; offered when the homeserver refuses this invite. */
+  onChooseAnotherMethod?: (() => void) | undefined;
   initialInvite?: HomeserverSignupDetails | undefined;
+  /** An invite is the only way to create an account here, so this step opens account creation. */
+  inviteOnly?: boolean;
 }) {
   const [code, setCode] = useState(initialInvite?.signupToken ?? "");
   // Any homeserver the person holds an invite for works; the provider's only prefills the field.
@@ -83,9 +90,14 @@ export function InviteCodeStep({
   const [changingHomeserver, setChangingHomeserver] = useState(
     () => !isPubkyPublicKey(enteredHomeserver.trim()),
   );
+  // Set when an entered homeserver was offered for use, so a key is not called wrong mid-paste.
+  const [homeserverChecked, setHomeserverChecked] = useState(false);
+  const homeserverField = useRef<HTMLTextAreaElement>(null);
   const homeserverPubky = enteredHomeserver.trim();
+  const homeserverInvalid =
+    changingHomeserver && homeserverChecked && !isPubkyPublicKey(homeserverPubky);
   const signupToken = parseInviteCode(code);
-  // A homeserver the person entered is contacted only after they confirm it with Done.
+  // A homeserver the person entered is contacted only after they confirm it.
   const candidate =
     signupToken && !changingHomeserver && isPubkyPublicKey(homeserverPubky)
       ? { signupToken, homeserverPubky }
@@ -100,11 +112,27 @@ export function InviteCodeStep({
   const verified = check === "valid";
   const rejected = check === "used" || check === "not_found";
   const canContinue = candidate !== null && (verified || check === "unknown");
+
+  /** Uses the entered homeserver, or says why it cannot be one. */
+  function confirmHomeserver() {
+    if (isPubkyPublicKey(homeserverPubky)) {
+      setChangingHomeserver(false);
+      setHomeserverChecked(false);
+      return;
+    }
+    setHomeserverChecked(true);
+    homeserverField.current?.focus();
+  }
+
   return (
     <SignupStep
       title="Use"
       accent="Invite."
-      description="Enter an invite from your homeserver provider to create an account."
+      description={
+        inviteOnly
+          ? "Creating an account here needs an invite code. Enter the one you received."
+          : "Enter the invite code you received to create your account."
+      }
     >
       <form
         className="flex flex-1 flex-col gap-6 md:gap-8"
@@ -115,41 +143,76 @@ export function InviteCodeStep({
       >
         <OnboardingCard illustration="/illustrations/invite.png">
           {/* The homeserver comes first: a well-formed code is looked up on it right away. */}
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="invite-homeserver">Homeserver</Label>
-              <Button
-                disabled={changingHomeserver && !isPubkyPublicKey(homeserverPubky)}
-                onClick={() => setChangingHomeserver((current) => !current)}
-                type="button"
-                variant="link"
-              >
-                {changingHomeserver ? "Done" : "Change homeserver"}
-              </Button>
-            </div>
-            {changingHomeserver ? (
-              <Input
+          {changingHomeserver ? (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="invite-homeserver">Homeserver public key</Label>
+              {/* Sized to its content where the browser can do that (at least two lines), so all
+                  52 characters stay in view to compare with the key given. Elsewhere the field
+                  cannot grow, so it starts with the lines a key needs at that width: three on a
+                  phone, four in a popup zoomed to 200%. */}
+              <textarea
                 id="invite-homeserver"
+                ref={homeserverField}
                 // Focuses the field when it opens, and first when there is no homeserver to prefill.
                 autoFocus
-                placeholder="Homeserver public key"
+                rows={2}
+                placeholder="52 letters and digits"
+                autoCapitalize="none"
                 autoComplete="off"
+                autoCorrect="off"
                 spellCheck={false}
                 value={enteredHomeserver}
-                maxLength={52}
-                onChange={(event) => setEnteredHomeserver(event.target.value)}
-                containerClassName="h-14 border-dashed px-4"
+                maxLength={64}
+                aria-invalid={homeserverInvalid || undefined}
+                aria-describedby={
+                  homeserverInvalid ? "invite-homeserver-error" : "invite-homeserver-hint"
+                }
+                className="field-sizing-content min-h-[calc(4.5rem+2px)] w-full resize-none break-all rounded-lg border border-dashed border-input bg-black/10 px-4 py-3 text-base font-medium leading-6 placeholder:text-muted-foreground aria-invalid:border-destructive max-sm:not-supports-[field-sizing:content]:min-h-[calc(6rem+2px)] max-[17rem]:not-supports-[field-sizing:content]:min-h-[calc(7.5rem+2px)]"
+                // A key has no spaces; line breaks from a paste are dropped.
+                onChange={(event) => setEnteredHomeserver(event.target.value.replace(/\s+/gu, ""))}
+                onKeyDown={(event) => {
+                  // Enter uses the key, as it would submit a one-line field.
+                  if (event.key !== "Enter" || event.shiftKey) return;
+                  event.preventDefault();
+                  confirmHomeserver();
+                }}
               />
-            ) : (
-              // Read-only, like a detail in Manage identity: plain text, not a field-like box.
+              {homeserverInvalid ? (
+                <FieldMessage error id="invite-homeserver-error">
+                  A homeserver public key is 52 letters and digits. Check the key that came with
+                  your invite.
+                </FieldMessage>
+              ) : (
+                <FieldMessage id="invite-homeserver-hint">
+                  The key of the homeserver that gave you the invite.
+                </FieldMessage>
+              )}
+              <Button
+                className="self-start"
+                onClick={confirmHomeserver}
+                size="sm"
+                variant="secondary"
+              >
+                Use this homeserver
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="invite-homeserver">Homeserver</Label>
+                <Button onClick={() => setChangingHomeserver(true)} type="button" variant="link">
+                  Change homeserver
+                </Button>
+              </div>
+              {/* Read-only, like a detail in Manage identity: plain text, not a field-like box. */}
               <output
                 className="block break-all text-sm font-medium leading-5 text-foreground"
                 id="invite-homeserver"
               >
                 {homeserverPubky}
               </output>
-            )}
-          </div>
+            </div>
+          )}
           <label htmlFor="invite-code" className="text-xl font-bold leading-7">
             Enter invite code
           </label>
@@ -180,8 +243,20 @@ export function InviteCodeStep({
               {INVITE_CHECK_MESSAGE[check]}
             </FieldMessage>
           )}
+          {rejected && onChooseAnotherMethod ? (
+            <Button className="self-start" onClick={onChooseAnotherMethod} variant="link">
+              Verify another way
+            </Button>
+          ) : null}
         </OnboardingCard>
+        {inviteOnly ? (
+          <p className="text-sm leading-5 text-muted-foreground">
+            Don’t have one? Invite codes come from whoever runs the homeserver you want to join.
+          </p>
+        ) : null}
         {error ? <Notice tone="error">{error}</Notice> : null}
+        {/* Without the method list, the provider's terms stay in view here. */}
+        {inviteOnly ? <ProviderTerms /> : null}
         <PassportNavigation
           className="mt-auto md:mt-0"
           back={<BackButton onClick={onBack} />}

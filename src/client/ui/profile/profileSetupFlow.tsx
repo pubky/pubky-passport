@@ -37,6 +37,7 @@ import {
   GOOGLE_SETUP_STEPS,
   SetupProgressProvider,
 } from "@/client/ui/shared/setupProgress";
+import { AccountCreated } from "./accountCreated";
 import { DiscardChangesDialog } from "./discardChangesDialog";
 
 type ProfileSetupFlowProps = {
@@ -46,22 +47,43 @@ type ProfileSetupFlowProps = {
   onBack?: (() => void) | undefined;
   onComplete: (profile: PubkyProfile, avatar?: File) => void;
   /**
-   * Leaves setup unfinished and goes on ("Finish later"); the identity stays usable meanwhile.
+   * Leaves setup unfinished and goes on ("Skip for now"); the identity stays usable meanwhile.
    * Offered right after an identity was added, where it is the one way to skip.
    */
   onDefer?: (() => void) | undefined;
+  /**
+   * The account was just created with its key in this browser: an "Account created." moment
+   * comes first, since nothing before it said so. Needs `onDefer`, its way to skip the profile.
+   */
+  created?: boolean;
+  /** An app's sign-in request waits, so skipping the profile goes on to it. */
+  forRequest?: boolean;
   /** Returns to the Ring connection after its grant has ended. */
   onReconnect?: (() => void) | undefined;
 };
 
-export function ProfileSetupFlow(props: ProfileSetupFlowProps) {
+export function ProfileSetupFlow({
+  created = false,
+  forRequest = false,
+  ...props
+}: ProfileSetupFlowProps) {
   // Frozen for this visit: completing setup must not reshape the screen mid-save.
   const [required] = useState(props.identity.profileSetupRequired === true);
+  const [announcing, setAnnouncing] = useState(created && required && props.onDefer !== undefined);
   if (!required) return <ProfileEditor {...props} required={false} />;
   const steps = props.identity.googleAccount ? GOOGLE_SETUP_STEPS : ACCOUNT_SETUP_STEPS;
   return (
     <SetupProgressProvider steps={steps} current={steps.length - 1}>
-      <ProfileEditor {...props} required />
+      {announcing && props.onDefer ? (
+        <AccountCreated
+          forRequest={forRequest}
+          onAddProfile={() => setAnnouncing(false)}
+          onSkip={props.onDefer}
+          publicKeyZ32={props.identity.publicIdentity.publicKeyZ32}
+        />
+      ) : (
+        <ProfileEditor {...props} required />
+      )}
     </SetupProgressProvider>
   );
 }
@@ -129,7 +151,7 @@ function describeFieldErrors(
   return described;
 }
 
-/** What a refused Finish announces: how many fields to change, and the first one's message. */
+/** What a refused save announces: how many fields to change, and the first one's message. */
 function refusalAnnouncement([first, ...rest]: DescribedFieldError[]): string {
   const count = rest.length + 1;
   const summary = count === 1 ? "1 field needs a change." : `${count} fields need changes.`;
@@ -154,7 +176,7 @@ function saveErrorMessage(code: Exclude<ProfileErrorCode, "cancelled">): string 
     case "disconnected":
       return "Your connection to Ring has ended. Connect Ring again to save your profile.";
     case "storage_failed":
-      return "Your profile was published, but Passport could not finish setup in this browser. Try Finish again.";
+      return "Your profile was published, but Passport could not finish setup in this browser. Try Save profile again.";
     case "load_failed":
     case "save_failed":
       return "Could not save your profile. Your identity is safe. Check your connection and try again.";
@@ -186,9 +208,9 @@ function ProfileEditor({
   // A failed save, about the whole form; an unsupported avatar is the picker's own error.
   const [error, setError] = useState<{ message: string; reconnect?: boolean }>();
   const [avatarError, setAvatarError] = useState(false);
-  // Fields the last Finish found invalid; each clears when its field, or its link, changes.
+  // Fields the last save found invalid; each clears when its field, or its link, changes.
   const [fieldErrors, setFieldErrors] = useState<ProfileFieldErrors>({});
-  // Spoken for every refused Finish, since focus may already be on the first invalid field (Enter
+  // Spoken for every refused save, since focus may already be on the first invalid field (Enter
   // submits from inside it) and then moving it announces nothing. `attempt` renews the text node,
   // so a repeated refusal is spoken again.
   const [refusal, setRefusal] = useState<{ text: string; attempt: number }>();
@@ -235,7 +257,7 @@ function ProfileEditor({
   useLayoutEffect(() => {
     if (attempt > 0 && !loading && !loadFailed) nameInput.current?.focus();
   }, [attempt, loading, loadFailed]);
-  // After a refused Finish, the first marked control in reading order takes focus, which reads its
+  // After a refused save, the first marked control in reading order takes focus, which reads its
   // message, and is centred so its label and message are in view.
   useLayoutEffect(() => {
     if (!revealFieldError.current) return;
@@ -286,13 +308,13 @@ function ProfileEditor({
     });
   }
 
-  const finishLater = onDefer ? (
-    <Button disabled={saving} onClick={onDefer} type="button" variant="link">
-      Finish later
+  const skip = onDefer ? (
+    <Button disabled={saving} onClick={onDefer} size="lg" type="button" variant="outline">
+      Skip for now
     </Button>
   ) : null;
   // Back never detours through backups: the key was backed up before this step, and further
-  // backups live in Manage. Right after an identity is added there is no Back: Finish later is the
+  // backups live in Manage. Right after an identity is added there is no Back: Skip for now is the
   // one way on without a profile, so it takes Back's place, first in the row and always in view.
   const back = onBack;
   const changed =
@@ -326,7 +348,7 @@ function ProfileEditor({
         </DisplayHeading>
         <LeadText>
           {required
-            ? "Add your name, bio, links, and avatar."
+            ? "Optional. Add a name, bio, links, and avatar that apps can show."
             : "Changes are published to your public profile when you save."}
         </LeadText>
       </div>
@@ -602,7 +624,7 @@ function ProfileEditor({
             </Notice>
           ) : null}
           <p className="text-sm text-muted-foreground">Your profile is public.</p>
-          {/* Below md the actions stay pinned to the window, so Finish and the way out are in
+          {/* Below md the actions stay pinned to the window, so the save and the way out are in
               view in the popup; one row at every width keeps the bar short over the form, and the
               page's scroll padding keeps focused fields clear of it. */}
           <div
@@ -610,7 +632,7 @@ function ProfileEditor({
             data-sticky-actions
           >
             <PassportNavigation
-              back={leave ? <BackButton disabled={saving} onClick={leave} /> : finishLater}
+              back={leave ? <BackButton disabled={saving} onClick={leave} /> : skip}
               confirm={
                 <Button className="w-full" loading={saving} size="lg" type="submit">
                   {required ? <ArrowRightIcon /> : <CheckIcon />}
@@ -624,7 +646,7 @@ function ProfileEditor({
       )}
       {loading || loadFailed ? (
         <PassportNavigation
-          back={back ? <BackButton onClick={back} /> : finishLater}
+          back={back ? <BackButton onClick={back} /> : skip}
           confirm={
             loadFailed ? (
               // Stays mounted through the retry, so focus is not lost while it runs.
@@ -662,6 +684,6 @@ function ProfileEditor({
 /** Setup finishes a step; editing publishes changes to a profile that is already public. */
 function submitLabel(required: boolean, unreadable: boolean, saving: boolean): string {
   if (unreadable) return saving ? "Replacing…" : "Replace profile";
-  if (required) return saving ? "Saving…" : "Finish";
+  if (required) return saving ? "Saving…" : "Save profile";
   return saving ? "Publishing…" : "Save";
 }

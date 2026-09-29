@@ -56,7 +56,8 @@ function ConfirmDeletionDialog({
   const confirmationInput = useRef<HTMLInputElement>(null);
   const errorMessage = useRef<HTMLParagraphElement>(null);
   const shownError = useRef(error);
-  const confirmed = confirmation === confirmationWord;
+  // Phone keyboards capitalise the first letter and may add a space; the word is what counts.
+  const confirmed = confirmation.trim().toUpperCase() === confirmationWord.toUpperCase();
 
   useEffect(() => {
     if (open) confirmationInput.current?.focus();
@@ -125,12 +126,15 @@ function ConfirmDeletionDialog({
           </Label>
           <Input
             aria-describedby={error === undefined ? undefined : errorId}
+            autoCapitalize="characters"
             autoComplete="off"
+            autoCorrect="off"
             containerClassName="border-dashed"
             id={confirmationId}
             onChange={(event) => setConfirmation(event.target.value)}
             readOnly={pending}
             ref={confirmationInput}
+            spellCheck={false}
             value={confirmation}
           />
           {error === undefined ? null : (

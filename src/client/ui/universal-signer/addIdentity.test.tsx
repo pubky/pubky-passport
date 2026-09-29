@@ -81,6 +81,31 @@ it("renders an invite-only instance without Google or Homegate credentials", () 
   expect(screen.getByRole("main")).toHaveClass("max-w-[588px]");
 });
 
+it("says an invite is needed where neither SMS nor Lightning is offered", () => {
+  render(
+    withPassportTestProviders(
+      <HomegateAvailabilityContext
+        value={{
+          methods: {
+            google: { status: "unavailable" },
+            sms: { status: "unavailable" },
+            lightning: { status: "unavailable" },
+          },
+          retry: vi.fn(),
+        }}
+      >
+        {addIdentity()}
+      </HomegateAvailabilityContext>,
+    ),
+  );
+  expect(screen.getByText(/Create an account with an invite code/u)).toBeInTheDocument();
+});
+
+it("does not ask for an invite while other methods may still be offered", () => {
+  renderAddIdentity(addIdentity());
+  expect(screen.queryByText(/with an invite code/u)).not.toBeInTheDocument();
+});
+
 describe("AddIdentity", () => {
   it.each(["available", "unavailable", "unknown", "checking", "blocked"] as const)(
     "starts Google restore while the Homegate probe reports %s",

@@ -14,7 +14,10 @@ beside it, then Google. Pubky Ring is a quiet link under the cards: **Open in Pu
 pending app request to Ring, and without a request **Sign in with Pubky Ring** adds an existing Ring
 identity. Google begins from that screen; **Create account**
 opens the provider's enabled SMS, Lightning, and manual invite options, each with its price or
-terms, and says that new accounts are verified once to keep out spam. The phone step says the
+terms, and says that new accounts are verified once to keep out spam. Where an invite is the only
+method (the instance offers neither SMS nor Lightning), the add screen says an invite code is
+needed, and **Create account** opens the invite entry itself, with the provider's terms and a
+note on where invites come from; its **Back** leaves account creation. The phone step says the
 number is used only to send the code and to limit sign-ups per number, and that the sign-up
 service keeps only a one-way hash of it.
 `PASSPORT_PROVIDER_CONFIG_JSON` controls which methods and provider terms are displayed.
@@ -24,17 +27,34 @@ homeserver the user has an invite for: the homeserver field is prefilled with th
 homeserver, `PUBKY_SIGNUP_HOMESERVER`, when the instance sets one, and **Change homeserver** accepts
 any other valid Pubky public key. The homeserver is shown above the invite code field, so the user can
 choose it before entering a code: a well-formed code is looked up on the prefilled homeserver as soon
-as it is entered, and on a homeserver the user entered only after they confirm it with **Done**. When
-a homeserver does not recognize the code, Passport suggests **Change homeserver** for an invite from
-another homeserver.
+as it is entered, and on a homeserver the user typed into **Homeserver public key** only after they
+confirm it with **Use this homeserver** or Enter. That field shows the whole key across several
+lines. When a homeserver does not recognize the code, Passport suggests **Change homeserver**
+for an invite from another homeserver and, where SMS or Lightning can be used, **Verify another
+way**.
 
 `PUBKY_SIGNUP_HOMESERVER` is optional and validated at startup. It has two further uses: provider
 storage descriptions and upgrade links appear only for identities on that homeserver, and **Republish
 homeserver** points a missing `_pubky` record at it. An identity created in this browser, or
 imported by publishing its missing record, remembers that homeserver, and repair offers only that
 one; the provider's homeserver is the fallback for other imports, Google restores and identities
-saved by older builds. There is no default homeserver: without the variable, manual invites ask the
-user for one, and republishing and storage copy stay hidden.
+saved by older builds. That fallback is published only after the user answers **Was this pubky
+created on this Passport’s homeserver?**: an account made through Passport may live on a
+homeserver entered at signup or named by its invite, so the warning says to choose Yes only for a
+signup here without a different homeserver, and to cancel when unsure. Manage shows **Looking up…**
+while the record resolves, **No record found** or **Couldn’t check** otherwise, and explains a
+record Passport cannot repair (a key held in Pubky Ring, or no homeserver to offer). There is no
+default homeserver: without the variable, manual invites ask the user for one, and republishing
+and storage copy stay hidden.
+
+**Import backup** decrypts a recovery file in the browser and signs in with the homeserver its
+key's record names. When that key has no record, the import shows **Homeserver not found.** and
+offers **Reconnect and import**, which publishes the record for `PUBKY_SIGNUP_HOMESERVER` under
+the same condition and warning; **Back** returns to the form with the picked file kept, where the
+browser lets a page put a file back into its picker. If a record appears meanwhile, Passport
+changes nothing and asks for the password (and, where the file could not be kept, the file) again.
+A failed sign-in or record lookup keeps the password and offers **Try again**, and a file of an
+identity already saved in this browser offers **Use this identity**.
 
 Manual invite codes must have the homeserver token form `XXXX-XXXX-XXXX` (Crockford base32; input is
 trimmed and upper-cased). Passport never sends a partial or malformed code anywhere. A well-formed code
@@ -61,13 +81,17 @@ Homegate and the PKARR relays.
 ## Invite destinations
 
 After SMS/Lightning verification or manual invite entry, Passport asks where the new key should
-live. Pubky Ring is listed first as the recommended choice, unless a key saved in this browser has
-already started signup:
+live, with Pubky Ring listed first as the recommended choice. Once a key saved in this browser has
+submitted its signup, there is nothing left to choose: Passport shows **Finish your account.** with
+**Continue**, which finishes the registration with that key.
 
 - **Keep key in Pubky Ring.** Passport shows a distinct `pubkyauth://direct_signup?hs=…&st=…`
-  signup QR/deeplink, with installation help available separately. After creating the account,
-  **Continue to profile** asks Ring to approve a separate limited grant for Passport's profile
-  editor. Only a returned SDK session proves control. Ring returns nothing from the signup, so
+  signup QR/deeplink, with installation help offered above it, and says Ring will ask for two
+  approvals. While it waits, Passport looks the invite up on its homeserver every 3 seconds with
+  the read-only `GET /signup_tokens/{token}` (less often while the homeserver gives no answer, down
+  to every 30 seconds); once that reports the invite used, it goes on by itself, and **I've
+  finished in Pubky Ring** goes on when the lookup cannot tell. Either way Ring
+  is then asked to approve a separate limited grant for Passport's profile editor. Only a returned SDK session proves control. Ring returns nothing from the signup, so
   Passport cannot know the new key: it shows the pubky Ring connected and asks the user to confirm
   that it is the one just created. Only then does it add the Ring identity to the catalog; **No,
   choose again in Ring** closes that grant and starts a new request. Passport stores the public key
@@ -92,8 +116,10 @@ storage. Back from verification returns to backup creation, and a reload keeps t
 stays in the flow, and choosing Passport again prepares a fresh key. The draft stays outside the
 signing catalog until registration and sign-in finish; successful completion removes the draft.
 Backup passwords and file selections are not persisted, so resuming verification requires selecting
-and decrypting the backup again; skipping is offered only right after a download in the same
-session. Once a signup attempt starts, its key and invite stay bound, including uncertain outcomes
+and decrypting the recovery file again; skipping is offered only right after a download in the same
+session. The resumed check names the file it asks for and, for a file that is lost, offers **Make a
+new recovery file**, which returns to the password step for the same key; the earlier file keeps
+working. Once a signup attempt starts, its key and invite stay bound, including uncertain outcomes
 and retries, and Ring is no longer offered for that invite. **Start over** after such an attempt
 drops the key and looks the invite up again: `used` or not found forgets it, and when the lookup
 fails, both signers look it up once more before using it.

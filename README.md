@@ -36,18 +36,22 @@ identity in the browser.
 ## Creating an account
 
 **Create account** obtains a homeserver invite through SMS or Lightning verification with Homegate,
-or accepts an invite code, which is checked with the homeserver as it is entered. The new key then
-lives either in Pubky Ring or in Passport. A Passport key is saved as an unfinished setup until the
-user downloads an encrypted backup; leaving before the invite is submitted discards it, and opening
-**Create account** again offers any saved setup at the signer choice instead of forcing it.
+or accepts an invite code, which is checked with the homeserver as it is entered; an instance that
+offers only invites opens the invite entry directly. The new key then lives either in Pubky Ring or
+in Passport. A Passport key is saved as an unfinished setup until the user downloads an encrypted
+backup; leaving before the invite is submitted discards it, and opening **Create account** again
+offers any saved setup at the signer choice instead of forcing it. A setup whose signup was already
+submitted opens **Finish your account.** instead, and a file check resumed on a later visit offers
+**Make a new recovery file** if the earlier one is lost.
 
 ## Profiles
 
 Identities show their public name and avatar from `/pub/pubky.app/profile.json`; an attached Google
 account appears only as a small labelled tag, never as the identity's profile. **Manage identity →
 Edit profile** publishes name, bio, links and an optional avatar using `pubky-app-specs` file and
-blob records. A new account is asked for its profile once, right after it is created; until
-**Finish** publishes one, the overview and Manage offer **Set up profile**. Profile
+blob records. A new account is asked for its profile once, right after it is created (an account whose key
+this browser holds first says **Account created.** with its pubky); until **Save profile**
+publishes one, the overview and Manage offer **Set up profile**. Profile
 records are validated and serialized with the `pubky-app-specs` WASM package, pinned to 0.4.4 in
 `package.json`.
 

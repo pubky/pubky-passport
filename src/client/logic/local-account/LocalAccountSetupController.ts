@@ -3,7 +3,11 @@ import "client-only";
 import { Result, type Result as ResultType } from "better-result";
 
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
-import { BackupVerifier, isValidNewBackupPassword } from "@/client/logic/backup/BackupVerifier";
+import {
+  BackupVerifier,
+  backupFileName,
+  isValidNewBackupPassword,
+} from "@/client/logic/backup/BackupVerifier";
 import type { CodedFailure } from "@/libs/result";
 import type { HomeserverSignupDetails } from "@/client/logic/signup/homeserverInvite";
 import { LocalStorageIdentityRepository } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
@@ -172,7 +176,7 @@ export class LocalAccountSetupController {
     this.verificationSkipped = false;
     return Result.ok({
       bytes: recovery.value,
-      fileName: `pubky-${this.identity.publicIdentity.publicKeyZ32}.pkarr`,
+      fileName: backupFileName(this.identity.publicIdentity.publicKeyZ32),
     });
   }
 

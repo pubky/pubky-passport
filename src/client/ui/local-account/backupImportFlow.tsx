@@ -3,7 +3,11 @@
 import { Result } from "better-result";
 import { type FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import type { BackupImporter, BackupImportErrorCode } from "@/client/logic/backup/BackupImporter";
+import type {
+  BackupImporter,
+  BackupImportErrorCode,
+  BackupImportFailure,
+} from "@/client/logic/backup/BackupImporter";
 import {
   MAXIMUM_BACKUP_BYTES,
   MAXIMUM_BACKUP_PASSWORD_LENGTH,
@@ -12,17 +16,32 @@ import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localI
 import { BackButton } from "@/client/ui/shared/backButton";
 import { PUBKY_COPY_TOASTS } from "@/client/ui/shared/copyToClipboard";
 import { DetailField } from "@/client/ui/shared/detailField";
-import { ArrowRightIcon } from "@/client/ui/shared/icons";
+import { ArrowRightIcon, RotateCcwIcon } from "@/client/ui/shared/icons";
 import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { RecoveryCard, RecoveryScreen } from "@/client/ui/shared/recoveryScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
-import { FileField } from "@/client/ui/shared/primitives/fileField";
+import { canRestoreFiles, FileField } from "@/client/ui/shared/primitives/fileField";
 import { Input } from "@/client/ui/shared/primitives/input";
 import { Label } from "@/client/ui/shared/primitives/label";
+import { RevealPasswordButton } from "@/client/ui/shared/revealPasswordButton";
 
-type ImportError = { target: "file" | "password" | "form"; message: string };
+/**
+ * A failed import and the next action it offers: `existing` names a saved identity to use
+ * instead, `retry` sends the same file and password again.
+ */
+type ImportError = {
+  target: "file" | "password" | "form";
+  message: string;
+  existing?: string;
+  retry?: boolean;
+};
+/** Failures of a network step; the password stays in its field so Try again can resend it. */
+const RETRYABLE: ReadonlySet<BackupImportErrorCode> = new Set([
+  "signin_failed",
+  "resolution_failed",
+]);
 type ImportPort = Pick<
   BackupImporter,
   "discardPending" | "dispose" | "importBackup" | "republishHomeserver"
@@ -32,6 +51,7 @@ export function BackupImportFlow({
   defaultHomeserver,
   onBack,
   onComplete,
+  onSelectExisting,
   createImporter = createBackupImporter,
 }: {
   /**
@@ -41,6 +61,8 @@ export function BackupImportFlow({
   defaultHomeserver: string | null;
   onBack: () => void;
   onComplete: (identity: LocalIdentityMetadata) => void;
+  /** Continues with an identity this browser already holds, when the backup is of that one. */
+  onSelectExisting?: ((publicKeyZ32: string) => void) | undefined;
   /** Builds the importer; it may load the Pubky SDK first. */
   createImporter?: () => ImportPort | Promise<ImportPort>;
 }) {
@@ -48,7 +70,9 @@ export function BackupImportFlow({
   const [buildImporter] = useState(() => createImporter);
   const fileInput = useRef<HTMLInputElement>(null);
   const passwordInput = useRef<HTMLInputElement>(null);
-  const [fileName, setFileName] = useState("");
+  // The file last sent, put back into the picker when the import returns to it. Ciphertext only.
+  const [keptFile, setKeptFile] = useState<File>();
+  const [passwordShown, setPasswordShown] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<ImportError>();
   // Set when the backup decrypted but its identity has no homeserver record to sign in with.
@@ -92,27 +116,33 @@ export function BackupImportFlow({
     const file = fileInput.current?.files?.[0];
     const password = passwordInput.current?.value ?? "";
     if (!file || file.size === 0 || file.size > MAXIMUM_BACKUP_BYTES) {
-      setError(importError("invalid_backup"));
+      setError(importError({ code: "invalid_backup" }));
       return;
     }
     if (!password) {
-      setError(importError("invalid_password"));
+      setError(importError({ code: "invalid_password" }));
       return;
     }
 
     setPending(true);
-    setError(undefined);
+    // A retry keeps its message, and the Try again inside it, in place while it runs, so focus
+    // stays on the button that started it.
+    setError((current) => (current?.retry ? current : undefined));
+    setKeptFile(file);
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       // The importer may still be loading the Pubky SDK when the form is sent.
       const ready = importer.current ?? (await importerReady.current);
       const imported = await ready?.importBackup(bytes, password, defaultHomeserver);
-      if (passwordInput.current) passwordInput.current.value = "";
+      const failure = imported && Result.isError(imported) ? imported.error : undefined;
+      if (passwordInput.current && !(failure && RETRYABLE.has(failure.code)))
+        passwordInput.current.value = "";
       if (!imported || Result.isError(imported)) {
         bytes.fill(0);
-        setError(importError(imported ? imported.error.code : "import_unavailable"));
+        setError(importError(failure ?? { code: "import_unavailable" }));
         return;
       }
+      setError(undefined);
       if (imported.value.status === "homeserver_record_missing") {
         setUnpublished(imported.value.publicIdentity.publicKeyZ32);
         return;
@@ -121,7 +151,7 @@ export function BackupImportFlow({
     } catch {
       setError({
         target: "form",
-        message: "Passport could not read that backup. Try selecting it again.",
+        message: "Passport could not read that recovery file. Try selecting it again.",
       });
     } finally {
       setPending(false);
@@ -134,18 +164,16 @@ export function BackupImportFlow({
     try {
       const imported = await importer.current?.republishHomeserver(homeserverPubky);
       if (!imported || Result.isError(imported)) {
-        const code = imported ? imported.error.code : "import_unavailable";
-        if (code === "homeserver_record_found") {
-          // The importer released the key; importing the backup again signs in with that record.
-          setFileName("");
-          setUnpublished(undefined);
-        }
-        setError(importError(code));
+        const failure = imported ? imported.error : { code: "import_unavailable" as const };
+        // The importer released the key; importing the file again signs in with that record. The
+        // form puts the file back where the browser lets it, and says to pick it where not.
+        if (failure.code === "homeserver_record_found") setUnpublished(undefined);
+        setError(importError(failure, keptFile !== undefined && canRestoreFiles()));
         return;
       }
       onComplete(imported.value);
     } catch {
-      setError(importError("publish_failed"));
+      setError(importError({ code: "publish_failed" }));
     } finally {
       setPending(false);
     }
@@ -153,37 +181,48 @@ export function BackupImportFlow({
 
   const fileError = error?.target === "file" ? error.message : undefined;
   const passwordError = error?.target === "password" ? error.message : undefined;
-  const formError = error?.target === "form" ? error.message : undefined;
+  const formError = error?.target === "form" ? error : undefined;
+  const existing = formError?.existing;
 
   if (unpublished && defaultHomeserver) {
     return (
       <RecoveryScreen
-        title="Homeserver record"
-        accent="missing."
-        description="The backup opened, but the Pubky network has no homeserver record for this identity, so its account cannot be found."
+        title="Homeserver"
+        accent="not found."
+        description="Your recovery file opened, but the Pubky network no longer lists which homeserver holds this account. This can happen when an identity hasn’t been used for a while."
       >
         <RecoveryCard>
-          <DetailField
-            copy={{ ...PUBKY_COPY_TOASTS, value: unpublished }}
-            label="Your pubky"
-            value={unpublished}
-          />
           <p className="text-sm leading-5">
-            Passport can publish a new record that points to this homeserver.
+            Passport can list this Passport’s homeserver for your account, so apps can find it
+            there.
           </p>
           <div id="import-homeserver">
-            <DetailField label="Homeserver to publish" value={defaultHomeserver} />
+            <DetailField label="Homeserver to list" value="This Passport’s homeserver" />
           </div>
+          {/* Keys for someone who wants to check them; nobody is expected to read them. */}
+          <details className="text-sm leading-5 text-muted-foreground">
+            <summary className="w-fit cursor-pointer rounded-sm font-medium hover:text-foreground">
+              Technical details
+            </summary>
+            <div className="mt-3 flex flex-col gap-4 text-foreground">
+              <DetailField
+                copy={{ ...PUBKY_COPY_TOASTS, value: unpublished }}
+                label="Your pubky"
+                value={unpublished}
+              />
+              <DetailField label="Homeserver key" value={defaultHomeserver} />
+            </div>
+          </details>
         </RecoveryCard>
-        {/* Publishing the wrong homeserver sends apps to the wrong place for this pubky's data. */}
+        {/* An account made through this Passport may still live on a homeserver entered at signup
+            or named by its invite, so the question is about the homeserver, not the Passport. */}
         <Notice id="import-homeserver-warning" tone="warning">
-          Only continue if your account was created on this homeserver. If it lives anywhere else,
-          apps will look for your profile and data in the wrong place. Go back and import it where
-          its account was created instead.
+          Continue only if you signed up here without entering a different homeserver. If you’re not
+          sure, go back: pointing it to the wrong homeserver hides your profile and data from apps.
         </Notice>
         {formError ? (
           <Notice focusOnMount tone="error">
-            {formError}
+            {formError.message}
           </Notice>
         ) : null}
         <PassportNavigation
@@ -194,7 +233,6 @@ export function BackupImportFlow({
               onClick={() => {
                 importer.current?.discardPending();
                 setError(undefined);
-                setFileName("");
                 setUnpublished(undefined);
               }}
             />
@@ -209,7 +247,7 @@ export function BackupImportFlow({
               size="lg"
             >
               <ArrowRightIcon />
-              {pending ? "Publishing…" : "Publish record and import"}
+              {pending ? "Reconnecting…" : "Reconnect and import"}
             </Button>
           }
         />
@@ -220,8 +258,8 @@ export function BackupImportFlow({
   return (
     <RecoveryScreen
       title="Import"
-      accent="backup."
-      description="Use your encrypted backup file to restore your identity in this browser."
+      accent="recovery file."
+      description="Use your encrypted recovery file to restore your identity in this browser."
     >
       <form
         className="flex flex-1 flex-col gap-6 md:gap-8"
@@ -229,17 +267,15 @@ export function BackupImportFlow({
       >
         <RecoveryCard illustration="/illustrations/file.png">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="passport-backup">Pubky backup</Label>
+            <Label htmlFor="passport-backup">Recovery file</Label>
             <FileField
               accept=".pkarr,application/octet-stream"
               aria-describedby={fileError ? "passport-backup-error" : undefined}
               aria-invalid={fileError ? true : undefined}
+              defaultFile={keptFile}
               disabled={pending}
               id="passport-backup"
-              onChange={(event) => {
-                setFileName(event.currentTarget.files?.[0]?.name ?? "");
-                setError(undefined);
-              }}
+              onChange={() => setError(undefined)}
               ref={fileInput}
             />
             {fileError ? (
@@ -249,7 +285,7 @@ export function BackupImportFlow({
             ) : null}
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="passport-backup-password">Backup password</Label>
+            <Label htmlFor="passport-backup-password">Recovery file password</Label>
             <Input
               aria-describedby={passwordError ? "passport-backup-password-error" : undefined}
               aria-invalid={passwordError ? true : undefined}
@@ -260,7 +296,14 @@ export function BackupImportFlow({
               onInput={() => setError(undefined)}
               readOnly={pending}
               ref={passwordInput}
-              type="password"
+              type={passwordShown ? "text" : "password"}
+              action={
+                <RevealPasswordButton
+                  controls="passport-backup-password"
+                  onToggle={() => setPasswordShown((shown) => !shown)}
+                  shown={passwordShown}
+                />
+              }
             />
             {passwordError ? (
               <FieldMessage error id="passport-backup-password-error" role="alert">
@@ -271,7 +314,19 @@ export function BackupImportFlow({
         </RecoveryCard>
         {formError ? (
           <Notice focusOnMount tone="error">
-            {formError}
+            {formError.message}
+            {existing && onSelectExisting ? (
+              <Button onClick={() => onSelectExisting(existing)} size="sm" variant="secondary">
+                Use this identity
+              </Button>
+            ) : null}
+            {formError.retry ? (
+              // Sends the kept file and password again.
+              <Button loading={pending} size="sm" type="submit" variant="secondary">
+                <RotateCcwIcon />
+                Try again
+              </Button>
+            ) : null}
           </Notice>
         ) : null}
         <PassportNavigation
@@ -279,15 +334,9 @@ export function BackupImportFlow({
           back={<BackButton disabled={pending} onClick={onBack} />}
           layout="paired"
           confirm={
-            <Button
-              className="w-full"
-              disabled={!fileName}
-              loading={pending}
-              size="lg"
-              type="submit"
-            >
+            <Button className="w-full" loading={pending} size="lg" type="submit">
               <ArrowRightIcon />
-              {pending ? "Importing…" : "Import backup"}
+              {pending ? "Importing…" : "Import recovery file"}
             </Button>
           }
         />
@@ -296,18 +345,26 @@ export function BackupImportFlow({
   );
 }
 
-function importError(code: BackupImportErrorCode): ImportError {
+/** `fileRestored`: the form holds the file sent last, so only its password is needed again. */
+function importError(
+  { code, publicKeyZ32 }: BackupImportFailure,
+  fileRestored = false,
+): ImportError {
   switch (code) {
     case "invalid_backup":
-      return { target: "file", message: "Choose a valid .pkarr backup smaller than 1 MB." };
+      return { target: "file", message: "Choose a recovery file (.pkarr) smaller than 1 MB." };
     case "invalid_password":
-      return { target: "password", message: "Enter the password used to protect this backup." };
+      return { target: "password", message: "Enter the password of this recovery file." };
     case "backup_decryption_failed":
-      return { target: "password", message: "The password is wrong or this backup is malformed." };
+      return {
+        target: "password",
+        message: "The password is wrong or this recovery file is damaged.",
+      };
     case "already_present":
       return {
         target: "form",
-        message: "This Pubky is already saved in this browser. Select it from your identities.",
+        message: "This Pubky is already saved in this browser, so there is nothing to import.",
+        ...(publicKeyZ32 ? { existing: publicKeyZ32 } : {}),
       };
     case "external_key":
       return {
@@ -318,25 +375,29 @@ function importError(code: BackupImportErrorCode): ImportError {
     case "signin_failed":
       return {
         target: "form",
-        message: "The backup decrypted, but its Pubky account could not be verified.",
+        message:
+          "Your recovery file opened, but Passport couldn’t sign in to its account. The homeserver may be down, or the account may no longer exist. Check your connection and try again.",
+        retry: true,
       };
     case "resolution_failed":
       return {
         target: "form",
         message:
-          "The backup decrypted, but its Pubky account could not be verified. Passport could not look up its homeserver record; check your connection and try again.",
+          "Your recovery file opened, but Passport couldn’t look up which homeserver holds its account. Check your connection and try again.",
+        retry: true,
       };
     case "homeserver_record_found":
       return {
         target: "form",
-        message:
-          "The network now has a homeserver record for this Pubky on another homeserver, so Passport published nothing. Import the backup again to sign in with it.",
+        message: `The Pubky network now lists a homeserver for this account, so Passport changed nothing. ${
+          fileRestored ? "Enter the password again" : "Choose the file and enter its password again"
+        } to import it with that homeserver.`,
       };
     case "publish_failed":
       return {
         target: "form",
         message:
-          "Passport could not publish the homeserver record. Check your connection and retry.",
+          "Passport couldn’t list the homeserver for this account. Check your connection and try again.",
       };
     case "storage_failed":
       return {
@@ -344,7 +405,7 @@ function importError(code: BackupImportErrorCode): ImportError {
         message: "The identity was verified, but this browser could not save it.",
       };
     case "import_unavailable":
-      return { target: "form", message: "Passport could not import this backup." };
+      return { target: "form", message: "Passport could not import this recovery file." };
   }
 }
 

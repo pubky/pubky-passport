@@ -1,4 +1,5 @@
 import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
+import { invitesOnly } from "@/client/logic/homegate/verificationMethods";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { IdentityEstablishmentFlow } from "@/client/ui/onboarding/identityEstablishmentFlow";
 import { ContinueWithGoogle } from "@/client/ui/onboarding/google/continueWithGoogle";
@@ -74,7 +75,12 @@ export function AddIdentity({
           <div className={`grid gap-6 ${showGoogle ? "lg:grid-cols-2" : ""}`}>
             {/* The recommended path comes first in the DOM, so reading and tab order match. */}
             <ChoiceCard
-              description="Create an account and keep its key in Pubky Ring or this browser. Already have a backup file? Import it."
+              description={
+                // Where an invite is the only way in, say so before the person starts.
+                invitesOnly(methods)
+                  ? "Create an account with an invite code and keep its key in Pubky Ring or this browser. Already have a backup file? Import it."
+                  : "Create an account and keep its key in Pubky Ring or this browser. Already have a backup file? Import it."
+              }
               illustration="/illustrations/identity-keys.png"
               title="Hold your own key"
             >

@@ -37,7 +37,7 @@ describe("DetailField", () => {
     expect(plain).toHaveClass("text-sm", "leading-5", "break-all");
   });
 
-  it("disables copying while there is no value to copy", () => {
+  it("shows a status in place of the value and offers no copy while there is nothing to copy", () => {
     render(
       <DetailField
         copy={{
@@ -47,10 +47,13 @@ describe("DetailField", () => {
           value: null,
         }}
         label="Homeserver"
-        value="Looking up…"
+        value={<span className="text-muted-foreground">Looking up…</span>}
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Copy Homeserver" })).toBeDisabled();
+    expect(screen.getByText("Looking up…")).toHaveClass("text-muted-foreground");
+    expect(screen.queryByRole("button", { name: "Copy Homeserver" })).not.toBeInTheDocument();
+    // The row keeps the 36px button's height, so the content below stays put when a key arrives.
+    expect(screen.getByText("Looking up…").closest(".flex")).toHaveClass("min-h-9");
   });
 });

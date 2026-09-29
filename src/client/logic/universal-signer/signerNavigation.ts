@@ -34,7 +34,7 @@ export type ManagementNavigation =
 
 /**
  * Where the profile form was opened: right after an identity was added (`addition`), where
- * Finish later goes on and there is no Back, or from the overview or Manage, where Back returns.
+ * Skip for now goes on and there is no Back, or from the overview or Manage, where Back returns.
  */
 export type ProfileOrigin = "addition" | "overview" | "manage";
 

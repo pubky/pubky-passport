@@ -1,4 +1,4 @@
-import { type ComponentPropsWithRef, useState } from "react";
+import { type ComponentPropsWithRef, useCallback, useLayoutEffect, useRef, useState } from "react";
 
 import { FileTextIcon } from "@/client/ui/shared/icons";
 import { cn } from "@/client/ui/shared/mergeClassNames";
@@ -9,15 +9,35 @@ import { cn } from "@/client/ui/shared/mergeClassNames";
  * file, and it stays the only control assistive technology meets: the page's label names it and
  * the browser announces the chosen file. The pill and the file name are its visual echo; a long
  * name is cut short in the middle inside the box instead of widening the page, and the input's
- * tooltip shows it in full.
+ * tooltip shows it in full. `defaultFile` puts a file picked earlier back into the input, e.g. after
+ * the screen holding it was left, so it need not be picked again.
  */
 function FileField({
   className,
+  defaultFile,
   onChange,
+  ref,
   title,
   ...props
-}: Omit<ComponentPropsWithRef<"input">, "type">) {
-  const [fileName, setFileName] = useState("");
+}: Omit<ComponentPropsWithRef<"input">, "type"> & { defaultFile?: File | undefined }) {
+  const input = useRef<HTMLInputElement | null>(null);
+  // The name of the last pick, "" when a pick was cancelled; null until the person picks.
+  const [picked, setPicked] = useState<string | null>(null);
+  // Only a file the input can really hold again is shown; elsewhere the person picks it again.
+  const restorable = defaultFile !== undefined && canRestoreFiles();
+  useLayoutEffect(() => {
+    const element = input.current;
+    if (element && defaultFile && restorable) element.files = filesOf(defaultFile);
+  }, [defaultFile, restorable]);
+  const setRefs = useCallback(
+    (element: HTMLInputElement | null) => {
+      input.current = element;
+      if (typeof ref === "function") ref(element);
+      else if (ref) ref.current = element;
+    },
+    [ref],
+  );
+  const fileName = picked ?? (restorable ? defaultFile.name : "");
   const [head, tail] = splitFileName(fileName);
   return (
     <div
@@ -56,17 +76,44 @@ function FileField({
       )}
       <input
         {...props}
+        ref={setRefs}
         className="absolute inset-0 size-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
         // The input lies over the whole box, so only its own tooltip can show.
         title={fileName || title}
         onChange={(event) => {
-          setFileName(event.currentTarget.files?.[0]?.name ?? "");
+          setPicked(event.currentTarget.files?.[0]?.name ?? "");
           onChange?.(event);
         }}
         type="file"
       />
     </div>
   );
+}
+
+function filesOf(file: File): FileList {
+  const transfer = new DataTransfer();
+  transfer.items.add(file);
+  return transfer.files;
+}
+
+let filesRestorable: boolean | undefined;
+
+/**
+ * Whether this browser lets a script put a file into a file input, checked once on a probe; where
+ * it does not, `defaultFile` is not shown and the person picks the file again.
+ */
+export function canRestoreFiles(): boolean {
+  if (filesRestorable === undefined) {
+    try {
+      const probe = document.createElement("input");
+      probe.type = "file";
+      probe.files = filesOf(new File([], "probe"));
+      filesRestorable = probe.files.length === 1;
+    } catch {
+      filesRestorable = false;
+    }
+  }
+  return filesRestorable;
 }
 
 /** Characters of the name's stem kept beside its extension when the name is cut short. */

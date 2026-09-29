@@ -88,8 +88,10 @@ describe("BackupImporter", () => {
     [{ publicIdentity: { publicKeyZ32: PUBLIC_KEY }, keySource: "ring" }, "external_key"],
   ] as const)("refuses to replace a saved entry before signing in: %s", async (existing, code) => {
     const { importer, pubky, repository } = setup({ identities: [existing] });
+    // The failure names the saved entry, so the person can go on with it instead.
     expectResultError(await importer.importBackup(new Uint8Array([7]), PASSWORD, HOMESERVER), {
       code,
+      publicKeyZ32: PUBLIC_KEY,
     });
     expect(pubky.signin).not.toHaveBeenCalled();
     expect(repository.save).not.toHaveBeenCalled();
@@ -108,6 +110,7 @@ describe("BackupImporter", () => {
       );
     expectResultError(await importer.importBackup(new Uint8Array([7]), PASSWORD, HOMESERVER), {
       code: "already_present",
+      publicKeyZ32: PUBLIC_KEY,
     });
     expect(repository.save).not.toHaveBeenCalled();
   });

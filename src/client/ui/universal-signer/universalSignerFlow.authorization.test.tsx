@@ -718,7 +718,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
 
     await user.click(await screen.findByRole("button", { name: "Import a backup" }));
     expect(
-      await screen.findByRole("heading", { name: /Import (your )?backup/iu }),
+      await screen.findByRole("heading", { name: /Import (your )?(backup|recovery file)/iu }),
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(

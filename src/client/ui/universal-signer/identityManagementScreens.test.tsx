@@ -93,8 +93,8 @@ describe("IdentityManagementScreens", () => {
     cleanup();
 
     renderScreens({ view: "recovery", publicKeyZ32: "managed", check: true });
-    expect(screen.getByRole("heading", { name: "Verify backup." })).toBeInTheDocument();
-    expect(screen.getByLabelText("Backup file")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Verify recovery file." })).toBeInTheDocument();
+    expect(screen.getByLabelText("Recovery file")).toBeInTheDocument();
     expect(screen.queryByLabelText("Enter strong password")).not.toBeInTheDocument();
   });
 

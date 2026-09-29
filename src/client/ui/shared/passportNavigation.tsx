@@ -11,7 +11,7 @@ const DESKTOP_COLUMNS = "md:grid-cols-(--passport-navigation-columns) md:items-c
  * view in the app's 520px sign-in popup instead of dropping below a stacked Back; until `sm` the
  * forward action takes the room its longer label needs. `inline` keeps them in one row at every
  * width, for a bar pinned to a phone's window that must stay short. `tertiary` holds side
- * actions such as Finish later or Start over: text actions (Button `link` variants) in a row of
+ * actions such as Skip this check or Start over: text actions (Button `link` variants) in a row of
  * their own under the others, on the column's start edge.
  */
 function PassportNavigation({

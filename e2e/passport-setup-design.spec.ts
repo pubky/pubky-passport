@@ -74,7 +74,7 @@ test("import uses a compact accessible form with a working Back action", async (
 }, testInfo) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Import backup", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Import backup." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Import recovery file." })).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath("import-backup.png"), fullPage: true });
   await page.getByRole("button", { name: "Back", exact: true }).click();
@@ -136,12 +136,12 @@ test("a backup made to remove a key only counts once its file has opened", async
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download backup" }).click();
   const backup = await downloadPromise;
-  await expect(page.getByRole("heading", { name: "Verify backup." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Verify recovery file." })).toBeVisible();
   // The removal deletes the key next, so the file has to open: there is no skip.
   await expect(page.getByRole("button", { name: /Skip this check/u })).toHaveCount(0);
-  await page.getByLabel("Backup file").setInputFiles((await backup.path())!);
-  await page.getByLabel("Backup password").fill("correct horse");
-  await page.getByRole("button", { name: "Verify backup" }).click();
+  await page.getByLabel("Recovery file", { exact: true }).setInputFiles((await backup.path())!);
+  await page.getByLabel("Recovery file password").fill("correct horse");
+  await page.getByRole("button", { name: "Verify recovery file" }).click();
 
   // Back on the confirmation, which now knows the file opens: leaving is a logout again.
   await expect(page.getByRole("heading", { name: "Log out of this identity?" })).toBeVisible();
@@ -177,7 +177,7 @@ test("leaving the backup a removal asked for without checking it keeps the remov
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download backup" }).click();
   await (await downloadPromise).cancel();
-  await expect(page.getByRole("heading", { name: "Verify backup." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Verify recovery file." })).toBeVisible();
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Encrypted backup." })).toBeVisible();
   await page.getByRole("button", { name: "Back", exact: true }).click();

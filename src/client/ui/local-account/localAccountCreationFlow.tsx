@@ -3,6 +3,7 @@
 import { Result } from "better-result";
 import { useEffect, useRef, useState } from "react";
 
+import { backupFileName } from "@/client/logic/backup/BackupVerifier";
 import type { HomeserverSignupDetails } from "@/client/logic/signup/homeserverInvite";
 import type {
   LocalAccountRegistrationProgress,
@@ -320,6 +321,7 @@ export function LocalAccountCreationFlow({
   return (
     <BackupFlow
       key={step}
+      backupFileName={backupFileName(publicKeyZ32)}
       creatingAccount
       initialStep={step}
       createBackup={(password) =>

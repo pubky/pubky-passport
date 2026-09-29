@@ -203,10 +203,12 @@ describe("shared addition navigation", () => {
     mount(withRequest);
     await openAddition(user, withRequest);
     await user.click(screen.getByRole("button", { name: "Import backup" }));
-    await user.upload(screen.getByLabelText("Pubky backup"), backupFile());
-    await user.type(screen.getByLabelText("Backup password"), "correct horse");
-    await user.click(screen.getByRole("button", { name: "Import backup" }));
-    expect(await screen.findByRole("heading", { name: "Import backup." })).toBeInTheDocument();
+    await user.upload(screen.getByLabelText("Recovery file"), backupFile());
+    await user.type(screen.getByLabelText("Recovery file password"), "correct horse");
+    await user.click(screen.getByRole("button", { name: "Import recovery file" }));
+    expect(
+      await screen.findByRole("heading", { name: "Import recovery file." }),
+    ).toBeInTheDocument();
     expect(approve).not.toHaveBeenCalled();
     if (withRequest) expect(screen.getAllByLabelText("Signing in to original.app")).toHaveLength(1);
     await act(async () => finish());
@@ -252,7 +254,7 @@ describe("shared addition navigation", () => {
       await user.type(screen.getByLabelText("Confirm password"), "correct horse");
       await user.click(screen.getByRole("button", { name: "Download encrypted backup" }));
       act(notifyAdded);
-      expect(screen.getByRole("heading", { name: "Verify backup." })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Verify recovery file." })).toBeInTheDocument();
       expect(
         screen.queryByRole("button", { name: /Keep key in Pubky Ring/ }),
       ).not.toBeInTheDocument();
@@ -261,8 +263,8 @@ describe("shared addition navigation", () => {
         await user.click(screen.getByRole("button", { name: "Skip this check (not recommended)" }));
         expect(LOCAL.verifyBackup).not.toHaveBeenCalled();
       } else {
-        await user.upload(screen.getByLabelText("Backup file"), backupFile());
-        await user.type(screen.getByLabelText("Backup password"), "correct horse");
+        await user.upload(screen.getByLabelText("Recovery file"), backupFile());
+        await user.type(screen.getByLabelText("Recovery file password"), "correct horse");
         await user.click(screen.getByRole("button", { name: "Verify and create account" }));
       }
       expect(
@@ -298,7 +300,7 @@ describe("shared addition navigation", () => {
   );
 
   it.each([false, true])(
-    "asks for the profile once after creation, and Finish later goes on to where the person was going, request=%s",
+    "asks for the profile once after creation, and Skip for now goes on to where the person was going, request=%s",
     async (withRequest) => {
       const user = userEvent.setup();
       const created = { ...ADDED, profileSetupRequired: true as const };
@@ -322,12 +324,20 @@ describe("shared addition navigation", () => {
       await user.click(screen.getByRole("button", { name: "Download encrypted backup" }));
       await user.click(screen.getByRole("button", { name: "Skip this check (not recommended)" }));
 
+      // The account exists now, and a key made in this browser says so before the profile.
+      expect(await screen.findByRole("heading", { name: "Account created." })).toBeInTheDocument();
+      expect(screen.getByText(ADDED.publicIdentity.publicKeyZ32)).toBeInTheDocument();
+      // During a request, it says where skipping leads.
+      expect(
+        screen.queryByText(/Add a profile now, or skip it and continue signing in\./u) !== null,
+      ).toBe(withRequest);
+      await user.click(screen.getByRole("button", { name: "Add a public profile" }));
       expect(
         await screen.findByRole("heading", { name: "Create your profile." }),
       ).toBeInTheDocument();
-      // Finish later is the one way on without a profile; there is no Back into creation.
+      // Skip for now is the one way on without a profile; there is no Back into creation.
       expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
-      await user.click(screen.getByRole("button", { name: "Finish later" }));
+      await user.click(screen.getByRole("button", { name: "Skip for now" }));
 
       // Neither a backup detour nor Manage: the request's review, or the overview.
       expect(
@@ -417,20 +427,19 @@ describe("account creation navigation", () => {
     expect(new URL(ring.getAttribute("href")!).searchParams.get("st")).toBe("saved-invite");
   });
 
-  it("resumes a submitted setup on load and keeps Ring closed for its invite", async () => {
+  it("resumes a submitted setup on load with only its own key left to finish it", async () => {
     saveDraft({ registrationStarted: true });
     mount(false);
 
+    // Only this browser's key can finish, so there is no signer left to choose.
     expect(
-      await screen.findByRole("heading", { name: "Where should your key live?" }),
+      await screen.findByRole("heading", { name: "Finish your account." }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Keep key in Pubky Ring/ })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Keep key in this browser/ })).toBeEnabled();
-    // Only this browser's key can finish, so it takes the recommendation from Ring.
-    expect(screen.queryByText("Recommended")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Keep key in this browser/ })).toHaveClass(
-      "bg-brand/16",
-    );
+    expect(screen.getByText(/The setup you started is saved in this browser/u)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Keep key in Pubky Ring/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue" })).toHaveClass("bg-brand/16");
   });
 
   /** Submits a manual invite with a Passport key, then drops the key after sign-in fails. */
@@ -615,7 +624,7 @@ describe("provider homeserver", () => {
     const { republishHomeserver, user } = mountInstance(makeInstanceConfig());
     await user.click(await screen.findByRole("button", { name: "Manage identity" }));
     await user.click(await screen.findByRole("button", { name: "Republish homeserver" }));
-    await user.click(screen.getByRole("button", { name: "Publish record" }));
+    await user.click(screen.getByRole("button", { name: /Yes, publish record/u }));
 
     expect(republishHomeserver).toHaveBeenCalledWith("existing-identity", HOMESERVER);
   });
@@ -648,7 +657,7 @@ describe("provider homeserver", () => {
   it("asks for the homeserver of a manual invite when the provider has none", async () => {
     await openManualInvite(INSTANCE_WITHOUT_HOMESERVER);
 
-    expect(screen.getByPlaceholderText("Homeserver public key")).toHaveValue("");
+    expect(screen.getByLabelText("Homeserver public key")).toHaveValue("");
   });
 });
 
@@ -710,7 +719,7 @@ describe("required Ring profile setup", () => {
     await user.click(screen.getByRole("button", { name: "Set up profile" }));
     expect(await screen.findByRole("heading", { name: "Connect your Ring." })).toBeInTheDocument();
     // Opened from the overview, Back is the one way out and returns there.
-    expect(screen.queryByRole("button", { name: "Finish later" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Skip for now" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Your pubky." })).toBeInTheDocument();
     // Opened from Manage, Back returns to Manage.

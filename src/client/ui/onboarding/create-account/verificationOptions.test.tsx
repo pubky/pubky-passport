@@ -124,6 +124,13 @@ it("shows only supported signup methods and the configured provider terms", asyn
   );
   expect(screen.queryByRole("button", { name: "Continue with Lightning" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Continue with SMS" })).not.toBeInTheDocument();
+  // The lead says what to do; the provider's storage offer is a detail beneath it.
+  expect(
+    screen.getByText("Choose how to verify and create your Pubky account."),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/Storage from your own provider\./u)).toHaveClass(
+    "text-muted-foreground",
+  );
   // A lone method keeps the step column rather than one card across the page, with its
   // illustration beside the text and the button fitted to that column.
   expect(screen.getByRole("main")).toHaveClass("max-w-[588px]");
@@ -133,7 +140,7 @@ it("shows only supported signup methods and the configured provider terms", asyn
   expect(card?.querySelector('img[src*="invite.png"]')).toHaveClass("size-36");
   expect(card?.querySelector('img[src*="invite.png"]')).not.toHaveClass("mx-auto");
   expect(
-    screen.getByRole("link", { name: /^Terms of service of the homeserver provider/u }),
+    screen.getByRole("link", { name: /^Terms of Service of the homeserver provider/u }),
   ).toHaveAttribute("href", "https://provider.example/terms");
   // The invite option names no provider.
   expect(screen.getByRole("button", { name: "Enter invite manually" })).toHaveAccessibleDescription(

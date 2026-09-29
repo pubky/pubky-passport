@@ -219,7 +219,7 @@ function ReadyPassport({
         const { from, publicKeyZ32 } = navigation;
         const identity = findIdentity(catalog, publicKeyZ32);
         if (!identity) return null;
-        // Right after an identity is added, Finish later is the one way to skip: setup stays
+        // Right after an identity is added, Skip for now is the one way to skip: setup stays
         // required, so the overview and Manage keep offering it, and a request goes on to its
         // review. Opened from the overview or Manage, Back returns there.
         const onDefer = from === "addition" ? goHome : undefined;
@@ -254,6 +254,11 @@ function ReadyPassport({
         return (
           <ProfileSetupFlow
             key={publicKeyZ32}
+            // A key made in this browser was just registered; Google and Ring each said so already.
+            created={
+              from === "addition" && identity.keySource !== "ring" && !identity.googleAccount
+            }
+            forRequest={hasRequest}
             identity={identity}
             controller={identity.keySource === "ring" ? ringEditor : profiles.controller}
             onBack={onBack}
@@ -334,7 +339,14 @@ function ReadyPassport({
                 ? navigate({ view: "choose" })
                 : navigate({ view: "add", back: addBack })
             }
-            onComplete={completeAddition}
+            onComplete={(identity) => {
+              // The next screen is the overview or the app's review, which do not say it worked.
+              toast.success("Recovery file imported", {
+                description: "Your pubky is now saved in this browser.",
+              });
+              completeAddition(identity);
+            }}
+            onSelectExisting={selectAddedIdentity}
           />
         );
       case "connect-ring":

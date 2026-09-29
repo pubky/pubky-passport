@@ -71,6 +71,7 @@ export type HomegateSignupControllerPort = Pick<
   | "back"
   | "checkPayment"
   | "chooseSms"
+  | "clearError"
   | "continueWithPhone"
   | "createInvoice"
   | "dispose"

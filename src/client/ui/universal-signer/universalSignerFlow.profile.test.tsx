@@ -72,7 +72,7 @@ it("offers unfinished profile setup from the overview and never forces it", asyn
   await user.type(await screen.findByLabelText("Name"), "Satoshi");
   await user.type(screen.getByLabelText("Bio"), "Bitcoin");
   await user.type(screen.getByLabelText("X (Twitter)"), "@satoshi");
-  await user.click(screen.getByRole("button", { name: "Finish" }));
+  await user.click(screen.getByRole("button", { name: "Save profile" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Could not save your profile");
   expect(screen.getByLabelText("Name")).toHaveValue("Satoshi");
   expect(save).toHaveBeenCalledWith(
@@ -103,7 +103,7 @@ it("offers unfinished profile setup from the overview and never forces it", asyn
         };
       }),
   );
-  await user.click(screen.getByRole("button", { name: "Finish" }));
+  await user.click(screen.getByRole("button", { name: "Save profile" }));
   expect(screen.getByRole("button", { name: "Saving…" })).toHaveAttribute("aria-busy", "true");
   expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
   await act(async () => publish());
@@ -127,8 +127,8 @@ it("returns setup opened from the overview or Manage to where it was opened, kee
   mount();
   await user.click(await screen.findByRole("button", { name: "Set up profile" }));
   await user.type(await screen.findByLabelText("Name"), "Satoshi");
-  // Opened later, Back is the one way out; Finish later belongs to the step after creation.
-  expect(screen.queryByRole("button", { name: "Finish later" })).not.toBeInTheDocument();
+  // Opened later, Back is the one way out; Skip for now belongs to the step after creation.
+  expect(screen.queryByRole("button", { name: "Skip for now" })).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Back" }));
   // The typed name is not published, so leaving asks first.
   await user.click(screen.getByRole("button", { name: "Discard changes" }));
@@ -141,7 +141,7 @@ it("returns setup opened from the overview or Manage to where it was opened, kee
   const manage = screen.getByRole("heading", { level: 1 }).textContent;
   await user.click(screen.getByRole("button", { name: "Set up profile" }));
   expect(await screen.findByRole("heading", { name: "Create your profile." })).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Finish later" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Skip for now" })).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Back" }));
   expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(manage!);
   expect(screen.getByRole("button", { name: "Set up profile" })).toBeInTheDocument();
@@ -190,7 +190,7 @@ it("keeps the first two saved custom link titles editable", async () => {
   await user.type(firstTitle, "Writing");
   await user.clear(secondTitle);
   await user.type(secondTitle, "Code");
-  await user.click(screen.getByRole("button", { name: "Finish" }));
+  await user.click(screen.getByRole("button", { name: "Save profile" }));
   expect(save).toHaveBeenCalledWith(
     KEY,
     expect.objectContaining({
@@ -208,7 +208,7 @@ it("does not offer Finish when a profile read fails and retries without overwrit
   mount();
   await user.click(await screen.findByRole("button", { name: "Set up profile" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Could not load your profile");
-  expect(screen.queryByRole("button", { name: "Finish" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Save profile" })).not.toBeInTheDocument();
   load.mockResolvedValue(Result.ok({ profile }));
   await user.click(screen.getByRole("button", { name: "Try again" }));
   expect(await screen.findByLabelText("Name")).toHaveValue("Satoshi");

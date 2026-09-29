@@ -234,10 +234,10 @@ it("adds an existing Ring identity without asking for setup or a confirmation", 
     setupRequired: false,
     confirmIdentity: false,
   });
-  expect(screen.queryByRole("button", { name: "Finish later" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Skip for now" })).toBeNull();
 });
 
-it("shows the pubky to connect as a detail and Finish later as a side action", async () => {
+it("shows the pubky to connect as a detail and Skip for now as a side action", async () => {
   const onDefer = vi.fn();
   mount(controller(), { expectedKey: KEY, setupRequired: true, onDefer });
   expect(await screen.findByText("Waiting for approval in Ring…")).toBeInTheDocument();
@@ -247,7 +247,7 @@ it("shows the pubky to connect as a detail and Finish later as a side action", a
   expect(screen.queryByText(`Pubky: ${KEY}`)).toBeNull();
   expect(screen.getByRole("button", { name: "Copy Pubky" })).toBeEnabled();
   const back = screen.getByRole("button", { name: "Back" });
-  const finishLater = screen.getByRole("button", { name: "Finish later" });
+  const finishLater = screen.getByRole("button", { name: "Skip for now" });
   expect(finishLater.closest('[data-slot="tertiary-actions"]')).not.toBeNull();
   expect(back.compareDocumentPosition(finishLater) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   await userEvent.setup().click(finishLater);

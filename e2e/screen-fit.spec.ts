@@ -111,9 +111,9 @@ for (const viewport of NARROW) {
     await page.getByRole("button", { name: "Set up profile" }).click();
     await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
     expect(await horizontalOverflow(page)).toBe(0);
-    // Back and Finish stack instead of running off the edge, and the avatar stays round.
+    // Back and Save profile stack instead of running off the edge, and the avatar stays round.
     const back = await page.getByRole("button", { name: "Back", exact: true }).boundingBox();
-    const finish = await page.getByRole("button", { name: "Finish" }).boundingBox();
+    const finish = await page.getByRole("button", { name: "Save profile" }).boundingBox();
     expect(back!.x + back!.width).toBeLessThanOrEqual(viewport.width);
     expect(finish!.x + finish!.width).toBeLessThanOrEqual(viewport.width);
     const avatar = await page.getByRole("img", { name: "Profile avatar preview" }).boundingBox();

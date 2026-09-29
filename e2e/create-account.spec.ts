@@ -53,7 +53,7 @@ test("keeps request context and requires a separate profile approval after Ring 
   await page.getByLabel("Enter invite code").fill(MANUAL_INVITE);
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Keep key in Pubky Ring" }).click();
-  await page.getByRole("button", { name: "Continue to profile" }).click();
+  await page.getByRole("button", { name: "I’ve finished in Pubky Ring" }).click();
   await expect(page.getByRole("heading", { name: "Connect your Ring." })).toBeVisible();
 
   await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
@@ -97,7 +97,7 @@ test("the profile grant after a Ring signup on the home page polls only the conf
   await emulateCoarsePointer(page);
   await reachDestinationChoice(page);
   await page.getByRole("button", { name: "Keep key in Pubky Ring" }).click();
-  await page.getByRole("button", { name: "Continue to profile" }).click();
+  await page.getByRole("button", { name: "I’ve finished in Pubky Ring" }).click();
   await expect(page.getByRole("heading", { name: "Connect your Ring." })).toBeVisible();
   await expect(page).toHaveURL(/\/$/u);
 
@@ -120,6 +120,19 @@ test("local setup starts with a password-protected backup", async ({ page }) => 
   await expect(page.getByRole("heading", { name: /Protect your key/u })).toBeVisible();
   await expect(page.getByRole("button", { name: "Download encrypted backup" })).toBeVisible();
   await expect(page.getByText(/Select and decrypt the backup/u)).toHaveCount(0);
+
+  // Showing a half-typed password neither leaves the field nor calls it too short, and typing
+  // goes on where it stopped although the field's type changed.
+  const password = page.getByLabel("Enter strong password");
+  await password.click();
+  await page.keyboard.type("correct ho");
+  await page.getByRole("button", { name: "Show password" }).click();
+  await expect(password).toBeFocused();
+  await expect(password).toHaveAttribute("type", "text");
+  await page.keyboard.type("rse battery");
+  await expect(password).toHaveValue("correct horse battery");
+  await expect(password).not.toHaveAttribute("aria-invalid");
+  await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
 });
 
 test("Back and reload keep local setup resumable without forcing it", async ({
@@ -167,7 +180,7 @@ test("Back and reload keep local setup resumable without forcing it", async ({
   await page.getByRole("button", { name: "Download encrypted backup" }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe(`pubky-${key}.pkarr`);
-  await expect(page.getByRole("heading", { name: "Verify backup." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Verify recovery file." })).toBeVisible();
   // Passport cannot see the saved file, so it names the one it started and where to look.
   await expect(page.getByText(/Download started:/u)).toHaveText(
     `Download started: pubky-${key.slice(0, 6)}…${key.slice(-6)}.pkarr. Not in your downloads? Download again`,
@@ -175,15 +188,23 @@ test("Back and reload keep local setup resumable without forcing it", async ({
   await inspect("verify-backup");
   await page.reload();
   // A reload never forces setup; opening account creation again offers the saved key.
-  await expect(page.getByRole("heading", { name: "Verify backup." })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Verify recovery file." })).toHaveCount(0);
   await resumeSavedSetup(page);
-  await expect(page.getByRole("heading", { name: "Verify backup." })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Verify and create account" })).toBeDisabled();
+  await expect(page.getByRole("heading", { name: "Verify recovery file." })).toBeVisible();
+  // The file may be from days ago, so it is named as such, with a way out if it is lost.
+  await expect(page.getByLabel("Recovery file you saved earlier")).toBeAttached();
+  await expect(page.getByText(/Can’t find it\?/u)).toContainText(
+    `Look for pubky-${key.slice(0, 6)}…${key.slice(-6)}.pkarr.`,
+  );
+  await page.getByRole("button", { name: "Verify and create account" }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "Select the recovery file you saved earlier",
+  );
   // Skipping needs a download made in this session; after a reload only the file check remains.
   await expect(page.getByRole("button", { name: "Skip this check (not recommended)" })).toHaveCount(
     0,
   );
-  await expect(page.getByLabel("Backup password")).toHaveValue("");
+  await expect(page.getByLabel("Recovery file password")).toHaveValue("");
   const savedKeys = await page.evaluate(() => Object.keys(localStorage));
   expect(savedKeys.some((entry) => entry.startsWith("pubky-passport/local-identities/"))).toBe(
     false,
@@ -231,14 +252,14 @@ test("decrypts the downloaded backup before starting local registration", async 
   const backupPath = await download.path();
   expect(backupPath).not.toBeNull();
 
-  await expect(page.getByRole("heading", { name: "Verify backup." })).toBeVisible();
-  await page.getByLabel("Backup file").setInputFiles(backupPath!);
-  await page.getByLabel("Backup password").fill("wrong password");
+  await expect(page.getByRole("heading", { name: "Verify recovery file." })).toBeVisible();
+  await page.getByLabel("Recovery file", { exact: true }).setInputFiles(backupPath!);
+  await page.getByLabel("Recovery file password").fill("wrong password");
   await page.getByRole("button", { name: "Verify and create account" }).click();
   await expect(page.getByText(/password is wrong/u)).toBeVisible();
 
   await holdHttpsRequests(page);
-  await page.getByLabel("Backup password").fill("correct horse");
+  await page.getByLabel("Recovery file password").fill("correct horse");
   await page.getByRole("button", { name: "Verify and create account" }).click();
   await expect(page.getByRole("heading", { name: "Setting up your pubky." })).toBeVisible();
   await expect(page.getByRole("list", { name: "Pubky identity setup progress" })).toBeVisible();
@@ -293,7 +314,11 @@ test("SMS provider limits stay recoverable inside account creation", async ({ pa
   await page.getByRole("button", { name: "Continue with SMS" }).click();
   await page.getByLabel("Phone number", { exact: true }).fill("+41791234567");
   await page.getByRole("button", { name: "Send Code" }).click();
-  await expect(page.getByRole("main").getByRole("alert")).toContainText("weekly signup limit");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("weekly sign-up limit");
+  // The refused number is not sent again, and the other ways are offered right there.
+  await expect(page.getByRole("button", { name: "Send Code" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Pay with Lightning instead" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Use an invite code" })).toBeVisible();
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Create your account." })).toBeVisible();
 });
@@ -412,7 +437,7 @@ test("shared account creation offers Ring after verification and Back keeps its 
   const link = ringSignupLink(page);
   const url = `pubkyauth://direct_signup?hs=${E2E_SIGNUP_HOMESERVER}&st=${RING_INVITE}`;
   await expect(link).toHaveAttribute("href", url);
-  await page.getByRole("button", { name: "Install Pubky Ring", exact: true }).click();
+  await page.getByRole("button", { name: "Install it", exact: true }).click();
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(link).toHaveAttribute("href", url);
   await page.getByRole("button", { name: "Back", exact: true }).click();
@@ -537,13 +562,20 @@ test("can skip the backup check and keeps the attempted signup bound to its key"
 }) => {
   await reachDestinationChoiceOnTestHomeserver(page);
   await page.getByRole("button", { name: "Keep key in this browser" }).click();
-  await expect(page.getByRole("button", { name: "Download encrypted backup" })).toBeDisabled();
+  // Pressed early, the download says what is missing instead of doing nothing.
+  await page.getByRole("button", { name: "Download encrypted backup" }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "Enter a password of at least 12 characters.",
+  );
   await page.getByLabel("Enter strong password").fill("correct horse");
   // Skipping the file check relies on the password having been typed twice.
-  await expect(page.getByRole("button", { name: "Download encrypted backup" })).toBeDisabled();
+  await page.getByRole("button", { name: "Download encrypted backup" }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "Type the password again to confirm it.",
+  );
   await page.getByLabel("Confirm password").fill("correct horse");
   await page.getByRole("button", { name: "Download encrypted backup" }).click();
-  await expect(page.getByRole("heading", { name: "Verify backup." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Verify recovery file." })).toBeVisible();
   await expect(page.getByRole("button", { name: "Download again" })).toBeVisible();
   // The invite lookup is answered and the signup stays pending, so the attempt remains in progress.
   await page.route(
@@ -572,7 +604,7 @@ async function resumeSavedSetup(page: Page) {
 test.describe("in the app's 520x760 popup", () => {
   test.use({ viewport: { width: 520, height: 760 }, hasTouch: false });
 
-  test("Pubky Ring signup keeps its QR code, Back and Continue to profile in view", async ({
+  test("Pubky Ring signup keeps its QR code, Back and the manual way on in view", async ({
     page,
   }) => {
     await page.goto(`/authorize#d=${encodeURIComponent(AUTHORIZATION_REQUEST)}`);
@@ -583,8 +615,8 @@ test.describe("in the app's 520x760 popup", () => {
     await page.getByRole("button", { name: "Keep key in Pubky Ring" }).click();
 
     await expect(page.getByRole("img", { name: "Pubky Ring signup QR code" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Install Pubky Ring" })).toBeVisible();
-    for (const name of ["Back", "Continue to profile"]) {
+    await expect(page.getByRole("button", { name: "Install it" })).toBeVisible();
+    for (const name of ["Back", "I’ve finished in Pubky Ring"]) {
       const box = (await page.getByRole("button", { name, exact: true }).boundingBox())!;
       expect(box.y + box.height).toBeLessThanOrEqual(760);
     }

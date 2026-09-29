@@ -59,7 +59,7 @@ still in view about two seconds later, because Ring did not open; with a mouse o
 pointer, such as your desktop popup) it shows the QR code directly, since a computer cannot open the
 link. Passport cannot see Ring's approval, so **I approved in Pubky Ring** reports `success` (see
 [Outcome messages](#outcome-messages)). Switching identities or creating an account preserves the
-original request; a new account is asked for its public profile once, and **Finish later** there
+original request; a new account is asked for its public profile once, and **Skip for now** there
 goes on to the review. A request for broad access (for example `/:rw`) is flagged on the list and on
 the Pubky Ring screen as well as on the review, where its primary action names what it gives, such
 as **Allow changing all your data** or **Allow reading all public data**, and the sentence above it

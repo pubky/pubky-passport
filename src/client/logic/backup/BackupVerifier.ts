@@ -21,6 +21,11 @@ export type BackupVerificationResult = ResultType<void, CodedFailure<BackupVerif
 
 type BackupKeys = Pick<PubkySdkAdapter, "restoreRecoveryFile" | "disposeIdentityKey">;
 
+/** The name Passport gives a backup file of `publicKeyZ32`, e.g. `pubky-<key>.pkarr`. */
+export function backupFileName(publicKeyZ32: string): string {
+  return `pubky-${publicKeyZ32}.pkarr`;
+}
+
 /** Whether `password` may encrypt a new backup. */
 export function isValidNewBackupPassword(password: string): boolean {
   return (

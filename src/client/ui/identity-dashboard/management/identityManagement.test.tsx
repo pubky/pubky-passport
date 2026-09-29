@@ -114,7 +114,7 @@ describe("IdentityManagement", () => {
     renderManagement({ republishHomeserver, resolveHomeserver: async () => Result.ok(null) });
 
     fireEvent.click(await screen.findByRole("button", { name: "Republish homeserver" }));
-    fireEvent.click(screen.getByRole("button", { name: "Publish record" }));
+    fireEvent.click(screen.getByRole("button", { name: /Yes, publish record/u }));
 
     await waitFor(() =>
       expect(republishHomeserver).toHaveBeenCalledWith(
@@ -165,7 +165,7 @@ describe("IdentityManagement", () => {
     );
     expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Public profile" })).toContainElement(
-      screen.getByRole("button", { name: "Copy Homeserver" }),
+      screen.getByRole("group", { name: "Homeserver" }),
     );
   });
 

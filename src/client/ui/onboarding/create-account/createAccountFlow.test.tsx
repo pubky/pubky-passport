@@ -26,6 +26,8 @@ import {
   type PubkySecretKeyMaterial,
 } from "@/client/logic/pubky/pubkyIdentityKey";
 import type { SignupTokenStatus } from "@/client/logic/pubky/SignupTokenChecker";
+import type { VerificationAvailability } from "@/client/logic/homegate/HomegateAvailabilityClient";
+import { HomegateAvailabilityContext } from "@/client/ui/homegateAvailability";
 import type {
   PassportCollaborators,
   RingProfileControllerPort,
@@ -96,6 +98,7 @@ function mountFlow(
     status?: SignupTokenStatus;
     schedule?: Scheduler;
     ringProfile?: RingProfileControllerPort;
+    methods?: VerificationAvailability;
   } = {},
 ) {
   const storage = options.storage ?? new MemoryStorage();
@@ -119,14 +122,23 @@ function mountFlow(
   };
   const onBack = vi.fn();
   const onLocalComplete = vi.fn();
+  const flow = (
+    <CreateAccountFlow
+      inviteHomeserver={HOMESERVER}
+      onBack={onBack}
+      onLocalComplete={onLocalComplete}
+      ringProfileController={options.ringProfile ?? ({} as RingProfileControllerPort)}
+    />
+  );
   const view = render(
     withPassportTestProviders(
-      <CreateAccountFlow
-        inviteHomeserver={HOMESERVER}
-        onBack={onBack}
-        onLocalComplete={onLocalComplete}
-        ringProfileController={options.ringProfile ?? ({} as RingProfileControllerPort)}
-      />,
+      options.methods ? (
+        <HomegateAvailabilityContext value={{ methods: options.methods, retry: vi.fn() }}>
+          {flow}
+        </HomegateAvailabilityContext>
+      ) : (
+        flow
+      ),
       collaborators,
     ),
   );
@@ -210,6 +222,89 @@ describe("CreateAccountFlow", () => {
     expect(second.verification.verifySmsCode).not.toHaveBeenCalled();
   });
 
+  it("welcomes back a verification restored from an earlier visit", async () => {
+    mountFlow({ storage: storedInvite() });
+    expect(
+      await screen.findByText(/Welcome back\. Your verification is saved in this browser/u),
+    ).toBeVisible();
+    expect(screen.queryByText("Your verification stays saved in this browser.")).toBeNull();
+  });
+
+  it("opens on the invite entry where invites are the only method, and Back leaves", async () => {
+    const user = userEvent.setup();
+    const { onBack } = mountFlow({
+      methods: {
+        google: { status: "unavailable" },
+        sms: { status: "unavailable" },
+        lightning: { status: "unavailable" },
+      },
+    });
+    expect(screen.getByRole("heading", { name: "Use Invite." })).toBeVisible();
+    expect(screen.getByText(/Creating an account here needs an invite code/u)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Enter invite manually" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(onBack).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["SMS is available", "available", "unavailable", true],
+    ["only Lightning is available", "blocked", "available", true],
+    ["SMS is blocked here and Lightning is not offered", "blocked", "unavailable", false],
+    ["SMS could not be checked and Lightning is not offered", "unknown", "unavailable", false],
+  ] as const)(
+    "after a refused invite, offers another way only where one works: %s",
+    async (_case, sms, lightning, offered) => {
+      const user = userEvent.setup();
+      mountFlow({
+        status: "not_found",
+        methods: {
+          google: { status: "unavailable" },
+          sms: { status: sms },
+          lightning: { status: lightning },
+        },
+      });
+      await user.click(screen.getByRole("button", { name: "Enter invite manually" }));
+      await user.type(screen.getByLabelText("Enter invite code"), "AB12-CD34-EF56");
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "This homeserver does not recognize this invite.",
+      );
+      expect(screen.queryByRole("button", { name: "Verify another way" }) !== null).toBe(offered);
+    },
+  );
+
+  it("offers Lightning and an invite code once SMS refuses the number", async () => {
+    const user = userEvent.setup();
+    const { verification } = mountFlow();
+    verification.sendSmsCode.mockResolvedValueOnce(Result.err({ code: "annual_limit_exceeded" }));
+    await user.click(screen.getByRole("button", { name: "Continue with SMS" }));
+    await user.type(screen.getByLabelText("Phone number", { exact: true }), "+41791234567");
+    await user.click(screen.getByRole("button", { name: "Send Code" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("yearly sign-up limit");
+    expect(screen.getByRole("button", { name: "Send Code" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Use an invite code" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Pay with Lightning instead" }));
+    expect(await screen.findByText("100")).toHaveTextContent(/^100 sats$/u);
+  });
+
+  it("clears an expired code and unlocks Resend", async () => {
+    const user = userEvent.setup();
+    const { verification } = mountFlow();
+    verification.verifySmsCode.mockResolvedValueOnce(Result.err({ code: "verification_expired" }));
+    await user.click(screen.getByRole("button", { name: "Continue with SMS" }));
+    await user.type(screen.getByLabelText("Phone number", { exact: true }), "+41791234567");
+    await user.click(screen.getByRole("button", { name: "Send Code" }));
+    const code = screen.getByLabelText("Verification code", { exact: true });
+    await user.type(code, "000000");
+    expect(screen.getByRole("button", { name: /^Resend \(\d+s\)$/u })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Verify Code" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Send a new code to continue.");
+    expect(code).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Resend Code" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Verify Code" })).toBeDisabled();
+  });
+
   it("discards a saved invite only after the person confirms it", async () => {
     const user = userEvent.setup();
     const { storage } = mountFlow({ storage: storedInvite() });
@@ -280,7 +375,7 @@ describe("CreateAccountFlow", () => {
     await screen.findByText("Invite verified with the homeserver.");
     await user.click(screen.getByRole("button", { name: "Continue" }));
     await user.click(screen.getByRole("button", { name: /Keep key in Pubky Ring/u }));
-    await user.click(screen.getByRole("button", { name: "Continue to profile" }));
+    await user.click(screen.getByRole("button", { name: "I’ve finished in Pubky Ring" }));
     await user.click(await screen.findByRole("button", { name: "Yes, it is my new pubky" }));
 
     expect(onLocalComplete).toHaveBeenCalledWith(RING_IDENTITY);

@@ -57,7 +57,7 @@ export function RingProfileConnection({
   setupRequired?: boolean;
   /** After a Ring signup: Passport cannot know the new key, so the person confirms it. */
   confirmIdentity?: boolean;
-  /** Absent right after an identity was added, where Finish later is the one way on. */
+  /** Absent right after an identity was added, where Skip for now is the one way on. */
   onBack?: (() => void) | undefined;
   onComplete: (identity: LocalIdentityMetadata) => void;
   /** Leaves required setup unfinished; the identity stays usable meanwhile. */
@@ -204,7 +204,7 @@ export function RingProfileConnection({
         tertiary={
           setupRequired && onDefer ? (
             <Button onClick={onDefer} type="button" variant="link">
-              Finish later
+              Skip for now
             </Button>
           ) : undefined
         }

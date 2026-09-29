@@ -7,6 +7,7 @@ import type { CodedFailure } from "@/libs/result";
 import type { PubkyHomeserverResolutionResult } from "@/client/logic/pubky/pubkyIdentityKey";
 import type { PubkyRingMigration, PubkySdkAdapter } from "@/client/logic/pubky/PubkySdkAdapter";
 import {
+  backupFileName,
   isValidNewBackupPassword,
   verifyBackupFile,
   type BackupVerificationErrorCode,
@@ -189,7 +190,7 @@ export class LocalIdentityController {
       this.recordBackup(publicKeyZ32, "created");
       return Result.ok({
         bytes: recoveryFile.value,
-        fileName: `pubky-${publicKeyZ32}.pkarr`,
+        fileName: backupFileName(publicKeyZ32),
       });
     } catch (e) {
       LOGGER.warn("identity.controller.failed", {

@@ -21,12 +21,24 @@ export type HomegateSignupView =
 
 export type HomegateSignupErrorCode = HomegateVerificationFailure["code"] | "payment_not_confirmed";
 
+/** Refusals that hold for the number itself, so sending to it again cannot succeed now. */
+export type PhoneRefusalCode = Extract<
+  HomegateSignupErrorCode,
+  "blocked" | "weekly_limit_exceeded" | "annual_limit_exceeded"
+>;
+
+function isPhoneRefusal(code: HomegateSignupErrorCode): code is PhoneRefusalCode {
+  return code === "blocked" || code === "weekly_limit_exceeded" || code === "annual_limit_exceeded";
+}
+
 export type HomegateSignupState = {
   view: HomegateSignupView;
   pending: boolean;
   error: HomegateSignupErrorCode | null;
   /** The number the current SMS challenge went to; continuing with it reuses the challenge. */
   sentPhoneNumber: string | undefined;
+  /** The last number Homegate refused outright, and why; sending to it again is pointless. */
+  phoneRefusal: { phoneNumber: string; code: PhoneRefusalCode } | null;
 };
 
 type VerificationPort = Pick<
@@ -91,6 +103,7 @@ export class HomegateSignupController {
       pending: false,
       error: null,
       sentPhoneNumber: undefined,
+      phoneRefusal: null,
     };
   }
 
@@ -149,6 +162,11 @@ export class HomegateSignupController {
     this.persist("release_invite", () => this.storage.removeInvite());
   }
 
+  /** Drops a shown failure, e.g. once the person edits what it was about. */
+  clearError(): void {
+    if (this.state.error !== null) this.update({ error: null });
+  }
+
   chooseSms(): void {
     this.update({ error: null, view: { step: "phone", phoneNumber: this.phoneNumber } });
   }
@@ -171,15 +189,33 @@ export class HomegateSignupController {
       () => {
         const challenge = { phoneNumber, resendAt: this.now() + SMS_RESEND_DELAY_MS };
         this.smsChallenge = challenge;
-        this.update({ sentPhoneNumber: phoneNumber, view: { step: "code", ...challenge } });
+        this.update({
+          sentPhoneNumber: phoneNumber,
+          phoneRefusal: null,
+          view: { step: "code", ...challenge },
+        });
+      },
+      (code) => {
+        if (isPhoneRefusal(code)) this.update({ phoneRefusal: { phoneNumber, code } });
       },
     );
   }
 
+  /**
+   * An expired challenge (too many wrong codes, or none open any more) can only be replaced, so
+   * Resend unlocks at once instead of finishing its countdown.
+   */
   verifySmsCode(phoneNumber: string, code: string): Promise<void> {
     return this.run(
       (client, signal) => client.verifySmsCode(phoneNumber, code, signal),
       (invite) => this.complete(invite),
+      (failure) => {
+        const view = this.state.view;
+        if (failure !== "verification_expired" || view.step !== "code") return;
+        const challenge = { phoneNumber: view.phoneNumber, resendAt: this.now() };
+        this.smsChallenge = challenge;
+        this.update({ view: { step: "code", ...challenge } });
+      },
     );
   }
 
@@ -235,6 +271,7 @@ export class HomegateSignupController {
   private async run<T>(
     request: (client: VerificationPort, signal: AbortSignal) => Promise<VerificationResult<T>>,
     complete: (value: T) => void,
+    fail?: (code: HomegateSignupErrorCode) => void,
   ): Promise<void> {
     if (this.operation) return;
     const controller = new AbortController();
@@ -245,8 +282,10 @@ export class HomegateSignupController {
         ? await request(this.verification, controller.signal)
         : Result.err({ code: "homegate_unavailable" });
       if (controller.signal.aborted) return;
-      if (Result.isError(result)) this.update({ error: result.error.code });
-      else complete(result.value);
+      if (Result.isError(result)) {
+        fail?.(result.error.code);
+        this.update({ error: result.error.code });
+      } else complete(result.value);
     } finally {
       if (this.operation === controller) {
         this.operation = null;

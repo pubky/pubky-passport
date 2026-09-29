@@ -1,11 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import type { HomeserverSignupDetails } from "@/client/logic/signup/homeserverInvite";
 import { ringSignupUrl } from "@/client/logic/signup/ringSignup";
+import { watchSignupToken } from "@/client/logic/signup/signupTokenWatcher";
+import { usePassportCollaborators } from "@/client/ui/passportCollaborators";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { ArrowRightIcon } from "@/client/ui/shared/icons";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { Button } from "@/client/ui/shared/primitives/button";
+import { Spinner } from "@/client/ui/shared/primitives/spinner";
 import { RingHandoff } from "@/client/ui/shared/ringHandoff";
 import { ACCOUNT_SETUP_STEPS, SetupProgressProvider } from "@/client/ui/shared/setupProgress";
 import { useDeepLinkLauncher, useRingHandoffMode } from "@/client/ui/shared/useRingHandoff";
@@ -25,8 +29,10 @@ const SIGNUP_LABELS = {
 
 /**
  * Hands the invite to Pubky Ring for signup, then connects the new identity's profile. Ring returns
- * nothing from the signup, so the person confirms that the pubky it connects is the new one. An
- * invite the homeserver reports used (`inviteUsed`) skips straight to the profile connection.
+ * nothing from the signup, so Passport watches the invite: once the homeserver reports it used,
+ * the profile connection opens by itself, and "I've finished in Pubky Ring" covers a lookup that
+ * cannot tell. The person then confirms that the pubky Ring connects is the new one. An invite the
+ * homeserver already reports used (`inviteUsed`) skips straight to the profile connection.
  */
 export function RingSignupStep({
   invite,
@@ -42,11 +48,23 @@ export function RingSignupStep({
   profileController: RingProfileControllerPort;
 }) {
   const [step, setStep] = useState<"scan" | "install" | "profile">(inviteUsed ? "profile" : "scan");
+  // Ring has used the invite, so the signup code is spent and Back leaves the Ring signup.
+  const [signedUp, setSignedUp] = useState(inviteUsed);
   const mode = useRingHandoffMode();
   // A phone whose link did not open Ring falls back to the QR code, and the copy follows it.
   const [launch, launcher] = useDeepLinkLauncher();
   const scanning = mode === "scan" || launch === "failed";
   const url = ringSignupUrl(invite);
+  const { checkSignupToken } = usePassportCollaborators();
+  const { homeserverPubky, signupToken } = invite;
+  useEffect(() => {
+    if (step !== "scan") return;
+    return watchSignupToken({ homeserverPubky, signupToken }, checkSignupToken, () => {
+      toast.success("Account created in Pubky Ring");
+      setSignedUp(true);
+      setStep("profile");
+    });
+  }, [checkSignupToken, homeserverPubky, signupToken, step]);
 
   if (step === "install")
     return <RingInstallStep onBack={() => setStep("scan")} onContinue={() => setStep("scan")} />;
@@ -58,7 +76,7 @@ export function RingSignupStep({
           controller={profileController}
           setupRequired
           confirmIdentity
-          onBack={inviteUsed ? onBack : () => setStep("scan")}
+          onBack={signedUp ? onBack : () => setStep("scan")}
           onComplete={onComplete}
         />
       </SetupProgressProvider>
@@ -70,27 +88,44 @@ export function RingSignupStep({
       title={scanning ? "Scan" : "Tap to"}
       accent={scanning ? "QR Code." : "Authorize."}
       description={
-        scanning
-          ? `Open Pubky Ring on ${mode === "scan" ? "your" : "another"} phone, tap ‘Add Pubky’, then ‘Scan signup QR’ to create your account.`
-          : "Open Pubky Ring to create your account. Pubky Ring is a mobile keychain that lets you securely authorize web services and apps."
+        <>
+          {scanning
+            ? `Open Pubky Ring on ${mode === "scan" ? "your" : "another"} phone, tap ‘Add Pubky’, then ‘Scan signup QR’.`
+            : "Open Pubky Ring to create your account."}{" "}
+          {/* Someone without the app needs it before the code or link below can work. */}
+          No Pubky Ring yet?{" "}
+          <Button
+            className="inline min-h-0 py-0 align-baseline text-[length:inherit] leading-[inherit] pointer-coarse:min-h-0"
+            onClick={() => setStep("install")}
+            variant="link"
+          >
+            Install it
+          </Button>
+        </>
       }
     >
       <RingHandoff labels={SIGNUP_LABELS} launcher={launcher} url={url} />
-      <p className="text-sm text-muted-foreground">
-        After creating your account in Ring, continue here to set up your public profile.
+      {/* The second approval comes as a surprise otherwise: signup alone does not connect. */}
+      <p className="flex gap-2 text-sm leading-5 text-muted-foreground" role="status">
+        <Spinner className="mt-0.5 size-4 shrink-0" decorative />
+        <span>
+          Waiting for Pubky Ring. It asks you twice: to create the account, then to let Passport
+          edit your profile.
+        </span>
       </p>
       <PassportNavigation
         className="mt-auto md:mt-0"
         back={<BackButton onClick={onBack} />}
         confirm={
-          <Button className="w-full" size="lg" onClick={() => setStep("profile")}>
+          // Secondary: Passport notices the signup itself, this only covers a lookup that can't.
+          <Button
+            className="w-full"
+            onClick={() => setStep("profile")}
+            size="lg"
+            variant="secondary"
+          >
             <ArrowRightIcon />
-            Continue to profile
-          </Button>
-        }
-        tertiary={
-          <Button onClick={() => setStep("install")} variant="link">
-            Install Pubky Ring
+            I’ve finished in Pubky Ring
           </Button>
         }
       />

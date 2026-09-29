@@ -41,25 +41,25 @@ export function ProviderTerms() {
       Homeserver provider:{" "}
       {provider.termsUrl ? (
         <a
-          aria-label={`Terms of service ${WHOSE}`}
+          aria-label={`Terms of Service ${WHOSE}`}
           className={PROVIDER_LINK_CLASS_NAME}
           href={provider.termsUrl}
           target="_blank"
           rel="noopener noreferrer"
         >
-          Terms of service
+          Terms of Service
         </a>
       ) : null}
       {provider.termsUrl && provider.privacyUrl ? " · " : null}
       {provider.privacyUrl ? (
         <a
-          aria-label={`Privacy policy ${WHOSE}`}
+          aria-label={`Privacy Policy ${WHOSE}`}
           className={PROVIDER_LINK_CLASS_NAME}
           href={provider.privacyUrl}
           target="_blank"
           rel="noopener noreferrer"
         >
-          Privacy policy
+          Privacy Policy
         </a>
       ) : null}
     </p>

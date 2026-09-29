@@ -63,7 +63,7 @@ it("keeps the Ring grant when saving its identity opens the profile editor", asy
   expect(createRingProfileController).toHaveBeenCalledWith(RELAY);
   expect(ring.isConnected(KEY)).toBe(true);
   expect(connection.dispose).not.toHaveBeenCalled();
-  await user.click(screen.getByRole("button", { name: "Finish" }));
+  await user.click(screen.getByRole("button", { name: "Save profile" }));
   await waitFor(() => expect(connection.publish).toHaveBeenCalledOnce());
   await waitFor(() =>
     expect(expectResultOk(repository.list()).identities[0]?.profileSetupRequired).toBeUndefined(),
@@ -93,7 +93,7 @@ it("returns to the Ring connection when the profile grant has been revoked", asy
   const user = userEvent.setup();
   await user.click(await screen.findByRole("button", { name: "Set up profile" }));
   await user.type(await screen.findByLabelText("Name"), "Ring Satoshi");
-  await user.click(screen.getByRole("button", { name: "Finish" }));
+  await user.click(screen.getByRole("button", { name: "Save profile" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Your connection to Ring has ended");
   expect(connection.dispose).toHaveBeenCalledOnce();
   await user.click(screen.getByRole("button", { name: "Connect Ring" }));

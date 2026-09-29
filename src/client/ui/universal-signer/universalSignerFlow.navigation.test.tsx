@@ -389,8 +389,11 @@ describe("UniversalSignerFlow identity navigation", () => {
 
     await user.click(screen.getByRole("button", { name: "Manage identity" }));
     await user.click(await screen.findByRole("button", { name: "Republish homeserver" }));
-    expect(screen.getByRole("region", { name: /^Point this pubky/ })).toHaveTextContent(published);
-    await user.click(screen.getByRole("button", { name: "Publish record" }));
+    // A remembered homeserver is its own answer; the provider's is a question for the person.
+    expect(
+      screen.getByRole("region", { name: /^(Point this pubky|Was this pubky created)/ }),
+    ).toHaveTextContent(published);
+    await user.click(screen.getByRole("button", { name: /^(Yes, publish|Publish) record$/ }));
 
     expect(await screen.findByText("Homeserver record republished.")).toBeInTheDocument();
     expect(FLOW.republished).toEqual([["identity", published]]);

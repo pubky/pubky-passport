@@ -83,6 +83,55 @@ describe("HomegateSignupController", () => {
     expect(listener).toHaveBeenCalled();
   });
 
+  it("remembers a number Homegate refused outright until a code is sent", async () => {
+    const { controller, verification } = setup();
+    controller.chooseSms();
+    verification.sendSmsCode.mockResolvedValueOnce(failure("weekly_limit_exceeded"));
+    await controller.sendSmsCode("+41791234567");
+    expect(controller.getState()).toMatchObject({
+      error: "weekly_limit_exceeded",
+      phoneRefusal: { phoneNumber: "+41791234567", code: "weekly_limit_exceeded" },
+    });
+
+    // Editing the number drops the shown error; the refusal of that number stays known.
+    controller.clearError();
+    expect(controller.getState()).toMatchObject({
+      error: null,
+      phoneRefusal: { phoneNumber: "+41791234567" },
+    });
+
+    // A passing problem with the service is no refusal of the number.
+    verification.sendSmsCode.mockResolvedValueOnce(failure("rate_limited"));
+    await controller.sendSmsCode("+41790000000");
+    expect(controller.getState().phoneRefusal?.phoneNumber).toBe("+41791234567");
+
+    await controller.sendSmsCode("+41790000000");
+    expect(controller.getState()).toMatchObject({ view: { step: "code" }, phoneRefusal: null });
+  });
+
+  it("unlocks Resend at once when the code expired", async () => {
+    const { controller, verification } = setup();
+    controller.chooseSms();
+    await controller.sendSmsCode("+41791234567");
+    expect(controller.getState().view).toMatchObject({ resendAt: START + 30_000 });
+
+    vi.advanceTimersByTime(5_000);
+    verification.verifySmsCode.mockResolvedValueOnce(failure("invalid_code"));
+    await controller.verifySmsCode("+41791234567", "000000");
+    expect(controller.getState().view).toMatchObject({ resendAt: START + 30_000 });
+
+    verification.verifySmsCode.mockResolvedValueOnce(failure("verification_expired"));
+    await controller.verifySmsCode("+41791234567", "000000");
+    expect(controller.getState()).toMatchObject({
+      error: "verification_expired",
+      view: { step: "code", phoneNumber: "+41791234567", resendAt: START + 5_000 },
+    });
+    // Coming back to the same number reuses the unlocked challenge, not the old countdown.
+    controller.back();
+    controller.continueWithPhone("+41791234567");
+    expect(controller.getState().view).toMatchObject({ resendAt: START + 5_000 });
+  });
+
   it("prevents duplicate sends and ignores a late response after going back", async () => {
     const { controller, verification } = setup();
     let finish!: () => void;

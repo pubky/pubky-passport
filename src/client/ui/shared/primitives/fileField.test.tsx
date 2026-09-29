@@ -72,4 +72,17 @@ describe("FileField", () => {
       "has-[:disabled]:opacity-50",
     );
   });
+
+  it("never shows a kept file the browser cannot put back into the input", () => {
+    // jsdom, like browsers without a DataTransfer constructor, cannot fill a file input.
+    render(
+      <>
+        <label htmlFor="kept">Pubky backup</label>
+        <FileField defaultFile={new File(["backup"], "pubky-kept.pkarr")} id="kept" />
+      </>,
+    );
+    expect(screen.getByText("No file chosen")).toBeInTheDocument();
+    expect(screen.queryByText(/pubky-kept/u)).not.toBeInTheDocument();
+    expect((screen.getByLabelText("Pubky backup") as HTMLInputElement).files).toHaveLength(0);
+  });
 });

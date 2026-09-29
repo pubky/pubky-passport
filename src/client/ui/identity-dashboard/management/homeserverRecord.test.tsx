@@ -27,7 +27,7 @@ describe("HomeserverRecord", () => {
     vi.restoreAllMocks();
   });
 
-  it("keeps the copy control disabled until the record resolves, then copies it", async () => {
+  it("offers copying only once the record resolves, then copies it", async () => {
     const writeText = vi.fn(() => Promise.resolve());
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     let settleLookup!: (value: string) => void;
@@ -38,12 +38,12 @@ describe("HomeserverRecord", () => {
         }),
     });
 
-    const copy = screen.getByRole("button", { name: "Copy Homeserver" });
-    expect(screen.getByText("Looking up…")).toBeInTheDocument();
-    expect(copy).toBeDisabled();
+    // A status reads as one, with a spinner, and has nothing to copy.
+    expect(screen.getByText("Looking up…")).toHaveClass("text-muted-foreground");
+    expect(screen.queryByRole("button", { name: "Copy Homeserver" })).not.toBeInTheDocument();
 
     settleLookup(OTHER_HOMESERVER);
-    await waitFor(() => expect(copy).toBeEnabled());
+    const copy = await screen.findByRole("button", { name: "Copy Homeserver" });
     fireEvent.click(copy);
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(OTHER_HOMESERVER));
     expect(MOCKS.toastInfo).toHaveBeenCalledWith("Homeserver copied");
@@ -67,11 +67,11 @@ describe("HomeserverRecord", () => {
     const republishHomeserver = vi.fn(async () => Result.ok(PROVIDER_HOMESERVER));
     renderRecord({ republishHomeserver, resolveHomeserver });
 
-    expect(await screen.findByText("Lookup failed")).toBeInTheDocument();
+    expect(await screen.findByText("Couldn’t check")).toBeInTheDocument();
     expect(
       screen.getByText(/could not look up this pubky's homeserver record/),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Copy Homeserver" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Copy Homeserver" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Republish homeserver" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Retry lookup" }));
@@ -92,7 +92,7 @@ describe("HomeserverRecord", () => {
       },
     });
 
-    await screen.findByText("Lookup failed");
+    await screen.findByText("Couldn’t check");
     expect(warning).toHaveBeenCalledWith(
       "identity.management.failed",
       expect.objectContaining({
@@ -104,33 +104,37 @@ describe("HomeserverRecord", () => {
     expect(JSON.stringify(warning.mock.calls)).not.toContain("SECRET-HOMESERVER-CANARY");
   });
 
-  it("confirms the exact homeserver before republishing a missing record", async () => {
+  it("asks whether the pubky was created on this homeserver before republishing a missing record", async () => {
     const republishHomeserver = vi.fn(async () => Result.ok(PROVIDER_HOMESERVER));
     renderRecord({ republishHomeserver, resolveHomeserver: async () => Result.ok(null) });
 
-    expect(await screen.findByText("No record found")).toBeInTheDocument();
+    // A missing record is marked as a problem, not shown like a value.
+    const missing = await screen.findByText("No record found");
+    expect(missing.querySelector('[data-slot="icon"]')).toHaveClass("text-warning");
+    expect(screen.getByText(/apps cannot find your profile/u)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Republish homeserver" }));
-    const confirmation = screen.getByRole("region", {
-      name: "Point this pubky at this homeserver?",
-    });
+    // An account made through this Passport may use another homeserver, so the question names it.
+    const question = "Was this pubky created on this Passport’s homeserver?";
+    const confirmation = screen.getByRole("region", { name: question });
     expect(confirmation).toHaveTextContent(PROVIDER_HOMESERVER);
-    expect(confirmation).toHaveTextContent("Only continue if your account was created on");
-    // Publishing a wrong homeserver misdirects apps: the caution is a callout, not helper text.
+    expect(confirmation).toHaveTextContent(
+      "Choose Yes only if you signed up here without entering a different homeserver.",
+    );
+    // Unsure means no: the caution says so, as a callout rather than helper text.
     expect(
       within(confirmation)
-        .getByText(/Only continue if/u)
+        .getByText(/If you’re not sure, cancel/u)
         .closest("[data-tone]"),
     ).toHaveAttribute("data-tone", "warning");
-    expect(
-      screen.getByRole("heading", { name: "Point this pubky at this homeserver?" }),
-    ).toHaveFocus();
+    expect(screen.getByRole("heading", { name: question })).toHaveFocus();
+    expect(screen.getByRole("button", { name: /Yes, publish record/u })).toHaveClass("bg-brand/16");
     expect(republishHomeserver).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("region")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Republish homeserver" })).toHaveFocus();
     fireEvent.click(screen.getByRole("button", { name: "Republish homeserver" }));
-    fireEvent.click(screen.getByRole("button", { name: "Publish record" }));
+    fireEvent.click(screen.getByRole("button", { name: /Yes, publish record/u }));
     expect(screen.getByRole("button", { name: "Republishing…" })).toHaveAttribute(
       "aria-busy",
       "true",
@@ -174,12 +178,21 @@ describe("HomeserverRecord", () => {
   );
 
   it.each([
-    ["no provider homeserver", { providerHomeserver: undefined }],
-    ["no signing key", { republishHomeserver: undefined }],
-  ])("does not offer republishing with %s", async (_, props) => {
+    [
+      "no provider homeserver",
+      { providerHomeserver: undefined },
+      "repair it from the app or service you created it with",
+    ],
+    [
+      "no signing key",
+      { republishHomeserver: undefined },
+      "only Pubky Ring can publish the record again",
+    ],
+  ])("explains a missing record it cannot repair, with %s", async (_, props, explanation) => {
     renderRecord({ ...props, resolveHomeserver: async () => Result.ok(null) });
 
     expect(await screen.findByText("No record found")).toBeInTheDocument();
+    expect(screen.getByText(/apps cannot find your profile/u)).toHaveTextContent(explanation);
     expect(screen.queryByRole("button", { name: "Republish homeserver" })).not.toBeInTheDocument();
   });
 
@@ -220,7 +233,7 @@ describe("HomeserverRecord", () => {
     await republishConfirmed();
 
     expect(await screen.findByRole("alert")).toHaveTextContent("nothing was published");
-    expect(screen.getByText("Lookup failed")).toBeInTheDocument();
+    expect(screen.getByText("Couldn’t check")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry lookup" })).toHaveFocus();
     expect(screen.queryByRole("button", { name: "Republish homeserver" })).not.toBeInTheDocument();
   });
@@ -262,7 +275,7 @@ describe("HomeserverRecord", () => {
       "https://acme.example/storage",
     );
     expect(
-      screen.getByRole("link", { name: /^Terms of service of the homeserver provider/u }),
+      screen.getByRole("link", { name: /^Terms of Service of the homeserver provider/u }),
     ).toBeInTheDocument();
 
     cleanup();
@@ -277,7 +290,7 @@ describe("HomeserverRecord", () => {
 
 async function republishConfirmed() {
   fireEvent.click(await screen.findByRole("button", { name: "Republish homeserver" }));
-  fireEvent.click(screen.getByRole("button", { name: "Publish record" }));
+  fireEvent.click(screen.getByRole("button", { name: /Yes, publish record/u }));
 }
 
 function renderRecord(

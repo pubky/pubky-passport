@@ -58,7 +58,7 @@ test("profile setup follows Figma, preserves identity on reload and failed saves
   await page.getByLabel("Name", { exact: true }).fill(PROFILE.name);
   await page.getByLabel("Choose avatar file").setInputFiles("e2e/fixtures/profile-avatar.png");
   // The avatar is re-encoded in the browser, then the homeserver answers the session with a 503.
-  await page.getByRole("button", { name: "Finish", exact: true }).click();
+  await page.getByRole("button", { name: "Save profile", exact: true }).click();
   await expect(page.locator("main").getByRole("alert")).toContainText(
     "Could not save your profile",
     {
@@ -109,9 +109,9 @@ test("marks each invalid field where it is, with the limits shown before saving"
   await page.getByRole("button", { name: "Add link" }).click();
   await page.getByLabel("Link 3 URL").fill("https://github.com/satoshi");
 
-  // The popup: Finish sits far below the Name field it has to point back to.
+  // The popup: Save profile sits far below the Name field it has to point back to.
   await page.setViewportSize({ width: 520, height: 760 });
-  await page.getByRole("button", { name: "Finish", exact: true }).click();
+  await page.getByRole("button", { name: "Save profile", exact: true }).click();
   await expect(name).toBeFocused();
   await expect(refusal).toHaveText("4 fields need changes. Name: Enter a name of 3–50 characters.");
   await expect(name).toBeInViewport({ ratio: 1 });
@@ -138,7 +138,7 @@ test("marks each invalid field where it is, with the limits shown before saving"
   await page.getByLabel("Link 3 title").fill("GitHub");
   expect(writes).toEqual([]);
   // Every field passes, so the save runs and meets the unavailable homeserver.
-  await page.getByRole("button", { name: "Finish", exact: true }).click();
+  await page.getByRole("button", { name: "Save profile", exact: true }).click();
   await expect(page.locator("main").getByRole("alert")).toContainText(
     "Could not save your profile",
     { timeout: 15000 },
@@ -209,7 +209,7 @@ test("profile form stays accessible in narrow and short windows with five links"
     const mainBox = await page.locator("main").boundingBox();
     const footerBox = await footer.boundingBox();
     expect(footerBox!.y).toBeGreaterThanOrEqual(mainBox!.y + mainBox!.height - 1);
-    // The bar pinned below md keeps Back and Finish in one row, so it covers little of the form.
+    // The bar pinned below md keeps Back and Save profile in one row, so it covers little of the form.
     if (viewport.width < 768)
       expect((await page.locator("[data-sticky-actions]").boundingBox())!.height).toBeLessThan(100);
     await page.screenshot({
@@ -324,7 +324,7 @@ for (const [name, viewport, entry] of [
     `/authorize#d=${encodeURIComponent(APP_REQUEST)}`,
   ],
 ] as const) {
-  test(`right after an account is created, Finish later stays in view in ${name}`, async ({
+  test(`right after an account is created, it says so, and Skip for now stays in view in ${name}`, async ({
     page,
   }) => {
     test.setTimeout(60_000);
@@ -343,15 +343,30 @@ for (const [name, viewport, entry] of [
     await page.getByRole("button", { name: "Download encrypted backup" }).click();
     await page.getByRole("button", { name: "Skip this check (not recommended)" }).click();
 
-    await expect(page.getByRole("heading", { name: "Create your profile." })).toBeVisible({
+    // First the account exists: its pubky, and both ways on, all in the first screenful.
+    await expect(page.getByRole("heading", { name: "Account created." })).toBeVisible({
       timeout: 20_000,
     });
+    await expect(page.getByText(/Your key is saved in this browser/u)).toBeVisible();
+    // During the app's request it also says that skipping goes on to that sign-in.
+    await expect(page.getByText(/skip it and continue signing in/u)).toHaveCount(
+      entry === "/" ? 0 : 1,
+    );
+    for (const name of ["Skip for now", "Add a public profile"]) {
+      const box = (await page.getByRole("button", { name }).boundingBox())!;
+      expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+    }
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    await page.getByRole("button", { name: "Add a public profile" }).click();
+    await expect(page.getByRole("heading", { name: "Create your profile." })).toBeVisible();
     await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
-    // No Back here: Finish later is the one way on without a profile, so it shares the pinned
-    // bar with Finish, in one row, in the first screenful above the long form.
+    // No Back here: Skip for now is the one way on without a profile, so it shares the pinned
+    // bar with Save profile, in one row, in the first screenful above the long form.
     await expect(page.getByRole("button", { name: "Back", exact: true })).toHaveCount(0);
-    const later = (await page.getByRole("button", { name: "Finish later" }).boundingBox())!;
-    const finish = (await page.getByRole("button", { name: "Finish", exact: true }).boundingBox())!;
+    const later = (await page.getByRole("button", { name: "Skip for now" }).boundingBox())!;
+    const finish = (await page
+      .getByRole("button", { name: "Save profile", exact: true })
+      .boundingBox())!;
     for (const box of [later, finish]) {
       expect(box.y).toBeGreaterThanOrEqual(0);
       expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);

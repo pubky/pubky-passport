@@ -253,6 +253,35 @@ function DownloadIcon(props: IconProps) {
   );
 }
 
+function EyeIcon(props: IconProps) {
+  return (
+    <Glyph height={16} viewBox="0 0 24 24" width={16} {...props}>
+      <path
+        d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
+    </Glyph>
+  );
+}
+
+function EyeOffIcon(props: IconProps) {
+  return (
+    <Glyph height={16} viewBox="0 0 24 24" width={16} {...props}>
+      <path
+        d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49M14.084 14.158a3 3 0 0 1-4.242-4.242M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143M2 2l20 20"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </Glyph>
+  );
+}
+
 function FileTextIcon(props: IconProps) {
   const size = props.size ?? 16;
 
@@ -510,6 +539,8 @@ export {
   CopyIcon,
   DownloadRecoveryFileIcon,
   DownloadIcon,
+  EyeIcon,
+  EyeOffIcon,
   FileTextIcon,
   FolderIcon,
   KeyRoundIcon,

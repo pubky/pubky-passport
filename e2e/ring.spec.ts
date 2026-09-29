@@ -40,7 +40,7 @@ test("adds an existing Ring identity from the home page with a write-only grant,
   await page.goto("/");
   await page.getByRole("button", { name: "Sign in with Pubky Ring" }).click();
   await expect(page.getByRole("heading", { name: "Connect your Ring." })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Finish later" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Skip for now" })).toHaveCount(0);
 
   const request = await profileConnectionRequest(page);
   expect(request.searchParams.get("caps")?.split(",")).toEqual(PROFILE_CAPABILITIES);
