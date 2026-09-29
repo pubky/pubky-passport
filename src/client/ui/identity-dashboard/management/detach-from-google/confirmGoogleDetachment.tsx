@@ -4,9 +4,14 @@ import { googleIdentityErrorMessage } from "@/client/ui/googleIdentityErrorMessa
 import { ConfirmDeletionDialog } from "@/client/ui/shared/confirmDeletionDialog";
 import { TechnicalDetails } from "@/client/ui/shared/errorScreen";
 
+/**
+ * The last step before Google's window opens: it names the account to choose there, so a person
+ * with several Google accounts picks the one holding this backup.
+ */
 function ConfirmGoogleDetachment({
   canConfirm,
   canRetryAuthorization,
+  email,
   error,
   onCancel,
   onConfirm,
@@ -16,6 +21,8 @@ function ConfirmGoogleDetachment({
 }: {
   canConfirm: boolean;
   canRetryAuthorization: boolean;
+  /** The Google account attached to this pubky. */
+  email: string;
   error: GoogleIdentityViewError | null;
   onCancel: () => void;
   onConfirm: () => void;
@@ -28,8 +35,12 @@ function ConfirmGoogleDetachment({
       canConfirm={canConfirm}
       confirmLabel="Confirm detachment"
       confirmationWord="DETACH"
-      description={`${DRIVE_PERMISSION_HINT} Passport needs both to delete your backup and its visible copies.`}
-      error={error === null ? undefined : googleIdentityErrorMessage(error.code)}
+      description={`Google’s window will open: sign in as ${email}. ${DRIVE_PERMISSION_HINT} Passport needs both to delete the encrypted backup and its copy in your “Pubky Passport” folder. You stay signed in on this device.`}
+      error={
+        error === null
+          ? undefined
+          : googleIdentityErrorMessage(error, { operation: "detach", email })
+      }
       errorDetails={
         error === null ? undefined : (
           <TechnicalDetails code={error.code} detail={error.detailCode} />
@@ -40,11 +51,11 @@ function ConfirmGoogleDetachment({
       onConfirm={onConfirm}
       open={open}
       pending={pending}
-      pendingLabel="Removing…"
+      pendingLabel="Detaching…"
       retryAction={
         canRetryAuthorization ? { label: "Try again", onClick: onRetryAuthorization } : undefined
       }
-      title="Remove Google Access"
+      title="Detach from Google?"
     />
   );
 }

@@ -3,6 +3,9 @@ import type { HomegateSignupTokenErrorCode } from "@/client/logic/homegate/Homeg
 import type { GoogleWrappingKeyErrorCode } from "@/client/logic/wrapping-key/GoogleWrappingKeyApiClient";
 import type { GoogleImplicitAuthorizationError } from "./gia/GoogleImplicitAuthorization";
 
+/** Why Passport asked Homegate for a signup invitation. */
+export type SignupInvitationFlow = "create" | "repair";
+
 /** Failure produced by the lifecycle layer, before the controller strips diagnostics. */
 export type GoogleIdentityLifecycleError =
   | {
@@ -19,6 +22,12 @@ export type GoogleIdentityLifecycleError =
   | {
       code: "homeserver_signup_token_failed";
       detailCode: HomegateSignupTokenErrorCode;
+      /**
+       * `create` asked for a new pubky's invitation, before anything was written. `repair` asked for
+       * one to finish setting up a pubky restored from Drive whose homeserver signup never
+       * completed, so that pubky exists and stays in Drive.
+       */
+      flow: SignupInvitationFlow;
       cause?: unknown;
     }
   | CodedFailure<
@@ -74,10 +83,18 @@ export type GoogleIdentityViewError = {
   detailCode?: GoogleIdentityErrorDetailCode;
   /** Normalized origin of the Passport that wrote a foreign Drive file. */
   passportFileOrigin?: string;
+  /** For a signup invitation failure, whether a pubky already existed (see the lifecycle error). */
+  flow?: SignupInvitationFlow;
 };
 
-/** Drops `cause` and other diagnostic fields. Keeps `code`, `detailCode`, and `passportFileOrigin`. */
+/**
+ * Drops `cause` and other diagnostic fields. Keeps `code`, `detailCode`, `passportFileOrigin`, and
+ * a signup invitation's `flow`.
+ */
 export function withoutCause(error: GoogleIdentityError): GoogleIdentityViewError {
+  if (error.code === "homeserver_signup_token_failed") {
+    return { code: error.code, detailCode: error.detailCode, flow: error.flow };
+  }
   if ("detailCode" in error) return { code: error.code, detailCode: error.detailCode };
   if ("passportFileOrigin" in error) {
     return { code: error.code, passportFileOrigin: error.passportFileOrigin };

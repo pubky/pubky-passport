@@ -77,13 +77,13 @@ describe("GoogleDrivePermissionPrompt", () => {
     expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([
       "Back",
       "Try again",
-      "Continue without visible backup",
+      "Skip the folder copy",
       "Play",
     ]);
     const user = userEvent.setup();
     await user.tab();
     expect(screen.getByRole("button", { name: "Back" })).toHaveFocus();
-    await user.click(screen.getByRole("button", { name: "Continue without visible backup" }));
+    await user.click(screen.getByRole("button", { name: "Skip the folder copy" }));
     await user.click(screen.getByRole("button", { name: "Try again" }));
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(onContinue).toHaveBeenCalledOnce();

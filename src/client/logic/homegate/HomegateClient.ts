@@ -12,6 +12,8 @@ export type HomegateSignupTokenErrorCode =
   | "invalid_google_id_token"
   | "weekly_limit_exceeded"
   | "annual_limit_exceeded"
+  /** Refused for the person's region by the deployment in front of Homegate. */
+  | "blocked"
   | "homegate_invalid_request"
   | "homeserver_unavailable"
   | "google_verifier_unavailable"
@@ -56,9 +58,13 @@ export class HomegateClient {
   }
 }
 
-function mapHomegateError(body: string | null): HomegateSignupTokenErrorCode {
-  if (body === null) return "homegate_unavailable";
-  switch (body.trim()) {
+/**
+ * Homegate names its own failures in a plaintext body. It never answers this route with 403
+ * itself: a 403 without one of its codes comes from the deployment's proxy, which blocks regions
+ * that way, as the availability probe also assumes.
+ */
+function mapHomegateError(body: string | null, status: number): HomegateSignupTokenErrorCode {
+  switch (body?.trim()) {
     case "invalid_request":
       return "homegate_invalid_request";
     case "invalid_google_id_token":
@@ -73,9 +79,9 @@ function mapHomegateError(body: string | null): HomegateSignupTokenErrorCode {
       return "google_verifier_unavailable";
     case "internal_error":
       return "homegate_unavailable";
-    default:
-      return "malformed_homegate_response";
   }
+  if (status === 403) return "blocked";
+  return body === null ? "homegate_unavailable" : "malformed_homegate_response";
 }
 
 function isValidGoogleIdToken(value: string): boolean {

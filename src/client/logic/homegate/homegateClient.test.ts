@@ -172,6 +172,24 @@ describe("HomegateClient", () => {
     },
   );
 
+  it("maps a proxy's 403 to a regional block, but keeps Homegate's own codes", async () => {
+    for (const [response, code] of [
+      [new Response("<html>403 Forbidden</html>", { status: 403 }), "blocked"],
+      [new Response(null, { status: 403 }), "blocked"],
+      [new Response("weekly_limit_exceeded", { status: 403 }), "weekly_limit_exceeded"],
+      [new Response("<html>Forbidden</html>", { status: 500 }), "malformed_homegate_response"],
+    ] as const) {
+      const client = new HomegateClient(
+        HOMEGATE_BASE_URL,
+        new SanitizedFetchRecorder(response).fetch,
+      );
+
+      const result = await client.requestGoogleSignupToken("id-token");
+
+      expect(Result.isError(result) && result.error.code).toBe(code);
+    }
+  });
+
   it("logs an unknown Homegate body only as closed response metadata", async () => {
     const warn = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
     const client = new HomegateClient(

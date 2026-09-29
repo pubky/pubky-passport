@@ -16,6 +16,7 @@ describe("ConfirmGoogleDetachment", () => {
       <ConfirmGoogleDetachment
         canConfirm
         canRetryAuthorization={false}
+        email="alex@example.com"
         error={null}
         onCancel={vi.fn()}
         onConfirm={onConfirm}
@@ -25,10 +26,11 @@ describe("ConfirmGoogleDetachment", () => {
       />,
     );
 
-    const heading = await screen.findByRole("heading", { name: "Remove Google Access" });
+    const heading = await screen.findByRole("heading", { name: "Detach from Google?" });
     expect(heading).toBeInTheDocument();
+    // Names the account to choose in Google's window, for people with several.
     expect(screen.getByRole("dialog")).toHaveAccessibleDescription(
-      `${DRIVE_PERMISSION_HINT} Passport needs both to delete your backup and its visible copies.`,
+      `Google’s window will open: sign in as alex@example.com. ${DRIVE_PERMISSION_HINT} Passport needs both to delete the encrypted backup and its copy in your “Pubky Passport” folder. You stay signed in on this device.`,
     );
     const confirm = screen.getByRole("button", { name: "Confirm detachment" });
     expect(confirm).toBeDisabled();
@@ -48,6 +50,7 @@ describe("ConfirmGoogleDetachment", () => {
       <ConfirmGoogleDetachment
         canConfirm
         canRetryAuthorization={false}
+        email="alex@example.com"
         error={null}
         onCancel={onCancel}
         onConfirm={vi.fn()}
@@ -68,6 +71,7 @@ describe("ConfirmGoogleDetachment", () => {
       <ConfirmGoogleDetachment
         canConfirm={false}
         canRetryAuthorization
+        email="alex@example.com"
         error={{ code: "authorization_failed" }}
         onCancel={vi.fn()}
         onConfirm={vi.fn()}
@@ -86,11 +90,36 @@ describe("ConfirmGoogleDetachment", () => {
     expect(confirmation).not.toHaveAttribute("aria-invalid");
   });
 
+  it("reports a different Google account as such, naming the one to choose", async () => {
+    const onRetryAuthorization = vi.fn();
+    render(
+      <ConfirmGoogleDetachment
+        canConfirm={false}
+        canRetryAuthorization
+        email="alex@example.com"
+        error={{ code: "google_account_mismatch" }}
+        onCancel={vi.fn()}
+        onConfirm={vi.fn()}
+        onRetryAuthorization={onRetryAuthorization}
+        open
+        pending={false}
+      />,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "You chose a different Google account. To remove this backup, choose alex@example.com in Google’s window.",
+    );
+    expect(screen.getByRole("alert")).not.toHaveTextContent(/connect/u);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
+    expect(onRetryAuthorization).toHaveBeenCalledOnce();
+  });
+
   it("shows user copy and keeps the safe error code in collapsed technical details", async () => {
     render(
       <ConfirmGoogleDetachment
         canConfirm
         canRetryAuthorization={false}
+        email="alex@example.com"
         error={{ code: "google_drive_cleanup_failed" }}
         onCancel={vi.fn()}
         onConfirm={vi.fn()}
@@ -101,7 +130,7 @@ describe("ConfirmGoogleDetachment", () => {
     );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Could not remove Google access. Please try again.",
+      "Passport couldn’t finish deleting the backup from Google Drive. This pubky is still attached to alex@example.com. Try again.",
     );
     expect(screen.getByRole("alert")).not.toHaveTextContent("google_drive_cleanup_failed");
     const details = screen.getByText("Technical details").closest("details");
@@ -113,6 +142,7 @@ describe("ConfirmGoogleDetachment", () => {
     const props = {
       canConfirm: true,
       canRetryAuthorization: false,
+      email: "alex@example.com",
       onCancel: vi.fn(),
       onConfirm: vi.fn(),
       onRetryAuthorization: vi.fn(),
@@ -120,7 +150,7 @@ describe("ConfirmGoogleDetachment", () => {
     };
     const { rerender } = render(<ConfirmGoogleDetachment {...props} error={null} pending />);
 
-    const confirm = await screen.findByRole("button", { name: "Removing…" });
+    const confirm = await screen.findByRole("button", { name: "Detaching…" });
     expect(confirm).toHaveAttribute("aria-busy", "true");
     expect(confirm).toBeEnabled();
     expect(screen.getByLabelText("Type DETACH to confirm")).toHaveAttribute("readonly");
@@ -135,7 +165,7 @@ describe("ConfirmGoogleDetachment", () => {
     const alert = screen.getByRole("alert");
     expect(alert).toHaveFocus();
     expect(screen.getByLabelText("Type DETACH to confirm")).toHaveAccessibleDescription(
-      "Could not remove Google access. Please try again.",
+      "Passport couldn’t finish deleting the backup from Google Drive. This pubky is still attached to alex@example.com. Try again.",
     );
   });
 });

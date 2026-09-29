@@ -1,6 +1,14 @@
+import { E2E_PORT } from "./helpers/e2eServer";
 import { storeLocalIdentities } from "./helpers/localIdentities";
-import { expect, test, type Page } from "./helpers/passportTest";
-import { mockPublicProfile, PROFILE_KEY, seedProfileIdentity } from "./helpers/pubkyProfile";
+import { PKARR_RELAY_HOSTS } from "./helpers/network";
+import { expect, test, type BrowserContext, type Page } from "./helpers/passportTest";
+import {
+  HOMESERVER,
+  homeserverRecord,
+  mockPublicProfile,
+  PROFILE_KEY,
+  seedProfileIdentity,
+} from "./helpers/pubkyProfile";
 
 const FIRST_KEY = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
 const GOOGLE_ACCOUNT = {
@@ -34,6 +42,124 @@ async function seedGoogleIdentity(page: Page, publicKeyZ32 = FIRST_KEY): Promise
   await page.goto("/terms-of-service");
   await storeLocalIdentities(page, [{ publicKeyZ32, googleAccount: GOOGLE_ACCOUNT }], {
     active: publicKeyZ32,
+  });
+}
+
+/**
+ * A Passport file names an HTTPS origin, so creating a Google identity runs here, an origin every
+ * request of which is answered by the e2e server.
+ */
+const SECURE_ORIGIN = "https://passport.test";
+
+/**
+ * Plays the network for creating an identity with Google on {@link SECURE_ORIGIN}: Google grants
+ * only the first Drive permission, Drive starts empty, Passport's server and Homegate answer, and
+ * the test homeserver accepts the signup and signs the new key in.
+ */
+async function mockGoogleCreation(context: BrowserContext): Promise<void> {
+  await context.route(`${SECURE_ORIGIN}/**`, async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/wrapping-key/google") {
+      return route.fulfill({
+        json: { wrappingKey: Buffer.alloc(32, 7).toString("base64url"), keyId: "e2e" },
+      });
+    }
+    const response = await route.fetch({
+      url: `http://127.0.0.1:${E2E_PORT}${url.pathname}${url.search}`,
+      maxRedirects: 0,
+    });
+    return route.fulfill({ response });
+  });
+  await context.route("https://accounts.google.com/o/oauth2/v2/auth**", (route) => {
+    const request = new URL(route.request().url());
+    const claims = Buffer.from(
+      JSON.stringify({
+        sub: GOOGLE_ACCOUNT.googleSubject,
+        nonce: request.searchParams.get("nonce"),
+      }),
+    ).toString("base64url");
+    const callback = new URL(request.searchParams.get("redirect_uri")!);
+    callback.hash = new URLSearchParams({
+      access_token: "e2e-drive-token",
+      id_token: `header.${claims}.signature`,
+      state: request.searchParams.get("state")!,
+      scope: "openid email profile https://www.googleapis.com/auth/drive.appdata",
+      expires_in: "3600",
+    }).toString();
+    return route.fulfill({
+      contentType: "text/html",
+      body: `<!doctype html><script>location.replace(${JSON.stringify(callback.href)})</script>`,
+    });
+  });
+  await context.route("https://openidconnect.googleapis.com/v1/userinfo", (route) =>
+    route.fulfill({
+      json: {
+        sub: GOOGLE_ACCOUNT.googleSubject,
+        email: GOOGLE_ACCOUNT.email,
+        name: GOOGLE_ACCOUNT.name,
+      },
+    }),
+  );
+  // Drive holds nothing until Passport uploads its file, which later lists then return.
+  const driveFiles: { id: string; name: string; version: string }[] = [];
+  await context.route("https://www.googleapis.com/**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/upload/drive/v3/files") {
+      const file = { id: "passport-file", name: "passport.json", version: "1" };
+      driveFiles.push(file);
+      return route.fulfill({ json: file });
+    }
+    return route.fulfill({ json: { files: driveFiles } });
+  });
+  await context.route("**/google_verification", (route) =>
+    route.request().method() === "POST"
+      ? route.fulfill({ json: { signupCode: "G00G-1E51-GNVP", homeserverPubky: HOMESERVER } })
+      : route.fallback(),
+  );
+  // Records published for the new key are served back to later lookups.
+  const published = new Map<string, Buffer>();
+  await context.route(
+    (url) => PKARR_RELAY_HOSTS.has(url.hostname),
+    (route) => {
+      const key = new URL(route.request().url()).pathname.slice(1);
+      if (route.request().method() !== "GET") {
+        const record = route.request().postDataBuffer();
+        if (record) published.set(key, record);
+        return route.fulfill({ status: 200, body: "" });
+      }
+      const body = published.get(key) ?? homeserverRecord(key);
+      return route.fulfill(
+        body ? { status: 200, body, contentType: "application/octet-stream" } : { status: 404 },
+      );
+    },
+  );
+  await context.route("https://homeserver.example/**", (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname.startsWith("/signup_tokens/")) return route.fallback();
+    if (url.pathname === "/auth/grant/session" && request.method() === "POST") {
+      const { grant } = request.postDataJSON() as { grant: string };
+      const claims = JSON.parse(
+        Buffer.from(grant.split(".")[1]!, "base64url").toString("utf8"),
+      ) as { iss: string; client_id: string; caps: string[]; jti: string; exp: number };
+      const now = Math.floor(Date.now() / 1000);
+      return route.fulfill({
+        json: {
+          token: "e2e-bearer",
+          session: {
+            homeserver: HOMESERVER,
+            pubky: claims.iss,
+            client_id: claims.client_id,
+            capabilities: claims.caps,
+            grant_id: claims.jti,
+            token_expires_at: now + 3_600,
+            grant_expires_at: claims.exp,
+            created_at: now,
+          },
+        },
+      });
+    }
+    return route.fulfill({ status: request.method() === "GET" ? 404 : 200, body: "" });
   });
 }
 
@@ -158,9 +284,33 @@ test("the detach review's illustration stays inside a 768px window", async ({ pa
   await page.goto("/");
   await page.getByRole("button", { name: "Manage identity" }).click();
   await page.getByRole("button", { name: "Detach from Google" }).click();
-  await page.getByRole("button", { name: "I backed up my pubky" }).click();
+  await page.getByRole("checkbox", { name: /^I have this pubky in Pubky Ring/u }).check();
+  await page.getByRole("button", { name: "Continue to detach" }).click();
   await expect(page.getByRole("heading", { name: "Detach from Google." })).toBeVisible();
   expect(await horizontalOverflow(page)).toBe(0);
+});
+
+test("Backup ready keeps Continue inside the app's popup with the folder-copy note", async ({
+  context,
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 520, height: 760 });
+  await mockGoogleCreation(context);
+  await page.goto(`${SECURE_ORIGIN}${authorizeUrl(REQUEST)}`);
+  await page.getByRole("button", { name: "Continue with Google or import a backup" }).click();
+  await page.getByRole("button", { name: "Continue with Google", exact: true }).click();
+  // Only the first Drive permission: the backup is made without its folder copy.
+  await page.getByRole("button", { name: "Skip the folder copy" }).click();
+
+  await expect(page.getByRole("heading", { name: "Backup ready." })).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.getByText(/^No copy in your “Pubky Passport” Drive folder\./u)).toBeVisible();
+  const scrollY = await page.evaluate(() => window.scrollY);
+  const box = (await page.getByRole("button", { name: "Continue", exact: true }).boundingBox())!;
+  expect(scrollY).toBe(0);
+  expect(box.y + box.height).toBeLessThanOrEqual(760);
 });
 
 test("the Pubky Ring drawer fits a phone on its side", async ({ page }) => {

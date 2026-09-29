@@ -16,7 +16,7 @@ const PERMISSION_HINT = "Google will ask for two Drive permissions. Tick both.";
 /** An app's sign-in popup. */
 const POPUP = { width: 520, height: 760 };
 
-async function mockGoogleGrant(context: BrowserContext, scope: string) {
+async function mockGoogleGrant(context: BrowserContext, scope: string, subject = SUBJECT) {
   await context.route("https://accounts.google.com/o/oauth2/v2/auth**", async (route) => {
     const request = new URL(route.request().url());
     const redirectUri = request.searchParams.get("redirect_uri");
@@ -25,7 +25,7 @@ async function mockGoogleGrant(context: BrowserContext, scope: string) {
       throw new Error("Google authorization is missing its callback or state");
     const claims = Buffer.from(
       JSON.stringify({
-        sub: SUBJECT,
+        sub: subject,
         nonce: request.searchParams.get("nonce"),
       }),
     ).toString("base64url");
@@ -44,7 +44,11 @@ async function mockGoogleGrant(context: BrowserContext, scope: string) {
   });
   await context.route("https://openidconnect.googleapis.com/v1/userinfo", (route) =>
     route.fulfill({
-      json: { sub: SUBJECT, email: "test@example.com", name: "Test" },
+      json: {
+        sub: subject,
+        email: subject === SUBJECT ? "test@example.com" : "other@example.com",
+        name: "Test",
+      },
     }),
   );
 }
@@ -66,9 +70,7 @@ test("detachment requires both permissions using the shared screen", async ({
   await expect(page.getByRole("heading", { name: "Drive access required." })).toBeVisible();
   await expect(page.getByText(/both Google Drive permissions to delete/)).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Continue without visible backup" })).toHaveCount(
-    0,
-  );
+  await expect(page.getByRole("button", { name: "Skip the folder copy" })).toHaveCount(0);
   expect(driveRequests).toEqual([]);
   expect(
     await page.evaluate(
@@ -89,6 +91,47 @@ test("detachment requires both permissions using the shared screen", async ({
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Detach from Google." })).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+test("detaching names the attached account and reports another account as such", async ({
+  context,
+  page,
+}) => {
+  await mockGoogleGrant(context, `${APP_DATA_SCOPE} ${DRIVE_FILE_SCOPE}`, "another-google-account");
+  const driveRequests: string[] = [];
+  await context.route("https://www.googleapis.com/**", (route) => {
+    driveRequests.push(route.request().url());
+    return route.fulfill({ status: 403, json: { error: "unexpected Drive request" } });
+  });
+  await installBoundIdentity(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Manage identity", exact: true }).click();
+  await page.getByRole("button", { name: "Detach from Google" }).click();
+  // Nothing proves a backup yet: the way on waits for the person's acknowledgement.
+  const proceed = page.getByRole("button", { name: "Continue to detach" });
+  await expect(proceed).toBeDisabled();
+  await page.getByRole("checkbox", { name: /^I have this pubky in Pubky Ring/u }).check();
+  await proceed.click();
+  await expect(
+    page.getByRole("group", { name: "Attached Google account: test@example.com" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Detach from Google…" }).click();
+  const dialog = page.getByRole("dialog", { name: "Detach from Google?" });
+  await expect(dialog).toContainText("sign in as test@example.com");
+  await page.getByLabel("Type DETACH to confirm").fill("DETACH");
+  await page.getByRole("button", { name: "Confirm detachment" }).click();
+
+  await expect(dialog.getByRole("alert")).toHaveText(
+    "You chose a different Google account. To remove this backup, choose test@example.com in Google’s window.",
+  );
+  await expect(page.getByRole("button", { name: "Try again" })).toBeEnabled();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect(driveRequests).toEqual([]);
+  const identity = await page.evaluate(
+    ({ root, publicKey }) => localStorage.getItem(`${root}/identity/${publicKey}`),
+    { root: STORAGE_ROOT, publicKey: PUBLIC_KEY },
+  );
+  expect(JSON.parse(identity ?? "null")).toHaveProperty("googleAccount.googleSubject", SUBJECT);
 });
 
 test("detaching removes the Google backup and keeps the identity active in this browser", async ({
@@ -179,6 +222,64 @@ test("the waiting screen puts its actions first and cancels back to the entry", 
   await expect(page.getByText("google_authorization_popup_closed")).toHaveCount(0);
 });
 
+test("closing Google's window is a cancel, not a failure with a code", async ({
+  context,
+  page,
+}) => {
+  await stallGoogleAuthorization(context);
+  await page.goto("/");
+  const popupPromise = page.waitForEvent("popup");
+  await page.getByRole("button", { name: "Continue with Google", exact: true }).click();
+  const popup = await popupPromise;
+  await expect(page.getByRole("status")).toHaveText("Waiting for Google…");
+  await popup.close();
+
+  const heading = page.getByRole("heading", { name: "Google sign-in cancelled." });
+  await expect(heading).toBeFocused();
+  await expect(heading).toHaveAccessibleDescription(
+    "You closed Google’s window before finishing. Nothing was created or changed.",
+  );
+  await expect(page.getByText("Technical details")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Try again" })).toBeEnabled();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Get your pubky." })).toBeVisible();
+});
+
+test("a regional block on new Google sign-ups ends without a retry that cannot succeed", async ({
+  context,
+  page,
+}) => {
+  await mockGoogleGrant(context, `${APP_DATA_SCOPE} ${DRIVE_FILE_SCOPE}`);
+  const driveWrites: string[] = [];
+  await context.route("https://www.googleapis.com/**", (route) => {
+    if (route.request().method() !== "GET") driveWrites.push(route.request().url());
+    return route.fulfill({ json: { files: [] } });
+  });
+  await context.route("**/api/wrapping-key/google", (route) =>
+    route.fulfill({
+      json: { wrappingKey: Buffer.alloc(32, 7).toString("base64url"), keyId: "e2e" },
+    }),
+  );
+  // The deployment in front of Homegate refuses the region with its own page.
+  await context.route("**/google_verification", (route) =>
+    route.request().method() === "POST"
+      ? route.fulfill({ status: 403, contentType: "text/html", body: "<h1>Forbidden</h1>" })
+      : route.fulfill({ status: 405, body: "" }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Continue with Google", exact: true }).click();
+
+  const heading = page.getByRole("heading", { name: "Setup interrupted." });
+  await expect(heading).toBeFocused({ timeout: 15_000 });
+  await expect(heading).toHaveAccessibleDescription(
+    "New Google sign-ups aren’t available in your country, so nothing was created. There’s no Passport backup to restore in this Google account. Go back to create an account or sign in with Pubky Ring.",
+  );
+  await expect(page.getByRole("main").getByRole("button")).toHaveText(["Back"]);
+  await page.getByText("Technical details").click();
+  await expect(page.locator("details")).toContainText("homeserver_signup_token_failed · blocked");
+  expect(driveWrites).toEqual([]);
+});
+
 test("detaching waits for Google's window with Cancel and removes nothing", async ({
   context,
   page,
@@ -199,7 +300,7 @@ test("detaching waits for Google's window with Cancel and removes nothing", asyn
   await expect(page.getByRole("status")).toHaveText("Waiting for Google…");
   // The confirmation no longer claims a removal is under way while Google's window is open.
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Removing…" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Detaching…" })).toHaveCount(0);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
   await page.getByRole("button", { name: "Cancel" }).click();
@@ -238,7 +339,7 @@ test("the Drive permission guide stays still until played and never pushes the a
     "src",
     "/illustrations/google-drive-permissions-still.png",
   );
-  const actions = ["Back", "Try again", "Continue without visible backup"];
+  const actions = ["Back", "Try again", "Skip the folder copy"];
   for (const viewport of [POPUP, { width: 1440, height: 900 }]) {
     await page.setViewportSize(viewport);
     // Focus follows the screen: the first Tab after the heading reaches Back, not the guide.
@@ -285,7 +386,7 @@ test("new identities reach optional backup consent only after a Drive lookup", a
 
   await expect(page.getByRole("heading", { name: "Drive access optional." })).toBeVisible();
   expect(driveRequests).toEqual(["GET"]);
-  await expect(page.getByRole("button", { name: "Continue without visible backup" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Skip the folder copy" })).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({
@@ -315,7 +416,8 @@ for (const [probe, answer] of [
       return route.fulfill({ json: { files: [] } });
     });
     await page.goto("/");
-    await page.getByRole("button", { name: "Continue with Google" }).click();
+    // A blocked probe renames the sign-in: Google can then only restore here.
+    await page.getByRole("button", { name: /^(Continue|Restore) with Google$/u }).click();
     // The lookup decides between restoring and creating; only creating needs Homegate.
     await expect(page.getByRole("heading", { name: "Drive access optional." })).toBeVisible();
     expect(driveRequests).toEqual(["GET"]);
@@ -412,9 +514,7 @@ for (const [grant, scope] of [
     await expect(page.getByRole("main").getByRole("alert")).toContainText(
       "already has a Passport backup",
     );
-    await expect(page.getByRole("button", { name: "Continue without visible backup" })).toHaveCount(
-      0,
-    );
+    await expect(page.getByRole("button", { name: "Skip the folder copy" })).toHaveCount(0);
     expect(requests).toEqual([{ method: "GET", path: "/drive/v3/files", alt: null }]);
     expect(wrappingRequests).toBe(0);
     expect(await page.evaluate(() => JSON.stringify(localStorage))).toBe(before);
@@ -469,8 +569,9 @@ async function installBoundIdentity(page: Page) {
 async function confirmDetachment(page: Page) {
   await page.getByRole("button", { name: "Manage identity", exact: true }).click();
   await page.getByRole("button", { name: "Detach from Google" }).click();
-  await page.getByRole("button", { name: "I backed up my pubky" }).click();
-  await page.getByRole("button", { name: "Remove Google Access" }).click();
+  await page.getByRole("checkbox", { name: /^I have this pubky in Pubky Ring/u }).check();
+  await page.getByRole("button", { name: "Continue to detach" }).click();
+  await page.getByRole("button", { name: "Detach from Google…" }).click();
   await page.getByLabel("Type DETACH to confirm").fill("DETACH");
   await page.getByRole("button", { name: "Confirm detachment" }).click();
 }

@@ -60,7 +60,7 @@ export function BackupToGoogle({
         title="Google account"
       >
         <GoogleAccountCard account={state.backup.googleAccount} />
-        <VisibleCopyNotice operation="attach" status={state.backup.visibleRecoveryCopyStatus} />
+        <VisibleCopyNotice status={state.backup.visibleRecoveryCopyStatus} />
       </OutcomeScreen>
     );
   }
@@ -73,7 +73,9 @@ export function BackupToGoogle({
         Choose a Google account that doesn’t already have a Passport backup. {DRIVE_PERMISSION_HINT}
       </LeadText>
       {state.status === "failed" ? (
-        <Notice tone="error">{googleIdentityErrorMessage(state.error.code, "attach")}</Notice>
+        <Notice tone="error">
+          {googleIdentityErrorMessage(state.error, { operation: "attach" })}
+        </Notice>
       ) : null}
       <PassportNavigation
         back={<BackButton onClick={onBack} disabled={pending} />}

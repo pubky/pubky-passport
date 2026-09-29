@@ -77,12 +77,32 @@ test("unknown availability remains distinct from geography and can be retried", 
 });
 
 test("Google regional restrictions limit only new Google identities", async ({ page }) => {
-  await page.route("**/google_verification", (route) => route.fulfill({ status: 403, body: "" }));
+  let blocked = true;
+  await page.route("**/google_verification", (route) =>
+    route.fulfill({ status: blocked ? 403 : 405, body: "" }),
+  );
   await page.goto("/");
-  await expect(
-    page.getByText(/Creating an account with Google isn’t available in your country/u),
-  ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Continue with Google" })).toBeEnabled();
+  // The note, its retry and the sign-in that restores all sit in the Google card.
+  const card = page.getByRole("region", { name: "Google account" });
+  const note = card.getByRole("status");
+  await expect(note).toContainText(
+    "New Google sign-ups aren’t available in your country. You can still restore a pubky you created with Google.",
+  );
+  await expect(card.getByRole("button", { name: "Restore with Google" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Check again" })).toHaveCount(1);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  blocked = false;
+  await note.getByRole("button", { name: "Check again" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(card.getByRole("button", { name: "Continue with Google" })).toBeEnabled();
+  // The re-check's result is said where it was asked, and keyboard focus stays in the card.
+  await expect(note).toHaveText("New Google sign-ups are available here.");
+  await expect(note).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(card.getByRole("button", { name: "Continue with Google" })).toBeFocused();
+  blocked = true;
+  await page.reload();
+  await expect(card.getByRole("button", { name: "Restore with Google" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Import backup" })).toBeEnabled();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.getByRole("button", { name: "Create account", exact: true }).click();

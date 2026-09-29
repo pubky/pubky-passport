@@ -308,14 +308,12 @@ describe("IdentityEstablishmentFlow", () => {
       "src",
       "/illustrations/google-drive-permissions-still.png",
     );
-    expect(
-      screen.queryByRole("button", { name: "Continue without visible backup" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Skip the folder copy" })).not.toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
     expect(establishIdentity).toHaveBeenCalledTimes(2);
   });
 
-  it("lets a partial grant continue without the visible backup", async () => {
+  it("lets a partial grant continue without the folder copy", async () => {
     const continueWithoutVisibleBackup = vi.fn(async () =>
       Result.ok({
         establishmentMode: "created" as const,
@@ -343,12 +341,15 @@ describe("IdentityEstablishmentFlow", () => {
     expect(
       await screen.findByRole("heading", { name: "Drive access optional." }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/it won’t create a visible backup/i)).toBeInTheDocument();
-    await userEvent
-      .setup()
-      .click(screen.getByRole("button", { name: "Continue without visible backup" }));
+    expect(screen.getByText(/won’t put a copy in a “Pubky Passport” folder/i)).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Skip the folder copy" }));
     expect(continueWithoutVisibleBackup).toHaveBeenCalledOnce();
-    expect(await screen.findByText(/No visible recovery copy was created/i)).toBeInTheDocument();
+    // The note points to the copy outside Google that Manage identity offers, a recovery file.
+    expect(
+      await screen.findByText(
+        "No copy in your “Pubky Passport” Drive folder. To keep a copy outside Google, download a recovery file in Manage identity.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("shows the setup error and retries automatic reconciliation", async () => {
@@ -399,11 +400,11 @@ describe("IdentityEstablishmentFlow", () => {
     );
     expect(
       screen.getByText(
-        "Delete the damaged file and create a new pubky, or go back and choose another Google account.",
+        "Delete this backup and start over with a new pubky, or go back and choose another Google account.",
       ),
     ).toBeVisible();
     // A damaged file stays damaged, so Try again is not offered as the way out.
-    const deleteBackup = screen.getByRole("button", { name: "Delete backup & create new pubky" });
+    const deleteBackup = screen.getByRole("button", { name: "Delete backup and start over…" });
     const back = screen.getByRole("button", { name: "Back" });
     expect(screen.getAllByRole("button")).toEqual([back, deleteBackup]);
     // Deleting is a secondary, destructive option below the navigation.
@@ -411,7 +412,7 @@ describe("IdentityEstablishmentFlow", () => {
     await user.click(deleteBackup);
 
     const confirmation = screen.getByRole("textbox", { name: "Type DELETE to confirm" });
-    const replace = screen.getByRole("button", { name: "Delete and create new identity" });
+    const replace = screen.getByRole("button", { name: "Delete and start over" });
     expect(confirmation).toHaveFocus();
     expect(replace).toBeDisabled();
     await user.type(confirmation, "DELETE");
@@ -462,33 +463,31 @@ describe("IdentityEstablishmentFlow", () => {
     expect(await screen.findByRole("heading", { name: "Setup interrupted." })).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Passport found your encrypted identity file in Google Drive, but can no longer unlock it with this Google account.",
+        "Passport found a backup in your Google Drive, but can no longer unlock it with this Google account.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("passport_file_undecryptable")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Delete backup & create new pubky" }));
+    await user.click(screen.getByRole("button", { name: "Delete backup and start over…" }));
 
     expect(
-      screen.getByText(/no longer be recoverable from this Google account/),
-    ).toBeInTheDocument();
+      screen.getByRole("dialog", { name: "Delete this backup and start over?" }),
+    ).toHaveAccessibleDescription(/can then no longer be restored with this Google account/u);
     await user.type(screen.getByRole("textbox", { name: "Type DELETE to confirm" }), "DELETE");
-    await user.click(screen.getByRole("button", { name: "Delete and create new identity" }));
+    await user.click(screen.getByRole("button", { name: "Delete and start over" }));
 
     expect(replaceUndecryptablePassportFile).toHaveBeenCalledOnce();
     expect(replaceInvalidPassportFile).not.toHaveBeenCalled();
     expect(
       await screen.findByText(
-        "Passport could not delete the identity file it cannot decrypt from Google Drive. You can try deleting it again.",
+        "Passport couldn’t delete the backup it can no longer unlock from Google Drive, so no new pubky was created.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("undecryptable_passport_file_delete_failed")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Delete backup & create new pubky" }));
-    expect(
-      screen.getByText("Passport could not delete the identity file. Please try again."),
-    ).toBeInTheDocument();
+    // The delete is what failed, so the way on retries it rather than a new sign-in.
+    await user.click(screen.getByRole("button", { name: "Try deleting again" }));
     await user.type(screen.getByRole("textbox", { name: "Type DELETE to confirm" }), "DELETE");
-    await user.click(screen.getByRole("button", { name: "Delete and create new identity" }));
+    await user.click(screen.getByRole("button", { name: "Delete and start over" }));
 
     expect(replaceUndecryptablePassportFile).toHaveBeenCalledTimes(2);
     expect(await screen.findByRole("heading", { name: "Backup ready." })).toBeInTheDocument();
@@ -522,6 +521,7 @@ describe("IdentityEstablishmentFlow", () => {
           Result.err({
             code: "homeserver_signup_token_failed" as const,
             detailCode: "weekly_limit_exceeded" as const,
+            flow: "create" as const,
           }),
         ),
       }),
@@ -530,7 +530,9 @@ describe("IdentityEstablishmentFlow", () => {
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
     expect(
-      await screen.findByText("Passport could not obtain a homeserver invitation."),
+      await screen.findByText(
+        "This Google account has reached its weekly limit for new pubkys, so nothing was created.",
+      ),
     ).toBeInTheDocument();
     // Codes are for support: collapsed technical details, not an input-like box.
     const summary = screen.getByText("Technical details");
@@ -540,9 +542,9 @@ describe("IdentityEstablishmentFlow", () => {
     expect(details).toHaveTextContent(
       "Error code: homeserver_signup_token_failed · weekly_limit_exceeded",
     );
-    // The limit is the actionable cause, so it is the visible next step, not only a code.
+    // The limit is the cause, said in words, with the way on next to it, not only a code.
     expect(screen.getByRole("heading", { name: "Setup interrupted." })).toHaveAccessibleDescription(
-      "Passport could not obtain a homeserver invitation. This Google account has reached its weekly limit for new identities. Try again in a week, or go back and create your account another way.",
+      "This Google account has reached its weekly limit for new pubkys, so nothing was created. There’s no Passport backup to restore in this Google account. Try again next week, or go back to create an account or sign in with Pubky Ring.",
     );
     // Trying again now cannot succeed, so Back is the only way on.
     expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Back"]);
@@ -643,7 +645,7 @@ describe("IdentityEstablishmentFlow", () => {
       .click(await screen.findByRole("button", { name: "Continue with Google" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "Passport could not confirm the visible recovery copy",
+      "Passport couldn’t confirm the copy in your “Pubky Passport” Drive folder. Your Google Drive backup still works.",
     );
   });
 

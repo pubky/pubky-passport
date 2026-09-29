@@ -247,10 +247,15 @@ below the `lg` breakpoint, where the cards collapse to their buttons, a row unde
 it (for example "Phone verification: not available in your country"). Screen readers hear one
 polite summary that names the blocked methods and what is left.
 Google is the exception: its probe governs only creating new Google identities, because restoring
-an existing identity from Drive never calls Homegate. **Continue with Google** stays available
-whenever the provider enables Google and a client ID is configured. A 403 adds a note that new
-Google identities are not available in the user's country, and a 404 adds nothing. If Drive
-holds no identity and Homegate then refuses the signup token, the Google error screen reports it.
+an existing identity from Drive never calls Homegate. The Google sign-in stays available whenever
+the provider enables Google and a client ID is configured. A 403 adds a note inside the Google
+option that new Google sign-ups are not available in the user's country, with its own **Check
+again**, and renames the sign-in **Restore with Google**; an unknown result says the check failed
+and that restoring still works; a 404 adds nothing. If Drive holds no identity and Homegate then
+refuses the signup token, the Google error screen says why, and offers no retry for a regional
+block (a 403 from the signup route, which Homegate itself never sends) or a sign-up limit.
+Restoring an identity whose homeserver signup never finished asks Homegate for a token too; if
+that is refused, the screen says the identity is safe in Drive and can be finished later.
 Before the encrypted backup of a new Google identity is written to Drive, Passport looks Homegate's
 invite up on its homeserver (read-only). When the homeserver does not answer, or reports the invite
 used or unknown, creation stops with nothing written to Drive and no record published, so when the
@@ -270,7 +275,10 @@ Action errors retain their own meaning: a 403 during SMS submission may mean the
 number is blocked, not that the user's country is restricted.
 
 Google detachment removes the Drive backup and association while keeping the selected
-identity and its key locally. Local-key identities without a Google association can use
+identity and its key locally. It continues only after a recovery file checked during the
+detachment, or the user's acknowledgement that the pubky is in Pubky Ring or a recovery file (a
+recovery file checked or imported earlier is named with its date), and it names the Google
+account to choose in Google's window. Local-key identities without a Google association can use
 **Manage identity → Google account → Attach to Google**. This enables Google sign-in by
 backing up the existing key. Attachment checks Drive metadata only and stops if any Passport
 backup already exists; it never downloads, decrypts, or overwrites that backup. Ring-held keys remain in Ring.

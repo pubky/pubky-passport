@@ -44,16 +44,14 @@ describe("BackupToGoogle", () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Attach to Google" }));
     expect(backupIdentity).toHaveBeenCalledWith(publicIdentity);
-    await user.click(
-      await screen.findByRole("button", { name: "Continue without visible backup" }),
-    );
+    await user.click(await screen.findByRole("button", { name: "Skip the folder copy" }));
     expect(continueBackupWithoutVisibleCopy).toHaveBeenCalledOnce();
     // The completion names the account and warns about the missing copy as loudly as setup does.
     expect(
       await screen.findByRole("heading", { name: "Google account attached." }),
     ).toBeInTheDocument();
     expect(screen.getByText("user@example.com")).toBeInTheDocument();
-    const warning = screen.getByText(/Your private Google Drive backup is ready/);
+    const warning = screen.getByText(/No copy in your “Pubky Passport” Drive folder/);
     expect(warning.closest("[data-tone]")).toHaveAttribute("data-tone", "warning");
     expect(document.querySelector('img[src*="checkmark.png"]')).not.toBeNull();
     await user.click(screen.getByRole("button", { name: "Done" }));
@@ -110,9 +108,7 @@ describe("BackupToGoogle", () => {
     expect(
       await screen.findByRole("heading", { name: "Drive access required." }),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Continue without visible backup" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Skip the folder copy" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(backupIdentity).toHaveBeenCalledTimes(2);
     expect(controller.reset).toHaveBeenCalledOnce();
@@ -182,9 +178,10 @@ describe("BackupToGoogle", () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Attach to Google" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "already attached to a different Google account",
+      "already backed up to a different Google account",
     );
-    expect(screen.getByRole("alert")).not.toHaveTextContent("remove Google access. Please");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("you started with");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("remove this backup");
     await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "could not check this Google account for an existing Passport backup",
@@ -251,7 +248,7 @@ describe("BackupToGoogle attaching through the real Google identity stack", () =
       await screen.findByRole("heading", { name: "Google account attached." }),
     ).toBeInTheDocument();
     expect(screen.getByText(GOOGLE_ACCOUNT.email)).toBeInTheDocument();
-    expect(screen.queryByText(/visible recovery copy/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/“Pubky Passport” Drive folder/)).not.toBeInTheDocument();
     expect(google.uploads.map(({ name, parents }) => ({ name, parents }))).toEqual([
       { name: "passport.json", parents: ["appDataFolder"] },
       { name: `${PUBLIC_KEY}.json`, parents: ["visible-folder"] },
@@ -288,12 +285,12 @@ describe("BackupToGoogle attaching through the real Google identity stack", () =
     expect(google.wrappingKeyRequests).toEqual([]);
     expect(storedIdentity()).not.toHaveProperty("googleAccount");
 
-    await user.click(screen.getByRole("button", { name: "Continue without visible backup" }));
+    await user.click(screen.getByRole("button", { name: "Skip the folder copy" }));
 
     expect(
       await screen.findByRole("heading", { name: "Google account attached." }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/No visible recovery copy was created/)).toBeInTheDocument();
+    expect(screen.getByText(/No copy in your “Pubky Passport” Drive folder/)).toBeInTheDocument();
     expect(google.uploads.map(({ name }) => name)).toEqual(["passport.json"]);
     // Occupancy check, its repeat after consent, then the create with its before/after checks.
     expect(google.requests).toEqual([

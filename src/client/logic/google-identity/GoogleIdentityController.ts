@@ -562,11 +562,13 @@ export class GoogleIdentityController {
         googleSubject !== undefined &&
         credentials.value.googleAccount.googleSubject !== googleSubject
       ) {
+        // The person chose another account than the operation is bound to, which a retry with
+        // the same account resolves; it is not a failure to reach Google.
         LOGGER.warn("identity.google.authorization.failed", {
           operation: "request_credentials",
-          code: "account_mismatch",
+          code: "google_account_mismatch",
         });
-        return Result.err({ code: "authorization_failed" });
+        return Result.err({ code: "google_account_mismatch" });
       }
       this.googleSubject ??= credentials.value.googleAccount.googleSubject;
       return Result.ok(credentials.value);

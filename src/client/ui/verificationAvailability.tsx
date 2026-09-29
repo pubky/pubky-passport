@@ -1,6 +1,7 @@
 import Image from "next/image";
-import { useId, useState, type ReactNode } from "react";
+import { useId, useLayoutEffect, useState, type ReactNode } from "react";
 import type { MethodAvailability } from "@/client/logic/homegate/HomegateAvailabilityClient";
+import { Notice } from "@/client/ui/shared/notice";
 import { Button } from "@/client/ui/shared/primitives/button";
 
 export function AvailabilityCard({
@@ -112,6 +113,77 @@ export function AvailabilityNotice({
       ) : null}
     </>
   );
+}
+
+/**
+ * Whether new Google sign-ups work here, said inside the Google option it concerns. Restoring a
+ * pubky never depends on it, so each note says so. Nothing shows while the first check runs or when
+ * it finds sign-ups available. A blocked or failed check puts Check again in its note; during the
+ * re-check the button stays mounted and focusable, showing the work. A re-check that finds
+ * sign-ups available says so in the same note, and the note takes the focus Check again leaves
+ * with, so the result is read out and Tab goes on to the Google sign-in after it.
+ */
+export function GoogleSignupAvailability({
+  availability,
+  onRetry,
+}: {
+  availability: MethodAvailability;
+  onRetry: () => void;
+}) {
+  const [retryOffered, setRetryOffered] = useState(false);
+  const noteId = useId();
+  const { status } = availability;
+  if ((status === "unknown" || status === "blocked") && !retryOffered) setRetryOffered(true);
+  const availableAfterRetry = retryOffered && status === "available";
+  useLayoutEffect(() => {
+    if (!availableAfterRetry) return;
+    // Take focus only from the removed Check again; focus the person moved elsewhere stays put.
+    const focused = document.activeElement;
+    if (focused === null || focused === document.body) document.getElementById(noteId)?.focus();
+  }, [availableAfterRetry, noteId]);
+  if (!retryOffered) return null;
+  const checkAgain = (
+    <Button loading={status === "checking"} onClick={onRetry} size="sm" variant="outline">
+      Check again
+    </Button>
+  );
+  switch (status) {
+    case "blocked":
+      return (
+        <Notice tone="warning">
+          <p>
+            New Google sign-ups aren’t available in your country. You can still restore a pubky you
+            created with Google.
+          </p>
+          {checkAgain}
+        </Notice>
+      );
+    case "unknown":
+      return (
+        <Notice tone="info">
+          <p>
+            Couldn’t check whether new Google sign-ups work where you are. You can still try, and
+            restoring a pubky you created with Google always works.
+          </p>
+          {checkAgain}
+        </Notice>
+      );
+    case "checking":
+      return (
+        <Notice tone="info">
+          <p>Checking whether new Google sign-ups are available…</p>
+          {checkAgain}
+        </Notice>
+      );
+    case "available":
+      return (
+        <Notice id={noteId} tabIndex={-1} tone="info">
+          <p>New Google sign-ups are available here.</p>
+        </Notice>
+      );
+    case "unavailable":
+      return null;
+  }
 }
 
 /**

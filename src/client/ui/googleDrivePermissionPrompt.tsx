@@ -16,10 +16,11 @@ const DRIVE_PERMISSION_HINT = "Google will ask for two Drive permissions. Tick b
 const PERMISSION_COPY = {
   required:
     "Passport needs the first Google Drive permission to store and restore your encrypted identity. Select it in Google’s window to continue.",
+  // The second permission only adds a copy of the same encrypted file where the person can see it.
   optional:
-    "You allowed private backup storage, but not visible recovery copies. Passport can continue, but it won’t create a visible backup in your Google Drive.",
+    "You ticked the first box but not the second. Passport can still back up your pubky to Google Drive, but it won’t put a copy in a “Pubky Passport” folder you can see. That copy only makes the backup easy to find and harder to delete by accident.",
   detach:
-    "Passport needs both Google Drive permissions to delete your encrypted identity and visible recovery copies before removing Google access. Select both in Google’s window to continue.",
+    "Passport needs both Google Drive permissions to delete your encrypted backup and its copy in your “Pubky Passport” folder before removing Google access. Select both in Google’s window to continue.",
 };
 
 function GoogleDrivePermissionPrompt({
@@ -48,7 +49,7 @@ function GoogleDrivePermissionPrompt({
       secondaryAction={
         mode === "optional" && onContinue ? (
           <Button onClick={onContinue} type="button" variant="link">
-            Continue without visible backup
+            Skip the folder copy
           </Button>
         ) : null
       }

@@ -8,7 +8,7 @@ import { BackButton } from "@/client/ui/shared/backButton";
 import { FolderIcon } from "@/client/ui/shared/icons";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
-import { AvailabilityNotice } from "@/client/ui/verificationAvailability";
+import { GoogleSignupAvailability } from "@/client/ui/verificationAvailability";
 import { RequestHeading } from "../requestHeading";
 
 /**
@@ -45,18 +45,17 @@ export function OtherWaysIn({
             aria-label="Other ways to sign in"
             className="flex min-w-0 flex-col gap-3 rounded-lg bg-card p-6"
           >
-            {methods.google.status === "blocked" ? (
-              <p className="text-sm font-medium leading-5 text-foreground" role="status">
-                New Google identities are not available in your country. You can still restore an
-                existing one.
-              </p>
-            ) : null}
-            <ContinueWithGoogle onContinue={startGoogle} />
+            <GoogleSignupAvailability availability={methods.google} onRetry={retry} />
+            <ContinueWithGoogle
+              label={
+                methods.google.status === "blocked" ? "Restore with Google" : "Continue with Google"
+              }
+              onContinue={startGoogle}
+            />
             <Button className="w-full" onClick={onImport} size="lg" variant="secondary">
               <FolderIcon /> Import backup
             </Button>
           </section>
-          <AvailabilityNotice methods={[methods.google]} onRetry={retry} />
           <ProviderTerms />
           <BackButton className="mt-auto md:mt-0" onClick={onBack} />
         </PassportScreen>

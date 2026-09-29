@@ -40,34 +40,50 @@ const PLACEMENT_CLASSES: Record<Placement, string> = {
 };
 const TITLE = "Continue with Google, powered by Pubky Passport.";
 
+/**
+ * The Google trust model as the README states it: the key is encrypted in the browser, Google
+ * stores the ciphertext, Passport's server releases the wrapping key only for a fresh sign-in, and
+ * nothing is handed to the person to keep.
+ */
 const POINTS = [
   {
-    term: "Google's role:",
-    text: "Helps identify you and securely retrieve your encrypted backup. It does not create or control your pubky.",
+    term: "Your key:",
+    text: "Created in this browser and encrypted before it’s saved to your Google Drive. Google never sees your key.",
   },
   {
-    term: "Your keys:",
-    text: "Keys are created in your browser and encrypted before storage on Google Drive. Google never sees the private key.",
+    term: "Google’s role:",
+    text: "Stores the encrypted backup and confirms it’s you when you sign in.",
   },
   {
-    term: "Recovery:",
-    text: "Recovery requires both your encrypted Google Drive backup and a separate recovery key from Passport.",
+    term: "Passport’s role:",
+    text: "Holds the second piece needed to unlock the backup, and hands it over only after a fresh sign-in with the same Google account. Passport’s server never sees your key or your backup.",
   },
   {
-    term: "Split security:",
-    text: "Neither Google nor Passport can recover your pubky on its own, reducing reliance on either one.",
+    term: "New device?",
+    text: "Sign in to Passport with the same Google account and your pubky comes back. There’s nothing to write down.",
+  },
+  {
+    term: "Not tied to Google:",
+    text: "You can download a recovery file or add your pubky to Pubky Ring anytime in Manage identity.",
   },
 ];
 
 /**
  * The "Continue with Google" control, with a line under it that tells the person to tick both
- * Drive permissions before Google asks for them.
+ * Drive permissions before Google asks for them. `label` renames the sign-in where Google can
+ * only restore, such as where new Google sign-ups are blocked.
  */
-function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
+function ContinueWithGoogle({
+  label = "Continue with Google",
+  onContinue,
+}: {
+  label?: string;
+  onContinue: () => void;
+}) {
   const hintId = useId();
   return (
     <div className="flex flex-col gap-2">
-      <GoogleSignInPill hintId={hintId} onContinue={onContinue} />
+      <GoogleSignInPill hintId={hintId} label={label} onContinue={onContinue} />
       <PermissionHint id={hintId} />
     </div>
   );
@@ -89,10 +105,12 @@ function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
  */
 function GoogleSignInPill({
   hintId,
+  label,
   onContinue,
 }: {
   /** The permission hint under the control, which describes every sign-in button. */
   hintId: string;
+  label: string;
   onContinue: () => void;
 }) {
   const desktop = useDesktopBreakpoint();
@@ -319,7 +337,7 @@ function GoogleSignInPill({
           className="text-balance text-center text-sm font-bold leading-5 text-secondary-foreground"
           id={labelId}
         >
-          Continue with Google
+          {label}
         </span>
         <IconButton
           aria-controls={panelOpen ? panelId : undefined}
@@ -423,7 +441,7 @@ function GoogleSignInPill({
                 variant="secondary"
               >
                 <ArrowRightIcon />
-                Continue with Google
+                {label}
               </Button>
               <PermissionHint id={sheetHintId} />
               <ButtonLink

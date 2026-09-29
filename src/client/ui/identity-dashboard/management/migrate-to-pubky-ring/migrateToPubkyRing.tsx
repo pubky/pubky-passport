@@ -39,7 +39,7 @@ function MigrateToPubkyRing({
   onBack,
 }: {
   createMigration: () => Promise<LocalIdentityResult<PubkyRingMigration>>;
-  navigationAction: "back" | "continue";
+  navigationAction: "back" | "done";
   onBack: () => void;
 }) {
   const [state, setState] = useState<PubkyRingMigrationState>(IDLE_MIGRATION_STATE);
@@ -234,11 +234,12 @@ function MigrateToPubkyRing({
       {navigationAction === "back" ? (
         <PassportNavigation back={<BackButton onClick={back} />} />
       ) : (
+        // Ring cannot report the import, so this only returns to the screen that sent the person.
         <PassportNavigation
           confirm={
             <Button className="w-full" onClick={back} size="lg" type="button">
               <CheckIcon />
-              Continue
+              Done
             </Button>
           }
         />

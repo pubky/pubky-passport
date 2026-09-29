@@ -1,5 +1,6 @@
 import "client-only";
 
+import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
 import type { LocalAccountDraft } from "@/client/logic/local-account/LocalAccountDraftRepository";
 import type {
   LocalIdentityCatalog,
@@ -12,7 +13,10 @@ import type {
  */
 export type AdditionOrigin = "choose" | "switch" | "home" | null;
 
-/** Screens that manage one identity. Detachment keeps the identity it started with. */
+/**
+ * Screens that manage one identity. Detachment keeps the identity and the Google account it
+ * started with, since detaching removes that account from the saved identity.
+ */
 export type ManagementNavigation =
   | {
       view: "manage" | "ring" | "backup-to-google";
@@ -30,7 +34,7 @@ export type ManagementNavigation =
       /** Only checks a backup file made earlier. */
       check?: true;
     }
-  | { view: "detach"; identity: LocalIdentityMetadata; googleSubject: string };
+  | { view: "detach"; identity: LocalIdentityMetadata; googleAccount: GoogleAccountProfile };
 
 /**
  * Where the profile form was opened: right after an identity was added (`addition`), where

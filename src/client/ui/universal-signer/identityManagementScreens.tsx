@@ -38,7 +38,7 @@ export function IdentityManagementScreens({
         createRecoveryFile={actions.createRecoveryFile}
         verifyRecoveryFile={actions.verifyRecoveryFile}
         createMigration={() => actions.createMigration(publicKeyZ32)}
-        googleSubject={navigation.googleSubject}
+        googleAccount={navigation.googleAccount}
         identity={navigation.identity}
         onBack={() => onNavigate({ view: "manage", publicKeyZ32 })}
         // Detaching starts in Manage identity, so finishing returns there, like attaching.
@@ -92,11 +92,7 @@ export function IdentityManagementScreens({
           onBack={onHome}
           onDetachFromGoogle={() => {
             if (identity.googleAccount)
-              onNavigate({
-                view: "detach",
-                identity,
-                googleSubject: identity.googleAccount.googleSubject,
-              });
+              onNavigate({ view: "detach", identity, googleAccount: identity.googleAccount });
           }}
           onDownloadRecoveryFile={(returnTo, check) =>
             onNavigate({

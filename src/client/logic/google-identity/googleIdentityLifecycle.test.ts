@@ -1035,12 +1035,27 @@ describe("Google identity use cases", () => {
       return Result.err({ code: "network_failed" });
     });
 
-    expectResultError(
+    const failure = expectResultError(
       await createSubject().establishIdentity(CREDENTIALS, (phase) => events.push(phase)),
       { code: "homeserver_signup_token_failed", detailCode: "network_failed" },
     );
 
     expect(events.slice(-2)).toEqual([{ flow: "repair", step: "signing_up" }, "homegate"]);
+    // The restored pubky exists in Drive, so the error screen must not say nothing was created.
+    expect(failure).toMatchObject({ flow: "repair" });
+  });
+
+  it("names a new pubky's refused invitation as part of creating it", async () => {
+    MOCKS.readPassportFile.mockResolvedValue(Result.ok({ status: "missing" }));
+    MOCKS.requestSignupToken.mockResolvedValue(Result.err({ code: "weekly_limit_exceeded" }));
+
+    const failure = expectResultError(
+      await createSubject().establishIdentity(CREDENTIALS, () => undefined),
+      { code: "homeserver_signup_token_failed", detailCode: "weekly_limit_exceeded" },
+    );
+
+    expect(failure).toMatchObject({ flow: "create" });
+    expect(MOCKS.createPassportFile).not.toHaveBeenCalled();
   });
 
   it("accepts repaired sign-in when PKDNS publication reports an uncertain failure", async () => {

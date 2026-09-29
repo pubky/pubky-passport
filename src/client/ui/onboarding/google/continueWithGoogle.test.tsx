@@ -73,18 +73,17 @@ function placeControl(width: number, height: number, pill: Edges, panel?: Edges)
 }
 
 function expectExplanation(container: HTMLElement): void {
-  expect(container).toHaveTextContent(
-    "Google's role: Helps identify you and securely retrieve your encrypted backup. It does not create or control your pubky.",
-  );
-  expect(container).toHaveTextContent(
-    "Your keys: Keys are created in your browser and encrypted before storage on Google Drive. Google never sees the private key.",
-  );
-  expect(container).toHaveTextContent(
-    "Recovery: Recovery requires both your encrypted Google Drive backup and a separate recovery key from Passport.",
-  );
-  expect(container).toHaveTextContent(
-    "Split security: Neither Google nor Passport can recover your pubky on its own, reducing reliance on either one.",
-  );
+  for (const point of [
+    "Your key: Created in this browser and encrypted before it’s saved to your Google Drive. Google never sees your key.",
+    "Google’s role: Stores the encrypted backup and confirms it’s you when you sign in.",
+    "Passport’s role: Holds the second piece needed to unlock the backup, and hands it over only after a fresh sign-in with the same Google account. Passport’s server never sees your key or your backup.",
+    "New device? Sign in to Passport with the same Google account and your pubky comes back. There’s nothing to write down.",
+    "Not tied to Google: You can download a recovery file or add your pubky to Pubky Ring anytime in Manage identity.",
+  ]) {
+    expect(container).toHaveTextContent(point);
+  }
+  // Passport's server releases a key only after a sign-in; nobody is handed one to keep.
+  expect(container).not.toHaveTextContent(/recovery key/iu);
   const learnMore = within(container).getByRole("link", { name: "Learn more" });
   expect(learnMore).toHaveAttribute("href", PASSPORT_README_URL);
   expect(learnMore).toHaveAttribute("target", "_blank");
@@ -126,6 +125,20 @@ describe("ContinueWithGoogle", () => {
     const hint = document.getElementById(pill.getAttribute("aria-describedby") ?? "");
     expect(hint).toHaveTextContent(DRIVE_PERMISSION_HINT);
     expect(pill.parentElement?.nextElementSibling).toBe(hint);
+  });
+
+  it("names the sign-in by what it can do where Google can only restore", () => {
+    stubViewport(false);
+    render(<ContinueWithGoogle label="Restore with Google" onContinue={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: "Restore with Google" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: HELP }));
+    expect(
+      within(screen.getByRole("dialog", { name: TITLE })).getByRole("button", {
+        name: "Restore with Google",
+      }),
+    ).toBeEnabled();
   });
 
   it("renders on the server as a closed control", () => {

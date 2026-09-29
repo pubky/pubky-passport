@@ -14,7 +14,7 @@ import { FolderIcon, UserRoundPlusIcon } from "@/client/ui/shared/icons";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
 import { useHomegateAvailability } from "@/client/ui/homegateAvailability";
-import { AvailabilityNotice } from "@/client/ui/verificationAvailability";
+import { GoogleSignupAvailability } from "@/client/ui/verificationAvailability";
 
 export function AddIdentity({
   request,
@@ -93,22 +93,19 @@ export function AddIdentity({
             </ChoiceCard>
             {showGoogle ? (
               <ChoiceCard
-                description="Create or restore an account with Google. Your key is encrypted before it’s saved to your Google Drive, and Google never sees it."
+                description={`${googleSignupBlocked ? "Restore an account you created with Google." : "Create or restore an account with Google."} Your key is encrypted before it’s saved to your Google Drive, and Google never sees it.`}
                 illustration="/illustrations/cloud.png"
                 title="Google account"
               >
-                {googleSignupBlocked ? (
-                  <p className="text-sm font-medium leading-5 text-foreground" role="status">
-                    Creating an account with Google isn’t available in your country. You can still
-                    restore an existing one.
-                  </p>
-                ) : null}
-                <ContinueWithGoogle onContinue={startGoogle} />
+                {/* The check and its retry concern only new Google sign-ups, so they stay here. */}
+                <GoogleSignupAvailability availability={methods.google} onRetry={retry} />
+                <ContinueWithGoogle
+                  label={googleSignupBlocked ? "Restore with Google" : "Continue with Google"}
+                  onContinue={startGoogle}
+                />
               </ChoiceCard>
             ) : null}
           </div>
-          {/* The Google check's retry stays with the cards it belongs to, above the Ring line. */}
-          <AvailabilityNotice methods={[methods.google]} onRetry={retry} />
           {ring ? (
             // Quiet on purpose: Ring suits people who already have it, not newcomers.
             <p className="flex flex-wrap items-center justify-center gap-x-1 text-center text-sm leading-5 text-muted-foreground">

@@ -6,7 +6,7 @@ import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
 import { NETWORK_OPERATION_TIMEOUT_MS, REQUEST_TIMEOUT_MS } from "@/libs/passportPolicy";
 import type { GoogleIdentityCredentials } from "./gia/GoogleImplicitAuthorization";
-import type { GoogleIdentityLifecycleError } from "./googleIdentityErrors";
+import type { GoogleIdentityLifecycleError, SignupInvitationFlow } from "./googleIdentityErrors";
 import { HomegateClient } from "@/client/logic/homegate/HomegateClient";
 import type { HomeserverSignupDetails } from "@/client/logic/signup/homeserverInvite";
 import { GoogleDrivePassportFileStore } from "@/client/logic/passport-file/google/GoogleDrivePassportFileStore";
@@ -541,7 +541,7 @@ export class GoogleIdentityLifecycle {
       report({ flow: "create", step: "preparing" });
       const wrappingKey = await this.requestWrappingKey(credentials.googleIdToken);
       if (Result.isError(wrappingKey)) return Result.err(wrappingKey.error);
-      const signupDetails = await this.requestSignupToken(credentials);
+      const signupDetails = await this.requestSignupToken(credentials, "create");
       if (Result.isError(signupDetails)) return Result.err(signupDetails.error);
       // Nothing is written to Drive for a signup that cannot succeed: a backup left behind would
       // send every later attempt down the restore path instead of creating an account.
@@ -751,7 +751,7 @@ export class GoogleIdentityLifecycle {
       }
 
       report({ flow: "repair", step: "signing_up" });
-      const signupDetails = await this.requestSignupToken(credentials);
+      const signupDetails = await this.requestSignupToken(credentials, "repair");
       if (Result.isError(signupDetails)) return Result.err(signupDetails.error);
       // A record published for an unreachable homeserver would end every later repair attempt.
       const checked = await this.checkSignupHomeserver(
@@ -982,10 +982,12 @@ export class GoogleIdentityLifecycle {
   /**
    * Reuses the invite an earlier attempt on this page obtained for this Google account and never
    * used, otherwise requests one from Homegate, which spends one of the account's Google
-   * verifications. The invite stays unspent until a signup is attempted with it.
+   * verifications. The invite stays unspent until a signup is attempted with it. A failure names
+   * the `flow` that asked, since a repair's pubky already exists in Drive.
    */
   private async requestSignupToken(
     credentials: GoogleIdentityCredentials,
+    flow: SignupInvitationFlow,
   ): Promise<EstablishmentStepResult<HomeserverSignupDetails>> {
     const googleSubject = credentials.googleAccount.googleSubject;
     const unspent = this.unspentSignupInvites.get(googleSubject);
@@ -999,6 +1001,7 @@ export class GoogleIdentityLifecycle {
       return Result.err({
         code: "homeserver_signup_token_failed",
         detailCode: signupDetails.error.code,
+        flow,
         cause: signupDetails.error,
       });
     }
@@ -1027,7 +1030,7 @@ export class GoogleIdentityLifecycle {
   private async checkSignupHomeserver(
     googleAccount: GoogleAccountProfile,
     signupDetails: HomeserverSignupDetails,
-    flow: "create" | "repair",
+    flow: SignupInvitationFlow,
   ): Promise<EstablishmentStepResult> {
     LOGGER.info("identity.google.homeserver_check.started", { flow });
     const lookup = await this.signupTokens.lookUp(signupDetails, this.requests.signal);

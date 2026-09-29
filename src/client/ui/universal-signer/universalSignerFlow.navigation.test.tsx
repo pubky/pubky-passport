@@ -446,31 +446,35 @@ describe("UniversalSignerFlow identity navigation", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Manage identity" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Detach from Google" }));
 
-    expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Back up your pubky first." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Manage identity." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Detach from Google" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Use in Pubky Ring" }));
     expect(screen.getByRole("heading", { name: "Use in Pubky Ring." })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument();
     expect(FLOW.migrationExportKeys).toEqual([]);
     await userEvent.setup().click(screen.getByRole("button", { name: "Show QR code" }));
     expect(FLOW.migrationExportKeys).toEqual(["identity"]);
     await userEvent.setup().click(screen.getByRole("button", { name: "Close" }));
-    await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
-    expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.getByRole("heading", { name: "Back up your pubky first." })).toBeInTheDocument();
     await userEvent
       .setup()
       .click(screen.getByRole("button", { name: "Download encrypted backup" }));
     expect(screen.getByRole("heading", { name: "Encrypted backup." })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.getByRole("heading", { name: "Backup your pubky first." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Back up your pubky first." })).toBeInTheDocument();
 
-    await userEvent.setup().click(screen.getByRole("button", { name: "I backed up my pubky" }));
+    // Nothing proves a backup yet, so the way on waits for the person's own acknowledgement.
+    const proceed = screen.getByRole("button", { name: "Continue to detach" });
+    expect(proceed).toBeDisabled();
+    await userEvent.setup().click(screen.getByRole("checkbox"));
+    await userEvent.setup().click(proceed);
     expect(screen.getByRole("heading", { name: "Detach from Google." })).toBeInTheDocument();
-    expect(screen.queryByRole("dialog", { name: "Remove Google Access" })).not.toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole("button", { name: "Remove Google Access" }));
+    expect(screen.queryByRole("dialog", { name: "Detach from Google?" })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Detach from Google…" }));
     const confirm = screen.getByRole("button", { name: "Confirm detachment" });
     expect(confirm).toBeDisabled();
     await userEvent.setup().type(screen.getByLabelText("Type DETACH to confirm"), "DETACH");

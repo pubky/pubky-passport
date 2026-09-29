@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { preload } from "react-dom";
 
+import type { GoogleAccountProfile } from "@/libs/googleAccountProfile";
 import type {
   LocalIdentityBackupCheckResult,
   LocalIdentityRecoveryFileResult,
 } from "@/client/logic/local-identity/LocalIdentityController";
 import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
+import { keyBackupFile } from "@/client/logic/local-identity/keyBackup";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import type { PubkyRingMigration } from "@/client/logic/pubky/PubkySdkAdapter";
 import { RecoveryFileDownload } from "@/client/ui/identity-dashboard/management/recovery-file/recoveryFileDownload";
@@ -24,10 +26,16 @@ type DetachFromGoogleView =
   | { view: "pubky-ring" }
   | { view: "review"; confirmation: "closed" | "open" };
 
+/**
+ * Detaching deletes the Google Drive backup, often the key's only copy outside this browser. So
+ * the Drive backup is removed only after a recovery file this flow checked, or the person's own
+ * acknowledgement that the pubky is in Pubky Ring or a recovery file; and every screen names the
+ * Google account whose backup goes.
+ */
 function DetachFromGoogleFlow({
   createRecoveryFile,
   createMigration,
-  googleSubject,
+  googleAccount,
   identity,
   onBack,
   onDone,
@@ -43,13 +51,15 @@ function DetachFromGoogleFlow({
     password: string,
   ) => Promise<LocalIdentityBackupCheckResult>;
   createMigration: () => Promise<LocalIdentityResult<PubkyRingMigration>>;
-  googleSubject: string;
+  googleAccount: GoogleAccountProfile;
   identity: LocalIdentityMetadata;
   onBack: () => void;
   onDone: () => void;
 }) {
   const [state, setState] = useState<DetachFromGoogleView>({ view: "recovery-options" });
-  const operation = useDetachFromGoogle(identity.publicIdentity, googleSubject);
+  // A recovery file checked here proves a copy outside Google; Pubky Ring cannot report an import.
+  const [backupChecked, setBackupChecked] = useState(false);
+  const operation = useDetachFromGoogle(identity.publicIdentity, googleAccount.googleSubject);
 
   preload("/illustrations/cloud.png", { as: "image" });
   preload("/illustrations/red-line.svg", { as: "image" });
@@ -65,13 +75,14 @@ function DetachFromGoogleFlow({
           verifyRecoveryFile={verifyRecoveryFile}
           publicKeyZ32={identity.publicIdentity.publicKeyZ32}
           onBack={() => setState({ view: "recovery-options" })}
+          onVerified={() => setBackupChecked(true)}
         />
       );
     case "pubky-ring":
       return (
         <MigrateToPubkyRing
           createMigration={createMigration}
-          navigationAction="continue"
+          navigationAction="done"
           onBack={() => setState({ view: "recovery-options" })}
         />
       );
@@ -103,6 +114,7 @@ function DetachFromGoogleFlow({
       return (
         <>
           <ReviewGoogleDetachment
+            googleAccount={googleAccount}
             onBack={() => setState({ view: "recovery-options" })}
             onRemove={() => setState({ view: "review", confirmation: "open" })}
           />
@@ -111,6 +123,7 @@ function DetachFromGoogleFlow({
               operation.state.status === "ready" || operation.state.status === "operation-failed"
             }
             canRetryAuthorization={operation.state.status === "authorization-failed"}
+            email={googleAccount.email}
             error={
               operation.state.status === "authorization-failed" ||
               operation.state.status === "operation-failed"
@@ -129,6 +142,8 @@ function DetachFromGoogleFlow({
     case "recovery-options":
       return (
         <RecoveryBeforeDetaching
+          backupChecked={backupChecked}
+          recordedBackup={keyBackupFile(identity)}
           onBack={onBack}
           onRecoveryConfirmed={() => setState({ view: "review", confirmation: "closed" })}
           onDownloadRecoveryFile={() => setState({ view: "recovery-file" })}

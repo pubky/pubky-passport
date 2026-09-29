@@ -342,7 +342,7 @@ describe("GoogleIdentityController", () => {
 
     await controller.establishIdentity();
     expectResultError(await controller.continueWithoutVisibleBackup(), {
-      code: "authorization_failed",
+      code: "google_account_mismatch",
     });
     expect(MOCKS.establishIdentity).toHaveBeenCalledOnce();
   });
@@ -767,7 +767,7 @@ describe("GoogleIdentityController", () => {
 
     expectResultError(
       await controller.detachIdentity(PUBLIC_IDENTITY, GOOGLE_ACCOUNT.googleSubject),
-      { code: "authorization_failed" },
+      { code: "google_account_mismatch" },
     );
     expect(MOCKS.detachIdentity).not.toHaveBeenCalled();
   });
@@ -782,7 +782,7 @@ describe("GoogleIdentityController", () => {
       }),
     );
 
-    expectResultError(await controller.establishIdentity(), { code: "authorization_failed" });
+    expectResultError(await controller.establishIdentity(), { code: "google_account_mismatch" });
 
     expect(MOCKS.requestAuthorization).toHaveBeenNthCalledWith(
       1,
@@ -860,6 +860,7 @@ describe("GoogleIdentityController", () => {
     const operationError = {
       code: "homeserver_signup_token_failed" as const,
       detailCode: "weekly_limit_exceeded" as const,
+      flow: "repair" as const,
       cause: diagnosticCanary,
     };
     const warning = vi.spyOn(LOGGER, "warn").mockImplementation(() => undefined);
@@ -870,6 +871,7 @@ describe("GoogleIdentityController", () => {
     expectResultError(result, {
       code: "homeserver_signup_token_failed",
       detailCode: "weekly_limit_exceeded",
+      flow: "repair",
     });
     expect(JSON.stringify(warning.mock.calls)).not.toContain("CONTROLLER-CAUSE-CANARY");
   });
@@ -965,7 +967,7 @@ describe("GoogleIdentityController", () => {
     );
 
     expectResultError(await controller.replaceInvalidPassportFile(), {
-      code: "authorization_failed",
+      code: "google_account_mismatch",
     });
     expect(MOCKS.replaceInvalidPassportFile).not.toHaveBeenCalled();
   });

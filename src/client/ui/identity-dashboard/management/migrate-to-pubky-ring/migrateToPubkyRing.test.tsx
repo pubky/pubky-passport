@@ -290,18 +290,20 @@ describe("MigrateToPubkyRing", () => {
     expect(handle.url).toBeNull();
   });
 
-  it("shows Continue for the Google detachment recovery flow", () => {
+  it("returns from the Google detachment recovery flow with Done", () => {
     const onBack = vi.fn();
     render(
       <MigrateToPubkyRing
         createMigration={async () => Result.ok(createMigrationHandle())}
-        navigationAction="continue"
+        navigationAction="done"
         onBack={onBack}
       />,
     );
 
     expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    // Ring cannot report an import, so the button claims no more than leaving the screen.
+    expect(screen.queryByRole("button", { name: "Continue" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(onBack).toHaveBeenCalledOnce();
   });
 

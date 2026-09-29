@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from "react";
 
 import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 import { cn } from "@/client/ui/shared/mergeClassNames";
+import { SHORT_WINDOW_HEADING } from "@/client/ui/shared/shortWindow";
 import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
 
 /** How a request names who asks: the app's own label, and its callback host when that differs. */
@@ -41,10 +42,6 @@ export function requesterWindowTitle(
     ? `${prefix} ${requester} (${labelledHost})`
     : `${prefix} ${review.callbackHost}`;
 }
-
-/** Below this window height a compact heading leaves room for what the screen lists. */
-export const SHORT_WINDOW_HEADING =
-  "[@media(max-height:50rem)]:text-4xl [@media(max-height:50rem)]:md:text-5xl";
 
 /**
  * "Sign in to {requester}" with what verifies it: the callback host when the app's label differs

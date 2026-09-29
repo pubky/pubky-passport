@@ -48,7 +48,9 @@ function toDetachmentState(state: GoogleIdentityViewState): DetachFromGoogleOper
       if (googlePermissionPromptMode(state.error.code, "detach") !== undefined) {
         return { status: "permission-required" };
       }
-      return state.error.code === "authorization_failed"
+      // Google's window must open again: a failure to reach Google, or another account chosen.
+      return state.error.code === "authorization_failed" ||
+        state.error.code === "google_account_mismatch"
         ? { status: "authorization-failed", error: state.error }
         : { status: "operation-failed", error: state.error };
     case "idle":

@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -112,7 +112,9 @@ describe("AddIdentity", () => {
     async (status) => {
       const establishIdentity = renderAddIdentity(addIdentity(), status);
 
-      const google = screen.getByRole("button", { name: "Continue with Google" });
+      const google = screen.getByRole("button", {
+        name: status === "blocked" ? "Restore with Google" : "Continue with Google",
+      });
       expect(google).toBeEnabled();
       await userEvent.setup().click(google);
 
@@ -123,16 +125,44 @@ describe("AddIdentity", () => {
     },
   );
 
-  it("explains a regional block as limited to new Google identities", () => {
+  it("explains a regional block inside the Google card, as limited to new sign-ups", () => {
     renderAddIdentity(addIdentity(), "blocked");
 
-    expect(
-      screen.getByText(
-        "Creating an account with Google isn’t available in your country. You can still restore an existing one.",
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continue with Google" })).toBeEnabled();
+    const card = screen.getByRole("region", { name: "Google account" });
+    const note = within(card).getByRole("status");
+    expect(note).toHaveTextContent(
+      "New Google sign-ups aren’t available in your country. You can still restore a pubky you created with Google.",
+    );
+    expect(note).toHaveAttribute("data-tone", "warning");
+    // The card no longer offers what the note rules out.
+    expect(card).toHaveTextContent("Restore an account you created with Google.");
+    expect(card).not.toHaveTextContent("Create or restore");
+    expect(within(card).getByRole("button", { name: "Restore with Google" })).toBeEnabled();
+    expect(within(note).getByRole("button", { name: "Check again" })).toBeEnabled();
+    expect(screen.getAllByRole("button", { name: "Check again" })).toHaveLength(1);
   });
+
+  it("says in the Google card when the sign-up check failed, not verification methods", () => {
+    renderAddIdentity(addIdentity(), "unknown");
+
+    const card = screen.getByRole("region", { name: "Google account" });
+    expect(within(card).getByRole("status")).toHaveTextContent(
+      "Couldn’t check whether new Google sign-ups work where you are. You can still try, and restoring a pubky you created with Google always works.",
+    );
+    expect(screen.queryByText(/verification methods|invite code/u)).not.toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: "Check again" })).toBeEnabled();
+    expect(within(card).getByRole("button", { name: "Continue with Google" })).toBeEnabled();
+  });
+
+  it.each(["checking", "available"] as const)(
+    "shows no availability note while the first check is %s",
+    (status) => {
+      renderAddIdentity(addIdentity(), status);
+
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Check again" })).not.toBeInTheDocument();
+    },
+  );
 
   // The server turns the feature off when the provider disables Google or no client ID is set.
   it("hides Google when the instance runs without it", () => {
@@ -225,15 +255,13 @@ describe("AddIdentity", () => {
     },
   );
 
-  it("keeps the Google check's retry with the cards, above the Ring line", () => {
+  it("keeps the Google check's retry inside the Google card, above the Ring line", () => {
     renderAddIdentity(addIdentity({ onConnectRing: vi.fn() }), "unknown");
 
     const retry = screen.getByRole("button", { name: "Check again" });
     const ring = screen.getByRole("button", { name: "Sign in with Pubky Ring" });
     expect(retry.compareDocumentPosition(ring)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(
-      screen.getByRole("region", { name: "Google account" }).compareDocumentPosition(retry),
-    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(screen.getByRole("region", { name: "Google account" })).toContainElement(retry);
   });
 });
 

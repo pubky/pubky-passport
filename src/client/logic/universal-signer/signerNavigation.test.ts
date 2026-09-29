@@ -171,7 +171,12 @@ describe("resolveSignerNavigation", () => {
     const navigation: SignerNavigation = {
       view: "detach",
       identity: READY,
-      googleSubject: "google",
+      googleAccount: {
+        googleSubject: "google",
+        email: "a@example.com",
+        name: "A",
+        pictureUrl: null,
+      },
     };
     expect(resolveSignerNavigation(navigation, context([]))).toBe(navigation);
   });

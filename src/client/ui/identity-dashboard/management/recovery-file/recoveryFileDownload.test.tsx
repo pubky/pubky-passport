@@ -29,6 +29,7 @@ describe("RecoveryFileDownload", () => {
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
     const onBack = vi.fn();
+    const onVerified = vi.fn();
     const user = userEvent.setup();
     render(
       <RecoveryFileDownload
@@ -36,6 +37,7 @@ describe("RecoveryFileDownload", () => {
         verifyRecoveryFile={verifyRecoveryFile}
         publicKeyZ32="identity"
         onBack={onBack}
+        onVerified={onVerified}
       />,
     );
 
@@ -52,6 +54,7 @@ describe("RecoveryFileDownload", () => {
       expect.any(Uint8Array),
       RECOVERY_PASSWORD,
     );
+    expect(onVerified).toHaveBeenCalledOnce();
     expect(onBack).toHaveBeenCalledOnce();
   });
 
@@ -62,6 +65,7 @@ describe("RecoveryFileDownload", () => {
     const createRecoveryFile = async () =>
       Result.ok({ bytes: new Uint8Array([1, 2, 3]), fileName: "pubky-identity.pkarr" });
     const onBack = vi.fn();
+    const onVerified = vi.fn();
     const user = userEvent.setup();
     const view = render(
       <RecoveryFileDownload
@@ -69,12 +73,15 @@ describe("RecoveryFileDownload", () => {
         verifyRecoveryFile={vi.fn()}
         publicKeyZ32="identity"
         onBack={onBack}
+        onVerified={onVerified}
       />,
     );
     await enterNewPassword(user);
     await user.click(screen.getByRole("button", { name: "Download backup" }));
     await user.click(screen.getByRole("button", { name: SKIP }));
     expect(onBack).toHaveBeenCalledOnce();
+    // A skipped check proves nothing about the file.
+    expect(onVerified).not.toHaveBeenCalled();
     view.unmount();
 
     render(

@@ -7,7 +7,8 @@ import { BackupFlow } from "@/client/ui/backup/backupFlow";
 /**
  * A backup file of a saved identity: download then check it, or with `check` only check one made
  * earlier. Both are recorded on the identity. `allowSkip={false}` makes the check required, for
- * a backup that a removal waits on.
+ * a backup that a removal waits on. `onVerified` hears of a file that opened with its password,
+ * before the flow leaves; a skipped check is not one.
  */
 export function RecoveryFileDownload({
   allowSkip = true,
@@ -16,6 +17,7 @@ export function RecoveryFileDownload({
   verifyRecoveryFile,
   publicKeyZ32,
   onBack,
+  onVerified,
 }: {
   allowSkip?: boolean;
   check?: boolean;
@@ -30,6 +32,7 @@ export function RecoveryFileDownload({
   ) => Promise<LocalIdentityBackupCheckResult>;
   publicKeyZ32: string;
   onBack: () => void;
+  onVerified?: () => void;
 }) {
   return (
     <BackupFlow
@@ -38,7 +41,11 @@ export function RecoveryFileDownload({
       createBackup={(password) => createRecoveryFile(publicKeyZ32, password)}
       verifyBackup={(bytes, password) => verifyRecoveryFile(publicKeyZ32, bytes, password)}
       onBack={onBack}
-      onComplete={onBack}
+      onComplete={() => {
+        onVerified?.();
+        onBack();
+      }}
+      onSkip={onBack}
     />
   );
 }

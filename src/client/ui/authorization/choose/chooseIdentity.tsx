@@ -10,6 +10,7 @@ import { cn } from "@/client/ui/shared/mergeClassNames";
 import { Notice } from "@/client/ui/shared/notice";
 import { PassportHeaderAction } from "@/client/ui/shared/passportHeaderAction";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { SHORT_WINDOW_GAP } from "@/client/ui/shared/shortWindow";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { BroadAccessWarning } from "../broadAccessWarning";
 import { RequestHeading } from "../requestHeading";
@@ -24,7 +25,6 @@ import { RequestHeading } from "../requestHeading";
 const FILL_WINDOW =
   "[@media(min-height:36rem)]:h-[calc(100svh-var(--passport-header-height)-var(--passport-context-band-height))] min-h-min";
 const FILL_SPACE = "[@media(min-height:36rem)]:[contain:size]";
-const SHORT_WINDOW_GAP = "[@media(max-height:50rem)]:gap-4";
 
 /**
  * The first step of a request: every saved identity, filling the window above the other ways to

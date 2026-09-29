@@ -5,6 +5,7 @@ import { isKeyProtected, keyBackup } from "@/client/logic/local-identity/keyBack
 import type { LocalIdentityResult } from "@/client/logic/local-identity/LocalStorageIdentityRepository";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { formatBackupDate } from "@/client/ui/identity-dashboard/backupStatus";
+import { AcknowledgementCheckbox } from "@/client/ui/shared/acknowledgementCheckbox";
 import { PUBKY_COPY_TOASTS } from "@/client/ui/shared/copyToClipboard";
 import { DetailField } from "@/client/ui/shared/detailField";
 import { CheckIcon, DownloadIcon } from "@/client/ui/shared/icons";
@@ -123,17 +124,14 @@ export function LogoutConfirmation({
         </Notice>
       ) : null}
       {needsAcknowledgement ? (
-        <label className="flex items-start gap-3 text-sm leading-5">
-          <input
-            checked={backupAcknowledged}
-            className="mt-0.5 size-4 shrink-0 accent-brand"
-            onChange={(event) => setBackupAcknowledged(event.currentTarget.checked)}
-            type="checkbox"
-          />
+        <AcknowledgementCheckbox
+          checked={backupAcknowledged}
+          onCheckedChange={setBackupAcknowledged}
+        >
           {removesOnlyCopy
             ? "I have a backup of this key and understand it will be deleted from this browser."
             : "I still have the backup file and know its password."}
-        </label>
+        </AcknowledgementCheckbox>
       ) : null}
       {removalFailed ? (
         <Notice tone="error">

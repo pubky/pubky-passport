@@ -127,12 +127,12 @@ describe("IdentityManagementScreens", () => {
     expect(manage.onNavigate).toHaveBeenCalledWith({
       view: "detach",
       identity: IDENTITY,
-      googleSubject: "google-managed",
+      googleAccount: IDENTITY.googleAccount,
     });
     cleanup();
 
     const detach = renderScreens(
-      { view: "detach", identity: IDENTITY, googleSubject: "google-managed" },
+      { view: "detach", identity: IDENTITY, googleAccount: IDENTITY.googleAccount },
       { catalog: { activePublicKeyZ32: null, identities: [] } },
     );
     await user.click(screen.getByRole("button", { name: "Back" }));
