@@ -1,4 +1,9 @@
 import type { PubkyErrorName } from "@synonymdev/pubky";
+import { PassportErrorCause } from "./PassportErrorCause.js";
+import { formatMessage, messageContext } from "./formatMessage.js";
+import type { MessageContext, MessageKey, PassportMessageOverrides } from "./messageTypes.js";
+import type { PassportInstance } from "../instance/PassportInstance.js";
+export { PassportErrorCause } from "./PassportErrorCause.js";
 
 export type PassportErrorCode =
   | "popup_blocked"
@@ -27,25 +32,82 @@ export type PassportAction =
   | "reset-instance"
   | "create-profile";
 
-export interface PassportErrorCause extends Error {
-  readonly name: "PassportErrorCause";
-  readonly message: PubkyErrorName | "UnknownError";
-  readonly statusCode?: number;
+export interface PassportErrorDetail {
+  by?: "user" | "app";
+  passportCode?: string;
+  /** Passport parser code, or "empty", for request_rejected. */
+  rejection?: string;
+  /** A popup_closed error before the attempt's handshake confirmed. */
+  handshake?: "unconfirmed";
+  sdkError?: PubkyErrorName;
+  statusCode?: number;
+  canContinueInTab?: boolean;
 }
 
-export interface PassportError extends Error {
-  readonly name: "PassportError";
+export interface PassportErrorOptions {
+  detail?: Readonly<PassportErrorDetail>;
+  cause?: unknown;
+  messages?: PassportMessageOverrides;
+  context?: Partial<MessageContext>;
+  instance?: Pick<PassportInstance, "host" | "isCustom">;
+}
+
+export function errorMessageKey(
+  code: PassportErrorCode,
+  detail?: Readonly<PassportErrorDetail>,
+  isCustom = false,
+): MessageKey {
+  if (code === "passport_error" && detail?.passportCode === "storage_unavailable")
+    return "error.passport_error.storage_unavailable";
+  if (code === "request_rejected" && detail?.rejection === "empty" && isCustom)
+    return "error.request_rejected.outdated";
+  return `error.${code}`;
+}
+
+export function errorAction(
+  code: PassportErrorCode,
+  detail?: Readonly<PassportErrorDetail>,
+  isCustom = false,
+): PassportAction | undefined {
+  if (
+    code === "unsupported_environment" ||
+    // An invalid ready signal may carry a parser code or no code at all.
+    (code === "request_rejected" && detail?.rejection !== "empty")
+  )
+    return undefined;
+  if (code === "popup_blocked" && detail?.canContinueInTab) return "continue-in-tab";
+  if (code === "request_rejected" && detail?.rejection === "empty" && isCustom)
+    return "use-default-instance";
+  if (code === "cancelled" && detail?.by === "app") return "sign-in";
+  return "retry";
+}
+
+export class PassportError extends Error {
+  override readonly name = "PassportError";
+  override readonly message: string;
   readonly code: PassportErrorCode;
   readonly devMessage: string;
   readonly retryable: boolean;
   readonly action?: PassportAction;
-  readonly detail?: Readonly<{
-    by?: "user" | "app";
-    passportCode?: string;
-    rejection?: string;
-    sdkError?: PubkyErrorName;
-    statusCode?: number;
-    canContinueInTab?: boolean;
-  }>;
-  readonly cause?: PassportErrorCause;
+  readonly detail?: Readonly<PassportErrorDetail>;
+  override readonly cause?: PassportErrorCause;
+
+  constructor(code: PassportErrorCode, options: PassportErrorOptions = {}) {
+    const context = messageContext({
+      ...options.context,
+      ...(options.instance ? { instanceHost: options.instance.host } : {}),
+    });
+    const isCustom = options.instance?.isCustom ?? false;
+    const key = errorMessageKey(code, options.detail, isCustom);
+    const message = formatMessage(key, options.messages, context);
+    super(message);
+    this.message = message;
+    this.code = code;
+    this.devMessage = `Passport sign-in failed (${code}).`;
+    const action = errorAction(code, options.detail, isCustom);
+    this.retryable = action !== undefined;
+    if (options.detail) this.detail = Object.freeze({ ...options.detail });
+    if (options.cause !== undefined) this.cause = new PassportErrorCause(options.cause);
+    if (action !== undefined) this.action = action;
+  }
 }

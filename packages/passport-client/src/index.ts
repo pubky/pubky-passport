@@ -7,3 +7,14 @@ export type {
 } from "./config/PassportClientOptions.js";
 export type { PassportState } from "./attempt/attemptModel.js";
 export type { RingLink } from "./shared/RingLink.js";
+export { PassportError, PassportErrorCause } from "./errors/PassportError.js";
+export type { PassportErrorCode, PassportAction } from "./errors/PassportError.js";
+export { DEFAULT_MESSAGES } from "./errors/defaultMessages.js";
+export type {
+  MessageKey,
+  MessageContext,
+  MessageTemplate,
+  PassportMessageOverrides,
+} from "./errors/messageTypes.js";
+export { describePassportState } from "./view/describeState.js";
+export type { PassportView } from "./view/describeState.js";

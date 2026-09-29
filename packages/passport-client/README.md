@@ -7,9 +7,9 @@ scope is confirmed and `passport.pubky.app` serves `/authorize` with opener prot
 verified-requester display. The default instance is `https://passport.pubky.app`.
 
 The package has zero runtime dependencies. The app supplies the Pubky SDK as a peer; React is an
-optional peer for the React entry point. The scaffold exports `DEFAULT_PASSPORT_INSTANCE`,
-`PassportConfigError` and the option/state types; client, element, QR and React behavior arrives
-in subsequent changes.
+optional peer for the React entry point. It exports `DEFAULT_PASSPORT_INSTANCE`,
+`PassportConfigError`, typed runtime errors, default messages, `describePassportState` and the
+option/state types; client, element, QR and React behavior arrives in subsequent changes.
 
 Configuration defaults to identity-only capabilities and a required Pubky profile. Browser-derived
 names and return paths are resolved on the first browser operation. Advanced timeouts must be
@@ -18,6 +18,19 @@ redirect-state lifetime; an explicitly supplied lifetime cannot exceed the attem
 Undefined timeout fields retain their defaults. App names follow Passport's source-character rule:
 joiners used in multilingual spelling and emoji are accepted; controls, bidi controls and zero-width
 spaces are rejected. Configuration errors name the invalid option without echoing its value.
+
+Runtime errors expose stable codes and text-only copy that apps can override. Their causes contain
+only a recognized SDK error name (or `UnknownError`) and an optional HTTP status, never the original SDK error.
+`describePassportState` supplies labels, status, actions and the visible custom-instance notice;
+its signed-in view is hidden.
+Standalone callers must pass `context.defaultHost` to `describePassportState` when configuring
+their own default Passport instance. Error construction uses the attempt's `instance` metadata
+to select custom-instance copy and actions.
+
+| Error detail                                          | Meaning                                                                                                        |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `request_rejected` with `detail.rejection`            | A Passport parser code, or `empty`; a missing code also means an invalid request. Only `empty` can be retried. |
+| `popup_closed` with `detail.handshake: "unconfirmed"` | The popup closed before its handshake confirmed; the view may offer the developer default.                     |
 
 ## Security
 
