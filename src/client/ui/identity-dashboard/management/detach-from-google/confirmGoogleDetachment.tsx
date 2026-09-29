@@ -4,9 +4,14 @@ import { googleIdentityErrorMessage } from "@/client/ui/googleIdentityErrorMessa
 import { ConfirmDeletionDialog } from "@/client/ui/shared/confirmDeletionDialog";
 import { TechnicalDetails } from "@/client/ui/shared/errorScreen";
 
+/** What the person types to acknowledge that this browser will keep the key's only copy. */
+const ONLY_COPY_WORD = "ONLY COPY";
+
 /**
  * The last step before Google's window opens: it names the account to choose there, so a person
- * with several Google accounts picks the one holding this backup.
+ * with several Google accounts picks the one holding this backup. Without a checked recovery file
+ * the word to type is the acknowledgement that this browser will keep the key's only copy, so the
+ * Drive backup is never deleted on a plain "detach".
  */
 function ConfirmGoogleDetachment({
   canConfirm,
@@ -16,6 +21,7 @@ function ConfirmGoogleDetachment({
   onCancel,
   onConfirm,
   onRetryAuthorization,
+  onlyCopy,
   open,
   pending,
 }: {
@@ -27,15 +33,30 @@ function ConfirmGoogleDetachment({
   onCancel: () => void;
   onConfirm: () => void;
   onRetryAuthorization: () => void;
+  /** No recovery file of this key was checked, so detaching leaves its only copy in this browser. */
+  onlyCopy: boolean;
   open: boolean;
   pending: boolean;
 }) {
+  const googleWindow = `Google’s window will open: sign in as ${email}. ${DRIVE_PERMISSION_HINT} Passport needs both to delete the encrypted backup and its copy in your “Pubky Passport” folder. You stay signed in on this device.`;
   return (
     <ConfirmDeletionDialog
       canConfirm={canConfirm}
       confirmLabel="Confirm detachment"
-      confirmationWord="DETACH"
-      description={`Google’s window will open: sign in as ${email}. ${DRIVE_PERMISSION_HINT} Passport needs both to delete the encrypted backup and its copy in your “Pubky Passport” folder. You stay signed in on this device.`}
+      confirmationWord={onlyCopy ? ONLY_COPY_WORD : "DETACH"}
+      description={
+        onlyCopy ? (
+          <>
+            <strong className="mb-2 block font-semibold text-foreground">
+              No recovery file of this key has been checked, so this browser will keep the only copy
+              of your key. If its data is cleared, this pubky is gone unless it is in Pubky Ring.
+            </strong>{" "}
+            {googleWindow}
+          </>
+        ) : (
+          googleWindow
+        )
+      }
       error={
         error === null
           ? undefined
@@ -60,4 +81,4 @@ function ConfirmGoogleDetachment({
   );
 }
 
-export { ConfirmGoogleDetachment };
+export { ConfirmGoogleDetachment, ONLY_COPY_WORD };

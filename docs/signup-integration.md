@@ -285,10 +285,11 @@ Action errors retain their own meaning: a 403 during SMS submission may mean the
 number is blocked, not that the user's country is restricted.
 
 Google detachment removes the Drive backup and association while keeping the selected
-identity and its key locally. It continues only after a recovery file checked during the
-detachment, or the user's acknowledgement that the pubky is in Pubky Ring or a recovery file (a
-recovery file checked or imported earlier is named with its date), and it names the Google
-account to choose in Google's window. Local-key identities without a Google association can use
+identity and its key locally. When a recovery file of the key was checked (during the
+detachment, or checked or imported earlier, which is named with its date) it goes on directly;
+otherwise the user must type ONLY COPY, acknowledging that this browser will keep the key's only
+copy, before anything in Drive is deleted. It names the Google account to choose in Google's
+window. Local-key identities without a Google association can use
 **Manage identity → Google account → Attach to Google**. This enables Google sign-in by
 backing up the existing key. Attachment checks Drive metadata only and stops if any Passport
 backup already exists; it never downloads, decrypts, or overwrites that backup. Ring-held keys remain in Ring.

@@ -467,17 +467,14 @@ describe("UniversalSignerFlow identity navigation", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Back up your pubky first." })).toBeInTheDocument();
 
-    // Nothing proves a backup yet, so the way on waits for the person's own acknowledgement.
-    const proceed = screen.getByRole("button", { name: "Continue to detach" });
-    expect(proceed).toBeDisabled();
-    await userEvent.setup().click(screen.getByRole("checkbox"));
-    await userEvent.setup().click(proceed);
+    // Nothing proves a backup yet, so the confirmation takes the typed acknowledgement.
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue to detach" }));
     expect(screen.getByRole("heading", { name: "Detach from Google." })).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Detach from Google?" })).not.toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Detach from Google…" }));
     const confirm = screen.getByRole("button", { name: "Confirm detachment" });
     expect(confirm).toBeDisabled();
-    await userEvent.setup().type(screen.getByLabelText("Type DETACH to confirm"), "DETACH");
+    await userEvent.setup().type(screen.getByLabelText("Type ONLY COPY to confirm"), "ONLY COPY");
     expect(confirm).toBeEnabled();
     await userEvent.setup().click(confirm);
 

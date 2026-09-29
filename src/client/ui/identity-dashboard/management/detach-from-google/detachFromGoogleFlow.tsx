@@ -27,10 +27,10 @@ type DetachFromGoogleView =
   | { view: "review"; confirmation: "closed" | "open" };
 
 /**
- * Detaching deletes the Google Drive backup, often the key's only copy outside this browser. So
- * the Drive backup is removed only after a recovery file this flow checked, or the person's own
- * acknowledgement that the pubky is in Pubky Ring or a recovery file; and every screen names the
- * Google account whose backup goes.
+ * Detaching deletes the Google Drive backup, often the key's only copy outside this browser. With
+ * a recovery file of this key checked (here, or checked or imported earlier) it goes on directly;
+ * without one, the Drive backup is removed only after the person types that this browser will keep
+ * the key's only copy. Every screen names the Google account whose backup goes.
  */
 function DetachFromGoogleFlow({
   createRecoveryFile,
@@ -59,6 +59,8 @@ function DetachFromGoogleFlow({
   const [state, setState] = useState<DetachFromGoogleView>({ view: "recovery-options" });
   // A recovery file checked here proves a copy outside Google; Pubky Ring cannot report an import.
   const [backupChecked, setBackupChecked] = useState(false);
+  const recordedBackup = keyBackupFile(identity);
+  const recoveryFileChecked = backupChecked || recordedBackup?.verified === true;
   const operation = useDetachFromGoogle(identity.publicIdentity, googleAccount.googleSubject);
 
   preload("/illustrations/cloud.png", { as: "image" });
@@ -133,6 +135,7 @@ function DetachFromGoogleFlow({
             onCancel={() => setState({ view: "review", confirmation: "closed" })}
             onConfirm={operation.detach}
             onRetryAuthorization={operation.retryDetachment}
+            onlyCopy={!recoveryFileChecked}
             open={state.confirmation === "open"}
             pending={operation.state.status === "detaching"}
           />
@@ -143,7 +146,7 @@ function DetachFromGoogleFlow({
       return (
         <RecoveryBeforeDetaching
           backupChecked={backupChecked}
-          recordedBackup={keyBackupFile(identity)}
+          recordedBackup={recordedBackup}
           onBack={onBack}
           onRecoveryConfirmed={() => setState({ view: "review", confirmation: "closed" })}
           onDownloadRecoveryFile={() => setState({ view: "recovery-file" })}

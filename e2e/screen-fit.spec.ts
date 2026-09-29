@@ -299,7 +299,6 @@ test("the detach review's illustration stays inside a 768px window", async ({ pa
   await page.goto("/");
   await page.getByRole("button", { name: "Manage identity" }).click();
   await page.getByRole("button", { name: "Detach from Google" }).click();
-  await page.getByRole("checkbox", { name: /^I have this pubky in Pubky Ring/u }).check();
   await page.getByRole("button", { name: "Continue to detach" }).click();
   await expect(page.getByRole("heading", { name: "Detach from Google." })).toBeVisible();
   expect(await horizontalOverflow(page)).toBe(0);

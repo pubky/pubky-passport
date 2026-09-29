@@ -25,8 +25,8 @@ function renderGate(backupChecked: boolean, recordedBackup?: KeyBackupFile) {
   return actions;
 }
 
-const ACKNOWLEDGEMENT =
-  "I have this pubky in Pubky Ring or in a recovery file. Without one, I can’t recover it if this browser’s data is cleared.";
+const ONLY_COPY_WARNING =
+  "No recovery file of this key has been checked. You can still detach, but you’ll type ONLY COPY to confirm that this browser keeps the only copy of your key.";
 const CHECKED_AT = new Date("2026-09-28T10:00:00Z");
 
 describe("RecoveryBeforeDetaching", () => {
@@ -46,52 +46,46 @@ describe("RecoveryBeforeDetaching", () => {
     );
   });
 
-  it("keeps the way on closed until the person confirms a backup of their own", async () => {
+  // The acknowledgement is typed in the confirmation, so the way on is open and says so.
+  it("warns without a checked recovery file that detaching asks for a typed acknowledgement", async () => {
     const actions = renderGate(false);
-    const user = userEvent.setup();
-    const proceed = screen.getByRole("button", { name: "Continue to detach" });
 
-    expect(screen.queryByRole("button", { name: "I backed up my pubky" })).not.toBeInTheDocument();
-    expect(proceed).toBeDisabled();
-    await user.click(proceed);
-    expect(actions.onRecoveryConfirmed).not.toHaveBeenCalled();
-
-    await user.click(screen.getByRole("checkbox", { name: ACKNOWLEDGEMENT }));
-    expect(proceed).toBeEnabled();
-    await user.click(proceed);
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(ONLY_COPY_WARNING);
+    expect(screen.getByRole("status")).toHaveAttribute("data-tone", "warning");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue to detach" }));
     expect(actions.onRecoveryConfirmed).toHaveBeenCalledOnce();
   });
 
-  it("lets a recovery file checked here count without the acknowledgement", async () => {
+  it("goes on directly after a recovery file checked here", async () => {
     const actions = renderGate(true, { verified: true, at: CHECKED_AT });
 
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(
       "Your recovery file opened with its password.",
     );
+    expect(screen.queryByText(/ONLY COPY/u)).not.toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue to detach" }));
     expect(actions.onRecoveryConfirmed).toHaveBeenCalledOnce();
   });
 
-  // A file checked or imported earlier may be gone by now, so it is named but still acknowledged.
-  it("names a recovery file checked earlier, dated as on logging out, and keeps the acknowledgement", async () => {
+  // A checked or imported recovery file counts, whenever it happened.
+  it("goes on directly after a recovery file checked earlier, dated as on logging out", async () => {
     const actions = renderGate(false, { verified: true, at: CHECKED_AT });
 
     expect(screen.getByRole("status")).toHaveTextContent(
       `You checked a recovery file of this key on ${formatBackupDate(CHECKED_AT)}. Make sure you still have the file and its password.`,
     );
-    const proceed = screen.getByRole("button", { name: "Continue to detach" });
-    expect(proceed).toBeDisabled();
-    await userEvent.setup().click(screen.getByRole("checkbox", { name: ACKNOWLEDGEMENT }));
-    await userEvent.setup().click(proceed);
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.queryByText(/ONLY COPY/u)).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue to detach" }));
     expect(actions.onRecoveryConfirmed).toHaveBeenCalledOnce();
   });
 
-  it("does not present a recovery file that was only made as checked", () => {
+  it("does not count a recovery file that was only made", () => {
     renderGate(false, { verified: false, at: CHECKED_AT });
 
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: ACKNOWLEDGEMENT })).not.toBeChecked();
+    expect(screen.getByRole("status")).toHaveTextContent(ONLY_COPY_WARNING);
   });
 
   it("opens the backup methods and returns", async () => {

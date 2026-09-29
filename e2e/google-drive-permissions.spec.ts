@@ -98,6 +98,10 @@ test("detaching names the attached account and reports another account as such",
   page,
 }) => {
   await mockGoogleGrant(context, `${APP_DATA_SCOPE} ${DRIVE_FILE_SCOPE}`, "another-google-account");
+  const googleWindows: string[] = [];
+  context.on("request", (request) => {
+    if (request.url().startsWith("https://accounts.google.com/")) googleWindows.push(request.url());
+  });
   const driveRequests: string[] = [];
   await context.route("https://www.googleapis.com/**", (route) => {
     driveRequests.push(route.request().url());
@@ -105,21 +109,32 @@ test("detaching names the attached account and reports another account as such",
   });
   await installBoundIdentity(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "Manage identity", exact: true }).click();
-  await page.getByRole("button", { name: "Detach from Google" }).click();
-  // Nothing proves a backup yet: the way on waits for the person's acknowledgement.
-  const proceed = page.getByRole("button", { name: "Continue to detach" });
-  await expect(proceed).toBeDisabled();
-  await page.getByRole("checkbox", { name: /^I have this pubky in Pubky Ring/u }).check();
-  await proceed.click();
+  await openDetachment(page);
+  // No recovery file of this key was checked: the confirmation will take a typed acknowledgement.
+  await expect(page.getByRole("checkbox")).toHaveCount(0);
+  await expect(page.getByRole("status")).toContainText(
+    "No recovery file of this key has been checked.",
+  );
+  await page.getByRole("button", { name: "Continue to detach" }).click();
   await expect(
     page.getByRole("group", { name: "Attached Google account: test@example.com" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Detach from Google…" }).click();
   const dialog = page.getByRole("dialog", { name: "Detach from Google?" });
+  await expect(dialog).toContainText("this browser will keep the only copy of your key");
   await expect(dialog).toContainText("sign in as test@example.com");
-  await page.getByLabel("Type DETACH to confirm").fill("DETACH");
-  await page.getByRole("button", { name: "Confirm detachment" }).click();
+  await expect(page.getByLabel("Type DETACH to confirm")).toHaveCount(0);
+  const acknowledgement = page.getByLabel("Type ONLY COPY to confirm");
+  const confirm = page.getByRole("button", { name: "Confirm detachment" });
+  // The usual word is not the acknowledgement: nothing is sent to Google or Drive.
+  await acknowledgement.fill("DETACH");
+  await expect(confirm).toBeDisabled();
+  await acknowledgement.press("Enter");
+  await expect(dialog).toBeVisible();
+  expect(googleWindows).toEqual([]);
+  expect(driveRequests).toEqual([]);
+  await acknowledgement.fill("ONLY COPY");
+  await confirm.click();
 
   await expect(dialog.getByRole("alert")).toHaveText(
     "You chose a different Google account. To remove this backup, choose test@example.com in Google’s window.",
@@ -145,9 +160,13 @@ test("detaching removes the Google backup and keeps the identity active in this 
     // No app-data file and no visible recovery folder are left, so nothing needs decrypting.
     return route.fulfill({ json: { files: [] } });
   });
-  await installBoundIdentity(page);
+  // A recovery file of this key opened earlier, so detaching goes on without the acknowledgement.
+  await installBoundIdentity(page, { recoveryFileCheckedAt: "2026-09-28T10:00:00.000Z" });
   await page.goto("/");
-  await confirmDetachment(page);
+  await openDetachment(page);
+  await expect(page.getByRole("status")).toContainText("You checked a recovery file of this key");
+  await expect(page.getByText(/ONLY COPY/u)).toHaveCount(0);
+  await finishDetachment(page, "DETACH");
 
   await expect(page.getByRole("heading", { name: "Detached from Google." })).toBeVisible();
   expect(driveRequests.length).toBeGreaterThan(0);
@@ -542,9 +561,16 @@ async function expectAboveFold(page: Page, names: readonly string[]) {
   }
 }
 
-async function installBoundIdentity(page: Page) {
+/**
+ * A browser-held key attached to Google. `recoveryFileCheckedAt` records a recovery file of it
+ * that opened with its password (or was imported) at that time.
+ */
+async function installBoundIdentity(
+  page: Page,
+  { recoveryFileCheckedAt }: { recoveryFileCheckedAt?: string } = {},
+) {
   await page.addInitScript(
-    ({ publicKey, secretKey, subject, root }) => {
+    ({ publicKey, secretKey, subject, root, verifiedAt }) => {
       localStorage.setItem(
         `${root}/identity/${publicKey}`,
         JSON.stringify({
@@ -559,19 +585,43 @@ async function installBoundIdentity(page: Page) {
           },
         }),
       );
+      if (verifiedAt) {
+        localStorage.setItem(
+          `${root}/identity-backup/${publicKey}`,
+          JSON.stringify({ v: 1, verifiedAt }),
+        );
+      }
       localStorage.setItem(`${root}/active`, publicKey);
     },
-    { publicKey: PUBLIC_KEY, secretKey: SECRET_KEY, subject: SUBJECT, root: STORAGE_ROOT },
+    {
+      publicKey: PUBLIC_KEY,
+      secretKey: SECRET_KEY,
+      subject: SUBJECT,
+      root: STORAGE_ROOT,
+      verifiedAt: recoveryFileCheckedAt ?? null,
+    },
   );
 }
 
-async function confirmDetachment(page: Page) {
+async function openDetachment(page: Page) {
   await page.getByRole("button", { name: "Manage identity", exact: true }).click();
   await page.getByRole("button", { name: "Detach from Google" }).click();
-  await page.getByRole("checkbox", { name: /^I have this pubky in Pubky Ring/u }).check();
+}
+
+/** Detaches from the overview a key with no checked recovery file, typing the acknowledgement. */
+async function confirmDetachment(page: Page) {
+  await openDetachment(page);
+  await finishDetachment(page, "ONLY COPY");
+}
+
+/**
+ * Goes on from "Back up your pubky first." `word` is what the confirmation asks for: ONLY COPY,
+ * the acknowledgement, while no recovery file of the key was checked, else DETACH.
+ */
+async function finishDetachment(page: Page, word: "ONLY COPY" | "DETACH") {
   await page.getByRole("button", { name: "Continue to detach" }).click();
   await page.getByRole("button", { name: "Detach from Google…" }).click();
-  await page.getByLabel("Type DETACH to confirm").fill("DETACH");
+  await page.getByLabel(`Type ${word} to confirm`).fill(word);
   await page.getByRole("button", { name: "Confirm detachment" }).click();
 }
 

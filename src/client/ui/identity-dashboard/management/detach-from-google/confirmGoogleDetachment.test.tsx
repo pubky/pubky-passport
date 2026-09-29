@@ -21,6 +21,7 @@ describe("ConfirmGoogleDetachment", () => {
         onCancel={vi.fn()}
         onConfirm={onConfirm}
         onRetryAuthorization={vi.fn()}
+        onlyCopy={false}
         open
         pending={false}
       />,
@@ -44,6 +45,48 @@ describe("ConfirmGoogleDetachment", () => {
     expect(onConfirm).toHaveBeenCalledOnce();
   });
 
+  // D-57: without a checked recovery file, the word typed is the acknowledgement itself.
+  it("asks for ONLY COPY when no recovery file was checked, and nothing else will do", async () => {
+    const onConfirm = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ConfirmGoogleDetachment
+        canConfirm
+        canRetryAuthorization={false}
+        email="alex@example.com"
+        error={null}
+        onCancel={vi.fn()}
+        onConfirm={onConfirm}
+        onRetryAuthorization={vi.fn()}
+        onlyCopy
+        open
+        pending={false}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("dialog", { name: "Detach from Google?" }),
+    ).toHaveAccessibleDescription(
+      `No recovery file of this key has been checked, so this browser will keep the only copy of your key. If its data is cleared, this pubky is gone unless it is in Pubky Ring. Google’s window will open: sign in as alex@example.com. ${DRIVE_PERMISSION_HINT} Passport needs both to delete the encrypted backup and its copy in your “Pubky Passport” folder. You stay signed in on this device.`,
+    );
+    expect(screen.queryByLabelText("Type DETACH to confirm")).not.toBeInTheDocument();
+    const acknowledgement = screen.getByLabelText("Type ONLY COPY to confirm");
+    const confirm = screen.getByRole("button", { name: "Confirm detachment" });
+    for (const wrong of ["DETACH", "ONLY", "ONLYCOPY", "only copies"]) {
+      await user.clear(acknowledgement);
+      await user.type(acknowledgement, wrong);
+      expect(confirm).toBeDisabled();
+      await user.type(acknowledgement, "{Enter}");
+    }
+    expect(onConfirm).not.toHaveBeenCalled();
+
+    await user.clear(acknowledgement);
+    await user.type(acknowledgement, "Only copy ");
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+    expect(onConfirm).toHaveBeenCalledOnce();
+  });
+
   it("can be cancelled from either close control", async () => {
     const onCancel = vi.fn();
     render(
@@ -55,6 +98,7 @@ describe("ConfirmGoogleDetachment", () => {
         onCancel={onCancel}
         onConfirm={vi.fn()}
         onRetryAuthorization={vi.fn()}
+        onlyCopy={false}
         open
         pending={false}
       />,
@@ -76,6 +120,7 @@ describe("ConfirmGoogleDetachment", () => {
         onCancel={vi.fn()}
         onConfirm={vi.fn()}
         onRetryAuthorization={onRetryAuthorization}
+        onlyCopy={false}
         open
         pending={false}
       />,
@@ -101,6 +146,7 @@ describe("ConfirmGoogleDetachment", () => {
         onCancel={vi.fn()}
         onConfirm={vi.fn()}
         onRetryAuthorization={onRetryAuthorization}
+        onlyCopy={false}
         open
         pending={false}
       />,
@@ -124,6 +170,7 @@ describe("ConfirmGoogleDetachment", () => {
         onCancel={vi.fn()}
         onConfirm={vi.fn()}
         onRetryAuthorization={vi.fn()}
+        onlyCopy={false}
         open
         pending={false}
       />,
@@ -146,6 +193,7 @@ describe("ConfirmGoogleDetachment", () => {
       onCancel: vi.fn(),
       onConfirm: vi.fn(),
       onRetryAuthorization: vi.fn(),
+      onlyCopy: false,
       open: true,
     };
     const { rerender } = render(<ConfirmGoogleDetachment {...props} error={null} pending />);

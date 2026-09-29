@@ -51,10 +51,7 @@ describe("DetachFromGoogleFlow", () => {
         { createGoogleIdentityController: () => controller },
       ),
     );
-    await acknowledgeBackup(user);
-    await user.click(screen.getByRole("button", { name: "Detach from Google…" }));
-    await user.type(screen.getByLabelText("Type DETACH to confirm"), "DETACH");
-    await user.click(screen.getByRole("button", { name: "Confirm detachment" }));
+    await confirmDetachment(user);
 
     expect(
       await screen.findByRole("heading", { name: "Drive access required." }),
@@ -79,38 +76,81 @@ describe("DetachFromGoogleFlow", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     detachIdentity.mockResolvedValueOnce(Result.ok());
-    await user.click(screen.getByRole("button", { name: "Detach from Google…" }));
-    await user.type(screen.getByLabelText("Type DETACH to confirm"), "DETACH");
-    await user.click(screen.getByRole("button", { name: "Confirm detachment" }));
+    await confirmDetachment(user);
     expect(await screen.findByText(/Your Google backup has been removed/i)).toBeInTheDocument();
   });
 
-  it("names a recovery file this browser recorded as checked, and still asks for the acknowledgement", async () => {
+  it("goes on directly after a recovery file checked or imported earlier", async () => {
     const checkedAt = "2026-09-28T10:00:00.000Z";
-    render(
-      withPassportTestProviders(
-        <DetachFromGoogleFlow
-          createRecoveryFile={vi.fn()}
-          verifyRecoveryFile={vi.fn()}
-          createMigration={vi.fn()}
-          googleAccount={identity.googleAccount}
-          identity={{ ...identity, backup: { verifiedAt: checkedAt } }}
-          onBack={vi.fn()}
-          onDone={vi.fn()}
-        />,
-        { createGoogleIdentityController: () => mockGoogleIdentityController() },
-      ),
+    const detachIdentity = vi.fn<GoogleIdentityController["detachIdentity"]>(async () =>
+      Result.ok(),
     );
+    const user = userEvent.setup();
+    renderFlow(mockGoogleIdentityController({ detachIdentity }), {
+      ...identity,
+      backup: { verifiedAt: checkedAt },
+    });
 
     expect(screen.getByRole("status")).toHaveTextContent(
       `You checked a recovery file of this key on ${formatBackupDate(new Date(checkedAt))}.`,
     );
-    expect(screen.getByRole("button", { name: "Continue to detach" })).toBeDisabled();
-    await acknowledgeBackup(userEvent.setup());
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Continue to detach" }));
     expect(screen.getByRole("heading", { name: "Detach from Google." })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Detach from Google…" }));
+    expect(screen.queryByLabelText("Type ONLY COPY to confirm")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog")).not.toHaveAccessibleDescription(/only copy/u);
+    await user.type(screen.getByLabelText("Type DETACH to confirm"), "DETACH");
+    await user.click(screen.getByRole("button", { name: "Confirm detachment" }));
+    expect(detachIdentity).toHaveBeenCalledOnce();
+    expect(await screen.findByText(/Your Google backup has been removed/i)).toBeInTheDocument();
   });
 
-  it("opens the way on after a recovery file checked here, and not after Pubky Ring", async () => {
+  it("deletes the Drive backup of an unchecked key only after the typed acknowledgement", async () => {
+    const detachIdentity = vi.fn<GoogleIdentityController["detachIdentity"]>(async () =>
+      Result.ok(),
+    );
+    const controller = mockGoogleIdentityController({ detachIdentity });
+    const user = userEvent.setup();
+    renderFlow(controller);
+
+    // A recovery file Passport only made was never seen to open, so it does not count.
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "No recovery file of this key has been checked.",
+    );
+    await user.click(screen.getByRole("button", { name: "Continue to detach" }));
+    await user.click(screen.getByRole("button", { name: "Detach from Google…" }));
+    const dialog = screen.getByRole("dialog", { name: "Detach from Google?" });
+    expect(dialog).toHaveAccessibleDescription(
+      /^No recovery file of this key has been checked, so this browser will keep the only copy of your key\./u,
+    );
+    expect(screen.queryByLabelText("Type DETACH to confirm")).not.toBeInTheDocument();
+    const acknowledgement = screen.getByLabelText("Type ONLY COPY to confirm");
+    const confirm = within(dialog).getByRole("button", { name: "Confirm detachment" });
+
+    await user.type(acknowledgement, "DETACH{Enter}");
+    expect(confirm).toBeDisabled();
+    await user.click(confirm);
+    expect(detachIdentity).not.toHaveBeenCalled();
+    expect(controller.getState().status).toBe("idle");
+
+    // Cancelling forgets what was typed; the next attempt starts from an empty field.
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Detach from Google…" }));
+    expect(screen.getByLabelText("Type ONLY COPY to confirm")).toHaveValue("");
+    expect(detachIdentity).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText("Type ONLY COPY to confirm"), "ONLY COPY");
+    await user.click(screen.getByRole("button", { name: "Confirm detachment" }));
+    expect(detachIdentity).toHaveBeenCalledOnce();
+    expect(detachIdentity).toHaveBeenCalledWith(
+      identity.publicIdentity,
+      identity.googleAccount.googleSubject,
+    );
+    expect(await screen.findByText(/Your Google backup has been removed/i)).toBeInTheDocument();
+  });
+
+  it("lets a recovery file checked here replace the acknowledgement, and not Pubky Ring", async () => {
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:backup");
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
@@ -134,10 +174,10 @@ describe("DetachFromGoogleFlow", () => {
       ),
     );
 
-    // Ring cannot report an import, so returning from it still needs the acknowledgement.
+    // Ring cannot report an import, so returning from it still leads to the typed acknowledgement.
     await user.click(screen.getByRole("button", { name: "Use in Pubky Ring" }));
     await user.click(screen.getByRole("button", { name: "Done" }));
-    expect(screen.getByRole("button", { name: "Continue to detach" })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent(/you’ll type ONLY COPY to confirm/u);
 
     await user.click(screen.getByRole("button", { name: "Download recovery file" }));
     await user.type(screen.getByLabelText("Enter strong password"), "correct horse battery");
@@ -153,12 +193,15 @@ describe("DetachFromGoogleFlow", () => {
     expect(
       await screen.findByRole("heading", { name: "Back up your pubky first." }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.queryByText(/ONLY COPY/u)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Continue to detach" }));
     expect(screen.getByRole("heading", { name: "Detach from Google." })).toBeInTheDocument();
     expect(
       screen.getByRole("group", { name: "Attached Google account: user@example.com" }),
     ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Detach from Google…" }));
+    expect(screen.getByLabelText("Type DETACH to confirm")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Type ONLY COPY to confirm")).not.toBeInTheDocument();
   });
 
   it("waits for Google's window with Cancel and Show, and removes nothing until Google answers", async () => {
@@ -202,7 +245,10 @@ describe("DetachFromGoogleFlow", () => {
   });
 });
 
-function renderFlow(controller: ReturnType<typeof mockGoogleIdentityController>) {
+function renderFlow(
+  controller: ReturnType<typeof mockGoogleIdentityController>,
+  detachedIdentity: Parameters<typeof DetachFromGoogleFlow>[0]["identity"] = identity,
+) {
   render(
     withPassportTestProviders(
       <DetachFromGoogleFlow
@@ -210,7 +256,7 @@ function renderFlow(controller: ReturnType<typeof mockGoogleIdentityController>)
         verifyRecoveryFile={vi.fn()}
         createMigration={vi.fn()}
         googleAccount={identity.googleAccount}
-        identity={identity}
+        identity={detachedIdentity}
         onBack={vi.fn()}
         onDone={vi.fn()}
       />,
@@ -219,16 +265,12 @@ function renderFlow(controller: ReturnType<typeof mockGoogleIdentityController>)
   );
 }
 
-async function acknowledgeBackup(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole("checkbox", { name: /^I have this pubky in Pubky Ring/u }));
-  await user.click(screen.getByRole("button", { name: "Continue to detach" }));
-}
-
+/** Detaches a key with no checked recovery file, which takes the typed acknowledgement. */
 async function confirmDetachment(user: ReturnType<typeof userEvent.setup>) {
   if (screen.queryByRole("button", { name: "Continue to detach" })) {
-    await acknowledgeBackup(user);
+    await user.click(screen.getByRole("button", { name: "Continue to detach" }));
   }
   await user.click(screen.getByRole("button", { name: "Detach from Google…" }));
-  await user.type(screen.getByLabelText("Type DETACH to confirm"), "DETACH");
+  await user.type(screen.getByLabelText("Type ONLY COPY to confirm"), "ONLY COPY");
   await user.click(screen.getByRole("button", { name: "Confirm detachment" }));
 }
