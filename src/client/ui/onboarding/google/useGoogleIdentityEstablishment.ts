@@ -32,6 +32,8 @@ function useGoogleIdentityEstablishment() {
 
   return {
     back: google.reset,
+    cancelAuthorization: google.cancelAuthorization,
+    showAuthorizationWindow: google.showAuthorizationWindow,
     establishIdentity: () =>
       google.run("establish", (controller) => controller.establishIdentity()),
     continueWithoutVisibleBackup: () =>

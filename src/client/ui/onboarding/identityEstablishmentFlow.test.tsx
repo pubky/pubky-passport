@@ -76,7 +76,8 @@ describe("IdentityEstablishmentFlow", () => {
 
   it("starts Google authorization from one button click", async () => {
     const establishIdentity = vi.fn(() => new Promise<never>(() => undefined));
-    useController(mockGoogleIdentityController({ establishIdentity }));
+    const controller = mockGoogleIdentityController({ establishIdentity });
+    useController(controller);
 
     render(<ConfiguredIdentityEstablishmentFlow onComplete={vi.fn()} />);
     const continueWithGoogle = screen.getByRole("button", { name: "Continue with Google" });
@@ -94,29 +95,59 @@ describe("IdentityEstablishmentFlow", () => {
     expect(requestingHeading.lastElementChild).toHaveClass("md:inline");
     expect(requestingHeading.parentElement).toHaveClass("gap-6", "md:gap-3");
     expect(requestingHeading.closest("main")).toHaveClass("gap-6", "md:gap-8");
-    const waiting = screen.getByRole("button", { name: "Waiting for Google..." });
-    expect(waiting).toBeDisabled();
-    expect(waiting).toHaveClass("w-full", "h-15", "bg-secondary", "disabled:opacity-50");
     expect(
-      within(screen.getByRole("status")).getByText("Waiting for Google..."),
+      screen.getByText(/^Finish in Google’s window: choose your account, tick Select all/),
     ).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Waiting for Google…");
+    // The lead already gives the instruction, so the guide's caption only names the picture.
+    expect(screen.getByRole("figure")).toHaveTextContent("What to tick in Google’s window");
     expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
+    // The actions come before the guide in focus order, as they do on screen.
+    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([
+      "Cancel",
+      "Show Google’s window",
+      "Play",
+    ]);
+    // Phones open Google's window as a tab, which cannot be raised: they are told to switch.
+    expect(screen.getByRole("button", { name: "Show Google’s window" })).toHaveClass(
+      "pointer-coarse:hidden",
+    );
+    expect(screen.getByText("Switch back to the Google tab to finish.")).toHaveClass(
+      "hidden",
+      "pointer-coarse:block",
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Show Google’s window" }));
+    expect(controller.showAuthorizationWindow).toHaveBeenCalledOnce();
+    expect(controller.cancelAuthorization).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(controller.cancelAuthorization).toHaveBeenCalledOnce();
+    // Cancelling starts over at the entry rather than reporting a failure.
+    expect(await screen.findByRole("heading", { name: "Entry" })).toBeInTheDocument();
   });
 
-  it("uses the authorization action width when embedded in that flow", async () => {
-    useController(
-      mockGoogleIdentityController({
-        establishIdentity: vi.fn(() => new Promise<never>(() => undefined)),
-      }),
-    );
-    render(<ConfiguredIdentityEstablishmentFlow forAuthorization onComplete={vi.fn()} />);
+  it.each([true, false])(
+    "pairs the waiting actions only outside the authorization flow, forAuthorization=%s",
+    async (forAuthorization) => {
+      useController(
+        mockGoogleIdentityController({
+          establishIdentity: vi.fn(() => new Promise<never>(() => undefined)),
+        }),
+      );
+      render(
+        <ConfiguredIdentityEstablishmentFlow
+          forAuthorization={forAuthorization}
+          onComplete={vi.fn()}
+        />,
+      );
 
-    await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
+      await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
 
-    expect(screen.getByRole("button", { name: "Waiting for Google..." })).not.toHaveClass(
-      "md:w-[220px]",
-    );
-  });
+      const actions = screen.getByRole("button", { name: "Cancel" }).parentElement;
+      expect(actions?.classList.contains("md:pointer-fine:grid-cols-2")).toBe(!forAuthorization);
+    },
+  );
 
   it("keeps a restore on the loading screen and announces a repair", async () => {
     const controller = mockGoogleIdentityController({
@@ -205,9 +236,10 @@ describe("IdentityEstablishmentFlow", () => {
       name: "Google Drive access denied.",
     });
     expect(deniedHeading).toHaveFocus();
-    expect(
-      screen.getByRole("img", { name: /selecting both Google Drive permission checkboxes/i }),
-    ).toHaveAttribute("src", "/illustrations/google-drive-permissions.gif");
+    expect(screen.getByRole("img", { name: /both Google Drive boxes ticked/ })).toHaveAttribute(
+      "src",
+      "/illustrations/google-drive-permissions-still.png",
+    );
     expect(within(deniedHeading).getByText("Drive")).toHaveClass("hidden", "md:inline");
     expect(
       screen.getByText("Passport needs Google Drive access to create or restore your Pubky."),
@@ -220,8 +252,13 @@ describe("IdentityEstablishmentFlow", () => {
     expect(screen.queryByText("Technical details")).not.toBeInTheDocument();
     const buttons = screen.getAllByRole("button");
     const tryAgain = screen.getByRole("button", { name: "Try again" });
-    // One action row for every viewport: back first, the recovery action last.
-    expect(buttons).toEqual([screen.getByRole("button", { name: "Back" }), tryAgain]);
+    // One action row for every viewport, back first and the recovery action last, then the
+    // guide's own control.
+    expect(buttons).toEqual([
+      screen.getByRole("button", { name: "Back" }),
+      tryAgain,
+      screen.getByRole("button", { name: "Play animation" }),
+    ]);
     await userEvent.setup().click(tryAgain);
     expect(establishIdentity).toHaveBeenCalledTimes(2);
   });
@@ -267,9 +304,10 @@ describe("IdentityEstablishmentFlow", () => {
     expect(
       await screen.findByRole("heading", { name: "Drive access required." }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("img", { name: /selecting both Google Drive permission checkboxes/i }),
-    ).toHaveAttribute("src", "/illustrations/google-drive-permissions.gif");
+    expect(screen.getByRole("img", { name: /both Google Drive boxes ticked/ })).toHaveAttribute(
+      "src",
+      "/illustrations/google-drive-permissions-still.png",
+    );
     expect(
       screen.queryByRole("button", { name: "Continue without visible backup" }),
     ).not.toBeInTheDocument();

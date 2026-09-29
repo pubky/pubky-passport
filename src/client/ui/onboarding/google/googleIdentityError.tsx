@@ -231,6 +231,7 @@ function GoogleAccessDenied({
           </span>
         </>
       }
+      help={<GooglePermissionGuide />}
       label="Google Drive access denied."
       nextStep="Try again and allow Passport’s Google Drive access in Google’s window. The second permission also adds a visible recovery copy."
       title={
@@ -238,9 +239,7 @@ function GoogleAccessDenied({
           Google <span className="hidden md:inline">Drive</span> access
         </>
       }
-    >
-      <GooglePermissionGuide />
-    </ErrorScreen>
+    />
   );
 }
 

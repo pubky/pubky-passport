@@ -1,6 +1,10 @@
 import type { PubkyPublicIdentity } from "@/client/logic/pubky/pubkyIdentityKey";
-import { GoogleDrivePermissionPrompt } from "@/client/ui/googleDrivePermissionPrompt";
+import {
+  DRIVE_PERMISSION_HINT,
+  GoogleDrivePermissionPrompt,
+} from "@/client/ui/googleDrivePermissionPrompt";
 import { googleIdentityErrorMessage } from "@/client/ui/googleIdentityErrorMessage";
+import { GoogleAccessScreen } from "@/client/ui/onboarding/google/googleAccessScreen";
 import { BackButton } from "@/client/ui/shared/backButton";
 import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
 import { RotateCcwIcon } from "@/client/ui/shared/icons";
@@ -31,6 +35,14 @@ export function BackupToGoogle({
       />
     );
   }
+  if (state.status === "authorizing") {
+    return (
+      <GoogleAccessScreen
+        onCancel={operation.cancelAuthorization}
+        onShowGoogleWindow={operation.showAuthorizationWindow}
+      />
+    );
+  }
   if (state.status === "complete") {
     return (
       <PassportScreen className="gap-6 md:gap-8">
@@ -58,7 +70,7 @@ export function BackupToGoogle({
       <DisplayHeading accent="to Google.">Attach</DisplayHeading>
       <LeadText>
         Sign in with Google and keep an encrypted backup of this identity in your Google Drive.
-        Choose a Google account that doesn’t already have a Passport backup.
+        Choose a Google account that doesn’t already have a Passport backup. {DRIVE_PERMISSION_HINT}
       </LeadText>
       {state.status === "failed" ? (
         <Notice tone="error">{googleIdentityErrorMessage(state.error.code, "attach")}</Notice>

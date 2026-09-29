@@ -52,7 +52,7 @@ describe("ErrorScreen", () => {
     expect(heading).toHaveAccessibleDescription("Passport needs Google Drive access.");
   });
 
-  it("orders context, back, the recovery action, a further option, then collapsed details", () => {
+  it("orders context, back, the recovery action, a further option, help, then collapsed details", () => {
     render(
       <ErrorScreen
         accent="interrupted."
@@ -60,6 +60,7 @@ describe("ErrorScreen", () => {
         back={<Button>Back</Button>}
         cause="Passport found your identity file, but it is damaged."
         details={{ code: "invalid_passport_file", detail: "parse_failed" }}
+        help={<Button variant="outline">Play animation</Button>}
         secondaryAction={<Button variant="ghost">Delete backup &amp; create new pubky</Button>}
         title="Setup"
       >
@@ -67,10 +68,12 @@ describe("ErrorScreen", () => {
       </ErrorScreen>,
     );
 
+    // Help follows every action, so focus reaches the actions first.
     expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([
       "Back",
       "Try again",
       "Delete backup & create new pubky",
+      "Play animation",
     ]);
     const context = screen.getByText("Context the person needs to decide.");
     const back = screen.getByRole("button", { name: "Back" });
@@ -81,6 +84,9 @@ describe("ErrorScreen", () => {
     expect(details).not.toHaveAttribute("open");
     expect(details).toHaveTextContent("Error code: invalid_passport_file · parse_failed");
     expect(back.compareDocumentPosition(details)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(
+      screen.getByRole("button", { name: "Play animation" }).compareDocumentPosition(details),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
   it("lines a further option up with a lone Back when no retry is offered", () => {

@@ -33,7 +33,10 @@ type GoogleImplicitAuthorizationErrorCode =
   /** Reported by the caller that opens the popup (see {@link AuthorizationPopup.openPending}). */
   | "google_authorization_popup_failed_to_open";
 type GoogleAuthorizationFailureReason =
-  "authorization_disposed" | "authorization_in_progress" | "authorization_timed_out";
+  | "authorization_cancelled"
+  | "authorization_disposed"
+  | "authorization_in_progress"
+  | "authorization_timed_out";
 type GoogleAuthorizationFailure = CodedFailure<"google_authorization_failed"> & {
   /** Safe state-only context for generic authorization failures without a thrown cause. */
   reason?: GoogleAuthorizationFailureReason;
@@ -208,6 +211,21 @@ export class GoogleImplicitAuthorization {
         this.failAttempt(attempt, "attempt_setup", e);
       }
     });
+  }
+
+  /**
+   * Ends the active request because the person cancelled it in Passport: closes the popup and
+   * settles the request as failed with reason `authorization_cancelled`. Unlike {@link dispose},
+   * it is a normal outcome and leaves the object ready for the next request.
+   */
+  cancel(): void {
+    const attempt = this.activeAttempt;
+    if (!attempt) return;
+    LOGGER.info("identity.google.implicit_authorization.cancelled", { operation: "authorize" });
+    this.finish(
+      attempt,
+      Result.err({ code: "google_authorization_failed", reason: "authorization_cancelled" }),
+    );
   }
 
   /** Settles any active request as failed and releases all resources owned by the attempt. */

@@ -193,8 +193,8 @@ describe("AddIdentity", () => {
 
       await userEvent.setup().click(screen.getByRole("button", { name: "Continue with Google" }));
 
-      const waiting = await screen.findByRole("button", { name: "Waiting for Google..." });
-      expect(waiting.classList.contains("md:w-[220px]")).toBe(!forAuthorization);
+      const actions = (await screen.findByRole("button", { name: "Cancel" })).parentElement;
+      expect(actions?.classList.contains("md:pointer-fine:grid-cols-2")).toBe(!forAuthorization);
     },
   );
 

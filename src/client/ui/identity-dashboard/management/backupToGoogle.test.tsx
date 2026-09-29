@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +11,7 @@ import {
   GoogleIdentityLifecycle,
   type UnlinkedGoogleBackups,
 } from "@/client/logic/google-identity/GoogleIdentityLifecycle";
+import { DRIVE_PERMISSION_HINT } from "@/client/ui/googleDrivePermissionPrompt";
 import { BackupToGoogle } from "./backupToGoogle";
 
 const publicIdentity = { publicKeyZ32: "identity" };
@@ -50,6 +51,38 @@ describe("BackupToGoogle", () => {
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Done" }));
     expect(onBack).toHaveBeenCalledOnce();
+  });
+
+  it("primes both permissions, then waits for Google's window with Cancel and Show", async () => {
+    const backupIdentity = vi.fn(() => new Promise<never>(() => undefined));
+    const controller = mockGoogleIdentityController({ backupIdentity });
+    render(
+      withPassportTestProviders(
+        <BackupToGoogle publicIdentity={publicIdentity} onBack={vi.fn()} />,
+        { createGoogleIdentityController: () => controller },
+      ),
+    );
+    expect(screen.getByText(/^Sign in with Google and keep/)).toHaveTextContent(
+      DRIVE_PERMISSION_HINT,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Attach to Google" }));
+
+    expect(
+      screen.getByRole("heading", { name: "Requesting Google Drive access." }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Waiting for Google…");
+    await user.click(screen.getByRole("button", { name: "Show Google’s window" }));
+    expect(controller.showAuthorizationWindow).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(controller.cancelAuthorization).toHaveBeenCalledOnce();
+    expect(await screen.findByRole("button", { name: "Attach to Google" })).toBeEnabled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    // Once Google answered, the attach screen shows its own progress.
+    await user.click(screen.getByRole("button", { name: "Attach to Google" }));
+    act(() => controller.emitState({ status: "backing-up" }));
+    expect(screen.getByRole("button", { name: "Attaching…" })).toHaveAttribute("aria-busy", "true");
   });
 
   it("shows permission guidance and retries with a fresh account choice", async () => {
@@ -314,7 +347,11 @@ function renderWithRealController(
     new GoogleIdentityController(
       googleClientId,
       homegateBaseUrl,
-      () => ({ request: async () => Result.ok(credentials), dispose: () => undefined }),
+      () => ({
+        request: async () => Result.ok(credentials),
+        cancel: () => undefined,
+        dispose: () => undefined,
+      }),
       (homegate) =>
         new GoogleIdentityLifecycle(homegate, PASSPORT_ORIGIN, {
           fetch,

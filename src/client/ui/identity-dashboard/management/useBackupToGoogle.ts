@@ -12,6 +12,8 @@ import { useGoogleIdentityStore } from "@/client/ui/useGoogleIdentityStore";
 
 type BackupToGoogleState =
   | { status: "ready" }
+  /** Google's window is open and waits for the person. */
+  | { status: "authorizing" }
   | { status: "pending" }
   | { status: "permission-required"; mode: GooglePermissionPromptMode }
   | { status: "failed"; error: GoogleIdentityViewError }
@@ -28,6 +30,8 @@ function useBackupToGoogle(publicIdentity: PubkyPublicIdentity) {
 
   return {
     backup,
+    cancelAuthorization: google.cancelAuthorization,
+    showAuthorizationWindow: google.showAuthorizationWindow,
     continueWithoutVisibleBackup: () => {
       google.run("continue-without-visible-backup", (controller) =>
         controller.continueBackupWithoutVisibleCopy(),
@@ -50,6 +54,7 @@ function useBackupToGoogle(publicIdentity: PubkyPublicIdentity) {
 function toBackupState(state: GoogleIdentityViewState): BackupToGoogleState {
   switch (state.status) {
     case "requesting-authorization":
+      return { status: "authorizing" };
     case "backing-up":
       return { status: "pending" };
     case "backed-up":

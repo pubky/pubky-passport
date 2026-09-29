@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { DRIVE_PERMISSION_HINT } from "@/client/ui/googleDrivePermissionPrompt";
 import { ContinueWithGoogle, PASSPORT_README_URL } from "./continueWithGoogle";
 
 const TITLE = "Continue with Google, powered by Pubky Passport.";
@@ -112,6 +113,17 @@ describe("ContinueWithGoogle", () => {
     expect(trigger).toHaveClass("pointer-events-auto");
     expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
     expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("tells the person to tick both Drive permissions before Google asks", () => {
+    renderControl(true);
+
+    const pill = screen.getByRole("button", { name: "Continue with Google" });
+    expect(pill).toHaveAccessibleDescription(DRIVE_PERMISSION_HINT);
+    // The hint sits under the control, outside the box the explainer panel is placed against.
+    const hint = document.getElementById(pill.getAttribute("aria-describedby") ?? "");
+    expect(hint).toHaveTextContent(DRIVE_PERMISSION_HINT);
+    expect(pill.parentElement?.nextElementSibling).toBe(hint);
   });
 
   it("renders on the server as a closed control", () => {
@@ -386,7 +398,9 @@ describe("ContinueWithGoogle", () => {
       expectExplanation(sheet);
       expect(within(sheet).getByRole("button", { name: "Close" })).toBeInTheDocument();
 
-      fireEvent.click(within(sheet).getByRole("button", { name: "Continue with Google" }));
+      const signIn = within(sheet).getByRole("button", { name: "Continue with Google" });
+      expect(signIn).toHaveAccessibleDescription(DRIVE_PERMISSION_HINT);
+      fireEvent.click(signIn);
 
       expect(onContinue).toHaveBeenCalledOnce();
       expect(sheet).not.toHaveAttribute("open");

@@ -11,9 +11,9 @@ type TechnicalDetail = { code: string; detail?: string | undefined };
 /**
  * The one layout for a screen that ends a step with a failure: the heading (with Passport's
  * brand accent, like every heading), the cause, the next step, optional context, the actions,
- * and technical details collapsed at the end. The heading takes focus when the screen appears
- * and is described by the cause and the next step, so screen readers announce what went wrong
- * and what to do in one go.
+ * optional illustrated help, and technical details collapsed at the end. The heading takes
+ * focus when the screen appears and is described by the cause and the next step, so screen
+ * readers announce what went wrong and what to do in one go.
  */
 function ErrorScreen({
   accent,
@@ -22,6 +22,7 @@ function ErrorScreen({
   cause,
   children,
   details,
+  help,
   label,
   nextStep,
   secondaryAction,
@@ -35,13 +36,18 @@ function ErrorScreen({
   cause: ReactNode;
   /** What the person can do now; omit it when the actions alone say so. */
   nextStep?: ReactNode;
-  /** Context the person needs to decide, such as the affected key or a permission guide. */
+  /** Context the person needs to decide, such as the affected key. */
   children?: ReactNode;
   back?: ReactNode;
   /** The recovery action, such as Try again. */
   action?: ReactNode;
   /** A further option under the navigation, such as a destructive restart. */
   secondaryAction?: ReactNode;
+  /**
+   * Illustrated help after the actions, such as the Drive permission guide. The actions come
+   * first on screen and in focus order at every width, so they stay above a popup's fold.
+   */
+  help?: ReactNode;
   details?: TechnicalDetail | undefined;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
@@ -82,6 +88,7 @@ function ErrorScreen({
           ) : null}
         </div>
       ) : null}
+      {help}
       {details ? <TechnicalDetails {...details} /> : null}
     </PassportScreen>
   );

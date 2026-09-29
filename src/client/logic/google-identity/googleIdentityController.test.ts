@@ -12,6 +12,7 @@ const MOCKS = {
   detachIdentity: vi.fn(),
   backupIdentity: vi.fn(),
   abortRequests: vi.fn(),
+  cancelAuthorization: vi.fn(),
   disposeAuthorization: vi.fn(),
   disposeLifecycle: vi.fn(),
   establishIdentity: vi.fn(),
@@ -358,6 +359,115 @@ describe("GoogleIdentityController", () => {
     expect(MOCKS.establishIdentity).toHaveBeenCalledOnce();
   });
 
+  it("cancels a waiting authorization at the person's request and starts over", async () => {
+    const popup = createPopupWindow();
+    vi.stubGlobal(
+      "open",
+      vi.fn(() => popup.window),
+    );
+    let settleRequest: (result: unknown) => void = () => undefined;
+    MOCKS.requestAuthorization.mockImplementationOnce(
+      () => new Promise((resolve) => (settleRequest = resolve)),
+    );
+    // The implicit authorization settles a cancelled request as failed.
+    MOCKS.cancelAuthorization.mockImplementation(() =>
+      settleRequest(
+        Result.err({ code: "google_authorization_failed", reason: "authorization_cancelled" }),
+      ),
+    );
+    const controller = createController();
+    const states = recordStates(controller);
+
+    const pending = controller.establishIdentity();
+    await vi.waitFor(() => expect(MOCKS.requestAuthorization).toHaveBeenCalledOnce());
+    controller.showAuthorizationWindow();
+    expect(popup.focus).toHaveBeenCalledOnce();
+    controller.cancelAuthorization();
+
+    expectResultError(await pending, { code: "cancelled" });
+    expect(popup.close).toHaveBeenCalled();
+    expect(MOCKS.cancelAuthorization).toHaveBeenCalledOnce();
+    expect(MOCKS.establishIdentity).not.toHaveBeenCalled();
+    expect(states).toEqual([{ status: "requesting-authorization" }, { status: "idle" }]);
+
+    // The next operation starts normally, and Show and Cancel no longer reach the old window.
+    controller.showAuthorizationWindow();
+    controller.cancelAuthorization();
+    expect(popup.focus).toHaveBeenCalledOnce();
+    expect(MOCKS.cancelAuthorization).toHaveBeenCalledOnce();
+    await controller.establishIdentity();
+    expect(controller.getState()).toMatchObject({ status: "established" });
+  });
+
+  it("forgets the Google account of an operation cancelled while retrying", async () => {
+    let settleRequest: (result: unknown) => void = () => undefined;
+    MOCKS.cancelAuthorization.mockImplementation(() =>
+      settleRequest(
+        Result.err({ code: "google_authorization_failed", reason: "authorization_cancelled" }),
+      ),
+    );
+    MOCKS.establishIdentity.mockResolvedValueOnce(Result.err({ code: "drive_read_failed" }));
+    const controller = createController();
+    await controller.establishIdentity();
+    expect(MOCKS.requestAuthorization).toHaveBeenLastCalledWith(expect.anything(), undefined);
+
+    MOCKS.requestAuthorization.mockImplementationOnce(
+      () => new Promise((resolve) => (settleRequest = resolve)),
+    );
+    const retry = controller.establishIdentity();
+    await vi.waitFor(() => expect(MOCKS.requestAuthorization).toHaveBeenCalledTimes(2));
+    // A retry asks Google for the account that already answered.
+    expect(MOCKS.requestAuthorization).toHaveBeenLastCalledWith(
+      expect.anything(),
+      GOOGLE_ACCOUNT.googleSubject,
+    );
+    controller.cancelAuthorization();
+    expectResultError(await retry, { code: "cancelled" });
+    expect(controller.getState()).toEqual({ status: "idle" });
+
+    await controller.establishIdentity();
+    expect(MOCKS.requestAuthorization).toHaveBeenLastCalledWith(expect.anything(), undefined);
+  });
+
+  it("cancels while its dependencies load, before Google's page opens", async () => {
+    const popup = createPopupWindow();
+    vi.stubGlobal(
+      "open",
+      vi.fn(() => popup.window),
+    );
+    const controller = createController();
+    const states = recordStates(controller);
+
+    const pending = controller.establishIdentity();
+    // Still before the first await: the lazy imports have not resolved.
+    controller.cancelAuthorization();
+
+    expectResultError(await pending, { code: "cancelled" });
+    expect(popup.close).toHaveBeenCalled();
+    expect(popup.replace).not.toHaveBeenCalled();
+    expect(MOCKS.requestAuthorization).not.toHaveBeenCalled();
+    expect(states).toEqual([{ status: "requesting-authorization" }, { status: "idle" }]);
+  });
+
+  it("does not cancel work that already holds Google credentials", async () => {
+    let finishLookup: (result: unknown) => void = () => undefined;
+    MOCKS.establishIdentity.mockImplementationOnce(
+      () => new Promise((resolve) => (finishLookup = resolve)),
+    );
+    const controller = createController();
+
+    const pending = controller.establishIdentity();
+    await vi.waitFor(() => expect(MOCKS.establishIdentity).toHaveBeenCalledOnce());
+    controller.cancelAuthorization();
+    expect(MOCKS.cancelAuthorization).not.toHaveBeenCalled();
+    finishLookup(
+      Result.ok({ establishmentMode: "restored" as const, publicIdentity: PUBLIC_IDENTITY }),
+    );
+
+    expect(Result.isOk(await pending)).toBe(true);
+    expect(controller.getState()).toMatchObject({ status: "established" });
+  });
+
   it("composes and disposes its real screen-scoped dependencies", () => {
     const session = new GoogleIdentityController("google-client-id", "https://homegate.example/");
     expect(() => session.dispose()).not.toThrow();
@@ -478,7 +588,11 @@ describe("GoogleIdentityController", () => {
     const controller = new GoogleIdentityController(
       "google-client-id",
       "https://homegate.example/",
-      () => ({ request: MOCKS.requestAuthorization, dispose: MOCKS.disposeAuthorization }),
+      () => ({
+        request: MOCKS.requestAuthorization,
+        cancel: MOCKS.cancelAuthorization,
+        dispose: MOCKS.disposeAuthorization,
+      }),
       () => {
         throw new Error("lifecycle construction failed");
       },
@@ -932,9 +1046,10 @@ describe("GoogleIdentityController", () => {
 /** A blank popup window as `window.open` hands it to the controller. */
 function createPopupWindow() {
   const close = vi.fn();
+  const focus = vi.fn();
   const replace = vi.fn();
-  const window = { closed: false, close, location: { replace } } as unknown as Window;
-  return { window, close, replace };
+  const window = { closed: false, close, focus, location: { replace } } as unknown as Window;
+  return { window, close, focus, replace };
 }
 
 function recordStates(controller: GoogleIdentityController): GoogleIdentityViewState[] {
@@ -949,6 +1064,7 @@ function createController(): GoogleIdentityController {
     "https://homegate.example/",
     () => ({
       request: MOCKS.requestAuthorization,
+      cancel: MOCKS.cancelAuthorization,
       dispose: MOCKS.disposeAuthorization,
     }),
     () => ({

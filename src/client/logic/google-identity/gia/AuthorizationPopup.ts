@@ -35,6 +35,18 @@ export class AuthorizationPopup {
     return this.popupWindow.closed;
   }
 
+  /**
+   * Brings the popup in front of Passport, for a person who lost it behind another window. Call it
+   * from a click: browsers only raise a window for a user gesture, and some ignore the request.
+   */
+  focus(): void {
+    try {
+      if (!this.isClosed()) this.popupWindow.focus();
+    } catch {
+      /* Raising a cross-origin popup is best effort. */
+    }
+  }
+
   close(): void {
     try {
       if (!this.isClosed()) this.popupWindow.close();

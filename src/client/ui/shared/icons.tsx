@@ -34,6 +34,20 @@ function Glyph({
   );
 }
 
+function AppWindowIcon(props: IconProps) {
+  return (
+    <Glyph height={16} viewBox="0 0 24 24" width={16} {...props}>
+      <path
+        d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm-2 4h20M6 4v4m4-4v4"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </Glyph>
+  );
+}
+
 function ArrowLeftIcon(props: IconProps) {
   return (
     <Glyph height={10.6633} viewBox="0 0 10.6633 10.6633" width={10.6633} {...props}>
@@ -321,6 +335,34 @@ function LogOutIcon(props: IconProps) {
   );
 }
 
+function PauseIcon(props: IconProps) {
+  return (
+    <Glyph height={16} viewBox="0 0 24 24" width={16} {...props}>
+      <path
+        d="M7 4h2a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm8 0h2a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </Glyph>
+  );
+}
+
+function PlayIcon(props: IconProps) {
+  return (
+    <Glyph height={16} viewBox="0 0 24 24" width={16} {...props}>
+      <path
+        d="M6 3.8a1 1 0 0 1 1.5-.86l12.3 8.2a1 1 0 0 1 0 1.72L7.5 21.06A1 1 0 0 1 6 20.2Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </Glyph>
+  );
+}
+
 function RotateCcwIcon(props: IconProps) {
   return (
     <Glyph height={16} viewBox="0 0 19.5 19.5" width={16} {...props}>
@@ -437,6 +479,7 @@ function XIcon(props: IconProps) {
 }
 
 export {
+  AppWindowIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
   CameraIcon,
@@ -455,6 +498,8 @@ export {
   LinkOffIcon,
   LogInIcon,
   LogOutIcon,
+  PauseIcon,
+  PlayIcon,
   RotateCcwIcon,
   ScanIcon,
   SettingsIcon,

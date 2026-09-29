@@ -27,9 +27,11 @@ function useDetachFromGoogle(publicIdentity: PubkyPublicIdentity, expectedGoogle
   };
 
   return {
+    cancelAuthorization: google.cancelAuthorization,
     detach,
     reset: google.reset,
     retryDetachment: detach,
+    showAuthorizationWindow: google.showAuthorizationWindow,
     state: toDetachmentState(google.state),
   };
 }

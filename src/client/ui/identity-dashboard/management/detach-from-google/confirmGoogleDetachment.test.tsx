@@ -4,6 +4,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { DRIVE_PERMISSION_HINT } from "@/client/ui/googleDrivePermissionPrompt";
 import { ConfirmGoogleDetachment } from "./confirmGoogleDetachment";
 
 describe("ConfirmGoogleDetachment", () => {
@@ -26,6 +27,9 @@ describe("ConfirmGoogleDetachment", () => {
 
     const heading = await screen.findByRole("heading", { name: "Remove Google Access" });
     expect(heading).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toHaveAccessibleDescription(
+      `${DRIVE_PERMISSION_HINT} Passport needs both to delete your backup and its visible copies.`,
+    );
     const confirm = screen.getByRole("button", { name: "Confirm detachment" });
     expect(confirm).toBeDisabled();
     expect(screen.getByText("DETACH")).toHaveClass("text-white");

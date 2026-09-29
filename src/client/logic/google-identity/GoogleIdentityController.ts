@@ -66,7 +66,9 @@ export type DetachGoogleIdentityResult = ResultType<void, GoogleIdentityViewErro
 
 export type BackupGoogleIdentityResult = ResultType<GoogleIdentityBackup, GoogleIdentityViewError>;
 
-type GoogleAuthorization = Pick<GoogleImplicitAuthorization, "request" | "dispose">;
+type GoogleAuthorization = Pick<GoogleImplicitAuthorization, "request" | "cancel" | "dispose">;
+/** Google's window while an operation waits for the person there, and whether they cancelled. */
+type PendingAuthorization = { popup: AuthorizationPopup; cancelled: boolean };
 type Lifecycle = Pick<
   GoogleIdentityLifecycle,
   | "establishIdentity"
@@ -136,6 +138,7 @@ export class GoogleIdentityController {
   private lifecycle: Lifecycle | undefined;
   private googleSubject: string | undefined;
   private pendingVisibleBackupConsent: PendingVisibleBackupConsent | undefined;
+  private pendingAuthorization: PendingAuthorization | undefined;
   private status: ControllerStatus = "ready";
   private state: GoogleIdentityViewState = IDLE_STATE;
   private readonly listeners = new Set<(state: GoogleIdentityViewState) => void>();
@@ -247,6 +250,35 @@ export class GoogleIdentityController {
     const pending = this.pendingVisibleBackupConsent;
     if (pending?.operation !== "backup") return Result.err({ code: "operation_failed" });
     return this.runBackup(pending.publicIdentity, true, reusableCredentials(pending.credentials));
+  }
+
+  /**
+   * Brings Google's window to the front while an operation waits for the person there, for when
+   * it slipped behind Passport. Call it from a click; browsers may still refuse.
+   */
+  showAuthorizationWindow(): void {
+    this.pendingAuthorization?.popup.focus();
+  }
+
+  /**
+   * Stops an operation that is waiting for the person in Google's window: closes the window and
+   * returns to idle, as {@link reset} does, instead of reporting a failure. The operation's
+   * promise settles with `cancelled`. Does nothing once the authorization has settled, so work
+   * that already holds credentials is never interrupted.
+   */
+  cancelAuthorization(): void {
+    const pending = this.pendingAuthorization;
+    if (!pending || pending.cancelled) return;
+    pending.cancelled = true;
+    pending.popup.close();
+    try {
+      this.googleAuthorization?.cancel();
+    } catch (e) {
+      LOGGER.warn("identity.google.cleanup.failed", {
+        operation: "authorization_cancel",
+        ...safeErrorLogFields(e),
+      });
+    }
   }
 
   /** Returns to idle and lets a new establishment flow choose a different Google account. */
@@ -448,6 +480,13 @@ export class GoogleIdentityController {
     toState: (value: Success) => GoogleIdentityViewState,
   ): ResultType<Success, GoogleIdentityViewError> {
     if (this.isDisposed) return Result.err({ code: "cancelled" });
+    // Only cancelAuthorization() yields `cancelled` on a live controller: the person chose to
+    // stop, so the screen starts over rather than reporting a failure.
+    if (Result.isError(outcome) && outcome.error.code === "cancelled") {
+      this.googleSubject = undefined;
+      this.publish(IDLE_STATE);
+      return Result.err({ code: "cancelled" });
+    }
     if (Result.isError(outcome)) {
       const error = withoutCause(outcome.error);
       this.publish({ status: "failed", error });
@@ -471,8 +510,23 @@ export class GoogleIdentityController {
       return Result.err({ code: "google_authorization_popup_failed_to_open" });
     }
 
+    const pending: PendingAuthorization = { popup, cancelled: false };
+    this.pendingAuthorization = pending;
     try {
-      if (!(await this.initializeDependencies())) {
+      return await this.authorizeInPopup(pending, expectedGoogleSubject);
+    } finally {
+      this.pendingAuthorization = undefined;
+    }
+  }
+
+  private async authorizeInPopup(
+    pending: PendingAuthorization,
+    expectedGoogleSubject: string | undefined,
+  ): Promise<ResultType<GoogleIdentityCredentials, GoogleIdentityError>> {
+    const popup = pending.popup;
+    try {
+      // A cancel during the lazy imports has already closed the window.
+      if (!(await this.initializeDependencies()) || pending.cancelled) {
         popup.close();
         return Result.err({ code: "cancelled" });
       }
@@ -499,7 +553,7 @@ export class GoogleIdentityController {
     const googleSubject = expectedGoogleSubject ?? this.googleSubject;
     try {
       const credentials = await googleAuthorization.request(popup, googleSubject);
-      if (this.isDisposed) return Result.err({ code: "cancelled" });
+      if (this.isDisposed || pending.cancelled) return Result.err({ code: "cancelled" });
       if (Result.isError(credentials)) return Result.err(credentials.error);
       if (
         googleSubject !== undefined &&
@@ -514,7 +568,7 @@ export class GoogleIdentityController {
       this.googleSubject ??= credentials.value.googleAccount.googleSubject;
       return Result.ok(credentials.value);
     } catch (e) {
-      if (this.isDisposed) return Result.err({ code: "cancelled" });
+      if (this.isDisposed || pending.cancelled) return Result.err({ code: "cancelled" });
       LOGGER.warn("identity.google.authorization.failed", {
         operation: "request_credentials",
         code: "authorization_failed",

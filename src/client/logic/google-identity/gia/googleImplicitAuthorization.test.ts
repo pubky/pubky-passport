@@ -378,6 +378,58 @@ describe("GoogleImplicitAuthorization", () => {
     }
   });
 
+  it("cancels the active request at the person's request and accepts the next one", async () => {
+    vi.useFakeTimers();
+    const info = vi.spyOn(LOGGER, "info").mockImplementation(() => undefined);
+    const popup = createPopup();
+    const authorization = new GoogleImplicitAuthorization("client-id");
+    const request = authorization.request(popup.handle);
+
+    authorization.cancel();
+
+    const result = await request;
+    expect(Result.isError(result) && result.error).toEqual({
+      code: "google_authorization_failed",
+      reason: "authorization_cancelled",
+    });
+    expect(popup.close).toHaveBeenCalledOnce();
+    expect(info).toHaveBeenCalledWith("identity.google.implicit_authorization.cancelled", {
+      operation: "authorize",
+    });
+    // Neither the poll nor the timeout reports the closed popup afterwards.
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    authorization.cancel();
+    expect(info).toHaveBeenCalledOnce();
+
+    const next = createPopup();
+    const nextRequest = authorization.request(next.handle);
+    expect(next.replace).toHaveBeenCalledOnce();
+    authorization.dispose();
+    const disposed = await nextRequest;
+    expect(Result.isError(disposed) && disposed.error).toEqual({
+      code: "google_authorization_failed",
+      reason: "authorization_disposed",
+    });
+  });
+
+  it("raises the popup only while it is open", () => {
+    const popup = createPopup();
+    const focus = vi.fn();
+    Object.assign(popup.window, { focus });
+
+    popup.handle.focus();
+    expect(focus).toHaveBeenCalledOnce();
+
+    focus.mockImplementation(() => {
+      throw new Error("cross-origin");
+    });
+    expect(() => popup.handle.focus()).not.toThrow();
+
+    popup.closed = true;
+    popup.handle.focus();
+    expect(focus).toHaveBeenCalledTimes(2);
+  });
+
   it("rejects concurrent requests and times out the active request", async () => {
     vi.useFakeTimers();
     const popup = createPopup();

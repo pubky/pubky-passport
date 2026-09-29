@@ -11,6 +11,7 @@ import type { PubkyRingMigration } from "@/client/logic/pubky/PubkySdkAdapter";
 import { RecoveryFileDownload } from "@/client/ui/identity-dashboard/management/recovery-file/recoveryFileDownload";
 import { MigrateToPubkyRing } from "@/client/ui/identity-dashboard/management/migrate-to-pubky-ring/migrateToPubkyRing";
 import { GoogleDrivePermissionPrompt } from "@/client/ui/googleDrivePermissionPrompt";
+import { GoogleAccessScreen } from "@/client/ui/onboarding/google/googleAccessScreen";
 import { RecoveryBeforeDetaching } from "./recoveryBeforeDetaching";
 import { ConfirmGoogleDetachment } from "./confirmGoogleDetachment";
 import { GoogleDetachmentComplete } from "./googleDetachmentComplete";
@@ -87,9 +88,18 @@ function DetachFromGoogleFlow({
           />
         );
       }
-      const pending =
-        operation.state.status === "requesting-authorization" ||
-        operation.state.status === "detaching";
+      // While Google's window is open nothing is removed yet, so the person can still stop.
+      if (operation.state.status === "requesting-authorization") {
+        return (
+          <GoogleAccessScreen
+            onCancel={() => {
+              operation.cancelAuthorization();
+              setState({ view: "review", confirmation: "closed" });
+            }}
+            onShowGoogleWindow={operation.showAuthorizationWindow}
+          />
+        );
+      }
       return (
         <>
           <ReviewGoogleDetachment
@@ -111,7 +121,7 @@ function DetachFromGoogleFlow({
             onConfirm={operation.detach}
             onRetryAuthorization={operation.retryDetachment}
             open={state.confirmation === "open"}
-            pending={pending}
+            pending={operation.state.status === "detaching"}
           />
         </>
       );

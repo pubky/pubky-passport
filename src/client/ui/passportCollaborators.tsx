@@ -40,6 +40,7 @@ export type GoogleIdentityControllerPort = Pick<
   GoogleIdentityController,
   | "detachIdentity"
   | "backupIdentity"
+  | "cancelAuthorization"
   | "continueBackupWithoutVisibleCopy"
   | "dispose"
   | "establishIdentity"
@@ -48,6 +49,7 @@ export type GoogleIdentityControllerPort = Pick<
   | "replaceInvalidPassportFile"
   | "replaceUndecryptablePassportFile"
   | "reset"
+  | "showAuthorizationWindow"
   | "subscribe"
 >;
 

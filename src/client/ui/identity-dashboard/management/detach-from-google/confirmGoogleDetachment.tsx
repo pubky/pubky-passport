@@ -1,4 +1,5 @@
 import type { GoogleIdentityViewError } from "@/client/logic/google-identity/googleIdentityErrors";
+import { DRIVE_PERMISSION_HINT } from "@/client/ui/googleDrivePermissionPrompt";
 import { googleIdentityErrorMessage } from "@/client/ui/googleIdentityErrorMessage";
 import { ConfirmDeletionDialog } from "@/client/ui/shared/confirmDeletionDialog";
 import { TechnicalDetails } from "@/client/ui/shared/errorScreen";
@@ -27,6 +28,7 @@ function ConfirmGoogleDetachment({
       canConfirm={canConfirm}
       confirmLabel="Confirm detachment"
       confirmationWord="DETACH"
+      description={`${DRIVE_PERMISSION_HINT} Passport needs both to delete your backup and its visible copies.`}
       error={error === null ? undefined : googleIdentityErrorMessage(error.code)}
       errorDetails={
         error === null ? undefined : (

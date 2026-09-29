@@ -10,6 +10,7 @@ import {
   useSyncExternalStore,
 } from "react";
 
+import { DRIVE_PERMISSION_HINT } from "@/client/ui/googleDrivePermissionPrompt";
 import { GoogleLogo } from "@/client/ui/shared/brand/googleLogo";
 import { ArrowRightIcon, CircleHelpIcon, FileTextIcon } from "@/client/ui/shared/icons";
 import { Button, ButtonLink } from "@/client/ui/shared/primitives/button";
@@ -59,8 +60,22 @@ const POINTS = [
 ];
 
 /**
- * The "Continue with Google" control: the sign-in pill with a help mark inside it, and the
- * explanation of the split between Google and Passport that the mark opens.
+ * The "Continue with Google" control, with a line under it that tells the person to tick both
+ * Drive permissions before Google asks for them.
+ */
+function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
+  const hintId = useId();
+  return (
+    <div className="flex flex-col gap-2">
+      <GoogleSignInPill hintId={hintId} onContinue={onContinue} />
+      <PermissionHint id={hintId} />
+    </div>
+  );
+}
+
+/**
+ * The sign-in pill with a help mark inside it, and the explanation of the split between Google
+ * and Passport that the mark opens.
  *
  * The mark is a sibling of the pill, laid over it, so no interactive element nests in another.
  * On desktop the explanation is a panel beside the pill: hovering the mark or focusing it shows
@@ -72,7 +87,14 @@ const POINTS = [
  * only as far as needed to stay inside the viewport. On phones the mark opens a bottom sheet that
  * also offers the sign-in itself. Both hold links, so they are dialogs rather than tooltips.
  */
-function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
+function GoogleSignInPill({
+  hintId,
+  onContinue,
+}: {
+  /** The permission hint under the control, which describes every sign-in button. */
+  hintId: string;
+  onContinue: () => void;
+}) {
   const desktop = useDesktopBreakpoint();
   const [pinned, setPinned] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -99,6 +121,7 @@ function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
   const panelId = useId();
   const panelTitleId = useId();
   const sheetTitleId = useId();
+  const sheetHintId = useId();
   const panelOpen = desktop && (pinned || hovered);
 
   const cancelClose = useCallback(() => {
@@ -267,6 +290,7 @@ function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
       ref={root}
     >
       <Button
+        aria-describedby={hintId}
         aria-labelledby={labelId}
         className="w-full"
         onClick={onContinue}
@@ -367,6 +391,7 @@ function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
             <ExplanationPoints />
             <div className="flex flex-col gap-3">
               <Button
+                aria-describedby={sheetHintId}
                 className="w-full"
                 onClick={() => {
                   setSheetOpen(false);
@@ -379,6 +404,7 @@ function ContinueWithGoogle({ onContinue }: { onContinue: () => void }) {
                 <ArrowRightIcon />
                 Continue with Google
               </Button>
+              <PermissionHint id={sheetHintId} />
               <ButtonLink
                 className="w-full"
                 href={PASSPORT_README_URL}
@@ -437,6 +463,14 @@ function isInTriangle(point: Point, a: Point, b: Point, c: Point): boolean {
     (to.x - from.x) * (point.y - from.y) - (to.y - from.y) * (point.x - from.x);
   const sides = [side(a, b), side(b, c), side(c, a)];
   return !(sides.some((value) => value < 0) && sides.some((value) => value > 0));
+}
+
+function PermissionHint({ id }: { id: string }) {
+  return (
+    <p className="text-balance text-center text-xs leading-4 text-muted-foreground" id={id}>
+      {DRIVE_PERMISSION_HINT}
+    </p>
+  );
 }
 
 function ExplanationPoints() {

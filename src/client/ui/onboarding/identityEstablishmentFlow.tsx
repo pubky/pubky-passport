@@ -52,7 +52,13 @@ function IdentityEstablishmentFlow({
         />
       );
     case "requesting-access":
-      return <GoogleAccessScreen fullWidthAction={forAuthorization} />;
+      return (
+        <GoogleAccessScreen
+          fullWidthAction={forAuthorization}
+          onCancel={google.cancelAuthorization}
+          onShowGoogleWindow={google.showAuthorizationWindow}
+        />
+      );
     case "failed": {
       return (
         <GoogleIdentityError

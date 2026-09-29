@@ -14,12 +14,14 @@ type MockOperations = Pick<
   MockGoogleIdentityController,
   | "detachIdentity"
   | "backupIdentity"
+  | "cancelAuthorization"
   | "continueBackupWithoutVisibleCopy"
   | "dispose"
   | "establishIdentity"
   | "replaceInvalidPassportFile"
   | "replaceUndecryptablePassportFile"
   | "continueWithoutVisibleBackup"
+  | "showAuthorizationWindow"
 >;
 
 /**
@@ -77,6 +79,10 @@ export function mockGoogleIdentityController(
       };
     },
     reset: vi.fn(() => emitState({ status: "idle" })),
+    // The real controller settles the waiting operation with `cancelled` and publishes idle.
+    cancelAuthorization:
+      overrides.cancelAuthorization ?? vi.fn(() => emitState({ status: "idle" })),
+    showAuthorizationWindow: overrides.showAuthorizationWindow ?? vi.fn(),
     dispose: overrides.dispose ?? vi.fn(),
     establishIdentity: publishing(establishIdentity, (identity) => ({
       status: "established",
