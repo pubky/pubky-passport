@@ -9,22 +9,22 @@ import { GoogleIdentityProgress } from "./googleIdentityProgress";
 afterEach(cleanup);
 
 describe("GoogleIdentityProgress", () => {
-  it("presents the Drive lookup as the first step of the shared progress screen", () => {
-    render(<GoogleIdentityProgress progress={{ flow: "lookup", step: "checking" }} />);
+  it.each([
+    { flow: "lookup", step: "checking" },
+    { flow: "restore", step: "restoring" },
+    { flow: "restore", step: "signing_in" },
+  ] satisfies GoogleIdentityProgressState[])(
+    "keeps %s on the steady loading screen without a step list",
+    (progress) => {
+      render(<GoogleIdentityProgress progress={progress} />);
 
-    const heading = screen.getByRole("heading", { name: "Looking for your pubky." });
-    expect(heading.parentElement).toHaveClass("gap-6", "md:gap-8");
-    const lookupProgress = screen.getByRole("list", { name: "Pubky identity lookup progress" });
-    expect(within(lookupProgress).getAllByRole("listitem")).toHaveLength(1);
-    expect(screen.getByText("Check Google Drive for a backup").closest("li")).toHaveAttribute(
-      "aria-current",
-      "step",
-    );
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Looking for your Pubky: Check Google Drive for a backup.",
-    );
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
-  });
+      const heading = screen.getByRole("heading", { name: "Loading your pubky." });
+      expect(heading.parentElement).toHaveClass("gap-6", "md:gap-8");
+      expect(screen.queryByRole("list")).not.toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent("Loading your Pubky.");
+      expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    },
+  );
 
   it.each([
     [{ flow: "create", step: "preparing" }, "Store encrypted backup"],
@@ -59,33 +59,24 @@ describe("GoogleIdentityProgress", () => {
   );
 
   it.each([
-    [{ flow: "restore", step: "restoring" }, "Looking for", "restore", "Restore encrypted backup"],
-    [
-      { flow: "restore", step: "signing_in" },
-      "Looking for",
-      "restore",
-      "Sign in to the homeserver",
-    ],
-    [{ flow: "repair", step: "signing_up" }, "Repairing", "repair", "Repair homeserver access"],
-    [{ flow: "repair", step: "publishing" }, "Repairing", "repair", "Publish PKDNS records"],
-    [{ flow: "repair", step: "signing_in" }, "Repairing", "repair", "Sign in to the homeserver"],
-  ] satisfies Array<[GoogleIdentityProgressState, string, string, string]>)(
-    "presents %s as the active %s step",
-    (progress, heading, branch, activeLabel) => {
+    [{ flow: "repair", step: "signing_up" }, "Repair homeserver access"],
+    [{ flow: "repair", step: "publishing" }, "Publish PKDNS records"],
+    [{ flow: "repair", step: "signing_in" }, "Sign in to the homeserver"],
+  ] satisfies Array<[GoogleIdentityProgressState, string]>)(
+    "presents %s as the active repair step",
+    (progress, activeLabel) => {
       render(<GoogleIdentityProgress progress={progress} />);
 
-      expect(screen.getByRole("heading", { name: `${heading} your pubky.` })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Repairing your pubky." })).toBeInTheDocument();
       const progressList = screen.getByRole("list", {
-        name: `Pubky identity ${branch} progress`,
+        name: "Pubky identity repair progress",
       });
       expect(progressList).not.toHaveClass("border", "md:border");
       expect(within(progressList).getAllByRole("listitem")[0]).toHaveTextContent(
         "Check Google Drive for a backup (complete)",
       );
       expect(screen.getByText(activeLabel).closest("li")).toHaveAttribute("aria-current", "step");
-      expect(screen.getByRole("status")).toHaveTextContent(
-        `${heading} your Pubky: ${activeLabel}.`,
-      );
+      expect(screen.getByRole("status")).toHaveTextContent(`Repairing your Pubky: ${activeLabel}.`);
     },
   );
 });

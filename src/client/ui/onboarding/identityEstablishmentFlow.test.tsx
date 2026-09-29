@@ -143,7 +143,7 @@ describe("IdentityEstablishmentFlow", () => {
     expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
   });
 
-  it("finishes a restore under the lookup heading and announces a repair", async () => {
+  it("keeps a restore on the loading screen and announces a repair", async () => {
     const controller = mockGoogleIdentityController({
       establishIdentity: vi.fn(() => new Promise<never>(() => undefined)),
     });
@@ -158,25 +158,12 @@ describe("IdentityEstablishmentFlow", () => {
       }),
     );
 
-    expect(
-      await screen.findByRole("heading", { name: "Looking for your pubky." }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Loading your pubky." })).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "Setting up your pubky." }),
     ).not.toBeInTheDocument();
-    const restoreProgress = screen.getByRole("list", { name: "Pubky identity restore progress" });
-    expect(
-      within(restoreProgress).getByText("Check Google Drive for a backup").closest("li"),
-    ).toHaveTextContent("Check Google Drive for a backup (complete)");
-    expect(
-      within(restoreProgress).getByText("Restore encrypted backup").closest("li"),
-    ).toHaveAttribute("aria-current", "step");
-    expect(
-      within(restoreProgress).getByText("Sign in to the homeserver").closest("li"),
-    ).toHaveTextContent("Sign in to the homeserver (pending)");
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Looking for your Pubky: Restore encrypted backup.",
-    );
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading your Pubky.");
     expect(screen.queryByText("Republish PKDNS records")).not.toBeInTheDocument();
 
     act(() =>
@@ -213,14 +200,8 @@ describe("IdentityEstablishmentFlow", () => {
       }),
     );
 
-    expect(
-      await screen.findByRole("heading", { name: "Looking for your pubky." }),
-    ).toBeInTheDocument();
-    const lookupProgress = screen.getByRole("list", { name: "Pubky identity lookup progress" });
-    expect(within(lookupProgress).getAllByRole("listitem")).toHaveLength(1);
-    expect(
-      within(lookupProgress).getByText("Check Google Drive for a backup").closest("li"),
-    ).toHaveAttribute("aria-current", "step");
+    expect(await screen.findByRole("heading", { name: "Loading your pubky." })).toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "Setting up your pubky." }),
     ).not.toBeInTheDocument();
