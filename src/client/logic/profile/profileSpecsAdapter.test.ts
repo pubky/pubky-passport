@@ -3,6 +3,7 @@ import { expectResultOk } from "@test-utils/resultAssertions";
 import {
   PROFILE_LIMITS,
   buildProfilePublication,
+  checkLinkUrls,
   parseFileRecordSource,
   parseProfile,
 } from "./ProfileSpecsAdapter";
@@ -32,6 +33,37 @@ describe("pubky-app-specs profile boundary", () => {
     });
     for (const invalid of [{ name: "x" }, 5, null, { name: "Satoshi", image: "not a url" }])
       expect(await parseProfile(invalid)).toMatchObject({ error: { code: "invalid_profile" } });
+  });
+
+  it("judges link addresses as the profile validation does, whatever their scheme", async () => {
+    expect(
+      expectResultOk(
+        await checkLinkUrls([
+          " HTTPS://Example.com/a b ",
+          `pubky://${KEY}/pub/pubky.app/profile.json`,
+          "mailto:satoshi@example.com",
+          "javascript:alert(1)",
+          "example.com",
+          `https://example.com/${"p".repeat(281)}`,
+        ]),
+      ),
+    ).toEqual([
+      { url: " HTTPS://Example.com/a b ", stored: "https://example.com/a%20b", accepted: true },
+      {
+        url: `pubky://${KEY}/pub/pubky.app/profile.json`,
+        stored: `pubky://${KEY}/pub/pubky.app/profile.json`,
+        accepted: true,
+      },
+      { url: "mailto:satoshi@example.com", stored: "mailto:satoshi@example.com", accepted: true },
+      { url: "javascript:alert(1)", stored: "javascript:alert(1)", accepted: true },
+      { url: "example.com", stored: "example.com", accepted: false },
+      {
+        url: `https://example.com/${"p".repeat(281)}`,
+        stored: `https://example.com/${"p".repeat(281)}`,
+        accepted: false,
+      },
+    ]);
+    expect(expectResultOk(await checkLinkUrls([]))).toEqual([]);
   });
 
   it("reads the blob address from a valid file record only", async () => {

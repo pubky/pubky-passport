@@ -1,6 +1,8 @@
 import { Result } from "better-result";
 import { describe, expect, it } from "vitest";
+import { expectResultOk } from "@test-utils/resultAssertions";
 import {
+  checkDraftLinks,
   draftFromProfile,
   linkUrlLength,
   nextLinkId,
@@ -8,8 +10,10 @@ import {
   profileFromDraft,
   profileTextLength,
   validateProfileDraft,
+  type LinkUrlChecks,
   type ProfileDraft,
 } from "./profileDraft";
+import { PROFILE_PATH } from "./profile";
 import { buildProfilePublication } from "./ProfileSpecsAdapter";
 
 const KEY = "1aeh1m9m47shq8ixa7ikaunjb81ierse9by6f7wnkbxzj4dddwdy";
@@ -119,10 +123,20 @@ describe("profile draft changes", () => {
   });
 });
 
+/** The specs' answers about `subject`'s link addresses, as a save asks for them. */
+async function linksOf(subject: ProfileDraft): Promise<LinkUrlChecks> {
+  return expectResultOk(await checkDraftLinks(subject));
+}
+
+/** How `subject` would be refused, with its addresses judged by the specs. */
+async function validate(subject: ProfileDraft) {
+  return validateProfileDraft(subject, await linksOf(subject));
+}
+
 describe("profile draft validation", () => {
-  it("accepts a draft within every limit", () => {
+  it("accepts a draft within every limit", async () => {
     expect(
-      validateProfileDraft(
+      await validate(
         draft({
           name: "🔥".repeat(50),
           bio: `${"b".repeat(160)}   `,
@@ -138,8 +152,8 @@ describe("profile draft validation", () => {
     ).toEqual({});
   });
 
-  it("names each field that would be refused, in the order the form shows them", () => {
-    const errors = validateProfileDraft(
+  it("names each field that would be refused, in the order the form shows them", async () => {
+    const errors = await validate(
       draft({
         name: " Al ",
         bio: "b".repeat(161),
@@ -173,35 +187,72 @@ describe("profile draft validation", () => {
   });
 
   it.each([
-    // The specs WASM accepts all of these; the first two are read as schemes and would be
-    // published as broken links. Security invariant 9 asks for a web address without credentials.
-    "www.example.com:8080",
-    "localhost:3000",
-    "javascript:alert(1)",
-    "file:///etc/passwd",
-    "https://satoshi:secret@example.com",
+    "https://example.com",
+    "http://example.com",
+    `pubky://${KEY}/pub/pubky.app/profile.json`,
+    "mailto:satoshi@example.com",
     "https://satoshi@example.com",
-  ])("refuses %s, which is not a web address without credentials", (url) => {
-    expect(validateProfileDraft(draft({ links: [link(2, "Site", url)] }))).toEqual({
-      "link-2-url": "link_url_invalid",
-    });
+    "localhost:3000",
+    // Accepted by the specs, so a profile may carry them; Passport never makes them a link.
+    "javascript:alert(1)",
+    "data:text/html,<script>alert(1)</script>",
+  ])("accepts %s, as the specs do", async (url) => {
+    expect(await validate(draft({ links: [link(2, "Site", url)] }))).toEqual({});
   });
 
-  it("measures an address as typed and as stored", () => {
-    expect(linkUrlLength(link(2, "Site", " https://example.com/a "))).toEqual({
-      typed: 21,
-      stored: 21,
+  it.each(["example.com", "my website", "https://exa mple.com", "http://"])(
+    "refuses %s, which the specs do not take for a URL",
+    async (url) => {
+      expect(await validate(draft({ links: [link(2, "Site", url)] }))).toEqual({
+        "link-2-url": "link_url_invalid",
+      });
+    },
+  );
+
+  it("measures an address as typed and as stored", async () => {
+    const subject = draft({
+      links: [
+        link(2, "Site", " https://example.com/a "),
+        link(3, "Site", "https://example.com/a b"),
+      ],
     });
-    expect(linkUrlLength(link(2, "Site", "https://example.com/a b"))).toEqual({
-      typed: 23,
-      stored: 25,
-    });
-    expect(linkUrlLength(link(2, "Site", "localhost:3000"))).toBeNull();
+    const links = await linksOf(subject);
+    expect(linkUrlLength(subject.links[0]!, links)).toEqual({ typed: 21, stored: 21 });
+    expect(linkUrlLength(subject.links[1]!, links)).toEqual({ typed: 23, stored: 25 });
+    // An address the specs were not asked about has no stored length.
+    expect(linkUrlLength(link(4, "Site", "https://other.example"), links)).toBeNull();
   });
 
-  it("refuses an empty or overlong name", () => {
-    expect(validateProfileDraft(draft({ name: "   " }))).toEqual({ name: "name_length" });
-    expect(validateProfileDraft(draft({ name: "n".repeat(51) }))).toEqual({ name: "name_length" });
+  it("keeps a published profile's links of every scheme unchanged when it is saved again", async () => {
+    const profile = {
+      name: "Satoshi",
+      links: [
+        { title: "Website", url: "https://bitcoin.org/" },
+        { title: "Pubky", url: `pubky://${KEY}/pub/pubky.app/profile.json` },
+        { title: "Email", url: "mailto:satoshi@example.com" },
+        { title: "Lightning", url: "lightning:satoshi@example.com" },
+      ],
+    };
+    const opened = draftFromProfile(profile, "Ignored");
+    expect(await validate(opened)).toEqual({});
+    const publication = expectResultOk(
+      await buildProfilePublication(KEY, profileFromDraft(opened)),
+    );
+    expect(publication.profile.links).toEqual(profile.links);
+    expect(publication.writes).toEqual([
+      { kind: "json", path: PROFILE_PATH, json: { name: "Satoshi", links: profile.links } },
+    ]);
+  });
+
+  it("refuses an empty or overlong name", async () => {
+    expect(await validate(draft({ name: "   " }))).toEqual({ name: "name_length" });
+    expect(await validate(draft({ name: "n".repeat(51) }))).toEqual({ name: "name_length" });
+  });
+
+  it("leaves an address the specs were not asked about to their check of the document", () => {
+    expect(
+      validateProfileDraft(draft({ links: [link(2, "Site", "my website")] }), new Map()),
+    ).toEqual({});
   });
 
   it.each<[string, Partial<ProfileDraft>]>([
@@ -217,6 +268,9 @@ describe("profile draft validation", () => {
     ["an address without a scheme", { links: [link(2, "Site", "example.com")] }],
     ["an address the URL parser completes", { links: [link(2, "Site", "https:example.com")] }],
     ["a plain http address", { links: [link(2, "Site", "http://example.com")] }],
+    ["a pubky address", { links: [link(2, "Site", `pubky://${KEY}`)] }],
+    ["a mailto address", { links: [link(2, "Site", "mailto:satoshi@example.com")] }],
+    ["a javascript address", { links: [link(2, "Site", "javascript:alert(1)")] }],
     [
       "a 300-character address",
       { links: [link(2, "Site", `https://example.com/${"p".repeat(280)}`)] },
@@ -228,6 +282,6 @@ describe("profile draft validation", () => {
   ])("agrees with the specs WASM on %s", async (_, changes) => {
     const subject = draft(changes);
     const published = await buildProfilePublication(KEY, profileFromDraft(subject));
-    expect(Object.keys(validateProfileDraft(subject)).length === 0).toBe(Result.isOk(published));
+    expect(Object.keys(await validate(subject)).length === 0).toBe(Result.isOk(published));
   });
 });

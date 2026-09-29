@@ -3,6 +3,7 @@ import {
   grantsCapabilities,
   ownAvatarResource,
   PROFILE_CAPABILITIES,
+  profileLinkHref,
   sniffImageType,
 } from "./profile";
 
@@ -92,5 +93,29 @@ describe("profile grant capabilities", () => {
     ["malformed entries", ["/pub/pubky.app/profile.json:x", "files/:w", ":w"]],
   ])("rejects %s", (_label, granted) => {
     expect(grantsCapabilities(granted, PROFILE_CAPABILITIES)).toBe(false);
+  });
+});
+
+describe("profile link targets", () => {
+  it.each([
+    ["https://bitcoin.org/", "https://bitcoin.org/"],
+    ["http://example.com/a", "http://example.com/a"],
+    ["HTTPS://Example.com", "https://example.com/"],
+  ])("opens the web address %s", (address, href) => {
+    expect(profileLinkHref(address)).toBe(href);
+  });
+
+  it.each([
+    `pubky://${KEY}/pub/pubky.app/profile.json`,
+    "mailto:satoshi@example.com",
+    "javascript:alert(1)",
+    "JavaScript:alert(1)",
+    "data:text/html,<script>alert(1)</script>",
+    "localhost:3000",
+    "https://satoshi:secret@example.com",
+    "https://paypal.com:login@evil.example/",
+    "not a url",
+  ])("shows %s as text only", (address) => {
+    expect(profileLinkHref(address)).toBeUndefined();
   });
 });

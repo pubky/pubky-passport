@@ -6,6 +6,7 @@ import type { ProfileController, ProfileErrorCode } from "@/client/logic/profile
 import { PROFILE_LIMITS } from "@/client/logic/profile/ProfileSpecsAdapter";
 import { isAvatarFile, type PubkyProfile } from "@/client/logic/profile/profile";
 import {
+  checkDraftLinks,
   draftFromProfile,
   linkFieldKey,
   linkUrlLength,
@@ -15,6 +16,7 @@ import {
   profileTextLength,
   validateProfileDraft,
   X_TWITTER,
+  type LinkUrlChecks,
   type ProfileDraft,
   type ProfileLinkField,
   type ProfileFieldErrorCode,
@@ -125,7 +127,7 @@ function fieldErrorMessage(
     case "link_url_invalid":
       return xLink
         ? "Enter an X handle, like @satoshi, or a full web address."
-        : "Enter a full web address, like https://example.com.";
+        : "Enter a full address with its scheme, like https://example.com or mailto:you@example.com.";
     case "link_url_too_long":
       return `Keep this address to ${PROFILE_LIMITS.linkUrlMaxLength} characters or fewer (${encoded ? `it is ${length} once encoded` : `you have ${length}`}).`;
   }
@@ -133,10 +135,14 @@ function fieldErrorMessage(
 
 type DescribedFieldError = { key: ProfileFieldKey; label: string; message: string };
 
-/** Each refused field's control name and message, in the order the form shows them. */
+/**
+ * Each refused field's control name and message, in the order the form shows them; `links` are the
+ * specs' answers the refusal was based on, which give an address's stored length.
+ */
 function describeFieldErrors(
   draft: ProfileDraft,
   errors: ProfileFieldErrors,
+  links: LinkUrlChecks,
 ): DescribedFieldError[] {
   const described: DescribedFieldError[] = [];
   const add = (key: ProfileFieldKey, label: string, context?: FieldMessageContext) => {
@@ -149,7 +155,7 @@ function describeFieldErrors(
     add(linkFieldKey(link.id, "title"), `Link ${index + 1} title`, {
       length: profileTextLength(link.title),
     });
-    const url = linkUrlLength(link);
+    const url = linkUrlLength(link, links);
     add(linkFieldKey(link.id, "url"), link.fixedTitle ? link.title : `Link ${index + 1} address`, {
       length: url?.stored ?? 0,
       encoded: url !== null && url.stored !== url.typed,
@@ -231,6 +237,8 @@ function ProfileEditor({
   const [suggestedName, setSuggestedName] = useState<string>();
   // Fields the last save found invalid; each clears when its field, or its link, changes.
   const [fieldErrors, setFieldErrors] = useState<ProfileFieldErrors>({});
+  // The specs' answers about each link address at the last save, for the lengths messages give.
+  const [linkChecks, setLinkChecks] = useState<LinkUrlChecks>(() => new Map());
   // Spoken for every refused save, since focus may already be on the first invalid field (Enter
   // submits from inside it) and then moving it announces nothing. `attempt` renews the text node,
   // so a repeated refusal is spoken again.
@@ -305,19 +313,28 @@ function ProfileEditor({
   async function finish(event: FormEvent) {
     event.preventDefault();
     if (!draft || busy.current) return;
-    const invalid = validateProfileDraft(draft);
+    busy.current = true;
+    // Checking the links may load the specs first, so the button shows the save as under way.
+    setSaving(true);
+    // The specs judge each link address. If they cannot load, the save cannot run either, and its
+    // own failure says so.
+    const checked = await checkDraftLinks(draft);
+    if (!mounted.current) return;
+    const links: LinkUrlChecks = Result.isOk(checked) ? checked.value : new Map();
+    const invalid = validateProfileDraft(draft, links);
+    setLinkChecks(links);
     // Also clears messages whose cause was fixed through another field.
     setFieldErrors(invalid);
     if (Object.keys(invalid).length > 0) {
+      busy.current = false;
+      setSaving(false);
       setError(undefined);
       revealFieldError.current = true;
-      const text = refusalAnnouncement(describeFieldErrors(draft, invalid));
+      const text = refusalAnnouncement(describeFieldErrors(draft, invalid, links));
       setRefusal((last) => ({ text, attempt: (last?.attempt ?? 0) + 1 }));
       return;
     }
     setRefusal(undefined);
-    busy.current = true;
-    setSaving(true);
     // A file still being checked is saved once it passes; a refused one stops the save, and its
     // picker says why.
     let chosen = avatar;
@@ -399,7 +416,12 @@ function ProfileEditor({
   const avatarSrc = avatar ? filePreview : preview;
   const bioTooLong = bioLength > PROFILE_LIMITS.bioMaxLength;
   const messages: Partial<Record<ProfileFieldKey, string>> = Object.fromEntries(
-    draft ? describeFieldErrors(draft, fieldErrors).map(({ key, message }) => [key, message]) : [],
+    draft
+      ? describeFieldErrors(draft, fieldErrors, linkChecks).map(({ key, message }) => [
+          key,
+          message,
+        ])
+      : [],
   );
   function edit(next: ProfileDraft, ...fields: ProfileFieldKey[]) {
     setDraft(next);

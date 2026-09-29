@@ -99,3 +99,21 @@ export function ownAvatarResource(
   if (!match || match[1] !== publicKey) return undefined;
   return match[2] === "files" ? "files" : "blobs";
 }
+
+/**
+ * The address a published profile link opens, or undefined when it is shown as text only. The
+ * specs accept any scheme, `javascript:` and `data:` included, so only `http:` and `https:` links
+ * open, in a new tab; `pubky:`, `mailto:` and the rest are for apps that understand them. A web
+ * address carrying credentials (`https://paypal.com:login@evil.example/`) is a phishing shape, so it
+ * stays text too.
+ */
+export function profileLinkHref(address: string): string | undefined {
+  let url: URL;
+  try {
+    url = new URL(address);
+  } catch {
+    return undefined;
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return undefined;
+  return url.username || url.password ? undefined : url.href;
+}

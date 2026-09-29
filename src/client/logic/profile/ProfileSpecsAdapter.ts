@@ -1,7 +1,12 @@
 import "client-only";
 
 import { Result, type Result as ResultType } from "better-result";
-import type { PubkyAppFile, PubkyAppUser, PubkySpecsBuilder } from "pubky-app-specs";
+import type {
+  PubkyAppFile,
+  PubkyAppUser,
+  PubkyAppUserLink,
+  PubkySpecsBuilder,
+} from "pubky-app-specs";
 import SPECS_LIMITS from "pubky-app-specs/validationLimits.json";
 
 import { LOGGER, safeErrorLogFields } from "@/libs/logger/logger";
@@ -30,7 +35,14 @@ export const PROFILE_LIMITS = {
 export type ProfileSpecsErrorCode =
   "invalid_avatar" | "invalid_file_record" | "invalid_profile" | "specs_unavailable";
 export type ProfileSpecsResult<T> = ResultType<T, CodedFailure<ProfileSpecsErrorCode>>;
-type ProfileSpecsOperation = "build_publication" | "parse_file_record" | "parse_profile";
+type ProfileSpecsOperation =
+  "build_publication" | "check_link_urls" | "parse_file_record" | "parse_profile";
+/**
+ * What the specs make of a link address `url`: `stored` is the address as a profile stores it
+ * (trimmed, and normalised when it parses as a URL), which their length limit counts; `accepted`
+ * says whether a profile may carry it.
+ */
+export type LinkUrlCheck = { url: string; stored: string; accepted: boolean };
 type Specs = typeof import("pubky-app-specs");
 
 async function loadSpecs(operation: ProfileSpecsOperation): Promise<ProfileSpecsResult<Specs>> {
@@ -54,6 +66,48 @@ export async function parseProfile(json: unknown): Promise<ProfileSpecsResult<Pu
   } finally {
     user?.free();
   }
+}
+
+// A profile valid in every other field, so only the link under test can be refused.
+const LINK_CHECK_NAME = "Link check";
+const LINK_CHECK_TITLE = "Link";
+
+/**
+ * Judges each link address as a profile's validation does, so the form accepts exactly the links
+ * the specs publish: any scheme they parse (`https:`, `mailto:`, `pubky:` and others), refused only
+ * when empty, too long once stored, or not a URL.
+ */
+export async function checkLinkUrls(
+  urls: readonly string[],
+): Promise<ProfileSpecsResult<LinkUrlCheck[]>> {
+  if (urls.length === 0) return Result.ok([]);
+  const specs = await loadSpecs("check_link_urls");
+  if (Result.isError(specs)) return specs;
+  const { PubkyAppUser, PubkyAppUserLink } = specs.value;
+  const checks: LinkUrlCheck[] = [];
+  for (const url of urls) {
+    let link: PubkyAppUserLink | undefined;
+    let user: PubkyAppUser | undefined;
+    try {
+      link = new PubkyAppUserLink(LINK_CHECK_TITLE, url);
+      let accepted = true;
+      try {
+        user = PubkyAppUser.fromJson({
+          name: LINK_CHECK_NAME,
+          links: [{ title: LINK_CHECK_TITLE, url }],
+        });
+      } catch {
+        accepted = false;
+      }
+      checks.push({ url, stored: link.url, accepted });
+    } catch (e) {
+      return failure("check_link_urls", "invalid_profile", e);
+    } finally {
+      user?.free();
+      link?.free();
+    }
+  }
+  return Result.ok(checks);
 }
 
 /** Validates a `pubky-app-specs` file record and returns the blob it points at. */

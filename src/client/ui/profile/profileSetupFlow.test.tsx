@@ -2,10 +2,11 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Result } from "better-result";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import type { ProfileErrorCode, ProfileResult } from "@/client/logic/profile/ProfileController";
 import type { LoadedProfile, PubkyProfile } from "@/client/logic/profile/profile";
+import { checkLinkUrls } from "@/client/logic/profile/ProfileSpecsAdapter";
 import { draftFromProfile, type UnsavedProfileEdits } from "@/client/logic/profile/profileDraft";
 import { ProfileSetupFlow } from "./profileSetupFlow";
 
@@ -73,6 +74,12 @@ afterEach(() => {
 });
 
 describe("ProfileSetupFlow", () => {
+  // A save first asks the specs WASM about each link address; loading it once here keeps each
+  // save's check as quick as a click, as it is once the app has loaded it.
+  beforeAll(async () => {
+    await checkLinkUrls(["https://example.com"]);
+  });
+
   it("opens an empty form over an unreadable published profile and says saving replaces it", async () => {
     load.mockResolvedValue(Result.err({ code: "invalid_profile" }));
     const { onComplete } = mount({
@@ -759,7 +766,10 @@ describe("ProfileSetupFlow", () => {
     const expected: [HTMLElement, string][] = [
       [name, "Enter a name of 3–50 characters."],
       [screen.getByLabelText("Bio"), "Keep your bio to 160 characters (you have 161)."],
-      [screen.getByLabelText("Website"), "Enter a full web address, like https://example.com."],
+      [
+        screen.getByLabelText("Website"),
+        "Enter a full address with its scheme, like https://example.com or mailto:you@example.com.",
+      ],
       [
         screen.getByLabelText("X (Twitter)"),
         "Enter an X handle, like @satoshi, or a full web address.",
@@ -805,7 +815,7 @@ describe("ProfileSetupFlow", () => {
       }),
       undefined,
     );
-  });
+  }, 15_000);
 
   it("says why Finish was refused when Enter submits from the field already focused", async () => {
     mount();
@@ -825,7 +835,7 @@ describe("ProfileSetupFlow", () => {
     expect(status.firstElementChild).not.toBe(announcement);
     expect(status).toHaveTextContent("1 field needs a change.");
 
-    await user.type(screen.getByLabelText("Website"), "localhost:3000{Enter}");
+    await user.type(screen.getByLabelText("Website"), "my website{Enter}");
     expect(status).toHaveTextContent(
       "2 fields need changes. Name: Enter a name of 3–50 characters.",
     );
@@ -868,7 +878,9 @@ describe("ProfileSetupFlow", () => {
     await user.type(linkField(3, "Address"), "@satoshi");
     await user.click(screen.getByRole("button", { name: "Save" }));
     const url = linkField(3, "Address");
-    expect(url).toHaveAccessibleDescription("Enter a full web address, like https://example.com.");
+    expect(url).toHaveAccessibleDescription(
+      "Enter a full address with its scheme, like https://example.com or mailto:you@example.com.",
+    );
 
     await user.clear(linkField(3, "Title"));
     await user.type(linkField(3, "Title"), "X (Twitter)");

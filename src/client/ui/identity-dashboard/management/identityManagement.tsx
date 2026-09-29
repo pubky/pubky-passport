@@ -25,6 +25,7 @@ import {
 import { PassportHeaderAction } from "@/client/ui/shared/passportHeaderAction";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { ProfileLinks } from "@/client/ui/profile/profileLinks";
 import { KeyCustodyTag } from "@/client/ui/shared/keyCustodyTag";
 import { Avatar } from "@/client/ui/shared/primitives/avatar";
 import { Button } from "@/client/ui/shared/primitives/button";
@@ -138,6 +139,7 @@ function IdentityManagement({
               {identity.profile.bio}
             </p>
           ) : null}
+          <ProfileLinks links={identity.profile?.links} />
           <DetailField
             copy={{
               ...PUBKY_COPY_TOASTS,

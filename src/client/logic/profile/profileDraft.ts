@@ -1,5 +1,11 @@
+import { Result } from "better-result";
 import type { PubkyProfile } from "./profile";
-import { PROFILE_LIMITS } from "./ProfileSpecsAdapter";
+import {
+  checkLinkUrls,
+  PROFILE_LIMITS,
+  type LinkUrlCheck,
+  type ProfileSpecsResult,
+} from "./ProfileSpecsAdapter";
 
 export type ProfileLinkField = { id: number; title: string; url: string; fixedTitle: boolean };
 export type ProfileDraft = {
@@ -98,38 +104,46 @@ export function profileDraftChanged(draft: ProfileDraft, saved: ProfileDraft): b
   return JSON.stringify(profileFromDraft(draft)) !== JSON.stringify(profileFromDraft(saved));
 }
 
+/** What the specs make of each address a draft would publish, keyed by that address. */
+export type LinkUrlChecks = ReadonlyMap<string, LinkUrlCheck>;
+
 /**
- * The address the specs store for a link, normalised the way `URL` does, or null when it is not a
- * web address without credentials (security invariant 9). The specs WASM alone would accept any
- * scheme, so `localhost:3000` or `javascript:` would be published as a broken link. Plain `http:`
- * stays allowed: a profile link is only published for others to open, never fetched by Passport.
+ * Asks the specs about every address `draft` would publish. They are the only judge of a link, so
+ * any scheme a profile may carry (`https:`, `mailto:`, `pubky:`, …) is accepted, and a link read
+ * from a published profile is never refused. Passport opens none of them; see `profileLinkHref`.
  */
-function storedLinkUrl(value: string): string | null {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    return null;
-  }
-  const web = url.protocol === "https:" || url.protocol === "http:";
-  return web && !url.username && !url.password ? url.href : null;
+export async function checkDraftLinks(
+  draft: ProfileDraft,
+): Promise<ProfileSpecsResult<LinkUrlChecks>> {
+  const urls = new Set(draft.links.map(linkUrl).filter(Boolean));
+  const checks = await checkLinkUrls([...urls]);
+  return Result.isError(checks)
+    ? checks
+    : Result.ok(new Map(checks.value.map((check) => [check.url, check])));
 }
 
 /**
  * A link address's length as typed (trimmed) and as the specs measure it once stored, which can
- * differ: a space is stored as `%20`. Null when the address is not a plain web address.
+ * differ: a space is stored as `%20`. Null when `checks` has no answer for the address.
  */
-export function linkUrlLength(link: ProfileLinkField): { typed: number; stored: number } | null {
+export function linkUrlLength(
+  link: ProfileLinkField,
+  checks: LinkUrlChecks,
+): { typed: number; stored: number } | null {
   const url = linkUrl(link);
-  const stored = url ? storedLinkUrl(url) : null;
-  return stored === null ? null : { typed: [...url].length, stored: [...stored].length };
+  const check = checks.get(url);
+  return check ? { typed: [...url].length, stored: [...check.stored].length } : null;
 }
 
 /**
- * Checks each field against the pinned specs release's limits, so the form can point at the one
- * to fix before anything is published. The specs WASM still validates the document it writes.
+ * Checks each field against the pinned specs release's limits, and each link address by the specs'
+ * own answer in `links` (from {@link checkDraftLinks}), so the form can point at the one to fix
+ * before anything is published. The specs WASM still validates the document it writes.
  */
-export function validateProfileDraft(draft: ProfileDraft): ProfileFieldErrors {
+export function validateProfileDraft(
+  draft: ProfileDraft,
+  links: LinkUrlChecks,
+): ProfileFieldErrors {
   const errors: ProfileFieldErrors = {};
   const name = profileTextLength(draft.name);
   if (name < PROFILE_LIMITS.nameMinLength || name > PROFILE_LIMITS.nameMaxLength)
@@ -142,10 +156,11 @@ export function validateProfileDraft(draft: ProfileDraft): ProfileFieldErrors {
     if (title === 0) errors[linkFieldKey(link.id, "title")] = "link_title_missing";
     else if (title > PROFILE_LIMITS.linkTitleMaxLength)
       errors[linkFieldKey(link.id, "title")] = "link_title_too_long";
-    const url = linkUrlLength(link);
-    if (url === null) errors[linkFieldKey(link.id, "url")] = "link_url_invalid";
-    else if (url.stored > PROFILE_LIMITS.linkUrlMaxLength)
+    // An address the specs were not asked about is left to their check of the whole document.
+    const check = links.get(linkUrl(link));
+    if (check && [...check.stored].length > PROFILE_LIMITS.linkUrlMaxLength)
       errors[linkFieldKey(link.id, "url")] = "link_url_too_long";
+    else if (check && !check.accepted) errors[linkFieldKey(link.id, "url")] = "link_url_invalid";
   }
   return errors;
 }

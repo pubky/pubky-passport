@@ -126,7 +126,10 @@ test("marks each invalid field where it is, with the limits shown before saving"
   for (const [control, message] of [
     [name, "Enter a name of 3–50 characters."],
     [bio, "Keep your bio to 160 characters (you have 161)."],
-    [website, "Enter a full web address, like https://example.com."],
+    [
+      website,
+      "Enter a full address with its scheme, like https://example.com or mailto:you@example.com.",
+    ],
     [linkField(page, 3, "Title"), "Give this link a title."],
   ] as const) {
     await expect(control).toHaveAttribute("aria-invalid", "true");
@@ -446,3 +449,39 @@ for (const [name, viewport, entry] of [
     expect(bar.height).toBeLessThan(100);
   });
 }
+
+test("an existing profile's links of every scheme are kept, and only web addresses open", async ({
+  page,
+}) => {
+  const links = [
+    ...PROFILE.links,
+    { title: "Pubky", url: `pubky://${PROFILE_KEY}` },
+    { title: "Email", url: "mailto:satoshi@example.com" },
+    { title: "Login", url: "https://satoshi:secret@example.com/" },
+  ];
+  await mockPublicProfile(page, { ...PROFILE, links });
+  await seedProfileIdentity(page, false);
+  await page.getByRole("button", { name: "Manage identity" }).click();
+  const list = page.getByRole("list", { name: "Links" });
+  await expect(list.getByRole("listitem")).toHaveCount(links.length);
+  const opened = list.getByRole("link");
+  await expect(opened).toHaveCount(2);
+  for (const [index, { url }] of PROFILE.links.entries()) {
+    await expect(opened.nth(index)).toHaveAttribute("href", url);
+    await expect(opened.nth(index)).toHaveAttribute("target", "_blank");
+    await expect(opened.nth(index)).toHaveAttribute("rel", "noopener noreferrer");
+  }
+  for (const { url } of links.slice(2))
+    await expect(list.getByText(url, { exact: true })).toBeVisible();
+
+  // Saving again refuses none of them: the save gets as far as the homeserver, which answers 503.
+  await page.getByRole("button", { name: "Edit profile" }).click();
+  await expect(linkField(page, 3, "Address")).toHaveValue(links[2]!.url);
+  await expect(linkField(page, 4, "Address")).toHaveValue(links[3]!.url);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.locator("main").getByRole("alert")).toContainText(
+    "Could not save your profile",
+    { timeout: 15000 },
+  );
+  await expect(page.locator('[aria-invalid="true"]')).toHaveCount(0);
+});
