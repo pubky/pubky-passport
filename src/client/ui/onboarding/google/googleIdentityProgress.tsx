@@ -4,31 +4,50 @@ import { DisplayHeading } from "@/client/ui/shared/primitives/typography";
 
 type StepState = "complete" | "active" | "pending";
 type SetupStep = { label: string; state: StepState };
-type ProgressPresentation = {
-  heading: "Looking for" | "Setting up" | "Repairing";
-  listLabel: string;
-  steps: SetupStep[];
-};
+type ProgressPresentation =
+  | { heading: "Loading" }
+  | { heading: "Setting up" | "Repairing"; listLabel: string; steps: SetupStep[] };
 
 /**
- * One screen for every establishment phase. The Drive lookup is the first step of each flow. A
- * restore is usually over in a moment, so it finishes under the lookup heading and only ticks
- * its remaining steps; setup and repair take longer and announce themselves.
+ * One screen for every establishment phase. The Drive lookup and a restore are usually over in a
+ * moment, so both stay on one steady "Loading" heading without a checklist; flashing steps past
+ * for a few milliseconds reads as a glitch. Setup and repair take longer, so they announce
+ * themselves and tick through their steps, starting from the completed Drive lookup.
  */
 function GoogleIdentityProgress({ progress }: { progress: GoogleIdentityProgressState }) {
   const presentation = progressPresentation(progress);
+  const heading = (
+    <DisplayHeading
+      accent="your pubky."
+      aria-label={`${presentation.heading} your pubky.`}
+      desktopAccentOnNewLine
+    >
+      {presentation.heading}
+    </DisplayHeading>
+  );
+
+  if (presentation.heading === "Loading") {
+    return (
+      <PassportScreen>
+        <div className="flex flex-1 flex-col gap-6 md:gap-8">
+          {heading}
+          <p aria-atomic="true" className="sr-only" role="status">
+            Loading your Pubky.
+          </p>
+          <div className="py-3">
+            <ActiveIcon />
+          </div>
+        </div>
+      </PassportScreen>
+    );
+  }
+
   const activeStep = presentation.steps.find((step) => step.state === "active");
 
   return (
     <PassportScreen>
       <div className="flex flex-1 flex-col gap-6 md:gap-8">
-        <DisplayHeading
-          accent="your pubky."
-          aria-label={`${presentation.heading} your pubky.`}
-          desktopAccentOnNewLine
-        >
-          {presentation.heading}
-        </DisplayHeading>
+        {heading}
         <p aria-atomic="true" className="sr-only" role="status">
           {presentation.heading} your Pubky: {activeStep?.label}.
         </p>
@@ -76,15 +95,10 @@ const LOOKUP_STEP = "Check Google Drive for a backup";
 function progressPresentation(progress: GoogleIdentityProgressState): ProgressPresentation {
   switch (progress.flow) {
     case "lookup":
-      return {
-        heading: "Looking for",
-        listLabel: "Pubky identity lookup progress",
-        steps: states([LOOKUP_STEP], 0),
-      };
+    case "restore":
+      return { heading: "Loading" };
     case "create":
       return setupPresentation(CREATE_STEP_INDEX[progress.step]);
-    case "restore":
-      return restorePresentation(RESTORE_STEP_INDEX[progress.step]);
     case "repair":
       return repairPresentation(REPAIR_STEP_INDEX[progress.step]);
   }
@@ -99,11 +113,6 @@ const CREATE_STEP_INDEX = {
   activating: 3,
 } satisfies Record<Extract<GoogleIdentityProgressState, { flow: "create" }>["step"], number>;
 
-const RESTORE_STEP_INDEX = {
-  restoring: 0,
-  signing_in: 1,
-} satisfies Record<Extract<GoogleIdentityProgressState, { flow: "restore" }>["step"], number>;
-
 const REPAIR_STEP_INDEX = {
   signing_up: 1,
   publishing: 2,
@@ -113,14 +122,6 @@ const REPAIR_STEP_INDEX = {
 /** Every flow starts with the completed Drive lookup, so flow indexes are offset by one. */
 function flowSteps(labels: string[], activeIndex: number): SetupStep[] {
   return states([LOOKUP_STEP, ...labels], activeIndex + 1);
-}
-
-function restorePresentation(activeIndex: number): ProgressPresentation {
-  return {
-    heading: "Looking for",
-    listLabel: "Pubky identity restore progress",
-    steps: flowSteps(["Restore encrypted backup", "Sign in to the homeserver"], activeIndex),
-  };
 }
 
 function repairPresentation(activeIndex: number): ProgressPresentation {
