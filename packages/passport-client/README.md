@@ -7,8 +7,17 @@ scope is confirmed and `passport.pubky.app` serves `/authorize` with opener prot
 verified-requester display. The default instance is `https://passport.pubky.app`.
 
 The package has zero runtime dependencies. The app supplies the Pubky SDK as a peer; React is an
-optional peer for the React entry point. The initial scaffold exports `DEFAULT_PASSPORT_INSTANCE`;
-the client, element, QR and React surfaces arrive in subsequent changes.
+optional peer for the React entry point. The scaffold exports `DEFAULT_PASSPORT_INSTANCE`,
+`PassportConfigError` and the option/state types; client, element, QR and React behavior arrives
+in subsequent changes.
+
+Configuration defaults to identity-only capabilities and a required Pubky profile. Browser-derived
+names and return paths are resolved on the first browser operation. Advanced timeouts must be
+integer milliseconds from 1 through 2147483647. Shortening `attemptMs` also shortens the default
+redirect-state lifetime; an explicitly supplied lifetime cannot exceed the attempt timeout.
+Undefined timeout fields retain their defaults. App names follow Passport's source-character rule:
+joiners used in multilingual spelling and emoji are accepted; controls, bidi controls and zero-width
+spaces are rejected. Configuration errors name the invalid option without echoing its value.
 
 ## Security
 

@@ -93,7 +93,7 @@ export type ValidatePubkyAuthRequestResult = ResultType<void, PubkyAuthParseErro
 type ParseValueResult<Value> = ResultType<Value, PubkyAuthParseError>;
 
 const PUBKY_AUTH_PROTOCOL = "pubkyauth:";
-const UNSAFE_SOURCE_CHARACTERS =
+export const UNSAFE_SOURCE_CHARACTERS =
   /[\p{Cc}\p{Zl}\p{Zp}\u061c\u200b\u200e\u200f\u202a-\u202e\u2060\u2066-\u2069\ufeff]/u;
 
 /**
