@@ -86,8 +86,8 @@ describe("IdentityManagement", () => {
     expect(profile).toHaveTextContent("Pubky x8jp…4mra");
     expect(profile).not.toHaveTextContent("Your Pubky");
     expect(profile).not.toHaveTextContent("Satoshi Nakamoto");
-    // No initials of a placeholder or of the Google name: a person glyph on the key's colour.
-    expect(profile.querySelector("[data-unnamed]")).not.toBeNull();
+    // No initials of a placeholder or of the Google name: pubky.app's face for the key.
+    expect(profile.querySelector("[data-facehash]")).toHaveTextContent(/^X$/u);
     expect(within(profile).queryByText("PU")).not.toBeInTheDocument();
     expect(within(profile).queryByText("SA")).not.toBeInTheDocument();
   });

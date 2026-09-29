@@ -159,7 +159,7 @@ describe("ProfileSetupFlow", () => {
     );
   });
 
-  it("gives the placeholder no name, and returns to it when an avatar cannot be drawn", async () => {
+  it("falls back to pubky.app's face for the key when an avatar cannot be drawn", async () => {
     load.mockResolvedValue(
       Result.ok({
         profile: { name: "Satoshi", image: `pubky://${KEY}/pub/pubky.app/files/AVATAR` },
@@ -170,12 +170,27 @@ describe("ProfileSetupFlow", () => {
     const avatar = await screen.findByRole("img", { name: "Your avatar" });
     // A grey circle while it loads, not an empty square with its alt text.
     expect(avatar).toHaveClass("bg-muted", "rounded-full");
+    expect(document.querySelector("[data-facehash]")).toBeNull();
     fireEvent.error(avatar);
     expect(screen.queryByRole("img", { name: "Your avatar" })).not.toBeInTheDocument();
-    expect(avatar).toHaveAttribute("alt", "");
-    expect(avatar.getAttribute("src")).toMatch(/profile-avatar\.svg$/u);
+    const face = document.querySelector("[data-facehash]");
+    expect(face).toHaveAttribute("aria-hidden", "true");
+    expect(face).toHaveTextContent(/^S$/u);
     // The published avatar is still there to delete.
     expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+  });
+
+  it("shows the key's face without an avatar, its mouth following the name as typed", async () => {
+    load.mockResolvedValue(Result.ok(null));
+    mount();
+    const name = await screen.findByLabelText("Name", { exact: true });
+    const face = () =>
+      screen.getByRole("region", { name: "Avatar" }).querySelector("[data-facehash]");
+
+    expect(screen.queryByRole("img", { name: "Your avatar" })).not.toBeInTheDocument();
+    expect(face()).toHaveTextContent(new RegExp(`^${KEY[0]!.toUpperCase()}$`, "u"));
+    fireEvent.change(name, { target: { value: "hal" } });
+    expect(face()).toHaveTextContent(/^H$/u);
   });
 
   it.each<[ProfileErrorCode, string]>([

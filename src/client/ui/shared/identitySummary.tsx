@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { shortPublicKey } from "./formatPublicKey";
-import { identityDisplayName, unnamedKey } from "./identityDisplay";
+import { identityDisplayName, profileName } from "./identityDisplay";
 import { KeyCustodyTag } from "./keyCustodyTag";
 import { cn } from "./mergeClassNames";
 import { Avatar } from "./primitives/avatar";
@@ -15,7 +15,8 @@ export function IdentitySummary({
   detail,
   detailClassName,
   name,
-  unnamedKey,
+  profileName,
+  publicKey,
 }: {
   /** Rendered under the detail line, e.g. an attached Google account. */
   attachment?: ReactNode | undefined;
@@ -27,8 +28,13 @@ export function IdentitySummary({
   detail?: string | undefined;
   detailClassName?: string | undefined;
   name: string;
-  /** The key of an identity without a profile name, which then gets its key-coloured avatar. */
-  unnamedKey?: string | undefined;
+  /** The identity's profile name, for the initial its face shows without a picture. */
+  profileName?: string | undefined;
+  /**
+   * The identity's key: without a picture it gets pubky.app's face for it. Without one (a Google
+   * account) the name's initials stand in.
+   */
+  publicKey?: string | undefined;
 }) {
   const detailLine = cn(
     "text-xs font-medium tracking-[0.1em] text-muted-foreground",
@@ -37,7 +43,11 @@ export function IdentitySummary({
   return (
     <>
       <span className="relative flex shrink-0">
-        <Avatar fallback={name} size="sm" src={avatarSrc} unnamedKey={unnamedKey} />
+        <Avatar
+          {...(publicKey ? { publicKey, profileName } : { fallback: name })}
+          size="sm"
+          src={avatarSrc}
+        />
         {badge ? (
           <span className="absolute bottom-px right-px flex size-4 items-center justify-center drop-shadow-xl">
             {badge}
@@ -63,9 +73,9 @@ export function IdentitySummary({
 }
 
 /**
- * A saved identity as every list and confirmation shows it: its avatar, its name (or, without a
- * profile, a name made from its key, which then is not repeated underneath), its short key in the
- * key's own case, and where its key lives.
+ * A saved identity as every list and confirmation shows it: its avatar (its picture, else
+ * pubky.app's face for its key), its name (or, without a profile, a name made from its key, which
+ * then is not repeated underneath), its short key in the key's own case, and where its key lives.
  */
 export function SavedIdentitySummary({
   attachmentInline,
@@ -76,16 +86,18 @@ export function SavedIdentitySummary({
   detailClassName?: string | undefined;
   identity: LocalIdentityMetadata;
 }) {
-  const unnamed = unnamedKey(identity);
+  const publicKey = identity.publicIdentity.publicKeyZ32;
+  const named = profileName(identity);
   return (
     <IdentitySummary
       attachment={<KeyCustodyTag identity={identity} />}
       attachmentInline={attachmentInline}
       avatarSrc={identity.avatarUrl ?? undefined}
-      detail={unnamed ? undefined : shortPublicKey(identity.publicIdentity.publicKeyZ32)}
+      detail={named ? shortPublicKey(publicKey) : undefined}
       detailClassName={detailClassName}
       name={identityDisplayName(identity)}
-      unnamedKey={unnamed}
+      profileName={named}
+      publicKey={publicKey}
     />
   );
 }

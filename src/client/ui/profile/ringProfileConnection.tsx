@@ -7,7 +7,7 @@ import { BackButton } from "@/client/ui/shared/backButton";
 import { PUBKY_COPY_TOASTS } from "@/client/ui/shared/copyToClipboard";
 import { DetailField } from "@/client/ui/shared/detailField";
 import { shortPublicKey } from "@/client/ui/shared/formatPublicKey";
-import { identityDisplayName, profileName, unnamedKey } from "@/client/ui/shared/identityDisplay";
+import { identityDisplayName, profileName } from "@/client/ui/shared/identityDisplay";
 import { IdentitySummary } from "@/client/ui/shared/identitySummary";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { RotateCcwIcon } from "@/client/ui/shared/icons";
@@ -280,7 +280,7 @@ export function RingProfileConnection({
 /** The identity Pubky Ring must approve: as the identity lists show it, then its full key. */
 function IdentityToConnect({ identity }: { identity: LocalIdentityMetadata }) {
   const publicKey = identity.publicIdentity.publicKeyZ32;
-  const unnamed = unnamedKey(identity);
+  const named = profileName(identity);
   return (
     <section
       aria-label="Identity to connect"
@@ -290,9 +290,10 @@ function IdentityToConnect({ identity }: { identity: LocalIdentityMetadata }) {
         {/* Without a profile, the name is made from the key, so the short key is not repeated. */}
         <IdentitySummary
           avatarSrc={identity.avatarUrl}
-          detail={unnamed ? undefined : shortPublicKey(publicKey)}
+          detail={named ? shortPublicKey(publicKey) : undefined}
           name={identityDisplayName(identity)}
-          unnamedKey={unnamed}
+          profileName={named}
+          publicKey={publicKey}
         />
       </div>
       <DetailField

@@ -1,7 +1,7 @@
 import { isKeyProtected, keyBackup } from "@/client/logic/local-identity/keyBackup";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { BackupStatusLine, formatBackupDate } from "@/client/ui/identity-dashboard/backupStatus";
-import { identityDisplayName, unnamedKey } from "@/client/ui/shared/identityDisplay";
+import { identityDisplayName, profileName } from "@/client/ui/shared/identityDisplay";
 import {
   CheckIcon,
   DownloadIcon,
@@ -52,10 +52,10 @@ function IdentityOverview({
       >
         <div className="col-span-2 flex w-full min-w-0 flex-col items-center gap-6 md:flex-row md:items-start">
           <Avatar
-            fallback={name}
+            profileName={profileName(identity)}
+            publicKey={publicKey}
             size="lg"
             src={identity.avatarUrl ?? undefined}
-            unnamedKey={unnamedKey(identity)}
           />
           <div className="flex w-full min-w-0 flex-col items-center gap-3 text-center md:max-w-69 md:flex-1 md:items-start md:gap-0 md:text-left">
             <h2 className="w-full text-2xl font-bold leading-8 [overflow-wrap:anywhere]">{name}</h2>

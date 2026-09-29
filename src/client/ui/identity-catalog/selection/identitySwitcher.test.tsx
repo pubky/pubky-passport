@@ -116,15 +116,15 @@ describe("IdentitySwitcher", () => {
       />,
     );
 
-    const first = screen.getByRole("button", { name: /Pubky loca…1234/u });
+    // The name already carries the key, so no key line repeats it; the face is not read out.
+    const first = screen.getByRole("button", { name: "Pubky loca…1234Key in this browser" });
     const second = screen.getByRole("button", { name: /Pubky othe…9876/u });
     expect(screen.queryByText(/Your Pubky/u)).toBeNull();
-    // The name already carries the key, so no key line repeats it.
-    expect(first).toHaveTextContent(/^Pubky loca…1234Key in this browser$/u);
-    // No placeholder initials: a person glyph on a colour picked from each key.
-    const avatars = [first, second].map((row) => row.querySelector("[data-unnamed]"));
-    expect(avatars[0]).not.toHaveTextContent(/\S/u);
-    expect(avatars[0]?.getAttribute("style")).not.toBe(avatars[1]?.getAttribute("style"));
+    // No placeholder initials: pubky.app's face for each key, which the row's name covers.
+    const avatars = [first, second].map((row) => row.querySelector("[data-facehash]"));
+    expect(avatars[0]).toHaveAttribute("aria-hidden", "true");
+    expect(avatars[0]).toHaveTextContent(/^L$/u);
+    expect(avatars[1]).toHaveTextContent(/^O$/u);
     for (const row of [first, second])
       expect(row.querySelector(".lowercase, .uppercase")).toBeNull();
   });

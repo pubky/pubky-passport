@@ -253,11 +253,10 @@ for (const viewport of NARROW) {
     const finish = await page.getByRole("button", { name: "Save profile" }).boundingBox();
     expect(back!.x + back!.width).toBeLessThanOrEqual(viewport.width);
     expect(finish!.x + finish!.width).toBeLessThanOrEqual(viewport.width);
-    // The placeholder is decoration (no name), so it is found as the avatar section's image.
+    // Without a picture the avatar is the key's face, which is decoration (no name).
     const avatar = await page
       .getByRole("region", { name: "Avatar" })
-      .locator("img")
-      .first()
+      .locator("[data-facehash]")
       .boundingBox();
     expect(Math.abs(avatar!.width - avatar!.height)).toBeLessThanOrEqual(1);
   });

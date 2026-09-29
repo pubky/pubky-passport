@@ -100,22 +100,31 @@ describe("IdentityOverview", () => {
     expect(screen.queryByText(/^Key in this browser, /u)).toBeNull();
   });
 
-  it("names an identity without a profile after its key, with a key-coloured avatar", () => {
+  it("names an identity without a profile after its key, with pubky.app's face for the key", () => {
     renderOverview({ publicIdentity: PUBLIC_IDENTITY });
 
     expect(screen.getByRole("heading", { level: 2, name: "Pubky 1aeh…dwdy" })).toBeVisible();
     expect(screen.queryByText("Your Pubky")).toBeNull();
-    const avatar = document.querySelector("[data-unnamed]");
-    expect(avatar).not.toBeNull();
-    expect(avatar).not.toHaveTextContent(/\S/u);
-    expect(avatar?.getAttribute("style")).toMatch(/background-color: rgb\(/u);
+    // The key's first character is its mouth.
+    expect(document.querySelector("[data-facehash]")).toHaveTextContent(/^1$/u);
   });
 
-  it("shows initials and no key colour for a named identity", () => {
+  it("gives a named identity without a picture the same face, with its name's initial", () => {
     renderOverview({ publicIdentity: PUBLIC_IDENTITY, profile: { name: "Satoshi" } });
 
     expect(screen.getByRole("heading", { level: 2, name: "Satoshi" })).toBeVisible();
-    expect(document.querySelector("[data-unnamed]")).toBeNull();
-    expect(screen.getByText("SA")).toBeInTheDocument();
+    expect(document.querySelector("[data-facehash]")).toHaveTextContent(/^S$/u);
+    expect(screen.queryByText("SA")).toBeNull();
+  });
+
+  it("shows the profile picture instead of the face", () => {
+    renderOverview({
+      publicIdentity: PUBLIC_IDENTITY,
+      profile: { name: "Satoshi" },
+      avatarUrl: "blob:avatar",
+    });
+
+    expect(document.querySelector("img")).toHaveAttribute("src", "blob:avatar");
+    expect(document.querySelector("[data-facehash]")).toBeNull();
   });
 });

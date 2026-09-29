@@ -31,6 +31,7 @@ import { Notice } from "@/client/ui/shared/notice";
 import { PassportNavigation } from "@/client/ui/shared/passportNavigation";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { Button } from "@/client/ui/shared/primitives/button";
+import { FacehashAvatar } from "@/client/ui/shared/primitives/facehashAvatar";
 import { FieldMessage } from "@/client/ui/shared/primitives/fieldMessage";
 import { IconButton } from "@/client/ui/shared/primitives/iconButton";
 import { Input } from "@/client/ui/shared/primitives/input";
@@ -694,24 +695,32 @@ function ProfileEditor({
               <h2 id="profile-avatar-heading" className="text-2xl font-bold leading-8">
                 Avatar
               </h2>
-              <Image
-                alt={avatarSrc ? "Your avatar" : ""}
-                // Square at any width: a column narrower than 192px shrinks the whole circle.
-                className="aspect-square h-auto w-48 rounded-full bg-muted object-cover"
-                width={192}
-                height={192}
-                unoptimized
-                src={avatarSrc ?? "/illustrations/profile-avatar.svg"}
-                // An image the browser cannot draw gives way to the placeholder, not an empty
-                // circle; a chosen file is then refused like one that failed its check.
-                onError={() => {
-                  if (avatar && filePreview) {
-                    setAvatar(undefined);
-                    setFilePreview(undefined);
-                    setAvatarError("damaged");
-                  } else if (preview) setPreview(undefined);
-                }}
-              />
+              {/* Square at any width: a column narrower than 192px shrinks the whole circle. */}
+              {avatarSrc ? (
+                <Image
+                  alt="Your avatar"
+                  className="aspect-square h-auto w-48 rounded-full bg-muted object-cover"
+                  width={192}
+                  height={192}
+                  unoptimized
+                  src={avatarSrc}
+                  // An image the browser cannot draw gives way to the key's face, not an empty
+                  // circle; a chosen file is then refused like one that failed its check.
+                  onError={() => {
+                    if (avatar && filePreview) {
+                      setAvatar(undefined);
+                      setFilePreview(undefined);
+                      setAvatarError("damaged");
+                    } else if (preview) setPreview(undefined);
+                  }}
+                />
+              ) : (
+                // Without a picture, the face pubky.app shows for this key, with the initial of
+                // the name as typed: how the profile will look there.
+                <div className="aspect-square w-48 max-w-full">
+                  <FacehashAvatar profileName={draft.name} publicKey={publicKey} />
+                </div>
+              )}
               {avatar || draft.image ? (
                 <Button
                   type="button"

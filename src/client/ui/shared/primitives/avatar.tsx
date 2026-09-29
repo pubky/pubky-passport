@@ -1,76 +1,72 @@
-import type { ComponentPropsWithoutRef } from "react";
+import { useState, type ComponentPropsWithoutRef } from "react";
 import Image from "next/image";
 
-import { keyColor } from "@/client/ui/shared/identityDisplay";
 import { cn } from "@/client/ui/shared/mergeClassNames";
+import { FacehashAvatar } from "./facehashAvatar";
 
 type AvatarProps = ComponentPropsWithoutRef<"span"> & {
-  fallback: string;
   size?: "sm" | "md" | "lg";
   src?: string | undefined;
-  /**
-   * The public key of an identity without a profile name. Without a picture it then shows a person
-   * glyph on a colour picked from the key, instead of initials of a placeholder name: identities
-   * without a profile differ at a glance.
-   */
-  unnamedKey?: string | undefined;
-};
+} & (
+    | {
+        /**
+         * A pubky's key. Without a picture, or with one the browser cannot draw, the avatar is
+         * pubky.app's face for this key (see `FacehashAvatar`).
+         */
+        publicKey: string;
+        /** The pubky's profile name, whose initial the face shows as its mouth. */
+        profileName?: string | undefined;
+        fallback?: undefined;
+      }
+    | {
+        /** A name that is not a pubky's (a Google account), whose initials stand in for a picture. */
+        fallback: string;
+        publicKey?: undefined;
+        profileName?: undefined;
+      }
+  );
 
 const sizes = { sm: "size-10 text-sm", md: "size-12 text-base", lg: "size-24 text-2xl" };
 
 function Avatar({
   className,
   fallback,
+  profileName,
+  publicKey,
   size = "md",
   src,
-  style,
-  unnamedKey,
   ...props
 }: AvatarProps) {
+  const [failedSrc, setFailedSrc] = useState<string>();
+  const picture = src && src !== failedSrc ? src : undefined;
   return (
     <span
       className={cn(
-        "relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted font-bold text-secondary-foreground",
+        "relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-secondary-foreground",
         sizes[size],
-        unnamedKey && "text-foreground",
         className,
       )}
-      data-unnamed={unnamedKey ? "" : undefined}
-      style={unnamedKey ? { backgroundColor: keyColor(unnamedKey), ...style } : style}
       {...props}
     >
-      {unnamedKey ? (
-        <svg
-          aria-hidden="true"
-          className="size-1/2"
-          fill="none"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          viewBox="0 0 24 24"
-        >
-          <circle cx="12" cy="8" r="5" />
-          <path d="M20 21a8 8 0 0 0-16 0" />
-        </svg>
-      ) : (
-        <span aria-hidden="true">{fallback.slice(0, 2).toUpperCase()}</span>
-      )}
-      {src ? (
+      {picture ? (
         <Image
-          key={src}
+          key={picture}
           alt=""
           className="object-cover"
           fill
           loading="eager"
-          onError={(event) => {
-            event.currentTarget.hidden = true;
-          }}
+          onError={() => setFailedSrc(picture)}
           sizes="96px"
-          src={src}
+          src={picture}
           unoptimized
         />
-      ) : null}
+      ) : publicKey ? (
+        <FacehashAvatar profileName={profileName} publicKey={publicKey} />
+      ) : (
+        <span aria-hidden="true" className="font-bold">
+          {fallback?.slice(0, 2).toUpperCase()}
+        </span>
+      )}
     </span>
   );
 }

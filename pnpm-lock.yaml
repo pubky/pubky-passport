@@ -44,6 +44,9 @@ importers:
       clsx:
         specifier: 2.1.1
         version: 2.1.1
+      facehash:
+        specifier: 0.1.0
+        version: 0.1.0(@types/react@19.3.0)(next@16.3.5(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@26.6.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       google-auth-library:
         specifier: ^11.1.0
         version: 11.1.0
@@ -1630,6 +1633,19 @@ packages:
 
   extend@3.0.2:
     resolution: {integrity: sha512-fjquC59cD7CyW6urNXK0FBufkZcoiGG80wTuPujX590cB5Ttln20E2UB4S/WARVqhXffZl2LNgS+gQdPIIim/g==}
+
+  facehash@0.1.0:
+    resolution: {integrity: sha512-tv/QVZjLvEXHssqBaJECq+kRLFwwhd017PKk8ucT7aLingL2OZ5zEqKwPMHmT9+YQO92MVFWGZQP6vxV+P5vrQ==}
+    peerDependencies:
+      '@types/react': ''
+      next: '>=15'
+      react: '>=18 <20'
+      react-dom: '>=18 <20'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      next:
+        optional: true
 
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
@@ -4605,6 +4621,14 @@ snapshots:
   expect-type@1.4.0: {}
 
   extend@3.0.2: {}
+
+  facehash@0.1.0(@types/react@19.3.0)(next@16.3.5(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@26.6.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
+    dependencies:
+      react: 19.3.0
+      react-dom: 19.3.0(react@19.3.0)
+    optionalDependencies:
+      '@types/react': 19.3.0
+      next: 16.3.5(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@26.6.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
 
   fast-deep-equal@3.1.3: {}
 

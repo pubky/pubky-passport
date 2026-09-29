@@ -12,7 +12,7 @@ import { PUBKY_COPY_TOASTS } from "@/client/ui/shared/copyToClipboard";
 import { DetailField } from "@/client/ui/shared/detailField";
 import { shortCopiedValue } from "@/client/ui/shared/formatPublicKey";
 import { GoogleAccountTag } from "@/client/ui/shared/googleAccountTag";
-import { identityDisplayName, unnamedKey } from "@/client/ui/shared/identityDisplay";
+import { identityDisplayName, profileName } from "@/client/ui/shared/identityDisplay";
 import {
   CheckIcon,
   DownloadIcon,
@@ -124,10 +124,10 @@ function IdentityManagement({
           </h2>
           <div className="flex min-w-0 items-center gap-4">
             <Avatar
-              fallback={name}
-              src={identity.avatarUrl ?? undefined}
               className="size-16 shrink-0"
-              unnamedKey={unnamedKey(identity)}
+              profileName={profileName(identity)}
+              publicKey={publicKeyZ32}
+              src={identity.avatarUrl ?? undefined}
             />
             <div className="flex min-w-0 flex-col items-start gap-1">
               <p className="min-w-0 max-w-full break-words text-xl font-bold">{name}</p>
