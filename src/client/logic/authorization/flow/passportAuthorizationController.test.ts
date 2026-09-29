@@ -222,6 +222,117 @@ describe("PassportAuthorizationController", () => {
     expect(MOCKS.approveAuthorization).not.toHaveBeenCalled();
   });
 
+  it("in the app's popup, hands the success callback back only once the app took Ring's answer", async () => {
+    Object.defineProperty(window, "opener", { configurable: true, value: { closed: false } });
+    try {
+      const handoffOutcome = vi.fn(async () => "acknowledged-and-closed" as const);
+      const { controller } = createController({ handoffOutcome });
+      const { relay, scheduled, watch } = fakeAppRelay(["404", "false", "true"]);
+
+      expect(controller.canWatchExternalApproval()).toBe(true);
+      watch(controller);
+      for (let look = 0; look < 2; look++) {
+        scheduled.shift()?.();
+        await vi.waitFor(() => expect(scheduled).toHaveLength(1));
+        // Nothing posted, then Ring's answer not yet taken by the app: Passport keeps waiting.
+        expect(controller.getState().status).toBe("review");
+      }
+      scheduled.shift()?.();
+      await vi.waitFor(() => expect(handoffOutcome).toHaveBeenCalledOnce());
+      expect(handoffOutcome).toHaveBeenCalledWith(
+        window,
+        SUCCESS_CALLBACK,
+        "success",
+        expect.anything(),
+      );
+      // Only the acknowledgement was read, never the answer itself, and nothing more is scheduled.
+      expect(relay).toHaveBeenCalledTimes(3);
+      for (const [url, init] of relay.mock.calls) {
+        expect(url).toMatch(/^https:\/\/relay\.example\/inbox\/[\w-]{43}\/ack$/u);
+        expect(init.method).toBe("GET");
+      }
+      expect(scheduled).toEqual([]);
+    } finally {
+      Object.defineProperty(window, "opener", { configurable: true, value: null });
+    }
+  });
+
+  it("in the same tab, goes back to the app once Ring's answer waits for it there", async () => {
+    const handoffOutcome = vi.fn(async () => "navigated" as const);
+    const { controller } = createController({ handoffOutcome });
+    const { relay, scheduled, watch } = fakeAppRelay(["404", "false"]);
+
+    watch(controller);
+    scheduled.shift()?.();
+    await vi.waitFor(() => expect(scheduled).toHaveLength(1));
+    expect(controller.getState().status).toBe("review");
+    // The app can take the answer only once Passport navigates back to it: posted is enough.
+    scheduled.shift()?.();
+    await vi.waitFor(() => expect(handoffOutcome).toHaveBeenCalledOnce());
+    expect(handoffOutcome).toHaveBeenCalledWith(
+      window,
+      SUCCESS_CALLBACK,
+      "success",
+      expect.anything(),
+    );
+    expect(relay).toHaveBeenCalledTimes(2);
+    expect(scheduled).toEqual([]);
+  });
+
+  it("records what it saw when a request without callbacks ends as handed off", async () => {
+    const { controller } = createController({}, { callbacks: false });
+    const { scheduled, watch } = fakeAppRelay(["false"]);
+
+    watch(controller);
+    scheduled.shift()?.();
+    await vi.waitFor(() => expect(controller.getState().status).toBe("handed-off"));
+    expect(controller.getState()).toMatchObject({ status: "handed-off", observed: "posted" });
+  });
+
+  it("records nothing seen when the person reports the approval", async () => {
+    const { controller } = createController({}, { callbacks: false });
+
+    await controller.finishExternalApproval();
+    const state = controller.getState();
+    expect(state.status).toBe("handed-off");
+    expect(state).not.toHaveProperty("observed");
+  });
+
+  it("stops watching once the review ends another way", async () => {
+    const { controller } = createController({}, { callbacks: false });
+    const cancelTimer = vi.fn();
+    const relay = vi.fn();
+    controller.watchExternalApproval({
+      fetch: relay,
+      page: { isVisible: () => true, subscribe: () => () => undefined },
+      schedule: () => cancelTimer,
+    });
+
+    await controller.cancel();
+    expect(cancelTimer).toHaveBeenCalled();
+    expect(relay).not.toHaveBeenCalled();
+    expect(controller.canWatchExternalApproval()).toBe(false);
+  });
+
+  it("offers no watch on a relay without a read-only look", () => {
+    const entry = ValidatedPubkyAuthRequest.fromEncoded(
+      encodeURIComponent(
+        `pubkyauth://signin?caps=/pub/example.app/:rw&relay=https://relay.example/link&secret=${SECRET}`,
+      ),
+    );
+    if (Result.isError(entry)) throw new Error(entry.error.code);
+    const controller = new PassportAuthorizationController(window, {
+      status: "valid",
+      request: entry.value,
+    });
+    const schedule = vi.fn();
+
+    expect(controller.canWatchExternalApproval()).toBe(false);
+    controller.watchExternalApproval({ schedule })();
+    expect(schedule).not.toHaveBeenCalled();
+    controller.dispose();
+  });
+
   it("ignores an external approval report once the request has ended", async () => {
     const handoffOutcome = vi.fn(async () => "navigated" as const);
     const { controller } = createController({ handoffOutcome }, { callbacks: false });
@@ -395,6 +506,30 @@ describe("PassportAuthorizationController", () => {
     controller.dispose();
   });
 });
+
+/**
+ * A fake of the app's relay answering each `/ack` look with the next of `replies` (`404`, `false`
+ * or `true`), with a page always in view and looks run by hand from `scheduled`.
+ */
+function fakeAppRelay(replies: string[]) {
+  const relay = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () => {
+    const reply = replies.shift() ?? "404";
+    return reply === "404"
+      ? new Response("Not found", { status: 404 })
+      : new Response(reply, { status: 200 });
+  });
+  const scheduled: (() => void)[] = [];
+  const watch = (controller: PassportAuthorizationController) =>
+    controller.watchExternalApproval({
+      fetch: relay,
+      page: { isVisible: () => true, subscribe: () => () => undefined },
+      schedule: (run) => {
+        scheduled.push(run);
+        return () => undefined;
+      },
+    });
+  return { relay, scheduled, watch };
+}
 
 function createController(
   overrides: Partial<ControllerOverrides> = {},

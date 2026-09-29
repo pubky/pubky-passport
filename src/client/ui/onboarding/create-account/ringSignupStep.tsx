@@ -28,7 +28,7 @@ const SIGNUP_LABELS = {
 /**
  * Hands the invite to Pubky Ring for signup, then connects the new identity's profile. Ring returns
  * nothing from the signup, so Passport watches the invite: once the homeserver reports it used,
- * the profile connection opens by itself, and "I've finished in Pubky Ring" covers a lookup that
+ * the profile connection opens by itself, and "Continue to profile" covers a lookup that
  * cannot tell. The person then confirms that the pubky Ring connects is the new one. An invite the
  * homeserver already reports used (`inviteUsed`) skips straight to the profile connection.
  */
@@ -99,7 +99,7 @@ export function RingSignupStep({
               variant="secondary"
             >
               <ArrowRightIcon />
-              I’ve finished in Pubky Ring
+              Continue to profile
             </Button>
           }
         />

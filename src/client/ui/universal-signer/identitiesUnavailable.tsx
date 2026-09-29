@@ -59,6 +59,11 @@ export function IdentitiesUnavailable({
           setWithRing(false);
         }}
         review={authorization.review}
+        watchApproval={
+          controller.canWatchExternalApproval()
+            ? () => controller.watchExternalApproval()
+            : undefined
+        }
       />
     );
   const { cause, nextStep, nextStepInRequest } = CAUSES[reason];

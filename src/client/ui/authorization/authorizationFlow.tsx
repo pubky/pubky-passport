@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { preload } from "react-dom";
 import type { PassportAuthorizationViewState } from "@/client/logic/authorization/flow/PassportAuthorizationController";
+import type { ExternalApprovalObservation } from "@/client/logic/authorization/flow/externalApprovalWatch";
 import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import type { AuthorizationController } from "./usePassportAuthorization";
@@ -57,8 +58,15 @@ export function AuthorizationFlow({
     case "approved":
       return <AuthorizationApproved identity={identity} review={authorization.review} />;
     case "handed-off":
+      return (
+        <AuthorizationEnded
+          observed={authorization.observed}
+          outcome="handed-off"
+          review={authorization.review}
+        />
+      );
     case "cancelled":
-      return <AuthorizationEnded outcome={authorization.status} review={authorization.review} />;
+      return <AuthorizationEnded outcome="cancelled" review={authorization.review} />;
     default:
       return (
         <AuthorizationReview
@@ -200,11 +208,16 @@ function AuthorizationFailed({
   );
 }
 
-/** Cancelled here, or handed to Pubky Ring, whose approval Passport cannot see or claim. */
+/**
+ * Cancelled here, or handed to Pubky Ring, whose approval Passport cannot verify or claim. When
+ * Passport ended the handoff by itself, `observed` says what it saw on the app's relay channel.
+ */
 function AuthorizationEnded({
+  observed,
   outcome,
   review,
 }: {
+  observed?: ExternalApprovalObservation | undefined;
   outcome: "cancelled" | "handed-off";
   review: AuthorizationRequestReview;
 }) {
@@ -224,7 +237,7 @@ function AuthorizationEnded({
           accent: fittedAccent(requester, "the app."),
           label: requester ? `Return to ${requester}` : "Return to the app.",
           windowTitle: requesterWindowTitle("Return to", review),
-          lead: `Passport cannot see the approval in Pubky Ring. ${requester ?? "The app"} signs you in once the approval reaches it.`,
+          lead: handedOffLead(requester, observed),
         };
   return (
     <PassportScreen className="gap-6">
@@ -242,4 +255,18 @@ function AuthorizationEnded({
       />
     </PassportScreen>
   );
+}
+
+function handedOffLead(
+  requester: string | undefined,
+  observed: ExternalApprovalObservation | undefined,
+): string {
+  switch (observed) {
+    case "taken":
+      return `Pubky Ring’s approval reached ${requester ?? "the app"}. Return to it to finish signing in.`;
+    case "posted":
+      return `Pubky Ring sent its approval to ${requester ?? "the app"}. Return to it to finish signing in.`;
+    case undefined:
+      return `Passport cannot see the approval in Pubky Ring. ${requester ?? "The app"} signs you in once the approval reaches it.`;
+  }
 }

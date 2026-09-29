@@ -334,6 +334,25 @@ it("never claims an approval Passport handed to Ring", () => {
   cleanup();
 });
 
+it.each([
+  [
+    undefined,
+    "Passport cannot see the approval in Pubky Ring. Acme Notes signs you in once the approval reaches it.",
+  ],
+  ["taken", "Pubky Ring’s approval reached Acme Notes. Return to it to finish signing in."],
+  ["posted", "Pubky Ring sent its approval to Acme Notes. Return to it to finish signing in."],
+] as const)(
+  "says what Passport saw of the Ring handoff (%s) without claiming the sign-in",
+  (observed, lead) => {
+    renderFlow({ status: "handed-off", review: NAMED, observed });
+
+    expect(screen.getByText(lead)).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Return to Acme Notes" })).toBeVisible();
+    expect(screen.queryByText(/Signed in/u)).toBeNull();
+    cleanup();
+  },
+);
+
 it("celebrates an approval like every other finished task, and only an approval", () => {
   renderFlow({ status: "approved", review: REVIEW });
   expect(document.querySelector('img[src*="checkmark.png"]')).not.toBeNull();

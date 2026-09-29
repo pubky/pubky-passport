@@ -12,6 +12,7 @@ export function fakePassportAuthorizationController(
 ): AuthorizationControllerPort {
   return {
     approve: overrides.approve ?? vi.fn(),
+    canWatchExternalApproval: overrides.canWatchExternalApproval ?? (() => false),
     cancel: overrides.cancel ?? vi.fn(),
     dispose: overrides.dispose ?? vi.fn(),
     externalSignerUrl: overrides.externalSignerUrl ?? (() => undefined),
@@ -32,5 +33,6 @@ export function fakePassportAuthorizationController(
           state.listener = undefined;
         };
       }),
+    watchExternalApproval: overrides.watchExternalApproval ?? (() => () => undefined),
   };
 }

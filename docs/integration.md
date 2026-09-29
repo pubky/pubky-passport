@@ -59,8 +59,9 @@ identity is chosen in Ring. **Continue with Pubky Ring** hands your request to R
 phone or tablet (a coarse pointer) it follows the `pubkyauth://` link at once and shows the QR code
 if the page is still in view about two seconds later, because Ring did not open; with a mouse or
 trackpad (a fine pointer, such as your desktop popup) it shows the QR code directly, since a
-computer cannot open the link. Passport cannot see Ring's approval, so **I approved in Pubky Ring**
-reports `success` (see [Outcome messages](#outcome-messages)). Switching identities or creating an
+computer cannot open the link. Passport notices Ring's answer on your relay channel and then reports
+`success` by itself; **I approved in Pubky Ring** does the same by hand (see
+[Outcome messages](#outcome-messages)). Switching identities or creating an
 account preserves the original request; a new account is asked for its public profile once, and
 **Skip for now** there goes on to the review. A request for broad access (for example `/:rw`) is
 flagged on the list, on the request's start page and on the Pubky Ring screen as well as on the
@@ -349,9 +350,20 @@ for the acknowledgement. Once acknowledged, it closes the popup; without an ackn
 navigates the popup to the matching callback.
 
 A `success` message means Passport posted the approval to the relay; keep waiting for the SDK.
-After a Pubky Ring handoff, `success` means only that the user pressed **I approved in Pubky Ring**:
-Passport cannot see Ring's approval, which may still be on its way or missing, so the short relay
-wait after `success` matters there. Without callbacks Passport reports nothing and tells the user to
+After a Pubky Ring handoff, `success` means that Passport saw Ring's answer on your relay channel or
+that the user pressed **I approved in Pubky Ring**. While its Ring screen is in view, Passport reads
+only the relay's acknowledgement for your channel (`GET <relay>/<channel>/ack` on an
+[http-relay](https://github.com/pubky/http-relay) inbox, every 3 seconds, less often while the relay
+does not answer, paused while the page is hidden): `false` once Ring posted its answer, `true` once
+your SDK took and acknowledged it. That read never takes, changes or acknowledges the message, so
+your SDK still receives it. In a popup whose opener is open, Passport moves on only after your SDK
+acknowledged the answer (`true`), so its message never gets ahead of your app; if your page cannot
+acknowledge meanwhile (for example a background tab the phone suspended), the button ends the
+handoff. In [same-tab navigation](#same-tab-navigation) no SDK listens while Passport is shown, so
+Passport moves on once Ring's answer waits on the channel (`false`) and navigates to `x-success`,
+where `resumeGrantAuthFlow` takes it. The legacy `/link` channel has no such read, so there only the
+button ends the handoff. Passport cannot verify Ring's approval itself, which after a button press
+may still be on its way or missing, so the short relay wait after `success` matters there. Without callbacks Passport reports nothing and tells the user to
 return to your app. `error` and `cancel` end the attempt. None of these messages authenticate the user.
 
 ## Browser requirements

@@ -8,11 +8,21 @@ import {
   type AuthorizationRequestReview,
   ValidatedPubkyAuthRequest,
 } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
+import { relayAnswerAckUrl } from "@/client/logic/authorization/request/relayInbox";
+import { watchForRingAnswer } from "@/client/logic/universal-signer/ringAnswerWatch";
 import { approveAuthorization } from "./approveAuthorization";
 import {
   type AuthorizationOutcome,
+  canMessageOpener,
   handoffAuthorizationOutcome,
 } from "./authorizationOutcomeHandoff";
+import {
+  approvalSeen,
+  EXTERNAL_APPROVAL_WATCH_PACE,
+  type ExternalApprovalObservation,
+  type ExternalApprovalWatchOptions,
+  lookAtAppChannel,
+} from "./externalApprovalWatch";
 
 /**
  * Why an approval failed: `identity` when Passport could not unlock the chosen identity's key in
@@ -37,8 +47,15 @@ export type PassportAuthorizationViewState =
   /** The outcome is being handed back to the app; `outcome` says which one. */
   | { status: "completing"; review: AuthorizationRequestReview; outcome: AuthorizationOutcome }
   | { status: "approved"; review: AuthorizationRequestReview }
-  /** Handed to an external signer; Passport cannot see whether it approved. */
-  | { status: "handed-off"; review: AuthorizationRequestReview }
+  /**
+   * Handed to an external signer. `observed` says what Passport saw on the app's relay channel
+   * when it ended the handoff by itself; without it the person reported the approval.
+   */
+  | {
+      status: "handed-off";
+      review: AuthorizationRequestReview;
+      observed?: ExternalApprovalObservation | undefined;
+    }
   | { status: "cancelled"; review: AuthorizationRequestReview }
   | { status: "failed"; review: AuthorizationRequestReview; reason: AuthorizationFailureReason };
 
@@ -169,20 +186,76 @@ export class PassportAuthorizationController {
     return this.completeRequestOutcome(action.request, "cancel", action.review);
   }
 
+  /** Whether Passport can notice by itself that the app took an external signer's answer. */
+  canWatchExternalApproval(): boolean {
+    return this.externalApprovalAckUrl() !== undefined;
+  }
+
+  /**
+   * While the request is handed to an external signer such as Pubky Ring, looks read-only at the
+   * app's relay channel and ends the review as {@link finishExternalApproval} does once the answer
+   * is there for the app. While the app's page can receive Passport's outcome message (a popup
+   * with its opener), that is once the app has acknowledged Ring's answer; otherwise Passport can
+   * only answer by navigating back to the app, where the app takes the answer, so an answer that
+   * is posted and waits untouched counts too. The look never takes or acknowledges the message
+   * (see `lookAtAppChannel`), pauses while the page is hidden and stops when the review ends.
+   * Returns a function that stops watching; without a relay that offers such a look it does
+   * nothing.
+   */
+  watchExternalApproval({ fetch, ...options }: ExternalApprovalWatchOptions = {}): () => void {
+    const ackUrl = this.externalApprovalAckUrl();
+    if (!ackUrl) return () => undefined;
+    const fetchFn = fetch ?? ((url, init) => this.appWindow.fetch(url, init));
+    let observed: ExternalApprovalObservation | undefined;
+    const stopWatching = watchForRingAnswer(
+      async (signal) => {
+        const look = await lookAtAppChannel(ackUrl, fetchFn, signal);
+        const seen = approvalSeen(look, canMessageOpener(this.appWindow));
+        if (look === "taken" || look === "posted") observed = look;
+        return seen;
+      },
+      () => {
+        stop();
+        void this.finishExternalApproval({ observed });
+      },
+      EXTERNAL_APPROVAL_WATCH_PACE,
+      options,
+    );
+    const unsubscribe = this.subscribe((state) => {
+      if (state.status !== "review") stop();
+    });
+    function stop(): void {
+      stopWatching();
+      unsubscribe();
+    }
+    return stop;
+  }
+
   /**
    * Ends the review after the person reports approving the request in an external signer such as
-   * Pubky Ring. Passport cannot observe that approval, so the `success` outcome it hands back is
-   * the person's report, a hint like every outcome: the app still waits for its own SDK flow.
+   * Pubky Ring, or after {@link watchExternalApproval} saw the answer on the app's channel
+   * (`observed`). Passport cannot verify that approval, so the `success` outcome it hands back is
+   * a hint like every outcome: the app still finishes its own SDK flow.
    * Without a usable callback the request ends as `handed-off`, never as approved.
    */
-  async finishExternalApproval(): Promise<PassportAuthorizationViewState> {
+  async finishExternalApproval({
+    observed,
+  }: {
+    observed?: ExternalApprovalObservation | undefined;
+  } = {}): Promise<PassportAuthorizationViewState> {
     const action = this.beginAction();
     if (!action) return this.state;
 
     return this.completeRequestOutcome(action.request, "success", action.review, {
       status: "handed-off",
       review: action.review,
+      ...(observed ? { observed } : {}),
     });
+  }
+
+  private externalApprovalAckUrl(): string | undefined {
+    const url = this.externalSignerUrl();
+    return url === undefined ? undefined : relayAnswerAckUrl(url);
   }
 
   private beginAction(): AuthorizationAction | undefined {

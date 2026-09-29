@@ -1,5 +1,5 @@
 import { E2E_HTTP_RELAY_URL } from "./helpers/e2eServer";
-import { expect, test, type Page } from "./helpers/passportTest";
+import { type BrowserContext, expect, test, type Page } from "./helpers/passportTest";
 import { emulateCoarsePointer } from "./helpers/pointer";
 import {
   delegatedKeyCount,
@@ -204,6 +204,134 @@ test("an unfinished Ring identity opens the app's request first, with one Ring a
   await page.getByRole("button", { name: "I approved in Pubky Ring" }).click();
   await expect(page).toHaveURL("https://client.example/success");
   expect(net.relayRequests).toEqual([]);
+});
+
+/**
+ * The app's relay, an inbox answering `/ack` reads as http-relay does: `404` until Ring posts,
+ * `false` while the answer waits for the app, `true` once the app took it. Records every request.
+ */
+async function fakeAppRelay(context: BrowserContext) {
+  const relay = {
+    answer: "none" as "none" | "posted" | "taken",
+    requests: [] as { method: string; path: string; ack: string }[],
+  };
+  await context.route("https://relay.client.example/**", (route) => {
+    const request = route.request();
+    const ack = { none: "404", posted: "false", taken: "true" }[relay.answer];
+    relay.requests.push({ method: request.method(), path: new URL(request.url()).pathname, ack });
+    return ack === "404"
+      ? route.fulfill({ status: 404, body: "Not found" })
+      : route.fulfill({ status: 200, body: ack, contentType: "text/plain" });
+  });
+  return relay;
+}
+
+/** Every look was a read of the acknowledgement on the app's channel, never of the answer. */
+function expectOnlyAckReads(relay: Awaited<ReturnType<typeof fakeAppRelay>>): void {
+  const looks = new Set(relay.requests.map(({ method, path }) => `${method} ${path}`));
+  expect(looks.size).toBe(1);
+  expect([...looks][0]).toMatch(/^GET \/inbox\/[\w-]{43}\/ack$/u);
+}
+
+test("in the app's popup, goes back to the app by itself only once the app took Ring's answer", async ({
+  context,
+  page,
+}) => {
+  const relay = await fakeAppRelay(context);
+  await page.goto("/");
+  const passportOrigin = new URL(page.url()).origin;
+  await context.route("https://client.example/**", (route) =>
+    route.fulfill({ body: "<!doctype html><title>Client</title>", contentType: "text/html" }),
+  );
+  // The app's page: it acknowledges Passport's outcome message, as the integration guide asks.
+  await page.goto("https://client.example/integration");
+  await page.evaluate((trustedOrigin) => {
+    window.addEventListener("message", (event) => {
+      const message = event.data as Record<string, unknown>;
+      if (event.origin !== trustedOrigin || message.type !== "pubky-passport.authorization-outcome")
+        return;
+      (event.source as Window | null)?.postMessage(
+        {
+          type: "pubky-passport.authorization-outcome-ack",
+          version: 1,
+          messageId: message.messageId,
+        },
+        trustedOrigin,
+      );
+      Object.defineProperty(window, "__passportOutcome", { value: message.outcome });
+    });
+  }, passportOrigin);
+  const popupPromise = page.waitForEvent("popup");
+  await page.evaluate(
+    (url) => {
+      window.open(url, "pubky-passport", "popup,width=520,height=760");
+    },
+    `${passportOrigin}/authorize#d=${encodeURIComponent(APP_REQUEST)}`,
+  );
+  const popup = await popupPromise;
+  await popup.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
+  await expect(popup.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeVisible();
+  await expect(popup.getByRole("status")).toContainText("Passport continues by itself");
+  await expect.poll(() => relay.requests.length, { timeout: 10_000 }).toBeGreaterThan(0);
+
+  // Ring answers; until the app takes the answer, Passport stays and claims nothing.
+  relay.answer = "posted";
+  await expect
+    .poll(() => relay.requests.some(({ ack }) => ack === "false"), { timeout: 10_000 })
+    .toBe(true);
+  await expect(popup.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeVisible();
+
+  relay.answer = "taken";
+  await expect.poll(() => popup.isClosed(), { timeout: 10_000 }).toBe(true);
+  expect(
+    await page.evaluate(
+      () => (window as Window & { __passportOutcome?: string }).__passportOutcome,
+    ),
+  ).toBe("success");
+  expectOnlyAckReads(relay);
+});
+
+test("in the same tab, goes back to the app by itself once Ring's answer waits for it", async ({
+  context,
+  page,
+}) => {
+  const net = await mockRingNetwork(page);
+  const relay = await fakeAppRelay(context);
+  await page.route("https://client.example/**", (route) =>
+    route.fulfill({ body: "<!doctype html><title>Client</title>", contentType: "text/html" }),
+  );
+  await page.goto(`/authorize#d=${encodeURIComponent(APP_REQUEST)}`);
+  await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeVisible();
+  await expect.poll(() => relay.requests.length, { timeout: 10_000 }).toBeGreaterThan(0);
+  await expect(page.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeVisible();
+
+  // No SDK listens while Passport is shown: the app takes the answer once Passport navigates back.
+  relay.answer = "posted";
+  await expect(page).toHaveURL("https://client.example/success", { timeout: 10_000 });
+  expectOnlyAckReads(relay);
+  expect(net.relayRequests).toEqual([]);
+});
+
+test("without callbacks, says Ring's approval was sent once Passport saw it", async ({
+  context,
+  page,
+}) => {
+  await mockRingNetwork(page);
+  const relay = await fakeAppRelay(context);
+  await page.goto(`/authorize#d=${encodeURIComponent(APP_REQUEST_WITHOUT_CALLBACKS)}`);
+  await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeVisible();
+
+  relay.answer = "posted";
+  await expect(page.getByRole("heading", { name: "Return to the app." })).toBeVisible({
+    timeout: 10_000,
+  });
+  await expect(
+    page.getByText("Pubky Ring sent its approval to the app. Return to it to finish signing in."),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Signed in to/u })).toHaveCount(0);
+  expectOnlyAckReads(relay);
 });
 
 test("without callbacks, the Ring screen sends the user back without claiming approval", async ({

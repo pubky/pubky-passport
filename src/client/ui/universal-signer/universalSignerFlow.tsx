@@ -401,13 +401,18 @@ function ReadyPassport({
           <RingSignIn
             getAuthorizationUrl={() => controller.externalSignerUrl()}
             launcher={ringLauncher}
-            // Passport cannot see Ring's approval; this only hands the person back to the app.
+            // Both only hand the person back to the app, which finishes the sign-in itself.
             onApproved={() => void controller.finishExternalApproval()}
             onBack={() => {
               ringLauncher.reset();
               navigate(origin);
             }}
             review={authorization.review}
+            watchApproval={
+              controller.canWatchExternalApproval()
+                ? () => controller.watchExternalApproval()
+                : undefined
+            }
           />
         );
       }

@@ -440,7 +440,7 @@ describe("CreateAccountFlow", () => {
     await screen.findByText("Invite verified with the homeserver.");
     await user.click(screen.getByRole("button", { name: "Continue" }));
     await user.click(screen.getByRole("button", { name: /Keep key in Pubky Ring/u }));
-    await user.click(screen.getByRole("button", { name: "I’ve finished in Pubky Ring" }));
+    await user.click(screen.getByRole("button", { name: "Continue to profile" }));
     await user.click(await screen.findByRole("button", { name: "Yes, it is my new pubky" }));
 
     expect(onLocalComplete).toHaveBeenCalledWith(RING_IDENTITY);

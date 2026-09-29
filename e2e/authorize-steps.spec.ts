@@ -370,7 +370,12 @@ test.describe("a phone's coarse pointer", () => {
     expect(Date.now() - pressed).toBeGreaterThanOrEqual(1_500);
     await expect(page.getByText(/Pubky Ring didn't open on this device/u)).toBeVisible();
     await expect(page.getByText(/Scan this code with Pubky Ring on another phone/u)).toBeVisible();
-    await expect(approved).toHaveCSS("border-color", "rgb(200, 255, 0)");
+    // Passport watches this request's relay for Ring's answer, so "I approved" stays the quiet
+    // fallback even once an approval is possible.
+    await expect(
+      page.getByText(/Passport continues by itself once Acme Notes has it/u),
+    ).toBeVisible();
+    await expect(approved).not.toHaveCSS("border-color", "rgb(200, 255, 0)");
     await expect(page.getByRole("link", { name: "Open Pubky Ring" })).toHaveAttribute(
       "href",
       REQUEST,

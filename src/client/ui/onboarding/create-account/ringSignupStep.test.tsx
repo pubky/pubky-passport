@@ -92,7 +92,7 @@ describe("RingSignupStep", () => {
     );
     expect(status.querySelector('[data-slot="spinner"]')).not.toBeNull();
     // Passport notices the signup itself, so going on by hand is the secondary way.
-    const next = screen.getByRole("button", { name: "I’ve finished in Pubky Ring" });
+    const next = screen.getByRole("button", { name: "Continue to profile" });
     expect(next).toHaveClass("bg-secondary");
     expect(screen.queryByText(/After creating your account in Ring/u)).not.toBeInTheDocument();
     // The store links replace a detour through a separate install step, after the way on.
@@ -137,6 +137,28 @@ describe("RingSignupStep", () => {
     expect(checkSignupToken).toHaveBeenCalledTimes(lookups);
   });
 
+  it("does not look the invite up while the page is hidden, and looks at once on return", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    usePointer(false);
+    const checkSignupToken = vi.fn<SignupTokenCheck>().mockResolvedValue("used");
+    renderStep(checkSignupToken, waitingRing());
+    const showPage = (state: DocumentVisibilityState) =>
+      act(() => {
+        Object.defineProperty(document, "visibilityState", { configurable: true, value: state });
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+
+    // A phone that switched to Pubky Ring leaves this page hidden: nothing is asked meanwhile.
+    showPage("hidden");
+    await act(() => vi.advanceTimersByTimeAsync(SIGNUP_TOKEN_WATCH_INTERVAL_MS * 5));
+    expect(checkSignupToken).not.toHaveBeenCalled();
+
+    showPage("visible");
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(checkSignupToken).toHaveBeenCalledOnce();
+    expect(screen.getByRole("heading", { name: "Connect Pubky Ring." })).toBeInTheDocument();
+  });
+
   it("switches a phone to scanning once the link did not open Pubky Ring", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     usePointer(true);
@@ -147,7 +169,7 @@ describe("RingSignupStep", () => {
     expect(screen.getByText(/Continue in Pubky Ring on this phone/u)).toBeInTheDocument();
 
     const link = screen.getByRole("link", { name: "Continue with Pubky Ring" });
-    const next = screen.getByRole("button", { name: "I’ve finished in Pubky Ring" });
+    const next = screen.getByRole("button", { name: "Continue to profile" });
     // No account can exist before Pubky Ring opens, so the link is the one primary action.
     expect(next).toHaveClass("bg-secondary");
     link.addEventListener("click", (event) => event.preventDefault());
@@ -172,9 +194,7 @@ describe("RingSignupStep", () => {
       document.dispatchEvent(new Event("visibilitychange"));
     });
     // Passport goes on by itself once the homeserver reports the invite used.
-    expect(screen.getByRole("button", { name: "I’ve finished in Pubky Ring" })).toHaveClass(
-      "bg-secondary",
-    );
+    expect(screen.getByRole("button", { name: "Continue to profile" })).toHaveClass("bg-secondary");
   });
 
   it("marks Profile as the current step while Ring connects the new account's profile", async () => {
@@ -186,9 +206,7 @@ describe("RingSignupStep", () => {
         .find((step) => step.getAttribute("aria-current") === "step");
     expect(current()).toHaveTextContent("Account");
 
-    await userEvent
-      .setup()
-      .click(screen.getByRole("button", { name: "I’ve finished in Pubky Ring" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue to profile" }));
     expect(screen.getByRole("heading", { name: "Connect Pubky Ring." })).toBeInTheDocument();
     expect(current()).toHaveTextContent("Profile");
     // Finished by hand, the code may not be used yet, so Back returns to it.

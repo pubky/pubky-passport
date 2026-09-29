@@ -91,8 +91,9 @@ submitted its signup, there is nothing left to choose: Passport shows **Finish y
   Google Play links for people without Ring, and says Ring will ask for two approvals. While it
   waits, Passport looks the invite up on its homeserver every 3 seconds with the read-only
   `GET /signup_tokens/{token}` (less often while the homeserver gives no answer, down to every 30
-  seconds); once that reports the invite used, it goes on by itself, and **I've finished in Pubky
-  Ring** goes on when the lookup cannot tell. Either way Ring is then asked to approve a separate
+  seconds, and not at all while the page is hidden, looking again as soon as it is shown); once
+  that reports the invite used, it goes on by itself, and **Continue to profile** goes on when the
+  lookup cannot tell. Either way Ring is then asked to approve a separate
   limited grant for Passport's profile editor. Only a returned SDK session proves control. Ring
   returns nothing from the signup, so
   Passport cannot know the new key: it shows the pubky Ring connected and asks the user to confirm
@@ -231,9 +232,13 @@ the identity is chosen in Ring: Passport cannot make Ring sign with the one it s
 identity whose profile setup is unfinished opens this review first; Passport's own profile request
 waits until no request is under review. Compatible Pubky signers can use the same QR. Mobile users
 can open Ring directly or optionally show the QR. Back returns to the originating screen. Opening
-Ring does not send an authorization outcome. Passport cannot see Ring's approval, so the screen
-tells the user to return to the app after approving, and **I approved in Pubky Ring** ends the
-review with the request's `success` callback, a hint like every outcome: the popup closes after an
+Ring does not send an authorization outcome. While the screen is shown and the page is in view,
+Passport reads the relay's acknowledgement for the app's channel (`GET <channel>/ack`, see
+[integration](integration.md#outcome-messages)) and ends the review by itself once Ring's answer is
+there for the app: acknowledged by the app's SDK while the app's popup opener can receive
+Passport's message, posted and waiting when Passport can only navigate back to the app. **I approved
+in Pubky Ring** does the same by hand and covers a relay Passport cannot watch or an app page that
+cannot acknowledge meanwhile. Either way the review ends with the request's `success` callback, a hint like every outcome: the popup closes after an
 acknowledged message, or the page follows the validated `x-success` URL. Without callbacks Passport
 shows **Return to the app.** and never reports the request as approved. Passport keeps that URL out
 of persistent storage, logs, and general UI state; reloading setup does not restore a scrubbed

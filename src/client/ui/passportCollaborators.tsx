@@ -28,12 +28,14 @@ export type RingProfileControllerPort = Pick<
 export type AuthorizationControllerPort = Pick<
   PassportAuthorizationController,
   | "approve"
+  | "canWatchExternalApproval"
   | "cancel"
   | "dispose"
   | "externalSignerUrl"
   | "finishExternalApproval"
   | "getState"
   | "subscribe"
+  | "watchExternalApproval"
 >;
 
 export type GoogleIdentityControllerPort = Pick<

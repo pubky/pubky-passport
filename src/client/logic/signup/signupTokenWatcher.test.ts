@@ -37,7 +37,7 @@ describe("watchSignupToken", () => {
     const check = vi.fn(async () => answers.shift() ?? "used");
     const onUsed = vi.fn();
     const scheduler = manualScheduler();
-    watchSignupToken(INVITE, check, onUsed, scheduler.schedule);
+    watchSignupToken(INVITE, check, onUsed, { schedule: scheduler.schedule });
 
     // Nothing is asked at once: Ring needs time to scan and sign up.
     expect(check).not.toHaveBeenCalled();
@@ -64,7 +64,7 @@ describe("watchSignupToken", () => {
     ];
     const check = vi.fn(async () => answers.shift() ?? "valid");
     const scheduler = manualScheduler();
-    watchSignupToken(INVITE, check, vi.fn(), scheduler.schedule);
+    watchSignupToken(INVITE, check, vi.fn(), { schedule: scheduler.schedule });
 
     for (let lookup = 0; lookup < 8; lookup++) await scheduler.next();
     // An unreachable homeserver is asked, and its failure logged, ever more rarely, capped.
@@ -81,7 +81,7 @@ describe("watchSignupToken", () => {
     );
     const onUsed = vi.fn();
     const scheduler = manualScheduler();
-    const stop = watchSignupToken(INVITE, check, onUsed, scheduler.schedule);
+    const stop = watchSignupToken(INVITE, check, onUsed, { schedule: scheduler.schedule });
 
     await scheduler.next();
     stop();
@@ -94,7 +94,7 @@ describe("watchSignupToken", () => {
 
   it("cancels the first lookup when stopped before it runs", () => {
     const scheduler = manualScheduler();
-    const stop = watchSignupToken(INVITE, vi.fn(), vi.fn(), scheduler.schedule);
+    const stop = watchSignupToken(INVITE, vi.fn(), vi.fn(), { schedule: scheduler.schedule });
     stop();
     expect(scheduler.timers[0]?.cancelled).toBe(true);
   });

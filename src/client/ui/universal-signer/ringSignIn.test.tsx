@@ -108,6 +108,36 @@ describe("RingSignIn", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("access to all your data");
   });
 
+  it("watches for Ring's answer while it is shown, and says Passport continues by itself", () => {
+    usePointer(false);
+    const stop = vi.fn();
+    const watchApproval = vi.fn(() => stop);
+    const props = {
+      getAuthorizationUrl: () => REQUEST,
+      launcher: undefined,
+      onApproved: vi.fn(),
+      onBack: vi.fn(),
+      review: REVIEW,
+    };
+    const { rerender, unmount } = render(<RingSignIn {...props} watchApproval={watchApproval} />);
+
+    expect(watchApproval).toHaveBeenCalledOnce();
+    const status = screen.getByRole("status");
+    expect(status.querySelector('[data-slot="spinner"]')).not.toBeNull();
+    expect(status).toHaveTextContent(
+      "Waiting for your approval in Pubky Ring. Passport continues by itself once Acme Notes has it.",
+    );
+    // A new render does not restart the watch; the button stays as the secondary fallback.
+    rerender(<RingSignIn {...props} watchApproval={() => vi.fn()} />);
+    expect(watchApproval).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "I approved in Pubky Ring" })).toHaveClass(
+      "bg-secondary",
+    );
+    expect(stop).not.toHaveBeenCalled();
+    unmount();
+    expect(stop).toHaveBeenCalledOnce();
+  });
+
   it("says what follows the approval and where to get Pubky Ring, without a spinner", () => {
     usePointer(false);
     renderRingSignIn(undefined);
@@ -115,10 +145,14 @@ describe("RingSignIn", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: "Sign in with Pubky Ring." }),
     ).toBeInTheDocument();
-    // The app, not Passport, waits for Ring's approval, so nothing spins here.
+    // Without a relay Passport can watch, only the app waits for Ring's approval: nothing spins.
     const status = screen.getByRole("status");
     expect(status).toHaveTextContent("Once you approve in Pubky Ring, Acme Notes signs you in.");
     expect(status.querySelector('[data-slot="spinner"]')).toBeNull();
+    // Only the person can then report the approval, so the button is the primary action.
+    expect(screen.getByRole("button", { name: "I approved in Pubky Ring" })).not.toHaveClass(
+      "bg-secondary",
+    );
     expect(screen.getByText("Don't have Pubky Ring?")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Get Pubky Ring on Google Play" })).toBeInTheDocument();
   });

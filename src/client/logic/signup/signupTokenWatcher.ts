@@ -1,6 +1,10 @@
 import "client-only";
 
 import type { SignupTokenStatus } from "@/client/logic/pubky/SignupTokenChecker";
+import {
+  type RingAnswerWatchOptions,
+  watchForRingAnswer,
+} from "@/client/logic/universal-signer/ringAnswerWatch";
 import type { HomeserverSignupDetails } from "./homeserverInvite";
 
 /** How often a handed-off invite is looked up while Passport waits for Pubky Ring. */
@@ -16,49 +20,33 @@ type SignupTokenCheck = (
   invite: HomeserverSignupDetails,
   signal: AbortSignal,
 ) => Promise<SignupTokenStatus>;
-/** Runs `callback` after `delayMs` and returns a function that cancels it. */
-type Scheduler = (callback: () => void, delayMs: number) => () => void;
-
-const scheduleTimeout: Scheduler = (callback, delayMs) => {
-  const timer = setTimeout(callback, delayMs);
-  return () => clearTimeout(timer);
-};
 
 /**
- * Looks `invite` up on its homeserver every few seconds until the homeserver reports it used,
- * which is the only sign Passport gets that Pubky Ring finished the signup it was handed; `onUsed`
- * then runs once. Any other answer, including a failed lookup, keeps watching; after a lookup
- * that got no answer (`unknown`) the next waits twice as long, up to
- * {@link SIGNUP_TOKEN_WATCH_MAX_INTERVAL_MS}, and a real answer returns to the usual pace. The
- * lookup is read-only, so watching never consumes the invite. Returns a function that stops
- * watching.
+ * Looks `invite` up on its homeserver every few seconds while the page is in view, until the
+ * homeserver reports it used, which is the only sign Passport gets that Pubky Ring finished the
+ * signup it was handed; `onUsed` then runs once. Any other answer, including a failed lookup, keeps
+ * watching; after a lookup that got no answer (`unknown`) the next waits twice as long, up to
+ * {@link SIGNUP_TOKEN_WATCH_MAX_INTERVAL_MS}, and a real answer returns to the usual pace. A hidden
+ * page pauses, and coming back looks at once (see `watchForRingAnswer`). The lookup is read-only,
+ * so watching never consumes the invite. Returns a function that stops watching.
  */
 export function watchSignupToken(
   invite: HomeserverSignupDetails,
   check: SignupTokenCheck,
   onUsed: () => void,
-  schedule: Scheduler = scheduleTimeout,
+  options?: RingAnswerWatchOptions,
 ): () => void {
-  const lookups = new AbortController();
-  let delayMs = SIGNUP_TOKEN_WATCH_INTERVAL_MS;
-  let cancelTimer = schedule(() => void lookUp(), delayMs);
-
-  async function lookUp(): Promise<void> {
-    const status = await check(invite, lookups.signal);
-    if (lookups.signal.aborted) return;
-    if (status === "used") {
-      onUsed();
-      return;
-    }
-    delayMs =
-      status === "unknown"
-        ? Math.min(delayMs * 2, SIGNUP_TOKEN_WATCH_MAX_INTERVAL_MS)
-        : SIGNUP_TOKEN_WATCH_INTERVAL_MS;
-    cancelTimer = schedule(() => void lookUp(), delayMs);
-  }
-
-  return () => {
-    lookups.abort();
-    cancelTimer();
-  };
+  return watchForRingAnswer(
+    async (signal) => {
+      const status = await check(invite, signal);
+      if (status === "used") return "answered";
+      return status === "unknown" ? "unreachable" : "waiting";
+    },
+    onUsed,
+    {
+      intervalMs: SIGNUP_TOKEN_WATCH_INTERVAL_MS,
+      maxIntervalMs: SIGNUP_TOKEN_WATCH_MAX_INTERVAL_MS,
+    },
+    options,
+  );
 }

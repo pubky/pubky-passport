@@ -27,6 +27,33 @@ test("creates an account inside the root signer experience", async ({ page }) =>
   await expect(page.getByRole("button", { name: /Keep key in this browser/u })).toBeVisible();
 });
 
+test("goes on to the profile by itself once Pubky Ring used the invite", async ({ page }) => {
+  let used = false;
+  const lookups: string[] = [];
+  await page.route("**/signup_tokens/**", (route) => {
+    const request = route.request();
+    lookups.push(`${request.method()} ${new URL(request.url()).pathname}`);
+    return route.fulfill({ json: { status: used ? "used" : "valid" } });
+  });
+  // The test homeserver's record is served, so the lookups reach it.
+  await reachDestinationChoiceOnTestHomeserver(page);
+  await openRingSignup(page);
+  const scanScreen = page.getByRole("heading", { name: "Create your account in Pubky Ring." });
+  await expect(scanScreen).toBeVisible();
+  const beforeScan = lookups.length;
+  // Passport keeps looking the invite up read-only while the code is shown, and stays meanwhile.
+  await expect.poll(() => lookups.length, { timeout: 10_000 }).toBeGreaterThan(beforeScan);
+  await expect(scanScreen).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue to profile" })).toBeVisible();
+
+  used = true;
+  await expect(page.getByRole("heading", { name: "Connect Pubky Ring." })).toBeVisible({
+    timeout: 10_000,
+  });
+  await expect(page.getByText("Account created in Pubky Ring")).toBeVisible();
+  expect(new Set(lookups)).toEqual(new Set(["GET /signup_tokens/SMS1-NV1T-C0DE"]));
+});
+
 test("keeps account-signup QR distinct and does not claim Ring success", async ({ page }) => {
   await reachDestinationChoice(page);
   await page.getByRole("button", { name: "Keep key in Pubky Ring" }).click();
@@ -53,7 +80,7 @@ test("keeps request context and requires a separate profile approval after Ring 
   await page.getByLabel("Enter invite code").fill(MANUAL_INVITE);
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Keep key in Pubky Ring" }).click();
-  await page.getByRole("button", { name: "I’ve finished in Pubky Ring" }).click();
+  await page.getByRole("button", { name: "Continue to profile" }).click();
   await expect(page.getByRole("heading", { name: "Connect Pubky Ring." })).toBeVisible();
 
   await expect(page.getByLabel("Signing in to client.example")).toBeVisible();
@@ -97,7 +124,7 @@ test("the profile grant after a Ring signup on the home page polls only the conf
   await emulateCoarsePointer(page);
   await reachDestinationChoice(page);
   await page.getByRole("button", { name: "Keep key in Pubky Ring" }).click();
-  await page.getByRole("button", { name: "I’ve finished in Pubky Ring" }).click();
+  await page.getByRole("button", { name: "Continue to profile" }).click();
   await expect(page.getByRole("heading", { name: "Connect Pubky Ring." })).toBeVisible();
   await expect(page).toHaveURL(/\/$/u);
 
@@ -632,7 +659,7 @@ test.describe("in the app's 520x760 popup", () => {
     await expect(
       page.getByRole("heading", { name: "Create your account in Pubky Ring." }),
     ).toBeVisible();
-    for (const name of ["Back", "I’ve finished in Pubky Ring"]) {
+    for (const name of ["Back", "Continue to profile"]) {
       const box = (await page.getByRole("button", { name, exact: true }).boundingBox())!;
       expect(box.y + box.height).toBeLessThanOrEqual(760);
     }
