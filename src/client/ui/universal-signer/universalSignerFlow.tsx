@@ -21,7 +21,6 @@ import {
 } from "@/client/logic/universal-signer/signerNavigation";
 import { AuthorizationFlow } from "@/client/ui/authorization/authorizationFlow";
 import { ChooseIdentity } from "@/client/ui/authorization/choose/chooseIdentity";
-import { OtherWaysIn } from "@/client/ui/authorization/choose/otherWaysIn";
 import { ManualAuthorization } from "@/client/ui/authorization/manual-entry/manualAuthorization";
 import { RequestClosed } from "@/client/ui/authorization/requestClosed";
 import { SignInBand } from "@/client/ui/authorization/signInBand";
@@ -133,11 +132,7 @@ function ReadyPassport({
   const profiles = useIdentityProfiles(storedCatalog, {
     loadActive: !hasRequest || navigation.view === "home",
   });
-  const {
-    features: { google },
-    homeserver: providerHomeserver,
-    httpRelay,
-  } = usePassportProvider();
+  const { homeserver: providerHomeserver, httpRelay } = usePassportProvider();
   const [ringProfile] = useState(() => createRingProfileController(httpRelay));
   useEffect(() => {
     const dispose = () => ringProfile.dispose();
@@ -167,8 +162,8 @@ function ReadyPassport({
     : undefined;
   const goHome = () => navigate({ view: "home" });
   const addBack = "back" in navigation ? navigation.back : null;
-  const leaveAddition = (back: typeof addBack) =>
-    back === "choose" ? navigate({ view: "choose" }) : navigate({ view: "add", back });
+  // Account creation and import open from the start page, and Back returns there.
+  const backToStart = () => navigate({ view: "add", back: addBack });
   /**
    * Hands the request to Pubky Ring. A phone follows the deep link from this very press, which is
    * what lets the browser open the app; a computer goes straight to the QR code.
@@ -320,15 +315,8 @@ function ReadyPassport({
         );
       }
       case "add":
-        if (authorization.status === "review" && addBack === "choose")
-          return (
-            <OtherWaysIn
-              onBack={() => navigate({ view: "choose" })}
-              onComplete={completeAddition}
-              onImport={() => navigate({ view: "import", back: "choose" })}
-              review={authorization.review}
-            />
-          );
+        // During a request this is its first step when nothing is saved (Cancel answers the app,
+        // with Back to the list once an identity arrives), or Use another identity from the list.
         return (
           <AddIdentity
             request={authorization.status === "review" ? authorization.review : undefined}
@@ -336,7 +324,15 @@ function ReadyPassport({
             onConnectRing={
               hasRequest ? undefined : () => navigate({ view: "connect-ring", back: addBack })
             }
-            onBack={addBack ? () => navigate({ view: addBack }) : undefined}
+            onBack={
+              addBack
+                ? () => navigate({ view: addBack })
+                : // An identity saved elsewhere (another tab, say) while this is the request's
+                  // first step leaves a list to go back to.
+                  hasRequest && catalog.identities.length > 0
+                  ? () => navigate({ view: "choose" })
+                  : undefined
+            }
             onCancel={addBack ? undefined : cancelRequest}
             onComplete={completeAddition}
             onCreateAccount={() => navigate({ view: "create-account", back: addBack })}
@@ -347,12 +343,7 @@ function ReadyPassport({
         return (
           <BackupImportFlow
             defaultHomeserver={providerHomeserver}
-            // Without Google the request's list opens the import itself.
-            onBack={() =>
-              addBack === "choose" && !google
-                ? navigate({ view: "choose" })
-                : navigate({ view: "add", back: addBack })
-            }
+            onBack={backToStart}
             onComplete={(identity) => {
               // The next screen is the overview or the app's review, which do not say it worked.
               toast.success("Recovery file imported", {
@@ -368,7 +359,7 @@ function ReadyPassport({
         return (
           <RingProfileConnection
             controller={ringProfile}
-            onBack={() => navigate({ view: "add", back: addBack })}
+            onBack={backToStart}
             onComplete={completeAddition}
           />
         );
@@ -377,7 +368,7 @@ function ReadyPassport({
           <CreateAccountFlow
             ringProfileController={ringProfile}
             inviteHomeserver={providerHomeserver ?? ""}
-            onBack={() => leaveAddition(addBack)}
+            onBack={backToStart}
             onLocalComplete={completeAddition}
           />
         );
@@ -389,22 +380,14 @@ function ReadyPassport({
           <ChooseIdentity
             activePublicKeyZ32={catalog.activePublicKeyZ32}
             identities={catalog.identities}
-            moreOptionsLabel={
-              google ? "Continue with Google or import a recovery file" : "Import a recovery file"
-            }
             onCancel={() => void controller.cancel()}
-            onCreateAccount={() => navigate({ view: "create-account", back: "choose" })}
-            onMoreOptions={() =>
-              navigate(
-                google ? { view: "add", back: "choose" } : { view: "import", back: "choose" },
-              )
-            }
             onOpenRing={() => openRing({ view: "choose" })}
             onSelect={(publicKeyZ32) => {
               const selected = actions.selectIdentity(publicKeyZ32);
               setSelectionFailed(Result.isError(selected));
               if (Result.isOk(selected)) goHome();
             }}
+            onUseAnotherIdentity={() => navigate({ view: "add", back: "choose" })}
             review={authorization.review}
             selectionFailed={selectionFailed}
           />

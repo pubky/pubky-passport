@@ -7,21 +7,21 @@ there, and `/authorize` without a request returns to `/`. The exact validated re
 memory while the user switches identities, imports a backup, or creates an account. Passport never
 creates a replacement client request.
 
-The shared add screen opens on first use and from **Switch identity → Add identity**; during a
-request its heading names the waiting app, backed by its website or a notice that it names none, as
-on permission review. **Create account** is the recommended path and comes first, with **Import
-recovery file** beside it, then Google. Pubky Ring is a quiet link under the cards: **Continue with
-Pubky Ring** hands a
-pending app request to Ring, and without a request **Sign in with Pubky Ring** adds an existing Ring
-identity. Google begins from that screen; **Create account**
-opens the provider's enabled SMS, Lightning, and manual invite options, each with its price or
-terms, and says that new accounts are verified once to keep out spam. Where an invite is the only
-method (the instance offers neither SMS nor Lightning), the add screen says an invite code is
-needed, and **Create account** opens the invite entry itself, with the provider's terms and a
-note on where invites come from; its **Back** leaves account creation. The phone step says the
-number is used only to send the code and to limit sign-ups per number, and that the sign-up
-service keeps only a one-way hash of it.
-`PASSPORT_PROVIDER_CONFIG_JSON` controls which methods and provider terms are displayed.
+The shared add screen opens on first use, from **Switch identity → Add identity**, and from **Use
+another identity** on a request's identity list (or first, when nothing is saved); during a request
+its heading names the waiting app, backed by its website or a notice that it names none, as on
+permission review. **Create account** is the recommended path and comes first, with **Import
+recovery file** beside it, then Google. During a request, **Continue with Pubky Ring** follows the
+cards below an "or" and hands the request to Ring; without a request Pubky Ring is a quiet link
+under the cards, **Sign in with Pubky Ring**, which adds an existing Ring identity. Google begins
+from that screen; **Create account** opens the provider's enabled SMS, Lightning, and manual invite
+options, each with its price or terms, and says that new accounts are verified once to keep out
+spam. Where an invite is the only method (the instance offers neither SMS nor Lightning), the add
+screen says an invite code is needed, and **Create account** opens the invite entry itself, with the
+provider's terms and a note on where invites come from; its **Back** leaves account creation. The
+phone step says the number is used only to send the code and to limit sign-ups per number, and that
+the sign-up service keeps only a one-way hash of it. `PASSPORT_PROVIDER_CONFIG_JSON` controls which
+methods and provider terms are displayed.
 
 SMS and Lightning verification use the homeserver returned by Homegate. A manual invite can name any
 homeserver the user has an invite for: the homeserver field is prefilled with the provider's

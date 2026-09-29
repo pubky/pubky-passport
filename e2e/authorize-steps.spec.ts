@@ -19,7 +19,7 @@ const REQUEST =
 const BROAD_REQUEST = REQUEST.replace("caps=/pub/notes.example/:rw", "caps=/:rw");
 const POPUP = { width: 520, height: 760 };
 /** The list's bottom fade, over which a row reads as more to scroll to. */
-const LIST_FADE_PX = 16;
+const LIST_FADE_PX = 32;
 
 async function seedIdentities(page: Page) {
   await page.goto("/");
@@ -104,7 +104,7 @@ test.describe("choosing an identity first", () => {
     expect(Math.abs(layout.mainBottom - POPUP.height)).toBeLessThanOrEqual(1);
     expect(layout.footerTop).toBeGreaterThanOrEqual(POPUP.height - 1);
     expect(layout.width).toBeLessThanOrEqual(POPUP.width);
-    for (const bottom of await bottoms(page, ["Create account", "Continue with Pubky Ring"]))
+    for (const bottom of await bottoms(page, ["Use another identity", "Continue with Pubky Ring"]))
       expect(bottom).toBeLessThanOrEqual(POPUP.height);
 
     await page.getByRole("button", { name: /tkrq…p7qy/u }).click();
@@ -122,42 +122,70 @@ test.describe("choosing an identity first", () => {
     await expect(identityList(page).getByRole("button").first()).toContainText("tkrq…p7qy");
   });
 
-  test("with no identity, offers only the ways in, creating an account first", async ({ page }) => {
+  test("with no identity, shows the start page and Pubky Ring below an or", async ({ page }) => {
     await openRequest(page);
 
     await expect(identityList(page)).toHaveCount(0);
-    await expect(page.getByText("or", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Use another identity" })).toHaveCount(0);
     const create = page.getByRole("button", { name: "Create account", exact: true });
     const ring = page.getByRole("button", { name: "Continue with Pubky Ring", exact: true });
-    // The recommended way in is the brand button; Pubky Ring is the alternative.
+    // The start page's cards, with Create account as the recommended way in.
+    await expect(page.getByRole("button", { name: "Import recovery file" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
     expect(await create.evaluate((button) => getComputedStyle(button).borderColor)).toBe(
       "rgb(200, 255, 0)",
     );
+    // Pubky Ring answers the waiting app, below an "or" after the cards.
+    const or = page.getByText("or", { exact: true });
+    await expect(or).toBeVisible();
+    expect((await or.boundingBox())!.y).toBeGreaterThan((await create.boundingBox())!.y);
+    expect((await ring.boundingBox())!.y).toBeGreaterThan((await or.boundingBox())!.y);
     expect(await ring.evaluate((button) => getComputedStyle(button).borderColor)).not.toBe(
       "rgb(200, 255, 0)",
     );
-    for (const bottom of await bottoms(page, ["Create account", "Continue with Pubky Ring"]))
-      expect(bottom).toBeLessThanOrEqual(POPUP.height);
+    await expect(page.getByRole("button", { name: "Back", exact: true })).toHaveCount(0);
+    // The popup opens with Cancel and the recommended way in on screen. Both cards do not fit
+    // above the fold at 520x760, so Pubky Ring may sit below it but is reached by scrolling.
+    await expect(page.getByRole("button", { name: "Cancel", exact: true })).toBeInViewport();
+    const [createBottom, ringBottom] = await bottoms(page, [
+      "Create account",
+      "Continue with Pubky Ring",
+    ]);
+    expect(createBottom).toBeLessThanOrEqual(POPUP.height);
+    if (ringBottom! > POPUP.height) {
+      await ring.scrollIntoViewIfNeeded();
+      await expect(ring).toBeInViewport({ ratio: 1 });
+    }
 
     await create.click();
     await expect(page.getByRole("heading", { name: "Create your account." })).toBeVisible();
     await expect(page.getByLabel("Signing in to notes.example")).toBeVisible();
     await page.getByRole("button", { name: "Back", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Sign in to Acme Notes" })).toBeVisible();
+    await expect(ring).toBeVisible();
+  });
 
-    await page
-      .getByRole("button", { name: "Continue with Google or import a recovery file" })
-      .click();
-    // One focused step for the quieter ways in, still addressed to the waiting app.
+  test("Use another identity opens the start page and Back returns to the list", async ({
+    page,
+  }) => {
+    await seedIdentities(page);
+    await openRequest(page);
+
+    await expect(page.getByRole("button", { name: /Continue with Google or import/u })).toHaveCount(
+      0,
+    );
+    await page.getByRole("button", { name: "Use another identity", exact: true }).click();
+    // Still addressed to the waiting app, with every way in.
     await expect(page.getByRole("heading", { name: "Sign in to Acme Notes" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Import recovery file" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Create account", exact: true })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /Pubky Ring/u })).toHaveCount(0);
+    for (const name of [
+      "Create account",
+      "Import recovery file",
+      "Continue with Google",
+      "Continue with Pubky Ring",
+    ])
+      await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Back", exact: true }).click();
-    await expect(
-      page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }),
-    ).toBeVisible();
+    await expect(identityList(page).getByRole("button")).toHaveCount(3);
   });
 
   test("Cancel on the list answers the app", async ({ page }) => {
@@ -209,7 +237,7 @@ test.describe("a long list in the popup", () => {
     const cut = rows.find((row) => row.bottom > clearBottom)!;
     expect(rows.indexOf(cut)).toBeGreaterThanOrEqual(2);
     expect(clearBottom - cut.top).toBeGreaterThanOrEqual((cut.bottom - cut.top) / 3);
-    for (const bottom of await bottoms(page, ["Create account", "Continue with Pubky Ring"]))
+    for (const bottom of await bottoms(page, ["Use another identity", "Continue with Pubky Ring"]))
       expect(bottom).toBeLessThanOrEqual(POPUP.height);
 
     // Moving through the list by keyboard keeps the focused row clear of the fade.

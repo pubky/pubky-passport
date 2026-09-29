@@ -96,20 +96,18 @@ function mount(withRequest: boolean, collaborators: Partial<PassportCollaborator
     }),
   );
 }
-/** Opens identity addition: from the request's identity list, or through the switcher. */
+/** Opens the start page: from the request's identity list, or through the switcher. */
 async function openAddition(user: ReturnType<typeof userEvent.setup>, withRequest: boolean) {
   if (withRequest) {
-    await user.click(
-      await screen.findByRole("button", { name: "Continue with Google or import a recovery file" }),
-    );
+    await user.click(await screen.findByRole("button", { name: "Use another identity" }));
     return;
   }
   await user.click(await screen.findByRole("button", { name: "Switch identity" }));
   await user.click(screen.getByRole("button", { name: "Add identity" }));
 }
-/** Opens account creation: from the request's identity list, or through the switcher. */
+/** Opens account creation from the start page. */
 async function openAccountCreation(user: ReturnType<typeof userEvent.setup>, withRequest: boolean) {
-  if (!withRequest) await openAddition(user, false);
+  await openAddition(user, withRequest);
   await user.click(await screen.findByRole("button", { name: "Create account" }));
 }
 /** A phone: Ring hand-offs lead with their deep link. */
@@ -176,18 +174,32 @@ describe("shared addition navigation", () => {
     ).toBeTruthy();
   });
 
-  it("keeps a request's Create account on its list and the backup one quiet step away", async () => {
+  it("opens a request with nothing saved on the start page, with Pubky Ring below an or", async () => {
     state.catalog = { activePublicKeyZ32: null, identities: [] };
-    const user = userEvent.setup();
     mount(true);
 
-    expect(await screen.findByRole("button", { name: "Create account" })).toBeInTheDocument();
-    await openAddition(user, true);
-    // The focused step offers only what the list does not: Google and a backup.
-    expect(screen.getByRole("button", { name: "Import recovery file" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Create account" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Pubky Ring/u })).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Sign in to Original app" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Sign in to Original app" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    for (const name of ["Create account", "Import recovery file", "Continue with Google"])
+      expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    expect(screen.getByText("or", { exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue with Pubky Ring" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sign in with Pubky Ring" })).toBeNull();
+    // The request's first step: Cancel answers the app, and there is nowhere to go back to.
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the plain start page free of the request's Pubky Ring button", async () => {
+    state.catalog = { activePublicKeyZ32: null, identities: [] };
+    mount(false);
+
+    expect(await screen.findByRole("heading", { name: "Get your pubky." })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign in with Pubky Ring" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continue with Pubky Ring" })).toBeNull();
+    expect(screen.queryByText("or", { exact: true })).toBeNull();
   });
 
   it.each([false, true])("returns import to its origin with request=%s", async (withRequest) => {
@@ -350,13 +362,21 @@ describe("shared addition navigation", () => {
     },
   );
 
-  it("backs out of import and add to the originating list", async () => {
+  it("backs out of import, Pubky Ring and the start page to the originating list", async () => {
     const user = userEvent.setup();
     mount(true);
     await openAddition(user, true);
+    // Use another identity opens the start page, still addressed to the waiting app.
+    expect(screen.getByRole("heading", { name: "Sign in to Original app" })).toHaveFocus();
+    expect(screen.getByRole("region", { name: "Hold your own key" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Import recovery file" }));
     await user.click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.getByRole("region", { name: "Other ways to sign in" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Hold your own key" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Continue with Pubky Ring" }));
+    expect(screen.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("region", { name: "Hold your own key" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Sign in to Original app" })).toHaveFocus();
     expect(

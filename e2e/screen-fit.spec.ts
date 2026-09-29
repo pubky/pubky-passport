@@ -314,9 +314,6 @@ test("Backup ready keeps Continue inside the app's popup with the folder-copy no
   await page.setViewportSize({ width: 520, height: 760 });
   await mockGoogleCreation(context);
   await page.goto(`${SECURE_ORIGIN}${authorizeUrl(REQUEST)}`);
-  await page
-    .getByRole("button", { name: "Continue with Google or import a recovery file" })
-    .click();
   await page.getByRole("button", { name: "Continue with Google", exact: true }).click();
   // Only the first Drive permission: the backup is made without its folder copy.
   await page.getByRole("button", { name: "Skip the folder copy" }).click();

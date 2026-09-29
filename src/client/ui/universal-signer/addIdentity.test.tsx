@@ -177,7 +177,7 @@ describe("AddIdentity", () => {
   });
 
   it("recommends Create account first, then Google, and keeps Ring out of the cards", () => {
-    renderAddIdentity(addIdentity({ onUseRing: vi.fn() }));
+    renderAddIdentity(addIdentity({ onConnectRing: vi.fn() }));
 
     const cards = screen.getAllByRole("region");
     expect(cards).toEqual([
@@ -192,7 +192,7 @@ describe("AddIdentity", () => {
     expect(cards[0]).toContainElement(importBackup);
     expect(importBackup).not.toHaveClass("bg-brand/16");
     expect(cards[1]).toContainElement(screen.getByRole("button", { name: "Continue with Google" }));
-    const ring = screen.getByRole("button", { name: "Continue with Pubky Ring" });
+    const ring = screen.getByRole("button", { name: "Sign in with Pubky Ring" });
     for (const card of cards) expect(card).not.toContainElement(ring);
     expect(ring).not.toHaveClass("bg-brand/16");
     expect(ring.closest("p")).toHaveTextContent(/^Already use Pubky Ring\?/u);
@@ -274,16 +274,63 @@ describe("Pubky Ring on the add screen", () => {
     expect(
       screen.queryByRole("button", { name: "Continue with Pubky Ring" }),
     ).not.toBeInTheDocument();
+    // The "or" and its Ring button belong to an app's request only.
+    expect(screen.queryByText("or", { exact: true })).not.toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Sign in with Pubky Ring" }));
     expect(onConnectRing).toHaveBeenCalledOnce();
   });
 
-  it("opens a pending request in Ring, named as on the review, instead of connecting", () => {
-    renderAddIdentity(addIdentity({ onUseRing: vi.fn(), onConnectRing: vi.fn() }));
+  it("opens a pending request in Ring from a button below the cards and an or", async () => {
+    const onUseRing = vi.fn();
+    renderAddIdentity(addIdentity({ request: request(), onUseRing, onConnectRing: vi.fn() }));
 
-    expect(screen.getByRole("button", { name: "Continue with Pubky Ring" })).toBeEnabled();
+    const ring = screen.getByRole("button", { name: "Continue with Pubky Ring" });
+    // A full button, named as on the identity list and the review, not the quiet link.
+    expect(ring).toHaveClass("bg-secondary");
+    expect(ring).not.toHaveClass("underline");
+    expect(screen.queryByText("Already use Pubky Ring?")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Sign in with Pubky Ring" }),
     ).not.toBeInTheDocument();
+    const or = screen.getByText("or", { exact: true });
+    for (const card of screen.getAllByRole("region")) {
+      expect(card).not.toContainElement(ring);
+      expect(card.compareDocumentPosition(or)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    }
+    expect(or.compareDocumentPosition(ring)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    await userEvent.setup().click(ring);
+    expect(onUseRing).toHaveBeenCalledOnce();
+  });
+});
+
+describe("the start page as a request's first step", () => {
+  it("answers the app with Cancel in the header, beside no Back", async () => {
+    const onCancel = vi.fn();
+    renderAddIdentity(addIdentity({ request: request(), onUseRing: vi.fn(), onCancel }));
+
+    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onCancel).toHaveBeenCalledOnce();
+  });
+
+  it("flags a request for broad access, since Pubky Ring hands it on without the review", () => {
+    renderAddIdentity(
+      addIdentity({
+        request: request({
+          capabilities: [{ path: "/", read: true, write: true, scope: "broad" }],
+        }),
+        onUseRing: vi.fn(),
+      }),
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "This app asks for access to all your data, public and private.",
+    );
+  });
+
+  it("warns about nothing for a request limited to its own folder", () => {
+    renderAddIdentity(addIdentity({ request: request(), onUseRing: vi.fn() }));
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

@@ -32,20 +32,27 @@ function context(
 }
 
 describe("an app's request", () => {
-  it("opens on the identity list, also with nothing saved", () => {
+  it("opens on the identity list, or on the start page with nothing saved", () => {
     expect(initialSignerNavigation(context([READY], "ready", true), null)).toEqual({
       view: "choose",
     });
-    expect(initialSignerNavigation(context([], null, true), null)).toEqual({ view: "choose" });
+    expect(initialSignerNavigation(context([], null, true), null)).toEqual({
+      view: "add",
+      back: null,
+    });
   });
 
-  it("resumes a submitted account setup with Back leading to the list", () => {
-    expect(
-      initialSignerNavigation(context([READY], "ready", true), {
-        ...DRAFT,
-        registrationStarted: true,
-      }),
-    ).toEqual({ view: "create-account", back: "choose" });
+  it("resumes a submitted account setup with Back leading to the start page", () => {
+    const draft = { ...DRAFT, registrationStarted: true };
+    // Back leaves account creation for the start page, which returns to the list when there is one.
+    expect(initialSignerNavigation(context([READY], "ready", true), draft)).toEqual({
+      view: "create-account",
+      back: "choose",
+    });
+    expect(initialSignerNavigation(context([], null, true), draft)).toEqual({
+      view: "create-account",
+      back: null,
+    });
   });
 
   it("reviews the active identity from home and lists identities without one", () => {
@@ -54,7 +61,10 @@ describe("an app's request", () => {
     expect(resolveSignerNavigation(home, context([READY], null, true))).toEqual({
       view: "choose",
     });
-    expect(resolveSignerNavigation(home, context([], null, true))).toEqual({ view: "choose" });
+    expect(resolveSignerNavigation(home, context([], null, true))).toEqual({
+      view: "add",
+      back: null,
+    });
   });
 
   it("replaces the switcher with the list and keeps the list while the request waits", () => {
@@ -63,6 +73,23 @@ describe("an app's request", () => {
     });
     const choose: SignerNavigation = { view: "choose" };
     expect(resolveSignerNavigation(choose, context([READY], "ready", true))).toBe(choose);
+  });
+
+  it("shows the start page for an empty list, and keeps it once an identity is saved", () => {
+    expect(resolveSignerNavigation({ view: "choose" }, context([], null, true))).toEqual({
+      view: "add",
+      back: null,
+    });
+    expect(resolveSignerNavigation({ view: "switch" }, context([], null, true))).toEqual({
+      view: "add",
+      back: null,
+    });
+    // An identity saved while the start page is open (Google restores, say) leaves the page to
+    // the flow that saved it.
+    const start: SignerNavigation = { view: "add", back: null };
+    expect(resolveSignerNavigation(start, context([READY], "ready", true))).toBe(start);
+    const another: SignerNavigation = { view: "add", back: "choose" };
+    expect(resolveSignerNavigation(another, context([READY], "ready", true))).toBe(another);
   });
 
   it("never forces profile setup in front of the review", () => {

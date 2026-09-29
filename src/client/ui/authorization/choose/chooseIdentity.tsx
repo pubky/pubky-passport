@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { type FocusEvent, useId } from "react";
 
 import type { AuthorizationRequestReview } from "@/client/logic/authorization/request/ValidatedPubkyAuthRequest";
@@ -8,6 +7,7 @@ import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
 import { ArrowRightIcon, UserRoundPlusIcon, XIcon } from "@/client/ui/shared/icons";
 import { cn } from "@/client/ui/shared/mergeClassNames";
 import { Notice } from "@/client/ui/shared/notice";
+import { OrDivider } from "@/client/ui/shared/orDivider";
 import { PassportHeaderAction } from "@/client/ui/shared/passportHeaderAction";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
 import { SHORT_WINDOW_GAP } from "@/client/ui/shared/shortWindow";
@@ -27,38 +27,34 @@ const FILL_WINDOW =
 const FILL_SPACE = "[@media(min-height:36rem)]:[contain:size]";
 
 /**
- * The first step of a request: every saved identity, filling the window above the other ways to
- * sign in. Choosing one opens its permission review. With nothing saved only the other ways are
- * shown, and creating an account is the recommended one. A request for broad access is flagged
- * here too, because Continue with Pubky Ring hands it on without the review.
+ * The first step of a request with saved identities: every one of them, filling the window above
+ * the other ways to sign in. Choosing one opens its permission review; Use another identity opens
+ * the start page, and Continue with Pubky Ring hands the request to Ring. With nothing saved the
+ * shell shows the start page instead. A request for broad access is flagged here too, because
+ * Continue with Pubky Ring hands it on without the review.
  */
 export function ChooseIdentity({
   activePublicKeyZ32,
   identities,
-  moreOptionsLabel,
   onCancel,
-  onCreateAccount,
-  onMoreOptions,
   onOpenRing,
   onSelect,
+  onUseAnotherIdentity,
   review,
   selectionFailed = false,
 }: {
   activePublicKeyZ32: string | null;
   /** Shown with the name and avatar kept from earlier reads; this screen reads no profiles. */
   identities: readonly LocalIdentityMetadata[];
-  /** Names the other ways in, e.g. Google or an encrypted backup. */
-  moreOptionsLabel: string;
   onCancel: () => void;
-  onCreateAccount: () => void;
-  onMoreOptions: () => void;
   onOpenRing: () => void;
   onSelect: (publicKeyZ32: string) => void;
+  /** Opens the start page: create an account, Google, a recovery file or Pubky Ring. */
+  onUseAnotherIdentity: () => void;
   review: AuthorizationRequestReview;
   selectionFailed?: boolean;
 }) {
   const listId = useId();
-  const hasIdentities = identities.length > 0;
   // The identity used last comes first; nothing is chosen for this request yet.
   const ordered = [
     ...identities.filter(
@@ -78,61 +74,43 @@ export function ChooseIdentity({
       </PassportHeaderAction>
       <RequestHeading compact review={review} />
       <BroadAccessWarning capabilities={review.capabilities} />
-      {hasIdentities ? (
-        <div className={cn("flex min-h-0 flex-1 flex-col gap-2", FILL_SPACE)}>
-          <div className="flex items-baseline justify-between gap-3 text-sm font-medium leading-5 text-muted-foreground">
-            <p id={listId}>Choose the identity to sign in with.</p>
-            {identities.length > 1 ? (
-              // The list announces its own length; the count shows how far the list scrolls.
-              <span aria-hidden="true" className="shrink-0">
-                {identities.length} identities
-              </span>
-            ) : null}
-          </div>
-          <ul
-            aria-labelledby={listId}
-            className={cn(
-              // The bottom fades, so a row cut by the edge reads as more to scroll to; the scroll
-              // padding keeps a focused row clear of the fade.
-              "-mx-1 flex min-h-24 flex-1 scroll-pt-2 scroll-pb-4 flex-col gap-2 overflow-y-auto overscroll-contain p-1 pb-4 [mask-image:linear-gradient(to_bottom,black_calc(100%-1rem),transparent)]",
-              FILL_SPACE,
-            )}
-            onFocus={revealKeyboardFocus}
-            // Tailwind's preflight removes list markers, and WebKit then drops the list semantics
-            // unless the role is explicit.
-            role="list"
-          >
-            {ordered.map((identity) => {
-              const publicKeyZ32 = identity.publicIdentity.publicKeyZ32;
-              return (
-                <li className="shrink-0" key={publicKeyZ32}>
-                  <IdentityRow
-                    identity={identity}
-                    onClick={() => onSelect(publicKeyZ32)}
-                    trailing={<ArrowRightIcon className="shrink-0 text-muted-foreground" />}
-                  />
-                </li>
-              );
-            })}
-          </ul>
+      <div className={cn("flex min-h-0 flex-1 flex-col gap-2", FILL_SPACE)}>
+        <div className="flex items-baseline justify-between gap-3 text-sm font-medium leading-5 text-muted-foreground">
+          <p id={listId}>Choose the identity to sign in with.</p>
+          {identities.length > 1 ? (
+            // The list announces its own length; the count shows how far the list scrolls.
+            <span aria-hidden="true" className="shrink-0">
+              {identities.length} identities
+            </span>
+          ) : null}
         </div>
-      ) : (
-        <>
-          <p className="text-base leading-6 text-muted-foreground">
-            Create your Pubky account to sign in, or approve with Pubky Ring.
-          </p>
-          <div className={cn("flex min-h-0 flex-1 items-center justify-center", FILL_SPACE)}>
-            <Image
-              alt=""
-              aria-hidden="true"
-              className="h-full max-h-48 w-auto object-contain"
-              height={192}
-              src="/illustrations/identity-keys.png"
-              width={192}
-            />
-          </div>
-        </>
-      )}
+        <ul
+          aria-labelledby={listId}
+          className={cn(
+            // The bottom fades, so a row cut by the edge reads as more to scroll to; the scroll
+            // padding keeps a focused row clear of the fade.
+            "-mx-1 flex min-h-24 flex-1 scroll-pt-2 scroll-pb-8 flex-col gap-2 overflow-y-auto overscroll-contain p-1 pb-8 [mask-image:linear-gradient(to_bottom,black_calc(100%-2rem),transparent)]",
+            FILL_SPACE,
+          )}
+          onFocus={revealKeyboardFocus}
+          // Tailwind's preflight removes list markers, and WebKit then drops the list semantics
+          // unless the role is explicit.
+          role="list"
+        >
+          {ordered.map((identity) => {
+            const publicKeyZ32 = identity.publicIdentity.publicKeyZ32;
+            return (
+              <li className="shrink-0" key={publicKeyZ32}>
+                <IdentityRow
+                  identity={identity}
+                  onClick={() => onSelect(publicKeyZ32)}
+                  trailing={<ArrowRightIcon className="shrink-0 text-muted-foreground" />}
+                />
+              </li>
+            );
+          })}
+        </ul>
+      </div>
       {selectionFailed ? (
         <Notice tone="error">
           Couldn&apos;t choose this identity. Your browser didn&apos;t let Passport save your
@@ -140,31 +118,22 @@ export function ChooseIdentity({
         </Notice>
       ) : null}
       <div className="flex flex-col gap-4 [@media(max-height:50rem)]:gap-3">
-        {hasIdentities ? (
-          <div className="flex items-center gap-4 text-sm font-medium text-muted-foreground">
-            <span aria-hidden="true" className="h-px flex-1 bg-border" />
-            or
-            <span aria-hidden="true" className="h-px flex-1 bg-border" />
-          </div>
-        ) : null}
-        {/* A narrower inset keeps "Continue with Pubky Ring" on one line beside Create account in
-            the app's 520px popup, so the list above keeps its rows. */}
+        <OrDivider />
+        {/* A narrower inset keeps "Continue with Pubky Ring" on one line beside Use another
+            identity in the app's 520px popup, so the list above keeps its rows. */}
         <div className="grid gap-3 min-[30rem]:grid-cols-2">
           <Button
             className="w-full px-4"
-            onClick={onCreateAccount}
+            onClick={onUseAnotherIdentity}
             size="lg"
-            variant={hasIdentities ? "secondary" : "default"}
+            variant="secondary"
           >
-            <UserRoundPlusIcon /> Create account
+            <UserRoundPlusIcon /> Use another identity
           </Button>
           <Button className="w-full px-4" onClick={onOpenRing} size="lg" variant="secondary">
             <PubkyBrandIcon /> Continue with Pubky Ring
           </Button>
         </div>
-        <Button className="self-center" onClick={onMoreOptions} variant="ghost">
-          {moreOptionsLabel}
-        </Button>
       </div>
     </PassportScreen>
   );

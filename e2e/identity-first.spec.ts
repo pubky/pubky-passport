@@ -44,7 +44,7 @@ for (const count of [0, 1, 2]) {
       page.getByRole("heading", { name: count ? "Your pubky." : "Get your pubky." }),
     ).toBeVisible();
     await page.goto(`/authorize#d=${encodeURIComponent(REQUEST)}`);
-    // A request opens on its identity list; with nothing saved, only the ways to add one remain.
+    // A request opens on its identity list; with nothing saved, on the start page.
     // The heading names the waiting app, never by its label alone: this request has no
     // callbacks, so the line under the heading says it names no website.
     await expect(page.getByRole("heading", { name: "Sign in to Example App" })).toBeVisible();
@@ -55,9 +55,18 @@ for (const count of [0, 1, 2]) {
     await expect(list.getByRole("button")).toHaveCount(count);
     for (let index = 0; index < count; index++)
       await expect(page.getByText(`identity-${index}@example.com`, { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Create account" })).toHaveClass(
-      count ? /bg-secondary/u : /bg-brand/u,
+    // With identities, step one offers the start page one step away; without, it is the start page.
+    await expect(page.getByRole("button", { name: "Use another identity" })).toHaveCount(
+      count ? 1 : 0,
     );
+    if (count)
+      await expect(page.getByRole("button", { name: "Create account", exact: true })).toHaveCount(
+        0,
+      );
+    else
+      await expect(page.getByRole("button", { name: "Create account", exact: true })).toHaveClass(
+        /bg-brand/u,
+      );
     await expect(page.getByRole("img", { name: "Pubky authorization QR code" })).toHaveCount(0);
     await page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Sign in with Pubky Ring." })).toBeVisible();
@@ -155,13 +164,13 @@ test("screens remain accessible, scroll naturally and have one footer at each vi
     await inspect("ring-sign-in");
     await page.getByRole("button", { name: "Back", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Sign in to Example App" })).toBeVisible();
-    await page
-      .getByRole("button", { name: "Continue with Google or import a recovery file" })
-      .click();
+    await page.getByRole("button", { name: "Use another identity" }).click();
     await inspect("add-with-request");
-    // A focused step: the list's own options are not repeated there.
-    await expect(page.getByRole("region", { name: "Other ways to sign in" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Pubky Ring/u })).toHaveCount(0);
+    // The start page, still addressed to the app, with Pubky Ring below its cards.
+    await expect(page.getByRole("button", { name: "Create account", exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Continue with Pubky Ring", exact: true }),
+    ).toBeVisible();
     await page.getByRole("button", { name: "Back", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Sign in to Example App" })).toBeVisible();
 

@@ -3,19 +3,30 @@ import { invitesOnly } from "@/client/logic/homegate/verificationMethods";
 import type { LocalIdentityMetadata } from "@/client/logic/local-identity/localIdentityModels";
 import { IdentityEstablishmentFlow } from "@/client/ui/onboarding/identityEstablishmentFlow";
 import { ContinueWithGoogle } from "@/client/ui/onboarding/google/continueWithGoogle";
+import { BroadAccessWarning } from "@/client/ui/authorization/broadAccessWarning";
 import { RequestHeading } from "@/client/ui/authorization/requestHeading";
+import { cn } from "@/client/ui/shared/mergeClassNames";
 import { PassportScreen } from "@/client/ui/shared/passportScreen";
+import { SHORT_WINDOW_GAP } from "@/client/ui/shared/shortWindow";
 import { DisplayHeading, LeadText } from "@/client/ui/shared/primitives/typography";
 import { ProviderTerms, usePassportProvider } from "@/client/ui/passportProviderConfiguration";
 import { BackButton } from "@/client/ui/shared/backButton";
-import { CancelButton } from "@/client/ui/shared/cancelButton";
 import { ChoiceCard } from "@/client/ui/shared/choiceCard";
-import { FolderIcon, UserRoundPlusIcon } from "@/client/ui/shared/icons";
+import { FolderIcon, UserRoundPlusIcon, XIcon } from "@/client/ui/shared/icons";
+import { OrDivider } from "@/client/ui/shared/orDivider";
+import { PassportHeaderAction } from "@/client/ui/shared/passportHeaderAction";
 import { Button } from "@/client/ui/shared/primitives/button";
 import { PubkyBrandIcon } from "@/client/ui/shared/brand/pubkyBrandIcon";
 import { useHomegateAvailability } from "@/client/ui/homegateAvailability";
 import { GoogleSignupAvailability } from "@/client/ui/verificationAvailability";
 
+/**
+ * The start page: create an account, import a recovery file, Google, and Pubky Ring. During an
+ * app's request it is the request's first step when nothing is saved, and Use another identity
+ * opens it from the identity list; there Pubky Ring is a full button below an "or", because it
+ * answers the waiting app directly. Without a request, Ring is a quiet link for people who
+ * already use it.
+ */
 export function AddIdentity({
   request,
   onBack,
@@ -32,6 +43,7 @@ export function AddIdentity({
    */
   request?: AuthorizationRequestReview | undefined;
   onBack?: (() => void) | undefined;
+  /** Answers the waiting app from the header, when this page is the request's first step. */
   onCancel?: (() => void) | undefined;
   onComplete: (identity: LocalIdentityMetadata) => void;
   onImport: () => void;
@@ -41,13 +53,6 @@ export function AddIdentity({
   /** Adds an existing Ring identity through Passport's own connection; offered without a request. */
   onConnectRing?: (() => void) | undefined;
 }) {
-  // Handing a request over is named as on the review. Without one, connecting a Ring identity
-  // signs the person in to Passport with it.
-  const ring = onUseRing
-    ? { label: "Continue with Pubky Ring", action: onUseRing }
-    : onConnectRing
-      ? { label: "Sign in with Pubky Ring", action: onConnectRing }
-      : undefined;
   const forAuthorization = request !== undefined;
   const provider = usePassportProvider();
   const { methods, retry } = useHomegateAvailability();
@@ -59,20 +64,36 @@ export function AddIdentity({
       forAuthorization={forAuthorization}
       onComplete={onComplete}
       renderEntry={(startGoogle) => (
-        <PassportScreen width={showGoogle ? "wide" : "compact"} className="gap-6">
-          <div className="space-y-3">
-            {request ? (
-              <RequestHeading review={request} />
-            ) : (
+        <PassportScreen
+          width={showGoogle ? "wide" : "compact"}
+          className={cn("gap-6", forAuthorization && SHORT_WINDOW_GAP)}
+        >
+          {onCancel ? (
+            <PassportHeaderAction>
+              <Button onClick={onCancel} variant="secondary">
+                <XIcon /> Cancel
+              </Button>
+            </PassportHeaderAction>
+          ) : null}
+          {request ? (
+            // Compact like the identity list, and without a lead sentence, so the request's first
+            // step stays as short as it can in the app's 760px popup.
+            <RequestHeading compact review={request} />
+          ) : (
+            <div className="space-y-3">
               <AddIdentityHeading adding={Boolean(onBack)} />
+              <LeadText>Create an account or add one you already have.</LeadText>
+            </div>
+          )}
+          {/* Continue with Pubky Ring below hands the request on without its review. */}
+          {request ? <BroadAccessWarning capabilities={request.capabilities} /> : null}
+          <div
+            className={cn(
+              "grid gap-6",
+              showGoogle && "lg:grid-cols-2",
+              forAuthorization && SHORT_WINDOW_GAP,
             )}
-            <LeadText>
-              {forAuthorization
-                ? "To continue, create an account or add one you already have."
-                : "Create an account or add one you already have."}
-            </LeadText>
-          </div>
-          <div className={`grid gap-6 ${showGoogle ? "lg:grid-cols-2" : ""}`}>
+          >
             {/* The recommended path comes first in the DOM, so reading and tab order match. */}
             <ChoiceCard
               description={
@@ -106,18 +127,32 @@ export function AddIdentity({
               </ChoiceCard>
             ) : null}
           </div>
-          {ring ? (
-            // Quiet on purpose: Ring suits people who already have it, not newcomers.
+          {onUseRing ? (
+            // Only for an app's request: Ring answers the waiting app itself, named as on the
+            // identity list and the review.
+            <div className="flex flex-col gap-4 [@media(max-height:50rem)]:gap-3">
+              <OrDivider />
+              <Button
+                className="w-full self-center md:max-w-sm"
+                onClick={onUseRing}
+                size="lg"
+                variant="secondary"
+              >
+                <PubkyBrandIcon /> Continue with Pubky Ring
+              </Button>
+            </div>
+          ) : onConnectRing ? (
+            // Quiet on purpose: Ring suits people who already have it, not newcomers. Connecting
+            // a Ring identity signs the person in to Passport with it.
             <p className="flex flex-wrap items-center justify-center gap-x-1 text-center text-sm leading-5 text-muted-foreground">
               Already use Pubky Ring?
-              <Button onClick={ring.action} variant="link">
-                <PubkyBrandIcon /> {ring.label}
+              <Button onClick={onConnectRing} variant="link">
+                <PubkyBrandIcon /> Sign in with Pubky Ring
               </Button>
             </p>
           ) : null}
           <ProviderTerms />
           {onBack ? <BackButton className="mt-3" onClick={onBack} /> : null}
-          {onCancel ? <CancelButton className="mt-3" onClick={onCancel} /> : null}
         </PassportScreen>
       )}
     />

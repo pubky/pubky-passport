@@ -554,9 +554,10 @@ describe("UniversalSignerFlow with an authorization request", () => {
     // Nothing is chosen for this request yet, so no row reads as pressed.
     for (const row of rows) expect(row).not.toHaveAttribute("aria-pressed");
     expect(screen.queryByRole("button", { name: "Authorize" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Create account" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continue with Pubky Ring" })).toBeInTheDocument();
     expect(screen.getByText("or")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Use another identity" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue with Pubky Ring" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create account" })).not.toBeInTheDocument();
 
     await user.click(rows[1]!);
     expect(MOCKS.select).toHaveBeenCalledWith(FIRST.publicIdentity.publicKeyZ32);
@@ -671,32 +672,28 @@ describe("UniversalSignerFlow with an authorization request", () => {
     expect(screen.getByText("seco…-key")).not.toHaveClass("uppercase");
   });
 
-  it("adds an identity with Google or a backup from the list without losing the request", async () => {
+  it("uses another identity from the start page without losing the request", async () => {
     const user = userEvent.setup();
     renderFlow();
 
-    await user.click(
-      await screen.findByRole("button", { name: "Continue with Google or import a recovery file" }),
-    );
+    await user.click(await screen.findByRole("button", { name: "Use another identity" }));
 
-    // A focused step: the request's heading, Google and a backup, and none of the list's options.
+    // The start page, still addressed to the waiting app, with every way in and Back to the list.
     expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
-    const otherWays = screen.getByRole("region", { name: "Other ways to sign in" });
-    expect(
-      within(otherWays)
-        .getAllByRole("button")
-        .map((button) => button.getAttribute("aria-label") ?? button.textContent?.trim()),
-    ).toEqual(expect.arrayContaining(["About signing in with Google", "Import recovery file"]));
-    expect(screen.queryByRole("button", { name: "Create account" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Pubky Ring/u })).not.toBeInTheDocument();
+    for (const name of [
+      "Create account",
+      "Import recovery file",
+      "Continue with Google",
+      "Continue with Pubky Ring",
+    ])
+      expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
     expect(screen.getAllByLabelText("Signing in to requesting.app")).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(
       screen.getByRole("list", { name: "Choose the identity to sign in with." }),
     ).toBeInTheDocument();
-    await user.click(
-      screen.getByRole("button", { name: "Continue with Google or import a recovery file" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Use another identity" }));
     await user.click(screen.getByRole("button", { name: "Continue with Google" }));
     // A restore needs no confirmation screen; the review comes straight back.
     expect(await screen.findByRole("button", { name: "Authorize" })).toBeInTheDocument();
@@ -704,7 +701,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
     expect(screen.queryByRole("heading", { name: "Restore complete." })).not.toBeInTheDocument();
   });
 
-  it("without Google, opens the backup import straight from the list", async () => {
+  it("without Google, the start page offers the recovery file import and Pubky Ring", async () => {
     const user = userEvent.setup();
     render(
       withPassportTestProviders(
@@ -714,23 +711,31 @@ describe("UniversalSignerFlow with an authorization request", () => {
       ),
     );
 
-    await user.click(await screen.findByRole("button", { name: "Import a recovery file" }));
+    await user.click(await screen.findByRole("button", { name: "Use another identity" }));
+    expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue with Pubky Ring" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Import recovery file" }));
     expect(
       await screen.findByRole("heading", { name: /Import (your )?(backup|recovery file)/iu }),
     ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("region", { name: "Hold your own key" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(
       screen.getByRole("list", { name: "Choose the identity to sign in with." }),
     ).toBeInTheDocument();
   });
 
-  it("creates an account from the list, and Back returns to the list", async () => {
+  it("creates an account from the start page, and Back returns there, then to the list", async () => {
     const user = userEvent.setup();
     renderFlow();
 
-    await user.click(await screen.findByRole("button", { name: "Create account" }));
+    await user.click(await screen.findByRole("button", { name: "Use another identity" }));
+    await user.click(screen.getByRole("button", { name: "Create account" }));
     expect(await screen.findByRole("heading", { name: /Create your/u })).toBeInTheDocument();
     expect(screen.getAllByLabelText("Signing in to requesting.app")).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("region", { name: "Hold your own key" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back" }));
 
     expect(
@@ -742,9 +747,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
   it("offers Back and Cancel when an added identity cannot be selected", async () => {
     const user = userEvent.setup();
     renderFlow();
-    await user.click(
-      await screen.findByRole("button", { name: "Continue with Google or import a recovery file" }),
-    );
+    await user.click(await screen.findByRole("button", { name: "Use another identity" }));
     MOCKS.select.mockReturnValue(Result.err({ code: "storage_unavailable" as const }));
     await user.click(screen.getByRole("button", { name: "Continue with Google" }));
 
@@ -754,9 +757,7 @@ describe("UniversalSignerFlow with an authorization request", () => {
     expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Switch identity" }));
-    await user.click(
-      screen.getByRole("button", { name: "Continue with Google or import a recovery file" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Use another identity" }));
     await user.click(screen.getByRole("button", { name: "Continue with Google" }));
     const cancel = await screen.findByRole("button", { name: "Cancel" });
     // Answering the app is a side action: a text action in the row under Back and Select
@@ -769,24 +770,51 @@ describe("UniversalSignerFlow with an authorization request", () => {
     expect(MOCKS.approve).not.toHaveBeenCalled();
   });
 
-  it("shows only the other ways in, account creation first, when no identity is saved", async () => {
+  it("shows the start page and then Pubky Ring below an or when no identity is saved", async () => {
     MOCKS.catalog = { activePublicKeyZ32: null, identities: [] };
+    const user = userEvent.setup();
     renderFlow();
 
     expect(
       await screen.findByRole("heading", { name: "Sign in to requesting.app" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Create account" })).toBeInTheDocument();
     expect(screen.getByLabelText("Signing in to requesting.app")).toBeInTheDocument();
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
-    expect(screen.queryByText("or")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Switch identity" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Use another identity" })).not.toBeInTheDocument();
     // Creating an account is the recommended way in: the brand button, not a secondary one.
     expect(screen.getByRole("button", { name: "Create account" })).toHaveClass("bg-brand/16");
-    expect(screen.getByRole("button", { name: "Continue with Pubky Ring" })).toHaveClass(
-      "bg-secondary",
+    expect(screen.getByRole("button", { name: "Import recovery file" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
+    const ring = screen.getByRole("button", { name: "Continue with Pubky Ring" });
+    expect(ring).toHaveClass("bg-secondary");
+    expect(screen.getByText("or").compareDocumentPosition(ring)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
     );
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+
+    // Ring gets the request unchanged, and Back comes back to the start page.
+    await user.click(ring);
+    expect(screen.getByRole("heading", { name: "Sign in with Pubky Ring." })).toHaveFocus();
+    expect(screen.getByRole("img", { name: "Pubky authorization QR code" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("region", { name: "Hold your own key" })).toBeInTheDocument();
+    expect(MOCKS.approve).not.toHaveBeenCalled();
+    expect(MOCKS.cancel).not.toHaveBeenCalled();
+  });
+
+  it("returns account creation to the start page when no identity is saved", async () => {
+    MOCKS.catalog = { activePublicKeyZ32: null, identities: [] };
+    const user = userEvent.setup();
+    renderFlow();
+
+    await user.click(await screen.findByRole("button", { name: "Create account" }));
+    expect(await screen.findByRole("heading", { name: /Create your/u })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
   });
 
   it("shows no context band during setup when the request has no callback host", async () => {
@@ -814,17 +842,16 @@ describe("UniversalSignerFlow with an authorization request", () => {
     const user = userEvent.setup();
     MOCKS.catalog = { activePublicKeyZ32: null, identities: [] };
     renderFlow();
-    await user.click(
-      await screen.findByRole("button", { name: "Continue with Google or import a recovery file" }),
-    );
-    await screen.findByRole("region", { name: "Other ways to sign in" });
+    await screen.findByRole("region", { name: "Google account" });
 
     MOCKS.catalog = { activePublicKeyZ32: FIRST.publicIdentity.publicKeyZ32, identities: [FIRST] };
     act(() => {
       MOCKS.catalogListener?.();
     });
 
-    expect(screen.getByRole("region", { name: "Other ways to sign in" })).toBeInTheDocument();
+    // The start page stays for the flow that saved the identity; the list does not replace it.
+    expect(screen.getByRole("region", { name: "Google account" })).toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Authorize" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Continue with Google" }));
@@ -832,6 +859,26 @@ describe("UniversalSignerFlow with an authorization request", () => {
     expect(await screen.findByRole("button", { name: "Authorize" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Sign in to requesting.app" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Restore complete." })).not.toBeInTheDocument();
+  });
+
+  it("offers Back to the list when an identity is saved elsewhere during the first step", async () => {
+    const user = userEvent.setup();
+    MOCKS.catalog = { activePublicKeyZ32: null, identities: [] };
+    renderFlow();
+    await screen.findByRole("region", { name: "Hold your own key" });
+    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+
+    // Saved by another tab, with no addition flow open here.
+    MOCKS.catalog = { activePublicKeyZ32: FIRST.publicIdentity.publicKeyZ32, identities: [FIRST] };
+    act(() => {
+      MOCKS.catalogListener?.();
+    });
+
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("button", { name: /First User/u })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Use another identity" })).toBeInTheDocument();
+    expect(MOCKS.cancel).not.toHaveBeenCalled();
   });
 
   it("cancels authorization from first-identity setup", async () => {
